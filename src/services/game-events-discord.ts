@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { DiscordJob, PrismaClient } from "../generated/prisma/client.js";
 import { ChannelType, EmbedBuilder, PermissionFlagsBits, type Guild, type Message, type TextChannel } from "discord.js";
 import { EVENT_TRANSACTION_OPTIONS, eventBoardEmbeds, eventDetails, eventEmbedsHash, eventLock, eventText, reminderDue, reminderSettings } from "./game-events.js";
+import { retryTransientTransaction } from "./transaction-retry.js";
 import { selfRoleProblem } from "./selfrole.js";
 
 export function missingDiscordMessage(error: unknown): boolean {
@@ -41,7 +42,8 @@ export async function findEventMessage(channel: TextChannel, marker: string, sin
   }
 }
 
-/** Recover Discord state outside the transaction; lock/revalidate only for the final write. */
+/** Recover Discord state outside the transaction. The global event lock is held
+ * only for the recheck and the final id write — never across Discord HTTP. */
 export async function deliverGameEvent(guild: Guild, database: PrismaClient, job: DiscordJob, now = new Date()): Promise<void> {
   const payload = job.payload as Record<string, unknown>;
   const query = { where: { id: String(payload['boardId']), guildId: job.guildId, guild: { discordId: guild.id } }, include: { guild: { include: { settings: true as const } } } };
@@ -63,37 +65,47 @@ export async function deliverGameEvent(guild: Guild, database: PrismaClient, job
   if (!message) message = await findEventMessage(channel, marker, job.kind === "GAME_EVENT_REMINDER" ? job.createdAt : initial.createdAt, deadline);
   if (Date.now() >= deadline) throw new Error("Event preflight time limit reached");
   if (job.kind === "GAME_EVENT_REMINDER" && message) return;
-  await database.$transaction(async tx => {
+  const plan = await retryTransientTransaction(() => database.$transaction(async tx => {
     await eventLock(tx);
     const board = await tx.gameEventBoard.findFirst(query);
-    if (!board || (!board.enabled && job.kind === "GAME_EVENT_REMINDER")) return;
+    if (!board || (!board.enabled && job.kind === "GAME_EVENT_REMINDER")) return null;
     // A concurrent edit/delivery invalidates the recovered message/role. Retry
     // through the durable job instead of acting on a stale Discord target.
     if (board.updatedAt.getTime() !== initial.updatedAt.getTime() || board.messageId !== initial.messageId || board.channelId !== initial.channelId) throw new Error("Event board changed during preflight");
     const fr = board.guild.settings?.language === "fr";
     if (job.kind === "GAME_EVENT_REMINDER") {
       const event = await tx.officialGameEvent.findUnique({ where: { id: String(payload['eventId']) } });
-      if (!event || event.scheduleVersion !== payload['scheduleVersion'] || !reminderDue(event, board, minutes, new Date(Math.max(now.getTime(), Date.now())))) return;
+      if (!event || event.scheduleVersion !== payload['scheduleVersion'] || !reminderDue(event, board, minutes, new Date(Math.max(now.getTime(), Date.now())))) return null;
       if (!role || reminderSettings(board, event.game).role !== role.id) throw new Error("Event reminder role changed during preflight");
       const label = minutes === 0 ? eventText(fr, "Scheduled time reached", "Heure prévue atteinte") : `${minutes === 1440 ? 24 : 1} h`;
-      await channel.send({ content: `<@&${role.id}>`,
+      return { kind: "reminder" as const, content: `<@&${role.id}>`, roleId: role.id,
         embeds: [new EmbedBuilder().setTitle(`${label} · ${fr ? event.titleFr : event.titleEn}`)
           .setDescription(`${eventDetails(event, fr, now)}\n${eventText(fr, "This is not confirmation that servers are online.", "Ceci ne confirme pas que les serveurs sont en ligne.")}`)
-          .setFooter({ text: marker })], allowedMentions: { parse: [], roles: [role.id], users: [], repliedUser: false },
-        nonce: createHash("sha256").update(job.id).digest("hex").slice(0, 24), enforceNonce: true });
-      return;
+          .setFooter({ text: marker })] };
     }
-    if (!message && !board.enabled) return;
+    if (!message && !board.enabled) return null;
     const events = await tx.officialGameEvent.findMany({ where: { archived: false }, orderBy: { id: "asc" } });
-    const embeds = eventBoardEmbeds(events, board, fr, new Date(Math.max(now.getTime(), Date.now())));
+    const at = new Date(Math.max(now.getTime(), Date.now()));
+    const embeds = eventBoardEmbeds(events, board, fr, at);
     const hash = eventEmbedsHash(embeds);
-    if (!message) {
-      message = await channel.send({ embeds, allowedMentions: { parse: [] }, nonce: board.id.slice(-25), enforceNonce: true });
-    } else if (board.contentHash !== hash) {
-      await message.edit({ embeds, allowedMentions: { parse: [] } });
-    }
-    if (board.enabled && !message.pinned) await message.pin();
-    if (!board.enabled && message.pinned) await message.unpin();
-    await tx.gameEventBoard.update({ where: { id: board.id }, data: { messageId: message.id, contentHash: hash } });
-  }, { ...EVENT_TRANSACTION_OPTIONS, timeout: 60_000 });
+    return { kind: "board" as const, embeds, hash, previousHash: board.contentHash, enabled: board.enabled, id: board.id };
+  }, EVENT_TRANSACTION_OPTIONS));
+  if (!plan) return;
+  if (plan.kind === "reminder") {
+    await channel.send({ content: plan.content, embeds: plan.embeds, allowedMentions: { parse: [], roles: [plan.roleId], users: [], repliedUser: false },
+      nonce: createHash("sha256").update(job.id).digest("hex").slice(0, 24), enforceNonce: true });
+    return;
+  }
+  let posted = message;
+  if (!posted) posted = await channel.send({ embeds: plan.embeds, allowedMentions: { parse: [] }, nonce: plan.id.slice(-25), enforceNonce: true });
+  else if (plan.previousHash !== plan.hash) await posted.edit({ embeds: plan.embeds, allowedMentions: { parse: [] } });
+  if (plan.enabled && !posted.pinned) await posted.pin();
+  if (!plan.enabled && posted.pinned) await posted.unpin();
+  const saved = posted;
+  await retryTransientTransaction(() => database.$transaction(async tx => {
+    await eventLock(tx);
+    const board = await tx.gameEventBoard.findFirst(query);
+    if (!board || board.updatedAt.getTime() !== initial.updatedAt.getTime() || board.messageId !== initial.messageId || board.channelId !== initial.channelId) throw new Error("Event board changed during preflight");
+    await tx.gameEventBoard.update({ where: { id: board.id }, data: { messageId: saved.id, contentHash: plan.hash } });
+  }, EVENT_TRANSACTION_OPTIONS));
 }

@@ -32,10 +32,17 @@ function store(row = activity) {
     guildSettings: { findUnique: vi.fn(async () => ({ language: "fr" })) }
   };
   const db = { ...tx, $transaction: vi.fn(async (work: (transaction: typeof tx) => Promise<unknown>) => work(tx)) };
-  return { tx, service: createCommunityService(db as never) };
+  return { tx, db, service: createCommunityService(db as never) };
 }
 
 describe("community accounting and lottery rules", () => {
+  it("keeps the guild lock inside a short transaction that can be retried", async () => {
+    const { db, tx, service } = store();
+    tx.communitySeason.findFirst.mockResolvedValueOnce(null as never);
+    await service.startSeason("guild", { name: "October", game: "DISCORD", channelId: "channel", audienceRoleId: null, actorId: "officer" });
+    expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { maxWait: 8_000, timeout: 15_000 });
+  });
+
   it("spending changes the wallet while the earned leaderboard stays intact", () => {
     expect(standings([{ userId: "a", amount: 100, kind: "AWARD" }, { userId: "a", amount: -30, kind: "SPEND" }, { userId: "a", amount: 10, kind: "REFUND" }, { userId: "a", amount: -20, kind: "REVERSAL" }])).toEqual([{ userId: "a", points: 80, balance: 60 }]);
   });

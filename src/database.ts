@@ -97,6 +97,8 @@ export function createPrismaClient(url = process.env["DATABASE_URL"]): PrismaCli
   // allows 30s for connection acquisition. Match the configured pool wait for
   // every caller, keeping a finite default when pg's timeout is disabled (0).
   // This does not extend transaction execution time or enlarge the pool.
+  // Callers that can fail fast use a shorter maxWait and retry the start
+  // (transaction-retry.ts). A longer wait here only applies when they don't.
   return new PrismaClient({ adapter, transactionOptions: {
     maxWait: settings.connectionTimeoutMillis || DEFAULT_TIMEOUT_SECONDS * 1000
   } });

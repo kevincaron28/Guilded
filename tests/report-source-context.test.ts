@@ -96,6 +96,20 @@ describe("report source context", () => {
     expect(s.send.mock.calls[1]![0].content).not.toContain("evil.example");
   });
 
+  it("posts the guild name and channel for a background transaction failure", async () => {
+    const s = fixture();
+    await s.service.report(s.client, new Error("Transaction API error: Unable to start a transaction in the given time."), {
+      source: "Upcoming game events", guildId: guild, guildName: "Quebec Gold", channelId: channel, operation: "game-events.reconcile"
+    });
+    const content = s.send.mock.calls[0]![0].content;
+    expect(content).toContain("Quebec Gold");
+    expect(content).toContain(`(${guild})`);
+    expect(content).toContain(`Source guild: ${guild} · channel: ${channel}`);
+    const stored = (s.save.mock.calls[0] as unknown as [{ data: Record<string, unknown> }])[0].data;
+    expect(stored["guildId"]).toBe(guild);
+    expect(decodeReportOrigin(stored["context"] as string).channelId).toBe(channel);
+  });
+
   it("keeps host-wide context unknown instead of assigning the developer inbox as the source", async () => {
     const s = fixture();
     await s.service.report(s.client, new TypeError("Host failure"), { source: "context-test-global" });

@@ -24,7 +24,24 @@ export function backupsToDelete(files: string[], keep: number): string[] {
 
 const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1);
 
+// The hourly copy and the season-rotation copy both take a Repeatable Read snapshot
+// of every table. Running them together holds two connections for up to a minute
+// and was enough, with the other startup jobs, to stop new transactions from starting.
+let backupQueue: Promise<unknown> = Promise.resolve();
+
 export async function runBackup(database: PrismaClient, now = new Date(), dir = BACKUP_DIR, keep = 14): Promise<{ file: string; rows: number } | null> {
+  const previous = backupQueue;
+  let release!: () => void;
+  backupQueue = new Promise<void>(resolve => { release = resolve; });
+  await previous.catch(() => undefined);
+  try {
+    return await writeBackup(database, now, dir, keep);
+  } finally {
+    release();
+  }
+}
+
+async function writeBackup(database: PrismaClient, now: Date, dir: string, keep: number): Promise<{ file: string; rows: number } | null> {
   await mkdir(dir, { recursive: true, mode: 0o700 });
   await chmod(dir, 0o700);
   const existing = await readdir(dir);

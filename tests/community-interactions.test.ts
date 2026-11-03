@@ -85,6 +85,21 @@ describe("persistent community interactions", () => {
     await expect(handleCommunityButton(button as never)).rejects.toThrow("Access denied");
     expect(mocks.enterLottery).not.toHaveBeenCalled();
   });
+  it("acknowledges a nomination decision before looking up the guild", async () => {
+    const form = interaction("community:hub-nomdecide:claim:approve") as ReturnType<typeof interaction> & {
+      deferred: boolean; deferUpdate: ReturnType<typeof vi.fn>; isFromMessage: () => boolean; followUp: ReturnType<typeof vi.fn>;
+    };
+    form.deferred = false;
+    form.deferUpdate = vi.fn(async () => { form.deferred = true; });
+    form.isFromMessage = () => true;
+    form.followUp = vi.fn(async () => undefined);
+    mocks.ensureGuild.mockImplementationOnce(async () => {
+      expect(form.deferUpdate).toHaveBeenCalledOnce();
+      return { id: "guild" };
+    });
+    await handleCommunityHub(form as never);
+    expect(form.deferUpdate.mock.invocationCallOrder[0]).toBeLessThan(mocks.ensureGuild.mock.invocationCallOrder[0]!);
+  });
   it("rechecks officer authority at template submission, even with an old valid form", async () => {
     await expect(handleCommunityHub(interaction("community:hub-create-quiz:season") as never)).rejects.toThrow("Access denied");
     expect(mocks.create).not.toHaveBeenCalled();

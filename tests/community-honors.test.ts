@@ -102,9 +102,18 @@ describe("advancing the honors", () => {
   it("moves the weekly role to the week's top earner and posts once", async () => {
     const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", weeklyHolderIds: ["old"], monthSeasonId: "sept" };
     const { database, tx, jobs } = fakeDatabase(honors, { points, ended: { id: "sept" } });
-    const lookup = vi.fn(async (ids: string[]) => new Map(ids.map(id => [id, `Name ${id}`])));
+    const order: string[] = [];
+    const raw = database.$transaction;
+    database.$transaction = ((fn: (value: unknown) => unknown, options: unknown) => {
+      order.push("tx");
+      expect(options).toMatchObject({ maxWait: 8_000, timeout: 15_000 });
+      return raw(fn as never);
+    }) as typeof database.$transaction;
+    const lookup = vi.fn(async (ids: string[]) => { order.push("names"); return new Map(ids.map(id => [id, `Name ${id}`])); });
     expect(await advanceCommunityHonors(database, "guild", now, lookup)).toEqual({ week: "2026-09-28", seasonId: null });
+    expect(lookup).toHaveBeenCalledOnce();
     expect(lookup).toHaveBeenCalledWith(["b", "a"]);
+    expect(order.indexOf("names")).toBeLessThan(order.indexOf("tx"));
     // Spending lottery points never lowers the earned score.
     expect(honors).toMatchObject({ week: "2026-09-28", weeklyHolderIds: ["b"], rolesPending: true });
     expect(tx.communityPoint.findMany.mock.calls[0]).toMatchObject([{ where: { season: { guildId: "guild", game: "DISCORD", audienceRoleId: null } } }]);

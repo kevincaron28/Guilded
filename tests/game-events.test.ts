@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Collection, ChannelType, PermissionFlagsBits, type Guild, type TextChannel } from "discord.js";
 import type { DiscordJob, GameEventBoard, OfficialGameEvent, PrismaClient } from "../src/generated/prisma/client.js";
-import { EVENT_GAMES, retainEventReminders, reminderSettings, effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, eventEmbedsHash, officialEventSource, parseEventInstant, queueGameEvents, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
+import { EVENT_GAMES, EVENT_TRANSACTION_OPTIONS, retainEventReminders, reminderSettings, effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, eventEmbedsHash, officialEventSource, parseEventInstant, queueGameEvents, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
 import { deliverGameEvent, eventRole, findEventMessage } from "../src/services/game-events-discord.js";
 import { ownerEventsCommand, executeGameEvents, executeOwnerEvents } from "../src/commands/game-events.js";
 
@@ -193,7 +193,11 @@ describe("delivery and restart recovery", () => {
   });
   it("only pings the explicitly configured role", async () => {
     const h = harness(); await deliverGameEvent(h.guild, h.db, h.job, now);
+    const transaction = h.db.$transaction as unknown as ReturnType<typeof vi.fn>;
     expect(h.send).toHaveBeenCalledOnce();
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function), EVENT_TRANSACTION_OPTIONS);
+    expect(transaction.mock.invocationCallOrder[0]).toBeLessThan(h.send.mock.invocationCallOrder[0]!);
     expect(h.send.mock.calls[0]![0].allowedMentions).toEqual({ parse: [], roles: ["role"], users: [], repliedUser: false });
   });
   it.each(["version", "cancelled", "disabled", "role"])('rechecks %s immediately before delivery', async reason => {
@@ -223,6 +227,9 @@ describe("delivery and restart recovery", () => {
     h.channel.messages.fetch.mockRejectedValueOnce({ code: 10008 }).mockResolvedValueOnce(new Collection([["recovered", recovered]]));
     await deliverGameEvent(h.guild, h.db, h.job, now);
     expect(h.send).not.toHaveBeenCalled(); expect(recovered.pin).toHaveBeenCalledOnce();
+    const transaction = h.db.$transaction as unknown as ReturnType<typeof vi.fn>;
+    expect(transaction).toHaveBeenNthCalledWith(1, expect.any(Function), EVENT_TRANSACTION_OPTIONS);
+    expect(transaction).toHaveBeenNthCalledWith(2, expect.any(Function), EVENT_TRANSACTION_OPTIONS);
     expect(h.tx.gameEventBoard.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ messageId: "recovered" }) }));
   });
   it("does not recreate or send when history cannot be read", async () => {
@@ -241,10 +248,17 @@ describe("delivery and restart recovery", () => {
 
 it("refuses server members and non-owner administrators before touching the database", async () => {
   const reply = vi.fn();
-  await executeGameEvents({ guild: { members: { fetch: async () => ({ permissions: { has: () => false } }) } }, user: { id: "member" }, reply } as never);
-  expect(reply).toHaveBeenCalledOnce(); reply.mockClear();
-  await executeOwnerEvents({ client: { application: { fetch: async () => ({ owner: { id: "owner" } }) } }, user: { id: "admin" }, reply } as never);
+  const fetch = vi.fn();
+  await executeGameEvents({ guild: { members: { fetch } }, memberPermissions: { has: () => false }, user: { id: "member" }, reply } as never);
   expect(reply).toHaveBeenCalledOnce();
+  expect(fetch).not.toHaveBeenCalled();
+  reply.mockClear();
+  const deferReply = vi.fn(async () => undefined);
+  const editReply = vi.fn();
+  await executeOwnerEvents({ client: { application: { fetch: async () => ({ owner: { id: "owner" } }) } }, user: { id: "admin" }, deferReply, editReply, reply } as never);
+  expect(reply).not.toHaveBeenCalled();
+  expect(deferReply).toHaveBeenCalledOnce();
+  expect(editReply).toHaveBeenCalledOnce();
 });
 
 it("the owner command fits Discord limits and has required options before optional ones", () => {

@@ -6,6 +6,7 @@ import { assertLotteryGame, challengeRules, COMMUNITY_GAMES, COMMUNITY_REWARDS, 
 import { communityActivityChannel, communityMonthName, communitySeasonLabel } from "./community-display.js";
 import { asLang } from "../i18n.js";
 import { localParts } from "./raid-time.js";
+import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 
 type Tx = Prisma.TransactionClient;
 const fail = (message: string): never => { throw new Error(message); };
@@ -14,10 +15,10 @@ const json = (value: unknown) => value as Prisma.InputJsonValue;
 // A single guild lock serializes wallet spends, approvals, capacity and draws.
 // PostgreSQL READ COMMITTED reads the preceding lock holder's committed changes.
 export function createCommunityService(database: PrismaClient) {
-  const locked = <T>(guildId: string, work: (tx: Tx) => Promise<T>) => database.$transaction(async tx => {
+  const locked = <T>(guildId: string, work: (tx: Tx) => Promise<T>) => retryTransientTransaction(() => database.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`community:${guildId}`}, 0))`;
     return work(tx);
-  }, { timeout: 20_000 });
+  }, SHORT_TRANSACTION));
   const season = async (tx: Tx, guildId: string, id: string, active = true) => {
     const row = await tx.communitySeason.findFirst({ where: { id, guildId } });
     if (!row) return fail("Saison introuvable / Season not found.");

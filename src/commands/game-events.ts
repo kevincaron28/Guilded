@@ -3,6 +3,7 @@ import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, ty
 import { prisma } from "../database.js";
 import { botOwnerId } from "./owner-season.js";
 import { EVENT_GAMES, EVENT_REGIONS, EVENT_STATES, EVENT_TRANSACTION_OPTIONS, GameEventInputError, eventGameLabel, reminderSettings, retainEventReminders, eventBoardEmbeds, eventLock, eventText, parseEventInstant, saveOfficialEvent } from "../services/game-events.js";
+import { retryTransientTransaction } from "../services/transaction-retry.js";
 import { eventChannel, eventRole } from "../services/game-events-discord.js";
 import { enqueueDiscordJob } from "../services/discord-jobs.js";
 
@@ -57,7 +58,9 @@ export const ownerEventsCommand = new SlashCommandBuilder().setName(OWNER_EVENTS
 
 export async function executeGameEvents(interaction: ChatInputCommandInteraction): Promise<void> {
   const guild = interaction.guild;
-  if (!guild || !(await guild.members.fetch({ user: interaction.user.id, force: true })).permissions.has(PermissionFlagsBits.ManageGuild)) {
+  // memberPermissions is on the interaction payload. A forced member fetch here
+  // used to run past Discord's 3-second ack window when the pool was busy.
+  if (!guild || !interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild)) {
     await interaction.reply({ content: "Manage Server is required. / La permission Gérer le serveur est requise.", flags: MessageFlags.Ephemeral }); return;
   }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -75,7 +78,7 @@ export async function executeGameEvents(interaction: ChatInputCommandInteraction
       await eventRole(guild, role.id, channel!);
       checkedRoleId = role.id;
     }
-    const board = await prisma.$transaction(async tx => {
+    const board = await retryTransientTransaction(() => prisma.$transaction(async tx => {
       await eventLock(tx);
       let current = await tx.gameEventBoard.findUnique({ where: { guildId_channelId: { guildId: record.id, channelId } } });
       if (sub === "board") {
@@ -102,7 +105,7 @@ export async function executeGameEvents(interaction: ChatInputCommandInteraction
       }
       if (sub !== "status") await enqueueDiscordJob(tx, record.id, `game-board:${current.id}`, "GAME_EVENT_BOARD", { boardId: current.id });
       return current;
-    }, EVENT_TRANSACTION_OPTIONS);
+    }, EVENT_TRANSACTION_OPTIONS));
     const events = await prisma.officialGameEvent.findMany({ where: { archived: false }, orderBy: { id: "asc" } });
     const job = await prisma.discordJob.findUnique({ where: { guildId_key: { guildId: record.id, key: `game-board:${board.id}` } } });
     const status = `${board.games.map(game => `${eventGameLabel(game)}: ${reminderSettings(board, game).offsets.join(" / ") || "off"}`).join("; ")} (${eventText(fr, "minutes before; 0 = start", "minutes avant ; 0 = début")}).`;
@@ -114,10 +117,10 @@ export async function executeGameEvents(interaction: ChatInputCommandInteraction
 }
 
 export async function executeOwnerEvents(interaction: ChatInputCommandInteraction): Promise<void> {
-  if (interaction.user.id !== await botOwnerId(interaction.client)) {
-    await interaction.reply({ content: "Only the bot owner manages official dates. / Seul le propriétaire du bot gère les dates officielles.", flags: MessageFlags.Ephemeral }); return;
-  }
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (interaction.user.id !== await botOwnerId(interaction.client)) {
+    await interaction.editReply({ content: "Only the bot owner manages official dates. / Seul le propriétaire du bot gère les dates officielles." }); return;
+  }
   const sub = interaction.options.getSubcommand();
   const str = (name: string) => interaction.options.getString(name, true);
   try {
@@ -131,10 +134,10 @@ export async function executeOwnerEvents(interaction: ChatInputCommandInteractio
       if (!old) throw new GameEventInputError("Unknown event. / Événement inconnu.");
       await saveOfficialEvent(prisma, { ...old, state: str("state"), startsAt: null, dateLabelEn: "", dateLabelFr: "", sourceUrl: str("source") }, interaction.user.id);
     } else if (sub === "archive") {
-      await prisma.$transaction(async tx => {
+      await retryTransientTransaction(() => prisma.$transaction(async tx => {
         await eventLock(tx);
         await tx.officialGameEvent.update({ where: { id: str("id") }, data: { archived: true, scheduleVersion: { increment: 1 }, updatedBy: interaction.user.id } });
-      }, EVENT_TRANSACTION_OPTIONS);
+      }, EVENT_TRANSACTION_OPTIONS));
     }
     const events = await prisma.officialGameEvent.findMany({ orderBy: { updatedAt: "desc" }, take: 20 });
     await interaction.editReply({ content: `${sub === "list" ? "" : "Saved; boards refresh within a minute. / Enregistré ; actualisation sous une minute.\n"}${events.map(e => `${e.id} · ${e.archived ? "ARCHIVED" : e.state} · ${e.startsAt?.toISOString() ?? "TBA"}`).join("\n") || "—"}`.slice(0, 1950), allowedMentions: { parse: [] } });

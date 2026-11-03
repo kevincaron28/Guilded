@@ -127,6 +127,19 @@ describe("advancing the honors", () => {
     expect(jobs).toHaveLength(1);
   });
 
+  it("names every tied MVP, including whoever sits past the first three rows", async () => {
+    const ids = ["111111111111111111", "222222222222222222", "333333333333333333", "444444444444444444"];
+    const labels = ["Alpha", "Bravo", "Charlie", "Delta"];
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", monthSeasonId: "sept" };
+    const { database, jobs } = fakeDatabase(honors, { points: ids.map(userId => ({ userId, kind: "AWARD", amount: 10 })), ended: { id: "sept" } });
+    const lookup = vi.fn(async (asked: string[]) => new Map(asked.map(id => [id, labels[ids.indexOf(id)]!])));
+    await advanceCommunityHonors(database, "guild", now, lookup);
+    const post = JSON.stringify(jobs[0]);
+    for (const label of labels) expect(post).toContain(label);
+    expect(post).not.toContain("…4444");
+    expect(lookup).toHaveBeenCalledWith(expect.arrayContaining(ids));
+  });
+
   it("frees the weekly role without a post when the whole guild was silent", async () => {
     const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-21", weeklyHolderIds: ["old"] };
     const { database, tx, jobs } = fakeDatabase(honors);
@@ -152,6 +165,23 @@ describe("advancing the honors", () => {
     await advanceCommunityHonors(database, "guild", now, undefined, lookup);
     expect(jobs).toHaveLength(1);
     expect(awards).toHaveLength(2);
+  });
+
+  it("prints the monthly rookie's name when they are outside the top 3", async () => {
+    const rookie = "444444444444444444";
+    const ended = { id: "sept", name: "September", number: 1, createdAt: new Date("2026-09-01T04:00:00Z"), endedAt: new Date("2026-10-01T04:00:00Z"), finalStandings: [row("a", 90), row("b", 70), row("c", 50), row(rookie, 12)] };
+    const honors: Row = { guildId: "guild", channelId: "fame", week: "2026-09-28", monthSeasonId: "aug" };
+    const { database, tx, jobs } = fakeDatabase(honors, { ended });
+    tx.communityParticipationDay.findMany.mockResolvedValue([]);
+    tx.communityPoint.findMany.mockResolvedValue([16, 17, 18].map(day => ({ userId: rookie, kind: "AWARD", amount: 4, createdAt: new Date(`2026-09-${day}T12:00:00Z`) })));
+    tx.member.findMany.mockResolvedValue([{ discordUserId: "a" }, { discordUserId: "b" }, { discordUserId: "c" }] as never);
+    const lookup = vi.fn(async (asked: string[]) => new Map(asked.map(id => [id, id === rookie ? "New Player" : `N-${id}`])));
+    await advanceCommunityHonors(database, "guild", now, lookup, async () => new Date("2026-09-15T12:00:00Z"));
+    expect(lookup).toHaveBeenCalledWith(expect.arrayContaining([rookie]));
+    const post = JSON.stringify(jobs[0]);
+    expect(post).toContain("New Player");
+    expect(post).toContain("Rookie of the month");
+    expect(post).not.toContain(`…${rookie.slice(-4)}`);
   });
 
   it("frees the previous rookie role when the next month has no qualifying newcomer", async () => {

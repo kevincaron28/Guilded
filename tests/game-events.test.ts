@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Collection, ChannelType, PermissionFlagsBits, type Guild, type TextChannel } from "discord.js";
 import type { DiscordJob, GameEventBoard, OfficialGameEvent, PrismaClient } from "../src/generated/prisma/client.js";
-import { EVENT_GAMES, EVENT_TRANSACTION_OPTIONS, retainEventReminders, reminderSettings, effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, eventEmbedsHash, officialEventSource, parseEventInstant, queueGameEvents, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
+import { EVENT_GAMES, EVENT_TRANSACTION_OPTIONS, retainEventReminders, reminderSettings, effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, eventEmbedsHash, officialEventSource, parseEventInstant, queueGameEvents, reconcileGameEventBoards, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
 import { deliverGameEvent, eventRole, findEventMessage } from "../src/services/game-events-discord.js";
 import { ownerEventsCommand, executeGameEvents, executeOwnerEvents } from "../src/commands/game-events.js";
 
@@ -100,6 +100,29 @@ describe("reminder eligibility", () => {
     expect(reminderDue(event(), board({ wowRemindersEnabledAt: new Date(now.getTime() + 1) }), 0, now)).toBe(false);
     for (const update of [{ enabled: false }, { wowRoleId: null }, { wowReminders: [] }, { games: ["POE2"] }, { region: "EU" }]) expect(reminderDue(event(), board(update), 0, now)).toBe(false);
     for (const state of ["TBA", "POSTPONED", "CANCELLED"]) expect(reminderDue(event({ state, startsAt: null }), board(), 0, now)).toBe(false);
+  });
+});
+
+describe("event reconcile locking", () => {
+  const guilds = [{ id: "111111111111111111", name: "One" }, { id: "222222222222222222", name: "Two" }];
+  it("takes the global lock once for every guild", async () => {
+    const transaction = vi.fn(async () => undefined);
+    await reconcileGameEventBoards({ $transaction: transaction } as never, guilds, () => { throw new Error("unexpected report"); });
+    expect(transaction).toHaveBeenCalledOnce();
+  });
+  it("repeats per guild only after the shared pass fails, and names that guild", async () => {
+    let calls = 0;
+    const transaction = vi.fn(async () => { calls += 1; if (calls === 1) throw new Error("catalogue down"); });
+    const findFirst = vi.fn(async () => ({ channelId: "333333333333333333" }));
+    const reports: { id: string; channelId: string | null }[] = [];
+    await reconcileGameEventBoards({ $transaction: transaction, gameEventBoard: { findFirst } } as never, guilds, (_error, guild, channelId) => { reports.push({ id: guild.id, channelId }); });
+    expect(calls).toBe(1 + guilds.length);
+    expect(reports).toEqual([]);
+    calls = 0;
+    transaction.mockImplementation(async () => { calls += 1; throw new Error("still down"); });
+    const failed: { id: string; channelId: string | null }[] = [];
+    await reconcileGameEventBoards({ $transaction: transaction, gameEventBoard: { findFirst } } as never, guilds, (_error, guild, channelId) => { failed.push({ id: guild.id, channelId }); });
+    expect(failed).toEqual(guilds.map(guild => ({ id: guild.id, channelId: "333333333333333333" })));
   });
 });
 
@@ -207,6 +230,45 @@ describe("delivery and restart recovery", () => {
     if (reason === "disabled") h.b.enabled = false;
     if (reason === "role") h.b.wowRoleId = null;
     await deliverGameEvent(h.guild, h.db, h.job, now); expect(h.send).not.toHaveBeenCalled();
+  });
+  it("does not send a reminder if the event is cancelled after the plan is read", async () => {
+    const h = harness();
+    const transaction = h.db.$transaction as unknown as ReturnType<typeof vi.fn>;
+    transaction.mockImplementation(async (fn: (tx: typeof h.tx) => unknown) => {
+      const result = await fn(h.tx);
+      h.e.state = "CANCELLED";
+      h.e.startsAt = null;
+      return result;
+    });
+    await deliverGameEvent(h.guild, h.db, h.job, now);
+    expect(h.send).not.toHaveBeenCalled();
+  });
+  it("saves the posted board id even when the row is edited before the write", async () => {
+    const h = harness("GAME_EVENT_BOARD");
+    let reads = 0;
+    h.tx.gameEventBoard.findFirst.mockImplementation(async () => {
+      reads += 1;
+      return reads >= 3 ? { ...h.b, updatedAt: new Date(now.getTime() + 5_000) } : h.b;
+    });
+    await deliverGameEvent(h.guild, h.db, h.job, now);
+    expect(h.send).toHaveBeenCalledOnce();
+    expect(h.tx.gameEventBoard.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ messageId: "posted" }) }));
+  });
+  it("retries the board-id save after the Discord post already exists", async () => {
+    const h = harness("GAME_EVENT_BOARD");
+    let calls = 0;
+    const transaction = h.db.$transaction as unknown as ReturnType<typeof vi.fn>;
+    transaction.mockImplementation(async (fn: (tx: typeof h.tx) => unknown) => {
+      calls += 1;
+      if (calls === 2) throw Object.assign(new Error("Transaction API error: Unable to start a transaction in the given time."), { code: "P2028" });
+      return fn(h.tx);
+    });
+    const run = deliverGameEvent(h.guild, h.db, h.job, now);
+    await vi.runAllTimersAsync();
+    await run;
+    expect(h.send).toHaveBeenCalledOnce();
+    expect(calls).toBeGreaterThanOrEqual(3);
+    expect(h.tx.gameEventBoard.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ messageId: "posted" }) }));
   });
   it("recovers an accepted reminder after a crash without sending it again", async () => {
     const h = harness();

@@ -11,7 +11,7 @@ import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, w
 import { executeWow } from "./commands/wow.js";
 import type { Interaction } from "discord.js";
 import { executeGameEvents, executeOwnerEvents, OWNER_EVENTS_COMMAND, ownerEventsCommand } from "./commands/game-events.js";
-import { queueGameEvents } from "./services/game-events.js";
+import { reconcileGameEventBoards } from "./services/game-events.js";
 import { hostedPilot, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
 import { warnIdleLite, welcomeApprovedOwner } from "./services/pilot-welcome.js";
@@ -286,23 +286,12 @@ client.once(Events.ClientReady, (readyClient) => {
     if (eventsRunning) return;
     eventsRunning = true;
     try {
-      // One guild at a time. A single transaction used to take the global event
-      // lock for every board, and a failure named no server. The catalogue update
-      // still runs when this process is in no guilds.
-      const guilds = [...readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()];
-      if (!guilds.length) {
-        await queueGameEvents(prisma, { id: { in: [] } });
-        return;
-      }
-      for (const guild of guilds) {
-        let channelId: string | null = null;
-        try {
-          channelId = (await prisma.gameEventBoard.findFirst({ where: { enabled: true, guild: { discordId: guild.id } }, select: { channelId: true } }))?.channelId ?? null;
-          await queueGameEvents(prisma, { guild: { discordId: guild.id } });
-        } catch (error) {
-          reportJobError("Upcoming game events", { guildId: guild.id, guildName: guild.name, channelId, operation: "game-events.reconcile" })(error);
-        }
-      }
+      // One lock for every board. A failed pass is repeated per guild so the
+      // report names that server and its board channel.
+      const guilds = [...readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()].map(guild => ({ id: guild.id, name: guild.name }));
+      await reconcileGameEventBoards(prisma, guilds, (error, guild, channelId) => {
+        reportJobError("Upcoming game events", { guildId: guild.id, guildName: guild.name, channelId, operation: "game-events.reconcile" })(error);
+      });
     } catch (error) { reportJobError("Upcoming game events", { operation: "game-events.reconcile" })(error); }
     finally { eventsRunning = false; }
   };

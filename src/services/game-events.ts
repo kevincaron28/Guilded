@@ -165,6 +165,33 @@ export function reminderDue(event: OfficialGameEvent, board: GameEventBoard, min
   return due >= enabledAt.getTime() && now.getTime() >= due && now.getTime() < due + REMINDER_GRACE_MS;
 }
 
+/** One catalogue pass for every guild. The global event lock is taken once.
+ * A failed pass is retried per guild so the report can name that server. */
+export async function reconcileGameEventBoards(
+  database: PrismaClient,
+  guilds: { id: string; name: string }[],
+  report: (error: unknown, guild: { id: string; name: string }, channelId: string | null) => void,
+  now = new Date()
+): Promise<void> {
+  if (!guilds.length) {
+    await queueGameEvents(database, { id: { in: [] } }, now);
+    return;
+  }
+  try {
+    await queueGameEvents(database, { guild: { discordId: { in: guilds.map(guild => guild.id) } } }, now);
+    return;
+  } catch { /* The steady pass could not start; attribute the next attempt. */ }
+  for (const guild of guilds) {
+    let channelId: string | null = null;
+    try {
+      channelId = (await database.gameEventBoard.findFirst({ where: { enabled: true, guild: { discordId: guild.id } }, select: { channelId: true } }))?.channelId ?? null;
+      await queueGameEvents(database, { guild: { discordId: guild.id } }, now);
+    } catch (error) {
+      report(error, guild, channelId);
+    }
+  }
+}
+
 /** Reconcile at startup and once per minute; unchanged boards are not edited. */
 export async function queueGameEvents(database: PrismaClient, scope: Prisma.GameEventBoardWhereInput = {}, now = new Date()) {
   await retryTransientTransaction(() => database.$transaction(async tx => {

@@ -92,6 +92,12 @@ export async function deliverGameEvent(guild: Guild, database: PrismaClient, job
   }, EVENT_TRANSACTION_OPTIONS));
   if (!plan) return;
   if (plan.kind === "reminder") {
+    // The plan was taken under the lock, then the lock was released. A cancel
+    // (or a new schedule) that landed before the send must not still ping.
+    const event = await database.officialGameEvent.findUnique({ where: { id: String(payload['eventId']) } });
+    const board = await database.gameEventBoard.findFirst(query);
+    const current = new Date(Math.max(now.getTime(), Date.now()));
+    if (!event || !board || !board.enabled || event.scheduleVersion !== payload['scheduleVersion'] || event.state === "CANCELLED" || !role || reminderSettings(board, event.game).role !== role.id || !reminderDue(event, board, minutes, current)) return;
     await channel.send({ content: plan.content, embeds: plan.embeds, allowedMentions: { parse: [], roles: [plan.roleId], users: [], repliedUser: false },
       nonce: createHash("sha256").update(job.id).digest("hex").slice(0, 24), enforceNonce: true });
     return;
@@ -102,10 +108,15 @@ export async function deliverGameEvent(guild: Guild, database: PrismaClient, job
   if (plan.enabled && !posted.pinned) await posted.pin();
   if (!plan.enabled && posted.pinned) await posted.unpin();
   const saved = posted;
+  // The Discord post already exists. Record its id even if a catalogue edit
+  // bumped updatedAt while we were sending; losing messageId would post again.
+  // A start failure is retried. The next delivery finds this footer if the save
+  // still cannot begin. A channel move is not written onto the new row.
   await retryTransientTransaction(() => database.$transaction(async tx => {
     await eventLock(tx);
     const board = await tx.gameEventBoard.findFirst(query);
-    if (!board || board.updatedAt.getTime() !== initial.updatedAt.getTime() || board.messageId !== initial.messageId || board.channelId !== initial.channelId) throw new Error("Event board changed during preflight");
+    if (!board || board.channelId !== initial.channelId) throw new Error("Event board changed during preflight");
+    if (board.messageId && board.messageId !== saved.id && board.messageId !== initial.messageId) return;
     await tx.gameEventBoard.update({ where: { id: board.id }, data: { messageId: saved.id, contentHash: plan.hash } });
   }, EVENT_TRANSACTION_OPTIONS));
 }

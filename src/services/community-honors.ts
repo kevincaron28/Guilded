@@ -320,8 +320,11 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
   let names: Names = new Map();
   if (dueWeek && existing.weeklyEnabled !== false) {
     const window = honorsWindow(dueWeek, previewZone, previewMode);
-    const rows = await database.communityPoint.findMany({ where: { season: { guildId, ...PUBLIC_DISCORD }, createdAt: { gte: window.start, lt: window.end } }, select: { userId: true, kind: true, amount: true } });
-    names = await lookup(names3({ board: standings(rows), rookie: null }));
+    // Same summary the post prints. names3 keeps the rookie even when they are
+    // outside the top 3; every tied MVP is named in the congratulations line.
+    const preview = await summarizeWeek(database, guildId, window, previewZone);
+    const ids = new Set([...names3(preview), ...preview.mvps]);
+    if (ids.size) names = await lookup([...ids]);
   }
   const endedPreview = await database.communitySeason.findFirst({ where: { guildId, ...PUBLIC_DISCORD, monthly: true, status: "ENDED" }, orderBy: [{ endedAt: "desc" }, { id: "desc" }] });
   const joins = new Map<string, Date | null>();

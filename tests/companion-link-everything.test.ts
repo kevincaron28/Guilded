@@ -150,7 +150,7 @@ describe("companion renderer startup", () => {
   // (btnOnline did, after the browser companion was removed).
   it("every bind('id') and $('id') in app.js exists in index.html", () => {
     const html = read("companion-app/renderer/index.html");
-    const ids = new Set([...read("companion-app/renderer/app.js").matchAll(/(?:bind|\$)\('([A-Za-z0-9_-]+)'/g)].map(match => match[1]));
+    const ids = new Set([...read("companion-app/renderer/app.js").matchAll(/(?:bind|\$)\('([A-Za-z0-9_-]+)'/g)].map(match => match[1]));
     const dynamic = new Set(["syncEvidence"]);
     for (const id of ids) if (!dynamic.has(id!)) expect(html, id).toContain(`id="${id}"`);
   });

@@ -21,6 +21,8 @@ export interface CardTierCount { label: string; color: string; count: number }
  * it existed still draw: without `unlocks` the two-column layout above is used.
  */
 export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; stats: CardStat[]; rowsLabel?: string; rows?: CardRow[]; badges?: CardBadge[]; footer: string;
+  /** Added at delivery from Discord, never stored: a base64 PNG avatar and the member's highest role. */
+  portrait?: string; rank?: { label: string; color: string };
   unlocks?: CardUnlock[]; unlocksMore?: number; moreLabel?: string; progress?: CardProgress; tierCounts?: CardTierCount[] }
 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
@@ -148,6 +150,15 @@ function wrap(body: string, chars: number, maxLines: number): string[] {
   kept[maxLines - 1] = clip(`${kept[maxLines - 1]} ${lines[maxLines]}`, chars);
   return kept;
 }
+/** Role colours can be near-black on this dark card: mix dark ones toward white so the pill stays readable. */
+function legible(hex: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if (!m) return th.muted;
+  const channels = [0, 2, 4].map(i => parseInt(m[1]!.slice(i, i + 2), 16));
+  const luma = (0.299 * channels[0]! + 0.587 * channels[1]! + 0.114 * channels[2]!) / 255;
+  const mix = luma < 0.45 ? (0.45 - luma) * 1.6 : 0;
+  return `#${channels.map(c => Math.round(c + (255 - c) * mix).toString(16).padStart(2, "0")).join("")}`;
+}
 const sparkle = (cx: number, cy: number, r: number, color: string, opacity: number) =>
   `<path d="M${cx} ${cy - r}Q${cx} ${cy} ${cx + r} ${cy}Q${cx} ${cy} ${cx} ${cy + r}Q${cx} ${cy} ${cx - r} ${cy}Q${cx} ${cy} ${cx} ${cy - r}Z" fill="${color}" fill-opacity="${opacity}"/>`;
 
@@ -186,9 +197,26 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
   // Header: eyebrow, member name (shrinks with its length), subtitle.
   const single = all.length === 1, lead = single ? 1080 : 500, len = [...card.title].length;
   const size = len <= 14 ? 62 : len <= 22 ? 54 : len <= 30 ? 46 : 40;
+  // A Discord avatar (added at delivery) sits left of the name in a gold ring; an unreadable image is skipped.
+  let nameX = 58;
+  if (card.portrait) {
+    try {
+      const avatar = await sharp(Buffer.from(card.portrait, "base64")).resize(80, 80, { fit: "cover" })
+        .composite([{ input: Buffer.from(`<svg width="80" height="80"><circle cx="40" cy="40" r="40"/></svg>`), blend: "dest-in" }]).png().toBuffer();
+      shapes.push(`<circle cx="100" cy="104" r="44" fill="${th.panel}" stroke="${th.gold}" stroke-width="2.5"/>`);
+      layers.push({ input: avatar, left: 60, top: 64 });
+      nameX = 162;
+    } catch { /* no avatar */ }
+  }
   await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40, lead);
-  await put(span(th.ink, clip(card.title, single ? 36 : 24)), size, 58, 68 + (62 - size) / 2, lead);
-  await put(span(th.muted, clip(card.subtitle, single ? 90 : 38)), 25, 60, 146, lead);
+  await put(span(th.ink, clip(card.title, single ? 36 : 24)), nameX > 100 ? Math.min(size, 50) : size, nameX, 68 + (62 - (nameX > 100 ? Math.min(size, 50) : size)) / 2 + (nameX > 100 ? 10 : 0), lead - nameX);
+  // Discord role as a pill at the right of the header (single-unlock layout; the batch layouts have no room).
+  if (single && card.rank) {
+    const color = legible(card.rank.color), t = await text(span(color, clip(card.rank.label, 24)), 21, 400), w = t.width + 52, x = 1140 - w;
+    shapes.push(`<rect x="${x}" y="76" width="${w}" height="40" rx="20" fill="${color}" fill-opacity=".14" stroke="${color}" stroke-width="1.5"/>`, `<circle cx="${x + 22}" cy="96" r="6" fill="${color}"/>`);
+    layers.push({ input: t.input, left: x + 38, top: 96 - Math.round(t.height / 2) });
+  }
+  await put(span(th.muted, clip(card.subtitle, single ? 90 : 38)), 25, 60, nameX > 100 ? 156 : 146, lead);
 
   const progress = card.progress;
   if (single) {

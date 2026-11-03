@@ -169,7 +169,13 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
     // An optional card is drawn here from its stored definition; without an image the post still goes out.
     const { scoreCardPng } = await import("./score-card.js");
-    const card = payload["card"] && typeof payload["card"] === "object" ? await scoreCardPng(payload["card"] as import("./score-card.js").ScoreCard).catch(() => null) : null;
+    let cardDefinition = payload["card"] && typeof payload["card"] === "object" ? payload["card"] as import("./score-card.js").ScoreCard : null;
+    // Optional: show the member's server name, avatar and role on the card. Falls back to the plain card on any failure.
+    if (cardDefinition && typeof payload["cardMember"] === "string" && /^\d{17,20}$/.test(payload["cardMember"])) {
+      const { withDiscordMember } = await import("./card-member.js");
+      cardDefinition = await withDiscordMember(guild, cardDefinition, payload["cardMember"]);
+    }
+    const card = cardDefinition ? await scoreCardPng(cardDefinition).catch(() => null) : null;
     if (card) last.setImage("attachment://card.png");
     await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" })] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
   } else throw new Error("Unknown job type");

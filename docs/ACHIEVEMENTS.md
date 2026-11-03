@@ -1,6 +1,6 @@
 # Achievements and badges
 
-125 rows (117 can be earned; 8 are legacy, see below), computed only from data Guilded already recorded. Nothing is self-reported, nothing
+130 rows (122 can be earned; 8 are legacy, see below), computed only from data Guilded already recorded. The MVP-of-the-week ladder (1, 3, 5, 10, 25 weeks) reads the community honors record (`CommunityHonorAward`, kind WEEK). Nothing is self-reported, nothing
 awards points, and nothing is posted to Discord automatically.
 
 ## Where things live

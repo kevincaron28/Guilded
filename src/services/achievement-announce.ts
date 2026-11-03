@@ -60,7 +60,7 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
  * Hourly pass: evaluates every active member of guilds that announce (evaluation is otherwise on view only),
  * then queues the celebrations. One member or guild failing never stops the rest.
  */
-export async function sweepAchievementAnnouncements(db: Db & Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "epgpTransaction" | "memberActivityTotal">, now = new Date(), onError: (error: unknown) => void = () => undefined): Promise<number> {
+export async function sweepAchievementAnnouncements(db: Db & Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal">, now = new Date(), onError: (error: unknown) => void = () => undefined): Promise<number> {
   let posted = 0;
   const guilds = await db.guildSettings.findMany({ where: { achievementAnnounceEnabled: true, achievementsEnabled: true, achievementChannelId: { not: null } }, select: { guildId: true, achievementBaselineVersion: true }, take: 100 });
   for (const { guildId, achievementBaselineVersion } of guilds) {

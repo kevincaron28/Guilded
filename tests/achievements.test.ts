@@ -117,6 +117,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     memberActivityTotal: { findUnique: vi.fn(async () => ({ messages: 600, reactionsGiven: 30, reactionsReceived: 2, voiceSeconds: 40 * 3600 + 59 })) },
     communityPoint: { aggregate: vi.fn(async () => ({ _sum: { amount: 130 } })), count: vi.fn(async () => 40) },
     epgpTransaction: { aggregate: vi.fn(async () => ({ _sum: { epAmount: 250 } })) },
+    communityHonorAward: { findMany: vi.fn(async () => [{ createdAt: day(2) }, { createdAt: day(5) }, { createdAt: day(9) }]) },
     professionSkill: { findMany: vi.fn(async () => [{ skillLevel: 175 }]) },
     poeLevelReached: { findMany: vi.fn(async () => []) },
     poeMapVisit: { findMany: vi.fn(async () => []) },
@@ -264,5 +265,15 @@ describe("long progressions", () => {
     expect(card.rows).toHaveLength(1);
     expect(card.rows![0]!.name).toBe("Regular Poster");
     expect(JSON.stringify(card)).toContain("Next:");
+  });
+});
+
+describe("MVP of the week achievements", () => {
+  it("earn from the weeks recorded, dated by the award", () => {
+    const at = (n: number) => new Date(Date.UTC(2026, 10, n));
+    const results = evaluateAchievements(facts({ mvpWeeks: [at(1), at(8), at(15)] }), at(30));
+    const earned = results.filter(r => r.def.metric === "mvpWeeks" && r.earned);
+    expect(earned.map(r => r.def.id)).toEqual(["mvp-weeks-1", "mvp-weeks-3"]);
+    expect(earned[1]!.earnedAt).toEqual(at(15));
   });
 });

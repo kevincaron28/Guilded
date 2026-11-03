@@ -1,5 +1,5 @@
 import { badgeInner } from "./achievement-badges.js";
-import { ACTIVE_ACHIEVEMENTS, TIER_COLOR, TIER_LABEL, achievementById, groupLabel, ladderKey, type AchievementDef, type AchievementGame } from "./achievements-catalogue.js";
+import { ACTIVE_ACHIEVEMENTS, TIER_COLOR, TIER_LABEL, achievementById, groupLabel, ladderKey, type AchievementDef, type AchievementGame, type AchievementTier } from "./achievements-catalogue.js";
 import type { RaidReport } from "./raid-report.js";
 import { formatDuration } from "./raid-report.js";
 import type { CardRow, ScoreCard } from "./score-card.js";
@@ -96,20 +96,29 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
   };
 }
 
-/** The card for a celebration post: the achievements just unlocked, with their badges. */
+const UNLOCK_CARD_MAX = 8;
+
+/** The card for a celebration post: the achievements just unlocked (newest first, up to eight, then a count), with their badges. */
 export function achievementUnlockedCard(name: string, ids: string[], totalEarned: number, lang: Lang = "en"): ScoreCard {
   const t = pick(lang);
   const defs = ids.flatMap(id => { const def = achievementById(id); return def ? [def] : []; });
-  const shown = defs.slice(-5).reverse();
+  const newest = defs.slice().reverse(), shown = newest.slice(0, UNLOCK_CARD_MAX);
+  const total = ACTIVE_ACHIEVEMENTS.length, percent = Math.round((totalEarned / Math.max(1, total)) * 100);
+  const tierCounts = (Object.keys(TIER_COLOR) as AchievementTier[]).flatMap(tier => { const count = defs.filter(def => def.tier === tier).length; return count ? [{ label: TIER_LABEL[tier][lang], color: TIER_COLOR[tier], count }] : []; });
   return {
     eyebrow: t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,
     subtitle: t("Computed from recorded guild data", "Données enregistrées de la guilde"),
     stats: [
       { label: t("Unlocked now", "Débloqués"), value: `+${defs.length}`, accent: "gold" },
-      { label: t("Total", "Total"), value: `${totalEarned}/${ACTIVE_ACHIEVEMENTS.length}` }
+      { label: t("Total", "Total"), value: `${totalEarned}/${total}` }
     ],
     rowsLabel: t("New achievements", "Nouveaux succès"),
-    rows: shown.map(def => ({ name: def[lang].name, sub: groupLabel(def, lang), color: TIER_COLOR[def.tier], right: TIER_LABEL[def.tier][lang], icon: badgeInner(def, true) })),
+    // `rows` keeps the older layout drawable; `unlocks` and the fields after it select the richer one.
+    rows: shown.slice(0, 5).map(def => ({ name: def[lang].name, sub: groupLabel(def, lang), color: TIER_COLOR[def.tier], right: TIER_LABEL[def.tier][lang], icon: badgeInner(def, true) })),
+    unlocks: shown.map(def => ({ name: def[lang].name, group: groupLabel(def, lang), detail: def[lang].description, tier: TIER_LABEL[def.tier][lang], color: TIER_COLOR[def.tier], icon: badgeInner(def, true) })),
+    unlocksMore: newest.length - shown.length, moreLabel: t("more", "autres"),
+    progress: { label: t("Achievements unlocked", "Succès débloqués"), value: totalEarned, max: total, note: lang === "fr" ? `${percent} % du catalogue` : `${percent}% of the catalogue` },
+    tierCounts,
     footer: t("Earned from synced characters, runs, raid attendance and the PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et du journal PoE2 · Aucun point · guilded.kcaron.top")
   };
 }

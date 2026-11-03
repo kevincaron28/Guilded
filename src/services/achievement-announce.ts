@@ -50,7 +50,7 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
     await enqueueDiscordJob(tx, guildId, `achievement-unlock:${memberId}:${now.getTime()}`, "MESSAGE", {
       route: "achievements", channelId: settings.achievementChannelId!, mentionUsers: [member.discordUserId],
       message: { content, embeds: [{ title: title.slice(0, 250), description: lines.join("\n").slice(0, 3800), footer: { text: lang === "fr" ? "Calculé à partir des données enregistrées · aucun point" : "Computed from recorded data · no points" } }] },
-      card: JSON.parse(JSON.stringify(card))
+      card: JSON.parse(JSON.stringify(card)), cardMember: member.discordUserId
     });
     return ids.length;
   }).catch(error => { if (error instanceof Error && error.message === "achievements already announced") return 0; throw error; });

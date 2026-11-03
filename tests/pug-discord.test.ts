@@ -3,21 +3,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   prisma: {
     pugRequest: { findUnique: vi.fn(), updateMany: vi.fn() },
-    pugSignup: { findUnique: vi.fn() },
+    pugSignup: { findUnique: vi.fn(), findMany: vi.fn() },
     pugPost: { findFirst: vi.fn() },
     guildSettings: { findUnique: vi.fn() },
     raid: { findUnique: vi.fn() }
   },
   hasPermission: vi.fn(),
-  allows: vi.fn(() => true)
+  allows: vi.fn(() => true),
+  decide: vi.fn()
 }));
 vi.mock("../src/database.js", () => ({ prisma: mocks.prisma }));
 vi.mock("../src/permissions.js", () => ({ hasPermission: mocks.hasPermission }));
 vi.mock("../src/hosted-pilot.js", () => ({ hostedPilot: { allows: mocks.allows } }));
 vi.mock("../src/services/guild-scope.js", () => ({ guildWhere: vi.fn(), withGuildScope: async (_db: unknown, _id: string, work: () => unknown) => work() }));
+vi.mock("../src/services/pug-requests.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/services/pug-requests.js")>();
+  return { ...actual, decidePugSignup: mocks.decide };
+});
 
 import { handlePugComponent } from "../src/commands/pug-requests.js";
-import { deliverPugPost, pugNoticePayload, pugPostPayload } from "../src/services/pug-discord.js";
+import { deliverPugNotice, deliverPugPost, pugNoticePayload, pugPostPayload } from "../src/services/pug-discord.js";
+import { PugError } from "../src/services/pug-requests.js";
 
 const when = new Date("2026-11-07T20:00:00Z");
 const request = { id: "req1", raidTitle: "Karazhan", scheduledAt: when, expiresAt: when, edition: "classic-tbc", note: "flasks", wantTank: 1, wantHealer: 0, wantDps: 2, guild: { name: "Alpha" } };
@@ -52,6 +58,18 @@ describe("PUG post message", () => {
     expect(open).toContain("Aliceth");
     expect(open).toContain("Bobby");
     expect(json(pugNoticePayload({ ...request, status: "CLOSED" }, signups, "en"))).not.toContain("pugb:cl:req1");
+  });
+
+  it("drops a declined guest from both the waiting list and the accepted list", () => {
+    const signups = [
+      { id: "s1", displayName: "Alice", sourceGuild: "Beta", characterName: "Aliceth", characterClass: "Warrior", role: "TANK", note: null, status: "DECLINED" },
+      { id: "s2", displayName: "Bob", sourceGuild: null, characterName: "Bobby", characterClass: null, role: "DPS", note: null, status: "ACCEPTED" }
+    ];
+    const text = json(pugNoticePayload({ ...request, status: "OPEN" }, signups, "en"));
+    expect(text).toContain("Bobby");
+    expect(text).not.toContain("Aliceth");
+    expect(text).toContain("Waiting (0)");
+    expect(text).toContain("Accepted guests (1)");
   });
 });
 
@@ -107,6 +125,52 @@ describe("PUG delivery", () => {
   });
 });
 
+describe("officer notice delivery", () => {
+  const job = { id: "n1", guildId: "g1", payload: { requestId: "req1" } } as never;
+  const signup = { id: "s1", status: "PENDING", role: "TANK", characterName: "Aliceth", displayName: "Alice", sourceGuild: null, characterClass: "Warrior", note: null, createdAt: new Date("2026-11-05T12:00:00Z") };
+  const openRequest = (over: Record<string, unknown> = {}) => ({
+    id: "req1", raidId: "r1", guildId: "g1", status: "OPEN", raidTitle: "Karazhan", wantTank: 1, wantHealer: 0, wantDps: 0,
+    signups: [signup], noticeMessageId: null, noticeChannelId: null, guild: { name: "Alpha" }, ...over
+  });
+  const db = (found: unknown) => ({
+    pugRequest: { findFirst: vi.fn().mockResolvedValue(found), update: vi.fn().mockResolvedValue({}) },
+    raid: { findUnique: vi.fn().mockResolvedValue({ signupChannelId: "chan" }) },
+    guildSettings: { findUnique: vi.fn().mockResolvedValue({ language: "en" }) }
+  });
+
+  it("sends the notice once and remembers the message", async () => {
+    const send = vi.fn().mockResolvedValue({ id: "msg" });
+    const guild = { channels: { fetch: vi.fn().mockResolvedValue({ isTextBased: () => true, send }) } };
+    const database = db(openRequest());
+    await deliverPugNotice(guild as never, database as never, job);
+    expect(send).toHaveBeenCalledOnce();
+    expect(JSON.stringify(send.mock.calls[0]?.[0])).toContain("Aliceth");
+    expect(database.pugRequest.update).toHaveBeenCalledWith(expect.objectContaining({ data: { noticeChannelId: "chan", noticeMessageId: "msg" } }));
+  });
+
+  it("edits the existing notice instead of posting a second one", async () => {
+    const edit = vi.fn().mockResolvedValue({});
+    const send = vi.fn();
+    const guild = { channels: { fetch: vi.fn().mockResolvedValue({ isTextBased: () => true, send, messages: { fetch: vi.fn().mockResolvedValue({ edit }) } }) } };
+    const database = db(openRequest({ noticeMessageId: "msg", noticeChannelId: "chan" }));
+    await deliverPugNotice(guild as never, database as never, job);
+    expect(edit).toHaveBeenCalledOnce();
+    expect(send).not.toHaveBeenCalled();
+    expect(database.pugRequest.update).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when the raid has no signup channel, and a deleted channel does not throw", async () => {
+    const send = vi.fn();
+    const quiet = db(openRequest());
+    quiet.raid.findUnique.mockResolvedValue({ signupChannelId: null });
+    await deliverPugNotice({ channels: { fetch: vi.fn() } } as never, quiet as never, job);
+    expect(send).not.toHaveBeenCalled();
+    const gone = db(openRequest());
+    const guild = { channels: { fetch: vi.fn().mockRejectedValue(Object.assign(new Error("Unknown Channel"), { code: 10003 })) } };
+    await expect(deliverPugNotice(guild as never, gone as never, job)).resolves.toBeUndefined();
+  });
+});
+
 describe("PUG buttons are checked on the server", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.allows.mockReturnValue(true); mocks.prisma.guildSettings.findUnique.mockResolvedValue({ language: "en" }); });
   const button = (customId: string) => ({
@@ -143,5 +207,78 @@ describe("PUG buttons are checked on the server", () => {
     await handlePugComponent(interaction as never);
     expect(interaction.showModal).not.toHaveBeenCalled();
     expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("Only officers") }));
+  });
+
+  const host = () => {
+    mocks.hasPermission.mockReturnValue(true);
+    mocks.prisma.pugRequest.findUnique.mockResolvedValue({ id: "req1", guildId: "g1", guild: { discordId: "d1" } });
+  };
+
+  it("review lists the waiting guests with accept and decline buttons, five at a time", async () => {
+    host();
+    mocks.prisma.pugSignup.findMany.mockResolvedValue([
+      { id: "s1", role: "TANK", characterName: "Aliceth", characterClass: "Warrior", displayName: "Alice", note: "flask" },
+      { id: "s2", role: "DPS", characterName: "Bobby", characterClass: null, displayName: "Bob", note: null }
+    ]);
+    const interaction = button("pugb:rv:req1");
+    await handlePugComponent(interaction as never);
+    expect(mocks.prisma.pugSignup.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { requestId: "req1", status: "PENDING" }, orderBy: { createdAt: "asc" }, take: 5 }));
+    const body = interaction.reply.mock.calls[0]?.[0] as { content: string; components: { toJSON: () => unknown }[] };
+    expect(body.content).toContain("Aliceth");
+    expect(body.content).toContain("flask");
+    const buttons = JSON.stringify(body.components.map((row) => row.toJSON()));
+    expect(buttons).toContain("pugb:ok:s1");
+    expect(buttons).toContain("pugb:no:s2");
+    expect(buttons).toContain("Accept");
+    expect(buttons).toContain("Decline");
+  });
+
+  it("says when nobody is waiting", async () => {
+    host();
+    mocks.prisma.pugSignup.findMany.mockResolvedValue([]);
+    const interaction = button("pugb:rv:req1");
+    await handlePugComponent(interaction as never);
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ content: "No guests are waiting." }));
+  });
+
+  it.each([
+    ["pugb:ok:s1", "accepted", "Accepted. Invite them in game"],
+    ["pugb:no:s1", "declined", "Declined."],
+    ["pugb:ok:s1", "already-decided", "Already decided."]
+  ] as const)("answers %s with %s", async (customId, result, text) => {
+    host();
+    mocks.prisma.pugSignup.findUnique.mockResolvedValue({ requestId: "req1" });
+    mocks.decide.mockResolvedValue(result);
+    const interaction = button(customId);
+    await handlePugComponent(interaction as never);
+    expect(interaction.deferUpdate).toHaveBeenCalledOnce();
+    expect(mocks.decide).toHaveBeenCalledWith(expect.anything(), "s1", "g1", customId.startsWith("pugb:ok:"), expect.any(Function));
+    expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining(text), components: [] }));
+  });
+
+  it("shows the host guild's French decision and a full-role error on the same message", async () => {
+    host();
+    mocks.prisma.guildSettings.findUnique.mockResolvedValue({ language: "fr" });
+    mocks.prisma.pugSignup.findUnique.mockResolvedValue({ requestId: "req1" });
+    mocks.decide.mockResolvedValue("accepted");
+    const accepted = button("pugb:ok:s1");
+    await handlePugComponent(accepted as never);
+    expect(accepted.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("Accepté") }));
+
+    mocks.decide.mockRejectedValue(new PugError("That role is already full."));
+    const full = button("pugb:ok:s1");
+    full.deferUpdate.mockImplementation(async () => { full.deferred = true; });
+    await handlePugComponent(full as never);
+    expect(full.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: "That role is already full." }));
+  });
+
+  it("a missing sign-up button does not decide anything", async () => {
+    host();
+    mocks.prisma.pugSignup.findUnique.mockResolvedValue(null);
+    mocks.prisma.pugRequest.findUnique.mockResolvedValue(null);
+    const interaction = button("pugb:no:missing");
+    await handlePugComponent(interaction as never);
+    expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("not available here") }));
+    expect(mocks.decide).not.toHaveBeenCalled();
   });
 });

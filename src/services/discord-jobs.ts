@@ -193,6 +193,7 @@ export async function runDiscordJobs(client: Client): Promise<void> {
     const query = { orderBy: { nextAttemptAt: "asc" as const }, include: { guild: { select: { discordId: true as const } } } };
     // Countdown cosmetics must never displace reminders, roster changes or loot
     // announcements. Serve those first; at most five countdowns use spare slots.
+    // GAME_EVENT_BOARD edits one pinned message. Milestone hype rides that edit.
     const jobs = await prisma.discordJob.findMany({ ...query, where: { ...available(now), ...pilotGuildScope, kind: { not: "GAME_EVENT_BOARD" } }, take: DELIVERY_BATCH_SIZE });
     if (jobs.length < DELIVERY_BATCH_SIZE) jobs.push(...await prisma.discordJob.findMany({ ...query,
       where: { ...available(now), ...pilotGuildScope, kind: "GAME_EVENT_BOARD" }, take: Math.min(COUNTDOWN_BATCH_SIZE, DELIVERY_BATCH_SIZE - jobs.length) }));

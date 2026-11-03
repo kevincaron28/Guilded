@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.4.1 — 3 November 2026
+
+Brings the Windows companion and its Microsoft Store package up to date: the
+first-run "Link everything" screen (Discord, optional Battle.net, automatic
+character proof) and a main status screen with a character table, big actions
+and plain linked states. Also ships the redesigned owner console, the Quick
+reference page, redesigned achievement cards and WoW guild rank. Protocol
+remains 2. See [release notes](docs/V8_4_1_RELEASE_NOTES.md).
+
 ## 8.4.0 — 30 October 2026 candidate
 
 Opt-in provisional battleground capture, paired-owner consent checks, private

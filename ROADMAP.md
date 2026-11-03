@@ -45,9 +45,9 @@ Forever's researched upcoming-season timing snapshot is installed. Historical
 season scores remain frozen. Live acceptance and the newer edition-calendar
 initialization are tracked separately from the implemented feature inventory.
 
-## Current stage — 30 October 2026
+## Current stage — 3 November 2026
 
-Guilded **8.4.0 Candidate** is under integration; published baseline is8.3.0.
+Guilded **8.4.1** is prepared (companion Link everything screen, owner console, quick reference, achievement cards, guild rank); published baseline is 8.4.0.
 
 Guilded **8.4 source candidate** is being integrated on
 `codex/bg-recorder-history-oct30`. The provisional BG pipeline is implemented in

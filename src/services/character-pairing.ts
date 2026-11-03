@@ -4,6 +4,7 @@ import type { AddonCharacter } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { characterKey } from "../../companion/character-identity.mjs";
+import { guildRankUpdate } from "./guild-rank.js";
 import { gameEditionOf } from "./game-edition.js";
 
 const PAIRING_CODE_LIFETIME_MS = 15 * 60_000;
@@ -31,6 +32,8 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
       race: self.race ? normalizeRaceName(self.race) : null,
       level: self.level >= 1 ? self.level : null,
       spec: self.spec || null,
+
+      ...guildRankUpdate(self),
       isMain: !hasMain,
       professionsUpdatedAt: self.professionsComplete === true ? self.professionsAt ?? new Date() : null,
       lastSeenAt: new Date()
@@ -66,6 +69,8 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
           race: self.race ? normalizeRaceName(self.race) : null,
           level: self.level >= 1 ? self.level : null,
           spec: self.spec || null,
+
+          ...guildRankUpdate(self),
           lastSeenAt: new Date()
         }
       });

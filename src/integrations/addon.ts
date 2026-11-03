@@ -138,6 +138,9 @@ export const addonCharacterSchema = z.object({
   professions: z.array(z.object({ name: z.string().min(1), skillLevel: z.number().int().nonnegative() })).default([]),
   professionsComplete: z.boolean().optional(),
   professionsAt: z.coerce.date().optional(),
+  // Rank in the character's own WoW guild (index 0 = guild master). Optional: older addons and companions omit it.
+  guildRankName: z.string().trim().min(1).max(60).optional(),
+  guildRankIndex: z.number().int().min(0).max(19).optional(),
   // The member's /guilded verify code this guildmate's digest carried (services/character-verify).
   verify: z.string().max(40).optional()
 });

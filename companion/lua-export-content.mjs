@@ -205,6 +205,7 @@ export function parseAddonExportText(text, realm) {
       race: String(entry.identity.race ?? ""),
       level: digestLevel(entry.identity.level),
       spec: String(entry.identity.spec ?? ""),
+      ...guildRankFields(database.roster?.[name]),
       professionsComplete: entry.professionsComplete === true,
       ...(entry.professionsAt ? { professionsAt: iso(entry.professionsAt) } : {}),
       professions: digestProfessions(entry.professions),
@@ -282,7 +283,7 @@ export function parseAddonExportText(text, realm) {
   const alts = Object.values(database.myCharacters ?? {})
     .filter((entry) => entry?.name && entry.class)
     .slice(0, 50)
-    .map((entry) => exportCharacter({ ...edition, ...entry }, realm));
+    .map((entry) => exportCharacter({ ...edition, ...entry }, realm, database.roster));
   // Item prices officers set in game (addon Modules/Loot.lua); the bot keeps the newer of this and Discord's.
   const itemPrices = Object.values(database.itemPrices ?? {})
     .filter((entry) => entry?.name && Number.isFinite(Number(entry.gp)) && entry.at)
@@ -302,7 +303,7 @@ export function parseAddonExportText(text, realm) {
     exportedAt,
     // The WoW guild this saved data belongs to ("Guild Name-Realm").
     ...(database.guildKey ? { wowGuild: String(database.guildKey) } : {}),
-    ...(database.character?.name ? { character: exportCharacter(database.character, realm) } : {}),
+    ...(database.character?.name ? { character: exportCharacter(database.character, realm, database.roster) } : {}),
     // Every character that logged in on this PC for this guild (addon Core.lua, myCharacters):
     // a paired companion links them all to the same Discord member.
     ...(alts.length ? { alts } : {}),
@@ -366,9 +367,23 @@ export function exportBattlegroundReports(database) {
     }));
 }
 
+// The character's rank in the WoW guild the saved data belongs to: { guildRankName, guildRankIndex }
+// or nothing. Optional and additive; a missing or malformed rank is simply left out. Index 0 is the guild master.
+export function guildRankFields(...sources) {
+  for (const source of sources) {
+    const name = typeof source?.guildRankName === "string" ? source.guildRankName : source?.rankName;
+    const index = source?.guildRankIndex ?? source?.rankIndex;
+    if (typeof name === "string" && name.trim() && Number.isInteger(index) && index >= 0 && index < 20) {
+      return { guildRankName: name.trim().slice(0, 60), guildRankIndex: index };
+    }
+  }
+  return {};
+}
+
 // One character as the bot's addonCharacterSchema expects it.
-function exportCharacter(entry, realm) {
+function exportCharacter(entry, realm, roster) {
   return {
+    ...guildRankFields(roster?.[String(entry.name)], entry),
     ...editionMetadata(entry),
     name: String(entry.name),
     ...(entry.displayName ? { displayName: String(entry.displayName) } : {}),

@@ -4,6 +4,7 @@ import { syncProfessionSnapshot } from "./profession-snapshot.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { gameEditionOf } from "./game-edition.js";
+import { guildRankUpdate } from "./guild-rank.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 
 // Characters that addons reveal through the guild digest (name, class, race,
@@ -37,7 +38,7 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     if (existing) {
       await tx.character.update({
         where: { id: existing.id },
-        data: { ...(entry.displayName ? { displayName: entry.displayName } : {}), ...(className ? { className } : {}), ...(race ? { race } : {}), ...(level ? { level } : {}), ...(spec ? { spec } : {}), lastSeenAt: new Date() }
+        data: { ...(entry.displayName ? { displayName: entry.displayName } : {}), ...(className ? { className } : {}), ...(race ? { race } : {}), ...(level ? { level } : {}), ...(spec ? { spec } : {}), ...guildRankUpdate(entry), lastSeenAt: new Date() }
       });
       await syncProfessionSnapshot(tx, guildId, existing, entry.professions, entry.professionsComplete === true, entry.professionsAt ?? new Date());
       result.refreshed++;

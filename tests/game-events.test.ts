@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Collection, ChannelType, PermissionFlagsBits, type Guild, type TextChannel } from "discord.js";
 import type { DiscordJob, GameEventBoard, OfficialGameEvent, PrismaClient } from "../src/generated/prisma/client.js";
-import { EVENT_GAMES, EVENT_TRANSACTION_OPTIONS, retainEventReminders, reminderSettings, effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, eventEmbedsHash, officialEventSource, parseEventInstant, queueGameEvents, reconcileGameEventBoards, reminderDue, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
+import { BRAND } from "../src/brand.js";
+import { COUNTDOWN_PING_MINUTES, EVENT_GAMES, EVENT_TRANSACTION_OPTIONS, countdownBar, countdownMilestone, countdownRolePing, countdownVoice, effectiveEventState, eventBoardEmbeds, eventCountdown, eventDetails, eventEmbedsHash, officialEventSource, parseEventInstant, queueGameEvents, reconcileGameEventBoards, reminderDue, reminderSettings, retainEventReminders, saveOfficialEvent, validateEvent, visibleEvent } from "../src/services/game-events.js";
 import { deliverGameEvent, eventRole, findEventMessage } from "../src/services/game-events-discord.js";
 import { ownerEventsCommand, executeGameEvents, executeOwnerEvents } from "../src/commands/game-events.js";
 
@@ -70,6 +71,7 @@ describe("official event dates and display", () => {
     const ended = JSON.stringify(eventBoardEmbeds([event()], board(), false, now));
     expect(ended).not.toContain("Final countdown");
     expect(ended).not.toContain("to go");
+    expect(ended).toContain("THE GATES ARE OPEN");
     const disabled = JSON.stringify(eventBoardEmbeds([future], board({ enabled: false }), false, now));
     expect(disabled).not.toContain("Near event");
   });
@@ -85,6 +87,91 @@ describe("official event dates and display", () => {
     await saveOfficialEvent({ $transaction: (fn: (t: unknown) => unknown) => fn(tx) } as unknown as PrismaClient, event({ titleEn: "Corrected" }), "owner", now);
     expect(upsert.mock.calls[0]![0].update).not.toHaveProperty("scheduleVersion");
     expect(upsert.mock.calls[0]![0].create).not.toHaveProperty("createdAt");
+  });
+});
+
+describe("launch countdown hype", () => {
+  const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000);
+  it("steps through every milestone and only fills the bar as the watch advances", () => {
+    expect(countdownMilestone(7 * 1440 + 1)).toBe("horizon");
+    expect(countdownBar(7 * 1440 + 1)).toBe(`[${"░".repeat(11)}]`);
+    const beats = ["7d", "3d", "1d", "12h", "6h", "1h", "30m", "10m", "5m", "1m", "live"] as const;
+    const edges = [7 * 1440, 3 * 1440, 1440, 12 * 60, 6 * 60, 60, 30, 10, 5, 1, 0];
+    let previous = countdownBar(edges[0]! + 1);
+    edges.forEach((minutes, index) => {
+      expect(countdownMilestone(minutes)).toBe(beats[index]);
+      const bar = countdownBar(minutes);
+      expect(bar.startsWith("[█")).toBe(minutes < 7 * 1440 || minutes === 7 * 1440);
+      expect(bar.length).toBe(previous.length);
+      expect((bar.match(/█/g) ?? []).length).toBeGreaterThan((previous.match(/█/g) ?? []).length);
+      previous = bar;
+    });
+    expect(countdownBar(0)).toBe(`[${"█".repeat(11)}]`);
+    expect(countdownBar(-3)).toBe(countdownBar(0));
+  });
+  it("keeps the clock, rotates flavour by milestone and language, and stays still within a minute", () => {
+    const week = at(6 * 1440);
+    const english = eventCountdown(week, false, now);
+    const french = eventCountdown(week, true, now);
+    expect(english).toContain("6d 00h 00m");
+    expect(english).not.toContain("Final countdown");
+    expect(french).toContain("6j 00h 00m");
+    expect(french).not.toContain("Sharpen");
+    expect(eventCountdown(at(50), false, now)).toContain("Final countdown");
+    expect(countdownVoice(event({ id: "launch" }), "7d", false, now).line).not.toBe(countdownVoice(event({ id: "launch" }), "1h", false, now).line);
+    expect(countdownVoice(event({ id: "launch" }), "7d", true, now).title).not.toBe(countdownVoice(event({ id: "launch" }), "7d", false, now).title);
+    const first = countdownVoice(event({ id: "launch" }), "7d", false, now).line;
+    expect(countdownVoice(event({ id: "launch" }), "7d", false, new Date(now.getTime() + 20_000)).line).toBe(first);
+    const rotated = new Set(Array.from({ length: 48 }, (_, hour) => countdownVoice(event({ id: "launch" }), "7d", false, new Date(now.getTime() + hour * 3_600_000)).line));
+    expect(rotated.size).toBeGreaterThan(1);
+  });
+  it("renders a forever board with a live timestamp, a bar and the brand accent", () => {
+    const start = at(6 * 1440);
+    const embeds = eventBoardEmbeds([event({ id: "forever-launch", titleEn: "WoW Forever launch", titleFr: "Lancement de WoW Forever", startsAt: start })], board(), false, now).map(embed => embed.toJSON());
+    expect(embeds[0]!.description).toContain("Up next · WoW Forever launch");
+    expect(embeds[0]!.description).toMatch(/<t:\d+:R>/);
+    expect(embeds[0]!.description).toMatch(/<t:\d+:F>/);
+    expect(embeds[0]!.description).toContain("█");
+    expect(embeds[0]!.color).toBe(BRAND.color);
+    expect(embeds[0]!.thumbnail?.url).toContain("guilded-card.png");
+    expect(embeds[1]!.fields![0]!.value).toContain("6d 00h 00m");
+    const french = eventBoardEmbeds([event({ startsAt: start, titleFr: "Lancement de WoW Forever" })], board(), true, now)[0]!.toJSON();
+    expect(french.description).toContain("Prochain rendez-vous · Lancement de WoW Forever");
+    expect(french.description).toContain("fuseau");
+    const hot = eventBoardEmbeds([event({ startsAt: at(50) })], board(), false, now)[0]!.toJSON();
+    expect(hot.color).toBe(0xf59e0b);
+    expect(hot.title).toBe("Final countdown");
+    const far = eventBoardEmbeds([event({ startsAt: at(10 * 1440) })], board(), false, now)[0]!.toJSON();
+    expect(far.color).toBe(0x8b5cf6);
+    expect(far.description).toContain("░");
+  });
+  it("opens the gates for WoW Forever, and uses a different banner for other games", () => {
+    const forever = eventBoardEmbeds([event()], board(), false, now)[0]!.toJSON();
+    expect(forever.title).toBe("THE GATES ARE OPEN");
+    expect(forever.image?.url).toContain("guilded-card.png");
+    expect(forever.description).toMatch(/<t:\d+:R>/);
+    expect(forever.description).not.toContain("to go");
+    const french = eventBoardEmbeds([event()], board(), true, now)[0]!.toJSON();
+    expect(french.title).toBe("LES PORTES SONT OUVERTES");
+    const poe = eventBoardEmbeds([event({ game: "POE2", region: "GLOBAL", titleEn: "Full release" })], board(), false, now)[0]!.toJSON();
+    expect(poe.title).toBe("THE FIRST STEP IS YOURS");
+    const retail = eventBoardEmbeds([event({ game: "WOW_RETAIL", titleEn: "Season" })], board({ games: ["WOW_RETAIL"] }), false, now)[0]!.toJSON();
+    expect(retail.title).toBe("THE REALM IS OPEN");
+    const stale = eventBoardEmbeds([event({ startsAt: new Date(now.getTime() - 7 * 60 * 60_000) })], board(), false, now)[0]!.toJSON();
+    expect(stale.title).toBe("Upcoming Events");
+    expect(JSON.stringify(stale)).not.toContain("THE GATES ARE OPEN");
+  });
+  it("names a role only at 1h and live, and only when that offset is saved", () => {
+    expect(COUNTDOWN_PING_MINUTES).toEqual([60, 0]);
+    expect(countdownRolePing(60, [1440, 60, 0], "role")).toBe("role");
+    expect(countdownRolePing(0, [0], "role")).toBe("role");
+    expect(countdownRolePing(1440, [1440, 60, 0], "role")).toBeNull();
+    expect(countdownRolePing(60, [0], "role")).toBeNull();
+    expect(countdownRolePing(0, [0], null)).toBeNull();
+    for (const minutes of [7 * 1440, 3 * 1440, 12 * 60, 6 * 60, 30, 10, 5, 1]) {
+      expect(countdownRolePing(minutes, [minutes], "role")).toBeNull();
+      expect(reminderDue(event(), board(), minutes, now)).toBe(false);
+    }
   });
 });
 
@@ -162,7 +249,7 @@ describe("countdown reconciliation workload", () => {
 
 function harness(kind = "GAME_EVENT_REMINDER") {
   vi.useFakeTimers(); vi.setSystemTime(now);
-  const b = { ...board(), guild: { settings: { language: "en" } } };
+  const b = { ...board(), guild: { settings: { language: "en" as string } } };
   const e = event();
   const job = { id: "durable-job", guildId: "record", kind, payload: { boardId: b.id, eventId: e.id, scheduleVersion: 1, minutes: 0 }, createdAt: now } as unknown as DiscordJob;
   const tx = { $executeRaw: vi.fn(), gameEventBoard: { findFirst: vi.fn().mockResolvedValue(b), update: vi.fn() }, officialGameEvent: { findUnique: vi.fn().mockResolvedValue(e), findMany: vi.fn().mockResolvedValue([e]) } };
@@ -221,7 +308,61 @@ describe("delivery and restart recovery", () => {
     expect(transaction).toHaveBeenCalledOnce();
     expect(transaction).toHaveBeenCalledWith(expect.any(Function), EVENT_TRANSACTION_OPTIONS);
     expect(transaction.mock.invocationCallOrder[0]).toBeLessThan(h.send.mock.invocationCallOrder[0]!);
+    expect(h.send.mock.calls[0]![0].content).toBe("<@&role>");
     expect(h.send.mock.calls[0]![0].allowedMentions).toEqual({ parse: [], roles: ["role"], users: [], repliedUser: false });
+    const live = h.send.mock.calls[0]![0].embeds[0].toJSON();
+    expect(live.title).toContain("THE GATES ARE OPEN");
+    expect(live.description).toMatch(/<t:\d+:R>/);
+    expect(live.description).toMatch(/<t:\d+:F>/);
+    expect(live.description).not.toContain("to go");
+    expect(live.image?.url).toContain("guilded-card.png");
+  });
+  it("pings the one-hour reminder and posts the day-before note without a role", async () => {
+    const hour = harness();
+    hour.job.payload = { boardId: hour.b.id, eventId: hour.e.id, scheduleVersion: 1, minutes: 60 };
+    hour.e.startsAt = new Date(now.getTime() + 60 * 60_000);
+    hour.b.wowReminders = [60];
+    await deliverGameEvent(hour.guild, hour.db, hour.job, now);
+    expect(hour.send.mock.calls[0]![0].content).toBe("<@&role>");
+    expect(hour.send.mock.calls[0]![0].embeds[0].toJSON().description).toContain("Final countdown");
+    const day = harness();
+    day.job.payload = { boardId: day.b.id, eventId: day.e.id, scheduleVersion: 1, minutes: 1440 };
+    day.e.startsAt = new Date(now.getTime() + 1440 * 60_000);
+    await deliverGameEvent(day.guild, day.db, day.job, now);
+    expect(day.send).toHaveBeenCalledOnce();
+    expect(day.send.mock.calls[0]![0].content).toBeUndefined();
+    expect(day.send.mock.calls[0]![0].allowedMentions.roles).toEqual([]);
+    expect(day.send.mock.calls[0]![0].embeds[0].toJSON().description).toMatch(/<t:\d+:R>/);
+  });
+  it("says the gates are open in French when the guild language is French", async () => {
+    const h = harness();
+    h.b.guild.settings.language = "fr";
+    await deliverGameEvent(h.guild, h.db, h.job, now);
+    expect(h.send.mock.calls[0]![0].embeds[0].toJSON().title).toContain("LES PORTES SONT OUVERTES");
+  });
+  it("edits the pinned countdown instead of posting another message", async () => {
+    const h = harness("GAME_EVENT_BOARD");
+    h.b.messageId = "existing";
+    h.b.contentHash = "stale";
+    const edit = vi.fn();
+    const existing = { id: "existing", author: { id: "bot" }, embeds: [{ footer: { text: "Guilded events board" } }], edit, pin: vi.fn(), pinned: true };
+    h.channel.messages.fetch.mockImplementation(async (query: { message?: string } | undefined) => query?.message === "existing" ? existing : new Collection());
+    await deliverGameEvent(h.guild, h.db, h.job, now);
+    expect(h.send).not.toHaveBeenCalled();
+    expect(edit).toHaveBeenCalledOnce();
+    expect(edit.mock.calls[0]![0].allowedMentions).toEqual({ parse: [] });
+    expect(edit.mock.calls[0]![0].content).toBeUndefined();
+    expect(JSON.stringify(edit.mock.calls[0]![0].embeds.map((embed: { toJSON: () => unknown }) => embed.toJSON()))).toContain("THE GATES ARE OPEN");
+  });
+  it("pins the first countdown post and does not mention a role", async () => {
+    const h = harness("GAME_EVENT_BOARD");
+    const pin = vi.fn();
+    h.send.mockResolvedValue({ id: "posted", pinned: false, pin, unpin: vi.fn() });
+    await deliverGameEvent(h.guild, h.db, h.job, now);
+    expect(h.send).toHaveBeenCalledOnce();
+    expect(h.send.mock.calls[0]![0].allowedMentions).toEqual({ parse: [] });
+    expect(h.send.mock.calls[0]![0].content).toBeUndefined();
+    expect(pin).toHaveBeenCalledOnce();
   });
   it.each(["version", "cancelled", "disabled", "role"])('rechecks %s immediately before delivery', async reason => {
     const h = harness();

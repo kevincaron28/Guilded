@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { DiscordJob, PrismaClient } from "../generated/prisma/client.js";
-import { ChannelType, EmbedBuilder, PermissionFlagsBits, type Guild, type Message, type TextChannel } from "discord.js";
-import { EVENT_TRANSACTION_OPTIONS, eventBoardEmbeds, eventDetails, eventEmbedsHash, eventLock, eventText, reminderDue, reminderSettings } from "./game-events.js";
+import { ChannelType, PermissionFlagsBits, type Guild, type Message, type TextChannel } from "discord.js";
+import { EVENT_TRANSACTION_OPTIONS, countdownRolePing, eventBoardEmbeds, eventEmbedsHash, eventLock, eventReminderEmbed, reminderDue, reminderSettings } from "./game-events.js";
 import { retryTransientTransaction } from "./transaction-retry.js";
 import { selfRoleProblem } from "./selfrole.js";
 
@@ -76,12 +76,13 @@ export async function deliverGameEvent(guild: Guild, database: PrismaClient, job
     if (job.kind === "GAME_EVENT_REMINDER") {
       const event = await tx.officialGameEvent.findUnique({ where: { id: String(payload['eventId']) } });
       if (!event || event.scheduleVersion !== payload['scheduleVersion'] || !reminderDue(event, board, minutes, new Date(Math.max(now.getTime(), Date.now())))) return null;
-      if (!role || reminderSettings(board, event.game).role !== role.id) throw new Error("Event reminder role changed during preflight");
-      const label = minutes === 0 ? eventText(fr, "Scheduled time reached", "Heure prévue atteinte") : `${minutes === 1440 ? 24 : 1} h`;
-      return { kind: "reminder" as const, content: `<@&${role.id}>`, roleId: role.id,
-        embeds: [new EmbedBuilder().setTitle(`${label} · ${fr ? event.titleFr : event.titleEn}`)
-          .setDescription(`${eventDetails(event, fr, now)}\n${eventText(fr, "This is not confirmation that servers are online.", "Ceci ne confirme pas que les serveurs sont en ligne.")}`)
-          .setFooter({ text: marker })] };
+      const settings = reminderSettings(board, event.game);
+      if (!role || settings.role !== role.id) throw new Error("Event reminder role changed during preflight");
+      const ping = countdownRolePing(minutes, settings.offsets, settings.role);
+      const shownAt = new Date(Math.max(now.getTime(), Date.now()));
+      // The send stays outside this lock. A role is named only at 1h and live.
+      return { kind: "reminder" as const, content: ping ? `<@&${ping}>` : undefined, roleId: role.id,
+        embeds: [eventReminderEmbed(event, fr, minutes, shownAt).setFooter({ text: marker })] };
     }
     if (!message && !board.enabled) return null;
     const events = await tx.officialGameEvent.findMany({ where: { archived: false }, orderBy: { id: "asc" } });
@@ -98,7 +99,8 @@ export async function deliverGameEvent(guild: Guild, database: PrismaClient, job
     const board = await database.gameEventBoard.findFirst(query);
     const current = new Date(Math.max(now.getTime(), Date.now()));
     if (!event || !board || !board.enabled || event.scheduleVersion !== payload['scheduleVersion'] || event.state === "CANCELLED" || !role || reminderSettings(board, event.game).role !== role.id || !reminderDue(event, board, minutes, current)) return;
-    await channel.send({ content: plan.content, embeds: plan.embeds, allowedMentions: { parse: [], roles: [plan.roleId], users: [], repliedUser: false },
+    await channel.send({ ...(plan.content ? { content: plan.content } : {}), embeds: plan.embeds,
+      allowedMentions: { parse: [], roles: plan.content ? [plan.roleId] : [], users: [], repliedUser: false },
       nonce: createHash("sha256").update(job.id).digest("hex").slice(0, 24), enforceNonce: true });
     return;
   }

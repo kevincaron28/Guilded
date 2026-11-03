@@ -98,10 +98,19 @@ describe("companion core and price edits", () => {
     expect(allowManageWrite("other", 1_000)).toBe(true);
     expect(allowManageWrite("m", 1_000 + 5 * 60_000)).toBe(true);
   });
+
+  it("does not lift every member's limit when the write map is full", () => {
+    resetManageWrites();
+    for (let i = 0; i < 5_000; i++) expect(allowManageWrite(`m${i}`, 1_000)).toBe(true);
+    for (let i = 0; i < 120; i++) expect(allowManageWrite("after", 2_000)).toBe(true);
+    expect(allowManageWrite("after", 2_000)).toBe(false);
+    for (let i = 0; i < 100; i++) allowManageWrite(`n${i}`, 2_000);
+    expect(allowManageWrite("after", 2_000)).toBe(false);
+  });
 });
 
 describe("companion editing over HTTP", async () => {
-  const { startCompanionApi, resetFailures } = await import("../src/companion-api.js");
+  const { startCompanionApi, resetFailures, STANDINGS_READ_BUDGET_MS } = await import("../src/companion-api.js");
   const { hashCompanionSecret } = await import("../src/services/character-pairing.js");
   const secret = "x".repeat(43);
   let isLeader = false;
@@ -124,6 +133,10 @@ describe("companion editing over HTTP", async () => {
     db.companionCredential.findFirst.mockImplementation(async ({ where }) => where.tokenHash === hashCompanionSecret(secret) ? { memberId: "me", member: { discordUserId: "discord-me", guild: { id: "guild", discordId: "123", scopeKey: "default", gameEdition: "forever" } } } : null);
   });
   const send = (change: unknown, credential = secret) => fetch(`${address}/api/v1/manage`, { method: "POST", headers: { "content-type": "application/json", "x-companion-credential": credential }, body: JSON.stringify({ guildDiscordId: "123", change }) });
+
+  it("finishes a standings read before the public proxy gives up", () => {
+    expect(STANDINGS_READ_BUDGET_MS.query + STANDINGS_READ_BUDGET_MS.poolWait).toBeLessThan(STANDINGS_READ_BUDGET_MS.workerAbort);
+  });
 
   it("requires a paired companion", async () => {
     expect((await fetch(`${address}/api/v1/manage?guild=123`)).status).toBe(401);

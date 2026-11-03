@@ -380,7 +380,7 @@ describe("one saved-data set per WoW guild", () => {
     login();
     expect(t.run(`return GuildedDB.guildKey`)).toBe("Alpha-TestRealm");
     expect(t.run(`return GuildedDB.epgp.Bob.ep`)).toBe("50");
-    expect(t.run(`return GuildedDB.raids.r1.title`)).toBe("MC");
+    expect(t.run(`return GuildedDB.raids[1].id .. "|" .. GuildedDB.raids[1].title`)).toBe("r1|MC");
     expect(t.run(`return GuildedDB.otherGuilds["Beta-TestRealm"].epgp.Bob.ep`)).toBe("7");
     expect(t.chat().join("\n")).toContain("(restored)");
   });
@@ -393,6 +393,17 @@ describe("one saved-data set per WoW guild", () => {
     expect(s.run(`return tostring(GuildedDB.guildKey)`)).toBe("nil");
   });
 
+  it("switches saved data when the character changes guild without /reload", () => {
+    const s = loggedIn();
+    inGuild(s, "Alpha");
+    s.run(`fire_event("GUILD_ROSTER_UPDATE"); GuildedDB.epgp = { Bob = { ep = 50, gp = 0, ledger = {} } }`);
+    inGuild(s, "Beta");
+    s.run(`fire_event("PLAYER_GUILD_UPDATE"); fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(s.run(`return GuildedDB.guildKey`)).toBe("Beta-TestRealm");
+    expect(s.run(`return tostring(GuildedDB.epgp.Bob)`)).toBe("nil");
+    expect(s.run(`return GuildedDB.otherGuilds["Alpha-TestRealm"].epgp.Bob.ep`)).toBe("50");
+  });
+
   it("picks up a guild joined mid-session without a roster update or /reload", () => {
     const s = loggedIn();
     s.run(`TIMERS = {}; C_Timer.After = function(_, fn) TIMERS[#TIMERS + 1] = fn end`);
@@ -403,6 +414,27 @@ describe("one saved-data set per WoW guild", () => {
     inGuild(s, "Alpha");
     s.run(`for _, fn in ipairs(TIMERS) do fn() end`);
     expect(s.run(`return GuildedDB.guildKey`)).toBe("Alpha-TestRealm");
+  });
+
+  it("keeps an open raid that was saved under its id instead of in a list", () => {
+    session = newLuaSession();
+    session.run(`
+      GuildedDB = { activeRaidId = "r1", raids = { r1 = { id = "r1", title = "MC" } } }
+      NS = {}; MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
+    `);
+    session.load("Core.lua");
+    session.run(`fire_event("PLAYER_LOGIN")`);
+    expect(session.chat().join("\n")).toContain("raid 'MC' is still active");
+    expect(session.run(`return GuildedDB.raids[1].id`)).toBe("r1");
+  });
+
+  it("replaces damaged saved data instead of erroring at login", () => {
+    session = newLuaSession();
+    session.run(`GuildedDB = { epgp = "bad", settings = "bad", raids = "bad" }; NS = {}; MOCK_UNITS = { player = { name = "Kev", buffs = {} } }`);
+    session.load("Core.lua");
+    session.run(`fire_event("PLAYER_LOGIN")`);
+    expect(session.run(`return type(GuildedDB.epgp) .. type(GuildedDB.settings) .. type(GuildedDB.raids)`)).toBe("tabletabletable");
+    expect(session.chat().join("\n")).toContain("Loaded.");
   });
 
   it("/guilded diag shows which guild the data belongs to", () => {

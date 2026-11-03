@@ -306,7 +306,10 @@ const writes = new Map<string, number[]>();
 export function allowManageWrite(memberId: string, now = Date.now()): boolean {
   const recent = (writes.get(memberId) ?? []).filter((at) => now - at < WRITE_WINDOW_MS);
   if (recent.length >= MAX_WRITES) { writes.set(memberId, recent); return false; }
-  if (writes.size > 5_000) writes.clear();
+  // Drop one old member. Clearing the whole map would lift every limit at once.
+  if (writes.size > 5_000) {
+    for (const key of writes.keys()) if (key !== memberId) { writes.delete(key); break; }
+  }
   writes.set(memberId, [...recent, now]);
   return true;
 }

@@ -312,6 +312,16 @@ describe("Discord message channel coverage", () => {
     await createParticipationTracker(s.database as never, true).message(fixture.message as unknown as Message);
     expect(s.points).toHaveLength(1);
     expect(s.points[0]?.reference).toBe("participation:message:message");
+    expect(fixture.guild.members.fetch).toHaveBeenCalledWith({ user: "member" });
+    expect(fixture.guild.members.fetch).not.toHaveBeenCalledWith(expect.objectContaining({ force: true }));
+  });
+  it("uses the member already attached to the message", async () => {
+    const s = store(), fixture = messageFixture(ChannelType.GuildText);
+    const attached = { id: "member", user: { bot: false, createdTimestamp: Date.now() - 100 * 86400000 }, joinedTimestamp: Date.now() - 50 * 86400000, roles: { cache: { has: () => false } }, permissions: { has: () => false }, guild: fixture.guild };
+    s.cfg.rules = participationRules.parse({});
+    await createParticipationTracker(s.database as never, false).message({ ...fixture.message, member: attached } as unknown as Message);
+    expect(s.points).toHaveLength(1);
+    expect(fixture.guild.members.fetch).not.toHaveBeenCalled();
   });
   it("keeps the cooldown shared across channels and threads", async () => {
     const s = store(), first = messageFixture(ChannelType.GuildText, "parent", "one"), second = messageFixture(ChannelType.PublicThread, "thread", "two");

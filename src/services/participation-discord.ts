@@ -13,6 +13,13 @@ export function eligibleParticipationMember(member: GuildMember, season: { audie
 
 export type VoiceParticipant = { id: string; channelId: string; eligible: boolean; deaf: boolean };
 // `channels` null means every voice channel counts.
+// Prefer the member already on the gateway event. A forced REST fetch on every
+// message is what fills Discord's rate limit when a launch channel is busy.
+async function guildMember(guild: Guild, userId: string, attached?: GuildMember | null): Promise<GuildMember> {
+  if (attached && attached.id === userId) return attached;
+  return guild.members.cache?.get(userId) ?? guild.members.fetch({ user: userId });
+}
+
 export function eligibleVoiceUsers(states: VoiceParticipant[], channels: string[] | null, afkId: string | null): Set<string> {
   const groups = new Map<string, string[]>();
   for (const state of states) {
@@ -44,7 +51,7 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       if (!cfg) return;
       const rules = participationRules.parse(cfg.rules);
       if (!participationChannelEnabled(message.channel, rules) || rules.messageDailyCap === 0) return;
-      const member = await guild.members.fetch({ user: message.author.id, force: true });
+      const member = await guildMember(guild, message.author.id, message.member);
       if (!eligibleParticipationMember(member, cfg.season, rules, now) || !await canViewParticipationChannel(message.channel, member)) return;
       await service.message(cfg.season.guildId, cfg.seasonId, { userId: member.id, channelId: message.channelId, messageId: message.id, hash: contentAvailable ? messageFingerprint(message.content) : null, contentAvailable, at: message.createdAt, revision: cfg.revision });
     },
@@ -59,8 +66,8 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       if (!message.inGuild()) return;
       const now = new Date(), age = now.getTime() - message.createdTimestamp;
       if (message.author.bot || message.webhookId || message.author.id === user.id || ![MessageType.Default, MessageType.Reply].includes(message.type) || age < 120_000 || age > 48 * 60 * 60_000) return;
-      const author = await guild.members.fetch({ user: message.author.id, force: true });
-      const reactor = await guild.members.fetch({ user: user.id, force: true });
+      const author = await guildMember(guild, message.author.id, message.member);
+      const reactor = await guildMember(guild, user.id);
       for (const member of [author, reactor]) if (!eligibleParticipationMember(member, cfg.season, rules, now) || !await canViewParticipationChannel(message.channel, member)) return;
       await service.reaction(cfg.season.guildId, cfg.seasonId, { userId: author.id, reactorId: reactor.id, messageId: message.id, channelId: message.channelId, at: now, revision: cfg.revision });
     },

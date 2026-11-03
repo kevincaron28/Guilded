@@ -76,28 +76,49 @@ local function defaultSettings()
   }
 end
 
+local function asTable(value)
+  if type(value) == "table" then return value end
+  return {}
+end
+
+-- History, reports and the active-raid resume walk raids as an array. Older
+-- saves used id -> raid, which made #raids == 0 and dropped the open raid.
+local function asRaidList(value)
+  if type(value) ~= "table" then return {} end
+  local count = #value
+  local list = {}
+  for i = 1, count do list[i] = value[i] end
+  for key, raid in pairs(value) do
+    if type(key) ~= "number" or key < 1 or key > count or key ~= math.floor(key) then
+      list[#list + 1] = raid
+    end
+  end
+  return list
+end
+
 local function ensureDb()
-  -- Early builds saved under the old name; adopt that data once.
-  if not GuildedDB and type(_G.QuebecGoldDB) == "table" then
+  -- Early builds saved under the old name; adopt that data once. A non-table
+  -- value (a damaged SavedVariables file) is not usable and must not be indexed.
+  if type(GuildedDB) ~= "table" and type(_G.QuebecGoldDB) == "table" then
     GuildedDB = _G.QuebecGoldDB
     _G.QuebecGoldDB = nil
   end
-  GuildedDB = GuildedDB or {}
+  if type(GuildedDB) ~= "table" then GuildedDB = {} end
   db = GuildedDB
   db.version = DB_VERSION
   db.addonVersion = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(addonName, "Version")) or (GetAddOnMetadata and GetAddOnMetadata(addonName, "Version")) or "6.1.0"
   -- Fill in any setting missing from an older saved file instead of only
   -- creating settings when the whole table is absent.
-  db.settings = db.settings or {}
+  db.settings = asTable(db.settings)
   for key, value in pairs(defaultSettings()) do
     if db.settings[key] == nil then db.settings[key] = value end
   end
-  db.raids = db.raids or {}
-  db.roster = db.roster or {}
-  db.attendance = db.attendance or {}
-  db.bosses = db.bosses or {}
-  db.epgp = db.epgp or {}
-  if db.dkp then
+  db.raids = asRaidList(db.raids)
+  db.roster = asTable(db.roster)
+  db.attendance = asTable(db.attendance)
+  db.bosses = asTable(db.bosses)
+  db.epgp = asTable(db.epgp)
+  if type(db.dkp) == "table" then
     for name, old in pairs(db.dkp) do
       db.epgp[name] = db.epgp[name] or { ep = 0, gp = 0, ledger = {} }
       for _, entry in pairs(old.ledger or {}) do
@@ -111,34 +132,34 @@ local function ensureDb()
     end
     db.dkp = nil
   end
-  db.ledgerSeq = db.ledgerSeq or 0
+  db.ledgerSeq = tonumber(db.ledgerSeq) or 0
   -- Other officers' awards not in the Discord standings yet: [ledger id] = { name, ep, gp, coreId, by, at }.
-  db.peerLedger = db.peerLedger or {}
+  db.peerLedger = asTable(db.peerLedger)
   local peerCutoff = (GetServerTime and GetServerTime() or time()) - PEER_LEDGER_SECONDS
   for id, peer in pairs(db.peerLedger) do
     if type(peer) ~= "table" or (tonumber(peer.at) or 0) < peerCutoff then db.peerLedger[id] = nil end
   end
-  db.readiness = db.readiness or {}
-  db.attunements = db.attunements or {}
+  db.readiness = asTable(db.readiness)
+  db.attunements = asTable(db.attunements)
   -- Diagnostics: blocked-action reports (ADDON_ACTION_BLOCKED/FORBIDDEN,
   -- which name the exact function WoW refused to let an addon call) and
   -- captured Lua errors. See /guilded diag.
-  db.diagnostics = db.diagnostics or {}
+  db.diagnostics = asTable(db.diagnostics)
   -- Roster digests broadcast by other guildmates' clients (gear/profession
   -- summary only, not full detail) so one officer's export can carry the
   -- whole online guild's readiness picture, not just their own.
-  db.peerRoster = db.peerRoster or {}
-  db.loot = db.loot or {}
+  db.peerRoster = asTable(db.peerRoster)
+  db.loot = asTable(db.loot)
   -- Raid templates: name -> { title, coreId } (/guilded template).
-  db.raidTemplates = db.raidTemplates or {}
+  db.raidTemplates = asTable(db.raidTemplates)
   -- Who was actually in the raid group during each raid: [raidId][name] =
   -- { firstSeen, lastSeen }. Filled automatically while a raid is active.
-  db.presence = db.presence or {}
-  db.events = db.events or {}
+  db.presence = asTable(db.presence)
+  db.events = asTable(db.events)
   while #db.events > MAX_EVENTS do table.remove(db.events, 1) end
   -- Older versions stored a full copy of the database per export, which
   -- the SavedVariables writer duplicates on disk every time. Keep markers only.
-  db.exports = db.exports or {}
+  db.exports = asTable(db.exports)
   for key, value in pairs(db.exports) do
     if type(value) == "table" and value.roster then db.exports[key] = { exportedAt = key } end
   end
@@ -1925,11 +1946,14 @@ end
 
 -- Returns "recorded", "same", "switched" or nil (guild not known yet / no guild).
 local function resolveGuildData()
-  if guildResolved or not db then return nil end
+  if not db then return nil end
   local key = currentGuildKey()
   if not key then return nil end
   local edition = ns.util.gameEdition()
   local oldEdition = db.guildEdition or edition
+  -- Settled on this guild for the session. A later guild or realm change
+  -- (common on launch day, and not always followed by /reload) still swaps.
+  if guildResolved and db.guildKey == key and oldEdition == edition then return nil end
   local function storageKey(guildKey, gameEdition)
     return gameEdition == "forever" and guildKey or gameEdition .. "@" .. guildKey
   end

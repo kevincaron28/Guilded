@@ -41,6 +41,8 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     alts: snapshot.alts.filter(ownCharacter),
     readiness: snapshot.readiness.filter(own), attunements: snapshot.attunements.filter(own),
     recipes: snapshot.recipes.filter(own), cooldowns: snapshot.cooldowns.filter(own),
-    recipeNames: Object.fromEntries(Object.entries(snapshot.recipeNames).filter(([key]) => snapshot.recipes.filter(own).some((set) => set.keys.includes(Number(key)))))
+    recipeNames: Object.fromEntries(Object.entries(snapshot.recipeNames).filter(([key]) => snapshot.recipes.filter(own).some((set) => set.keys.includes(Number(key))))),
+    // Own postmatch reports only. record() still requires Discord consent and drops the rest.
+    battlegroundReports: snapshot.battlegroundReports.filter((row) => row.edition === edition && names.has(key(row.character, row.realm)))
   });
 }

@@ -8,7 +8,6 @@ import { pinnedMessages } from "./pins.js";
 // on https://guilded.kcaron.top/start/. All links are the published ones (site/releases.json).
 export const START_URL = "https://guilded.kcaron.top/start/";
 const ADDON_URL = "https://www.curseforge.com/wow/addons/guilded";
-const DUNGEONS_URL = "https://www.curseforge.com/wow/addons/guilded-dungeons";
 const STORE_URL = "https://apps.microsoft.com/detail/9N680XX3QFL9";
 const GITHUB_URL = "https://github.com/kevincaron28/Guilded/releases/latest";
 
@@ -16,8 +15,8 @@ const TITLES = { en: "⚡ Install Guilded in 1 minute", fr: "⚡ Installer Guild
 const OWNED_TITLES = new Set<string>(Object.values(TITLES));
 
 const BODY = {
-  en: "**1. Addon (required).** Pick the file for your WoW version. Close WoW before you install. Dungeons only? Take Guilded Dungeons.\n**2. Companion (optional, Windows).** Sends your saved game data to Discord and the website. Latest from the Microsoft Store.\n**3. Sign in with Discord.** One click; pairing and sync are then automatic. The 1-minute guide has every step.",
-  fr: "**1. Addon (obligatoire).** Choisis le fichier de ta version de WoW. Ferme WoW avant d'installer. Seulement les donjons ? Prends Guilded Dungeons.\n**2. Compagnon (facultatif, Windows).** Envoie tes données de jeu enregistrées vers Discord et le site. Dernière version du Microsoft Store.\n**3. Connecte-toi avec Discord.** Un clic; le lien et la synchronisation sont ensuite automatiques. Le guide d'une minute détaille chaque étape."
+  en: "**1. Addon (required).** Pick the file for your WoW version. Close WoW before you install.\n**2. Companion (optional, Windows).** Sends your saved game data to Discord and the website. Latest from the Microsoft Store.\n**3. Sign in with Discord.** One click; pairing and sync are then automatic. The 1-minute guide has every step.",
+  fr: "**1. Addon (obligatoire).** Choisis le fichier de ta version de WoW. Ferme WoW avant d'installer.\n**2. Compagnon (facultatif, Windows).** Envoie tes données de jeu enregistrées vers Discord et le site. Dernière version du Microsoft Store.\n**3. Connecte-toi avec Discord.** Un clic; le lien et la synchronisation sont ensuite automatiques. Le guide d'une minute détaille chaque étape."
 } as const;
 
 const label = (lang: Lang, en: string, fr: string) => (lang === "fr" ? fr : en);
@@ -27,7 +26,6 @@ export function installPost(lang: Lang) {
   const link = (text: string, url: string) => new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(text).setURL(url);
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     link(label(lang, "1 · Addon (CurseForge)", "1 · Addon (CurseForge)"), ADDON_URL),
-    link("Guilded Dungeons", DUNGEONS_URL),
     link(label(lang, "2 · Companion (Store)", "2 · Compagnon (Store)"), STORE_URL),
     link(label(lang, "Direct download (GitHub)", "Téléchargement direct (GitHub)"), GITHUB_URL),
     link(label(lang, "3 · Start here", "3 · Commencer ici"), lang === "fr" ? `${START_URL}?lang=fr` : START_URL)

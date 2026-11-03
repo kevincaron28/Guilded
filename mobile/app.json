@@ -11,6 +11,17 @@
     },
     "ios": {
       "bundleIdentifier": "top.kcaron.guilded"
-    }
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#d5ad57",
+          "defaultChannel": "raids",
+          "enableRemoteNotifications": false
+        }
+      ]
+    ]
   }
 }

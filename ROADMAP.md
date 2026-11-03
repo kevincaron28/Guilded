@@ -133,6 +133,8 @@ and the competitive review: [PRE_RELEASE_AUDIT_2026-10-22.md](docs/archive/PRE_R
   crafting, onboarding, community seasons/activities, participation and PoE2 journals.
 - Windows companion (the browser companion was removed in November 2026): personal uploads and standings; file
   watching and optional PoE2 log tracking.
+- Phone app in `mobile/` (not a store release): the public boards, and Discord sign-in for characters
+  (guild rank and spec), reserves, wishlist, raid standings and on-device reminders. See [mobile/README.md](mobile/README.md).
 
 Built does not mean every live workflow has passed. Recorded two-player results
 cover map visibility/privacy, recipes, bidding/council/reserves, GP accounting and

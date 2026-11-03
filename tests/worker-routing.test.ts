@@ -443,3 +443,37 @@ describe("WoW edition sections", () => {
     expect(saved.headers.get("location")).toBe("/retail/recruitment/?saved=1");
   });
 });
+
+describe("phone app routes", () => {
+  it("forwards the companion hub the phone and the Windows app both call", async () => {
+    const upstream = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => Response.json({ guild: { name: "Northwind" } }));
+    vi.stubGlobal("fetch", upstream);
+    const get = await worker.fetch(new Request(base + "/api/v1/hub?guild=123", { headers: { "x-companion-credential": "secret" } }), env);
+    expect(get.status).toBe(200);
+    const [getUrl, getInit] = upstream.mock.calls[0] as [string, RequestInit];
+    expect(getUrl).toBe("https://guildedqc.duckdns.org/api/v1/hub?guild=123");
+    expect(new Headers(getInit.headers).get("x-companion-credential")).toBe("secret");
+    const post = await worker.fetch(new Request(base + "/api/v1/hub", {
+      method: "POST", body: "{}", headers: { "content-type": "application/json", "x-companion-credential": "secret" }
+    }), env);
+    expect(post.status).toBe(200);
+    expect(upstream.mock.calls[1]?.[0]).toBe("https://guildedqc.duckdns.org/api/v1/hub");
+  });
+
+  it("lets Expo web on this computer read the API and the public summary, and no other site", async () => {
+    const upstream = vi.fn(async () => Response.json({ season: "Beta" }));
+    vi.stubGlobal("fetch", upstream);
+    const preflight = await worker.fetch(new Request(base + "/api/v1/hub?guild=123", {
+      method: "OPTIONS", headers: { origin: "http://localhost:8081", "access-control-request-headers": "x-companion-credential" }
+    }), env);
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("access-control-allow-origin")).toBe("http://localhost:8081");
+    expect(upstream).not.toHaveBeenCalled();
+    const summary = await worker.fetch(new Request("https://guilded.kcaron.top/leaderboards/summary.json", { headers: { origin: "http://127.0.0.1:8081" } }), env);
+    expect(summary.headers.get("access-control-allow-origin")).toBe("http://127.0.0.1:8081");
+    const stranger = await worker.fetch(new Request(base + "/api/v1/hub?guild=123", { headers: { origin: "https://evil.example" } }), env);
+    expect(stranger.headers.get("access-control-allow-origin")).toBeNull();
+    const page = await worker.fetch(new Request(base + "/", { headers: { origin: "http://localhost:8081" } }), env);
+    expect(page.headers.get("access-control-allow-origin")).toBeNull();
+  });
+});

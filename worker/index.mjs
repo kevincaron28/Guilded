@@ -55,9 +55,36 @@ const apiMethods = new Map([
   ["/api/v1/companion/logout", ["POST"]],
   ["/api/v1/companion/sign-in", ["POST"]],
   ["/api/v1/companion/sign-in/poll", ["POST"]],
-  ["/api/v1/manage", ["GET", "POST"]]
+  ["/api/v1/manage", ["GET", "POST"]],
+  // The Windows companion and the phone app both call this on the public site.
+  // Characters, guild rank and reserves live here; the other companion routes were already forwarded.
+  ["/api/v1/hub", ["GET", "POST"]]
 ]);
 const failure = (status, error) => Response.json({ error }, { status, headers: { "cache-control": "no-store" } });
+
+// Expo web on a developer's computer calls the public site from localhost. Phone and
+// desktop apps are not subject to browser CORS. Only these paths, and only a loopback
+// page, receive the header. Website cookies are not included.
+function mobileDevCors(request) {
+  const origin = request.headers.get("origin") ?? "";
+  if (!/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return null;
+  const path = new URL(request.url).pathname;
+  if (!path.startsWith("/api/") && path !== "/leaderboards/summary.json") return null;
+  return {
+    "access-control-allow-origin": origin,
+    "access-control-allow-headers": "accept, authorization, content-type, if-none-match, x-companion-credential",
+    "access-control-allow-methods": "GET, HEAD, POST, OPTIONS",
+    "access-control-max-age": "600",
+    vary: "origin"
+  };
+}
+function withMobileDevCors(request, response) {
+  const cors = mobileDevCors(request);
+  if (!cors) return response;
+  const headers = new Headers(response.headers);
+  for (const [name, value] of Object.entries(cors)) headers.set(name, value);
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
 
 async function limitedBody(request) {
   const reader = request.body?.getReader();
@@ -113,14 +140,19 @@ function unavailablePage(request, url) {
 
 export default {
   async fetch(request, env) {
-    const response = await route(request, env);
+    if (request.method === "OPTIONS" && mobileDevCors(request)) {
+      return new Response(null, { status: 204, headers: { ...mobileDevCors(request), "cache-control": "no-store" } });
+    }
+    let response = await route(request, env);
     // A page inside an edition's section remembers that edition for the next visit.
     const url = new URL(request.url);
     const section = ["kcaron.top", "www.kcaron.top"].includes(url.hostname) ? null : splitEditionPath(url.pathname);
-    if (!section || response.status >= 400) return response;
-    const remembered = new Response(response.body, response);
-    remembered.headers.append("set-cookie", editionCookie(section.slug));
-    return remembered;
+    if (section && response.status < 400) {
+      const remembered = new Response(response.body, response);
+      remembered.headers.append("set-cookie", editionCookie(section.slug));
+      response = remembered;
+    }
+    return withMobileDevCors(request, response);
   }
 };
 

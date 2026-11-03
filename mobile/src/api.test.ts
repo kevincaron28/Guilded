@@ -1,0 +1,80 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { GuildedClient, apiOrigin, discordEventLink, parseGrant, parseHub, parseManage, parseStandings, withMine } from "./api";
+import { notificationId, planReminders, soonRaids } from "./reminders";
+import { sampleHubBody, sampleManageBody, sampleStandingsBody } from "./sample";
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("mobile companion client", () => {
+  it("accepts the public site and a loopback bot, and refuses passwords and plain http", () => {
+    expect(apiOrigin("https://guilded.kcaron.top/api/v1/hub")).toBe("https://guilded.kcaron.top");
+    expect(apiOrigin("http://127.0.0.1:8787")).toBe("http://127.0.0.1:8787");
+    expect(() => apiOrigin("http://guilded.example")).toThrow(/https/);
+    expect(() => apiOrigin("https://user:secret@guilded.kcaron.top")).toThrow(/password/);
+  });
+
+  it("reads a guild grant and a personal grant", () => {
+    expect(parseGrant({ companionCredential: "a".repeat(43), guildDiscordId: "123456789", wowGuildName: "Northwind", gameEdition: "retail" })).toMatchObject({
+      personal: false, guildDiscordId: "123456789", guildName: "Northwind"
+    });
+    expect(parseGrant({ companionCredential: "b".repeat(43), personal: true })?.personal).toBe(true);
+    expect(parseGrant({ companionCredential: "short" })).toBeNull();
+  });
+
+  it("keeps guild rank and spec from the hub, and wishlist priority from manage", () => {
+    const hub = parseHub(sampleHubBody);
+    expect(hub.characters.map((character) => [character.name, character.rank, character.spec])).toEqual([
+      ["Aelira", "Raider", "Restoration"],
+      ["Borin", "Raider", "Protection"],
+      ["Cindra", null, "Frost"]
+    ]);
+    expect(hub.reserves.mineCount).toBe(1);
+    expect(hub.reserves.writable).toBeUndefined();
+    const manage = parseManage(sampleManageBody);
+    expect(manage.characters[0]?.wishlist.map((wish) => wish.priority)).toEqual([1, 2]);
+    const standings = parseStandings(sampleStandingsBody);
+    expect(standings.nextRaid?.players).toHaveLength(2);
+    expect(withMine(standings.standings, [{ name: "Aelira", realm: "Silvermoon" }]).find((row) => row.mine)?.character).toBe("Aelira-Silvermoon");
+    expect(discordEventLink(standings.raids[1]?.note ?? "")).toBe("https://discord.com/events/100/200");
+    expect(discordEventLink("see https://example.com/events/1/2")).toBeNull();
+  });
+
+  it("schedules a reminder an hour before, and skips a raid that is already inside that hour", () => {
+    const now = Date.parse("2026-11-03T12:00:00.000Z");
+    const raids = [
+      { id: "past", title: "Past", at: "2026-11-03T11:00:00.000Z", core: null },
+      { id: "soon", title: "Soon", at: "2026-11-03T12:20:00.000Z", core: "Thursday" },
+      { id: "later", title: "Later", at: "2026-11-05T12:00:00.000Z", core: "Sunday" }
+    ];
+    expect(planReminders(raids, now).map((reminder) => reminder.id)).toEqual(["later"]);
+    expect(planReminders(raids, now)[0]?.fireAt).toBe("2026-11-05T11:00:00.000Z");
+    expect(soonRaids(raids, now).map((raid) => raid.id)).toEqual(["soon"]);
+    expect(notificationId("discord:raid/1")).toBe("guilded-raid-discordraid1");
+    const standings = parseStandings(sampleStandingsBody);
+    expect(soonRaids(standings.raids).length + planReminders(standings.raids).length).toBe(standings.raids.length);
+  });
+
+  it("sends the companion credential to the hub and refuses a sign-in page on another site", async () => {
+    const fetchMock = vi.fn(async (url: string) => new Response(JSON.stringify(String(url).includes("/hub") ? sampleHubBody : sampleManageBody), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GuildedClient("https://guilded.kcaron.top", "credential-value-0123456789");
+    expect((await client.hub("123456")).characters[0]?.rank).toBe("Raider");
+    const [url, init] = fetchMock.mock.calls[0] as [string, { headers: Record<string, string> }];
+    expect(String(url)).toBe("https://guilded.kcaron.top/api/v1/hub?guild=123456");
+    expect(init.headers["x-companion-credential"]).toBe("credential-value-0123456789");
+    await client.setWishlist("123456", "char-aelira", "Sulfuras", 1);
+    const post = fetchMock.mock.calls[1] as [string, { method: string; body: string }];
+    expect(post[1].method).toBe("POST");
+    expect(JSON.parse(post[1].body)).toEqual({ guildDiscordId: "123456", change: { action: "wishlist.set", characterId: "char-aelira", item: "Sulfuras", priority: 1 } });
+
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      requestId: "r".repeat(40), confirm: "ABC-DEF", expiresAt: "2026-11-03T12:10:00.000Z", url: "https://evil.example/me/companion?request=1"
+    }), { status: 200 })));
+    await expect(client.startSignIn()).rejects.toThrow(/configured Guilded server/);
+  });
+
+  it("explains a missing hub instead of showing an empty character list", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: "Not found" }), { status: 404 })));
+    await expect(new GuildedClient("https://guilded.kcaron.top", "credential-value-0123456789").hub("123")).rejects.toThrow(/guild hub/);
+  });
+});

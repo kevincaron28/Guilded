@@ -44,6 +44,17 @@
     "draft": false
   },
   {
+    "source": "reference.md",
+    "sourceFr": "reference.fr.md",
+    "path": "reference/",
+    "title": "Guilded quick reference — every command at a glance",
+    "titleFr": "Référence rapide Guilded — toutes les commandes en un coup d’œil",
+    "description": "Every Guilded Discord slash command, WoW addon command and Windows companion feature in short tables, with who can use each.",
+    "descriptionFr": "Toutes les commandes Discord, commandes d’addon WoW et fonctions du compagnon Windows de Guilded en tableaux courts, avec qui peut les utiliser.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "status.md",
     "path": "status/",
     "title": "Guilded status — bot and leaderboards",

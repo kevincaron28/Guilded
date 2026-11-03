@@ -222,7 +222,11 @@ export async function signUpForPug(db: Db, input: PugSignupInput, allows: Allows
   return signup;
 }
 
-/** Officer decision. `guildId` is the deciding guild: nobody can decide another guild's sign-ups. */
+/**
+ * Officer decision. `guildId` is the deciding guild: nobody can decide another guild's sign-ups.
+ * An accept locks the request and re-counts accepted spots in that same transaction, so two officers
+ * cannot take the last spot. Discord jobs stay outside the transaction.
+ */
 export async function decidePugSignup(db: Db, signupId: string, guildId: string, accept: boolean, allows: Allows, now = new Date()): Promise<"accepted" | "declined" | "already-decided"> {
   const signup = await db.pugSignup.findUnique({ where: { id: signupId }, include: { request: { include: { signups: { select: { role: true, status: true } } } } } });
   if (!signup || signup.request.guildId !== guildId) throw new PugError("Sign-up not found.");
@@ -230,13 +234,21 @@ export async function decidePugSignup(db: Db, signupId: string, guildId: string,
   if (accept) {
     if (signup.request.status !== "OPEN") throw new PugError("This request is closed.");
     if (openCounts(signup.request, signup.request.signups)[signup.role as PugRole] <= 0) throw new PugError("That role is already full.");
-  }
-  const { count } = await db.pugSignup.updateMany({ where: { id: signupId, status: "PENDING" }, data: { status: accept ? "ACCEPTED" : "DECLINED", decidedAt: now } });
-  if (!count) return "already-decided";
-  if (accept) {
+    const claimed = await db.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT "id" FROM "PugRequest" WHERE "id" = ${signup.requestId} FOR UPDATE`;
+      const request = await tx.pugRequest.findUnique({ where: { id: signup.requestId }, include: { signups: { select: { role: true, status: true } } } });
+      if (!request || request.status !== "OPEN") throw new PugError("This request is closed.");
+      if (openCounts(request, request.signups)[signup.role as PugRole] <= 0) throw new PugError("That role is already full.");
+      const { count } = await tx.pugSignup.updateMany({ where: { id: signupId, status: "PENDING" }, data: { status: "ACCEPTED", decidedAt: now } });
+      return count > 0;
+    });
+    if (!claimed) return "already-decided";
     const signups = await db.pugSignup.findMany({ where: { requestId: signup.requestId }, select: { role: true, status: true } });
     if (isFilled(openCounts(signup.request, signups))) await closePugRequest(db, signup.requestId, "filled", allows, now);
     else await fanOutPugRequest(db, signup.requestId, allows, now);
+  } else {
+    const { count } = await db.pugSignup.updateMany({ where: { id: signupId, status: "PENDING" }, data: { status: "DECLINED", decidedAt: now } });
+    if (!count) return "already-decided";
   }
   await queueNotice(db, signup.requestId, guildId, now, 0);
   return accept ? "accepted" : "declined";

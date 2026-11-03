@@ -19,6 +19,7 @@ function fake(options: { boards?: Board[]; blocks?: { guildId: string; blockedGu
   const signups: Row[] = [];
   const jobs = new Map<string, Row>();
   const raid = options.raid === undefined ? { id: "r1", guildId: "g1", title: "Karazhan", status: "PLANNED", isTest: false, scheduledAt: later, guild: { gameEdition: "classic-tbc" } } : options.raid;
+  let tail: Promise<unknown> = Promise.resolve();
   const db = {
     pugBoardGuild: {
       findUnique: vi.fn(async ({ where }: { where: { guildId: string } }) => (options.boards ?? []).find(b => b.guildId === where.guildId) ?? null),
@@ -87,6 +88,14 @@ function fake(options: { boards?: Board[]; blocks?: { guildId: string; blockedGu
       })
     },
     member: { findMany: vi.fn(async () => options.members ?? []) },
+    // Accepts serialize on the request row. One transaction at a time, so the locked re-check
+    // sees the other officer's accept. $queryRaw stands in for the row lock.
+    $queryRaw: vi.fn(async () => []),
+    $transaction: vi.fn((work: (tx: unknown) => Promise<unknown>) => {
+      const run = tail.then(() => work(db));
+      tail = run.then(() => undefined, () => undefined);
+      return run;
+    }),
     discordJob: {
       upsert: vi.fn(async ({ where, create, update }: { where: { guildId_key: { guildId: string; key: string } }; create: Row; update: Row }) => {
         const key = `${where.guildId_key.guildId}/${where.guildId_key.key}`;
@@ -273,14 +282,9 @@ describe("sign-ups and decisions", () => {
     expect(f.signups[0]?.["status"]).toBe("DECLINED");
   });
 
-  // Bug: concurrent accepts of different guests can both take the last open spot.
-  // decidePugSignup (src/services/pug-requests.ts, the openCounts check immediately
-  // before pugSignup.updateMany) reads the spots and then updates only that signup.
-  // The two writes do not share a transaction, so both PENDING rows become ACCEPTED
-  // and the request is overfilled. A later sequential accept is refused. This stays
-  // skipped so CI stays green; unskip once the accept re-checks the accepted count
-  // in the same transaction as the update.
-  it.skip("does not let two accepts fill the same last spot", async () => {
+  // Regression from #343: both open-spot reads finish before either write. The accept
+  // re-checks the accepted count under the request lock, in the same transaction as the update.
+  it("does not let two accepts fill the same last spot", async () => {
     const f = fake({ boards, requests: [open({ wantTank: 1, wantHealer: 0, wantDps: 0 })] });
     await signUpForPug(f.db, person, allowAll, now);
     await signUpForPug(f.db, { ...person, discordUserId: "u2", characterName: "Bobth" }, allowAll, now);

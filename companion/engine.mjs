@@ -337,7 +337,8 @@ export function createEngine(initialConfig, hooks = {}) {
     if (epoch !== generation) return;
     if (response.ok || response.status === 409 && body.importId) {
       Object.assign(state.syncEvidence, { uploadedAt, uploadedRevision: revision });
-      if (body.importId) Object.assign(state.syncEvidence, { acceptedAt: new Date().toISOString(), acceptedRevision: revision });
+      // A failed apply is not accepted, even when the same bytes were stored earlier.
+      if (body.importId && !body.applyError) Object.assign(state.syncEvidence, { acceptedAt: new Date().toISOString(), acceptedRevision: revision });
     }
     state.botVersion = body.botVersion ?? state.botVersion;
     state.addonVersion = exported.addonVersion ?? state.addonVersion;
@@ -358,12 +359,15 @@ export function createEngine(initialConfig, hooks = {}) {
       // A live standings connection hears about the change by itself.
       if (state.standingsMode !== "live") track(refreshStandings());
     } else if (response.status === 409 && body.importId) {
-      const message = body.status === "PREVIEWED"
-        ? `Upload is waiting for officer review: /import apply id:${body.importId}.`
-        : `Nothing new since the last upload.${pairingNote(body.pairedCharacterStatus)}`;
+      const failed = Boolean(body.applyError);
+      const message = failed
+        ? `Uploaded, but the bot could not apply it: ${body.applyError}`
+        : body.status === "PREVIEWED"
+          ? `Upload is waiting for officer review: /import apply id:${body.importId}.`
+          : `Nothing new since the last upload.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
-      state.syncPhase = body.status === "PREVIEWED" ? "officer-review" : "synced";
-      log("info", message);
+      state.syncPhase = failed ? "apply-error" : body.status === "PREVIEWED" ? "officer-review" : "synced";
+      log(failed ? "warn" : "info", message);
     } else {
       const error = new Error(`Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
       error.retryable = response.status === 429 || response.status >= 500;

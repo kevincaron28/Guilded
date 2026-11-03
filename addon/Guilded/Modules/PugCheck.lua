@@ -164,8 +164,9 @@ ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded pugcheck on | off | now | last - item level and missing enchants of non-guild group members")
 
 local frame = CreateFrame("Frame")
-frame:RegisterEvent("GROUP_ROSTER_UPDATE")
-frame:RegisterEvent("INSPECT_READY")
+-- A missing event must not stop the rest of the addon from loading.
+pcall(frame.RegisterEvent, frame, "GROUP_ROSTER_UPDATE")
+pcall(frame.RegisterEvent, frame, "INSPECT_READY")
 frame:SetScript("OnEvent", function(_, event, guid)
   local ok, err = pcall(function()
     if ns.moduleActive and not ns.moduleActive("pugcheck") then return end

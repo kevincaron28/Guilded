@@ -8,7 +8,12 @@ import { check as copiesMatch, tocFiles } from "../../scripts/build-dungeons-add
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const toc = readFileSync(join(root, "GuildedDungeons.toc"), "utf8");
-if (!toc.includes("## Interface: 16001") || !toc.includes("## SavedVariables: GuildedDungeonsDB")) throw new Error("GuildedDungeons.toc is missing interface or SavedVariables metadata");
+const interfaceLine = /^## Interface:\s*(.+)$/m.exec(toc)?.[1] ?? "";
+const listed = interfaceLine.split(",").map((value) => value.trim());
+for (const api of ["16001", "11509", "20506", "50504", "120105"]) {
+  if (!listed.includes(api)) throw new Error(`GuildedDungeons.toc interface list is missing ${api}`);
+}
+if (!toc.includes("## SavedVariables: GuildedDungeonsDB")) throw new Error("GuildedDungeons.toc is missing SavedVariables metadata");
 if (/## (?:RequiredDeps|Dependencies):/i.test(toc)) throw new Error("GuildedDungeons must work without Guilded (no required dependency)");
 if (!/## OptionalDeps: Guilded/.test(toc)) throw new Error("GuildedDungeons must load after Guilded (OptionalDeps) so it can stay quiet");
 // One source: the shared files are exact copies of Guilded's.

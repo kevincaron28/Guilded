@@ -38,4 +38,19 @@ describe("companion authorization", () => {
     expect(result.character).toBeUndefined();
     expect(result.readiness.map((r) => r.character)).toEqual(["Me"]);
   });
+
+  it("keeps a member's own battleground reports and drops everyone else's", () => {
+    const report = { version: 1, reportId: "self-report-001", adapter: "forever-postmatch-v1", edition: "forever",
+      character: "Me", realm: "R", realmType: "normal", mode: "casual", mapId: 489, bracket: "60",
+      endedAt: 1_762_000_000, durationSeconds: 600, outcome: "win", presence: "complete",
+      reloaded: false, postmatch: true, consent: true };
+    const snapshot = parseAddonSnapshot({ source: "Guilded", exportedAt: new Date(), gameEdition: "forever", battlegroundReports: [
+      report,
+      { ...report, reportId: "self-report-002", character: "Other" },
+      { ...report, reportId: "self-report-003", edition: "retail", adapter: "retail-postmatch-v1" }
+    ] });
+    const result = personalSnapshot(snapshot, [{ name: "Me", realm: "R" }]);
+    expect(result.battlegroundReports.map((row) => row.reportId)).toEqual(["self-report-001"]);
+    expect(result.epgpTransactions).toEqual([]);
+  });
 });

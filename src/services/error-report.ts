@@ -42,15 +42,25 @@ export interface ErrorReportContext extends ReportOrigin {
 // De-dupes identical failures (e.g. a background job failing the same way
 // every 5 minutes) so the live channel doesn't get spammed.
 const DEDUPE_WINDOW_MS = 5 * 60_000;
+const DEDUPE_MAX = 500;
 const recentlySent = new Map<string, number>();
 
-function shouldPost(key: string): boolean {
-  const now = Date.now();
+export function resetErrorNotifications(): void { recentlySent.clear(); }
+
+// Identical failures share one Discord post per five minutes. When the map is
+// full, drop one older key. Clearing it posted every repeated error again at once.
+export function allowErrorNotification(key: string, now = Date.now()): boolean {
   const last = recentlySent.get(key);
-  if (last && now - last < DEDUPE_WINDOW_MS) return false;
+  if (last !== undefined && now - last < DEDUPE_WINDOW_MS) return false;
   recentlySent.set(key, now);
-  if (recentlySent.size > 500) recentlySent.clear();
+  if (recentlySent.size > DEDUPE_MAX) {
+    for (const old of recentlySent.keys()) if (old !== key) { recentlySent.delete(old); break; }
+  }
   return true;
+}
+
+function shouldPost(key: string): boolean {
+  return allowErrorNotification(key);
 }
 
 export function createErrorReportService(prisma: PrismaClient) {

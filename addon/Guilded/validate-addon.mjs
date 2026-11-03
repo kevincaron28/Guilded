@@ -7,9 +7,15 @@ import { validateCombatLog } from "../../scripts/validate-combat-log.mjs";
 const root = new URL(".", import.meta.url);
 const rootPath = fileURLToPath(root);
 const toc = readFileSync(new URL("Guilded.toc", root), "utf8");
-// 16001 is WoW Forever's interface number (from /dump select(4, GetBuildInfo())).
-if (!toc.includes("## Interface: 16001") || !toc.includes("## SavedVariables:")) {
-  throw new Error("TOC is missing interface or SavedVariables metadata");
+// Current clients as of 3 Nov 2026. Forever's live interface is still the beta
+// number 16001 until launch-day GetBuildInfo(); the others are Era, TBC, Mists, Retail.
+const interfaceLine = /^## Interface:\s*(.+)$/m.exec(toc)?.[1] ?? "";
+const listed = interfaceLine.split(",").map((value) => value.trim());
+for (const api of ["16001", "11509", "20506", "50504", "120105"]) {
+  if (!listed.includes(api)) throw new Error(`TOC interface list is missing ${api}`);
+}
+if (!toc.includes("## SavedVariables:")) {
+  throw new Error("TOC is missing SavedVariables metadata");
 }
 
 function walk(dir) {

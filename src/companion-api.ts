@@ -229,16 +229,22 @@ async function signInServers(client: Client | undefined, discordUserId: string) 
   for (const guild of guilds) {
     if (!hostedPilot.allows(guild.discordId)) continue;
     const discordGuild = client.guilds.cache.get(guild.discordId);
-    const member = discordGuild ? await discordGuild.members.fetch({ user: discordUserId, force: true }).catch(() => null) : null;
+    // Cache when the gateway already has this member. The chosen server is
+    // checked again with a fresh fetch before a credential is issued.
+    const member = discordGuild ? await discordGuild.members.fetch({ user: discordUserId }).catch(() => null) : null;
     if (member && (!guild.wowSpace?.memberRoleId || member.permissions.has("Administrator") || member.roles.cache.has(guild.wowSpace.memberRoleId))) found.push({ discordId: guild.discordId, wowGuildId: guild.id, gameEdition: guild.gameEdition, name: `${discordGuild!.name} / ${guild.name} · ${guild.gameEdition}` });
   }
   return found;
 }
 
 async function signInGuildCredential(client: Client | undefined, account: { discordUserId: string; username: string; displayName: string | null }, guildDiscordId: string, wowGuildId?: string, deviceName?: string) {
-  if (!(await signInServers(client, account.discordUserId)).some((server) => server.discordId === guildDiscordId && (!wowGuildId || server.wowGuildId === wowGuildId))) return null;
-  const guild = await prisma.guild.findFirst({ where: wowGuildId ? { id: wowGuildId, discordId: guildDiscordId } : { discordId: guildDiscordId, scopeKey: "default" }, select: { id: true } });
+  if (!client || !(await signInServers(client, account.discordUserId)).some((server) => server.discordId === guildDiscordId && (!wowGuildId || server.wowGuildId === wowGuildId))) return null;
+  const guild = await prisma.guild.findFirst({ where: wowGuildId ? { id: wowGuildId, discordId: guildDiscordId } : { discordId: guildDiscordId, scopeKey: "default" }, select: { id: true, wowSpace: { select: { memberRoleId: true } } } });
   if (!guild) return null;
+  // One fresh lookup for the server they picked, not one per guild in the list.
+  const discordGuild = client.guilds.cache.get(guildDiscordId) ?? await client.guilds.fetch(guildDiscordId).catch(() => null);
+  const live = discordGuild ? await discordGuild.members.fetch({ user: account.discordUserId, force: true }).catch(() => null) : null;
+  if (!live || (guild.wowSpace?.memberRoleId && !live.permissions.has("Administrator") && !live.roles.cache.has(guild.wowSpace.memberRoleId))) return null;
   const member = await prisma.member.upsert({
     where: { guildId_discordUserId: { guildId: guild.id, discordUserId: account.discordUserId } },
     create: { guildId: guild.id, discordUserId: account.discordUserId, displayName: account.displayName ?? account.username },
@@ -353,6 +359,10 @@ export async function lootRefsFor(database: Pick<PrismaClient, "lootAward">, gui
   return rows.flatMap((row) => row.sourceRef ? [row.sourceRef] : []);
 }
 
+// The public Worker aborts the origin after 20s. A cold standings read must
+// finish inside that, including time spent waiting for a pool connection.
+export const STANDINGS_READ_BUDGET_MS = { query: 15_000, poolWait: 3_000, workerAbort: 20_000 } as const;
+
 // Read-only EP/GP/PR per linked character and what goes with it. The companion writes it
 // into the addon folder so /guilded standings shows the bot's numbers.
 async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string }, client?: Client): Promise<FeedParts> {
@@ -392,7 +402,7 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
         publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
       stampOnly: { botRaids }
     };
-  }, { isolationLevel: "RepeatableRead", timeout: 60_000, maxWait: 15_000 });
+  }, { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
 }
 
 // `client` lets an upload be applied and announced by the bot itself (auto-apply).
@@ -734,7 +744,41 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         await updateProfessionDirectory(discordGuild);
       }
       if (preview.duplicate) {
-        json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: preview.existingImport?.id, status: preview.existingImport?.status, botVersion: BOT_VERSION, protocolVersion: 2 });
+        const existing = preview.existingImport;
+        // A member upload (and an officer guild with auto-apply) that was stored
+        // but not applied must be tried again. Leaving it PREVIEWED made the
+        // companion say "waiting for officer review", which a member cannot do.
+        if (existing?.status === "PREVIEWED" && (!access.officer || settings?.autoApplyImports)) {
+          let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
+          try {
+            const result = await importService.apply(guild.id, existing.id, createdBy);
+            autoApplied = { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
+            markGuildChanged(guild.id);
+            await auditService.record({
+              guildId: guild.id, actorId: createdBy, action: "IMPORT_APPLIED", entityId: existing.id,
+              metadata: { auto: true, retried: true, epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
+            });
+            const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
+            await followUpImport(discordGuild, guild.id, result);
+          } catch (error) {
+            const already = error instanceof Error && /already been applied/i.test(error.message);
+            if (!autoApplied && !already) {
+              const applyError = error instanceof Error && error.message.length < 200 ? error.message : "The bot could not apply this upload (see the server log).";
+              json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "PREVIEWED", applyError, botVersion: BOT_VERSION, protocolVersion: 2 });
+              return;
+            }
+          }
+          if (autoApplied) {
+            json(response, 200, {
+              autoApplied, importId: existing.id, checksum: preview.checksum, pairedCharacterStatus,
+              status: "APPLIED", scope: access.officer ? "officer" : "personal", botVersion: BOT_VERSION, protocolVersion: 2
+            });
+            return;
+          }
+          json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "APPLIED", botVersion: BOT_VERSION, protocolVersion: 2 });
+          return;
+        }
+        json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing?.id, status: existing?.status, botVersion: BOT_VERSION, protocolVersion: 2 });
         return;
       }
       const record = await importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId);

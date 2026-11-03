@@ -61,7 +61,7 @@
           ? c.cores.map(k => `${k.name} (${T(k.role === 'TANK' ? 'Tank' : k.role === 'HEALER' ? 'Healer' : 'DPS')}${k.bench ? ', ' + T('bench') : ''}${k.trial ? ', ' + T('trial') : ''}${k.backup ? ', ' + T('backup') : ''})`).join(' · ')
           : T('Not in a raid core');
         return el('li', { class: 'edit-row' }, el('strong', { text: name + (c.isMain ? ' ★' : '') }),
-          el('span', { text: [c.className, c.level ? T('level {0}', c.level) : '', c.realm].filter(Boolean).join(' · ') }),
+          el('span', { text: [c.className, c.spec, c.level ? T('level {0}', c.level) : '', c.rank ? T('Guild rank: {0}', c.rank) : '', c.realm].filter(Boolean).join(' · ') }),
           el('span', { class: 'pill', text: cores }));
       });
       host.append(el('article', { class: 'panel' },

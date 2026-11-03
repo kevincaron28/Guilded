@@ -109,6 +109,15 @@ describe("PoE2 log parser", () => {
   it("does not treat chat quoting an interruption as an engine event", () => {
     expect(parsePoeLogLine(line('12:00:00', ': Name: Abnormal disconnect').replace('[DEBUG Client', '[INFO Client'))).toBeNull();
   });
+  it("reads an English level-up and ignores chat, other shapes and out-of-range levels", () => {
+    const level = (message: string) => parsePoeLogLine(line('12:02:00', message).replace('[DEBUG Client', '[INFO Client'));
+    expect(level(': Ann (Witch) is now level 90')).toMatchObject({ kind: 'level', name: 'Ann', level: 90 });
+    expect(level(': Ann (Witch) is now level 90')).not.toHaveProperty('class');
+    expect(level(': @From Someone: Ann (Witch) is now level 90')).toBeNull();
+    expect(level(': Ann (Witch) is now level 90 today')).toBeNull();
+    expect(level(': Ann (Witch) is now level 101')).toBeNull();
+    expect(level('Generating level 80 area "MapSteppe" with seed 1')).not.toMatchObject({ kind: 'level' });
+  });
   it("accepts observed PoE2 map engine messages and ignores chat, campaign and PoE1 maps", () => {
     const journal = { active: null, pending: [] };
     for (const area of ["G1_2", "HideoutFelled", "MapWorldsDesert"]) consumePoeEvent(journal, parsePoeLogLine(line("12:00:00", `Generating level 80 area "${area}" with seed 1`)), profile);

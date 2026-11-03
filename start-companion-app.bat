@@ -15,6 +15,18 @@ if not exist node_modules\electron\dist\electron.exe (
   call npm.cmd install
 )
 if not exist assets\tray-setup.png call npm.cmd run icon
+if not exist renderer\ui-bundle.js (
+  echo Building the companion window. Running: npm run companion:build
+  pushd "%~dp0"
+  call npm.cmd run companion:build
+  popd
+)
+if not exist renderer\design-tokens.css (
+  echo Building the companion window. Running: npm run companion:build
+  pushd "%~dp0"
+  call npm.cmd run companion:build
+  popd
+)
 set ELECTRON_RUN_AS_NODE=
 start "" "%~dp0companion-app\node_modules\electron\dist\electron.exe" "%~dp0companion-app"
 exit /b 0

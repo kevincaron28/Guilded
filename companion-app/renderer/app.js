@@ -151,7 +151,7 @@ function renderState(snapshot) {
   pill('poeBadge',!savedConfig.poeEnabled ? T("Tracking off") : poe?.error ? T("Needs attention") : poe?.pending ? T("Ready to sync") : poe?.running ? T("Watching") : T("Set up tracking"),poe?.error ? 'error' : poe?.running ? 'ok' : poe?.pending ? 'gold' : '');
   const areaName = poe?.currentArea?.replace(/^Map/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
   $('poeCurrent').textContent = areaName || T("Waiting for your next map");
-  $('poeStatus').textContent = M(poe?.error) || M(poe?.warning) || (poe ? T("{0} observations waiting{1}", poe.pending || 0, poe.lastSync ? T(" · synced {0}", ago(poe.lastSync).toLowerCase()) : '') : T("Enable map sharing in setup when you are ready."));
+  $('poeStatus').textContent = M(poe?.error) || M(poe?.warning) || (poe ? T("{0} observations waiting{1}", poe.pending || 0, poe.lastSync ? T(" · synced {0}", ago(poe.lastSync).toLowerCase()) : '') + (poe.pendingLevels ? T(" · {0} level-up(s) waiting", poe.pendingLevels) : '') : T("Enable map sharing in setup when you are ready."));
   $('poeLiveArea').textContent = areaName || T("Waiting for your next map");
   const elapsed = poe?.running && poe.currentStartedAt ? Math.floor((Date.now() - Date.parse(poe.currentStartedAt)) / 1000) : null;
   $('poeElapsed').textContent = elapsed === null ? T("No open map visit") : elapsed < 0 || elapsed > 21600 ? T("Elapsed time unknown — check game activity and clock") : T("{0}m {1}s elapsed since generation", Math.floor(elapsed / 60), elapsed % 60);

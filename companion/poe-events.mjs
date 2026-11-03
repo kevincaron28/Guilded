@@ -13,6 +13,14 @@ export function parsePoeRecord(line, fingerprint) {
     // The seed stays in memory: callers hash it into instanceRef and never store it.
     return { kind: "area", at, pid, areaId: area[2], areaLevel: Number(area[1]), seed: area[3], fingerprint };
   }
+  // English client only, same limit as area lines. Public PoE2 log tools record
+  // ": Name (Class) is now level N". The class is not kept. Callers upload a
+  // level only when the name is the character declared on this PC.
+  const levelUp = /^: (?!@)(\S(?:[^:\r\n]{0,98}\S)?) \(([^()\r\n]{1,40})\) is now level ([1-9]\d{0,2})$/.exec(message);
+  if (level === "INFO" && levelUp) {
+    const reached = Number(levelUp[3]);
+    if (reached >= 1 && reached <= 100) return { kind: "level", at, pid, name: levelUp[1], level: reached, fingerprint };
+  }
   if (level === "INFO" && /^(?:Abnormal disconnect(?:\b)|Async connecting to .*\.login\.pathofexile2\.com:)/.test(message)) return { kind: "interrupted", at, pid };
   return null;
 }

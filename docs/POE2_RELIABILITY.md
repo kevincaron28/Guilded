@@ -91,5 +91,8 @@ timings, restart, offline recovery, profile changes and diagnostics. Never uploa
 or commit raw private logs. No current-patch/localized support or completed
 installation/deployment is claimed by the synthetic tests or installer build.
 
-Deaths, level-ups, automatic character detection and charts remain deferred until
-their source events and attribution can be verified from that pilot.
+Level-ups use the English line `: Name (Class) is now level N` and are sent only for
+the character declared in settings. That shape comes from public PoE2 log tools, not
+from a Guilded pilot capture, so it is not confirmed on the current patch. Deaths,
+automatic character detection and charts remain deferred until their source events
+and attribution can be verified from that pilot.

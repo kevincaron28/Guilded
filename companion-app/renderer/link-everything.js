@@ -38,6 +38,7 @@
     $('btnLinkFind').hidden = !signedIn || Boolean(config.watchFile);
     $('btnLinkCheck').hidden = !signedIn;
     $('btnLinkBattleNet').disabled = !signedIn;
+    $('linkCharsPanel').hidden = !signedIn; $('linkActionsPanel').hidden = !signedIn;
     $('btnLinkSync').hidden = !signedIn; $('btnLinkUnlink').hidden = !signedIn;
     $('btnLinkDiscord').hidden = !signedIn || !config.guildDiscordId;
     $('btnLinkSkip').hidden = signedIn;

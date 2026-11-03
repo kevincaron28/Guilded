@@ -106,7 +106,7 @@ describe("Link everything wiring", () => {
   it("every id the page script uses exists in the page", () => {
     const html = read("companion-app/renderer/index.html");
     const script = read("companion-app/renderer/link-everything.js") + read("companion-app/renderer/app.js");
-    for (const id of ["page-link", "linkList", "linkAllDone", "linkSummary", "linkResult", "btnLinkSignIn", "btnLinkFind", "btnLinkCheck", "btnLinkBattleNet", "btnLinkDevices", "btnLinkSkip", "linkSignInWaiting", "linkSignInCode", "linkSignInCodeLine", "linkSignInLink", "btnLinkSignInCancel", "linkChars", "linkCharCount", "linkCharsEmpty", "btnLinkSync", "btnLinkUnlink", "btnLinkDiscord"]) {
+    for (const id of ["page-link", "linkList", "linkAllDone", "linkSummary", "linkResult", "btnLinkSignIn", "btnLinkFind", "btnLinkCheck", "btnLinkBattleNet", "btnLinkDevices", "btnLinkSkip", "linkSignInWaiting", "linkSignInCode", "linkSignInCodeLine", "linkSignInLink", "btnLinkSignInCancel", "linkChars", "linkCharCount", "linkCharsEmpty", "btnLinkSync", "btnLinkUnlink", "btnLinkDiscord", "linkCharsPanel", "linkActionsPanel"]) {
       expect(html, id).toContain(`id="${id}"`);
       if (id !== "page-link") expect(script, id).toContain(id);
     }
@@ -142,5 +142,16 @@ describe("Link everything wiring", () => {
   });
   it("parses as plain browser script", () => {
     expect(() => new Script(read("companion-app/renderer/link-everything.js"), { filename: "link-everything.js" })).not.toThrow();
+  });
+});
+
+describe("companion renderer startup", () => {
+  // A bind() on an id that is not in the page throws while app.js loads and stops the whole window
+  // (btnOnline did, after the browser companion was removed).
+  it("every bind('id') and $('id') in app.js exists in index.html", () => {
+    const html = read("companion-app/renderer/index.html");
+    const ids = new Set([...read("companion-app/renderer/app.js").matchAll(/(?:bind|\$)\('([A-Za-z0-9_-]+)'/g)].map(match => match[1]));
+    const dynamic = new Set(["syncEvidence"]);
+    for (const id of ids) if (!dynamic.has(id!)) expect(html, id).toContain(`id="${id}"`);
   });
 });

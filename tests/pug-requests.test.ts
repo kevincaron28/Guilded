@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { createPugWeb } from "../src/services/pug-web.js";
 import {
   blockPugGuild, closePugRequest, createPugRequest, decidePugSignup, fanOutPugRequest, isFilled, joinPugBoard, openCounts, publicPugRequests, pugTargets, PUG_LIMITS, PugError,
   signUpForPug, sweepPugRequests, unblockPugGuild
@@ -18,6 +19,7 @@ function fake(options: { boards?: Board[]; blocks?: { guildId: string; blockedGu
   const signups: Row[] = [];
   const jobs = new Map<string, Row>();
   const raid = options.raid === undefined ? { id: "r1", guildId: "g1", title: "Karazhan", status: "PLANNED", isTest: false, scheduledAt: later, guild: { gameEdition: "classic-tbc" } } : options.raid;
+  let tail: Promise<unknown> = Promise.resolve();
   const db = {
     pugBoardGuild: {
       findUnique: vi.fn(async ({ where }: { where: { guildId: string } }) => (options.boards ?? []).find(b => b.guildId === where.guildId) ?? null),
@@ -86,6 +88,14 @@ function fake(options: { boards?: Board[]; blocks?: { guildId: string; blockedGu
       })
     },
     member: { findMany: vi.fn(async () => options.members ?? []) },
+    // Accepts serialize on the request row. One transaction at a time, so the locked re-check
+    // sees the other officer's accept. $queryRaw stands in for the row lock.
+    $queryRaw: vi.fn(async () => []),
+    $transaction: vi.fn((work: (tx: unknown) => Promise<unknown>) => {
+      const run = tail.then(() => work(db));
+      tail = run.then(() => undefined, () => undefined);
+      return run;
+    }),
     discordJob: {
       upsert: vi.fn(async ({ where, create, update }: { where: { guildId_key: { guildId: string; key: string } }; create: Row; update: Row }) => {
         const key = `${where.guildId_key.guildId}/${where.guildId_key.key}`;
@@ -236,6 +246,70 @@ describe("sign-ups and decisions", () => {
     await expect(signUpForPug(f.db, person, allowAll, now)).rejects.toThrow("already signed up");
   });
 
+  function noticeDelays(f: ReturnType<typeof fake>) {
+    const calls = f.raw.discordJob.updateMany.mock.calls as unknown as [{ where: { id: string }; data: { nextAttemptAt: Date } }][];
+    return calls.map((call) => call[0]).filter((call) => call.where.id.includes("pugnotice"));
+  }
+
+  it("accepts one role without closing the request, refreshes the board, and refuses a second accept into that role", async () => {
+    const f = fake({ boards, requests: [open({ wantTank: 1, wantDps: 1 })] });
+    await signUpForPug(f.db, person, allowAll, now);
+    await signUpForPug(f.db, { ...person, discordUserId: "u2", characterName: "Bobth" }, allowAll, now);
+    await signUpForPug(f.db, { ...person, discordUserId: "u3", characterName: "Cara", role: "DPS" }, allowAll, now);
+    expect(noticeDelays(f).at(-1)?.data.nextAttemptAt).toEqual(new Date(now.getTime() + 20_000));
+
+    expect(await decidePugSignup(f.db, "s1", "g1", true, allowAll, now)).toBe("accepted");
+    expect(f.requests[0]).toMatchObject({ status: "OPEN" });
+    expect([...f.jobs.keys()].filter((key) => key.includes("/pug:"))).toEqual(["g2/pug:req1", "g3/pug:req1"]);
+    expect(noticeDelays(f).at(-1)?.data.nextAttemptAt).toEqual(now);
+    expect([...f.jobs.values()].map((job) => job["kind"]).sort()).toEqual(["PUG_NOTICE", "PUG_POST", "PUG_POST"]);
+
+    await expect(decidePugSignup(f.db, "s2", "g1", true, allowAll, now)).rejects.toThrow("already full");
+    expect(f.signups.find((signup) => signup["id"] === "s2")?.["status"]).toBe("PENDING");
+    expect(await decidePugSignup(f.db, "s1", "g1", false, allowAll, now)).toBe("already-decided");
+    expect(f.signups.find((signup) => signup["id"] === "s1")?.["status"]).toBe("ACCEPTED");
+  });
+
+  it("refuses an accept on a closed request, still records a decline, and ignores a second click", async () => {
+    const f = fake({ requests: [open({ status: "CLOSED" })] });
+    f.signups.push({ id: "s1", requestId: "req1", role: "TANK", status: "PENDING", discordUserId: "u1" });
+    await expect(decidePugSignup(f.db, "s1", "g1", true, allowAll, now)).rejects.toThrow("closed");
+    expect(f.signups[0]?.["status"]).toBe("PENDING");
+    expect(await decidePugSignup(f.db, "s1", "g1", false, allowAll, now)).toBe("declined");
+    expect(f.signups[0]?.["status"]).toBe("DECLINED");
+    expect(noticeDelays(f).at(-1)?.data.nextAttemptAt).toEqual(now);
+    expect(await decidePugSignup(f.db, "s1", "g1", true, allowAll, now)).toBe("already-decided");
+    expect(f.signups[0]?.["status"]).toBe("DECLINED");
+  });
+
+  // Regression from #343: both open-spot reads finish before either write. The accept
+  // re-checks the accepted count under the request lock, in the same transaction as the update.
+  it("does not let two accepts fill the same last spot", async () => {
+    const f = fake({ boards, requests: [open({ wantTank: 1, wantHealer: 0, wantDps: 0 })] });
+    await signUpForPug(f.db, person, allowAll, now);
+    await signUpForPug(f.db, { ...person, discordUserId: "u2", characterName: "Bobth" }, allowAll, now);
+    let release: () => void = () => undefined;
+    const bothRead = new Promise<void>((resolve) => { release = resolve; });
+    let reads = 0;
+    f.raw.pugSignup.findUnique.mockImplementation((async ({ where }: { where: { id: string } }) => {
+      const row = f.signups.find((signup) => signup["id"] === where.id);
+      if (!row) return null;
+      const request = f.requests.find((item) => item["id"] === row["requestId"]);
+      const snapshot = f.signups.map((signup) => ({ role: signup["role"], status: signup["status"] }));
+      reads += 1;
+      if (reads === 1) await bothRead;
+      else release();
+      return { ...row, request: { ...request, status: "OPEN", signups: snapshot } };
+    }) as never);
+    const settled = await Promise.allSettled([
+      decidePugSignup(f.db, "s1", "g1", true, allowAll, now),
+      decidePugSignup(f.db, "s2", "g1", true, allowAll, now)
+    ]);
+    const accepted = f.signups.filter((signup) => signup["status"] === "ACCEPTED");
+    expect(accepted).toHaveLength(1);
+    expect(settled.filter((result) => result.status === "fulfilled" && result.value === "accepted")).toHaveLength(1);
+  });
+
   it("counts only accepted PUGs against the spots", () => {
     const counts = openCounts({ wantTank: 1, wantHealer: 2, wantDps: 0 }, [{ role: "TANK", status: "ACCEPTED" }, { role: "HEALER", status: "PENDING" }, { role: "HEALER", status: "DECLINED" }]);
     expect(counts).toEqual({ TANK: 0, HEALER: 2, DPS: 0 });
@@ -254,6 +328,15 @@ describe("closing and the expiry sweep", () => {
     expect(await closePugRequest(f.db, "req1", "officer", allowAll, now)).toBe(false);
     expect(f.requests[0]).toMatchObject({ status: "CLOSED", closeReason: "officer" });
     expect(f.jobs.has("g2/pug:req1")).toBe(true);
+  });
+
+  it("refreshes the officer notice immediately when a request that already has one closes", async () => {
+    const f = fake({ boards, requests: [{ id: "req1", raidId: "r1", expiresAt: later, noticeMessageId: "notice-1", ...base }] });
+    expect(await closePugRequest(f.db, "req1", "filled", allowAll, now)).toBe(true);
+    expect(f.jobs.has("g1/pugnotice:req1")).toBe(true);
+    const calls = f.raw.discordJob.updateMany.mock.calls as unknown as [{ where: { id: string }; data: { nextAttemptAt: Date } }][];
+    const notice = calls.map((call) => call[0]).find((call) => call.where.id.includes("pugnotice"));
+    expect(notice?.data.nextAttemptAt).toEqual(now);
   });
 
   it("closes when the raid starts, is cancelled or deleted, or the request expires (max 48 hours)", async () => {
@@ -296,6 +379,25 @@ describe("website view", () => {
     expect(rows.map(r => r.id)).toEqual(["req1"]); // filled and unserved ones are hidden
     expect(JSON.stringify(rows)).not.toMatch(/officer-secret|"g1"|"r1"|discordUserId/);
     expect(db.pugRequest.findMany.mock.calls[0]![0].where).toMatchObject({ status: "OPEN", edition: "classic-tbc" });
+  });
+
+  it("lets a signed-in player sign up and tells them an officer still has to accept or decline", async () => {
+    const f = fake({ requests: [{ id: "req1", guildId: "g1", raidId: "r1", edition: "classic-tbc", status: "OPEN", scheduledAt: later, expiresAt: later, wantTank: 1, wantHealer: 0, wantDps: 1, createdBy: "officer" }] });
+    const { route } = createPugWeb(f.db, allowAll);
+    const kit = { page: (_status: number, title: string, body: string) => ({ title, body }), signInPrompt: () => ({ title: "sign-in", body: "" }) };
+    const ctx = {
+      request: { method: "POST", path: "/recruitment/pugs" }, lang: "en", t: (en: string) => en, now,
+      account: { discordUserId: "u9", username: "pat", displayName: "Pat" }, csrf: "csrf",
+      form: new URLSearchParams({ request: "req1", role: "TANK", character: "Patmage", class: "Mage" })
+    };
+    const signedOut = await route({ ...ctx, account: null } as never, kit as never);
+    expect(signedOut).toMatchObject({ title: "sign-in" });
+    expect(f.signups).toHaveLength(0);
+    const page = await route(ctx as never, kit as never) as { body: string };
+    expect(page.body).toContain("officers will accept or decline");
+    expect(page.body).not.toContain("pugb:ok");
+    expect(page.body).not.toContain("pugb:no");
+    expect(f.signups).toEqual([expect.objectContaining({ discordUserId: "u9", characterName: "Patmage", status: "PENDING", role: "TANK" })]);
   });
 });
 

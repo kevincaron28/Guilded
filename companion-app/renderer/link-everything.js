@@ -14,12 +14,22 @@
     for (const step of view.steps) {
       const row = document.createElement('li'); row.className = 'edit-row';
       const title = document.createElement('strong');
-      title.textContent = (step.state === 'done' ? '✓ ' : step.state === 'todo' ? '✗ ' : '– ') + T(step.label) + (step.count ? ` (${step.count})` : '');
+      title.textContent = (step.state === 'done' ? '✓ ' : step.state === 'todo' ? '✗ ' : '– ') + T(step.label, ...(step.args || []));
+      if (step.state === 'done') row.classList.add('linked');
       row.append(title);
       if (step.next) { const next = document.createElement('span'); next.textContent = T(step.next); row.append(next); }
       list.append(row);
     }
     $('linkAllDone').hidden = !view.complete;
+    const rows = window.guildedCharacterRows(hub), body = $('linkChars').querySelector('tbody');
+    body.replaceChildren();
+    for (const row of rows) {
+      const tr = document.createElement('tr');
+      for (const value of [row.name, row.realm, row.wowGuild + (row.rank ? ` · ${row.rank}` : ''), row.server || '–', row.linked ? '✓ ' + T('Linked') : T('Not linked yet')]) { const td = document.createElement('td'); td.textContent = value; tr.append(td); }
+      body.append(tr);
+    }
+    $('linkCharCount').textContent = rows.length ? T('{0} character(s) linked', rows.length) : '';
+    $('linkChars').hidden = !rows.length; $('linkCharsEmpty').hidden = rows.length > 0 || !config.companionCredential || config.personal === true;
     const summary = $('linkSummary');
     summary.textContent = T('Links') + ': ' + window.guildedLinkSummary(view).replace('Characters', T('Characters'));
     summary.hidden = false;
@@ -28,6 +38,9 @@
     $('btnLinkFind').hidden = !signedIn || Boolean(config.watchFile);
     $('btnLinkCheck').hidden = !signedIn;
     $('btnLinkBattleNet').disabled = !signedIn;
+    $('btnLinkSync').hidden = !signedIn; $('btnLinkUnlink').hidden = !signedIn;
+    $('btnLinkDiscord').hidden = !signedIn || !config.guildDiscordId;
+    $('btnLinkSkip').hidden = signedIn;
   }
 
   async function load() {
@@ -45,9 +58,10 @@
   const guarded = (button, task) => button.addEventListener('click', async event => {
     const target = event.currentTarget;
     target.disabled = true;
-    try { await task(); } catch (error) { say(error.message, false); } finally { target.disabled = false; render(); }
+    try { await task(); } catch (error) { say(error?.message || T('Something went wrong. Check your internet connection, then press the button again.'), false); } finally { target.disabled = false; render(); }
   });
   guarded($('btnLinkFind'), async () => {
+    if (config.watchFile) { say(T('Already linked, nothing to do.'), true); return; }
     const found = await api.linkFindSavedData();
     if (!found.ok) { say(found.message || T('This action could not be completed.'), false); return; }
     say(T('Found your addon data.') + ' ' + T('In WoW, type /reload so it is saved; the companion then proves your characters.'), true);
@@ -58,7 +72,11 @@
     say(T('Sync requested. Follow its progress in Activity.'), true);
     setTimeout(() => void load(), 8000);
   });
-  guarded($('btnLinkBattleNet'), async () => { await api.openBattleNet(); say(T('Finish in your browser, then come back and press Check my characters.'), true); });
+  guarded($('btnLinkBattleNet'), async () => {
+    if (window.guildedLinkSteps(config, state, hub).steps.find(step => step.id === 'battlenet')?.state === 'done') { say(T('Already linked, nothing to do.'), true); return; } await api.openBattleNet(); say(T('Finish in your browser, then come back and press Check my characters.'), true); });
+  guarded($('btnLinkSync'), async () => { await api.uploadNow(); say(T('Sync requested. Follow its progress in Activity.'), true); setTimeout(() => void load(), 8000); });
+  guarded($('btnLinkUnlink'), async () => { await api.removeData(); });
+  guarded($('btnLinkDiscord'), async () => { if (!(await api.openDiscordServer())) say(T('Your Discord server is not known yet. Press Sign in with Discord.'), false); });
   guarded($('btnLinkDevices'), async () => { await api.openConnections(); });
   $('btnLinkSkip').addEventListener('click', () => {
     try { localStorage.setItem('guilded.companion.linkSkipped', '1'); } catch { /* the page simply shows again */ }

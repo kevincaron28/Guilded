@@ -615,7 +615,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         // What the companion's Link everything list shows next to the characters (link-status.ts): never fails the hub.
         const link = await memberLinkStatus(prisma, access.actorId, guild.id).catch(() => null);
-        json(response, 200, { ...await hub.view(guild.id, access, checks), ...(link ? { link: { battleNet: link.battleNet, characters: link.characters } } : {}), botVersion: BOT_VERSION });
+        const battleTag = link?.battleNet ? (await prisma.battleNetIdentity.findFirst({ where: { account: { discordUserId: access.actorId } }, select: { battleTag: true } }).catch(() => null))?.battleTag ?? null : null;
+        const view = await hub.view(guild.id, access, checks);
+        // The Discord server's own name, from the bot's cache, so the companion can show it beside each character.
+        const withServers = { ...view, characters: view.characters.map((c) => ({ ...c, guild: { ...c.guild, serverName: client?.guilds.cache.get(c.guild.discordId)?.name ?? null } })) };
+        json(response, 200, { ...withServers, ...(link ? { link: { battleNet: link.battleNet, characters: link.characters, battleTag } } : {}), botVersion: BOT_VERSION });
         return;
       }
       if (isHubEdit) {

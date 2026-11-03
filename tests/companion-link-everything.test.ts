@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import { Script } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { linkSteps, linkSummary } from "../companion/link-everything.mjs";
+import { linkSteps, linkSummary, characterRows, ALREADY_LINKED } from "../companion/link-everything.mjs";
 
 const require = createRequire(import.meta.url);
 const fr: Record<string, string> = require("../companion-app/locales/fr.json");
@@ -41,6 +41,36 @@ describe("companion Link everything status", () => {
     expect(byId(view, "battlenet").state).toBe("unknown");
     expect(byId(view, "battlenet").next).toMatch(/WoW Forever/);
   });
+  it("shows an already-linked account in plain words, as who it is linked to", () => {
+    const hub = { guild: { name: "Vanguard" }, link: { battleNet: true, battleTag: "Kev#1234" }, characters: [{ name: "Aria" }, { name: "Bo" }] };
+    const view = linkSteps({ companionCredential: "c", watchFile: "g.lua" }, { lastUpload: {} }, hub);
+    expect(byId(view, "discord")).toMatchObject({ state: "done", label: "Discord linked to {0}", args: ["Vanguard"] });
+    expect(byId(view, "battlenet")).toMatchObject({ state: "done", label: "Battle.net linked as {0}", args: ["Kev#1234"] });
+    expect(byId(view, "characters")).toMatchObject({ state: "done", label: "{0} character(s) linked", args: [2] });
+    expect(view.complete).toBe(true);
+    expect(view.nextStep).toBeNull();
+    expect(ALREADY_LINKED).toBe("Already linked, nothing to do.");
+    expect(fr[ALREADY_LINKED]).toBeTypeOf("string");
+  });
+  it("says what to do when Discord is linked but no character is found yet", () => {
+    const view = linkSteps({ companionCredential: "c", watchFile: "g.lua" }, {}, { guild: { name: "V" }, link: { battleNet: false }, characters: [] });
+    expect(byId(view, "discord").state).toBe("done");
+    expect(byId(view, "characters").next).toBe("Log in to WoW once and we will find your characters. Type /reload or log out so your data is saved.");
+    expect(view.complete).toBe(false);
+    expect(view.nextStep?.id).toBe("characters");
+  });
+  it("lists characters with guild, rank, Discord server and link state", () => {
+    const rows = characterRows({ characters: [{ name: "Aria", displayName: "Aria Stone", realm: "Doomhowl", edition: "forever", rank: "Officer", guild: { name: "Vanguard", serverName: "Vanguard HQ" } }, { name: "Bo", realm: "R", edition: "retail", guild: { name: "Other" } }] });
+    expect(rows[0]).toEqual({ name: "Aria Stone", realm: "Doomhowl · forever", wowGuild: "Vanguard", rank: "Officer", server: "Vanguard HQ", linked: true });
+    expect(rows[1]).toMatchObject({ rank: "", server: "" });
+    expect(characterRows(null)).toEqual([]);
+  });
+  it("uses no technical words in the member-facing texts", () => {
+    const html = read("companion-app/renderer/index.html");
+    const page = html.slice(html.indexOf('id="page-link"'), html.indexOf('id="page-wow"'));
+    for (const word of [/token/i, /oauth/i, /credential/i]) expect(page).not.toMatch(word);
+    expect(read("companion/link-everything.mjs").replace(/\/\/.*$/gm, "")).not.toMatch(/token|oauth|credential"/i);
+  });
   it("does not ask leaderboards-only connections to prove characters", () => {
     const view = linkSteps({ companionCredential: "personal", personal: true }, {}, null);
     expect(byId(view, "characters").required).toBe(false);
@@ -68,19 +98,31 @@ describe("Link everything wiring", () => {
     expect(link).toContain("api.openConnections()");
     expect(link).not.toMatch(/uploadToken|UPLOAD_TOKEN|fetch\(/);
   });
-  it("lands a signed-out user on the page once, and Skip remembers", () => {
+  it("opens on the page, and Skip remembers, and Skip remembers", () => {
     const app = read("companion-app/renderer/app.js");
-    expect(app).toMatch(/!all\.config\.companionCredential && !linkSkipped\(\) \? 'link' : 'status'/);
+    expect(app).toContain("!linkSkipped() ? 'link' : 'status'");
     expect(read("companion-app/renderer/link-everything.js")).toContain("guilded.companion.linkSkipped");
   });
   it("every id the page script uses exists in the page", () => {
     const html = read("companion-app/renderer/index.html");
     const script = read("companion-app/renderer/link-everything.js") + read("companion-app/renderer/app.js");
-    for (const id of ["page-link", "linkList", "linkAllDone", "linkSummary", "linkResult", "btnLinkSignIn", "btnLinkFind", "btnLinkCheck", "btnLinkBattleNet", "btnLinkDevices", "btnLinkSkip", "linkSignInWaiting", "linkSignInCode", "linkSignInCodeLine", "linkSignInLink", "btnLinkSignInCancel"]) {
+    for (const id of ["page-link", "linkList", "linkAllDone", "linkSummary", "linkResult", "btnLinkSignIn", "btnLinkFind", "btnLinkCheck", "btnLinkBattleNet", "btnLinkDevices", "btnLinkSkip", "linkSignInWaiting", "linkSignInCode", "linkSignInCodeLine", "linkSignInLink", "btnLinkSignInCancel", "linkChars", "linkCharCount", "linkCharsEmpty", "btnLinkSync", "btnLinkUnlink", "btnLinkDiscord"]) {
       expect(html, id).toContain(`id="${id}"`);
       if (id !== "page-link") expect(script, id).toContain(id);
     }
     expect(html).toContain('data-page="link"');
+  });
+  it("re-running a linked step is a harmless no-op", () => {
+    const app = read("companion-app/renderer/app.js"), link = read("companion-app/renderer/link-everything.js");
+    expect(app).toMatch(/view === 'link' && savedConfig\.companionCredential\) \{ ui\.say\(T\("Already linked, nothing to do\."\)/);
+    expect(link.match(/Already linked, nothing to do\./g)?.length).toBeGreaterThanOrEqual(2);
+  });
+  it("opens the Discord server only for a numeric server id", () => {
+    const main = read("companion-app/main.cjs");
+    expect(main).toContain("https://discord.com/channels/${config.guildDiscordId}");
+    expect(main).toContain("{5,25}");
+    expect(() => validateIpc("open-discord-server", [])).not.toThrow();
+    expect(() => validateIpc("open-discord-server", ["x"])).toThrow();
   });
   it("accepts the one new IPC channel with no arguments only", () => {
     expect(() => validateIpc("link-find-saved-data", [])).not.toThrow();
@@ -95,7 +137,7 @@ describe("Link everything wiring", () => {
   });
   it("the bot only adds Battle.net/character counts to the hub answer, behind the personal credential", () => {
     const api = read("src/companion-api.ts");
-    expect(api).toMatch(/link: \{ battleNet: link\.battleNet, characters: link\.characters \}/);
+    expect(api).toContain("link: { battleNet: link.battleNet, characters: link.characters, battleTag }");
     expect(api).not.toMatch(/COMPANION_UPLOAD_TOKEN|UPLOAD_TOKEN/);
   });
   it("parses as plain browser script", () => {

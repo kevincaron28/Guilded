@@ -220,6 +220,7 @@ const signInViews = {
 };
 async function runSignIn(view) {
   const ui = signInViews[view];
+  if (view === 'link' && savedConfig.companionCredential) { ui.say(T("Already linked, nothing to do."),true); return; }
   ui.say(T("Opening Discord sign-in…"),true); const started = await api.signInStart(readForm()); if (!started.ok) { ui.say(started.message,false); return; } if (started.url) { $(ui.link).href = started.url; } $(ui.code).textContent = started.confirm; $(ui.line).hidden = !!started.automatic; $(ui.waiting).hidden = false; ui.say(started.automatic ? T("Your browser opened. Choose your server there and press Connect.") : T("Your browser opened. Type {0} on the sign-in page.", started.confirm),true); const result = await api.signInWait(); $(ui.waiting).hidden = true; ui.say(result.message,result.ok); if (result.ok) { savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; $('uploadUrl').value = savedConfig.uploadUrl || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); document.dispatchEvent(new CustomEvent('companion-signed-in')); }
 }
 bind('btnSignIn',() => runSignIn('setup'));
@@ -356,7 +357,7 @@ $('connectionProfile').addEventListener('change', () => changeConnection({ id: $
 document.addEventListener('companion-language', () => { void renderProfiles().catch(error => toast(error.message, true)); });
 bind('btnAddProfile', async () => { await changeConnection({ name: $('newProfileName').value }); $('newProfileName').value = ''; });
 
-// A new companion user lands on Link everything once; Skip for now remembers the choice on this PC.
+// The companion opens on Link everything (status, characters, big actions); Skip for now sends the user to Home and is remembered on this PC.
 function linkSkipped() { try { return localStorage.getItem('guilded.companion.linkSkipped') === '1'; } catch { return false; } }
 async function init() {
   if (!api) { toast(T("The companion interface could not load. Please reload or reinstall."),true); return; }
@@ -369,7 +370,7 @@ async function init() {
   $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
-  showPage(new URLSearchParams(location.search).get('tab') || (!all.config.companionCredential && !linkSkipped() ? 'link' : 'status'));
+  showPage(new URLSearchParams(location.search).get('tab') || (!linkSkipped() ? 'link' : 'status'));
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);
 }

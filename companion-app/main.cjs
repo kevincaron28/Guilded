@@ -660,5 +660,11 @@ registerIpc("manage-view", () => manageRequest(null));
 registerIpc("manage-edit", (_event, change) => manageRequest(change));
 
 registerIpc("open-connections", () => shell.openExternal(new URL("/me/connections", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));
+// "Open Discord server": the server this companion is linked to, in the Discord app or browser.
+registerIpc("open-discord-server", () => {
+  if (!/^\d{5,25}$/.test(String(config.guildDiscordId || ""))) return false;
+  shell.openExternal(`https://discord.com/channels/${config.guildDiscordId}`);
+  return true;
+});
 registerIpc("open-battlenet", () => shell.openExternal(new URL("/me/battlenet", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));
 registerIpc("recover-sync", () => engine.resume());

@@ -85,3 +85,5 @@ current release evidence for deployment gates.
 
 The only new IPC is `link-find-saved-data` (after sign-in; picks `Guilded.lua` when exactly one account has it, then asks for an upload). Against a bot without `link`, Battle.net shows "optional" and nothing breaks. Unlink: Manage connected devices (`/me/connections`), the Battle.net page's undo, Remove data & quit.
 Not verifiable without a real Windows install and real Discord/Battle.net accounts: the live sign-in round trip, the file detection on a real WTF folder, and Battle.net discovery.
+
+The page doubles as the main screen: link status, a character table (character, realm/edition, WoW guild and rank from PR #330, Discord server name, linked), and four big buttons (Sync now, Unlink this PC, Open Discord server, Settings). The hub answer gained `rank`, `guild.discordId` and `guild.serverName` per character and `link.battleTag`; all are the signed-in member's own data. Already-linked steps say so ("Already linked, nothing to do.") and never repeat.

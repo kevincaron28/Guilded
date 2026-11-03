@@ -14,10 +14,11 @@ Free for noncommercial use ([license](LICENSE)).
 Every in-game and Discord command, and who can run it, is in [COMMANDS.md](COMMANDS.md).
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
-Latest release: **8.4.0**, adding opt-in provisional battleground
-records, private history and statistics, and launch QA fixes. See the
-[release notes](docs/V8_4_0_RELEASE_NOTES.md) and [acceptance checklist](docs/V8_4_0_RELEASE_ACCEPTANCE.md).
-GitHub and CurseForge downloads are 8.4.0; the Microsoft Store companion is 8.3.0 (Submission 6) and updates separately.
+Latest release: **8.4.1**, bringing the companion's Link everything screen and
+main status screen, the redesigned owner console, quick reference page, achievement
+cards and guild rank. See the
+[release notes](docs/V8_4_1_RELEASE_NOTES.md) and [acceptance checklist](docs/V8_4_1_RELEASE_ACCEPTANCE.md).
+GitHub and CurseForge downloads are 8.4.0 until 8.4.1 is uploaded; the Microsoft Store companion is 8.4.0.0 and updates separately.
 
 ## Quick start
 
@@ -31,7 +32,7 @@ GitHub and CurseForge downloads are 8.4.0; the Microsoft Store companion is 8.3.
 - **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 8.4.0** (30 October 2026, protocol 2). [Release notes](docs/V8_4_0_RELEASE_NOTES.md) and [acceptance record](docs/V8_4_0_RELEASE_ACCEPTANCE.md).
+**Current version: 8.4.1** (3 November 2026, protocol 2). [Release notes](docs/V8_4_1_RELEASE_NOTES.md) and [acceptance record](docs/V8_4_1_RELEASE_ACCEPTANCE.md).
 Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
 across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).

@@ -245,7 +245,7 @@ bind('btnGRM', async () => {
   const result = await api.convertGRM({ guild: $('grmGuild').value, realm: $('grmRealm').value, edition: $('grmEdition').value, includePrivate: $('grmPrivate').checked });
   if (!result.canceled) { $('grmResult').textContent = M(result.message); toast(result.message, !result.ok); }
 });
-bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); const all = await api.getAll(); savedConfig = all.config; $('syncEnabled').checked = all.config.syncEnabled !== false; }); bind('btnOnline',() => api.openOnline());
+bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); const all = await api.getAll(); savedConfig = all.config; $('syncEnabled').checked = all.config.syncEnabled !== false; });
 let lootImportToken = null, lootMappingInputs = [];
 $('lootImportPanel').hidden = typeof api.previewLootHistory !== 'function';
 function resetLootPreview() { lootImportToken = null; $('lootImportReview').hidden = true; $('btnLootImportSave').disabled = true; }

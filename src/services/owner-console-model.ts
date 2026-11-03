@@ -98,8 +98,8 @@ export function boardEmbed(rows: readonly FleetRow[], total: number, page: numbe
 export function boardComponents(rows: readonly FleetRow[], total: number, page: number, digestEnabled: boolean): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
   const index = clampPage(page, total), last = pageCount(total) - 1;
   const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${CONSOLE_PREFIX}page:${Math.max(0, index - 1)}`).setLabel("◀ Prev").setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
-    new ButtonBuilder().setCustomId(`${CONSOLE_PREFIX}page:${Math.min(last, index + 1)}`).setLabel("Next ▶").setStyle(ButtonStyle.Secondary).setDisabled(index >= last),
+    new ButtonBuilder().setCustomId(`${CONSOLE_PREFIX}page:${Math.max(0, index - 1)}:prev`).setLabel("◀ Prev").setStyle(ButtonStyle.Secondary).setDisabled(index === 0),
+    new ButtonBuilder().setCustomId(`${CONSOLE_PREFIX}page:${Math.min(last, index + 1)}:next`).setLabel("Next ▶").setStyle(ButtonStyle.Secondary).setDisabled(index >= last),
     new ButtonBuilder().setCustomId(`${CONSOLE_PREFIX}refresh:${index}`).setLabel("Refresh").setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setCustomId(`${CONSOLE_PREFIX}digest:${index}`).setLabel(`Daily digest: ${digestEnabled ? "on" : "off"}`).setStyle(digestEnabled ? ButtonStyle.Success : ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(`${CONSOLE_PREFIX}help`).setLabel("Help").setStyle(ButtonStyle.Secondary));

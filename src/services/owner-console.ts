@@ -107,7 +107,7 @@ export function createOwnerConsole(deps: ConsoleDeps) {
     const guilds = sortedGuilds(), index = clampPage(pageNumber, guilds.length);
     const rows = await Promise.all(pageSlice(guilds, index).map(rowFor));
     const row = await state();
-    return { index, content: "", embeds: [boardEmbed(rows, guilds.length, index, deps.version, new Date(clock()))], components: boardComponents(rows, guilds.length, index, row?.digestEnabled ?? false), allowedMentions: { parse: [] as never[] } };
+    return { index, content: "", embeds: [boardEmbed(rows, guilds.length, index, deps.version, new Date(clock()), { servers: guilds.length, members: guilds.reduce((sum, guild) => sum + guild.memberCount, 0) })], components: boardComponents(rows, guilds.length, index, row?.digestEnabled ?? false), allowedMentions: { parse: [] as never[] } };
   }
 
   /** Edits the board message in place (posting it once if it is missing). Quiet when the channel is gone. */

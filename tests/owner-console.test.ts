@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ButtonStyle, MessageFlags } from "discord.js";
 import { createOwnerConsole, CONSOLE_CHANNEL_NAME, type ConsoleDeps } from "../src/services/owner-console.js";
 import {
-  ACTIONS, PAGE_SIZE, boardComponents, buildDigest, confirmComponents, confirmFresh, confirmToken, detailComponents, digestText, fleetLines, helpText, pageCount, pageSlice, parseConsoleId, setupProgress, type FleetRow
+  ACTIONS, PAGE_SIZE, boardComponents, boardEmbed, detailEmbed, errorMarker, fleetField, setupBar, buildDigest, confirmComponents, confirmFresh, confirmToken, detailComponents, digestText, fleetLines, helpText, pageCount, pageSlice, parseConsoleId, setupProgress, type FleetRow
 } from "../src/services/owner-console-model.js";
 import { ownerConsoleCommand } from "../src/commands/owner-console.js";
 
@@ -38,6 +38,34 @@ describe("owner console model", () => {
     expect((components[1]!.components[0] as unknown as { options: unknown[] }).options.length).toBeLessThanOrEqual(25);
     for (const r of components) for (const c of r.components as { custom_id?: string }[]) expect(c.custom_id!.length).toBeLessThanOrEqual(100);
     expect(helpText().length).toBeLessThan(2000);
+  });
+  it("draws the fleet as one field per server with symbols, a setup bar and every data point", () => {
+    const f = fleetField(row(1, { lastSync: new Date(1_700_000_000_000), errors24h: 3, untracked: true, characters: 4, cores: 2, upcomingRaids: 1, language: "fr", tier: "lite", memberCount: 42 }), 1);
+    expect(f.name).toBe("1. Guild 1 · 🔹 Lite · FR · 👥 42");
+    for (const part of ["▰▰▰▱▱▱▱▱ 3/8", "🟡 3 errors/24h", "Achievements ✅", "Announce ❌", "Public ❌", "Weekly ❌", "Active never", "<t:1700000000:R>", "forever", "4 chars", "2 cores", "1 raids", "v8.4.0", "`200000000000000001`", "not set up"]) expect(f.value + f.name).toContain(part);
+    expect(row(1, { version: null }) && fleetField(row(1, { version: null }), 1).value).toContain("no version seen");
+    expect(f.value).not.toMatch(/ach ✓|ann ✗/);
+    expect(setupBar(8, 8)).toBe("▰▰▰▰▰▰▰▰ 8/8");
+    expect([errorMarker(0), errorMarker(1), errorMarker(10)]).toEqual(["🟢", "🟡", "🔴"]);
+  });
+  it("builds a board embed with a summary header, health colour and Discord-safe sizes", () => {
+    const rows = Array.from({ length: PAGE_SIZE }, (_, i) => row(i, { name: "N".repeat(200), version: "8.4.0".repeat(10), errors24h: i === 0 ? 12 : 0, lastSync: i < 2 ? new Date() : null }));
+    const json = boardEmbed(rows, 20, 0, "8.4.0", new Date(), { servers: 20, members: 500 }).toJSON();
+    expect(json.fields).toHaveLength(PAGE_SIZE);
+    expect(json.description).toContain("**20** servers");
+    expect(json.description).toContain("**500** members");
+    expect(json.description).toContain("**1** with errors on this page");
+    expect(json.description).toContain("**6** not synced on this page");
+    expect(json.color).toBe(0xef4444);
+    expect(json.fields!.every(field => field.value.length <= 1024 && field.name.length <= 256)).toBe(true);
+    expect(JSON.stringify(json).length).toBeLessThan(6000);
+    expect(boardEmbed([row(1)], 1, 0, "8.4.0", new Date()).toJSON().color).toBe(0x22c55e);
+    expect(boardEmbed([row(1, { errors24h: 2 })], 1, 0, "8.4.0", new Date()).toJSON().color).toBe(0xf59e0b);
+    expect(boardEmbed([], 0, 0, "8.4.0", new Date()).toJSON().description).toBe("No servers yet.");
+  });
+  it("keeps every data point in the per-server detail view", () => {
+    const text = JSON.stringify(detailEmbed(row(1, { honors: true, characters: 5, cores: 2, upcomingRaids: 3, errors24h: 1 }), new Date()).toJSON());
+    for (const part of ["Setup", "▰▰▰▱▱▱▱▱ 3/8", "Edition", "forever", "v8.4.0", "Achievements", "Announcements", "Public sharing", "Weekly report", "Weekly honors", "1 error/24h", "Last sync", "5 linked characters", "2 cores", "3 upcoming raids", "200000000000000001"]) expect(text).toContain(part);
   });
   it("disables prev on the first page and next on the last", () => {
     const first = boardComponents([row(1)], 20, 0, false)[0]!.toJSON().components as { disabled?: boolean }[];

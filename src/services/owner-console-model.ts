@@ -61,7 +61,6 @@ export const actionInfo = (id: string): ActionInfo | undefined => ACTIONS.find(a
 const clip = (text: string, max: number): string => text.length > max ? `${text.slice(0, max - 1)}…` : text;
 const unix = (date: Date): number => Math.floor(date.getTime() / 1000);
 const ago = (date: Date | null): string => date ? `<t:${unix(date)}:R>` : "never";
-const flag = (on: boolean): string => on ? "✓" : "✗";
 const safeName = (name: string): string => escapeMarkdown(clip(name.replace(/[\r\n]+/g, " "), 40));
 
 export function pageCount(total: number): number { return Math.max(1, Math.ceil(total / PAGE_SIZE)); }
@@ -77,22 +76,60 @@ export function setupProgress(settings: Partial<Record<(typeof SETUP_FIELDS)[num
   return { done: SETUP_FIELDS.filter(field => settings?.[field]).length, total: SETUP_FIELDS.length };
 }
 
-const TIER_LABEL: Record<Tier, string> = { approved: "approved", lite: "lite", blocked: "blocked" };
+const TIER_BADGE: Record<Tier, string> = { approved: "✅ Approved", lite: "🔹 Lite", blocked: "⛔ Blocked" };
+const toggle = (on: boolean): string => on ? "✅" : "❌";
+/** Setup progress as a small bar: ▰▰▰▱▱▱▱▱ 3/8. */
+export const setupBar = (done: number, total: number): string => `${"▰".repeat(Math.max(0, Math.min(done, total)))}${"▱".repeat(Math.max(0, total - done))} ${done}/${total}`;
+/** 🟢 none, 🟡 some, 🔴 a spike (the digest's threshold). */
+export const errorMarker = (count: number): string => count >= ERROR_SPIKE ? "🔴" : count > 0 ? "🟡" : "🟢";
+const errorText = (count: number): string => `${errorMarker(count)} ${count} error${count === 1 ? "" : "s"}/24h`;
 
-export function fleetLines(rows: readonly FleetRow[], firstIndex = 0): string {
-  if (rows.length === 0) return "No servers yet.";
-  return rows.map((row, i) => [
-    `\`${firstIndex + i + 1}\` **${safeName(row.name)}** · \`${row.discordId}\` · ${TIER_LABEL[row.tier]} · ${row.memberCount} members · ${row.language.toUpperCase()} · ${row.editions.join("/") || "no data"}`,
-    `   setup ${row.setupDone}/${row.setupTotal} · ach ${flag(row.achievements)} ann ${flag(row.announcements)} pub ${flag(row.publicSharing)} wk ${flag(row.weeklyReport)} · ${row.errors24h > 0 ? `⚠ ${row.errors24h} errors/24h` : "0 errors/24h"} · active ${ago(row.lastActivity)} · sync ${ago(row.lastSync)} · ${row.characters} chars, ${row.cores} cores, ${row.upcomingRaids} raids · ${row.version ? `v${row.version}` : "no version seen"}${row.untracked ? " · not set up" : ""}`
-  ].join("\n")).join("\n");
+/** One server as an embed field: a title line, then status, activity, data and the id. */
+export function fleetField(row: FleetRow, rank: number): { name: string; value: string; inline: false } {
+  const name = `${rank}. ${safeName(row.name)} · ${TIER_BADGE[row.tier]} · ${row.language.toUpperCase()} · 👥 ${row.memberCount}`;
+  const value = [
+    `${setupBar(row.setupDone, row.setupTotal)} setup · ${errorText(row.errors24h)}`,
+    `🏆 Achievements ${toggle(row.achievements)} · 📣 Announce ${toggle(row.announcements)} · 🌐 Public ${toggle(row.publicSharing)} · 📰 Weekly ${toggle(row.weeklyReport)}`,
+    `🕒 Active ${ago(row.lastActivity)} · 🔄 Sync ${ago(row.lastSync)} · 🎮 ${row.editions.join("/") || "no data"}`,
+    `👤 ${row.characters} chars · 🛡️ ${row.cores} cores · 📅 ${row.upcomingRaids} raids · 🏷️ ${row.version ? `v${row.version}` : "no version seen"}`,
+    `\`${row.discordId}\`${row.untracked ? " · ⚠️ not set up" : ""}`
+  ].join("\n");
+  return { name: clip(name, 256), value: clip(value, 1024), inline: false };
 }
 
-export function boardEmbed(rows: readonly FleetRow[], total: number, page: number, version: string, now: Date): EmbedBuilder {
+export function fleetFields(rows: readonly FleetRow[], firstIndex = 0): { name: string; value: string; inline: false }[] {
+  return rows.map((row, i) => fleetField(row, firstIndex + i + 1));
+}
+
+/** Plain-text version of the page (kept for logs and tests): the field titles and values joined. */
+export function fleetLines(rows: readonly FleetRow[], firstIndex = 0): string {
+  if (rows.length === 0) return "No servers yet.";
+  return fleetFields(rows, firstIndex).map(field => `**${field.name}**\n${field.value}`).join("\n");
+}
+
+export interface FleetSummary { servers: number; members: number }
+
+/** Header line(s) for the board: fleet totals, plus problem counts for the servers shown. */
+export function fleetSummary(rows: readonly FleetRow[], summary: FleetSummary, paged: boolean): string {
+  const withErrors = rows.filter(row => row.errors24h > 0).length, unsynced = rows.filter(row => !row.lastSync).length;
+  const scope = paged ? " on this page" : "";
+  return `🖥️ **${summary.servers}** server${summary.servers === 1 ? "" : "s"} · 👥 **${summary.members}** members · ${errorMarker(withErrors ? Math.max(...rows.map(row => row.errors24h)) : 0)} **${withErrors}** with errors${scope} · 🔄 **${unsynced}** not synced${scope}`;
+}
+
+export function healthColor(rows: readonly FleetRow[]): number {
+  if (rows.some(row => row.errors24h >= ERROR_SPIKE)) return 0xef4444;
+  if (rows.some(row => row.errors24h > 0)) return 0xf59e0b;
+  return 0x22c55e;
+}
+
+export function boardEmbed(rows: readonly FleetRow[], total: number, page: number, version: string, now: Date, summary?: FleetSummary): EmbedBuilder {
   const index = clampPage(page, total);
-  return new EmbedBuilder().setColor(0x8b5cf6).setTitle(`Guilded fleet · ${total} server${total === 1 ? "" : "s"}`)
-    .setDescription(clip(fleetLines(rows, index * PAGE_SIZE), 4000))
+  const embed = new EmbedBuilder().setColor(healthColor(rows)).setTitle(`Guilded fleet · ${total} server${total === 1 ? "" : "s"}`)
+    .setDescription(rows.length ? fleetSummary(rows, summary ?? { servers: total, members: rows.reduce((sum, row) => sum + row.memberCount, 0) }, pageCount(total) > 1) : "No servers yet.")
     .setFooter({ text: `Page ${index + 1}/${pageCount(total)} · bot v${version}` })
     .setTimestamp(now);
+  if (rows.length) embed.addFields(fleetFields(rows, index * PAGE_SIZE));
+  return embed;
 }
 
 export function boardComponents(rows: readonly FleetRow[], total: number, page: number, digestEnabled: boolean): ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>[] {
@@ -120,15 +157,20 @@ export function helpText(): string {
 }
 
 export function detailEmbed(row: FleetRow, now: Date): EmbedBuilder {
-  return new EmbedBuilder().setColor(row.tier === "approved" ? 0x22c55e : 0xf59e0b).setTitle(safeName(row.name))
-    .setDescription(`\`${row.discordId}\` · ${row.tier} · ${row.memberCount} members`)
+  return new EmbedBuilder().setColor(row.errors24h >= ERROR_SPIKE ? 0xef4444 : row.errors24h > 0 || row.tier !== "approved" ? 0xf59e0b : 0x22c55e).setTitle(safeName(row.name))
+    .setDescription(`${TIER_BADGE[row.tier]} · ${row.language.toUpperCase()} · 👥 ${row.memberCount} members
+\`${row.discordId}\`${row.untracked ? " · ⚠️ not set up" : ""}`)
     .addFields(
-      { name: "Setup", value: `${row.setupDone}/${row.setupTotal} key channels set${row.hasAdminChannel ? "" : " (no admin channel: messaging unavailable)"}`, inline: true },
-      { name: "Language / edition", value: `${row.language.toUpperCase()} · ${row.editions.join(", ") || "no data"}`, inline: true },
-      { name: "Bot version seen", value: row.version ? `v${row.version}` : "none", inline: true },
-      { name: "Settings", value: `achievements ${flag(row.achievements)} · announcements ${flag(row.announcements)} · public sharing ${flag(row.publicSharing)} · weekly report ${flag(row.weeklyReport)} · weekly honors ${row.honors === null ? "n/a" : flag(row.honors)}` },
-      { name: "Health", value: `${row.errors24h} errors in 24h · last activity ${ago(row.lastActivity)} · last sync ${ago(row.lastSync)}` },
-      { name: "Data", value: `${row.characters} linked characters · ${row.cores} cores · ${row.upcomingRaids} upcoming raids` })
+      { name: "🧭 Setup", value: `${setupBar(row.setupDone, row.setupTotal)} key channels set${row.hasAdminChannel ? "" : "\n⚠️ no admin channel: messaging unavailable"}`, inline: true },
+      { name: "🎮 Edition", value: row.editions.join(", ") || "no data", inline: true },
+      { name: "🏷️ Bot version seen", value: row.version ? `v${row.version}` : "none", inline: true },
+      { name: "⚙️ Settings", value: [`🏆 Achievements ${toggle(row.achievements)}`, `📣 Announcements ${toggle(row.announcements)}`, `🌐 Public sharing ${toggle(row.publicSharing)}`, `📰 Weekly report ${toggle(row.weeklyReport)}`, `🏅 Weekly honors ${row.honors === null ? "n/a" : toggle(row.honors)}`].join("\n"), inline: true },
+      { name: "🩺 Health", value: `${errorText(row.errors24h)}
+🕒 Active ${ago(row.lastActivity)}
+🔄 Last sync ${ago(row.lastSync)}`, inline: true },
+      { name: "📊 Data", value: `👤 ${row.characters} linked characters
+🛡️ ${row.cores} cores
+📅 ${row.upcomingRaids} upcoming raids`, inline: true })
     .setTimestamp(now);
 }
 

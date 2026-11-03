@@ -63,6 +63,7 @@ import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js"
 import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
 import { executeCore } from "./commands/core.js";
 import { ACHIEVEMENT_SHARE_PREFIX, handleAchievementShare } from "./commands/achievements.js";
+import { syncAllRankRoles } from "./services/rank-roles.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
@@ -293,6 +294,8 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
   // Opt-in achievement celebrations: hourly evaluation of guilds that turned them on (no-op otherwise).
   setInterval(() => void sweepAchievementAnnouncements(prisma, new Date(), reportJobError("Achievement announcements")).catch(reportJobError("Achievement announcements")), 60 * 60_000);
+  // WoW guild rank to Discord role: on by default, inert for a guild until an officer maps a rank.
+  setInterval(() => void syncAllRankRoles(prisma, readyClient.guilds.cache.values(), reportJobError("Rank roles")), 60 * 60_000);
   void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry"));
   setInterval(() => void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry")), 60_000);
   // Repair missing event jobs after a restart and advance game nights at their times.

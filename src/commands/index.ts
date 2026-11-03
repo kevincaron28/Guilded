@@ -54,6 +54,7 @@ import { poeCommand } from "./poe.js";
 import { participationCommand } from "./participation.js";
 import { executeRecruit, recruitCommand } from "./recruit.js";
 import { executePublicLeaderboard, publicLeaderboardCommand } from "./public-leaderboard.js";
+import { executeRankRoles, rankRolesCommand } from "./rank-roles.js";
 import { executePug, pugCommand } from "./pug.js";
 import { executePugs, pugsCommand } from "./pug-requests.js";
 
@@ -127,6 +128,7 @@ const mod = new MergedCommand("mod", "Officers: moderation, applications, answer
   { command: faqCommand, handler: executeFaq, as: "faq" },
   { command: guildPageCommand, handler: executeGuildPage, as: "page" },
   { command: recruitCommand, handler: executeRecruit, as: "recruit" },
+  { command: rankRolesCommand, handler: executeRankRoles, as: "rankroles" },
   { command: publicLeaderboardCommand, handler: executePublicLeaderboard, as: "leaderboard" }
 ], { command: moderationCommand, handler: executeModeration });
 

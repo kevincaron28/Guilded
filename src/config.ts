@@ -16,6 +16,8 @@ const environmentSchema = z.object({
   DISCORD_TOKEN: z.string().min(1),
   DISCORD_CLIENT_ID: z.string().min(1),
   DISCORD_GUILD_ID: z.string().min(1),
+  // The server that holds the owner console (/guilded-console). Defaults to K Caron Projects; the other owner commands stay in DISCORD_GUILD_ID.
+  OWNER_CONSOLE_GUILD_ID: z.string().min(1).default("1560962282178093169"),
   HOSTED_PILOT: z.enum(["true", "false", "1", "0"]).default("false").transform(value => value === "true" || value === "1"),
   HOSTED_GUILD_IDS: z.string().default(""),
   HOSTED_GUILD_LIMIT: z.coerce.number().int().min(1).max(100).default(5),

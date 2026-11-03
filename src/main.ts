@@ -866,7 +866,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
 // The bot owner's /guilded-season exists only in the home server (DISCORD_GUILD_ID).
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
-  const full = guildId === config.DISCORD_GUILD_ID ? [...body, ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON(), ownerConsoleCommand.toJSON()] : body;
+  const full = [...body, ...(guildId === config.DISCORD_GUILD_ID ? [ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON()] : []), ...(guildId === config.OWNER_CONSOLE_GUILD_ID ? [ownerConsoleCommand.toJSON()] : [])];
   await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: badgeCommandsForGuild(guildId, full) });
 }
 
@@ -874,7 +874,7 @@ async function registerCommands(guildId: string, body: unknown[] = commands.map(
 // The outcome is shown on /health (commandRegistration) for deploy/update.sh.
 async function registerCommandsEverywhere(): Promise<void> {
   commandRegistration.start();
-  const guildIds = new Set<string>([config.DISCORD_GUILD_ID, ...client.guilds.cache.keys()]);
+  const guildIds = new Set<string>([config.DISCORD_GUILD_ID, config.OWNER_CONSOLE_GUILD_ID, ...client.guilds.cache.keys()]);
   for (const guildId of guildIds) {
     const body = commandSetFor(hostedPilot.tier(guildId), commands);
     if (!body) continue;
@@ -895,6 +895,6 @@ const pilotRequests = createPilotRequests(client, { enabled: hostedPilot.enabled
   autoApprove: { days: config.HOSTED_AUTO_APPROVE_DAYS, members: config.HOSTED_AUTO_APPROVE_MEMBERS,
     // Settings exist after any command; the bot-guide channel only after /setup start.
     ready: async id => Boolean(await prisma.guildSettings.findFirst({ where: { guild: { discordId: id }, guideChannelId: { not: null } }, select: { guildId: true } })) } });
-const ownerConsole = createOwnerConsole({ db: prisma, client, homeGuildId: config.DISCORD_GUILD_ID, ownerId: () => botOwnerId(client),
+const ownerConsole = createOwnerConsole({ db: prisma, client, homeGuildId: config.OWNER_CONSOLE_GUILD_ID, ownerId: () => botOwnerId(client),
   tier: id => hostedPilot.tier(id), setTier: (id, tier) => pilotRequests.setTier(id, tier), version: JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string, tools: consoleTools });
 await client.login(config.DISCORD_TOKEN);

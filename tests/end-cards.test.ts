@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { battlegroundEndCard, raidEndCard } from "../src/services/end-cards.js";
+import { achievementUnlockedCard, battlegroundEndCard, raidEndCard } from "../src/services/end-cards.js";
 import { scoreCardPng } from "../src/services/score-card.js";
+import { ACTIVE_ACHIEVEMENTS } from "../src/services/achievements-catalogue.js";
 import type { RaidReport } from "../src/services/raid-report.js";
 
 const raid: RaidReport = { title: "Molten Core <Week 1>", startedAt: new Date("2026-12-09T01:00:00Z"), endedAt: new Date("2026-12-09T04:30:00Z"), durationMinutes: 210, raiders: 38, late: 2, absent: 1,
@@ -31,5 +32,29 @@ describe("raid and battleground end cards", () => {
     for (const card of [raidEndCard(raid), battlegroundEndCard(bg, [bg])]) {
       expect(await sharp((await scoreCardPng(card))!).metadata()).toMatchObject({ width: 1200, height: 630, format: "png" });
     }
+  });
+});
+
+describe("achievement unlocked card", () => {
+  const ids = ACTIVE_ACHIEVEMENTS.slice(0, 12).map(def => def.id);
+  it("lists the newest first with description, tier counts and progress, and caps the list at eight", () => {
+    const card = achievementUnlockedCard("frumpytm", ids, 20, "fr");
+    expect(card.unlocks).toHaveLength(8);
+    expect(card.unlocks![0]!.name).toBe(ACTIVE_ACHIEVEMENTS[11]!.fr.name);
+    expect(card.unlocks![0]!.detail).toBe(ACTIVE_ACHIEVEMENTS[11]!.fr.description);
+    expect(card.unlocksMore).toBe(4);
+    expect(card.progress).toMatchObject({ value: 20, max: ACTIVE_ACHIEVEMENTS.length });
+    expect(card.tierCounts!.reduce((sum, tier) => sum + tier.count, 0)).toBe(12);
+    expect(JSON.stringify(card)).not.toMatch(/points?":|\+\d+ (GP|EP)/);
+  });
+  it("renders 1200x630 PNGs for one, several and many unlocks, and still draws a definition queued without the new fields", async () => {
+    const cases = [ids.slice(0, 1), ids.slice(0, 3), ids.slice(0, 6), ids];
+    for (const lang of ["en", "fr"] as const) for (const set of cases) {
+      const png = await scoreCardPng(achievementUnlockedCard("A very long member display name indeed", set, 30, lang));
+      expect(await sharp(png!).metadata()).toMatchObject({ width: 1200, height: 630, format: "png" });
+    }
+    const queued = { ...achievementUnlockedCard("frumpytm", ids.slice(0, 2), 5, "en") };
+    for (const key of ["unlocks", "unlocksMore", "moreLabel", "progress", "tierCounts"] as const) delete queued[key];
+    expect(await sharp((await scoreCardPng(queued))!).metadata()).toMatchObject({ width: 1200, height: 630 });
   });
 });

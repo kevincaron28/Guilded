@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Guilded",
+    "slug": "guilded-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "top.kcaron.guilded",
+      "versionCode": 1
+    },
+    "ios": {
+      "bundleIdentifier": "top.kcaron.guilded"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#d5ad57",
+          "defaultChannel": "raids",
+          "enableRemoteNotifications": false
+        }
+      ]
+    ]
+  }
+}

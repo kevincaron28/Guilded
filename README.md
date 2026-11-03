@@ -10,6 +10,7 @@ Free for noncommercial use ([license](LICENSE)).
 | **Addon** | Raids, attendance, EPGP, four loot systems (GP bids, loot council, soft reserves, EPGP priority), recipes and cooldowns, the guild calendar, gear and consumable checks, a live Ready page, a friendly window (gold coin on the minimap). Works alone, no Discord needed. Party/roll games are in the separate optional Guilded Games Alpha. | `addon/Guilded/` |
 | **Discord bot** (optional, hosted Guilded Lite with approval for full access, or independent hosting) | Raid signups with roles and waitlist, raid cores with a bench and their own loot system and item prices, weekly raids, EPGP standings, loot log, soft reserves, who can craft what, guild calendar sync, dungeon challenge, craft board, readiness board, polls, Warcraft Logs, applications, moderation helpers. | `src/` |
 | **Windows companion** (optional for the addon alone; needed for Discord and website features) | Tray app that sends the addon's saved data to the bot after each `/reload` or logout and writes standings back into the game. Get it from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) first; the unsigned GitHub download is the fallback. Windows only. | `companion-app/`, `companion/` |
+| **Phone app** (optional, not a store release) | Public leaderboards, plus Discord sign-in for linked characters, reserves, wishlist, raid standings and on-device raid reminders. It does not read the game's saved files. | `mobile/` |
 
 Every in-game and Discord command, and who can run it, is in [COMMANDS.md](COMMANDS.md).
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
@@ -60,6 +61,7 @@ and [recruitment board](https://guilded.kcaron.top/recruitment/).
 | [COMMANDS.md](COMMANDS.md) | Every command and its permissions |
 | [addon/Guilded/README.md](addon/Guilded/README.md) | The addon in detail |
 | [companion/README.md](companion/README.md) | The command-line companion and the upload format |
+| [mobile/README.md](mobile/README.md) | Run the phone app and build iOS and Android binaries |
 | [docs/DEPLOY_ORACLE.md](docs/DEPLOY_ORACLE.md) | Running your own bot in the cloud (provider costs vary) |
 | [docs/RELEASE_CURSEFORGE.md](docs/RELEASE_CURSEFORGE.md), [docs/CURSEFORGE_COPYPASTE.md](docs/CURSEFORGE_COPYPASTE.md) | Publishing the addon |
 | [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) | What is done and left before a release |
@@ -124,6 +126,7 @@ src/               the Discord bot (TypeScript): commands/, services/, integrati
 prisma/            database schema and migrations
 companion/         the upload engine and the command-line watcher
 companion-app/     the Electron tray app around the engine
+mobile/            the Expo app for iPhone and Android
 tests/             bot tests and addon tests (the real Lua runs against a mocked game)
 deploy/, docs/     server files and documentation
 ```

@@ -123,6 +123,7 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  rankRoles GuildRankRole[]
   pugBoard PugBoardGuild?
   pugBlocks PugBlock[]
   pugRequests PugRequest[]
@@ -511,6 +512,9 @@ model Character {
   race               String?
   lastSeenAt         DateTime?
   professionsUpdatedAt DateTime?
+  guildRankName     String?
+  guildRankIndex    Int?
+  guildRankAt       DateTime?
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
   member             Member                       @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -805,6 +809,8 @@ model WowGuildChannel {
 }
 
 model GuildSettings {
+  // Rank roles (WoW guild rank to Discord role): on unless an officer turns it off; inert until a rank is mapped.
+  rankRolesEnabled Boolean @default(true)
   // Private channel for Discord community officers (not the WoW officers' log): reviews and approvals.
   adminChannelId String?
   // New targeted alerts remain held until audience/channel/cadence approval.
@@ -2704,4 +2710,17 @@ model OwnerConsoleAudit {
   createdAt      DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// An officer-chosen link from a WoW guild rank (0 = guild master) to a Discord role.
+model GuildRankRole {
+  id            String   @id @default(cuid())
+  guildId       String
+  rankIndex     Int
+  discordRoleId String
+  createdBy     String
+  createdAt     DateTime @default(now())
+  guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, rankIndex])
 }

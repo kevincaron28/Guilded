@@ -827,7 +827,18 @@ local function collectCharacter()
     end
     if most > 0 and not tied then spec = selected end
   end
+  -- This character's rank in its own guild (GetGuildInfo: guild, rank name, 0-based index; the
+  -- guild master is 0). Empty until the client knows the guild; later captures fill it in.
+  local rankName, rankIndex
+  if GetGuildInfo then
+    local ok, _, name, index = pcall(GetGuildInfo, "player")
+    if ok and type(name) == "string" and not isSecret(name) and name ~= "" and type(index) == "number" and index >= 0 and index < 20 then
+      rankName, rankIndex = string.sub(name, 1, 60), index
+    end
+  end
   return {
+    guildRankName = rankName,
+    guildRankIndex = rankIndex,
     name = ns.util.bareName(playerName()),
     displayName = ns.util.unitDisplayName("player"),
     gameEdition = ns.util.gameEdition(),
@@ -2055,16 +2066,22 @@ local function onEvent(_, event, ...)
     db.lastRosterUpdate = now()
     local inRoster = {}
     for i = 1, count do
-      local rawName = GetGuildRosterInfo(i)
+      local rawName, rosterRankName, rosterRankIndex = GetGuildRosterInfo(i)
       ns.util.rememberDisplayName(rawName)
       local name = normalizeName(rawName)
       if name then
         inRoster[name] = true
         local entry = db.roster[name]
         if not entry then
-          db.roster[name] = { firstSeen = now(), inGuild = true, joinedAt = now() }
+          entry = { firstSeen = now(), inGuild = true, joinedAt = now() }
+          db.roster[name] = entry
         elseif entry.inGuild == false then
           entry.inGuild, entry.joinedAt, entry.leftAt = true, now(), nil
+        end
+        -- The roster is this guild's own, so the rank belongs to this guild (exported per character).
+        if type(rosterRankName) == "string" and not isSecret(rosterRankName) and rosterRankName ~= ""
+          and type(rosterRankIndex) == "number" and rosterRankIndex >= 0 and rosterRankIndex < 20 then
+          entry.rankName, entry.rankIndex = string.sub(rosterRankName, 1, 60), rosterRankIndex
         end
       end
     end

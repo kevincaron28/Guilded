@@ -1,5 +1,5 @@
 {
-  "verifiedAt": "2026-10-30",
+  "verifiedAt": "2026-11-04",
   "guilded": {
     "github": {
       "version": "8.4.0",
@@ -7,28 +7,28 @@
       "url": "https://github.com/kevincaron28/Guilded/releases/tag/v8.4.0"
     },
     "curseforge": {
-      "version": "8.4.0",
+      "version": "8.4.2",
       "stage": "release",
       "url": "https://www.curseforge.com/wow/addons/guilded",
       "editions": {
         "retail": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9377260",
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429254",
           "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377303"
         },
         "classic-mists": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9377251",
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429245",
           "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377282"
         },
         "classic-tbc": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9377194",
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429064",
           "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377271"
         },
         "classic-era": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9377182",
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429057",
           "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377269"
         },
         "forever": {
-          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9377146",
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429061",
           "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377265"
         }
       }

@@ -19,7 +19,7 @@ Latest release: **8.4.2**, fixing a companion startup crash on launch and polish
 Link everything screen (8.4.1 added that screen, the redesigned owner console, quick
 reference page, achievement cards and guild rank). See the
 [release notes](docs/V8_4_2_RELEASE_NOTES.md) and [acceptance checklist](docs/V8_4_2_RELEASE_ACCEPTANCE.md).
-GitHub and CurseForge downloads are 8.4.0 until a newer one is uploaded; the Microsoft Store companion updates separately (8.4.1.0 is live; do not rely on it, 8.4.2 fixes its startup crash).
+CurseForge downloads are 8.4.2; the Microsoft Store companion updates separately (8.4.1.0 is live; do not rely on it, 8.4.2 fixes its startup crash).
 
 ## Quick start
 

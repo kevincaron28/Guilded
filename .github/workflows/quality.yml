@@ -7,6 +7,22 @@ on:
 permissions:
   contents: read
 jobs:
+  mobile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx --no-install expo export --platform android --output-dir "${{ runner.temp }}/guilded-android"
   checks:
     runs-on: ubuntu-latest
     timeout-minutes: 15

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { ACHIEVEMENTS, wowLevelCap, type AchievementDef, type AchievementMetric } from "./achievements-catalogue.js";
+import { anniversariesAttended, serverCreatedAt } from "./server-anniversary.js";
 
 // Evaluates the catalogue against recorded data and stores what a member newly earned. Viewing is the only
 // trigger: nothing here posts a Discord message, sends a DM or awards points. (A guild-opt-in announcement
@@ -23,6 +24,8 @@ export interface AchievementFacts {
   poeMaps: Date[];
   /** When each MVP-of-the-week award was recorded. */
   mvpWeeks: Date[];
+  /** Server anniversaries that fell while the member was on the server (the dates of those anniversaries). */
+  serverAnniversaries: Date[];
   /** Discord activity and scoring totals (no history, so these earn on first sight). */
   messagesSent: number;
   reactionsGiven: number;
@@ -34,7 +37,7 @@ export interface AchievementFacts {
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0 });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0 });
 
 function measure(def: AchievementDef, facts: AchievementFacts): { value: number; at: Date | null } {
   const { metric, threshold } = def;
@@ -55,6 +58,7 @@ function measure(def: AchievementDef, facts: AchievementFacts): { value: number;
     case "activeDays": return counted(facts.activeDays);
     case "poeMaps": return counted(facts.poeMaps);
     case "mvpWeeks": return counted(facts.mvpWeeks);
+    case "serverAnniversaries": return counted(facts.serverAnniversaries);
     // Totals keep no per-event history here, so the date is when the total was first seen at the threshold (null = now).
     case "messagesSent": return { value: facts.messagesSent, at: null };
     case "reactionsGiven": return { value: facts.reactionsGiven, at: null };
@@ -87,8 +91,9 @@ const dedupe = <T>(rows: T[], key: (row: T) => string) => { const seen = new Set
 
 /** Reads the recorded data. Each query is bounded by the largest threshold that uses it. */
 export async function gatherAchievementFacts(db: Db, guildId: string, memberId: string): Promise<AchievementFacts> {
-  const member = await db.member.findFirst({ where: { id: memberId, guildId }, select: { discordUserId: true } });
+  const member = await db.member.findFirst({ where: { id: memberId, guildId }, select: { discordUserId: true, createdAt: true, guild: { select: { discordId: true } } } });
   if (!member) return emptyFacts();
+  const founded = member.guild?.discordId ? serverCreatedAt(member.guild.discordId) : null;
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
   const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps] = await Promise.all([
     db.character.findMany({ where: { memberId, guildId }, select: { level: true, gameEdition: true } }),
@@ -137,6 +142,7 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     // A map entered through several portals is one map; visits from older companions have no instance and count one each.
     poeMaps: dedupe(visits, row => row.instanceRef ?? row.runRef).map(row => row.startedAt).sort(byDate),
     mvpWeeks: mvps.map(row => row.createdAt),
+    serverAnniversaries: founded && member.createdAt ? anniversariesAttended(founded, member.createdAt, new Date()) : [],
     messagesSent: Math.max(counter?.messages ?? 0, seasonSum("messages")),
     reactionsGiven: Math.max(counter?.reactionsGiven ?? 0, given),
     reactionsReceived: Math.max(counter?.reactionsReceived ?? 0, seasonSum("reactions")),

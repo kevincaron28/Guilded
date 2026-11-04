@@ -96,6 +96,27 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
   };
 }
 
+export interface ServerAnniversaryCardInput { serverName: string; years: number; founded: Date; members: number; achievementsEarned: number; oldestMembers: { displayName: string; createdAt: Date }[] }
+
+/** The server's birthday: years, members, achievements earned, and the longest-standing members. No points involved. */
+export function serverAnniversaryCard(input: ServerAnniversaryCardInput, lang: Lang = "en"): ScoreCard {
+  const t = pick(lang), { years } = input;
+  const day = (date: Date) => date.toISOString().slice(0, 10);
+  return {
+    eyebrow: t("Guilded · Server anniversary", "Guilded · Anniversaire du serveur"), title: input.serverName,
+    subtitle: t(`Founded ${day(input.founded)}`, `Fondé le ${day(input.founded)}`),
+    stats: [
+      { label: t("Years together", "Années ensemble"), value: String(years), accent: "gold", note: t(`Happy ${years === 1 ? "first" : `${years}th`} anniversary!`, years === 1 ? "Joyeux premier anniversaire !" : `Joyeux ${years}e anniversaire !`) },
+      { label: t("Members", "Membres"), value: String(input.members) },
+      { label: t("Achievements earned", "Succès obtenus"), value: String(input.achievementsEarned) }
+    ],
+    rowsLabel: t("Longest-standing members", "Membres de longue date"),
+    rows: input.oldestMembers.slice(0, 5).map(member => ({ name: member.displayName, sub: t(`Member since ${day(member.createdAt)}`, `Membre depuis le ${day(member.createdAt)}`), color: "#ffd100", right: "🎂" })),
+    badges: [{ text: t("Members earn Anniversary achievements", "Les membres obtiennent des succès d'anniversaire"), tone: "ok" }],
+    footer: t("Celebrating together · Member dates are when Guilded first recorded each member · No points · guilded.kcaron.top", "On fête ensemble · Dates de membre : première inscription dans Guilded · Aucun point · guilded.kcaron.top")
+  };
+}
+
 const UNLOCK_CARD_MAX = 8;
 
 /** The card for a celebration post: the achievements just unlocked (newest first, up to eight, then a count), with their badges. */

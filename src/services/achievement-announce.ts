@@ -26,7 +26,12 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
   if (settings.achievementBaselineVersion < ACHIEVEMENT_CATALOGUE_VERSION) return 0;
   const member = await db.member.findFirst({ where: { id: memberId, guildId, status: "ACTIVE", isTest: false }, select: { discordUserId: true, displayName: true } });
   if (!member) return 0;
-  const waiting = await db.memberAchievement.findMany({ where: { guildId, memberId, announcedAt: null }, select: { id: true, key: true, earnedAt: true }, orderBy: { earnedAt: "asc" }, take: 200 });
+  const pending = await db.memberAchievement.findMany({ where: { guildId, memberId, announcedAt: null }, select: { id: true, key: true, earnedAt: true }, orderBy: { earnedAt: "asc" }, take: 200 });
+  // Anniversary achievements arrive for every member on the same day, which the server's anniversary card
+  // already celebrates; posting one message per member would flood the channel, so they are recorded quietly.
+  const quiet = pending.filter(row => achievementById(row.key)?.metric === "serverAnniversaries");
+  if (quiet.length) await db.memberAchievement.updateMany({ where: { id: { in: quiet.map(row => row.id) }, announcedAt: null }, data: { announcedAt: now } });
+  const waiting = pending.filter(row => !quiet.includes(row));
   if (!waiting.length) return 0;
   const ids = waiting.map(row => row.id);
   const account = await db.webAccount.findFirst({ where: { discordUserId: member.discordUserId }, select: { publicProfile: true } });

@@ -65,6 +65,7 @@ import { executeCore } from "./commands/core.js";
 import { ACHIEVEMENT_SHARE_PREFIX, handleAchievementShare } from "./commands/achievements.js";
 import { syncAllRankRoles } from "./services/rank-roles.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
+import { sweepServerAnniversaries } from "./services/server-anniversary.js";
 import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
 import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
 import {
@@ -303,6 +304,8 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
   // Opt-in achievement celebrations: hourly evaluation of guilds that turned them on (no-op otherwise).
   setInterval(() => void sweepAchievementAnnouncements(prisma, new Date(), reportJobError("Achievement announcements")).catch(reportJobError("Achievement announcements")), 60 * 60_000);
+  // The server's birthday: one card per anniversary, to the same opt-in channel (no-op until announcements are on).
+  setInterval(() => void sweepServerAnniversaries(prisma, new Date(), reportJobError("Server anniversary")).catch(reportJobError("Server anniversary")), 60 * 60_000);
   // WoW guild rank to Discord role: on by default, inert for a guild until an officer maps a rank.
   setInterval(() => void syncAllRankRoles(prisma, readyClient.guilds.cache.values(), reportJobError("Rank roles")), 60 * 60_000);
   void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry"));

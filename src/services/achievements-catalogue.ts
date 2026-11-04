@@ -10,7 +10,7 @@ export type AchievementGame = "wow" | "poe2" | "guild";
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
 
 /** Bumped whenever rows are added that older data can already satisfy; guilds that announce re-baseline quietly once. */
-export const ACHIEVEMENT_CATALOGUE_VERSION = 4;
+export const ACHIEVEMENT_CATALOGUE_VERSION = 5;
 
 /**
  * What is measured:
@@ -33,8 +33,10 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 4;
  * - communityPoints: points earned on the guild's community leaderboards (awards minus reversals).
  * - epEarned: effort points (EP) the raid ledger awarded.
  * - mvpWeeks: weeks the member was named MVP of the week (the community honors record).
+ * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
+ *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks";
+export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -117,7 +119,11 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
   ...ladder("mvp-weeks", "mvpWeeks", [
     [1, "bronze", "MVP of the Week", "MVP de la semaine"], [3, "silver", "Triple Threat", "Triple menace"], [5, "gold", "Perennial MVP", "MVP perpétuel"],
     [10, "platinum", "Ten-Time MVP", "MVP dix fois"], [25, "epic", "Dynasty", "Dynastie"]
-  ], (n, fr) => fr ? `Être nommé MVP de la semaine ${n} ${plural(n, "fois", "fois")}.` : `Be named MVP of the week ${n} ${plural(n, "time", "times")}.`)
+  ], (n, fr) => fr ? `Être nommé MVP de la semaine ${n} ${plural(n, "fois", "fois")}.` : `Be named MVP of the week ${n} ${plural(n, "time", "times")}.`),
+  ...ladder("anniversary", "serverAnniversaries", [
+    [1, "bronze", "Anniversary Guest", "Invité d'anniversaire"], [2, "silver", "Two Candles", "Deux chandelles"], [3, "gold", "Triple Toast", "Triple toast"],
+    [5, "platinum", "High Five", "Haut les cinq"], [10, "legendary", "Decade Strong", "Une décennie ensemble"]
+  ], (n, fr) => fr ? `Être sur le serveur pour ${n} ${plural(n, "anniversaire", "anniversaires")} du serveur.` : `Be on the server for ${n} server ${plural(n, "anniversary", "anniversaries")}.`)
 ];
 
 const tierFor = (value: number, cap: number): AchievementTier => value >= cap ? "epic" : value / cap >= 0.7 ? "gold" : value / cap >= 0.4 ? "silver" : "bronze";

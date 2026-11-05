@@ -1489,6 +1489,7 @@ local TAB_DEFS = {
   { name = "Officer tools", hint = "guild log, prospects, guild bank, imports", scope = "guild", group = "Guild", officer = true, build = buildOfficerToolsPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
+  { name = "Duels", hint = "guild duel leaderboard", group = "Fun and runs", module = "duels", build = function(page) if ns.duels and ns.duels.buildPage then ns.duels.buildPage(page, { newLabel = newLabel, at = at, width = PAGE_WIDTH }) end end },
   { name = "Tools", label = "Settings", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }
 }
 

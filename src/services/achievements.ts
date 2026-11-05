@@ -33,11 +33,14 @@ export interface AchievementFacts {
   voiceHours: number;
   communityPoints: number;
   epEarned: number;
+  /** Lifetime honorable kills the member's own addon reported, and duels won against guildmates. */
+  honorableKills: number;
+  duelWins: number;
 }
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0 });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0, honorableKills: 0, duelWins: 0 });
 
 function measure(def: AchievementDef, facts: AchievementFacts): { value: number; at: Date | null } {
   const { metric, threshold } = def;
@@ -66,6 +69,8 @@ function measure(def: AchievementDef, facts: AchievementFacts): { value: number;
     case "voiceHours": return { value: facts.voiceHours, at: null };
     case "communityPoints": return { value: facts.communityPoints, at: null };
     case "epEarned": return { value: facts.epEarned, at: null };
+    case "honorableKills": return { value: facts.honorableKills, at: null };
+    case "duelWins": return { value: facts.duelWins, at: null };
     case "poeLevel": {
       const reached = facts.poeLevels.filter(row => row.level >= threshold).sort((a, b) => a.reachedAt.getTime() - b.reachedAt.getTime())[0];
       return { value: facts.poeLevels.reduce((best, row) => Math.max(best, row.level), 0), at: reached?.reachedAt ?? null };
@@ -85,7 +90,7 @@ export function evaluateAchievements(facts: AchievementFacts, now: Date): Achiev
   });
 }
 
-type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement">;
+type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement" | "memberMilestone" | "duelResult">;
 
 const dedupe = <T>(rows: T[], key: (row: T) => string) => { const seen = new Set<string>(); return rows.filter(row => { const k = key(row); if (seen.has(k)) return false; seen.add(k); return true; }); };
 
@@ -95,7 +100,7 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   if (!member) return emptyFacts();
   const founded = member.guild?.discordId ? serverCreatedAt(member.guild.discordId) : null;
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
-  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps] = await Promise.all([
+  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps, killMilestones, duelWins] = await Promise.all([
     db.character.findMany({ where: { memberId, guildId }, select: { level: true, gameEdition: true } }),
     db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true, character: { select: { gameEdition: true } } }, take: 500 }),
     db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { instanceId: true, endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
@@ -110,7 +115,10 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     // Reactions this member gave that the season participation record counted (the reactor is the point's actor).
     db.communityPoint.count({ where: { actorId: member.discordUserId, kind: "AWARD", reference: { startsWith: "participation:reaction:" }, season: { guildId } } }),
     db.epgpTransaction.aggregate({ where: { guildId, memberId, type: "EP_AWARD", epAmount: { gt: 0 } }, _sum: { epAmount: true } }),
-    db.communityHonorAward.findMany({ where: { guildId, kind: "WEEK", userId: member.discordUserId }, select: { createdAt: true }, orderBy: { createdAt: "asc" }, take: 200 })
+    db.communityHonorAward.findMany({ where: { guildId, kind: "WEEK", userId: member.discordUserId }, select: { createdAt: true }, orderBy: { createdAt: "asc" }, take: 200 }),
+    // Lifetime honorable kills as the member's own addon reported them (the highest step it has recorded).
+    db.memberMilestone.aggregate({ where: { guildId, memberId, kind: "hk" }, _max: { value: true } }),
+    db.duelResult.count({ where: { guildId, winnerId: memberId, counted: true } })
   ]);
   // Season participation is a lower bound (capped, only in tracked channels); the counter is the full total from
   // when counting started. Taking the larger keeps earlier tracked activity counted.
@@ -148,7 +156,9 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     reactionsReceived: Math.max(counter?.reactionsReceived ?? 0, seasonSum("reactions")),
     voiceHours: Math.floor(Math.max(counter?.voiceSeconds ?? 0, seasonSum("voiceMs") / 1000) / 3600),
     communityPoints: Math.max(0, points._sum.amount ?? 0),
-    epEarned: Math.max(0, ep._sum.epAmount ?? 0)
+    epEarned: Math.max(0, ep._sum.epAmount ?? 0),
+    honorableKills: killMilestones._max.value ?? 0,
+    duelWins
   };
 }
 

@@ -58,6 +58,8 @@ Modules\RosterTools.lua
 Modules\GRMMigration.lua
 Modules\RosterAdmin.lua
 Modules\Scores.lua
+Modules\Milestones.lua
+Modules\Duels.lua
 Modules\SeasonDetails.lua
 Modules\DungeonScorePanel.lua
 Modules\Perf.lua

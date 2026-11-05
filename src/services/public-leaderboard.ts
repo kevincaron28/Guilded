@@ -20,6 +20,7 @@ import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
+import { duelLeaderboard, percent, streakText, type DuelStanding } from "./duels.js";
 
 // Public dungeon leaderboards (7.0, roadmap request 6; 7.1 season pages). Layout inspired by
 // Raider.IO, built from our own data and words: /leaderboards/ (this week's top runs and top
@@ -49,6 +50,8 @@ export interface LeaderboardStore {
   guildRuns(guildId: string, query: RunQuery): Promise<LeaderRun[]>;
   /** Character names linked to the guild's members (lowercase): only they count for the guild. */
   guildRoster(guildId: string): Promise<string[]>;
+  /** Counted guild duels of the request's edition (8.4.5), for the guild's duel page. */
+  guildDuels?(guildId: string): Promise<{ standings: DuelStanding[]; duels: number }>;
 }
 export interface PublicGuild { id: string; name: string; slug?: string | null }
 
@@ -219,6 +222,9 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     },
     async guildRuns(guildId, query) {
       return (await every({ ...range(query), uploads: { some: { uploaderKey: `guild:${guildId}` } } })).sort(newestFirst);
+    },
+    async guildDuels(guildId) {
+      return duelLeaderboard(database, guildId, currentEdition(), { limit: 100 });
     }
   };
 }
@@ -659,12 +665,29 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<p class="eyebrow">${t("Guild", "Guilde")} · ${escapeHtml(periodName(ctx, period))}</p><div class="hero"><h1>${escapeHtml(guild.name)}</h1>`
       + (guild.slug ? `<a href="/g/${encodeURIComponent(guild.slug)}/">${t("Guild page →", "Page de guilde →")}</a>` : "") + `</div>`
       + (standing.length ? `<p>${standing.join(" &nbsp; ")}</p>` : "")
-      + `<nav class="tabs"><a class="${filters.week ? "" : "on"}" href="${link(base, lang)}">${t("Season", "Saison")}</a><a class="${filters.week ? "on" : ""}" href="${link(base, lang, { period: "week" })}">${t("This week", "Cette semaine")}</a></nav>`
+      + `<nav class="tabs"><a class="${filters.week ? "" : "on"}" href="${link(base, lang)}">${t("Season", "Saison")}</a><a class="${filters.week ? "on" : ""}" href="${link(base, lang, { period: "week" })}">${t("This week", "Cette semaine")}</a>${deps.store.guildDuels ? `<a href="${link(`${base}/duels`, lang)}">${t("Duels", "Duels")}</a>` : ""}</nav>`
       + periodRules(period).brackets.map((b) => `<h2>${escapeHtml(bracketName(ctx, b.key))}</h2>${scoreTable(ctx, scores.filter((row) => row.bracket === b.key), 100)}`).join("")
       + `<h2>${t("Recent runs", "Essais récents")}</h2>` + (runs.length
         ? table([t("Date", "Date"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score"), t("Party", "Groupe"), ""], runs.slice(0, 20).map((run) => `<tr><td>${date(run.endedAt)}</td><td>${escapeHtml(run.dungeonName)}</td><td class="num">${time(run.durationSec)}</td><td class="num score">${scoreCell(ctx, run, periodRules(period))}</td><td>${party(ctx, run)}</td><td>${trust(ctx, run)}</td></tr>`), [2, 3])
         : `<p class="muted">${t("No public run in this period yet.", "Aucun essai public pour cette période.")}</p>`);
     return kit.page(200, guild.name, body, { description: t(`${guild.name}: members' dungeon scores and guild ranking on Guilded.`, `${guild.name} : scores de donjon des membres et classement de la guilde sur Guilded.`) });
+  }
+
+  // /leaderboards/guild/<id>/duels: the guild's duel board (members of the guild only, counted duels).
+  async function guildDuelsPage(ctx: WebContext, kit: WebKit, id: string): Promise<WebResponse> {
+    const { t, lang } = ctx;
+    const guild = (await cached("guilds", () => deps.store.guilds())).find((g) => g.id === id);
+    if (!guild || !deps.store.guildDuels) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1>`, { noindex: true });
+    const { standings, duels } = await cached(`duels:${id}`, () => deps.store.guildDuels!(id));
+    const base = `/leaderboards/guild/${encodeURIComponent(id)}`;
+    const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), link("/leaderboards/guilds/", lang)], [guild.name, link(base, lang)], [t("Duels", "Duels"), null]], escapeHtml)
+      + `<p class="eyebrow">${t("Guild", "Guilde")} · ${t("Duels", "Duels")}</p><h1>${escapeHtml(guild.name)}</h1>`
+      + `<nav class="tabs"><a href="${link(base, lang)}">${t("Dungeons", "Donjons")}</a><a class="on" href="${link(`${base}/duels`, lang)}">${t("Duels", "Duels")}</a></nav>`
+      + (standings.length ? table([t("#", "#"), t("Player", "Joueur"), t("Wins", "Victoires"), t("Losses", "Défaites"), t("Win rate", "Taux"), t("Streak", "Série"), t("Best streak", "Meilleure série")],
+        standings.map((row, index) => `<tr><td class="num">${index + 1}</td><td>${escapeHtml(row.name)}</td><td class="num score">${row.wins}</td><td class="num">${row.losses}</td><td class="num">${percent(row.winRate)}</td><td class="num">${streakText(row.streak)}</td><td class="num">${row.bestStreak}</td></tr>`), [2, 3, 4, 5, 6])
+        : `<p class="muted">${t("No duel recorded yet.", "Aucun duel enregistré.")}</p>`)
+      + `<p class="muted">${t(`${duels} counted duels between members of this guild, reported by their own Guilded companions. At most 5 duels per pair of players per day count. No points or awards.`, `${duels} duels comptés entre membres de cette guilde, rapportés par leurs compagnons Guilded. 5 duels par paire de joueurs et par jour au maximum comptent. Aucun point ni récompense.`)}</p>`;
+    return kit.page(200, `${guild.name} · ${t("Duels", "Duels")}`, body, { description: t(`${guild.name}: guild duel leaderboard on Guilded.`, `${guild.name} : classement des duels de la guilde sur Guilded.`) });
   }
 
   // /me/: the personal companion code.
@@ -713,6 +736,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     if ((path === "/leaderboards/guilds/" || path === "/leaderboards/guilds") && ctx.request.method !== "POST") return guildsBoard(ctx, kit);
     const guild = /^\/leaderboards\/guild\/([A-Za-z0-9_-]{1,40})\/?$/.exec(path);
     if (guild && ctx.request.method !== "POST") return guildPage(ctx, kit, guild[1]!);
+    const duelsPage = /^\/leaderboards\/guild\/([A-Za-z0-9_-]{1,40})\/duels\/?$/.exec(path);
+    if (duelsPage && ctx.request.method !== "POST") return guildDuelsPage(ctx, kit, duelsPage[1]!);
     if (path === "/me/pair" && ctx.request.method === "POST") return pairingPage(ctx, kit);
     if (path === "/me/pair/revoke" && ctx.request.method === "POST") {
       await deps.personal?.revokeCredentials(ctx.account!.id);

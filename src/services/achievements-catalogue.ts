@@ -10,7 +10,7 @@ export type AchievementGame = "wow" | "poe2" | "guild";
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
 
 /** Bumped whenever rows are added that older data can already satisfy; guilds that announce re-baseline quietly once. */
-export const ACHIEVEMENT_CATALOGUE_VERSION = 5;
+export const ACHIEVEMENT_CATALOGUE_VERSION = 6;
 
 /**
  * What is measured:
@@ -32,11 +32,13 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 5;
  *   counter and the season participation record is used, so earlier tracked activity still counts.
  * - communityPoints: points earned on the guild's community leaderboards (awards minus reversals).
  * - epEarned: effort points (EP) the raid ledger awarded.
+ * - honorableKills: the member's lifetime honorable kills, as their own addon reported (milestones the companion uploads).
+ * - duelWins: duels the member won against another member of the guild (counted duels only, see services/duels.ts).
  * - mvpWeeks: weeks the member was named MVP of the week (the community honors record).
  * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
  *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries";
+export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -120,6 +122,14 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
     [1, "bronze", "MVP of the Week", "MVP de la semaine"], [3, "silver", "Triple Threat", "Triple menace"], [5, "gold", "Perennial MVP", "MVP perpétuel"],
     [10, "platinum", "Ten-Time MVP", "MVP dix fois"], [25, "epic", "Dynasty", "Dynastie"]
   ], (n, fr) => fr ? `Être nommé MVP de la semaine ${n} ${plural(n, "fois", "fois")}.` : `Be named MVP of the week ${n} ${plural(n, "time", "times")}.`),
+  ...ladder("honorable-kills", "honorableKills", [
+    [1, "bronze", "First Blood", "Premier sang"], [100, "silver", "Honor Seeker", "Chercheur d'honneur"], [500, "gold", "Warmonger", "Belliciste"],
+    [1000, "epic", "Thousand Fallen", "Mille vaincus"]
+  ], (n, fr) => fr ? `Obtenir ${grouped(n, true)} ${plural(n, "mise à mort honorable", "mises à mort honorables")} (JcJ).` : `Score ${grouped(n, false)} honorable ${plural(n, "kill", "kills")} in PvP.`),
+  ...ladder("duel-wins", "duelWins", [
+    [1, "bronze", "First Duel Won", "Premier duel gagné"], [10, "silver", "Duelist", "Duelliste"], [50, "gold", "Blademaster", "Maître d'armes"],
+    [100, "epic", "Duel Champion", "Champion des duels"]
+  ], (n, fr) => fr ? `Gagner ${grouped(n, true)} ${plural(n, "duel", "duels")} contre des membres de la guilde.` : `Win ${grouped(n, false)} ${plural(n, "duel", "duels")} against guild members.`),
   ...ladder("anniversary", "serverAnniversaries", [
     [1, "bronze", "Anniversary Guest", "Invité d'anniversaire"], [2, "silver", "Two Candles", "Deux chandelles"], [3, "gold", "Triple Toast", "Triple toast"],
     [5, "platinum", "High Five", "Haut les cinq"], [10, "legendary", "Decade Strong", "Une décennie ensemble"]

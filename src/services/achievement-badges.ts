@@ -54,7 +54,7 @@ export const GLYPHS = {
 export type GlyphName = keyof typeof GLYPHS;
 
 // Long progressions share one glyph per metric; the tier frame and the rank pips tell the steps apart.
-const LADDER_GLYPH: Partial<Record<AchievementMetric, GlyphName>> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake" };
+const LADDER_GLYPH: Partial<Record<AchievementMetric, GlyphName>> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "skull", duelWins: "swords" };
 const SINGLE_GLYPH: Record<string, GlyphName> = {
   "wow-level-20": "chevron1", "wow-level-40": "chevron2", "wow-level-60": "chevron3", "wow-level-80": "chevron4",
   "wow-max-level": "star", "wow-max-level-3": "stars",

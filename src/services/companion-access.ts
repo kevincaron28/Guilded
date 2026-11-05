@@ -34,6 +34,7 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
   const names = new Set(owned.map((c) => key(c.name, c.realm)));
   const own = (c: { character: string; realm: string }) => names.has(key(c.character, c.realm));
   const ownCharacter = (c: { name: string; realm: string }) => names.has(key(c.name, c.realm));
+  const ownNames = new Set(owned.map((c) => c.name.toLowerCase()));
   return parseAddonSnapshot({
     source: snapshot.source, exportedAt: snapshot.exportedAt, wowGuild: snapshot.wowGuild,
     gameEdition: snapshot.gameEdition, interface: snapshot.interface,
@@ -43,6 +44,9 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     recipes: snapshot.recipes.filter(own), cooldowns: snapshot.cooldowns.filter(own),
     recipeNames: Object.fromEntries(Object.entries(snapshot.recipeNames).filter(([key]) => snapshot.recipes.filter(own).some((set) => set.keys.includes(Number(key))))),
     // Own postmatch reports only. record() still requires Discord consent and drops the rest.
-    battlegroundReports: snapshot.battlegroundReports.filter((row) => row.edition === edition && names.has(key(row.character, row.realm)))
+    battlegroundReports: snapshot.battlegroundReports.filter((row) => row.edition === edition && names.has(key(row.character, row.realm))),
+    // Duels where the member took part, and the member's own milestones (names are matched on apply).
+    duelResults: snapshot.duelResults.filter((row) => { const r = row as { winner?: unknown; loser?: unknown } | null; return [r?.winner, r?.loser].some((n) => typeof n === "string" && ownNames.has(n.split("-")[0]!.toLowerCase())); }),
+    milestones: snapshot.milestones.filter((row) => { const c = (row as { character?: unknown } | null)?.character; return typeof c === "string" && ownNames.has(c.split("-")[0]!.toLowerCase()); })
   });
 }

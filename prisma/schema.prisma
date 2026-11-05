@@ -132,6 +132,8 @@ model Guild {
   poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
   battlegroundConsents BattlegroundConsent[]
+  duelResults DuelResult[]
+  memberMilestones MemberMilestone[]
   recurringRecaps RecurringRecap[]
   cooperativeGoal CooperativeGoal?
   weeklyQuestionPlan WeeklyQuestionPlan?
@@ -444,6 +446,9 @@ model Member {
   poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
   battlegroundConsent BattlegroundConsent?
+  duelWins DuelResult[] @relation("DuelWinner")
+  duelLosses DuelResult[] @relation("DuelLoser")
+  milestones MemberMilestone[]
   recurringRecap RecurringRecap?
   supplyPledges RaidSupplyPledge[]
   targetedAlertAttempts TargetedAlertAttempt[]
@@ -2776,4 +2781,55 @@ model ItemPreviewConfig {
   createdBy      String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+// Guild duels (8.4.5): one row per finished duel between two members of the same guild, reported by a paired
+// participant's own client. Both players' companions report the same duel, so a row is matched by pair and time
+// (within two minutes) before it is stored. `counted` is false once a pair has used its daily allowance
+// (anti-farming); the row is kept so a replay cannot count it later.
+model DuelResult {
+  id             String   @id @default(cuid())
+  guildId        String
+  gameEdition    String   @default("forever")
+  winnerId       String
+  loserId        String
+  winnerCharacter String
+  loserCharacter String
+  reason         String   @default("knockout")
+  endedAt        DateTime
+  dayKey         String
+  pairKey        String
+  counted        Boolean  @default(true)
+  reportKey      String
+  reporterId     String?
+  createdAt      DateTime @default(now())
+  guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  winner         Member   @relation("DuelWinner", fields: [winnerId], references: [id], onDelete: Cascade)
+  loser          Member   @relation("DuelLoser", fields: [loserId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, reportKey])
+  @@index([guildId, gameEdition, counted, endedAt])
+  @@index([guildId, pairKey, dayKey])
+  @@index([winnerId])
+  @@index([loserId])
+}
+
+// Personal milestones the member's own addon recorded (level steps, first dungeon clears, honorable kills,
+// duel wins). Numbers and dates only. Feeds the achievements; posting to Discord stays the guild's own
+// opt-in (/config achievements), never automatic.
+model MemberMilestone {
+  id          String   @id @default(cuid())
+  guildId     String
+  memberId    String
+  gameEdition String   @default("forever")
+  kind        String
+  ref         String
+  value       Int
+  reachedAt   DateTime
+  recordedAt  DateTime @default(now())
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, memberId, gameEdition, ref])
+  @@index([guildId, memberId, kind])
 }

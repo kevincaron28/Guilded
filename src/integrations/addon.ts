@@ -260,6 +260,10 @@ export const addonSnapshotSchema = z.object({
   // so a single malformed run can't reject the whole import.
   dungeonRuns: z.array(z.unknown()).max(500).default([]),
   battlegroundReports: z.array(battlegroundReportSchema).max(100).default([]),
+  // Guild duels and personal milestones (8.4.5). Each row is validated on apply (services/duels), so one
+  // malformed row never rejects the upload.
+  duelResults: z.array(z.unknown()).max(200).default([]),
+  milestones: z.array(z.unknown()).max(300).default([]),
   // Rows left out because they were malformed (see parseAddonSnapshot); the rest still imports.
   rejected: z.array(z.object({ section: z.string().max(40), label: z.string().max(120), reason: z.string().max(200) })).max(MAX_REJECTED).default([])
 });

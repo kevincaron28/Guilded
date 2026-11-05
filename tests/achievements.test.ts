@@ -121,6 +121,8 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     professionSkill: { findMany: vi.fn(async () => [{ skillLevel: 175 }]) },
     poeLevelReached: { findMany: vi.fn(async () => []) },
     poeMapVisit: { findMany: vi.fn(async () => []) },
+    memberMilestone: { aggregate: vi.fn(async () => ({ _max: { value: null } })) },
+    duelResult: { count: vi.fn(async () => 0) },
     memberAchievement: {
       findMany: vi.fn(async () => stored.map(row => ({ ...row }))),
       createMany: vi.fn(async ({ data }: { data: Stored[] }) => { let count = 0; for (const row of data) if (!stored.some(s => s.key === row.key && s.memberId === row.memberId)) { stored.push(row); count += 1; } return { count }; })

@@ -7,6 +7,7 @@ import { deriveReadinessStatus } from "./readiness.js";
 import { applyAddonLoot, applyRaidAttendance, touchLastSeen } from "./raid-import.js";
 import { importDungeonRuns } from "./dungeon-import.js";
 import { importBattlegroundReports } from "./battleground-records.js";
+import { importDuelResults, importMilestones } from "./duels.js";
 import { applyDiscoveredCharacters } from "./roster-discovery.js";
 import { findCharacter } from "./character-match.js";
 import { applyReserves } from "./reserves.js";
@@ -403,6 +404,10 @@ export function createAddonImportService(database: PrismaClient) {
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
           characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec })), appliedBy, importId);
         const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);
+        // Duels and milestones come only from a paired member's own companion (never an officer's whole-guild upload).
+        const guildEdition = gameEditionOf(guild ?? {});
+        const duels = await importDuelResults(tx, guildId, guildEdition, imported.pairedMemberId, characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId })), snapshot.duelResults);
+        const milestones = await importMilestones(tx, guildId, guildEdition, imported.pairedMemberId, characters.filter((character) => character.memberId === imported.pairedMemberId), snapshot.milestones);
 
         await tx.addonImport.update({
           where: { id: imported.id },
@@ -422,7 +427,7 @@ export function createAddonImportService(database: PrismaClient) {
         }
         if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
         return {
-          import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, battlegrounds, skipped,
+          import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, battlegrounds, duels, milestones, skipped,
           voided, held: { rows: held, fresh: newlyHeld.length }, rejected: snapshot.rejected, unchangedSections
         };
         });

@@ -102,6 +102,32 @@ function module.switches()
       get = function() local d = db(); return not (d and d.digest and d.digest.enabled == false) end,
       set = function(on) run(on and "digest on" or "digest off") end
     },
+    -- Milestone announcements in guild chat: OFF until the player turns them on (8.4.5).
+    {
+      label = L("Announce my milestones in guild chat"),
+      get = function() return ns.milestones and ns.milestones.enabled() or false end,
+      set = function(on) run(on and "milestones on" or "milestones off") end
+    },
+    {
+      label = L("Milestones: level 10, 20..."),
+      get = function() return ns.milestones and ns.milestones.enabled("level") or false end,
+      set = function(on) run("milestones level " .. (on and "on" or "off")) end
+    },
+    {
+      label = L("Milestones: first dungeon clears"),
+      get = function() return ns.milestones and ns.milestones.enabled("dungeon") or false end,
+      set = function(on) run("milestones dungeon " .. (on and "on" or "off")) end
+    },
+    {
+      label = L("Milestones: honorable kills"),
+      get = function() return ns.milestones and ns.milestones.enabled("hk") or false end,
+      set = function(on) run("milestones hk " .. (on and "on" or "off")) end
+    },
+    {
+      label = L("Milestones: duel wins"),
+      get = function() return ns.milestones and ns.milestones.enabled("duel") or false end,
+      set = function(on) run("milestones duel " .. (on and "on" or "off")) end
+    },
   }
   -- One switch per optional module, just for you (officers still use /guilded modules guild).
   for _, entry in ipairs(ns.MODULES or {}) do
@@ -158,8 +184,10 @@ local function build()
   scroll:SetScrollChild(list)
   boxes = {}
   local y = -6
+  local headed = false
   for index, switch in ipairs(module.switches()) do
-    if index == 4 then
+    if switch.module and not headed then
+      headed = true
       local header = list:CreateFontString(nil, "ARTWORK", "GameFontNormal")
       header:SetPoint("TOPLEFT", 16, y - 6)
       header:SetText(L("Optional parts (a part turned back on starts after /reload)"))

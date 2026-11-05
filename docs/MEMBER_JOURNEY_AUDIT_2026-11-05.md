@@ -73,3 +73,26 @@ the common case (down from about 17 with a likely dead end). Website `/start` no
 - Bot deploy alone (prompt text, status line, site pages) ships the framing changes. The folder
   auto-pick and background retry need a **new companion release**; until then the old dialog remains.
 - `onboard:companion` button handler is kept so old welcome messages keep working.
+
+## 6. The no-companion path (`/guilded verify`), counted beside the companion path
+
+Steps: Discord **Link my characters** (1) → copy the line (2) → open WoW and log in (3) → paste in
+chat, Enter (4). **4 actions after the addon, no install.** The code travels in the guild digest
+(`Core.lua`); any guildmate's addon keeps it. It links when an upload that heard it arrives from an
+officer's companion (trusted, links at once) or a paired member's (provisional, confirmed later by an
+officer's upload) (`src/services/character-verify.ts`). The member gets a DM (`verify.linked`) when it lands.
+
+- **Discoverable?** From Discord yes (the prompt), but until this change it was the *first* block of a
+  page that called everything else optional; the site `/start` never mentioned it before this change
+  (now one line under "Get the companion"). The Quick Start guide and `MEMBER_INSTALL` still describe it only as an alternative.
+- **Can the member see it worked, and when?** Yes, by a DM, and `/character list`. There is no progress
+  indicator while waiting, and the member cannot tell "nobody has heard it yet" from "broken".
+- **Nobody online at the same time:** digests are only heard live, so the code is lost if no
+  uploader's addon is in the guild channel while the member is online. The member must repeat the
+  paste later; nothing says so. The prompt only warns when no officer synced in 2 weeks.
+- **Recommendation:** not as the main path. It is 4 steps against about 7 but ends in an unbounded,
+  invisible wait on other people, which is what leaves members "stuck at 3 of 35". Offer it as the
+  fallback for members without Windows or who will not install anything (done in the prompt and `/start`),
+  and make it safer with a fix needing the addon: re-send the code on every login for 10 minutes, and
+  a "Waiting for a guildmate to hear it" note in `/character list` for members with an open code
+  and no characters. Not done here (Lua change, needs a release).

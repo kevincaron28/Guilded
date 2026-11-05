@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.4.4 — 5 November 2026
+
+WoW Forever launch-week release. Linking is automatic (no codes to type, with a clearer
+linking prompt), Forever guilds on synced realms share one guild key, Forever is the default
+edition, the companion detects the live Forever saved data on its own, crafters can offer
+crafts from the craft board (off by default), and item previews are off by default. The addon
+windows get a round of in-game layout fixes. Protocol remains 2. See [release notes](docs/V8_4_4_RELEASE_NOTES.md).
+
 ## 8.4.3 — 4 November 2026
 
 WoW Forever launch fixes for the companion: "Find my saved data" now switches a

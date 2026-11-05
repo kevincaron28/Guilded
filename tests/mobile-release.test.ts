@@ -24,7 +24,7 @@ describe("mobile release links", () => {
   });
   it("fails closed for native builds without verified project or Android Firebase file", () => {
     const configure = require("../mobile/app.config.js");
-    const config = JSON.parse(readFileSync("mobile/app.json", "utf8")).expo;
+    const config = { ...JSON.parse(readFileSync("mobile/app.json", "utf8")).expo, extra: undefined };
     vi.stubEnv("EAS_PROJECT_ID", "");
     vi.stubEnv("GOOGLE_SERVICES_JSON", "");
     vi.stubEnv("EAS_BUILD", "");

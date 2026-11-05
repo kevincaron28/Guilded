@@ -13,6 +13,8 @@ local capable, legacyUntil = {}, 0
 local othersStamp, othersAt, replyScheduled, replyLegacy = nil, 0, false, false
 local function db() return ns.getDb and ns.getDb() end
 local function guildKey()
+  -- Forever: the same home-realm key the saved data is filed under (Core.lua currentGuildKey).
+  if ns.currentGuildKey and ns.util and ns.util.isForever and ns.util.isForever() then return (ns.currentGuildKey()) end
   if not (IsInGuild and IsInGuild()) then return nil end
   local name = GetGuildInfo and GetGuildInfo("player")
   if type(name) ~= "string" or name == "" or (ns.isSecret and ns.isSecret(name)) then return nil end

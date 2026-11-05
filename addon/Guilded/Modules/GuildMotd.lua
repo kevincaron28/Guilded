@@ -241,9 +241,54 @@ function motd.checkManualEdit(cfg)
   return true
 end
 
--- Returns a status code: off, noguild, notofficer, noapi, cannot, paused, notwriter, empty,
--- combat, same, written.
-function motd.tick(force)
+-- The game only lets an addon change the guild message from a real click (a hardware event):
+-- GuildSetMOTD from a timer or an event raises ADDON_ACTION_FORBIDDEN. So nothing here ever
+-- writes by itself. tick() works out what the message should be and, for the elected officer,
+-- shows a small "Update guild message" button (and says so once in chat); the click runs
+-- motd.apply(), the only function that calls GuildSetMOTD.
+local prompt
+local function hidePrompt()
+  if prompt then prompt:Hide() end
+end
+
+local function preview(text)
+  return cut(text, 60) .. (#text > 60 and "..." or "")
+end
+
+local function showPrompt(text)
+  if motd.dismissed == text then return end
+  if not prompt then
+    prompt = CreateFrame("Frame", "GuildedMotdPrompt", UIParent)
+    prompt:SetSize(470, 30)
+    prompt:SetPoint("TOP", UIParent, "TOP", 0, -140)
+    prompt:SetFrameStrata("DIALOG")
+    prompt.button = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
+    prompt.button:SetSize(436, 26)
+    prompt.button:SetPoint("LEFT", prompt, "LEFT", 0, 0)
+    prompt.button:SetScript("OnClick", function() motd.apply() end)
+    prompt.close = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
+    prompt.close:SetSize(26, 26)
+    prompt.close:SetPoint("LEFT", prompt.button, "RIGHT", 4, 0)
+    prompt.close:SetText("x")
+    prompt.close:SetScript("OnClick", function() motd.dismissed = motd.pending and motd.pending.text; prompt:Hide() end)
+  end
+  prompt.button:SetText(string.format(L("Update guild message: %s"), preview(text)))
+  prompt:Show()
+  if motd.announced ~= text then
+    motd.announced = text
+    if ns.message then ns.message(string.format(L("Guild message ready: click the Update guild message button (%s)."), preview(text))) end
+  end
+end
+
+local function status(code)
+  motd.status = code
+  if code ~= "due" then motd.pending = nil; hidePrompt() end
+  return code
+end
+
+-- Returns a status code: off, noguild, notofficer, noapi, cannot, paused, waiting, notwriter,
+-- empty, same, due. Never writes.
+function motd.tick()
   local cfg = config()
   if not cfg or not cfg.enabled then return status("off") end
   if IsInGuild and not IsInGuild() then return status("noguild") end
@@ -255,26 +300,38 @@ function motd.tick(force)
   motd.checkManualEdit(cfg)
   if cfg.paused then return status("paused") end
   -- Say hello first and give the other officers a moment to answer, so two officers who log in
-  -- together do not both write.
+  -- together do not both prompt.
   if not motd.helloAt then hello(); motd.helloAt = clock() end
-  if not force and clock() - motd.helloAt < HELLO_SETTLE then return status("notwriter") end
+  if clock() - motd.helloAt < HELLO_SETTLE then return status("waiting") end
   if not motd.isWriter(can) then return status("notwriter") end
+  local text = motd.wanted(cfg, now())
+  if not text or text == "" then return status("empty") end
+  if text == cfg.lastWritten then return status("same") end
+  motd.pending = { text = text }
+  showPrompt(text)
+  return status("due")
+end
+
+-- Writes the message. Call it only from a click handler (see above).
+function motd.apply()
+  local cfg = config()
+  if not cfg then return "off" end
+  local set, can = setter(), canEdit()
+  if not set or can == nil then return status("noapi") end
+  if not can then return status("cannot") end
   local at = now()
   local text, index = motd.wanted(cfg, at)
   if not text or text == "" then return status("empty") end
-  if text == cfg.lastWritten and not force then
-    return status("same")
-  end
-  if inCombat() then return status("combat") end
-  if not force and cfg.mode == "event" and cfg.lastWriteAt and clock() - cfg.lastWriteAt < MIN_REWRITE then return status("same") end
   local before = current()
   local ok = pcall(set, text)
   if not ok then return status("noapi") end
+  cfg.paused = false
   cfg.beforeWrite, cfg.lastWritten, cfg.lastWriteAt = before, text, clock()
   if index then
     if index ~= cfg.index or not cfg.changedAt then cfg.changedAt = at end
     cfg.index = index
   end
+  motd.dismissed = nil
   send(string.format("W|%d|%d|%s", cfg.index or 0, cfg.changedAt or at, text))
   return status("written")
 end
@@ -286,9 +343,10 @@ local STATUS_TEXT = {
   noapi = "This game client cannot change the guild message from an addon, so nothing is written.",
   cannot = "Your guild rank cannot edit the guild message.",
   paused = "Paused: someone edited the guild message by hand. Press Resume to take over again.",
-  notwriter = "On. Another officer's game writes the message (the lowest name online).",
+  waiting = "On. Checking for other officers online...",
+  notwriter = "On. Another officer's game offers the update (the lowest name online).",
+  due = "A new guild message is ready. Click the Update guild message button (the game only allows it from a click).",
   empty = "On, but there is nothing to write yet (add lines, or wait for a raid).",
-  combat = "On. Waiting until you leave combat.",
   same = "On. The guild message is up to date.",
   written = "On. The guild message was just updated.",
 }
@@ -327,7 +385,7 @@ end
 -- Command: /guilded motd ...
 -- ---------------------------------------------------------------------
 
-local HELP = "/guilded motd [on|off | mode rotate|event | hours N | add <line> | clear | suffix <text> | resume | now | config]"
+local HELP = "/guilded motd [on|off | mode rotate|event | hours N | add <line> | clear | suffix <text> | resume | config]"
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers.motd = function(args)
   if not (ns.isOfficer and ns.isOfficer()) then ns.message(L(STATUS_TEXT.notofficer)); return end
@@ -347,7 +405,6 @@ ns.commandHandlers.motd = function(args)
   elseif action == "clear" then cfg.lines, cfg.index, cfg.changedAt = {}, 0, nil
   elseif action == "suffix" then motd.set("suffix", table.concat(args, " ", 2))
   elseif action == "resume" then motd.resume()
-  elseif action == "now" then motd.tick(true)
   elseif action then ns.message(HELP); return end
   local tick = motd.tick()
   ns.message(string.format(L("Guild message: %s, %s, every %d h, %d line(s)."),
@@ -364,20 +421,33 @@ function motd.buildPage(parent, ui)
   page = parent
   local at, newLabel, newButton, newEdit = ui.at, ui.newLabel, ui.newButton, ui.newEdit
   local width = ui.width or 520
-  local intro = at(newLabel(parent, "Keeps the in-game guild message of the day current from an officer's game. Off by default; a manual edit pauses it.", "GameFontHighlightSmall"), parent, 0, 0)
+  local intro = at(newLabel(parent, "Prepares the guild message of the day from an officer's game: one click on a button updates it (the game does not allow it automatically). Off by default; a manual edit pauses it.", "GameFontHighlightSmall"), parent, 0, 0)
   intro:SetWidth(width)
-  parent.toggle = at(newButton(parent, "Turn on", 150, function()
+  parent.toggle = at(newButton(parent, "Turn on", 130, function()
     local cfg = config(); if cfg then motd.set("enabled", not cfg.enabled); motd.tick(); parent.refresh() end
   end), parent, 0, -44)
-  parent.mode = at(newButton(parent, "Mode: rotation", 200, function()
+  parent.mode = at(newButton(parent, "Mode: rotation", 170, function()
     local cfg = config(); if cfg then motd.set("mode", cfg.mode == "event" and "rotate" or "event"); motd.tick(); parent.refresh() end
-  end), parent, 160, -44)
-  at(newLabel(parent, "Change every (hours)", "GameFontNormalSmall"), parent, 0, -84)
-  parent.hours = at(newEdit(parent, 50, true), parent, 150, -80)
+  end), parent, 138, -44)
+  at(newButton(parent, "Save", 80, function()
+    local cfg = config(); if not cfg then return end
+    motd.set("hours", parent.hours:GetText())
+    motd.setLines(parent.lines:GetText())
+    motd.set("suffix", parent.suffix:GetText())
+    parent.lines:ClearFocus()
+    motd.tick(); parent.refresh()
+  end), parent, 0, -74)
+  -- A click: the game only allows GuildSetMOTD from one.
+  at(newButton(parent, "Update now", 110, function() motd.apply(); parent.refresh() end), parent, 88, -74)
+  at(newButton(parent, "Resume", 90, function() motd.resume(); motd.tick(); parent.refresh() end), parent, 206, -74)
+  parent.status = at(newLabel(parent, "", "GameFontHighlightSmall"), parent, 0, -106)
+  parent.status:SetWidth(width)
+  at(newLabel(parent, "Change every (hours)", "GameFontNormalSmall"), parent, 0, -140)
+  parent.hours = at(newEdit(parent, 50, true), parent, 150, -136)
   parent.hours:SetMaxLetters(3)
-  at(newLabel(parent, "One line per message (rotation, 128 characters each, up to 12):", "GameFontNormalSmall"), parent, 0, -112)
+  at(newLabel(parent, "One line per message (rotation, 128 characters each, up to 12):", "GameFontNormalSmall"), parent, 0, -166)
   local lines = CreateFrame("EditBox", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  lines:SetSize(width - 10, 110)
+  lines:SetSize(width - 10, 80)
   lines:SetMultiLine(true)
   lines:SetAutoFocus(false)
   lines:SetFontObject(ChatFontNormal or GameFontHighlight)
@@ -388,24 +458,12 @@ function motd.buildPage(parent, ui)
     lines:SetBackdropColor(0, 0, 0, 0.6)
   end
   lines:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-  at(lines, parent, 0, -132)
+  at(lines, parent, 0, -184)
   parent.lines = lines
-  local suffixLabel = at(newLabel(parent, "Added at the end of every message (optional, e.g. Link your character: Guilded Companion)", "GameFontNormalSmall"), parent, 0, -254)
+  local suffixLabel = at(newLabel(parent, "Added at the end of every message (optional, e.g. Link your character: Guilded Companion)", "GameFontNormalSmall"), parent, 0, -272)
   suffixLabel:SetWidth(width)
-  parent.suffix = at(newEdit(parent, width - 20), parent, 6, -286)
+  parent.suffix = at(newEdit(parent, width - 20), parent, 6, -302)
   parent.suffix:SetMaxLetters(60)
-  parent.status = at(newLabel(parent, "", "GameFontHighlightSmall"), parent, 0, -318)
-  parent.status:SetWidth(width)
-  at(newButton(parent, "Save", 90, function()
-    local cfg = config(); if not cfg then return end
-    motd.set("hours", parent.hours:GetText())
-    motd.setLines(parent.lines:GetText())
-    motd.set("suffix", parent.suffix:GetText())
-    parent.lines:ClearFocus()
-    motd.tick(); parent.refresh()
-  end), parent, 0, -362)
-  at(newButton(parent, "Update now", 110, function() motd.tick(true); parent.refresh() end), parent, 100, -362)
-  at(newButton(parent, "Resume", 90, function() motd.resume(); motd.tick(); parent.refresh() end), parent, 220, -362)
   parent.refresh = function()
     local cfg = config(); if not cfg then return end
     parent.toggle:SetText(L(cfg.enabled and "Turn off" or "Turn on"))

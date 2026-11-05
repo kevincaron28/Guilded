@@ -172,36 +172,56 @@ local function scrollRange(contentHeight, viewportHeight)
   return math.max(0, (contentHeight or 0) + SCROLL_PADDING - (viewportHeight or 0))
 end
 local wheelState = setmetatable({}, { __mode = "k" })
+-- Where each scroll frame is supposed to be. The game's template re-applies the scrollbar's own
+-- value whenever the page's range changes, which undid wheel moves (a 4 px crawl and a page that
+-- stopped a row short). The wheel, the scrollbar and any later range change all agree on this
+-- one number.
+local wantedScroll = setmetatable({}, { __mode = "k" })
 local function enableWheel(scroll, getRange)
   scroll:EnableMouseWheel(true)
   local bar = scroll.ScrollBar
   if type(bar) ~= "table" or type(bar.SetValue) ~= "function" then bar = nil end
-  -- The template's scrollbar clamps its value to the range it last measured, and snaps it to its
-  -- value step. A stale (short) range or a 48 px step pulled the page back after every tick: the
-  -- wheel crawled and the last heat-map row was unreachable. Keep the bar's step at 1 and widen
-  -- its range to ours before every move; the wheel step lives in our own handler.
   if bar and bar.SetValueStep then bar:SetValueStep(1) end
-  if bar then bar.scrollStep = SCROLL_STEP end
-  scroll:SetScript("OnMouseWheel", function(self, delta)
-    -- Never stop short of the real end of the content: take the larger of our estimate and the
-    -- range the game measured (it clamps anything beyond it).
+  local function fullRange(self)
     local range = getRange()
     local real = self.GetVerticalScrollRange and self:GetVerticalScrollRange()
+    -- Never stop short of the real end of the content: the larger of our estimate and the game's.
     if type(real) == "number" and real > range then range = real end
-    local target = math.max(0, math.min(range, (self:GetVerticalScroll() or 0) - delta * SCROLL_STEP))
+    return range
+  end
+  local function moveTo(self, target)
+    wantedScroll[self] = target
     if bar and bar.SetMinMaxValues and bar.GetMinMaxValues then
       local _, barMax = bar:GetMinMaxValues()
-      if type(barMax) ~= "number" or barMax < range then bar:SetMinMaxValues(0, range) end
+      if type(barMax) ~= "number" or barMax < fullRange(self) then bar:SetMinMaxValues(0, fullRange(self)) end
     end
-    local from = self:GetVerticalScroll() or 0
     self:SetVerticalScroll(target)
-    -- The template moves the thumb itself when the scroll offset changes; writing the bar's value
-    -- here as well only gave its own handler a second chance to clamp or snap the page back.
+    if bar then bar:SetValue(target) end
+  end
+  scroll:SetScript("OnMouseWheel", function(self, delta)
+    local range = fullRange(self)
+    local from = wantedScroll[self] or self:GetVerticalScroll() or 0
+    local target = math.max(0, math.min(range, from - delta * SCROLL_STEP))
+    moveTo(self, target)
     -- /guilded debug scroll prints the last tick so a stuck page can be read from the game.
     local n = wheelState[self] and wheelState[self].n or 0
-    wheelState[self] = { n = n + 1, delta = delta, from = from, target = target, range = range, after = self:GetVerticalScroll() }
+    wheelState[self] = { n = n + 1, delta = delta, from = from, target = target, range = range, after = self:GetVerticalScroll(), bar = bar and bar.GetValue and bar:GetValue() or nil }
   end)
+  -- A range change (the page was resized or its text changed) must not move the page.
+  if scroll.HookScript then
+    pcall(scroll.HookScript, scroll, "OnScrollRangeChanged", function(self)
+      local want = wantedScroll[self]
+      if want and (self:GetVerticalScroll() or 0) ~= want then moveTo(self, math.min(want, fullRange(self))) end
+    end)
+  end
+  -- Dragging the thumb is also a choice of position.
+  if bar and bar.HookScript then
+    pcall(bar.HookScript, bar, "OnValueChanged", function(_, value)
+      if type(value) == "number" then wantedScroll[scroll] = value end
+    end)
+  end
 end
+function ns.resetScrollWanted(scroll) if scroll then wantedScroll[scroll] = 0 end end
 ns.layoutMath = { scrollRange = scrollRange, SCROLL_STEP = SCROLL_STEP, SCROLL_PADDING = SCROLL_PADDING }
 
 local function newLabel(parent, text, font)
@@ -1510,7 +1530,7 @@ local function buildAnnouncementsPage(page)
     end)
     ui.announceChecks[i] = { box = box, kind = kind }
   end
-  ui.announceGuild = officerOnly(at(newButton(page, "", 260, function()
+  ui.announceGuild = officerOnly(at(newButton(page, "", 440, function()
     run("announce guild " .. ((ns.milestones and ns.milestones.guildOff and ns.milestones.guildOff()) and "on" or "off"))
     if ui.refreshAnnouncements then ui.refreshAnnouncements() end
   end), page, 0, -210))
@@ -1966,7 +1986,7 @@ updateGuildScroll = function()
   elseif tab.name == "Crafting" then
     height = 46 + textHeight(ui.craftResult) + 16 + 20 + textHeight(ui.craftMine) + 16 + 24 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
-  elseif tab.name == "Guild message" then height = 400
+  elseif tab.name == "Guild message" then height = 340
   elseif tab.name == "Announcements" then height = 290
   elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
@@ -1975,7 +1995,9 @@ updateGuildScroll = function()
   local range = scrollRange(height, viewport)
   -- Extra room under the page: the game clamps scrolling to the child height, ours to `range`, so
   -- the game can never be the one stopping short of the last row.
-  tab.page:SetHeight(math.max(viewport, height + SCROLL_PADDING + SCROLL_SLACK))
+  local pageHeight = math.max(viewport, height + SCROLL_PADDING + SCROLL_SLACK)
+  local currentHeight = tab.page.GetHeight and tab.page:GetHeight()
+  if type(currentHeight) ~= "number" or math.abs(currentHeight - pageHeight) > 0.5 then tab.page:SetHeight(pageHeight) end
   -- A narrower host (the game's calendar) shows less than PAGE_WIDTH: size the page to what
   -- is visible so text anchored to its right edge wraps instead of being cut off.
   local visible = scroll:GetWidth()
@@ -1988,7 +2010,15 @@ updateGuildScroll = function()
   -- Tell the scrollbar the true range now: it only re-measures on a later frame and until then
   -- clamped the thumb (and the page) short of the last rows.
   if scroll.ScrollBar and scroll.ScrollBar.SetMinMaxValues then pcall(scroll.ScrollBar.SetMinMaxValues, scroll.ScrollBar, 0, range) end
-  scroll:SetVerticalScroll(math.min(scroll:GetVerticalScroll() or 0, range))
+  -- Clamp to the larger of our estimate and the game's measured range (the estimate is often
+  -- smaller and used to pull the page back up).
+  local limit = range
+  local measured = scroll.GetVerticalScrollRange and scroll:GetVerticalScrollRange()
+  if type(measured) == "number" and measured > limit then limit = measured end
+  if (scroll:GetVerticalScroll() or 0) > limit then
+    scroll:SetVerticalScroll(limit)
+    wantedScroll[scroll] = limit
+  end
   if scroll.ScrollBar then
     if range > 1 then scroll.ScrollBar:Show() else scroll.ScrollBar:Hide() end
   end
@@ -2004,6 +2034,7 @@ selectTab = function(index)
     ui.guildScroll:SetScrollChild(page)
     page:SetPoint("TOPLEFT", ui.guildScroll, "TOPLEFT", 0, 0)
     ui.guildScroll:SetVerticalScroll(0)
+    ns.resetScrollWanted(ui.guildScroll)
     raiseWindow(page, ui.guildScroll:GetFrameLevel() + 1)
   end
   -- The status line answers what was just done on a page; another page starts without it.
@@ -2317,7 +2348,7 @@ local function scrollDebug()
     string.format("panel top=%s bottom=%s host bottom=%s", call(panel, "GetTop"), call(panel, "GetBottom"), call(ui.guildHost, "GetBottom")),
   }
   local wheel = wheelState[scroll]
-  lines[#lines + 1] = wheel and string.format("wheel ticks=%d last: delta=%s from=%s target=%s range=%s after=%s", wheel.n, fmt(wheel.delta), fmt(wheel.from), fmt(wheel.target), fmt(wheel.range), fmt(wheel.after))
+  lines[#lines + 1] = wheel and string.format("wheel ticks=%d last: delta=%s from=%s target=%s range=%s after=%s bar=%s", wheel.n, fmt(wheel.delta), fmt(wheel.from), fmt(wheel.target), fmt(wheel.range), fmt(wheel.after), fmt(wheel.bar))
     or "wheel: our handler has not run yet (scroll with the mouse over the page, then run this again)"
   local pageTop = type(page.GetTop) == "function" and page:GetTop()
   local function below(widget)

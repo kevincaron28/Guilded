@@ -1,12 +1,15 @@
-# Automatic guild message of the day
+# Guild message of the day, one click
 
-Officers can let Guilded keep the in-game guild MOTD current (`addon/Guilded/Modules/GuildMotd.lua`).
-Off by default; nothing is written until an officer turns it on in their own game.
+Guilded prepares the in-game guild MOTD for officers (`addon/Guilded/Modules/GuildMotd.lua`). **It cannot write by itself:**
+`GuildSetMOTD` needs a hardware event, and calling it from a timer or event raised ADDON_ACTION_FORBIDDEN on Forever. When a
+rotation or next-raid update is due, the elected officer sees a small "Update guild message: <preview>" button at the top of
+the screen (and one chat line); one click writes it. The tab's **Update now** is also a click. Off by default.
+A validator rule and a test fail the build if anything calls `GuildSetMOTD` outside a click handler.
 
 ## Turning it on
 
-Guilded window > Settings > **Guild message** (officers), or `/guilded motd config`.
-Chat commands: `/guilded motd [on|off | mode rotate|event | hours N | add <line> | clear | suffix <text> | resume | now | config]`.
+Guilded window > **Guild message** tab (officers; Settings has a button), or `/guilded motd config`.
+Chat commands: `/guilded motd [on|off | mode rotate|event | hours N | add <line> | clear | suffix <text> | resume | config]`.
 
 - **Rotation**: officer-written lines (up to 12, 128 characters each), one every N hours (default 24).
 - **Next raid**: built from the raids the bot published (`GuildedRaids`, via the companion), for example
@@ -17,10 +20,10 @@ Chat commands: `/guilded motd [on|off | mode rotate|event | hours N | add <line>
 
 ## Safety rules
 
-- Only an officer client with the addon, `CanEditMOTD()` true and the switch on writes. The API is `GuildSetMOTD`
+- Only an officer client with the addon, `CanEditMOTD()` true and the switch on is offered the update. The API is `GuildSetMOTD`
   (or `C_GuildInfo.SetMOTD`). A client without it stays quiet and Settings says so.
 - One writer: officers with the feature on say hello on the `GuildedMotd` prefix; the lowest-named online officer who
-  can edit the MOTD writes. Hellos expire after 150 s, so another officer takes over when the writer goes offline.
+  can edit the MOTD is shown the button (alone, that is you; the first 10 seconds are spent listening for others). Hellos expire after 150 s, so another officer takes over when the writer goes offline.
 - Manual edit: if the MOTD differs from the last text Guilded wrote (after a 60 s grace for the roster to refresh),
   the automation pauses for every officer until someone presses **Resume**.
 - Rotation position and timing are shared with the other officers' addons (`W|index|time|text`), so a new writer

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { newLuaSession, type LuaSession } from "./harness.js";
+import { addonSource, newLuaSession, type LuaSession } from "./harness.js";
 
 let session: LuaSession | undefined;
 afterEach(() => { session?.close(); session = undefined; });
@@ -37,6 +37,8 @@ function setup() {
   return s;
 }
 const on = (s: LuaSession, extra = "") => s.run(`M.set("enabled", true); ${extra}`);
+// The officer clicks the "Update guild message" button: the only way a write happens.
+const click = (s: LuaSession) => s.run("local code = M.tick(); if code == \"due\" then return M.apply() end return code");
 
 describe("automatic guild message of the day", () => {
   it("is off by default and writes nothing", () => {
@@ -64,21 +66,24 @@ describe("automatic guild message of the day", () => {
   it("rotates its lines every N hours and wraps around", () => {
     const s = setup();
     on(s, `M.setLines("Alpha\\nBravo\\nCharlie"); M.set("hours", 24)`);
-    expect(s.run("return M.tick()")).toBe("written");
+    expect(s.run("return M.tick()")).toBe("due");
+    expect(s.run("return #WRITES")).toBe("0"); // a timer never writes: the officer clicks
+    expect(click(s)).toBe("written");
     expect(s.run("return WRITES[1]")).toBe("Alpha");
     s.run("ADVANCE(23 * 3600)");
     expect(s.run("return M.tick()")).toBe("same");
     s.run("ADVANCE(3600)");
-    expect(s.run("return M.tick() .. ':' .. WRITES[2]")).toBe("written:Bravo");
+    expect(click(s)).toBe("written");
+    expect(s.run("return WRITES[2]")).toBe("Bravo");
     s.run("ADVANCE(24 * 3600)");
-    s.run("M.tick(); ADVANCE(24 * 3600); M.tick()");
+    click(s); s.run("ADVANCE(24 * 3600)"); click(s);
     expect(s.run("return WRITES[3] .. ':' .. WRITES[4]")).toBe("Charlie:Alpha");
   });
 
   it("pauses on a manual edit instead of overwriting it, until an officer resumes", () => {
     const s = setup();
     on(s, `M.setLines("Alpha\\nBravo"); M.set("hours", 1)`);
-    s.run("M.tick()");
+    click(s);
     s.run(`MOTD = "Raid Friday!"; ADVANCE(3 * 3600)`);
     expect(s.run("return M.tick()")).toBe("paused");
     expect(s.run("return #WRITES .. ':' .. MOTD")).toBe("1:Raid Friday!");
@@ -86,7 +91,8 @@ describe("automatic guild message of the day", () => {
     s.run("ADVANCE(3 * 3600)");
     expect(s.run("return M.tick()")).toBe("paused");
     s.run("M.resume()");
-    expect(s.run("return M.tick()")).toBe("written");
+    expect(s.run("return M.tick()")).toBe("due");
+    expect(click(s)).toBe("written");
     expect(s.run("return MOTD")).not.toBe("Raid Friday!");
   });
 
@@ -94,7 +100,7 @@ describe("automatic guild message of the day", () => {
     const s = setup();
     on(s, `M.setLines("Alpha")`);
     s.run(`GuildSetMOTD = function(text) WRITES[#WRITES + 1] = text end`); // roster still shows "old message"
-    s.run("M.tick(); ADVANCE(5)");
+    click(s); s.run("ADVANCE(5)");
     expect(s.run("return M.tick()")).not.toBe("paused");
     s.run(`ADVANCE(120)`);
     expect(s.run("return M.tick()")).toBe("paused"); // later the same mismatch means someone else changed it
@@ -108,7 +114,8 @@ describe("automatic guild message of the day", () => {
     expect(s.run("return #WRITES")).toBe("0");
     // An officer who cannot edit does not block the writer.
     s.run(`M.peers = {}; M.receive("H|0", "Aaron")`);
-    expect(s.run("return M.tick()")).toBe("written");
+    expect(s.run("return M.tick()")).toBe("due");
+    expect(s.run("return #WRITES")).toBe("0");
     // A later name does not win either.
     s.run(`M.peers = {}; M.receive("H|1", "Zed")`);
     expect(s.run("return tostring(M.isWriter(true))")).toBe("true");
@@ -122,11 +129,12 @@ describe("automatic guild message of the day", () => {
   it("waits briefly for other officers' hellos before the first write, and ignores non-officers", () => {
     const s = setup();
     on(s, `M.setLines("Alpha"); M.helloAt = nil`);
-    expect(s.run("return M.tick()")).toBe("notwriter");
+    expect(s.run("return M.tick()")).toBe("waiting");
     expect(s.run("return SENT[1]")).toBe("H|1");
     s.run(`M.receive("H|1", "Pleb")`); // not an officer: ignored
     s.run("ADVANCE(11)");
-    expect(s.run("return M.tick()")).toBe("written");
+    expect(s.run("return M.tick()")).toBe("due"); // alone: the elected writer is this officer
+    expect(s.run("return M.statusText()")).not.toContain("Another officer");
     s.run(`M.receive("P", "Pleb")`);
     expect(s.run("return tostring(CFG.paused == true)")).toBe("false");
   });
@@ -139,7 +147,9 @@ describe("automatic guild message of the day", () => {
     s.run("ADVANCE(22 * 3600)");
     expect(s.run("return M.tick() .. ':' .. #WRITES")).toBe("same:0");
     s.run("ADVANCE(3600)");
-    expect(s.run("return M.tick() .. ':' .. WRITES[1]")).toBe("written:Alpha");
+    expect(s.run("return M.tick()")).toBe("due");
+    expect(click(s)).toBe("written");
+    expect(s.run("return WRITES[1]")).toBe("Alpha");
   });
 
   it("fails quietly when the client cannot set the message or the rank cannot edit it", () => {
@@ -152,8 +162,6 @@ describe("automatic guild message of the day", () => {
     expect(s.run("return M.tick()")).toBe("cannot");
     s.run("CAN = true; OFFICER = false");
     expect(s.run("return M.tick()")).toBe("notofficer");
-    s.run("OFFICER = true; COMBAT = true");
-    expect(s.run("return M.tick()")).toBe("combat");
     expect(s.run("return #WRITES")).toBe("0");
   });
 
@@ -161,13 +169,31 @@ describe("automatic guild message of the day", () => {
     const s = setup();
     on(s, `M.set("mode", "event"); M.set("suffix", "Lie ton perso: Guilded Companion")`);
     s.run(`RAIDS = { { id = "1", title = "Hyjal", at = EPOCH + 86400 } }`);
-    expect(s.run("return M.tick()")).toBe("written");
+    expect(s.run("return M.tick()")).toBe("due");
+    s.run("M.apply()");
     const written = s.run("return WRITES[1]");
     expect(written).toMatch(/^Next raid: Hyjal \w+ \d+:\d\d - sign up on Discord! - Lie ton perso: Guilded Companion$/);
     expect(written.length).toBeLessThanOrEqual(128);
     // No raid known: falls back to the lines, or writes nothing.
     s.run(`RAIDS = {}; CFG.lastWritten = nil`);
     expect(s.run("return M.tick()")).toBe("empty");
+  });
+
+  it("only ever calls GuildSetMOTD from a click: no timer or event path writes", () => {
+    const source = addonSource("Modules/GuildMotd.lua");
+    // The setter is looked up once and only called inside motd.apply.
+    expect(source.match(/pcall\(set,/g)?.length).toBe(1);
+    const apply = source.slice(source.indexOf("function motd.apply()"), source.indexOf("local STATUS_TEXT"));
+    expect(apply).toContain("pcall(set,");
+    // Every call to motd.apply comes from a click handler.
+    for (const line of source.split(/\r?\n/)) {
+      if (/motd\.apply\(\)/.test(line) && !/function motd\.apply|^\s*--/.test(line)) expect(line, line).toMatch(/OnClick|newButton\(/);
+    }
+    expect(source).not.toMatch(/GuildSetMOTD\s*\(|SetMOTD\s*\(/);
+    const s = setup();
+    on(s, `M.setLines("Alpha")`);
+    s.run("for _ = 1, 20 do ADVANCE(3600); M.tick() end; M.receive('H|1', 'Zed')");
+    expect(s.run("return #WRITES")).toBe("0");
   });
 
   it("answers the /guilded motd command for officers only", () => {

@@ -510,7 +510,7 @@ describe("in-game UI fixes from the 5 November pass", () => {
     expect(s.run(`return tostring(UI.moduleScroll:GetVerticalScroll() == ${end})`)).toBe("true");
     // One tick moves a useful distance and the bar keeps its step at 1 (no 48 px snapping).
     expect(s.run("return BAR.step")).toBe("1");
-    s.run(`UI.moduleScroll:SetVerticalScroll(0); BAR:SetValue(0); UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1)`);
+    s.run(`UI.moduleScroll:SetVerticalScroll(0); BAR:SetValue(0); NS.resetScrollWanted(UI.moduleScroll); UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1)`);
     expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("48");
   });
 

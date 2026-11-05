@@ -78,6 +78,9 @@ for (const file of addonFiles) {
   if (file === "Util.lua") continue;
   const source = readFileSync(new URL(file, root), "utf8");
   if (/SendAddonMessage\(/.test(source)) throw new Error(`${file} calls SendAddonMessage directly; use ns.comm.send (Util.lua)`);
+  // GuildSetMOTD needs a hardware event: a timer or event handler that calls it raises
+  // ADDON_ACTION_FORBIDDEN. Modules/GuildMotd.lua looks it up and calls it only from a click.
+  if (/\b(GuildSetMOTD|SetMOTD)\s*\(/.test(source)) throw new Error(`${file} calls GuildSetMOTD directly; only a click handler may write the MOTD (see Modules/GuildMotd.lua)`);
 }
 // Addon message prefixes are limited to 16 characters.
 for (const file of addonFiles) {

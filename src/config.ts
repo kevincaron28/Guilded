@@ -29,6 +29,8 @@ const environmentSchema = z.object({
   HOSTED_AUTO_APPROVE_MEMBERS: z.coerce.number().int().min(1).max(1000).default(5),
   DATABASE_URL: z.string().url(),
   COMPANION_API_PORT: z.coerce.number().int().min(1).max(65535).default(8787),
+  // Optional Expo enhanced push security. Never include this in diagnostics.
+  EXPO_ACCESS_TOKEN: blankAsUndefined(z.string().min(1).optional()),
   // 127.0.0.1 = this computer only. On a server behind HTTPS (deploy/), use 0.0.0.0 or leave 127.0.0.1 with a reverse proxy.
   COMPANION_API_HOST: z.string().min(1).default("127.0.0.1"),
   // Companion download page linked in Discord. Independent hosts supply their own URL.

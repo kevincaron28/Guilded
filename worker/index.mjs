@@ -55,6 +55,8 @@ const apiMethods = new Map([
   ["/api/v1/companion/logout", ["POST"]],
   ["/api/v1/companion/sign-in", ["POST"]],
   ["/api/v1/companion/sign-in/poll", ["POST"]],
+  ["/api/v1/companion/renew", ["POST"]],
+  ["/api/v1/mobile/device", ["GET", "POST"]],
   ["/api/v1/manage", ["GET", "POST"]],
   // The Windows companion and the phone app both call this on the public site.
   // Characters, guild rank and reserves live here; the other companion routes were already forwarded.
@@ -171,6 +173,26 @@ async function route(request, env) {
     // The selected creator domain shares this Worker with the existing Guilded
     // website. DNS/custom-domain activation is a separate owner setup step.
     const creator = ["kcaron.top", "www.kcaron.top"].includes(url.hostname);
+    // Association endpoints must be exact JSON responses, never HTML/clean-URL redirects.
+    if (!creator && ["/.well-known/assetlinks.json", "/.well-known/apple-app-site-association"].includes(url.pathname)) {
+      if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+      const asset = await env.ASSETS.fetch(new Request(url, { method: request.method }));
+      if (asset.status !== 200) return failure(404, "Mobile association is not configured");
+      return new Response(request.method === "HEAD" ? null : asset.body, { status: 200, headers: {
+        "content-type": "application/json", "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff"
+      } });
+    }
+    // Verified links open native screens when installed; browsers retain a useful destination.
+    if (!creator && (url.pathname === "/app" || url.pathname.startsWith("/app/"))) {
+      if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+      const screen = url.pathname.replace(/^\/app\/?/, "").replace(/\/$/, "");
+      const targets = { ranks: "/leaderboards/", profile: "/me/", characters: "/me/", reserves: "/me/", wishlist: "/me/", raids: "/me/calendar", alerts: "/me/calendar", guild: "/me/", home: "/" };
+      const target = Object.hasOwn(targets, screen) ? targets[screen] : "/me/";
+      const language = url.searchParams.get("lang");
+      return new Response(null, { status: 302, headers: {
+        location: target + (language === "en" || language === "fr" ? `?lang=${language}` : ""), "cache-control": "no-store"
+      } });
+    }
     if (creator && ["/support", "/support/"].includes(url.pathname)) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
       return Response.redirect("https://ko-fi.com/wowguilded", 302);
@@ -302,6 +324,12 @@ async function route(request, env) {
         await upstream.body?.cancel();
       }
       if (upstream.status === 530) return pageView ? unavailablePage(request, url) : failure(503, "The guild bot is temporarily unavailable. Try again shortly.");
+      // 304 Not Modified is a conditional answer, not a redirect: the standings long poll gets it
+      // whenever nothing changed, and must reach the companion as 304 (not "Unexpected server redirect").
+      if (api && upstream.status === 304) {
+        const etag = upstream.headers.get("etag");
+        return new Response(null, { status: 304, headers: { "cache-control": "no-store", ...(etag ? { etag } : {}) } });
+      }
       if (upstream.status >= 300 && upstream.status < 400) {
         // Never follow a redirect with credentials. Only the guild pages' local
         // canonical redirects may be returned to the browser.

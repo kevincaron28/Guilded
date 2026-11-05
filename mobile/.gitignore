@@ -7,3 +7,8 @@ dist/
 *.p12
 *.key
 *.mobileprovision
+google-services.json
+GoogleService-Info.plist
+credentials.json
+*.apk
+*.aab

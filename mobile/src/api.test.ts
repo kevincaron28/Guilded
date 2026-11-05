@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { GuildedClient, apiOrigin, discordEventLink, parseGrant, parseHub, parseManage, parseStandings, withMine } from "./api";
+import { GuildedClient, apiOrigin, discordEventLink, parseGrant, parseHub, parseManage, parseStandings, parseSummary, fetchBounded, readTextBounded, withMine } from "./api";
 import { notificationId, planReminders, soonRaids } from "./reminders";
 import { sampleHubBody, sampleManageBody, sampleStandingsBody } from "./sample";
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => (vi.unstubAllGlobals(), vi.useRealTimers()));
 
 describe("mobile companion client", () => {
   it("accepts the public site and a loopback bot, and refuses passwords and plain http", () => {
@@ -49,7 +49,7 @@ describe("mobile companion client", () => {
     expect(planReminders(raids, now).map((reminder) => reminder.id)).toEqual(["later"]);
     expect(planReminders(raids, now)[0]?.fireAt).toBe("2026-11-05T11:00:00.000Z");
     expect(soonRaids(raids, now).map((raid) => raid.id)).toEqual(["soon"]);
-    expect(notificationId("discord:raid/1")).toBe("guilded-raid-discordraid1");
+    expect(notificationId("discord:raid/1")).toBe("guilded-raid-discord%3Araid%2F1");
     const standings = parseStandings(sampleStandingsBody);
     expect(soonRaids(standings.raids).length + planReminders(standings.raids).length).toBe(standings.raids.length);
   });
@@ -71,6 +71,53 @@ describe("mobile companion client", () => {
       requestId: "r".repeat(40), confirm: "ABC-DEF", expiresAt: "2026-11-03T12:10:00.000Z", url: "https://evil.example/me/companion?request=1"
     }), { status: 200 })));
     await expect(client.startSignIn()).rejects.toThrow(/configured Guilded server/);
+  });
+
+  it("rejects malformed public summaries and skips malformed runs", () => {
+    expect(() => parseSummary({})).toThrow(/unexpected/);
+    expect(() => parseSummary({ season: "Autumn", guilds: 1, ratedRunsThisWeek: 2, topRuns: null })).toThrow();
+    expect(parseSummary({ season: "Autumn", guilds: 1, ratedRunsThisWeek: 2, topRuns: [{ dungeon: "Deeps", score: 3 }, { dungeon: "Bad", score: "3" }] }).topRuns).toEqual([{ dungeon: "Deeps", score: 3, levels: "", time: "" }]);
+  });
+
+  it("separates identical character names on different realms", () => {
+    const rows = parseStandings({ ...sampleStandingsBody, standings: [
+      { character: "Aelira", realm: "Otherrealm", ep: 1, gp: 1, pr: 1 },
+      { character: "Aelira", realm: "Silvermoon", ep: 1, gp: 1, pr: 1 }
+    ] }).standings;
+    expect(withMine(rows, [{ name: "Aelira", realm: "Silvermoon" }]).map((row) => row.mine)).toEqual([false, true]);
+  });
+
+  it("plans the nearest unique raids first and preserves distinct notification IDs", () => {
+    const raids = [4, 2, 3].map((hour) => ({ id: String(hour), title: "Raid", core: null, at: new Date(hour * 3_600_000).toISOString() }));
+    expect(planReminders([...raids, raids[1]!], 0).map((raid) => raid.id)).toEqual(["2", "3", "4"]);
+    expect(notificationId("a/b")).not.toBe(notificationId("ab"));
+  });
+
+  it("bounds a stalled request with an abort", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn((_url, init) => new Promise((_resolve, reject) => init.signal.addEventListener("abort", () => reject(new Error("aborted"))))));
+    const request = expect(fetchBounded("https://guilded.kcaron.top")).rejects.toThrow(/timed out/);
+    await vi.advanceTimersByTimeAsync(15_000);
+    await request;
+  });
+
+  it("bounds a stalled response body after headers arrive", async () => {
+    vi.useFakeTimers();
+    const request = expect(readTextBounded({ text: () => new Promise(() => {}) } as Response)).rejects.toThrow(/timed out/);
+    await vi.advanceTimersByTimeAsync(15_000);
+    await request;
+  });
+
+  it("sends renewal and opt-in device requests without granting implicit push consent", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ ok: true, enabled: true }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const client = new GuildedClient("https://guilded.kcaron.top", "current-credential-0123456789");
+    await client.renew("n".repeat(43));
+    await client.device("123456", true, "fr", "ExponentPushToken[abc]");
+    const calls = fetchMock.mock.calls as unknown as [URL, { body: string }][];
+    expect(JSON.parse(calls[0]![1].body)).toEqual({ nextCredential: "n".repeat(43) });
+    expect(JSON.parse(calls[1]![1].body)).toEqual({ guildDiscordId: "123456", enabled: true, locale: "fr", expoPushToken: "ExponentPushToken[abc]" });
+    expect(await client.deviceStatus("123456")).toBe(true);
   });
 
   it("explains a missing hub instead of showing an empty character list", async () => {

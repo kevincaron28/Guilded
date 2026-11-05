@@ -7,6 +7,47 @@ export class ApiError extends Error {
   }
 }
 
+export interface Summary {
+  season: string;
+  ratedRunsThisWeek: number;
+  guilds: number;
+  topRuns: { dungeon: string; levels: string; time: string; score: number }[];
+}
+
+export function parseSummary(body: unknown): Summary {
+  const row = record(body);
+  if (!row || !str(row.season) || num(row.ratedRunsThisWeek) === null || num(row.guilds) === null || !Array.isArray(row.topRuns)) {
+    throw new ApiError("The live board returned an unexpected answer.", 502);
+  }
+  return {
+    season: text(row.season, 100), ratedRunsThisWeek: Math.max(0, num(row.ratedRunsThisWeek)!), guilds: Math.max(0, num(row.guilds)!),
+    topRuns: row.topRuns.flatMap((value) => {
+      const run = record(value);
+      return run && str(run.dungeon) && num(run.score) !== null ? [{ dungeon: text(run.dungeon, 100), levels: text(run.levels, 40), time: text(run.time, 40), score: num(run.score)! }] : [];
+    }).slice(0, 20)
+  };
+}
+
+/** Shared bounded transport: a stalled mobile connection must not trap a screen. */
+export async function fetchBounded(url: string | URL, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try { return await fetch(url, { ...init, signal: controller.signal }); }
+  catch (error) {
+    if (controller.signal.aborted) throw new ApiError("The request timed out. Please try again.", 0);
+    throw error;
+  } finally { clearTimeout(timer); }
+}
+
+export async function readTextBounded(response: Response): Promise<string> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([response.text(), new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => reject(new ApiError("The response timed out. Please try again.", 0)), 15_000);
+    })]);
+  } finally { clearTimeout(timer); }
+}
+
 export function apiOrigin(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) throw new ApiError("Enter the Guilded server address.", 400);
@@ -168,7 +209,7 @@ export function parseGrant(body: unknown): Grant | null {
     companionCredential,
     personal,
     guildDiscordId: personal ? "" : guildDiscordId,
-    guildName: str(row.wowGuildName),
+    guildName: str(row.wowGuildName) ?? str(row.guildName),
     gameEdition: str(row.gameEdition)
   };
 }
@@ -209,9 +250,9 @@ function parseReserves(value: unknown): ReserveView {
     const item = record(entry);
     const itemName = str(item?.itemName);
     if (!item || !itemName) return [];
-    const characters = Array.isArray(item.characters) ? item.characters.flatMap((name) => typeof name === "string" && name.trim() ? [name.trim().slice(0, 80)] : []).slice(0, 40) : [];
+    const characters = Array.isArray(item.characters) ? item.characters.flatMap((name) => typeof name === "string" && name.trim() ? [name.trim().slice(0, 80)] : []) : [];
     return [{ itemName, characters, mine: bool(item.mine) }];
-  }).slice(0, 500) : [];
+  }) : [];
   const cores = Array.isArray(row?.cores) ? row.cores.flatMap((entry) => {
     const core = record(entry);
     const name = str(core?.name);
@@ -265,7 +306,7 @@ function parseWish(value: unknown): WishCharacter | null {
     const priority = num(wish?.priority);
     if (!wish || !itemName || priority === null || priority < 1 || priority > 3) return [];
     return [{ itemName, priority }];
-  }).slice(0, 100) : [];
+  }) : [];
   return {
     id, name, wishlist,
     displayName: str(row.displayName),
@@ -300,7 +341,7 @@ export function parseManage(body: unknown): ManageView {
         belowMin: bool(line.belowMin),
         me: bool(line.me)
       }];
-    }).slice(0, 200) : [];
+    }) : [];
     return [{ id, name, lootMode: str(effective?.lootMode), rows }];
   }) : [];
   return {
@@ -333,7 +374,7 @@ export function parseStandings(body: unknown): StandingsView {
     const name = str(player?.name);
     if (!player || !name) return [];
     return [{ name, role: text(player.role, 20) }];
-  }).slice(0, 80) : [];
+  }) : [];
   const standings = Array.isArray(row.standings) ? row.standings.flatMap((entry) => {
     const line = record(entry);
     const character = str(line?.character);
@@ -359,23 +400,22 @@ export function parseStandings(body: unknown): StandingsView {
       scheduledAt: str(next.scheduledAt)!,
       core: str(next.core),
       players,
-      maybe: Array.isArray(next.maybe) ? next.maybe.flatMap((name) => typeof name === "string" ? [name.slice(0, 80)] : []).slice(0, 40) : []
+      maybe: Array.isArray(next.maybe) ? next.maybe.flatMap((name) => typeof name === "string" ? [name.slice(0, 80)] : []) : []
     } : null,
     raids: Array.isArray(row.raids) ? row.raids.flatMap((entry) => {
       const raid = parseRaid(entry);
       return raid ? [raid] : [];
-    }).slice(0, 50) : [],
-    standings: standings.slice(0, 200)
+    }) : [],
+    standings
   };
 }
 
 export function withMine(rows: StandingRow[], characters: { name: string; realm: string }[]): StandingRow[] {
   const keys = new Set<string>();
   for (const character of characters) {
-    keys.add(character.name.toLowerCase());
-    if (character.realm) keys.add(`${character.name}-${character.realm}`.toLowerCase());
+    keys.add(`${character.name}-${character.realm}`.toLowerCase());
   }
-  return rows.map((row) => ({ ...row, mine: keys.has(row.character.toLowerCase()) }));
+  return rows.map((row) => ({ ...row, mine: keys.has((row.character.includes("-") ? row.character : `${row.character}-${row.realm}`).toLowerCase()) }));
 }
 
 /** A Discord event link the standings note already carried. Other links are left as text. */
@@ -393,7 +433,7 @@ export class GuildedClient {
     if (this.credential) headers["x-companion-credential"] = this.credential;
     let response: Response;
     try {
-      response = await fetch(new URL(path, this.origin), {
+      response = await fetchBounded(new URL(path, this.origin), {
         method: init.method ?? "GET",
         headers,
         body: init.body !== undefined ? JSON.stringify(init.body) : undefined
@@ -401,7 +441,7 @@ export class GuildedClient {
     } catch {
       throw new ApiError("Guilded could not be reached. Check the connection and the server address.", 0);
     }
-    const text = await response.text();
+    const text = await readTextBounded(response);
     let body: unknown = null;
     if (text) {
       try { body = JSON.parse(text) as unknown; } catch { body = null; }
@@ -417,7 +457,7 @@ export class GuildedClient {
     const confirm = str(row?.confirm);
     const expiresAt = str(row?.expiresAt);
     const url = str(row?.url);
-    if (!requestId || !confirm || !expiresAt || !url) throw new ApiError("Discord sign-in returned an unexpected answer.", status);
+    if (!requestId || !confirm || !expiresAt || !url || !Number.isFinite(Date.parse(expiresAt))) throw new ApiError("Discord sign-in returned an unexpected answer.", status);
     const page = new URL(url);
     if (page.origin !== this.origin || page.pathname !== "/me/companion") {
       throw new ApiError("The sign-in page was not on the configured Guilded server.", status);
@@ -450,6 +490,22 @@ export class GuildedClient {
     } catch {
       // The phone still forgets the credential if the server cannot be reached.
     }
+  }
+
+  async renew(nextCredential: string): Promise<void> {
+    const { status } = await this.call("/api/v1/companion/renew", { method: "POST", body: { nextCredential } });
+    if (status !== 200) throw new ApiError("The session could not be renewed. Please try again.", status);
+  }
+
+  async device(guildDiscordId: string, enabled: boolean, locale: "en" | "fr", expoPushToken?: string): Promise<void> {
+    const { status, body } = await this.call("/api/v1/mobile/device", { method: "POST", body: { guildDiscordId, enabled, locale, ...(expoPushToken ? { expoPushToken } : {}) } });
+    if (status !== 200) throw new ApiError(messageOf(body, "Raid alerts could not be updated."), status);
+  }
+
+  async deviceStatus(guildDiscordId: string): Promise<boolean> {
+    const { status, body } = await this.call(`/api/v1/mobile/device?guild=${encodeURIComponent(guildDiscordId)}`);
+    if (status !== 200) throw new ApiError(messageOf(body, "Raid alerts could not be checked."), status);
+    return record(body)?.enabled === true;
   }
 
   async hub(guildDiscordId: string): Promise<HubView> {

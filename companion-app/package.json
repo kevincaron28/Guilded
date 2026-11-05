@@ -72,6 +72,7 @@
           "personal-runs-content.mjs",
           "sheet-export.mjs",
           "live-folder.mjs",
+          "addon-install.mjs",
           "revoke.mjs"
         ]
       },

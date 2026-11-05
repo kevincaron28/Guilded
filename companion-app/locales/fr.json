@@ -349,6 +349,7 @@
   "Watching {0} · last upload {1} · file changed {2}": "Dossier surveillé : {0} · dernier envoi {1} · fichier modifié {2}",
   " · over 3 days without a change: is WoW saving somewhere else?": " · plus de 3 jours sans changement : WoW enregistre-t-il ailleurs ?",
   "never (not saved yet)": "jamais (pas encore enregistré)",
+  " · the Guilded addon in this game folder is the {0} build but this folder needs {1}: reinstall the {1} build": " · l’addon Guilded de ce dossier de jeu est la version {0}, mais ce dossier demande {1} : réinstallez la version {1}",
   "Your companion is still watching the beta folder": "Le compagnon surveille encore le dossier de la bêta",
   "Your saved file has not changed in {0} days": "Votre fichier n’a pas changé depuis {0} jours",
   "{0} in {1} (account {2}) changed {3}. Switch so your uploads keep going.": "{0} dans {1} (compte {2}) a été modifié {3}. Changez de dossier pour poursuivre les envois.",

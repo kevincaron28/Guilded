@@ -50,8 +50,14 @@ jobs:
           node scripts/build-games-addon.mjs
       - name: PostgreSQL integration and restore rehearsal
         run: |
+          # The restore rehearsal needs pg_dump/pg_restore from the same major version as the
+          # postgres:16 service: a newer client writes `SET transaction_timeout`, which 16 rejects.
           sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-16
+          export PATH=/usr/lib/postgresql/16/bin:$PATH
+          pg_dump --version
           npm run test:postgres
       - run: npm audit --audit-level=high
       - run: npm run addon:zip

@@ -75,6 +75,7 @@ function liveText() { return {
     : T("Selected folder: {0} · last upload {1} · file changed {2}", folder, upload, changed),
   stale: T(" · over 3 days without a change: is WoW saving somewhere else?"),
   missing: T("never (not saved yet)"),
+  wrongEdition: (installed, expected) => T(" · the Guilded addon in this game folder is the {0} build but this folder needs {1}: reinstall the {1} build", installed, expected),
   betaTitle: T("Your companion is still watching the beta folder"),
   staleTitle: days => T("Your saved file has not changed in {0} days", days),
   text: (file, folder, account, changed) => T("{0} in {1} (account {2}) changed {3}. Switch so your uploads keep going.", file, folder, account, changed),
@@ -90,8 +91,8 @@ function renderSavedFile(snapshot) {
   const show = savedConfig.wowEnabled !== false && !!file && !!watched;
   $('watchStatus').hidden = !show; $('liveBanner').hidden = !show || !candidate;
   if (!show) return;
-  $('watchStatus').textContent = liveText().status(snapshot.state.running, watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : liveText().missing) + (file.stale ? liveText().stale : '');
-  $('watchStatus').classList.toggle('stale', file.stale);
+  $('watchStatus').textContent = liveText().status(snapshot.state.running, watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : liveText().missing) + (file.stale ? liveText().stale : '') + (file.addon?.status === 'wrong-edition' ? liveText().wrongEdition(file.addon.installed.join(', '), file.addon.expected) : '');
+  $('watchStatus').classList.toggle('stale', file.stale || file.addon?.status === 'wrong-edition');
   if (!candidate) return;
   $('liveTitle').textContent = candidate.reason === 'beta' ? liveText().betaTitle : liveText().staleTitle(Math.floor((Date.now() - Date.parse(file.changedAt)) / 86400000));
   $('liveText').textContent = liveText().text(candidate.path.split(/[\\/]/).pop(), candidate.gameFolder, candidate.account, since(candidate.changedAt));

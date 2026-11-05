@@ -35,7 +35,7 @@
     summary.hidden = false;
     const signedIn = Boolean(config.companionCredential);
     $('btnLinkSignIn').hidden = signedIn;
-    $('btnLinkFind').hidden = !signedIn || Boolean(config.watchFile);
+    $('btnLinkFind').hidden = !signedIn;
     $('btnLinkCheck').hidden = !signedIn;
     $('btnLinkBattleNet').disabled = !signedIn;
     $('linkCharsPanel').hidden = !signedIn; $('linkActionsPanel').hidden = !signedIn;
@@ -62,9 +62,9 @@
     try { await task(); } catch (error) { say(error?.message || T('Something went wrong. Check your internet connection, then press the button again.'), false); } finally { target.disabled = false; render(); }
   });
   guarded($('btnLinkFind'), async () => {
-    if (config.watchFile) { say(T('Already linked, nothing to do.'), true); return; }
     const found = await api.linkFindSavedData();
     if (!found.ok) { say(found.message || T('This action could not be completed.'), false); return; }
+    if (found.already) { say(T('Already linked, nothing to do.'), true); return; }
     say(T('Found your addon data.') + ' ' + T('In WoW, type /reload so it is saved; the companion then proves your characters.'), true);
     await load();
   });

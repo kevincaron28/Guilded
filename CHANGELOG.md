@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.4.3 — 4 November 2026
+
+WoW Forever launch fixes for the companion: "Find my saved data" now switches a
+beta or stale watched file to the live Forever one, a single Forever file is picked
+automatically when other editions' files exist, and a wrong-edition Guilded addon
+in a game folder is flagged. The website proxy now passes the standings "nothing
+changed" answer through instead of reporting a redirect error. Release tooling adds
+`npm run addon:verify-editions`. Protocol remains 2. See [release notes](docs/V8_4_3_RELEASE_NOTES.md).
+
 ## 8.4.2 — 3 November 2026
 
 Companion: fix startup crash on launch (a removed button was still bound, so the

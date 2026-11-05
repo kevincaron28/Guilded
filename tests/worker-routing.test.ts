@@ -172,6 +172,17 @@ describe("unified website and companion", () => {
     expect(upstream).toHaveBeenCalledTimes(1);
   });
 
+  it("passes the standings 304 (nothing changed) through instead of calling it a redirect", async () => {
+    const upstream = vi.fn(async () => new Response(null, { status: 304, headers: { etag: '"abc"', "set-cookie": "x=1" } }));
+    vi.stubGlobal("fetch", upstream);
+    const response = await worker.fetch(new Request(base + "/api/v1/standings?guild=123&since=%22abc%22&wait=15", { headers: { "x-companion-credential": "personal" } }), env);
+    expect(response.status).toBe(304);
+    expect(response.headers.get("etag")).toBe('"abc"');
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
   it("serves the companion download page statically and redirects the removed browser companion", async () => {
     const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
     const asset = vi.fn(async () => new Response("download page"));

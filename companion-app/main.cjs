@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const { detectSavedVariables } = require("./detect-wow.cjs");
+const { detectSavedVariables, pickSavedVariables } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
@@ -91,8 +91,8 @@ function saveConfig() {
 async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
-  const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile };
+  const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs"))]);
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon };
 }
 
 function pushLog(entry) {
@@ -153,7 +153,11 @@ async function refreshSavedFile() {
   const ticket = ++savedFileCheck;
   let result = null;
   if (config.wowEnabled !== false && config.watchFile) {
-    try { result = await engineModules.checkSavedFile(config.watchFile, { ignore: config.liveFolderDeclined ?? [] }); } catch { /* checked again within the hour */ }
+    try {
+      result = await engineModules.checkSavedFile(config.watchFile, { ignore: config.liveFolderDeclined ?? [] });
+      // A build for another edition in this game folder never loads (companion/addon-install.mjs).
+      result.addon = await engineModules.checkInstalledAddon(config.watchFile);
+    } catch { /* checked again within the hour */ }
   }
   if (ticket !== savedFileCheck) return;
   savedFile = result;
@@ -545,14 +549,25 @@ registerIpc("detect-wow", () => detectSavedVariables(config.personal ? ["Guilded
 // account on this PC has it. Local read only; with several accounts the member chooses.
 registerIpc("link-find-saved-data", async () => {
   if (!config.companionCredential) return { ok: false, found: 0, message: T("Sign in with Discord first.") };
-  if (config.watchFile) return { ok: true, found: 1, already: true };
-  const found = (await detectSavedVariables(config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"])).filter((entry) => entry.exists);
-  if (found.length !== 1) return { ok: false, found: found.length, message: found.length ? T("Found {0} accounts. Check the selected file before saving.", found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
-  config = { ...config, watchFile: found[0].path, wowEnabled: true };
+  // A watched file that exists and is the live one is done. One that is missing, from the beta
+  // client or stale (the player moved to WoW Forever) is looked for again below.
+  if (config.watchFile) {
+    let current = null;
+    try { current = await engineModules.checkSavedFile(config.watchFile); } catch { /* look again below */ }
+    if (current && current.changedAt !== null && !current.candidate) return { ok: true, found: 1, already: true };
+  }
+  const found =(await detectSavedVariables(config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"])).filter((entry) => entry.exists);
+  const chosen = pickSavedVariables(found);
+  if (!chosen) return { ok: false, found: found.length, message: found.length ? T("Found {0} accounts. Check the selected file before saving.", found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
+  if (config.watchFile && config.watchFile.toLowerCase() === chosen.path.toLowerCase()) return { ok: true, found: 1, already: true };
+  const switched = Boolean(config.watchFile);
+  config = { ...config, watchFile: chosen.path, wowEnabled: true };
   await saveConfig();
+  if (switched) pushLog({ time: new Date().toISOString(), level: "info", message: E("Saved-data file switched to {0} ({1}).", chosen.path, E("found by Find my saved data")) });
   const started = await engine.configure(config);
   if (started) engine.uploadNow();
-  return { ok: started, found: 1 };
+  await refreshSavedFile();
+  return { ok: started, found: 1, switched };
 });
 registerIpc("browse-poe-log", async () => {
   const result = await dialog.showOpenDialog(win, {

@@ -13,8 +13,9 @@ import { releaseSource } from "./release-source.mjs";
 // Packaging baselines, not client acceptance. Release operators can supply the
 // observed GetBuildInfo() interface with --interface=classic-era:11508.
 // 3 Nov 2026 clients: Era 1.15.9 is 11509, Mists 5.5.4 is 50504, TBC Anniversary
-// 2.5.6 is 20506, Retail 12.1.5 is 120105. Forever's live row was still empty;
-// the beta client remains 16001 until launch-day GetBuildInfo() says otherwise.
+// 2.5.6 is 20506, Retail 12.1.5 is 120105. Forever launched 4 Nov 2026: the live client
+// (.build.info product wowf, 1.60.1.70790) is 16001, as the beta was. Run
+// `npm run addon:verify-editions` before uploading any edition zip.
 export const EDITION_INTERFACES = { forever: 16001, "classic-era": 11509, "classic-tbc": 20506, "classic-mists": 50504, retail: 120105 };
 const EMPTY = "-- No guild data is shipped. Your paired companion supplies this file.\nGuildedStandings = { updatedAt = nil, baseGp = 0, players = {} }\nGuildedLedgerAccepted = {}\nGuildedItems = nil\nGuildedLoot = nil\nGuildedNextRaid = nil\nGuildedRaids = nil\nGuildedDungeonAccepted = {}\nGuildedDungeonBoard = nil\n";
 

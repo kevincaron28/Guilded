@@ -2,6 +2,21 @@
 
 # Guilded roadmap
 
+## Planned — WoW-linked Discord item previews (requested 4 November 2026; not tested)
+
+**Goal:** In Québec Gold's Blizzard-native WoW ↔ Discord linked `#chat-guilde`, keep Blizzard's existing chat relay unchanged. When a player links an item in WoW guild chat, Guilded should display a **Discord-only** rich item preview in that same channel. The preview **must not** be sent back into WoW. No new channel unless the owner approves a fallback.
+
+**Next AI/Claude handoff (5 November):** This is a roadmap request, **not** a tested capability or shipped feature. Desktop Commander `DESKTOP-QLI338Q` was offline during the 4 November attempt; no live webhook test was performed. Before implementation, coordinate with active work and inspect current source, Discord event handlers, permissions, deployment and release gates. Do not change the native Blizzard integration.
+
+1. **Feasibility spike, first:** Confirm Guilded can receive `messageCreate` events from this linked channel, including actual `content`, author/webhook/system metadata and item-link representation (respect Discord Message Content intent and API restrictions). Inspect sanitized event payloads; never log tokens, webhook URLs or private chat. Determine whether item ID and random suffix/enchant data survive the relay or only bracketed display text.
+2. **Webhook permission test:** On the linked channel, test whether a Discord webhook can be created and post a **test embed**. Check channel permissions and Discord API responses. Bot normal send may be restricted in Blizzard-linked channels; webhook behavior is **unverified here**. Confirm test embed is visible in Discord and does **not** echo into WoW. Use a temporary webhook, avoid exposing its URL, and clean up the test post. If blocked, record error/status and stop; do not bypass platform restrictions.
+3. **Data source:** Identify an accurate, legally usable item database for WoW Forever and custom/changed items. Prefer exact item IDs plus suffix/enchant context; do not present guessed stats as authoritative. When only a name is available, use conservative disambiguation or a simple name/link preview; never silently choose a wrong item.
+4. **MVP implementation if tests pass:** Opt-in per Discord guild/channel; observe native-relayed item messages, parse multiple item links safely, deduplicate, cache metadata, rate-limit, and send compact webhook embeds with quality color, icon, item name, verified stats and item URL where available. Avoid mentions, ping storms, loops, replies back into WoW, and bot/webhook self-triggering. Store webhook credentials encrypted/secret-managed, never in source or logs; support disable and deletion. Reuse existing bot architecture and respect multi-guild isolation.
+5. **Acceptance:** Verify on live Forever client and Discord with (a) normal item, (b) random-suffix item like `[Training Sword of the Owl]`, (c) custom/unknown item, (d) multiple items, (e) duplicate/rapid messages, (f) no item, (g) webhook denied, (h) restart/retry, and (i) **no Discord embed echoed into in-game guild chat**. Add unit/integration tests, documentation, admin setup and a safe rollback. Keep feature off until accepted; no deployment or release claims before proof.
+
+**Owner preference:** Same linked Discord channel, Discord-only embeds; the original in-game and Discord messages stay intact. Prioritize proof of webhook posting and non-echo before any larger build.
+
+
 ## October 30 operational follow-up
 
 **8.3.0 is live:** backend, website and the companion are deployed at reviewed

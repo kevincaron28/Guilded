@@ -31,3 +31,11 @@ describe("automatic pick", () => {
     expect(pickSavedVariables([])).toBeNull();
   });
 });
+
+describe("account folder waiting for its first save", () => {
+  it("picks the one live Forever account folder before Guilded.lua exists, never a stale beta folder", () => {
+    const live = entry("_forever_", 0, false), beta = entry("_classic_beta_", 0, false);
+    expect(pickSavedVariables([live, beta].filter((item) => !/beta/i.test(item.game))).game).toBe("_forever_");
+    expect(pickSavedVariables([entry("_forever_", 0, false), entry("_forever_", 0, false)])).toBeNull();
+  });
+});

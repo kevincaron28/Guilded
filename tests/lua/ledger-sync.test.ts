@@ -32,6 +32,7 @@ function client(name: string, options: { officer?: boolean; local?: boolean; syn
       isSecret = function() return false end, isOfficer = function() return ${options.officer === false ? "false" : "true"} end,
       isOfficerName = function(n) return n == "Alice" or n == "Bob" or n == "Cara" end,
       isInGameOnly = function() return DB.settings.setupMode == "local" end,
+      currentGuildKey = function() return GetGuildInfo("player") .. "-Realm" end,
       message = function(text) CHAT_LOG = CHAT_LOG or {}; CHAT_LOG[#CHAT_LOG + 1] = text end,
       commandHandlers = {}, commandHelp = {},
       util = {
@@ -251,6 +252,83 @@ describe("compressed ledger batches (7.5.0)", () => {
     expect(sentBy("Alice", "E")).toBe(0);
     expect(sentBy("Alice", "Z")).toBeGreaterThan(1);
     expect(sentBy("Bob", "CAP")).toBeGreaterThan(0);
+  });
+
+  it.each([15, 180])("recovers a multi-part officer ledger after a %i-second send lockdown", (seconds) => {
+    const alice = client("Alice", { pack: true });
+    const bob = client("Bob", { pack: true });
+    const clients = [alice, bob];
+    // Exercise the sender's production queue, with the client's timer and send API under test control.
+    alice.s.load("Util.lua");
+    alice.s.run(`
+      GetServerTime = function() return NOW end
+      GetTime = function() return NOW - 1800000000 end
+      local timers = {}
+      C_Timer.After = function(delay, fn) timers[#timers+1] = { due = GetTime() + delay, fn = fn } end
+      function runDueTimers()
+        local pending = timers
+        timers = {}
+        for _, timer in ipairs(pending) do
+          if timer.due <= GetTime() then timer.fn() else timers[#timers+1] = timer end
+        end
+      end
+      C_ChatInfo.SendAddonMessage = function(_, text, channel, target)
+        if not unlock and (blocked or text:match("^Z|1|[^|]+|%d+|2|")) then
+          blocked = blocked or text
+          denied = (denied or 0) + 1
+          return 11
+        end
+        OUT[#OUT+1] = { text = text, channel = channel, target = target }
+        return 0
+      end
+      for i = 1, 8 do award("Tank", i, 0, i) end
+      fire_event("PLAYER_ENTERING_WORLD")
+    `);
+    const tick = () => {
+      advance(clients, 1);
+      alice.s.run("runDueTimers()");
+      pump(clients);
+    };
+    advance(clients, 60);
+    alice.s.run("runDueTimers()");
+    pump(clients);
+    for (let i = 0; i < 10 && !alice.s.run("return blocked"); i++) tick();
+    const blocked = alice.s.run("return blocked");
+    expect(blocked).toMatch(/^Z\|1\|/);
+    expect(sentBy("Alice", "Z")).toBe(1);
+    for (let i = 0; i < seconds; i++) tick();
+    expect(Number(alice.s.run("return denied"))).toBeLessThanOrEqual(1 + Math.ceil(seconds / 5));
+    expect(bob.s.run('return count("Tank")')).toBe("0");
+
+    const requests = sentBy("Bob", "GET");
+    alice.s.run("unlock = true");
+    for (let i = 0; i < 60 && alice.s.run('return NS.comm.pending("GuildedLedger")') !== "0"; i++) tick();
+    expect(delivered.filter(m => m.from === "Alice" && m.text.startsWith("Z|"))[1]?.text).toBe(blocked);
+    expect(alice.s.run('return NS.comm.pending("GuildedLedger")')).toBe("0");
+    // Only an expired partial day needs to be requested again.
+    expect(sentBy("Bob", "GET") - requests).toBe(seconds > 120 ? 1 : 0);
+    expect(summary(bob)).toBe(summary(alice));
+    expect(bob.s.run('return count("Tank") .. ":" .. balance("Tank")')).toBe("8:36/0");
+  });
+
+  it.each([
+    ["sync is disabled", "DB.settings.ledgerSync = false"],
+    ["the sender loses officer access", "NS.isOfficer = function() return false end"],
+    ["the recipient loses officer access", "NS.isOfficerName = function() return false end"],
+    ["the sender changes guild", 'GetGuildInfo = function() return "Other Guild" end'],
+  ])("cancels a deferred officer whisper when %s", (_, change) => {
+    const { s } = client("Alice", { pack: true });
+    s.load("Util.lua");
+    s.run(`
+      attempts = 0
+      C_ChatInfo.SendAddonMessage = function() attempts = attempts + 1; return 11 end
+      C_Timer.After = function(_, fn) retry = fn end
+      fire_event("CHAT_MSG_ADDON", "GuildedLedger", "SUM|1|1|123", "WHISPER", "Bob-Realm")
+    `);
+    expect(Number(s.run('return NS.comm.pending("GuildedLedger")'))).toBeGreaterThan(0);
+    expect(s.run("return attempts")).toBe("1");
+    s.run(`${change}; GetTime = function() return 10 end; retry()`);
+    expect(s.run('return attempts .. ":" .. NS.comm.pending("GuildedLedger")')).toBe("1:0");
   });
 
   it("keeps single entries for an officer whose game cannot pack, and for one entry", () => {

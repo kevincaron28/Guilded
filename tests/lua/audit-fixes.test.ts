@@ -119,6 +119,25 @@ describe("paced addon messages (ns.comm)", () => {
     expect(s.run("return SENT[1].text .. ',' .. SENT[2].text")).toBe("first,second");
   });
 
+  it("keeps the normal throttle budget and permanent refusals for lockdown-retry packets", () => {
+    const s = loggedIn([]);
+    s.run(`
+      local now, code = 0, 11
+      GetTime = function() return now end
+      C_Timer.After = function(_, fn) retry = fn end
+      C_ChatInfo.SendAddonMessage = function() return code end
+      NS.comm.send("QRecovery", "first", "GUILD", nil, nil, "retry-lockdown")
+      for i = 1, 8 do now = now + 5; retry() end
+      code = 3
+      for i = 1, 5 do now = now + 5; retry() end
+      code = 10
+      now = now + 5
+      NS.comm.send("QRecovery", "second", "GUILD", nil, nil, "retry-lockdown")
+    `);
+    expect(s.run(`local d = NS.comm.status("QRecovery")
+      return d.throttled .. ":" .. d.abandoned .. ":" .. d.refused .. ":" .. d.queued`)).toBe("5:1:1:0");
+  });
+
   it("rejects over-long messages instead of sending a corrupted partial packet", () => {
     const s = loggedIn([]);
     s.run(`SENT = {}; NS.comm.send("QLong", string.rep("x", 300), "GUILD")`);

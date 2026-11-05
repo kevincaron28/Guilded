@@ -221,10 +221,10 @@ const STRINGS = {
   "pair.more": { en: "`/character list` shows the rest.", fr: "`/character list` montre les autres." },
   "pair.none": { en: "No WoW character is linked to your Discord account on this server yet.", fr: "Aucun personnage WoW n'est encore lié à ton compte Discord sur ce serveur." },
   "pair.addonDefault": {
-    en: "**Start with the addon only (default).** Install [Guilded](https://www.curseforge.com/wow/addons/guilded) or your officers' matching download. **In-game only** works without Discord linking or a companion. The choices below are optional.",
-    fr: "**Commence avec l'addon seul (par défaut).** Installe [Guilded](https://www.curseforge.com/wow/addons/guilded) ou la version de tes officiers. **En jeu uniquement** fonctionne sans lien Discord ni compagnon. Les choix ci-dessous sont facultatifs."
+    en: "**Install the [Guilded addon](https://www.curseforge.com/wow/addons/guilded)** (or your officers' matching download) for the WoW version you play, then link your characters below. The addon works in game even if you never link.",
+    fr: "**Installe l'[addon Guilded](https://www.curseforge.com/wow/addons/guilded)** (ou la version de tes officiers) pour la version de WoW que tu joues, puis lie tes personnages ci-dessous. L'addon fonctionne en jeu même si tu ne lies jamais."
   },
-  "pair.verifyTitle": { en: "🎮 Link your characters: 1 step", fr: "🎮 Lier tes personnages : 1 étape" },
+  "pair.verifyTitle": { en: "🎮 No Windows PC? One line instead", fr: "🎮 Pas de PC Windows ? Une ligne à la place" },
   "pair.verifyCompanionTitle": { en: "🎮 No companion? 1 step instead", fr: "🎮 Pas de compagnon ? 1 étape à la place" },
   "pair.verify": {
     en: "Copy this line, paste it in WoW chat on any of your characters and press Enter:\n```\n/guilded verify {code}\n```That's all. Every character you play on this WoW account links itself, the first one as your main. It happens the next time anyone in the guild syncs with the Guilded companion (often within the hour) and I'll send you a DM. Once is enough, also for alts.",
@@ -265,10 +265,10 @@ const STRINGS = {
   "pair.online": { en: "Get the Windows companion", fr: "Obtenir le compagnon Windows" },
   "pair.openOnline": { en: "Get the Windows companion (Microsoft Store first) with the button below, then open it.", fr: "Obtiens le compagnon Windows (Microsoft Store d'abord) avec le bouton ci-dessous, puis ouvre-le." },
   "pair.askLink": { en: "Ask an officer where to download your guild's companion.", fr: "Demande à un officier où télécharger le compagnon de ta guilde." },
-  "pair.syncTitle": { en: "Connect the companion: 3 steps", fr: "Relier le compagnon : 3 étapes" },
+  "pair.syncTitle": { en: "🔗 Link all your characters: 2 steps (Windows)", fr: "🔗 Lier tous tes personnages : 2 étapes (Windows)" },
   "pair.sync": {
-    en: "1. {companion} Choose **Sign in with Discord**, then press **Connect** on the page that opens. Nothing to type.\n2. Pick your WoW folder (the Windows app finds it with **Find it**).\n3. Log in on your main, `/reload`, then **Sync now**. Your main and every alt that logged in on this PC link at once, and the addon uses the Discord standings from your next `/reload`.",
-    fr: "1. {companion} Choisis **Sign in with Discord**, puis appuie sur **Relier** sur la page qui s'ouvre. Rien à taper.\n2. Choisis ton dossier WoW (l'appli Windows le trouve avec **Find it**).\n3. Connecte-toi sur ton principal, fais `/reload`, puis **Sync now**. Ton principal et chaque alt connecté sur ce PC se lient d'un coup, et l'addon utilise les classements Discord dès ton prochain `/reload`."
+    en: "1. {companion} Open it and press **Sign in with Discord**, then **Connect** on the page that opens. Nothing to type; it finds your WoW folder by itself.\n2. In WoW, log in and type `/reload` once. The app shows a green **✓** when you are linked: your main and every alt that logged in on this PC link at once.",
+    fr: "1. {companion} Ouvre-le et appuie sur **Sign in with Discord**, puis **Relier** sur la page qui s'ouvre. Rien à taper; il trouve tout seul ton dossier WoW.\n2. Dans WoW, connecte-toi et tape `/reload` une fois. L'appli affiche un **✓** vert quand tu es lié : ton principal et chaque alt connecté sur ce PC se lient d'un coup."
   },
   "pair.checkTitle": { en: "Check the result", fr: "Vérifier le résultat" },
   "pair.check": {

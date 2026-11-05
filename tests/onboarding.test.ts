@@ -203,9 +203,9 @@ describe("game menu and pairing", () => {
     const interaction = click("onboard:pair:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
     const payload = interaction.editReply.mock.calls[0]![0];
-    // One line to paste in game comes first; the companion is the optional second field.
-    expect(payload.embeds[0].data.fields[0].value).toContain("```\n/guilded verify ABCD-EFGH\n```");
-    expect(payload.embeds[0].data.fields[1].name).toContain("Optional");
+    // The Windows app steps come first; the line to paste in game is the fallback second field.
+    expect(payload.embeds[0].data.fields[0].value).toContain("**Sign in with Discord**");
+    expect(payload.embeds[0].data.fields[1].value).toContain("```\n/guilded verify ABCD-EFGH\n```");
     expect(issueCharacterPairingCode).not.toHaveBeenCalled();
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(interaction.deferReply.mock.invocationCallOrder[0]).toBeLessThan(interaction.guild.members.fetch.mock.invocationCallOrder[0]!);
@@ -224,7 +224,7 @@ describe("game menu and pairing", () => {
     const description = interaction.editReply.mock.calls[0]![0].embeds[0].data.description;
     expect(description).toContain("Personnage principal : **Ray**");
     expect(description).toContain("Alt : **Other**");
-    const instructions = interaction.editReply.mock.calls[0]![0].embeds[0].data.fields[0].value;
+    const instructions = interaction.editReply.mock.calls[0]![0].embeds[0].data.fields[1].value;
     expect(instructions).toContain("/guilded verify ABCD-EFGH");
     expect(instructions).toContain("Une fois suffit, aussi pour les alts");
   });
@@ -236,8 +236,8 @@ describe("game menu and pairing", () => {
     const interaction = click("onboard:companion:g1", fakeGuild(member));
     await handleOnboardingInteraction(interaction as never);
     const payload = interaction.editReply.mock.calls[0]![0];
-    expect(payload.embeds[0].data.fields[0].value).toContain("/guilded verify ABCD-EFGH");
-    expect(payload.embeds[0].data.fields[1].value).toContain("**Sign in with Discord**");
+    expect(payload.embeds[0].data.fields[1].value).toContain("/guilded verify ABCD-EFGH");
+    expect(payload.embeds[0].data.fields[0].value).toContain("**Sign in with Discord**");
     expect(issueCharacterPairingCode).not.toHaveBeenCalled();
     expect(payload.components[0].toJSON().components.at(-1)).toMatchObject({ custom_id: "onboard:paircode:g1" });
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });

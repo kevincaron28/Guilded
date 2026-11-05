@@ -34,28 +34,37 @@ function setup(locale = "enUS") {
 }
 const out = () => s!.run(`return table.concat(CHAT_OUT, "\\n")`);
 const outCount = () => Number(s!.run(`return tostring(#CHAT_OUT)`));
-const on = () => s!.run(`NS.commandHandlers.milestones({ "on" })`);
+const on = () => s!.run(`NS.commandHandlers.announce({ "on" })`);
+const off = () => s!.run(`NS.commandHandlers.announce({ "off" })`);
 
 describe("milestone announcements", () => {
-  it("is off by default: records the milestone for the upload, says nothing", () => {
+  it("is on by default: a one-time local notice first, then the line", () => {
     const lua = setup();
-    lua.run(`LEVEL = 10; fire_event("PLAYER_LEVEL_UP", 10)`);
-    expect(outCount()).toBe(0);
-    expect(lua.run(`return tostring(DB.milestones.chars["Kev-Realm"].done["level:10"] ~= nil)`)).toBe("true");
+    lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
+    expect(out()).toBe("GUILD:Kev reached level 10!");
+    expect(lua.chat().filter(line => line.includes("Guilded will announce your milestones"))).toHaveLength(0); // NS.message is stubbed in this harness
+    expect(lua.run(`return tostring(DB.milestones.chars["Kev-Realm"].settings.noticed)`)).toBe("true");
     expect(lua.run(`return DB.milestones.chars["Kev-Realm"].log[1].ref`)).toBe("level:10");
   });
 
+  it("says nothing when the player turned it off, but still records for the upload", () => {
+    const lua = setup(); off();
+    lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
+    expect(outCount()).toBe(0);
+    expect(lua.run(`return tostring(DB.milestones.chars["Kev-Realm"].done["level:10"] ~= nil)`)).toBe("true");
+  });
+
   it("announces a level step once, in GUILD chat only", () => {
-    const lua = setup(); on();
+    const lua = setup();
     lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
     expect(out()).toBe("GUILD:Kev reached level 10!");
     lua.run(`CLOCK = CLOCK + 100; fire_event("PLAYER_LEVEL_UP", 10); NS.milestones.pump()`);
     expect(outCount()).toBe(1);
   });
 
-  it("does not replay history when announcements are turned on later", () => {
-    const lua = setup();
-    lua.run(`fire_event("PLAYER_LEVEL_UP", 20)`); // reached while off: recorded silently
+  it("does not replay milestones reached while it was off", () => {
+    const lua = setup(); off();
+    lua.run(`fire_event("PLAYER_LEVEL_UP", 20)`);
     on();
     lua.run(`CLOCK = CLOCK + 100; fire_event("PLAYER_LEVEL_UP", 20); fire_event("PLAYER_LEVEL_UP", 21)`);
     expect(outCount()).toBe(0);
@@ -139,24 +148,25 @@ describe("milestone announcements", () => {
     expect(out()).toBe("GUILD:Kev a atteint le niveau 10 !");
   });
 
-  it("shows the officer recommendation as a prompt; only an officer's word counts and nothing turns on by itself", () => {
+  it("an officer can switch announcements off for the whole guild, and that wins over member defaults", () => {
     const lua = setup();
-    lua.run(`NS.milestones.onAddonMessage("REC|1|1800000000", "Bob-Realm")`); // Bob is not an officer
-    expect(lua.run(`return tostring(NS.milestones.recommended())`)).toBe("nil");
-    lua.run(`OFFICERS.Bob = true; NS.milestones.onAddonMessage("REC|1|1800000000", "Bob-Realm")`);
-    expect(lua.run(`return tostring(NS.milestones.recommended() ~= nil)`)).toBe("true");
-    expect(lua.run(`return tostring(NS.milestones.maybePrompt())`)).toBe("true");
-    expect(lua.run(`return tostring(NS.milestones.maybePrompt())`)).toBe("false"); // asked once per recommendation
-    expect(lua.run(`return tostring(NS.milestones.enabled())`)).toBe("false");
+    lua.run(`NS.milestones.onAddonMessage("GOFF|1|1800000000", "Bob-Realm")`); // Bob is not an officer
+    expect(lua.run(`return tostring(NS.milestones.guildOff())`)).toBe("false");
+    lua.run(`OFFICERS.Bob = true; NS.milestones.onAddonMessage("GOFF|1|1800000000", "Bob-Realm")`);
+    expect(lua.run(`return tostring(NS.milestones.guildOff())`)).toBe("true");
     lua.run(`fire_event("PLAYER_LEVEL_UP", 10)`);
     expect(outCount()).toBe(0);
+    lua.run(`NS.milestones.onAddonMessage("GOFF|0|1800000100", "Bob-Realm")`);
+    lua.run(`CLOCK = CLOCK + 100; fire_event("PLAYER_LEVEL_UP", 20)`);
+    expect(out()).toBe("GUILD:Kev reached level 20!");
   });
 
-  it("lets an officer recommend, not a member", () => {
+  it("lets an officer switch the guild off, not a member", () => {
     const lua = setup();
-    expect(lua.run(`return tostring(NS.milestones.recommend(true))`)).toBe("false");
+    expect(lua.run(`return tostring(NS.milestones.setGuildOff(true))`)).toBe("false");
     lua.run(`OFFICERS.Kev = true`);
-    expect(lua.run(`return tostring(NS.milestones.recommend(true))`)).toBe("true");
+    expect(lua.run(`return tostring(NS.milestones.setGuildOff(true))`)).toBe("true");
+    expect(lua.run(`return tostring(NS.milestones.guildOff())`)).toBe("true");
   });
 });
 

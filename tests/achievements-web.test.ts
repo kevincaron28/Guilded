@@ -74,7 +74,7 @@ describe("achievements on the website", () => {
     expect((await web.ownerRoute(ctx("/me/achievements.png"), kit))?.status).toBe(401);
     expect(await web.meSection(ctx("/me/"))).toBe("");
   });
-  it("catalogue is large enough to list by game", () => { expect(ACHIEVEMENTS.length).toBe(143); expect(ACTIVE_ACHIEVEMENTS.length).toBe(135); });
+  it("catalogue is large enough to list by game", () => { expect(ACHIEVEMENTS.length).toBe(147); expect(ACTIVE_ACHIEVEMENTS.length).toBe(139); });
   it("groups WoW achievements by edition, hides unearned legacy rows and lists an earned one separately", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x"), "a".repeat(24));
     const heads = [...html.matchAll(/<h3>([^<]*?) <small>/g)].map(match => match[1]);

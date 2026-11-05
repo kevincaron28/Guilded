@@ -158,3 +158,34 @@ describe("snapshot plumbing", () => {
     expect(own.milestones).toHaveLength(1);
   });
 });
+
+describe("duel and milestone achievements", () => {
+  it("earns the new rows from facts, in both languages", async () => {
+    const { evaluateAchievements, emptyFacts } = await import("../src/services/achievements.js");
+    const { achievementById } = await import("../src/services/achievements-catalogue.js");
+    const day = (n: number) => new Date(Date.UTC(2026, 10, n));
+    const facts = { ...emptyFacts(), honorableKills: 150, duelWins: 12, duelStreak: 5, beatTopDuelist: 1, dungeonVariety: Array.from({ length: 10 }, (_, i) => day(i + 1)) };
+    const earned = new Set(evaluateAchievements(facts, new Date("2026-11-20")).filter(row => row.earned).map(row => row.def.id));
+    for (const id of ["honorable-kills-1", "honorable-kills-100", "duel-wins-1", "duel-wins-10", "duel-streak-5", "duel-beat-top", "dungeon-variety-1", "dungeon-variety-5", "dungeon-variety-10"]) expect(earned.has(id), id).toBe(true);
+    for (const id of ["honorable-kills-500", "duel-wins-50"]) expect(earned.has(id), id).toBe(false);
+    for (const id of ["duel-streak-5", "duel-beat-top", "dungeon-variety-1"]) { const def = achievementById(id)!; expect(def.fr.name.length).toBeGreaterThan(2); expect(def.en.description.length).toBeGreaterThan(10); }
+  });
+
+  it("derives streak and top-duelist wins from the member's own duels", async () => {
+    const { gatherAchievementFacts } = await import("../src/services/achievements.js");
+    const rows = [{ winnerId: "m", loserId: "a" }, { winnerId: "m", loserId: "b" }, { winnerId: "z", loserId: "m" }, { winnerId: "m", loserId: "top" }];
+    const db = {
+      member: { findFirst: async () => ({ discordUserId: "u", createdAt: new Date(), guild: null }) },
+      character: { findMany: async () => [] }, professionSkill: { findMany: async () => [] }, dungeonRunPlayer: { findMany: async () => [] }, raidAttendance: { findMany: async () => [] },
+      communityParticipationDay: { findMany: async () => [] }, poeLevelReached: { findMany: async () => [] }, poeMapVisit: { findMany: async () => [] },
+      memberActivityTotal: { findUnique: async () => null }, communityPoint: { aggregate: async () => ({ _sum: { amount: 0 } }), count: async () => 0 },
+      epgpTransaction: { aggregate: async () => ({ _sum: { epAmount: 0 } }) }, communityHonorAward: { findMany: async () => [] },
+      memberMilestone: { aggregate: async () => ({ _max: { value: 100 } }) },
+      duelResult: { findMany: async () => rows, groupBy: async () => [{ winnerId: "top", _count: { _all: 5 } }] }
+    };
+    const facts = await gatherAchievementFacts(db as never, "g", "m");
+    expect(facts).toMatchObject({ duelWins: 3, duelStreak: 2, beatTopDuelist: 1, honorableKills: 100 });
+    db.duelResult.groupBy = async () => [{ winnerId: "m", _count: { _all: 9 } }];
+    expect((await gatherAchievementFacts(db as never, "g", "m")).beatTopDuelist).toBe(0);
+  });
+});

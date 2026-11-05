@@ -122,7 +122,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     poeLevelReached: { findMany: vi.fn(async () => []) },
     poeMapVisit: { findMany: vi.fn(async () => []) },
     memberMilestone: { aggregate: vi.fn(async () => ({ _max: { value: null } })) },
-    duelResult: { count: vi.fn(async () => 0) },
+    duelResult: { findMany: vi.fn(async () => [{ winnerId: "m", loserId: "x" }, { winnerId: "m", loserId: "y" }, { winnerId: "m", loserId: "top" }, { winnerId: "z", loserId: "m" }]), groupBy: vi.fn(async () => [{ winnerId: "top", _count: { _all: 9 } }]) },
     memberAchievement: {
       findMany: vi.fn(async () => stored.map(row => ({ ...row }))),
       createMany: vi.fn(async ({ data }: { data: Stored[] }) => { let count = 0; for (const row of data) if (!stored.some(s => s.key === row.key && s.memberId === row.memberId)) { stored.push(row); count += 1; } return { count }; })

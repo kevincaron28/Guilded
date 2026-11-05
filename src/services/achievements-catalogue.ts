@@ -33,12 +33,14 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 6;
  * - communityPoints: points earned on the guild's community leaderboards (awards minus reversals).
  * - epEarned: effort points (EP) the raid ledger awarded.
  * - honorableKills: the member's lifetime honorable kills, as their own addon reported (milestones the companion uploads).
+ * - duelStreak: the longest run of counted duel wins in a row.
+ * - beatTopDuelist: 1 once the member has a counted win over the guild's current #1 duelist (who needs 3+ wins).
  * - duelWins: duels the member won against another member of the guild (counted duels only, see services/duels.ts).
  * - mvpWeeks: weeks the member was named MVP of the week (the community honors record).
  * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
  *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins";
+export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -187,6 +189,10 @@ const BASE_ACHIEVEMENTS: AchievementDef[] = [
   def("dungeon-runs-50", "guild", "gold", "dungeonRuns", 50, ["Dungeon Veteran", "Complete 50 guild dungeon runs."], ["Vétéran des donjons", "Terminer 50 donjons de guilde."]),
   def("dungeon-runs-100", "guild", "epic", "dungeonRuns", 100, ["Centurion of the Depths", "Complete 100 guild dungeon runs."], ["Centurion des profondeurs", "Terminer 100 donjons de guilde."]),
 
+  def("dungeon-variety-1", "guild", "bronze", "dungeonVariety", 1, ["First Dungeon Clear", "Complete your first dungeon with the guild."], ["Premier donjon terminé", "Terminer votre premier donjon avec la guilde."]),
+  def("dungeon-variety-10", "guild", "gold", "dungeonVariety", 10, ["Dungeon Collector", "Complete 10 different dungeons with the guild."], ["Collectionneur de donjons", "Terminer 10 donjons différents avec la guilde."]),
+  def("duel-streak-5", "guild", "gold", "duelStreak", 5, ["Unbeaten", "Win 5 guild duels in a row."], ["Invaincu", "Gagner 5 duels de guilde d'affilée."]),
+  def("duel-beat-top", "guild", "epic", "beatTopDuelist", 1, ["Giant Slayer", "Beat the guild's top duelist in a duel."], ["Tueur de géant", "Battre le meilleur duelliste de la guilde en duel."]),
   def("dungeon-variety-5", "guild", "silver", "dungeonVariety", 5, ["Dungeon Explorer", "Complete 5 different dungeons with the guild."], ["Explorateur de donjons", "Terminer 5 donjons différents avec la guilde."]),
 
   // Guild raids: attendance an officer recorded, and full clears.

@@ -60,7 +60,7 @@ const SINGLE_GLYPH: Record<string, GlyphName> = {
   "wow-max-level": "star", "wow-max-level-3": "stars",
   "profession-150": "hammer", "profession-300": "anvil",
   "dungeon-runs-1": "door", "dungeon-runs-10": "key", "dungeon-runs-25": "torch", "dungeon-runs-50": "swords", "dungeon-runs-100": "crown",
-  "dungeon-variety-5": "compass",
+  "dungeon-variety-1": "map", "dungeon-variety-5": "compass", "dungeon-variety-10": "gem", "duel-streak-5": "ascend", "duel-beat-top": "orb",
   "raids-1": "banner", "raids-5": "shield", "raids-10": "horn", "raids-25": "tower", "raids-50": "trophy",
   "raid-clears-1": "sword", "raid-clears-5": "skull", "raid-clears-10": "flame",
   "active-days-7": "speech", "active-days-30": "calendar", "active-days-100": "heart",

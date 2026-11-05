@@ -5,16 +5,17 @@
 --   hk      lifetime honorable kills: 1, 100, 500, 1000
 --   duel    duels won against guildmates: 1, 10, 50, 100 (Duels.lua)
 --
--- Nothing is ever posted unless the player turns announcements on for this character (default OFF). Officers can
--- recommend them (/guilded milestones recommend on): members then see a one-click prompt, nothing more.
+-- ON by default for every character (owner decision, 5 Nov 2026): the first time a line is about to go out, a one-time
+-- local notice (chat frame only) says so and how to stop. Each player can turn it off, or turn single types off
+-- (/guilded announce, Settings); officers can switch it off for the whole guild, which wins over member choices.
 -- Every milestone is announced once per character, ever (persisted), at most one line per 30 seconds, to the
--- GUILD channel only, and never in combat. A milestone reached while announcements are off, or already reached
--- when this module first ran, is recorded silently (and uploaded with the companion), never announced later.
+-- GUILD channel only, and never in combat. What a character already had when this module first ran, or reached
+-- while announcements were off, is recorded silently (and uploaded with the companion), never announced later.
 --
---   /guilded milestones                      status
---   /guilded milestones on | off             announce my milestones in guild chat
---   /guilded milestones level|dungeon|hk|duel on|off
---   /guilded milestones recommend on | off   officers: suggest it to the guild
+--   /guilded announce                         status (also /guilded milestones)
+--   /guilded announce on | off                my milestones in guild chat
+--   /guilded announce level|dungeon|hk|duel on|off
+--   /guilded announce guild off | on          officers: off (or back on) for the whole guild
 local _, ns = ...
 local ms = {}
 ns.milestones = ms
@@ -65,15 +66,14 @@ local function current()
 end
 function ms.enabled(kind)
   local c = current()
-  if not c or c.settings.enabled ~= true then return false end
+  if not c or c.settings.enabled == false or ms.guildOff() then return false end
   return kind == nil or c.settings[kind] ~= false
 end
 function ms.setEnabled(on, kind)
   local c = current()
   if not c then return false end
   if kind then c.settings[kind] = on and true or false else c.settings.enabled = on and true or false end
-  if on and not kind then c.settings.prompted = true end
-  return true
+    return true
 end
 
 local function maxLevel()
@@ -116,12 +116,17 @@ function ms.pump()
   local item = queue[1]
   local c = current()
   -- Turned off (or the module disabled) since it was queued: drop everything waiting.
-  if not c or not active() or c.settings.enabled ~= true or c.settings[item.kind] == false then queue = {}; return false end
+  if not c or not active() or c.settings.enabled == false or ms.guildOff() or c.settings[item.kind] == false then queue = {}; return false end
   if not (IsInGuild and IsInGuild()) then queue = {}; return false end
   local wait = lastAt + THROTTLE - epoch()
   if wait > 0 then schedule(wait + 1); return false end
   if inCombat() then schedule(RETRY_COMBAT); return false end
   local text = messageFor(item, c.name)
+  -- One local notice (chat frame only, never sent) before the first announcement from this character.
+  if text and not c.settings.noticed then
+    c.settings.noticed = true
+    ns.message(L("Guilded will announce your milestones (levels, first dungeon clears, PvP and duel milestones) in guild chat. Type /guilded announce off to stop, or turn types off in Settings."))
+  end
   if not text then table.remove(queue, 1); return false end
   local send = (C_ChatInfo and C_ChatInfo.SendChatMessage) or SendChatMessage
   -- GUILD only. A refusal (restricted chat, no hardware event) keeps the line for a later try, a few times.
@@ -148,7 +153,7 @@ function ms.reach(id, ref, item, silent)
   c.done[id] = at
   c.log[#c.log + 1] = { id = id, kind = item.kind, ref = ref, value = item.value, at = at }
   while #c.log > MAX_LOG do table.remove(c.log, 1) end
-  if not silent and c.settings.enabled == true and c.settings[item.kind] ~= false and c.baselined then
+  if not silent and c.settings.enabled ~= false and not ms.guildOff() and c.settings[item.kind] ~= false and c.baselined then
     queue[#queue + 1] = item
     ms.pump()
   end
@@ -221,70 +226,37 @@ local function baseline()
 end
 ms.baseline = baseline
 
--- ----- officer recommendation ------------------------------------------
+-- ----- officer guild-wide switch ---------------------------------------
 
 local function send(text)
   if IsInGuild and IsInGuild() then ns.comm.send(PREFIX, text, "GUILD") end
 end
-function ms.recommended()
+-- True when an officer turned announcements off for the whole guild (that wins over every member's choice).
+function ms.guildOff()
   local r = root()
-  return r and r.recommend and r.recommend.on == true and r.recommend or nil
+  return r and r.guild and r.guild.off == true or false
 end
--- Officers only: suggest announcements to the guild. Members see a prompt; nothing turns on by itself.
-function ms.recommend(on)
+-- Officers only. Shared with online guildmates now and again whenever an officer logs in.
+function ms.setGuildOff(off)
   local r = root()
-  if not r then return false end
-  if not (ns.isOfficer and ns.isOfficer()) then return false end
-  r.recommend = { on = on and true or false, at = epoch(), by = safe(UnitName, "player") }
-  local c = current()
-  if c then c.settings.promptedAt = r.recommend.at end -- the officer who suggests it is not prompted about it
-  send(string.format("REC|%d|%d", on and 1 or 0, r.recommend.at))
-  return true
-end
-
-local prompt
--- The one-click prompt (members who have not turned announcements on and have not answered this recommendation).
-function ms.maybePrompt()
-  local c, r = current()
-  local rec = ms.recommended()
-  if not c or not rec or c.settings.enabled == true or (c.settings.promptedAt or 0) >= rec.at or not active() then return false end
-  if inCombat() then return false end
-  c.settings.promptedAt = rec.at
-  ms.promptShown = true
-  pcall(function()
-    if not prompt then
-      prompt = CreateFrame("Frame", "GuildedMilestonePrompt", UIParent, "BasicFrameTemplateWithInset")
-      prompt:SetSize(420, 170); prompt:SetPoint("CENTER", 0, 120); prompt:SetFrameStrata("DIALOG")
-      local bg = prompt:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints()
-      bg:SetTexture("Interface\\Buttons\\WHITE8X8"); bg:SetVertexColor(0.04, 0.04, 0.05, 1)
-      local title = prompt:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-      title:SetPoint("TOP", 0, -6); title:SetText("Guilded")
-      prompt.text = prompt:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-      prompt.text:SetPoint("TOPLEFT", 20, -36); prompt.text:SetWidth(380); prompt.text:SetJustifyH("LEFT")
-      local yes = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
-      yes:SetSize(190, 26); yes:SetPoint("BOTTOMLEFT", 20, 18); yes:SetText(L("Turn on announcements"))
-      yes:SetScript("OnClick", function() ms.setEnabled(true); prompt:Hide(); ns.message(L("Milestone announcements are ON. /guilded milestones off turns them off.")) end)
-      local no = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
-      no:SetSize(190, 26); no:SetPoint("BOTTOMRIGHT", -20, 18); no:SetText(L("No thanks"))
-      no:SetScript("OnClick", function() prompt:Hide() end)
-    end
-    prompt.text:SetText(string.format(L("%s suggests announcing your milestones in guild chat (levels 10, 20..., first dungeon clears, honorable kills, duel wins), so your guildmates can cheer you on. One short line at a time, and you can turn it off any time."), rec.by or "An officer"))
-    prompt:Show()
-  end)
+  if not r or not (ns.isOfficer and ns.isOfficer()) then return false end
+  r.guild = { off = off and true or false, at = epoch(), by = safe(UnitName, "player") }
+  if off then queue = {} end
+  send(string.format("GOFF|%d|%d", off and 1 or 0, r.guild.at))
   return true
 end
 
 function ms.onAddonMessage(text, sender)
   if type(text) ~= "string" then return end
-  local kind, on, at = text:match("^(REC)|(%d)|(%d+)$")
-  if kind ~= "REC" then return end
+  local kind, off, at = text:match("^(GOFF)|(%d)|(%d+)$")
+  if kind ~= "GOFF" then return end
   at = tonumber(at)
-  -- Only an officer's word counts; a future date would pin the recommendation forever.
+  -- Only an officer's word counts; a future date would pin the switch forever.
   if not at or (ns.isOfficerName and not ns.isOfficerName(sender)) or (ns.util and ns.util.tooFarAhead and ns.util.tooFarAhead(at)) then return end
   local r = root()
-  if not r or (r.recommend and (r.recommend.at or 0) >= at) then return end
-  r.recommend = { on = on == "1", at = at, by = tostring(sender):match("^[^-]+") }
-  if on == "1" and C_Timer and C_Timer.After then C_Timer.After(5, function() pcall(ms.maybePrompt) end) end
+  if not r or (r.guild and (r.guild.at or 0) >= at) then return end
+  r.guild = { off = off == "1", at = at, by = tostring(sender):match("^[^-]+") }
+  if off == "1" then queue = {} end
 end
 
 -- ----- commands --------------------------------------------------------
@@ -293,34 +265,36 @@ local function stateWord(on) return on and "ON" or "OFF" end
 local function status()
   local c = current()
   if not c then return end
-  ns.message(string.format(L("Milestone announcements in guild chat: %s (default OFF). Level %s, dungeons %s, honorable kills %s, duels %s."),
-    stateWord(c.settings.enabled == true), stateWord(c.settings.level ~= false), stateWord(c.settings.dungeon ~= false),
+  ns.message(string.format(L("Milestone announcements in guild chat: %s. Level %s, dungeons %s, honorable kills %s, duels %s."),
+    stateWord(c.settings.enabled ~= false), stateWord(c.settings.level ~= false), stateWord(c.settings.dungeon ~= false),
     stateWord(c.settings.hk ~= false), stateWord(c.settings.duel ~= false)))
-  if ms.recommended() then ns.message(L("Your officers recommend turning them on: /guilded milestones on")) end
+  if ms.guildOff() then ns.message(L("Milestone announcements are turned off for the whole guild by an officer.")) end
 end
-ns.commandHandlers = ns.commandHandlers or {}
-ns.commandHandlers["milestones"] = function(args)
+local function handle(args)
   args = type(args) == "table" and args or {}
   local a, b = string.lower(args[1] or ""), string.lower(args[2] or "")
   if a == "on" or a == "off" then
     ms.setEnabled(a == "on")
-    ns.message(a == "on" and L("Milestone announcements are ON. /guilded milestones off turns them off.") or L("Milestone announcements are OFF."))
-  elseif a == "recommend" then
-    if b ~= "on" and b ~= "off" then ns.message("/guilded milestones recommend on | off"); return end
-    if ms.recommend(b == "on") then
-      ns.message(b == "on" and L("Recommendation sent. Online guildmates see a one-click prompt; each player chooses.") or L("Recommendation withdrawn."))
+    ns.message(a == "on" and L("Milestone announcements are ON. /guilded announce off turns them off.") or L("Milestone announcements are OFF."))
+  elseif a == "guild" then
+    if b ~= "on" and b ~= "off" then ns.message("/guilded announce guild on | off"); return end
+    if ms.setGuildOff(b == "off") then
+      ns.message(b == "off" and L("Milestone announcements are turned off for the whole guild by an officer.") or L("Milestone announcements are allowed for the guild again."))
     else ns.message(L("Officer or guild-master rank is required for this command.")) end
   else
     for _, kind in ipairs(KINDS) do
       if a == kind and (b == "on" or b == "off") then ms.setEnabled(b == "on", kind); status(); return end
     end
     status()
-    ns.message("/guilded milestones on | off | level|dungeon|hk|duel on|off | recommend on|off")
+    ns.message("/guilded announce on | off | level|dungeon|hk|duel on|off | guild on|off (officers)")
   end
 end
+ns.commandHandlers = ns.commandHandlers or {}
+ns.commandHandlers["milestones"] = handle
+ns.commandHandlers["announce"] = handle
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded milestones on | off - say my milestones (level 10, first dungeon clears, honorable kills, duel wins) in guild chat")
-table.insert(ns.commandHelp, { officer = true, text = "/guilded milestones recommend on | off - suggest milestone announcements to the guild (a one-click prompt, each player chooses)" })
+table.insert(ns.commandHelp, "/guilded announce on | off - my milestones (level 10, first dungeon clears, honorable kills, duel wins) in guild chat; ON by default")
+table.insert(ns.commandHelp, { officer = true, text = "/guilded announce guild off | on - officers: turn milestone announcements off (or back on) for the whole guild" })
 
 -- ----- events ----------------------------------------------------------
 
@@ -342,10 +316,11 @@ frame:SetScript("OnEvent", function(_, event, a, b, c, d)
     elseif event == "PLAYER_ENTERING_WORLD" then
       baseline()
       ms.checkHonorableKills()
-      if C_Timer and C_Timer.After then C_Timer.After(20, function() pcall(ms.maybePrompt) end) end
-      -- An officer's recommendation is repeated at login so members who were offline still get it.
-      local rec = ms.recommended()
-      if rec and ns.isOfficer and ns.isOfficer() and C_Timer and C_Timer.After then C_Timer.After(45, function() send(string.format("REC|1|%d", rec.at)) end) end
+      -- An officer's guild-wide switch is repeated at login so members who were offline get it too.
+      local r = root()
+      if r and r.guild and r.guild.off and ns.isOfficer and ns.isOfficer() and C_Timer and C_Timer.After then
+        C_Timer.After(45, function() send(string.format("GOFF|1|%d", r.guild.at)) end)
+      end
     elseif event == "PLAYER_LEVEL_UP" then
       baseline(); ms.checkLevel(a)
     elseif event == "PLAYER_PVP_KILLS_CHANGED" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" then

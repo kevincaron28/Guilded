@@ -1,5 +1,7 @@
 {
   "expo": {
+    "owner": "kevincaron28",
+    "extra": { "eas": { "projectId": "ddda073f-f6bb-4e04-8a78-7ac343e03864" } },
     "name": "Guilded",
     "slug": "guilded-mobile",
     "version": "0.2.0",

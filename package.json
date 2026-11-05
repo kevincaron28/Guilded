@@ -31,6 +31,7 @@
     "pilot": "tsx scripts/pilot.ts",
     "guild-page": "tsx scripts/guild-page.ts",
     "bugs": "tsx scripts/bugs.ts",
+    "link:coverage": "node scripts/with-env.mjs tsx scripts/link-coverage.ts",
     "site:build": "node scripts/build-site.mjs",
     "site:preview": "node scripts/preview-site.mjs",
     "test:postgres": "node scripts/test-postgres.mjs",

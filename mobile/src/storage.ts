@@ -14,6 +14,7 @@ const ORIGIN = "guilded.mobile.origin";
 const LANG = "guilded.mobile.lang";
 const REMINDERS = "guilded.mobile.reminders";
 const EDITION = "guilded.mobile.edition";
+const APK_CACHE = "guilded.mobile.apkupdate";
 let sessionEpoch = 0;
 let sessionWrites: Promise<unknown> = Promise.resolve();
 
@@ -156,4 +157,12 @@ export async function readEdition(): Promise<Edition> {
 }
 export async function saveEdition(edition: Edition): Promise<void> {
   try { await writeKey(EDITION, edition); } catch { /* the current visit keeps the selection */ }
+}
+
+export async function readApkCache(): Promise<string | null> {
+  try { return await readKey(APK_CACHE); } catch { return null; }
+}
+
+export async function writeApkCache(value: string): Promise<void> {
+  try { await writeKey(APK_CACHE, value); } catch { /* the next launch checks again */ }
 }

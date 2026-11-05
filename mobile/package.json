@@ -15,7 +15,7 @@
     "build:ios:simulator": "eas build --platform ios --profile preview",
     "build:ios:device": "eas build --platform ios --profile device",
     "build:ios:store": "eas build --platform ios --profile production",
-    "update:preview": "eas update --channel preview --environment preview",
+    "update:preview": "eas update --channel preview --environment preview --platform android --non-interactive --auto",
     "update:production": "eas update --channel production --environment production"
   },
   "dependencies": {

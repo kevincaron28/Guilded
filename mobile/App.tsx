@@ -2,9 +2,12 @@ import { Component, type ReactNode, useCallback, useEffect, useRef, useState } f
 import { ActivityIndicator, AppState, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
+import Constants from "expo-constants";
+import * as Updates from "expo-updates";
+import { checkForNewApk, type ApkRelease } from "./src/apkUpdate";
 import { GuildScreen } from "./src/GuildScreen";
 import { apiOrigin, fetchBounded, readTextBounded, parseSummary, type Summary } from "./src/api";
-import { readEdition, saveEdition, editions, type Edition, readLang, saveLang } from "./src/storage";
+import { readEdition, saveEdition, editions, type Edition, readLang, saveLang, readApkCache, writeApkCache } from "./src/storage";
 import { mobileRoute, notificationRoute, type MobileRoute } from "./src/routes";
 import { prepareLaunchUpdate } from "./src/updates";
 import type { Lang } from "./src/i18n";
@@ -40,6 +43,7 @@ function GuildedApp() {
   const [failed, setFailed] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [linkError, setLinkError] = useState(false);
+  const [newApk, setNewApk] = useState<ApkRelease | null>(null);
   const request = useRef(0);
   const reload = useCallback(async () => {
     const revision = ++request.current;
@@ -77,6 +81,14 @@ function GuildedApp() {
     }).catch(() => {});
     return () => { active = false; links.remove(); removeNotifications?.(); };
   }, []);
+  useEffect(() => {
+    // Only the sideloaded preview APK updates from GitHub; store builds update through their store.
+    if (Platform.OS !== "android" || Updates.channel !== "preview") return;
+    let active = true;
+    void checkForNewApk({ now: Date.now(), installedVersion: Constants.expoConfig?.version, readCache: readApkCache, writeCache: writeApkCache })
+      .then((release) => { if (active) setNewApk(release); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
   const chooseLang = (next: Lang) => { setLang(next); void saveLang(next); };
   const open = (path: string) => { setLinkError(false); const url = new URL(path, WEB_ORIGIN); url.searchParams.set("edition", edition); url.searchParams.set("lang", lang); if (url.pathname === "/auth/login") url.searchParams.set("return", `/me/?edition=${edition}&lang=${lang}`); void Linking.openURL(url.href).catch(() => setLinkError(true)); };
   const status = loading ? tr("UPDATING", "ACTUALISATION") : failed ? tr("OFFLINE", "HORS LIGNE") : updatedAt ? tr("CONNECTED", "CONNECTÉ") : tr("WAITING", "EN ATTENTE");
@@ -87,6 +99,7 @@ function GuildedApp() {
       <StatusBar style="light" />
       <View style={styles.header}><View style={{ flex: 1 }}><Text accessibilityRole="header" style={styles.brand}>GUILDED</Text><Text style={styles.edition}>WORLD OF WARCRAFT · COMMUNITY</Text></View><Text accessibilityLiveRegion="polite" style={styles.statusText}>{status}</Text></View>
       <View style={styles.languages}>{(["en", "fr"] as const).map((code) => <Pressable key={code} accessibilityRole="button" accessibilityLabel={code === "en" ? "English" : "Français"} accessibilityState={{ selected: lang === code }} onPress={() => chooseLang(code)} style={styles.language}><Text style={[styles.muted, lang === code && { color: colors.gold, fontWeight: "700" }]}>{code.toUpperCase()}</Text></Pressable>)}</View>
+      {newApk ? <Pressable accessibilityRole="link" accessibilityLabel={tr(`New version ${newApk.version} available. Download`, `Nouvelle version ${newApk.version} disponible. Télécharger`)} onPress={() => { void Linking.openURL(newApk.url).catch(() => setLinkError(true)); }} style={styles.updateBanner}><Text style={styles.updateText}>{tr(`New version ${newApk.version} available → Download`, `Nouvelle version ${newApk.version} disponible → Télécharger`)}</Text></Pressable> : null}
       {linkError ? <Text accessibilityRole="alert" style={styles.error}>{tr("The page could not open. Check your browser and retry.", "Impossible d’ouvrir la page. Vérifiez votre navigateur et réessayez.")}</Text> : null}
       <View style={[styles.fill, tab !== "Guild" && styles.hidden]} accessibilityElementsHidden={tab !== "Guild"} importantForAccessibility={tab === "Guild" ? "auto" : "no-hide-descendants"}>
         <GuildScreen defaultOrigin={WEB_ORIGIN} lang={lang} onLang={chooseLang} route={route} />
@@ -127,5 +140,6 @@ const styles = StyleSheet.create({
   content: { padding: 24, paddingBottom: 30 }, kicker: { color: colors.gold, fontSize: 11, letterSpacing: 1.2, fontWeight: "700", marginTop: 8 }, title: { color: colors.text, fontSize: 34, fontWeight: "700", marginTop: 12, letterSpacing: -0.8 }, intro: { color: colors.muted, fontSize: 16, lineHeight: 24, marginTop: 10, marginBottom: 24 },
   hero: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 18, marginBottom: 24 }, label: { color: colors.gold, fontSize: 11, fontWeight: "700", marginVertical: 8 }, heroTitle: { color: colors.text, fontSize: 21, fontWeight: "700", marginBottom: 13 }, muted: { color: colors.muted, fontSize: 14, lineHeight: 21 }, stats: { flexDirection: "row", flexWrap: "wrap", gap: 24, marginVertical: 14 }, statValue: { color: colors.text, fontSize: 30, fontWeight: "700" }, runRow: { borderTopWidth: 1, borderColor: colors.line, paddingVertical: 12, flexDirection: "row", gap: 12, alignItems: "center" }, rank: { color: colors.gold, fontSize: 14 }, runName: { color: colors.text, fontSize: 15 }, runScore: { color: colors.green, fontWeight: "700", fontSize: 15 },
   action: { borderTopWidth: 1, borderColor: colors.line, minHeight: 48, paddingVertical: 16, flexDirection: "row", alignItems: "center", gap: 12 }, actionText: { color: colors.text, fontSize: 15, flex: 1 }, arrow: { color: colors.gold, fontSize: 17 }, footer: { color: colors.muted, fontSize: 11, marginTop: 32 }, error: { color: "#e7b4a8", fontSize: 14, padding: 12 },
+  updateBanner: { backgroundColor: "#2a2416", borderColor: colors.gold, borderWidth: 1, marginHorizontal: 16, marginTop: 8, borderRadius: 8, minHeight: 48, justifyContent: "center", paddingHorizontal: 12 }, updateText: { color: colors.gold, fontSize: 14, fontWeight: "700" },
   nav: { borderTopWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, flexDirection: "row", paddingVertical: 4 }, navItem: { flex: 1, minHeight: 48, justifyContent: "center", alignItems: "center", paddingHorizontal: 4 }, navText: { color: colors.muted, fontSize: 13 }, navActive: { color: colors.gold, fontWeight: "700" }
 });

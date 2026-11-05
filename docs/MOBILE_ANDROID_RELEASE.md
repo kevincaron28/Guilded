@@ -88,3 +88,17 @@ eas update --platform android --channel production --message "Describe the teste
 ```
 
 Test preview first. Native or dependency changes require a new build. With appVersion runtime policy, bump the mobile app version for native runtime changes so incompatible updates cannot reach older binaries.
+
+## How a sideloaded preview APK updates itself
+
+Two paths, depending on what changed.
+
+**JavaScript-only changes (automatic, over the air).** The preview APK is built on the `preview` channel with `runtimeVersion` policy `appVersion`. On every launch it asks EAS Update for a newer bundle for its runtime (8-second limit; offline launches use the installed bundle), downloads it and restarts once, so the new code is running before any screen shows. Publish one with:
+
+```sh
+npm run mobile:update          # from the repository root; runs `eas update --channel preview`
+```
+
+`.github/workflows/mobile-update.yml` runs the same command when a push to `main` touches `mobile/**`. It skips cleanly until the repository secret `EXPO_TOKEN` exists (an Expo access token for the account that owns the project; create it at expo.dev, Account settings, Access tokens, and add it under GitHub, Settings, Secrets and variables, Actions). It needs no other secret and never builds an APK.
+
+**Native or dependency changes (new APK).** A change to native code, a native dependency, `app.json` native settings or permissions cannot reach an installed app over the air. Bump the mobile `version` (and `versionCode`) so the runtime changes and older installs ignore the incompatible update, build a new APK, and publish it as a GitHub release tagged `mobile-vX.Y.Z[-preview]` with the `.apk` attached. On launch the preview app reads the public releases list (cached six hours; offline, rate limits and malformed answers show nothing), and when it finds a higher `mobile-v*` version than the installed one it shows a "New version available - Download" banner that opens the APK. The app never downloads or installs anything itself; Android asks the person to approve the install. The check only runs on the `preview` channel, so a store build never shows it.

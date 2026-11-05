@@ -129,11 +129,15 @@ describe("Link everything wiring", () => {
     expect(() => validateIpc("link-find-saved-data", ["x"])).toThrow();
     expect(read("companion-app/preload.cjs")).toContain('"link-find-saved-data"');
   });
-  it("finds saved data only after sign-in and only when exactly one account has it", () => {
+  it("finds saved data only after sign-in and only when it can tell which file is the live one", () => {
     const main = read("companion-app/main.cjs");
     const block = main.slice(main.indexOf('registerIpc("link-find-saved-data"'), main.indexOf('registerIpc("browse-poe-log"'));
     expect(block).toContain("if (!config.companionCredential)");
-    expect(block).toContain("found.length !== 1");
+    // The only file, or the only WoW Forever file; otherwise the member chooses.
+    expect(block).toContain("pickSavedVariables(found)");
+    expect(block).toContain("if (!chosen)");
+    // A missing, beta or stale watched file is looked for again instead of "already linked".
+    expect(block).toContain("!current.candidate");
   });
   it("the bot only adds Battle.net/character counts to the hub answer, behind the personal credential", () => {
     const api = read("src/companion-api.ts");

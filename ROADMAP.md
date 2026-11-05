@@ -47,7 +47,7 @@ initialization are tracked separately from the implemented feature inventory.
 
 ## Current stage — 3 November 2026
 
-Guilded **8.4.2** is prepared (companion startup-crash fix and Link everything polish on top of 8.4.1's owner console, quick reference, achievement cards and guild rank); published baseline is 8.4.0.
+Guilded **8.4.3** is prepared (WoW Forever launch fixes for the companion on top of 8.4.2's startup-crash fix and Link everything polish on top of 8.4.1's owner console, quick reference, achievement cards and guild rank); published baseline is 8.4.0.
 
 Guilded **8.4 source candidate** is being integrated on
 `codex/bg-recorder-history-oct30`. The provisional BG pipeline is implemented in

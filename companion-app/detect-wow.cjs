@@ -48,12 +48,29 @@ function detectSavedVariables(names = ["Guilded.lua"]) {
         const folder = path.join(account, "SavedVariables");
         if (!fs.existsSync(folder)) continue;
         const found = names.map((name) => path.join(folder, name)).find((file) => fs.existsSync(file));
-        results.push({ path: found ?? path.join(folder, names[0]), exists: !!found });
+        results.push({ path: found ?? path.join(folder, names[0]), exists: !!found, game: path.basename(path.dirname(wtf)), modifiedMs: found ? modifiedMs(found) : 0 });
       }
     }
   }
-  results.sort((a, b) => Number(b.exists) - Number(a.exists));
-  return results;
+  return rankSavedVariables(results);
 }
 
-module.exports = { detectSavedVariables };
+function modifiedMs(file) {
+  try { return fs.statSync(file).mtimeMs; } catch { return 0; }
+}
+
+// Existing files first; then the live WoW Forever folder before any other game, the beta client
+// last (it stops saving once the live client is installed), and the newest file within a tier.
+function rankSavedVariables(results) {
+  const tier = (entry) => (/forever/i.test(entry.game) ? 0 : /beta/i.test(entry.game) ? 2 : 1);
+  return [...results].sort((a, b) => Number(b.exists) - Number(a.exists) || tier(a) - tier(b) || b.modifiedMs - a.modifiedMs);
+}
+
+// The file to pick without asking: the only one, or the only one in a WoW Forever folder.
+function pickSavedVariables(existing) {
+  if (existing.length === 1) return existing[0];
+  const forever = existing.filter((entry) => /forever/i.test(entry.game));
+  return forever.length === 1 ? forever[0] : null;
+}
+
+module.exports = { detectSavedVariables, rankSavedVariables, pickSavedVariables };

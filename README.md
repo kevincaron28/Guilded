@@ -15,10 +15,11 @@ Free for noncommercial use ([license](LICENSE)).
 Every in-game and Discord command, and who can run it, is in [COMMANDS.md](COMMANDS.md).
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
-Latest release: **8.4.2**, fixing a companion startup crash on launch and polishing the
-Link everything screen (8.4.1 added that screen, the redesigned owner console, quick
+Latest release: **8.4.3**, WoW Forever launch fixes for the companion (it now finds and
+switches to the live Forever saved-data file, and flags a wrong-edition addon). 8.4.2 fixed a
+startup crash and polished the Link everything screen (8.4.1 added that screen, the redesigned owner console, quick
 reference page, achievement cards and guild rank). See the
-[release notes](docs/V8_4_2_RELEASE_NOTES.md) and [acceptance checklist](docs/V8_4_2_RELEASE_ACCEPTANCE.md).
+[release notes](docs/V8_4_3_RELEASE_NOTES.md) and [acceptance checklist](docs/V8_4_3_RELEASE_ACCEPTANCE.md).
 CurseForge downloads are 8.4.2; the Microsoft Store companion updates separately (8.4.1.0 is live; do not rely on it, 8.4.2 fixes its startup crash).
 
 ## Quick start
@@ -33,7 +34,7 @@ CurseForge downloads are 8.4.2; the Microsoft Store companion updates separately
 - **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 8.4.2** (3 November 2026, protocol 2). [Release notes](docs/V8_4_2_RELEASE_NOTES.md) and [acceptance record](docs/V8_4_2_RELEASE_ACCEPTANCE.md).
+**Current version: 8.4.3** (4 November 2026, protocol 2). [Release notes](docs/V8_4_3_RELEASE_NOTES.md) and [acceptance record](docs/V8_4_3_RELEASE_ACCEPTANCE.md).
 Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
 across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).

@@ -1,6 +1,6 @@
 {
   "name": "guilded-bot",
-  "version": "8.4.2",
+  "version": "8.4.3",
   "private": true,
   "packageManager": "npm@11.13.0",
   "description": "Guild management and addon integration bot for Guilded",
@@ -16,6 +16,7 @@
     "companion:watch": "node companion/watcher.mjs",
     "addon:zip": "node scripts/build-addon-zip.mjs",
     "addon:editions": "node scripts/build-addon-editions.mjs",
+    "addon:verify-editions": "node scripts/verify-edition-zips.mjs",
     "dungeons:sync": "node scripts/build-dungeons-addon.mjs",
     "dungeons:zip": "node scripts/build-dungeons-addon.mjs --zip",
     "locale": "node scripts/addon-locale.mjs",

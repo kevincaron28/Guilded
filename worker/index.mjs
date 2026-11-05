@@ -302,6 +302,12 @@ async function route(request, env) {
         await upstream.body?.cancel();
       }
       if (upstream.status === 530) return pageView ? unavailablePage(request, url) : failure(503, "The guild bot is temporarily unavailable. Try again shortly.");
+      // 304 Not Modified is a conditional answer, not a redirect: the standings long poll gets it
+      // whenever nothing changed, and must reach the companion as 304 (not "Unexpected server redirect").
+      if (api && upstream.status === 304) {
+        const etag = upstream.headers.get("etag");
+        return new Response(null, { status: 304, headers: { "cache-control": "no-store", ...(etag ? { etag } : {}) } });
+      }
       if (upstream.status >= 300 && upstream.status < 400) {
         // Never follow a redirect with credentials. Only the guild pages' local
         // canonical redirects may be returned to the browser.

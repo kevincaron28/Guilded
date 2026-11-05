@@ -99,7 +99,9 @@ local function tip(widget, text)
   local function show(self)
     if not GameTooltip then return end
     GameTooltip:SetOwner(self, "ANCHOR_TOP")
-    GameTooltip:AddLine(L(text), 1, 1, 1, true)
+    local shown = type(text) == "function" and text() or text
+    if type(shown) ~= "string" or shown == "" then return end
+    GameTooltip:AddLine(L(shown), 1, 1, 1, true)
     GameTooltip:Show()
   end
   if widget.HookScript then widget:HookScript("OnEnter", show) else widget:SetScript("OnEnter", show) end
@@ -140,6 +142,43 @@ local function newEdit(parent, width, numeric)
   e:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
   return e
 end
+
+-- A light grey hint inside an empty box, gone once something is typed or the box has focus.
+local function placeholder(box, text)
+  local hint = box:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  hint:SetPoint("LEFT", box, "LEFT", 6, 0)
+  hint:SetText(L(text))
+  local function update(self)
+    local empty = (self:GetText() or "") == ""
+    if empty and not (self.HasFocus and self:HasFocus()) then hint:Show() else hint:Hide() end
+  end
+  local function chain(name, extra)
+    local old = box:GetScript(name)
+    box:SetScript(name, function(self, ...) if old then old(self, ...) end extra(self) end)
+  end
+  chain("OnTextChanged", update)
+  chain("OnEditFocusGained", function() hint:Hide() end)
+  chain("OnEditFocusLost", update)
+  update(box)
+  box.placeholder = hint
+  return box
+end
+
+-- Scroll pages whose content can be taller than their viewport: the range is the child height
+-- less the viewport, a wheel tick moves a useful distance (SCROLL_STEP), and the last row keeps
+-- bottom padding so it is never cut mid-button.
+local SCROLL_STEP, SCROLL_PADDING = 44, 16
+local function scrollRange(contentHeight, viewportHeight)
+  return math.max(0, (contentHeight or 0) + SCROLL_PADDING - (viewportHeight or 0))
+end
+local function enableWheel(scroll, getRange)
+  scroll:EnableMouseWheel(true)
+  scroll:SetScript("OnMouseWheel", function(self, delta)
+    local range = getRange()
+    self:SetVerticalScroll(math.max(0, math.min(range, (self:GetVerticalScroll() or 0) - delta * SCROLL_STEP)))
+  end)
+end
+ns.layoutMath = { scrollRange = scrollRange, SCROLL_STEP = SCROLL_STEP, SCROLL_PADDING = SCROLL_PADDING }
 
 local function newLabel(parent, text, font)
   local l = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
@@ -320,11 +359,13 @@ local function buildRaidPage(page)
 
   at(newLabel(page, "Attendance for the selected player"), page, 0, -104)
   local x = 0
+  ui.attendButtons = {}
   for _, status in ipairs({ "Present", "Late", "Absent" }) do
-    at(newButton(page, status, 90, function()
+    local b = tip(at(newButton(page, status, 90, function()
       local name = needPlayer()
       if name then run("attendance " .. name .. " " .. string.upper(status)) end
-    end), page, x, -124)
+    end), page, x, -124), "Needs a running raid: press Start raid first.")
+    table.insert(ui.attendButtons, b)
     x = x + 96
   end
   -- "Seen" = everyone who was in the raid group at any point since Start
@@ -390,13 +431,15 @@ local function buildEpgpPage(page)
     "Takes back the last EP/GP entry you made (it stays in the ledger, marked voided). Click twice.")
   confirmClick(undoButton, "Undo my last award", function() run("undo") end)
 
-  at(newLabel(page, "Loot and GP bidding are on the Loot tab.", "GameFontDisableSmall"), page, 0, -198)
+  at(newLabel(page, "Loot and GP bidding are on the Loot page of the /guilded window.", "GameFontDisableSmall"), page, 0, -198)
+  tip(at(newButton(page, "Open the Loot page", 170, function() ui.selectTabByName("Loot") end), page, 0, -218),
+    "Opens the Guilded window on its Loot page. The guild window has no Loot tab.")
 end
 
 -- Loot: GP bidding on an item, or giving it directly at a set price.
 local function buildLootPage(page)
   at(newLabel(page, "Item (click the box, then shift-click the item)"), page, 0, 0)
-  ui.itemBox = itemBox(at(newEdit(page, 400), page, 6, -18))
+  ui.itemBox = placeholder(itemBox(at(newEdit(page, 400), page, 6, -18)), "Shift-click an item here, for example [Thunderfury]")
 
   at(newLabel(page, "Min GP"), page, 0, -52)
   ui.minGpBox = at(newEdit(page, 50, true), page, 60, -48)
@@ -448,7 +491,7 @@ local function buildLootPage(page)
   ui.bidStatus = forModule("bidding", at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -146))
   ui.bidStatus:SetWidth(PAGE_WIDTH)
 
-  at(newLabel(page, "No bidding: give it to the selected Player for Min GP", "GameFontNormalSmall"), page, 0, -262)
+  at(newLabel(page, "Or skip bidding: give it straight to the selected Player for Min GP", "GameFontNormalSmall"), page, 0, -262)
   at(newButton(page, "Give directly", 110, function()
     local name, link, n = needPlayer(), item(), minGp()
     if name and link and n then
@@ -473,7 +516,7 @@ local function buildLootPage(page)
     row.label:SetWidth(PAGE_WIDTH - 66)
     ui.dropRows[i] = row
   end
-  ui.dropEmpty = at(newLabel(page, "", "GameFontDisableSmall"), page, 0, -326)
+  ui.dropEmpty = at(newLabel(page, "", "GameFontNormalSmall"), page, 0, -326)
   ui.dropEmpty:SetWidth(PAGE_WIDTH)
   ui.tradeText = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -404)
   ui.tradeText:SetWidth(PAGE_WIDTH)
@@ -509,9 +552,17 @@ local function buildPublicRaidsPage(page)
       end
     end
     ui.pugPages:SetText(ui.pugPage .. " / " .. count)
+    -- One page needs no Previous / Next.
+    for _, widget in ipairs(ui.pugPaging or {}) do
+      if count > 1 then widget:Show() else widget:Hide() end
+    end
   end
   at(newLabel(page, "Realm"), page, 0, 0)
   ui.pugRealm = at(newEdit(page, 210), page, 6, -20)
+  -- Start on your own realm; clear the box to see every realm.
+  local realmName = GetRealmName and GetRealmName()
+  if type(realmName) == "string" and realmName ~= "" then ui.pugRealm:SetText(realmName) end
+  tip(ui.pugRealm, "Your realm. Clear the box to see raids on every realm.")
   ui.pugRealm:SetScript("OnEnterPressed", function(self) self:ClearFocus(); ui.pugPage = 1; update() end)
   at(newButton(page, "Filter", 80, function() ui.pugPage = 1; update() end), page, 230, -18)
   local roles = { { "All roles", nil }, { "Tank", "tanks" }, { "Healer", "healers" }, { "DPS", "dps" } }
@@ -530,10 +581,13 @@ local function buildPublicRaidsPage(page)
     end), page, PAGE_WIDTH - 114, -150 - (i - 1) * 92)
     ui.pugRows[i] = entry
   end
-  at(newButton(page, "Previous", 90, function() ui.pugPage = ui.pugPage - 1; update() end), page, 0, -440)
-  at(newButton(page, "Next", 90, function() ui.pugPage = ui.pugPage + 1; update() end), page, 96, -440)
+  local previous = at(newButton(page, "Previous", 90, function() ui.pugPage = ui.pugPage - 1; update() end), page, 0, -440)
+  local nextPage = at(newButton(page, "Next", 90, function() ui.pugPage = ui.pugPage + 1; update() end), page, 96, -440)
   ui.pugPages = at(newLabel(page, ""), page, 200, -445)
-  at(newButton(page, "Website", 100, function() ns.publicRaids.copy() end), page, PAGE_WIDTH - 104, -440)
+  ui.pugPaging = { previous, nextPage, ui.pugPages }
+  -- The website is the way to find raids when the snapshot is stale, so it sits beside the filters.
+  tip(at(newButton(page, "Website", 100, function() ns.publicRaids.copy() end), page, PAGE_WIDTH - 104, -52),
+    "Shows the website address to copy, where every open raid is listed.")
   local elapsed = 0
   page:SetScript("OnUpdate", function(_, dt)
     elapsed = elapsed + dt
@@ -899,7 +953,7 @@ local function buildToolsPage(page)
   officerOnly(tip(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116), "Who counts as an officer in this guild."))
 
   -- Test tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.
-  forModule("sim", at(newLabel(page, "Test tools (fake players; saved tests can sync to Discord)", "GameFontNormalSmall"), page, 0, -146), true)
+  forModule("sim", at(newLabel(page, "Developer tools: test raids with fake players (saved tests can sync to Discord)", "GameFontDisableSmall"), page, 0, -146), true)
   local tests = {
     { "Start test raid", "sim start", "A test raid with fake players; bosses and loot work like a real one." },
     { "Fake bids", "sim bids", "Fake players bid on the item open for GP bids." },
@@ -910,32 +964,38 @@ local function buildToolsPage(page)
   for i, test in ipairs(tests) do
     forModule("sim", tip(at(newButton(page, test[1], 136, function() run(test[2]) end), page, ((i - 1) % 3) * 142, -162 - math.floor((i - 1) / 3) * 26), test[3]), true)
   end
-  local clearTests = forModule("sim", tip(at(newButton(page, "Clear test data", 136), page, 284, -188), "Deletes every test raid and test dungeon run from this PC."), true)
+  local clearTests = forModule("sim", tip(at(newButton(page, "Clear test data", 136), page, 284, -188), "Deletes every test raid and test dungeon run from this PC. Click twice to confirm."), true)
   confirmClick(clearTests, "Clear test data", function() run("sim clear") end)
 
   -- Window size, kept between sessions.
-  at(newLabel(page, "Window size", "GameFontNormalSmall"), page, 0, -224)
-  tip(at(newButton(page, "-", 30, function() run("menu scale smaller") end), page, 90, -220), "Smaller window")
-  tip(at(newButton(page, "+", 30, function() run("menu scale bigger") end), page, 124, -220), "Bigger window")
-  tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -220), "Normal size, back in the middle of the screen")
+  at(newLabel(page, "Window size", "GameFontNormalSmall"), page, 0, -238)
+  tip(at(newButton(page, "-", 30, function() run("menu scale smaller") end), page, 90, -234), "Smaller window")
+  tip(at(newButton(page, "+", 30, function() run("menu scale bigger") end), page, 124, -234), "Bigger window")
+  tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -234), "Normal size, back in the middle of the screen")
 
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -250)
-  help:SetWidth(PAGE_WIDTH)
+    "GameFontHighlightSmall"), page, 0, -266)
+  help:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
   -- these than fit in the page, so they scroll instead of running off the bottom of the window.
-  at(newLabel(page, L("Modules"), "GameFontNormal"), page, 0, -280)
+  -- The heading hangs below the help text (however many lines it wraps to), never over it.
+  local modulesHeading = newLabel(page, L("Modules"), "GameFontNormal")
+  modulesHeading:SetPoint("TOPLEFT", help, "BOTTOMLEFT", 0, -18)
   local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -298)
+  scroll:SetPoint("TOPLEFT", modulesHeading, "BOTTOMLEFT", 0, -6)
   -- Keep the last module row clear of the shared status footer.
   scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -24, 24)
   local scrollChild = CreateFrame("Frame", nil, scroll)
   scrollChild:SetWidth(PAGE_WIDTH - 24)
-  scrollChild:SetHeight(math.max(1, #(ns.MODULES or {}) * 22))
+  local moduleHeight = math.max(1, #(ns.MODULES or {}) * 22)
+  -- Bottom padding so the last row is reachable whole, not cut at the viewport edge.
+  scrollChild:SetHeight(moduleHeight + SCROLL_PADDING)
   scroll:SetScrollChild(scrollChild)
+  ui.moduleScroll = scroll
+  enableWheel(scroll, function() return scrollRange(moduleHeight, scroll:GetHeight()) end)
 
   ui.moduleRows = {}
   for i, module in ipairs(ns.MODULES or {}) do
@@ -1060,14 +1120,21 @@ local function buildCraftingPage(page)
   ui.craftResult = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -46)
   ui.craftResult:SetWidth(PAGE_WIDTH)
 
-  at(newLabel(page, "My professions", "GameFontNormal"), page, 0, -130)
-  tip(at(newButton(page, "Share now", 100, function() run("recipes share") end), page, PAGE_WIDTH - 100, -126),
+  -- Headings hang below the text above them, so a short result leaves no empty gap.
+  local professions = newLabel(page, "My professions", "GameFontNormal")
+  professions:SetPoint("TOPLEFT", ui.craftResult, "BOTTOMLEFT", 0, -16)
+  local share = tip(newButton(page, "Share now", 100, function() run("recipes share") end),
     "Send your recipes to the guild now (it also happens by itself twice a day).")
-  ui.craftMine = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -150)
+  share:ClearAllPoints()
+  share:SetPoint("TOPLEFT", professions, "TOPLEFT", PAGE_WIDTH - 100, 4)
+  ui.craftMine = newLabel(page, "", "GameFontHighlightSmall")
+  ui.craftMine:SetPoint("TOPLEFT", professions, "BOTTOMLEFT", 0, -8)
   ui.craftMine:SetWidth(PAGE_WIDTH)
 
-  at(newLabel(page, "Cooldowns", "GameFontNormal"), page, 0, -230)
-  ui.craftCooldowns = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -250)
+  local cooldowns = newLabel(page, "Cooldowns", "GameFontNormal")
+  cooldowns:SetPoint("TOPLEFT", ui.craftMine, "BOTTOMLEFT", 0, -16)
+  ui.craftCooldowns = newLabel(page, "", "GameFontHighlightSmall")
+  ui.craftCooldowns:SetPoint("TOPLEFT", cooldowns, "BOTTOMLEFT", 0, -8)
   ui.craftCooldowns:SetWidth(PAGE_WIDTH)
 end
 
@@ -1099,7 +1166,8 @@ local READY_COLUMNS = {
   { key = "vantus", icon = 4638737, title = "Vantus rune" },
   { key = "buffs", icon = 135987, title = "Raid buffs" },
 }
-local CELL_X, CELL_STEP, CELL_SIZE = 178, 24, 18
+local READY_STATUS_X = 146
+local CELL_X, CELL_STEP, CELL_SIZE = 210, 24, 18
 local DUR_X = CELL_X + #READY_COLUMNS * CELL_STEP + 2
 local GEAR_X = DUR_X + 36
 local WHY_X = GEAR_X + 28
@@ -1129,13 +1197,15 @@ local function buildReadyPage(page)
   ui.readyPage = 1
   at(newButton(page, L("Refresh"), 90, function() if ns.ready then refresh() end end), page, 0, -34)
   at(newButton(page, L("Ask everyone to check"), 170, function() if ns.ready then ns.ready.ask() end end), page, 94, -34)
-  at(newButton(page, L("Post to group chat"), 150, function() if ns.ready then ns.ready.post() end end), page, 268, -34)
+  -- Posting writes in the group's chat, so it asks for a second click.
+  local postButton = tip(at(newButton(page, L("Post to group chat"), 150), page, 268, -34), "Writes the ready summary in group chat. Click twice to confirm.")
+  confirmClick(postButton, "Post to group chat", function() if ns.ready then ns.ready.post() end end)
   ui.readyPrev = at(newButton(page, "<", 32, function() ui.readyPage = math.max(1, (ui.readyPage or 1) - 1); refresh() end), page, PAGE_WIDTH - 170, -34)
   ui.readyPageLabel = at(newLabel(page, "", "GameFontHighlightSmall"), page, PAGE_WIDTH - 134, -40)
   ui.readyPageLabel:SetWidth(70)
   ui.readyNext = at(newButton(page, ">", 32, function() ui.readyPage = (ui.readyPage or 1) + 1; refresh() end), page, PAGE_WIDTH - 60, -34)
   at(newLabel(page, L("Player"), "GameFontDisableSmall"), page, 0, -68)
-  at(newLabel(page, L("Status"), "GameFontDisableSmall"), page, 116, -68)
+  at(newLabel(page, L("Status"), "GameFontDisableSmall"), page, READY_STATUS_X, -68)
   -- Column headers: an icon (or RC) that says what the column is when hovered.
   ui.readyHeaders = {}
   for i, column in ipairs(READY_COLUMNS) do
@@ -1175,15 +1245,15 @@ local function buildReadyPage(page)
     if hover.EnableMouse then hover:EnableMouse(true) end
     local row = {
       name = at(newLabel(page, "", "GameFontHighlight"), page, 0, y),
-      status = at(newLabel(page, "", "GameFontHighlightSmall"), page, 116, y - 1),
+      status = at(newLabel(page, "", "GameFontHighlightSmall"), page, READY_STATUS_X, y - 1),
       dur = at(newLabel(page, "", "GameFontHighlightSmall"), page, DUR_X, y - 1),
       gear = CreateFrame("Frame", nil, page),
       why = at(newLabel(page, "", "GameFontHighlightSmall"), page, WHY_X, y - 1),
       cells = {}
     }
-    row.name:SetWidth(112)
+    row.name:SetWidth(READY_STATUS_X - 6)
     row.name:SetHeight(14)
-    row.status:SetWidth(60)
+    row.status:SetWidth(CELL_X - READY_STATUS_X - 2)
     row.dur:SetWidth(34)
     row.why:SetWidth(PAGE_WIDTH - WHY_X)
     row.why:SetHeight(14)
@@ -1280,8 +1350,9 @@ local function refreshReady()
       setCell(row.gearTex, nil)
     end
   end
-  ui.readyHint:SetText(result.inRaid and L("It checks by itself when a ready check starts: every Guilded reports what it carries. Hover a row for details; a question mark means the game hides it.")
+  ui.readyHint:SetText((result.inRaid and L("It checks by itself when a ready check starts: every Guilded reports what it carries. Hover a row for details; a question mark means the game hides it.")
     or L("Flask and food are only required in a raid group."))
+    .. "\n" .. L("? = not checked. It needs a group, and the game hides some buffs."))
   -- Keep it current while the page is open (people buff up, addons answer).
   if readyTabOpen() and not ui.readyTickPending and C_Timer then
     ui.readyTickPending = true
@@ -1304,27 +1375,62 @@ local function buildHomePage(page)
   heading(page, L("Right now"), -36)
   ui.homeNow = at(newLabel(page, "", "GameFontHighlight"), page, 0, -54)
   ui.homeNow:SetWidth(PAGE_WIDTH)
-  heading(page, L("Your gear check"), -180)
-  ui.homeGear = at(newLabel(page, "", "GameFontHighlight"), page, 0, -204)
+  -- Everything below hangs from the text above it, so short pages leave no empty gap.
+  local gearHeading = newLabel(page, L("Your gear check"), "GameFontNormal")
+  gearHeading:SetPoint("TOPLEFT", ui.homeNow, "BOTTOMLEFT", 0, -16)
+  ui.homeGear = newLabel(page, "", "GameFontHighlight")
+  ui.homeGear:SetPoint("TOPLEFT", gearHeading, "BOTTOMLEFT", 0, -6)
   ui.homeGear:SetWidth(PAGE_WIDTH)
+  local function below(widget, x, y)
+    widget:ClearAllPoints()
+    widget:SetPoint("TOPLEFT", ui.homeGear, "BOTTOMLEFT", x, y)
+    return widget
+  end
   ui.homeLinks = {}
-  local function link(name, label, x, y, width)
-    ui.homeLinks[name] = at(newButton(page, label, width, function() ui.selectTabByName(name) end, 30), page, x, y)
+  local function link(name, label, x, y, width, hint)
+    ui.homeLinks[name] = tip(below(newButton(page, label, width, function() ui.selectTabByName(name) end, 30), x, y), hint)
     return ui.homeLinks[name]
   end
-  link("Me", "My character", 0, -266, 170)
-  link("Dungeons", "Dungeons", 178, -266, 170)
-  link("Standings", "Guild tools", 356, -266, 170)
-  link("Calendar", "Calendar", 0, -308, 170)
-  officerOnly(link("Raid", "Run a raid", 178, -308, 170))
-  officerOnly(link("Loot", "Give loot", 356, -308, 170))
+  link("Me", "My character", 0, -18, 170, "Your gear check and attunements.")
+  link("Dungeons", "Dungeons", 178, -18, 170, "Opens the Guilded dungeons page in the game's group finder.")
+  link("Standings", "Guild tools", 356, -18, 170, "Opens Guilded inside the game's guild window: standings, crafting, availability.")
+  link("Calendar", "Calendar", 0, -56, 170, "Opens Guilded inside the game's calendar.")
+  officerOnly(link("Raid", "Run a raid", 178, -56, 170, "Start a raid, record bosses and attendance."))
+  officerOnly(link("Loot", "Give loot", 356, -56, 170, "Bids, council and direct loot."))
+  officerOnly(link("Local guild", "Pick a raid core", 0, -94, 170, "Choose or create the raid core (team) that loot and standings use."))
+
+  -- Linking to Discord, in the open: the Windows app does it in one step; the code is the fallback.
+  ui.linkWidgets = {}
+  local function linkWidget(widget) table.insert(ui.linkWidgets, widget) return widget end
+  linkWidget(below(newLabel(page, "Link to Discord", "GameFontNormal"), 0, -138))
+  ui.linkStatus = linkWidget(below(newLabel(page, "", "GameFontHighlightSmall"), 0, -158))
+  ui.linkStatus:SetWidth(PAGE_WIDTH)
+  local howTo = linkWidget(below(newLabel(page,
+    "Easiest: open the Guilded Windows app and press Sign in with Discord. No app? In Discord use /character pair, then paste the code below (it is the same as /guilded verify CODE).",
+    "GameFontDisableSmall"), 0, -176))
+  howTo:SetWidth(PAGE_WIDTH)
+  ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -222), "Code from /character pair"))
+  ui.linkBox:SetMaxLetters(24)
+  ui.linkBox:SetScript("OnEnterPressed", function(self)
+    self:ClearFocus()
+    if self:GetText() ~= "" then run("verify " .. self:GetText()); self:SetText("") end
+  end)
+  linkWidget(tip(below(newButton(page, "Save code", 100, function()
+    local text = ui.linkBox:GetText() or ""
+    if text == "" then ns.message(L("Paste the code from Discord (/character pair) first.")); return end
+    run("verify " .. text)
+    ui.linkBox:SetText("")
+  end), 182, -218), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))
+  linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -218), "Forgets the saved code on this WoW account."))
 end
 
 -- Sidebar order: pages are grouped under these headings.
 local GROUPS = { "Overview", "Raid night", "Fun and runs", "System" }
 local function buildRosterAdminPage(page)
-  local b = newButton(page, "Roster admin", 220, function() if ns.openRosterAdmin then ns.openRosterAdmin() end end)
-  b:SetPoint("TOPLEFT", 0, -12)
+  local info = at(newLabel(page, "Change guild ranks and notes in bulk: paste a list of actions, preview the changes, then confirm.", "GameFontHighlightSmall"), page, 0, 0)
+  info:SetWidth(PAGE_WIDTH - 8)
+  local b = newButton(page, "Open roster admin", 170, function() if ns.openRosterAdmin then ns.openRosterAdmin() end end)
+  at(b, page, 0, -36)
 end
 -- Officer tools (7.5.0): each button runs the same thing as its /guilded command.
 local OFFICER_TOOLS = {
@@ -1395,6 +1501,8 @@ end
 
 local selectTab
 local updateGuildScroll
+-- Pages that only read: the "Unsent changes / Send to Discord" block is hidden there.
+local READ_ONLY_PAGES = { ["Open raids"] = true, Calendar = true }
 
 local function clock(seconds)
   seconds = math.max(0, math.floor(seconds or 0))
@@ -1554,8 +1662,20 @@ local function refreshHome(db, officer, me)
     ui.homeGear:SetText(L("No gear check yet. Open My character."))
   end
 
+  -- Linking block: shown for guilds that use Discord, with what the addon knows of the state.
+  if ui.linkStatus then
+    local inGuild = not IsInGuild or IsInGuild()
+    local show = not localOnly and inGuild
+    for _, widget in ipairs(ui.linkWidgets or {}) do if show then widget:Show() else widget:Hide() end end
+    if show then
+      local state = ns.verifyStatus and ns.verifyStatus() or {}
+      ui.linkStatus:SetText(state.linked and ("|cff55dd55" .. L("Linked to Discord.") .. "|r")
+        or state.pending and ("|cffffcc33" .. L("Code saved. Your characters link when a guildmate's Guilded companion next syncs.") .. "|r")
+        or ("|cffff7755" .. L("Not linked to Discord yet.") .. "|r"))
+    end
+  end
+
   ui.syncStatus = ns.syncNow and ns.syncNow.statusLine and ns.syncNow.statusLine() or ""
-  if ui.sidebarSave then tip(ui.sidebarSave, ui.syncStatus) end
   if ui.sidebarSync then
     ui.sidebarSync:SetText(ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty() and L(not localOnly and ns.isOfficer() and "Unsent changes" or "Local changes") or L("All saved"))
   end
@@ -1598,6 +1718,9 @@ refresh = function()
 
   if officer then
     local raid = ns.getActiveRaid and ns.getActiveRaid()
+    for _, b in ipairs(ui.attendButtons or {}) do
+      if raid then b:Enable() else b:Disable() end
+    end
     ui.raidInfo:SetText(raid and string.format("Active raid: |cffffffff%s|r (started %s, %d seen in group)", raid.title,
       raid.startedAt, ns.getPresenceCount and ns.getPresenceCount() or 0) or "No active raid.")
 
@@ -1679,7 +1802,7 @@ refresh = function()
     for _, finding in ipairs(snapshot.findings or {}) do
       if finding.code == "EMPTY_SLOTS_LOW_LEVEL" then table.insert(notes, "|cff999999" .. finding.message .. "|r") end
     end
-    ui.gearInfo:SetText(string.format(L("Last check: %s%s\n%s"), snapshot.status or "?",
+    ui.gearInfo:SetText(string.format(L("Last check: %s%s\n%s"), statusWord(snapshot.status),
       snapshot.itemLevel and string.format(L("   Item level %s"), snapshot.itemLevel) or "",
       (#problems > 0 and table.concat(problems, "\n") or L("Nothing missing."))
         .. (#notes > 0 and ("\n" .. table.concat(notes, "\n")) or "")))
@@ -1704,7 +1827,8 @@ refresh = function()
     local lines = ns.recipes.cooldownLines and ns.recipes.cooldownLines(false) or {}
     local shown = {}
     for i = 1, math.min(8, #lines) do shown[i] = lines[i] end
-    ui.craftCooldowns:SetText(#shown > 0 and table.concat(shown, "\n") or L("No profession cooldowns are known. They are read when you open a profession window."))
+    ui.craftCooldowns:SetText(#shown > 0 and table.concat(shown, "\n")
+      or ("|cff999999" .. L("No profession cooldowns are known. They are read when you open a profession window.") .. "|r"))
   end
 
   local updatedAt = ns.getStandingsUpdatedAt and ns.getStandingsUpdatedAt()
@@ -1760,13 +1884,15 @@ updateGuildScroll = function()
   local height = 220
   if tab.name == "Standings" then height = 80 + textHeight(ui.standingsList) + 52
   elseif tab.name == "Local guild" then height = (ui.localGuildInfoTop or 220) + textHeight(ui.localGuildInfo) + 12
-  elseif tab.name == "Crafting" then height = 250 + textHeight(ui.craftCooldowns) + 12
+  elseif tab.name == "Crafting" then
+    height = 46 + textHeight(ui.craftResult) + 16 + 20 + textHeight(ui.craftMine) + 16 + 24 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
   elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
   local scroll = ui.guildScroll
   local viewport = math.max(1, scroll:GetHeight())
-  tab.page:SetHeight(math.max(viewport, height))
+  local range = scrollRange(height, viewport)
+  tab.page:SetHeight(math.max(viewport, height + SCROLL_PADDING))
   -- A narrower host (the game's calendar) shows less than PAGE_WIDTH: size the page to what
   -- is visible so text anchored to its right edge wraps instead of being cut off.
   local visible = scroll:GetWidth()
@@ -1775,7 +1901,6 @@ updateGuildScroll = function()
     tab.page:SetWidth(width)
     for _, label in ipairs({ ui.calendarIntro, ui.calendarStatus }) do label:SetWidth(width - 8) end
   end
-  local range = math.max(0, height - viewport)
   ui.guildScrollRange = range
   scroll:SetVerticalScroll(math.min(scroll:GetVerticalScroll() or 0, range))
   if scroll.ScrollBar then
@@ -1798,6 +1923,14 @@ selectTab = function(index)
   -- The status line answers what was just done on a page; another page starts without it.
   if ui.currentTab ~= index and ui.status then ui.status:SetText("") end
   ui.currentTab = index
+  -- The unsent-changes block means nothing on pages that only read (the secure button is left
+  -- alone in combat: hiding it then is blocked).
+  if not (InCombatLockdown and InCombatLockdown()) then
+    local readOnly = READ_ONLY_PAGES[ui.tabs[index].name]
+    for _, widget in ipairs({ ui.sidebarSync, ui.sidebarSave }) do
+      if widget then if readOnly then widget:Hide() else widget:Show() end end
+    end
+  end
   for i, tab in ipairs(ui.tabs) do
     if i == index then tab.page:Show(); tab.button:LockHighlight() else tab.page:Hide(); tab.button:UnlockHighlight() end
   end
@@ -1818,6 +1951,7 @@ end
 -- Window
 -- ---------------------------------------------------------------------
 
+local hideHostPortrait, restoreHostPortrait
 local function buildPanel()
   panel = CreateFrame("Frame", "GuildedPanel", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
   panel:SetWidth(PANEL_WIDTH)
@@ -1876,6 +2010,11 @@ local function buildPanel()
   local close = CreateFrame("Button", nil, panel, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", panel, "TOPRIGHT", -4, -4)
   ui.closeButton = close
+  -- Window size where it can be found (it also lives in Settings): not shown in a game window.
+  ui.sizeButtons = {
+    tip(at(newButton(panel, "-", 24, function() run("menu scale smaller") end, 20), panel, PANEL_WIDTH - 88, -8), "Smaller window"),
+    tip(at(newButton(panel, "+", 24, function() run("menu scale bigger") end, 20), panel, PANEL_WIDTH - 62, -8), "Bigger window"),
+  }
 
   -- Sidebar footer: one button that gets your data to Discord, and whether anything is waiting.
   ui.sidebarSync = newLabel(panel, "", "GameFontHighlightSmall")
@@ -1885,6 +2024,7 @@ local function buildPanel()
   sendButton:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 22, 40)
   ui.sidebarSave = sendButton
   ui.homeSave = sendButton -- one shared save action; retained internal alias
+  tip(sendButton, function() return ui.syncStatus end)
 
   -- Shared player field (shown only on pages that act on a player).
   ui.playerRow = {}
@@ -1906,8 +2046,9 @@ local function buildPanel()
     ui.tabs[i] = { name = def.name, label = def.label, scope = def.scope, hint = def.hint, group = def.group, officer = def.officer, leader = def.leader, module = def.module, lootModes = def.lootModes, usesPlayer = def.usesPlayer, page = page, button = tabButton }
     tabButton:SetScript("OnEnter", function(self)
       if not GameTooltip then return end
-      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-      GameTooltip:AddLine(L(def.name))
+      -- To the left of the sidebar, so the tooltip never covers the page being read.
+      GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+      GameTooltip:AddLine(L(def.label or def.name))
       if def.hint then GameTooltip:AddLine(L(def.hint), 1, 1, 1) end
       GameTooltip:Show()
     end)
@@ -1954,6 +2095,8 @@ local function buildPanel()
   end)
   panel:HookScript("OnHide", function()
     if ui.scope == "main" then return end
+    restoreHostPortrait()
+    for _, b in ipairs(ui.sizeButtons or {}) do b:Show() end
     ui.scope = "main"
     ui.guildHost = nil
     if ui.closeButton then ui.closeButton:Show() end
@@ -2059,6 +2202,26 @@ function ns.openToolsPage(name)
   ui.selectTabByName(name)
 end
 
+-- The game's guild window draws its emblem ring half over the corner where the Guilded page
+-- starts. While the Guilded page is shown the ring is hidden, and put back when it closes.
+local PORTRAIT_KEYS = { "PortraitContainer", "portrait", "Portrait", "PortraitFrame", "PortraitButton" }
+hideHostPortrait = function(host)
+  ui.hiddenPortraits = ui.hiddenPortraits or {}
+  if not host then return end
+  for _, key in ipairs(PORTRAIT_KEYS) do
+    local part = host[key]
+    if type(part) == "table" and part.Hide and part.IsShown and part:IsShown() then
+      table.insert(ui.hiddenPortraits, part)
+      part:Hide()
+    end
+  end
+end
+restoreHostPortrait = function()
+  for _, part in ipairs(ui.hiddenPortraits or {}) do part:Show() end
+  ui.hiddenPortraits = {}
+end
+ns.layoutMath.hideHostPortrait, ns.layoutMath.restoreHostPortrait = hideHostPortrait, restoreHostPortrait
+
 function ns.openGuildPanel(host, scope, initialName)
   if InCombatLockdown and InCombatLockdown() then return end
   if scope == "calendar" and (not ns.isOfficer() or not moduleOn("calendar")) then return end
@@ -2071,23 +2234,33 @@ function ns.openGuildPanel(host, scope, initialName)
     panel:SetParent(host)
     panel:ClearAllPoints()
     panel:SetScale(1)
-    panel:SetPoint("TOPLEFT", host, "TOPLEFT", 8, -30)
-    panel:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -8, 8)
+    -- The calendar's month arrows and Filter button sit in its header; start the Guilded page
+    -- at the very top there so none of that peeks out above it.
+    local top = scope == "calendar" and -4 or -30
+    panel:SetPoint("TOPLEFT", host, "TOPLEFT", scope == "calendar" and 4 or 8, top)
+    panel:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", scope == "calendar" and -4 or -8, scope == "calendar" and 4 or 8)
+    restoreHostPortrait()
+    if scope ~= "calendar" then hideHostPortrait(host) end
   end
+  if ui.status then ui.status:SetText("") end
+  for _, b in ipairs(ui.sizeButtons or {}) do b:Hide() end
   if host and not ui.guildScroll then
     ui.guildScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
     ui.guildScroll:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -66)
     ui.guildScroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 44)
-    ui.guildScroll:EnableMouseWheel(true)
-    ui.guildScroll:SetScript("OnMouseWheel", function(self, delta)
-      local range = ui.guildScrollRange or 0
-      self:SetVerticalScroll(math.max(0, math.min(range, (self:GetVerticalScroll() or 0) - delta * 24)))
-    end)
+    enableWheel(ui.guildScroll, function() return ui.guildScrollRange or 0 end)
     ui.guildScroll:SetScript("OnSizeChanged", function() if updateGuildScroll then updateGuildScroll() end end)
   end
   if host then ui.guildScroll:Show() end
   -- Inside a game window, that window's own X closes it; a second X just below looked broken.
-  if ui.closeButton then if host then ui.closeButton:Hide() else ui.closeButton:Show() end end
+  if ui.closeButton then
+    if host and scope ~= "calendar" then ui.closeButton:Hide() else ui.closeButton:Show() end
+    if host and scope == "calendar" then
+      ui.closeButton:SetScript("OnClick", function() panel:Hide(); ns.util.hideWindow(host) end)
+    else
+      ui.closeButton:SetScript("OnClick", function() panel:Hide() end)
+    end
+  end
   -- Raise the whole Guilded subtree, including previously built pages and
   -- controls. Reparenting the outer frame alone leaves native children above it.
   raiseWindow(panel, host and host:GetFrameLevel() + 1000 or ui.undockedLevel)
@@ -2116,7 +2289,9 @@ local function togglePanel()
   local ok, err = pcall(function()
     if not panel then buildPanel() end
     if panel:IsShown() and ui.scope ~= "main" then
-      panel:Hide(); panel:Show(); ui.lastOfficer = nil; refresh()
+      -- Already open inside a game window: toggle that page off instead of opening a second,
+      -- overlapping window on top of it.
+      ns.closeGuildPanel()
     elseif panel:IsShown() then
       panel:Hide()
     else

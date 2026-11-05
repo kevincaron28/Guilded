@@ -128,7 +128,7 @@ describe("the tools window (sidebar and Home page)", () => {
     s.run(`NS.openGuildPanel(HOST,"calendar","Calendar"); UI.selectTabByName("Calendar"); UI.selectTabByName("Calendar")`);
     expect(s.run(`local p=UI.tabs[UI.currentTab].page; return tostring(#p.points==1 and p.points[1][1]=="TOPLEFT" and p.points[1][2]==UI.guildScroll)`)).toBe("true");
     s.run(`UI.guildScroll.GetHeight=function() return 100 end; NS.openGuildPanel(HOST,"guild","EPGP"); UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll,-1)`);
-    expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("24");
+    expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("44");
   });
 
   it("docks guild pages with the same permissions and restores the full menu", () => {
@@ -293,6 +293,7 @@ describe("the tools window (sidebar and Home page)", () => {
       } end
       NS.showCopyText = function(t) COPIED = t end
       NS.commandHandlers.pug({})
+      NS.windowState().pugRealm:SetText("")
       NS.windowState().refreshPugs()
     `);
     expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Open raids");
@@ -470,5 +471,82 @@ describe("Home shows how fresh the shared data is (6.3)", () => {
     expect(s.run("return tostring(NS.windowState().solidBack.shown)")).toBe("true");
     s.run(`HOST = CreateFrame(); HOST.GetWidth = function() return 800 end; HOST.GetHeight = function() return 600 end; NS.openGuildPanel(HOST)`);
     expect(s.run("return tostring(NS.windowState().solidBack.shown)")).toBe("false");
+  });
+});
+
+describe("in-game UI fixes from the 5 November pass", () => {
+  it("scrolls with a useful step and keeps padding under the last row", () => {
+    const s = openWindow(1);
+    // 24 modules x 22 px + 16 px padding, in a 100 px viewport.
+    expect(s.run("local m = NS.layoutMath; return m.scrollRange(500, 300) .. ':' .. m.SCROLL_STEP .. ':' .. m.SCROLL_PADDING")).toBe("216:44:16");
+    s.run(`UI = NS.windowState(); UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1)`);
+    expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("44");
+    s.run(`for _ = 1, 100 do UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1) end`);
+    expect(s.run("return tostring(UI.moduleScroll:GetVerticalScroll() == NS.layoutMath.scrollRange(#NS.MODULES * 22, 100))")).toBe("true");
+    s.run(`UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, 1000)`);
+    expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("0");
+  });
+
+  it("hangs the Modules heading below the help text instead of at a fixed offset", () => {
+    const s = openWindow(5);
+    expect(s.run(`local top; for _, p in ipairs(NS.windowState().moduleScroll.points) do if p[1] == "TOPLEFT" then top = p end end
+      return tostring(top[2] ~= nil and top[3] == "BOTTOMLEFT" and top[5] == -6)`)).toBe("true");
+  });
+
+  it("offers linking on Home, saves a pasted code through the same command, and shows the state", () => {
+    const s = openWindow(5, `function IsInGuild() return true end; GetInventoryItemLink = function() return nil end`);
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    expect(homeText(s, "linkStatus")).toContain("Not linked to Discord yet.");
+    s.run(`UI = NS.windowState(); UI.linkBox:SetText("abcd-efgh"); UI.linkBox:GetScript("OnEnterPressed")(UI.linkBox)`);
+    expect(s.run("return GuildedDB.verifyCode")).toBe("ABCDEFGH");
+    expect(homeText(s, "linkStatus")).toContain("Code saved");
+    // Once the member shows up in the shared standings, the addon knows they are linked.
+    s.run(`NS.getStanding = function() return { ep = 1, gp = 1, pr = 1 } end; NS.windowState().selectTabByName("Home")`);
+    expect(homeText(s, "linkStatus")).toContain("Linked to Discord.");
+  });
+
+  it("hides the link block for guilds without Discord and for players outside a guild", () => {
+    const s = openWindow(5, `function IsInGuild() return false end`);
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    expect(s.run("return tostring(NS.windowState().linkStatus.shown)")).toBe("false");
+  });
+
+  it("no longer sends officers to a Loot tab the guild window does not have", () => {
+    const s = openWindow(1);
+    const labels = s.run(`local out = {}; for _, f in ipairs(FRAMES) do if f.text and f.text ~= "" then out[#out + 1] = f.text end end; return table.concat(out, " ")`);
+    expect(labels).not.toContain("are on the Loot tab");
+    expect(labels).toContain("Loot page of the /guilded window");
+  });
+
+  it("hides the emblem ring while Guilded is shown in the guild window and puts it back after", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); HOST.PortraitContainer = CreateFrame(); HOST.PortraitContainer.shown = true
+      NS.openGuildPanel(HOST, "guild", "EPGP")`);
+    expect(s.run("return tostring(HOST.PortraitContainer.shown)")).toBe("false");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then f.scripts.OnHide() end end`);
+    expect(s.run("return tostring(HOST.PortraitContainer.shown)")).toBe("true");
+  });
+
+  it("hides the Unsent changes block on pages that only read", () => {
+    const s = openWindow(5);
+    s.run(`UI = NS.windowState(); UI.selectTabByName("Open raids")`);
+    expect(s.run("return tostring(UI.sidebarSync.shown)")).toBe("false");
+    s.run(`UI.selectTabByName("Home")`);
+    expect(s.run("return tostring(UI.sidebarSync.shown)")).toBe("true");
+  });
+
+  it("starts Open raids on the player's own realm and hides paging for a single page", () => {
+    const s = openWindow(5, `function GetRealmName() return "Forever" end`);
+    expect(s.run("return NS.windowState().pugRealm:GetText()")).toBe("Forever");
+    s.load("Modules/PublicRaids.lua");
+    s.run(`NS.windowState().refreshPugs()`);
+    expect(s.run("return tostring(NS.windowState().pugPaging[1].shown)")).toBe("false");
+  });
+
+  it("opens the calendar page from its top edge and keeps a Close button that closes both", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "calendar", "Calendar")`);
+    expect(s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then return f.points[1][4] .. "," .. f.points[1][5] end end`)).toBe("4,-4");
+    expect(s.run("return tostring(NS.windowState().closeButton.shown)")).toBe("true");
   });
 });

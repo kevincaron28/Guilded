@@ -240,7 +240,9 @@ function view.build(parent, compact)
   local background = pane:CreateTexture(nil, "BACKGROUND")
   background:SetAllPoints(); background:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", "REPEAT", "REPEAT")
   background:SetHorizTile(true); background:SetVertTile(true)
-  pane.title = label(pane, 16, -12, 112, "GameFontNormalLarge")
+  -- Inside the game's finder the emblem ring covers the pane's top-left corner: the heading
+  -- starts to the right of it.
+  pane.title = label(pane, compact and 64 or 16, -12, 112, "GameFontNormalLarge")
   pane.title:SetText(L("Dungeons"))
   pane.summary = label(pane, 16, -42, width - 32)
   pane.note = label(pane, 16, -64, width - 32)

@@ -1168,6 +1168,40 @@ local GEAR_WAIT_SECONDS, GEAR_WAIT_TRIES = 5, 4
 local AUTO_DIGEST_HEARTBEAT = 600
 local lastAutoDigest, lastAutoDigestAt = nil, 0
 local inspectReadiness
+
+-- /guilded verify, kept audible. The code rides in the guild digest, but the digest only goes out
+-- when something changes (and a 10-minute heartbeat while events fire): if no guildmate's
+-- companion is online at that moment, nobody hears it. While a code is saved and the member is
+-- not yet confirmed, the digest is sent again every VERIFY_RESEND_SECONDS. It goes through
+-- ns.comm.send like every digest, so the queue and the per-prefix throttle still apply, and it
+-- stops by itself once the code is removed or the member shows up in the shared standings.
+local VERIFY_RESEND_SECONDS = 300
+local verifyLoopOn = false
+local function verifyLinked()
+  if ns.isInGameOnly and ns.isInGameOnly() then return false end
+  if not ns.getStanding then return false end
+  local ok, row = pcall(ns.getStanding, playerName())
+  return ok and row ~= nil and row ~= false
+end
+-- What the window shows: { hasCode, pending (code saved, not confirmed yet), linked }.
+ns.verifyStatus = function()
+  local hasCode = db ~= nil and validVerifyCode(db.verifyCode) ~= nil
+  local linked = verifyLinked()
+  return { hasCode = hasCode, linked = linked, pending = hasCode and not linked }
+end
+local function scheduleVerifyResend()
+  if verifyLoopOn or not (C_Timer and C_Timer.After) then return end
+  verifyLoopOn = true
+  C_Timer.After(VERIFY_RESEND_SECONDS, function()
+    verifyLoopOn = false
+    if not db or not validVerifyCode(db.verifyCode) or verifyLinked() then return end
+    if IsInGuild and IsInGuild() and not (InCombatLockdown and InCombatLockdown()) then
+      inspectReadiness(true, "GUILD")
+    end
+    scheduleVerifyResend()
+  end)
+end
+ns.scheduleVerifyResend = scheduleVerifyResend
 local function noGearVisible()
   for _, slot in ipairs(READINESS_SLOTS) do
     if GetInventoryItemLink("player", slot[1]) or (GetInventoryItemID and GetInventoryItemID("player", slot[1])) then return false end
@@ -1505,6 +1539,7 @@ end
 -- plain strings (everyone) or { officer = true, text = "..." }.
 local function showHelp()
   local officer = isOfficer()
+  message("|cffffd100Everyday|r")
   message("/guilded menu (or click the minimap coin) | inspect | status | roster | standings [player] | diag | version")
   message("/guilded attune <key> [clear] - mark your own attunement")
   message("/guilded snapshot [label] | list - record who is in the group right now (officers)")
@@ -1515,6 +1550,7 @@ local function showHelp()
   message("/guilded character - copy a line to link this character in Discord (/character import)")
   message("/guilded sheet standings|loot|attendance|raids|dungeons - copy a table to paste into Excel or Google Sheets")
   if officer then
+    message("|cffffd100Officer|r")
     message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name> | summary (what the raid recorded, to copy)")
     message("Officer: /guilded note <text> | template save <name> [title] | template list | attendance roster | raid discard | undo (takes back your last award)")
     message("/guilded raids [n] - recent raids, one line each, to copy | raids report [n] - each player's attendance, loot and EP")
@@ -1522,6 +1558,7 @@ local function showHelp()
     message("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank")
     message("Officer: /guilded void [player] - take back the newest EP/GP entry you made (for that player); Discord reverses it")
   end
+  message("|cffffd100More|r")
   for _, line in pairs(ns.commandHelp or {}) do
     local text = type(line) == "table" and line.text or line
     -- Lines for a module that is off are left out ("/guilded casino ..." -> casino).
@@ -1758,6 +1795,7 @@ local function command(text)
       local code = verifyCodeFrom(table.concat(args, "", 2))
       if code then
         db.verifyCode = code
+        scheduleVerifyResend()
         message(L("Saved. All your characters on this WoW account will link to your Discord by themselves the next time a guildmate's Guilded companion syncs, and Discord will message you. Nothing else to do, also for your alts."))
         inspectReadiness(true, "GUILD")
       else
@@ -2069,6 +2107,7 @@ local function onEvent(_, event, ...)
       logDiagnostic(pending.kind, pending.detail, pending.foreign)
     end
     pendingDiagnostics = {}
+    if validVerifyCode(db.verifyCode) then scheduleVerifyResend() end
     return
   end
   if not db then return end

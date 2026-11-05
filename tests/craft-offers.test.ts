@@ -33,10 +33,10 @@ describe("crafter offers", () => {
   it("builds a verified offer from the crafter's own recorded recipe, using the recorded item name", async () => {
     const db = makeDb();
     const offer = await createCraftOfferService(db as never).create({ ...base, price: " 50g or tips ", days: 3 });
-    const data = db.craftOffer.create.mock.calls[0]?.[0].data;
+    const data = db.craftOffer.create.mock.calls[0]![0].data;
     expect(offer.verified).toBe(true);
     expect(data).toMatchObject({ guildId: "g1", item: "Flask of the Titans", itemKey: 11, profession: "Alchemy", verified: true, price: "50g or tips", character: "Aria Stone" });
-    expect(data.expiresAt).toEqual(new Date(NOW.getTime() + 3 * 86_400_000));
+    expect(data["expiresAt"]).toEqual(new Date(NOW.getTime() + 3 * 86_400_000));
   });
 
   it("refuses a recipe no character of theirs was seen with, unless posted unverified (and labels it)", async () => {
@@ -62,7 +62,7 @@ describe("crafter offers", () => {
   it("caps the lifetime to 30 days", async () => {
     const db = makeDb();
     await createCraftOfferService(db as never).create({ ...base, days: 500 });
-    expect(db.craftOffer.create.mock.calls[0]?.[0].data.expiresAt).toEqual(new Date(NOW.getTime() + 30 * 86_400_000));
+    expect(db.craftOffer.create.mock.calls[0]![0].data["expiresAt"]).toEqual(new Date(NOW.getTime() + 30 * 86_400_000));
   });
 
   it("only the crafter or an officer can withdraw, and a closed offer stays closed", async () => {

@@ -126,7 +126,7 @@ describe("the tools window (sidebar and Home page)", () => {
   it("gives each officer feature a single menu scope", () => {
     const s = openWindow(1);
     s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
-    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Roster admin,Officer tools");
+    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Guild message,Roster admin,Officer tools");
     s.run(`NS.openGuildPanel(nil, "calendar", "Calendar")`);
     expect(visibleTabs(s)).toBe("Calendar");
   });
@@ -290,9 +290,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Open raids,Ready,Reserves,Raid,Loot,Council,Duels,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Open raids,Ready,Reserves,Raid,Loot,Council,Duels,Announcements,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Open raids,Reserves,Duels,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Open raids,Reserves,Duels,Announcements,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {
@@ -496,7 +496,7 @@ describe("in-game UI fixes from the 5 November pass", () => {
     s.run(`UI = NS.windowState(); UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1)`);
     expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("48");
     s.run(`for _ = 1, 100 do UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1) end`);
-    expect(s.run("return tostring(UI.moduleScroll:GetVerticalScroll() == NS.layoutMath.scrollRange(#NS.MODULES * 22, 100))")).toBe("true");
+    expect(s.run("return tostring(UI.moduleScroll:GetVerticalScroll() == NS.layoutMath.scrollRange(#NS.MODULES * 22 + NS.layoutMath.SCROLL_PADDING, 100))")).toBe("true");
     s.run(`UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, 1000)`);
     expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("0");
   });
@@ -505,13 +505,29 @@ describe("in-game UI fixes from the 5 November pass", () => {
     const s = openWindow(1);
     s.run(`UI = NS.windowState(); BAR = UI.moduleScroll.ScrollBar`);
     expect(s.run("return BAR.max")).toBe("0"); // stale: the game has not re-measured yet
-    const end = "NS.layoutMath.scrollRange(#NS.MODULES * 22, 100)";
+    const end = "NS.layoutMath.scrollRange(#NS.MODULES * 22 + NS.layoutMath.SCROLL_PADDING, 100)";
     s.run(`for _ = 1, 100 do UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1) end`);
     expect(s.run(`return tostring(UI.moduleScroll:GetVerticalScroll() == ${end})`)).toBe("true");
     // One tick moves a useful distance and the bar keeps its step at 1 (no 48 px snapping).
     expect(s.run("return BAR.step")).toBe("1");
     s.run(`UI.moduleScroll:SetVerticalScroll(0); BAR:SetValue(0); UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1)`);
     expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("48");
+  });
+
+  it("prints scroll numbers for /guilded debug scroll without needing /script", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "Availability"); UI = NS.windowState()
+      UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll, -1); NS.commandHandlers.debug({ "scroll" })`);
+    const out = s.chat().join(" | ");
+    expect(out).toContain("scroll debug, page Availability");
+    expect(out).toContain("estimated range=");
+    expect(out).toContain("wheel ticks=1");
+  });
+
+  it("offers the guild message and announcement pages as tabs", () => {
+    const s = openWindow(1);
+    expect(s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`)).toContain("Guild message");
+    expect(s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`)).toContain("Announcements");
   });
 
   it("hangs the Modules heading below the help text instead of at a fixed offset", () => {

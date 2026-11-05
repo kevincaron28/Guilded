@@ -355,109 +355,75 @@ ns.commandHandlers.motd = function(args)
 end
 
 -- ---------------------------------------------------------------------
--- Settings window (opened from Settings > Officer, or /guilded motd config)
+-- Settings page: a tab of the Guilded window ("Guild message", officers), built by Minimap.lua
+-- with its widget helpers. /guilded motd config and Settings > Guild message open that tab.
 -- ---------------------------------------------------------------------
 
-local panel
-local function buildPanel()
-  panel = CreateFrame("Frame", "GuildedMotdPanel", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  panel:SetSize(440, 392)
-  panel:SetPoint("CENTER")
-  panel:SetFrameStrata("DIALOG")
-  panel:EnableMouse(true)
-  panel:SetMovable(true)
-  panel:RegisterForDrag("LeftButton")
-  panel:SetScript("OnDragStart", panel.StartMoving)
-  panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
-  if panel.SetBackdrop then
-    panel:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-      tile = true, tileSize = 32, edgeSize = 32, insets = { left = 8, right = 8, top = 8, bottom = 8 } })
+local page
+function motd.buildPage(parent, ui)
+  page = parent
+  local at, newLabel, newButton, newEdit = ui.at, ui.newLabel, ui.newButton, ui.newEdit
+  local width = ui.width or 520
+  local intro = at(newLabel(parent, "Keeps the in-game guild message of the day current from an officer's game. Off by default; a manual edit pauses it.", "GameFontHighlightSmall"), parent, 0, 0)
+  intro:SetWidth(width)
+  parent.toggle = at(newButton(parent, "Turn on", 150, function()
+    local cfg = config(); if cfg then motd.set("enabled", not cfg.enabled); motd.tick(); parent.refresh() end
+  end), parent, 0, -44)
+  parent.mode = at(newButton(parent, "Mode: rotation", 200, function()
+    local cfg = config(); if cfg then motd.set("mode", cfg.mode == "event" and "rotate" or "event"); motd.tick(); parent.refresh() end
+  end), parent, 160, -44)
+  at(newLabel(parent, "Change every (hours)", "GameFontNormalSmall"), parent, 0, -84)
+  parent.hours = at(newEdit(parent, 50, true), parent, 150, -80)
+  parent.hours:SetMaxLetters(3)
+  at(newLabel(parent, "One line per message (rotation, 128 characters each, up to 12):", "GameFontNormalSmall"), parent, 0, -112)
+  local lines = CreateFrame("EditBox", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  lines:SetSize(width - 10, 110)
+  lines:SetMultiLine(true)
+  lines:SetAutoFocus(false)
+  lines:SetFontObject(ChatFontNormal or GameFontHighlight)
+  lines:SetTextInsets(6, 6, 4, 4)
+  if lines.SetBackdrop then
+    lines:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+    lines:SetBackdropColor(0, 0, 0, 0.6)
   end
-  local function label(text, x, y, font)
-    local f = panel:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
-    f:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
-    f:SetJustifyH("LEFT")
-    f:SetText(L(text))
-    return f
-  end
-  local function button(text, width, x, y, onClick)
-    local b = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    b:SetSize(width, 22)
-    b:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
-    b:SetText(L(text))
-    b:SetScript("OnClick", onClick)
-    return b
-  end
-  local function edit(width, height, x, y, multi)
-    local e = CreateFrame("EditBox", nil, panel, multi and "BackdropTemplate" or "InputBoxTemplate")
-    e:SetSize(width, height)
-    e:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
-    e:SetAutoFocus(false)
-    if multi then
-      e:SetMultiLine(true)
-      e:SetFontObject(ChatFontNormal or GameFontHighlight)
-      e:SetTextInsets(6, 6, 4, 4)
-      if e.SetBackdrop then
-        e:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-          tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-        e:SetBackdropColor(0, 0, 0, 0.6)
-      end
-    end
-    e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    return e
-  end
-  label("Automatic guild message", 20, -18, "GameFontNormalLarge")
-  panel.intro = label("Keeps the in-game guild message of the day current from an officer's game. Off by default; a manual edit pauses it.", 20, -44, "GameFontHighlightSmall")
-  panel.intro:SetWidth(400)
-  panel.toggle = button("", 150, 20, -80, function()
-    local cfg = config(); if cfg then motd.set("enabled", not cfg.enabled); motd.tick(); panel.refresh() end
-  end)
-  panel.mode = button("", 200, 180, -80, function()
-    local cfg = config(); if cfg then motd.set("mode", cfg.mode == "event" and "rotate" or "event"); motd.tick(); panel.refresh() end
-  end)
-  label("Change every (hours)", 20, -118, "GameFontNormalSmall")
-  panel.hours = edit(50, 20, 160, -114)
-  panel.hours:SetNumeric(true); panel.hours:SetMaxLetters(3)
-  label("One line per message (rotation, 128 characters each, up to 12):", 20, -146, "GameFontNormalSmall")
-  panel.lines = edit(400, 110, 20, -164, true)
-  label("Added at the end of every message (optional, e.g. Link your character: Guilded Companion)", 20, -284, "GameFontNormalSmall")
-  panel.suffix = edit(400, 20, 26, -302)
-  panel.suffix:SetMaxLetters(60)
-  panel.status = label("", 20, -330, "GameFontHighlightSmall")
-  panel.status:SetWidth(400)
-  button("Save", 90, 20, -358, function()
+  lines:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+  at(lines, parent, 0, -132)
+  parent.lines = lines
+  local suffixLabel = at(newLabel(parent, "Added at the end of every message (optional, e.g. Link your character: Guilded Companion)", "GameFontNormalSmall"), parent, 0, -254)
+  suffixLabel:SetWidth(width)
+  parent.suffix = at(newEdit(parent, width - 20), parent, 6, -286)
+  parent.suffix:SetMaxLetters(60)
+  parent.status = at(newLabel(parent, "", "GameFontHighlightSmall"), parent, 0, -318)
+  parent.status:SetWidth(width)
+  at(newButton(parent, "Save", 90, function()
     local cfg = config(); if not cfg then return end
-    motd.set("hours", panel.hours:GetText())
-    motd.setLines(panel.lines:GetText())
-    motd.set("suffix", panel.suffix:GetText())
-    panel.lines:ClearFocus()
-    motd.tick(); panel.refresh()
-  end)
-  button("Update now", 110, 120, -358, function() motd.tick(true); panel.refresh() end)
-  button("Resume", 90, 240, -358, function() motd.resume(); motd.tick(); panel.refresh() end)
-  button("Close", 80, 340, -358, function() panel:Hide() end)
-  panel.refresh = function()
+    motd.set("hours", parent.hours:GetText())
+    motd.setLines(parent.lines:GetText())
+    motd.set("suffix", parent.suffix:GetText())
+    parent.lines:ClearFocus()
+    motd.tick(); parent.refresh()
+  end), parent, 0, -362)
+  at(newButton(parent, "Update now", 110, function() motd.tick(true); parent.refresh() end), parent, 100, -362)
+  at(newButton(parent, "Resume", 90, function() motd.resume(); motd.tick(); parent.refresh() end), parent, 220, -362)
+  parent.refresh = function()
     local cfg = config(); if not cfg then return end
-    panel.toggle:SetText(L(cfg.enabled and "Turn off" or "Turn on"))
-    panel.mode:SetText(L(cfg.mode == "event" and "Mode: next raid" or "Mode: rotation"))
-    panel.status:SetText(motd.statusText())
+    parent.toggle:SetText(L(cfg.enabled and "Turn off" or "Turn on"))
+    parent.mode:SetText(L(cfg.mode == "event" and "Mode: next raid" or "Mode: rotation"))
+    parent.status:SetText(motd.statusText())
   end
-  panel:SetScript("OnShow", function()
+  parent:HookScript("OnShow", function()
     local cfg = config(); if not cfg then return end
-    panel.hours:SetText(tostring(cfg.hours))
-    panel.lines:SetText(motd.linesText())
-    panel.suffix:SetText(cfg.suffix)
-    panel.refresh()
+    parent.hours:SetText(tostring(cfg.hours))
+    parent.lines:SetText(motd.linesText())
+    parent.suffix:SetText(cfg.suffix)
+    parent.refresh()
   end)
-  if UISpecialFrames then table.insert(UISpecialFrames, "GuildedMotdPanel") end
-  panel:Hide()
 end
 
 function motd.openSettings()
   if not (ns.isOfficer and ns.isOfficer()) then ns.message(L(STATUS_TEXT.notofficer)); return end
-  if inCombat() then return end
-  if not panel then buildPanel() end
-  if panel:IsShown() then panel:Hide() else panel:Show() end
+  if ns.openToolsPage then ns.openToolsPage("Guild message") end
 end
 
 -- ---------------------------------------------------------------------

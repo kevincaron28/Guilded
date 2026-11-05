@@ -19,47 +19,67 @@ addon UI fixes are on main.
 
 ## Publish runbook (Claude, in order)
 
-Prerequisites: C: has more than 5.4 GB free (the MSIX build needs room); the bump PR and the
-UI fix PR are merged; the control session has deployed the bot and said "go".
+Prerequisites: C: has more than 5.4 GB free; the bump PR and the UI fix PR are merged; the
+control session has deployed the bot and said "go".
 
-1. **Clean source.** In a worktree on the exact `origin/main` commit:
-   `git checkout --detach origin/main`, then `git rm --cached -r -q . && git reset --hard`
-   if line endings are dirty, and set
-   `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.autocrlf GIT_CONFIG_VALUE_0=false` for every
-   build command so `git status` stays clean (otherwise the artifact manifest records
-   `sourceDirty`). `npm ci` at the root and in `companion-app`.
-2. **Addon editions.** `npm run addon:editions`, then `npm run addon:verify-editions`. Expect
-   ten edition zips under `dist/editions/` and `dist/edition-rules/`.
-3. **Release artifacts.** `npm run release:prepare` builds the combined addon zips, the
-   Dungeons zip, the NSIS installer (`dist/companion/Guilded Companion Setup 8.4.4.exe`) and
-   runs `scripts/verify-release-artifacts.mjs`, which writes
-   `dist/Guilded-v8.4.4-Artifact-Verification.json` and the release notes copy.
+1. **Clean source.** Worktree on the exact `origin/main` commit. For every build command set
+   `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.autocrlf GIT_CONFIG_VALUE_0=false`, after an LF
+   re-checkout (`git rm --cached -r -q . && git reset -q --hard`), so `git status` is empty
+   (otherwise the manifest records `sourceDirty`). `npm ci` at the root and in `companion-app`,
+   then `npx prisma generate`.
+2. **Addon editions.** `npm run addon:editions`, then `npm run addon:verify-editions`
+   (ten zips plus `dist/editions/manifest.json`).
+3. **Other artifacts.** `npm run addon:zip`, `npm run dungeons:zip`,
+   `npm run dist --prefix companion-app` (NSIS `dist/companion/Guilded Companion Setup 8.4.4.exe`),
+   `node scripts/verify-release-artifacts.mjs` (writes the Artifact-Verification json, notes and
+   SHA-256 sums) and `npx tsx scripts/export-edition-rules.ts` with placeholder
+   `DISCORD_TOKEN`, `DISCORD_CLIENT_ID`, `DISCORD_GUILD_ID` and `DATABASE_URL` set in the shell
+   (five `dist/edition-rules/<edition>.json` plus `manifest.json`, which v8.4.0 published as
+   `Guilded-v8.4.0-Timing-Manifest.json`). The full gate is `npm run release:prepare`.
 4. **GitHub release.** Copy `backups/release-7.5.1/publish-release.mjs` to
-   `backups/release-8.4.4/`, change `version` and `root` (and the notes path) and run it from
-   the clean checkout: first without flags (creates a draft, uploads and checks every asset
-   digest), then with `--publish`. It refuses a dirty tree, a commit that is not current main
-   or main without a green push CI run. Expect 23 assets like v8.4.0. Verify by downloading
-   and comparing SHA-256 against `SHA256SUMS-v8.4.4.txt`.
+   `backups/release-8.4.4/` and change `version`, `root` and the notes path. Include the
+   `forever` rules file and the Timing-Manifest and installer asset names so the set equals
+   v8.4.0's 23 assets (10 edition zips, 2 combined zips, installer, notes, SHA256SUMS, Artifact
+   Verification, Edition Manifest, Timing Manifest, 5 rules files). Run it from the clean
+   checkout: first without flags (draft, uploads, checks every digest), then with `--publish`.
+   It refuses a dirty tree, a commit that is not current main, or no green push CI run on main.
+   Verify by downloading each asset and comparing SHA-256 with the sums file.
 5. **CurseForge** (Claude in Chrome, owner signed in; never type a password). Per project
    (Guilded 1712677, Guilded Dungeons 1754138) upload five files: forever, classic-era,
    classic-tbc, classic-mists, retail. On the upload page patch
    `HTMLInputElement.prototype.click` so "Choose File" exposes its input, then use
    `file_upload`. Set the game version per edition, release type Release, and paste the
    changelog from the release notes. Check each file shows Approved (approval can lag).
-6. **Store package.** In a folder with no repo dirt, `cd companion-app` and run
-   `npm run msix:store -- --identity ../backups/store-identity.json`; the output lands in
-   `dist/msix-store/` as `Guilded.Companion.8.4.4.x64.STORE-SUBMISSION.msix` (about 165 MB).
-   Copy it to `C:\Users\Kev\Desktop\guilded-store-8.4.4`. Before submitting, run the packaged
-   renderer once (extract or run the `win-unpacked` build with `npm run pack`) and confirm no
-   startup error (8.4.1 shipped a crash). Record the SHA-256.
-7. **Partner Center** (Chrome, owner signed in). Create the next submission, upload the MSIX.
-   Chrome's upload tool caps at 10 MB, so serve the file from a temporary
-   127.0.0.1 node server with CORS and `Access-Control-Allow-Private-Network: true`, fetch it in
-   the Partner Center page, set the file input through `DataTransfer`, then stop the server.
-   Keep the Store listing text unchanged, set publish on certification pass, submit.
+6. **Store package.** From `companion-app`, run
+   `npm run msix:store -- --identity <relative path to backups/store-identity.json>` (use a
+   relative path: npm on Windows mangles absolute paths with spaces). The output is
+   `dist/msix-store/Guilded.Companion.8.4.4.x64.STORE-SUBMISSION.msix` (about 165 MB). Copy it
+   to `C:\Users\Kev\Desktop\guilded-store-8.4.4`. Before submitting, run the packaged renderer
+   once: start `dist/msix-store/win-unpacked/Guilded Companion.exe` with
+   `--user-data-dir=<scratch dir> --remote-debugging-port=9333` (ELECTRON_RUN_AS_NODE unset; the
+   scratch profile leaves the owner's real companion untouched), read the page title and console
+   errors over the debugging port, then stop only that process. Record the SHA-256.
+7. **Partner Center** (Chrome, owner signed in). Create the next submission and upload the
+   MSIX. Chrome's upload tool caps at 10 MB, so serve the file from a temporary 127.0.0.1 node
+   server with CORS and `Access-Control-Allow-Private-Network: true`, fetch it in the Partner
+   Center page, set the file input through `DataTransfer`, then stop the server. Keep the
+   listing text unchanged, choose publish on certification pass, submit.
 8. **Website pointers.** After the files are public, edit `site/releases.json` (GitHub 8.4.4,
    CurseForge 8.4.4 once approved) in a small PR.
 9. **Record.** Fill this checklist with the real results, the package SHA-256, the Store
    submission number and what is not yet live.
+
+## Dry run on the release branch, 5 November 2026 (commit 38d5e01d, PR 363)
+
+Not a release: built before the UI fix PR and the merge, to prove the pipeline.
+
+- `addon:editions` and `addon:verify-editions`: 10 edition zips OK, tree clean.
+- `addon:zip`, `dungeons:zip`, NSIS installer 8.4.4 and `verify-release-artifacts.mjs` OK
+  (source dirty: false); edition rules exported for all five editions.
+- Store package `Guilded.Companion.8.4.4.x64.STORE-SUBMISSION.msix` (165,353,262 bytes,
+  SHA-256 `63cdb968592b4076cf612b05ef935f2e171009634312339f59a58da921e75e3f`): identity
+  Kcaron.GuildedCompanion, version 8.4.4.0, x64, runFullTrust. The packaged renderer started
+  in a scratch profile: "Link everything" page, 79 buttons, no console errors. This package is
+  from the dry-run commit only; rebuild from the final main commit.
 
 8.4.3 records ([8.4.3](V8_4_3_RELEASE_ACCEPTANCE.md)) are unchanged.

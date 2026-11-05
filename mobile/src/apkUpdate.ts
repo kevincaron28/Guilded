@@ -92,7 +92,7 @@ export async function checkForNewApk(deps: ApkCheckDeps): Promise<ApkRelease | n
     const parts = release && parseVersion(release.version);
     return release && parts && isNewer(parts, installed) ? release : null;
   };
-  let cache: ApkCache | null = null;
+  let cache: ApkCache | null;
   try { cache = parseCache(await deps.readCache()); } catch { cache = null; }
   if (cache && deps.now - cache.checkedAt >= 0 && deps.now - cache.checkedAt < CHECK_INTERVAL_MS) return newerOf(cache.latest);
   let latest: ApkRelease | null = cache?.latest ?? null;

@@ -57,16 +57,16 @@
     "@types/node": "^24.19.2",
     "@typescript/native": "npm:typescript@^7.0.2",
     "esbuild": "^0.28.2",
-    "eslint": "^10.13.0",
+    "eslint": "^10.14.0",
     "fengari": "^0.1.5",
     "fflate": "^0.8.3",
     "marked": "^18.1.2",
     "prisma": "^7.10.1",
     "tsx": "^4.19.2",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
-    "typescript-eslint": "^8.72.0",
+    "typescript-eslint": "^8.72.1",
     "vitest": "^5.0.5",
-    "wrangler": "4.153.0"
+    "wrangler": "4.156.1"
   },
   "overrides": {
     "deepmerge-ts": "^8.0.0",

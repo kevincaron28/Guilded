@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { ACTIVE_EDITIONS } from "../../companion/active-editions.mjs";
 
 // The plain status a member sees on /me/, in the Discord welcome message and (later) in the app:
 // Connected / Last synced / What to do next. No jargon, one next step.
@@ -37,17 +38,27 @@ const ago = (date: Date, now: Date, fr: boolean) => {
   return fr ? `il y a ${days} jours` : `${days} days ago`;
 };
 
+/**
+ * Battle.net only helps for editions Blizzard's API can answer for. While WoW Forever is the only
+ * edition offered (companion/active-editions.mjs) it knows none of their characters, so "Press
+ * Connect Battle.net" would send a new member down a dead end: the app is the way in.
+ */
+export const battleNetUseful = (active: readonly string[] = ACTIVE_EDITIONS) => active.some((edition) => edition !== "forever");
+
 /** Three short lines, English or French. */
-export function linkStatusLines(status: LinkStatus, lang: "en" | "fr", now = new Date()): string[] {
+export function linkStatusLines(status: LinkStatus, lang: "en" | "fr", now = new Date(), useBattleNet = battleNetUseful()): string[] {
   const fr = lang === "fr";
   const parts = [status.battleNet ? "Battle.net" : "", status.companion ? (fr ? "application Guilded" : "Guilded app") : ""].filter(Boolean);
   const connected = parts.length ? parts.join(" + ") : (fr ? "Pas encore" : "Not yet");
   const synced = status.lastSynced ? ago(status.lastSynced, now, fr) : (fr ? "Pas encore" : "Not yet");
+  const step = nextStep(status);
   const next = {
-    connect: fr ? "Appuie sur « Connecter Battle.net »." : "Press “Connect Battle.net”.",
+    connect: !useBattleNet
+      ? (fr ? "Installe l'application Windows Guilded et connecte-toi avec Discord : tes personnages se lient tout seuls." : "Get the Guilded Windows app and sign in with Discord: your characters link themselves.")
+      : fr ? "Appuie sur « Connecter Battle.net »." : "Press “Connect Battle.net”.",
     sync: fr ? "Ouvre l'application Guilded et connecte-toi avec Discord pour que tout se synchronise tout seul." : "Open the Guilded app and sign in with Discord so everything syncs by itself.",
     done: fr ? "Rien. Tout est prêt." : "Nothing. You're all set."
-  }[nextStep(status)];
+  }[step];
   return fr
     ? [`**Connecté :** ${connected}`, `**Dernière synchronisation :** ${synced}`, `**À faire :** ${next}`]
     : [`**Connected:** ${connected}`, `**Last synced:** ${synced}`, `**What to do next:** ${next}`];

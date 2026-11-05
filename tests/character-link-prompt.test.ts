@@ -49,18 +49,23 @@ describe("private character connection instructions", () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en");
     const embed = reply.embeds[0]!.toJSON();
     expect(embed.description).toContain("No WoW character is linked");
-    expect(embed.description).toContain("addon only (default)");
-    expect(embed.fields![0]!.name).toContain("1 step");
+    expect(embed.description).toContain("Install the [Guilded addon]");
+    // The Windows app first (2 steps, no officer needed); the pasted line is the fallback.
+    expect(embed.fields![0]!.name).toContain("2 steps");
+    expect(embed.fields![0]!.value).toContain("**Sign in with Discord**");
+    expect(embed.fields![0]!.value).toContain("finds your WoW folder by itself");
+    expect(embed.fields![1]!.name).toContain("No Windows PC");
     // The command alone on its line in a box, so the whole line is copied.
-    expect(embed.fields![0]!.value).toContain("```\n/guilded verify ABCD-EFGH\n```");
-    expect(embed.fields![0]!.value).toContain("the first one as your main");
-    expect(embed.fields![0]!.value).not.toContain("/character import");
-    expect(embed.fields![1]!.name).toContain("Optional");
+    expect(embed.fields![1]!.value).toContain("```\n/guilded verify ABCD-EFGH\n```");
+    expect(embed.fields![1]!.value).toContain("the first one as your main");
+    expect(embed.fields![1]!.value).not.toContain("/character import");
+    expect(embed.fields!.some((field) => /optional/i.test(field.name))).toBe(false);
     expect(mocks.db.characterVerifyCode.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId_memberId: { guildId: "guild1", memberId: "member1" } }, update: {} }));
     expect(mocks.issueCode).not.toHaveBeenCalled();
     const buttons = reply.components[0]!.toJSON().components;
-    expect(buttons[0]).toMatchObject({ custom_id: "onboard:companion:server1" });
-    expect(buttons[1]).toMatchObject({ url: "https://guilded.kcaron.top/companion/?guild=server1" });
+    // One direct button to the companion page; no extra "Connect optional companion" click first.
+    expect(buttons[0]).toMatchObject({ url: "https://guilded.kcaron.top/companion/?guild=server1" });
+    expect(buttons.some((button) => "custom_id" in button && String(button.custom_id).startsWith("onboard:companion"))).toBe(false);
     expect(mocks.db.character.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: "member1", member: { guildId: "guild1" } } }));
   });
 
@@ -72,32 +77,31 @@ describe("private character connection instructions", () => {
     const text = reply.embeds[0]!.data.description!;
     expect(text).toContain("Main: **Ray** — Forever");
     expect(text).toContain("Alt: **AltRay** — Other Realm");
-    expect(reply.embeds[0]!.data.fields![0]!.value).toContain("Once is enough, also for alts");
+    expect(reply.embeds[0]!.data.fields![1]!.value).toContain("Once is enough, also for alts");
     expect(mocks.issueCode).not.toHaveBeenCalled();
   });
 
   it("adds the manual way only when no officer's companion synced in two weeks", async () => {
     mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: new Date(Date.now() - 15 * 86_400_000) });
     const stale = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en");
-    expect(stale.embeds[0]!.data.fields![0]!.value).toContain("No officer's companion has synced in 2 weeks");
-    expect(stale.embeds[0]!.data.fields![0]!.value).toContain("/character import");
+    expect(stale.embeds[0]!.data.fields![1]!.value).toContain("No officer's companion has synced in 2 weeks");
+    expect(stale.embeds[0]!.data.fields![1]!.value).toContain("/character import");
     mocks.db.guild.findUnique.mockResolvedValue({ officerSyncAt: null });
     const never = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr");
-    expect(never.embeds[0]!.data.fields![0]!.value).toContain("Aucun compagnon d'officier");
+    expect(never.embeds[0]!.data.fields![1]!.value).toContain("Aucun compagnon d'officier");
   });
 
   it("shows the companion steps without making a code, which waits for its own button", async () => {
     const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "en", "companion");
     expect(mocks.issueCode).not.toHaveBeenCalled();
     const fields = reply.embeds[0]!.data.fields!;
-    // The in-game line first (no companion needed), then Sign in with Discord (7.2).
-    expect(fields[0]!.name).toContain("No companion?");
-    expect(fields[0]!.value).toContain("/guilded verify ABCD-EFGH");
-    expect(fields[1]!.value).toContain("**Sign in with Discord**");
-    expect(fields[1]!.value).toContain("Nothing to type");
-    expect(fields[1]!.value).not.toContain("server ID");
-    expect(fields[1]!.value).toContain("every alt that logged in on this PC");
-    expect(fields[1]!.value).toContain("Discord standings from your next `/reload`");
+    // Sign in with Discord first (2 steps), then the in-game line.
+    expect(fields[1]!.name).toContain("No companion?");
+    expect(fields[1]!.value).toContain("/guilded verify ABCD-EFGH");
+    expect(fields[0]!.value).toContain("**Sign in with Discord**");
+    expect(fields[0]!.value).toContain("Nothing to type");
+    expect(fields[0]!.value).not.toContain("server ID");
+    expect(fields[0]!.value).toContain("every alt that logged in on this PC");
     expect(fields[2]!.value).toContain("/character list");
     const buttons = reply.components[0]!.toJSON().components;
     expect(buttons.at(-1)).toMatchObject({ custom_id: "onboard:paircode:server1" });
@@ -115,7 +119,7 @@ describe("private character connection instructions", () => {
     try {
       const reply = await characterLinkPrompt(mocks.db as never, "guild1", "member1", "server1", "fr", "companion");
       expect(reply.components[0]!.toJSON().components.map((button) => "custom_id" in button ? button.custom_id : "link")).toEqual(["onboard:paircode:server1"]);
-      expect(reply.embeds[0]!.data.fields![1]!.value).toContain("Demande à un officier où télécharger le compagnon");
+      expect(reply.embeds[0]!.data.fields![0]!.value).toContain("Demande à un officier où télécharger le compagnon");
     } finally { mocks.config.DISCORD_CLIENT_ID = appId; }
   });
 

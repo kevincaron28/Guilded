@@ -48,7 +48,7 @@ describe("a new member's main and alt journey", () => {
     const member = newMember();
     const initial = await characterLinkPrompt(member.database, "guild", "member", "server", "fr");
     expect(initial.embeds[0]!.data.description).toContain("Aucun personnage WoW");
-    expect(initial.embeds[0]!.data.description).toContain("addon seul (par défaut)");
+    expect(initial.embeds[0]!.data.description).toContain("L'addon fonctionne en jeu même si tu ne lies jamais");
     expect(member.db.characterPairing.upsert).not.toHaveBeenCalled();
     expect(await importCharacter(member.database, "member", line("NewMain"))).toMatchObject({ isMain: true, action: "created" });
     expect(await importCharacter(member.database, "member", line("NewAlt"))).toMatchObject({ isMain: false, action: "created" });

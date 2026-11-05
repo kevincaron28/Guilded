@@ -3,6 +3,14 @@
 Everything below is new since 8.4.3. Protocol stays 2, so older addons and companions keep
 working with the bot.
 
+**How to get linked (about two minutes)**
+1. Update the Guilded addon (CurseForge, or the zip for your edition from GitHub Releases).
+   Update the Guilded Companion if you have it, or install it from the Microsoft Store.
+2. Open the companion and choose **Sign in with Discord**. It finds your saved game data and
+   links your characters for you.
+3. If a character is missing, run `/character claim` in Discord for it.
+4. No Windows PC? Use `/guilded verify` in the game instead.
+
 **Linking**
 - Linking your characters is now automatic. There is no code to type: sign in with Discord in
   the companion and your characters link themselves (with a Discord message and an undo).

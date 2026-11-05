@@ -1063,6 +1063,15 @@ local function buildAvailabilityPage(page)
       cell:SetSize(17, 17); cell:SetPoint("TOPLEFT", page, "TOPLEFT", 40 + hour * 19, -260 - day * 20)
       cell.texture = cell:CreateTexture(nil, "BACKGROUND"); cell.texture:SetAllPoints(cell)
       cell:EnableMouse(true)
+      -- The 168 cells take the mouse for their tooltips, which also swallowed the wheel: inside
+      -- the guild window the page could not scroll past the grid (Sunday and the filters hidden).
+      -- Hand the wheel to the page's scroll frame.
+      cell:EnableMouseWheel(true)
+      cell:SetScript("OnMouseWheel", function(_, delta)
+        local scroll = ui.guildScroll
+        local handler = scroll and scroll:IsShown() and scroll:GetScript("OnMouseWheel")
+        if handler then handler(scroll, delta) end
+      end)
       cell:SetScript("OnEnter", function(self)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:AddLine(L(days[cellDay + 1]) .. " " .. cellHour .. ":00 UTC")

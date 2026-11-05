@@ -15,6 +15,7 @@ import {
 import { dungeonChoices } from "../services/dungeon-stats.js";
 import { validBracketedRules } from "../services/dungeon-november-rules.js";
 import { recipeNameSuggestions } from "../services/recipes.js";
+import { createCraftOfferService, offerChoices } from "../services/craft-offers.js";
 import { createPoeMappingService } from "../services/poe-mapping.js";
 import { runChoices } from "../services/dungeon-admin.js";
 import { routeChoices } from "../services/dungeon-bracket-season.js";
@@ -127,6 +128,11 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       choices = await bankChoices(prisma, guild.id, query, officer ? null : member.id);
     } else if (command === "craft" && focused.name === "item" && subcommand === "who") {
       choices = await recipeNameSuggestions(prisma, guild.id, query);
+    } else if (command === "craft" && focused.name === "item" && subcommand === "offer") {
+      const own = await createCraftOfferService(prisma).ownRecipes(guild.id, member.id, query, 50);
+      choices = [...new Map(own.map((r) => [r.itemName, { name: r.itemName.slice(0, 100), value: r.itemName.slice(0, 100) }])).values()].slice(0, 25);
+    } else if (command === "craft" && focused.name === "id" && subcommand === "withdraw") {
+      choices = await offerChoices(prisma, guild.id, query, member.id, !!interaction.member && hasPermission(interaction.member as GuildMember, "officer"));
     } else if (command === "craft" && focused.name === "id" && subcommand) {
       choices = await craftChoices(prisma, guild.id, query, subcommand, member.id);
     } else if (command === "epgp" && focused.name === "entry") {

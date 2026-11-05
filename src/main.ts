@@ -78,6 +78,7 @@ import { runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
 import { executeBank } from "./commands/bank.js";
 import { executeCraft } from "./commands/craft.js";
+import { OFFER_PREFIX, handleOfferButton, sweepCraftOffers } from "./commands/craft-offers.js";
 import { greetNewGuild, logSetupStatus } from "./commands/setup.js";
 import { announceVersionUpdates } from "./services/version-announce.js";
 import { announceAvailableUpdate } from "./services/update-check.js";
@@ -311,6 +312,8 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void sweepServerAnniversaries(prisma, new Date(), reportJobError("Server anniversary")).catch(reportJobError("Server anniversary")), 60 * 60_000);
   // WoW guild rank to Discord role: on by default, inert for a guild until an officer maps a rank.
   setInterval(() => void syncAllRankRoles(prisma, readyClient.guilds.cache.values(), reportJobError("Rank roles")), 60 * 60_000);
+  // Crafter offers past their time are closed (a no-op for servers that never turned them on).
+  setInterval(() => void sweepCraftOffers(readyClient).catch(reportJobError("Craft offer expiry")), 10 * 60_000);
   void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry"));
   setInterval(() => void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry")), 60_000);
   // Repair missing event jobs after a restart and advance game nights at their times.
@@ -732,6 +735,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
         void interaction.reply({ content: error instanceof Error ? error.message : "Could not post the dungeon group.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     });
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(OFFER_PREFIX)) {
+    await handleOfferButton(interaction).catch((error: unknown) => reportInteractionError("Craft offer button", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(CRAFT_PREFIX)) {

@@ -17,7 +17,7 @@
 **Owner preference:** Same linked Discord channel, Discord-only embeds; the original in-game and Discord messages stay intact. Prioritize proof of webhook posting and non-echo before any larger build.
 
 
-## Planned — Crafter offers: sell a craft as well as ask for one (requested 4 November 2026; not started)
+## Built, off by default — Crafter offers: sell a craft as well as ask for one (requested 4 November 2026; awaiting real-server acceptance, see [docs/CRAFT_OFFERS.md](docs/CRAFT_OFFERS.md))
 
 **Goal:** Today the craft board only goes one way: a member asks (`/craft request`) and a guild
 crafter picks it up (`/craft list`, `/craft claim`, `/craft who`, `/craft mine`). Add the other

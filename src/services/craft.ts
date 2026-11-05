@@ -18,7 +18,7 @@ export function createCraftService(database: Db) {
   return {
     async request(input: {
       guildId: string; requesterId: string; item: string; profession?: string | undefined;
-      quantity: number; note?: string | undefined; materialsProvided: boolean;
+      quantity: number; note?: string | undefined; materialsProvided: boolean; offerId?: string | undefined;
     }) {
       const item = input.item.trim();
       if (item.length < 2) throw new Error("Name the item you want crafted.");
@@ -35,7 +35,8 @@ export function createCraftService(database: Db) {
           profession: input.profession?.trim().slice(0, 40) || null,
           quantity: input.quantity,
           note: input.note?.trim().slice(0, 300) || null,
-          materialsProvided: input.materialsProvided
+          materialsProvided: input.materialsProvided,
+          offerId: input.offerId ?? null
         }
       });
     },

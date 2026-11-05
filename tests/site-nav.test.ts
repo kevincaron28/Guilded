@@ -52,7 +52,9 @@ describe("site menu", () => {
   it("shows the version switcher on bot pages, with this page in every edition", () => {
     const html = withEdition("classic-tbc", () => page("/leaderboards/guilds/", "fr"));
     expect(html).toContain('<details class="nav-group edition-menu" data-nav-group="edition"><summary>Je joue à : <strong>Burning Crusade Classic</strong></summary>');
-    expect(html).toContain('<a href="/retail/leaderboards/guilds/?lang=fr" data-edition="retail">Retail</a>');
+    // Forever-first: the menu offers the active editions plus this page's own edition, never the rest.
+    expect(html).toContain('<a href="/forever/leaderboards/guilds/?lang=fr" data-edition="forever">WoW Forever</a>');
+    expect(html).not.toContain('data-edition="retail"');
     expect(html).toContain('href="/tbc/leaderboards/guilds/?lang=fr" data-edition="tbc" aria-current="true"');
     const guild = renderGuildPage({ slug: "qg", name: "QG", language: "en", indexable: true, intro: null, sections: [], cores: [], recruitment: null, edition: "retail" });
     expect(guild).toContain("Playing: <strong>Retail</strong>");

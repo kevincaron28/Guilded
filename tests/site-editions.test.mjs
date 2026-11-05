@@ -4,6 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { WOW_EDITIONS, editionPages } from '../site/editions.mjs';
 import { editionSection } from '../site/nav.mjs';
 import { GAME_EDITIONS } from '../companion/game-edition.mjs';
+import { isEditionActive } from '../companion/active-editions.mjs';
 
 beforeAll(() => execFileSync(process.execPath, ['scripts/build-site.mjs'], { stdio: 'pipe' }), 30000);
 const page = path => readFileSync(`dist/site/${path}`, 'utf8');
@@ -18,7 +19,11 @@ describe('edition-specific downloads', () => {
     expect(home).toContain('href="#wow-versions"');
     // The home page opens with "Which WoW do you play?": each card leads to that edition's hub.
     expect(home.indexOf('id="wow-versions"')).toBeLessThan(home.indexOf('id="paths"'));
-    for (const edition of WOW_EDITIONS) expect(home).toContain(`href="/${editionSection(edition.id).slug}/"`);
+    // Forever-first (companion/active-editions.mjs): only active editions get a card; the others are kept but not offered.
+    for (const edition of WOW_EDITIONS) {
+      if (isEditionActive(edition.id)) expect(home).toContain(`href="/${editionSection(edition.id).slug}/"`);
+      else expect(home).not.toContain(`class="edition-card edition-${edition.id}`);
+    }
     expect(home).toContain('class="edition-card edition-forever featured"');
     expect(home).toContain('<span data-edition-none><span data-en="Choose your WoW" data-fr="Choisir votre WoW">Choose your WoW</span></span>');
     expect(home).not.toMatch(/\{\{[A-Z_]+\}\}/);
@@ -29,14 +34,15 @@ describe('edition-specific downloads', () => {
     expect(html).toContain(`<strong>${edition.name}</strong>`);
     expect(html).toContain('aria-current="page"');
     const downloads = [...html.matchAll(/href="(https:\/\/github\.com\/[^" ]+\.zip)"/g)].map(match => match[1]);
-    expect(downloads).toEqual(['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`));
+    expect(downloads).toEqual(isEditionActive(edition.id) ? ['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`) : []);
+    expect(html.includes('Coming back later')).toBe(!isEditionActive(edition.id));
     expect(html).toContain(`href="https://guilded.kcaron.top/editions/${edition.id}/?lang=fr"`);
     expect(html).toContain('data-fr="Installer dans le bon dossier de jeu"');
     expect(html).toContain('https://apps.microsoft.com/detail/9N680XX3QFL9');
     const { slug } = editionSection(edition.id);
     for (const path of ['/leaderboards/', '/recruitment/', '/players/']) expect(html).toContain(`href="/${slug}${path}"`);
     expect(html).toContain(`href="/${slug}/"`);
-    if (curseforge.version === published) {
+    if (curseforge.version === published && isEditionActive(edition.id)) {
       for (const url of Object.values(curseforge.editions?.[edition.id] ?? {})) expect(html).toContain(`href="${url}"`);
     }
     expect(html).not.toContain('undefined');
@@ -117,7 +123,7 @@ describe('edition hubs', () => {
     expect(html.indexOf('id="download"')).toBeLessThan(html.indexOf('id="community-title"'));
     for (const path of ['leaderboards/', 'leaderboards/guilds/', 'recruitment/guilds/', 'recruitment/', 'players/']) expect(html).toContain(`href="/${slug}/${path}"`);
     const downloads = [...html.matchAll(/href="(https:\/\/github\.com\/[^" ]+\.zip)"/g)].map(match => match[1]);
-    expect(downloads).toEqual(['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`));
+    expect(downloads).toEqual(isEditionActive(edition.id) ? ['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`) : []);
     // Nothing from another edition: no other edition's downloads or data pages.
     for (const other of WOW_EDITIONS.filter(other => other.id !== edition.id)) {
       expect(html).not.toContain(`-${other.id}.zip`);

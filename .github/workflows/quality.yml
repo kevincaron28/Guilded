@@ -56,6 +56,7 @@ jobs:
       - run: npm run companion:build
       - run: npm run worker:build
       - run: npm run build
+      - run: npm ci --prefix mobile
       - run: npm test
       - run: npm run lint
       - run: node addon/Guilded/validate-addon.mjs

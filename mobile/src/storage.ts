@@ -114,7 +114,7 @@ export async function renewSession(session: Session): Promise<Session> {
   catch (error) {
     // A server without the renewal route (older bot) keeps the working credential; check again later.
     if (error instanceof ApiError && (error.status === 404 || error.status === 405)) {
-      if (epoch !== sessionEpoch) throw new Error("Session changed. Please sign in again.");
+      if (epoch !== sessionEpoch) throw new Error("Session changed. Please sign in again.", { cause: error });
       const unchanged: Session = { ...session, renewedAt: Date.now() };
       delete unchanged.pendingCredential;
       await persistSession(unchanged, epoch);

@@ -167,15 +167,25 @@ end
 -- Scroll pages whose content can be taller than their viewport: the range is the child height
 -- less the viewport, a wheel tick moves a useful distance (SCROLL_STEP), and the last row keeps
 -- bottom padding so it is never cut mid-button.
-local SCROLL_STEP, SCROLL_PADDING = 44, 16
+local SCROLL_STEP, SCROLL_PADDING = 48, 24
 local function scrollRange(contentHeight, viewportHeight)
   return math.max(0, (contentHeight or 0) + SCROLL_PADDING - (viewportHeight or 0))
 end
 local function enableWheel(scroll, getRange)
   scroll:EnableMouseWheel(true)
+  local bar = scroll.ScrollBar
+  if type(bar) ~= "table" or type(bar.SetValue) ~= "function" then bar = nil end
+  if bar and bar.SetValueStep then bar:SetValueStep(SCROLL_STEP) end
   scroll:SetScript("OnMouseWheel", function(self, delta)
+    -- Never stop short of the real end of the content: take the larger of our estimate and the
+    -- range the game measured (it clamps anything beyond it).
     local range = getRange()
-    self:SetVerticalScroll(math.max(0, math.min(range, (self:GetVerticalScroll() or 0) - delta * SCROLL_STEP)))
+    local real = self.GetVerticalScrollRange and self:GetVerticalScrollRange()
+    if type(real) == "number" and real > range then range = real end
+    local target = math.max(0, math.min(range, (self:GetVerticalScroll() or 0) - delta * SCROLL_STEP))
+    self:SetVerticalScroll(target)
+    -- Keep the scrollbar thumb in step with the content.
+    if bar and bar.SetValue then bar:SetValue(target) end
   end)
 end
 ns.layoutMath = { scrollRange = scrollRange, SCROLL_STEP = SCROLL_STEP, SCROLL_PADDING = SCROLL_PADDING }
@@ -1053,6 +1063,15 @@ local function buildAvailabilityPage(page)
       cell:SetSize(17, 17); cell:SetPoint("TOPLEFT", page, "TOPLEFT", 40 + hour * 19, -260 - day * 20)
       cell.texture = cell:CreateTexture(nil, "BACKGROUND"); cell.texture:SetAllPoints(cell)
       cell:EnableMouse(true)
+      -- The 168 cells take the mouse for their tooltips, which also swallowed the wheel: inside
+      -- the guild window the page could not scroll past the grid (Sunday and the filters hidden).
+      -- Hand the wheel to the page's scroll frame.
+      cell:EnableMouseWheel(true)
+      cell:SetScript("OnMouseWheel", function(_, delta)
+        local scroll = ui.guildScroll
+        local handler = scroll and scroll:IsShown() and scroll:GetScript("OnMouseWheel")
+        if handler then handler(scroll, delta) end
+      end)
       cell:SetScript("OnEnter", function(self)
         if not GameTooltip then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:AddLine(L(days[cellDay + 1]) .. " " .. cellHour .. ":00 UTC")
@@ -2097,6 +2116,8 @@ local function buildPanel()
     if ui.scope == "main" then return end
     restoreHostPortrait()
     for _, b in ipairs(ui.sizeButtons or {}) do b:Show() end
+    local calendarTab = ns.guildPanel and ns.guildPanel.calendarTab
+    if calendarTab and ns.isOfficer() and moduleOn("calendar") then calendarTab:Show() end
     ui.scope = "main"
     ui.guildHost = nil
     if ui.closeButton then ui.closeButton:Show() end
@@ -2160,7 +2181,7 @@ function ui.selectTabByName(name)
   end
   if name == "Dungeons" or name == "Season" or name == "Scores" then
     if ns.dungeonScorePanel then
-      if panel then panel:Hide() end
+      -- The Guilded panel stays open: the dungeons page opens in the group finder beside it.
       ns.dungeonScorePanel.open(name == "Dungeons" and "run" or "season")
     end
     return
@@ -2208,13 +2229,24 @@ local PORTRAIT_KEYS = { "PortraitContainer", "portrait", "Portrait", "PortraitFr
 hideHostPortrait = function(host)
   ui.hiddenPortraits = ui.hiddenPortraits or {}
   if not host then return end
-  for _, key in ipairs(PORTRAIT_KEYS) do
-    local part = host[key]
-    if type(part) == "table" and part.Hide and part.IsShown and part:IsShown() then
+  local seen = {}
+  local function hide(part)
+    if type(part) == "table" and not seen[part] and part.Hide and part.IsShown and part:IsShown() then
+      seen[part] = true
       table.insert(ui.hiddenPortraits, part)
       part:Hide()
     end
   end
+  for _, key in ipairs(PORTRAIT_KEYS) do hide(host[key]) end
+  -- Other names the game uses for the ring and emblem pieces (parentKey fields on the window).
+  pcall(function()
+    for key, part in pairs(host) do
+      if type(key) == "string" then
+        local name = string.lower(key)
+        if string.find(name, "portrait", 1, true) or string.find(name, "emblem", 1, true) or string.find(name, "ring", 1, true) then hide(part) end
+      end
+    end
+  end)
 end
 restoreHostPortrait = function()
   for _, part in ipairs(ui.hiddenPortraits or {}) do part:Show() end
@@ -2226,6 +2258,9 @@ function ns.openGuildPanel(host, scope, initialName)
   if InCombatLockdown and InCombatLockdown() then return end
   if scope == "calendar" and (not ns.isOfficer() or not moduleOn("calendar")) then return end
   if not panel then buildPanel() end
+  -- Opened from the standalone panel: closing the game window brings that panel back.
+  if panel:IsShown() and ui.scope == "main" then ui.returnToPanel = true
+  elseif not panel:IsShown() then ui.returnToPanel = false end
   panel:Hide()
   ui.scope = scope or "guild"
   ui.guildHost = host
@@ -2244,6 +2279,8 @@ function ns.openGuildPanel(host, scope, initialName)
   end
   if ui.status then ui.status:SetText("") end
   for _, b in ipairs(ui.sizeButtons or {}) do b:Hide() end
+  local calendarTab = ns.guildPanel and ns.guildPanel.calendarTab
+  if calendarTab and scope == "calendar" then calendarTab:Hide() end
   if host and not ui.guildScroll then
     ui.guildScroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
     ui.guildScroll:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -66)
@@ -2256,7 +2293,11 @@ function ns.openGuildPanel(host, scope, initialName)
   if ui.closeButton then
     if host and scope ~= "calendar" then ui.closeButton:Hide() else ui.closeButton:Show() end
     if host and scope == "calendar" then
-      ui.closeButton:SetScript("OnClick", function() panel:Hide(); ns.util.hideWindow(host) end)
+      ui.closeButton:SetScript("OnClick", function()
+        ns.util.hideWindow(host)
+        -- The game's window normally reports its own hiding; make sure the panel follows anyway.
+        if panel:IsShown() and ui.scope ~= "main" then ns.closeGuildPanel(host) end
+      end)
     else
       ui.closeButton:SetScript("OnClick", function() panel:Hide() end)
     end
@@ -2282,7 +2323,12 @@ function ns.openGuildPanel(host, scope, initialName)
 end
 
 function ns.closeGuildPanel(host)
-  if ui.scope ~= "main" and panel and (not host or ui.guildHost == host) then panel:Hide() end
+  if ui.scope ~= "main" and panel and (not host or ui.guildHost == host) then
+    local back = ui.scope == "calendar" and ui.returnToPanel
+    ui.returnToPanel = false
+    panel:Hide()
+    if back then panel:Show() end
+  end
 end
 
 local function togglePanel()

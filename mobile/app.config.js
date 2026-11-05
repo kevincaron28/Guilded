@@ -13,8 +13,8 @@ module.exports = ({ config }) => {
   }
   const googleServicesFile = process.env.GOOGLE_SERVICES_JSON;
   if (googleServicesFile && !existsSync(googleServicesFile)) throw new Error('GOOGLE_SERVICES_JSON must point to the EAS-provided Firebase configuration file.');
-  if (process.env.EAS_BUILD === 'true' && process.env.EAS_BUILD_PLATFORM === 'android' && !googleServicesFile) {
-    throw new Error('Android builds require the Firebase GOOGLE_SERVICES_JSON file environment variable for push.');
+  if (process.env.EAS_BUILD === 'true' && process.env.EAS_BUILD_PLATFORM === 'android' && process.env.EAS_BUILD_PROFILE === 'production' && !googleServicesFile) {
+    throw new Error('Production Android builds require the Firebase GOOGLE_SERVICES_JSON file environment variable for push. Preview APKs build without it (device reminders only).');
   }
   return {
     ...config,

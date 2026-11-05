@@ -22,6 +22,8 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - run: npx --no-install expo install --check
+      - run: npx --no-install expo config --type public > /dev/null
       - run: npx --no-install expo export --platform android --output-dir "${{ runner.temp }}/guilded-android"
   checks:
     runs-on: ubuntu-latest

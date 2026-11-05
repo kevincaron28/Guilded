@@ -419,6 +419,18 @@ function Wishlist({ lang, preview, session, manage, error, onChange }: {
     onChange({ ...manage, characters: manage.characters.map((entry) => entry.id === character.id ? { ...entry, wishlist: nextList } : entry) });
   };
 
+  // The server accepted the change; a failed refetch must not read as a failed save.
+  const refreshAfterSave = async (client: GuildedClient, guildId: string) => {
+    try { onChange(await client.manage(guildId)); }
+    catch { setNotice(lang === "fr" ? "Modification enregistrée, mais la liste n’a pas pu être actualisée. Tirez pour actualiser." : "Saved, but the list could not refresh. Pull down to refresh."); }
+  };
+  // A timeout or dropped connection leaves the outcome unknown: re-read before reporting failure.
+  const settleUnknown = async (client: GuildedClient, caught: unknown, guildId: string) => {
+    if (!(caught instanceof ApiError) || caught.status !== 0) return;
+    try { onChange(await client.manage(guildId)); setNotice(lang === "fr" ? "Connexion interrompue. La liste a été actualisée : vérifiez le résultat." : "The connection dropped. The list was refreshed: check the result."); }
+    catch { /* the original error is shown */ }
+  };
+
   const add = async () => {
     if (!selected || !item.trim() || mutation.current) return;
     mutation.current = true;
@@ -430,14 +442,17 @@ function Wishlist({ lang, preview, session, manage, error, onChange }: {
         const without = selected.wishlist.filter((wish) => wish.itemName.toLowerCase() !== name.toLowerCase());
         applyLocal(selected, [...without, { itemName: name, priority }].sort((a, b) => a.priority - b.priority || a.itemName.localeCompare(b.itemName)));
       } else {
-        const message = await new GuildedClient(session.apiOrigin, session.companionCredential).setWishlist(session.guildDiscordId, selected.id, name, priority);
-        setNotice(message);
-        const fresh = await new GuildedClient(session.apiOrigin, session.companionCredential).manage(session.guildDiscordId);
-        onChange(fresh);
+        const client = new GuildedClient(session.apiOrigin, session.companionCredential);
+        try {
+          const message = await client.setWishlist(session.guildDiscordId, selected.id, name, priority);
+          setNotice(message);
+        } catch (caught) { await settleUnknown(client, caught, session.guildDiscordId); throw caught; }
+        setItem("");
+        await refreshAfterSave(client, session.guildDiscordId);
       }
       setItem("");
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : t(lang, "add"));
+      if (!(caught instanceof ApiError && caught.status === 0)) setNotice(caught instanceof Error ? caught.message : t(lang, "add"));
     } finally { mutation.current = false; setBusy(false); }
   };
 
@@ -448,12 +463,15 @@ function Wishlist({ lang, preview, session, manage, error, onChange }: {
     try {
       if (preview || !session) applyLocal(selected, selected.wishlist.filter((entry) => entry.itemName !== wish));
       else if (session) {
-        const message = await new GuildedClient(session.apiOrigin, session.companionCredential).removeWishlist(session.guildDiscordId, selected.id, wish);
-        setNotice(message);
-        onChange(await new GuildedClient(session.apiOrigin, session.companionCredential).manage(session.guildDiscordId));
+        const client = new GuildedClient(session.apiOrigin, session.companionCredential);
+        try {
+          const message = await client.removeWishlist(session.guildDiscordId, selected.id, wish);
+          setNotice(message);
+        } catch (caught) { await settleUnknown(client, caught, session.guildDiscordId); throw caught; }
+        await refreshAfterSave(client, session.guildDiscordId);
       }
     } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : t(lang, "remove"));
+      if (!(caught instanceof ApiError && caught.status === 0)) setNotice(caught instanceof Error ? caught.message : t(lang, "remove"));
     } finally { mutation.current = false; setBusy(false); }
   };
 

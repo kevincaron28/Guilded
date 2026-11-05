@@ -488,6 +488,50 @@ describe("a realm rename is not a different guild", () => {
   });
 });
 
+describe("WoW Forever synced realms share one guild key", () => {
+  // GetGuildInfo's fourth result is the guild's home realm when the character is on another segment.
+  const forever = (realm: string, home: string | null, saved = "") => {
+    session = newLuaSession(); const s = session;
+    s.run(`${saved ? `GuildedDB = ${saved}` : "GuildedDB = nil"}; NS = {}; MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
+      function GetBuildInfo() return "1.60.1", "70790", "Nov 1 2026", 16001 end
+      function GetRealmName() return ${JSON.stringify(realm)} end
+      function GetGuildInfo() return "Alpha", "Officer", 1${home ? `, ${JSON.stringify(home)}` : ""} end`);
+    s.load("Core.lua"); s.load("Compat.lua");
+    s.run(`fire_event("PLAYER_LOGIN"); fire_event("GUILD_ROSTER_UPDATE")`);
+    return s;
+  };
+
+  it("files a character on another segment under the guild's home realm", () => {
+    expect(forever("RealmB", "RealmA").run("return GuildedDB.guildKey")).toBe("Alpha-RealmA");
+  });
+
+  it("gives guildmates on the home segment and on other segments the same key", () => {
+    const home = forever("RealmA", null).run("return GuildedDB.guildKey");
+    const away = forever("RealmB", "RealmA").run("return GuildedDB.guildKey");
+    expect(away).toBe(home);
+  });
+
+  it("moves data saved under the character's own realm to the home realm without parking it", () => {
+    const s = forever("RealmB", "RealmA", `{ version = 4, guildKey = "Alpha-RealmB", guildEdition = "forever", epgp = { Bob = { ep = 50, gp = 0, ledger = {} } }, roster = { Bob = {} }, settings = { officers = {} } }`);
+    expect(s.run("return GuildedDB.guildKey")).toBe("Alpha-RealmA");
+    expect(s.run("return GuildedDB.epgp.Bob.ep")).toBe("50");
+    expect(s.run("return tostring(next(GuildedDB.otherGuilds or {}))")).toBe("nil");
+  });
+
+  it("still parks a different guild's data and ignores the home realm outside Forever", () => {
+    const s = forever("RealmB", "RealmA", `{ version = 4, guildKey = "Beta-RealmA", guildEdition = "forever", epgp = { Bob = { ep = 50, gp = 0, ledger = {} } }, roster = { Bob = {} }, settings = { officers = {} } }`);
+    expect(s.run("return GuildedDB.guildKey")).toBe("Alpha-RealmA");
+    expect(s.run("return GuildedDB.otherGuilds['Beta-RealmA'].epgp.Bob.ep")).toBe("50");
+    session = newLuaSession(); const r = session;
+    r.run(`GuildedDB = nil; NS = {}; MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
+      function GetBuildInfo() return "12.1.5", "70783", "x", 120105 end
+      function GetRealmName() return "RealmB" end
+      function GetGuildInfo() return "Alpha", "Officer", 1, "RealmA" end`);
+    r.load("Core.lua"); r.load("Compat.lua"); r.run(`fire_event("PLAYER_LOGIN"); fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(r.run("return GuildedDB.guildKey")).toBe("Alpha-RealmB");
+  });
+});
+
 describe("the guild digest tells everyone who you are", () => {
   it("adds an I: identity field and reads it from a peer, in any field order", () => {
     const s = loggedIn();

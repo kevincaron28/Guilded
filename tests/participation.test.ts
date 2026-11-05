@@ -323,6 +323,19 @@ describe("Discord message channel coverage", () => {
     expect(s.points).toHaveLength(1);
     expect(fixture.guild.members.fetch).not.toHaveBeenCalled();
   });
+  it("ignores a message whose author already left the server (Unknown Member)", async () => {
+    const s = store(), fixture = messageFixture(ChannelType.GuildText);
+    fixture.guild.members.fetch.mockRejectedValue(Object.assign(new Error("Unknown Member"), { code: 10007 }));
+    s.cfg.rules = participationRules.parse({});
+    await expect(createParticipationTracker(s.database as never, false).message(fixture.message as unknown as Message)).resolves.toBeUndefined();
+    expect(s.points).toHaveLength(0);
+  });
+  it("still surfaces other member lookup failures", async () => {
+    const s = store(), fixture = messageFixture(ChannelType.GuildText);
+    fixture.guild.members.fetch.mockRejectedValue(Object.assign(new Error("boom"), { code: 50013 }));
+    s.cfg.rules = participationRules.parse({});
+    await expect(createParticipationTracker(s.database as never, false).message(fixture.message as unknown as Message)).rejects.toThrow("boom");
+  });
   it("keeps the cooldown shared across channels and threads", async () => {
     const s = store(), first = messageFixture(ChannelType.GuildText, "parent", "one"), second = messageFixture(ChannelType.PublicThread, "thread", "two");
     s.cfg.rules = participationRules.parse({});

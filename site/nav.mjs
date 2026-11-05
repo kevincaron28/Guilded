@@ -126,10 +126,13 @@ export function editionSwitchHref(path, edition) {
 
 /** The header's "Playing: WoW Forever ▾" switcher, a <details> drop-down that works without
  * scripts. title is the drop-down's label; label(section) and href(section) give each choice.
- * @param {{ current: string | null, title: string, label: (section: EditionSection) => string, href: (section: EditionSection) => string }} options
+ * `only`: edition ids to offer (the Forever-first switch, companion/active-editions.mjs); the page's own
+ * edition stays listed. Omitted, every edition is offered.
+ * @param {{ current: string | null, title: string, label: (section: EditionSection) => string, href: (section: EditionSection) => string, only?: readonly string[] }} options
  * @returns {string} */
-export function editionMenu({ current, title, label, href }) {
-  return `<details class="nav-group edition-menu" data-nav-group="edition"><summary>${title}</summary><div class="nav-menu">${EDITION_SECTIONS.map((section) => `<a href="${escape(href(section))}" data-edition="${section.slug}"${section.id === current ? ' aria-current="true"' : ""}>${label(section)}</a>`).join("")}</div></details>`;
+export function editionMenu({ current, title, label, href, only }) {
+  const sections = EDITION_SECTIONS.filter((section) => !only || only.includes(section.id) || section.id === current);
+  return `<details class="nav-group edition-menu" data-nav-group="edition"><summary>${title}</summary><div class="nav-menu">${sections.map((section) => `<a href="${escape(href(section))}" data-edition="${section.slug}"${section.id === current ? ' aria-current="true"' : ""}>${label(section)}</a>`).join("")}</div></details>`;
 }
 
 /** Keep the chosen language across translated pages and bilingual guide sections.

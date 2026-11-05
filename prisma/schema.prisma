@@ -2724,3 +2724,18 @@ model GuildRankRole {
 
   @@unique([guildId, rankIndex])
 }
+
+// Discord-only item previews (docs/ITEM_PREVIEWS.md). Off unless an owner enables it for a server; the
+// webhook URL is stored only as AES-256-GCM ciphertext.
+model ItemPreviewConfig {
+  id             String   @id @default(cuid())
+  discordGuildId String   @unique
+  channelId      String
+  webhookId      String
+  webhookSealed  String
+  enabled        Boolean  @default(true)
+  disabledReason String?
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

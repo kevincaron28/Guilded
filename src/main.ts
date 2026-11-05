@@ -93,6 +93,9 @@ import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
+import { executeOwnerPreviews, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
+import { handlePreviewMessage } from "./services/item-preview.js";
+import { CachedItemProvider, nullItemDataProvider, PreviewGate } from "./services/item-preview-data.js";
 import { botOwnerId, executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
 import { executeOwnerConsole, OWNER_CONSOLE_COMMAND, ownerConsoleCommand } from "./commands/owner-console.js";
 import { createOwnerConsole } from "./services/owner-console.js";
@@ -557,6 +560,21 @@ client.on(Events.ShardReconnecting, () => participationTracker.reset());
 client.on(Events.ShardResume, () => participationTracker.reset());
 // The answer channel (5.0): only when the bot may read message text.
 if (config.MESSAGE_CONTENT_INTENT) {
+  // Discord-only item previews (docs/ITEM_PREVIEWS.md): inert until an owner enables a server.
+  const previewGate = new PreviewGate();
+  const previewProvider = new CachedItemProvider(nullItemDataProvider);
+  const previewBackoff = new Map<string, number>();
+  client.on(Events.MessageCreate, (message) => {
+    if (!message.guildId || !hostedPilot.allows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket
+    void handlePreviewMessage({
+      loadConfig: (discordGuildId) => prisma.itemPreviewConfig.findUnique({ where: { discordGuildId } }),
+      disable: async (discordGuildId, reason) => { await prisma.itemPreviewConfig.updateMany({ where: { discordGuildId }, data: { enabled: false, disabledReason: reason } }); },
+      secret: config.ITEM_PREVIEW_SECRET, botUserId: client.user?.id,
+      fetch: (url, init) => fetch(url, init), provider: previewProvider, gate: previewGate, backoff: previewBackoff
+    }, { guildId: message.guildId, channelId: message.channelId, content: message.content, authorId: message.author.id, webhookId: message.webhookId }).catch((error: unknown) => {
+      console.warn("Item preview failed", error instanceof Error ? error.name : "error");
+    });
+  });
   client.on(Events.MessageCreate, (message) => {
     if (!message.guildId || !hostedPilot.allows(message.guildId)) return;
     void (async () => {
@@ -572,7 +590,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
 
 client.on(Events.InteractionCreate, async interaction => {
   try {
-    const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_CONSOLE_COMMAND];
+    const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_PREVIEWS_COMMAND, OWNER_CONSOLE_COMMAND];
     const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, PUG_PREFIX, CONSOLE_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
@@ -860,6 +878,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     await executeOwnerConsole(interaction, ownerConsole, () => botOwnerId(client)).catch((error: unknown) => replyWithCommandError(interaction, error));
     return;
   }
+  if (interaction.commandName === OWNER_PREVIEWS_COMMAND) {
+    await executeOwnerPreviews(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
+    return;
+  }
   if (interaction.commandName === OWNER_SEASON_COMMAND) {
     await executeOwnerSeason(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
     return;
@@ -881,7 +903,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
 // The bot owner's /guilded-season exists only in the home server (DISCORD_GUILD_ID).
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
-  const full = [...body, ...(guildId === config.DISCORD_GUILD_ID ? [ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON()] : []), ...(guildId === config.OWNER_CONSOLE_GUILD_ID ? [ownerConsoleCommand.toJSON()] : [])];
+  const full = [...body, ...(guildId === config.DISCORD_GUILD_ID ? [ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON(), ownerPreviewsCommand.toJSON()] : []), ...(guildId === config.OWNER_CONSOLE_GUILD_ID ? [ownerConsoleCommand.toJSON()] : [])];
   await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: badgeCommandsForGuild(guildId, full) });
 }
 

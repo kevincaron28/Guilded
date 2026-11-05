@@ -92,8 +92,8 @@ export async function checkForNewApk(deps: ApkCheckDeps): Promise<ApkRelease | n
     const parts = release && parseVersion(release.version);
     return release && parts && isNewer(parts, installed) ? release : null;
   };
-  let cache: ApkCache | null;
-  try { cache = parseCache(await deps.readCache()); } catch { cache = null; }
+  let cache: ApkCache | null = null;
+  try { cache = parseCache(await deps.readCache()); } catch { /* unavailable storage behaves like an empty cache */ }
   if (cache && deps.now - cache.checkedAt >= 0 && deps.now - cache.checkedAt < CHECK_INTERVAL_MS) return newerOf(cache.latest);
   let latest: ApkRelease | null = cache?.latest ?? null;
   try { latest = latestApk(await (deps.fetchReleases ?? fetchReleases)()); } catch { /* keep the last known release */ }

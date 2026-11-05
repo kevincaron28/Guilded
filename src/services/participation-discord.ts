@@ -15,9 +15,13 @@ export type VoiceParticipant = { id: string; channelId: string; eligible: boolea
 // `channels` null means every voice channel counts.
 // Prefer the member already on the gateway event. A forced REST fetch on every
 // message is what fills Discord's rate limit when a launch channel is busy.
-async function guildMember(guild: Guild, userId: string, attached?: GuildMember | null): Promise<GuildMember> {
+// A member who left before the lookup finished (Discord code 10007) earns nothing: null, not an error.
+export async function guildMember(guild: Guild, userId: string, attached?: GuildMember | null): Promise<GuildMember | null> {
   if (attached && attached.id === userId) return attached;
-  return guild.members.cache?.get(userId) ?? guild.members.fetch({ user: userId });
+  const cached = guild.members.cache?.get(userId);
+  if (cached) return cached;
+  try { return await guild.members.fetch({ user: userId }); }
+  catch (error) { if ((error as { code?: number } | null)?.code === 10007) return null; throw error; }
 }
 
 export function eligibleVoiceUsers(states: VoiceParticipant[], channels: string[] | null, afkId: string | null): Set<string> {
@@ -52,7 +56,7 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       const rules = participationRules.parse(cfg.rules);
       if (!participationChannelEnabled(message.channel, rules) || rules.messageDailyCap === 0) return;
       const member = await guildMember(guild, message.author.id, message.member);
-      if (!eligibleParticipationMember(member, cfg.season, rules, now) || !await canViewParticipationChannel(message.channel, member)) return;
+      if (!member || !eligibleParticipationMember(member, cfg.season, rules, now) || !await canViewParticipationChannel(message.channel, member)) return;
       await service.message(cfg.season.guildId, cfg.seasonId, { userId: member.id, channelId: message.channelId, messageId: message.id, hash: contentAvailable ? messageFingerprint(message.content) : null, contentAvailable, at: message.createdAt, revision: cfg.revision });
     },
     async reaction(reaction: MessageReaction | PartialMessageReaction, user: User | PartialUser) {
@@ -68,6 +72,7 @@ export function createParticipationTracker(database: PrismaClient, contentAvaila
       if (message.author.bot || message.webhookId || message.author.id === user.id || ![MessageType.Default, MessageType.Reply].includes(message.type) || age < 120_000 || age > 48 * 60 * 60_000) return;
       const author = await guildMember(guild, message.author.id, message.member);
       const reactor = await guildMember(guild, user.id);
+      if (!author || !reactor) return;
       for (const member of [author, reactor]) if (!eligibleParticipationMember(member, cfg.season, rules, now) || !await canViewParticipationChannel(message.channel, member)) return;
       await service.reaction(cfg.season.guildId, cfg.seasonId, { userId: author.id, reactorId: reactor.id, messageId: message.id, channelId: message.channelId, at: now, revision: cfg.revision });
     },

@@ -4,6 +4,10 @@
 --
 --  * One writer: the lowest-named online officer who can edit the MOTD (elected through
 --    ns.comm hello messages), so two officers never flip-flop.
+--  * The game does not let an addon set the MOTD (GuildSetMOTD is Blizzard-UI only, and chat box
+--    text an addon fills in is tainted). So Guilded is a reminder plus a copy box: the officer
+--    copies the ready text, pastes it into Guild > Info > message of the day, and Guilded
+--    confirms by reading the MOTD back. Nothing here touches the chat box or any MOTD function.
 --  * Never fights a manual edit: if the MOTD differs from our last write, the automation
 --    pauses (for every officer) until an officer chooses Resume.
 --  * Never longer than the 128-character limit; fails quietly (status in settings) when the
@@ -39,6 +43,8 @@ local function config()
     db.motd = { enabled = false, mode = "rotate", hours = DEFAULT_HOURS, lines = {}, suffix = "", index = 0 }
   end
   local cfg = db.motd
+  -- Earlier builds recorded texts they never managed to set; start clean.
+  if cfg.schema ~= 3 then cfg.schema, cfg.paused, cfg.confirmed, cfg.intended, cfg.lastWriteAt, cfg.beforeWrite = 3, false, nil, nil, nil, nil end
   if cfg.mode ~= "event" then cfg.mode = "rotate" end
   if type(cfg.hours) ~= "number" or cfg.hours < 1 then cfg.hours = DEFAULT_HOURS end
   if cfg.hours > 720 then cfg.hours = 720 end
@@ -152,11 +158,6 @@ local function canEdit()
   return value == true
 end
 
-local function setter()
-  if type(GuildSetMOTD) == "function" then return GuildSetMOTD end
-  if C_GuildInfo and type(C_GuildInfo.SetMOTD) == "function" then return C_GuildInfo.SetMOTD end
-end
-
 local function current()
   local fn = GetGuildRosterMOTD or (C_GuildInfo and C_GuildInfo.GetMOTD)
   if type(fn) ~= "function" then return nil end
@@ -209,13 +210,13 @@ function motd.receive(text, sender)
   elseif kind == "W" then
     local index, at, written = rest:match("^(%d+)|(%d+)|(.*)$")
     if written then
-      cfg.lastWritten, cfg.lastWriteAt = written, clock()
+      cfg.confirmed, cfg.lastWriteAt = written, clock()
       cfg.index, cfg.changedAt = tonumber(index), tonumber(at)
     end
   elseif kind == "P" then
     cfg.paused = true
   elseif kind == "R" then
-    cfg.paused, cfg.lastWritten = false, nil
+    cfg.paused, cfg.confirmed = false, nil
   end
 end
 
@@ -230,10 +231,10 @@ end
 
 -- A manual edit pauses the automation (for everyone) instead of being overwritten.
 function motd.checkManualEdit(cfg)
-  if not cfg.lastWritten or cfg.paused then return false end
+  if not cfg.confirmed or cfg.paused then return false end
   local text = current()
   if not text then return false end
-  if motd.clean(text) == motd.clean(cfg.lastWritten) then return false end
+  if motd.clean(text) == motd.clean(cfg.confirmed) then return false end
   -- Right after our own write the roster can still show what was there before.
   if cfg.lastWriteAt and clock() - cfg.lastWriteAt < GRACE and motd.clean(text) == motd.clean(cfg.beforeWrite or "") then return false end
   cfg.paused = true
@@ -241,56 +242,185 @@ function motd.checkManualEdit(cfg)
   return true
 end
 
--- Returns a status code: off, noguild, notofficer, noapi, cannot, paused, notwriter, empty,
--- combat, same, written.
-function motd.tick(force)
+-- Nothing here sets the MOTD: tick() works out what it should be and, for the elected officer,
+-- shows a small "Update guild message" button (and one chat line). The click (motd.apply) opens a
+-- copy box with the ready text; the officer pastes it into the guild info frame. A later tick or
+-- GUILD_MOTD event reads the MOTD back (motd.confirm) and only then counts it as written.
+local prompt
+local function hidePrompt()
+  if prompt then prompt:Hide() end
+end
+
+local function preview(text)
+  return cut(text, 60) .. (#text > 60 and "..." or "")
+end
+
+local function showPrompt(text)
+  if motd.dismissed == text then return end
+  if not prompt then
+    prompt = CreateFrame("Frame", "GuildedMotdPrompt", UIParent)
+    prompt:SetSize(470, 30)
+    prompt:SetPoint("TOP", UIParent, "TOP", 0, -140)
+    prompt:SetFrameStrata("DIALOG")
+    prompt.button = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
+    prompt.button:SetSize(436, 26)
+    prompt.button:SetPoint("LEFT", prompt, "LEFT", 0, 0)
+    prompt.button:SetScript("OnClick", function() motd.apply() end)
+    prompt.close = CreateFrame("Button", nil, prompt, "UIPanelButtonTemplate")
+    prompt.close:SetSize(26, 26)
+    prompt.close:SetPoint("LEFT", prompt.button, "RIGHT", 4, 0)
+    prompt.close:SetText("x")
+    prompt.close:SetScript("OnClick", function() motd.dismissed = motd.pending and motd.pending.text; prompt:Hide() end)
+  end
+  prompt.button:SetText(string.format(L("Update guild message: %s"), preview(text)))
+  prompt:Show()
+  if motd.announced ~= text then
+    motd.announced = text
+    if ns.message then ns.message(string.format(L("Guild message ready: click the Update guild message button to copy it (%s)."), preview(text))) end
+  end
+end
+
+local function status(code)
+  motd.status = code
+  if code ~= "due" then motd.pending = nil; hidePrompt() end
+  return code
+end
+
+local popup
+local function hidePopup()
+  if popup then popup:Hide() end
+end
+
+-- A small window with the ready text in a read-only box, highlighted and focused for Ctrl+C.
+local function showPopup(text)
+  if not popup then
+    popup = CreateFrame("Frame", "GuildedMotdCopy", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    popup:SetSize(480, 190)
+    popup:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+    popup:SetFrameStrata("DIALOG")
+    popup:SetMovable(true)
+    popup:EnableMouse(true)
+    popup:RegisterForDrag("LeftButton")
+    popup:SetScript("OnDragStart", popup.StartMoving)
+    popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
+    if popup.SetBackdrop then
+      popup:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32, insets = { left = 8, right = 8, top = 8, bottom = 8 } })
+    end
+    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", popup, "TOPLEFT", 20, -18)
+    title:SetText(L("Guild message ready to copy"))
+    popup.hint = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    popup.hint:SetPoint("TOPLEFT", popup, "TOPLEFT", 20, -46)
+    popup.hint:SetWidth(440)
+    popup.hint:SetJustifyH("LEFT")
+    popup.hint:SetText(L("Ctrl+C to copy, then open Guild (J) > Info, click the message of the day, paste it (Ctrl+V) and Accept. Or type /gmotd and paste. WoW does not let addons set the message of the day."))
+    popup.box = CreateFrame("EditBox", nil, popup, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    popup.box:SetSize(440, 56)
+    popup.box:SetPoint("TOPLEFT", popup, "TOPLEFT", 20, -92)
+    popup.box:SetMultiLine(true)
+    popup.box:SetAutoFocus(false)
+    popup.box:SetFontObject(ChatFontNormal or GameFontHighlight)
+    popup.box:SetTextInsets(6, 6, 4, 4)
+    if popup.box.SetBackdrop then
+      popup.box:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+      popup.box:SetBackdropColor(0, 0, 0, 0.6)
+    end
+    -- Read-only: whatever is typed or pasted, the ready text comes back.
+    popup.box:SetScript("OnTextChanged", function(self)
+      if popup.text and self:GetText() ~= popup.text then self:SetText(popup.text); self:HighlightText() end
+    end)
+    popup.box:SetScript("OnEscapePressed", function() popup:Hide() end)
+    local close = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
+    close:SetSize(90, 22)
+    close:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -20, 16)
+    close:SetText(L("Close"))
+    close:SetScript("OnClick", function() popup:Hide() end)
+  end
+  popup.text = text
+  popup.box:SetText(text)
+  popup:Show()
+  popup.box:SetFocus()
+  popup.box:HighlightText()
+end
+
+-- The MOTD read back equals what the officer was asked to apply: now (and only now) it is written.
+function motd.confirm(cfg)
+  local intended = cfg.intended
+  if not intended then return false end
+  local text = current()
+  if not text or motd.clean(text) ~= motd.clean(intended.text) then return false end
+  local at = now()
+  cfg.confirmed, cfg.lastWriteAt, cfg.intended = intended.text, clock(), nil
+  cfg.paused = false
+  if intended.index then
+    if intended.index ~= cfg.index or not cfg.changedAt then cfg.changedAt = at end
+    cfg.index = intended.index
+  end
+  motd.dismissed = nil
+  hidePopup(); hidePrompt()
+  send(string.format("W|%d|%d|%s", cfg.index or 0, cfg.changedAt or at, intended.text))
+  return true
+end
+
+-- Returns a status code: off, noguild, notofficer, noapi, cannot, paused, waiting, notwriter,
+-- empty, same, due, written. Never writes.
+function motd.tick()
   local cfg = config()
   if not cfg or not cfg.enabled then return status("off") end
   if IsInGuild and not IsInGuild() then return status("noguild") end
   if not (ns.isOfficer and ns.isOfficer()) then return status("notofficer") end
-  local set = setter()
   local can = canEdit()
-  if not set or can == nil then return status("noapi") end
+  if can == nil then return status("noapi") end
   if not can then return status("cannot") end
+  if motd.confirm(cfg) then return status("written") end
   motd.checkManualEdit(cfg)
   if cfg.paused then return status("paused") end
   -- Say hello first and give the other officers a moment to answer, so two officers who log in
-  -- together do not both write.
+  -- together do not both prompt.
   if not motd.helloAt then hello(); motd.helloAt = clock() end
-  if not force and clock() - motd.helloAt < HELLO_SETTLE then return status("notwriter") end
+  if clock() - motd.helloAt < HELLO_SETTLE then return status("waiting") end
   if not motd.isWriter(can) then return status("notwriter") end
-  local at = now()
-  local text, index = motd.wanted(cfg, at)
+  local text = motd.wanted(cfg, now())
   if not text or text == "" then return status("empty") end
-  if text == cfg.lastWritten and not force then
-    return status("same")
-  end
-  if inCombat() then return status("combat") end
-  if not force and cfg.mode == "event" and cfg.lastWriteAt and clock() - cfg.lastWriteAt < MIN_REWRITE then return status("same") end
-  local before = current()
-  local ok = pcall(set, text)
-  if not ok then return status("noapi") end
-  cfg.beforeWrite, cfg.lastWritten, cfg.lastWriteAt = before, text, clock()
-  if index then
-    if index ~= cfg.index or not cfg.changedAt then cfg.changedAt = at end
-    cfg.index = index
-  end
-  send(string.format("W|%d|%d|%s", cfg.index or 0, cfg.changedAt or at, text))
-  return status("written")
+  if text == cfg.confirmed then return status("same") end
+  if cfg.intended and cfg.intended.text == text then motd.pending = { text = text }; motd.status = "ready"; return "ready" end
+  motd.pending = { text = text }
+  showPrompt(text)
+  return status("due")
+end
+
+-- Opens the copy box with the ready text (call it from a click). Returns "ready".
+function motd.apply()
+  local cfg = config()
+  if not cfg then return "off" end
+  local can = canEdit()
+  if can == nil then return status("noapi") end
+  if not can then return status("cannot") end
+  local text, index = motd.wanted(cfg, now())
+  if not text or text == "" then return status("empty") end
+  cfg.intended = { text = text, index = index }
+  showPopup(text)
+  motd.pending = { text = text }
+  motd.status = "ready"
+  return "ready"
 end
 
 local STATUS_TEXT = {
   off = "Automatic guild message is off.",
   noguild = "You are not in a guild.",
   notofficer = "Only officers can use the automatic guild message.",
-  noapi = "This game client cannot change the guild message from an addon, so nothing is written.",
+  noapi = "This game client does not say whether you can edit the guild message, so nothing is offered.",
   cannot = "Your guild rank cannot edit the guild message.",
   paused = "Paused: someone edited the guild message by hand. Press Resume to take over again.",
-  notwriter = "On. Another officer's game writes the message (the lowest name online).",
+  waiting = "On. Checking for other officers online...",
+  notwriter = "On. Another officer's game offers the update (the lowest name online).",
+  due = "A new guild message is ready. Click the Update guild message button to copy it (WoW does not let addons set the message of the day).",
+  ready = "Ready: copy the text, then paste it in Guild (J) > Info > message of the day.",
   empty = "On, but there is nothing to write yet (add lines, or wait for a raid).",
-  combat = "On. Waiting until you leave combat.",
   same = "On. The guild message is up to date.",
-  written = "On. The guild message was just updated.",
+  written = "On. The guild message was updated (confirmed).",
 }
 function motd.statusText()
   local code = motd.status or motd.tick()
@@ -318,7 +448,7 @@ end
 function motd.resume()
   local cfg = config()
   if not cfg then return false end
-  cfg.paused, cfg.lastWritten = false, nil
+  cfg.paused, cfg.confirmed = false, nil
   send("R")
   return true
 end
@@ -327,7 +457,7 @@ end
 -- Command: /guilded motd ...
 -- ---------------------------------------------------------------------
 
-local HELP = "/guilded motd [on|off | mode rotate|event | hours N | add <line> | clear | suffix <text> | resume | now | config]"
+local HELP = "/guilded motd [on|off | mode rotate|event | hours N | add <line> | clear | suffix <text> | resume | config]"
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers.motd = function(args)
   if not (ns.isOfficer and ns.isOfficer()) then ns.message(L(STATUS_TEXT.notofficer)); return end
@@ -347,7 +477,6 @@ ns.commandHandlers.motd = function(args)
   elseif action == "clear" then cfg.lines, cfg.index, cfg.changedAt = {}, 0, nil
   elseif action == "suffix" then motd.set("suffix", table.concat(args, " ", 2))
   elseif action == "resume" then motd.resume()
-  elseif action == "now" then motd.tick(true)
   elseif action then ns.message(HELP); return end
   local tick = motd.tick()
   ns.message(string.format(L("Guild message: %s, %s, every %d h, %d line(s)."),
@@ -355,109 +484,76 @@ ns.commandHandlers.motd = function(args)
 end
 
 -- ---------------------------------------------------------------------
--- Settings window (opened from Settings > Officer, or /guilded motd config)
+-- Settings page: a tab of the Guilded window ("Guild message", officers), built by Minimap.lua
+-- with its widget helpers. /guilded motd config and Settings > Guild message open that tab.
 -- ---------------------------------------------------------------------
 
-local panel
-local function buildPanel()
-  panel = CreateFrame("Frame", "GuildedMotdPanel", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  panel:SetSize(440, 392)
-  panel:SetPoint("CENTER")
-  panel:SetFrameStrata("DIALOG")
-  panel:EnableMouse(true)
-  panel:SetMovable(true)
-  panel:RegisterForDrag("LeftButton")
-  panel:SetScript("OnDragStart", panel.StartMoving)
-  panel:SetScript("OnDragStop", panel.StopMovingOrSizing)
-  if panel.SetBackdrop then
-    panel:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-      tile = true, tileSize = 32, edgeSize = 32, insets = { left = 8, right = 8, top = 8, bottom = 8 } })
-  end
-  local function label(text, x, y, font)
-    local f = panel:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
-    f:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
-    f:SetJustifyH("LEFT")
-    f:SetText(L(text))
-    return f
-  end
-  local function button(text, width, x, y, onClick)
-    local b = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-    b:SetSize(width, 22)
-    b:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
-    b:SetText(L(text))
-    b:SetScript("OnClick", onClick)
-    return b
-  end
-  local function edit(width, height, x, y, multi)
-    local e = CreateFrame("EditBox", nil, panel, multi and "BackdropTemplate" or "InputBoxTemplate")
-    e:SetSize(width, height)
-    e:SetPoint("TOPLEFT", panel, "TOPLEFT", x, y)
-    e:SetAutoFocus(false)
-    if multi then
-      e:SetMultiLine(true)
-      e:SetFontObject(ChatFontNormal or GameFontHighlight)
-      e:SetTextInsets(6, 6, 4, 4)
-      if e.SetBackdrop then
-        e:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-          tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-        e:SetBackdropColor(0, 0, 0, 0.6)
-      end
-    end
-    e:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
-    return e
-  end
-  label("Automatic guild message", 20, -18, "GameFontNormalLarge")
-  panel.intro = label("Keeps the in-game guild message of the day current from an officer's game. Off by default; a manual edit pauses it.", 20, -44, "GameFontHighlightSmall")
-  panel.intro:SetWidth(400)
-  panel.toggle = button("", 150, 20, -80, function()
-    local cfg = config(); if cfg then motd.set("enabled", not cfg.enabled); motd.tick(); panel.refresh() end
-  end)
-  panel.mode = button("", 200, 180, -80, function()
-    local cfg = config(); if cfg then motd.set("mode", cfg.mode == "event" and "rotate" or "event"); motd.tick(); panel.refresh() end
-  end)
-  label("Change every (hours)", 20, -118, "GameFontNormalSmall")
-  panel.hours = edit(50, 20, 160, -114)
-  panel.hours:SetNumeric(true); panel.hours:SetMaxLetters(3)
-  label("One line per message (rotation, 128 characters each, up to 12):", 20, -146, "GameFontNormalSmall")
-  panel.lines = edit(400, 110, 20, -164, true)
-  label("Added at the end of every message (optional, e.g. Link your character: Guilded Companion)", 20, -284, "GameFontNormalSmall")
-  panel.suffix = edit(400, 20, 26, -302)
-  panel.suffix:SetMaxLetters(60)
-  panel.status = label("", 20, -330, "GameFontHighlightSmall")
-  panel.status:SetWidth(400)
-  button("Save", 90, 20, -358, function()
+local page
+function motd.buildPage(parent, ui)
+  page = parent
+  local at, newLabel, newButton, newEdit = ui.at, ui.newLabel, ui.newButton, ui.newEdit
+  local width = ui.width or 520
+  local intro = at(newLabel(parent, "A reminder plus a copy box for the guild message of the day: WoW does not let addons set it, so you paste the ready text yourself and Guilded confirms it. Off by default; a manual edit pauses it.", "GameFontHighlightSmall"), parent, 0, 0)
+  intro:SetWidth(width)
+  parent.toggle = at(newButton(parent, "Turn on", 130, function()
+    local cfg = config(); if cfg then motd.set("enabled", not cfg.enabled); motd.tick(); parent.refresh() end
+  end), parent, 0, -44)
+  parent.mode = at(newButton(parent, "Mode: rotation", 170, function()
+    local cfg = config(); if cfg then motd.set("mode", cfg.mode == "event" and "rotate" or "event"); motd.tick(); parent.refresh() end
+  end), parent, 138, -44)
+  at(newButton(parent, "Save", 80, function()
     local cfg = config(); if not cfg then return end
-    motd.set("hours", panel.hours:GetText())
-    motd.setLines(panel.lines:GetText())
-    motd.set("suffix", panel.suffix:GetText())
-    panel.lines:ClearFocus()
-    motd.tick(); panel.refresh()
-  end)
-  button("Update now", 110, 120, -358, function() motd.tick(true); panel.refresh() end)
-  button("Resume", 90, 240, -358, function() motd.resume(); motd.tick(); panel.refresh() end)
-  button("Close", 80, 340, -358, function() panel:Hide() end)
-  panel.refresh = function()
-    local cfg = config(); if not cfg then return end
-    panel.toggle:SetText(L(cfg.enabled and "Turn off" or "Turn on"))
-    panel.mode:SetText(L(cfg.mode == "event" and "Mode: next raid" or "Mode: rotation"))
-    panel.status:SetText(motd.statusText())
+    motd.set("hours", parent.hours:GetText())
+    motd.setLines(parent.lines:GetText())
+    motd.set("suffix", parent.suffix:GetText())
+    parent.lines:ClearFocus()
+    motd.tick(); parent.refresh()
+  end), parent, 0, -74)
+  -- A click opens the copy box with the ready text.
+  at(newButton(parent, "Update now", 110, function() motd.apply(); parent.refresh() end), parent, 88, -74)
+  at(newButton(parent, "Resume", 90, function() motd.resume(); motd.tick(); parent.refresh() end), parent, 206, -74)
+  parent.status = at(newLabel(parent, "", "GameFontHighlightSmall"), parent, 0, -106)
+  parent.status:SetWidth(width)
+  at(newLabel(parent, "Change every (hours)", "GameFontNormalSmall"), parent, 0, -140)
+  parent.hours = at(newEdit(parent, 50, true), parent, 150, -136)
+  parent.hours:SetMaxLetters(3)
+  at(newLabel(parent, "One line per message (rotation, 128 characters each, up to 12):", "GameFontNormalSmall"), parent, 0, -166)
+  local lines = CreateFrame("EditBox", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  lines:SetSize(width - 10, 80)
+  lines:SetMultiLine(true)
+  lines:SetAutoFocus(false)
+  lines:SetFontObject(ChatFontNormal or GameFontHighlight)
+  lines:SetTextInsets(6, 6, 4, 4)
+  if lines.SetBackdrop then
+    lines:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+    lines:SetBackdropColor(0, 0, 0, 0.6)
   end
-  panel:SetScript("OnShow", function()
+  lines:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+  at(lines, parent, 0, -184)
+  parent.lines = lines
+  local suffixLabel = at(newLabel(parent, "Added at the end of every message (optional, e.g. Link your character: Guilded Companion)", "GameFontNormalSmall"), parent, 0, -272)
+  suffixLabel:SetWidth(width)
+  parent.suffix = at(newEdit(parent, width - 20), parent, 6, -302)
+  parent.suffix:SetMaxLetters(60)
+  parent.refresh = function()
     local cfg = config(); if not cfg then return end
-    panel.hours:SetText(tostring(cfg.hours))
-    panel.lines:SetText(motd.linesText())
-    panel.suffix:SetText(cfg.suffix)
-    panel.refresh()
+    parent.toggle:SetText(L(cfg.enabled and "Turn off" or "Turn on"))
+    parent.mode:SetText(L(cfg.mode == "event" and "Mode: next raid" or "Mode: rotation"))
+    parent.status:SetText(motd.statusText())
+  end
+  parent:HookScript("OnShow", function()
+    local cfg = config(); if not cfg then return end
+    parent.hours:SetText(tostring(cfg.hours))
+    parent.lines:SetText(motd.linesText())
+    parent.suffix:SetText(cfg.suffix)
+    parent.refresh()
   end)
-  if UISpecialFrames then table.insert(UISpecialFrames, "GuildedMotdPanel") end
-  panel:Hide()
 end
 
 function motd.openSettings()
   if not (ns.isOfficer and ns.isOfficer()) then ns.message(L(STATUS_TEXT.notofficer)); return end
-  if inCombat() then return end
-  if not panel then buildPanel() end
-  if panel:IsShown() then panel:Hide() else panel:Show() end
+  if ns.openToolsPage then ns.openToolsPage("Guild message") end
 end
 
 -- ---------------------------------------------------------------------
@@ -475,7 +571,7 @@ frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
     if ns.comm and ns.comm.accept(prefix, text, channel, sender, PREFIX) then motd.receive(text, sender) end
   elseif event == "GUILD_MOTD" then
     local cfg = config()
-    if cfg and cfg.enabled then motd.checkManualEdit(cfg) end
+    if cfg and cfg.enabled then motd.confirm(cfg); motd.checkManualEdit(cfg) end
   end
 end)
 local tickElapsed, helloElapsed = 0, 0

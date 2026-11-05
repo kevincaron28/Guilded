@@ -167,36 +167,61 @@ end
 -- Scroll pages whose content can be taller than their viewport: the range is the child height
 -- less the viewport, a wheel tick moves a useful distance (SCROLL_STEP), and the last row keeps
 -- bottom padding so it is never cut mid-button.
-local SCROLL_STEP, SCROLL_PADDING = 48, 24
+local SCROLL_STEP, SCROLL_PADDING, SCROLL_SLACK = 48, 24, 160
 local function scrollRange(contentHeight, viewportHeight)
   return math.max(0, (contentHeight or 0) + SCROLL_PADDING - (viewportHeight or 0))
 end
+local wheelState = setmetatable({}, { __mode = "k" })
+-- Where each scroll frame is supposed to be. The game's template re-applies the scrollbar's own
+-- value whenever the page's range changes, which undid wheel moves (a 4 px crawl and a page that
+-- stopped a row short). The wheel, the scrollbar and any later range change all agree on this
+-- one number.
+local wantedScroll = setmetatable({}, { __mode = "k" })
 local function enableWheel(scroll, getRange)
   scroll:EnableMouseWheel(true)
   local bar = scroll.ScrollBar
   if type(bar) ~= "table" or type(bar.SetValue) ~= "function" then bar = nil end
-  -- The template's scrollbar clamps its value to the range it last measured, and snaps it to its
-  -- value step. A stale (short) range or a 48 px step pulled the page back after every tick: the
-  -- wheel crawled and the last heat-map row was unreachable. Keep the bar's step at 1 and widen
-  -- its range to ours before every move; the wheel step lives in our own handler.
   if bar and bar.SetValueStep then bar:SetValueStep(1) end
-  if bar then bar.scrollStep = SCROLL_STEP end
-  scroll:SetScript("OnMouseWheel", function(self, delta)
-    -- Never stop short of the real end of the content: take the larger of our estimate and the
-    -- range the game measured (it clamps anything beyond it).
+  local function fullRange(self)
     local range = getRange()
     local real = self.GetVerticalScrollRange and self:GetVerticalScrollRange()
+    -- Never stop short of the real end of the content: the larger of our estimate and the game's.
     if type(real) == "number" and real > range then range = real end
-    local target = math.max(0, math.min(range, (self:GetVerticalScroll() or 0) - delta * SCROLL_STEP))
+    return range
+  end
+  local function moveTo(self, target)
+    wantedScroll[self] = target
     if bar and bar.SetMinMaxValues and bar.GetMinMaxValues then
       local _, barMax = bar:GetMinMaxValues()
-      if type(barMax) ~= "number" or barMax < range then bar:SetMinMaxValues(0, range) end
+      if type(barMax) ~= "number" or barMax < fullRange(self) then bar:SetMinMaxValues(0, fullRange(self)) end
     end
     self:SetVerticalScroll(target)
-    -- Keep the scrollbar thumb in step with the content.
-    if bar and bar.SetValue then bar:SetValue(target) end
+    if bar then bar:SetValue(target) end
+  end
+  scroll:SetScript("OnMouseWheel", function(self, delta)
+    local range = fullRange(self)
+    local from = wantedScroll[self] or self:GetVerticalScroll() or 0
+    local target = math.max(0, math.min(range, from - delta * SCROLL_STEP))
+    moveTo(self, target)
+    -- /guilded debug scroll prints the last tick so a stuck page can be read from the game.
+    local n = wheelState[self] and wheelState[self].n or 0
+    wheelState[self] = { n = n + 1, delta = delta, from = from, target = target, range = range, after = self:GetVerticalScroll(), bar = bar and bar.GetValue and bar:GetValue() or nil }
   end)
+  -- A range change (the page was resized or its text changed) must not move the page.
+  if scroll.HookScript then
+    pcall(scroll.HookScript, scroll, "OnScrollRangeChanged", function(self)
+      local want = wantedScroll[self]
+      if want and (self:GetVerticalScroll() or 0) ~= want then moveTo(self, math.min(want, fullRange(self))) end
+    end)
+  end
+  -- Dragging the thumb is also a choice of position.
+  if bar and bar.HookScript then
+    pcall(bar.HookScript, bar, "OnValueChanged", function(_, value)
+      if type(value) == "number" then wantedScroll[scroll] = value end
+    end)
+  end
 end
+function ns.resetScrollWanted(scroll) if scroll then wantedScroll[scroll] = 0 end end
 ns.layoutMath = { scrollRange = scrollRange, SCROLL_STEP = SCROLL_STEP, SCROLL_PADDING = SCROLL_PADDING }
 
 local function newLabel(parent, text, font)
@@ -987,6 +1012,8 @@ local function buildToolsPage(page)
   local clearTests = forModule("sim", tip(at(newButton(page, "Clear test data", 136), page, 284, -188), "Deletes every test raid and test dungeon run from this PC. Click twice to confirm."), true)
   confirmClick(clearTests, "Clear test data", function() run("sim clear") end)
 
+  tip(at(newButton(page, "Announcements", 130, function() ui.selectTabByName("Announcements") end), page, 284, -234), "Say your milestones in guild chat (off until you turn them on).")
+
   -- Window size, kept between sessions.
   at(newLabel(page, "Window size", "GameFontNormalSmall"), page, 0, -238)
   tip(at(newButton(page, "-", 30, function() run("menu scale smaller") end), page, 90, -234), "Smaller window")
@@ -1012,10 +1039,10 @@ local function buildToolsPage(page)
   scrollChild:SetWidth(PAGE_WIDTH - 24)
   local moduleHeight = math.max(1, #(ns.MODULES or {}) * 22)
   -- Bottom padding so the last row is reachable whole, not cut at the viewport edge.
-  scrollChild:SetHeight(moduleHeight + SCROLL_PADDING)
+  scrollChild:SetHeight(moduleHeight + SCROLL_PADDING * 2 + SCROLL_SLACK)
   scroll:SetScrollChild(scrollChild)
   ui.moduleScroll = scroll
-  enableWheel(scroll, function() return scrollRange(moduleHeight, scroll:GetHeight()) end)
+  enableWheel(scroll, function() return scrollRange(moduleHeight + SCROLL_PADDING, scroll:GetHeight()) end)
 
   ui.moduleRows = {}
   for i, module in ipairs(ns.MODULES or {}) do
@@ -1481,6 +1508,46 @@ local function buildOfficerToolsPage(page)
     b:SetPoint("TOPLEFT", ((i - 1) % 2) * 230, -12 - math.floor((i - 1) / 2) * 38)
   end
 end
+-- Milestone announcements in guild chat (Modules/Milestones.lua): your master switch, one per
+-- kind, and (officers) the guild-wide off switch. The same switches exist in Interface Options.
+local function buildAnnouncementsPage(page)
+  local intro = at(newLabel(page, "Say your milestones (levels, first dungeon clears, honorable kills, duel wins) once in guild chat so guildmates can cheer. Off until you turn them on.", "GameFontHighlightSmall"), page, 0, 0)
+  intro:SetWidth(PAGE_WIDTH)
+  local rows = {
+    { nil, "Announce my milestones in guild chat" },
+    { "level", "Milestones: level 10, 20..." },
+    { "dungeon", "Milestones: first dungeon clears" },
+    { "hk", "Milestones: honorable kills" },
+    { "duel", "Milestones: duel wins" },
+  }
+  ui.announceChecks = {}
+  for i, row in ipairs(rows) do
+    local kind = row[1]
+    local box = at(newCheck(page, row[2]), page, kind and 24 or 0, -44 - (i - 1) * 30)
+    box:SetScript("OnClick", function(self)
+      run("announce " .. (kind and (kind .. " ") or "") .. (self:GetChecked() and "on" or "off"))
+      if ui.refreshAnnouncements then ui.refreshAnnouncements() end
+    end)
+    ui.announceChecks[i] = { box = box, kind = kind }
+  end
+  ui.announceGuild = officerOnly(at(newButton(page, "", 440, function()
+    run("announce guild " .. ((ns.milestones and ns.milestones.guildOff and ns.milestones.guildOff()) and "on" or "off"))
+    if ui.refreshAnnouncements then ui.refreshAnnouncements() end
+  end), page, 0, -210))
+  ui.announceStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -246)
+  ui.announceStatus:SetWidth(PAGE_WIDTH)
+  ui.refreshAnnouncements = function()
+    local ms = ns.milestones
+    for _, entry in ipairs(ui.announceChecks) do
+      entry.box:SetChecked(ms and ms.enabled and ms.enabled(entry.kind) or false)
+    end
+    local off = ms and ms.guildOff and ms.guildOff() or false
+    ui.announceGuild:SetText(L(off and "Guild-wide: turned off (click to allow)" or "Guild-wide: allowed (click to turn off for all)"))
+    ui.announceStatus:SetText(off and L("Milestone announcements are turned off for the whole guild by an officer.") or "")
+  end
+  page:HookScript("OnShow", function() ui.refreshAnnouncements() end)
+end
+
 local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Overview", build = buildHomePage },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Overview", usesPlayer = true, build = buildMePage },
@@ -1495,11 +1562,13 @@ local TAB_DEFS = {
   { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raid night", officer = true, usesPlayer = true, build = buildRaidPage },
   { name = "EPGP", label = "Administration", hint = "award EP and GP", scope = "guild", group = "Guild", officer = true, usesPlayer = true, build = buildEpgpPage },
   { name = "Local guild", scope = "guild", group = "Guild", officer = true, build = buildLocalGuildPage },
+  { name = "Guild message", hint = "keep the guild message of the day current", scope = "guild", group = "Guild", officer = true, build = function(page) if ns.guildMotd and ns.guildMotd.buildPage then ns.guildMotd.buildPage(page, { newLabel = newLabel, newButton = newButton, newEdit = newEdit, at = at, width = PAGE_WIDTH }) end end },
   { name = "Roster admin", scope = "guild", group = "Guild", officer = true, build = buildRosterAdminPage },
   { name = "Officer tools", hint = "guild log, prospects, guild bank, imports", scope = "guild", group = "Guild", officer = true, build = buildOfficerToolsPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Duels", hint = "guild duel leaderboard", group = "Fun and runs", module = "duels", build = function(page) if ns.duels and ns.duels.buildPage then ns.duels.buildPage(page, { newLabel = newLabel, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Announcements", hint = "milestones in guild chat", group = "System", build = buildAnnouncementsPage },
   { name = "Tools", label = "Settings", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }
 }
 
@@ -1917,12 +1986,18 @@ updateGuildScroll = function()
   elseif tab.name == "Crafting" then
     height = 46 + textHeight(ui.craftResult) + 16 + 20 + textHeight(ui.craftMine) + 16 + 24 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
+  elseif tab.name == "Guild message" then height = 340
+  elseif tab.name == "Announcements" then height = 290
   elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
   local scroll = ui.guildScroll
   local viewport = math.max(1, scroll:GetHeight())
   local range = scrollRange(height, viewport)
-  tab.page:SetHeight(math.max(viewport, height + SCROLL_PADDING))
+  -- Extra room under the page: the game clamps scrolling to the child height, ours to `range`, so
+  -- the game can never be the one stopping short of the last row.
+  local pageHeight = math.max(viewport, height + SCROLL_PADDING + SCROLL_SLACK)
+  local currentHeight = tab.page.GetHeight and tab.page:GetHeight()
+  if type(currentHeight) ~= "number" or math.abs(currentHeight - pageHeight) > 0.5 then tab.page:SetHeight(pageHeight) end
   -- A narrower host (the game's calendar) shows less than PAGE_WIDTH: size the page to what
   -- is visible so text anchored to its right edge wraps instead of being cut off.
   local visible = scroll:GetWidth()
@@ -1935,7 +2010,15 @@ updateGuildScroll = function()
   -- Tell the scrollbar the true range now: it only re-measures on a later frame and until then
   -- clamped the thumb (and the page) short of the last rows.
   if scroll.ScrollBar and scroll.ScrollBar.SetMinMaxValues then pcall(scroll.ScrollBar.SetMinMaxValues, scroll.ScrollBar, 0, range) end
-  scroll:SetVerticalScroll(math.min(scroll:GetVerticalScroll() or 0, range))
+  -- Clamp to the larger of our estimate and the game's measured range (the estimate is often
+  -- smaller and used to pull the page back up).
+  local limit = range
+  local measured = scroll.GetVerticalScrollRange and scroll:GetVerticalScrollRange()
+  if type(measured) == "number" and measured > limit then limit = measured end
+  if (scroll:GetVerticalScroll() or 0) > limit then
+    scroll:SetVerticalScroll(limit)
+    wantedScroll[scroll] = limit
+  end
   if scroll.ScrollBar then
     if range > 1 then scroll.ScrollBar:Show() else scroll.ScrollBar:Hide() end
   end
@@ -1951,6 +2034,7 @@ selectTab = function(index)
     ui.guildScroll:SetScrollChild(page)
     page:SetPoint("TOPLEFT", ui.guildScroll, "TOPLEFT", 0, 0)
     ui.guildScroll:SetVerticalScroll(0)
+    ns.resetScrollWanted(ui.guildScroll)
     raiseWindow(page, ui.guildScroll:GetFrameLevel() + 1)
   end
   -- The status line answers what was just done on a page; another page starts without it.
@@ -2235,6 +2319,52 @@ function ns.openToolsPage(name)
   if not panel then buildPanel() end
   if name == "Open raids" then panel:Show(); ui.lastOfficer = nil; refresh() end
   ui.selectTabByName(name)
+end
+
+-- /guilded debug scroll: numbers for a page that will not scroll (no /script needed).
+local function fmt(value)
+  if type(value) == "number" then return string.format("%.1f", value) end
+  return tostring(value)
+end
+local function scrollDebug()
+  local scroll = ui.guildScroll
+  local tab = ui.tabs[ui.currentTab or 0]
+  if not scroll or not tab then ns.message("scroll debug: open a page inside the guild window first (Guild & Communities > Guilded)."); return end
+  local page = tab.page
+  local function call(frame, name, ...)
+    if not frame or type(frame[name]) ~= "function" then return "n/a" end
+    local ok, a, b = pcall(frame[name], frame, ...)
+    if not ok then return "error" end
+    return b ~= nil and (fmt(a) .. "/" .. fmt(b)) or fmt(a)
+  end
+  local bar = scroll.ScrollBar
+  local lines = {
+    string.format("scroll debug, page %s: viewport h=%s w=%s top=%s bottom=%s scale=%s", tostring(tab.name),
+      call(scroll, "GetHeight"), call(scroll, "GetWidth"), call(scroll, "GetTop"), call(scroll, "GetBottom"), call(scroll, "GetEffectiveScale")),
+    string.format("page h=%s top=%s bottom=%s scale=%s isChild=%s", call(page, "GetHeight"), call(page, "GetTop"), call(page, "GetBottom"),
+      call(page, "GetEffectiveScale"), tostring(scroll.GetScrollChild and scroll:GetScrollChild() == page)),
+    string.format("estimated range=%s engine range=%s offset=%s", fmt(ui.guildScrollRange), call(scroll, "GetVerticalScrollRange"), call(scroll, "GetVerticalScroll")),
+    string.format("scrollbar min/max=%s value=%s step=%s shown=%s", call(bar, "GetMinMaxValues"), call(bar, "GetValue"), call(bar, "GetValueStep"), call(bar, "IsShown")),
+    string.format("panel top=%s bottom=%s host bottom=%s", call(panel, "GetTop"), call(panel, "GetBottom"), call(ui.guildHost, "GetBottom")),
+  }
+  local wheel = wheelState[scroll]
+  lines[#lines + 1] = wheel and string.format("wheel ticks=%d last: delta=%s from=%s target=%s range=%s after=%s bar=%s", wheel.n, fmt(wheel.delta), fmt(wheel.from), fmt(wheel.target), fmt(wheel.range), fmt(wheel.after), fmt(wheel.bar))
+    or "wheel: our handler has not run yet (scroll with the mouse over the page, then run this again)"
+  local pageTop = type(page.GetTop) == "function" and page:GetTop()
+  local function below(widget)
+    local bottom = widget and widget.GetBottom and widget:GetBottom()
+    if type(pageTop) == "number" and type(bottom) == "number" then return fmt(pageTop - bottom) end
+    return "n/a"
+  end
+  if ui.presenceCells and tab.name == "Availability" then
+    lines[#lines + 1] = string.format("heat map Sunday row bottom y=%s, Monday row bottom y=%s, presence text bottom y=%s (from page top)",
+      below(ui.presenceCells[6 * 24]), below(ui.presenceCells[0]), below(ui.presenceText))
+  end
+  for _, line in ipairs(lines) do ns.message(line) end
+end
+ns.commandHandlers = ns.commandHandlers or {}
+ns.commandHandlers.debug = function(args)
+  if args[1] == "scroll" then scrollDebug() else ns.message("/guilded debug scroll") end
 end
 
 -- The game's guild window draws its emblem ring half over the corner where the Guilded page

@@ -89,7 +89,7 @@ initialization are tracked separately from the implemented feature inventory.
 
 ## Current stage — 5 November 2026
 
-Guilded **8.4.4** is prepared (WoW Forever launch-week release: automatic linking, synced-realm guild key, Forever-first, crafter offers, companion saved-data detection and addon UI fixes, on top of 8.4.3's WoW Forever launch fixes for the companion and 8.4.2's startup-crash fix and Link everything polish on top of 8.4.1's owner console, quick reference, achievement cards and guild rank); published baseline is 8.4.0.
+Guilded **8.4.5** is prepared (milestone announcements on by default, new achievements, duels, the guild message assistant and addon fixes, on top of 8.4.4's WoW Forever launch-week release: automatic linking, synced-realm guild key, Forever-first, crafter offers, companion saved-data detection and addon UI fixes, on top of 8.4.3's WoW Forever launch fixes for the companion and 8.4.2's startup-crash fix and Link everything polish on top of 8.4.1's owner console, quick reference, achievement cards and guild rank); published baseline is 8.4.0.
 
 Guilded **8.4 source candidate** is being integrated on
 `codex/bg-recorder-history-oct30`. The provisional BG pipeline is implemented in

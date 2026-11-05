@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.4.5 — 5 November 2026
+
+Milestone announcements in guild chat (on by default; `/guilded announce off` turns them
+off), new achievements, the duel leaderboard (Duels tab, Discord and website), a guild
+message assistant (WoW does not let addons set the message of the day, so it is copy and
+paste), and Availability and scroll fixes in the addon windows. The companion needs the new
+build for the new achievements. Protocol remains 2. See [release notes](docs/V8_4_5_RELEASE_NOTES.md).
+
 ## 8.4.4 — 5 November 2026
 
 WoW Forever launch-week release. Linking is automatic (no codes to type, with a clearer

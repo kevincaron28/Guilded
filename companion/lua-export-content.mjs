@@ -257,6 +257,8 @@ export function parseAddonExportText(text, realm) {
 
   const dungeonRuns = exportDungeonRuns(database, realm);
   const battlegroundReports = exportBattlegroundReports(database);
+  const duelResults = exportDuelResults(database);
+  const milestones = exportMilestones(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -338,7 +340,9 @@ export function parseAddonExportText(text, realm) {
     raids,
     loot,
     dungeonRuns,
-    ...(battlegroundReports.length ? { battlegroundReports } : {})
+    ...(battlegroundReports.length ? { battlegroundReports } : {}),
+    ...(duelResults.length ? { duelResults } : {}),
+    ...(milestones.length ? { milestones } : {})
   }, edition.gameEdition, realm);
 }
 
@@ -365,6 +369,38 @@ export function exportBattlegroundReports(database) {
       mapId: r.mapId, bracket: r.bracket, endedAt: r.endedAt, durationSeconds: r.durationSeconds,
       outcome: r.outcome, presence: r.presence, reloaded: r.reloaded, postmatch: true, consent: true
     }));
+}
+
+// Guild duels the addon recorded (Modules/Duels.lua): who beat whom and when, nothing else. The bot checks that
+// both are guild members and that the uploader is one of them. Whitelisted field by field.
+export function exportDuelResults(database) {
+  const results = database?.duels?.results;
+  if (!results || typeof results !== "object") return [];
+  // eslint-disable-next-line no-control-regex
+  const name = (v) => typeof v === "string" && v.length > 0 && v.length <= 80 && !/[|\u0000-\u001f]/.test(v);
+  return Object.values(results)
+    .filter((r) => r && name(r.winner) && name(r.loser) && r.winner !== r.loser && Number.isSafeInteger(r.at) && r.at > 0 && r.at < 4102444800
+      && (r.reason === "knockout" || r.reason === "retreat"))
+    .sort((a, b) => b.at - a.at).slice(0, 200)
+    .map((r) => ({ winner: r.winner, loser: r.loser, at: r.at, reason: r.reason }));
+}
+
+// Personal milestones (Modules/Milestones.lua): level steps, first dungeon clears, honorable kills, duel wins. Own characters
+// only, numbers and dates; the Discord echo is the server's own opt-in, never decided here.
+export function exportMilestones(database) {
+  const chars = database?.milestones?.chars;
+  if (!chars || typeof chars !== "object") return [];
+  const out = [];
+  for (const entry of Object.values(chars)) {
+    if (!entry || typeof entry.name !== "string" || !entry.name || entry.name.length > 80 || typeof entry.log !== "object" || !entry.log) continue;
+    for (const row of Object.values(entry.log)) {
+      if (!row || !["level", "dungeon", "hk", "duel"].includes(row.kind) || typeof row.ref !== "string"
+        || !/^[a-z]{2,10}:[A-Za-z0-9_-]{1,30}$/.test(row.ref) || !Number.isSafeInteger(row.value) || row.value < 0 || row.value > 1000000
+        || !Number.isSafeInteger(row.at) || row.at <= 0 || row.at >= 4102444800) continue;
+      out.push({ character: entry.name, realm: typeof entry.realm === "string" ? entry.realm.slice(0, 100) : "", kind: row.kind, ref: row.ref, value: row.value, at: row.at });
+    }
+  }
+  return out.sort((a, b) => b.at - a.at).slice(0, 300);
 }
 
 // The character's rank in the WoW guild the saved data belongs to: { guildRankName, guildRankIndex }

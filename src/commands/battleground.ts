@@ -11,6 +11,7 @@ import { battlegroundPrivacyHelp, battlegroundRecordPanel, battlegroundResultCar
 import { currentGuildScope } from "../services/guild-scope.js";
 import { battlegroundEndCard } from "../services/end-cards.js";
 import { scoreCardPng } from "../services/score-card.js";
+import { duelLeaderboard, percent, streakText } from "../services/duels.js";
 
 export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDescription("Battleground planning")
   .setDescriptionLocalizations({ fr: "Organisation des champs de bataille" })
@@ -54,6 +55,7 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
     .addStringOption(o => o.setName("mode").setDescription("Format").setRequired(true).addChoices(...["casual", "rated", "blitz"].map(value => ({ name: value, value }))))
     .addStringOption(o => o.setName("bracket").setDescription("Reported API bracket identifier from /bg result").setRequired(true).setMaxLength(20))
     .addIntegerOption(o => o.setName("season").setDescription("Season number; defaults to current").setMinValue(1)))
+  .addSubcommand(s => s.setName("duels").setDescription("Guild duel leaderboard: wins, losses, win rate and streak").setDescriptionLocalizations({ fr: "Classement des duels de la guilde" }))
   .addSubcommand(s => s.setName("setup").setDescription("Officer setup instructions; changes no channels or permissions").setDescriptionLocalizations({ fr: "Guide officiers, sans modification de salons ou permissions" }));
 
 type BgInteraction = ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction;
@@ -143,6 +145,15 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
         { name: t("Known-outcome sample / unknown", "Échantillon connu / résultat inconnu"), value: `${stats.wins + stats.losses + stats.draws} / ${stats.unknownOutcomes}`, inline: true },
         { name: t("Verified unique matches", "Matchs uniques vérifiés"), value: t("Unavailable: adapters and cross-reporter identity are not verified.", "Indisponibles : adaptateurs et identité entre rapporteurs non validés.") })
       .setFooter({ text: t("Opted-in reports only; withdrawn/conflicting reports excluded. Provisional, not official or ranked. No MMR, skill score or competitive points.", "Rapports consentants seulement; retraits et conflits exclus. Provisoire, sans classement officiel. Aucun MMR, score de talent ou point compétitif.") })], allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "duels") {
+    // Counted duels between this guild's members, reported by their own companions (services/duels.ts). Public in the guild; no points.
+    const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
+    const { standings, duels } = await duelLeaderboard(prisma, ctx.guildId, guild.gameEdition, { limit: 15 });
+    const lines = standings.map((row, index) => `**${index + 1}.** ${escapeMarkdown(row.name)} — ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} (${percent(row.winRate)}) · ${streakText(row.streak)}`);
+    await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("Guild duel leaderboard", "Classement des duels de la guilde"))
+      .setDescription(lines.length ? lines.join("\n") : t("No duel recorded yet. Duel a guildmate with the Guilded addon and companion on.", "Aucun duel enregistré. Affrontez un membre de la guilde avec l'addon et le compagnon Guilded."))
+      .setFooter({ text: t(`${duels} counted duels · ${guild.gameEdition} · at most 5 per pair per day count · no points or awards`, `${duels} duels comptés · ${guild.gameEdition} · 5 par paire et par jour au maximum · aucun point ni récompense`) })], allowedMentions: { parse: [] } }); return;
   }
   if (sub === "panel") {
     await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId), battlegroundRecordPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(

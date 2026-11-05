@@ -4,7 +4,7 @@
 > Latest owner authorization: ALL AVAILABLE TESTING NOW. The older wait-until-launch waiver is superseded. Claude acknowledged the expanded QA handoff and completed a first pass; Retail evidence is addon8.2, native isolated-profile evidence8.3.
 > Active release evidence: docs/V8_4_0_RELEASE_ACCEPTANCE.md; previous deployed evidence: docs/V8_3_0_RELEASE_ACCEPTANCE.md. Historical statements below are not current provider status.
 > Keep selected edition calendars unchanged. Preserve published8.2 and8.3 artifact bytes. Forever live acceptance remains NOT RUN until an actual client is available.
-> Root owns integration/release. Native/game testing is assigned to Claude; avoid concurrent desktop control. No automatic messages/awards without configured opt-in.
+> Root owns integration/release. Native/game testing is assigned to Claude; avoid concurrent desktop control. No automatic messages/awards without configured opt-in. Exception (owner decision, 5 November 2026): the addon's guild-chat milestone announcements (levels, first dungeon clears, PvP and duel milestones) are ON by default for members, after a one-time local notice; members turn them off with `/guilded announce off`, and an officer's guild-wide off switch wins. Discord echoes of them stay opt-in per server.
 
 ## November 4 launch preparation — 29 October
 

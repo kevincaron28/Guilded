@@ -88,7 +88,7 @@ function buttonsFor(request: Pick<RequestRow, "id" | "status">, lang: Lang) {
 }
 
 // The language of the guild's craft board.
-async function boardLang(guildId: string): Promise<Lang> {
+export async function boardLang(guildId: string): Promise<Lang> {
   return asLang((await guildService.getSettings(guildId))?.language);
 }
 
@@ -96,7 +96,7 @@ async function boardLang(guildId: string): Promise<Lang> {
 // The forum
 // ---------------------------------------------------------------------
 
-async function boardForum(discordGuild: DiscordGuild, guildId: string): Promise<ForumChannel | null> {
+export async function boardForum(discordGuild: DiscordGuild, guildId: string): Promise<ForumChannel | null> {
   const settings = await guildService.getSettings(guildId);
   if (!settings?.craftChannelId) return null;
   const channel = await discordGuild.channels.fetch(settings.craftChannelId).catch(() => null);
@@ -114,7 +114,7 @@ export async function ensureBoardTags(forum: ForumChannel, lang: Lang = "en"): P
   await forum.setAvailableTags([...forum.availableTags, ...missing.slice(0, Math.max(0, room)).map((name) => ({ name }))]);
 }
 
-function tagIds(forum: ForumChannel, status: CraftRequestStatus, profession: string | null): string[] {
+export function tagIds(forum: ForumChannel, status: CraftRequestStatus, profession: string | null): string[] {
   const byName = new Map(forum.availableTags.map((tag) => [tag.name, tag.id]));
   const find = (aliases: string[]) => aliases.map((alias) => byName.get(alias)).find((id) => !!id);
   const professionIndex = profession ? PROFESSIONS.slice(0, 16).findIndex((name) => name === profession) : -1;

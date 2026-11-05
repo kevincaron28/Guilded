@@ -5,6 +5,7 @@ import { asLang } from "../i18n.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { findProfessionHolders, professionCoverage } from "./profession-search.js";
 import type { Lang } from "../i18n.js";
+import { offerDirectoryText } from "./craft-offers.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 
 export async function professionDirectoryText(database: Pick<PrismaClient, "professionSkill">, guildId: string, lang: Lang = "en"): Promise<string> {
@@ -43,7 +44,7 @@ export async function updateProfessionDirectory(discordGuild: DiscordGuild | nul
     if (forum?.type !== ChannelType.GuildForum) return false;
     const active = await forum.threads.fetchActive();
     const lang = asLang(guild.settings.language);
-    const description = await professionDirectoryText(prisma, guild.id, lang);
+    const description = (await professionDirectoryText(prisma, guild.id, lang) + await offerDirectoryText(prisma, guild.id, lang)).slice(0, 1990);
     const archived = await forum.threads.fetchArchived({ limit: 100 });
     let updated = false;
     for (const thread of new Map([...archived.threads, ...active.threads]).values()) {

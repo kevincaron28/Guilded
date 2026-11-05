@@ -36,11 +36,13 @@ function candidateRoots() {
   return roots;
 }
 
+// `isHeld(game)`: true for a game folder whose edition is switched off (companion/active-editions.mjs);
+// those files are left out, never offered. Use detectHeldSavedVariables to count them.
 // Returns [{ path, exists }]: the file itself when it exists, otherwise where
 // it will appear once the game has saved once (an account's SavedVariables).
 // `names` in order of preference: leaderboards-only (personal) mode passes
 // GuildedDungeons.lua then Guilded.lua; the companion reads both from the folder.
-function detectSavedVariables(names = ["Guilded.lua"]) {
+function detectSavedVariables(names = ["Guilded.lua"], isHeld = () => false) {
   const results = [];
   for (const root of candidateRoots()) {
     for (const wtf of findWtfFolders(root)) {
@@ -53,6 +55,11 @@ function detectSavedVariables(names = ["Guilded.lua"]) {
     }
   }
   return rankSavedVariables(results);
+}
+
+// Same scan, but only the files of editions that are on hold (so the app can say so plainly).
+function detectHeldSavedVariables(names = ["Guilded.lua"], isHeld = () => false) {
+  return detectSavedVariables(names).filter((entry) => isHeld(entry.game));
 }
 
 function modifiedMs(file) {
@@ -73,4 +80,4 @@ function pickSavedVariables(existing) {
   return forever.length === 1 ? forever[0] : null;
 }
 
-module.exports = { detectSavedVariables, rankSavedVariables, pickSavedVariables };
+module.exports = { detectSavedVariables, detectHeldSavedVariables, rankSavedVariables, pickSavedVariables };

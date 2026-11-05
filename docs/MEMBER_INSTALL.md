@@ -1,14 +1,17 @@
 # Guilded: install and connect
 
-For guildmates using **WoW Forever, Classic Era/Hardcore, Burning Crusade Classic,
-Mists of Pandaria Classic or Retail**. You do not need
+For guildmates using **WoW Forever**. You do not need
 Node.js, a database, or a Discord bot token.
 
+> **Forever first.** Guilded is focused on WoW Forever for now. The Classic Era/Hardcore,
+> Burning Crusade Classic, Mists of Pandaria Classic and Retail builds are on hold: not offered
+> in the companion, the website downloads or the bot's setup text, and coming back later.
+> Nothing was deleted. (Maintainers: one switch, `ACTIVE_EDITIONS` in `companion/active-editions.mjs`.)
+
 In [the latest published release](https://github.com/kevincaron28/Guilded/releases/latest),
-choose the addon ZIP ending in `forever`, `classic-era`, `classic-tbc`,
-`classic-mists` or `retail` for your client. ZIPs without an edition suffix are
-Forever builds. The Windows companion installer supports every edition; connect
-each guild/edition in its own profile. Enable **Load out of date AddOns** if the
+choose the addon ZIP ending in `forever` (ZIPs without an edition suffix are
+Forever builds). The Windows companion looks only for the WoW Forever saved file
+(`_forever_`); connect your guild in its own profile. Enable **Load out of date AddOns** if the
 client requests it. Real-client and two-PC checks remain pending follow-up.
 
 **Français :** choisissez le ZIP de votre édition (`forever`, `classic-era`,

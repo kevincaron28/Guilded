@@ -349,6 +349,8 @@
   "Watching {0} · last upload {1} · file changed {2}": "Dossier surveillé : {0} · dernier envoi {1} · fichier modifié {2}",
   " · over 3 days without a change: is WoW saving somewhere else?": " · plus de 3 jours sans changement : WoW enregistre-t-il ailleurs ?",
   "never (not saved yet)": "jamais (pas encore enregistré)",
+  " · this WoW version is on hold while Guilded focuses on WoW Forever; your data is untouched": " · cette version de WoW est en pause pendant que Guilded se concentre sur WoW Forever; vos données sont intactes",
+  "Guilded is focused on WoW Forever for now. Your other WoW version is on hold and will come back later; nothing was changed.": "Guilded se concentre sur WoW Forever pour le moment. Votre autre version de WoW est en pause et reviendra plus tard; rien n’a été modifié.",
   " · the Guilded addon in this game folder is the {0} build but this folder needs {1}: reinstall the {1} build": " · l’addon Guilded de ce dossier de jeu est la version {0}, mais ce dossier demande {1} : réinstallez la version {1}",
   "Your companion is still watching the beta folder": "Le compagnon surveille encore le dossier de la bêta",
   "Your saved file has not changed in {0} days": "Votre fichier n’a pas changé depuis {0} jours",

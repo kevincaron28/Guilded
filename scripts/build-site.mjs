@@ -4,7 +4,8 @@ import { dirname, posix } from "node:path";
 import { createHash } from "node:crypto";
 import { marked } from "marked";
 import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwitchHref, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../site/nav.mjs";
-import { editionCards, editionHubs, editionPages } from "../site/editions.mjs";
+import { WOW_EDITIONS, editionCards, editionHubs, editionPages } from "../site/editions.mjs";
+import { ACTIVE_EDITIONS, editionList, isEditionActive } from "../companion/active-editions.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
 const origin = "https://guilded.kcaron.top";
@@ -16,7 +17,7 @@ const guideDescriptions = {
   SUPPORT_GUILDED: "Optional coffee support for Guilded. Downloads and hosted access stay free; support never buys approval. English and French information.",
   OWNER_WALKTHROUGH: "Illustrated independent-hosting walkthrough for Guilded owners, with setup prerequisites and checks.",
   QUICK_START: "Choose addon-only play, EPGP or optional Discord sync for Guilded on WoW Forever. English and French quick setup.",
-  MEMBER_INSTALL: "Install Guilded for WoW Forever, Classic or Retail, select the matching edition and connect the optional companion. English and French instructions.",
+  MEMBER_INSTALL: `Install Guilded for ${editionList(0)} and connect the optional companion. English and French instructions.`,
   EPGP_GUIDE: "Use Guilded EP/GP, core pools, loot methods and standings, with or without Discord. Practical English and French raid workflow.",
   GUILD_OWNER_SETUP: "Configure Guilded roles, permissions and optional Discord synchronization for your own guild.",
   DEPLOY_ORACLE: "Independent Guilded hosting on Ubuntu: prerequisites, installation, maintenance and service checks.",
@@ -39,6 +40,14 @@ writeFileSync(`${out}/_headers`, headersFile);
 // Published provider versions are independent of a local candidate/package bump.
 const { guilded: publishedGuilded } = JSON.parse(readFileSync("site/releases.json", "utf8"));
 const version = publishedGuilded.github.version;
+// Forever-first (companion/active-editions.mjs): the chooser, header menu and downloads offer only the active editions.
+// The Start page's edition buttons come from the Forever-first switch, never from the markdown.
+const startEditions = french => {
+  const query = french ? "?lang=fr" : "";
+  const buttons = WOW_EDITIONS.filter(edition => isEditionActive(edition.id)).map(edition => `<a class="button secondary" href="/editions/${edition.id}/${query}">${edition.name} <span aria-hidden="true">→</span></a>`).join("");
+  const hardcore = isEditionActive("classic-era") ? (french ? "Hardcore utilise le fichier Classic Era. " : "Hardcore uses the Classic Era file. ") : "";
+  return `<div class="start-editions">${buttons}</div><p class="small">${hardcore}${french ? "Fermez WoW avant d’installer." : "Close WoW before you install."}</p>`;
+};
 const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", version).replaceAll("{{GUILDED_CURSEFORGE_VERSION}}", publishedGuilded.curseforge.version);
 // Static pages link relative to the site root (so a project subpath works); bot pages stay absolute.
 const staticHref = prefix => item => item.bot || item.key === "companion" || /^https?:/.test(item.href) ? item.href : prefix + item.href.slice(1);
@@ -50,7 +59,7 @@ const versionMenu = (path, edition, { french = false, bilingual = false } = {}) 
   const section = editionSection(edition);
   const title = section ? `${label("Playing:", "Je joue à :")} <strong>${label(section.en, section.fr)}</strong>`
     : `<span data-edition-none>${label("Choose your WoW", "Choisir votre WoW")}</span><span data-edition-playing hidden>${label("Playing:", "Je joue à :")} <strong></strong></span>`;
-  return editionMenu({ current: section?.id ?? null, title, label: other => label(other.en, other.fr), href: other => editionSwitchHref(path, other.id) });
+  return editionMenu({ current: section?.id ?? null, title, label: other => label(other.en, other.fr), href: other => editionSwitchHref(path, other.id), only: ACTIVE_EDITIONS });
 };
 const homeNav = versionMenu("/", null, { bilingual: true }) + navLinks({ href: staticHref(""), label: bilingualLabel });
 const homeFooter = footerLinks({ href: staticHref(""), label: bilingualLabel, columnLabel: key => bilingualLabel(FOOTER_COLUMNS[key]), ariaLabel: "Site map" }).replace("<nav ", '<nav data-label-en="Site map" data-label-fr="Plan du site" ');
@@ -127,8 +136,9 @@ for (const page of pages) {
   const pageText = (en, fr) => bilingual ? `<span data-en="${escape(en)}" data-fr="${escape(fr)}">${en}</span>` : french ? fr : en;
   const descriptionAttributes = bilingual ? ` data-content-en="${escape(page.description)}" data-content-fr="${escape(page.descriptionFr)}"` : '';
   const titleAttributes = bilingual ? ` data-content-en="${escape(page.title)}" data-content-fr="${escape(page.titleFr)}"` : '';
-  const enBody = page.body ?? marked.parse(readFileSync(`site/pages/${page.source}`, "utf8"));
-  const body = page.sourceFr ? `<div data-language-copy="en" lang="en">${enBody}</div><div data-language-copy="fr" lang="fr" hidden>${marked.parse(readFileSync(`site/pages/${page.sourceFr}`, "utf8"))}</div>` : enBody;
+  const fill = (markdown, fr) => markdown.replaceAll("{{START_EDITIONS}}", startEditions(fr));
+  const enBody = page.body ?? marked.parse(fill(readFileSync(`site/pages/${page.source}`, "utf8"), french));
+  const body = page.sourceFr ? `<div data-language-copy="en" lang="en">${enBody}</div><div data-language-copy="fr" lang="fr" hidden>${marked.parse(fill(readFileSync(`site/pages/${page.sourceFr}`, "utf8"), true))}</div>` : enBody;
   const communityNav = french ? `<nav class="community-subnav" aria-label="Dans Quebec Gold">${[['quebec-gold/', 'La communauté'], ['g/quebec-gold/', 'World of Warcraft'], ['quebec-gold/poe2/', 'Path of Exile 2']].map(([path, label]) => `<a href="${prefix}${path}"${page.path === path ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>` : '';
   mkdirSync(`${out}/${page.path}`, { recursive: true });
   writeFileSync(`${out}/${page.path}index.html`, `<!doctype html>

@@ -17,6 +17,33 @@
 **Owner preference:** Same linked Discord channel, Discord-only embeds; the original in-game and Discord messages stay intact. Prioritize proof of webhook posting and non-echo before any larger build.
 
 
+## Planned — Crafter offers: sell a craft as well as ask for one (requested 4 November 2026; not started)
+
+**Goal:** Today the craft board only goes one way: a member asks (`/craft request`) and a guild
+crafter picks it up (`/craft list`, `/craft claim`, `/craft who`, `/craft mine`). Add the other
+direction so a crafter can **post a message in Discord offering a craft for sale**, and members can
+either ask for a craft or buy a listed one from the same place.
+
+- **Offer post:** a crafter posts an offer for something they can make (item or enchant, price or
+  "tips welcome", whether the buyer brings materials, availability or notes). Offer items come
+  from the crafter's recorded recipes (the same data `/craft who` uses), so a crafter cannot list
+  a recipe their character has not been seen with; unverified free-text offers are clearly
+  labelled as such.
+- **Buy or ask:** members can answer an offer ("I'd like this") or ask for a craft nobody has
+  offered, and both land in the existing request flow so claim, status and completion keep
+  working. Reuse the craft forum, status tags and pinned directory instead of a new channel.
+- **Guardrails:** offers are opt-in per Discord server, rate limited, expire or can be withdrawn,
+  never ping `@everyone`/roles, respect multi-guild isolation (a guild's offers stay in that
+  guild), and Guilded never handles gold: members trade in game. Edition-aware (Forever uses
+  character names without realms; other editions keep their realm rules).
+- **Related cleanup:** the profession directory post lists every stored profession row, so a fresh
+  start needs the beta rows removed first (`npm run professions:reset`, preview by default).
+- **Before building:** inspect `src/commands/craft.ts`, `src/commands/craft-board.ts` and
+  `src/services/profession-directory.ts` for current behaviour; `/setup` and `/config` are close to
+  Discord's command-size limit, so the new subcommand must go under `/craft`. English and French
+  text, tests, documentation and a safe off switch are required. Keep the feature off until accepted
+  in a real server.
+
 ## October 30 operational follow-up
 
 **8.3.0 is live:** backend, website and the companion are deployed at reviewed

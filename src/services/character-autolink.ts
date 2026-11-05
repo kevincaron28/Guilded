@@ -3,6 +3,7 @@ import type { PrismaClient, UnclaimedCharacter } from "../generated/prisma/clien
 import { createGuildService } from "./guild.js";
 import { nameKey } from "./roster-discovery.js";
 import { cacheAllMembers } from "./member-cache.js";
+import { characterKey } from "../../companion/character-identity.mjs";
 
 // Linking discovered characters to Discord members without anyone typing:
 //   1. automatically, when a member's Discord name (nickname, display name or
@@ -23,11 +24,25 @@ export function nameCandidates(display: string): string[] {
 
 export interface DiscordPerson { id: string; names: string[]; }
 
-// Character -> the one Discord member whose name matches. A name that fits
-// nobody, or more than one member, is left for /character claim.
-export function matchUnclaimed(unclaimed: { id: string; name: string }[], people: DiscordPerson[]): { characterId: string; discordId: string }[] {
+// A Forever character has a first AND a last name ("Lebowski Holyroller"): the letters of both, run together.
+const fullNameKey = (displayName: string | null | undefined) => {
+  const words = strip(displayName ?? "").split(/[^a-z]+/).filter(Boolean);
+  return words.length >= 2 ? words : null;
+};
+
+// Character -> the one Discord member whose name matches. The full name (first and last) is the
+// stronger match and decides alone; otherwise the first name must fit exactly one member. A name
+// that fits nobody, or more than one member, is left for /character claim.
+export function matchUnclaimed(unclaimed: { id: string; name: string; displayName?: string | null }[], people: DiscordPerson[]): { characterId: string; discordId: string }[] {
   const matches: { characterId: string; discordId: string }[] = [];
   for (const character of unclaimed) {
+    const words = fullNameKey(character.displayName);
+    if (words && words.every((word) => word.length >= 3)) {
+      const whole = words.join("");
+      const full = people.filter((person) => person.names.some((candidate) => candidate === whole) || words.every((word) => person.names.includes(word)));
+      if (full.length === 1 && full[0]) { matches.push({ characterId: character.id, discordId: full[0].id }); continue; }
+      if (full.length > 1) continue;
+    }
     const wanted = strip(character.name).replace(/[^a-z]/g, "");
     if (wanted.length < 3) continue;
     const fits = people.filter((person) => person.names.some((candidate) => candidate === wanted));
@@ -65,8 +80,46 @@ export async function linkUnclaimed(database: Db, memberId: string, unclaimed: U
   return { isMain: !hasMain };
 }
 
-// Links what can be linked by Discord name. Returns who was linked.
-export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db, guildId: string): Promise<{ character: string; member: string }[]> {
+// Someone unlinked (or an officer removed) this character from that member: automation must not link it back.
+async function declined(database: Db, guildId: string, memberId: string, row: UnclaimedCharacter): Promise<boolean> {
+  const claim = await database.characterVerifyClaim.findFirst({
+    where: { guildId, memberId, nameKey: characterKey(row.name, row.realm, row.gameEdition ?? "forever"), status: { in: ["BLOCKED", "REMOVED"] } },
+    select: { id: true }
+  });
+  return Boolean(claim);
+}
+
+// Links one unclaimed row to a member unless a linked character already owns the name.
+async function linkIfFree(database: Db, guildId: string, memberId: string, row: UnclaimedCharacter): Promise<boolean> {
+  // A linked character with that name already exists (linked by hand meanwhile): drop the stale row.
+  const taken = await database.character.findFirst({ where: { member: { guildId }, name: { equals: row.name, mode: "insensitive" } } });
+  if (taken) { await database.unclaimedCharacter.delete({ where: { id: row.id } }); return false; }
+  if (await declined(database, guildId, memberId, row)) return false;
+  await linkUnclaimed(database, memberId, row);
+  return true;
+}
+
+/**
+ * Elimination for one upload: when exactly one character arrived from it and exactly one active
+ * member who has a companion credential has no character yet, those two belong together. Anything
+ * less clear (two newcomers, two candidates, a declined link) is left for /character claim.
+ */
+export async function linkSoleNewcomer(database: Db, guildId: string, since: Date): Promise<{ character: string; member: string } | null> {
+  const arrived = await database.unclaimedCharacter.findMany({ where: { guildId, lastSeenAt: { gte: since }, gameEdition: "forever" } });
+  if (arrived.length !== 1 || !arrived[0]) return null;
+  const waiting = await database.member.findMany({
+    where: { guildId, status: "ACTIVE", characters: { none: {} }, companionCredentials: { some: { revokedAt: null } } },
+    select: { id: true, displayName: true },
+    take: 2
+  });
+  if (waiting.length !== 1 || !waiting[0]) return null;
+  if (!await linkIfFree(database, guildId, waiting[0].id, arrived[0])) return null;
+  return { character: arrived[0].name, member: waiting[0].displayName };
+}
+
+// Links what can be linked by Discord name (first name, or first AND last name), and, with `since`
+// (the start of the upload that brought characters), the one-newcomer-one-waiting-member case.
+export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db, guildId: string, options: { since?: Date } = {}): Promise<{ character: string; member: string }[]> {
   const unclaimed = await database.unclaimedCharacter.findMany({ where: { guildId } });
   if (unclaimed.length === 0) return [];
   await cacheAllMembers(discordGuild);
@@ -85,12 +138,12 @@ export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db
     const character = unclaimed.find((row) => row.id === match.characterId);
     const person = people.find((row) => row.id === match.discordId);
     if (!character || !person) continue;
-    // A linked character with that name already exists (linked by hand meanwhile): drop the stale row.
-    const taken = await database.character.findFirst({ where: { member: { guildId }, name: { equals: character.name, mode: "insensitive" } } });
-    if (taken) { await database.unclaimedCharacter.delete({ where: { id: character.id } }); continue; }
     const member = await guild.ensureMember(guildId, person.id, person.display);
-    await linkUnclaimed(database, member.id, character);
-    linked.push({ character: character.name, member: person.display });
+    if (await linkIfFree(database, guildId, member.id, character)) linked.push({ character: character.name, member: person.display });
+  }
+  if (options.since) {
+    const sole = await linkSoleNewcomer(database, guildId, options.since).catch(() => null);
+    if (sole) linked.push(sole);
   }
   return linked;
 }
@@ -103,7 +156,7 @@ export async function claimCharacter(database: Db, guildId: string, memberId: st
     const linked = await database.character.findFirst({ where: { member: { guildId }, name: { equals: wanted, mode: "insensitive" } }, include: { member: true } });
     if (linked) throw new Error(`${linked.name} is already linked${linked.memberId === memberId ? " to you" : ` to ${linked.member.displayName}`}. /character list shows what is linked.`);
   }
-  if (!row) throw new Error(`No unclaimed character called "${wanted}". Log in with it (the addon reports it), then an officer's companion uploads and an officer runs /import apply (or turns on /config auto-import). /character list shows what is linked.`);
+  if (!row) throw new Error(`No unclaimed character called "${wanted}" yet. Log in with it once and sync; it then shows up in the /character claim list. /character list shows what is linked.`);
   const taken = await database.character.findFirst({ where: { member: { guildId }, name: { equals: row.name, mode: "insensitive" }, ...((row.gameEdition ?? "forever") !== "forever" ? { realm: { equals: row.realm, mode: "insensitive" }, gameEdition: row.gameEdition } : {}) } });
   if (taken) throw new Error(`${row.name} is already linked to someone.`);
   const outcome = await linkUnclaimed(database, memberId, row);

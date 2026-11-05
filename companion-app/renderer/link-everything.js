@@ -65,7 +65,7 @@
     const found = await api.linkFindSavedData();
     if (!found.ok) { say(found.message || T('This action could not be completed.'), false); return; }
     if (found.already) { say(T('Already linked, nothing to do.'), true); return; }
-    say(T('Found your addon data.') + ' ' + T('In WoW, type /reload so it is saved; the companion then proves your characters.'), true);
+    say(found.pending ? T('Found your WoW account. Log in to WoW and type /reload once; your characters link by themselves.') : T('Found your addon data.') + ' ' + T('In WoW, type /reload so it is saved; the companion then proves your characters.'), true);
     await load();
   });
   guarded($('btnLinkCheck'), async () => {
@@ -93,6 +93,14 @@
     await load(); setTimeout(() => void load(), 10000);
   });
   document.querySelectorAll('[data-page="link"],[data-page="status"]').forEach(button => button.addEventListener('click', () => void load()));
+  // No saved-data file yet (addon just installed, game closed, or Guilded.lua not saved once): look again
+  // by itself every 20 seconds while this window is open, so nobody has to press Find my saved data.
+  // Stops by itself once a file is watched. Local read only; signed-in, guild (not leaderboards-only) mode.
+  setInterval(async () => {
+    if (loading || document.hidden || !config.companionCredential || config.personal || state.watching || config.watchFile) return;
+    const found = await api.linkFindSavedData().catch(() => null);
+    if (found?.ok) { say(found.pending ? T('Found your WoW account. Log in to WoW and type /reload once; your characters link by themselves.') : T('Found your addon data.'), true); await load(); }
+  }, 20000);
   document.addEventListener('companion-language', render);
   document.addEventListener('companion-connection-changed', () => void load());
   api.onState?.(snapshot => { state = snapshot.state || state; render(); });

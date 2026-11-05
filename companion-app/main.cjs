@@ -559,9 +559,13 @@ registerIpc("link-find-saved-data", async () => {
     try { current = await engineModules.checkSavedFile(config.watchFile); } catch { /* look again below */ }
     if (current && current.changedAt !== null && !current.candidate) return { ok: true, found: 1, already: true };
   }
-  const found = (await detectSavedVariables(savedNames(), engineModules.isFolderOnHold)).filter((entry) => entry.exists);
+  const detected = await detectSavedVariables(savedNames(), engineModules.isFolderOnHold);
+  const found = detected.filter((entry) => entry.exists);
   const heldCount = detectHeldSavedVariables(savedNames(), engineModules.isFolderOnHold).filter((entry) => entry.exists).length;
-  const chosen = pickSavedVariables(found);
+  // Addon just installed and not saved yet (no /reload so far): the file does not exist, but its account
+  // folder does. With exactly one live account folder, watch that path now; the upload starts at the first save.
+  const pending = found.length === 0 ? pickSavedVariables(detected.filter((entry) => !/beta/i.test(entry.game))) : null;
+  const chosen = pickSavedVariables(found) || pending;
   if (!chosen) return { ok: false, found: found.length, ...(heldCount && !found.length ? { onHold: heldCount } : {}), message: heldCount && !found.length ? T("Guilded is focused on WoW Forever for now. Your other WoW version is on hold and will come back later; nothing was changed.") : found.length ? T("Found {0} accounts. Check the selected file before saving.", found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
   if (config.watchFile && config.watchFile.toLowerCase() === chosen.path.toLowerCase()) return { ok: true, found: 1, already: true };
   const switched = Boolean(config.watchFile);
@@ -569,9 +573,9 @@ registerIpc("link-find-saved-data", async () => {
   await saveConfig();
   if (switched) pushLog({ time: new Date().toISOString(), level: "info", message: E("Saved-data file switched to {0} ({1}).", chosen.path, E("found by Find my saved data")) });
   const started = await engine.configure(config);
-  if (started) engine.uploadNow();
+  if (started && chosen.exists) engine.uploadNow();
   await refreshSavedFile();
-  return { ok: started, found: 1, switched };
+  return { ok: started, found: 1, switched, ...(chosen.exists ? {} : { pending: true }) };
 });
 registerIpc("browse-poe-log", async () => {
   const result = await dialog.showOpenDialog(win, {

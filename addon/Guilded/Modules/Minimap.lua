@@ -175,7 +175,12 @@ local function enableWheel(scroll, getRange)
   scroll:EnableMouseWheel(true)
   local bar = scroll.ScrollBar
   if type(bar) ~= "table" or type(bar.SetValue) ~= "function" then bar = nil end
-  if bar and bar.SetValueStep then bar:SetValueStep(SCROLL_STEP) end
+  -- The template's scrollbar clamps its value to the range it last measured, and snaps it to its
+  -- value step. A stale (short) range or a 48 px step pulled the page back after every tick: the
+  -- wheel crawled and the last heat-map row was unreachable. Keep the bar's step at 1 and widen
+  -- its range to ours before every move; the wheel step lives in our own handler.
+  if bar and bar.SetValueStep then bar:SetValueStep(1) end
+  if bar then bar.scrollStep = SCROLL_STEP end
   scroll:SetScript("OnMouseWheel", function(self, delta)
     -- Never stop short of the real end of the content: take the larger of our estimate and the
     -- range the game measured (it clamps anything beyond it).
@@ -183,6 +188,10 @@ local function enableWheel(scroll, getRange)
     local real = self.GetVerticalScrollRange and self:GetVerticalScrollRange()
     if type(real) == "number" and real > range then range = real end
     local target = math.max(0, math.min(range, (self:GetVerticalScroll() or 0) - delta * SCROLL_STEP))
+    if bar and bar.SetMinMaxValues and bar.GetMinMaxValues then
+      local _, barMax = bar:GetMinMaxValues()
+      if type(barMax) ~= "number" or barMax < range then bar:SetMinMaxValues(0, range) end
+    end
     self:SetVerticalScroll(target)
     -- Keep the scrollbar thumb in step with the content.
     if bar and bar.SetValue then bar:SetValue(target) end
@@ -961,6 +970,7 @@ local function buildToolsPage(page)
   officerOnly(at(newLabel(page, "Officer", "GameFontNormalSmall"), page, 0, -100))
   officerOnly(at(newButton(page, "Backup", 136, function() run("backup") end), page, 0, -116))
   officerOnly(tip(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116), "Who counts as an officer in this guild."))
+  officerOnly(tip(at(newButton(page, "Guild message", 136, function() run("motd config") end), page, 284, -116), "Keep the in-game guild message of the day current by itself (off until you turn it on)."))
 
   -- Test tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.
   forModule("sim", at(newLabel(page, "Developer tools: test raids with fake players (saved tests can sync to Discord)", "GameFontDisableSmall"), page, 0, -146), true)
@@ -1921,6 +1931,9 @@ updateGuildScroll = function()
     for _, label in ipairs({ ui.calendarIntro, ui.calendarStatus }) do label:SetWidth(width - 8) end
   end
   ui.guildScrollRange = range
+  -- Tell the scrollbar the true range now: it only re-measures on a later frame and until then
+  -- clamped the thumb (and the page) short of the last rows.
+  if scroll.ScrollBar and scroll.ScrollBar.SetMinMaxValues then pcall(scroll.ScrollBar.SetMinMaxValues, scroll.ScrollBar, 0, range) end
   scroll:SetVerticalScroll(math.min(scroll:GetVerticalScroll() or 0, range))
   if scroll.ScrollBar then
     if range > 1 then scroll.ScrollBar:Show() else scroll.ScrollBar:Hide() end

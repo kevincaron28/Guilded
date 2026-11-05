@@ -415,8 +415,14 @@ function view.build(parent, compact)
   pane.periodButton:Hide()
   -- Inside the game's dungeon finder, Close closes the finder (not just this page).
   button(pane, "Close", width - 78, -8, 62, function()
+    -- Close always works: hide this page first, then the finder; if the game's panel manager
+    -- ignores the request (a window it does not track hides nothing), hide it directly.
     if view.chrome and view.chrome:IsShown() then
-      ns.util.hideWindow(LFGParentFrame or PVEFrame or LFGFrame)
+      local finder = LFGParentFrame or PVEFrame or LFGFrame
+      pane:Hide()
+      view.chrome:Hide()
+      ns.util.hideWindow(finder)
+      if finder and finder.IsShown and finder:IsShown() and not (InCombatLockdown and InCombatLockdown()) then finder:Hide() end
     else pane:Hide() end
   end)
   pane.runView = buildRun(pane, width)

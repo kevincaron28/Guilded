@@ -37,7 +37,21 @@ const RICH_FRAMES = String.raw`
     f.SetSize = function(self, width, height) self.width = width; self.height = height end
     f.SetVerticalScroll = function(self, value) self.verticalScroll = value end
     f.GetVerticalScroll = function(self) return rawget(self, "verticalScroll") or 0 end
-    f.ScrollBar = { Show = function(self) self.shown = true end, Hide = function(self) self.shown = false end }
+    -- Like the game's scrollbar: starts with a stale (short) range, clamps to it and snaps to its step,
+    -- and moves its frame when its value changes.
+    f.ScrollBar = {
+      step = 1, max = 0,
+      Show = function(self) self.shown = true end, Hide = function(self) self.shown = false end,
+      SetValueStep = function(self, v) self.step = v end,
+      SetMinMaxValues = function(self, a, b) self.min = a; self.max = b end,
+      GetMinMaxValues = function(self) return self.min or 0, self.max end,
+      SetValue = function(self, v)
+        v = math.max(self.min or 0, math.min(self.max, v))
+        v = math.floor(v / self.step + 0.5) * self.step
+        self.value = v
+        f:SetVerticalScroll(v)
+      end,
+    }
     FRAMES[#FRAMES + 1] = f
     return f
   end
@@ -485,6 +499,19 @@ describe("in-game UI fixes from the 5 November pass", () => {
     expect(s.run("return tostring(UI.moduleScroll:GetVerticalScroll() == NS.layoutMath.scrollRange(#NS.MODULES * 22, 100))")).toBe("true");
     s.run(`UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, 1000)`);
     expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("0");
+  });
+
+  it("lets the wheel reach the very end even when the scrollbar's own range is stale or stepped", () => {
+    const s = openWindow(1);
+    s.run(`UI = NS.windowState(); BAR = UI.moduleScroll.ScrollBar`);
+    expect(s.run("return BAR.max")).toBe("0"); // stale: the game has not re-measured yet
+    const end = "NS.layoutMath.scrollRange(#NS.MODULES * 22, 100)";
+    s.run(`for _ = 1, 100 do UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1) end`);
+    expect(s.run(`return tostring(UI.moduleScroll:GetVerticalScroll() == ${end})`)).toBe("true");
+    // One tick moves a useful distance and the bar keeps its step at 1 (no 48 px snapping).
+    expect(s.run("return BAR.step")).toBe("1");
+    s.run(`UI.moduleScroll:SetVerticalScroll(0); BAR:SetValue(0); UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1)`);
+    expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("48");
   });
 
   it("hangs the Modules heading below the help text instead of at a fixed offset", () => {

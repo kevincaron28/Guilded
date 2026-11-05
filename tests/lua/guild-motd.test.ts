@@ -16,12 +16,9 @@ function setup() {
     function InCombatLockdown() return COMBAT end
     function CanEditMOTD() return CAN end
     function GetGuildRosterMOTD() return MOTD end
-    OPENED = {}
-    SlashCmdList = { GUILD_MOTD = function() end }
-    function ChatFrame_OpenChat(text) OPENED[#OPENED + 1] = text end
-    -- The officer presses Enter: the game's own /gmotd sets the message.
+    -- The officer copies the ready text and pastes it into the guild info frame.
     function ENTER()
-      local text = OPENED[#OPENED]:match("^/gmotd (.*)$")
+      local text = NS.guildMotd.config().intended.text
       WRITES[#WRITES + 1] = text; MOTD = text
     end
     function ADVANCE(n) CLOCK = CLOCK + n; EPOCH = EPOCH + n end
@@ -108,15 +105,15 @@ describe("automatic guild message of the day", () => {
     on(s, `M.setLines("Alpha")`);
     expect(s.run("return M.tick()")).toBe("due");
     expect(s.run("return M.apply()")).toBe("ready");
-    expect(s.run("return OPENED[1]")).toBe("/gmotd Alpha");
+    expect(s.run("return CFG.intended.text")).toBe("Alpha");
     // Enter not pressed yet: the roster still shows the old text. No pause, no "updated".
     s.run("ADVANCE(300)");
     expect(s.run("return M.tick()")).not.toBe("paused");
     expect(s.run("return M.statusText()")).not.toContain("updated");
-    expect(s.run("return tostring(CFG.lastWritten)")).toBe("nil");
+    expect(s.run("return tostring(CFG.confirmed)")).toBe("nil");
     s.run("ENTER()");
     expect(s.run("return M.tick()")).toBe("written");
-    expect(s.run("return CFG.lastWritten")).toBe("Alpha");
+    expect(s.run("return CFG.confirmed")).toBe("Alpha");
     // From here on a different roster text is someone else's edit.
     s.run(`MOTD = "by hand"; ADVANCE(5)`);
     expect(s.run("return M.tick()")).toBe("paused");
@@ -171,10 +168,10 @@ describe("automatic guild message of the day", () => {
   it("fails quietly when the client cannot set the message or the rank cannot edit it", () => {
     const s = setup();
     on(s, `M.setLines("Alpha")`);
-    s.run("ChatFrame_OpenChat = nil");
+    s.run("CanEditMOTD = nil");
     expect(s.run("return M.tick()")).toBe("noapi");
-    expect(s.run("return M.statusText()")).toContain("/gmotd");
-    s.run(`ChatFrame_OpenChat = function(t) OPENED[#OPENED + 1] = t end; CAN = false`);
+    expect(s.run("return M.statusText()")).toContain("does not say");
+    s.run(`CanEditMOTD = function() return CAN end; CAN = false`);
     expect(s.run("return M.tick()")).toBe("cannot");
     s.run("CAN = true; OFFICER = false");
     expect(s.run("return M.tick()")).toBe("notofficer");
@@ -192,14 +189,14 @@ describe("automatic guild message of the day", () => {
     expect(written.length).toBeLessThanOrEqual(128);
     // No raid known: falls back to the lines, or writes nothing.
     expect(s.run("return M.tick()")).toBe("written"); // read back from the roster
-    s.run(`RAIDS = {}; CFG.lastWritten = nil`);
+    s.run(`RAIDS = {}; CFG.confirmed = nil`);
     expect(s.run("return M.tick()")).toBe("empty");
   });
 
-  it("never calls GuildSetMOTD (Blizzard-UI only) and only opens the chat box from a click", () => {
+  it("never touches the chat box or any MOTD function, and only offers the copy box from a click", () => {
     const source = addonSource("Modules/GuildMotd.lua");
     const code = source.split(/\r?\n/).filter(line => !/^\s*--/.test(line)).join("\n");
-    expect(code).not.toMatch(/GuildSetMOTD|SetMOTD/);
+    expect(code).not.toMatch(/GuildSetMOTD|SetMOTD|ChatFrame_OpenChat|DEFAULT_CHAT_FRAME|editBox|ChatEdit/);
     // Every call to motd.apply comes from a click handler.
     for (const line of source.split(/\r?\n/)) {
       if (/motd\.apply\(\)/.test(line) && !/function motd\.apply|^\s*--/.test(line)) expect(line, line).toMatch(/OnClick|newButton\(/);
@@ -207,7 +204,19 @@ describe("automatic guild message of the day", () => {
     const s = setup();
     on(s, `M.setLines("Alpha")`);
     s.run("for _ = 1, 20 do ADVANCE(3600); M.tick() end; M.receive('H|1', 'Zed')");
-    expect(s.run("return #OPENED .. ':' .. #WRITES")).toBe("0:0");
+    expect(s.run("return #WRITES .. ':' .. tostring(CFG.intended)")).toBe("0:nil");
+  });
+
+  it("does not pause right after Turn on + Save with an empty message, nor from stale saved data", () => {
+    const s = setup();
+    s.run(`MOTD = ""`);
+    on(s, `M.setLines("Alpha")`);
+    expect(s.run("return M.tick()")).toBe("due");
+    expect(s.run("return tostring(CFG.paused)")).toBe("false");
+    // Saved data left by an earlier build: a "written" text that never reached the game.
+    s.run(`DB.motd = { enabled = true, mode = "rotate", hours = 24, lines = { "Alpha" }, suffix = "", index = 0, lastWritten = "Test line one", paused = true }`);
+    expect(s.run("return M.tick()")).toBe("due");
+    expect(s.run("return tostring(DB.motd.paused)")).toBe("false");
   });
 
   it("answers the /guilded motd command for officers only", () => {

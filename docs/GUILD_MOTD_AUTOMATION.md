@@ -1,11 +1,12 @@
 # Guild message of the day, one click
 
-Guilded prepares the in-game guild MOTD for officers (`addon/Guilded/Modules/GuildMotd.lua`). **It cannot write by itself:**
-`GuildSetMOTD` is Blizzard-UI only on Forever (ADDON_ACTION_FORBIDDEN even from a click), so Guilded never calls it.
-When a rotation or next-raid update is due, the elected officer sees a small "Update guild message: <preview>" button at the
-top of the screen (and one chat line). Clicking it (or the tab's **Update now**) opens the chat box already filled with the
-game's own `/gmotd <text>`; **press Enter** to apply. Guilded counts it as written only when the roster's MOTD reads back
-equal to that text. Off by default. A validator rule and a test fail the build if `GuildSetMOTD` is called anywhere.
+Guilded is a **reminder plus a copy box** for the in-game guild MOTD (`addon/Guilded/Modules/GuildMotd.lua`). WoW does not let
+addons set the message of the day: `GuildSetMOTD` is Blizzard-UI only on Forever, and chat-box text an addon fills in is
+tainted, so `/gmotd` pre-filled by an addon is blocked too. When a rotation or next-raid update is due, the elected officer
+sees a small "Update guild message: <preview>" button at the top of the screen (and one chat line). Clicking it (or the tab's
+**Update now**) opens a window with the ready text highlighted: Ctrl+C, then Guild (J) > Info, click the message of the day,
+paste and Accept. Guilded counts it as written only when the roster's MOTD reads back equal to that text. Off by default.
+The validator and a test fail the build if the module touches the chat box or any MOTD function.
 
 ## Turning it on
 

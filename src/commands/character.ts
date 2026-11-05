@@ -138,7 +138,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     if (subcommand === "autolink") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const linked = await autoLinkUnclaimed(interaction.guild!, prisma, context.guildId);
-      await interaction.editReply({ content: linked.length ? `Linked ${linked.map((row) => `${row.character} to ${row.member}`).join(", ")}.` : "Nothing matched by name (a Discord nickname must be the character's name, e.g. \"Ray\" or \"[GOLD] Ray\"). Use /officer character link for the rest." });
+      await interaction.editReply({ content: linked.length ? `Linked ${linked.map((row) => `${row.character} to ${row.member}`).join(", ")}.` : "Nothing matched by name (a Discord nickname must be the character's name, e.g. \"Ray\" or \"[GOLD] Ray\"). Each owner can pick theirs with /character claim; /officer character link does it for them." });
       return;
     }
     const wanted = interaction.options.getString("name", true).trim();

@@ -1,3 +1,4 @@
+import { ACTIVE_EDITIONS } from "../../companion/active-editions.mjs";
 import { editionHref, editionMenu, editionSection, editionSwitchHref, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../../site/nav.mjs";
 import { currentEdition } from "./edition-context.js";
 import { SITE_LOGO } from "./site-logo.js";
@@ -68,7 +69,8 @@ export function siteHeader(lang: Lang, path: string, languages?: Record<Lang, st
     current: playing.id,
     title: `${t("Playing:", "Je joue à :")} <strong>${playing[lang]}</strong>`,
     label: (section) => section[lang],
-    href: (section) => localizedHref(editionSwitchHref(path, section.id), lang)
+    href: (section) => localizedHref(editionSwitchHref(path, section.id), lang),
+    only: ACTIVE_EDITIONS
   });
   const nav = versions + navLinks({
     current: currentSection(path),

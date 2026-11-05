@@ -211,7 +211,8 @@ function presence.charactersText()
   local guild, realm = call(GetGuildInfo, "player"), call(GetRealmName)
   local db = ns.getDb and ns.getDb()
   local lines = { L("Characters recorded on this PC in this guild. Last seen, not live availability.") }
-  if type(guild) ~= "string" or type(realm) ~= "string" or not db or db.guildKey ~= guild .. "-" .. realm then return lines[1] end
+  local activeKey = ns.currentGuildKey and ns.util and ns.util.isForever and ns.util.isForever() and ns.currentGuildKey() or (type(guild) == "string" and type(realm) == "string" and guild .. "-" .. realm or nil)
+  if type(guild) ~= "string" or type(realm) ~= "string" or not db or not activeKey or db.guildKey ~= activeKey then return lines[1] end
   local rows = {}
   for _, info in pairs(db.myCharacters or {}) do
     if type(info) == "table" and info.gameEdition == ns.util.gameEdition() and type(info.name) == "string" then

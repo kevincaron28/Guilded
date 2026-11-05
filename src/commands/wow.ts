@@ -3,13 +3,13 @@ import { prisma } from "../database.js";
 import { createGuildService } from "../services/guild.js";
 import { provisionWowGuild } from "../services/wow-guilds.js";
 import { interactionGuildScope, loadGuildScope, runInGuildScope } from "../services/guild-scope.js";
-import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
+import { ACTIVE_EDITIONS, activeEditions, editionList } from "../../companion/active-editions.mjs";
 import { hasPermission } from "../permissions.js";
 
 export const wowCommand = new SlashCommandBuilder().setName("wow").setDescription("Choose an in-game guild; several editions can share this Discord server.")
   .addSubcommand(s => s.setName("list").setDescription("List the in-game guilds and your current choice."))
   .addSubcommand(s => s.setName("add").setDescription("Admin: add an in-game guild with separate settings, raids and points.")
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition").setRequired(true).addChoices(...GAME_EDITIONS.map(value => ({ name: value, value }))))
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition").setRequired(true).addChoices(...activeEditions().map(value => ({ name: value, value }))))
     .addStringOption(o => o.setName("name").setDescription("In-game guild name").setRequired(true).setMaxLength(80))
     .addStringOption(o => o.setName("realm").setDescription("Realm (Forever for WoW Forever)").setRequired(true).setMaxLength(80))
     .addRoleOption(o => o.setName("officers").setDescription("Officer role for this in-game guild"))
@@ -38,6 +38,8 @@ export async function executeWow(interaction: ChatInputCommandInteraction): Prom
   }
   if (sub === "add") {
     if (!member.permissions.has("Administrator")) throw new Error("A server administrator must add in-game guilds.");
+    // Forever-first (companion/active-editions.mjs): existing guilds of other editions are untouched, new ones are on hold.
+    if (!ACTIVE_EDITIONS.includes(interaction.options.getString("edition", true))) throw new Error(`Guilded is focused on ${editionList(0)} for now; other WoW versions are on hold and coming back later.`);
     const space = await provisionWowGuild(prisma, root.id, { gameEdition: interaction.options.getString("edition", true), name: interaction.options.getString("name", true), realm: interaction.options.getString("realm", true) }, {
       ...(interaction.options.getRole("officers") ? { officer: interaction.options.getRole("officers")!.id } : {}),
       ...(interaction.options.getRole("members") ? { member: interaction.options.getRole("members")!.id } : {})

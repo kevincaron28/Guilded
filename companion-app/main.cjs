@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const { detectSavedVariables, pickSavedVariables } = require("./detect-wow.cjs");
+const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
@@ -91,8 +91,8 @@ function saveConfig() {
 async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
-  const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon };
+  const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, activeEditionsModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("active-editions.mjs"))]);
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold };
 }
 
 function pushLog(entry) {
@@ -544,7 +544,10 @@ registerIpc("browse-file", async () => {
 });
 
 // Leaderboards only: either addon's file; the engine then reads both from that folder.
-registerIpc("detect-wow", () => detectSavedVariables(config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]));
+const savedNames = () => (config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]);
+registerIpc("detect-wow", () => detectSavedVariables(savedNames(), engineModules.isFolderOnHold));
+// How many saved files exist only for editions that are on hold (Forever-first, companion/active-editions.mjs).
+registerIpc("detect-wow-held", () => detectHeldSavedVariables(savedNames(), engineModules.isFolderOnHold).filter((entry) => entry.exists).length);
 // "Link everything", step 3: after sign-in, pick the saved-data file by itself when exactly one
 // account on this PC has it. Local read only; with several accounts the member chooses.
 registerIpc("link-find-saved-data", async () => {
@@ -556,9 +559,10 @@ registerIpc("link-find-saved-data", async () => {
     try { current = await engineModules.checkSavedFile(config.watchFile); } catch { /* look again below */ }
     if (current && current.changedAt !== null && !current.candidate) return { ok: true, found: 1, already: true };
   }
-  const found =(await detectSavedVariables(config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"])).filter((entry) => entry.exists);
+  const found = (await detectSavedVariables(savedNames(), engineModules.isFolderOnHold)).filter((entry) => entry.exists);
+  const heldCount = detectHeldSavedVariables(savedNames(), engineModules.isFolderOnHold).filter((entry) => entry.exists).length;
   const chosen = pickSavedVariables(found);
-  if (!chosen) return { ok: false, found: found.length, message: found.length ? T("Found {0} accounts. Check the selected file before saving.", found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
+  if (!chosen) return { ok: false, found: found.length, ...(heldCount && !found.length ? { onHold: heldCount } : {}), message: heldCount && !found.length ? T("Guilded is focused on WoW Forever for now. Your other WoW version is on hold and will come back later; nothing was changed.") : found.length ? T("Found {0} accounts. Check the selected file before saving.", found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
   if (config.watchFile && config.watchFile.toLowerCase() === chosen.path.toLowerCase()) return { ok: true, found: 1, already: true };
   const switched = Boolean(config.watchFile);
   config = { ...config, watchFile: chosen.path, wowEnabled: true };

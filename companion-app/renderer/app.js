@@ -76,6 +76,7 @@ function liveText() { return {
   stale: T(" · over 3 days without a change: is WoW saving somewhere else?"),
   missing: T("never (not saved yet)"),
   wrongEdition: (installed, expected) => T(" · the Guilded addon in this game folder is the {0} build but this folder needs {1}: reinstall the {1} build", installed, expected),
+  onHold: T(" · this WoW version is on hold while Guilded focuses on WoW Forever; your data is untouched"),
   betaTitle: T("Your companion is still watching the beta folder"),
   staleTitle: days => T("Your saved file has not changed in {0} days", days),
   text: (file, folder, account, changed) => T("{0} in {1} (account {2}) changed {3}. Switch so your uploads keep going.", file, folder, account, changed),
@@ -91,7 +92,7 @@ function renderSavedFile(snapshot) {
   const show = savedConfig.wowEnabled !== false && !!file && !!watched;
   $('watchStatus').hidden = !show; $('liveBanner').hidden = !show || !candidate;
   if (!show) return;
-  $('watchStatus').textContent = liveText().status(snapshot.state.running, watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : liveText().missing) + (file.stale ? liveText().stale : '') + (file.addon?.status === 'wrong-edition' ? liveText().wrongEdition(file.addon.installed.join(', '), file.addon.expected) : '');
+  $('watchStatus').textContent = liveText().status(snapshot.state.running, watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : liveText().missing) + (file.stale ? liveText().stale : '') + (file.addon?.status === 'wrong-edition' ? liveText().wrongEdition(file.addon.installed.join(', '), file.addon.expected) : file.addon?.status === 'on-hold' ? liveText().onHold : '');
   $('watchStatus').classList.toggle('stale', file.stale || file.addon?.status === 'wrong-edition');
   if (!candidate) return;
   $('liveTitle').textContent = candidate.reason === 'beta' ? liveText().betaTitle : liveText().staleTitle(Math.floor((Date.now() - Date.parse(file.changedAt)) / 86400000));
@@ -208,7 +209,7 @@ $('logSearch').addEventListener('input',renderLogs); $('logFilter').addEventList
 async function chooseWow() { const file = await api.browseFile(); if (file) { $('watchFile').value = file; toast(T("WoW file selected. Save your setup to apply it.")); } }
 async function choosePoe() { const file = await api.browsePoeLog(readForm()); if (file) { $('poeLogFile').value = file; toast(T("PoE2 log selected. Save your setup to apply it.")); } }
 ['btnBrowse','btnWowSelect'].forEach(id => bind(id,chooseWow)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
-bind('btnDetect',async () => { $('detectNote').textContent = T("Looking for your addon data…"); const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? T("Found {0} accounts. Check the selected file before saving.", found.length) : found[0].exists ? T("Found your addon data.") : (savedConfig.personal ? T("Account found. Use /reload with Guilded Dungeons (or Guilded) enabled to create its saved file.") : T("Account found. Use /reload with the addon enabled to create Guilded.lua.")); } else $('detectNote').textContent = (savedConfig.personal ? T("Choose Browse and select GuildedDungeons.lua or Guilded.lua in your account’s SavedVariables folder.") : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.")); });
+bind('btnDetect',async () => { $('detectNote').textContent = T("Looking for your addon data…"); const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? T("Found {0} accounts. Check the selected file before saving.", found.length) : found[0].exists ? T("Found your addon data.") : (savedConfig.personal ? T("Account found. Use /reload with Guilded Dungeons (or Guilded) enabled to create its saved file.") : T("Account found. Use /reload with the addon enabled to create Guilded.lua.")); } else if (await api.detectWowHeld()) $('detectNote').textContent = T("Guilded is focused on WoW Forever for now. Your other WoW version is on hold and will come back later; nothing was changed."); else $('detectNote').textContent = (savedConfig.personal ? T("Choose Browse and select GuildedDungeons.lua or Guilded.lua in your account’s SavedVariables folder.") : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.")); });
 bind('btnLiveSwitch',async () => { const result = await api.switchLiveFolder(); if (!result.path) return; savedConfig = (await api.getAll()).config; $('watchFile').value = savedConfig.watchFile || ''; toast(result.ok ? liveText().switched(result.path) : liveText().notStarted,!result.ok); });
 bind('btnLiveKeep',async () => { await api.dismissLiveFolder(); toast(liveText().kept); });
 bind('btnTest',async () => { say(T("Checking your connection…"),true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });

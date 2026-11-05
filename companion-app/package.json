@@ -73,6 +73,7 @@
           "sheet-export.mjs",
           "live-folder.mjs",
           "addon-install.mjs",
+          "active-editions.mjs",
           "revoke.mjs"
         ]
       },

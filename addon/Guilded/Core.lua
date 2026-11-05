@@ -1936,18 +1936,30 @@ end
 local KEEP_AT_ROOT = { version = true, guildKey = true, guildEdition = true, otherGuilds = true, bridgeCompanionGuild = true }
 local guildResolved = false
 
+-- WoW Forever's realms are synced server segments: GetRealmName differs per character, but the
+-- fourth GetGuildInfo result is the guild's home realm when the character is on another segment.
+-- Reading it makes every guildmate (and every alt on this PC) share one guild key.
+local function guildHomeRealm()
+  if not (ns.util.isForever() and GetGuildInfo) then return nil end
+  local ok, _, _, _, home = pcall(GetGuildInfo, "player")
+  if ok and type(home) == "string" and home ~= "" and not isSecret(home) then return home end
+  return nil
+end
+
+-- Returns the guild key, and the key older versions built from this character's own realm.
 local function currentGuildKey()
   if not (IsInGuild and IsInGuild()) then return nil end
   local guildName = GetGuildInfo and GetGuildInfo("player")
   if type(guildName) ~= "string" or guildName == "" or isSecret(guildName) then return nil end
   local realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or ""
-  return guildName .. "-" .. realm
+  return guildName .. "-" .. (guildHomeRealm() or realm), guildName .. "-" .. realm
 end
+ns.currentGuildKey = currentGuildKey
 
 -- Returns "recorded", "same", "switched" or nil (guild not known yet / no guild).
 local function resolveGuildData()
   if not db then return nil end
-  local key = currentGuildKey()
+  local key, ownRealmKey = currentGuildKey()
   if not key then return nil end
   local edition = ns.util.gameEdition()
   local oldEdition = db.guildEdition or edition
@@ -1967,6 +1979,13 @@ local function resolveGuildData()
   if db.guildKey == key and oldEdition == edition then db.guildEdition = edition; return "same" end
   local old = db.guildKey
   db.otherGuilds = db.otherGuilds or {}
+  -- Saved before the guild's home realm was used: the key was built from this character's own
+  -- realm, which is the same guild name, so only the realm part moves. Nothing is parked.
+  if edition == "forever" and oldEdition == edition and old == ownRealmKey and key ~= ownRealmKey and not db.otherGuilds[key] then
+    db.guildKey = key
+    db.guildEdition = edition
+    return "rekeyed"
+  end
   -- Only an explicitly recorded Forever realm alias can rename a scope.
   -- Matching guild names alone never establish identity across realms.
   local function guildPart(text) return (string.match(text, "^(.*)%-[^%-]*$")) or text end

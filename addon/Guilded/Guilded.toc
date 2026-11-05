@@ -69,6 +69,7 @@ Modules\ChatTags.lua
 Modules\GuildBank.lua
 Modules\PugCheck.lua
 Modules\PasteBox.lua
+Modules\GuildMotd.lua
 Modules\LootImports.lua
 Modules\LootHistoryImport.lua
 Modules\Minimap.lua

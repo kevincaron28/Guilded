@@ -128,7 +128,7 @@ describe("the tools window (sidebar and Home page)", () => {
     s.run(`NS.openGuildPanel(HOST,"calendar","Calendar"); UI.selectTabByName("Calendar"); UI.selectTabByName("Calendar")`);
     expect(s.run(`local p=UI.tabs[UI.currentTab].page; return tostring(#p.points==1 and p.points[1][1]=="TOPLEFT" and p.points[1][2]==UI.guildScroll)`)).toBe("true");
     s.run(`UI.guildScroll.GetHeight=function() return 100 end; NS.openGuildPanel(HOST,"guild","EPGP"); UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll,-1)`);
-    expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("44");
+    expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("48");
   });
 
   it("docks guild pages with the same permissions and restores the full menu", () => {
@@ -478,9 +478,9 @@ describe("in-game UI fixes from the 5 November pass", () => {
   it("scrolls with a useful step and keeps padding under the last row", () => {
     const s = openWindow(1);
     // 24 modules x 22 px + 16 px padding, in a 100 px viewport.
-    expect(s.run("local m = NS.layoutMath; return m.scrollRange(500, 300) .. ':' .. m.SCROLL_STEP .. ':' .. m.SCROLL_PADDING")).toBe("216:44:16");
+    expect(s.run("local m = NS.layoutMath; return m.scrollRange(500, 300) .. ':' .. m.SCROLL_STEP .. ':' .. m.SCROLL_PADDING")).toBe("224:48:24");
     s.run(`UI = NS.windowState(); UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1)`);
-    expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("44");
+    expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("48");
     s.run(`for _ = 1, 100 do UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1) end`);
     expect(s.run("return tostring(UI.moduleScroll:GetVerticalScroll() == NS.layoutMath.scrollRange(#NS.MODULES * 22, 100))")).toBe("true");
     s.run(`UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, 1000)`);
@@ -548,5 +548,29 @@ describe("in-game UI fixes from the 5 November pass", () => {
     s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "calendar", "Calendar")`);
     expect(s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then return f.points[1][4] .. "," .. f.points[1][5] end end`)).toBe("4,-4");
     expect(s.run("return tostring(NS.windowState().closeButton.shown)")).toBe("true");
+  });
+
+  it("hides ring pieces the game names by key, and keeps the panel when Dungeons opens", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); HOST.GuildEmblemRing = CreateFrame(); HOST.GuildEmblemRing.shown = true
+      NS.openGuildPanel(HOST, "guild", "EPGP")`);
+    expect(s.run("return tostring(HOST.GuildEmblemRing.shown)")).toBe("false");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then f.scripts.OnHide(); PANEL = f end end`);
+    expect(s.run("return tostring(HOST.GuildEmblemRing.shown)")).toBe("true");
+    s.run(`PANEL.shown = true; NS.dungeonScorePanel = { open = function(mode) OPENED = mode end }
+      NS.windowState().selectTabByName("Dungeons")`);
+    expect(s.run("return OPENED .. ':' .. tostring(PANEL.shown)")).toBe("run:true");
+  });
+
+  it("returns to the Guilded panel when the calendar closes, and hides the calendar's own tab meanwhile", () => {
+    const s = openWindow(1);
+    s.run(`NS.guildPanel = NS.guildPanel or {}; NS.guildPanel.calendarTab = CreateFrame(); NS.guildPanel.calendarTab.shown = true
+      HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "EPGP")
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then PANEL = f end end
+      NS.closeGuildPanel(HOST); PANEL.scripts.OnHide(); PANEL.shown = true
+      NS.openGuildPanel(HOST, "calendar", "Calendar")`);
+    expect(s.run("return tostring(NS.guildPanel.calendarTab.shown)")).toBe("false");
+    s.run(`NS.closeGuildPanel(HOST)`);
+    expect(s.run("return tostring(PANEL.shown)")).toBe("true");
   });
 });

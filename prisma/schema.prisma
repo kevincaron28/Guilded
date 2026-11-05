@@ -1988,6 +1988,9 @@ model CharacterVerifyClaim {
 }
 
 model CompanionCredential {
+  mobileDevice MobileDevice?
+  previousTokenHash String? @unique
+  previousValidUntil DateTime?
   deviceName String @default("Paired companion")
   id        String    @id @default(cuid())
   memberId  String
@@ -2261,6 +2264,8 @@ model WebPairing {
 
 // A personal companion's credential (one active per account). Only its SHA-256 is stored.
 model WebCompanionCredential {
+  previousTokenHash String? @unique
+  previousValidUntil DateTime?
   deviceName String @default("Paired companion")
   id        String     @id @default(cuid())
   accountId String
@@ -2761,6 +2766,44 @@ model GuildRankRole {
   guild         Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, rankIndex])
+}
+
+model MobileDevice {
+  id String @id @default(cuid())
+  credentialId String @unique
+  credential CompanionCredential @relation(fields: [credentialId], references: [id], onDelete: Cascade)
+  expoPushToken String? @unique
+  enabled Boolean @default(false)
+  locale String @default("en")
+  snapshot Json @default("{}")
+  createdAt DateTime @default(now())
+  generation Int @default(0)
+  checkedAt DateTime @default(now())
+  deliveries MobileDelivery[]
+  @@index([enabled, checkedAt])
+}
+model MobileDelivery {
+  id String @id @default(cuid())
+  deviceId String
+  device MobileDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  eventKey String
+  payload Json
+  status String @default("PENDING")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  lockedUntil DateTime?
+  deliveredAt DateTime?
+  createdAt DateTime @default(now())
+  expiresAt DateTime @default(dbgenerated("(CURRENT_TIMESTAMP + interval '1 day')"))
+  generation Int @default(0)
+  receiptId String?
+  receiptCheckAt DateTime?
+  tokenHash String?
+  @@unique([deviceId, eventKey])
+  @@index([status, nextAttemptAt])
+  @@index([receiptCheckAt])
+  @@index([status, expiresAt])
+  @@index([createdAt])
 }
 
 // Discord-only item previews (docs/ITEM_PREVIEWS.md). Off unless an owner enables it for a server; the

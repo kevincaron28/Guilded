@@ -1,14 +1,34 @@
 # Guilded privacy / Confidentialité
 
-Last updated / Dernière mise à jour : 30 October / octobre 2026.
+Last updated / Dernière mise à jour : 4 November / novembre 2026.
 
 ## English
 
-This notice describes Guilded Companion, the Guilded website and the project-hosted
+This notice describes Guilded Mobile for Android, Guilded Companion, the Guilded website and the project-hosted
 Guilded service operated by Kevin Caron (Guilded). A guild using its own server has
 its own operator; contact that operator about its hosting and retention choices.
 
 ### Information used and why
+
+On Android, public rankings are available without signing in. Connecting a guild
+stores a device credential in Android-backed secure storage. The phone uses it
+to request your guild data and send wishlist changes to the server you selected.
+Discord handles browser sign-in. The fictional sample guild needs no guild account.
+
+Local reminders use the raid schedule already downloaded by your phone. If you
+enable remote raid alerts, your guild server associates an Expo push token and
+language preference with your device connection. It processes upcoming raid
+details and delivery status so it can send reminders and schedule changes.
+Expo and Firebase Cloud Messaging process the token and notification payload
+for Android delivery. Notification text can appear on your lock screen.
+Turn off remote alerts in the app while connected to stop server delivery.
+If you lose access to the phone, revoke the connection through your Guilded
+account. Android notification settings also let you silence the app.
+
+Builds configured for Expo Updates contact Expo to check for a compatible app
+update. These requests include technical information such as the app platform,
+update channel and runtime version. Request account or associated data deletion
+using the contact instructions below.
 
 Optional weekly recap delivery stores your chosen schedule, timezone, quiet hours,
 on/off preference and latest delivery receipt. It sends a private Discord message
@@ -131,11 +151,34 @@ la procédure existante. Une pause ne rappelle pas les messages déjà livrés.
 Les préférences visibles figurent dans `/me/data` et son export.
 
 
-Cette politique concerne Guilded Companion, le site Guilded et le service hébergé
+Cette politique concerne Guilded Mobile pour Android, Guilded Companion, le site Guilded et le service hébergé
 par le projet, exploité par Kevin Caron (Guilded). Une guilde utilisant son propre
 serveur a son propre exploitant, à contacter pour son hébergement et sa conservation.
 
 ### Données utilisées et finalités
+
+Sur Android, les classements publics sont accessibles sans connexion. Lorsque
+vous connectez une guilde, le téléphone conserve un identifiant de connexion
+dans le stockage sécurisé d’Android. Il l’utilise pour consulter les données de
+guilde et envoyer vos modifications de liste de souhaits au serveur choisi.
+Discord gère la connexion dans le navigateur. La guilde fictive est accessible
+sans compte de guilde.
+
+Les rappels locaux utilisent le calendrier déjà téléchargé sur le téléphone.
+Si vous activez les alertes à distance, le serveur associe un jeton Expo et une
+préférence de langue à votre connexion. Il traite les renseignements sur les
+raids à venir et le suivi des envois pour vous informer des rappels et des
+changements. Expo et Firebase Cloud Messaging traitent le jeton et le contenu
+pour livrer les alertes Android. Le texte peut apparaître sur l’écran verrouillé.
+Désactivez les alertes à distance dans l’appli lorsque vous avez une connexion.
+Si vous perdez le téléphone, révoquez la connexion depuis votre compte Guilded.
+Les réglages Android permettent aussi de mettre les notifications en sourdine.
+
+Les versions configurées pour Expo Updates contactent Expo pour vérifier la
+disponibilité d’une mise à jour compatible. La requête inclut des données
+techniques comme la plateforme, le canal et la version d’exécution. Pour
+demander la suppression du compte ou de ses données, utilisez les coordonnées
+ci-dessous.
 
 Le compagnon utilise les fichiers de jeu sélectionnés pour la synchronisation.
 Les données WoW peuvent comprendre les noms et royaumes des personnages, la guilde

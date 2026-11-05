@@ -1,6 +1,8 @@
 import { createPugWeb } from "./services/pug-web.js";
 import { cachedOfficerCheck, meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
+import { renewCompanionCredential } from "./services/companion-renew.js";
+import { configureMobileDevice } from "./services/mobile-alerts.js";
 import { createWebCommunityBadges } from "./services/web-community-badges.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
@@ -42,7 +44,7 @@ import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
-import { companionAccess, personalSnapshot } from "./services/companion-access.js";
+import { CompanionUnavailable, companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
 import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
 import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
@@ -449,13 +451,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
       const isSignInStart = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in";
       const isSignInPoll = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in/poll";
+      const isRenew = request.method === "POST" && url.pathname === "/api/v1/companion/renew";
+      const isMobileDevice = ["GET", "POST"].includes(request.method ?? "") && url.pathname === "/api/v1/mobile/device";
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
       const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
       const isManageEdit = request.method === "POST" && url.pathname === "/api/v1/manage";
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
+      if (!isRenew && !isMobileDevice && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -464,12 +468,20 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, 429, { error: "Too many failed attempts. Try again in a few minutes." });
         return;
       }
+      if (isRenew) {
+        const payload = await readBody(request) as { nextCredential?: unknown } | null;
+        const ok = await renewCompanionCredential(prisma, request.headers["x-companion-credential"], payload?.nextCredential);
+        if (!ok) recordFailure(address);
+        json(response, ok ? 200 : 401, ok ? { ok: true, companionCredential: payload?.nextCredential } : { error: "This device connection is no longer valid. Sign in again." });
+        return;
+      }
       if (isLogout) {
         // Unknown/already-revoked secrets get the same idempotent response, so
         // bound attempts independently of the failed-authentication counter.
         if (!allowCompanionRevocation(address)) { json(response, 429, { error: "Too many disconnect requests. Try again in a minute." }); return; }
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
         const ok = await revokeCompanionCredential(prisma, secret);
+        if (ok && typeof secret === "string") await prisma.mobileDevice.updateMany({ where: { credential: { OR: [{ tokenHash: hashCompanionSecret(secret) }, { previousTokenHash: hashCompanionSecret(secret), previousValidUntil: { gt: new Date() } }] } }, data: { enabled: false, expoPushToken: null } });
         if (!ok) recordFailure(address);
         json(response, ok ? 200 : 400, ok ? { ok: true } : { error: "A valid companion credential is required." });
         return;
@@ -592,9 +604,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit || (isMobileDevice && request.method === "POST") ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || (isMobileDevice && request.method === "GET") ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -611,6 +623,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!access) {
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
+      }
+      if (isMobileDevice) {
+        const device = request.method === "GET"
+          ? await prisma.mobileDevice.findUnique({ where: { credentialId: (await prisma.companionCredential.findUniqueOrThrow({ where: { tokenHash: hashCompanionSecret(header as string) }, select: { id: true } })).id }, select: { enabled: true } })
+          : await configureMobileDevice(prisma, header as string, payload);
+        json(response, 200, { ok: true, enabled: device?.enabled ?? false });
+        return;
       }
       if (isHubView) {
         // The /setup checklist is read from Discord for officers only; if Discord cannot be reached the page says so.
@@ -825,6 +844,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       });
       });
     } catch (error) {
+      if (error instanceof CompanionUnavailable) { json(response, 503, { error: error.message }); return; }
+      if (request.url?.split("?")[0] === "/api/v1/mobile/device") {
+        // Prisma errors may echo write arguments. Push tokens never enter logs.
+        json(response, error instanceof ZodError ? 400 : 503, { error: error instanceof ZodError ? "That mobile device setting is not valid." : "Mobile alert settings are temporarily unavailable. Try again shortly." });
+        return;
+      }
       if (error instanceof PoeMappingError) { json(response, error.status, { error: error.message }); return; }
       if (error instanceof GameEditionError) { json(response, 409, { error: error.message }); return; }
       if (error instanceof BodyTooLargeError) {

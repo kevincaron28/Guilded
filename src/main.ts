@@ -87,6 +87,7 @@ import { executeHelp } from "./commands/help.js";
 import { handleAutocomplete } from "./commands/autocomplete.js";
 import { prisma } from "./database.js";
 import { runRaidReminders } from "./services/reminders.js";
+import { runMobileAlerts } from "./services/mobile-alerts.js";
 import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
@@ -245,6 +246,22 @@ client.once(Events.ClientReady, (readyClient) => {
   void refreshPugs();
   setInterval(() => void ownerConsole.refresh().catch(reportJobError("Owner console board")), 5 * 60_000);
   setInterval(() => void refreshPugs(), 60_000);
+  let mobileAlertsRunning = false;
+  let mobileSchemaUnavailable = false;
+  const mobileAlerts = async () => {
+    if (mobileAlertsRunning || mobileSchemaUnavailable) return;
+    mobileAlertsRunning = true;
+    try { await runMobileAlerts(prisma, readyClient); }
+    catch (error) {
+      if (error && typeof error === "object" && "code" in error && ["P2021", "P2022"].includes(String(error.code))) {
+        mobileSchemaUnavailable = true;
+        console.warn("Mobile alerts paused: apply database migrations and restart the bot.");
+      } else throw error;
+    }
+    finally { mobileAlertsRunning = false; }
+  };
+  void mobileAlerts().catch(reportJobError("Mobile raid alerts"));
+  setInterval(() => void mobileAlerts().catch(reportJobError("Mobile raid alerts")), 60_000);
   // Cross-guild PUG requests: close finished ones, retire orphaned posts (delivery itself runs in the job queue).
   const sweepPugs = () => void sweepPugRequests(prisma, hostedPilot.allows).catch(reportJobError("PUG board sweep"));
   sweepPugs();

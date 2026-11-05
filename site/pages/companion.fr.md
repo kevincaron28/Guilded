@@ -5,6 +5,14 @@
 <div class="actions"><a class="button" href="https://apps.microsoft.com/detail/9N680XX3QFL9">Obtenir sur le Microsoft Store <span aria-hidden="true">↗</span></a><a class="button secondary" href="https://github.com/kevincaron28/Guilded/releases/latest">Téléchargement direct (GitHub) <span aria-hidden="true">↗</span></a></div>
 </section>
 
+## Application Android (préversion)
+
+<div class="actions"><a class="button" href="{{ANDROID_APK_URL}}">Télécharger l’application Android (APK) <span aria-hidden="true">↓</span></a><a class="button secondary" href="{{ANDROID_RELEASE_URL}}">Notes de version <span aria-hidden="true">↗</span></a></div>
+
+Une **préversion** gratuite de l’application mobile Guilded pour Android : consultez le roster de raid de votre guilde, les réserves, la liste de souhaits de butin et les classements, et recevez des rappels de raid. C’est une préversion installée hors boutique, version {{ANDROID_VERSION}}, pas encore sur Google Play. Après avoir ouvert le fichier, Android vous demande d’autoriser l’installation depuis votre navigateur : autorisez-le une fois, puis installez. L’application vous avertit quand une version plus récente est prête et met son contenu à jour d’elle-même.
+
+SHA-256 du fichier : `{{ANDROID_SHA256}}`. Vous pouvez le comparer à la somme de contrôle affichée par un outil de hachage avant d’installer.
+
 ## En ai-je besoin ?
 
 - **Addon seulement :** non. L’addon fonctionne seul en jeu, et votre guilde partage EP/GP, butin et classements en jeu sans le compagnon.

@@ -38,7 +38,7 @@ let headersFile = readFileSync("site/_headers", "utf8").replace("script-src 'sel
 if (analyticsToken) headersFile = headersFile.replace("connect-src 'self'", "connect-src 'self' https://cloudflareinsights.com");
 writeFileSync(`${out}/_headers`, headersFile);
 // Published provider versions are independent of a local candidate/package bump.
-const { guilded: publishedGuilded } = JSON.parse(readFileSync("site/releases.json", "utf8"));
+const { guilded: publishedGuilded, mobile: publishedMobile } = JSON.parse(readFileSync("site/releases.json", "utf8"));
 const version = publishedGuilded.github.version;
 // Forever-first (companion/active-editions.mjs): the chooser, header menu and downloads offer only the active editions.
 // The Start page's edition buttons come from the Forever-first switch, never from the markdown.
@@ -48,7 +48,9 @@ const startEditions = french => {
   const hardcore = isEditionActive("classic-era") ? (french ? "Hardcore utilise le fichier Classic Era. " : "Hardcore uses the Classic Era file. ") : "";
   return `<div class="start-editions">${buttons}</div><p class="small">${hardcore}${french ? "Fermez WoW avant d’installer." : "Close WoW before you install."}</p>`;
 };
-const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", version).replaceAll("{{GUILDED_CURSEFORGE_VERSION}}", publishedGuilded.curseforge.version);
+const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", version).replaceAll("{{GUILDED_CURSEFORGE_VERSION}}", publishedGuilded.curseforge.version)
+  .replaceAll("{{ANDROID_VERSION}}", publishedMobile.android.version).replaceAll("{{ANDROID_APK_URL}}", publishedMobile.android.apkUrl)
+  .replaceAll("{{ANDROID_RELEASE_URL}}", publishedMobile.android.releaseUrl).replaceAll("{{ANDROID_SHA256}}", publishedMobile.android.sha256);
 // Static pages link relative to the site root (so a project subpath works); bot pages stay absolute.
 const staticHref = prefix => item => item.bot || item.key === "companion" || /^https?:/.test(item.href) ? item.href : prefix + item.href.slice(1);
 const bilingualLabel = ({ en, fr }) => en === fr ? en : `<span data-en="${en}" data-fr="${fr}">${en}</span>`;
@@ -136,7 +138,7 @@ for (const page of pages) {
   const pageText = (en, fr) => bilingual ? `<span data-en="${escape(en)}" data-fr="${escape(fr)}">${en}</span>` : french ? fr : en;
   const descriptionAttributes = bilingual ? ` data-content-en="${escape(page.description)}" data-content-fr="${escape(page.descriptionFr)}"` : '';
   const titleAttributes = bilingual ? ` data-content-en="${escape(page.title)}" data-content-fr="${escape(page.titleFr)}"` : '';
-  const fill = (markdown, fr) => markdown.replaceAll("{{START_EDITIONS}}", startEditions(fr));
+  const fill = (markdown, fr) => renderVersions(markdown).replaceAll("{{START_EDITIONS}}", startEditions(fr));
   const enBody = page.body ?? marked.parse(fill(readFileSync(`site/pages/${page.source}`, "utf8"), french));
   const body = page.sourceFr ? `<div data-language-copy="en" lang="en">${enBody}</div><div data-language-copy="fr" lang="fr" hidden>${marked.parse(fill(readFileSync(`site/pages/${page.sourceFr}`, "utf8"), true))}</div>` : enBody;
   const communityNav = french ? `<nav class="community-subnav" aria-label="Dans Quebec Gold">${[['quebec-gold/', 'La communauté'], ['g/quebec-gold/', 'World of Warcraft'], ['quebec-gold/poe2/', 'Path of Exile 2']].map(([path, label]) => `<a href="${prefix}${path}"${page.path === path ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>` : '';

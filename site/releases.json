@@ -1,5 +1,14 @@
 {
-  "verifiedAt": "2026-11-04",
+  "verifiedAt": "2026-11-05",
+  "mobile": {
+    "android": {
+      "version": "0.2.0",
+      "stage": "preview",
+      "apkUrl": "https://github.com/kevincaron28/Guilded/releases/download/mobile-v0.2.0-preview/guilded-android-0.2.0-preview.apk",
+      "releaseUrl": "https://github.com/kevincaron28/Guilded/releases/tag/mobile-v0.2.0-preview",
+      "sha256": "9363877c2857f3d4fa291d6ae2611194a80646c436790423ea34e054704dcceb"
+    }
+  },
   "guilded": {
     "github": {
       "version": "8.4.0",

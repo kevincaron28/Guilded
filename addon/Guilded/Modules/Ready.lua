@@ -201,13 +201,13 @@ function module.gearText(nowSeconds)
   for _, row in ipairs(module.gearRows(now)) do
     local parts = {}
     if row.level and row.level > 0 then table.insert(parts, string.format(L("level %d"), row.level)) end
-    table.insert(parts, string.format(L("item level %s"), row.itemLevel and tostring(row.itemLevel) or "?"))
+    table.insert(parts, string.format(L("item level %s"), row.itemLevel and tostring(row.itemLevel) or "n/a"))
     if row.missing > 0 then table.insert(parts, "|cffff6060" .. string.format(L("%d missing"), row.missing) .. "|r") end
     if row.enchants ~= "" then table.insert(parts, "|cffff6060" .. L("no enchant") .. ": " .. row.enchants .. "|r") end
     if row.durability < 50 then table.insert(parts, "|cffff6060" .. string.format(L("durability %d%%"), row.durability) .. "|r") end
     local days = row.at and math.floor((now - row.at) / 86400) or nil
     if days then table.insert(parts, days < 1 and L("today") or string.format(L("%d d ago"), days)) end
-    table.insert(lines, "|cffffd100" .. row.name .. "|r  " .. table.concat(parts, " \194\183 "))
+    table.insert(lines, "|cffffd100" .. (ns.displayName and ns.displayName(row.name) or row.name) .. "|r  " .. table.concat(parts, " \194\183 "))
   end
   return #lines > 0 and table.concat(lines, "\n") or L("Nobody has shared a gear check yet. Each member's Guilded shares theirs after a gear change or /reload.")
 end

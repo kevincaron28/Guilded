@@ -60,3 +60,30 @@ Not opened: Roster admin window, Officer tools sub-windows, Guild bank/log, Back
 Officer tools sub-windows (Guild event log, Guild bank, Prospects, Imports, Speed report), Roster admin
 window, Backup/Officer setup/Guilded setup windows, Battleground card, window drag/resize, French and other
 locales, `/guilded options` page, and any state with an active raid or bidding.
+
+## Status after the fix batch (branch claude/gallant-borg-cf32dd)
+
+Code-complete and covered by `tests/lua/` where layout logic is testable; **every visual item still needs
+an in-game re-check** (the Lua harness cannot see overlap or clipping).
+
+| # | Status | Note |
+|---|--------|------|
+| 1 | fixed | Host portrait/emblem hidden while the Guilded page shows, restored on close. |
+| 2 | fixed | Dungeons heading starts right of the emblem in the finder. |
+| 3 | partly | Calendar page starts at the top edge with its own Close; each Home button says where it opens. Windows are not staggered. |
+| 4 | partly | Window size - / + now in the title bar. Default size unchanged. |
+| 5, 6, 7 | fixed | Settings scroll has padding and a 44 px step; help text no longer collides with Modules; test tools labelled developer tools, Clear says click twice. |
+| 8 | fixed | Home hangs from its text (no dead gap), "Pick a raid core" button. The long loot-system line is unchanged. |
+| 9 | fixed | Unsent-changes block hidden on Open raids and Calendar; button tooltip shows what is queued. |
+| 10, 11 | fixed | Sidebar tooltip opens to the left with the button's own name; gear status reads "Partly ready". |
+| 12-16 | fixed | Open raids starts on your realm, hides one-page paging, Website next to filters; Ready legend, wider Player column, Post asks twice; attendance disabled without a raid; Loot status line reworded, item box placeholder. |
+| 17, 18 | fixed | Administration points at the Loot page with a button; Roster admin described and renamed. |
+| 19-21 | fixed | Crafting spacing; embedded scroll pages use the 44 px step and bottom padding; the stray line was the status line, now cleared when a page opens. |
+| 22 | fixed | Full names and "n/a" item level. The item level value itself comes from the game. |
+| 23 | partly | /guilded while the Guilded page is open inside a game window now closes that page instead of opening a second window. |
+| 24 | deferred | Needs an in-game repro of the unresponsive Close click. |
+| 25 | fixed | Home "Link to Discord" block with paste box and linked / pending / not linked state. |
+| 26 | fixed | /guilded help grouped under Everyday, Officer and More headings. |
+
+Also: the guild digest carrying a pending `/guilded verify` code is re-sent every 5 minutes through
+`ns.comm.send` until the code is removed or the member shows up in the shared standings.

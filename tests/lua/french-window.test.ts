@@ -104,12 +104,8 @@ describe("the tools window in French", () => {
 
   it("reserves space below the module list for status messages", () => {
     const s = frenchWindow();
-    expect(s.run(`for _, f in ipairs(FRAMES) do
-      if f.kind == "ScrollFrame" then
-        local moduleList = false
-        for _, point in ipairs(f.points) do if point[1] == "TOPLEFT" and point[5] == -298 then moduleList = true end end
-        if moduleList then for _, point in ipairs(f.points) do if point[1] == "BOTTOMRIGHT" then return tostring(point[5]) end end end
-      end
+    expect(s.run(`for _, point in ipairs(NS.windowState().moduleScroll.points) do
+      if point[1] == "BOTTOMRIGHT" then return tostring(point[5]) end
     end; return "missing"`)).toBe("24");
   });
 

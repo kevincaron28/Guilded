@@ -11,9 +11,9 @@
   },
   "guilded": {
     "github": {
-      "version": "8.4.0",
+      "version": "8.4.4",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v8.4.0"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v8.4.4"
     },
     "curseforge": {
       "version": "8.4.2",

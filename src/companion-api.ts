@@ -10,6 +10,7 @@ import { addonName } from "./services/addon-name.js";
 import { characterKey, realmKey } from "../companion/character-identity.mjs";
 import { relayProfessions } from "./services/profession-relay.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
+import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { gunzipSync } from "node:zlib";
@@ -35,7 +36,7 @@ import { createGuildDirectory, prismaGuildDirectoryStore } from "./services/guil
 import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
-import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential, linkPairedCharacter } from "./services/character-pairing.js";
+import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
@@ -709,17 +710,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const pairedMemberId = access.memberId;
       const createdBy = access.actorId;
       let preview = await importService.preview(guild.id, requestPayload.export, createdBy);
-      const pairedCharacterStatus = pairedMemberId && preview.snapshot.character
-        ? await linkPairedCharacter(prisma, guild.id, pairedMemberId, preview.snapshot.character)
-        : pairedMemberId ? "missing-character" : "unpaired";
-      // The other characters that logged in on this PC belong to the same player: link them too.
-      // A name already owned by someone else is left alone (linkPairedCharacter refuses it).
-      if (pairedMemberId) {
-        for (const alt of preview.snapshot.alts) {
-          if (preview.snapshot.character && alt.name === preview.snapshot.character.name && realmKey(alt.realm) === realmKey(preview.snapshot.character.realm)) continue;
-          await linkPairedCharacter(prisma, guild.id, pairedMemberId, alt).catch((error: unknown) => console.error("Linking an alt failed", error));
-        }
-      }
+      const uploadStartedAt = new Date();
+      const pairedCharacterStatus = pairedMemberId
+        ? await linkUploaderCharacters(prisma, guild.id, pairedMemberId, preview.snapshot)
+        : "unpaired";
       // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
       // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).
       if (access.officer) await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined);
@@ -740,11 +734,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         ? await relayProfessions(prisma, guild.id, preview.snapshot) : null;
       if (professionRelay) {
         const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-        if (discordGuild && professionRelay.discovered) await autoLinkUnclaimed(discordGuild, prisma, guild.id).catch((error: unknown) => console.warn("Profession character linking failed", error));
+        if (discordGuild && professionRelay.discovered) await autoLinkUnclaimed(discordGuild, prisma, guild.id, { since: uploadStartedAt }).catch((error: unknown) => console.warn("Profession character linking failed", error));
         await updateProfessionDirectory(discordGuild);
       }
       if (preview.duplicate) {
         const existing = preview.existingImport;
+        // Unchanged data still repairs a member who has no linked character yet.
+        if (pairedMemberId) await repairMissingLinks(client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null, prisma, guild.id, pairedMemberId);
         // A member upload (and an officer guild with auto-apply) that was stored
         // but not applied must be tried again. Leaving it PREVIEWED made the
         // companion say "waiting for officer review", which a member cannot do.
@@ -759,7 +755,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
               metadata: { auto: true, retried: true, epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
             });
             const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-            await followUpImport(discordGuild, guild.id, result);
+            await followUpImport(discordGuild, guild.id, result, { since: uploadStartedAt });
           } catch (error) {
             const already = error instanceof Error && /already been applied/i.test(error.message);
             if (!autoApplied && !already) {
@@ -797,7 +793,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             metadata: { auto: true, epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
           });
           const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-          await followUpImport(discordGuild, guild.id, result);
+          await followUpImport(discordGuild, guild.id, result, { since: uploadStartedAt });
         } catch (error) {
           // Application and notification are distinct: a committed import stays APPLIED even if follow-up fails.
           console.error("Auto-apply of an addon import failed", error);

@@ -949,7 +949,7 @@
   "Characters verified": "Personnages vérifiés",
   "Press Find my saved data. The companion reads it and proves your characters itself; no code to type.": "Appuyez sur Trouver mes données enregistrées. Le compagnon les lit et prouve vos personnages lui-même ; aucun code à saisir.",
   "In WoW, type /reload (or log out) so your data is saved. The companion then proves your characters by itself.": "Dans WoW, tapez /reload (ou déconnectez-vous) pour enregistrer vos données. Le compagnon prouve ensuite vos personnages tout seul.",
-  "Sent, but no character matched yet. In WoW type /guilded verify once, then press Check my characters.": "Envoyé, mais aucun personnage ne correspond encore. Dans WoW, tapez /guilded verify une fois, puis appuyez sur Vérifier mes personnages.",
+  "Sent, but no character matched yet. Press Check my characters in a minute; if it stays empty, open Discord, type /character claim and pick yours.": "Envoyé, mais aucun personnage ne correspond encore. Appuyez sur Vérifier mes personnages dans une minute; si rien n'apparaît, ouvrez Discord, tapez /character claim et choisissez le vôtre.",
   "In WoW, type /reload so it is saved; the companion then proves your characters.": "Dans WoW, tapez /reload pour l’enregistrer ; le compagnon prouve ensuite vos personnages.",
   "Finish in your browser, then come back and press Check my characters.": "Terminez dans votre navigateur, puis revenez et appuyez sur Vérifier mes personnages.",
   "Signed in. Your saved data was found; the companion is checking your characters.": "Connecté. Vos données enregistrées ont été trouvées ; le compagnon vérifie vos personnages.",

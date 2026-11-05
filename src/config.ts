@@ -46,6 +46,8 @@ const environmentSchema = z.object({
   BATTLENET_CLIENT_SECRET: blankAsUndefined(z.string().min(1).optional()),
   PUBLIC_SITE_URL: blankAsUndefined(z.string().url().refine((value) => new URL(value).protocol === "https:", "Use the public https:// website address.").optional()),
   WEB_SESSION_SECRET: blankAsUndefined(z.string().min(32).optional()),
+  // Item previews: 32+ random characters that encrypt stored webhook URLs. Without it the feature cannot be enabled.
+  ITEM_PREVIEW_SECRET: blankAsUndefined(z.string().min(32).optional()),
   // Warcraft Logs API v2 client (https://www.warcraftlogs.com/api/clients). Optional: /raid wcl stays off without it.
   WCL_CLIENT_ID: blankAsUndefined(z.string().min(1).optional()),
   WCL_CLIENT_SECRET: blankAsUndefined(z.string().min(1).optional()),

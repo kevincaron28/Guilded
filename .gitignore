@@ -30,3 +30,6 @@ bug-inbox.md
 # Shared presentation assets copied by companion:build
 companion-app/renderer/design-tokens.css
 companion-app/renderer/fonts/
+
+# Link-coverage report (npm run link:coverage): holds members' Discord IDs.
+link-coverage.md

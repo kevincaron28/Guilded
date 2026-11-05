@@ -400,6 +400,7 @@
   "Looking for your addon data…": "Recherche des données de l’addon…",
   "Found {0} accounts. Check the selected file before saving.": "{0} comptes trouvés. Vérifiez le fichier sélectionné avant d’enregistrer.",
   "Found your addon data.": "Données de l’addon trouvées.",
+  "Found your WoW account. Log in to WoW and type /reload once; your characters link by themselves.": "Compte WoW trouvé. Connectez-vous à WoW et tapez /reload une fois; vos personnages se lient tout seuls.",
   "Account found. Use /reload with Guilded Dungeons (or Guilded) enabled to create its saved file.": "Compte trouvé. Utilisez /reload avec Guilded Dungeons (ou Guilded) activé pour créer son fichier.",
   "Account found. Use /reload with the addon enabled to create Guilded.lua.": "Compte trouvé. Utilisez /reload avec l’addon activé pour créer Guilded.lua.",
   "Choose Browse and select GuildedDungeons.lua or Guilded.lua in your account’s SavedVariables folder.": "Cliquez sur Parcourir et sélectionnez GuildedDungeons.lua ou Guilded.lua dans SavedVariables de votre compte.",

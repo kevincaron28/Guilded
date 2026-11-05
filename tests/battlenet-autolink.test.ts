@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { discoverAllBattleNet } from "../src/services/battlenet.js";
 import { autoLinkBattleNet, undoBattleNetLinks } from "../src/services/battlenet-autolink.js";
 import { createBattleNetPage, type BattleNetLinking } from "../src/services/battlenet-page.js";
-import { linkStatusLines, nextStep } from "../src/services/link-status.js";
+import { battleNetUseful, linkStatusLines, nextStep } from "../src/services/link-status.js";
 import { createWebApp, type WebResponse } from "../src/services/web-app.js";
 import { csrfToken, hashToken, SESSION_COOKIE, sign } from "../src/services/web-auth.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
@@ -78,6 +78,14 @@ describe("plain status line", () => {
     expect(nextStep({ battleNet: false, companion: false, characters: 0, lastSynced: null })).toBe("connect");
     expect(nextStep({ battleNet: true, companion: false, characters: 1, lastSynced: null })).toBe("sync");
     expect(nextStep({ battleNet: true, companion: true, characters: 1, lastSynced: now })).toBe("done");
+    // WoW Forever only: Blizzard knows none of its characters, so the first step is the Windows app, not Battle.net.
+    const fresh = { battleNet: false, companion: false, characters: 0, lastSynced: null };
+    expect(battleNetUseful(["forever"])).toBe(false);
+    expect(battleNetUseful(["forever", "retail"])).toBe(true);
+    expect(linkStatusLines(fresh, "en", now, false).join(" ")).toMatch(/Windows app and sign in with Discord/);
+    expect(linkStatusLines(fresh, "en", now, false).join(" ")).not.toContain("Battle.net");
+    expect(linkStatusLines(fresh, "fr", now, false).join(" ")).toContain("Installe l'application Windows");
+    expect(linkStatusLines(fresh, "en", now, true).join(" ")).toContain("Connect Battle.net");
   });
   it("speaks English and French without jargon", () => {
     const status = { battleNet: true, companion: true, characters: 2, lastSynced: new Date("2026-11-02T09:00:00Z") };

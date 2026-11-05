@@ -170,6 +170,7 @@ model Guild {
   tags                Tag[]
   bankRequests        BankRequest[]
   craftRequests       CraftRequest[]
+  craftOffers         CraftOffer[]
   dungeonSeasons      DungeonSeason[]
     discordJobs         DiscordJob[]
     discordEvents       DiscordEventLink[]
@@ -474,6 +475,7 @@ model Member {
   applications        Application[]
   craftRequests       CraftRequest[]               @relation("CraftRequester")
   craftsClaimed       CraftRequest[]               @relation("CraftCrafter")
+  craftOffers         CraftOffer[]
   dungeonRunPlayers   DungeonRunPlayer[]
   dungeonPoints       DungeonPointTransaction[]
   dungeonAchievements DungeonAchievement[]
@@ -920,6 +922,8 @@ model GuildSettings {
   lootChannelId            String?
   // Craft requests post here (crafters see them); falls back to the officer log.
   craftChannelId           String?
+  // Crafter offers (sell a craft) are off until an officer turns them on with /craft offer-setting.
+  craftOffersEnabled       Boolean @default(false)
   // Private (officers and raid leaders) channel where gear/readiness checks are posted.
   readinessChannelId       String?
   // Where each raid core's roster is shown (one live message per core).
@@ -1310,6 +1314,38 @@ model BankRequest {
   @@index([memberId, createdAt])
 }
 
+enum CraftOfferStatus {
+  ACTIVE
+  WITHDRAWN
+  EXPIRED
+}
+
+// A crafter's offer to make something (price is free text: Guilded never handles gold).
+model CraftOffer {
+  id                String           @id @default(cuid())
+  guildId           String
+  crafterId         String
+  character         String?
+  item              String
+  itemKey           Int?
+  profession        String?
+  // True when the item comes from a recipe the crafter's character was recorded with.
+  verified          Boolean          @default(false)
+  price             String?
+  materialsProvided Boolean          @default(false)
+  note              String?
+  threadId          String?
+  status            CraftOfferStatus @default(ACTIVE)
+  expiresAt         DateTime
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  guild             Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  crafter           Member           @relation(fields: [crafterId], references: [id], onDelete: Cascade)
+
+  @@index([guildId, status, expiresAt])
+  @@index([crafterId, createdAt])
+}
+
 enum CraftRequestStatus {
   OPEN
   CLAIMED
@@ -1330,6 +1366,8 @@ model CraftRequest {
   materialsProvided Boolean            @default(false)
   // The forum post (thread) on the craft board, when the craft channel is a forum.
   threadId          String?
+  // The offer this request answers ("I'd like this"), when it came from one.
+  offerId           String?
   status            CraftRequestStatus @default(OPEN)
   claimedAt         DateTime?
   doneAt            DateTime?
@@ -2766,4 +2804,19 @@ model MobileDelivery {
   @@index([receiptCheckAt])
   @@index([status, expiresAt])
   @@index([createdAt])
+}
+
+// Discord-only item previews (docs/ITEM_PREVIEWS.md). Off unless an owner enables it for a server; the
+// webhook URL is stored only as AES-256-GCM ciphertext.
+model ItemPreviewConfig {
+  id             String   @id @default(cuid())
+  discordGuildId String   @unique
+  channelId      String
+  webhookId      String
+  webhookSealed  String
+  enabled        Boolean  @default(true)
+  disabledReason String?
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }

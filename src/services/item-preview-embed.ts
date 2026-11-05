@@ -1,0 +1,59 @@
+import type { ParsedItem } from "./item-links.js";
+import type { ItemDetails } from "./item-preview-data.js";
+
+export interface WebhookEmbed {
+  title: string; description?: string; url?: string; color: number;
+  thumbnail?: { url: string }; footer?: { text: string };
+}
+export interface WebhookPayload { embeds: WebhookEmbed[]; allowed_mentions: { parse: never[] } }
+
+const QUALITY_COLOR = [0x9d9d9d, 0xffffff, 0x1eff00, 0x0070dd, 0xa335ee, 0xff8000];
+const QUALITY_NAME = ["Poor", "Common", "Uncommon", "Rare", "Epic", "Legendary"];
+const NEUTRAL = 0x5865f2;
+
+/** Neutralises mentions, markdown, links and control characters in text taken from chat. */
+export function sanitizeName(name: string, max = 60): string {
+  let out = "";
+  for (const ch of name) {
+    if (ch < " " || ch === "\u007f") continue;
+    if (ch === "@") { out += "＠"; continue; }
+    if (ch === ":") { out += "∶"; continue; }
+    if ("\\`*_~|>#[]()<".includes(ch)) { out += "\\" + ch; continue; }
+    out += ch;
+  }
+  out = out.trim();
+  return out.length > max ? out.slice(0, max - 1) + "…" : out;
+}
+
+const httpsOnly = (url?: string) => { try { return url && new URL(url).protocol === "https:" ? url : undefined; } catch { return undefined; } };
+
+export function buildItemEmbed(item: ParsedItem, details: ItemDetails | null): WebhookEmbed {
+  const quality = details?.quality ?? item.quality;
+  const color = quality !== undefined && QUALITY_COLOR[quality] !== undefined ? QUALITY_COLOR[quality]! : NEUTRAL;
+  const lines: string[] = [];
+  if (quality !== undefined && QUALITY_NAME[quality]) lines.push(QUALITY_NAME[quality]!);
+  if (details?.summary) lines.push(sanitizeName(details.summary, 200));
+  if (item.verified) {
+    lines.push(`Item ID ${item.itemId}`);
+    if (item.suffixId) lines.push(`Random suffix ${item.suffixId}`);
+    if (item.enchantId) lines.push(`Enchant ${item.enchantId}`);
+  } else {
+    lines.push("Unverified: only the name was shared, so no stats are shown.");
+  }
+  const embed: WebhookEmbed = {
+    title: sanitizeName(details?.name ?? item.name),
+    description: lines.join("\n").slice(0, 400),
+    color,
+    footer: { text: item.verified ? "Guilded item preview" : "Guilded item preview (unverified)" }
+  };
+  // A link is offered only for a verified numeric id (or one a provider vouched for).
+  const url = httpsOnly(details?.url) ?? (item.verified && item.itemId ? `https://www.wowhead.com/classic/item=${item.itemId}` : undefined);
+  if (url) embed.url = url;
+  const icon = httpsOnly(details?.iconUrl);
+  if (icon) embed.thumbnail = { url: icon };
+  return embed;
+}
+
+export function buildPayload(embeds: WebhookEmbed[]): WebhookPayload {
+  return { embeds: embeds.slice(0, 5), allowed_mentions: { parse: [] } };
+}

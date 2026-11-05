@@ -155,7 +155,14 @@ local function index()
   return out
 end
 
-local function send(text, channel, target) ns.comm.send(PREFIX, text, channel, target) end
+local function send(text, channel, target)
+  local guild = ns.currentGuildKey()
+  local function stillAllowed()
+    return guild ~= nil and active() and guild == ns.currentGuildKey()
+      and (not target or ns.isOfficerName(ns.normalizeName(target)))
+  end
+  ns.comm.send(PREFIX, text, channel, target, stillAllowed, "retry-lockdown")
+end
 
 -- Sends "<key>=<count>.<hash>" items in as few messages as fit, each "<head><part>|<parts>|<items>".
 local function sendList(head, items, target)
@@ -180,8 +187,16 @@ local function assemble(key, part, parts, text, raw)
   part, parts = tonumber(part), tonumber(parts)
   if not part or not parts or parts < 1 or parts > BATCH_PARTS or part < 1 or part > parts then return nil end
   local a = assemblies[key]
+  -- A long pause can split a compressed day across the assembly deadline.
+  -- Ask for that day once, then ignore its stale tail until a new first part arrives.
+  if raw and a and clock() - a.at > ASSEMBLY_SECONDS and part ~= 1 then
+    assemblies[key] = { waitingFirst = true, at = clock() }
+    return nil, true
+  end
+  if a and a.waitingFirst and part ~= 1 then return nil end
   if not a or a.parts ~= parts or clock() - a.at > ASSEMBLY_SECONDS then a = { parts = parts, got = 0, items = {}, chunks = {}, at = clock() }; assemblies[key] = a end
   if a[part] then return nil end
+  a.at = clock() -- measure inactivity from the last new part
   a[part] = true
   a.got = a.got + 1
   if raw then a.chunks[part] = text else for k, v in pairs(parseList(text)) do a.items[k] = v end end
@@ -454,7 +469,9 @@ local function onMessage(text, channel, rawSender)
     capable[sender] = string.find("," .. list .. ",", ",Z1,", 1, true) and true or nil
   elseif kind == "Z" and channel == "WHISPER" then
     local author, day, part, parts, chunk = string.match(text, "^Z|1|([^|]+)|(%d+)|(%d+)|(%d+)|(.*)$")
-    local whole = author and assemble("Z:" .. sender .. ":" .. author .. ":" .. day, part, parts, chunk, true)
+    if not author then return end
+    local whole, requestDay = assemble("Z:" .. sender .. ":" .. author .. ":" .. day, part, parts, chunk, true)
+    if requestDay then send("GET|1|" .. author .. "|" .. day, "WHISPER", rawSender) end
     if whole then receiveBatch(whole, sender) end
   end
 end

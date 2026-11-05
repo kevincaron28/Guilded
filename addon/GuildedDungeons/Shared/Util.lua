@@ -356,6 +356,7 @@ ns.comm = comm
 local BURST, PER_SECOND, MAX_TRIES = 8, 1, 5
 local MAX_QUEUED = 1024
 local INTERACTIVE_RESERVE = 16
+local LOCKDOWN_RETRY_SECONDS = 5
 -- SendAddonMessage result codes (Enum.SendAddonMessageResult) that mean "try again".
 local THROTTLED = { [3] = true, [8] = true }
 local buckets = {}
@@ -397,11 +398,17 @@ local pump
 local function schedule(prefix, b)
   if b.scheduled or not (C_Timer and C_Timer.After) then return end
   b.scheduled = true
-  C_Timer.After(1 / PER_SECOND, function() b.scheduled = false; pump(prefix) end)
+  local delay = math.max(1 / PER_SECOND, (b.retryAt or 0) - b.at)
+  C_Timer.After(delay, function() b.scheduled = false; pump(prefix) end)
 end
 
 pump = function(prefix)
   local b = bucket(prefix)
+  if b.retryAt and b.at < b.retryAt then
+    schedule(prefix, b)
+    return
+  end
+  b.retryAt = nil
   while b.queue[1] and b.tokens >= 1 do
     -- Only explicitly independent traffic may bypass bulk transfers. Keep FIFO
     -- inside each lane, with one bulk packet after four interactive packets.
@@ -422,6 +429,13 @@ pump = function(prefix)
       b.results.cancelled = b.results.cancelled + 1
     else
       local status, code = rawSend(prefix, item.text, item.channel, item.target)
+      -- Lockdown may outlast a combat encounter. Keep ordered, replay-safe data
+      -- queued without using its throttle retries or probing on each enqueue.
+      if code == 11 and item.retryLockdown then
+        b.retryAt = b.at + LOCKDOWN_RETRY_SECONDS
+        b.lastResult, b.lastCode = "lockdown", code
+        break
+      end
       b.results[status] = b.results[status] + 1
       b.lastResult, b.lastCode = status, code
       if status == "throttled" then
@@ -447,6 +461,7 @@ end
 -- FIFO within each lane: leave all snapshot headers/chunks/end markers on the
 -- default lane. Only independent, latency-sensitive messages opt into interactive.
 -- Optional guard is rechecked before every attempt, including throttled retries.
+-- "retry-lockdown" uses the bulk FIFO and retains packets through AddOnMessageLockdown.
 -- A false result or error discards the packet without consuming a send token.
 function comm.send(prefix, text, channel, target, guard, priority)
   if not channel then return false end
@@ -463,7 +478,8 @@ function comm.send(prefix, text, channel, target, guard, priority)
     if b.results.overflow == 1 then diag("SEND", prefix .. ": message queue full; retry sync later") end
     return false
   end
-  table.insert(b.queue, { text = text, channel = channel, target = target, guard = guard, interactive = priority == "interactive" })
+  table.insert(b.queue, { text = text, channel = channel, target = target, guard = guard,
+    interactive = priority == "interactive", retryLockdown = priority == "retry-lockdown" })
   pump(prefix)
   return true
 end

@@ -33,6 +33,7 @@ describe("mobile release links", () => {
     expect(() => configure({ config })).toThrow("EAS_PROJECT_ID");
     vi.stubEnv("EAS_PROJECT_ID", "11111111-1111-4111-8111-111111111111");
     vi.stubEnv("EAS_BUILD_PLATFORM", "android");
+    vi.stubEnv("EAS_BUILD_PROFILE", "production");
     expect(() => configure({ config })).toThrow("GOOGLE_SERVICES_JSON");
     vi.stubEnv("EAS_BUILD_PLATFORM", "ios");
     expect(configure({ config }).updates.url).toBe("https://u.expo.dev/11111111-1111-4111-8111-111111111111");

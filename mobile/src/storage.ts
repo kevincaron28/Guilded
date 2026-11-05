@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { getRandomBytesAsync } from "expo-crypto";
-import { apiOrigin, parseGrant, type Grant } from "./api";
+import { ApiError, apiOrigin, parseGrant, type Grant } from "./api";
 
 export interface Session extends Grant {
   apiOrigin: string;
@@ -110,7 +110,18 @@ export async function renewSession(session: Session): Promise<Session> {
     if (epoch !== sessionEpoch) throw new Error("Session changed. Please sign in again.");
     await persistSession(session, epoch);
   }
-  await new GuildedClient(session.apiOrigin, session.companionCredential).renew(pendingCredential);
+  try { await new GuildedClient(session.apiOrigin, session.companionCredential).renew(pendingCredential); }
+  catch (error) {
+    // A server without the renewal route (older bot) keeps the working credential; check again later.
+    if (error instanceof ApiError && (error.status === 404 || error.status === 405)) {
+      if (epoch !== sessionEpoch) throw new Error("Session changed. Please sign in again.");
+      const unchanged: Session = { ...session, renewedAt: Date.now() };
+      delete unchanged.pendingCredential;
+      await persistSession(unchanged, epoch);
+      return unchanged;
+    }
+    throw error;
+  }
   if (epoch !== sessionEpoch) {
     void new GuildedClient(session.apiOrigin, pendingCredential).logout(session.guildDiscordId);
     throw new Error("Session changed. Please sign in again.");

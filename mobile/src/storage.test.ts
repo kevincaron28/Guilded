@@ -44,4 +44,16 @@ describe("mobile credential persistence", () => {
     await expect(pending).rejects.toThrow(/changed/);
     expect(await readSession()).toBeNull();
   });
+  it("keeps the working credential when the server has no renewal route yet", async () => {
+    await saveSession(session);
+    const { ApiError } = await import("./api");
+    fixture.renew.mockRejectedValueOnce(new ApiError("Not found", 404));
+    const kept = await renewSession(session);
+    expect(kept.companionCredential).toBe(session.companionCredential);
+    expect(kept.pendingCredential).toBeUndefined();
+    expect(typeof kept.renewedAt).toBe("number");
+    expect((await readSession())?.companionCredential).toBe(session.companionCredential);
+    await renewSession(kept);
+    expect(fixture.renew).toHaveBeenCalledTimes(1);
+  });
 });

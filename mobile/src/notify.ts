@@ -63,5 +63,6 @@ export async function pushToken(): Promise<string> {
   let granted = (await Notifications.getPermissionsAsync()).granted;
   if (!granted) granted = (await Notifications.requestPermissionsAsync()).granted;
   if (!granted) throw new Error("Notifications are off for Guilded in phone settings.");
-  return (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+  try { return (await Notifications.getExpoPushTokenAsync({ projectId })).data; }
+  catch { throw new Error("Push alerts are not set up in this build. Device reminders still work."); }
 }

@@ -76,7 +76,10 @@ export function GuildScreen({ defaultOrigin, lang, onLang, route }: { defaultOri
     const revision = ++generation.current;
     setLoading(true);
     try {
-      const current = await renewSession(original);
+      // Renewal is housekeeping: a transient failure must not hide the guild data. Only a revoked credential stops here.
+      let current = original;
+      try { current = await renewSession(original); }
+      catch (renewError) { if (!(renewError instanceof ApiError) || renewError.status === 401) throw renewError; }
       if (!mounted.current || revision !== generation.current || sessionRef.current?.companionCredential !== original.companionCredential) return;
       sessionRef.current = current;
       if (current !== original) setSession(current);

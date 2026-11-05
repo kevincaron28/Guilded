@@ -499,6 +499,7 @@ export class GuildedClient {
 
   async device(guildDiscordId: string, enabled: boolean, locale: "en" | "fr", expoPushToken?: string): Promise<void> {
     const { status, body } = await this.call("/api/v1/mobile/device", { method: "POST", body: { guildDiscordId, enabled, locale, ...(expoPushToken ? { expoPushToken } : {}) } });
+    if (status === 404 || status === 405) throw new ApiError("Push alerts are not available on this server yet. Device reminders still work.", status);
     if (status !== 200) throw new ApiError(messageOf(body, "Raid alerts could not be updated."), status);
   }
 

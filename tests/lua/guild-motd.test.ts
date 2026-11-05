@@ -16,7 +16,14 @@ function setup() {
     function InCombatLockdown() return COMBAT end
     function CanEditMOTD() return CAN end
     function GetGuildRosterMOTD() return MOTD end
-    function GuildSetMOTD(text) WRITES[#WRITES + 1] = text; MOTD = text end
+    OPENED = {}
+    SlashCmdList = { GUILD_MOTD = function() end }
+    function ChatFrame_OpenChat(text) OPENED[#OPENED + 1] = text end
+    -- The officer presses Enter: the game's own /gmotd sets the message.
+    function ENTER()
+      local text = OPENED[#OPENED]:match("^/gmotd (.*)$")
+      WRITES[#WRITES + 1] = text; MOTD = text
+    end
     function ADVANCE(n) CLOCK = CLOCK + n; EPOCH = EPOCH + n end
     NS = {
       getDb = function() return DB end,
@@ -38,7 +45,7 @@ function setup() {
 }
 const on = (s: LuaSession, extra = "") => s.run(`M.set("enabled", true); ${extra}`);
 // The officer clicks the "Update guild message" button: the only way a write happens.
-const click = (s: LuaSession) => s.run("local code = M.tick(); if code == \"due\" then return M.apply() end return code");
+const click = (s: LuaSession) => s.run("local code = M.tick(); if code == \"due\" then M.apply(); ENTER(); return M.tick() end return code");
 
 describe("automatic guild message of the day", () => {
   it("is off by default and writes nothing", () => {
@@ -96,14 +103,23 @@ describe("automatic guild message of the day", () => {
     expect(s.run("return MOTD")).not.toBe("Raid Friday!");
   });
 
-  it("does not mistake the roster's stale text right after our own write for a manual edit", () => {
+  it("never pauses before our first confirmed write, and counts a write only once the MOTD reads back", () => {
     const s = setup();
     on(s, `M.setLines("Alpha")`);
-    s.run(`GuildSetMOTD = function(text) WRITES[#WRITES + 1] = text end`); // roster still shows "old message"
-    click(s); s.run("ADVANCE(5)");
+    expect(s.run("return M.tick()")).toBe("due");
+    expect(s.run("return M.apply()")).toBe("ready");
+    expect(s.run("return OPENED[1]")).toBe("/gmotd Alpha");
+    // Enter not pressed yet: the roster still shows the old text. No pause, no "updated".
+    s.run("ADVANCE(300)");
     expect(s.run("return M.tick()")).not.toBe("paused");
-    s.run(`ADVANCE(120)`);
-    expect(s.run("return M.tick()")).toBe("paused"); // later the same mismatch means someone else changed it
+    expect(s.run("return M.statusText()")).not.toContain("updated");
+    expect(s.run("return tostring(CFG.lastWritten)")).toBe("nil");
+    s.run("ENTER()");
+    expect(s.run("return M.tick()")).toBe("written");
+    expect(s.run("return CFG.lastWritten")).toBe("Alpha");
+    // From here on a different roster text is someone else's edit.
+    s.run(`MOTD = "by hand"; ADVANCE(5)`);
+    expect(s.run("return M.tick()")).toBe("paused");
   });
 
   it("lets only the lowest-named officer who can edit write, and takes over when it goes quiet", () => {
@@ -155,10 +171,10 @@ describe("automatic guild message of the day", () => {
   it("fails quietly when the client cannot set the message or the rank cannot edit it", () => {
     const s = setup();
     on(s, `M.setLines("Alpha")`);
-    s.run("GuildSetMOTD = nil");
+    s.run("ChatFrame_OpenChat = nil");
     expect(s.run("return M.tick()")).toBe("noapi");
-    expect(s.run("return M.statusText()")).toContain("cannot change the guild message");
-    s.run(`GuildSetMOTD = function(t) WRITES[#WRITES + 1] = t end; CAN = false`);
+    expect(s.run("return M.statusText()")).toContain("/gmotd");
+    s.run(`ChatFrame_OpenChat = function(t) OPENED[#OPENED + 1] = t end; CAN = false`);
     expect(s.run("return M.tick()")).toBe("cannot");
     s.run("CAN = true; OFFICER = false");
     expect(s.run("return M.tick()")).toBe("notofficer");
@@ -170,30 +186,28 @@ describe("automatic guild message of the day", () => {
     on(s, `M.set("mode", "event"); M.set("suffix", "Lie ton perso: Guilded Companion")`);
     s.run(`RAIDS = { { id = "1", title = "Hyjal", at = EPOCH + 86400 } }`);
     expect(s.run("return M.tick()")).toBe("due");
-    s.run("M.apply()");
+    s.run("M.apply(); ENTER()");
     const written = s.run("return WRITES[1]");
     expect(written).toMatch(/^Next raid: Hyjal \w+ \d+:\d\d - sign up on Discord! - Lie ton perso: Guilded Companion$/);
     expect(written.length).toBeLessThanOrEqual(128);
     // No raid known: falls back to the lines, or writes nothing.
+    expect(s.run("return M.tick()")).toBe("written"); // read back from the roster
     s.run(`RAIDS = {}; CFG.lastWritten = nil`);
     expect(s.run("return M.tick()")).toBe("empty");
   });
 
-  it("only ever calls GuildSetMOTD from a click: no timer or event path writes", () => {
+  it("never calls GuildSetMOTD (Blizzard-UI only) and only opens the chat box from a click", () => {
     const source = addonSource("Modules/GuildMotd.lua");
-    // The setter is looked up once and only called inside motd.apply.
-    expect(source.match(/pcall\(set,/g)?.length).toBe(1);
-    const apply = source.slice(source.indexOf("function motd.apply()"), source.indexOf("local STATUS_TEXT"));
-    expect(apply).toContain("pcall(set,");
+    const code = source.split(/\r?\n/).filter(line => !/^\s*--/.test(line)).join("\n");
+    expect(code).not.toMatch(/GuildSetMOTD|SetMOTD/);
     // Every call to motd.apply comes from a click handler.
     for (const line of source.split(/\r?\n/)) {
       if (/motd\.apply\(\)/.test(line) && !/function motd\.apply|^\s*--/.test(line)) expect(line, line).toMatch(/OnClick|newButton\(/);
     }
-    expect(source).not.toMatch(/GuildSetMOTD\s*\(|SetMOTD\s*\(/);
     const s = setup();
     on(s, `M.setLines("Alpha")`);
     s.run("for _ = 1, 20 do ADVANCE(3600); M.tick() end; M.receive('H|1', 'Zed')");
-    expect(s.run("return #WRITES")).toBe("0");
+    expect(s.run("return #OPENED .. ':' .. #WRITES")).toBe("0:0");
   });
 
   it("answers the /guilded motd command for officers only", () => {

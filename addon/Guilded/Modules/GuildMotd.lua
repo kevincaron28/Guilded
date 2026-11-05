@@ -4,6 +4,10 @@
 --
 --  * One writer: the lowest-named online officer who can edit the MOTD (elected through
 --    ns.comm hello messages), so two officers never flip-flop.
+--  * The game does not let an addon set the MOTD (GuildSetMOTD is Blizzard-UI only and raises
+--    ADDON_ACTION_FORBIDDEN). So the officer clicks a button that opens the chat box already
+--    filled with the game's own /gmotd command; pressing Enter applies it, and Guilded confirms
+--    by reading the MOTD back.
 --  * Never fights a manual edit: if the MOTD differs from our last write, the automation
 --    pauses (for every officer) until an officer chooses Resume.
 --  * Never longer than the 128-character limit; fails quietly (status in settings) when the
@@ -152,9 +156,22 @@ local function canEdit()
   return value == true
 end
 
-local function setter()
-  if type(GuildSetMOTD) == "function" then return GuildSetMOTD end
-  if C_GuildInfo and type(C_GuildInfo.SetMOTD) == "function" then return C_GuildInfo.SetMOTD end
+-- Opens the chat box with "/gmotd <text>" ready for Enter. Returns nil when this client has no way
+-- to do that or no /gmotd command.
+local function opener()
+  local slash = SlashCmdList and SlashCmdList.GUILD_MOTD
+  if not slash then return nil end
+  local command = (_G and _G.SLASH_GUILD_MOTD1) or SLASH_GUILD_MOTD1 or "/gmotd"
+  if type(ChatFrame_OpenChat) == "function" then
+    return function(text) ChatFrame_OpenChat(command .. " " .. text) end
+  end
+  local box = DEFAULT_CHAT_FRAME and DEFAULT_CHAT_FRAME.editBox
+  if box and box.SetText then
+    return function(text)
+      box:Show(); box:SetText(command .. " " .. text); box:SetFocus()
+      if box.SetCursorPosition then box:SetCursorPosition(#(command .. " " .. text)) end
+    end
+  end
 end
 
 local function current()
@@ -241,11 +258,10 @@ function motd.checkManualEdit(cfg)
   return true
 end
 
--- The game only lets an addon change the guild message from a real click (a hardware event):
--- GuildSetMOTD from a timer or an event raises ADDON_ACTION_FORBIDDEN. So nothing here ever
--- writes by itself. tick() works out what the message should be and, for the elected officer,
--- shows a small "Update guild message" button (and says so once in chat); the click runs
--- motd.apply(), the only function that calls GuildSetMOTD.
+-- Nothing here writes the MOTD: tick() works out what it should be and, for the elected officer,
+-- shows a small "Update guild message" button (and one chat line). The click (motd.apply) opens the
+-- chat box with /gmotd <text>; the officer presses Enter. A later tick or GUILD_MOTD event reads the
+-- MOTD back (motd.confirm) and only then counts it as written.
 local prompt
 local function hidePrompt()
   if prompt then prompt:Hide() end
@@ -276,7 +292,7 @@ local function showPrompt(text)
   prompt:Show()
   if motd.announced ~= text then
     motd.announced = text
-    if ns.message then ns.message(string.format(L("Guild message ready: click the Update guild message button (%s)."), preview(text))) end
+    if ns.message then ns.message(string.format(L("Guild message ready: click the Update guild message button, then press Enter (%s)."), preview(text))) end
   end
 end
 
@@ -286,17 +302,35 @@ local function status(code)
   return code
 end
 
+-- The MOTD read back equals what the officer was asked to apply: now (and only now) it is written.
+function motd.confirm(cfg)
+  local intended = cfg.intended
+  if not intended then return false end
+  local text = current()
+  if not text or motd.clean(text) ~= motd.clean(intended.text) then return false end
+  local at = now()
+  cfg.lastWritten, cfg.lastWriteAt, cfg.intended = intended.text, clock(), nil
+  cfg.paused = false
+  if intended.index then
+    if intended.index ~= cfg.index or not cfg.changedAt then cfg.changedAt = at end
+    cfg.index = intended.index
+  end
+  motd.dismissed = nil
+  send(string.format("W|%d|%d|%s", cfg.index or 0, cfg.changedAt or at, intended.text))
+  return true
+end
+
 -- Returns a status code: off, noguild, notofficer, noapi, cannot, paused, waiting, notwriter,
--- empty, same, due. Never writes.
+-- empty, same, due, written. Never writes.
 function motd.tick()
   local cfg = config()
   if not cfg or not cfg.enabled then return status("off") end
   if IsInGuild and not IsInGuild() then return status("noguild") end
   if not (ns.isOfficer and ns.isOfficer()) then return status("notofficer") end
-  local set = setter()
   local can = canEdit()
-  if not set or can == nil then return status("noapi") end
+  if not opener() or can == nil then return status("noapi") end
   if not can then return status("cannot") end
+  if motd.confirm(cfg) then return status("written") end
   motd.checkManualEdit(cfg)
   if cfg.paused then return status("paused") end
   -- Say hello first and give the other officers a moment to answer, so two officers who log in
@@ -307,48 +341,42 @@ function motd.tick()
   local text = motd.wanted(cfg, now())
   if not text or text == "" then return status("empty") end
   if text == cfg.lastWritten then return status("same") end
+  if cfg.intended and cfg.intended.text == text then motd.pending = { text = text }; motd.status = "ready"; return "ready" end
   motd.pending = { text = text }
   showPrompt(text)
   return status("due")
 end
 
--- Writes the message. Call it only from a click handler (see above).
+-- Opens the chat box with the game's own /gmotd command (call it from a click). Returns "ready".
 function motd.apply()
   local cfg = config()
   if not cfg then return "off" end
-  local set, can = setter(), canEdit()
-  if not set or can == nil then return status("noapi") end
+  local open, can = opener(), canEdit()
+  if not open or can == nil then return status("noapi") end
   if not can then return status("cannot") end
-  local at = now()
-  local text, index = motd.wanted(cfg, at)
+  local text, index = motd.wanted(cfg, now())
   if not text or text == "" then return status("empty") end
-  local before = current()
-  local ok = pcall(set, text)
-  if not ok then return status("noapi") end
-  cfg.paused = false
-  cfg.beforeWrite, cfg.lastWritten, cfg.lastWriteAt = before, text, clock()
-  if index then
-    if index ~= cfg.index or not cfg.changedAt then cfg.changedAt = at end
-    cfg.index = index
-  end
-  motd.dismissed = nil
-  send(string.format("W|%d|%d|%s", cfg.index or 0, cfg.changedAt or at, text))
-  return status("written")
+  cfg.intended = { text = text, index = index }
+  if not pcall(open, text) then return status("noapi") end
+  motd.pending = { text = text }
+  motd.status = "ready"
+  return "ready"
 end
 
 local STATUS_TEXT = {
   off = "Automatic guild message is off.",
   noguild = "You are not in a guild.",
   notofficer = "Only officers can use the automatic guild message.",
-  noapi = "This game client cannot change the guild message from an addon, so nothing is written.",
+  noapi = "This game client cannot prepare the guild message command (/gmotd), so nothing is offered.",
   cannot = "Your guild rank cannot edit the guild message.",
   paused = "Paused: someone edited the guild message by hand. Press Resume to take over again.",
   waiting = "On. Checking for other officers online...",
   notwriter = "On. Another officer's game offers the update (the lowest name online).",
-  due = "A new guild message is ready. Click the Update guild message button (the game only allows it from a click).",
+  due = "A new guild message is ready. Click the Update guild message button, then press Enter in the chat box.",
+  ready = "Ready: press Enter in the chat box to apply the guild message.",
   empty = "On, but there is nothing to write yet (add lines, or wait for a raid).",
   same = "On. The guild message is up to date.",
-  written = "On. The guild message was just updated.",
+  written = "On. The guild message was updated (confirmed).",
 }
 function motd.statusText()
   local code = motd.status or motd.tick()
@@ -421,7 +449,7 @@ function motd.buildPage(parent, ui)
   page = parent
   local at, newLabel, newButton, newEdit = ui.at, ui.newLabel, ui.newButton, ui.newEdit
   local width = ui.width or 520
-  local intro = at(newLabel(parent, "Prepares the guild message of the day from an officer's game: one click on a button updates it (the game does not allow it automatically). Off by default; a manual edit pauses it.", "GameFontHighlightSmall"), parent, 0, 0)
+  local intro = at(newLabel(parent, "Prepares the guild message of the day: a click on a button opens the chat box with the game's /gmotd command, and you press Enter (the game does not let addons set it). Off by default; a manual edit pauses it.", "GameFontHighlightSmall"), parent, 0, 0)
   intro:SetWidth(width)
   parent.toggle = at(newButton(parent, "Turn on", 130, function()
     local cfg = config(); if cfg then motd.set("enabled", not cfg.enabled); motd.tick(); parent.refresh() end
@@ -437,7 +465,7 @@ function motd.buildPage(parent, ui)
     parent.lines:ClearFocus()
     motd.tick(); parent.refresh()
   end), parent, 0, -74)
-  -- A click: the game only allows GuildSetMOTD from one.
+  -- A click opens the chat box with /gmotd <text>; Enter applies it.
   at(newButton(parent, "Update now", 110, function() motd.apply(); parent.refresh() end), parent, 88, -74)
   at(newButton(parent, "Resume", 90, function() motd.resume(); motd.tick(); parent.refresh() end), parent, 206, -74)
   parent.status = at(newLabel(parent, "", "GameFontHighlightSmall"), parent, 0, -106)
@@ -499,7 +527,7 @@ frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
     if ns.comm and ns.comm.accept(prefix, text, channel, sender, PREFIX) then motd.receive(text, sender) end
   elseif event == "GUILD_MOTD" then
     local cfg = config()
-    if cfg and cfg.enabled then motd.checkManualEdit(cfg) end
+    if cfg and cfg.enabled then motd.confirm(cfg); motd.checkManualEdit(cfg) end
   end
 end)
 local tickElapsed, helloElapsed = 0, 0

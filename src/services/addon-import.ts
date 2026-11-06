@@ -1,3 +1,4 @@
+import { creditHeldRunPlayers } from "./dungeon-held-credit.js";
 import { withEdition } from "./edition-context.js";
 import { assertAddonGuildScope } from "./addon-scope.js";
 import { createHash } from "node:crypto";
@@ -404,6 +405,8 @@ export function createAddonImportService(database: PrismaClient) {
           const cleared = [...importedRefs, ...loot.recordedRefs].filter((ref) => knownHeld.some((row) => row.sourceRef === ref && !row.dismissedAt));
           if (cleared.length) await heldStore.deleteMany({ where: { guildId, dismissedAt: null, sourceRef: { in: cleared } } });
         }
+        // Guildmates who linked since their run was stored get their credit now (held credit).
+        await creditHeldRunPlayers(tx, guildId, characters, appliedBy);
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
           characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec })), appliedBy, importId);
         const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);

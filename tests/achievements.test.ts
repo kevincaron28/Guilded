@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+// Turns PoE2 tracking on for this file (see tests/helpers/focus-switches.ts).
+vi.mock("../companion/active-games.mjs", async (original) => (await import("./helpers/focus-switches.js")).poeTrackingOn(await original()));
 import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, EDITION_LABEL, WOW_EDITIONS, achievementById, wowLevelCap } from "../src/services/achievements-catalogue.js";
 import { emptyFacts, evaluateAchievements, syncMemberAchievements, type AchievementFacts } from "../src/services/achievements.js";
 import { achievementsCard } from "../src/services/end-cards.js";

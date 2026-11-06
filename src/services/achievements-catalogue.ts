@@ -1,3 +1,4 @@
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 // The achievement catalogue: every achievement a member can earn, in one place. Each one is computed from
 // data the bot already recorded (synced characters, stored dungeon runs, officer-taken raid attendance, the
 // participation ledger, the member's own PoE2 client log). Nothing here is self-reported, and none of it
@@ -226,7 +227,10 @@ const BASE_ACHIEVEMENTS: AchievementDef[] = [
 ];
 
 /** Every row, legacy included (ids are stored forever, so lookups and the badge art cover all of them). */
-export const ACHIEVEMENTS: readonly AchievementDef[] = BASE_ACHIEVEMENTS.map(row => LEGACY_IDS.has(row.id) ? { ...row, legacy: true } : row);
+// Forever-only focus (companion/active-games.mjs): while PoE2 tracking is off its achievements are not in the catalogue at all,
+// so none can be evaluated, unlocked, announced or shown (website, /achievements, cards, badges). Rows already earned stay in
+// the database and show again when tracking comes back.
+export const ACHIEVEMENTS: readonly AchievementDef[] = BASE_ACHIEVEMENTS.filter(row => POE_TRACKING_ENABLED || row.game !== "poe2").map(row => LEGACY_IDS.has(row.id) ? { ...row, legacy: true } : row);
 /** What can still be earned: the catalogue without the legacy rows. */
 export const ACTIVE_ACHIEVEMENTS: readonly AchievementDef[] = ACHIEVEMENTS.filter(row => !row.legacy);
 

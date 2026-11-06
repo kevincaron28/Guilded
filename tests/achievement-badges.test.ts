@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+// Turns PoE2 tracking on for this file (see tests/helpers/focus-switches.ts).
+vi.mock("../companion/active-games.mjs", async (original) => (await import("./helpers/focus-switches.js")).poeTrackingOn(await original()));
 import sharp from "sharp";
 import { GLYPHS, GLYPH_BY_ID, badgeInner, badgeLabel, badgeSvg } from "../src/services/achievement-badges.js";
 import { ACHIEVEMENTS } from "../src/services/achievements-catalogue.js";

@@ -8,6 +8,7 @@ import { commands } from "../src/commands/index.js";
 import { activeEventGames, isEventGameActive } from "../src/services/game-events.js";
 import { defaultFaqEntries, looksLikePoe2Question } from "../src/services/faq-extras.js";
 import { offeredCommunityGames } from "../src/services/community-rules.js";
+import { ACHIEVEMENTS, achievementById } from "../src/services/achievements-catalogue.js";
 import worker from "../worker/index.mjs";
 
 // The Forever-only focus: switches in companion/active-editions.mjs and companion/active-games.mjs.
@@ -36,6 +37,12 @@ describe("Forever-only focus switches", () => {
     expect(visibleLines(lines, true)).toEqual(lines);
     expect(looksLikePoe2Question("poe2 companion not uploading")).toBe(false);
     expect(defaultFaqEntries("en").some(entry => /Path of Exile 2 companion/.test(entry.answer))).toBe(false);
+  });
+
+  it("no PoE2 achievement exists while tracking is off, so none can unlock, announce or show", () => {
+    expect(ACHIEVEMENTS.some(def => def.game === "poe2")).toBe(false);
+    expect(achievementById("poe2-level-75")).toBeUndefined();
+    expect(ACHIEVEMENTS.some(def => def.game === "wow")).toBe(true);
   });
 
   it("companion: PoE2 tracking needs both the switch and the member's setting", () => {

@@ -57,6 +57,15 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
 
   const generation = (guildId: string) => generations.get(guildId) ?? 0;
 
+  // One log line per guild per hour when reads keep being overtaken by writes, not one per request.
+  const unstableLoggedAt = new Map<string, number>();
+  function unstable(guildId: string) {
+    const last = unstableLoggedAt.get(guildId);
+    if (last !== undefined && now() - last < 3_600_000) return;
+    unstableLoggedAt.set(guildId, now());
+    console.warn(`Standings for guild ${guildId} kept changing during refresh; served the latest read under the previous stamp.`);
+  }
+
   // The stamp only moves when the shared content changes, and always forward.
   function sharedStamp(guildId: string, hash: string): string {
     const last = stamps.get(guildId);
@@ -83,9 +92,11 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
     const running = inflight.get(key);
     if (running) return running;
     const promise = (async () => {
+      let latest: FeedParts | undefined;
       for (let attempt = 0; attempt < 3; attempt++) {
         const started = generation(guildId);
         const parts = await compose();
+        latest = parts;
         // A write during the read invalidates this snapshot. Never stamp old data as newer
         // than another member's response; the addon trusts that timestamp when syncing.
         if (started !== generation(guildId)) continue;
@@ -95,7 +106,16 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
         remember(key, entry);
         return entry;
       }
-      throw new Error("Standings changed during refresh; retry shortly.");
+      // Writes kept landing during every read (8.5: uploads every minute from several
+      // companions). Answer with the freshest read rather than an error, under the guild's
+      // PREVIOUS stamp (the epoch when there is none): an addon never takes it as newer than
+      // what it holds, so the "never stamp old data as newer" rule stands. Not cached as fresh,
+      // so the next request reads again; the stamp moves once a read completes undisturbed.
+      unstable(guildId);
+      const parts = latest!;
+      const updatedAt = new Date(stamps.get(guildId)?.at ?? 0).toISOString();
+      const body = JSON.stringify({ ...header, updatedAt, ...parts.shared, ...parts.personal });
+      return { at: now(), generation: -1, etag: `"${contentHash(body).slice(0, 32)}"`, body };
     })();
     inflight.set(key, promise);
     try { return await promise; } finally { inflight.delete(key); }

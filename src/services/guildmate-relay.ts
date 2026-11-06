@@ -70,6 +70,14 @@ export interface GuildmateRelayResult {
 
 type RelayDatabase = Pick<PrismaClient, "$transaction">;
 
+/** The stored skills already say exactly this (names trimmed, order and case of listing ignored). */
+function sameProfessions(stored: readonly { profession: string; skillLevel: number }[], heard: readonly { name: string; skillLevel: number }[]): boolean {
+  const key = (name: string, skill: number) => `${name.trim().toLowerCase()}:${skill}`;
+  const a = new Set(stored.map((row) => key(row.profession, row.skillLevel)));
+  const b = new Set(heard.filter((row) => row.name.trim()).map((row) => key(row.name, row.skillLevel)));
+  return a.size === b.size && [...a].every((item) => b.has(item));
+}
+
 /**
  * Applies guildmates' self-reported digests from a paired member's upload to characters that are
  * already linked in this guild. See the rules at the top of this file.
@@ -103,9 +111,12 @@ export async function applyGuildmateRelay(database: RelayDatabase, guildId: stri
         changed = true;
       }
       // Only a complete list stamped by the author's own client can replace professions, and
-      // only when newer than what is stored (first-hand or relayed alike).
+      // only when newer than what is stored (first-hand or relayed alike) AND different: every
+      // guildmate's 10-minute digest carries a fresh stamp, so a newer stamp alone is no change
+      // (8.5 hotfix: counting it made every member upload a "change" and starved the standings feed).
       const at = entry.professionsAt;
       if (entry.professionsComplete === true && at && at.getTime() <= now.getTime() + FUTURE_SLACK_MS
+        && !sameProfessions(await tx.professionSkill.findMany({ where: { characterId: character.id }, select: { profession: true, skillLevel: true } }), entry.professions)
         && await syncProfessionSnapshot(tx, guildId, character, entry.professions, true, at)) {
         result.professions++;
         changed = true;

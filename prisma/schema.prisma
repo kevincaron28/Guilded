@@ -523,6 +523,7 @@ model Character {
   guildRankName     String?
   guildRankIndex    Int?
   guildRankAt       DateTime?
+  rankSeen          CharacterRankSeen?
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
   member             Member                       @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -924,6 +925,14 @@ model GuildSettings {
   whosWhoEnabled           Boolean @default(true)
   whosWhoChannelId         String?
   whosWhoMessageId         String?
+  // 8.5 track C5: promotion panel (Initiate -> Member). On by default; officers change the rule or switch it off.
+  promotionEnabled         Boolean @default(true)
+  promotionFromRank        String  @default("Initiate")
+  promotionMinDays         Int     @default(7)
+  promotionMinLevel        Int?
+  promotionWeeklyEnabled   Boolean @default(true)
+  promotionChannelId       String?
+  promotionLastPostAt      DateTime?
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -1953,6 +1962,9 @@ model UnclaimedCharacter {
   professions Json?
   professionsUpdatedAt DateTime?
   lastSeenAt  DateTime @default(now())
+  // 8.5 track C5: the rank the officer's roster upload reported, so "not in Discord yet" can list Initiates.
+  guildRankName String?
+  guildRankAt   DateTime?
   guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, nameKey])
@@ -2858,4 +2870,15 @@ model MemberNickname {
   guild            Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, discordUserId])
+}
+
+// 8.5 track C5: when a character's current guild rank was first seen (first link counts as the start), so
+// "Initiate for 7+ days" can be computed. A changed rank name resets it.
+model CharacterRankSeen {
+  id          String    @id @default(cuid())
+  characterId String    @unique
+  rankName    String
+  since       DateTime
+  updatedAt   DateTime  @updatedAt
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 }

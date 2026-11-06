@@ -16,18 +16,18 @@ import { guildService, requireGuildContext } from "./context.js";
 
 export const rosterCommand = new SlashCommandBuilder()
   .setName("roster")
-  .setDescription("Officers: who is missing from the guild, nicknames and the Who's who board.")
-  .addSubcommand((sub) => sub.setName("gaps").setDescription("In Discord but not in the guild, no linked character, and unclaimed guild characters."))
-  .addSubcommand((sub) => sub.setName("ignore").setDescription("Leave a role (guests, friends) out of the gap lists, or list them.")
+  .setDescription("Who is missing, nicknames, Who's who.")
+  .addSubcommand((sub) => sub.setName("gaps").setDescription("Discord-only members, unlinked members, unclaimed characters."))
+  .addSubcommand((sub) => sub.setName("ignore").setDescription("Leave a role out of the gap lists.")
     .addRoleOption((o) => o.setName("role").setDescription("The role"))
     .addBooleanOption((o) => o.setName("ignore").setDescription("Ignore it (default) or count it again")))
-  .addSubcommand((sub) => sub.setName("nicknames").setDescription("Nickname sync: 'Discord name (Main)'. Off by default; members can opt out.")
-    .addBooleanOption((o) => o.setName("on").setDescription("Turn it on or off (off restores old nicknames)"))
-    .addStringOption((o) => o.setName("format").setDescription("Default {name} ({full}); {main} = first name only").setMaxLength(60))
-    .addBooleanOption((o) => o.setName("apply").setDescription("Run it now (default: preview only)")))
-  .addSubcommand((sub) => sub.setName("whoswho").setDescription("One auto-updated message listing each member's main and alts.")
-    .addBooleanOption((o) => o.setName("on").setDescription("Turn the board on or off"))
-    .addChannelOption((o) => o.setName("channel").setDescription("Where it lives").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)));
+  .addSubcommand((sub) => sub.setName("nicknames").setDescription("Nickname sync: Name (Main). Members can opt out.")
+    .addBooleanOption((o) => o.setName("on").setDescription("On or off (off restores nicknames)"))
+    .addStringOption((o) => o.setName("format").setDescription("{name} ({full}); {main} = first name").setMaxLength(60))
+    .addBooleanOption((o) => o.setName("apply").setDescription("Run now (default: preview)")))
+  .addSubcommand((sub) => sub.setName("whoswho").setDescription("One message listing mains and alts.")
+    .addBooleanOption((o) => o.setName("on").setDescription("On or off"))
+    .addChannelOption((o) => o.setName("channel").setDescription("Channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)));
 
 export const ROSTER_BUTTON_PREFIX = "rostergap:";
 const LINK_BATCH = 25;

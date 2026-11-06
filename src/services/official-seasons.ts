@@ -137,7 +137,7 @@ export async function configureNextSeasonRules(database: Db, input: unknown, now
   return mutateCalendar(database,now,async (database,now)=>{
   const next = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { gt: now } }, orderBy: { startsAt: "asc" }, select: { id: true } });
   if (!next) throw new SeasonCalendarError("Schedule this edition's next season first.");
-  const changed = await database.officialSeason.updateMany({ where: { id: next.id, gameEdition: currentEdition(), startsAt: { gt: new Date(Math.max(now.getTime(), Date.now())) } }, data: { rules: snapshotRules(rules, now) as unknown as Prisma.InputJsonValue } });
+  const changed = await database.officialSeason.updateMany({ where: { id: next.id, gameEdition: currentEdition(), startsAt: { gt: new Date(Math.max(now.getTime(), Date.now())) } }, data: { rules: snapshotRules(rules, now, true) as unknown as Prisma.InputJsonValue } });
   if (changed.count !== 1) throw new SeasonCalendarError("The season has started. Schedule the next season to change its rules.");
   return rules.routes.length;
   });

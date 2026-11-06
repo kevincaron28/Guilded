@@ -77,6 +77,9 @@ const artifacts = [zipPath, dungeonsZipPath, installerPath, notesPath].map(path 
   name: basename(path).replaceAll(" ", "."), localPath: path, bytes: readFileSync(path).length,
   sha256: createHash("sha256").update(readFileSync(path)).digest("hex"),
 }));
+// The stable direct-download link (https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe)
+// needs a fixed-name copy of the installer on every release: same bytes, same checksum.
+artifacts.push({ ...artifacts.find(file => file.localPath === installerPath), name: "Guilded.Companion.Setup.exe" });
 writeFileSync(`dist/Guilded-v${version}-SHA256SUMS.txt`, artifacts.map(file => `${file.sha256}  ${file.name}`).join("\n") + "\n");
 const { sourceCommit, sourceDirty, changedPaths, untrackedPaths } = releaseSource();
 if (process.env.CI) assert.equal(sourceDirty, false, `CI packaging changed source: ${[...changedPaths, ...untrackedPaths].join(", ")}`);

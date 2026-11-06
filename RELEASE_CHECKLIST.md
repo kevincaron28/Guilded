@@ -52,7 +52,7 @@ GitHub published [5.0.0 Beta 1](https://github.com/kevincaron28/Guilded/releases
 - [ ] **Build and update 5.0.0:** follow `docs/V5_0_RELEASE_HANDOFF.md`, including CI, `npm run release:prepare`, ledger preflight, backup, migration, bot deployment and companion installation.
 - [ ] **CurseForge:** upload `dist/Guilded-v5.0.0.zip` as **Beta**, paste the changelog from `docs/CURSEFORGE_COPYPASTE.md`. Coming from 3.x, the bot needs `npm run db:update` once (say so in the description).
 - [x] **GitHub** repository is public: `kevincaron28/Guilded`. Listing and security documentation must reflect that.
-- [ ] **Companion installer** rebuilt: `dist\companion\Guilded Companion Setup 5.0.0.exe`.
+- [ ] **Companion installer** rebuilt: `dist\companion\Guilded Companion Setup 5.0.0.exe`. Also upload the fixed-name copy `Guilded.Companion.Setup.exe` (made by `verify-release-artifacts.mjs`) and update `guilded.companionDirect` in `site/releases.json`; see docs/COMPANION_AUTO_UPDATE.md.
 - [ ] After all stabilization gates and a real raid night pass: switch the file from Beta to **Release**.
 
 ## Still to test with a second player or a party

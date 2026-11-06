@@ -2,7 +2,7 @@ const { pathToFileURL } = require("node:url");
 const path = require("node:path");
 
 const configFields = new Set(["uploadUrl", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes", "poeLogFile", "poeCharacter", "poeLeague", "poeMode", "wowEnabled", "poeEnabled", "syncEnabled"]);
-const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "sign-in-wait", "sign-in-cancel", "browse-file", "detect-wow", "detect-wow-held", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "toggle-tracking", "get-poe-runs", "manage-view", "link-find-saved-data", "open-discord-server"]);
+const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "check-update", "sign-in-wait", "sign-in-cancel", "browse-file", "detect-wow", "detect-wow-held", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "toggle-tracking", "get-poe-runs", "manage-view", "link-find-saved-data", "open-discord-server"]);
 function fail() { throw new Error("Invalid companion request."); }
 function object(value, fields) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail();
@@ -24,7 +24,7 @@ function validateIpc(channel, args) {
     }
   } else if (channel === "set-language") {
     if (!["en", "fr"].includes(value)) throw new Error("Unsupported language");
-  } else if (channel === "set-autostart") { if (typeof value !== "boolean") fail(); }
+  } else if (channel === "set-autostart" || channel === "set-auto-update") { if (typeof value !== "boolean") fail(); }
   else if (channel === "change-profile") {
     object(value, new Set(["id", "name"]));
     if (Boolean(value.id) === Boolean(value.name)) fail();
@@ -70,6 +70,7 @@ function rendererConfig(config) {
   const result = { ...config };
   delete result.profiles;
   delete result.uploadToken;
+  delete result.pendingUpdate; // a local installer path the page never needs
   result.pairingCode = "";
   // Existing UI uses this only as a connected flag; never expose the credential.
   result.companionCredential = config.companionCredential ? "connected" : "";

@@ -1,8 +1,11 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
 import { coreContext } from "../services/core-context.js";
-import { EmbedBuilder, SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction, type Client } from "discord.js";
+import { AttachmentBuilder, EmbedBuilder, SlashCommandBuilder, MessageFlags, type ChatInputCommandInteraction, type Client } from "discord.js";
 import { prisma } from "../database.js";
 import { config } from "../config.js";
+import { recentSnapshots } from "../services/stat-snapshots.js";
+import { serverStatsCard, serverStatsEmbed } from "../services/stats-card.js";
+import { scoreCardPng } from "../services/score-card.js";
 import { guildStats, type GuildStats } from "../services/guild-stats.js";
 import { isWeeklyReportDueAfterReset, weeklyReport, type WeeklyReport } from "../services/weekly-report.js";
 import { formatDuration } from "../services/dungeon-rules.js";
@@ -17,6 +20,7 @@ export const statsCommand = new SlashCommandBuilder()
   .setDescription("Guild activity: raids, boss kills, loot, EP, top attendance.")
   .addBooleanOption(o => o.setName("personal").setDescription("Private weekly recap; excludes guild days/core filters")
     .setDescriptionLocalizations({ fr: "Bilan hebdomadaire privé; sans filtres jours/core" }))
+  .addBooleanOption(o => o.setName("server").setDescription("Server statistics: members, activity and a class chart").setDescriptionLocalizations({ fr: "Statistiques du serveur : membres, activité, graphique des classes" }))
   .addIntegerOption((o) => o.setName("days").setDescription("How far back (default 7)").setMinValue(1).setMaxValue(365))
   .addStringOption(o => o.setName("core").setDescription("Raid core (defaults to this channel)").setAutocomplete(true));
 
@@ -59,6 +63,21 @@ export async function executeStats(interaction: ChatInputCommandInteraction): Pr
       return;
     }
     await interaction.editReply({ embeds: [personalWeeklyRecapEmbed(await personalWeeklyRecap(prisma, context.guildId, interaction.user.id), lang)], allowedMentions: { parse: [] } });
+    return;
+  }
+  if (interaction.options.getBoolean("server")) {
+    await interaction.deferReply();
+    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
+    const rows = await recentSnapshots(prisma, context.guildId, 30);
+    const card = serverStatsCard(rows, interaction.guild?.name ?? "Guilded", lang);
+    const embed = serverStatsEmbed(rows, interaction.guild?.name ?? "Guilded", lang);
+    if (!card || !embed) {
+      await interaction.editReply({ content: lang === "fr" ? "Pas encore de statistiques : le premier relevé quotidien arrive bientôt (ou un officier les a désactivées)." : "No statistics yet: the first daily snapshot is written soon (or an officer turned them off).", allowedMentions: { parse: [] } });
+      return;
+    }
+    const png = await scoreCardPng(card).catch(() => null);
+    if (png) embed.setImage("attachment://server-stats.png");
+    await interaction.editReply({ embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "server-stats.png" })] } : {}), allowedMentions: { parse: [] } });
     return;
   }
   const days = interaction.options.getInteger("days") ?? 7;

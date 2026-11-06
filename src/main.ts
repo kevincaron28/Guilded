@@ -133,6 +133,8 @@ import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWel
 import { createErrorReportService, isMemberAnswer } from "./services/error-report.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
 import { runRetention } from "./services/retention.js";
+import { runStatSnapshots } from "./services/stat-snapshots.js";
+import { previewAllows } from "./services/feature-preview.js";
 import { discordTrialDelivery, remindEndedTrials } from "./services/trial-reminders.js";
 import { warnDoNotInvite } from "./services/do-not-invite.js";
 import { handleStarReaction } from "./services/starboard.js";
@@ -403,6 +405,11 @@ client.once(Events.ClientReady, (readyClient) => {
     .catch(reportJobError("Data retention"));
   setTimeout(() => void retention(), 5 * 60 * 1000);
   setInterval(() => void retention(), 6 * 60 * 60 * 1000);
+  // 8.5 track G: one statistics row per guild per UTC day (stat-snapshots.ts); a run later the same day refreshes it.
+  const statSnapshots = () => runStatSnapshots(prisma, (id) => readyClient.guilds.cache.get(id)?.memberCount ?? null, previewAllows)
+    .catch(reportJobError("Statistics snapshots"));
+  setTimeout(() => void statSnapshots(), 7 * 60 * 1000);
+  setInterval(() => void statSnapshots(), 6 * 60 * 60 * 1000);
   // Ended trial periods are announced once in the core's officer log (services/trial-reminders.ts).
   const trials = () => remindEndedTrials(prisma, discordTrialDelivery(readyClient, prisma, (id) => hostedPilot.allows(id)))
     .catch(reportJobError("Trial reminders"));

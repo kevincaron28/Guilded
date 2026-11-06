@@ -213,6 +213,7 @@ Later the same day:
 | **Full character names in every bot message** (the dungeon "classement" showed "El" for "El Pirata"): one display helper used by dungeon boards, run posts, ladders, achievements, profession posts, roster, DMs and cards | season2-plan (dungeon surfaces) + Track C (everything else) | Fallback to first name only when no full name is known |
 | Nickname sync uses the member's **server nickname** as the base (not the account name) when they set one, never doubling the `(First Last)` suffix, and follows later nickname changes | Track C | Owner, 6 November evening |
 | Companion checks free disk space before installing or updating (the second PC had 26 MB free) | Track F | From the fresh-PC test |
+| **Maximum sharing, optimal sync:** keep and upload everything guildmates' addons broadcast (Guilded and Guilded Dungeons); login catch-up (store-and-forward) for runs, professions and the roster, so data recorded with no companion online still arrives later; Dungeons-only players relayed; batching, instance queueing, delta uploads; `/guilded sync stats` | Track K | Owner, 6 November evening |
 | Not adopted from Kinfolk | — | Module switches (they contradict always-on), in-game polls/board, class guides |
 
 ### Phases after the features

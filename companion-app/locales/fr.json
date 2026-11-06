@@ -1213,5 +1213,9 @@
   "No saved settings in {0}: starting with a new setup.": "Aucun paramètre enregistré dans {0} : nouvelle configuration.",
   "Saved settings hold: {0}.": "Les paramètres enregistrés contiennent : {0}.",
   "Looking for settings in {0}: {1}.": "Recherche des paramètres dans {0} : {1}.",
-  "Settings became blank after {0}; the saved file was not changed.": "Les paramètres sont devenus vides après {0}; le fichier enregistré n'a pas été modifié."
+  "Settings became blank after {0}; the saved file was not changed.": "Les paramètres sont devenus vides après {0}; le fichier enregistré n'a pas été modifié.",
+  "Closing for an update.": "Fermeture pour une mise à jour.",
+  "Starting Guilded Companion {0} from {1} (packaged: {2}, Store: {3}, data folder: {4}, arguments: {5}).": "Démarrage de Guilded Companion {0} depuis {1} (empaqueté : {2}, Store : {3}, dossier de données : {4}, arguments : {5}).",
+  "Start-up update step: {0}.": "Étape de mise à jour au démarrage : {0}.",
+  "Ready: {0} connection(s), signed in: {1}, restarted by Microsoft Store: {2}.": "Prêt : {0} connexion(s), connecté : {1}, redémarré par Microsoft Store : {2}."
 }

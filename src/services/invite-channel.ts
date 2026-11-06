@@ -3,12 +3,14 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { previewAllows } from "./feature-preview.js";
+import { parseInviteAnswers, questionsBlock, storedQuestions } from "./recruiting-kit.js";
 import { markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, type InvitedRow } from "./invite-queue.js";
 
 // 8.5 batch 3 (#13/#14): the Discord half of the guild-invite channel. On by default; an officer's off switch is
 // `/mod invites settings queue:false` (and `dm:false` for the WoW-role DM). Reading names needs the Message Content
 // intent (MESSAGE_CONTENT_INTENT=true): without it the channel is simply not watched.
 
+const DOUBLE_BREAK = String.fromCharCode(10, 10);
 export const SEEN = "👀";
 export const DONE = "✅";
 const HINT_LIFETIME_MS = 45_000;
@@ -40,7 +42,7 @@ export async function handleInviteMessage(message: Message, database: Database):
     if (hint) setTimeout(() => void hint.delete().catch(() => undefined), HINT_LIFETIME_MS).unref?.();
     return "hinted";
   }
-  await recordInviteRequest(database, { guildId: settings.guildId, parsed, discordUserId: message.author.id, channelId: message.channelId, messageId: message.id });
+  await recordInviteRequest(database, { guildId: settings.guildId, parsed, discordUserId: message.author.id, channelId: message.channelId, messageId: message.id, answers: parseInviteAnswers(message.content) });
   await message.react(SEEN).catch(() => undefined);
   return "recorded";
 }
@@ -89,7 +91,7 @@ export async function handleWowRoleGiven(before: GuildMember | PartialGuildMembe
   const added = after.roles.cache.filter((role) => !before.roles.cache.has(role.id));
   if (!added.size) return false;
   const all = await database.guildSettings.findMany({ where: { guild: { discordId: after.guild.id }, inviteChannelId: { not: null }, inviteDmEnabled: true, inviteQueueEnabled: true },
-    select: { guildId: true, inviteChannelId: true, inviteWowRoleId: true, language: true } });
+    select: { guildId: true, inviteChannelId: true, inviteWowRoleId: true, inviteQuestions: true, language: true } });
   for (const settings of all) {
     const roleId = findWowRoleId(after.guild.roles.cache.values(), settings.inviteWowRoleId);
     if (!roleId || !added.has(roleId)) continue;
@@ -100,7 +102,7 @@ export async function handleWowRoleGiven(before: GuildMember | PartialGuildMembe
     if (member && await database.character.count({ where: { memberId: member.id } })) continue;
     await database.inviteDm.create({ data: { guildId: settings.guildId, discordUserId: after.id } }).catch(() => undefined);
     try {
-      await after.send({ content: t(asLang(settings.language), "invite.dm", { server: after.guild.name, channel: settings.inviteChannelId! }), allowedMentions: { parse: [] } });
+      await after.send({ content: [t(asLang(settings.language), "invite.dm", { server: after.guild.name, channel: settings.inviteChannelId! }), questionsBlock(asLang(settings.language), storedQuestions(settings.inviteQuestions))].filter(Boolean).join(DOUBLE_BREAK), allowedMentions: { parse: [] } });
       return true;
     } catch { return false; } // DMs closed: skipped quietly, never repeated
   }

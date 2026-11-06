@@ -5,6 +5,7 @@ import { completeInvitesFromRoster, findWowRoleId, handleInviteMessage, handleIn
 vi.mock("../src/permissions.js", () => ({ hasPermission: (member: { officer?: boolean }) => Boolean(member.officer) }));
 afterEach(() => { vi.useRealTimers(); delete process.env["FEATURE_PREVIEW_GUILD_IDS"]; });
 
+const LF = String.fromCharCode(10);
 const settings = { guildId: "g1", language: "en", inviteChannelId: "chan", inviteWowRoleId: null as string | null };
 function database() {
   const requests: Record<string, unknown>[] = [];
@@ -112,6 +113,15 @@ describe("the World of Warcraft role DM", () => {
     expect(send.mock.calls[0]![0]).toMatchObject({ content: expect.stringContaining("<#chan>") });
     expect(send.mock.calls[0]![0]).toMatchObject({ content: expect.stringContaining("Québec Gold") });
     expect(db.dms).toEqual(["u1"]);
+  });
+  it("adds the interview questions to the DM and saves the answers under a name", async () => {
+    const withQuestions = database(); withQuestions.guildSettings.findMany = vi.fn(async () => [{ ...settings, inviteQuestions: ["Class?", "Raid nights?"] }]);
+    const { before, after, send } = members([], ["r1"]);
+    await handleWowRoleGiven(before as never, after as never, withQuestions as never);
+    expect(send.mock.calls[0]![0]).toMatchObject({ content: expect.stringContaining("1. Class?"+LF+"2. Raid nights?") });
+    const db = database();
+    await handleInviteMessage(post(["Amy Archer", "1. Mage", "2. Tuesdays"].join(LF)) as never, db as never);
+    expect(db.requests[0]).toMatchObject({ displayName: "Amy Archer", answers: ["1. Mage", "2. Tuesdays"].join(LF) });
   });
   it("does not repeat, and skips other roles, a switched-off DM, and people who already posted or have a character", async () => {
     const other = members([], ["r2"]);

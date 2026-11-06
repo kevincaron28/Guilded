@@ -27,14 +27,14 @@ export function parseInviteName(content: string | null | undefined): ParsedInvit
 
 export const nameKeyOf = (name: string): string => name.trim().replace(/\s+/g, " ").normalize("NFC").toLowerCase();
 
-export interface NewInvite { guildId: string; parsed: ParsedInviteName; discordUserId: string; channelId: string; messageId: string }
+export interface NewInvite { guildId: string; parsed: ParsedInviteName; discordUserId: string; channelId: string; messageId: string; answers?: string | null; source?: string }
 
 /** Records a post once per message; a repeat of a name already waiting is kept as its own row (the extra message gets its own check mark). */
 export async function recordInviteRequest(database: Database, input: NewInvite) {
   return database.inviteRequest.upsert({
     where: { guildId_messageId: { guildId: input.guildId, messageId: input.messageId } },
-    create: { guildId: input.guildId, nameKey: input.parsed.nameKey, displayName: input.parsed.displayName, discordUserId: input.discordUserId, channelId: input.channelId, messageId: input.messageId },
-    update: { nameKey: input.parsed.nameKey, displayName: input.parsed.displayName }
+    create: { guildId: input.guildId, nameKey: input.parsed.nameKey, displayName: input.parsed.displayName, discordUserId: input.discordUserId, channelId: input.channelId, messageId: input.messageId, answers: input.answers ?? null, source: input.source ?? "discord" },
+    update: { nameKey: input.parsed.nameKey, displayName: input.parsed.displayName, ...(input.answers ? { answers: input.answers } : {}) }
   });
 }
 
@@ -69,8 +69,11 @@ export function inviteListForAddon(rows: readonly { displayName: string; created
   return rows.slice(0, 30).map((row) => ({ name: row.displayName, at: row.createdAt.toISOString() }));
 }
 
-export function formatInviteList(rows: readonly { displayName: string; discordUserId: string; createdAt: Date; channelId: string; messageId: string }[], guildDiscordId: string): string {
+export function formatInviteList(rows: readonly { displayName: string; discordUserId: string; createdAt: Date; channelId: string; messageId: string; source?: string; note?: string | null; answers?: string | null }[], guildDiscordId: string): string {
   if (!rows.length) return "Nobody is waiting for an invite.";
-  const lines = rows.slice(0, 25).map((row) => `• **${row.displayName}** — <@${row.discordUserId}> <t:${Math.floor(row.createdAt.getTime() / 1000)}:R> [post](https://discord.com/channels/${guildDiscordId}/${row.channelId}/${row.messageId})\n  \`/ginvite ${row.displayName}\``);
-  return `${rows.length} waiting for a guild invite:\n${lines.join("\n")}${rows.length > 25 ? `\n…and ${rows.length - 25} more` : ""}`;
+  // Officer-only reply: notes and answers are shown here and never leave the officers' view.
+  const extra = (row: { source?: string; note?: string | null; answers?: string | null }) =>
+    `${row.source && row.source !== "discord" ? ` (${row.source})` : ""}${row.note ? `\n  📝 ${row.note.slice(0, 120)}` : ""}${row.answers ? `\n  💬 ${row.answers.replace(/\s+/g, " ").slice(0, 120)}` : ""}`;
+  const lines = rows.slice(0, 15).map((row) => `• **${row.displayName}** — <@${row.discordUserId}> <t:${Math.floor(row.createdAt.getTime() / 1000)}:R> [post](https://discord.com/channels/${guildDiscordId}/${row.channelId}/${row.messageId})${extra(row)}\n  \`/ginvite ${row.displayName}\``);
+  return `${rows.length} waiting for a guild invite:\n${lines.join("\n")}${rows.length > 15 ? `\n…and ${rows.length - 15} more` : ""}`;
 }

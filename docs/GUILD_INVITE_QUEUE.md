@@ -41,3 +41,23 @@ that a queue. On by default in every server, with off switches; automatic action
 
 Post in the live channel, see 👀; upload an officer roster containing the name and see ✅; the **To invite** panel in game on a
 real client (`GuildInvite` and `CanGuildInvite` exist on the Forever client); the role DM in a server where the role is given.
+
+## Light recruiting kit (9.0)
+
+On top of the queue, written from scratch (the idea comes from Kinfolk; no code was copied):
+
+- **Recruit record.** Each `InviteRequest` now carries who invited and when (`invitedBy`, `invitedAt`), the `source` (`discord`;
+  `website` is reserved for a future web form), a stage and an officer-only `note`. The stage is the existing `status`:
+  `PENDING` (asked) -> `INVITED` -> `JOINED` -> `PROMOTED`. A roster upload or an officer check mark still moves asked to
+  invited by itself; joined and promoted are set by hand: `/mod invites record name:<First Last> stage:<..> note:<..>`
+  (`note: -` clears). Notes and answers are only shown in officer replies (`/mod invites list`).
+- **Interview questions.** `/mod invites questions text:"Class? | Raid nights? | Why us?"` (up to five; `-` clears). They are added to
+  the World of Warcraft role DM and to a pinned message in the invite channel that the bot keeps up to date. A member answers
+  by writing one answer per line under their name in the channel; the lines under the name are saved as `answers` on the record.
+- **Recruiting post and cooldown.** `/mod invites post text:<template> hours:<n>` sets the template and the shared cooldown
+  (default 72 h). Post it yourself, then run `/mod invites post posted:true`: the cooldown starts for the whole guild, and a
+  second officer is told who posted and when it is free again. When it is over the bot sends one reminder in the officer log
+  (hourly check, preview-gated). The bot never posts the recruiting message for you.
+
+Migration `20261230000001_recruiting_kit`. Command size: `/mod` is at 3,888 of the 3,900 test margin, so the `invites`
+descriptions are deliberately terse; any new `/mod` text needs trimming elsewhere.

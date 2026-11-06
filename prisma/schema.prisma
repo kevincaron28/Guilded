@@ -895,6 +895,15 @@ model GuildSettings {
   inviteChannelId          String?
   inviteQueueEnabled       Boolean   @default(true)
   inviteDmEnabled          Boolean   @default(true)
+  // 8.5 light recruiting kit: interview questions (JSON array of strings), the pinned guide message in the invite channel,
+  // the recruiting post template and its shared cooldown (one reminder when it is over).
+  inviteQuestions          Json?
+  inviteGuideMessageId     String?
+  recruitPostTemplate      String?
+  recruitCooldownHours     Int       @default(72)
+  recruitLastPostAt        DateTime?
+  recruitLastPostBy        String?
+  recruitRemindedAt        DateTime?
   inviteWowRoleId          String?
   // Opt-in: loot and EPGP belong to individual raid cores, never a shared guild pool.
   coreLootOnly             Boolean   @default(false)
@@ -3013,7 +3022,13 @@ model InviteRequest {
   discordUserId String
   channelId     String
   messageId     String
+  // PENDING (asked) -> INVITED -> JOINED -> PROMOTED. Officers move it on with /mod invites record.
   status        String    @default("PENDING")
+  // Where the request came from: "discord" (the invite channel) or "website".
+  source        String    @default("discord")
+  // Officer-only note, and the applicant's answers to the interview questions.
+  note          String?
+  answers       String?
   // "roster" (seen in a guild roster upload), or the Discord ID of the officer who reacted.
   invitedBy     String?
   createdAt     DateTime  @default(now())

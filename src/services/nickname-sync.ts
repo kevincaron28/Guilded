@@ -10,7 +10,7 @@ import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 // remembers the original nickname (MemberNickname) so turning the feature off restores everyone.
 
 export const NICKNAME_MAX = 32;
-export const DEFAULT_NICKNAME_FORMAT = "{name} ({main})";
+export const DEFAULT_NICKNAME_FORMAT = "{name} ({full})";
 // {name}: the Discord name, {main}: the main character's first name, {full}: the main's full name.
 export const NICKNAME_FORMAT_HELP = "{name} = Discord name, {main} = main's first name, {full} = main's full name";
 
@@ -20,19 +20,28 @@ export function validNicknameFormat(format: string): boolean {
 
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
-/** The nickname for one member, or null when it cannot fit in 32 characters even after shortening the Discord name. */
+/**
+ * The nickname for one member. Fallbacks when it exceeds 32 characters, in order: the same with no space before "(",
+ * the Discord name shortened with "…", then the character part alone. Null when even that cannot fit.
+ */
 export function nicknameFor(baseName: string, mainName: string, format = DEFAULT_NICKNAME_FORMAT): string | null {
-  const fill = (name: string) => format.replace(/\{name\}/g, name).replace(/\{main\}/g, firstName(mainName)).replace(/\{full\}/g, mainName.trim()).replace(/\s+/g, " ").trim();
+  const fill = (name: string, fmt = format) => fmt.replace(/\{name\}/g, name).replace(/\{main\}/g, firstName(mainName)).replace(/\{full\}/g, mainName.trim()).replace(/\s+/g, " ").trim();
   const base = baseName.replace(/[\p{Cc}]/gu, " ").replace(/\s+/g, " ").trim();
   if (!base || !mainName.trim()) return null;
   const whole = fill(base);
   if (whole.length <= NICKNAME_MAX) return whole;
   if (!format.includes("{name}")) return null;
-  const overflow = whole.length - NICKNAME_MAX;
-  const keep = [...base].length - overflow - 1;
-  if (keep < 3) return null;
-  const shortened = fill(`${[...base].slice(0, keep).join("").trimEnd()}…`);
-  return shortened.length <= NICKNAME_MAX ? shortened : null;
+  const tight = fill(base, format.replace(/\s+\(/, "("));
+  if (tight.length <= NICKNAME_MAX) return tight;
+  const withoutName = fill("", format.replace(/\{name\}\s*/g, ""));
+  const keep = NICKNAME_MAX - withoutName.length - 2; // room for the name, "…" and a space (or none)
+  if (keep >= 3) {
+    const shortened = fill(`${[...base].slice(0, keep).join("").trimEnd()}…`, format.replace(/\s+\(/, "("));
+    if (shortened.length <= NICKNAME_MAX) return shortened;
+    const spaced = fill(`${[...base].slice(0, keep - 1).join("").trimEnd()}…`);
+    if (spaced.length <= NICKNAME_MAX) return spaced;
+  }
+  return withoutName.length <= NICKNAME_MAX ? withoutName : null;
 }
 
 export interface NicknamePerson {
@@ -54,7 +63,8 @@ export function planNicknames(people: readonly NicknamePerson[], format = DEFAUL
     // Our own earlier rename is not the member's nickname; a different current nickname is theirs (they changed it).
     const ours = person.record?.appliedNickname != null && person.nickname === person.record.appliedNickname;
     const original = ours ? person.record!.originalNickname : person.nickname;
-    const target = nicknameFor(original ?? person.accountName, person.mainName, format);
+    // The name part is the Discord account name, never the current nickname, so a re-sync does not nest.
+    const target = nicknameFor(person.accountName, person.mainName, format);
     if (!target || target === person.nickname) continue;
     changes.push({ discordUserId: person.discordUserId, nickname: target, originalNickname: original });
   }

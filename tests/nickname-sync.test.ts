@@ -4,40 +4,49 @@ import { nicknameFor, planNicknames, restoreNickname, validNicknameFormat, type 
 const person = (over: Partial<NicknamePerson> = {}): NicknamePerson => ({ discordUserId: "u1", accountName: "Kevin", nickname: null, mainName: "Halidor Galemorne", skip: false, record: null, ...over });
 
 describe("nickname format", () => {
-  it("defaults to Discord name (Main First) and fits 32 characters", () => {
-    expect(nicknameFor("Kevin", "Halidor Galemorne")).toBe("Kevin (Halidor)");
-    expect(nicknameFor("Kevin", "Halidor Galemorne", "{name} [{full}]")).toBe("Kevin [Halidor Galemorne]");
-    const long = nicknameFor("A very long Discord display name indeed", "Halidor Galemorne")!;
-    expect(long.length).toBeLessThanOrEqual(32);
-    expect(long.endsWith("(Halidor)")).toBe(true);
-    expect(long).toContain("…");
+  it("defaults to Discord name (Main Full Name)", () => {
+    expect(nicknameFor("Kevin", "Halidor Galemorne")).toBe("Kevin (Halidor Galemorne)");
+    expect(nicknameFor("Kevin", "Halidor Galemorne", "{name} ({main})")).toBe("Kevin (Halidor)");
   });
-  it("gives up rather than overflow", () => {
+  it("falls back in order when over 32 characters", () => {
+    // 1. fits with the space
+    expect(nicknameFor("kevmister2", "Lebowski Holyroller")).toBe("kevmister2 (Lebowski Holyroller)");
+    // 2. no space: the owner's example is 33 characters with the space
+    expect(nicknameFor("kevmister28", "Lebowski Holyroller")).toBe("kevmister28(Lebowski Holyroller)");
+    // 3. shorten the Discord name with an ellipsis
+    const shortened = nicknameFor("A very long Discord display name", "Lebowski Holyroller")!;
+    expect(shortened.length).toBeLessThanOrEqual(32);
+    expect(shortened).toMatch(/…\(Lebowski Holyroller\)$/);
+    // 4. the character alone
+    expect(nicknameFor("Kevin", "Abcdefghijklmnopqrstuvwxyz Abc")).toBe("(Abcdefghijklmnopqrstuvwxyz Abc)");
+  });
+  it("handles a character with no last name, and gives up rather than overflow", () => {
+    expect(nicknameFor("Kevin", "Halidor")).toBe("Kevin (Halidor)");
     expect(nicknameFor("Kevin", "Supercalifragilisticexpialidocious")).toBeNull();
     expect(nicknameFor("Kevin", "")).toBeNull();
   });
   it("accepts only formats with a character placeholder", () => {
-    expect(validNicknameFormat("{name} ({main})")).toBe(true);
+    expect(validNicknameFormat("{name} ({full})")).toBe(true);
     expect(validNicknameFormat("{name}")).toBe(false);
     expect(validNicknameFormat("{main} {oops}")).toBe(false);
   });
 });
 
 describe("nickname plan", () => {
-  it("renames a member and remembers the nickname they had", () => {
-    expect(planNicknames([person({ nickname: "Kev" })])).toEqual([{ discordUserId: "u1", nickname: "Kev (Halidor)", originalNickname: "Kev" }]);
+  it("renames a member from the account name and remembers the nickname they had", () => {
+    expect(planNicknames([person({ nickname: "Kev" })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Halidor Galemorne)", originalNickname: "Kev" }]);
   });
   it("skips opted-out members, the owner/unmanageable (skip), and members with no main", () => {
     expect(planNicknames([person({ record: { originalNickname: null, appliedNickname: null, optedOut: true } }), person({ discordUserId: "u2", skip: true }), person({ discordUserId: "u3", mainName: null })])).toEqual([]);
   });
-  it("is idempotent, and follows a main change without stacking suffixes", () => {
-    const applied = { originalNickname: "Kev", appliedNickname: "Kev (Halidor)", optedOut: false };
-    expect(planNicknames([person({ nickname: "Kev (Halidor)", record: applied })])).toEqual([]);
-    expect(planNicknames([person({ nickname: "Kev (Halidor)", mainName: "Aria Stone", record: applied })])).toEqual([{ discordUserId: "u1", nickname: "Kev (Aria)", originalNickname: "Kev" }]);
+  it("is idempotent, and follows a main change without nesting", () => {
+    const applied = { originalNickname: "Kev", appliedNickname: "Kevin (Halidor Galemorne)", optedOut: false };
+    expect(planNicknames([person({ nickname: "Kevin (Halidor Galemorne)", record: applied })])).toEqual([]);
+    expect(planNicknames([person({ nickname: "Kevin (Halidor Galemorne)", mainName: "Aria Stone", record: applied })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Aria Stone)", originalNickname: "Kev" }]);
   });
-  it("treats a nickname the member chose themselves as their new original", () => {
-    const applied = { originalNickname: "Kev", appliedNickname: "Kev (Halidor)", optedOut: false };
-    expect(planNicknames([person({ nickname: "Chief", record: applied })])[0]).toMatchObject({ nickname: "Chief (Halidor)", originalNickname: "Chief" });
+  it("treats a nickname the member chose themselves as their new original (restored on opt-out)", () => {
+    const applied = { originalNickname: "Kev", appliedNickname: "Kevin (Halidor Galemorne)", optedOut: false };
+    expect(planNicknames([person({ nickname: "Chief", record: applied })])[0]).toMatchObject({ nickname: "Kevin (Halidor Galemorne)", originalNickname: "Chief" });
   });
 });
 

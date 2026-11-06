@@ -37,6 +37,7 @@
     "test:postgres": "node scripts/test-postgres.mjs",
     "release:ledger-check": "node scripts/with-env.mjs tsx scripts/ledger-preflight.mjs",
     "professions:reset": "node scripts/with-env.mjs tsx scripts/reset-professions.ts",
+    "names:forever": "node scripts/with-env.mjs tsx scripts/forever-names.ts",
     "release:prepare": "node scripts/release-prepare.mjs",
     "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-renderer.mjs",
     "worker:build": "npm run site:build && wrangler deploy --dry-run",

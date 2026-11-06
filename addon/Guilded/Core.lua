@@ -1473,6 +1473,12 @@ end
 -- and listed only with /guilded diag all, so a Guilded problem is not lost among them.
 local function showDiagnostics(args)
   showIdentity()
+  -- WoW Forever, 8.5: legacy first-name keys (EP/GP accounts first) an officer still has to assign.
+  local legacy = ns.util.nameMigrationLines and ns.util.nameMigrationLines(db) or {}
+  if #legacy > 0 then
+    message(string.format(L("%d saved entries still use a first name only:"), #legacy))
+    for index = 1, math.min(5, #legacy) do message(legacy[index]) end
+  end
   if (ns.ignoredMessages or 0) > 0 then
     message(string.format("%d addon message(s) from other players were ignored this session (informational only).", ns.ignoredMessages))
   end

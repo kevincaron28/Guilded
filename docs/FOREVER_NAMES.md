@@ -46,25 +46,54 @@ both keys, stays untouched and is listed in `db.nameMigration.flagged`; officers
 the roster loads and `/guilded names` lists them. Nothing is deleted.
 
 **Bot.**
-- Migration `20261226000000_forever_full_names`: a Forever `Character` or `UnclaimedCharacter` with a
-  first-name `name` and a two-word `displayName` starting with it takes that full name, with its
-  verify claims and race-board entries, only when no other character of the guild shares the first
-  name. Others are left as they are. Nothing is deleted or merged.
+- Migration `20261226000000_forever_full_names` is additive only: a nullable `legacyName` column on
+  `Character` and `UnclaimedCharacter` (the pre-8.5 first name a row had before it was renamed).
+  It changes no row.
+- Backfill: `scripts/forever-names.ts` (`npm run names:forever`), **preview unless `--apply`**. A
+  Forever row whose `name` is one word and whose `displayName` is two words starting with it takes
+  that full name (old name kept in `legacyName`), with its verify claims and race-board entries,
+  only when no other character of the guild shares the first name. Rows sharing a first name are
+  listed (REVIEW) and left as they are; nothing is deleted or merged; running it twice changes
+  nothing the second time. Logic in `src/services/forever-names.ts`.
 - `findCharacter`: an exact name first; otherwise a pre-8.5 first-name row still matches "First Last"
   (and the reverse) when it is the single candidate and its known display name is not another alt's.
-- `linkPairedCharacter`: the member's own upload renames their own first-name row to the full name,
-  so their next alt with the same first name becomes a new row instead of sharing it.
+  8.4.x addons keep working during the rollout.
+- EP/GP and DKP belong to a **member** in Discord, not a character, so alts of one player never lose
+  points. A ledger row named only "Lebowski" (an 8.4 addon) goes to the member when every
+  "Lebowski …" character is theirs (`ledgerOwner`); when several members have one, the row is held
+  as `SHARED_FIRST_NAME`: the "legacy account" an officer assigns. It shows in the officer log after
+  the sync and in `/import held`; the officer links that name to the right member with
+  `/officer character link`, and the next sync imports it. Nothing is guessed.
+- `linkPairedCharacter`: the member's own upload renames their own first-name row to the full name
+  (old name in `legacyName`), so their next alt with the same first name becomes a new row.
 - Personal uploads (`personalSnapshot`), duels, milestones and relayed runs accept a pre-8.5
-  first-name row for the uploader's own characters (the PC's character and alts only).
+  first-name row for the uploader's own characters (the PC's character and alts only). A duel naming
+  a first name two members share is refused, not guessed.
 
-## Left for an officer
+**In game.** The addon's own EP/GP ledger (`db.epgp`, in-game-only guilds) keeps a shared
+"Lebowski" account as it is: it is listed in `/guilded diag` and `/guilded names` until an officer
+sorts it out by hand.
 
-In game: `/guilded names`. In the database (owner, read-only):
+## Owner steps on the server (dry run first)
 
-```sql
-SELECT g.name AS guild, c.name, c."displayName" FROM "Character" c JOIN "Guild" g ON g.id = c."guildId"
-WHERE c."gameEdition" = 'forever' AND position(' ' in trim(c.name)) = 0 ORDER BY 1, 2;
-```
+After the 8.5 deploy (the deploy runs `npm run db:update`, which adds the `legacyName` column):
+
+1. Backup first, as for every data change (`docs/DEPLOY_ORACLE.md`).
+2. Preview, on the server in the bot folder (nothing changes):
+   ```bash
+   npm run names:forever
+   ```
+   One block per guild: how many rows would be renamed, how many share a first name (REVIEW lines,
+   left as they are) and how many have no full name yet (their own next upload renames them).
+   `-- --guild <Discord server id>` limits it to one server.
+3. If the list looks right, apply it:
+   ```bash
+   npm run names:forever -- --apply
+   ```
+4. For each REVIEW line and each `SHARED_FIRST_NAME` row in `/import held`, an officer decides:
+   link the first name to the member it belongs to (`/officer character link`) or dismiss the entry.
+5. Undo, if ever needed: a renamed row has its old name in `legacyName`
+   (`UPDATE "Character" SET name = "legacyName" WHERE "legacyName" IS NOT NULL AND ...`).
 
 A first-name row that collapsed several alts before 8.5 cannot be split automatically: its history
 (EP/GP, runs) belongs to whichever alt did it, which nothing recorded. The member's own next upload

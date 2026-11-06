@@ -24,6 +24,9 @@ export function heldNotice(rows: HeldRow[], lang: Lang): string {
   if (count("UNLINKED")) lines.push(fr
     ? `• ${count("UNLINKED")} pour un personnage non lié (${names("UNLINKED")}) : \`/officer character link\`, puis la prochaine synchronisation les importe.`
     : `• ${count("UNLINKED")} for a character nobody linked (${names("UNLINKED")}): \`/officer character link\`, then the next sync imports them.`);
+  if (count("SHARED_FIRST_NAME")) lines.push(fr
+    ? `• ${count("SHARED_FIRST_NAME")} sous un prénom WoW Forever partagé par plusieurs membres (${names("SHARED_FIRST_NAME")}) : lie ce nom au bon membre avec \`/officer character link\`, puis la prochaine synchronisation les importe.`
+    : `• ${count("SHARED_FIRST_NAME")} under a WoW Forever first name several members' characters share (${names("SHARED_FIRST_NAME")}): link that name to the right member with \`/officer character link\`, then the next sync imports them.`);
   if (count("NO_CORE")) lines.push(fr
     ? `• ${count("NO_CORE")} sans core choisi (${names("NO_CORE")}) : annule-les en jeu (\`/guilded void\`) et redonne-les avec \`/guilded core <nom>\`.`
     : `• ${count("NO_CORE")} given with no raid core chosen (${names("NO_CORE")}): void them in game (\`/guilded void\`) and award again after \`/guilded core <name>\`.`);

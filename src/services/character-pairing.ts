@@ -69,7 +69,7 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
       await tx.character.update({
         where: { id: existing.id },
         data: {
-          ...(upgradeName ? { name: self.name.trim().replace(/\s+/g, " ") } : {}),
+          ...(upgradeName ? { name: self.name.trim().replace(/\s+/g, " "), legacyName: existing.name } : {}),
           ...(self.displayName ? { displayName: self.displayName } : {}),
           className: normalizeClassName(self.class as string),
           race: self.race ? normalizeRaceName(self.race) : null,

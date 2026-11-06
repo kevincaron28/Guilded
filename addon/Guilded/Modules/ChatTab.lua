@@ -38,11 +38,25 @@ local function findFrame()
   return nil
 end
 
+-- Opening or closing a chat window shows/hides Blizzard's chat frames (ChatFrame1:Show,
+-- HideBase) and re-docks them. The game refuses that in combat (ADDON_ACTION_BLOCKED) and the
+-- failed insecure call can leave the chat frames tainted, so these calls only run out of
+-- combat; in combat they wait for PLAYER_REGEN_ENABLED (ns.util.afterCombat).
+local function inCombat()
+  return ns.util and ns.util.inCombat and ns.util.inCombat() or false
+end
+local function afterCombat(key, fn)
+  if ns.util and ns.util.afterCombat then return ns.util.afterCombat(key, fn) end
+  fn()
+  return false
+end
+
 -- Finds the tab, opening it when asked to.
 function module.frame(create)
   local frame = findFrame()
   if frame then return frame end
   if create and FCF_OpenNewWindow then
+    if inCombat() then return nil end
     local ok, result = pcall(FCF_OpenNewWindow, TAB_NAME)
     if ok and result and result.AddMessage then return result end
     return findFrame()
@@ -71,6 +85,10 @@ ns.commandHandlers["chat"] = function(args)
   local s = settings()
   if not s then return end
   local action = string.lower(args[1] or "")
+  if (action == "tab" or action == "on" or action == "off") and inCombat() then
+    afterCombat("guilded-chat-tab", function() ns.commandHandlers["chat"](args) end)
+    return
+  end
   if action == "tab" or action == "on" then
     local frame = module.frame(true)
     if not frame then
@@ -102,5 +120,9 @@ table.insert(ns.commandHelp, "/guilded chat tab | off - show Guilded's own messa
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:SetScript("OnEvent", function()
-  if module.enabled() and not findFrame() then pcall(module.frame, true) end
+  if module.enabled() and not findFrame() then
+    afterCombat("guilded-chat-tab-login", function()
+      if module.enabled() and not findFrame() then pcall(module.frame, true) end
+    end)
+  end
 end)

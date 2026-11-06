@@ -12,6 +12,7 @@ import { currentGuildScope } from "../services/guild-scope.js";
 import { battlegroundEndCard } from "../services/end-cards.js";
 import { scoreCardPng } from "../services/score-card.js";
 import { duelLeaderboard, percent, streakText } from "../services/duels.js";
+import { updateDuelBoard } from "../services/duel-board.js";
 
 export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDescription("Battleground planning")
   .setDescriptionLocalizations({ fr: "Organisation des champs de bataille" })
@@ -56,6 +57,8 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
     .addStringOption(o => o.setName("bracket").setDescription("Reported API bracket identifier from /bg result").setRequired(true).setMaxLength(20))
     .addIntegerOption(o => o.setName("season").setDescription("Season number; defaults to current").setMinValue(1)))
   .addSubcommand(s => s.setName("duels").setDescription("Guild duel leaderboard: wins, losses, win rate and streak").setDescriptionLocalizations({ fr: "Classement des duels de la guilde" }))
+  .addSubcommand(s => s.setName("duel-board").setDescription("Officers: keep a live duel board in the PvP statistics channel").setDescriptionLocalizations({ fr: "Officiers : tableau des duels en direct dans le salon des statistiques JcJ" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn the live board on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le tableau" }).setRequired(true)))
   .addSubcommand(s => s.setName("setup").setDescription("Officer setup instructions; changes no channels or permissions").setDescriptionLocalizations({ fr: "Guide officiers, sans modification de salons ou permissions" }));
 
 type BgInteraction = ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction;
@@ -92,7 +95,17 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
   if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if (sub === "setup" && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if ((sub === "setup" || sub === "duel-board") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if (sub === "duel-board") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    const settings = await prisma.guildSettings.findUniqueOrThrow({ where: { guildId: ctx.guildId }, select: { bgStatsChannelId: true } });
+    if (enabled && !settings.bgStatsChannelId) { await i.editReply({ content: t("Set up the PvP statistics channel first (/bg setup).", "Configurez d'abord le salon des statistiques JcJ (/bg setup).") }); return; }
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { duelBoardEnabled: enabled } });
+    const posted = enabled ? await updateDuelBoard(i.guild) : false;
+    await i.editReply({ content: enabled
+      ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.bgStatsChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${settings.bgStatsChannelId}>. Il est modifié sur place, jamais republié.`)
+      : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+  }
   if (sub === "setup" || sub === "privacy-help") {
     await i.editReply({ content: sub === "setup" ? battlegroundSetupHelp(fr) : battlegroundPrivacyHelp(fr), allowedMentions: { parse: [] } }); return;
   }

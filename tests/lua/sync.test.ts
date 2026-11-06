@@ -283,6 +283,21 @@ describe("store and forward of standings and item data (6.3)", () => {
   }
   const hear = (s: LuaSession, from: string, text: string) => s.run(`fire_event("CHAT_MSG_ADDON", "GuildedSync", ${JSON.stringify(text)}, "GUILD", "${from}-Realm")`);
 
+  it("repairs missing item data from another member without re-sending current standings", () => {
+    const holder = member(), reader = member(), stamp = "2026-10-01T00:00:00Z";
+    for (const s of [reader, holder]) hear(s, "Bob", stand(stamp, 10));
+    hear(holder, "Bob", `ITEM|${stamp}|1|1|some ring~40~0~1~Cy:3`);
+    holder.run("time = function() return 1900000000 end; C_Timer.After = function(_, fn) fn() end; SENT={}");
+    reader.run("SENT={}; NS.requestGuildSnapshots()");
+    expect(reader.run("return SENT[2].text")).toBe(`ITEMREQ|${stamp}`);
+    hear(holder, "Cid", reader.run("return SENT[2].text"));
+    expect(holder.run("return #SENT")).toBe("1");
+    hear(reader, "Bob", holder.run("return SENT[1].text"));
+    expect(reader.run('return NS.getItemInsight("some ring").gp')).toBe("40");
+    reader.run("SENT={}; NS.requestGuildSnapshots()");
+    expect(reader.run("return #SENT")).toBe("1");
+  });
+
   it("takes newer standings and item data from any guild member, not from outsiders", () => {
     const s = member();
     hear(s, "Pug", stand("2026-10-01T00:00:00Z", 10));

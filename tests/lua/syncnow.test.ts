@@ -47,6 +47,19 @@ function withSync(officer = true): LuaSession {
 const advance = (s: LuaSession, seconds: number) => s.run(`NOW = NOW + ${seconds}`);
 
 describe("SyncNow.lua", () => {
+  it("lets a member in an addon-only guild request peer data without reloading or repeating requests", () => {
+    const s = withSync(false);
+    s.run(`
+      NS.L = function(text) return text end
+      NS.isInGameOnly = function() return true end
+      calls = {}
+      NS.requestGuildSnapshots = function() table.insert(calls, "standings") end
+      NS.requestGuildDungeonBoard = function() table.insert(calls, "dungeons") end
+      NS.ledgerSync = { active = function() return true end, sendSum = function() table.insert(calls, "ledger") end }
+      NS.commandHandlers.sync({"peers"}); NS.commandHandlers.sync({"peers"})
+    `);
+    expect(s.run('return table.concat(calls, ",") .. ":" .. RELOADS')).toBe("standings,dungeons,ledger:0");
+  });
   it("the Send to Discord button is a secure button that runs /reload (ReloadUI is never called)", () => {
     const s = withSync();
     s.run(`BUTTON = NS.syncNow.reloadButton(UIParent, "Send to Discord", 140, 22)`);

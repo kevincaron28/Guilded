@@ -225,6 +225,47 @@ function util.hideWindow(frame)
   if name and UIPanelWindows and UIPanelWindows[name] and HideUIPanel then HideUIPanel(frame) else frame:Hide() end
 end
 
+-- Combat lockdown: the game refuses Show/Hide/SetParent/SetPoint on protected frames (and on
+-- anything anchored to or parented under one, like our panel inside the guild window) while
+-- the player is in combat, and logs ADDON_ACTION_BLOCKED. util.afterCombat(key, fn) runs fn
+-- now out of combat; in combat it queues fn (one slot per key, the latest wins) for
+-- PLAYER_REGEN_ENABLED and tells the player once. Returns true when it deferred.
+local pendingAfterCombat, pendingOrder, combatNoticeShown, combatWatcher = {}, {}, false, nil
+function util.inCombat()
+  if type(InCombatLockdown) ~= "function" then return false end
+  local ok, value = pcall(InCombatLockdown)
+  return ok and value == true
+end
+local function runAfterCombat()
+  local order = pendingOrder
+  local actions = pendingAfterCombat
+  pendingOrder, pendingAfterCombat = {}, {}
+  for _, key in ipairs(order) do
+    local fn = actions[key]
+    if fn then
+      local ok, err = pcall(fn)
+      if not ok then diag("LUA_ERROR", "after combat " .. tostring(key) .. ": " .. tostring(err)) end
+    end
+  end
+end
+function util.afterCombat(key, fn, quiet)
+  if not util.inCombat() then fn() return false end
+  if pendingAfterCombat[key] == nil then pendingOrder[#pendingOrder + 1] = key end
+  pendingAfterCombat[key] = fn
+  if not combatWatcher and CreateFrame then
+    combatWatcher = CreateFrame("Frame")
+    combatWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+    combatWatcher:SetScript("OnEvent", function() runAfterCombat() end)
+  end
+  if not combatNoticeShown and not quiet and ns.message then
+    combatNoticeShown = true
+    pcall(ns.message, ns.L and ns.L("Guilded will finish this after combat.") or "Guilded will finish this after combat.")
+  end
+  return true
+end
+-- For tests: whether anything is waiting for combat to end.
+function util.pendingAfterCombat(key) return pendingAfterCombat[key] ~= nil end
+
 function util.serverTime()
   if GetServerTime then
     local ok, value = pcall(GetServerTime)

@@ -106,4 +106,27 @@ describe("ChatTab.lua", () => {
     s.run(`WINDOW_NAMES[3] = nil`);
     expect(s.run(`return tostring(NS.chatFrame())`)).toBe("nil");
   });
+
+  it("does not open or close chat windows in combat: it waits for PLAYER_REGEN_ENABLED", () => {
+    const s = withChatTab();
+    s.load("Util.lua");
+    s.run(String.raw`
+      COMBAT = true; OPENED = 0; CLOSED_N = 0
+      function InCombatLockdown() return COMBAT end
+      FCF_OpenNewWindow = function(name) OPENED = OPENED + 1; WINDOW_NAMES[3] = name; return ChatFrame3 end
+      FCF_Close = function() CLOSED_N = CLOSED_N + 1; WINDOW_NAMES[3] = nil end
+      NS.message = function() end
+    `);
+    chat(s, "tab");
+    expect(s.run("return OPENED")).toBe("0");
+    expect(s.run("return tostring(SETTINGS.chatTab)")).toBe("nil");
+    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(s.run("return OPENED")).toBe("1");
+    expect(s.run("return tostring(SETTINGS.chatTab)")).toBe("true");
+    s.run(`COMBAT = true`);
+    chat(s, "off");
+    expect(s.run("return CLOSED_N")).toBe("0");
+    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(s.run("return CLOSED_N")).toBe("1");
+  });
 });

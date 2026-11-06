@@ -41,6 +41,20 @@ const slash = (s: LuaSession, line: string) => s.run(`SlashCmdList["GUILDED"](${
 const sentCount = (s: LuaSession) => Number(s.run("return #SENT"));
 
 describe("whisper addresses (WoW Forever)", () => {
+  it("uses the live rank of the addressed character for ledger trust on connected realms", () => {
+    const s = loggedIn([]);
+    s.run(`
+      names = {"Sam-Other", "Sam-TestRealm", "Kev"}
+      ranks = {1, 4, 1}
+      GetNumGuildMembers = function() return #names end
+      GetGuildRosterInfo = function(i) return names[i], "", ranks[i] end
+      GuildedDB.settings.officers.Sam = true
+    `);
+    expect(s.run('return NS.ledgerPeerRole("Sam-Other")')).toBe("officer");
+    expect(s.run('return NS.ledgerPeerRole("Sam-TestRealm")')).toBe("member");
+    expect(s.run('return tostring(NS.ledgerPeerRole("Sam-Unrelated"))')).toBe("nil");
+    expect(s.run('ranks[1] = 4; return NS.ledgerPeerRole("Sam-Other")')).toBe("member");
+  });
   it("whispers a player by the sender text the game gave, not the bare first name", () => {
     const s = loggedIn(["Locale.lua", "Modules/Council.lua"], RAID);
     expect(s.run(`return NS.util.address("Ann")`)).toBe("Ann");

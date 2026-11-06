@@ -9,6 +9,14 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["Ledger sync is on. Guildmates can relay officer-approved awards and reversals."] = "La synchronisation du registre est activ\195\169e. Les membres peuvent relayer les attributions et annulations approuv\195\169es par un officier.",
+  ["Enable local ledger sync with /guilded ledgersync on."] = "Activez la synchronisation du registre avec /guilded ledgersync on.",
+  ["Asked online guildmates to compare ledgers."] = "Comparaison des registres demand\195\169e aux membres en ligne.",
+  ["No sync partner seen yet. Guildmates can relay entries after an officer announces them."] = "Aucun partenaire d\195\169tect\195\169. Les membres peuvent relayer les \195\169critures annonc\195\169es par un officier.",
+  ["No ledger sync partner seen in the past week."] = "Aucun partenaire de synchronisation d\195\169tect\195\169 cette semaine.",
+  ["Join a guild to sync with guildmates."] = "Rejoignez une guilde pour synchroniser vos donn\195\169es.",
+  ["A peer sync was requested recently."] = "Une synchronisation vient d\226\128\153\195\170tre demand\195\169e.",
+  ["Requested updates from online guildmates."] = "Mises \195\160 jour demand\195\169es aux membres en ligne.",
   ["Link to Discord"] = "Lier \195\160 Discord",
   ["Easiest: open the Guilded Windows app and press Sign in with Discord. No app? In Discord use /character pair, then paste the code below (it is the same as /guilded verify CODE)."] = "Le plus simple : ouvrez l\226\128\153application Windows Guilded et appuyez sur Se connecter avec Discord. Pas d\226\128\153application ? Sur Discord, utilisez /character pair, puis collez le code ci-dessous (c\226\128\153est comme /guilded verify CODE).",
   ["Code from /character pair"] = "Code de /character pair",
@@ -113,6 +121,7 @@ local FR = {
   ["Addon-only is ready. Discord linking and companion sync are optional; use /guilded setup later."] = "L\226\128\153addon est pr\195\170t. Le lien Discord et le compagnon sont facultatifs ; utilisez /guilded setup plus tard.",
   ["Optional Discord connection"] = "Connexion Discord facultative",
   ["Open setup after combat."] = "Ouvrez la configuration hors combat.",
+  ["Guilded will finish this after combat."] = "Guilded terminera apr\195\168s le combat.",
   ["In-game only selected. Your saved data and guild permissions are preserved."] = "Mode en jeu choisi. Vos donn\195\169es et permissions de guilde sont conserv\195\169es.",
   ["Connected setup selected. Pair the companion when you are ready; your saved data is preserved."] = "Mode connect\195\169 choisi. Associez le compagnon quand vous serez pr\195\170t. Vos donn\195\169es sont conserv\195\169es.",
   ["Your companion is connected, so Guilded now uses your Discord standings. /guilded setup local switches back."] = "Votre compagnon est reli\195\169 : Guilded utilise maintenant vos classements Discord. /guilded setup local pour revenir en arri\195\168re.",
@@ -699,6 +708,14 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  ["Ledger sync is on. Guildmates can relay officer-approved awards and reversals."] = "Gildenmitglieder k\195\182nnen best\195\164tigte Vergaben und Stornierungen weiterleiten. Der Abgleich ist aktiv.",
+  ["Enable local ledger sync with /guilded ledgersync on."] = "Aktiviere den lokalen Abgleich mit /guilded ledgersync on.",
+  ["Asked online guildmates to compare ledgers."] = "Online-Mitglieder wurden um einen Abgleich gebeten.",
+  ["No sync partner seen yet. Guildmates can relay entries after an officer announces them."] = "Noch kein Partner gefunden. Mitglieder k\195\182nnen von einem Offizier angek\195\188ndigte Eintr\195\164ge weiterleiten.",
+  ["No ledger sync partner seen in the past week."] = "In der letzten Woche wurde kein Partner f\195\188r den Abgleich gefunden.",
+  ["Join a guild to sync with guildmates."] = "Tritt f\195\188r den Abgleich einer Gilde bei.",
+  ["A peer sync was requested recently."] = "Ein Abgleich wurde gerade angefordert.",
+  ["Requested updates from online guildmates."] = "Aktualisierungen von Online-Mitgliedern angefordert.",
   ["\n(Officers: Mark done applies to the selected player.)"] = "\n(Offiziere: Als erledigt markieren gilt f\195\188r den ausgew\195\164hlten Spieler.)",
   ["   -   costs %d GP"] = "   -   kostet %d GP",
   ["   -   your PR %.2f"] = "   -   dein PR %.2f",
@@ -1487,6 +1504,7 @@ local DE = {
   ["Open raids need a fresh companion snapshot. Sync the companion, then /reload. Browse the website for current spots."] = "Offene Raids ben\195\182tigen einen frischen Companion-Datenstand. Synchronisiere den Companion und nutze /reload. Aktuelle Pl\195\164tze findest du auf der Webseite.",
   ["Open roster admin"] = "Rosterverwaltung \195\182ffnen",
   ["Open setup after combat."] = "\195\150ffne die Einrichtung nach dem Kampf.",
+  ["Guilded will finish this after combat."] = "Guilded erledigt das nach dem Kampf.",
   ["Open the Loot page"] = "Beuteseite \195\182ffnen",
   ["Open the tools window"] = "Werkzeugfenster \195\182ffnen",
   ["Open this tool after combat."] = "\195\150ffne dieses Werkzeug nach dem Kampf.",
@@ -1940,10 +1958,19 @@ local DE = {
   ["Your standing (from Discord)"] = "Dein Ranglistenstand (von Discord)",
   ["Your vote: %s for %s."] = "Deine Stimme: %s f\195\188r %s.",
   ["Yours"] = "Deine",
+  ["Share EP/GP history with guildmates"] = "EP/GP-Verlauf mit Gildenmitgliedern teilen",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  ["Ledger sync is on. Guildmates can relay officer-approved awards and reversals."] = "La sincronizaci\195\179n est\195\161 activa. Los miembros pueden retransmitir asignaciones y anulaciones aprobadas por un oficial.",
+  ["Enable local ledger sync with /guilded ledgersync on."] = "Activa la sincronizaci\195\179n local con /guilded ledgersync on.",
+  ["Asked online guildmates to compare ledgers."] = "Se ha solicitado comparar registros a los miembros conectados.",
+  ["No sync partner seen yet. Guildmates can relay entries after an officer announces them."] = "A\195\186n no se ha encontrado un compa\195\177ero. Los miembros pueden retransmitir entradas anunciadas por un oficial.",
+  ["No ledger sync partner seen in the past week."] = "No se ha encontrado ning\195\186n compa\195\177ero de sincronizaci\195\179n en la \195\186ltima semana.",
+  ["Join a guild to sync with guildmates."] = "\195\154nete a una hermandad para sincronizar los datos.",
+  ["A peer sync was requested recently."] = "Ya se ha solicitado una sincronizaci\195\179n recientemente.",
+  ["Requested updates from online guildmates."] = "Se han solicitado actualizaciones a los miembros conectados.",
   ["\n(Officers: Mark done applies to the selected player.)"] = "\n(Oficiales: Marcar como completado se aplica al jugador seleccionado.)",
   ["   -   costs %d GP"] = "   -   cuesta %d GP",
   ["   -   your PR %.2f"] = "   -   tu PR %.2f",
@@ -2732,6 +2759,7 @@ local ES = {
   ["Open raids need a fresh companion snapshot. Sync the companion, then /reload. Browse the website for current spots."] = "Las bandas abiertas requieren una instant\195\161nea reciente del compa\195\177ero. Sincroniza y usa /reload. Consulta la web para ver las plazas actuales.",
   ["Open roster admin"] = "Abrir administraci\195\179n del roster",
   ["Open setup after combat."] = "Abre la configuraci\195\179n fuera de combate.",
+  ["Guilded will finish this after combat."] = "Guilded lo terminar\195\161 tras el combate.",
   ["Open the Loot page"] = "Abrir la p\195\161gina Bot\195\173n",
   ["Open the tools window"] = "Abrir herramientas",
   ["Open this tool after combat."] = "Abre esta herramienta fuera de combate.",
@@ -3185,6 +3213,7 @@ local ES = {
   ["Your standing (from Discord)"] = "Tu clasificaci\195\179n (de Discord)",
   ["Your vote: %s for %s."] = "Tu voto: %s para %s.",
   ["Yours"] = "Tuyas",
+  ["Share EP/GP history with guildmates"] = "Compartir el historial de EP/GP con la hermandad",
 }
 -- END ES
 
@@ -3833,3 +3862,4 @@ FR["Ready: copy the text, then paste it in Guild (J) > Info > message of the day
 FR["This game client does not say whether you can edit the guild message, so nothing is offered."] = "Ce client de jeu n'indique pas si vous pouvez modifier le message de guilde : rien n'est propos\195\169."
 FR["Guild message ready: click the Update guild message button to copy it (%s)."] = "Message de guilde pr\195\169t : cliquez sur le bouton Mettre \195\160 jour le message de guilde pour le copier (%s)."
 FR["A reminder plus a copy box for the guild message of the day: WoW does not let addons set it, so you paste the ready text yourself and Guilded confirms it. Off by default; a manual edit pauses it."] = "Un rappel et une zone de copie pour le message du jour de la guilde : WoW ne permet pas aux addons de le d\195\169finir, vous collez donc le texte pr\195\169t vous-m\195\170me et Guilded le confirme. D\195\169sactiv\195\169 par d\195\169faut ; une modification manuelle le met en pause."
+FR["Share EP/GP history with guildmates"] = "Partager l'historique EP/GP avec la guilde"

@@ -232,8 +232,9 @@ member does not use (Pricing, Cores, Reserves, Wishlist) until the guild uses th
 - folder picker that starts at the WoW install root and finds the Forever account folder itself,
   including several accounts (pick one per character);
 - after the first companion link, a Discord confirmation ("You're linked: First Last, Second Last");
-  **owner decision (6 November 2026):** an ephemeral line the next time the member uses a Guilded
-  command, no DM;
+  **owner decision (6 November 2026):** send the member a **DM** (clearer than a delayed line); this
+  is an owner-approved automatic message, so it is on by default, once per member, and quiet if
+  the member's DMs are closed;
 - `/guilded verify`: show "waiting for a guildmate's companion" vs "linked" in game, and keep the code
   in the guild digest until it is heard instead of losing it when nobody is online;
 - companion offers to install or update the matching addon (WoW closed check, correct edition folder).

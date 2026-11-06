@@ -59,6 +59,13 @@ function ns.openRosterAdmin()
   button("Export GRM archive", 546, -415, function() local code = grm.export(); if code then show(code) end; return code end)
   button("Search GRM history", 18, -450, function() show(grm.history(confirmation:GetText())); return true end)
   button("Buff coverage", 194, -450, function() show(ns.ready and ns.ready.buffCoverageText()); return true end)
+  button("Professions to notes", 370, -450, function()
+    grm.pending = nil
+    local p, count = ns.rosterProfessions.preview()
+    if not p then return nil, count end
+    show(tools.describe()); return true
+  end)
+  button("Ready to promote", 546, -450, function() ns.promotion.open(); return true end)
   label("GRM confirmation: IMPORT. Recovery: UNDO IMPORT. Archives stay on this character; no guild notes are changed.", -535)
   local elapsedSinceAccessCheck = 0
   f:SetScript("OnUpdate", function(self, elapsed)

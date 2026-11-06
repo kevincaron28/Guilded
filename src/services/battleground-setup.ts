@@ -104,6 +104,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     if (settings[fields.channel] !== chosen.id) await save({ [fields.channel]: chosen.id, [fields.message]: null });
     // Selection installs only this panel; no unrelated channel is created.
   }
+  let gated: boolean, openCategory = false;
   const legacy = guild.id === QG_BG_ADOPTION.discordId && scope.guild.scopeKey === "default" ? QG_BG_ADOPTION : null;
   let categoryId = settings.bgCategoryId;
   if (!selection && !categoryId && legacy) {
@@ -122,17 +123,19 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
   if (!selection && !categoryId && BG_SETUP_PARTS.some(p => !settings[BG_SETUP_FIELDS[p].channel])) {
     if (!me.permissions.has(PermissionFlagsBits.ManageChannels)) fail("Manage Channels is missing. Use the existing-channel menus instead.", "Gérer les salons manque. Utilisez les menus de salons existants.");
     const memberRoleId = scope.memberRoleId ?? settings.memberRoleId;
-    if (!memberRoleId || memberRoleId === guild.id || !guild.roles.cache.has(memberRoleId)) fail("Configure a member role or select existing channels manually; no public category was created.", "Configurez un rôle membre ou choisissez les salons existants; aucune catégorie publique créée.");
+    // Without a member role the category is visible to everyone (boards stay read-only for members); the note at the end says so.
+    gated = Boolean(memberRoleId && memberRoleId !== guild.id && guild.roles.cache.has(memberRoleId));
+    openCategory = !gated;
     const name = `${PVP_SETUP_NAMES[lang].category} · ${scope.guild.name} · ${scope.guild.gameEdition}`.slice(0, 100);
     const oldName = `${BG_SETUP_NAMES[lang].category} · ${scope.guild.name} · ${scope.guild.gameEdition}`.slice(0, 100);
     const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory && (c.name === name || c.name === oldName));
     if (matches.size) fail("An unsaved category has this name. Select its existing channels manually to avoid duplicates.", "Une catégorie non enregistrée porte ce nom. Choisissez ses salons manuellement pour éviter les doublons.");
     {
-      const category = await guild.channels.create({ name, type: ChannelType.GuildCategory, permissionOverwrites: [
+      const category = await guild.channels.create({ name, type: ChannelType.GuildCategory, permissionOverwrites: gated ? [
         { id: guild.id, deny: [PermissionFlagsBits.ViewChannel] },
         { id: memberRoleId!, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.UseApplicationCommands] },
         { id: me.id, allow: posting }
-      ], reason: "Guilded optional battleground setup" });
+      ] : [{ id: me.id, allow: posting }], reason: "Guilded optional battleground setup" });
       categoryId = category.id;
     }
     await save({ bgCategoryId: categoryId });
@@ -203,7 +206,8 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     if (!message.pinned && text.permissionsFor(me)?.has(PermissionFlagsBits.PinMessages)) await message.pin("Guilded battleground guide");
     notes.push(`<#${text.id}>${message.pinned ? "" : say(lang, " (pin manually)", " (épingler manuellement)")}`);
   }
-  return say(lang, `Battleground panels saved: ${notes.join(", ")}. No automation or consent settings changed.`, `Panneaux JcJ enregistrés : ${notes.join(", ")}. Aucun réglage d’automatisation ou de consentement modifié.`);
+  const openNote = openCategory ? say(lang, " These channels are visible to everyone because no member role is set: set one in /setup step 6, then restrict the PvP category.", " Ces salons sont visibles par tous car aucun rôle membre n'est défini : choisissez-en un à l'étape 6 de /setup, puis restreignez la catégorie JcJ.") : "";
+  return say(lang, `Battleground panels saved: ${notes.join(", ")}. No automation or consent settings changed.${openNote}`, `Panneaux JcJ enregistrés : ${notes.join(", ")}. Aucun réglage d’automatisation ou de consentement modifié.${openNote}`);
 }
 
 

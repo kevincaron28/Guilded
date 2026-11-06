@@ -1127,7 +1127,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
     // long this click's turn in the queue takes to come up; the visible
     // message update always goes through `interaction.editReply` below, once
     // it's this click's turn.
-    void i.deferUpdate().catch(() => undefined);
+    void i.deferUpdate().catch((error: unknown) => console.warn(`Setup click ${i.customId} was not acknowledged`, error));
     queue = queue.then(() => handleClick(i, action)).catch((error: unknown) => console.error("Setup click failed", error));
   }));
 

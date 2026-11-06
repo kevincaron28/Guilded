@@ -267,18 +267,19 @@ const isBoard = (message: Message, botId: string) => message.author.id === botId
  * Creates the `race-to-60` channel for `/setup` when none exists: visible to the member role only, read-only for everyone.
  * Returns null when it is unsafe to guess, in which case the caller asks the officer to pick a channel.
  */
-export async function createRaceChannel(discordGuild: DiscordGuild, memberRoleId: string | null, lang: Lang): Promise<string | null> {
+export async function createRaceChannel(discordGuild: DiscordGuild, memberRoleId: string | null, lang: Lang): Promise<{ id: string; open: boolean } | null> {
   if (!discordGuild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) return null;
-  if (!memberRoleId || memberRoleId === discordGuild.id || !discordGuild.roles.cache.has(memberRoleId)) return null;
+  // With no member role the channel is visible to everyone and read-only; `open` tells the caller to say so.
+  const gated = Boolean(memberRoleId && memberRoleId !== discordGuild.id && discordGuild.roles.cache.has(memberRoleId));
   const me = discordGuild.members.me.id;
   const channel = await discordGuild.channels.create({ name: lang === "fr" ? "course-au-60" : "race-to-60", type: ChannelType.GuildText,
     topic: lang === "fr" ? "Course au niveau 60 de la guilde et temple de la renommée, tenus à jour par Guilded." : "The guild's race to level 60 and its Hall of Fame, kept up to date by Guilded.",
     permissionOverwrites: [
-      { id: discordGuild.id, deny: [PermissionFlagsBits.ViewChannel] },
-      { id: memberRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] },
+      gated ? { id: discordGuild.id, deny: [PermissionFlagsBits.ViewChannel] } : { id: discordGuild.id, deny: [PermissionFlagsBits.SendMessages] },
+      ...(gated ? [{ id: memberRoleId!, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] }] : []),
       { id: me, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles] }
     ], reason: "Guilded race to 60 board" });
-  return channel.id;
+  return { id: channel.id, open: !gated };
 }
 
 /**
@@ -292,16 +293,19 @@ export async function ensureRaceBoard(discordGuild: DiscordGuild, guildId: strin
   const say = (en: string, french: string) => lang === "fr" ? french : en;
   try {
     let channelId = settings.raceBoardChannelId;
+    let openNote = "";
     if (!channelId) {
       await discordGuild.channels.fetch();
       const named = discordGuild.channels.cache.filter(c => c.type === ChannelType.GuildText && ["race-to-60", "course-au-60"].includes(c.name));
       if (named.size > 1) return say("Several race-to-60 channels exist: pick one with /character race board-on.", "Plusieurs salons course-au-60 existent : choisissez-en un avec /character race board-on.");
-      channelId = named.first()?.id ?? await createRaceChannel(discordGuild, settings.memberRoleId ?? null, lang);
-      if (!channelId) return say("Race to 60 board: pick its channel with /character race board-on (I need Manage Channels and a member role to create one).", "Tableau de la course au 60 : choisissez son salon avec /character race board-on (il me faut Gérer les salons et un rôle membre pour en créer un).");
+      const made = named.size ? null : await createRaceChannel(discordGuild, settings.memberRoleId ?? null, lang);
+      channelId = named.first()?.id ?? made?.id ?? null;
+      openNote = made?.open ? say(" It is visible to everyone because no member role is set; restrict it later.", " Il est visible par tous car aucun rôle membre n'est défini; restreignez-le plus tard.") : "";
+      if (!channelId) return say("Race to 60 board: pick its channel with /character race board-on (I need Manage Channels to create one).", "Tableau de la course au 60 : choisissez son salon avec /character race board-on (il me faut Gérer les salons pour en créer un).");
       await guildService.updateSettings(guildId, { raceBoardChannelId: channelId });
     }
     const posted = await updateRaceBoard(discordGuild);
-    return say(`Race to 60 board ${posted ? "ready" : "saved"} in <#${channelId}>.`, `Tableau de la course au 60 ${posted ? "prêt" : "enregistré"} dans <#${channelId}>.`);
+    return say(`Race to 60 board ${posted ? "ready" : "saved"} in <#${channelId}>.${openNote}`, `Tableau de la course au 60 ${posted ? "prêt" : "enregistré"} dans <#${channelId}>.${openNote}`);
   } catch (error) {
     return `⚠️ ${say("Race to 60 board didn't finish: ", "Le tableau de la course au 60 n'a pas fini : ")}${error instanceof Error ? error.message : String(error)}`;
   }

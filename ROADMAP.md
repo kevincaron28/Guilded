@@ -461,6 +461,13 @@ guildmate whose companion is running.
   so C5 is new work. Test in the Forever client that promoting from an addon click works with the
   officer's Promote permission.
 
+### Release step — in-game testing by desktop control
+
+After the track PRs are merged into the 8.5 candidate, one Sonnet tester session runs
+[the 8.5 game test plan](docs/V8_5_0_GAME_TEST_PLAN.md) on the owner's PC: WoW Forever in windowed
+mode, entering from the character screen as Lebowski Holyroller. To save cost it reads the chat
+log, saved data and Discord page text, and takes about a dozen screenshots in total.
+
 ### Final phase 1 — new screenshots and website refresh (after all tracks are merged)
 
 Owner request, 6 November 2026. Once 8.5.0 is feature-complete:

@@ -1,5 +1,14 @@
 # Changelog
 
+## 8.4.6 — 6 November 2026
+
+Guildmates share the ledger with each other (on by default; `/guilded ledgersync off` turns
+it off), a live duel board in the PvP stats channel, the companion always watches the
+account-level saved-data folder (fixing members whose companion watched a character folder),
+no more blocked actions in combat, a compact "Crafted by" tooltip, and a Forever-only focus:
+other WoW editions are hidden and PoE2 tracking is removed from the companion and
+achievements (the PoE2 Discord community stays). Protocol remains 2. See [release notes](docs/V8_4_6_RELEASE_NOTES.md).
+
 ## 8.4.5 — 5 November 2026
 
 Milestone announcements in guild chat (on by default; `/guilded announce off` turns them

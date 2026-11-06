@@ -169,7 +169,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
         if (!category.permissionsFor(me)?.has(PermissionFlagsBits.ManageChannels)) fail("Manage Channels is missing. Select an existing channel.", "Gérer les salons manque. Choisissez un salon existant.");
         const overwrites = category.permissionOverwrites.cache.map(o => ({ id: o.id, type: o.type, allow: o.allow.bitfield, deny: o.deny.bitfield }));
         if (part !== "groups") {
-          const noPosting = PermissionFlagsBits.SendMessages | PermissionFlagsBits.SendMessagesInThreads | PermissionFlagsBits.CreatePublicThreads | PermissionFlagsBits.CreatePrivateThreads;
+          const noPosting = PermissionFlagsBits.SendMessages | PermissionFlagsBits.SendMessagesInThreads | PermissionFlagsBits.CreatePublicThreads | PermissionFlagsBits.CreatePrivateThreads | PermissionFlagsBits.AddReactions;
           if (!overwrites.some(o => o.id === guild.id)) overwrites.push({ id: guild.id, type: 0, allow: 0n, deny: noPosting });
           for (const overwrite of overwrites) {
             if (overwrite.id === me.id) continue;

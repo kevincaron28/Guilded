@@ -304,7 +304,8 @@ api.onSignInRestarted?.(started => {
   if (!signInRun) return;
   const view = signInRun.view;
   showSignInBox(view, started);
-  signInViews[view].say(T("That sign-in expired, so a new one opened in your browser (it may be behind this window)."),true);
+  // restarted 0: "Reopen the page" asked for the new request; it says so itself.
+  if (started.restarted) signInViews[view].say(T("That sign-in expired, so a new one opened in your browser (it may be behind this window)."),true);
 });
 async function reopenSignIn(view) {
   const result = await api.signInReopen();

@@ -22,13 +22,19 @@ as possible, because screenshots are what cost the most.
   `/reload`, `/chatlog`, one announced call-for-help test. **Not allowed without the owner's OK in
   chat at that moment:** promoting, demoting, kicking or inviting anyone, writing guild notes,
   whispering members, posting more than one line in guild chat, trading, buying or deleting items.
+- WoW Forever's `/quit` and `/logout` return to the **login screen**, which needs a password. To
+  restart the client (needed when the addon adds new files), close the WoW process and press
+  **Play** in Battle.net, which signs in by itself and opens the character screen.
+- `/guilded sos` with no arguments **sends a real call for help** (until the confirm prompt lands).
 - Do not move the character into danger (no PvP zone, no flying across contested areas).
 - Close nothing the owner had open; leave WoW at the character screen or in game, as found.
 
 ## How to keep it cheap
 
-1. **Read files, not pixels.** Turn on the game's chat log once: `/chatlog` writes every chat line,
-   including Guilded's chat tab output, to
+1. **Read files, not pixels.** Learned 6 November: `/chatlog` records real chat (guild, system)
+   but **not** addon output printed to a chat frame, and it may only flush to disk at logout, so use
+   zoomed screenshots of the chat box for Guilded's own lines. `/chatlog` still helps for guild chat,
+   written to
    `D:\Program Files (x86)\World of Warcraft\_forever_\Logs\WoWChatLog.txt`. After each command,
    read the new lines of that file with the shell. That replaces most screenshots.
 2. **Saved data after `/reload`.** State checks (settings, Hall of Fame cache, last seen, relay

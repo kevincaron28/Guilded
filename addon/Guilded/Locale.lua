@@ -8,6 +8,9 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  ["[Guilded] All clear: %s is safe."] = "[Guilded] Tout est calme : %s est en s\195\169curit\195\169.",
+  ["Call for help now?"] = "Appeler \195\160 l'aide maintenant ?",
+  ["/guilded sos now | clear | status | defender on|off | chat on|off"] = "/guilded sos now | clear | status | defender on|off | chat on|off",
   ["Under attack?"] = "Attaqu\195\169 ?",
   ["Call for help"] = "Appeler \195\160 l'aide",
   ["All clear"] = "Tout est calme",
@@ -735,6 +738,9 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  ["[Guilded] All clear: %s is safe."] = "[Guilded] Entwarnung: %s ist in Sicherheit.",
+  ["Call for help now?"] = "Jetzt Hilfe rufen?",
+  ["/guilded sos now | clear | status | defender on|off | chat on|off"] = "/guilded sos now | clear | status | defender on|off | chat on|off",
   ["Under attack?"] = "Angegriffen?",
   ["Call for help"] = "Hilfe rufen",
   ["All clear"] = "Entwarnung",
@@ -2018,6 +2024,9 @@ local DE = {
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  ["[Guilded] All clear: %s is safe."] = "[Guilded] Todo despejado: %s est\195\161 a salvo.",
+  ["Call for help now?"] = "\194\191Pedir ayuda ahora?",
+  ["/guilded sos now | clear | status | defender on|off | chat on|off"] = "/guilded sos now | clear | status | defender on|off | chat on|off",
   ["Under attack?"] = "\194\191Te atacan?",
   ["Call for help"] = "Pedir ayuda",
   ["All clear"] = "Todo despejado",

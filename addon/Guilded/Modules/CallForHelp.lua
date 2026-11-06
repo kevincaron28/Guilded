@@ -1,6 +1,7 @@
 -- Call for help: one button when guildmates are being ganked in the open world.
 --
---   /guilded sos            call for help now (also /gsos, and the key binding GUILDED_CALL_FOR_HELP)
+--   /guilded sos            show the options and ask "Call for help now?" (also /gsos)
+--   /guilded sos now        call for help at once (the button, the key binding and the quick menu do too)
 --   /guilded sos clear      all clear
 --   /guilded sos defender on|off   get the loud alert when a guildmate in your zone calls (default: on)
 --   /guilded sos chat on|off       also post one short line in guild chat (default on)
@@ -348,10 +349,11 @@ function module.open()
   if not ns.comm.send(PREFIX, text, "GUILD", nil, nil, "interactive") then
     say(L("Could not send the call for help.")); return false
   end
-  mine = { id = clean(call.id, 8), at = now(), zone = zone, responders = {} }
+  mine = { id = clean(call.id, 8), at = now(), zone = zone, responders = {}, posted = false }
   lastCallAt = now()
   if module.guildChat() and SendChatMessage then
-    pcall(SendChatMessage, guildChatLine(call), "GUILD")
+    mine.posted = pcall(SendChatMessage, guildChatLine(call), "GUILD")
+    mine.name = call.name
   end
   say(L("Call for help sent to the guild."))
   showOffer()
@@ -361,6 +363,10 @@ end
 function module.allClear()
   if not mine then return false end
   ns.comm.send(PREFIX, "C|" .. mine.id, "GUILD", nil, nil, "interactive")
+  -- The call put a line in guild chat (and so in Discord): close it there too.
+  if mine.posted and SendChatMessage then
+    pcall(SendChatMessage, string.format(L("[Guilded] All clear: %s is safe."), clean(mine.name or playerName(), 24)), "GUILD")
+  end
   mine = nil
   say(L("All clear sent."))
   refreshOffer()
@@ -487,10 +493,32 @@ end
 -- ---------------------------------------------------------------------
 
 ns.commandHandlers = ns.commandHandlers or {}
+-- Asks before sending: typing the command to see the options must never post in guild chat.
+function module.confirm()
+  if StaticPopupDialogs and StaticPopup_Show then
+    StaticPopupDialogs["GUILDED_CALL_FOR_HELP"] = StaticPopupDialogs["GUILDED_CALL_FOR_HELP"] or {
+      text = L("Call for help now?"), button1 = YES or "Yes", button2 = NO or "No",
+      OnAccept = function() module.open() end, timeout = 15, whileDead = true, hideOnEscape = true, preferredIndex = 3 }
+    StaticPopupDialogs["GUILDED_CALL_FOR_HELP"].text = L("Call for help now?")
+    if pcall(StaticPopup_Show, "GUILDED_CALL_FOR_HELP") then return true end
+  end
+  return false
+end
+
+local function options()
+  local s = settings()
+  say(string.format(L("Call for help: defender %s, guild chat line %s."),
+    module.defender() and L("on") or L("off"), module.guildChat() and L("on") or L("off")))
+  say(L("/guilded sos now | clear | status | defender on|off | chat on|off"))
+  return s
+end
+
 ns.commandHandlers["sos"] = function(args)
   local what, value = string.lower(args[1] or ""), string.lower(args[2] or "")
   local s = ns.getSettings and ns.getSettings()
-  if what == "clear" or what == "allclear" then
+  if what == "now" or what == "send" then
+    module.open()
+  elseif what == "clear" or what == "allclear" then
     if not module.allClear() then say(L("You have no open call for help.")) end
   elseif what == "defender" and (value == "on" or value == "off") and s then
     s.helpDefender = value == "on"
@@ -500,22 +528,22 @@ ns.commandHandlers["sos"] = function(args)
     s.helpGuildChat = value == "on"
     say(s.helpGuildChat and L("A call for help also posts one line in guild chat.") or L("A call for help stays on Guilded only."))
   elseif what == "status" then
-    say(string.format(L("Call for help: defender %s, guild chat line %s."),
-      module.defender() and L("on") or L("off"), module.guildChat() and L("on") or L("off")))
+    options()
   else
-    module.open()
+    options()
+    module.confirm()
   end
 end
 ns.commandHandlers["callforhelp"] = ns.commandHandlers["sos"]
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded sos - call guildmates for help when you are attacked (clear, defender on|off, chat on|off); /gsos too")
+table.insert(ns.commandHelp, "/guilded sos - options and a confirm to call guildmates for help (now, clear, status, defender on|off, chat on|off); /gsos too")
 
 -- The key binding (Bindings.xml: Options > Keybindings > Guilded).
 BINDING_NAME_GUILDED_CALL_FOR_HELP = L("Call for help")
 function Guilded_CallForHelp() module.open() end
 if SlashCmdList and not SlashCmdList["GUILDEDSOS"] then
   SLASH_GUILDEDSOS1 = "/gsos"
-  SlashCmdList["GUILDEDSOS"] = function() module.open() end
+  SlashCmdList["GUILDEDSOS"] = function() ns.commandHandlers["sos"]({}) end
 end
 
 local frame = CreateFrame("Frame")

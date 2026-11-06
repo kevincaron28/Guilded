@@ -52,7 +52,8 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
   const lines = done.slice(0, MAX_RUNS).map((run) => {
     const fr = lang === "fr";
     const members = guildPlayers(run);
-    const everyone = run.playerDetails;
+    const everyone = run.playerDetails?.filter((player, index, all) =>
+      all.findIndex((other) => other.character.toLowerCase() === player.character.toLowerCase()) === index);
     const details = everyone?.filter((player) => members.has(player.character));
     // Everyone else in the party: shown after the guild, marked as from outside it (no points are ever theirs).
     const outsiders = everyone ? everyone.filter((player) => !members.has(player.character))

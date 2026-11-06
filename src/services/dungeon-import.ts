@@ -94,6 +94,24 @@ export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSe
     ratingRules: (snapshot?.rules ?? publicRules()) as unknown as Prisma.InputJsonValue } });
 }
 
+// One row per character name (case-insensitive). Observers can disagree on the realm ("-" vs a
+// name) or repeat a player; merge them, keeping the longest presence and any known details.
+export function dedupeRunPlayers<P extends DungeonRunInput["players"][number]>(players: P[]): P[] {
+  const byName = new Map<string, P>();
+  for (const player of players) {
+    const key = player.character.trim().toLowerCase();
+    const seen = byName.get(key);
+    if (!seen) { byName.set(key, player); continue; }
+    const longer = (player.presentSec ?? 0) > (seen.presentSec ?? 0) ? player : seen;
+    const other = longer === player ? seen : player;
+    const merged = { ...other, ...Object.fromEntries(Object.entries(longer).filter(([, value]) => value !== undefined && value !== null)) } as P;
+    if (seen.inGuild || player.inGuild) merged.inGuild = true;
+    if (merged.deaths === undefined || merged.deaths === null) merged.deaths = seen.deaths ?? player.deaths;
+    byName.set(key, merged);
+  }
+  return [...byName.values()];
+}
+
 async function isNearDuplicate(tx: Tx, guildId: string, run: DungeonRunInput): Promise<boolean> {
   if (!run.startedAt) return false;
   const start = new Date(run.startedAt * 1000);
@@ -208,6 +226,8 @@ export async function importDungeonRuns(
         }
       }
     }
+    // Several observers can report the same character (with and without a realm): keep one row each.
+    run = { ...run, players: dedupeRunPlayers(run.players) };
     // A run first stored as ABANDONED/INVALID can arrive again as COMPLETED under the same id: the
     // addon recovers a final-boss kill it did not recognise (8.4.4 to 8.4.6, Forever dungeons).
     // It replaces the stored copy once; a COMPLETED run is never rewritten this way.

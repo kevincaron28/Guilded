@@ -37,6 +37,30 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 - WoW asks "Allow custom scripts?" for `/run`. That is a game security setting, so it was declined.
   The tests use the real buttons instead.
 
+## Second PC, fresh install of the published 8.4.7 companion (6 November 2026, tester session)
+
+| Item | Result |
+| --- | --- |
+| Download via the stable `releases/latest` link | Pass: 123 MB in 11.7 s; the SHA-256 matches the v8.4.7 asset. Not code-signed (Authenticode: NotSigned). |
+| SmartScreen | Not observed: the tester launched from a shell. Expect a warning on a real double-click. |
+| Install | One click, about 10 s, into `%LOCALAPPDATA%\Programs\guilded-companion`. |
+| Launch after install | **Bug:** "cannot find …Guilded Companion.lnk". The launch runs before the shortcut exists, so the app doesn't open. Sent to Track F. |
+| Uninstall registry entry | **Bug:** empty InstallLocation. Sent to Track F. |
+| Leftover | `%LOCALAPPDATA%\guilded-companion-updater\installer.exe` (123 MB) stays behind. Sent to Track F. |
+| Addon present | That PC had no addon at all, and the companion doesn't install it. This is the member-journey gap (audit item 7); the F1 "addon missing" check must catch it. |
+| Manual addon install (member path) | Done: the v8.4.7 Forever zip (hash matches) has one `Guilded` folder; 70 files copied. About 6 steps and 1-2 minutes if you know the folder; finding `_forever_\Interface\AddOns` is the stumbling point. Companion "Install addon" button sent to Track F. |
+| Restart through Battle.net | Pass: goes straight to the character screen (Blunt Cruising), no login. |
+| Discord sign-in and link | Waiting for the owner (12:00). |
+
+## Preview deploy to the live bot (6 November 2026, 14:20-14:27 UTC)
+
+- Owner approved ("Allow you to deploy"; "Test server only").
+- Preflight: ledger check passed, backup verified (`/home/ubuntu/guilded-recovery/2026-11-06T14-20-36-756Z`, database 653 KB). An encrypted copy is on the owner's PC with a separately stored key.
+- `FEATURE_PREVIEW_GUILD_IDS=1563959517337747556` (Kevmister28's server) was added to `/opt/guilded/.env.local` **before** the code changed. The original is kept as `.env.local.before-8.5-preview`.
+- PR #398 merged to `main` as `08dc53f`, pinned to the tested candidate `1555b5a` (CI green). `deploy/update.sh` ran: four migrations applied (race board and PvP channels, roster gaps and nicknames, promotion panel, guildmate relay). The bot is back as version 8.4.7 (no bump, so no update notice) and Discord accepted the commands in every server.
+- Startup log: setup complete for High Guard, Québec Gold and Kevmister28's server. No new errors; the `[diagnostic:…]` warnings after startup are the same as on earlier restarts.
+- Rollback: `/opt/guilded.previous.A5ACpyhx`, plus the recovery directory above.
+
 ## Still to do
 - Full test suite on the merged candidate (running).
 - Track K merge, then the two-PC window ([test plan](V8_5_0_GAME_TEST_PLAN.md)).

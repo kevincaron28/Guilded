@@ -6,17 +6,26 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { findProfessionHolders, professionCoverage } from "./profession-search.js";
 import type { Lang } from "../i18n.js";
 import { offerDirectoryText } from "./craft-offers.js";
+import { byLastSeen, lastSeenText } from "./last-seen.js";
+import { professionPostLinks, updateProfessionPosts } from "./profession-board.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 
-export async function professionDirectoryText(database: Pick<PrismaClient, "professionSkill">, guildId: string, lang: Lang = "en"): Promise<string> {
+// 8.5 track D2: the directory is now a short index. Each profession has its own auto-updated post (profession-board.ts)
+// with every recipe and its crafters; this lists the profession, how many crafters it has, who was seen most recently
+// (track D3) and a link to its post when it exists.
+export async function professionDirectoryText(database: Pick<PrismaClient, "professionSkill"> & Partial<Pick<PrismaClient, "recipeKnown">>, guildId: string, lang: Lang = "en", links: ReadonlyMap<string, string> = new Map(), now = new Date()): Promise<string> {
   const header = lang === "fr"
-    ? "**Artisans de la guilde**\n`/craft who item:` : recettes connues. `/character profession who` : compétences. `/craft request` : demander une fabrication. Ouvrez vos métiers avec Guilded : un officier en ligne avec le compagnon peut relayer vos recettes."
-    : "**Guild profession directory**\n`/craft who item:` finds known recipes. `/character profession who` lists skills. `/craft request` arranges a craft. Open profession windows with Guilded. An online officer with the companion can relay your recipes.";
+    ? "**Artisans de la guilde**\nChaque métier a son message à jour avec les recettes et les artisans. `/craft who item:` cherche une recette (avec dernière présence). `/craft request` : demander une fabrication. Ouvrez vos métiers avec Guilded : un officier en ligne avec le compagnon peut relayer vos recettes."
+    : "**Guild profession directory**\nEach profession has its own always-updated post with recipes and crafters. `/craft who item:` finds a recipe (with last seen). `/craft request` arranges a craft. Open profession windows with Guilded. An online officer with the companion can relay your recipes.";
   let text = header;
   const coverage = await professionCoverage(database, guildId);
   for (const row of coverage) {
     const holders = await findProfessionHolders(database, guildId, row.profession);
-    const line = `\n**${row.profession}**: ${holders.slice(0, 3).map((holder) => `${holder.character} (${holder.skillLevel}, ${holder.member})`).join(" · ")}`;
+    const recent = [...holders].sort((a, b) => byLastSeen(a.lastSeen, b.lastSeen))[0];
+    const link = links.get(row.profession.trim().toLowerCase());
+    const crafters = lang === "fr" ? `${row.characters} artisan${row.characters === 1 ? "" : "s"}` : `${row.characters} crafter${row.characters === 1 ? "" : "s"}`;
+    const seen = recent ? ` · ${lang === "fr" ? "vu récemment" : "last seen"}: ${recent.character} (${lastSeenText(recent.lastSeen, lang, now)})` : "";
+    const line = `\n**${row.profession}**: ${crafters}${seen}${link ? ` → <#${link}>` : ""}`;
     if (text.length + line.length > 1850) return `${text}\n…`;
     text += line;
   }
@@ -44,7 +53,10 @@ export async function updateProfessionDirectory(discordGuild: DiscordGuild | nul
     if (forum?.type !== ChannelType.GuildForum) return false;
     const active = await forum.threads.fetchActive();
     const lang = asLang(guild.settings.language);
-    const description = (await professionDirectoryText(prisma, guild.id, lang) + await offerDirectoryText(prisma, guild.id, lang)).slice(0, 1990);
+    // The per-profession posts first, so the directory can link to them.
+    await updateProfessionPosts(discordGuild, forum, prisma, guild.id, lang);
+    const links = guild.settings.professionPostsEnabled ? await professionPostLinks(forum).catch(() => new Map<string, string>()) : new Map<string, string>();
+    const description = (await professionDirectoryText(prisma, guild.id, lang, links) + await offerDirectoryText(prisma, guild.id, lang)).slice(0, 1990);
     const archived = await forum.threads.fetchArchived({ limit: 100 });
     let updated = false;
     for (const thread of new Map([...archived.threads, ...active.threads]).values()) {

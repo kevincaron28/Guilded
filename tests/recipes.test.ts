@@ -174,9 +174,9 @@ describe("/craft who", () => {
     expect(byName).toHaveLength(1);
     expect(byName[0]?.crafters.map((c) => `${c.character}:${c.member}`)).toEqual(["Ann:Annie", "Bob:Bob", "Zed:null"]);
     expect(await findCrafters(db as never, "g1", "1002")).toHaveLength(1);
-    const text = describeCrafters("elixir", await findCrafters(db as never, "g1", "elixir"));
-    expect(text).toContain("• **Elixir of X** — Ann (Annie) · Alchemy, Bob · Alchemy, Zed · Tailoring");
-    expect(text).toContain("• **Elixir of Y** — Bob · Alchemy");
+    const text = describeCrafters("elixir", await findCrafters(db as never, "g1", "elixir"), "en", new Date("2026-11-10T00:00:00Z"));
+    expect(text).toMatch(/• \*\*Elixir of X\*\* — Ann \(Annie\) · Alchemy · seen [^,]+, Bob · Alchemy · seen [^,]+, Zed · Tailoring · seen/);
+    expect(text).toMatch(/• \*\*Elixir of Y\*\* — Bob · Alchemy · seen /);
   });
 
   it("says so when nobody is known, and suggests names for autocomplete", async () => {

@@ -53,6 +53,8 @@ export const craftCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("id").setDescription("Your offer").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("offer-setting").setDescription("Officers: turn crafter offers on or off for this server.")
     .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("posts-setting").setDescription("Officers: turn the per-profession posts in the craft forum on or off.")
+    .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
   .addSubcommand((sub) => sub.setName("permissions").setDescription("Officers: put the craft board's permissions right (members talk in posts, only the bot starts them)."));
 
 function describe(request: { item: string; quantity: number; profession: string | null; materialsProvided: boolean; note: string | null }): string {
@@ -69,7 +71,7 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
 
   if (subcommand === "who") {
     const query = interaction.options.getString("item", true);
-    await interaction.reply({ content: describeCrafters(query, await findCrafters(prisma, context.guildId, query)), flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: describeCrafters(query, await findCrafters(prisma, context.guildId, query), await boardLang(context.guildId)), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -78,6 +80,14 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
     const enabled = interaction.options.getBoolean("enabled", true);
     await offerService.setEnabled(context.guildId, enabled);
     await interaction.reply({ content: enabled ? "Crafter offers are on. Crafters use /craft offer; members answer with the button in the post. Trades happen in game: Guilded never handles gold." : "Crafter offers are off. Existing offers stay readable until they end; nobody can post or answer new ones.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (subcommand === "posts-setting") {
+    if (!isOfficer) throw new Error("Only Officers or Guild Masters can turn the profession posts on or off.");
+    const enabled = interaction.options.getBoolean("enabled", true);
+    await prisma.guildSettings.updateMany({ where: { guildId: context.guildId }, data: { professionPostsEnabled: enabled } });
+    await interaction.reply({ content: enabled ? "The per-profession posts are on: each profession gets one post in the craft forum, edited in place as recipes are scanned." : "The per-profession posts are off. Existing posts stay but are no longer updated.", flags: MessageFlags.Ephemeral });
+    if (enabled) await updateProfessionDirectory(interaction.guild).catch(() => undefined);
     return;
   }
   if (subcommand === "offer") {

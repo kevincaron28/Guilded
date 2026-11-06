@@ -62,6 +62,8 @@ Modules\ClientTools.lua
 Modules\RosterTools.lua
 Modules\GRMMigration.lua
 Modules\RosterAdmin.lua
+Modules\RosterProfessions.lua
+Modules\Promotion.lua
 Modules\Scores.lua
 Modules\Milestones.lua
 Modules\Duels.lua

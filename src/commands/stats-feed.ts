@@ -10,7 +10,7 @@ import { guildService, requireGuildContext } from "./context.js";
 // who asked, and only a hash is stored (services/stat-snapshots.ts).
 export const statsFeedCommand = new SlashCommandBuilder()
   .setName("stats")
-  .setDescription("Daily server statistics: a Google Sheets feed and the on/off switch.")
+  .setDescription("Daily statistics and the Google Sheets feed.")
   .addSubcommand((sub) => sub.setName("feed").setDescription("Address for Google Sheets (IMPORTDATA).")
     .addStringOption((o) => o.setName("action").setDescription("Default: create the address").addChoices(
       { name: "Create (or say one exists)", value: "show" }, { name: "New address (the old one stops)", value: "regenerate" }, { name: "Revoke (stop the feed)", value: "revoke" })))

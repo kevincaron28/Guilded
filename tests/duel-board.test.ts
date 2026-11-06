@@ -60,8 +60,8 @@ describe("duel board data", () => {
     expect(result.standings[0]).toMatchObject({ name: "Aria", wins: 1 });
     expect(result.recent).toHaveLength(1);
     expect(result.bg).toEqual({ participations: 4, wins: 3, losses: 1, draws: 0 });
-    expect((findMany.mock.calls as any)[0][0].where.counted).toBe(true);
-    expect((groupBy.mock.calls as any)[0][0].where.member.battlegroundConsent.is).toMatchObject({ capture: true, guildStats: true });
+    expect((findMany.mock.calls as unknown as [[{ where: { counted: boolean } }]])[0][0].where.counted).toBe(true);
+    expect((groupBy.mock.calls as unknown as [[{ where: { member: { battlegroundConsent: { is: unknown } } } }]])[0][0].where.member.battlegroundConsent.is).toMatchObject({ capture: true, guildStats: true });
   });
 });
 

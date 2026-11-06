@@ -10,13 +10,13 @@ import { clampTop, createRaceChannel, loadRaceBoardData, MAX_TOP, MIN_TOP, nearL
 export const RACE_ACTIONS = ["near", "hide", "show", "board-on", "board-off", "top", "end", "resume"] as const;
 
 export function addRaceSubcommand(sub: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
-  return sub.setName("race").setDescription("Race to 60: characters near your level, hide yourself, or (officers) the board")
-    .setDescriptionLocalizations({ fr: "Course au 60 : personnages proches de ton niveau, te masquer, ou (officiers) le tableau" })
+  return sub.setName("race").setDescription("Race to 60: who is near your level, hide yourself, officer board")
+    .setDescriptionLocalizations({ fr: "Course au 60 : proches de ton niveau, te masquer, tableau officiers" })
     .addStringOption(o => o.setName("action").setDescription("What to do").setDescriptionLocalizations({ fr: "Action" }).setRequired(true)
       .addChoices(...RACE_ACTIONS.map(value => ({ name: value, value }))))
-    .addChannelOption(o => o.setName("channel").setDescription("Officers, board-on: channel for the board (default: create race-to-60)").setDescriptionLocalizations({ fr: "Officiers, board-on : salon du tableau (défaut : créer course-au-60)" })
+    .addChannelOption(o => o.setName("channel").setDescription("Officers: board channel (default: create race-to-60)").setDescriptionLocalizations({ fr: "Officiers : salon du tableau (défaut : course-au-60)" })
       .addChannelTypes(ChannelType.GuildText))
-    .addIntegerOption(o => o.setName("count").setDescription("Officers, top: how many characters the board lists (10-30)").setDescriptionLocalizations({ fr: "Officiers, top : nombre de personnages listés (10-30)" }).setMinValue(MIN_TOP).setMaxValue(MAX_TOP));
+    .addIntegerOption(o => o.setName("count").setDescription("Officers: characters on the board (10-30)").setDescriptionLocalizations({ fr: "Officiers : personnages listés (10-30)" }).setMinValue(MIN_TOP).setMaxValue(MAX_TOP));
 }
 
 export async function executeRace(interaction: ChatInputCommandInteraction, context: { guildId: string; memberId: string }): Promise<void> {

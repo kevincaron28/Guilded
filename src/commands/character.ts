@@ -61,8 +61,8 @@ export const characterCommand = new SlashCommandBuilder()
     .setDescription("List your linked characters."))
   .addSubcommand((subcommand) => subcommand
     .setName("nickname")
-    .setDescription("If your server renames members to 'Name (Main)', opt out or back in.")
-    .addBooleanOption((option) => option.setName("on").setDescription("On = follow the server's format, off = keep your own nickname").setRequired(true)))
+    .setDescription("Keep your own nickname, or follow the server format")
+    .addBooleanOption((option) => option.setName("on").setDescription("On = server format, off = your own nickname").setRequired(true)))
   .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
 
 // The realm most of the guild's characters use, so nobody types it.

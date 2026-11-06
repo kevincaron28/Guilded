@@ -42,6 +42,7 @@ import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
+import { applyGuildData } from "./services/guild-data.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
@@ -836,6 +837,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
           void tellVerified(client, guild.discordId, asLang(language?.language), verified).catch(() => undefined);
         }
+      }
+      // 8.5: the game's guild roster, event log and MOTD from any member's upload (guild-data.ts):
+      // members without the addon reach the race board, last seen and roster gaps. Rank only from
+      // officers. No markGuildChanged: none of it is in the standings feed. Never fails the upload.
+      if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
+        await prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
+          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild data upload failed", error); });
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

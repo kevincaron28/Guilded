@@ -2995,3 +2995,56 @@ model GuildStatSnapshot {
 
   @@unique([guildId, day])
 }
+
+// 8.5 guild data (docs/GUILD_DATA_INVENTORY.md): what the game's guild roster, event log and info
+// panel show every member, uploaded by any member's companion. Guild-wide, latest snapshot wins.
+model GuildRosterEntry {
+  id           String    @id @default(cuid())
+  guildId      String
+  gameEdition  String    @default("forever")
+  // characterKey(name): lowercase "first last" on Forever.
+  nameKey      String
+  name         String
+  level        Int?
+  className    String?
+  rankName     String?
+  rankIndex    Int?
+  lastOnlineAt DateTime?
+  inGuild      Boolean   @default(true)
+  // When the uploader's game read this row, and whose companion brought it (Member id).
+  observedAt   DateTime
+  reportedById String?
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([guildId, gameEdition, nameKey])
+  @@index([guildId, inGuild])
+}
+
+// The game's guild event log (invites, joins, promotions, demotions, removals, quits). The game
+// gives ages in hours, so the same event read by two members can differ by an hour or two: an
+// event with the same kind, names and rank within 3 hours of a stored one is the same event.
+model GuildEventEntry {
+  id           String   @id @default(cuid())
+  guildId      String
+  gameEdition  String   @default("forever")
+  kind         String
+  actor        String
+  target       String?
+  rank         String?
+  at           DateTime
+  reportedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([guildId, at])
+  @@index([guildId, kind, actor])
+}
+
+// The guild's message of the day and information text, as last read in game.
+model GuildText {
+  guildId      String   @id
+  motd         String?
+  info         String?
+  observedAt   DateTime
+  reportedById String?
+  updatedAt    DateTime @updatedAt
+}

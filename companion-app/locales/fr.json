@@ -1210,5 +1210,8 @@
   "Your saved settings in {0} ({1} bytes) could not be read: {2}. They were kept as they are; nothing will overwrite them.": "Vos paramètres enregistrés dans {0} ({1} octets) n'ont pas pu être lus : {2}. Ils ont été conservés tels quels; rien ne les remplacera.",
   "Settings loaded from {0} ({1} bytes, saved {2}): {3} connection(s), signed in: {4}, WoW folder chosen: {5}.": "Paramètres chargés depuis {0} ({1} octets, enregistrés le {2}) : {3} connexion(s), connecté : {4}, dossier WoW choisi : {5}.",
   "No settings file was found in {0}; your settings were restored from {1} ({2} connection(s), signed in: {3}).": "Aucun fichier de paramètres dans {0}; vos paramètres ont été restaurés depuis {1} ({2} connexion(s), connecté : {3}).",
-  "No saved settings in {0}: starting with a new setup.": "Aucun paramètre enregistré dans {0} : nouvelle configuration."
+  "No saved settings in {0}: starting with a new setup.": "Aucun paramètre enregistré dans {0} : nouvelle configuration.",
+  "Saved settings hold: {0}.": "Les paramètres enregistrés contiennent : {0}.",
+  "Looking for settings in {0}: {1}.": "Recherche des paramètres dans {0} : {1}.",
+  "Settings became blank after {0}; the saved file was not changed.": "Les paramètres sont devenus vides après {0}; le fichier enregistré n'a pas été modifié."
 }

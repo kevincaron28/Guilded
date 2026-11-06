@@ -79,6 +79,7 @@ function backupCandidates(file, fsImpl = fs) {
  */
 async function loadSavedConfig({ store, file, legacyFile, isStore, defaults, version, log, fsImpl = fs }) {
   const before = describeFile(file, fsImpl);
+  log("info", "Looking for settings in {0}: {1}.", file, before.exists ? `found, ${before.size} bytes, saved ${before.modified}` : "no file");
   if (before.exists) {
     try {
       const kept = backupBeforeVersion({ file, version, fsImpl });
@@ -97,6 +98,7 @@ async function loadSavedConfig({ store, file, legacyFile, isStore, defaults, ver
 
   if (saved !== null) {
     const summary = configSummary(saved);
+    log("info", "Saved settings hold: {0}.", Object.keys(saved).sort().join(", ") || "(nothing)");
     log("info", "Settings loaded from {0} ({1} bytes, saved {2}): {3} connection(s), signed in: {4}, WoW folder chosen: {5}.", file, before.size, before.modified ?? "?", summary.connections, summary.signedIn ? "yes" : "no", summary.wowFolder ? "yes" : "no");
     if (!isUnset(saved)) { try { fsImpl.copyFileSync(file, `${file}.bak`); } catch { /* best effort */ } }
     return { config: { ...defaults, ...saved }, source: "file" };

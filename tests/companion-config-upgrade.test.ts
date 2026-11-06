@@ -181,6 +181,6 @@ describe("what counts as set up", () => {
   it("is shipped with the app and used at start", () => {
     const pkg = JSON.parse(readFileSync("companion-app/package.json", "utf8"));
     expect(pkg.build.files).toContain("config-load.cjs");
-    expect(readFileSync("companion-app/main.cjs", "utf8")).toContain('require("./config-load.cjs").loadSavedConfig');
+    expect(readFileSync("companion-app/main.cjs", "utf8")).toContain("configLoadModule().loadSavedConfig");
   });
 });

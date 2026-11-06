@@ -10,6 +10,7 @@ const storeUpdatesModule = () => require("./store-update.cjs");
 const linkIdentity = require("./link-identity.cjs");
 const addonInstallerModule = () => require("./addon-installer.cjs");
 const diskSpaceModule = require("./disk-space.cjs");
+const configLoadModule = () => require("./config-load.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
 // The Store build never replaces itself: the Store does that. Also true for any package under WindowsApps.
@@ -81,7 +82,7 @@ const asset = (name) => path.join(__dirname, "assets", name);
 // Settings at start (9.0): logged, backed up before any migration, restored from a backup when the
 // file is missing, and never overwritten after a failed read (companion-app/config-load.cjs).
 async function loadConfig() {
-  const loaded = await require("./config-load.cjs").loadSavedConfig({
+  const loaded = await configLoadModule().loadSavedConfig({
     store: storeConfig, file: configFile(), legacyFile: path.join(app.getPath("userData"), "config.json"),
     isStore: STORE_PACKAGE, defaults: DEFAULTS, version: app.getVersion(),
     log: (level, key, ...values) => { const message = E(key, ...values); pushLog({ time: new Date().toISOString(), level, message }); if (level !== "info") console.warn(message); }
@@ -561,8 +562,12 @@ app.whenReady().then(async () => {
     storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage);
     engineModules = await loadEngineModules();
     await loadConfig();
-    await repairSavedConfig();
+    // Diagnostics (9.0 release blocker): say if a start-up step left the settings blank.
+    const setUp = !configLoadModule().isUnset(config);
+    const checkStep = (step) => { if (setUp && configLoadModule().isUnset(config)) pushLog({ time: new Date().toISOString(), level: "error", message: E("Settings became blank after {0}; the saved file was not changed.", step) }); };
+    await repairSavedConfig(); checkStep("repairSavedConfig");
     if (await startupUpdateStep()) return;
+    checkStep("startupUpdateStep");
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
     config.poeJournalFile = profileJournalFile();
     engine = engineModules.createProfileEngine(config, {

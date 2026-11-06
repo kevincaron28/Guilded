@@ -7,7 +7,7 @@ import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwit
 import { WOW_EDITIONS, editionCards, editionHubs, editionPages } from "../site/editions.mjs";
 import { ACTIVE_EDITIONS, editionList, isEditionActive } from "../companion/active-editions.mjs";
 import { POE_ENABLED } from "../companion/active-games.mjs";
-import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
+import { buildEverything, keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
 const origin = "https://guilded.kcaron.top";
@@ -134,7 +134,7 @@ for (const source of sources) {
 const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge), ...editionHubs(version, publishedGuilded.curseforge)].filter(page => keepPage(page)).map(page => withoutPoe(page));
 // The bot-served public pages too, in each edition's section; published guild pages have their
 // own sitemap, served by the bot.
-const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.filter(({ id }) => isEditionActive(id)).flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
+const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.filter(({ id }) => buildEverything() || isEditionActive(id)).flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);
   const french = page.lang === "fr";

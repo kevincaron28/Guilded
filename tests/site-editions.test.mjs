@@ -6,7 +6,8 @@ import { editionSection } from '../site/nav.mjs';
 import { GAME_EDITIONS } from '../companion/game-edition.mjs';
 import { isEditionActive } from '../companion/active-editions.mjs';
 
-beforeAll(() => execFileSync(process.execPath, ['scripts/build-site.mjs'], { stdio: 'pipe' }), 30000);
+// Builds every edition page too (GUILDED_ALL_PAGES, site/focus.mjs): these tests cover the held editions' pages.
+beforeAll(() => execFileSync(process.execPath, ['scripts/build-site.mjs'], { stdio: 'pipe', env: { ...process.env, GUILDED_ALL_PAGES: '1' } }), 30000);
 const page = path => readFileSync(`dist/site/${path}`, 'utf8');
 const published = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.github.version;
 const curseforge = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.curseforge;

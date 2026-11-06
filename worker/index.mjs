@@ -213,7 +213,7 @@ async function route(request, env) {
     // visitor's remembered edition, Forever by default. Files (.json, .xml, .png) are never moved.
     if (!creator && dataPage && ["GET", "HEAD"].includes(request.method) && !/\.[a-z]{2,4}$/.test(pagePath)) {
       const askedSection = editionSection(url.searchParams.get("edition"));
-      const asked = askedSection && isEditionActive(askedSection.id) ? askedSection : editionSection("forever");
+      const asked = askedSection ? (isEditionActive(askedSection.id) ? askedSection : editionSection("forever")) : null;
       const destination = asked ?? (section ? null : rememberedEdition(request) ?? editionSection("forever"));
       if (destination && (!section || url.searchParams.has("edition"))) {
         const query = new URLSearchParams(url.search);

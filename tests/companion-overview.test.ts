@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+// Turns the Forever-only focus switches on for this file (see tests/helpers/focus-switches.ts).
+vi.mock("../companion/active-games.mjs", async (original) => (await import("./helpers/focus-switches.js")).poeTrackingOn(await original()));
 import { companionOverview } from '../companion/overview.mjs';
 
 describe('companion overview readiness', () => {

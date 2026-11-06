@@ -1,4 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
+// Turns the Forever-only focus switches on for this file (see tests/helpers/focus-switches.ts).
+vi.mock("../companion/active-editions.mjs", async (original) => (await import("./helpers/focus-switches.js")).allEditionsOn(await original()));
+vi.mock("../companion/active-games.mjs", async (original) => (await import("./helpers/focus-switches.js")).poeTrackingOn(await original()));
 const sync = vi.hoisted(() => vi.fn());
 vi.mock("../src/services/achievements.js", async (original) => ({ ...(await original<typeof import("../src/services/achievements.js")>()), syncMemberAchievements: sync }));
 import { createAchievementsWeb } from "../src/services/achievements-web.js";

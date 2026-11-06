@@ -17,7 +17,7 @@ details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summ
 .account-choice{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}.account-option{margin:8px 0 0;font-weight:500;color:var(--text)}.account-option input{width:16px;height:16px;accent-color:var(--gold)}
 
 /* Link everything wizard (8.5 Track L) */
-.wizard-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; list-style: none; padding: 0; margin: 0 0 12px; counter-reset: step; }
+.wizard-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; list-style: none; padding: 0; margin: 0 0 12px; counter-reset: step; }
 .wizard-steps li { counter-increment: step; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-weight: 600; opacity: .7; }
 .wizard-steps li::before { content: counter(step) ". "; }
 .wizard-steps li.current { opacity: 1; border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
@@ -37,3 +37,7 @@ details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summ
 .success-mark { font-size: 56px; line-height: 1; margin: 0; color: var(--green); }
 .success-text { font-size: 18px; }
 .login-location { opacity: .85; }
+.diagnostics li.fixed::before { content: "\2713  "; color: var(--gold); }
+.repair-dialog { min-width: min(560px, 92vw); }
+.repair-dialog .diagnostics li { padding: 6px 0; }
+.nav-web-label { margin-top: 10px; }

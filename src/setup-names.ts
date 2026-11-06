@@ -137,3 +137,11 @@ export const BG_SETUP_NAMES = {
   en: { category: "🏴 Battlegrounds", groups: "battleground-groups", results: "battleground-results", stats: "battleground-statistics" },
   fr: { category: "🏴 Champs de bataille", groups: "groupes-jcj", results: "resultats-jcj", stats: "statistiques-jcj" }
 } as const;
+
+// 8.5 track B2: the PvP category `/setup` creates when an officer switches the PvP module on. New channels use these names;
+// channels already named like BG_SETUP_NAMES (or saved in the settings) are adopted instead of duplicated. `stats` is the
+// ladder channel: the live duel board and battleground statistics live there.
+export const PVP_SETUP_NAMES = {
+  en: { category: "⚔️ PvP", groups: "pvp-groups", results: "pvp-results", stats: "pvp-ladder" },
+  fr: { category: "⚔️ JcJ", groups: "groupes-pvp", results: "resultats-pvp", stats: "classement-pvp" }
+} as const;

@@ -13,6 +13,7 @@ import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { blockVerifiedCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
 import { restoreNickname } from "../services/nickname-sync.js";
+import { addRaceSubcommand, executeRace } from "./race.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
@@ -61,7 +62,8 @@ export const characterCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) => subcommand
     .setName("nickname")
     .setDescription("If your server renames members to 'Name (Main)', opt out or back in.")
-    .addBooleanOption((option) => option.setName("on").setDescription("On = follow the server's format, off = keep your own nickname").setRequired(true)));
+    .addBooleanOption((option) => option.setName("on").setDescription("On = follow the server's format, off = keep your own nickname").setRequired(true)))
+  .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
 
 // The realm most of the guild's characters use, so nobody types it.
 async function defaultRealm(guildId: string): Promise<string> {
@@ -91,6 +93,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
       : (lang === "fr" ? `C'est noté : le bot ne touchera plus à ton pseudo.${restored ? " Ton ancien pseudo est rétabli." : ""}` : `Done: the bot will leave your nickname alone.${restored ? " Your previous nickname is back." : ""}`) });
     return;
   }
+  if (subcommand === "race") { await executeRace(interaction, context); return; }
   if (subcommand === "list") {
     const characters = await guildService.listCharacters(context.memberId);
     await interaction.reply({

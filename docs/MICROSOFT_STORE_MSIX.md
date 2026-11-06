@@ -1,5 +1,17 @@
 # Guilded Companion — Microsoft Store preparation
 
+## Updating the Store (every release, one command)
+
+1. `npm run store:package` builds the Store MSIX for the `package.json` version with the saved identity
+   (`backups/store-identity.json`, gitignored, or `STORE_IDENTITY=path`). It puts the package, its SHA-256 and
+   `STORE-STEPS.txt` in `Desktop\guilded-store-<version>\`.
+2. Follow `STORE-STEPS.txt` in Partner Center: wait for (or cancel) any submission still in certification,
+   replace the package, paste What's new (EN and FR), Submit, and publish on pass. The Store version is
+   `<version>.0` and must always increase, so never reuse a version.
+3. An agent using Claude in Chrome can upload the file. Chrome blocks plain fetches to 127.0.0.1, so serve the
+   folder locally and use `fetch(url, { targetAddressSpace: 'loopback' })`, then a DataTransfer on
+   `input.fileuploader`. If Partner Center asks to sign in again, the owner signs in. Agents never type credentials.
+
 **Current, 28 October 2026:** the [Store listing](https://apps.microsoft.com/detail/9N680XX3QFL9)
 published 8.0.1.0 through Submission 3. The actual Store package was installed,
 upgraded from 8.0.0.0 and activated on this PC;

@@ -2,6 +2,7 @@ import type { Guild } from "discord.js";
 import { CLASSES } from "../wow-data.js";
 import { CLASS_NAMES_FR } from "../permissions.js";
 import type { Lang } from "../i18n.js";
+import { foreverSameName } from "../../companion/character-identity.mjs";
 import { WOW_SPECIALIZATIONS, canonicalSpecialization, type SpecEmojiKey } from "../wow-specializations.js";
 
 type WowClass = typeof CLASSES[number];
@@ -36,6 +37,28 @@ export const SIGNUP_CHARACTER_SELECT = {
 export const GEAR_MAX_AGE_MS = 24 * 60 * 60_000;
 export function characterName(character: { name: string; displayName?: string | null }): string {
   return character.displayName?.trim() || character.name;
+}
+/**
+ * WoW Forever characters have a first AND a last name ("El Pirata"); older uploads and rows stored
+ * before 8.5 hold only the first ("El"). `displayCharacterName` shows the full name whenever any
+ * known source has it, so a boss board never prints a bare "El". `tiers` are lists of names in
+ * priority order: the linked Character's display/full name, then the guild roster snapshot, then the
+ * run players' own full names. A bare name takes the single full name that starts with it in the
+ * first tier that has one; two different full names in one tier are ambiguous and the stored name stays.
+ */
+export function displayCharacterName(name: string, ...tiers: readonly (readonly (string | null | undefined)[])[]): string {
+  const stored = name.trim().replace(/\s+/g, " ");
+  if (!stored) return name;
+  for (const tier of tiers) {
+    const full = new Map<string, string>();
+    for (const candidate of tier) {
+      const value = candidate?.trim().replace(/\s+/g, " ");
+      if (value && value.includes(" ") && foreverSameName(value, stored)) full.set(value.toLowerCase(), value);
+    }
+    if (full.size === 1) return [...full.values()][0]!;
+    if (full.size > 1) return stored;
+  }
+  return stored;
 }
 const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
 export function canonicalClass(value?: string | null): WowClass | undefined {

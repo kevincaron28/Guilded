@@ -108,7 +108,7 @@ export async function startSeason(database: Db, guildId: string, name: string, e
     const count = ending ? await tx.member.count({ where: { guildId } }) : 0;
     const top = ending ? await leaderboard(tx, guildId, "season", null, Math.max(count, 1)) : [];
     const rated = ending && hasDungeonRating(ending.ratingRules) ? await dungeonRating(tx, guildId, ending, null, true) : null;
-    const competition = rated ?? top;
+    const competition = (rated ?? top).filter(row => !("unlinked" in row && row.unlinked)); // champions are Discord members
     const champions = competition.filter((row) => row.points > 0 && row.points === competition[0]?.points);
     const ended = await tx.dungeonSeason.findMany({ where: { guildId, status: "ACTIVE" } });
     if (ending) {
@@ -161,8 +161,8 @@ export async function finalizeClosingSeasons(database: Db, now = new Date(), all
       const rating = await dungeonRating(tx, season.guildId, season, null, true);
       const rules = await tx.guildSettings.findUnique({ where: { guildId: season.guildId }, select: { dungeonConfig: true } });
       const best = new Map<string, number>();
-      for (const row of rating) best.set(row.bracket ?? "all", Math.max(best.get(row.bracket ?? "all") ?? 0, row.points));
-      for (const champion of rating.filter(row=>row.points > 0 && row.points === best.get(row.bracket ?? "all"))) {
+      for (const row of rating.filter(r => !r.unlinked)) best.set(row.bracket ?? "all", Math.max(best.get(row.bracket ?? "all") ?? 0, row.points));
+      for (const champion of rating.filter(row=>!row.unlinked && row.points > 0 && row.points === best.get(row.bracket ?? "all"))) {
         const key = `seasonChampion:${season.id}`;
         await tx.dungeonAchievement.upsert({ where: { guildId_memberId_key: { guildId: season.guildId, memberId: champion.memberId, key } },
           create: { guildId: season.guildId, memberId: champion.memberId, key, seasonId: season.id }, update: {} });

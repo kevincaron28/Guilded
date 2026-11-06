@@ -85,7 +85,7 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
           role ? roles[role] : undefined].filter(Boolean).join(" / ");
         const deathText = player.deaths === null ? (fr ? "morts non suivies" : "deaths untracked") : t(lang, "dungeon.deaths", { count: player.deaths });
         const mention = run.mentions?.[player.character];
-        lines.push(`${icons || "•"} 🏰 **${escapeMarkdown(player.character)}**${mention ? ` <@${mention}>` : ""}${info ? ` — ${escapeMarkdown(info)}` : ""}\n  ${deathText} · **${player.points} pts**`);
+        lines.push(`${icons || "•"} 🏰 **${escapeMarkdown(run.fullNames?.[player.character] ?? player.character)}**${mention ? ` <@${mention}>` : ""}${info ? ` — ${escapeMarkdown(info)}` : ""}\n  ${deathText} · **${player.points} pts**`);
         if (player.participationMode === "helper") lines.push(fr ? "  Aide : points de complétion seulement." : "  Helper: completion points only.");
         if (player.participationRecipient) lines.push(fr ? `  Points du compte attribués via ${escapeMarkdown(player.participationRecipient)}.` : `  Account points awarded through ${escapeMarkdown(player.participationRecipient)}.`);
         if (player.participationMode === "none") lines.push(run.ratingVersion === 5
@@ -96,7 +96,7 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
       }
       if (details.length > 8) lines.push(t(lang, "dungeon.post.more", { count: details.length - 8 }));
       if (details.some(player => player.specSource === "profile")) lines.push(fr ? "* Spé du profil lié; non relevée pendant ce donjon." : "* Spec from linked profile; not captured during this run.");
-    } else lines.push(`  ${[...members].map((name) => `🏰 ${escapeMarkdown(name)}${run.mentions?.[name] ? ` <@${run.mentions[name]}>` : ""}`).join(", ")}`);
+    } else lines.push(`  ${[...members].map((name) => `🏰 ${escapeMarkdown(run.fullNames?.[name] ?? name)}${run.mentions?.[name] ? ` <@${run.mentions[name]}>` : ""}`).join(", ")}`);
     if (outsiders.length) {
       lines.push(fr ? `**Hors guilde (${outsiders.length})**` : `**From outside the guild (${outsiders.length})**`);
       for (const player of outsiders.slice(0, 10)) {
@@ -104,7 +104,7 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
         const role = player.role === "DAMAGER" ? "DPS" : player.role;
         const info = [className ? (fr ? CLASS_NAMES_FR[className] ?? className : className) : player.class, role].filter(Boolean).join(" / ");
         const deaths = player.deaths === undefined || player.deaths === null ? "" : ` · ${t(lang, "dungeon.deaths", { count: player.deaths })}`;
-        lines.push(`🌐 **${escapeMarkdown(player.character)}**${info ? ` — ${escapeMarkdown(info)}` : ""}${deaths}`);
+        lines.push(`🌐 **${escapeMarkdown(run.fullNames?.[player.character] ?? player.character)}**${info ? ` — ${escapeMarkdown(info)}` : ""}${deaths}`);
       }
       if (outsiders.length > 10) lines.push(t(lang, "dungeon.post.more", { count: outsiders.length - 10 }));
     }
@@ -129,7 +129,7 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
     }
     const personalRecords = run.personalRecords.filter((record) => guildPlayers(run).has(record.character));
     if (personalRecords.length) {
-      highlights.push(t(lang, "dungeon.post.personal", { dungeon: label(run), names: personalRecords.map((record) => record.character).join(", ") }));
+      highlights.push(t(lang, "dungeon.post.personal", { dungeon: label(run), names: personalRecords.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
     }
   }
   const embed = new EmbedBuilder().setColor(0xd4a017).setTitle(t(lang, "dungeon.post.title"))
@@ -142,7 +142,7 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
     for (const achievement of run.achievements) {
       if (!guildPlayers(run).has(achievement.character)) continue;
       const name = achievementName(achievement.key, lang);
-      earned.set(name, [...(earned.get(name) ?? []), achievement.character]);
+      earned.set(name, [...(earned.get(name) ?? []), run.fullNames?.[achievement.character] ?? achievement.character]);
     }
   }
   if (earned.size) {

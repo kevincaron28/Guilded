@@ -1,6 +1,7 @@
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { integrityRole, readDungeonIntegrity, readPlayerIntegrity } from "./dungeon-integrity.js";
 import { characterKey } from "../../companion/character-identity.mjs";
+import { displayCharacterName } from "./character-display.js";
 import { readChallenge } from "./challenge-evidence.js";
 import { rankChallenges, challengeClock } from "./challenge-leaderboard.js";
 import { challengeScores, challengePolicyText } from "./challenge-rating.js";
@@ -185,6 +186,20 @@ export function leaderRun({ id, startedAt, evidenceVersion, completedBy, encount
   const players = row.players.map(p => ({ ...p, ...(observation ? { integrity: readPlayerIntegrity(data?.players?.find(q => characterId(q) === characterId(p))?.observation) } : {}) }));
   return { runId: id, ...row, players, ...(native ? { challenge: native } : {}), evidence: evidenceVersion >= 1 ? { startedAt, completedBy, encounters: Array.isArray(encounters) ? encounters : [], ...(observation ? { integrity: observation, receivedAt: evidenceReceivedAt } : {}) } : null };
 }
+/**
+ * Older uploads name a Forever character by its first name only ("El"). Where the same set of
+ * runs also shows that character's full name ("El Pirata"), the bare one is displayed in full (the
+ * `character` key, which identifies the score, is never changed).
+ */
+export function withFullDisplayNames(runs: LeaderRun[]): LeaderRun[] {
+  const known = [...new Set(runs.flatMap(run => run.players.flatMap(p => [p.displayName, p.character])).filter((v): v is string => !!v && v.includes(" ")))];
+  if (!known.length) return runs;
+  return runs.map(run => ({ ...run, players: run.players.map(p => {
+    const shown = p.displayName || p.character;
+    const full = displayCharacterName(shown, known);
+    return full === shown ? p : { ...p, displayName: full };
+  }) }));
+}
 const newestFirst = (a: LeaderRun, b: LeaderRun) => b.endedAt.getTime() - a.endedAt.getTime();
 
 export function prismaLeaderboardStore(database: PrismaClient, allows: (discordId: string) => boolean = () => true): LeaderboardStore {
@@ -196,7 +211,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     for (let cursor: string | null = null; ;) {
       const page: PublicRunRow[] = await database.publicRun.findMany({ where: { ...where, gameEdition: currentEdition() }, orderBy: { id: "asc" }, take: 5_000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: PUBLIC_RUN_SELECT });
       runs.push(...page.map(leaderRun));
-      if (page.length < 5_000) return runs;
+      if (page.length < 5_000) return withFullDisplayNames(runs);
       cursor = page[page.length - 1]!.id;
     }
   }

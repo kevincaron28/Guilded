@@ -196,15 +196,15 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
   const totals = await database.dungeonPointTransaction.groupBy({
     by: ["seasonId", "memberId"], where: { guildId, seasonId: { in: selected.filter(season => !ratingRows.has(season.id) && finalRows(season.finalStandings) === null).map(season => season.id) } }, _sum: { amount: true }
   });
-  const ids = [...new Set([...totals.map(row => row.memberId), ...selected.flatMap(season => (ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => row.memberId) ?? [])])];
+  const ids = [...new Set([...totals.map(row => row.memberId), ...selected.flatMap(season => (ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.filter(row => !("unlinked" in row && row.unlinked)).map(row => row.memberId) ?? [])])];
   const [members, characters] = await Promise.all([
     database.member.findMany({ where: { guildId, id: { in: ids } }, select: { id: true, displayName: true } }),
     database.character.findMany({ where: { member: { guildId }, memberId: { in: ids } },
-      orderBy: [{ isMain: "desc" }, { createdAt: "asc" }], select: { memberId: true, name: true } })
+      orderBy: [{ isMain: "desc" }, { createdAt: "asc" }], select: { memberId: true, name: true, displayName: true } })
   ]);
   const names = new Map(members.map(member => [member.id, member.displayName]));
   const mainName = new Map<string, string>();
-  for (const character of characters) if (!mainName.has(character.memberId)) mainName.set(character.memberId, character.name);
+  for (const character of characters) if (!mainName.has(character.memberId)) mainName.set(character.memberId, character.displayName?.trim() || character.name);
   const boards = selected.map(season => ({
     id: season.id, season: season.name, status: season.status,
     // ISO UTC; the addon labels each recent run with the season whose dates contain it.

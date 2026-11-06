@@ -33,6 +33,7 @@ end
 
 -- The extra tooltip lines for an item name (an empty list when there is nothing to say).
 function module.lines(itemName, link)
+  module.crafterExpandable = false
   local key = module.itemKey(itemName)
   local info = key and ns.getItemInsight and ns.getItemInsight(key)
   local lines = {}
@@ -48,7 +49,9 @@ function module.lines(itemName, link)
   -- Who in the guild can craft it (Modules/Recipes.lua).
   local craftId = ns.recipes and ns.recipes.keyFromLink and ns.recipes.keyFromLink(link)
   if craftId and craftId > 0 and (not ns.moduleActive or ns.moduleActive("recipes")) then
-    for _, line in ipairs(ns.recipes.tooltipLines(craftId)) do table.insert(lines, line) end
+    local craftLines, expandable = ns.recipes.tooltipLines(craftId)
+    for _, line in ipairs(craftLines) do table.insert(lines, line) end
+    module.crafterExpandable = expandable and true or false
   end
   if not info then return lines end
   local wish = info.wish or {}
@@ -87,8 +90,14 @@ local function decorate(tooltip, fresh)
   local lines = module.lines(name, link)
   if #lines == 0 then return end
   if not fresh then tooltip.guildedDone = true end
+  tooltip.guildedExpandable = module.crafterExpandable or nil
   for _, line in ipairs(lines) do
-    tooltip:AddLine("Guilded: " .. line, GOLD_R, GOLD_G, GOLD_B)
+    if type(line) == "table" then
+      -- Already formatted (the crafter lines): no prefix, wrapped when long.
+      tooltip:AddLine(line.raw, GOLD_R, GOLD_G, GOLD_B, line.wrap and true or nil)
+    else
+      tooltip:AddLine("Guilded: " .. line, GOLD_R, GOLD_G, GOLD_B)
+    end
   end
   if tooltip.Show then tooltip:Show() end
 end
@@ -113,9 +122,27 @@ local function hookTooltips()
   end
 end
 
+-- Pressing or releasing Shift while the tooltip is up swaps the short crafter line for the
+-- full list (and back): tooltips do not refresh on modifier changes by themselves.
+function module.refreshForShift(tooltip)
+  tooltip = tooltip or GameTooltip
+  if not (tooltip and tooltip.guildedExpandable and tooltip.IsShown and tooltip:IsShown()) then return false end
+  if tooltip.RefreshData then return pcall(tooltip.RefreshData, tooltip) end
+  if tooltip.GetItem and tooltip.SetHyperlink then
+    local _, link = tooltip:GetItem()
+    if type(link) == "string" then return pcall(tooltip.SetHyperlink, tooltip, link) end
+  end
+  return false
+end
+
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
-frame:SetScript("OnEvent", function()
+frame:RegisterEvent("MODIFIER_STATE_CHANGED")
+frame:SetScript("OnEvent", function(_, event, key)
+  if event == "MODIFIER_STATE_CHANGED" then
+    if key == "LSHIFT" or key == "RSHIFT" then pcall(module.refreshForShift) end
+    return
+  end
   local ok, err = pcall(hookTooltips)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "tooltip: " .. tostring(err)) end
 end)

@@ -102,6 +102,20 @@ function module.switches()
       get = function() local d = db(); return not (d and d.digest and d.digest.enabled == false) end,
       set = function(on) run(on and "digest on" or "digest off") end
     },
+    -- Who can craft an item, on its tooltip: Off / Compact / Full (a button that cycles).
+    {
+      label = L("Item tooltips: who can craft it"),
+      cycle = function()
+        local r = ns.recipes
+        local mode = r and r.tooltipMode and r.tooltipMode() or "compact"
+        return L(r and r.MODE_WORD and r.MODE_WORD[mode] or "Compact")
+      end,
+      next = function() local r = ns.recipes; if not r then return end
+        local order, current = r.MODES, r.tooltipMode()
+        for i, mode in ipairs(order) do if mode == current then r.setTooltipMode(order[i % #order + 1]) return end end
+        r.setTooltipMode("compact")
+      end
+    },
     -- Milestone announcements in guild chat: OFF until the player turns them on (8.4.5).
     {
       label = L("Announce my milestones in guild chat"),
@@ -147,10 +161,15 @@ local panel, category, boxes
 local function refresh()
   if not boxes then return end
   for _, box in ipairs(boxes) do
+    if box.switch.cycle then
+      local ok, text = pcall(box.switch.cycle)
+      box:SetText(ok and text or "")
+    else
     local ok, value = pcall(box.switch.get)
     box:SetChecked(ok and value and true or false)
     if box.state and box.switch.module and ns.moduleStateText then
       box.state:SetText(ns.moduleStateText(box.switch.module))
+    end
     end
   end
 end
@@ -193,9 +212,16 @@ local function build()
       header:SetText(L("Optional parts (a part turned back on starts after /reload)"))
       y = y - 26
     end
-    local box = CreateFrame("CheckButton", nil, list, "UICheckButtonTemplate")
-    box:SetSize(24, 24)
-    box:SetPoint("TOPLEFT", 16, y)
+    local box
+    if switch.cycle then
+      box = CreateFrame("Button", nil, list, "UIPanelButtonTemplate")
+      box:SetSize(90, 22)
+      box:SetPoint("TOPLEFT", 18, y - 1)
+    else
+      box = CreateFrame("CheckButton", nil, list, "UICheckButtonTemplate")
+      box:SetSize(24, 24)
+      box:SetPoint("TOPLEFT", 16, y)
+    end
     box.switch = switch
     local label = list:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     label:SetPoint("LEFT", box, "RIGHT", 4, 0)
@@ -205,7 +231,11 @@ local function build()
       box.state:SetPoint("LEFT", label, "RIGHT", 8, 0)
     end
     box:SetScript("OnClick", function(self)
-      pcall(self.switch.set, self:GetChecked() and true or false)
+      if self.switch.cycle then
+        pcall(self.switch.next)
+      else
+        pcall(self.switch.set, self:GetChecked() and true or false)
+      end
       refresh()
     end)
     table.insert(boxes, box)

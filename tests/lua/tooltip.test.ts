@@ -86,6 +86,27 @@ describe("Tooltip.lua", () => {
   });
 });
 
+describe("Tooltip.lua crafter lines", () => {
+  it("adds the crafter lines without the Guilded: prefix, wrapping the long one, and refreshes on Shift", () => {
+    const s = withTooltip();
+    s.run(`
+      NS.recipes = {
+        keyFromLink = function() return 555 end,
+        tooltipLines = function() return { { raw = "Guilded - First Aid: 4 crafters" }, { raw = "A, B, C +1 more", wrap = true } }, true end
+      }
+      ADDED, WRAP, REFRESHED = {}, {}, 0
+      TIP = { GetItem = function() return "Plain Sword", "item:555" end, IsShown = function() return true end,
+        RefreshData = function() REFRESHED = REFRESHED + 1 end,
+        AddLine = function(_, text, _, _, _, wrap) ADDED[#ADDED + 1] = text; WRAP[#WRAP + 1] = tostring(wrap) end, Show = function() end }
+      NS.tooltip.decorate(TIP, true)
+    `);
+    expect(s.run(`return table.concat(ADDED, "|")`)).toBe("Guilded - First Aid: 4 crafters|A, B, C +1 more");
+    expect(s.run(`return table.concat(WRAP, "|")`)).toBe("nil|true");
+    expect(s.run(`return tostring(NS.tooltip.refreshForShift(TIP))`)).toBe("true");
+    expect(s.run(`return REFRESHED`)).toBe("1");
+  });
+});
+
 describe("Tooltip.lua with the tooltip data processor", () => {
   it("adds the lines every time a tooltip is filled, comparison tooltips included", () => {
     const s = withTooltip();

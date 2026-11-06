@@ -243,6 +243,17 @@ member does not use (Pricing, Cores, Reserves, Wishlist) until the guild uses th
   in the guild digest until it is heard instead of losing it when nobody is online;
 - companion offers to install or update the matching addon (WoW closed check, correct edition folder).
 
+**F5. Store companion updates itself (owner request, 6 November 2026).** Today a Store install
+shows a button that opens `ms-windows-store://downloadsandupdates` (`companion-app/main.cjs`), and
+Windows' own Store auto-update installs it later, often hours afterwards. Build: when
+`process.windowsStore` is true, call the Windows Store API from the packaged app
+(`Windows.Services.Store.StoreContext`: `GetAppAndOptionalStorePackageUpdatesAsync`, then
+`TrySilentDownloadAndInstallStorePackageUpdatesAsync`, Windows 10 2004+), at most once every 6 hours
+and when WoW is not running, and restart the companion quietly after it closes. Fall back to the
+current button when the call is unavailable or fails. Mark future Store submissions' packages as
+mandatory in Partner Center so the API reports them as required. Needs a real Store install to
+test; the direct-download build already updates itself (8.4.7).
+
 **F4. Fresh computer test.** Run the member path end to end on a clean Windows profile (Windows
 Sandbox on the owner's Windows 10 Pro for the companion and folder steps; a real second PC for the
 Store and WoW steps). Time each step, screenshot each screen, fix what confuses, and rewrite

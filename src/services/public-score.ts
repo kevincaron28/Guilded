@@ -52,7 +52,9 @@ export interface PublicRuleSnapshot { format: 1; frozenAt: string; rules: Bracke
   calendar?: import("./official-periods.js").OfficialPeriodMetadata }
 // New official snapshots require the current stored evidence contract. Reading an
 // older snapshot never adds this policy or silently changes archived results.
-export const snapshotRules = (rules: BracketedRules, now: Date): PublicRuleSnapshot => ({ format: 1, frozenAt: now.toISOString(), rules: { ...rules, evidencePolicy: "current-v1" }, additions: [] });
+// A rule set that explicitly asks for current-v2 (an owner-reviewed Season 2, dungeon-season2.ts) keeps it;
+// everything else, including the default rules, freezes as current-v1.
+export const snapshotRules = (rules: BracketedRules, now: Date): PublicRuleSnapshot => ({ format: 1, frozenAt: now.toISOString(), rules: { ...rules, evidencePolicy: rules.evidencePolicy === "current-v2" ? "current-v2" : "current-v1" }, additions: [] });
 export function readRuleSnapshot(value: unknown): PublicRuleSnapshot | null {
   const s = value as PublicRuleSnapshot | null;
   return s && typeof s === "object" && s.format === 1 && typeof s.frozenAt === "string" && Array.isArray(s.additions) && validBracketedRules(s.rules) ? s : null;

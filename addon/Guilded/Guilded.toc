@@ -58,6 +58,7 @@ Modules\Attunements.lua
 Modules\Ready.lua
 Modules\GuildMap.lua
 Modules\CallForHelp.lua
+Modules\LevelPartners.lua
 Modules\Presence.lua
 Modules\ClientTools.lua
 Modules\RosterTools.lua

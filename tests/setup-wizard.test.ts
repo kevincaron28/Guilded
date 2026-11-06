@@ -45,8 +45,8 @@ describe("setup wizard screens", () => {
       expect(summary.components.length).toBeLessThanOrEqual(5);
       expect(summary.components.flatMap(r => r.toJSON().components).some(c => "custom_id" in c && c.custom_id === "setup:bg-open")).toBe(true);
       const optional = await renderStep(9, guild as never, "g1", "");
-      expect(optional.components).toHaveLength(4);
-      expect(optional.components.flatMap(r => r.toJSON().components).filter(c => "custom_id" in c && c.custom_id.startsWith("setup:bg-select-"))).toHaveLength(3);
+      expect(optional.components).toHaveLength(5);
+      expect(optional.components.flatMap(r => r.toJSON().components).filter(c => "custom_id" in c && c.custom_id.startsWith("setup:bg-select-"))).toHaveLength(4);
       for (const row of [...summary.components, ...optional.components]) expect(row.components.length).toBeLessThanOrEqual(5);
     }
     settings.language = "en";

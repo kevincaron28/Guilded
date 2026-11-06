@@ -174,8 +174,9 @@ describe("full names on the board (Forever, 8.4.x addons still upload first name
 
 describe("PvP channels", () => {
   it("adopts the battleground names and the new PvP names in both languages", () => {
-    expect(pvpChannelNames("stats")).toEqual(["battleground-statistics", "statistiques-jcj", "pvp-ladder", "classement-pvp"]);
+    expect(pvpChannelNames("stats")).toEqual(["battleground-statistics", "statistiques-jcj", "bg-ladder", "classement-cdb", "pvp-ladder", "classement-pvp"]);
     expect(pvpChannelNames("groups")).toContain("pvp-groups");
+    expect(pvpChannelNames("duels")).toEqual(["duel-ladder", "classement-duels"]);
   });
   it("does nothing for a server that has not switched the module on", async () => {
     const db = { guildSettings: { findUnique: vi.fn(async () => ({ pvpModuleEnabled: false })) } };

@@ -37,6 +37,19 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 - WoW asks "Allow custom scripts?" for `/run`. That is a game security setting, so it was declined.
   The tests use the real buttons instead.
 
+## Second PC, fresh install of the published 8.4.7 companion (6 November 2026, tester session)
+
+| Item | Result |
+| --- | --- |
+| Download via the stable `releases/latest` link | Pass: 123 MB in 11.7 s; the SHA-256 matches the v8.4.7 asset. Not code-signed (Authenticode: NotSigned). |
+| SmartScreen | Not observed: the tester launched from a shell. Expect a warning on a real double-click. |
+| Install | One click, about 10 s, into `%LOCALAPPDATA%\Programs\guilded-companion`. |
+| Launch after install | **Bug:** "cannot find …Guilded Companion.lnk". The launch runs before the shortcut exists, so the app doesn't open. Sent to Track F. |
+| Uninstall registry entry | **Bug:** empty InstallLocation. Sent to Track F. |
+| Leftover | `%LOCALAPPDATA%\guilded-companion-updater\installer.exe` (123 MB) stays behind. Sent to Track F. |
+| Addon present | That PC had no addon at all, and the companion doesn't install it. This is the member-journey gap (audit item 7); the F1 "addon missing" check must catch it. |
+| Discord sign-in and link | Waiting for the owner (12:00). |
+
 ## Still to do
 - Full test suite on the merged candidate (running).
 - Track K merge, then the two-PC window ([test plan](V8_5_0_GAME_TEST_PLAN.md)).

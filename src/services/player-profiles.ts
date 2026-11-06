@@ -1,3 +1,4 @@
+import { armoryAnchor } from "./armory-link.js";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { characterPath, runPath, leaderRun, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
 import { scoreRun, publicRules } from "./public-score.js";
@@ -134,7 +135,7 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
   const path = (id: string) => `/players/${encodeURIComponent(id)}`;
   function details(ctx: WebContext, profile: PlayerProfile): string {
     const { t, lang } = ctx;
-    const characters = profile.characters.map(char => `<li><a href="${link(characterPath({ character: char.name, realm: char.realm }), lang, { edition: char.gameEdition ?? "forever" })}">${escapeHtml(char.displayName || char.name)}</a> · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
+    const characters = profile.characters.map(char => `<li><a href="${link(characterPath({ character: char.name, realm: char.realm }), lang, { edition: char.gameEdition ?? "forever" })}">${escapeHtml(char.displayName || char.name)}</a>${armoryAnchor(char, t)} · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
     const runs = profile.runs.map(run => {
       const score = scoreRun(run, publicRules(gameEditionOf(run)));
       return `<tr><td><a href="${link(runPath(run.runId), lang, { edition: run.gameEdition ?? "forever" })}">${escapeHtml(run.dungeonName)}</a></td><td>${run.endedAt.toISOString().slice(0, 10)}</td><td>${formatDuration(run.durationSec)}</td><td>${score ? `${score.points}` : "—"}</td><td>${run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi")}</td></tr>`;

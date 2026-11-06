@@ -47,6 +47,27 @@ as possible, because screenshots are what cost the most.
 7. **Lua harness first.** Anything the fengari tests already cover (patterns, cooldowns, encoding)
    is not re-tested by hand; the tester only checks what needs the real client.
 
+## Two-PC window (one session, after the merge)
+
+The owner's second PC has WoW Forever (windowed) and Discord signed in as a second member, and a
+Claude session with Remote Control that reports to the coordinator. All two-player checks are done
+in **one planned window** after the 8.5 candidate is installed on both PCs, so nothing is retested:
+
+| Order | Main PC (Lebowski, coordinator's tester) | Second PC (second member) | Proves |
+| --- | --- | --- | --- |
+| 1 | — | Fresh install of the companion from the stable link, Sign in with Discord (owner types the login), `/reload` | F4 fresh install, F1 problems panel if anything fails, F2 settings |
+| 2 | Watch Discord | Read DMs | First-link DM (F3) arrives once |
+| 3 | Same zone, `/guilded help` (announced) | Watch for banner, click **On my way** | J: Defender banner, replies, guild chat line in Discord |
+| 4 | Duel the second character | Accept, finish | Duel recorded, duel ladder updates (B2), milestone line |
+| 5 | Log out, wait | `/guilded sync peers` | K: addon-only data relayed with provenance; ledger sync |
+| 6 | Log in | Watch Guilded chat tab | E1 online/offline line |
+| 7 | — | Check own nickname and Who's who in Discord | C2 nickname format, board |
+| 8 | — | Turn off nickname sync and Defenders for itself | Member off switches work |
+| 9 | — | Uninstall the companion; list what is left in `%APPDATA%`/`%LOCALAPPDATA%` | Clean uninstall |
+
+Second-PC session rules are the same as above; it sends each result to the coordinator, which records
+everything in `docs/V8_5_0_RELEASE_ACCEPTANCE.md`.
+
 ## Test list
 
 Each line: what to do, how to verify, and whether a screenshot is needed (S).

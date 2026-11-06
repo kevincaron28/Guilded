@@ -1,33 +1,12 @@
 > 8.4.6 (6 November 2026): member ledger sync (#379, on by default), the live Discord duel board and Season 1 dungeon panel (#378), the companion account-folder watch fix (#376), combat-safe addon windows (#377), the compact Crafted by tooltip (#375) and the Forever-only focus (#380, see docs/FOREVER_ONLY_FOCUS.md) on top of 8.4.5's announcements, duels and guild message assistant. The Store requires strictly increasing versions: ship the companion as 8.4.6.0 (revision 0).
-> Current checkpoint: 6 November 2026 (8.4.6 prepared; check each provider live before claiming status, including which Store version has certified). Member ledger sync, duels and announcements are not yet verified with several real clients.
-> Cards: `src/services/score-card.ts` renders every share card (WoW theme, roster layout); `end-cards.ts` builds the raid and battleground cards; queued Discord messages store a card definition and draw it on delivery. Point-in-time handoffs, audits and evidence from before 8.4 live in docs/archive/.
-> Latest owner authorization: ALL AVAILABLE TESTING NOW. The older wait-until-launch waiver is superseded. Claude acknowledged the expanded QA handoff and completed a first pass; Retail evidence is addon8.2, native isolated-profile evidence8.3.
-> Active release evidence: docs/V8_4_0_RELEASE_ACCEPTANCE.md; previous deployed evidence: docs/V8_3_0_RELEASE_ACCEPTANCE.md. Historical statements below are not current provider status.
-> Keep selected edition calendars unchanged. Preserve published8.2 and8.3 artifact bytes. Forever live acceptance remains NOT RUN until an actual client is available.
-> Root owns integration/release. Native/game testing is assigned to Claude; avoid concurrent desktop control. No automatic messages/awards without configured opt-in. Exception (owner decision, 5 November 2026): the addon's guild-chat milestone announcements (levels, first dungeon clears, PvP and duel milestones) are ON by default for members, after a one-time local notice; members turn them off with `/guilded announce off`, and an officer's guild-wide off switch wins. Discord echoes of them stay opt-in per server.
-
-## November 4 launch preparation — 29 October
-
-The owner targets November 4 for the next launch release, with justified feature
-work beforehand and tester-driven fixes during launch day. Follow
-`docs/LAUNCH_AUDIT_2026-10-29.md` for the fresh competitive review and work queue.
-The audit reproduced intermittent public companion HTTP 530 / error 1016
-failures. They are now resolved with the stable bot.kcaron.top origin and
-120/120 live route probes; see docs/LAUNCH_BLOCKER_RESOLUTION_2026-10-29.md.
-PRs #262 and #263 are merged. Preserve published 8.0.2 artifacts.
-The audit branch also prevents service-error floods from hiding player reports
-in the developer bug inbox; this CLI correction does not itself require a bot
-deployment. Remaining manual acceptance is still waived, not passed.
-Loot-history import now includes the desktop converter, officer preview and typed
-confirmation, persistent local history, deduplication and undo; see
-`docs/LOOT_HISTORY_IMPORT.md`. PR #265 completes this source feature for the next
-release; PR #265 is merged. Actual game acceptance remains unperformed; published
-8.0.2 is unchanged. Candidate work is on codex/nov4-release-candidate.
-
-Automatic sync and optional Battle.net source work is documented in
-`docs/AUTOMATIC_SYNC_HANDOFF_2026-10-29.md`; developer-app setup is in
-`docs/BATTLENET_SETUP.md`. Integrate with the November 4 release candidate after
-Claude's independent edition/raid work. No separate version bump or publication.
+> Next release: **8.5.0**, planned track by track in `ROADMAP.md` (tracks A-H, file ownership and migration timestamps per track). Work one track per session; only the coordinating session bumps the version.
+> Current checkpoint: 6 November 2026 (8.4.6 published; check each provider live before claiming status, including which Store version has certified). Member ledger sync, duels and announcements are not yet verified with several real clients.
+> Cards: `src/services/score-card.ts` renders every share card (WoW theme, roster layout); `end-cards.ts` builds the raid and battleground cards; queued Discord messages store a card definition and draw it on delivery.
+> Docs: `docs/` holds living guides and design notes plus the 8.3+ release records; point-in-time handoffs, audits and older release notes live in `docs/archive/` (`docs/archive/releases/` for release notes and evidence before 8.3). Archived docs are history, not current status.
+> Latest owner authorization: ALL AVAILABLE TESTING NOW. Native/game testing is assigned to Claude; avoid concurrent desktop control.
+> Release evidence: `docs/V8_4_6_RELEASE_ACCEPTANCE.md` (latest), earlier 8.4.x and `docs/V8_3_0_RELEASE_ACCEPTANCE.md` beside it. Preserve published artifact bytes; never overwrite a published download.
+> Keep selected edition calendars unchanged ([EDITION_CALENDARS_2026-10-30.md](docs/EDITION_CALENDARS_2026-10-30.md)).
+> No automatic messages/awards without configured opt-in. Exception (owner decision, 5 November 2026): the addon's guild-chat milestone announcements (levels, first dungeon clears, PvP and duel milestones) are ON by default for members, after a one-time local notice; members turn them off with `/guilded announce off`, and an officer's guild-wide off switch wins. Discord echoes of them stay opt-in per server.
 
 # Working on Guilded
 
@@ -40,36 +19,21 @@ feature's design notes, as an example of this file's format for a specific
 feature).
 
 **Current status (6 November 2026): version 8.4.6, protocol 2.**
-GitHub v8.4.0 is the latest published release and the bot runs 8.4.0 code until 8.4.1 is deployed; provider records below may lag. WoW Forever launches
-4 November 2026 (beta closed 21 October); its first raids open 9 December.
+8.4.6 is published (GitHub, CurseForge Forever-only, bot deployed; Store in certification at
+publication time). WoW Forever launched 4 November 2026; its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-Provider records from 8.0.2 and 8.1.0 are historical (Store submissions, CurseForge approvals, the standalone EXE
-staying unsigned): see docs/NOV4_RELEASE_STATUS.md and docs/V8_4_0_RELEASE_ACCEPTANCE.md, and check each provider live before claiming status.
-Current per-provider evidence: `docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md`.
-The WoW edition pages are live. Message earning covers accessible guild channels/threads;
-officers can inspect coverage with `/participation channels`. See `docs/PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md`.
-Use the release evidence for each published artifact; historical 7.4.0 approval records
-are not evidence for a new 8.0 upload. Current work: `docs/V8_0_LAUNCH_READINESS.md`.
-Both addons have
-Forever, Era, TBC, Mists and Retail builds; the Windows companion supports all.
-See `docs/archive/SESSION_HANDOFF_2026-10-25.md` for current delivery and unfinished work.
-Follow `docs/archive/LAUNCH_READINESS_2026-10-24.md` before acting on older holds or
-unchecked historical lists. The owner authorized publication on 25 October; retain pending game checks as follow-up.
-Do not overwrite published 7.3.2 downloads or bump the version incidentally.
-Read `docs/UPDATE_ALL_2026-10-14.md`,
-`docs/DUNGEON_DEPLOYMENT_2026-10-14.md` and
-`docs/V6_2_STANDALONE_AND_GAMES.md` for current evidence and pending acceptance.
-Read `docs/V5_0_RELEASE_HANDOFF.md` first for deployment gates, then
-`docs/V6_1_RELEASE_NOTES.md` for the published client. The 6.0 records are historical.
-The owner reports the addon installed on both PCs. Fresh-guild setup is being
-rehearsed locally; see `docs/FRESH_INSTALL_REHEARSAL.md` and `docs/QUICK_START.md`.
-Use `npm run setup:check` to check a new owner's configuration without starting
-the bot. Live deployment, final-commit CI and stable publication remain separate gates.
+Both addons keep Forever, Era, TBC, Mists and Retail builds in source, but only Forever is shown
+to members (`companion/active-editions.mjs`). Message earning covers accessible guild
+channels/threads; officers inspect coverage with `/participation channels`
+(`docs/PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md`). Loot-history import: `docs/LOOT_HISTORY_IMPORT.md`.
+Battle.net developer-app setup: `docs/BATTLENET_SETUP.md`. Still-owed real-client checks are
+listed under "Carried over" in `ROADMAP.md`. Use `npm run setup:check` to check a new owner's
+configuration without starting the bot. Live deployment, final-commit CI and stable publication
+remain separate gates. Do not bump the version incidentally.
 
 Raid tools were removed from Guilded v6 and archived in
 `docs/archive/raid-tools/README.md` for a future standalone addon. Preserve
-SavedVariables. The 5.0/4.6/4.5 handoffs describe feature history, not current
-version or release status. Standalone first-run work is tracked in
+SavedVariables. Standalone first-run work is tracked in
 `docs/STANDALONE_ADDON_ROADMAP.md`.
 
 This file is for whichever agent picks this repo up next — including a cloud
@@ -230,16 +194,8 @@ through a pull request, then `npm run bugs -- resolve REF [REF...] --note "what 
 - `addon/Guilded/` — the WoW Lua addon; `tests/lua/` runs the real `.lua`
   files against a mocked game client (fengari), not a JS reimplementation.
 
-## Published public redesign and pending companion release — 19 October 2026
+## Website deployments
 
-Read `docs/WEBSITE_AND_COMPANION_HANDOFF_2026_10_19.md` before the next deployment.
-Both public sites already use PR156 assets revision `be58843`; preserve the ribbon KC,
-fresh sanitized screenshots and completed private owner behavior. Integrate PR156 before
-building from an older checkout so the next deployment cannot revert the published design.
-The normal Worker build matches the active preserved module exactly. Main merges trigger
-Cloudflare site builds/deploys, but no installer or bot release. Companion source integration
-does not satisfy its real-client release gates. PR151 error-origin reporting was integrated in
-7.2.1 (`src/services/report-context.ts`). Never bump the shared
-product version incidentally or deploy unrelated unaccepted backend changes to ship styling.
-Codex's local coordination notes from 19 October (PR156/PR164 rollout records) are archived in
-`docs/archive/CODEX_COORDINATION_2026-10-19.md`.
+Main merges trigger Cloudflare site builds/deploys, but no installer or bot release. Never deploy
+unrelated unaccepted backend changes to ship styling. History of the October redesign rollout:
+`docs/archive/WEBSITE_AND_COMPANION_HANDOFF_2026_10_19.md`.

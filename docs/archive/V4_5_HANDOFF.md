@@ -4,7 +4,7 @@ What 4.5 changed, where, and what is left. Written for whoever picks this up nex
 VS Code, or another Claude session). Version is **4.5.0** everywhere (`package.json`,
 `package-lock.json`, `companion-app/package.json` + lock, `Guilded.toc`). 4.0.0 was never
 published: 4.5.0 is the first public release and includes the addon audit
-(`docs/ADDON_AUDIT_HANDOFF.md`) and all of 4.0.
+(`docs/archive/ADDON_AUDIT_HANDOFF.md`) and all of 4.0.
 
 ## What is left, in order (maintainer's PC)
 

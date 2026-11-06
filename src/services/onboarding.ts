@@ -31,6 +31,10 @@ const guildService = createGuildService(prisma);
 // Exported so tests can stub settings lookups.
 export const onboardingGuildService = guildService;
 
+import { findWowRoleId } from "./invite-channel.js";
+import { requestInviteRow } from "./invite-request.js";
+import { previewAllows } from "./feature-preview.js";
+
 export const ONBOARD_PREFIX = "onboard:";
 export const MAX_ONBOARDING_ROLES = 25;
 const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
@@ -275,7 +279,11 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
     const progress = { ...await loadProgress(guild.id, settings, member), games: picked.length > 0 };
     const lines = [picked.length ? t(lang, "onboard.games.saved", { roles: picked.map((role) => `**${role.name}**`).join(", ") }) : t(lang, "onboard.games.none")];
     if (failed.length) lines.push(t(lang, "onboard.games.failed", { roles: failed.join(", ") }));
-    await interaction.editReply({ content: `${lines.join("\n")}\n\n${await checklist(progress)}`, components: [buttons()] });
+    // Picked World of Warcraft and the server has an invite channel: offer the one-click guild invite request.
+    const wowRoleId = findWowRoleId(discordGuild.roles.cache.values(), settings.inviteWowRoleId);
+    const inviteRow = wowRoleId && held.has(wowRoleId) && settings.inviteChannelId && settings.inviteQueueEnabled && previewAllows(discordGuild.id)
+      ? [requestInviteRow(lang, discordGuild.id)] : [];
+    await interaction.editReply({ content: `${lines.join("\n")}\n\n${await checklist(progress)}`, components: [buttons(), ...inviteRow] });
     return;
   }
 

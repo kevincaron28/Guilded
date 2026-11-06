@@ -252,6 +252,19 @@ const STRINGS = {
     en: "Welcome to **{server}**! To be invited to the guild in game, post your **full character name** (first and last name) in <#{channel}>. An officer will invite you, and I will put a ✅ on your message when it is done.",
     fr: "Bienvenue sur **{server}** ! Pour être invité dans la guilde en jeu, écris le **nom complet de ton personnage** (prénom et nom) dans <#{channel}>. Un officier t'invitera, et je mettrai un ✅ sur ton message quand ce sera fait."
   },
+  "invite.button": { en: "Request a guild invite", fr: "Demander une invitation de guilde" },
+  "invite.modalTitle": { en: "Guild invite", fr: "Invitation de guilde" },
+  "invite.modalLabel": { en: "Full character name (First Last)", fr: "Nom complet du personnage (Prénom Nom)" },
+  "invite.invalid": {
+    en: "That does not look like a full character name. Write it as **First Last**, for example `Lebowski Holyroller`.",
+    fr: "Ça ne ressemble pas à un nom de personnage complet. Écris-le comme **Prénom Nom**, par exemple `Lebowski Holyroller`."
+  },
+  "invite.confirmed": {
+    en: "✅ Your request is in <#{channel}>. An officer will invite you in game, and a ✅ will appear on it when it is done.",
+    fr: "✅ Ta demande est dans <#{channel}>. Un officier t'invitera en jeu, et un ✅ apparaîtra dessus quand ce sera fait."
+  },
+  "invite.duplicate": { en: "You already asked for this character, so nothing was added. An officer will get to it.", fr: "Tu as déjà demandé pour ce personnage, rien n'a été ajouté. Un officier s'en occupera." },
+  "invite.unavailable": { en: "Guild invites are not open on this server right now. Ask an officer.", fr: "Les invitations de guilde ne sont pas ouvertes sur ce serveur pour le moment. Demande à un officier." },
   "companion.firstLinkMore": { en: " and {count} more", fr: " et {count} de plus" },
   "verify.moved": {
     en: "**{name}** was unlinked from your Discord account on **{server}**: an officer's Guilded heard another member's `/guilded verify` code from that character. If it is yours, ask an officer.",

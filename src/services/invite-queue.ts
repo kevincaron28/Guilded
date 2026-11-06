@@ -6,6 +6,9 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 
 type Database = Pick<PrismaClient, "inviteRequest">;
 
+/** The bot's "seen, waiting for an invite" reaction. */
+export const SEEN = "👀";
+
 export interface ParsedInviteName { displayName: string; nameKey: string }
 
 const WORD = String.raw`[\p{L}][\p{L}'’-]{1,23}`;

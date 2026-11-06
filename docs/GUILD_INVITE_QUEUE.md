@@ -61,3 +61,13 @@ On top of the queue, written from scratch (the idea comes from Kinfolk; no code 
 
 Migration `20261230000001_recruiting_kit`. Command size: `/mod` is at 3,888 of the 3,900 test margin, so the `invites`
 descriptions are deliberately terse; any new `/mod` text needs trimming elsewhere.
+
+## Request a guild invite button (9.0, owner request)
+
+A member who picks World of Warcraft in the onboarding game menu, or receives the World of Warcraft role DM, sees a
+**Request a guild invite** button (`src/services/invite-request.ts`). It opens a form for the full character name (First Last,
+validated with `parseInviteName`). On submit the bot posts `<@member> → **First Last**` in the invite channel itself
+(mentions switched off, so nobody is pinged), queues it with 👀 and confirms privately with a link to the channel.
+A plain DM reply that looks like a full name works too, but only for members the bot already asked (`InviteDm`), so the bot
+does not react to random DMs (`DirectMessages` intent plus the channel partial). One request per member per character; a
+repeat is answered "already asked" and posts nothing. Follows `queue` and `previewAllows()` like the rest of the queue.

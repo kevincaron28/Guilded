@@ -267,6 +267,11 @@ export const addonSnapshotSchema = z.object({
   // malformed row never rejects the upload.
   duelResults: z.array(z.unknown()).max(200).default([]),
   milestones: z.array(z.unknown()).max(300).default([]),
+  // 8.5 guild data (services/guild-data.ts): the game's guild roster, event log and info text.
+  // Validated row by row on apply, so one odd row never rejects the upload.
+  guildRoster: z.object({ at: z.number().int().positive(), complete: z.boolean().default(false), members: z.array(z.unknown()).max(1000).default([]) }).optional(),
+  guildEvents: z.array(z.unknown()).max(500).default([]),
+  guildInfo: z.object({ at: z.number().int().positive(), motd: z.string().max(255).optional(), info: z.string().max(1000).optional() }).optional(),
   // Rows left out because they were malformed (see parseAddonSnapshot); the rest still imports.
   rejected: z.array(z.object({ section: z.string().max(40), label: z.string().max(120), reason: z.string().max(200) })).max(MAX_REJECTED).default([])
 });
@@ -306,6 +311,13 @@ export function parseAddonSnapshot(payload: unknown): AddonSnapshot {
       }
       return false;
     });
+  }
+  // Guild data (8.5) is extra: a malformed block is left out, never the whole upload.
+  for (const section of ["guildRoster", "guildInfo"] as const) {
+    if (cleaned[section] !== undefined && !addonSnapshotSchema.shape[section].safeParse(cleaned[section]).success) {
+      delete cleaned[section];
+      if (rejected.length < MAX_REJECTED) rejected.push({ section, label: section, reason: "malformed, left out" });
+    }
   }
   if (rejected.length) cleaned["rejected"] = rejected;
   const parsed = addonSnapshotSchema.parse(cleaned);

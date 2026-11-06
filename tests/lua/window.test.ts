@@ -726,3 +726,65 @@ describe("minimap button shortcuts (Track E2)", () => {
     expect(s.run(`return MENU.buttons[#MENU.buttons - 1].text.text`)).toBe("Call for help");
   });
 });
+
+// 8.5 in-game test (French Forever): the minimap button was missing and /guilded minimap show was silent.
+describe("the minimap button", () => {
+  // A frame that really reports whether it is visible, and a client that rejects the middle button and the highlight texture.
+  const STRICT_CLIENT = String.raw`
+    local make = CreateFrame
+    function CreateFrame(kind, frameName, ...)
+      local f = make(kind, frameName, ...)
+      if frameName == "GuildedMinimapButton" then
+        MINIMAP_BUTTON = f
+        f.IsVisible = function(self) return self.shown end
+        f.RegisterForClicks = function(self, ...)
+          for _, name in ipairs({ ... }) do if name == "MiddleButtonUp" then error("unknown click type") end end
+          self.clicks = { ... }
+        end
+        f.SetHighlightTexture = function() error("no such texture") end
+      end
+      return f
+    end
+  `;
+  const minimap = (s: LuaSession, ...args: string[]) => s.run(`NS.commandHandlers["minimap"]({ ${args.map((a) => JSON.stringify(a)).join(", ")} }); return NS.windowState and "ok" or "ok"`);
+
+  it("is anchored and shown even when the client refuses parts of its setup", () => {
+    const s = openWindow(1, STRICT_CLIENT);
+    expect(s.run(`return tostring(MINIMAP_BUTTON.shown) .. ":" .. #MINIMAP_BUTTON.points .. ":" .. #MINIMAP_BUTTON.clicks`)).toBe("true:1:2");
+  });
+
+  it("always says what show, hide and reset did", () => {
+    const s = openWindow(1, STRICT_CLIENT);
+    minimap(s, "hide");
+    expect(s.chat().join("\n")).toContain("Minimap button hidden");
+    expect(s.run(`return tostring(MINIMAP_BUTTON.shown)`)).toBe("false");
+    minimap(s, "show");
+    expect(s.chat().join("\n")).toContain("Minimap button shown");
+    expect(s.run(`return tostring(MINIMAP_BUTTON.shown) .. ":" .. tostring(GuildedDB.settings.minimapHidden)`)).toBe("true:false");
+    minimap(s, "reset");
+    expect(s.chat().filter((line) => line.includes("Minimap button shown")).length).toBe(2);
+  });
+
+  it("moves the button onto the screen when the minimap itself is hidden", () => {
+    const s = openWindow(1, STRICT_CLIENT);
+    // Button shows but the game says it is not visible (its parent is hidden).
+    s.run(`MINIMAP_BUTTON.IsVisible = function() return false end`);
+    minimap(s, "show");
+    expect(s.chat().join("\n")).toContain("top right of the screen");
+    expect(s.run(`return MINIMAP_BUTTON.points[1][1]`)).toBe("TOPRIGHT");
+  });
+});
+
+describe("Home page link buttons (8.5 in-game fix)", () => {
+  it("puts Remove code right beside Save code, so a longer translation cannot overlap it", () => {
+    const s = openWindow(1);
+    const anchor = s.run(`local save, remove
+      for _, f in ipairs(FRAMES) do
+        if f.text == "Save code" then save = f end
+        if f.text == "Remove code" then remove = f end
+      end
+      local p = remove.points[#remove.points]
+      return p[1] .. ":" .. p[3] .. ":" .. tostring(p[2] == save) .. ":" .. p[4]`);
+    expect(anchor).toBe("LEFT:RIGHT:true:6");
+  });
+});

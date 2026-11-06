@@ -86,3 +86,23 @@ describe("levelling partners", () => {
     expect(lua.run(`return NS.L("Levelling partners")`)).toBe("Levelling partners");
   });
 });
+
+describe("levelling partners window background (8.5 in-game fix)", () => {
+  it("draws a solid background of its own, so it is never see-through over the panel", () => {
+    setup();
+    s!.run(`SOLID = 0
+      local make = CreateFrame
+      CreateFrame = function(...)
+        local f = make(...)
+        local create = f.CreateTexture
+        f.CreateTexture = function(self, ...)
+          local t = create(self, ...)
+          if type(t) == "table" then t.SetColorTexture = function() SOLID = SOLID + 1 end end
+          return t
+        end
+        return f
+      end`);
+    expect(s!.run(`return tostring(NS.levelPartners.open())`)).toBe("true");
+    expect(s!.run(`return SOLID`)).toBe("1");
+  });
+});

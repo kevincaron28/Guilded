@@ -127,6 +127,13 @@ local function ensureWindow()
       edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 16, edgeSize = 16,
       insets = { left = 4, right = 4, top = 4, bottom = 4 } })
   end
+  -- A solid back as well: the dialog texture alone left the window see-through on one client.
+  if window.CreateTexture then
+    local solid = window:CreateTexture(nil, "BACKGROUND")
+    solid:SetPoint("TOPLEFT", window, "TOPLEFT", 4, -4)
+    solid:SetPoint("BOTTOMRIGHT", window, "BOTTOMRIGHT", -4, 4)
+    if solid.SetColorTexture then solid:SetColorTexture(0.04, 0.04, 0.05, 0.96) end
+  end
   window.title = window:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   window.title:SetPoint("TOP", window, "TOP", 0, -12)
   window.empty = window:CreateFontString(nil, "OVERLAY", "GameFontHighlight")

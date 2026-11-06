@@ -22,11 +22,18 @@ local function after(value, since)
 end
 
 -- Builds the digest lines for everything newer than `since` (ISO string).
+local function L(text) return ns.L and ns.L(text) or text end
+-- The player's own time (or "today 11:56") instead of raw UTC; the raw text when that is not possible.
+local function whenText(iso)
+  local text = ns.util and ns.util.whenText and ns.util.whenText(iso)
+  return text or iso
+end
+
 local function build(db, since)
   local lines = {}
   -- Joined the guild since (raid pugs are in the roster too, with inGuild = false).
   local newMembers = count(db.roster, function(e) return e.inGuild ~= false and after(e.joinedAt or e.firstSeen, since) end)
-  if newMembers > 0 then table.insert(lines, string.format("%d new guild member(s) seen", newMembers)) end
+  if newMembers > 0 then table.insert(lines, string.format(L("%d new guild member(s) seen"), newMembers)) end
 
   local ledger = 0
   for _, account in pairs(db.epgp or {}) do
@@ -34,13 +41,13 @@ local function build(db, since)
       if type(entry) == "table" and after(entry.at, since) then ledger = ledger + 1 end
     end
   end
-  if ledger > 0 then table.insert(lines, string.format("%d EPGP change(s)", ledger)) end
+  if ledger > 0 then table.insert(lines, string.format(L("%d EPGP change(s)"), ledger)) end
 
   local raids = count(db.raids, function(e) return after(e.endedAt, since) end)
-  if raids > 0 then table.insert(lines, string.format("%d raid(s) finished", raids)) end
+  if raids > 0 then table.insert(lines, string.format(L("%d raid(s) finished"), raids)) end
 
   local loot = count(db.loot, function(e) return after(e.at, since) end)
-  if loot > 0 then table.insert(lines, string.format("%d item(s) looted", loot)) end
+  if loot > 0 then table.insert(lines, string.format(L("%d item(s) looted"), loot)) end
   return lines
 end
 
@@ -67,16 +74,16 @@ local function show(force)
   if not digest then return end
   if not digest.lastSeen then
     if not force then return end
-    ns.message("No earlier login recorded yet; the digest starts from now.")
+    ns.message(L("No earlier login recorded yet; the digest starts from now."))
     showVia()
     return
   end
   local lines = build(db, digest.lastSeen)
   if #lines == 0 then
-    if force then ns.message("Nothing new since " .. digest.lastSeen .. "."); showVia() end
+    if force then ns.message(string.format(L("Nothing new since %s."), whenText(digest.lastSeen))); showVia() end
     return
   end
-  ns.message("Since your last login (" .. digest.lastSeen .. "): " .. table.concat(lines, ", ") .. ".")
+  ns.message(string.format(L("Since your last login (%s): %s."), whenText(digest.lastSeen), table.concat(lines, ", ")))
   showVia()
 end
 module.show = show

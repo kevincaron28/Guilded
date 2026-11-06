@@ -616,4 +616,35 @@ describe("in-game UI fixes from the 5 November pass", () => {
     s.run(`NS.closeGuildPanel(HOST)`);
     expect(s.run("return tostring(PANEL.shown)")).toBe("true");
   });
+
+  it("never hides or re-parents the embedded panel in combat: it waits for PLAYER_REGEN_ENABLED", () => {
+    const s = openWindow(1);
+    s.run(String.raw`
+      HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "EPGP")
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then PANEL = f end end
+      COMBAT = false; BLOCKED = 0
+      function InCombatLockdown() return COMBAT end
+      -- Like a protected frame: these calls are refused in combat (ADDON_ACTION_BLOCKED).
+      local realHide, realParent = PANEL.Hide, PANEL.SetParent
+      PANEL.Hide = function(self) if COMBAT then BLOCKED = BLOCKED + 1 return end; self.shown = false; if self.scripts.OnHide then self.scripts.OnHide(self) end end
+      PANEL.SetParent = function(self, parent) if COMBAT then BLOCKED = BLOCKED + 1 return end; self.parent = parent end
+      PANEL.ClearAllPoints = function(self) if COMBAT then BLOCKED = BLOCKED + 1 return end; self.points = {} end
+      PANEL.shown = true
+      COMBAT = true
+      NS.closeGuildPanel(HOST)
+      NS.closeGuildPanel(HOST)
+    `);
+    expect(s.run("return BLOCKED")).toBe("0");
+    expect(s.run("return tostring(PANEL.shown)")).toBe("true");
+    expect(s.run(`return tostring(NS.util.pendingAfterCombat("guilded-panel-close"))`)).toBe("true");
+    // Hiding by other means (Escape) in combat: the re-parenting waits too.
+    s.run(`PANEL.shown = false; PANEL.scripts.OnHide(PANEL)`);
+    expect(s.run("return BLOCKED")).toBe("0");
+    expect(s.run(`return tostring(NS.util.pendingAfterCombat("guilded-panel-restore"))`)).toBe("true");
+    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(s.run("return BLOCKED")).toBe("0");
+    expect(s.run(`return tostring(NS.util.pendingAfterCombat("guilded-panel-close"))`)).toBe("false");
+    expect(s.run("return tostring(PANEL.parent == UIParent)")).toBe("true");
+    expect(s.run("return NS.windowState().scope")).toBe("main");
+  });
 });

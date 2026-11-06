@@ -248,7 +248,10 @@ shows a button that opens `ms-windows-store://downloadsandupdates` (`companion-a
 Windows' own Store auto-update installs it later, often hours afterwards. Build: when
 `process.windowsStore` is true, call the Windows Store API from the packaged app
 (`Windows.Services.Store.StoreContext`: `GetAppAndOptionalStorePackageUpdatesAsync`, then
-`TrySilentDownloadAndInstallStorePackageUpdatesAsync`, Windows 10 2004+), at most once every 6 hours
+`TrySilentDownloadAndInstallStorePackageUpdatesAsync` on Windows 11 and Windows 10 2004+; on
+Windows 10 1607-1909, where the silent call does not exist, `RequestDownloadAndInstallStorePackageUpdatesAsync`,
+which shows one small Store "Update" prompt instead of opening the Store; Windows 7/8 cannot run
+Store apps or current Electron, so those members use the direct download), at most once every 6 hours
 and when WoW is not running, and restart the companion quietly after it closes. Fall back to the
 current button when the call is unavailable or fails. Mark future Store submissions' packages as
 mandatory in Partner Center so the API reports them as required. Needs a real Store install to

@@ -80,9 +80,10 @@ export function safeReturnPath(path: string | null | undefined): string {
   return path && path.length <= 300 && RETURN_PATH.test(path) && !path.includes("//") ? path : "/me/";
 }
 
-export function authorizeUrl(auth: WebAuthConfig, state: string): string {
+/** `chooseAccount`: Discord shows the signed-in account with its "Not you?" link (companion "Switch"). */
+export function authorizeUrl(auth: WebAuthConfig, state: string, chooseAccount = false): string {
   const url = new URL("https://discord.com/oauth2/authorize");
-  url.search = new URLSearchParams({ response_type: "code", client_id: auth.clientId, scope: "identify", redirect_uri: `${auth.siteUrl}/auth/callback`, state }).toString();
+  url.search = new URLSearchParams({ response_type: "code", client_id: auth.clientId, scope: "identify", redirect_uri: `${auth.siteUrl}/auth/callback`, state, ...(chooseAccount ? { prompt: "consent" } : {}) }).toString();
   return url.href;
 }
 

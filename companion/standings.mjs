@@ -1,4 +1,4 @@
-import { standingsToLua } from "./standings-format.mjs";
+import { standingsToLua, linkedAsLua } from "./standings-format.mjs";
 export { standingsToLua } from "./standings-format.mjs";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { readSavedText } from "./saved-file.mjs";
@@ -61,7 +61,8 @@ export async function writeStandings(config, signal, options = {}) {
     const local = config.watchFile.toLowerCase().endsWith(".lua") ? readDatabase(saved).character ?? {} : JSON.parse(saved);
     assertSameEdition(local, body);
   }
-  const text = standingsToLua(body);
+  // The member's own Discord name for the in-game "Linked to Discord as ..." line (Track L).
+  const text = standingsToLua(body) + linkedAsLua(config.discordAccount);
   if (config.writeStandingsEnabled === false) return { notModified: false, etag, body, path, text: null, count: body.standings.length, unchanged: true, downloadedOnly: true, botVersion: body.botVersion };
   let unchanged = false;
   let refreshOnly = false;

@@ -15,3 +15,25 @@ body.poe-off .poe-only{display:none!important}
 .report-text{font:11px/1.5 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;background:var(--bg);border-radius:7px;padding:12px;color:var(--muted)}
 details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summary{font-size:15px;font-weight:650;color:var(--text)}.advanced-group{border-top:1px solid var(--line);padding-top:18px;margin-top:20px}.advanced-group h3{font-size:15px}.advanced-group>.muted{font-size:12px}
 .account-choice{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}.account-option{margin:8px 0 0;font-weight:500;color:var(--text)}.account-option input{width:16px;height:16px;accent-color:var(--gold)}
+
+/* Link everything wizard (8.5 Track L) */
+.wizard-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; list-style: none; padding: 0; margin: 0 0 12px; counter-reset: step; }
+.wizard-steps li { counter-increment: step; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-weight: 600; opacity: .7; }
+.wizard-steps li::before { content: counter(step) ". "; }
+.wizard-steps li.current { opacity: 1; border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.wizard-steps li.done { opacity: 1; color: var(--green); }
+.wizard-steps li.done::before { content: "\2713  "; }
+.wizard-identity { display: flex; align-items: center; gap: 10px; margin: 6px 0 12px; }
+.wizard-identity img { border-radius: 50%; }
+.wizard-identity button { margin-left: auto; }
+.wizard-diagnose { margin-top: 12px; }
+.wizard-diagnose summary { cursor: pointer; font-weight: 600; }
+.diagnostics { list-style: none; padding: 0; margin: 8px 0; }
+.diagnostics li { padding: 4px 0; }
+.diagnostics li.ok::before { content: "\2713  "; color: var(--green); }
+.diagnostics li.bad::before { content: "\2717  "; color: var(--red); }
+.diagnostics li .fix { display: block; margin-left: 1.4em; opacity: .85; font-size: .92em; }
+.success-screen { text-align: center; padding: 28px 20px; }
+.success-mark { font-size: 56px; line-height: 1; margin: 0; color: var(--green); }
+.success-text { font-size: 18px; }
+.login-location { opacity: .85; }

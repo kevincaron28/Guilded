@@ -42,7 +42,32 @@ function module.needed()
       if ns.normalizeName and ns.normalizeName(name) == ns.normalizeName(me) or name == me then return true end
     end
   end
+  if module.linkedAs() then return false end
   return not (type(GuildedStandings) == "table" and type(GuildedStandings.updatedAt) == "string")
+end
+
+-- "Linked to Discord as <name>" (8.5 Track L): the companion writes GuildedLinkedAs with the
+-- standings once this PC is linked. Said once in chat per name, and shown by /guilded companion.
+function module.linkedAs()
+  local name = GuildedLinkedAs
+  if type(name) ~= "string" then return nil end
+  name = string.gsub(name, "|", "")
+  if name == "" or string.len(name) > 60 then return nil end
+  return name
+end
+
+function module.linkedLine(name)
+  return string.format(L("Linked to Discord as %s"), name) .. " |cff40ff40\226\156\147|r"
+end
+
+-- Says the linked line in chat the first time this name appears. Returns true when it spoke.
+function module.announceLinked()
+  local d = ns.getDb and ns.getDb()
+  local name = module.linkedAs()
+  if not d or not name or d.linkedAnnouncedAs == name then return false end
+  d.linkedAnnouncedAs = name
+  ns.message(module.linkedLine(name))
+  return true
 end
 
 function module.text()
@@ -70,6 +95,8 @@ ns.commandHandlers["companion"] = function(args)
   if action == "off" then module.setEnabled(false); ns.message(L("Companion reminder off."))
   elseif action == "on" then module.setEnabled(true); ns.message(L("Companion reminder on (at most once a week)."))
   else
+    local name = module.linkedAs()
+    if name then ns.message(module.linkedLine(name)) end
     ns.message(module.text())
     ns.message(module.SHORT)
     ns.message(module.DIRECT)
@@ -83,6 +110,6 @@ frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 frame:SetScript("OnEvent", function()
   -- Let the login chatter and the digest settle first.
   if C_Timer and C_Timer.After then
-    C_Timer.After(20, function() pcall(module.remind) end)
+    C_Timer.After(20, function() pcall(module.announceLinked); pcall(module.remind) end)
   end
 end)

@@ -635,6 +635,9 @@ export function createEngine(initialConfig, hooks = {}) {
       if (was) log("info", "Stopped."); else hooks.onState?.(snapshot());
     },
     // Apply new settings and restart.
+    // Track L: the signed-in Discord name for the in-game "Linked to Discord as" line; the next
+    // standings fetch writes it (no restart).
+    setLinkedAccount(account) { config = { ...config, discordAccount: account }; etag = null; },
     async configure(next) { await this.stop(); state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = accountLevel(next); etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.

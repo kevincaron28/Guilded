@@ -12,6 +12,7 @@ import { relayProfessions } from "./services/profession-relay.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
 import { linkedCharacterCount, tellFirstCompanionLink } from "./services/companion-link-dm.js";
+import { companionMe } from "./services/companion-me.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { gunzipSync } from "node:zlib";
@@ -470,6 +471,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isPoeLevels = request.method === "POST" && url.pathname === "/api/v1/poe/levels";
       const isPublicRuns = request.method === "POST" && url.pathname === "/api/v1/public-runs";
       const isPersonalStatus = request.method === "GET" && url.pathname === "/api/v1/companion/personal-status";
+      // Track L: who is signed in, their Guilded servers, and the join invite for their in-game guild.
+      const isCompanionMe = request.method === "GET" && url.pathname === "/api/v1/companion/me";
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
@@ -481,7 +484,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -561,6 +564,32 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           recordFailure(address); json(response, 401, { error: "Pairing code is invalid, expired, or already used. Run /character pair again." }); return;
         }
         json(response, 200, { ...result, guildDiscordId: serverId });
+        return;
+      }
+      if (isCompanionMe) {
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const answer = await companionMe({
+          async accountFor(tokenHash) {
+            const member = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true, displayName: true } } } });
+            if (member) {
+              const web = await prisma.webAccount.findUnique({ where: { discordUserId: member.member.discordUserId }, select: { username: true, displayName: true } });
+              return { discordUserId: member.member.discordUserId, username: web?.username ?? member.member.displayName, displayName: web?.displayName ?? member.member.displayName, personal: false };
+            }
+            const personal = await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true, username: true, displayName: true } } } });
+            return personal ? { ...personal.account, personal: true } : null;
+          },
+          servers: async (discordUserId) => (await signInServers(client, discordUserId)).map((server) => ({ discordId: server.discordId, name: server.name })),
+          avatar: async (discordUserId) => client ? (await client.users.fetch(discordUserId)).displayAvatarURL({ size: 64, extension: "png" }) : null,
+          async joinTarget(nameKey, realmKey) {
+            const row = await prisma.wowGuild.findFirst({ where: { gameEdition: "forever", nameKey, realmKey }, select: { guild: { select: { discordId: true, page: { select: { inviteUrl: true } } } } } });
+            if (!row || !hostedPilot.allows(row.guild.discordId)) return null;
+            const name = client?.guilds.cache.get(row.guild.discordId)?.name ?? null;
+            return name ? { discordId: row.guild.discordId, name, inviteUrl: row.guild.page?.inviteUrl ?? null } : null;
+          }
+        }, { tokenHash: hashCompanionSecret(secret), guild: url.searchParams.get("guild"), realm: url.searchParams.get("realm") });
+        if (!answer) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        json(response, 200, answer);
         return;
       }
       if (isPersonalStatus) {

@@ -88,6 +88,8 @@ import { companionSignInRoute, createCompanionSignIn } from "./services/companio
 import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
+import { inviteListForAddon, pendingInvites } from "./services/invite-queue.js";
+import { completeInvitesFromRoster } from "./services/invite-channel.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
@@ -411,7 +413,7 @@ function logStandingsTiming(request: IncomingMessage, response: ServerResponse, 
 
 // Read-only EP/GP/PR per linked character and what goes with it. The companion writes it
 // into the addon folder so /guilded standings shows the bot's numbers.
-async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string }, client?: Client): Promise<FeedParts> {
+async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string; officer?: boolean }, client?: Client): Promise<FeedParts> {
   // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts).
   const scheduledEvents = await calendarEventsWithin(() => discordCalendarEvents(client, guild.discordId, access.actorId),
     `${guild.discordId}:${access.actorId}`).catch(() => {
@@ -447,6 +449,8 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     return {
       shared: { accounts, baseGp, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
       personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids,
+        // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
+        ...(access.officer ? { officerInvites: inviteListForAddon(await pendingInvites(database, guild.id)) } : {}),
         publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
       stampOnly: { botRaids }
     };
@@ -819,6 +823,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
       // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).
       if (access.officer) await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined);
+      // Characters in an officer's roster upload are in the guild: their waiting invite posts get a check mark.
+      if (access.officer && client) {
+        const rosterNames = [preview.snapshot.character, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name, ...(entry.displayName ? [entry.displayName] : [])] : []);
+        void completeInvitesFromRoster(client, prisma, { id: guild.id, discordId: guild.discordId }, rosterNames)
+          .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite check marks failed", error));
+      }
       if (access.officer || pairedMemberId) {
         const verified = await linkVerifiedCharacters(prisma, guild.id, { officer: access.officer, memberId: pairedMemberId }, preview.snapshot.characters)
           .catch((error: unknown) => { console.error("Linking verified characters failed", error); return []; });

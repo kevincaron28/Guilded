@@ -181,6 +181,13 @@ export function standingsToLua(data) {
       ...(data.nextRaid.maybe ?? []).map((name) => `  ${luaString(name)},`),
       "} }"
     ] : ["GuildedNextRaid = nil"]),
+    "",
+    "-- Officers only: names waiting for a guild invite (full Forever names), for the addon's To invite panel.",
+    ...(Array.isArray(data.officerInvites) ? [
+      `GuildedInvites = { fetchedAt = ${luaString(data.updatedAt ?? "")}, names = {`,
+      ...data.officerInvites.slice(0, 30).map((row) => `  { name = ${luaString(row.name)}, at = ${luaString(row.at ?? "")} },`),
+      "} }"
+    ] : ["GuildedInvites = nil"]),
     ""
   ].join("\n");
 }

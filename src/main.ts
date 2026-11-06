@@ -66,6 +66,7 @@ import { ACHIEVEMENT_SHARE_PREFIX, handleAchievementShare } from "./commands/ach
 import { syncAllRankRoles } from "./services/rank-roles.js";
 import { syncAllNicknames } from "./services/nickname-sync.js";
 import { postAllWeeklyPromotions } from "./services/promotion.js";
+import { handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { updateWhosWhoBoard } from "./services/whos-who-board.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
@@ -582,6 +583,9 @@ client.on(Events.GuildMemberRemove, async (member) => {
   }
 });
 
+// The guild-invite channel (8.5 batch 3): reactions and the World of Warcraft role DM do not need message text.
+client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void handleInviteReaction(client, prisma, reaction, user).catch(reportJobError("Guild invite reaction", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
+client.on(Events.GuildMemberUpdate, (before, after) => { if (hostedPilot.allows(after.guild.id)) void handleWowRoleGiven(before, after, prisma).catch(reportJobError("Guild invite DM", { guildId: after.guild.id })); });
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void activityTotals.message(message).catch(reportJobError("Activity totals messages", { guildId: message.guildId, channelId: message.channelId })); });
 client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void activityTotals.reaction(reaction, user).catch(reportJobError("Activity totals reactions", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.message(message).catch(reportJobError("Participation messages", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });
@@ -605,6 +609,7 @@ client.on(Events.ShardReconnecting, () => participationTracker.reset());
 client.on(Events.ShardResume, () => participationTracker.reset());
 // The answer channel (5.0): only when the bot may read message text.
 if (config.MESSAGE_CONTENT_INTENT) {
+  client.on(Events.MessageCreate, (message) => { if (message.guildId && hostedPilot.allows(message.guildId)) void handleInviteMessage(message, prisma).catch(reportJobError("Guild invite post", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });
   // Discord-only item previews (docs/ITEM_PREVIEWS.md): inert until an owner enables a server.
   const previewGate = new PreviewGate();
   const previewProvider = new CachedItemProvider(nullItemDataProvider);

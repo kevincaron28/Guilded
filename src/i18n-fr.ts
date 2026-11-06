@@ -561,6 +561,20 @@ export const FR_TEXT: Record<string, string> = {
   "No active crafter offers.": "Aucune offre d'artisan active.",
   "welcome panel": "panneau de bienvenue",
   // 8.5 track C
+  // 8.5 batch 3: the guild-invite channel and retiring an old channel.
+  "Guild invites channel": "Salon d’invitations de guilde",
+  "Retire an old channel": "Retirer un ancien salon",
+  "Delete #{name} for good": "Supprimer #{name} pour de bon",
+  "Keep it": "Le garder",
+  "Pick the old channel to archive and retire": "Choisissez l’ancien salon à archiver et retirer",
+  "Pick the old channel. Its messages are saved to a file first, and nothing is deleted until you confirm.": "Choisissez l’ancien salon. Ses messages sont d’abord enregistrés dans un fichier, et rien n’est supprimé avant votre confirmation.",
+  "Pick a text channel.": "Choisissez un salon textuel.",
+  "<#{id}> is a channel Guilded uses, so it cannot be retired here.": "<#{id}> est un salon utilisé par Guilded, il ne peut donc pas être retiré ici.",
+  "There is no officer log channel to keep the archive in. Run the full setup first.": "Il n’y a pas de salon de journal des officiers pour garder l’archive. Lancez d’abord la configuration complète.",
+  "Saved {count} messages of #{name} to a file in <#{where}>. Press the red button to delete the channel for good, or Keep it.": "{count} messages de #{name} enregistrés dans un fichier dans <#{where}>. Appuyez sur le bouton rouge pour supprimer le salon pour de bon, ou sur Le garder.",
+  "Kept the channel. The archive file stays where it was posted.": "Salon conservé. Le fichier d’archive reste là où il a été publié.",
+  "Deleted #{name}. Its {count} messages are in the archive file.": "#{name} supprimé. Ses {count} messages sont dans le fichier d’archive.",
+  "Nothing was deleted: {reason}": "Rien n’a été supprimé : {reason}",
   "Nickname sync permission": "Permission de synchro des pseudos",
   "Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.": "Accordez à mon rôle la permission « Gérer les pseudos », au-dessus des membres à renommer."
 };

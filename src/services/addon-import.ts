@@ -77,17 +77,14 @@ export function createAddonImportService(database: PrismaClient) {
     },
 
     async record(guildId: string, snapshot: AddonSnapshot, checksum: string, createdBy: string, pairedMemberId?: string) {
-      // BG consent is independent of officer import access. Do not retain a BG
-      // payload in staging when its authenticated reporter has not opted in.
-      const persist = async (tx: Pick<Prisma.TransactionClient, "addonImport" | "battlegroundConsent" | "character" | "member">) => {
+      // Keep only the authenticated reporter's own battleground reports (their paired member and characters).
+      const persist = async (tx: Pick<Prisma.TransactionClient, "addonImport" | "character" | "member">) => {
         let battlegroundReports: AddonSnapshot["battlegroundReports"] = [];
         if (pairedMemberId && snapshot.battlegroundReports.length) {
-          const consent = await tx.battlegroundConsent.findUnique({ where: { memberId: pairedMemberId } });
           const member = await tx.member.findFirst({ where: { id: pairedMemberId, guildId, status: "ACTIVE" }, select: { id: true } });
-          if (member && consent?.capture && consent.guildId === guildId) {
+          if (member) {
             const own = await tx.character.findMany({ where: { guildId, memberId: pairedMemberId } });
-            battlegroundReports = snapshot.battlegroundReports.filter(row => row.endedAt * 1000 >= consent.consentedAt.getTime()
-              && own.some(c => c.gameEdition === row.edition && findCharacter([c], row.character, row.realm, row.edition)));
+            battlegroundReports = snapshot.battlegroundReports.filter(row => own.some(c => c.gameEdition === row.edition && findCharacter([c], row.character, row.realm, row.edition)));
           }
         }
         return tx.addonImport.create({

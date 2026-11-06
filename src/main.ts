@@ -5,7 +5,6 @@ import { dispatchGroupWatches } from "./services/group-watch-discord.js";
 import { BG_PREFIX, executeBattleground, handleBattlegroundComponent } from "./commands/battleground.js";
 import "./services/diagnostic-console.js";
 import { GAME_EDITIONS } from "../companion/game-edition.mjs";
-import { badgeCommandsForGuild } from "./services/community-badge-policy.js";
 import { withEdition } from "./services/edition-context.js";
 import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, withGuildScope, forEachGuildScope } from "./services/guild-scope.js";
 import { executeWow } from "./commands/wow.js";
@@ -977,7 +976,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
   const full = [...body, ...(guildId === config.DISCORD_GUILD_ID ? [ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON(), ownerPreviewsCommand.toJSON()] : []), ...(guildId === config.OWNER_CONSOLE_GUILD_ID ? [ownerConsoleCommand.toJSON()] : [])];
-  await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: badgeCommandsForGuild(guildId, full) });
+  await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: full });
 }
 
 // Commands are per-guild, so every server the bot is in needs them registered.

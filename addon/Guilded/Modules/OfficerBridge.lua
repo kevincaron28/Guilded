@@ -180,7 +180,8 @@ local function bridgeSettings()
     settings = { enabled = true, guild = key }
     d.settings.officerBridge = settings
   end
-  if settings.enabled and settings.guild == key then d.bridgeCompanionGuild = key end
+  settings.enabled = true -- always on (8.5); an old saved off is ignored
+  if settings.guild == key then d.bridgeCompanionGuild = key end
   return settings
 end
 local function capture()
@@ -297,10 +298,11 @@ local function receive(text, sender)
 end
 ns.commandHandlers["bridge"] = function(args)
   local mode, d, key = string.lower(args[1] or "status"), db(), guildKey()
-  if mode == "on" or mode == "off" then
+  if mode == "off" then mode = "on" end -- there is no off any more
+  if mode == "on" then
     if not ns.isOfficer() then ns.message("Only an officer can enable the guild's Discord bridge."); return end
     if not d or not key then ns.message("Join your in-game guild before enabling the officer bridge."); return end
-    d.settings = d.settings or {}; d.settings.officerBridge = { enabled = mode == "on", guild = key }
+    d.settings = d.settings or {}; d.settings.officerBridge = { enabled = true, guild = key }
     if mode == "on" then d.bridgeCompanionGuild = key end
     if mode == "on" then capture(); share() end
   elseif mode == "refresh" then request()
@@ -309,9 +311,6 @@ ns.commandHandlers["bridge"] = function(args)
   local settings = d and d.settings and d.settings.officerBridge
   local data = d and d.officerBridge
   if ns.isOfficer() and key then
-    if settings and settings.guild == key and not settings.enabled then
-      ns.message("Officer bridge is OFF. /guilded bridge on enables sharing."); return
-    end
     if d and d.bridgeCompanionGuild and d.bridgeCompanionGuild ~= key then
       ns.message("Companion data is bound to another guild. Check the companion guild, save standings, /reload, then /guilded bridge on."); return
     end
@@ -322,7 +321,7 @@ ns.commandHandlers["bridge"] = function(args)
   ns.message(data and sameGuild(data.snapshot) and ("Guild data from " .. tostring(data.from) .. " (" .. data.updatedAt .. ").") or "Waiting for an online officer to share Discord guild data. The Windows companion is optional.")
 end
 table.insert(ns.commandHelp, "/guilded bridge status | refresh - request core and raid data from an online officer")
-table.insert(ns.commandHelp, { officer = true, text = "/guilded bridge on | off - bridge your companion's data to this WoW guild" })
+table.insert(ns.commandHelp, { officer = true, text = "/guilded bridge on - bridge your companion's data to this WoW guild" })
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD"); frame:RegisterEvent("PLAYER_GUILD_UPDATE"); frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(_, event, ...)

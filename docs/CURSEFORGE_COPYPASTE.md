@@ -79,7 +79,7 @@ See the file list for the current release and verified client version. English a
 ## Guild life
 
 * **Crafters:** recipes and cooldowns shared automatically; `/guilded recipes who <item>` finds who can make it.
-* **Guild map:** guildmates on your map and minimap, with a privacy switch.
+* **Guild map:** guildmates on your map and minimap. Everything Guilded records is shared: there are no privacy switches, only a **Delete my data** request on the website.
 * **Copy for Excel:** `/guilded sheet` copies standings, loot, attendance, raids or dungeons to paste into a spreadsheet.
 * One window with a Home page, a Guilded chat tab, modules you can switch off, and backup, restore and undo per guild.
 

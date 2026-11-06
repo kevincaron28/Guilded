@@ -19,8 +19,7 @@
 -- A client whose game cannot pack text (no C_EncodingUtil) never says CAP, so it only ever gets
 -- E messages; older clients ignore CAP.
 --
--- On by default for every member in In-game only guilds; /guilded ledgersync off (or the Settings
--- checkbox) turns it off for that character.
+-- On by default for every member in In-game only guilds; there is no off switch (8.5).
 -- E/Z payloads come from officers. Members can also carry identical payloads whose
 -- SHA-256 receipt the recipient heard directly from an officer (LedgerRelay.lua).
 -- Both paths use the same entry validation, deduplication and void accounting.
@@ -73,7 +72,7 @@ end
 -- On unless the player turned it off (owner decision, 6 November 2026): an untouched setting is on.
 local function enabled()
   local s = settings()
-  return s ~= nil and s.ledgerSync ~= false
+  return s ~= nil -- always on (8.5): there is no off switch; an old saved off is ignored
 end
 
 -- When each officer with sync on was last heard from (kept across reloads, newest 20), so the
@@ -558,19 +557,16 @@ ns.ledgerSync = {
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["ledgersync"] = function(args)
   local action = string.lower(args[1] or "status")
-  if action == "on" or action == "off" then
+  if action == "off" then action = "on" end -- there is no off any more
+  if action == "on" then
     if action == "on" and not (ns.isInGameOnly and ns.isInGameOnly()) then
       ns.message(L("Ledger sync is for in-game-only guilds. Choose In-game only with /guilded setup first.")); return
     end
     local s = settings()
     if not s then return end
-    s.ledgerSync = action == "on"
-    if action == "on" then
-      ns.message(L("Ledger sync is on. Guildmates can relay officer-approved awards and reversals."))
-      sendSum(true)
-    else
-      ns.message(L("Ledger sync is off. Entries already received stay."))
-    end
+    s.ledgerSync = true
+    ns.message(L("Ledger sync is on. Guildmates can relay officer-approved awards and reversals."))
+    sendSum(true)
     return
   end
   if action == "now" then
@@ -604,7 +600,7 @@ ns.commandHandlers["ledgersync"] = function(args)
   end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded ledgersync on | off | now | status - EP/GP history from guild officers and guildmates (on by default)")
+table.insert(ns.commandHelp, "/guilded ledgersync now | status - EP/GP history from guild officers and guildmates (on by default)")
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")

@@ -212,15 +212,14 @@ describe("officer ledger sync (in-game-only guilds)", () => {
     expect(cara.s.run('return balance("P30")')).toBe("30/0");
   });
 
-  it("supplies a member while refusing forged entries, disabled peers and connected guilds", () => {
+  it("supplies a member while refusing forged entries and connected guilds", () => {
     const alice = client("Alice");
     const member = client("Dave", { officer: false });
-    const off = client("Bob", { sync: false });
     const connected = client("Cara", { local: false });
     alice.s.run('award("Tank", 10, 0, 1); NS.commandHandlers.ledgersync({"now"})');
-    pump([alice, member, off, connected]);
+    pump([alice, member, connected]);
     expect(member.s.run('return balance("Tank")')).toBe("10/0");
-    for (const c of [off, connected]) expect(c.s.run('return balance("Tank")')).toBe("none");
+    expect(connected.s.run('return balance("Tank")')).toBe("none");
     // A non-officer's entry, an absurd amount and a future entry are refused.
     const bob = client("Bob");
     bob.s.run('fire_event("CHAT_MSG_ADDON", "GuildedLedger", "E|1|Dave-1800000000-1|Tank|5|0||EP_AWARD|0|x", "WHISPER", "Dave-Realm")');
@@ -260,13 +259,13 @@ describe("compressed ledger batches (7.5.0)", () => {
     }
   });
 
-  it("is on for a member who never touched the setting, and stays off once turned off", () => {
+  it("is on for a member who never touched the setting, and the old off command keeps it on", () => {
     const { s } = client("Dave", { officer: false });
     s.run("DB.settings.ledgerSync = nil");
     expect(s.run("return tostring(NS.ledgerSync.active())")).toBe("true");
     s.run('NS.commandHandlers.ledgersync({"off"})');
-    expect(s.run("return tostring(DB.settings.ledgerSync) .. tostring(NS.ledgerSync.active())")).toBe("falsefalse");
-    s.run('NS.commandHandlers.ledgersync({"on"})');
+    expect(s.run("return tostring(DB.settings.ledgerSync) .. tostring(NS.ledgerSync.active())")).toBe("truetrue");
+    s.run('DB.settings.ledgerSync = false');
     expect(s.run("return tostring(NS.ledgerSync.active())")).toBe("true");
   });
 
@@ -418,7 +417,6 @@ describe("compressed ledger batches (7.5.0)", () => {
   });
 
   it.each([
-    ["sync is disabled", "DB.settings.ledgerSync = false"],
     ["the sender loses officer access", "NS.isOfficer = function() return false end"],
     ["the recipient loses officer access", "NS.isOfficerName = function() return false end"],
     ["the sender changes guild", 'GetGuildInfo = function() return "Other Guild" end'],

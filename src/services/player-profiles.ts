@@ -21,7 +21,6 @@ export interface ProfileStore {
   /** Up to PAGE_SIZE + 1 rows after the cursor (the extra row says there is a next page). */
   list(filters: PlayerFilters, after: { sortKey: string; id: string } | null): Promise<PlayerRow[]>;
   get(id: string): Promise<PlayerProfile | null>;
-  visibility(id: string, visible: boolean): Promise<void>;
 }
 
 // Server-side limits for /players/: one fixed page size and short filter texts.
@@ -73,11 +72,10 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
           JOIN "Member" m ON m."discordUserId" = wa."discordUserId" AND m.status = 'ACTIVE' AND m."isTest" = false
           JOIN "Character" c ON c."memberId" = m.id
           JOIN "Guild" g ON g.id = m."guildId"
-          WHERE wa."publicProfile" = true AND g."discordId" = ANY(${servers})
+          WHERE g."discordId" = ANY(${servers})
           UNION ALL
           SELECT wa.id, COALESCE(wc."displayName", wc.name), wc.realm, NULL, wc."gameEdition", NULL, NULL, false, NULL
           FROM "WebAccount" wa JOIN "WebCharacter" wc ON wc."accountId" = wa.id
-          WHERE wa."publicProfile" = true
         ), best AS (
           SELECT DISTINCT ON (id) id, character, realm, "className", role, level, guild, lower(character) AS "sortKey"
           FROM chars WHERE ${Prisma.join(conditions, " AND ")}
@@ -87,7 +85,7 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
     },
     async get(id) {
       const account = await database.webAccount.findUnique({ where: { id }, select: {
-        id: true, discordUserId: true, username: true, displayName: true, publicProfile: true, characters: { select: { name: true, displayName: true, realm: true, gameEdition: true }, take: 100 }
+        id: true, discordUserId: true, username: true, displayName: true, characters: { select: { name: true, displayName: true, realm: true, gameEdition: true }, take: 100 }
       } });
       if (!account) return null;
       const linked = await database.character.findMany({
@@ -109,9 +107,8 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
         } } })) },
         orderBy: [{ endedAt: "desc" }, { id: "asc" }], take: 50, select: PUBLIC_RUN_SELECT
       }) : [];
-      return { id: account.id, name: account.displayName ?? account.username, public: account.publicProfile, characters, runs: runs.map(leaderRun) };
+      return { id: account.id, name: account.displayName ?? account.username, public: true, characters, runs: runs.map(leaderRun) };
     },
-    async visibility(id, visible) { await database.webAccount.update({ where: { id }, data: { publicProfile: visible } }); }
   };
 }
 
@@ -147,13 +144,6 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
   const route: WebRoute = async (ctx, kit) => {
     const { t, lang } = ctx;
     const target = ctx.request.path;
-    if (target === "/me/profile" && ctx.request.method === "POST") {
-      if (!ctx.account) return kit.signInPrompt();
-      const visible = ctx.form?.get("public");
-      if (visible !== "true" && visible !== "false") return kit.page(400, "Invalid visibility", "");
-      await store.visibility(ctx.account.id, visible === "true");
-      return kit.redirect(link("/me/", lang, { done: "profile-saved" }));
-    }
     if (target === "/players" || target === "/players/") {
       if (ctx.request.method === "POST") return kit.page(405, "Method not allowed", "");
       const query = ctx.request.query;
@@ -195,9 +185,8 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
       const profile = await store.get(ctx.account.id);
       if (!profile) return "";
       const { t, lang } = ctx;
-      return `<h2>${t("Your player profile", "Votre profil joueur")}</h2><p>${t("Profiles are public by default: display name, linked characters and public runs. Pairing codes and application messages stay private. Hiding this profile does not remove character results from public leaderboards.", "Les profils sont publics par défaut : nom affiché, personnages liés et donjons publics. Les codes et messages de candidature restent privés. Masquer ce profil ne retire pas les résultats des classements publics.")}</p>`
-        + (profile.public ? `<p><a href="${link(path(profile.id), lang)}">${t("View your public profile", "Voir votre profil public")}</a></p>` : `<p>${t("Your profile is hidden.", "Votre profil est masqué.")}</p>`)
-        + `<form method="post" action="/me/profile"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="public" value="${profile.public ? "false" : "true"}"><button class="button">${profile.public ? t("Hide my profile", "Masquer mon profil") : t("Make my profile public", "Rendre mon profil public")}</button></form>`
+      return `<h2>${t("Your player profile", "Votre profil joueur")}</h2><p>${t("Everything is shared: your display name, linked characters, badges and public runs appear on your public profile and the leaderboards. Pairing codes and application messages stay private.", "Tout est partagé : votre nom affiché, vos personnages liés, vos badges et vos donjons publics apparaissent sur votre profil public et les classements. Les codes et messages de candidature restent privés.")}</p>`
+        + `<p><a href="${link(path(profile.id), lang)}">${t("View your public profile", "Voir votre profil public")}</a></p>`
         + details(ctx, profile);
     }
   };

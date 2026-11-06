@@ -32,13 +32,9 @@ it("shows an escaped archive shelf without evidence links or fabricated dates", 
   expect(result?.body).toContain("earning date unknown");
   expect(result?.body).not.toContain("PRIVATE-PROOF");
 });
-it("honors opt-in sharing and immediate withdrawal for other viewers", async () => {
+it("shows every shelf to other viewers whatever an old sharing row says", async () => {
   const other = { ...ctx("guild=guild&season=season&player=owner"), account: { id: "viewer-account", discordUserId: "viewer", username: "viewer", displayName: null } } as WebContext;
-  expect((await page.route(other, kit))?.status).toBe(403);
-  state.shared = true;
-  expect((await page.route(other, kit))?.status).toBe(200);
-  state.shared = false;
-  expect((await page.route(other, kit))?.status).toBe(403);
+  for (const shared of [false, true]) { state.shared = shared; expect((await page.route(other, kit))?.status).toBe(200); }
 });
 it("shows Québec Gold shelves to eligible members with no opt-out or public disclosure", async () => {
   state.discordId = "1323321076478119967";

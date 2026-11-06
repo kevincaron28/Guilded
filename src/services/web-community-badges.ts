@@ -1,5 +1,4 @@
 import type { Client } from "discord.js";
-import { memberBadgeShelves } from "./community-badge-policy.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 import { escapeHtml as h, link, SECURITY_HEADERS } from "./web-layout.js";
@@ -35,11 +34,8 @@ export function createWebCommunityBadges(database: PrismaClient, client: Client 
       if (!season) return page(403, t("Access denied.", "Accès refusé."));
       await communityAccess(guild, owner, season);
       await initializeCommunityBadgeHistory(database, guildId, seasonId);
-      const rows = await communityBadgeShelf(database, seasonId, user, owner);
-      if (!rows) return page(403, t("This member has not shared this season's badges.", "Ce membre n'a pas partagé ses badges pour cette saison."));
-      const sharingHelp = memberBadgeShelves(record.discordId)
-        ? t("Shelves are visible to members who can access this season. There is no sharing toggle. Private proof and public profiles are unchanged.", "Les collections sont visibles aux membres ayant accès à cette saison. Il n'y a pas de bouton de partage. Les preuves privées et les profils publics restent inchangés.")
-        : t("Your shelf is private by default. /community badges share:true shares this season with members who can access it; share:false makes it private again. Public profiles do not expose this shelf.", "Votre collection est privée par défaut. /community badges share:true partage cette saison avec les membres qui y ont accès; share:false la rend privée. Les profils publics ne montrent pas cette collection.");
+      const rows = await communityBadgeShelf(database, seasonId, user, owner) ?? [];
+      const sharingHelp = t("Shelves are visible to members who can access this season. Everything is shared; there is no sharing toggle.", "Les collections sont visibles aux membres ayant accès à cette saison. Tout est partagé; il n'y a pas de bouton de partage.");
       return page(200, `<h1>${title}</h1><h2>${h(season.name)}</h2><ul>${rows.map(row => `<li><strong>${h(badgeLabel(row.code, lang))}</strong> · ${row.earnedAt ? h(row.earnedAt.toISOString().slice(0, 10)) : t("Historical recognition; earning date unknown", "Reconnaissance historique; date d'obtention inconnue")}</li>`).join("")}</ul><p>${t("Cosmetic only. No extra points, loot priority or roles.", "Décoratifs seulement. Aucun bonus de points, priorité de butin ou rôle.")}</p>${owner === user ? `<p>${sharingHelp}</p>` : ""}`);
     });
   };

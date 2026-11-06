@@ -63,9 +63,7 @@ describe("achievements on the website", () => {
     expect(html).toContain(`1 sur ${ACTIVE_ACHIEVEMENTS.length} débloqués`);
     expect(html).toContain("Première descente");
   });
-  it("serves the card image only for a public profile", async () => {
-    const hidden = createAchievementsWeb(fakeDb({ publicProfile: false }) as never, allows);
-    expect((await hidden.route(ctx(`/players/${"a".repeat(24)}/achievements.png`), kit))?.status).toBe(404);
+  it("serves the card image for every known profile (no hide option)", async () => {
     const missing = createAchievementsWeb(fakeDb(null) as never, allows);
     expect((await missing.route(ctx(`/players/${"a".repeat(24)}/achievements.png`), kit))?.status).toBe(404);
     const visible = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).route(ctx(`/players/${"a".repeat(24)}/achievements.png`), kit);

@@ -10,7 +10,7 @@ import { enqueueDiscordJob } from "./discord-jobs.js";
 // Discord job queue (retried and rate-limited there), and marks them announced. A member who hid their web
 // profile is never announced: their rows are marked announced silently. Evaluation never depends on posting.
 
-type Db = Pick<PrismaClient, "guildSettings" | "member" | "memberAchievement" | "webAccount" | "discordJob" | "$transaction">;
+type Db = Pick<PrismaClient, "guildSettings" | "member" | "memberAchievement" | "discordJob" | "$transaction">;
 const MAX_LISTED = 6;
 
 /** Marks everything not yet announced as announced, without posting. Used when announcing is switched on. */
@@ -34,8 +34,6 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
   const waiting = pending.filter(row => !quiet.includes(row));
   if (!waiting.length) return 0;
   const ids = waiting.map(row => row.id);
-  const account = await db.webAccount.findFirst({ where: { discordUserId: member.discordUserId }, select: { publicProfile: true } });
-  if (account && !account.publicProfile) { await db.memberAchievement.updateMany({ where: { id: { in: ids }, announcedAt: null }, data: { announcedAt: now } }); return 0; }
 
   const lang = settings.language === "fr" ? "fr" : "en";
   const defs = waiting.flatMap(row => { const def = achievementById(row.key); return def ? [def] : []; });

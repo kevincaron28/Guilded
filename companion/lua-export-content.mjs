@@ -361,7 +361,7 @@ export function exportBattlegroundReports(database) {
   const integer = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max;
   return Object.values(d.reports).filter(r => r && r.version === 1 && r.edition === edition
     && r.adapter === `${edition}-postmatch-v1` && r.realmType === "normal" && r.postmatch === true && r.consent === true
-    && text(r.character, 80) && text(r.realm, 100) && d.consents?.[`${r.character}-${r.realm}`] === true
+    && text(r.character, 80) && text(r.realm, 100)
     && typeof r.reportId === "string" && /^[a-zA-Z0-9_:-]{8,100}$/.test(r.reportId)
     && ["casual", "rated", "blitz"].includes(r.mode) && text(r.bracket, 30)
     && integer(r.mapId, 1, 1000000) && integer(r.endedAt, 1, 4102444800)

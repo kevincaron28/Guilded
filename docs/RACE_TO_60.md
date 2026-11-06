@@ -32,9 +32,7 @@ if it cannot do that safely (no Manage Channels or no member role) it asks for a
 
 Every guild character with a reported level: linked characters (`Character.level`) and guildmates
 nobody linked (`UnclaimedCharacter.level`, from an officer's addon upload). A linked character wins
-over an unclaimed copy of the same name. Members hide their characters with
-`/character race action:hide` (and `show`); hidden members are also removed from the unclaimed list
-by name.
+over an unclaimed copy of the same name. There is no hide option (8.5: everything is shared); every guild character is on the board.
 
 ## Finish order and weekly gains
 

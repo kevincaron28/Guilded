@@ -2513,7 +2513,7 @@ model CommunityBadge {
 model CommunityBadgeSharing {
   seasonId String
   userId String
-  shared Boolean @default(false)
+  shared Boolean @default(true)
   season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   @@id([seasonId, userId])
 }
@@ -2607,8 +2607,8 @@ model WeeklyQuestionOccurrence {
 model BattlegroundConsent {
   memberId String @id
   guildId String
-  capture Boolean @default(false)
-  guildStats Boolean @default(false)
+  capture Boolean @default(true)
+  guildStats Boolean @default(true)
   consentedAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)

@@ -48,7 +48,7 @@ export function bgLadderEmbed(data: BgLadderData, lang: Lang, guildId = ""): Emb
   const name = (value: string) => escapeMarkdown(value).slice(0, 32);
   const embed = new EmbedBuilder().setColor(0x1d4ed8).setTitle(t("🏴 Battleground ladder", "🏴 Classement des champs de bataille"));
   if (!data.brackets.length) {
-    embed.setDescription(t("No battleground report yet. Members who allow capture and guild statistics in /bg privacy fill this ladder.", "Aucun rapport de champ de bataille. Les membres qui autorisent la capture et les statistiques de guilde dans /bg privacy remplissent ce classement."));
+    embed.setDescription(t("No battleground report yet. Members' postmatch reports fill this ladder.", "Aucun rapport de champ de bataille. Les rapports après match des membres remplissent ce classement."));
   } else {
     embed.setDescription(t(`${data.participations} reported participations in the last ${DAYS} days, by mode and bracket. Wins, then win rate.`, `${data.participations} participations rapportées sur les ${DAYS} derniers jours, par mode et tranche. Victoires, puis taux de victoire.`));
     for (const ladder of data.brackets.slice(0, BRACKETS)) {
@@ -61,10 +61,9 @@ export function bgLadderEmbed(data: BgLadderData, lang: Lang, guildId = ""): Emb
 
 export async function loadBgLadderData(db: Pick<PrismaClient, "battlegroundReport" | "member">, guildId: string, edition: string, now = new Date()): Promise<BgLadderData> {
   const since = new Date(now.getTime() - DAYS * 86_400_000);
-  // Same consent filter as /bg stats: only members who allowed capture and guild statistics contribute.
   const groups = await db.battlegroundReport.groupBy({ by: ["memberId", "mode", "bracket", "outcome"], _count: { _all: true },
     where: { guildId, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now },
-      member: { guildId, status: "ACTIVE", battlegroundConsent: { is: { guildId, capture: true, guildStats: true } } } } });
+      member: { guildId, status: "ACTIVE" } } });
   const members = await db.member.findMany({ where: { id: { in: [...new Set(groups.map(group => group.memberId))] } }, select: { id: true, displayName: true } });
   const names = new Map(members.map(member => [member.id, member.displayName]));
   return { brackets: bgLadders(groups, names), participations: groups.reduce((sum, group) => sum + group._count._all, 0), edition };

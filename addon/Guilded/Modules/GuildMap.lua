@@ -2,7 +2,7 @@
 -- minimap, with their name, level and zone on hover.
 --
 --   /guilded map                  who is where (and your settings)
---   /guilded map share on|off     send your position to the guild (default on)
+--   (your position is always sent to the guild: there is no sharing switch)
 --   /guilded map show on|off      show guildmates' dots (default on)
 --
 -- Each client sends its own map position to the guild channel (prefix GuildedMap) every few
@@ -45,7 +45,7 @@ local function L(text) return ns.L and ns.L(text) or text end
 local function settings()
   local s = ns.getSettings and ns.getSettings()
   if not s then return nil end
-  if s.mapShare == nil then s.mapShare = true end
+  s.mapShare = true -- always on: there is no sharing option any more
   if s.mapShow == nil then s.mapShow = true end
   return s
 end
@@ -392,8 +392,8 @@ function map.statusText()
     L("Counts are since /reload. Client acceptance does not confirm delivery to another player."),
     L("Both players need Guilded and map sharing enabled. Minimap dots show nearby players only.")
   }
-  if not active() or not s.mapShare or not s.mapShow then
-    table.insert(lines, L("Use /guilded modules on guildmap, /guilded map share on and /guilded map show on."))
+  if not active() or not s.mapShow then
+    table.insert(lines, L("Use /guilded modules on guildmap and /guilded map show on."))
   end
   return table.concat(lines, "\n")
 end
@@ -413,12 +413,8 @@ ns.commandHandlers["map"] = function(args)
     map.refresh()
     return
   end
-  if (what == "share" or what == "show") and (value == "on" or value == "off") then
-    if what == "share" then
-      s.mapShare = value == "on"
-      if not s.mapShare then sayGone() else lastSent.at = -1000; map.tick() end
-      ns.message(s.mapShare and L("Your position is shared with the guild.") or L("Your position is no longer shared."))
-    else
+  if what == "show" and (value == "on" or value == "off") then
+    do
       s.mapShow = value == "on"
       if s.mapShow then map.requestPositions() end
       map.refresh()
@@ -427,12 +423,12 @@ ns.commandHandlers["map"] = function(args)
     return
   end
   map.requestPositions()
-  ns.message(string.format(L("Guild map: sharing %s, dots %s. /guilded map share on|off, /guilded map show on|off"),
-    s.mapShare and L("on") or L("off"), s.mapShow and L("on") or L("off")))
+  ns.message(string.format(L("Guild map: your position is always shared, dots %s. /guilded map show on|off"),
+    s.mapShow and L("on") or L("off")))
   for line in string.gmatch(map.listText(), "[^\n]+") do ns.message("  " .. line) end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded map - guildmates on your world map and minimap (share on|off, show on|off)")
+table.insert(ns.commandHelp, "/guilded map - guildmates on your world map and minimap (show on|off; your position is always shared)")
 
 -- ---------------------------------------------------------------------
 -- Events and timers

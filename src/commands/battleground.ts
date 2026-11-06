@@ -6,7 +6,7 @@ import { createBattleground } from "../services/battleground-organization.js";
 import { manageSession, respondToSession, sessionInclude } from "../services/activity-core.js";
 import { requireTeamChannel, teamLanguage, teamSessionEmbed } from "../services/activity-core-discord.js";
 import { Prisma, type RaidRole } from "../generated/prisma/client.js";
-import { battlegroundHistory, battlegroundStats, correctBattlegroundReport, setBattlegroundConsent } from "../services/battleground-records.js";
+import { battlegroundHistory, battlegroundStats, correctBattlegroundReport } from "../services/battleground-records.js";
 import { battlegroundPrivacyHelp, battlegroundRecordPanel, battlegroundResultCard, battlegroundSetupHelp } from "./battleground-record-ui.js";
 import { currentGuildScope } from "../services/guild-scope.js";
 import { battlegroundEndCard } from "../services/end-cards.js";
@@ -50,9 +50,6 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
   .addSubcommand(s => s.setName("correct").setDescription("Withdraw my incorrect report; retain correction history").setDescriptionLocalizations({ fr: "Retirer mon rapport erroné en conservant la correction" })
     .addStringOption(o => o.setName("report").setDescription("My report ID").setRequired(true).setMaxLength(160))
     .addStringOption(o => o.setName("reason").setDescription("Reason for withdrawal").setRequired(true).setMinLength(3).setMaxLength(240)))
-  .addSubcommand(s => s.setName("privacy").setDescription("Choose personal capture and guild-statistics consent").setDescriptionLocalizations({ fr: "Choisir la collecte personnelle et les statistiques de guilde" })
-    .addBooleanOption(o => o.setName("capture").setDescription("Allow my paired Companion to submit my postmatch reports").setRequired(true))
-    .addBooleanOption(o => o.setName("guild-stats").setDescription("Allow my eligible reports in guild statistics; requires capture").setRequired(true)))
   .addSubcommand(s => s.setName("stats").setDescription("Opt-in guild participation reports, explicitly provisional").setDescriptionLocalizations({ fr: "Participations de guilde avec accord, explicitement provisoires" })
     .addStringOption(o => o.setName("mode").setDescription("Format").setRequired(true).addChoices(...["casual", "rated", "blitz"].map(value => ({ name: value, value }))))
     .addStringOption(o => o.setName("bracket").setDescription("Reported API bracket identifier from /bg result").setRequired(true).setMaxLength(20))
@@ -129,12 +126,6 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   if (sub === "setup" || sub === "privacy-help") {
     await i.editReply({ content: sub === "setup" ? battlegroundSetupHelp(fr) : battlegroundPrivacyHelp(fr), allowedMentions: { parse: [] } }); return;
   }
-  if (sub === "privacy") {
-    const capture = command?.options.getBoolean("capture", true) ?? false;
-    const guildStats = command?.options.getBoolean("guild-stats", true) ?? false;
-    await setBattlegroundConsent(prisma, ctx.guildId, ctx.memberId, { capture, guildStats });
-    await i.editReply({ content: `${t("Saved", "Enregistré")} — ${t("capture", "collecte")}: ${capture ? "ON" : "OFF"}; ${t("guild statistics", "statistiques de guilde")}: ${guildStats ? "ON" : "OFF"}.\n${battlegroundPrivacyHelp(fr)}`, allowedMentions: { parse: [] } }); return;
-  }
   if (sub === "history" || sub === "result") {
     const rows = await battlegroundHistory(prisma, ctx.guildId, ctx.memberId, sub === "result" ? text("report", true) : undefined);
     if (sub === "result") {
@@ -148,7 +139,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       await i.editReply({ embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "match.png" })] } : {}), allowedMentions: { parse: [] } }); return;
     }
     const description = rows.length ? rows.map(row => `${escapeMarkdown(row.id)} · ${escapeMarkdown(row.gameEdition)} · ${escapeMarkdown(row.mode)} · ${escapeMarkdown(row.bracket)}\n<t:${Math.floor(row.endedAt.getTime() / 1000)}:f> · ${row.outcome} · ${row.status}`).join("\n\n")
-      : t("No personal reports. /bg privacy chooses consent; the paired Companion uploads eligible postmatch reports.", "Aucun rapport personnel. /bg privacy définit votre accord; le Compagnon lié importe les rapports admissibles après match.");
+      : t("No personal reports. The paired Companion uploads your postmatch reports automatically.", "Aucun rapport personnel. Le Compagnon lié importe vos rapports après match automatiquement.");
     await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("My recent reports (up to 25)", "Mes rapports récents (25 maximum)")).setDescription(description.slice(0, 4000))
       .setFooter({ text: t("Private · /bg result report:<ID> · /bg correct report:<ID> reason:<reason>", "Privé · /bg result report:<ID> · /bg correct report:<ID> reason:<motif>") })], allowedMentions: { parse: [] } }); return;
   }
@@ -177,7 +168,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
         { name: t("Reported win rate", "Taux de victoire rapporté"), value: stats.winRate === null ? "—" : `${(stats.winRate * 100).toFixed(1)}%`, inline: true },
         { name: t("Known-outcome sample / unknown", "Échantillon connu / résultat inconnu"), value: `${stats.wins + stats.losses + stats.draws} / ${stats.unknownOutcomes}`, inline: true },
         { name: t("Verified unique matches", "Matchs uniques vérifiés"), value: t("Unavailable: adapters and cross-reporter identity are not verified.", "Indisponibles : adaptateurs et identité entre rapporteurs non validés.") })
-      .setFooter({ text: t("Opted-in reports only; withdrawn/conflicting reports excluded. Provisional, not official or ranked. No MMR, skill score or competitive points.", "Rapports consentants seulement; retraits et conflits exclus. Provisoire, sans classement officiel. Aucun MMR, score de talent ou point compétitif.") })], allowedMentions: { parse: [] } }); return;
+      .setFooter({ text: t("Withdrawn/conflicting reports excluded. Provisional, not official or ranked. No MMR, skill score or competitive points.", "Retraits et conflits exclus. Provisoire, sans classement officiel. Aucun MMR, score de talent ou point compétitif.") })], allowedMentions: { parse: [] } }); return;
   }
   if (sub === "duels") {
     // Counted duels between this guild's members, reported by their own companions (services/duels.ts). Public in the guild; no points.
@@ -190,8 +181,8 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   }
   if (sub === "panel") {
     await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId), battlegroundRecordPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(
-      "Create: /bg create\nJoin: /bg upcoming → /bg join\nMy groups: /bg mine\nDetails: /bg view\nLeave: /bg leave\n\nMy results: /bg history · Privacy: /bg privacy\nGuild statistics: /bg stats\nPrivate planning and opt-in reports. No automatic posts or awards. Unverified queue formats cannot start; provisional reports are excluded from verified statistics.",
-      "Créer : /bg create\nRejoindre : /bg upcoming → /bg join\nMes groupes : /bg mine\nDétails : /bg view\nQuitter : /bg leave\n\nMes résultats : /bg history · Confidentialité : /bg privacy\nStatistiques de guilde : /bg stats\nPlanification privée et rapports avec accord. Aucun message automatique ni récompense. Les formats non vérifiés ne démarrent pas; les rapports provisoires restent hors des statistiques vérifiées."))] });
+      "Create: /bg create\nJoin: /bg upcoming → /bg join\nMy groups: /bg mine\nDetails: /bg view\nLeave: /bg leave\n\nMy results: /bg history\nGuild statistics: /bg stats\nPrivate planning; reports are shared. No automatic posts or awards. Unverified queue formats cannot start; provisional reports are excluded from verified statistics.",
+      "Créer : /bg create\nRejoindre : /bg upcoming → /bg join\nMes groupes : /bg mine\nDétails : /bg view\nQuitter : /bg leave\n\nMes résultats : /bg history\nStatistiques de guilde : /bg stats\nPlanification privée; les rapports sont partagés. Aucun message automatique ni récompense. Les formats non vérifiés ne démarrent pas; les rapports provisoires restent hors des statistiques vérifiées."))] });
     return;
   }
   if (sub === "create") {

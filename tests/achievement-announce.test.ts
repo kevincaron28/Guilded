@@ -5,14 +5,13 @@ import { announceNewAchievements, markAnnouncedSilently, sweepAchievementAnnounc
 interface Row { id: string; guildId: string; memberId: string; key: string; earnedAt: Date; announcedAt: Date | null }
 type Where = { id?: { in: string[] }; announcedAt?: null; guildId?: string; memberId?: string };
 
-function fakeDb(options: { enabled?: boolean; channel?: string | null; hidden?: boolean; language?: string; keys?: string[]; baseline?: number } = {}) {
+function fakeDb(options: { enabled?: boolean; channel?: string | null; language?: string; keys?: string[]; baseline?: number } = {}) {
   const rows: Row[] = (options.keys ?? ["wow-forever-level-20", "dungeon-runs-1"]).map((key, i) => ({ id: `r${i}`, guildId: "g1", memberId: "m1", key, earnedAt: new Date(2026, 10, 1 + i), announcedAt: null }));
   const jobs: { key: string; kind: string; payload: Record<string, unknown> }[] = [];
   const match = (row: Row, where: Where) => (!where.id || where.id.in.includes(row.id)) && (where.announcedAt === undefined || row.announcedAt === where.announcedAt) && (!where.guildId || row.guildId === where.guildId) && (!where.memberId || row.memberId === where.memberId);
   const db = {
     guildSettings: { findUnique: async () => ({ achievementAnnounceEnabled: options.enabled ?? true, achievementChannelId: options.channel === undefined ? "c1" : options.channel, achievementsEnabled: true, achievementBaselineVersion: options.baseline ?? ACHIEVEMENT_CATALOGUE_VERSION, language: options.language ?? "en" }) },
     member: { findFirst: async () => ({ discordUserId: "123456789012345678", displayName: "Kev" }) },
-    webAccount: { findFirst: async () => options.hidden ? { publicProfile: false } : null },
     memberAchievement: {
       findMany: async (args: { where: Where }) => rows.filter(row => match(row, args.where)),
       updateMany: async (args: { where: Where; data: { announcedAt: Date } }) => { const hit = rows.filter(row => match(row, args.where)); for (const row of hit) row.announcedAt = args.data.announcedAt; return { count: hit.length }; },
@@ -63,12 +62,6 @@ describe("achievement announcements", () => {
   it("does not backfill: what is already earned when announcing is switched on is marked announced silently", async () => {
     const { db, jobs, rows } = fakeDb();
     expect(await markAnnouncedSilently(db, "g1")).toBe(2);
-    expect(await announceNewAchievements(db, "g1", "m1")).toBe(0);
-    expect(jobs).toHaveLength(0);
-    expect(rows.every(row => row.announcedAt)).toBe(true);
-  });
-  it("skips a member who hid their profile, marking their rows announced so they are never posted later", async () => {
-    const { db, jobs, rows } = fakeDb({ hidden: true });
     expect(await announceNewAchievements(db, "g1", "m1")).toBe(0);
     expect(jobs).toHaveLength(0);
     expect(rows.every(row => row.announcedAt)).toBe(true);

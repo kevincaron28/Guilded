@@ -49,6 +49,7 @@ import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.
 import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
+import { deleteMyData } from "./services/data-deletion.js";
 import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
 import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
 import { promotionForAddon } from "./services/promotion-feed.js";
@@ -290,7 +291,7 @@ export function createSiteApp(client?: Client) {
   });
   const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
   const devices = createDevicePages(prismaDeviceStore(prisma));
-  const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
+  const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), discordUserId => deleteMyData(prisma, discordUserId));
   const raidPlanning = createRaidPlanning(raidPlanningStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), client));
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));

@@ -1,6 +1,5 @@
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { historicalPeak, milestoneCode, reachedMilestones } from "./community-badge-rules.js";
-import { memberBadgeShelves } from "./community-badge-policy.js";
 
 type Tx = Prisma.TransactionClient;
 const lock = (tx: Tx, guildId: string) => tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`community:${guildId}`}, 0))`;
@@ -78,24 +77,9 @@ export async function configureCommunityBadges(database: PrismaClient, guildId: 
   }, { timeout: 20_000 });
 }
 
-/** Seasons created from this date share their shelves unless the member opts out; older seasons keep their opt-in. */
-export const SHARED_BY_DEFAULT_FROM = new Date("2026-11-02T00:00:00Z");
-
-export async function communityBadgeShelf(database: PrismaClient, seasonId: string, viewer: string, owner: string) {
-  const season = await database.communitySeason.findUnique({ where: { id: seasonId }, select: { createdAt: true, guild: { select: { discordId: true } } } });
+// Everyone's season shelf is shared with the members who can access the season (8.5: no sharing switch).
+export async function communityBadgeShelf(database: PrismaClient, seasonId: string, _viewer: string, owner: string) {
+  const season = await database.communitySeason.findUnique({ where: { id: seasonId }, select: { id: true } });
   if (!season) return null;
-  const sharing = await database.communityBadgeSharing.findUnique({ where: { seasonId_userId: { seasonId, userId: owner } } });
-  if (viewer !== owner && !memberBadgeShelves(season.guild.discordId) && !(sharing ? sharing.shared : season.createdAt >= SHARED_BY_DEFAULT_FROM)) return null;
   return database.communityBadge.findMany({ where: { seasonId, userId: owner }, orderBy: [{ recordedAt: "asc" }, { code: "asc" }], take: 30 });
-}
-
-// Caller checks live guild/season access. Old cached share requests in Québec Gold
-// are acknowledged without mutating preserved historical sharing preferences.
-export async function setCommunityBadgeSharing(database: PrismaClient, seasonId: string, actor: string, owner: string, shared: boolean): Promise<boolean> {
-  const season = await database.communitySeason.findUnique({ where: { id: seasonId }, select: { guild: { select: { discordId: true } } } });
-  if (!season) throw new Error("Season not found / Saison introuvable.");
-  if (memberBadgeShelves(season.guild.discordId)) return false;
-  if (owner !== actor) throw new Error("Only your own shelf / Tes propres badges seulement.");
-  await database.communityBadgeSharing.upsert({ where: { seasonId_userId: { seasonId, userId: actor } }, create: { seasonId, userId: actor, shared }, update: { shared } });
-  return true;
 }

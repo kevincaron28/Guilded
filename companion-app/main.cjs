@@ -1,10 +1,12 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification, safeStorage, powerMonitor } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, execFile } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
 const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
+// Loaded on first use (Store build only): companion-app/store-update.cjs.
+const storeUpdatesModule = () => require("./store-update.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
 // The Store build never replaces itself: the Store does that. Also true for any package under WindowsApps.
@@ -138,7 +140,8 @@ let update = null;
 let latestRelease = null;
 
 function refreshUpdate() {
-  if (STORE_PACKAGE) { update = null; return; }
+  // Store build: only a Store update the API could not install itself shows the banner (F5).
+  if (STORE_PACKAGE) { update = storePageUpdate; return; }
   const next = updates.pickUpdate(app.getVersion(), latestRelease);
   // Refresh provider metadata even for the same version; notification dedup is below.
   update = next;
@@ -226,6 +229,65 @@ app.on("will-quit", () => {
   if (verdict.action === "install" && updates.launchInstallerOnExit(verdict.file)) installerHandedOff = true;
 });
 
+// Microsoft Store build updates itself (8.5, track F5; companion-app/store-update.cjs). Silent on
+// Windows 11 and Windows 10 2004+, one small Store prompt on Windows 10 1607-1909, otherwise (or on any
+// failure) the Store updates button and banner. Installing closes the app; a one-time task restarts it
+// and the marker below keeps that restart in the tray.
+let storePageUpdate = null;
+let storeUpdateBusy = false;
+let storePromptPending = false;
+let restartedQuietly = false;
+const restartMarkerFile = () => path.join(app.getPath("userData"), "store-update-restart.json");
+function readRestartMarker() {
+  if (!STORE_PACKAGE) return false;
+  try {
+    const quiet = storeUpdatesModule().restartedAfterUpdate(JSON.parse(fs.readFileSync(restartMarkerFile(), "utf8")));
+    fs.rmSync(restartMarkerFile(), { force: true });
+    if (quiet) pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion was updated by Microsoft Store and restarted.") });
+    return quiet;
+  } catch { return false; }
+}
+function wowIsRunning() {
+  return new Promise((resolve) => execFile("tasklist", ["/FO", "CSV", "/NH", "/FI", "IMAGENAME eq Wow*"], { windowsHide: true, timeout: 15_000 },
+    (error, stdout) => resolve(!error && storeUpdatesModule().wowRunningFrom(stdout))));
+}
+async function maybeStoreUpdate() {
+  const decision = storeUpdatesModule().decideStoreCheck({ store: STORE_PACKAGE, platform: process.platform, enabled: config.autoUpdate !== false,
+    wowRunning: process.platform === "win32" && STORE_PACKAGE ? await wowIsRunning() : false,
+    lastCheckAt: config.storeUpdateCheckedAt, lastFailedAt: config.storeUpdateFailedAt, busy: storeUpdateBusy });
+  if (decision.action !== "check") return decision;
+  storeUpdateBusy = true;
+  const now = new Date().toISOString();
+  try {
+    const check = await storeUpdatesModule().runScript(spawn, storeUpdatesModule().checkScript(), { timeoutMs: 2 * 60 * 1000 });
+    config.storeUpdateCheckedAt = now;
+    if (!check.ok) config.storeUpdateFailedAt = now;
+    const next = storeUpdatesModule().decideStoreInstall(check, { windowVisible: !!win && win.isVisible(), wowRunning: await wowIsRunning() });
+    storePromptPending = next.reason === "prompt-needs-window";
+    if (next.action === "button" && check.ok && check.updates > 0) storePageUpdate = { version: check.version || "", url: STORE_UPDATES };
+    if (next.action === "button" && !check.ok) pushLog({ time: now, level: "info", message: E("Microsoft Store update check unavailable: {0}", String(check.error || "unknown")) });
+    if (next.action !== "install") return next;
+    pushLog({ time: now, level: "info", message: E("Installing Guilded Companion {0} from Microsoft Store. The companion restarts by itself.", check.version || "") });
+    fs.writeFileSync(restartMarkerFile(), JSON.stringify({ at: new Date().toISOString(), version: check.version || null }));
+    await saveConfig();
+    const hwnd = next.method === "prompt" && win ? String(win.getNativeWindowHandle().readBigUInt64LE(0)) : "0";
+    const result = await storeUpdatesModule().runScript(spawn, storeUpdatesModule().installScript({ method: next.method, hwnd, exe: path.parse(process.execPath).name }));
+    // Still here: the update was declined, failed or had nothing to install. Keep the button.
+    fs.rmSync(restartMarkerFile(), { force: true });
+    if (!result.ok) { config.storeUpdateFailedAt = new Date().toISOString(); storePageUpdate = { version: check.version || "", url: STORE_UPDATES }; }
+    pushLog({ time: new Date().toISOString(), level: result.ok ? "info" : "warn", message: result.ok ? E("Microsoft Store update finished.") : E("Microsoft Store update did not finish ({0}). Use Store updates.", String(result.state || result.error || "unknown")) });
+    return next;
+  } catch (error) {
+    config.storeUpdateFailedAt = now;
+    pushLog({ time: now, level: "warn", message: E("Microsoft Store update check unavailable: {0}", error instanceof Error ? error.message : String(error)) });
+    return { action: "button", reason: "error" };
+  } finally {
+    storeUpdateBusy = false;
+    await saveConfig().catch(() => {});
+    if (engine) onState(engine.state());
+  }
+}
+
 // Launch-day check (companion/live-folder.mjs): when the watched file last changed, for the
 // Overview status line, and the live game's folder to offer when WoW saves somewhere else.
 // Checked at start, after each upload or setup change, and every hour.
@@ -300,7 +362,9 @@ function createWindow() {
   });
   win.setMenu(null);
   win.loadFile(path.join(__dirname, "renderer", "index.html"), { query: screenshotTab ? { tab: screenshotTab } : {} });
-  win.once("ready-to-show", () => { if (!startHidden || engineModules.validateConfig(config).length > 0) win.show(); });
+  win.once("ready-to-show", () => { if ((!startHidden && !restartedQuietly) || engineModules.validateConfig(config).length > 0) win.show(); });
+  // A Store update prompt (Windows 10 1607-1909) waits for a window the member can see.
+  win.on("show", () => { if (storePromptPending) { storePromptPending = false; config.storeUpdateCheckedAt = undefined; void maybeStoreUpdate(); } });
   win.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
@@ -411,6 +475,7 @@ app.whenReady().then(async () => {
       onLog: (entry) => pushLog(entry),
       onState
     });
+    restartedQuietly = readRestartMarker();
     createWindow();
     createTray();
   } catch (error) {
@@ -432,6 +497,12 @@ app.whenReady().then(async () => {
   // Look for a newer release shortly after start, then every few hours.
   setTimeout(() => void checkForUpdate(), 20_000);
   setInterval(() => void checkForUpdate(), updates.CHECK_INTERVAL_MS);
+  // Store build (F5): look for a Store update a few minutes after start, then every 30 minutes;
+  // store-update.cjs keeps it to once every 6 hours and never while WoW runs.
+  if (STORE_PACKAGE) {
+    setTimeout(() => void maybeStoreUpdate(), 3 * 60 * 1000);
+    setInterval(() => void maybeStoreUpdate(), 30 * 60 * 1000);
+  }
 
   if (screenshotPath) {
     const capture = () => setTimeout(async () => {

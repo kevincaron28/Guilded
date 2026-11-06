@@ -22,6 +22,7 @@ const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', 
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
 const names = {status:'Home',link:'Link everything',characters:'My characters',reserves:'Reserves',server:'Server',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Sync & setup',activity:'Activity',help:'Help & privacy'};
 let lastSnapshot;
+let storePackage = false; // Microsoft Store build: its update banner opens the Store (F5)
 let savedConfig = {};
 let entries = [];
 let toastTimer;
@@ -65,7 +66,7 @@ function renderUpdate(update) {
   $('updateBanner').hidden = !update;
   if (!update) return;
   $('updateTitle').textContent = T("Guilded Companion {0} is available", update.version);
-  $('updateText').textContent = T("You have {0}. {1}: your settings and Discord link are kept.", $('version').textContent.replace(/^Version /, ''), update.installer ? T("Update now installs it and restarts the companion") : T("Download the new installer and run it"));
+  $('updateText').textContent = T("You have {0}. {1}: your settings and Discord link are kept.", $('version').textContent.replace(/^Version /, ''), storePackage ? T("Update now opens Microsoft Store to install it") : update.installer ? T("Update now installs it and restarts the companion") : T("Download the new installer and run it"));
 }
 // Launch day (companion/live-folder.mjs, installed app only): the watched folder with its last
 // upload and file change (amber after 3 days without a change), and the live game's folder to
@@ -374,6 +375,7 @@ async function init() {
   await renderProfiles();
   if (!languageUI.explicit && ['en','fr'].includes(all.language)) languageUI.set(all.language, false);
   for (const id of fields) $(id).value = all.config[id] ?? '';
+  storePackage = all.storePackage === true;
   $('storeDistribution').hidden = !all.storePackage;
   if (all.storePackage) { $('autostartLabel').hidden = true; $('autoUpdateLabel').hidden = true; $('autoUpdateRow').hidden = true; }
   $('autoUpdate').checked = all.config.autoUpdate !== false;

@@ -985,5 +985,6 @@
   "Your settings and Discord link were kept.": "Vos paramètres et votre lien Discord ont été conservés.",
   "Version {0} is available. Choose Update now to install it.": "La version {0} est disponible. Choisissez Mettre à jour pour l’installer.",
   "Check for updates": "Rechercher des mises à jour",
-  "Install updates automatically": "Installer les mises à jour automatiquement"
+  "Install updates automatically": "Installer les mises à jour automatiquement",
+  "Update now opens Microsoft Store to install it": "Mettre à jour ouvre le Microsoft Store pour l’installer"
 }

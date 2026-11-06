@@ -2514,10 +2514,150 @@ local function togglePanel()
   if not ok then ns.message("Tools window failed to open: " .. tostring(err)) end
 end
 
+-- Minimap button shortcuts (8.5.0):
+--   Left          the window, on the page last used
+--   Right         a quick menu of the pages people open most
+--   Shift + left  dungeon groups and the finder
+--   Ctrl + left   check my gear
+--   Alt + left    guild map
+--   Middle        settings
+local function modifier(name)
+  local fn = _G["Is" .. name .. "KeyDown"]
+  return fn and fn() and true or false
+end
+
+local function inCombat()
+  return (InCombatLockdown and InCombatLockdown()) and true or false
+end
+
+local function tabExists(name)
+  for _, tab in ipairs(ui.tabs) do if tab.name == name then return true end end
+  return false
+end
+
+local function openPage(name)
+  if ns.openToolsPage then ns.openToolsPage(name) end
+end
+
+local function openDungeons()
+  if ns.dungeonScorePanel and ns.dungeonScorePanel.open then ns.dungeonScorePanel.open("run") else openPage("Open raids") end
+end
+
+-- The quick menu: label, then what it does. "Race to 60" appears only when that page exists.
+local function quickMenuItems()
+  local items = {
+    { "Raid signups", function() openPage("Open raids") end },
+    { "Loot and standings", function() openPage("Standings") end },
+    { "Dungeons", openDungeons },
+    { "Crafting search", function() openPage("Crafting") end },
+    { "Guild map", function() run("map open") end }
+  }
+  if tabExists("Race to 60") then table.insert(items, { "Race to 60", function() openPage("Race to 60") end }) end
+  table.insert(items, { "Settings", function() openPage("Tools") end })
+  return items
+end
+
+local quickMenu
+local function hideQuickMenu()
+  if quickMenu then quickMenu:Hide() end
+  if quickMenu and quickMenu.catcher then quickMenu.catcher:Hide() end
+end
+
+local function showQuickMenu()
+  hideQuickMenu()
+  local items = quickMenuItems()
+  if not quickMenu then
+    quickMenu = CreateFrame("Frame", "GuildedQuickMenu", UIParent, "BackdropTemplate")
+    quickMenu:SetFrameStrata("DIALOG")
+    quickMenu:SetClampedToScreen(true)
+    if quickMenu.SetBackdrop then
+      quickMenu:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+      quickMenu:SetBackdropColor(0.05, 0.05, 0.07, 0.95)
+    end
+    -- A click anywhere else closes the menu.
+    quickMenu.catcher = CreateFrame("Button", nil, UIParent)
+    quickMenu.catcher:SetAllPoints(UIParent)
+    quickMenu.catcher:SetFrameStrata("DIALOG")
+    quickMenu.catcher:SetFrameLevel(1)
+    quickMenu.catcher:RegisterForClicks("AnyUp")
+    quickMenu.catcher:SetScript("OnClick", hideQuickMenu)
+    quickMenu.buttons = {}
+    if UISpecialFrames then table.insert(UISpecialFrames, "GuildedQuickMenu") end
+  end
+  local height = 10
+  for i, item in ipairs(items) do
+    local b = quickMenu.buttons[i]
+    if not b then
+      b = CreateFrame("Button", nil, quickMenu)
+      b:SetSize(170, 22)
+      b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+      b.text:SetPoint("LEFT", 8, 0)
+      b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+      quickMenu.buttons[i] = b
+    end
+    b:ClearAllPoints()
+    b:SetPoint("TOPLEFT", quickMenu, "TOPLEFT", 5, -5 - (i - 1) * 22)
+    b.text:SetText(L(item[1]))
+    local action = item[2]
+    b:SetScript("OnClick", function()
+      hideQuickMenu()
+      if inCombat() then ns.message(L("Not in combat.")) return end
+      action()
+    end)
+    b:Show()
+    height = height + 22
+  end
+  for i = #items + 1, #quickMenu.buttons do quickMenu.buttons[i]:Hide() end
+  quickMenu:SetSize(180, height)
+  quickMenu:ClearAllPoints()
+  if button then quickMenu:SetPoint("TOPRIGHT", button, "BOTTOMLEFT", 8, 8) else quickMenu:SetPoint("CENTER") end
+  quickMenu.catcher:Show()
+  quickMenu:Show()
+  if quickMenu.Raise then quickMenu:Raise() end
+end
+
+-- What a click does. Returns a name for the action (the tests read it). In combat only the plain
+-- left click (toggling Guilded's own window) works; everything else says so and does nothing.
 local function minimapClick(mouseButton)
-  if IsAltKeyDown and IsAltKeyDown() then run("map open")
-  elseif mouseButton == "RightButton" then run("inspect")
-  else togglePanel() end
+  if mouseButton == "MiddleButton" then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    openPage("Tools")
+    return "settings"
+  elseif mouseButton == "RightButton" then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    showQuickMenu()
+    return "menu"
+  end
+  if modifier("Alt") then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    run("map open")
+    return "map"
+  elseif modifier("Control") then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    run("inspect")
+    return "gear"
+  elseif modifier("Shift") then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    openDungeons()
+    return "dungeons"
+  end
+  togglePanel()
+  return "window"
+end
+ns.minimapClick = minimapClick
+
+-- The tooltip: every shortcut, then live status.
+local function fillTooltip()
+  GameTooltip:AddLine("Guilded")
+  GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
+  GameTooltip:AddLine(L("Right-click: quick menu"), 1, 1, 1)
+  GameTooltip:AddLine(L("Shift-click: dungeon groups"), 1, 1, 1)
+  GameTooltip:AddLine(L("Ctrl-click: check my gear"), 1, 1, 1)
+  GameTooltip:AddLine(L("Alt-click: guild map"), 1, 1, 1)
+  GameTooltip:AddLine(L("Middle-click: settings"), 1, 1, 1)
+  local waiting = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
+  if waiting then GameTooltip:AddLine(L("Changes waiting to be saved (/reload)"), 1, 0.82, 0.2) end
 end
 
 -- ---------------------------------------------------------------------
@@ -2557,17 +2697,14 @@ local function buildButton()
   border:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
 
   button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-  button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  button:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
   button:RegisterForDrag("LeftButton")
   button:SetScript("OnClick", function(_, mouseButton)
     minimapClick(mouseButton)
   end)
   button:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:AddLine("Guilded")
-    GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
-    GameTooltip:AddLine(L("Right-click: check my gear"), 1, 1, 1)
-    GameTooltip:AddLine(L("Alt-click: guild map"), 1, 1, 1)
+    fillTooltip()
     GameTooltip:AddLine(L("Drag: move this button"), 1, 1, 1)
     GameTooltip:Show()
   end)
@@ -2650,9 +2787,7 @@ end
 function Guilded_OnAddonCompartmentEnter(_, anchor)
   if not GameTooltip then return end
   GameTooltip:SetOwner(anchor or UIParent, "ANCHOR_LEFT")
-  GameTooltip:AddLine("Guilded")
-  GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
-  GameTooltip:AddLine(L("Right-click: check my gear"), 1, 1, 1)
+  fillTooltip()
   GameTooltip:Show()
 end
 function Guilded_OnAddonCompartmentLeave()

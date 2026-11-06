@@ -371,7 +371,48 @@ describe("Recipes.lua compact tooltip", () => {
     const s = prepare("Ray");
     craftFirstAid(s, ["Ann", "Bob", "Cy", "Dan"]);
     s.run(`DB.recipeBook.people.Ray = { ["First Aid"] = { v = 50, keys = { 555 } } }; ONLINE = { "Ann" }`); // your own recipes come from the profession window, not a message
-    expect(tip(s, 555)).toBe("Guilded * First Aid: 5 crafters\nyou, Ann, Dan +2 more");
+    expect(tip(s, 555)).toBe("Guilded * First Aid: 5 crafters\nyou, Ann (online), Dan +2 more");
+  });
+
+  it("adds last seen from the roster: online now, hours, days, weeks (one line, no taller)", () => {
+    const s = prepare("Ray");
+    craftFirstAid(s, ["Ann", "Bob", "Cy"]);
+    s.run(`
+      ONLINE = { "Ann", "Bob", "Cy" }
+      ONLINE_FLAGS = { Ann = true }
+      function GetGuildRosterInfo(i) return ONLINE[i] .. "-Realm", "", 0, 0, "", "", "", "", ONLINE_FLAGS[ONLINE[i]] == true end
+      LAST = { Bob = { 0, 0, 3, 5 }, Cy = { 0, 0, 20, 0 } }
+      function GetGuildRosterLastOnline(i) local t = LAST[ONLINE[i]]; if not t then return nil end return t[1], t[2], t[3], t[4] end
+    `);
+    expect(tip(s, 555)).toBe("Guilded * First Aid: Ann (online), Cy (2w), Bob (3d)");
+  });
+
+  it("remembers last seen in SavedVariables with the read time, and falls back to it", () => {
+    const s = prepare("Ray");
+    craftFirstAid(s, ["Bob"]);
+    s.run(`
+      ONLINE = { "Bob" }
+      function GetGuildRosterInfo(i) return "Bob-Realm", "", 0, 0, "", "", "", "", false end
+      function GetGuildRosterLastOnline() return 0, 0, 2, 0 end
+    `);
+    expect(tip(s, 555)).toBe("Guilded * First Aid: Bob (2d)");
+    expect(s.run(`return DB.crafterSeen.Bob.read == time() and "read" or "stale"`)).toBe("read");
+    // The roster no longer answers (not loaded): the saved value is used instead.
+    s.run(`GetGuildRosterLastOnline = nil; function GetGuildRosterInfo() return nil end; GetNumGuildMembers = function() return 0 end`);
+    expect(s.run(`return NS.recipes.lastSeenText("Bob", false)`)).toBe("2d");
+    expect(s.run(`return tostring(NS.recipes.lastSeenText("Nobody", false))`)).toBe("nil");
+  });
+
+  it("formats the elapsed time and shows it in the Shift list too", () => {
+    const s = prepare("Ray");
+    const text = (secs: number) => s.run(`return NS.recipes.lastSeenText("X", false, time() - ${secs})`);
+    expect(text(60)).toBe("<1h");
+    expect(text(5 * 3600)).toBe("5h");
+    expect(text(3 * 86400)).toBe("3d");
+    expect(text(21 * 86400)).toBe("3w");
+    expect(text(90 * 86400)).toBe("3mo");
+    expect(text(800 * 86400)).toBe("2y");
+    expect(s.run(`return NS.recipes.lastSeenText("X", true)`)).toBe("online");
   });
 
   it("uses full names only where two crafters share a first name", () => {

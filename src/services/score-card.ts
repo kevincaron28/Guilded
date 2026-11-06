@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import type { WebResponse } from "./web-app.js";
+import type { RosterVisual } from "./roster-visual.js";
 
 /**
  * A 1200x630 share card, two columns. Left: what it is (eyebrow, title, subtitle), one big headline
@@ -15,6 +16,8 @@ export interface CardBadge { text: string; tone?: "ok" | "warn" | "muted" }
 export interface CardUnlock { name: string; group: string; detail: string; tier: string; color: string; icon: string }
 export interface CardProgress { label: string; value: number; max: number; note?: string | undefined }
 export interface CardTierCount { label: string; color: string; count: number }
+/** One bar on the race-to-60 card: `color` is the class colour, `note` a short right-hand text (for example +3 this week). */
+export interface CardRaceBar { name: string; color: string; level: number; max: number; note?: string | undefined; done?: boolean | undefined }
 /**
  * The optional `unlocks` list switches a card to the achievement-unlocked layout (a hero badge for one,
  * a list or grid for several). Every field after `footer` is optional so card definitions queued before
@@ -23,7 +26,11 @@ export interface CardTierCount { label: string; color: string; count: number }
 export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; stats: CardStat[]; rowsLabel?: string; rows?: CardRow[]; badges?: CardBadge[]; footer: string;
   /** Added at delivery from Discord, never stored: a base64 PNG avatar and the member's highest role. */
   portrait?: string; rank?: { label: string; color: string };
-  unlocks?: CardUnlock[]; unlocksMore?: number; moreLabel?: string; progress?: CardProgress; tierCounts?: CardTierCount[] }
+  unlocks?: CardUnlock[]; unlocksMore?: number; moreLabel?: string; progress?: CardProgress; tierCounts?: CardTierCount[];
+  /** 8.5: the roster picture (class counts by level band + profession grid, roster-visual.ts); switches to its own layout. */
+  roster?: RosterVisual; rosterProfessionsLabel?: string;
+  /** Race layout (8.5): class-coloured level bars in two columns, up to 14. */
+  race?: CardRaceBar[] }
 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
 const images = new Map<string, Buffer>();
@@ -59,8 +66,35 @@ const chrome = (): string[] => {
   return shapes;
 };
 
+// The race-to-60 layout: a header, then up to 14 bars (two columns of seven), each filled to level/max in the class colour.
+async function renderRace(card: ScoreCard): Promise<Buffer> {
+  const shapes = chrome();
+  const layers: Layer[] = [];
+  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
+    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
+  };
+  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 36, 1080);
+  await put(span(th.ink, clip(card.title, 30)), 54, 60, 62, 1080);
+  await put(span(th.muted, clip(card.subtitle, 90)), 23, 60, 132, 1080);
+  const bars = card.race!.slice(0, 14), colW = 520, rowH = 56, top = 180;
+  for (const [i, bar] of bars.entries()) {
+    const col = i < 7 ? 0 : 1, x = 60 + col * (colW + 40), y = top + (i % 7) * rowH;
+    const fraction = Math.max(0, Math.min(1, bar.level / Math.max(1, bar.max))), bx = x + 200, bw = 210;
+    shapes.push(rect(bx, y + 12, bw, 22, "#1a120a", th.edge, 8), `<rect x="${bx}" y="${y + 12}" width="${Math.max(6, Math.round(bw * fraction))}" height="22" rx="8" fill="${bar.color}" fill-opacity="${bar.done ? 1 : 0.85}"/>`);
+    await put(span(bar.color, clip(`${i + 1}. ${bar.name}`, 18)), 22, x, y + 8, 190);
+    await put(span(bar.done ? th.gold : th.ink, String(bar.level)), 22, bx + bw + 12, y + 8, 60);
+    if (bar.note) await put(span(th.muted, clip(bar.note, 14)), 17, bx + bw + 58, y + 12, 130);
+  }
+  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
+  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590);
+  const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
+  return sharp(base).composite(layers).png().toBuffer();
+}
+
 async function render(card: ScoreCard): Promise<Buffer> {
+  if (card.roster) return renderRoster(card);
   if (card.unlocks?.length) return renderUnlock(card);
+  if (card.race?.length) return renderRace(card);
   const accent = { gold: th.gold, green: th.green, red: th.red } as const;
   const shapes = chrome();
   const layers: Layer[] = [];
@@ -301,6 +335,64 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
         await putCentre(caps(th.muted, card.moreLabel ?? "more"), 15, x + tw / 2, y + 58);
       }
     }
+  }
+
+  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
+  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590);
+  const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
+  return sharp(base).composite(layers).png().toBuffer();
+}
+
+/**
+ * The roster card: class rows with one bar segment per level band (class colour, darker = higher band) on the left,
+ * the profession grid on the right (a profession nobody has is drawn red). Bounded: at most 13 class rows and 12
+ * profession tiles, so 0, 1 or 150 members never overlap.
+ */
+async function renderRoster(card: ScoreCard): Promise<Buffer> {
+  const data = card.roster!, shapes = chrome(), layers: Layer[] = [];
+  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
+    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
+  };
+  const putRight = async (markup: string, size: number, right: number, top: number) => {
+    const t = await text(markup, size, 300); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(top) }); return t;
+  };
+  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40);
+  await put(span(th.ink, clip(card.title, 40)), 56, 58, 66, 1080);
+  await put(span(th.muted, clip(card.subtitle, 90)), 24, 60, 142);
+
+  // Left panel: classes by level band.
+  const lx = 60, ly = 188, lw = 590, lh = 372, opacity = [0.35, 0.55, 0.78, 1];
+  shapes.push(rect(lx, ly, lw, lh, th.panel, th.edge, 14));
+  data.bands.slice(0, 4).forEach((band, i) => shapes.push(`<rect x="${lx + 24 + i * 112}" y="${ly + 18}" width="14" height="14" rx="3" fill="${th.gold}" fill-opacity="${opacity[i] ?? 1}"/>`));
+  for (const [i, band] of data.bands.slice(0, 4).entries()) await put(span(th.muted, clip(band, 8)), 16, lx + 44 + i * 112, ly + 14, 90);
+  const classes = data.classes.slice(0, 13);
+  if (!classes.length) {
+    await put(span(th.muted, "—"), 30, lx + 24, ly + 120, lw - 48);
+  } else {
+    const rowH = Math.min(28, Math.floor((lh - 70) / classes.length)), barX = lx + 170, barW = lw - 170 - 70, max = Math.max(1, ...classes.map((c) => c.total));
+    for (const [i, c] of classes.entries()) {
+      const y = ly + 54 + i * rowH, color = legible(c.color);
+      await putRight(span(color, clip(c.name, 14)), Math.min(20, rowH - 4), barX - 12, y);
+      let x = barX;
+      for (const [band, count] of c.byBand.entries()) {
+        const w = count ? Math.max(2, Math.round((count / max) * barW)) : 0;
+        if (w) shapes.push(`<rect x="${x}" y="${y + 2}" width="${w}" height="${Math.max(8, rowH - 8)}" fill="${c.color}" fill-opacity="${opacity[band] ?? 1}"/>`);
+        x += w;
+      }
+      await put(span(th.ink, String(c.total)), Math.min(19, rowH - 5), x + 8, y, 60);
+    }
+  }
+
+  // Right panel: profession grid, 3 columns.
+  const rx = 674, rw = 466, tiles = data.professions.slice(0, 12), tw = Math.floor((rw - 48 - 16) / 3), th2 = 66;
+  shapes.push(rect(rx, ly, rw, lh, th.panel, th.edge, 14));
+  await put(caps(th.muted, card.rosterProfessionsLabel ?? "Professions"), 16, rx + 24, ly + 14, rw - 48);
+  for (const [i, p] of tiles.entries()) {
+    const x = rx + 24 + (i % 3) * (tw + 8), y = ly + 52 + Math.floor(i / 3) * (th2 + 8), gap = p.crafters === 0;
+    shapes.push(`<rect x="${x}" y="${y}" width="${tw}" height="${th2}" rx="8" fill="${gap ? th.warn.fill : th.ok.fill}" stroke="${gap ? th.red : th.ok.edge}" stroke-width="1.5"/>`);
+    await put(span(th.ink, clip(p.name, 14)), 16, x + 8, y + 6, tw - 10);
+    await put(span(gap ? th.red : th.green, gap ? "0" : String(p.crafters)), 24, x + 10, y + 28, 60);
+    if (!gap) await putRight(span(th.muted, String(p.maxSkill)), 17, x + tw - 10, y + 36);
   }
 
   shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);

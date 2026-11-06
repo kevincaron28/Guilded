@@ -7,7 +7,7 @@ import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE";
+export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "WHOS_WHO_BOARD" | "RACE_BOARD" | "BG_LADDER" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -70,6 +70,15 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
   } else if (job.kind === "DUEL_BOARD") {
     const { updateDuelBoard } = await import("./duel-board.js");
     if (!await updateDuelBoard(guild, true)) throw new Error("Duel board unavailable");
+  } else if (job.kind === "WHOS_WHO_BOARD") {
+    const { updateWhosWhoBoard } = await import("./whos-who-board.js");
+    if (!await updateWhosWhoBoard(guild, true)) throw new Error("Who's who board unavailable");
+  } else if (job.kind === "BG_LADDER") {
+    const { updateBgLadder } = await import("./bg-ladder.js");
+    if (!await updateBgLadder(guild, true)) throw new Error("Battleground ladder unavailable");
+  } else if (job.kind === "RACE_BOARD") {
+    const { updateRaceBoard } = await import("./race-board.js");
+    if (!await updateRaceBoard(guild, true)) throw new Error("Race board unavailable");
   } else if (job.kind === "PROFESSIONS") {
     const { updateProfessionDirectory } = await import("./profession-directory.js");
     if (!await updateProfessionDirectory(guild, true)) throw new Error("Directory unavailable");

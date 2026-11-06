@@ -648,3 +648,81 @@ describe("in-game UI fixes from the 5 November pass", () => {
     expect(s.run("return NS.windowState().scope")).toBe("main");
   });
 });
+
+describe("minimap button shortcuts (Track E2)", () => {
+  const setup = (rank = 5) => {
+    const s = openWindow(rank);
+    s.run(String.raw`
+      KEYS = {}
+      function IsAltKeyDown() return KEYS.alt == true end
+      function IsShiftKeyDown() return KEYS.shift == true end
+      function IsControlKeyDown() return KEYS.ctrl == true end
+      COMBAT = false
+      function InCombatLockdown() return COMBAT end
+      DONE = {}
+      NS.runCommand = function(text) DONE[#DONE + 1] = text end
+      NS.dungeonScorePanel = { open = function(mode) DONE[#DONE + 1] = "dungeons " .. mode end }
+    `);
+    return s;
+  };
+  const click = (s: LuaSession, button: string, keys = "") =>
+    s.run(`KEYS = { ${keys} }; return NS.minimapClick(${JSON.stringify(button)})`);
+
+  it("routes each click to its action", () => {
+    const s = setup();
+    expect(click(s, "LeftButton")).toBe("window");
+    expect(click(s, "LeftButton", "shift = true")).toBe("dungeons");
+    expect(click(s, "LeftButton", "ctrl = true")).toBe("gear");
+    expect(click(s, "LeftButton", "alt = true")).toBe("map");
+    expect(click(s, "MiddleButton")).toBe("settings");
+    expect(click(s, "RightButton")).toBe("menu");
+    expect(click(s, "RightButton", "shift = true")).toBe("unavailable");
+    s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "sos" end }; COMBAT = true`);
+    expect(click(s, "RightButton", "shift = true")).toBe("help"); // works in combat
+    s.run(`COMBAT = false; table.remove(DONE)`);
+    expect(s.run(`return table.concat(DONE, ",")`)).toBe("dungeons run,inspect,map open");
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Tools"); // middle opened settings
+  });
+
+  it("registers the middle button and lists every shortcut in the tooltip", () => {
+    const s = setup();
+    s.run(`TIP = {}; GameTooltip = { SetOwner = function() end, AddLine = function(_, t) TIP[#TIP + 1] = t end, Show = function() end, Hide = function() end }
+      Guilded_OnAddonCompartmentEnter(nil, UIParent)`);
+    const tip = s.run(`return table.concat(TIP, "|")`);
+    for (const word of ["Left-click", "Right-click: quick menu", "Shift-click", "Ctrl-click: check my gear", "Alt-click", "Middle-click: settings"]) expect(tip).toContain(word);
+  });
+
+  it("does nothing protected in combat, apart from toggling Guilded's own window", () => {
+    const s = setup();
+    s.run(`COMBAT = true`);
+    for (const [button, keys] of ([["RightButton", ""], ["MiddleButton", ""], ["LeftButton", "shift = true"], ["LeftButton", "ctrl = true"], ["LeftButton", "alt = true"]] as [string, string][])) {
+      expect(click(s, button, keys)).toBe("blocked");
+    }
+    expect(s.run(`return #DONE`)).toBe("0");
+  });
+
+  it("hides the click catcher when the menu closes by Escape, so the next click reaches the button", () => {
+    const s = setup();
+    click(s, "RightButton");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
+    expect(s.run(`return tostring(MENU.catcher.shown)`)).toBe("true");
+    // Escape hides the frame through UISpecialFrames; the game then runs its OnHide script.
+    s.run(`MENU:Hide(); MENU.scripts.OnHide(MENU)`);
+    expect(s.run(`return tostring(MENU.catcher.shown)`)).toBe("false");
+    expect(click(s, "LeftButton")).toBe("window");
+  });
+
+  it("the quick menu lists the pages, and only offers Race to 60 when that page exists", () => {
+    const s = setup();
+    click(s, "RightButton");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
+    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("6");
+    expect(s.run(`return MENU.buttons[1].text.text .. "," .. MENU.buttons[6].text.text`)).toBe("Raid signups,Settings");
+    s.run(`NS.windowState().tabs[#NS.windowState().tabs + 1] = { name = "Race to 60" }`);
+    click(s, "RightButton");
+    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("7");
+    s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "help" end }`);
+    click(s, "RightButton");
+    expect(s.run(`return MENU.buttons[#MENU.buttons - 1].text.text`)).toBe("Call for help");
+  });
+});

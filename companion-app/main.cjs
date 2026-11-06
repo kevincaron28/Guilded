@@ -1,10 +1,12 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification, safeStorage, powerMonitor } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification, safeStorage, powerMonitor, clipboard } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, execFile } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables } = require("./detect-wow.cjs");
+const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables, pickerStart, accountsUnder } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
+// Loaded on first use (Store build only): companion-app/store-update.cjs.
+const storeUpdatesModule = () => require("./store-update.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
 // The Store build never replaces itself: the Store does that. Also true for any package under WindowsApps.
@@ -112,7 +114,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, activeEditionsModule, activeGamesModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("active-editions.mjs")), import(url("active-games.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")) };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")) };
 }
 
 function pushLog(entry) {
@@ -138,7 +140,8 @@ let update = null;
 let latestRelease = null;
 
 function refreshUpdate() {
-  if (STORE_PACKAGE) { update = null; return; }
+  // Store build: only a Store update the API could not install itself shows the banner (F5).
+  if (STORE_PACKAGE) { update = storePageUpdate; return; }
   const next = updates.pickUpdate(app.getVersion(), latestRelease);
   // Refresh provider metadata even for the same version; notification dedup is below.
   update = next;
@@ -226,6 +229,65 @@ app.on("will-quit", () => {
   if (verdict.action === "install" && updates.launchInstallerOnExit(verdict.file)) installerHandedOff = true;
 });
 
+// Microsoft Store build updates itself (8.5, track F5; companion-app/store-update.cjs). Silent on
+// Windows 11 and Windows 10 2004+, one small Store prompt on Windows 10 1607-1909, otherwise (or on any
+// failure) the Store updates button and banner. Installing closes the app; a one-time task restarts it
+// and the marker below keeps that restart in the tray.
+let storePageUpdate = null;
+let storeUpdateBusy = false;
+let storePromptPending = false;
+let restartedQuietly = false;
+const restartMarkerFile = () => path.join(app.getPath("userData"), "store-update-restart.json");
+function readRestartMarker() {
+  if (!STORE_PACKAGE) return false;
+  try {
+    const quiet = storeUpdatesModule().restartedAfterUpdate(JSON.parse(fs.readFileSync(restartMarkerFile(), "utf8")));
+    fs.rmSync(restartMarkerFile(), { force: true });
+    if (quiet) pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion was updated by Microsoft Store and restarted.") });
+    return quiet;
+  } catch { return false; }
+}
+function wowIsRunning() {
+  return new Promise((resolve) => execFile("tasklist", ["/FO", "CSV", "/NH", "/FI", "IMAGENAME eq Wow*"], { windowsHide: true, timeout: 15_000 },
+    (error, stdout) => resolve(!error && storeUpdatesModule().wowRunningFrom(stdout))));
+}
+async function maybeStoreUpdate() {
+  const decision = storeUpdatesModule().decideStoreCheck({ store: STORE_PACKAGE, platform: process.platform, enabled: config.autoUpdate !== false,
+    wowRunning: process.platform === "win32" && STORE_PACKAGE ? await wowIsRunning() : false,
+    lastCheckAt: config.storeUpdateCheckedAt, lastFailedAt: config.storeUpdateFailedAt, busy: storeUpdateBusy });
+  if (decision.action !== "check") return decision;
+  storeUpdateBusy = true;
+  const now = new Date().toISOString();
+  try {
+    const check = await storeUpdatesModule().runScript(spawn, storeUpdatesModule().checkScript(), { timeoutMs: 2 * 60 * 1000 });
+    config.storeUpdateCheckedAt = now;
+    if (!check.ok) config.storeUpdateFailedAt = now;
+    const next = storeUpdatesModule().decideStoreInstall(check, { windowVisible: !!win && win.isVisible(), wowRunning: await wowIsRunning() });
+    storePromptPending = next.reason === "prompt-needs-window";
+    if (next.action === "button" && check.ok && check.updates > 0) storePageUpdate = { version: check.version || "", url: STORE_UPDATES };
+    if (next.action === "button" && !check.ok) pushLog({ time: now, level: "info", message: E("Microsoft Store update check unavailable: {0}", String(check.error || "unknown")) });
+    if (next.action !== "install") return next;
+    pushLog({ time: now, level: "info", message: E("Installing Guilded Companion {0} from Microsoft Store. The companion restarts by itself.", check.version || "") });
+    fs.writeFileSync(restartMarkerFile(), JSON.stringify({ at: new Date().toISOString(), version: check.version || null }));
+    await saveConfig();
+    const hwnd = next.method === "prompt" && win ? String(win.getNativeWindowHandle().readBigUInt64LE(0)) : "0";
+    const result = await storeUpdatesModule().runScript(spawn, storeUpdatesModule().installScript({ method: next.method, hwnd, exe: path.parse(process.execPath).name }));
+    // Still here: the update was declined, failed or had nothing to install. Keep the button.
+    fs.rmSync(restartMarkerFile(), { force: true });
+    if (!result.ok) { config.storeUpdateFailedAt = new Date().toISOString(); storePageUpdate = { version: check.version || "", url: STORE_UPDATES }; }
+    pushLog({ time: new Date().toISOString(), level: result.ok ? "info" : "warn", message: result.ok ? E("Microsoft Store update finished.") : E("Microsoft Store update did not finish ({0}). Use Store updates.", String(result.state || result.error || "unknown")) });
+    return next;
+  } catch (error) {
+    config.storeUpdateFailedAt = now;
+    pushLog({ time: now, level: "warn", message: E("Microsoft Store update check unavailable: {0}", error instanceof Error ? error.message : String(error)) });
+    return { action: "button", reason: "error" };
+  } finally {
+    storeUpdateBusy = false;
+    await saveConfig().catch(() => {});
+    if (engine) onState(engine.state());
+  }
+}
+
 // Launch-day check (companion/live-folder.mjs): when the watched file last changed, for the
 // Overview status line, and the live game's folder to offer when WoW saves somewhere else.
 // Checked at start, after each upload or setup change, and every hour.
@@ -264,13 +326,42 @@ async function refreshSavedFile() {
   if (engine) onState(engine.state());
 }
 
+// Problems panel (8.5, companion/problems.mjs): what is wrong right now, each with its fix.
+// Whether WoW is open is checked once a minute (tasklist, Windows only).
+let wowRunning = false;
+function checkWowRunning() {
+  if (process.platform !== "win32") return;
+  execFile("tasklist", ["/FO", "CSV", "/NH", "/FI", "IMAGENAME eq Wow*"], { windowsHide: true, timeout: 15_000 }, (error, stdout) => {
+    const running = !error && engineModules.wowRunningFrom(stdout);
+    if (running === wowRunning) return;
+    wowRunning = running;
+    if (engine) onState(engine.state());
+  });
+}
+let online = true;
+function problems(state) {
+  if (typeof engineModules?.companionProblems !== "function") return [];
+  return engineModules.companionProblems({
+    config, state, savedFile, update, version: app.getVersion(), store: STORE_INSTALL, autoUpdate: config.autoUpdate !== false,
+    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online
+  });
+}
+let shownProblems = "";
 function onState(state) {
   refreshUpdate(state);
   const status = health(state);
-  win?.webContents.send("state", { state, health: status, update, savedFile });
+  const found = problems(state);
+  win?.webContents.send("state", { state, health: status, update, savedFile, problems: found });
   if (tray) {
-    tray.setImage(nativeImage.createFromPath(asset(`tray-${status.level}.png`)).resize({ width: 32, height: 32 }));
-    tray.setToolTip(`Guilded Companion\n${M(status.text)}${update ? T("\nUpdate available: {0}", update.version) : ""}${savedFile?.candidate ? T("\nWoW data may have moved: open to check") : ""}`);
+    const icon = found.length && fs.existsSync(asset("tray-problem.png")) ? "tray-problem.png" : `tray-${found.length ? "error" : status.level}.png`;
+    tray.setImage(nativeImage.createFromPath(asset(icon)).resize({ width: 32, height: 32 }));
+    tray.setToolTip(`Guilded Companion\n${found.length ? T("{0} problem(s): open to see how to fix", found.length) + "\n" : ""}${M(status.text)}${update ? T("\nUpdate available: {0}", update.version) : ""}${savedFile?.candidate ? T("\nWoW data may have moved: open to check") : ""}`);
+  }
+  // The red "!" on the taskbar button too, changed only when the list changes.
+  const key = found.map((problem) => problem.id).join(",");
+  if (win && key !== shownProblems) {
+    shownProblems = key;
+    try { win.setOverlayIcon(key ? nativeImage.createFromPath(asset("problem-badge.png")) : null, key ? T("{0} problem(s): open to see how to fix", found.length) : ""); } catch { /* not every Windows shell has overlays */ }
   }
   // An upload means the file changed: refresh its date for the status line.
   if (state.lastUpload?.at && state.lastUpload.at !== lastUploadAt) {
@@ -281,7 +372,7 @@ function onState(state) {
 
 function currentState() {
   const state = engine.state();
-  return { state, health: health(state), update, savedFile };
+  return { state, health: health(state), update, savedFile, problems: problems(state) };
 }
 
 function showWindow() {
@@ -300,7 +391,9 @@ function createWindow() {
   });
   win.setMenu(null);
   win.loadFile(path.join(__dirname, "renderer", "index.html"), { query: screenshotTab ? { tab: screenshotTab } : {} });
-  win.once("ready-to-show", () => { if (!startHidden || engineModules.validateConfig(config).length > 0) win.show(); });
+  win.once("ready-to-show", () => { if ((!startHidden && !restartedQuietly) || engineModules.validateConfig(config).length > 0) win.show(); });
+  // A Store update prompt (Windows 10 1607-1909) waits for a window the member can see.
+  win.on("show", () => { if (storePromptPending) { storePromptPending = false; config.storeUpdateCheckedAt = undefined; void maybeStoreUpdate(); } });
   win.on("close", (event) => {
     if (quitting) return;
     event.preventDefault();
@@ -411,6 +504,7 @@ app.whenReady().then(async () => {
       onLog: (entry) => pushLog(entry),
       onState
     });
+    restartedQuietly = readRestartMarker();
     createWindow();
     createTray();
   } catch (error) {
@@ -428,10 +522,19 @@ app.whenReady().then(async () => {
   powerMonitor.on("resume", () => { void engine.resume().catch(error => pushLog({ level: "error", time: new Date().toISOString(), message: error.message })); });
   onState(engine.state());
   void refreshSavedFile();
-  setInterval(() => void refreshSavedFile(), 60 * 60 * 1000);
+  // Every 5 minutes: a few file dates, so a /reload that did not save Guilded.lua shows up soon.
+  setInterval(() => void refreshSavedFile(), 5 * 60 * 1000);
+  checkWowRunning();
+  setInterval(checkWowRunning, 60 * 1000);
   // Look for a newer release shortly after start, then every few hours.
   setTimeout(() => void checkForUpdate(), 20_000);
   setInterval(() => void checkForUpdate(), updates.CHECK_INTERVAL_MS);
+  // Store build (F5): look for a Store update a few minutes after start, then every 30 minutes;
+  // store-update.cjs keeps it to once every 6 hours and never while WoW runs.
+  if (STORE_PACKAGE) {
+    setTimeout(() => void maybeStoreUpdate(), 3 * 60 * 1000);
+    setInterval(() => void maybeStoreUpdate(), 30 * 60 * 1000);
+  }
 
   if (screenshotPath) {
     const capture = () => setTimeout(async () => {
@@ -548,6 +651,8 @@ registerIpc("set-auto-update", async (_event, on) => {
   if (!on) forgetPendingUpdate(config.pendingUpdate?.file);
   await saveConfig();
   if (on) void checkForUpdate();
+  // Store build: turning it back on looks for a Store update now (still never while WoW runs).
+  if (on && STORE_PACKAGE) { config.storeUpdateCheckedAt = undefined; void maybeStoreUpdate(); }
   return on;
 });
 registerIpc("install-update", async () => {
@@ -798,3 +903,33 @@ registerIpc("open-discord-server", () => {
 });
 registerIpc("open-battlenet", () => shell.openExternal(new URL("/me/battlenet", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));
 registerIpc("recover-sync", () => engine.resume());
+
+// Problems panel: Copy report for the developer. Built here from the allowlisted summary
+// (companion/problems.mjs, companion/sync-status.mjs) and put on the clipboard; the page only
+// shows it. No path, name, server message or credential is in it.
+registerIpc("copy-problem-report", () => {
+  const state = engine.state();
+  const report = engineModules.problemReport({ problems: problems(state), config, state, evidence: state.syncEvidence ?? {}, companionVersion: app.getVersion() });
+  clipboard.writeText(report.text);
+  pushLog({ time: new Date().toISOString(), level: "info", message: E("Report {0} copied for the developer.", report.reference) });
+  return { reference: report.reference, text: report.text };
+});
+registerIpc("open-addon-download", () => shell.openExternal("https://www.curseforge.com/wow/addons/guilded"));
+registerIpc("set-online", (_event, value) => { online = value; if (engine) onState(engine.state()); return true; });
+// Folder picker (8.5, track F3): opens at the WoW install folder and finds the account folders
+// below whatever the member picks. One account: the page fills it in. Several: the member chooses.
+registerIpc("pick-wow-folder", async () => {
+  const start = pickerStart(config.watchFile, detectSavedVariables(savedNames(), engineModules.isFolderOnHold));
+  const result = await dialog.showOpenDialog(win, {
+    title: T("Choose your World of Warcraft folder"),
+    ...(start ? { defaultPath: start } : {}),
+    properties: ["openDirectory"]
+  });
+  if (result.canceled || !result.filePaths[0]) return { canceled: true, accounts: [] };
+  const accounts = accountsUnder(result.filePaths[0], savedNames(), engineModules.isFolderOnHold);
+  const picked = pickSavedVariables(accounts.filter((entry) => entry.exists));
+  return {
+    canceled: false,
+    accounts: accounts.map((entry) => ({ path: entry.path, account: entry.account, game: entry.game, exists: entry.exists, savedAt: entry.modifiedMs ? new Date(entry.modifiedMs).toISOString() : null, suggested: !!picked && picked.path === entry.path }))
+  };
+});

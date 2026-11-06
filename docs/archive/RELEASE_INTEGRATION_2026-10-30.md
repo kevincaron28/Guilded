@@ -119,7 +119,7 @@ it does not turn unperformed acceptance or pending provider approval into a pass
   completing targeted vacancy preferences, cooperative progress and reviewed
   weekly questions. Initial a1392044 is previews/scaffolding, not completion.
 - Claude: desktop checkout, live Discord and now available Retail acceptance;
-  evidence requested in `docs/LIVE_ACCEPTANCE_2026-10-30.md`. No concurrent deployment.
+  evidence requested in `docs/archive/LIVE_ACCEPTANCE_2026-10-30.md`. No concurrent deployment.
 - Local candidate includes main 930ae04, #281 linking and #277 navigation polish.
   These local merges are not main merges or published release evidence.
 

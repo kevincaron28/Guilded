@@ -98,6 +98,51 @@ function module.switches()
       set = function(on) run(on and "chat tab" or "chat off") end
     },
     {
+      label = L("Guild events in the Guilded tab: joins"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("join") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("join", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: leaves"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("leave") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("leave", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: removals"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("kick") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("kick", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: promotions"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("promote") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("promote", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: demotions"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("demote") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("demote", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: coming online"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("online") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("online", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: going offline"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("offline") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("offline", on) end end
+    },
+    {
+      label = L("Online and offline lines: officers only"),
+      get = function() return ns.chatTab and ns.chatTab.officersOnlyPresence() or false end,
+      set = function(on) local s = settings(); if s then s.chatEventsOfficersOnly = on and true or nil end end
+    },
+    {
+      label = L("Weekly reminder to get the Windows companion"),
+      get = function() return ns.companionLink and ns.companionLink.enabled() or false end,
+      set = function(on) run(on and "companion on" or "companion off") end
+    },
+    {
       label = L("Show what changed since my last login"),
       get = function() local d = db(); return not (d and d.digest and d.digest.enabled == false) end,
       set = function(on) run(on and "digest on" or "digest off") end

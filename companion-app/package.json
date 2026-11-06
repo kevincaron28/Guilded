@@ -38,7 +38,8 @@
       "assets/**",
       "package.json",
       "ipc-security.cjs",
-      "sign-in-loopback.cjs"
+      "sign-in-loopback.cjs",
+      "store-update.cjs"
     ],
     "extraResources": [
       {
@@ -76,7 +77,9 @@
           "addon-install.mjs",
           "active-editions.mjs",
           "active-games.mjs",
-          "revoke.mjs"
+          "revoke.mjs",
+          "problems.mjs",
+          "sync-status.mjs"
         ]
       },
       {

@@ -46,6 +46,8 @@ export async function followUpImport(discordGuild: DiscordGuild | null, guildId:
     ? await autoLinkUnclaimed(discordGuild, prisma, guildId, options).catch(() => [])
     : [];
   await updateProfessionDirectory(discordGuild);
+  // Levels arrive with every roster upload; the race board is a no-op unless the server opted in.
+  if (discordGuild) await import("./race-board.js").then(module => module.updateRaceBoard(discordGuild)).catch(() => false);
   const matchedRaids = result.raids.filter((raid) => raid.matchedRaidTitle).length;
   if (result.epgpTransactions.length > 0 || matchedRaids > 0) {
     // Housekeeping for officers, not news for members: the private officer log.

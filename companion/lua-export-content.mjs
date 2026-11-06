@@ -209,6 +209,8 @@ export function parseAddonExportText(text, realm) {
       professionsComplete: entry.professionsComplete === true,
       ...(entry.professionsAt ? { professionsAt: iso(entry.professionsAt) } : {}),
       professions: digestProfessions(entry.professions),
+      // When this addon heard their digest (provenance: the bot prefers newer, first-hand data).
+      ...(Number.isFinite(Number(entry.seenAt)) && Number(entry.seenAt) > 0 ? { observedAt: iso(entry.seenAt) } : {}),
       // Their /guilded verify code: the bot links this character to whoever owns the code.
       ...(typeof entry.verify === "string" && /^[A-Z]{8}$/.test(entry.verify) ? { verify: entry.verify } : {})
     }));

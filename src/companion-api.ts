@@ -11,6 +11,7 @@ import { characterKey, realmKey } from "../companion/character-identity.mjs";
 import { relayProfessions } from "./services/profession-relay.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
+import { linkedCharacterCount, tellFirstCompanionLink } from "./services/companion-link-dm.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { gunzipSync } from "node:zlib";
@@ -38,6 +39,7 @@ import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
+import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
@@ -719,9 +721,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const createdBy = access.actorId;
       let preview = await importService.preview(guild.id, requestPayload.export, createdBy);
       const uploadStartedAt = new Date();
+      const linkedBefore = pairedMemberId ? await linkedCharacterCount(prisma, pairedMemberId) : 0;
       const pairedCharacterStatus = pairedMemberId
         ? await linkUploaderCharacters(prisma, guild.id, pairedMemberId, preview.snapshot)
         : "unpaired";
+      // First companion link: one DM listing the linked characters (owner decision, 8.5 track F).
+      if (pairedMemberId && linkedBefore === 0 && client) {
+        const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
+        void tellFirstCompanionLink(client, prisma, { guildDiscordId: guild.discordId, memberId: pairedMemberId, lang: asLang(language?.language), before: linkedBefore });
+      }
       // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
       // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).
       if (access.officer) await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined);
@@ -734,6 +742,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
       }
       if (!access.officer) {
+        // Guildmates heard in game (level, class, race, professions): applied to already-linked
+        // characters only, never over newer first-hand data (guildmate-relay.ts). Never fails the upload.
+        if (pairedMemberId) {
+          const relayed = await applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot)
+            .catch((error: unknown) => { console.error("Guildmate relay failed", error); return null; });
+          if (relayed && (relayed.updated || relayed.professions)) markGuildChanged(guild.id);
+        }
         const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
         preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned), createdBy);
       }

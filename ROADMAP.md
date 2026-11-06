@@ -1,373 +1,563 @@
-> Current checkpoint: [October 30 integration record](docs/RELEASE_INTEGRATION_2026-10-30.md). The latest owner direction authorizes all available testing now and supersedes earlier testing waivers. Historical release notes below are not current availability or acceptance claims.
-
 # Guilded roadmap
-
-## Planned — WoW-linked Discord item previews (requested 4 November 2026; not tested)
-
-**Goal:** In Québec Gold's Blizzard-native WoW ↔ Discord linked `#chat-guilde`, keep Blizzard's existing chat relay unchanged. When a player links an item in WoW guild chat, Guilded should display a **Discord-only** rich item preview in that same channel. The preview **must not** be sent back into WoW. No new channel unless the owner approves a fallback.
-
-**Next AI/Claude handoff (5 November):** This is a roadmap request, **not** a tested capability or shipped feature. Desktop Commander `DESKTOP-QLI338Q` was offline during the 4 November attempt; no live webhook test was performed. Before implementation, coordinate with active work and inspect current source, Discord event handlers, permissions, deployment and release gates. Do not change the native Blizzard integration.
-
-1. **Feasibility spike, first:** Confirm Guilded can receive `messageCreate` events from this linked channel, including actual `content`, author/webhook/system metadata and item-link representation (respect Discord Message Content intent and API restrictions). Inspect sanitized event payloads; never log tokens, webhook URLs or private chat. Determine whether item ID and random suffix/enchant data survive the relay or only bracketed display text.
-2. **Webhook permission test:** On the linked channel, test whether a Discord webhook can be created and post a **test embed**. Check channel permissions and Discord API responses. Bot normal send may be restricted in Blizzard-linked channels; webhook behavior is **unverified here**. Confirm test embed is visible in Discord and does **not** echo into WoW. Use a temporary webhook, avoid exposing its URL, and clean up the test post. If blocked, record error/status and stop; do not bypass platform restrictions.
-3. **Data source:** Identify an accurate, legally usable item database for WoW Forever and custom/changed items. Prefer exact item IDs plus suffix/enchant context; do not present guessed stats as authoritative. When only a name is available, use conservative disambiguation or a simple name/link preview; never silently choose a wrong item.
-4. **MVP implementation if tests pass:** Opt-in per Discord guild/channel; observe native-relayed item messages, parse multiple item links safely, deduplicate, cache metadata, rate-limit, and send compact webhook embeds with quality color, icon, item name, verified stats and item URL where available. Avoid mentions, ping storms, loops, replies back into WoW, and bot/webhook self-triggering. Store webhook credentials encrypted/secret-managed, never in source or logs; support disable and deletion. Reuse existing bot architecture and respect multi-guild isolation.
-5. **Acceptance:** Verify on live Forever client and Discord with (a) normal item, (b) random-suffix item like `[Training Sword of the Owl]`, (c) custom/unknown item, (d) multiple items, (e) duplicate/rapid messages, (f) no item, (g) webhook denied, (h) restart/retry, and (i) **no Discord embed echoed into in-game guild chat**. Add unit/integration tests, documentation, admin setup and a safe rollback. Keep feature off until accepted; no deployment or release claims before proof.
-
-**Owner preference:** Same linked Discord channel, Discord-only embeds; the original in-game and Discord messages stay intact. Prioritize proof of webhook posting and non-echo before any larger build.
-
-
-## Built, off by default — Crafter offers: sell a craft as well as ask for one (requested 4 November 2026; awaiting real-server acceptance, see [docs/CRAFT_OFFERS.md](docs/CRAFT_OFFERS.md))
-
-**Goal:** Today the craft board only goes one way: a member asks (`/craft request`) and a guild
-crafter picks it up (`/craft list`, `/craft claim`, `/craft who`, `/craft mine`). Add the other
-direction so a crafter can **post a message in Discord offering a craft for sale**, and members can
-either ask for a craft or buy a listed one from the same place.
-
-- **Offer post:** a crafter posts an offer for something they can make (item or enchant, price or
-  "tips welcome", whether the buyer brings materials, availability or notes). Offer items come
-  from the crafter's recorded recipes (the same data `/craft who` uses), so a crafter cannot list
-  a recipe their character has not been seen with; unverified free-text offers are clearly
-  labelled as such.
-- **Buy or ask:** members can answer an offer ("I'd like this") or ask for a craft nobody has
-  offered, and both land in the existing request flow so claim, status and completion keep
-  working. Reuse the craft forum, status tags and pinned directory instead of a new channel.
-- **Guardrails:** offers are opt-in per Discord server, rate limited, expire or can be withdrawn,
-  never ping `@everyone`/roles, respect multi-guild isolation (a guild's offers stay in that
-  guild), and Guilded never handles gold: members trade in game. Edition-aware (Forever uses
-  character names without realms; other editions keep their realm rules).
-- **Related cleanup:** the profession directory post lists every stored profession row, so a fresh
-  start needs the beta rows removed first (`npm run professions:reset`, preview by default).
-- **Before building:** inspect `src/commands/craft.ts`, `src/commands/craft-board.ts` and
-  `src/services/profession-directory.ts` for current behaviour; `/setup` and `/config` are close to
-  Discord's command-size limit, so the new subcommand must go under `/craft`. English and French
-  text, tests, documentation and a safe off switch are required. Keep the feature off until accepted
-  in a real server.
-
-## October 30 operational follow-up
-
-**8.3.0 is live:** backend, website and the companion are deployed at reviewed
-source `2602e67`. GitHub's 23 public downloads are hash-verified. All ten
-CurseForge edition files are approved and their anonymous downloads match the
-frozen release ZIPs. Microsoft Store Submission 6 is published; verification of
-the installed 8.3 package remains pending. Publication is not native/game acceptance.
-
-The previously selected edition calendars are unchanged, including Forever's
-November 4 start. The latest readback and provider evidence are tracked in the
-[8.3 acceptance record](docs/V8_3_0_RELEASE_ACCEPTANCE.md).
-
-The [QuébecGold BG hub](https://discord.com/channels/1323321076478119967/1552246570714402827/1565730945766527019)
-is posted in the existing scoped channel with French Create, Join, My groups and
-Upcoming buttons. These are deployed **8.3 organization controls only**; result
-and statistics controls await the next deployment. Permissions were unchanged,
-mentions suppressed, and native button-click acceptance is not yet recorded.
-
-### Historical 8.2 publication checkpoint
-
-8.2.0 is deployed and published on GitHub at `eb3cb4a`; all 23 anonymous downloads
-and the tag were verified. All ten CurseForge files are published and verified;
-Store 8.2 is published, installed and signature/hash verified. Forever's prospective timing snapshot is installed without moving
-November 4. The newer [edition calendar authorization](docs/EDITION_CALENDARS_2026-10-30.md)
-starts empty other editions prospectively with official period labels and gives
-Era a three-calendar-month cadence. Production activation and readback passed
-at 12:14 UTC October 30.
-The [battleground module](docs/BATTLEGROUNDS_NEXT_MODULE.md) is approved as the next
-isolated module. It is not part of the published 8.2.0 feature claims.
-
-## Today's integration work — 30 October 2026
-
-Today's authoritative work list and release gates are in the
-[October 30 integration checklist](docs/RELEASE_INTEGRATION_2026-10-30.md).
-The selected additions are implemented in 8.2.0: signup-based supply planning, approved
-missed-raid catch-up, progressive onboarding, personal calendar export, versioned
-raid playbooks, officer handover/change review, read-only external evidence links,
-member data centre, and explainable bench-rotation suggestions. The checklist
-also tracks accessibility/context/recovery checks and the feature-freeze target.
-Forever's researched upcoming-season timing snapshot is installed. Historical
-season scores remain frozen. Live acceptance and the newer edition-calendar
-initialization are tracked separately from the implemented feature inventory.
 
 ## Current stage — 6 November 2026
 
-Guilded **8.4.7** is prepared (Forever dungeon final bosses and recovery of abandoned runs, and silent auto-update for the directly downloaded companion, on top of 8.4.6's member ledger sync, the live duel board, the companion account-folder fix, combat-safe windows, the compact Crafted by tooltip and the Forever-only focus, on top of 8.4.5's milestone announcements on by default, new achievements, duels, the guild message assistant and addon fixes, on top of 8.4.4's WoW Forever launch-week release: automatic linking, synced-realm guild key, Forever-first, crafter offers, companion saved-data detection and addon UI fixes, on top of 8.4.3's WoW Forever launch fixes for the companion and 8.4.2's startup-crash fix and Link everything polish on top of 8.4.1's owner console, quick reference, achievement cards and guild rank); published baseline is 8.4.0.
+Guilded **8.4.7** is published on GitHub and the bot (Forever dungeon final-boss fix and the self-updating direct-download companion); the next release is 8.5.0 (planned below).
+WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
+Forever is the only active edition and PoE2 is hidden ([Forever-only focus](docs/FOREVER_ONLY_FOCUS.md)).
+Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
+request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
-Guilded **8.4 source candidate** is being integrated on
-`codex/bg-recorder-history-oct30`. The provisional BG pipeline is implemented in
-source: capability-checked Forever postmatch self reports, SavedVariables through
-Companion, independent server consent and paired ownership checks, replay/conflict
-handling, private result cards/history, withdrawal with a reason, and consented
-seasonal player-participation statistics separated by edition, mode and API bracket.
-Conflicts include a bounded explanation. A source-level next-capture shared premade
-code supplies an optional correlation hint; it does not establish a universal match ID.
+## How to work from this file (any AI session)
 
-These additions are **not part of frozen 8.3 files** and are not yet claimed
-deployed or fully accepted. Integrated regression/migration checks, packaging,
-publication and live acceptance remain gates. Verified unique-match totals,
-verified match win rates and additional accepted capture adapters remain gated
-after the live pilot. Current statistics count provisional player reports, not
-unique matches or competitive rating. Forever real-client acceptance cannot
-precede November 4. Other unverified queue formats remain planning-only.
-See the [BG module checkpoint](docs/BATTLEGROUNDS_NEXT_MODULE.md) and
-[integration record](docs/RELEASE_INTEGRATION_2026-10-30.md).
+1. Read `CLAUDE.md` first (checks to run, command-size limit, French rules, migrations, never start the bot).
+2. Pick **one track** below. A track owns the files listed under it; do not edit another track's
+   files. If you must, stop and report to the coordinating session instead.
+3. Each item lists **Existing** (reuse it, don't rebuild it), **Build**, **Done when** and any
+   **Owner decision** still open. If an owner decision is open, build the default written there,
+   behind a setting, and say so in the PR.
+4. Shared files every track may touch, carefully:
+   - `prisma/schema.prisma`: add your models at the end under a `// 8.5 track X` comment. Use only
+     your track's migration timestamp (table below), so folders never collide.
+   - `src/i18n-fr.ts`, `addon/Guilded/Locale.lua`: append your keys in one block marked with your
+     track. Merge conflicts there are expected and easy.
+   - `src/setup-names.ts`: only tracks B and C add channels.
+   - Never edit `package.json`'s version, `CHANGELOG.md`, `README.md`'s current version line or
+     the `.toc` versions. The coordinating session bumps to 8.5.0 once, at release.
+5. **Owner decision (6 November 2026): every new 8.5 feature is ON by default in every Discord
+   server** (boards, nickname sync, Who's who, roster gaps, Defender alerts, profession posts,
+   statistics, the guildmate map, the first-link DM). Each one keeps an off switch for officers
+   (server-wide) and, where it is about a member, for that member. Features that need a channel use
+   the channel `/setup` creates or adopts; nothing posts until that channel exists.
+6. One PR per track against `main`, green on all four checks in CLAUDE.md. Then report back to the
+   coordinating session with the PR link, what was verified, and what still needs a real game client.
 
-### Historical 8.1 candidate checkpoint
+| Track | Theme | Migration timestamp | Main areas |
+| --- | --- | --- | --- |
+| A | Achievements and badges cleanup | none expected | `src/services/achievement*.ts`, `achievements-catalogue.ts` |
+| B | Leaderboard boards: race to 60 and the arena/PvP ladder | `20261219000000` | new `src/services/*-board.ts`, PvP setup channels, `addon/.../Battleground.lua` |
+| C | Roster and membership: who's missing, character names, roster visual | `20261220000000` | `roster-*.ts`, `guild-health.ts`, new nickname and roster-gap services |
+| D | Artisans' Gallery and crafter "last seen" | `20261221000000` | `craft*.ts`, `profession-*.ts`, `recipes.ts`, gallery web page |
+| E | Addon quality of life: chat tab, minimap, tooltip last seen | none | `addon/Guilded/Modules/ChatTab.lua`, `Minimap.lua`, `Tooltip.lua`, `Recipes.lua` |
+| F | Companion: problem alerts, simpler settings, linking, fresh install | none expected | `companion-app/`, `companion/`, member install docs |
+| G | Server and guild statistics with graphs and Google Sheets | `20261222000000` | new `stat-snapshot` service, owner/guild tools web page |
+| H | Ideas from Kinfolk Guild Hub (later) | n/a | design notes only until picked |
+| I | WoW Forever armory: spike, then links or lookups | none until the spike | new `docs/FOREVER_ARMORY.md`, later a small `armory.ts` service |
+| J | Call for help (world PvP) | none expected | new `addon/Guilded/Modules/CallForHelp.lua`; companion chat-log watcher later |
+| K | Addon-only members still sync | none expected | `LedgerSync.lua`, `LedgerRelay.lua`, `Digest.lua`, `character-verify.ts` |
 
-Guilded **8.1.0 Candidate** (protocol 2), prepared for November 4: RCLootCouncil/Gargul history conversion, reviewed in-game confirmation, separate persistent history and undo, raid-signup presentation and public-origin reliability. See [candidate gates](docs/NOV4_RELEASE_CANDIDATE.md). Kevin selected five additional pre-launch features for work on October 30; their implementation and acceptance are tracked below, not claimed complete. Published downloads remain 8.0.2.
+C4 and C5 (roster professions, promotion panel) belong to track C; E4 (companion link in game)
+belongs to track E. They were added after wave 1 started, so they ship as follow-up PRs.
 
-## Historical selected pre-launch work — 30 October 2026
+Suggested order if one session does everything: A, C, E, B, D, F, G. Tracks are independent
+except where noted, so they can run at the same time.
 
-These numbers refer to Kevin's seven-item feature discussion, not the older lists
-below. Kevin subsequently targeted a product release today, October 30, and asked
-for a whole-product gap review before finalizing scope. WoW Forever opens November 4.
-The feature branch is held for review/PC-owner coordination, not a release promise.
-See [scope, reuse audit and acceptance checklist](docs/PRELAUNCH_COMMUNITY_2026-10-30.md).
+---
 
-3. **Targeted group/vacancy alerts:** extend existing opt-in group alerts with
-   role/time filters, expiry, quiet hours and strict notification limits.
-4. **Cooperative guild challenges:** reuse canonical dungeon runs and eligible
-   participation; do not count observer uploads as separate runs. Recognition
-   is cosmetic, with no competitive rating, balance or legacy reward changes.
-5. **Optional personal weekly recap:** build on existing report windows and
-   member data; private preview first, explicit opt-in and delivery approval later.
-6. **Companion sync clarity:** show edition, character, watched folder and distinct
-   saved/uploaded/accepted status; preview redacted diagnostics before the existing
-   report handoff. Coordinate integration with the active Companion PRs.
-7. **Weekly community question/poll:** moderator configuration and preview;
-   no automatic activity points or new recurring posts before delivery approval.
+## 8.5.0 — requested 6 November 2026
 
-Personal dungeon goals (1) and mentoring (2) were **not selected**. All new
-recurring delivery stays inactive until audience, channel and cadence are approved.
-Preserve stable 8.0.2, rc.1 and Store Submission 5 bytes/manual publication hold.
-Release work remains owned by session `01a181ce-30fa-7c60-b973-c385d45d3502`.
-The coordinated continuation in draft PR #282 adds stored `/dungeon watch`
-preferences/private matches, configured `/dungeon together` goals and saved
-`/poll weekly-preview` reviews with Post/Skip/Pause. Automatic alert rollout is
-held; weekly questions require an officer click. The local integration owner
-`01a18c22-fb70-7ea2-8689-7c2a85655ad7` owns items 5/6, combined checks and release.
+### Track A — Achievements and badges
 
-Published baseline: 8.0.0: security, reliability, ledger storage compaction, versioned Retail overtime scoring, origin isolation, French indexing, accessibility and Core presentation extraction. See [8.0 readiness](docs/V8_0_LAUNCH_READINESS.md) for publication gates and the owner's testing waiver.
+**A1. Every achievement has a badge.**
+- Existing: badge art is generated as SVG by `src/services/achievement-badges.ts` from a glyph map,
+  with tier frames and locked silhouettes; previews in `marketing/achievements-preview/`.
+  The 8.4.5 achievements (duels, PvP, first dungeon clears) were added after most glyphs.
+- Build: give each catalogue row a deliberate glyph (no fallback glyph). Add a test that fails when a
+  catalogue id has no explicit glyph entry. Regenerate the preview sheet.
+- Done when: the test passes and the preview sheet shows every active achievement with its own art.
 
-Previous published 7.5.1: loot rules follow the original EPGP/soft-reserve rules, guild directory and player search, and Codex's dungeon evidence work (Season 1 stays on current-v1).
-Previous: 7.5.0, combining the release-gap bundle and Claude’s raid/interaction fixes.
-The original 8.0 baseline passed combined CI, backups, deployment and publication gates. Its retained downloads and earlier evidence are in [8.0 release evidence](docs/archive/V8_0_RELEASE_EVIDENCE_2026-10-28.md).
-Real-client checks remain post-release follow-up; see [the release decision](docs/archive/RELEASE_DECISION_2026-10-25.md).
-Current gates and completed operational checks: [launch readiness](docs/archive/LAUNCH_READINESS_2026-10-24.md).
-GitHub and CurseForge publish 8.0.2 for all five editions and the bot runs its reviewed source. All ten approved CurseForge files match GitHub. Store Submission 4 publishes 8.0.2.0; its actual installed signature, submitted application bytes and retained encrypted profile/account activation passed. See [current provider evidence](docs/V8_0_2_RELEASE_EVIDENCE_2026-10-28.md). Previously both addon providers published 7.5.0;
-see [the publication record](docs/archive/RELEASE_EXECUTION_2026-10-25.md). All six
-18-October requests shipped in 7.0.0; 7.1.0 added monthly boards and Raider.IO-style leaderboards,
-7.2.0 companion Sign in with Discord and one-click updates, 7.2.1 a steadier bot, 7.3.0 the dungeon
-result card, raid vacancies and public player profiles, 7.3.1 level-aware raid readiness and the
-companion updater repair.
+**A2. Achievements are Forever and guild only.**
+- Existing: `achievements-catalogue.ts` (catalogue version 6) has `wow | poe2 | guild` rows and
+  per-edition rows for Era, TBC, Mists and Retail. Today they are only hidden by the
+  `active-editions` / `active-games` switches.
+- Build: catalogue version 7 contains only Forever (`wow-forever-*`) and guild rows. Move the removed
+  ids to a `RETIRED_ACHIEVEMENT_IDS` list so they are never reused, keep earned `MemberAchievement`
+  rows in the database (history and the switch back stay possible), and stop the web page, cards,
+  `/achievements` and announcements from showing retired rows even when a switch is turned back on.
+  Update `docs/ACHIEVEMENTS.md` and `docs/FOREVER_ONLY_FOCUS.md` (how to restore an edition's rows).
+- Done when: no PoE2/Era/TBC/Mists/Retail achievement appears anywhere a member can see; counts in
+  `docs/ACHIEVEMENTS.md` match the catalogue; existing earned rows are untouched.
 
-WoW Forever launches **4 November 2026** at 3 PM Pacific; dungeon Season 1 starts at the same
-moment (23:00 UTC, `/guilded-season`). The beta closed on 21 October, so the real-client checks
-still owed — G6-G8 (dungeon runs), G10 (French client) and the 6.1.2 parts of G2/G12 — can only
-run on live servers; see [the 6.2 game acceptance record](docs/V6_2_GAME_ACCEPTANCE.md). Forever's
-first raids (Barrow Deeps, 10 players; Hyjal Summit, 20) open on 9 December. Launch-week priorities
-and the competitive review: [PRE_RELEASE_AUDIT_2026-10-22.md](docs/archive/PRE_RELEASE_AUDIT_2026-10-22.md).
+### Track B — Boards: race to 60 and the arena ladder
 
-## Built
+Both boards copy the **duel board pattern** (`src/services/duel-board.ts`): one bot message edited in
+place, a marker, a pure embed/card builder, refresh through `discord-jobs.ts`, opt-in per server.
+Render images with `src/services/score-card.ts` (roster layout) so they match the other cards.
 
-- WoW addon: raid attendance, EPGP, GP bids, council, soft reserves, priority loot,
-  recipes, guild map, readiness, calendar integration where the client supports it,
-  dungeon scores, games and backups.
-- Discord bot: setup wizard, cores and signups, standings, personal pairing,
-  crafting, onboarding, community seasons/activities, participation and PoE2 journals.
-- Windows companion (the browser companion was removed in November 2026): personal uploads and standings; file
-  watching and optional PoE2 log tracking.
-- Phone app in `mobile/` (not a store release): the public boards, and Discord sign-in for characters
-  (guild rank and spec), reserves, wishlist, raid standings and on-device reminders. See [mobile/README.md](mobile/README.md).
+**B1. Leveling leaderboard, "race to 60".**
+- Existing: `Character.level` from uploads; level milestones every 10 levels (`Milestones.lua` →
+  `MemberMilestone`), achievements `wow-forever-level-N`. The officer's addon upload also sees levels
+  of guildmates who never linked (`UnclaimedCharacter.level`).
+- **Owner request (6 November 2026):** the `race-to-60` channel shows a leaderboard of the **top 25
+  guild characters** (officers can set 10-30) with, per row: rank, character first and last name,
+  class (class colour and icon), race, level with a progress bar and % to next level when known,
+  professions with skill, last seen, the linked Discord member, and, for those at 60, the date they
+  reached it (finish order). Below it: "levels gained this week" top 5 and the guild's count of 60s.
+- **Hall of Fame (owner request, 6 November 2026):** the channel is kept after the race. Each time a
+  guild character reaches 60, the bot posts a **permanent Hall of Fame entry** in the channel (number
+  in order, e.g. "#7 to reach 60", name, class, race, date, days since first seen in the guild,
+  professions, linked member) that is never edited or deleted, and stores it in the database so the
+  history survives channel resets. The live top-25 board stays the channel's first message. When an
+  officer ends the race (`/officer race end`) or everyone tracked is 60, the board switches to Hall of
+  Fame mode: every level 60 in the order they arrived.
+- Build: a permanent board in a `race-to-60` channel (or a channel the officer picks): every guild
+  character ordered by level, class-coloured progress bars, time each one reached 60 (finish order),
+  "levels gained this week". Linked and unlinked characters both count (unlinked shown by character
+  name only). Members can hide their characters (`/character privacy` or a button). Optional "Near
+  your level" line per member for finding levelling partners (idea from track H).
+- Done when: board appears after opt-in, updates within one sync of a level change, survives a bot
+  restart without duplicating, French text present.
 
-Built does not mean every live workflow has passed. Recorded two-player results
-cover map visibility/privacy, recipes, bidding/council/reserves, GP accounting and
-sync. Fresh-guild setup, installation/recovery, concurrency, permissions and a
-full raid still have outstanding acceptance checks.
+**B2. Arena ladder and the PvP channels.**
+- Existing: battleground module (`src/commands/battleground.ts`, `battleground-*.ts`,
+  `BattlegroundReport`, addon `Modules/Battleground.lua`, docs `BATTLEGROUNDS_NEXT_MODULE.md` and
+  `BATTLEGROUND_CAPTURE_PILOT.md`), duels and the duel board. Its channels (`BG_SETUP_NAMES`:
+  `battleground-groups`, `battleground-results`, `battleground-statistics`) are an optional module that
+  normal `/setup` does not create. No arena code exists.
+- Step 0 (blocks the arena half): confirm in the live Forever client whether rated or skirmish arenas
+  exist (`GetBattlefieldArenaFaction`, `GetBattlefieldTeamInfo`, `IsActiveBattlefieldArena`). Record
+  the answer in `docs/BATTLEGROUNDS_NEXT_MODULE.md`.
+- Build, PvP channels (do now): one **PvP** category created by `/setup` when the module is switched on:
+  `pvp-groups`, `pvp-results`, `pvp-ladder` (permanent boards: duel board, BG statistics, arena
+  ladder) with English and French names in `setup-names.ts`. Existing BG channels are adopted, not
+  duplicated.
+- Build, arena (if step 0 says arenas exist): addon captures the arena end screen (teams, members,
+  win/loss, rating change if the client exposes it) into SavedVariables; companion uploads it;
+  `ArenaTeam` and `ArenaMatch` models; both teams' uploads deduplicate one match; ladder by bracket
+  (2v2, 3v3, 5v5) using the client's team rating, or a clearly labelled unofficial Guilded rating
+  when the client gives none. Board in `pvp-ladder`.
+- If arenas do not exist in Forever: the ladder is the PvP ladder (duels plus BG reports) and the
+  arena capture waits behind the edition switch.
+- Done when: `/setup` creates the PvP category once, the ladder board updates from uploads, and
+  `docs/BATTLEGROUNDS_NEXT_MODULE.md` drops its stale 30 October checkpoint header.
+- **Owner decision (6 November 2026): two separate ladders, never mixed points.** A **duel ladder**
+  (wins/losses, win rate, streak, from `DuelResult`; the existing duel board feeds it) and a
+  **battleground ladder** (from battleground reports: games, wins, win rate, kills/honorable kills
+  and other stats the capture provides, per bracket), each its own message in `pvp-ladder` with its
+  own scoring. Battleground stats stay labelled as player reports, not verified matches.
+- **Owner decision (6 November 2026):** "arena module" means the existing **battleground/duel PvP
+  module**. Build the PvP channels and the PvP ladder (duels plus battleground reports). Arena
+  capture is not part of 8.5; step 0 stays as a note for later.
 
-## Next
+### Track C — Roster and membership
 
-Candidate feature progress while the game is closed: [raid presets, signup layouts,
-score cards and quieter companion sync](docs/archive/PRELAUNCH_FEATURES_2026-10-24.md).
-Game acceptance starts when access returns. The owner authorized 7.3.2 publication
-before those checks; the subsequent feature bundle shipped in 7.4.0 and 7.5.0.
+**C1. In Discord but not in the game guild (invite list).**
+- Existing: `Character.guildRankName/guildRankAt/lastSeenAt`, `UnclaimedCharacter` (in guild, not
+  linked), `src/services/link-coverage.ts` (local script only), `member-cache.ts`, roster dashboard.
+- Build: `/officer roster gaps` (under `/officer`, keep `/setup` within Discord's size limit) and a
+  "Discord only" filter on the roster dashboard, listing:
+  1. members with a linked Forever character that is **not** in the guild roster (no fresh
+     `guildRankAt` within 14 days), each with a copyable `/ginvite First Last` line (Forever
+     characters have first **and** last names);
+  2. members with no linked character ("ask them to link" button that sends the normal link prompt);
+  3. the reverse: guild characters nobody in Discord has claimed (`UnclaimedCharacter`).
+  Ignore bots and an officer-chosen list of roles (for example guests).
+- Done when: the three lists match a hand check on Québec Gold, and an officer can copy all
+  `/ginvite` lines in one click.
 
-New local review bundle: [roster, crafting, teams, history, groups, main/alt and
-limited GRM review, opt-in availability, local activity heatmap and Retail key
-sharing](docs/archive/LOCAL_FEATURE_BUNDLE_2026-10-25.md). This bundle is published;
-game validation remains pending. Claude's live checks are in the
-[post-release review](docs/archive/POST_RELEASE_REVIEW_2026-10-26.md).
+**C2. Character names visible in Discord.**
+- Existing: `rank-roles.ts` (in-game rank → Discord role, loops guilds with `forEachGuildScope`);
+  `/character list @member`. Nothing writes nicknames today.
+- Build: opt-in nickname sync. Officer picks a format, default `Discord name (Main First)`, capped at
+  32 characters; members can opt out; the bot skips the server owner and anyone above its role and
+  needs Manage Nicknames (`/setup` checks it). Also a permanent **Who's who** board (one message,
+  duel-board pattern) listing each member with their main and alts, for when nicknames are off.
+- Done when: renaming works on a test server, opt-out restores the previous nickname, and the board
+  stays one message.
+- **Owner decision (6 November 2026):** default format `Discord name (Main First Last)`, for example
+  `kevmister28 (Lebowski Holyroller)`, main only. Discord caps nicknames at 32 characters, so fall back
+  in order: drop the space before `(`, then shorten the last name (`kevmister28(Lebowski H.)`), then
+  first name only (`kevmister28(Lebowski)`); only if that still does not fit, shorten the Discord name
+  with `…`. Alts stay on the Who's who board (bots cannot write Discord's personal member notes).
 
-1. Make independent guild setup clear and rehearse a clean install. Aim for
-   30 minutes with hosting/database/DNS ready; see [QUICK_START.md](docs/QUICK_START.md).
-2. Test a genuinely fresh Discord guild and an ordinary member, and complete
-   the Windows clean-install/upgrade/recovery checks.
-3. Finish the real-client checklist and real raid, verify final-commit CI,
-   then publish/promote matching packages as appropriate to the evidence.
+**C3. Visual guild roster (classes and professions).**
+- Existing: `/guild-health` text (`buildComposition`, level bands, retention); roster dashboard
+  filters and `professionCoverage`; `score-card.ts` roster layout.
+- Build: a roster card (image) with class counts by level band (class colours) and a profession grid
+  (how many crafters per profession, max skill, gaps), shown by `/guild-health` and as charts on the
+  roster dashboard web page. Optional permanent board in an officer channel.
+- Done when: card renders for 0, 1 and 150 members without overlap; numbers equal `/guild-health`.
 
-## Website — 16 October 2026
+**C4. Professions on the guild roster (requested 6 November 2026).**
+- **Recommendation:** show professions in the roster, not in notes by default. Guild notes are 31
+  characters, are often already used by other addons or for main/alt names, and editing them
+  needs officer permission. Guilded already shares professions by addon message.
+- Build: (1) professions and skill as icons in the roster view (C3 web dashboard and the addon's
+  roster window) and in the tooltip when hovering a name in Blizzard's guild roster; (2) an
+  **opt-in officer tool** "write professions to public notes" using the existing reviewed note
+  action (`Modules/RosterTools.lua`, one click per batch): it writes a short tag such as
+  `Alch300 Herb300` only into notes that are empty or already carry the Guilded tag, shows a
+  preview first, and never touches officer notes.
 
-Phase 1 (simpler guilded.kcaron.top and kcaron.top) is live from PR #86.
+**C5. Promotion panel: Initiate → Member (requested 6 November 2026).**
+- Existing: one-click reviewed promote in the addon (`RosterTools.lua`, `RosterAdmin.lua`); in-game
+  rank → Discord role sync (`src/services/rank-roles.ts`); the officer bridge brings bot data into
+  the addon.
+- Build: officers set the rule with `/officer promotion` (default: in the Discord server, at least one
+  linked character, rank "Initiate" for 7+ days; optional minimum level or activity). The bot
+  computes **Ready to promote** and **Not in Discord yet**; officers see it as (1) a weekly list in the
+  officer channel (opt-in) and (2) an addon **Ready to promote** panel, fed by the officer bridge,
+  with one **Promote** click per member. After the in-game promotion, `rank-roles` updates the
+  Discord role by itself, so nobody edits roles by hand.
+- Done when: the list matches a hand check, and promoting in game changes the Discord role on the
+  next sync.
 
-1. **Phase 2 visuals.** Replace the homepage's companion setup screenshot with
-   real in-game screenshots (guild window standings, dungeon finder). The owner
-   supplies the screenshots.
-2. **A public page per guild.** When a guild sets up the bot, it gets a draft
-   page such as `guilded.kcaron.top/g/<guild-name>/`. Officers choose what is
-   public (raid times, cores, rosters, EPGP or loot rankings, recruitment) and
-   publish it; nothing is public by default. Quebec Gold's page is the first one
-   and replaces the hand-copied `/quebec-gold/cores/` snapshot with live data.
-   The bot serves these pages through the Worker; the static homepage stays as is.
-   - Earlier draft: the ChatGPT conversation "Portfolio Website Expansion"
-     (16 October) produced `KCaron-Portfolio-Guild-Pages.zip` and a
-     `LOCAL-AGENT-PROMPT.txt`. They were never pushed or downloaded to this PC,
-     were built on an older `main`, and include a 14-project portfolio that
-     conflicts with the simpler phase 1 design. Reuse ideas from it, not the files.
-   - Open questions: page address and slug rules, which data officers may
-     publish, French and English versions, search indexing on or off per guild,
-     and whether Discord-only guilds (no addon) get a page.
+### Track D — Artisans' Gallery and "last seen"
 
-## Requested — 18 October 2026
+**Recommendation:** one **Artisans' Gallery** built on data we already store, shown in three places,
+instead of a new database. Recipes come from `RecipeKnown` (item ids, `scannedAt`), skills from
+`ProfessionSkill`, cooldowns from `ProfessionCooldown`, offers from `CraftOffer`.
 
-In suggested order: quick wins first, then things that build on each other.
-How each one gets built: [ROADMAP_REQUESTS_PLAN_2026-10-18.md](docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md).
+**D1. Gallery web page** (guild tools site, signed-in members of that guild only): search by item,
+reagent or crafter; each recipe shows icon and quality (reuse the item-preview data), every crafter
+who knows it, their skill, "last seen", open offers and a **Request** button that creates the normal
+craft request. Crafter cards: professions, skill, notable recipes, cooldowns ready.
 
-1. **Done in 6.6.0. Ko-fi support links.** The Ko-fi page ([ko-fi.com/wowguilded](https://ko-fi.com/wowguilded)),
-   the website footer and CurseForge's Donate button already exist. Add the link
-   to the bot's `/help`, the companion app and the addon's Settings page, in
-   English and French. It's a link only: no features behind a payment.
-2. **Done in 7.0.0. Spreadsheet export from the addon.** The in-game part shipped in 6.6.0
-   (`/guilded sheet`, Copy for Excel); the companion CSV export and `/officer export` shipped in 7.0.0.
-   - *In game:* an "Export" button on the standings, roster and loot windows
-     opens a copy box with tab-separated text. Ctrl+A, Ctrl+C, then paste
-     straight into Excel or Google Sheets; each value lands in its own cell.
-     Works with no companion. (WoW addons can't write files themselves.)
-   - *Companion:* the companion already reads SavedVariables, so it gets an
-     "Export to spreadsheet" button that saves a `.csv` file (opens in Excel)
-     with one sheet's worth per table: EP/GP, attendance, loot history,
-     dungeon scores. A bot `/export` that sends a CSV of the guild's server-side
-     data comes later, for officers only.
-3. **Done in 7.0.0 (provisional targets until real timed runs). Next dungeon season covers all levels, not just 60.**
-   Rules version 6 has brackets 15-29 / 30-44 / 45-59 / 60 and an over-level penalty; a season
-   still needs launch data and real timed runs for each bracket's targets. The November draft
-   ([NOVEMBER_DUNGEON_CATALOG.md](docs/NOVEMBER_DUNGEON_CATALOG.md)) proposes a
-   level-60, best-eight competition. Change it to level brackets (for example
-   15-29, 30-44, 45-59 and 60) with each bracket's own dungeons, targets and
-   leaderboard, so levelling characters compete too. Each bracket still needs
-   real timed runs to set its targets before the season starts. Decide: the
-   bracket boundaries, whether a character's run counts in the bracket of the
-   level they were at the time, and whether to show one combined ranking.
-4. **Done in 6.6.0 (idle Lite servers warned, then left). Guilds join on their own, with a lite version until approved.** Any Discord
-   server that adds the hosted bot is accepted automatically and can run setup
-   in a **lite** mode (setup, help, basic signups and dungeon groups). The owner
-   approves a guild with a bot command, which unlocks everything (EPGP, loot,
-   companion sync, seasons, guild page). Needs: a stored guild status
-   (lite/approved/blocked), a check on each command, an approval queue sent to
-   the owner, and per-guild limits to protect hosting costs. This changes the
-   "Later" item below about managed multi-guild hosting from "maybe" to planned.
-5. **Done in 7.0.0 (`/mod recruit`, guilded.kcaron.top/recruitment/). Online core and guild recruitment on the website.** Builds on the public
-   guild pages above. Guilds publish an opt-in recruitment listing (classes and
-   roles wanted, raid times, language, faction, server); cores do the same for
-   open spots. Players browse and filter on the website and apply; the
-   application arrives in the guild's Discord as a message officers can accept
-   or decline. Players can also post a "looking for guild" profile. Approved
-   guilds only (item 4), with a report button against spam.
-6. **Done in 7.0.0 (Guilded Dungeons addon, guilded.kcaron.top/leaderboards/). Standalone dungeon module and a public leaderboard (Raider.IO-style).**
-   A separate small addon, "Guilded Dungeons", for players with no guild or a
-   guild without Guilded. It shares Guilded's dungeon code and timers so scores
-   match exactly, and the two addons don't conflict when both are installed
-   (one counts the run, not both). Players upload runs with the companion,
-   paired to a personal account instead of a guild. The website gets
-   leaderboards by dungeon, level bracket (item 3), class, role and season, and
-   a profile page per character, plus a page per guild for Guilded guilds that
-   opt in. Needs: a way to sign in without a guild, cheat checks on uploaded
-   runs (party members must agree, time limits), and a database change.
-   Largest item on this list: do 3 and 4 first.
+**D2. Discord:** keep the craft forum. Add one auto-updated post per profession (duel-board pattern,
+one message each) listing recipes → crafters with last seen; replace the current top-3 directory text
+(`profession-directory.ts`). `/craft who` adds last seen and sorts recently seen crafters first.
 
-## Requested candidates — 25 October 2026
+**D3. Last seen everywhere.** Use `Character.lastSeenAt` (fallback `RecipeKnown.scannedAt`) in
+`findProfessionHolders`, `/craft who`, the directory, the gallery and the in-game tooltip (track E3
+reads the same value from the guild roster). Show it as "today", "2 days ago", "3 weeks ago".
 
-Current local implementation: [integrated candidate and remaining scope](docs/archive/LOCAL_FEATURE_COMPLETION_2026-10-25.md).
-Claude's `816c7af` fixes are integrated locally. The table below is the historical
-candidate capture; its review-only language predates Kevin's implementation
-authorization. Current changes remain uncommitted and unpublished for local review.
+- Done when: searching an item finds every crafter who knows it, last seen matches the roster, and
+  requests from the gallery land in the existing craft board flow.
 
-Kevin requested these Pandy Guild Management-inspired ideas be captured in the
-backlog at 13:18 Toronto time (17:18 UTC). This is a documentation handoff only,
-not an implementation order, release promise, or permission to copy code or
-branding. Priority and acceptance criteria remain to be decided. Existing release
-restrictions and pending real-game/two-PC checks remain unchanged; ongoing
-Claude Discord acceptance testing takes precedence over new development.
+### Track E — Addon quality of life
 
-The parent reference-review session `01a17143-42e2-7129-8654-1dffa2316017`
-inspected reference images `4304.png` and `4305.png` and supplied the transcription.
-The forwarding/materialization session `01a17413-6a26-7000-9ec1-b489c30da01f`
-did not inspect pixels because transfers failed. The receiving PC session has
-not visually inspected the originals, and local transfer is not confirmed. Library references and the
-transfer limitation are retained in the local coordination record
-`backups/CODEX_CLAUDE_COORDINATION_2026-10-25.md`. These are candidate ideas, not
-verified client API capabilities.
+**E1. Guild events in the Guilded chat tab.**
+- Existing: `Modules/ChatTab.lua` (tab for Guilded's own output); `GuildLog.lua` (game guild log);
+  `Presence.lua`.
+- Build: echo guild **join, leave, kick, promote/demote, come online, go offline** into the Guilded
+  tab, matched from `CHAT_MSG_SYSTEM` with the game's own global strings (`ERR_GUILD_JOIN_S`,
+  `ERR_GUILD_LEAVE_S`, `ERR_FRIEND_ONLINE_SS`, `ERR_FRIEND_OFFLINE_S`, ...) so every locale works, only
+  for guild members. Class-coloured names, a timestamp, and a toggle per event type in settings
+  (all on by default; online/offline can be set to officers-only view).
+- Done when: Lua tests cover the pattern matching for English and French strings; in game the lines
+  appear in the tab and not twice in General.
 
-Follow-up code review and proposed acceptance criteria:
-[feature candidate review](docs/archive/FEATURE_CANDIDATE_REVIEW_2026-10-25.md).
-The owner subsequently authorized starting implementation, kept local for review.
-The first addition is the signed-in officer roster dashboard described there;
-it and the subsequent feature bundle shipped before 8.0. The documentation-only restriction below describes the
-original handoff, not this later local implementation authorization.
+**E2. Minimap button shortcuts.**
+- Existing (`Modules/Minimap.lua`, `minimapClick`): left = tools window, right = check my gear,
+  alt = guild map, drag = move. Shift and Ctrl unused; only left and right buttons registered.
+- Build (proposed, simplest to remember):
 
-| Candidate | Existing Guilded overlap and deferred scope |
-| --- | --- |
-| Guild dashboard | Cards for total members, active this week, max-level members and vitality; class/race/level/profession breakdowns and activity/inactivity distribution. Filters: Everyone, Max level, Active 30d, Mains only. Define vitality, activity sources, freshness and edition-specific level caps first. Extend existing addon spreadsheet, companion CSV and officer exports; exports are already built ([export plan](docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md#2-spreadsheet-export--built-game-companion-bot)). |
-| Guild group board and native finder integration | One board with role, dungeon, key-level and needs-tank/healer filters, complementing Blizzard Group Finder where supported. Existing Discord group posts/queue live in `src/services/dungeon-group.ts` and `dungeon-group-queue.ts`. Reconcile the previously removed duplicate in-game finder before implementation: restoring it requires an explicit scope decision. Native finder integration feasibility is UNKNOWN. |
-| Who's Free, keys and alts | Availability with automatic busy status while in instances; keystone and alt lists. Compare current group queues and character links before designing a new store. Decide opt-in visibility, stale/offline status and how availability is sourced. Instance detection and key APIs across clients are UNKNOWN until researched and tested. |
-| Multiple raid teams and attendance | Core/Trial/Bench roles, schedules, missing raid buffs and attendance assigned to the correct team with alt credit to mains. Build on existing bot cores, signups, roster and attendance ([core planning and raid-night tools](docs/V6_5_0_RELEASE_NOTES.md)); verify exact gaps first. Automatic attribution and buff checks need client evidence. Reconcile the [retired addon raid-tool scope](docs/archive/raid-tools/README.md) and separate Pullscript project before expanding addon responsibilities. |
-| Online activity heatmap | The local hour-by-weekday view on each player's PC is built (addon Availability page). A guild-wide web heatmap was declined by the owner on 26 October 2026: activity samples stay on each player's PC. |
-| Guild crafter lookup | Recipe/item search for guild crafters and possible profession-window integration. Recipes/crafting already exist (`addon/Guilded/Modules/Recipes.lua`, `src/services/recipes.ts`, `src/services/craft.ts`); compare their search and sharing flows before marking gaps. Profession-window integration and edition-specific recipe APIs are UNKNOWN. |
-| Searchable roster and history | Extend existing character main-alt links, roster views/exports and history rather than duplicate identities. Review search/filter gaps and history coverage; preserve Forever first/last names and Blizzard realm identity. |
-| Reviewed officer bulk actions and GRM imports | Candidate design only. Define preview, permissions, conflict handling, audit and recovery before any implementation. No bulk actions are authorized by this entry. Investigate GRM import format, provenance, consent and compatibility; do not assume a supported import path exists. |
-| Shared data and local privacy | Reuse the existing paced guild addon-message transport in `addon/Guilded/Util.lua`. Team edits require officer authorization; private notes/settings remain local. Define field-level privacy, authority/conflict rules, data sources, freshness, retention/deletion and upload/publication boundaries before expanding synchronization. |
-| Edition gates and feasibility | The reference omits M+ for Forever. Gate Retail/M+ candidates to supported clients and preserve guild/edition separation throughout the addon, bot and companion, including several editions in one Discord server. API availability, combat restrictions, native finder integration and profession integration remain UNKNOWN until researched and tested in each relevant client. |
+  | Click | Opens |
+  | --- | --- |
+  | Left | Guilded window on the last page used |
+  | Right | Quick menu: Raid signups, Loot and standings, Dungeons, Crafting search, Guild map, Race to 60, Settings |
+  | Shift + left | Dungeon groups / finder |
+  | Ctrl + left | Check my gear (moved from right) |
+  | Alt + left | Guild map (unchanged) |
+  | Middle | Settings |
 
-These comparisons identify reuse opportunities, not new acceptance evidence.
-The original backlog handoff authorized only capture. Kevin subsequently authorized
-local implementation; see [the local bundle](docs/archive/LOCAL_FEATURE_BUNDLE_2026-10-25.md)
-for completed work and remaining scope. Game actions, commits, publication, push,
-merge and deployment remain outside this local review pass.
+  Tooltip lists every shortcut plus live status (sync waiting, unread board posts). Keep the addon
+  compartment entry in step with the same actions.
+- Done when: every click works out of combat and does nothing protected in combat; tooltip text in
+  French too.
 
-## Commands — 18 October 2026
+**E3. "Last seen" in the Crafted by tooltip.** Read `GetGuildRosterLastOnline` for crafters (online
+now = "online"), cache it in SavedVariables with the time it was read, and add it to the compact
+Crafted by line (8.4.6 #375) without making the tooltip taller.
 
-1. **Done in 6.7.0.** Members see only their commands; leader and officer tools moved to
-   `/lead`, `/officer` and `/organize`, and `/setup` warns when a role can't see them.
-2. **Done in 7.3.0 where Discord's limits allow.** `/system` and `/uninstall` are now
-   `/setup system` and `/setup uninstall`; `/profile` is `/character profile` (27 to 24 top-level
-   commands). Kept on purpose: `/config` (with it, `/setup` would be about 4,150 of Discord's 4,000
-   characters; it left `/setup` on 8 October for that reason), `/team` (with `/core` about 4,980),
-   and `/tag` (`/tag show` and `list` are for members, and `/mod` is hidden from members).
-3. **Then.** Drop slash commands that only repeat a button (for example `/raid signup`,
-   `/community lottery join`, `/craft claim`) once each button is confirmed to work in Discord.
+**E4. "Get the companion" in game (requested 6 November 2026).** Addons cannot open web pages, so
+the addon shows a copy box with the short link (`guilded.kcaron.top/companion/`) and the stable
+direct link, on the Home page and in Settings, plus a gentle reminder at most once a week for members
+whose characters have not been uploaded by their own companion in 7 days (the officer bridge tells
+the addon who that is). The reminder says what syncing gives them and can be turned off.
+
+### Track F — Companion
+
+**F1. Problem alert with the fix and a report to copy.**
+- Existing: Activity page, "Review support summary" (`syncDiagnosticPreview`), save diagnostics as a
+  file; `companion/sync-status.mjs`; bot error references (`/report bug`).
+- Build: a red **!** on the window header and tray icon when a check fails, opening a Problems panel.
+  Each problem: one plain sentence, **How to fix** steps, a **Fix it** button where possible, and
+  **Copy report for the developer** (the privacy-reviewed summary plus a short reference, copied to
+  the clipboard; optional "Send to developer" that files it like `/report bug`). Checks: addon not
+  installed or wrong edition folder, saved file missing or not updated after `/reload`, WoW running
+  during an update, sign-in expired, upload rejected (with the server's reason), companion outdated,
+  no internet / bot unreachable.
+- Done when: each check has a unit test that triggers it and a screenshot in the PR.
+
+**F2. Simpler settings.** Keep visible: connection status, Sign in with Discord, WoW saved-data
+(Detect/Browse), start with Windows, automatic updates, Check for updates. Move under **Advanced**:
+bot address and pairing code ("older companions or your guild's own bot"), Battle.net (already hidden
+for Forever), manage devices, reset/remove data, realm and guild filters, interval. Hide pages a
+member does not use (Pricing, Cores, Reserves, Wishlist) until the guild uses those features.
+
+**F3. Less friction when linking** (open items 7-10 of
+[the member journey audit](docs/MEMBER_JOURNEY_AUDIT_2026-11-05.md)):
+- folder picker that starts at the WoW install root and finds the Forever account folder itself,
+  including several accounts (pick one per character);
+- after the first companion link, a Discord confirmation ("You're linked: First Last, Second Last");
+  **owner decision (6 November 2026):** send the member a **DM** (clearer than a delayed line); this
+  is an owner-approved automatic message, so it is on by default, once per member, and quiet if
+  the member's DMs are closed;
+- `/guilded verify`: show "waiting for a guildmate's companion" vs "linked" in game, and keep the code
+  in the guild digest until it is heard instead of losing it when nobody is online;
+- companion offers to install or update the matching addon (WoW closed check, correct edition folder).
+
+**F5. Store companion updates itself (owner request, 6 November 2026).** Today a Store install
+shows a button that opens `ms-windows-store://downloadsandupdates` (`companion-app/main.cjs`), and
+Windows' own Store auto-update installs it later, often hours afterwards. Build: when
+`process.windowsStore` is true, call the Windows Store API from the packaged app
+(`Windows.Services.Store.StoreContext`: `GetAppAndOptionalStorePackageUpdatesAsync`, then
+`TrySilentDownloadAndInstallStorePackageUpdatesAsync` on Windows 11 and Windows 10 2004+; on
+Windows 10 1607-1909, where the silent call does not exist, `RequestDownloadAndInstallStorePackageUpdatesAsync`,
+which shows one small Store "Update" prompt instead of opening the Store; Windows 7/8 cannot run
+Store apps or current Electron, so those members use the direct download), at most once every 6 hours
+and when WoW is not running, and restart the companion quietly after it closes. Fall back to the
+current button when the call is unavailable or fails. Mark future Store submissions' packages as
+mandatory in Partner Center so the API reports them as required. Needs a real Store install to
+test; the direct-download build already updates itself (8.4.7).
+
+**F4. Fresh computer test.** Run the member path end to end on a clean Windows profile (Windows
+Sandbox on the owner's Windows 10 Pro for the companion and folder steps; a real second PC for the
+Store and WoW steps). Time each step, screenshot each screen, fix what confuses, and rewrite
+`docs/MEMBER_INSTALL.md` (the French paragraph still lists all five editions). Record results in
+`docs/FRESH_INSTALL_MEMBER_TEST.md`.
+- Done when: a non-technical member can go from the Discord prompt to "Everything is linked" in under
+  10 minutes with no question to an officer.
+
+### Track G — Server and guild statistics
+
+**Recommendation:** charts on the guild tools web page first, Google Sheets as a live feed, not the
+other way round. A Sheets API integration needs Google service-account credentials the repo must not
+hold; `IMPORTDATA` needs none.
+
+- Existing: `/stats`, `guild-stats.ts`, `weekly-report.ts`, `/guild-health`, `/officer export` CSVs,
+  `MemberActivityTotal`, `CommunityParticipationDay`, companion spreadsheet export.
+- Build:
+  1. `GuildStatSnapshot`, written once a day per guild: Discord members, members active (messages,
+     voice), linked members, guild roster size, online peak (from uploads), level distribution,
+     class counts, level 60 count, raids and dungeon runs that day.
+  2. A **Statistics** page on the guild tools site with line and bar charts (members over time,
+     activity, levels, classes, professions); officers only by default.
+  3. A read-only CSV feed per guild (`/officer stats feed` shows the URL with a revocable key) that
+     an officer pastes into Google Sheets with `=IMPORTDATA("…")`; Sheets then draws its own graphs.
+     Ship a ready-made Sheet template link in the doc.
+  4. `/stats server` embed with a small chart image (score-card renderer).
+- Done when: 7 days of snapshots draw correctly; the CSV loads in Google Sheets; revoking the key
+  stops the feed.
+- **Owner decision:** later direct Google Sheets writing (needs a Google Cloud service account the
+  owner creates). Not part of 8.5.
+
+### Track H — Ideas from Kinfolk Guild Hub (later; pick before building)
+
+Kinfolk ("KinFolk: Guild Hub", CurseForge, Forever, 0.18.16 on 5 November 2026) is **All Rights
+Reserved**: reuse ideas only, never code, text, layout, art or the name. Guilded already matches or
+beats it on loot/EPGP, crafting, the Discord bot, linking, dungeon scores, duels and the guild map.
+Worth adopting, most useful first:
+
+1. **Events with RSVP in game:** sign up / tentative from the in-game calendar with role and class
+   counts, mirrored to the existing Discord raid signups (we have signups; the in-game side is thin).
+2. **Recruiting kit:** recruit records, editable interview questions, recruiting posts with a shared
+   guild cooldown, building on `/mod recruit` and the officer Prospects window.
+3. **Levelling partners:** "near your level and zone" list with a whisper button (folded into B1).
+4. **In-game guild board** for officer posts and polls, mirrored from Discord polls.
+5. **Per-guild module switches** set by officers (extend the announce off switch).
+6. **Short class notes** labelled confirmed or early advice (low priority, content upkeep).
+
+### Track I — WoW Forever armory (spike first; requested 6 November 2026)
+
+Blizzard's Forever armory is live at `worldofwarcraft.blizzard.com/en-us/forever/{us,eu,kr,tw}/armory`
+(characters from level 10). What we know: the page is a client-side app; `robots.txt` only blocks
+login pages; no public Forever API namespace has been announced, and Blizzard's Profile API never
+covered Classic characters before. Character URL pattern, name encoding (Forever first **and** last
+names) and guild pages are **unverified**.
+
+**Recommendation:** use it only through an official route, and only as optional enrichment. The addon
+and companion stay the source of truth; nothing breaks when the armory is down or changes.
+
+- **I0. Spike (blocks everything else, ~1 hour):**
+  1. The owner opens one real Forever character page and one guild page in a browser with DevTools →
+     Network, and saves the URL patterns and any JSON request names (no cookies or tokens copied).
+  2. With the existing Battle.net developer app (`docs/BATTLENET_SETUP.md`), test whether
+     `profile-forever-us` / `dynamic-forever-us` (or similar) namespaces answer for a known character.
+  3. Read Blizzard's website and API terms on automated access. Record all three answers in
+     `docs/FOREVER_ARMORY.md`.
+- **If an official API covers Forever:** (a) `/character link` checks the character exists and shows
+  its level, class and guild before saving; (b) a daily guild-roster import fills levels for members
+  without the addon (feeds B1 race to 60 and C1 roster gaps); (c) `/armory First Last` lookup and an
+  armory link on every character card, profile and the Artisans' Gallery.
+- **If only the website exists:** add armory **links** (character cards, `/character list`, gallery,
+  race board) and no automated reading. No scraping of undocumented endpoints.
+- Battle.net sign-in stays hidden for Forever members until I0 proves it links Forever characters.
+
+### Track J — Call for help (world PvP), requested 6 November 2026
+
+**Goal:** a member being ganked presses one button and the right guildmates know at once, in game
+and in Discord.
+
+**Recommendation (who gets alerted):** guildmates with Guilded who opted in as **Defenders**
+(default on for level 60s, off below level 40, a member setting), within the same zone, sorted by
+distance when the guild map knows both positions. Everyone else in the guild sees one quiet chat line.
+
+- **Existing:** guild map position sharing (`Modules/GuildMap.lua`, default on, paused in instances
+  and combat, so the last position before combat is still known); the paced addon-message queue
+  (`ns.comm.send`); the Guilded chat tab; Québec Gold's **Blizzard-native guild chat ↔ Discord link**
+  (`#chat-guilde`), which already carries guild chat into Discord with no bot involvement.
+- **Build, addon:**
+  1. Trigger: `/guilded help`, a key binding, the minimap quick menu (E2) and a **Call for help**
+     button that appears for 20 s when an enemy player damages you outside a battleground
+     (`COMBAT_LOG_EVENT_UNFILTERED`, hostile player source). Never sends by itself.
+  2. Message (prefix `GuildedSOS`): caller, zone, subzone, map position if known, level, attacker
+     names/classes/levels seen in the combat log, time.
+  3. Receivers who are Defenders get a raid-warning-style banner, a sound, distance and direction
+     when known, a map pin, and **On my way** / **Can't** buttons; the caller sees who is coming.
+     Others get one line in the Guilded chat tab. No secure or protected action (works in combat).
+  4. Optional **Also post in guild chat** (caller's choice, default on): one short guild-chat line
+     such as `[Guilded] Help! Lebowski is under attack in Duskwood (2 Horde, 58-60)`. Through the
+     native link it appears in Discord immediately.
+  5. Anti-spam: one call per caller per 2 minutes, an "all clear" button, auto-expiry after 5 minutes.
+- **Build, Discord (optional, opt-in per server):** a `@Defenders` role ping in a chosen channel.
+  The addon cannot reach Discord itself and SavedVariables are only written on reload or logout, so
+  live pings need the companion: it watches the game's chat log file (`Logs/WoWChatLog.txt`, written
+  live while `/chatlog` is on) for the `[Guilded] Help!` line and forwards it to the bot.
+  Feasibility of the chat log on Forever is step 0 of this part.
+- **Done when:** Lua tests cover the trigger, cooldown and receiver filter; in game, two clients in
+  the same zone see the banner within 2 seconds; the guild-chat line shows in Québec Gold's Discord.
+
+### Track K — Addon-only members still sync (and sync is as good as other addons)
+
+**Goal:** a member who never installs the companion still has their data (characters, levels,
+professions, recipes, dungeon runs, duels, attendance) reach Discord and the website, through any
+guildmate whose companion is running.
+
+- **Existing:** member ledger sync on by default (`LedgerSync.lua`, `LedgerDigest.lua`,
+  `LedgerRelay.lua`: officer receipts, whisper delivery, digest checks), the officer bridge for the
+  other direction (`docs/OFFICER_COMPANION_BRIDGE.md`), `/guilded verify` for linking without a
+  companion, and the provisional/trusted upload rules in `src/services/character-verify.ts`.
+- **Build:**
+  1. Audit, field by field, which member data travels by addon message today and which only leaves
+     the PC through that member's own companion. Write the table in `docs/ADDON_ONLY_SYNC.md`.
+  2. For each gap, add the field to the guild digest or relay, with provenance (who saw it, when)
+     so the bot can mark relayed data "reported by a guildmate" and prefer first-hand uploads.
+  3. Compare with how other guild addons sync (findings below) and adopt what is better: chunking,
+     throttling, version checks, conflict rules.
+  4. Show in game which guildmates have a companion syncing ("Synced via Lebowski, 2 h ago").
+- **Done when:** in a two-client test, a member with no companion gets their level, professions and
+  a dungeon run onto the website through the other member's companion.
+
+**What other addons do (research 6 November 2026; search snippets, not code review):**
+- **GRM** syncs over GUILD addon messages, needs matching versions, sets edit rights by rank, and on
+  Retail can no longer edit public/officer notes (it keeps its own "custom note"). Whether Forever
+  still allows addon note edits must be tested in game before C4's note tool ships.
+- **CEPGP/EPGP** store standings in officer notes, so other addons must never write officer notes.
+- **Guildbook, GuildCrafts, Recipe Registry, Profession Master** share professions by addon message
+  after each player opens their profession window; none writes notes. GuildCrafts prunes data not
+  refreshed in 45 days and notes that GUILD addon messages are not delivered inside instances.
+- **No guild addon uploads to a website**; Raider.IO and Warcraft Logs use their own desktop apps.
+  So Guilded's companion relay is already ahead. The lesson is to make every relayed record
+  self-describing (author, time, id) so the bot can deduplicate and trust first-hand data first.
+- Adopt for Guilded: an explicit addon version check with a "please update" line, stale-data pruning
+  with a visible age, and queueing sends while in an instance until the player is back outside.
+- **Call for help:** WarlordsPvP has a manual SOS (command, minimap click, button) that posts zone,
+  coordinates and nearby enemies to guild chat with a 10 s cooldown; Spy2 detects enemies from the
+  combat log. No addon alerts opted-in guildmates with a banner and "On my way" replies, so Track J
+  would be new. Write it from scratch: these addons are references for ideas only.
+- **Promotions:** GRM records promotion dates and has promote macros but no "ready to promote" list,
+  so C5 is new work. Test in the Forever client that promoting from an addon click works with the
+  officer's Promote permission.
+
+### Release step — in-game testing by desktop control
+
+After the track PRs are merged into the 8.5 candidate, one Sonnet tester session runs
+[the 8.5 game test plan](docs/V8_5_0_GAME_TEST_PLAN.md) on the owner's PC: WoW Forever in windowed
+mode, entering from the character screen as Lebowski Holyroller. To save cost it reads the chat
+log, saved data and Discord page text, and takes about a dozen screenshots in total.
+
+### Final phase 1 — new screenshots and website refresh (after all tracks are merged)
+
+Owner request, 6 November 2026. Once 8.5.0 is feature-complete:
+1. Take fresh screenshots in game (race board, PvP ladder, call for help banner, chat tab, minimap
+   menu, roster card, Artisans' Gallery, companion Problems panel and settings) and in Discord.
+   Sanitize names that are not Québec Gold members.
+2. Update guilded.kcaron.top and kcaron.top: features page, guides (`docs/MEMBER_INSTALL.md`,
+   `docs/QUICK_START.md`), companion page (Store self-update, direct download), FAQ and `/help`.
+   English and French. Merges to `main` publish the site.
+
+### Final phase 2 — the phone app as a "glance and group" companion (Track M)
+
+Owner request, 6 November 2026: an app to check leaderboards at work and to help group while playing.
+- **Existing (`mobile/`, Expo, preview APK 0.2.0 live):** public leaderboards; companion sign-in for
+  characters, reserves, wishlist, raid standings and on-device reminders. PR #345 adds the server
+  side for mobile alerts and sign-in renewal.
+- **Build:**
+  1. **Leaderboards first:** dungeon season, race to 60, PvP ladder, duels, achievements; fast,
+     cached, readable in 5 seconds.
+  2. **Guild view:** roster with class/level/professions, who is online now, last seen, mains and alts,
+     the Artisans' Gallery search.
+  3. **World map of guildmates:** last known position of guildmates who share their map position,
+     shown as dots, with a **last-seen heatmap** of where the guild plays. **Owner decision
+     (6 November 2026): approved, on by default.** Each member can turn sharing off, only
+     signed-in members of the same guild see it, it is never public, and a member who turns it off
+     has their stored positions deleted. (This is separate from the 26 October refusal of a
+     guild-wide activity-time heatmap, which still stands.) Positions only reach the bot
+     when a companion uploads (at reload or logout), so they are "last seen", not live, unless the
+     companion chat-log watcher from Track J is built.
+  4. **Call for help on the map:** active calls from Track J shown as pins with time and attackers;
+     push notification to Defenders who opted in on the phone.
+  5. **Dungeon and group notifications:** a group needs your role, a vacancy in a raid you signed up
+     for, your dungeon run counted, someone in the guild beat your score. Each one off/on per member.
+- Ship as the next APK after PR #345 is merged, then Google Play.
+
+### Release step — bring the Québec Gold Discord up to date (owner request, 6 November 2026)
+
+After 8.5.0 is merged and deployed, the coordinating session turns the new features on in the
+Québec Gold server and checks each one live. Opt-in switches stay off for every other server.
+1. Re-run `/setup` so the PvP category (`pvp-groups`, `pvp-results`, `pvp-ladder`) and the race-to-60
+   channel exist; existing battleground channels are adopted, not duplicated.
+2. Turn on and check: race-to-60 board, PvP ladder board, Who's who board, nickname sync
+   (`kevmister28 (Lebowski Holyroller)` style; check Manage Nicknames and role order first),
+   profession posts / Artisans' Gallery, statistics snapshots and the Sheets feed.
+3. Run `/officer roster gaps` and hand the `/ginvite` list to an officer.
+4. Check that `/achievements` and the web page show only Forever and guild achievements.
+5. Update pinned guides and the bot-guide channel text where commands changed; record the results
+   in `docs/V8_5_0_RELEASE_ACCEPTANCE.md`.
+
+---
+
+## Carried over (still open from 8.4)
+
+- **8.4.7 distribution** (GitHub v8.4.7 and the bot at `06f12f1` are live):
+  - CurseForge: upload the `Guilded-v8.4.7-forever.zip` (project 1712677, display name
+    "Guilded 8.4.7 (WoW Forever)") and `GuildedDungeons-v8.4.7-forever.zip` (1754138). Both are in
+    `C:\Users\Kev\Desktop\guilded-release-8.4.7\`. Game version 1.60.1 only, release type Release.
+  - Microsoft Store: after Submission 11 (8.4.6.0) certifies, submit
+    `Guilded.Companion.8.4.7.x64.STORE-SUBMISSION.msix` (8.4.7.0); upload trick in the
+    `release-8-4-6` memory note.
+  - Site pointer PR #388 (releases.json → 8.4.7): its Cloudflare preview build failed; rerun, then merge.
+  - Existing direct-download companions need one manual update to reach the self-updating 8.4.7.
+- **Dungeons:** unknown Forever final bosses log `DUNGEON_FINAL_UNMATCHED`. Add their ids as they
+  appear. For 8.5 the owner leans toward **dungeon Season 2 on current-v2 rules** (Season 1 stays
+  current-v1; the level-60 Best 8 is implemented but inactive). This needs a decision on the start
+  date before it is built.
+
+- **WoW-linked Discord item previews** in the Blizzard-linked guild chat channel: built off by
+  default (`docs/ITEM_PREVIEWS.md`, `src/services/item-preview.ts`); webhook posting and non-echo
+  into WoW still unproven live. Do not change the native Blizzard relay.
+- **Crafter offers** (`docs/CRAFT_OFFERS.md`): built, off by default, awaiting real-server acceptance.
+  Track D builds on it.
+- **Real-client acceptance** still owed: member ledger sync, duels and announcements with several
+  clients; the addon UI batch of 5 November needs an in-game re-check
+  ([backlog](docs/archive/UI_FIX_BACKLOG_2026-11-05.md)); Forever live acceptance; dungeon G6-G8 and
+  French client G10 ([6.2 game acceptance](docs/V6_2_GAME_ACCEPTANCE.md)).
+- **Microsoft Store:** confirm which version has certified before claiming status.
+- **Commands:** drop slash commands that only repeat a button (`/raid signup`,
+  `/community lottery join`, `/craft claim`) once each button is confirmed in Discord.
+- **Public page per guild** ([design](docs/GUILD_PAGES_DESIGN.md)): officers choose what is public.
+- **Android app** (`mobile/`): the Expo/EAS project is linked (`ddda073f-f6bb-4e04-8a78-7ac343e03864`,
+  account kevincaron28) and preview APK 0.2.0 is published (GitHub pre-release `mobile-v0.2.0-preview`,
+  linked on /companion/), with OTA updates on channel `preview`. Still open: merge PR #345 (server
+  parts for mobile alerts and token renewal); add an `EXPO_TOKEN` repo secret so merges publish OTA
+  updates; add `--environment preview` to the `update:preview` script; push notifications need a
+  Firebase project (`google-services.json`); then Google Play (12 testers for 14 days). On this PC
+  run EAS as `npx.cmd eas-cli …` (PowerShell blocks plain `npx`).
 
 ## Later
 
-- The raid-leader addon is **Pullscript** (a separate project in the owner's `Wow Addons`
-  workspace, CurseForge project 1729283): target icons and world markers, tank marking, boss
-  plans shared to the group or posted in chat, pull timer and ready check, and a read-only import
-  of Guilded's old `raidPlans`. On 20 October 2026 it gained the last two features of Guilded's
-  [raid tools archive](docs/archive/raid-tools/README.md): clearing every group icon and marking a
-  target by command (local 0.1.0-beta.14; not yet released, real-client checks pending).
-- Additional standalone-first-run improvements described in
-  [STANDALONE_ADDON_ROADMAP.md](docs/STANDALONE_ADDON_ROADMAP.md).
-- Managed multi-guild hosting is now planned through item 4 of "Requested"
-  (automatic joining with a lite version); self-hosting stays supported.
-
-Historical feature plans are in [the roadmap archive](docs/archive/ROADMAP-history.md)
-and version handoffs. Their old version numbers and pending-test statements
-must not override the current release testing record.
-
-## Community achievements implementation — 27 October 2026
-
-The requested 100/300/500 badge shelves, silent legacy baseline, reviewed helper/event
-achievements and scoped congratulations are implemented in the badge change.
-See [implementation and rollout](docs/COMMUNITY_ACHIEVEMENTS_2026-10-27.md) for privacy,
-transaction/delivery guarantees, activation gates and the deferred max-level evidence
-requirement. The badge implementation is deployed and retained in 8.0. Per-guild activation and legacy baseline rules still apply; game acceptance is separate. Dungeon integrity and shared transport also shipped before/in 8.0.
-
-## Dungeon integrity draft - 27 October 2026
-
-The first tranche fixes DPS/DAMAGER role parity across both addons, companion and score views; newly frozen official seasons require current evidence while old snapshots and Beta history remain readable. See [implementation, proposed versioned policies and remaining launch checks](docs/DUNGEON_INTEGRITY_2026-10-27.md). The implemented role/evidence corrections shipped before 8.0 and are retained in its published packages. Season 1 uses current-v1; timer/presence/finality alternatives in the design record remain proposals, not silently enabled policies. Real-game validation is still outstanding; historical scores were not reset.
+- Raid leader tools live in the separate **Pullscript** addon (CurseForge 1729283).
+- More standalone first-run improvements: [STANDALONE_ADDON_ROADMAP.md](docs/STANDALONE_ADDON_ROADMAP.md).
+- Turning other WoW editions or PoE2 back on: [FOREVER_ONLY_FOCUS.md](docs/FOREVER_ONLY_FOCUS.md).

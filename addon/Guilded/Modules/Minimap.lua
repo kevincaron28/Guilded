@@ -982,6 +982,18 @@ local function buildStandingsPage(page)
   tip(publish, "For guilds without the Discord bot: sends the EP and GP recorded on this PC to the guild as the standings. A newer upload from the bot replaces them.")
 end
 
+-- A box showing a link that can be selected and copied (Ctrl+C); typing does not change it.
+local function copyBox(parent, text, width)
+  local box = newEdit(parent, width)
+  box:SetText(text)
+  if box.SetCursorPosition then box:SetCursorPosition(0) end
+  box:SetScript("OnTextChanged", function(self, user)
+    if user and self:GetText() ~= text then self:SetText(text) end
+  end)
+  box:SetScript("OnEditFocusGained", function(self) if self.HighlightText then self:HighlightText() end end)
+  return box
+end
+
 local function buildToolsPage(page)
   at(newButton(page, "Guilded setup", 170, function() run("setup") end), page, PAGE_WIDTH - 170, -64)
   local everyone = {
@@ -1020,10 +1032,17 @@ local function buildToolsPage(page)
   tip(at(newButton(page, "+", 30, function() run("menu scale bigger") end), page, 124, -234), "Bigger window")
   tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -234), "Normal size, back in the middle of the screen")
 
+  -- Get the companion (8.5.0): addons cannot open web pages, so the links are here to copy.
+  at(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormalSmall"), page, 0, -266)
+  if ns.companionLink then
+    at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -282)
+    at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -282)
+  end
+
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -266)
+    "GameFontHighlightSmall"), page, 0, -316)
   help:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
@@ -1478,6 +1497,13 @@ local function buildHomePage(page)
     ui.linkBox:SetText("")
   end), 182, -218), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))
   linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -218), "Forgets the saved code on this WoW account."))
+
+  -- Get the companion (8.5.0): links to copy, since an addon cannot open a web page.
+  if ns.companionLink then
+    below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -262)
+    below(copyBox(page, ns.companionLink.SHORT, 250), 6, -282)
+    below(copyBox(page, ns.companionLink.DIRECT, 250), 270, -282)
+  end
 end
 
 -- Sidebar order: pages are grouped under these headings.
@@ -2514,10 +2540,159 @@ local function togglePanel()
   if not ok then ns.message("Tools window failed to open: " .. tostring(err)) end
 end
 
+-- Minimap button shortcuts (8.5.0):
+--   Left          the window, on the page last used
+--   Right         a quick menu of the pages people open most
+--   Shift + left  dungeon groups and the finder
+--   Ctrl + left   check my gear
+--   Alt + left    guild map
+--   Middle        settings
+--   Shift + right call for help (works in combat: the one shortcut that matters during a gank)
+local function modifier(name)
+  local fn = _G["Is" .. name .. "KeyDown"]
+  return fn and fn() and true or false
+end
+
+local function inCombat()
+  return (InCombatLockdown and InCombatLockdown()) and true or false
+end
+
+local function tabExists(name)
+  for _, tab in ipairs(ui.tabs) do if tab.name == name then return true end end
+  return false
+end
+
+local function openPage(name)
+  if ns.openToolsPage then ns.openToolsPage(name) end
+end
+
+local function openDungeons()
+  if ns.dungeonScorePanel and ns.dungeonScorePanel.open then ns.dungeonScorePanel.open("run") else openPage("Open raids") end
+end
+
+-- The quick menu: label, then what it does. "Race to 60" appears only when that page exists.
+local function quickMenuItems()
+  local items = {
+    { "Raid signups", function() openPage("Open raids") end },
+    { "Loot and standings", function() openPage("Standings") end },
+    { "Dungeons", openDungeons },
+    { "Crafting search", function() openPage("Crafting") end },
+    { "Guild map", function() run("map open") end }
+  }
+  if tabExists("Race to 60") then table.insert(items, { "Race to 60", function() openPage("Race to 60") end }) end
+  if ns.callForHelp and ns.callForHelp.open then table.insert(items, { "Call for help", function() ns.callForHelp.open() end }) end
+  table.insert(items, { "Settings", function() openPage("Tools") end })
+  return items
+end
+
+local quickMenu
+local function hideQuickMenu()
+  if quickMenu then quickMenu:Hide() end
+  if quickMenu and quickMenu.catcher then quickMenu.catcher:Hide() end
+end
+
+local function showQuickMenu()
+  hideQuickMenu()
+  local items = quickMenuItems()
+  if not quickMenu then
+    quickMenu = CreateFrame("Frame", "GuildedQuickMenu", UIParent, "BackdropTemplate")
+    quickMenu:SetFrameStrata("DIALOG")
+    quickMenu:SetClampedToScreen(true)
+    if quickMenu.SetBackdrop then
+      quickMenu:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+      quickMenu:SetBackdropColor(0.05, 0.05, 0.07, 0.95)
+    end
+    -- A click anywhere else closes the menu.
+    quickMenu.catcher = CreateFrame("Button", nil, UIParent)
+    quickMenu.catcher:SetAllPoints(UIParent)
+    quickMenu.catcher:SetFrameStrata("DIALOG")
+    quickMenu.catcher:SetFrameLevel(1)
+    quickMenu.catcher:RegisterForClicks("AnyUp")
+    quickMenu.catcher:SetScript("OnClick", hideQuickMenu)
+    -- However the menu closes (Escape, an item, a click elsewhere), the full-screen catcher goes
+    -- with it; otherwise it would swallow the next click on the minimap button.
+    quickMenu:SetScript("OnHide", function() if quickMenu.catcher then quickMenu.catcher:Hide() end end)
+    quickMenu.buttons = {}
+    if UISpecialFrames then table.insert(UISpecialFrames, "GuildedQuickMenu") end
+  end
+  local height = 10
+  for i, item in ipairs(items) do
+    local b = quickMenu.buttons[i]
+    if not b then
+      b = CreateFrame("Button", nil, quickMenu)
+      b:SetSize(170, 22)
+      b.text = b:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+      b.text:SetPoint("LEFT", 8, 0)
+      b:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+      quickMenu.buttons[i] = b
+    end
+    b:ClearAllPoints()
+    b:SetPoint("TOPLEFT", quickMenu, "TOPLEFT", 5, -5 - (i - 1) * 22)
+    b.text:SetText(L(item[1]))
+    local action = item[2]
+    b:SetScript("OnClick", function()
+      hideQuickMenu()
+      if inCombat() then ns.message(L("Not in combat.")) return end
+      action()
+    end)
+    b:Show()
+    height = height + 22
+  end
+  for i = #items + 1, #quickMenu.buttons do quickMenu.buttons[i]:Hide() end
+  quickMenu:SetSize(180, height)
+  quickMenu:ClearAllPoints()
+  if button then quickMenu:SetPoint("TOPRIGHT", button, "BOTTOMLEFT", 8, 8) else quickMenu:SetPoint("CENTER") end
+  quickMenu.catcher:Show()
+  quickMenu:Show()
+  if quickMenu.Raise then quickMenu:Raise() end
+end
+
+-- What a click does. Returns a name for the action (the tests read it). In combat only the plain
+-- left click (toggling Guilded's own window) works; everything else says so and does nothing.
 local function minimapClick(mouseButton)
-  if IsAltKeyDown and IsAltKeyDown() then run("map open")
-  elseif mouseButton == "RightButton" then run("inspect")
-  else togglePanel() end
+  if mouseButton == "MiddleButton" then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    openPage("Tools")
+    return "settings"
+  elseif mouseButton == "RightButton" and modifier("Shift") then
+    if ns.callForHelp and ns.callForHelp.open then ns.callForHelp.open() return "help" end
+    return "unavailable"
+  elseif mouseButton == "RightButton" then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    showQuickMenu()
+    return "menu"
+  end
+  if modifier("Alt") then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    run("map open")
+    return "map"
+  elseif modifier("Control") then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    run("inspect")
+    return "gear"
+  elseif modifier("Shift") then
+    if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
+    openDungeons()
+    return "dungeons"
+  end
+  togglePanel()
+  return "window"
+end
+ns.minimapClick = minimapClick
+
+-- The tooltip: every shortcut, then live status.
+local function fillTooltip()
+  GameTooltip:AddLine("Guilded")
+  GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
+  GameTooltip:AddLine(L("Right-click: quick menu"), 1, 1, 1)
+  GameTooltip:AddLine(L("Shift-click: dungeon groups"), 1, 1, 1)
+  GameTooltip:AddLine(L("Ctrl-click: check my gear"), 1, 1, 1)
+  GameTooltip:AddLine(L("Alt-click: guild map"), 1, 1, 1)
+  GameTooltip:AddLine(L("Middle-click: settings"), 1, 1, 1)
+  if ns.callForHelp and ns.callForHelp.open then GameTooltip:AddLine(L("Shift-right-click: call for help"), 1, 0.5, 0.4) end
+  local waiting = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
+  if waiting then GameTooltip:AddLine(L("Changes waiting to be saved (/reload)"), 1, 0.82, 0.2) end
 end
 
 -- ---------------------------------------------------------------------
@@ -2557,17 +2732,14 @@ local function buildButton()
   border:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
 
   button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-  button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+  button:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
   button:RegisterForDrag("LeftButton")
   button:SetScript("OnClick", function(_, mouseButton)
     minimapClick(mouseButton)
   end)
   button:SetScript("OnEnter", function(self)
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:AddLine("Guilded")
-    GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
-    GameTooltip:AddLine(L("Right-click: check my gear"), 1, 1, 1)
-    GameTooltip:AddLine(L("Alt-click: guild map"), 1, 1, 1)
+    fillTooltip()
     GameTooltip:AddLine(L("Drag: move this button"), 1, 1, 1)
     GameTooltip:Show()
   end)
@@ -2650,9 +2822,7 @@ end
 function Guilded_OnAddonCompartmentEnter(_, anchor)
   if not GameTooltip then return end
   GameTooltip:SetOwner(anchor or UIParent, "ANCHOR_LEFT")
-  GameTooltip:AddLine("Guilded")
-  GameTooltip:AddLine(L("Left-click: open the tools window"), 1, 1, 1)
-  GameTooltip:AddLine(L("Right-click: check my gear"), 1, 1, 1)
+  fillTooltip()
   GameTooltip:Show()
 end
 function Guilded_OnAddonCompartmentLeave()

@@ -2,4 +2,7 @@
   <Binding name="GUILDED_TOGGLE" header="GUILDED" category="ADDONS">
     Guilded_ToggleWindow()
   </Binding>
+  <Binding name="GUILDED_CALL_FOR_HELP" category="ADDONS">
+    Guilded_CallForHelp()
+  </Binding>
 </Bindings>

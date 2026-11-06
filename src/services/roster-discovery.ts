@@ -52,7 +52,9 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
       name: entry.name, realm: entry.realm, className, race, level, spec,
       gameEdition,
       ...(entry.displayName ? { displayName: entry.displayName } : {}),
-      ...(acceptProfessions ? { professions: entry.professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}), lastSeenAt: new Date()
+      ...(acceptProfessions ? { professions: entry.professions as unknown as Prisma.InputJsonValue, ...(entry.professionsComplete === true ? { professionsUpdatedAt: at } : {}) } : {}), lastSeenAt: new Date(),
+      // 8.5 C5: the rank the officer's upload reported (omitted by older uploads, which keep the last one).
+      ...(entry.guildRankName !== undefined ? { guildRankName: entry.guildRankName, guildRankAt: new Date() } : {})
     };
     await tx.unclaimedCharacter.upsert({
       where: { guildId_nameKey: { guildId, nameKey: key } },

@@ -238,6 +238,12 @@ const STRINGS = {
     en: "✅ **{name}** is now linked to your Discord account on **{server}** as {kind} (your `/guilded verify` code). Not your character? Use `/character unlink` there.",
     fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (ton code `/guilded verify`). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
   },
+  // 8.5 track F: the DM after a member's first companion link (companion-link-dm.ts).
+  "companion.firstLink": {
+    en: "✅ You're linked on **{server}**: {names}. Your Guilded companion proved these characters are yours, so there is nothing more to do. Not yours? Use `/character unlink` there.",
+    fr: "✅ Tu es lié sur **{server}** : {names}. Ton compagnon Guilded a prouvé que ces personnages sont à toi, il n'y a donc plus rien à faire. Pas à toi ? Utilise `/character unlink` là-bas."
+  },
+  "companion.firstLinkMore": { en: " and {count} more", fr: " et {count} de plus" },
   "verify.moved": {
     en: "**{name}** was unlinked from your Discord account on **{server}**: an officer's Guilded heard another member's `/guilded verify` code from that character. If it is yours, ask an officer.",
     fr: "**{name}** a été délié de ton compte Discord sur **{server}** : le Guilded d'un officier a reçu le code `/guilded verify` d'un autre membre depuis ce personnage. S'il est à toi, demande à un officier."

@@ -559,5 +559,8 @@ export const FR_TEXT: Record<string, string> = {
   "Offer saved (ID `{id}`), but I couldn't post it to the board: is the craft channel a forum?": "Offre enregistrée (ID `{id}`), mais je n'ai pas pu la publier sur le tableau : le salon d'artisanat est-il un forum ?",
   "It is labelled unverified.": "Elle est marquée non vérifiée.",
   "No active crafter offers.": "Aucune offre d'artisan active.",
-  "welcome panel": "panneau de bienvenue"
+  "welcome panel": "panneau de bienvenue",
+  // 8.5 track C
+  "Nickname sync permission": "Permission de synchro des pseudos",
+  "Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.": "Accordez à mon rôle la permission « Gérer les pseudos », au-dessus des membres à renommer."
 };

@@ -64,6 +64,10 @@ import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
 import { executeCore } from "./commands/core.js";
 import { ACHIEVEMENT_SHARE_PREFIX, handleAchievementShare } from "./commands/achievements.js";
 import { syncAllRankRoles } from "./services/rank-roles.js";
+import { syncAllNicknames } from "./services/nickname-sync.js";
+import { postAllWeeklyPromotions } from "./services/promotion.js";
+import { updateWhosWhoBoard } from "./services/whos-who-board.js";
+import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
 import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
@@ -91,6 +95,8 @@ import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { updateDuelBoard } from "./services/duel-board.js";
+import { updateRaceBoard } from "./services/race-board.js";
+import { updateBgLadder } from "./services/bg-ladder.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
@@ -314,6 +320,10 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void sweepServerAnniversaries(prisma, new Date(), reportJobError("Server anniversary")).catch(reportJobError("Server anniversary")), 60 * 60_000);
   // WoW guild rank to Discord role: on by default, inert for a guild until an officer maps a rank.
   setInterval(() => void syncAllRankRoles(prisma, readyClient.guilds.cache.values(), reportJobError("Rank roles")), 60 * 60_000);
+  // Opt-in (off until an officer turns it on): member nicknames follow "Name (Main)".
+  // On by default: at most one weekly "Ready to promote" list per server, only when someone is ready.
+  setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
+  setInterval(() => void syncAllNicknames(prisma, readyClient.guilds.cache.values(), reportJobError("Nickname sync")), 60 * 60_000);
   // Crafter offers past their time are closed (a no-op for servers that never turned them on).
   setInterval(() => void sweepCraftOffers(readyClient).catch(reportJobError("Craft offer expiry")), 10 * 60_000);
   void queueExpiredPolls(prisma).catch(reportJobError("Poll expiry"));
@@ -343,6 +353,8 @@ client.once(Events.ClientReady, (readyClient) => {
       await forEachGuildScope(prisma, guild.id, async () => {
         await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard", origin));
         await updateDuelBoard(guild).catch(reportJobError("Duel board", origin));
+        await updateRaceBoard(guild).catch(reportJobError("Race board", origin));
+        await updateBgLadder(guild).catch(reportJobError("Battleground ladder", origin));
         await updateProfessionDirectory(guild).catch(reportJobError("Profession directory", origin));
         await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
       });
@@ -361,6 +373,9 @@ client.once(Events.ClientReady, (readyClient) => {
         await forEachGuildScope(prisma, guild.id, async () => {
           await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard refresh", origin));
           await updateDuelBoard(guild).catch(reportJobError("Duel board refresh", origin));
+          await updateWhosWhoBoard(guild).catch(reportJobError("Who's who board refresh", origin));
+          await updateRaceBoard(guild).catch(reportJobError("Race board refresh", origin));
+          await updateBgLadder(guild).catch(reportJobError("Battleground ladder refresh", origin));
         });
       }
     } finally { refreshingBoards = false; }
@@ -815,6 +830,15 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not update the group.";
       if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(ROSTER_BUTTON_PREFIX)) {
+    await handleRosterButton(interaction).catch((error: unknown) => {
+      reportInteractionError("Roster gaps", interaction, error);
+      const content = "That didn't work, try again.";
+      if (interaction.replied || interaction.deferred) void interaction.editReply({ content, components: [] }).catch(() => undefined);
+      else void interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    });
     return;
   }
   if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(OFFICER_PREFIX)) {

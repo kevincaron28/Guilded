@@ -20,8 +20,9 @@ document.addEventListener('keydown',event => { if (event.key === 'Escape' && doc
 desktopNavigation.addEventListener('change',closeNavigation);
 const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
-const names = {status:'Home',link:'Link everything',characters:'My characters',reserves:'Reserves',server:'Server',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Sync & setup',activity:'Activity',help:'Help & privacy'};
+const names = {status:'Home',link:'Link everything',characters:'My characters',reserves:'Reserves',server:'Server',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Sync & setup',activity:'Activity',help:'Help & privacy',problems:'Problems'};
 let lastSnapshot;
+let storePackage = false; // Microsoft Store build: its update banner opens the Store (F5)
 let savedConfig = {};
 let entries = [];
 let toastTimer;
@@ -65,7 +66,7 @@ function renderUpdate(update) {
   $('updateBanner').hidden = !update;
   if (!update) return;
   $('updateTitle').textContent = T("Guilded Companion {0} is available", update.version);
-  $('updateText').textContent = T("You have {0}. {1}: your settings and Discord link are kept.", $('version').textContent.replace(/^Version /, ''), update.installer ? T("Update now installs it and restarts the companion") : T("Download the new installer and run it"));
+  $('updateText').textContent = T("You have {0}. {1}: your settings and Discord link are kept.", $('version').textContent.replace(/^Version /, ''), storePackage ? T("Update now opens Microsoft Store to install it") : update.installer ? T("Update now installs it and restarts the companion") : T("Download the new installer and run it"));
 }
 // Launch day (companion/live-folder.mjs, installed app only): the watched folder with its last
 // upload and file change (amber after 3 days without a change), and the live game's folder to
@@ -209,7 +210,49 @@ function addLog(entry) { entries.push(entry); entries = entries.slice(-300); ren
 $('logSearch').addEventListener('input',renderLogs); $('logFilter').addEventListener('change',renderLogs); $('btnClearLog').addEventListener('click',() => { entries = []; renderLogs(); });
 async function chooseWow() { const file = await api.browseFile(); if (file) { $('watchFile').value = file; toast(T("WoW file selected. Save your setup to apply it.")); } }
 async function choosePoe() { const file = await api.browsePoeLog(readForm()); if (file) { $('poeLogFile').value = file; toast(T("PoE2 log selected. Save your setup to apply it.")); } }
-['btnBrowse','btnWowSelect'].forEach(id => bind(id,chooseWow)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
+bind('btnBrowse',chooseWow);
+// Folder picker (8.5, track F3): the dialog opens at the WoW install folder; the companion finds the
+// account folder(s) below whatever is picked. Several accounts: the member chooses one here.
+const GAME_FOLDERS = {_forever_:'WoW Forever',_classic_era_:'Classic Era',_classic_:'Classic',_retail_:'Retail',_classic_beta_:'Beta'};
+const gameLabel = game => T(GAME_FOLDERS[String(game).toLowerCase()] || game);
+function chooseAccount(account) {
+  $('watchFile').value = account.path;
+  $('detectNote').textContent = account.exists ? T("Account {0} ({1}) selected. Choose Save & start syncing.", account.account, gameLabel(account.game)) : T("Account {0} ({1}) selected. In WoW, type /reload once to create its saved file, then choose Save & start syncing.", account.account, gameLabel(account.game));
+}
+function renderAccountChoice(accounts) {
+  const list = $('accountChoiceList'); list.replaceChildren();
+  $('accountChoice').hidden = accounts.length < 2;
+  if (!accounts.length) { $('detectNote').textContent = T("No WoW account was found in that folder. Choose the World of Warcraft folder (the one with _forever_ inside)."); return; }
+  const first = accounts.find(account => account.suggested) || accounts[0];
+  chooseAccount(first);
+  if (accounts.length < 2) return;
+  for (const account of accounts) {
+    const label = document.createElement('label'); label.className = 'check account-option';
+    const input = document.createElement('input'); input.type = 'radio'; input.name = 'wowAccount'; input.checked = account === first;
+    input.addEventListener('change', () => { if (input.checked) chooseAccount(account); });
+    const text = document.createElement('span');
+    text.textContent = T("Account {0} · {1} · {2}", account.account, gameLabel(account.game), account.savedAt ? T("saved {0}", ago(account.savedAt).toLowerCase()) : T("not saved yet"));
+    label.append(input, text); list.append(label);
+  }
+}
+async function pickWowFolder() {
+  if (!api.pickWowFolder) return chooseWow();
+  const result = await api.pickWowFolder();
+  if (result.canceled) return;
+  renderAccountChoice(result.accounts);
+}
+bind('btnPickFolder',pickWowFolder);
+bind('btnWowSelect',async () => { showPage('settings'); await pickWowFolder(); });
+bind('btnSaveAdvanced',async () => { $('form').requestSubmit(); });
+// Simpler menu (8.5, track F2): optional raid pages appear once the guild uses them (companion/page-visibility.mjs).
+function rememberedPages() { try { return JSON.parse(localStorage.getItem('guilded.companion.usedPages') || '{}'); } catch { return {}; } }
+function showUsedPages(hub) {
+  const used = window.guildedPagesInUse(hub, rememberedPages());
+  try { localStorage.setItem('guilded.companion.usedPages', JSON.stringify(used)); } catch { /* shown again after the next load */ }
+  for (const button of document.querySelectorAll('.optional-page')) button.hidden = !used[button.dataset.page] && !button.classList.contains('active');
+  $('navExtras').hidden = ![...$('navExtras').querySelectorAll('.nav')].some(button => !button.hidden && getComputedStyle(button).display !== 'none');
+}
+document.addEventListener('companion-hub-data', event => showUsedPages(event.detail)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
 bind('btnDetect',async () => { $('detectNote').textContent = T("Looking for your addon data…"); const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? T("Found {0} accounts. Check the selected file before saving.", found.length) : found[0].exists ? T("Found your addon data.") : (savedConfig.personal ? T("Account found. Use /reload with Guilded Dungeons (or Guilded) enabled to create its saved file.") : T("Account found. Use /reload with the addon enabled to create Guilded.lua.")); } else if (await api.detectWowHeld()) $('detectNote').textContent = T("Guilded is focused on WoW Forever for now. Your other WoW version is on hold and will come back later; nothing was changed."); else $('detectNote').textContent = (savedConfig.personal ? T("Choose Browse and select GuildedDungeons.lua or Guilded.lua in your account’s SavedVariables folder.") : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.")); });
 bind('btnLiveSwitch',async () => { const result = await api.switchLiveFolder(); if (!result.path) return; savedConfig = (await api.getAll()).config; $('watchFile').value = savedConfig.watchFile || ''; toast(result.ok ? liveText().switched(result.path) : liveText().notStarted,!result.ok); });
 bind('btnLiveKeep',async () => { await api.dismissLiveFolder(); toast(liveText().kept); });
@@ -374,12 +417,15 @@ async function init() {
   await renderProfiles();
   if (!languageUI.explicit && ['en','fr'].includes(all.language)) languageUI.set(all.language, false);
   for (const id of fields) $(id).value = all.config[id] ?? '';
+  storePackage = all.storePackage === true;
   $('storeDistribution').hidden = !all.storePackage;
-  if (all.storePackage) { $('autostartLabel').hidden = true; $('autoUpdateLabel').hidden = true; $('autoUpdateRow').hidden = true; }
+  // Store build: Windows manages startup; "Install updates automatically" is the off switch for the Store self-update (F5).
+  if (all.storePackage) { $('autostartLabel').hidden = true; $('autoUpdateRow').hidden = true; }
   $('autoUpdate').checked = all.config.autoUpdate !== false;
   $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
+  showUsedPages(null);
   showPage(new URLSearchParams(location.search).get('tab') || (!linkSkipped() ? 'link' : 'status'));
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);

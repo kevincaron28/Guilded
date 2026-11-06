@@ -61,7 +61,7 @@ PR156 merged as 8ca20bc68df74ec94036d63ee1d0dd0d72e02e98. Published deployment e
 
 No installer, addon or bot runtime release was performed by source sync. PR151 remains separate and unmerged. Your existing branch/source has not been switched or overwritten. Before the next build/deploy, integrate current main including PR156; complete the real-client gates for the companion release. This checkout can still be older than remote main.
 
-Canonical repository handoff: https://github.com/kevincaron28/Guilded/blob/main/docs/WEBSITE_AND_COMPANION_HANDOFF_2026_10_19.md
+Canonical repository handoff: https://github.com/kevincaron28/Guilded/blob/main/docs/archive/WEBSITE_AND_COMPANION_HANDOFF_2026_10_19.md
 
 ---
 

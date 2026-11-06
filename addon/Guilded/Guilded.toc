@@ -27,6 +27,7 @@ Modules\OfficerBridge.lua
 Modules\LedgerDigest.lua
 Modules\LedgerRelay.lua
 Modules\LedgerSync.lua
+Modules\GuildRelay.lua
 Modules\Sim.lua
 Modules\Bidding.lua
 Modules\Council.lua
@@ -40,6 +41,7 @@ Modules\RaidBuffCatalog.lua
 Modules\ConsumableData.lua
 Modules\Consumables.lua
 Modules\Digest.lua
+Modules\CompanionLink.lua
 Modules\API.lua
 Modules\Backup.lua
 Modules\History.lua
@@ -54,6 +56,7 @@ Modules\ChatTab.lua
 Modules\Attunements.lua
 Modules\Ready.lua
 Modules\GuildMap.lua
+Modules\CallForHelp.lua
 Modules\Presence.lua
 Modules\ClientTools.lua
 Modules\RosterTools.lua

@@ -339,7 +339,7 @@ Leader without Manage Events, does not see these commands until a server admin a
 role (Officer and Guild Master; Raid Leader for `/lead`). Giving the Raid Leader role Manage Events
 also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/participation`, `/bank`,
 `/tag` and `/poe` still mix member and leader subcommands and stay visible to everyone
-(`docs/COMMAND_VISIBILITY_PROPOSAL.md`).
+(`docs/archive/COMMAND_VISIBILITY_PROPOSAL.md`).
 
 ### Everyone on Discord
 

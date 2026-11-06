@@ -329,7 +329,13 @@ and companion stay the source of truth; nothing breaks when the armory is down o
 - **Commands:** drop slash commands that only repeat a button (`/raid signup`,
   `/community lottery join`, `/craft claim`) once each button is confirmed in Discord.
 - **Public page per guild** ([design](docs/GUILD_PAGES_DESIGN.md)): officers choose what is public.
-- **Android app** (`mobile/`): waits for the owner's Expo account for the first APK.
+- **Android app** (`mobile/`): the Expo/EAS project is linked (`ddda073f-f6bb-4e04-8a78-7ac343e03864`,
+  account kevincaron28) and preview APK 0.2.0 is published (GitHub pre-release `mobile-v0.2.0-preview`,
+  linked on /companion/), with OTA updates on channel `preview`. Still open: merge PR #345 (server
+  parts for mobile alerts and token renewal); add an `EXPO_TOKEN` repo secret so merges publish OTA
+  updates; add `--environment preview` to the `update:preview` script; push notifications need a
+  Firebase project (`google-services.json`); then Google Play (12 testers for 14 days). On this PC
+  run EAS as `npx.cmd eas-cli …` (PowerShell blocks plain `npx`).
 
 ## Later
 

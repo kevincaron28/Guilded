@@ -42,7 +42,8 @@
       "store-update.cjs",
       "addon-installer.cjs",
       "link-identity.cjs",
-      "repair.cjs"
+      "repair.cjs",
+      "disk-space.cjs"
     ],
     "extraResources": [
       {

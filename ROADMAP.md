@@ -667,6 +667,14 @@ guildmate whose companion is running.
   so C5 is new work. Test in the Forever client that promoting from an addon click works with the
   officer's Promote permission.
 
+### Release blocker — the companion upgrade loses settings (found 6 November 2026, evening)
+
+Installing the 9.0 candidate companion over 8.4.7 on the second PC lost the Discord link and the
+WoW folder, although `config.secure` was still on disk, unchanged. Every member would have to set up
+again. Track F is finding the root cause and making upgrades always keep settings (never overwrite
+after a failed read, a `.bak` before migrations), with an 8.4.7 → 9.0 regression test. The retest is
+a true upgrade on the second PC (its old config is backed up).
+
 ### Release blocker — Forever characters keyed by first name only (found 6 November 2026)
 
 A live two-PC test showed that on WoW Forever every key uses only the first word of a character's

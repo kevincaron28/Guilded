@@ -691,7 +691,7 @@ describe("minimap button shortcuts (Track E2)", () => {
   it("does nothing protected in combat, apart from toggling Guilded's own window", () => {
     const s = setup();
     s.run(`COMBAT = true`);
-    for (const [button, keys] of [["RightButton", ""], ["MiddleButton", ""], ["LeftButton", "shift = true"], ["LeftButton", "ctrl = true"], ["LeftButton", "alt = true"]]) {
+    for (const [button, keys] of ([["RightButton", ""], ["MiddleButton", ""], ["LeftButton", "shift = true"], ["LeftButton", "ctrl = true"], ["LeftButton", "alt = true"]] as [string, string][])) {
       expect(click(s, button, keys)).toBe("blocked");
     }
     expect(s.run(`return #DONE`)).toBe("0");

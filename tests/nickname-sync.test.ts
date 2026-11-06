@@ -9,16 +9,20 @@ describe("nickname format", () => {
     expect(nicknameFor("Kevin", "Halidor Galemorne", "{name} ({main})")).toBe("Kevin (Halidor)");
   });
   it("falls back in order when over 32 characters", () => {
-    // 1. fits with the space
     expect(nicknameFor("kevmister2", "Lebowski Holyroller")).toBe("kevmister2 (Lebowski Holyroller)");
-    // 2. no space: the owner's example is 33 characters with the space
+    // 2. no space (the owner's example is 33 characters with the space)
     expect(nicknameFor("kevmister28", "Lebowski Holyroller")).toBe("kevmister28(Lebowski Holyroller)");
-    // 3. shorten the Discord name with an ellipsis
-    const shortened = nicknameFor("A very long Discord display name", "Lebowski Holyroller")!;
+    // 3. shortened last name
+    expect(nicknameFor("kevmister28x", "Lebowski Holyroller")).toBe("kevmister28x(Lebowski H.)");
+    expect(nicknameFor("kevmister28xxxxxxxx", "Lebowski Holyroller")).toBe("kevmister28xxxxxxxx(Lebowski H.)");
+    // 4. first name only
+    expect(nicknameFor("kevmister28xxxxxxxxxxx", "Lebowski Holyroller")).toBe("kevmister28xxxxxxxxxxx(Lebowski)");
+    // 5. shorten the Discord name with an ellipsis, keeping (First)
+    const shortened = nicknameFor("A very long Discord display name indeed", "Lebowski Holyroller")!;
     expect(shortened.length).toBeLessThanOrEqual(32);
-    expect(shortened).toMatch(/…\(Lebowski Holyroller\)$/);
-    // 4. the character alone
-    expect(nicknameFor("Kevin", "Abcdefghijklmnopqrstuvwxyz Abc")).toBe("(Abcdefghijklmnopqrstuvwxyz Abc)");
+    expect(shortened).toMatch(/^A very.*…\(Lebowski\)$/);
+    // the Discord name is never dropped
+    expect(nicknameFor("Kevin", "Abcdefghijklmnopqrstuvwxyzabcdef")).toBeNull();
   });
   it("handles a character with no last name, and gives up rather than overflow", () => {
     expect(nicknameFor("Kevin", "Halidor")).toBe("Kevin (Halidor)");

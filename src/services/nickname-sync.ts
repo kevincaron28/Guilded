@@ -21,27 +21,28 @@ export function validNicknameFormat(format: string): boolean {
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
 /**
- * The nickname for one member. Fallbacks when it exceeds 32 characters, in order: the same with no space before "(",
- * the Discord name shortened with "…", then the character part alone. Null when even that cannot fit.
+ * The nickname for one member. Over 32 characters it tries, in order: no space before "(", the last name shortened
+ * ("Lebowski H."), the first name only, then the Discord name shortened with "…" keeping "(First)". The Discord name
+ * is never dropped; null when nothing fits.
  */
 export function nicknameFor(baseName: string, mainName: string, format = DEFAULT_NICKNAME_FORMAT): string | null {
-  const fill = (name: string, fmt = format) => fmt.replace(/\{name\}/g, name).replace(/\{main\}/g, firstName(mainName)).replace(/\{full\}/g, mainName.trim()).replace(/\s+/g, " ").trim();
+  const main = mainName.trim().replace(/\s+/g, " ");
   const base = baseName.replace(/[\p{Cc}]/gu, " ").replace(/\s+/g, " ").trim();
-  if (!base || !mainName.trim()) return null;
-  const whole = fill(base);
-  if (whole.length <= NICKNAME_MAX) return whole;
+  if (!base || !main) return null;
+  const fill = (name: string, fmt: string, full: string) => fmt.replace(/\{name\}/g, name).replace(/\{main\}/g, firstName(main)).replace(/\{full\}/g, full).replace(/\s+/g, " ").trim();
+  const words = main.split(" ");
+  const short = words.length > 1 ? `${words[0]} ${words[words.length - 1]!.charAt(0)}.` : main;
+  const tight = format.replace(/\s+\(/, "(");
+  const fits = (value: string) => value.length <= NICKNAME_MAX ? value : null;
+  const whole = fits(fill(base, format, main));
+  if (whole) return whole;
   if (!format.includes("{name}")) return null;
-  const tight = fill(base, format.replace(/\s+\(/, "("));
-  if (tight.length <= NICKNAME_MAX) return tight;
-  const withoutName = fill("", format.replace(/\{name\}\s*/g, ""));
-  const keep = NICKNAME_MAX - withoutName.length - 2; // room for the name, "…" and a space (or none)
-  if (keep >= 3) {
-    const shortened = fill(`${[...base].slice(0, keep).join("").trimEnd()}…`, format.replace(/\s+\(/, "("));
-    if (shortened.length <= NICKNAME_MAX) return shortened;
-    const spaced = fill(`${[...base].slice(0, keep - 1).join("").trimEnd()}…`);
-    if (spaced.length <= NICKNAME_MAX) return spaced;
-  }
-  return withoutName.length <= NICKNAME_MAX ? withoutName : null;
+  const tries = [fill(base, tight, main), fill(base, tight, short), fill(base, tight, firstName(main))];
+  for (const attempt of tries) if (attempt.length <= NICKNAME_MAX) return attempt;
+  // Shorten the Discord name, keeping "(First)".
+  const room = NICKNAME_MAX - fill("", tight.replace(/\{name\}/g, ""), firstName(main)).length - 1;
+  if (room < 3) return null;
+  return fits(fill(`${[...base].slice(0, room).join("").trimEnd()}…`, tight, firstName(main)));
 }
 
 export interface NicknamePerson {

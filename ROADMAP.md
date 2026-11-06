@@ -209,6 +209,8 @@ Later the same day:
 | PvP group finder in Discord works like the dungeon group finder (same buttons, roles, queue, expiry, posts) | Track B | Analysis of the gap in the PR |
 | Remove the `#bot-faq` channel (unused): `/setup` stops creating it, offers to retire it with confirmation, `/faq` command stays | Track G | Lighter server and bot load |
 | Dungeon guild leaderboards too strict: runs don't show up. Find which gate drops them (estimated targets vs evidence, presence, final boss, level band, season window) and relax what is unfair for Season 1 without breaking integrity; show "why not counted" to officers | season2-plan session | Targets are estimates until Season 1 data exists |
+| Welcome DM: a member who picks World of Warcraft gets a **Request a guild invite** button (form: full character name), or can simply reply with the name. The bot posts it in `#invitation-guilde` and adds it to the invite queue automatically | invite-queue session | No need to find the channel |
+| **Full character names in every bot message** (the dungeon "classement" showed "El" for "El Pirata"): one display helper used by dungeon boards, run posts, ladders, achievements, profession posts, roster, DMs and cards | season2-plan (dungeon surfaces) + Track C (everything else) | Fallback to first name only when no full name is known |
 | Not adopted from Kinfolk | — | Module switches (they contradict always-on), in-game polls/board, class guides |
 
 ### Phases after the features

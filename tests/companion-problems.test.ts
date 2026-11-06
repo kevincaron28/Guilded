@@ -25,6 +25,13 @@ describe("companion problem checks", () => {
     expect(ids({ config: { ...notChosen, wowEnabled: false }, savedFile: { addon: { status: "not-installed", expected: "forever" } } as never })).toEqual([]);
   });
 
+  it("addon older than the companion: offer Update addon", () => {
+    const older = { ...fine, addon: { ...fine.addon, version: "8.4.6" } };
+    expect(companionProblems({ config: linked, savedFile: older, version: "8.5.0" })).toEqual([{ id: "addon-outdated", data: { installed: "8.4.6", current: "8.5.0" } }]);
+    expect(ids({ config: linked, savedFile: older, version: "8.4.6" })).toEqual([]);
+    expect(ids({ config: linked, savedFile: { ...older, addon: { ...older.addon, expected: "retail", installed: ["retail"] } }, version: "8.5.0" })).toEqual([]);
+  });
+
   it("Get the addon opens this release's Forever zip", () => {
     expect(addonDownloadUrl("forever", "8.4.7")).toBe("https://github.com/kevincaron28/Guilded/releases/download/v8.4.7/Guilded-v8.4.7-forever.zip");
     expect(addonDownloadUrl("forever", "8.5.0-beta.1")).toBe("https://github.com/kevincaron28/Guilded/releases/download/v8.5.0/Guilded-v8.5.0-forever.zip");

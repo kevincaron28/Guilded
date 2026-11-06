@@ -11,6 +11,14 @@
 
   const edition = id => id ? window.guildedProfileEditionLabel(id, window.companionLanguage.language) : T('WoW Forever');
   const go = page => window.showPage(page);
+  // Install addon / Update addon: the companion downloads the matching Forever build, checks it
+  // and puts it in this game folder's AddOns (companion-app/addon-installer.cjs).
+  const installAddon = async () => {
+    const result = await api.installAddon();
+    if (!result.ok) throw new Error(window.companionLanguage.message(result.message));
+    return result.message;
+  };
+  const downloadYourself = { label: T('Download it myself'), run: async () => { await api.openAddonDownload(); } };
   const note = (message, ok = true) => { const target = $('reportNote'); $('reportPanel').hidden = false; target.textContent = message; target.className = ok ? 'micro' : 'result bad'; };
 
   // id → wording and the fix. Every string is a T() literal so the French check covers it.
@@ -29,13 +37,25 @@
       };
       case 'addon-missing': return {
         title: T('The Guilded addon is not installed in this WoW folder.'),
-        steps: [T('Close World of Warcraft.'), T('Download Guilded for {0} and put it in Interface > AddOns of this game folder.', edition(d.expected)), T('Start WoW, tick Guilded in the AddOns list at the character screen, log in and type /reload.')],
-        fix: { label: T('Get the addon'), run: async () => { await api.openAddonDownload(); } }
+        steps: d.expected === 'forever'
+          ? [T('Close World of Warcraft.'), T('Choose Install addon: the companion puts Guilded in Interface > AddOns of this game folder.'), T('Start WoW, tick Guilded in the AddOns list at the character screen, log in and type /reload.')]
+          : [T('Close World of Warcraft.'), T('Download Guilded for {0} and put it in Interface > AddOns of this game folder.', edition(d.expected)), T('Start WoW, tick Guilded in the AddOns list at the character screen, log in and type /reload.')],
+        fix: d.expected === 'forever' ? { label: T('Install addon'), run: installAddon } : { label: T('Get the addon'), run: async () => { await api.openAddonDownload(); } },
+        alt: d.expected === 'forever' ? downloadYourself : null
       };
       case 'addon-wrong-edition': return {
         title: T('The Guilded addon in this folder is for {0}, but this folder needs the {1} build.', d.installed || T('another WoW version'), edition(d.expected)),
-        steps: [T('Close World of Warcraft.'), T('Delete the Guilded folder in Interface > AddOns, then install the {0} build.', edition(d.expected)), T('Start WoW and type /reload.')],
-        fix: { label: T('Get the addon'), run: async () => { await api.openAddonDownload(); } }
+        steps: d.expected === 'forever'
+          ? [T('Close World of Warcraft.'), T('Choose Update addon: the companion moves the old Guilded folder to Interface > Guilded backups and installs the {0} build.', edition(d.expected)), T('Start WoW and type /reload.')]
+          : [T('Close World of Warcraft.'), T('Delete the Guilded folder in Interface > AddOns, then install the {0} build.', edition(d.expected)), T('Start WoW and type /reload.')],
+        fix: d.expected === 'forever' ? { label: T('Update addon'), run: installAddon } : { label: T('Get the addon'), run: async () => { await api.openAddonDownload(); } },
+        alt: d.expected === 'forever' ? downloadYourself : null
+      };
+      case 'addon-outdated': return {
+        title: T('Your Guilded addon is version {0}; this companion matches version {1}.', d.installed, d.current),
+        steps: [T('Close World of Warcraft.'), T('Choose Update addon: the companion moves the old Guilded folder to Interface > Guilded backups and installs the {0} build.', edition('forever')), T('Start WoW and type /reload.')],
+        fix: { label: T('Update addon'), run: installAddon },
+        alt: downloadYourself
       };
       case 'saved-file-missing': return d.chosen === false ? {
         title: T('Your WoW saved data is not chosen yet.'),
@@ -119,6 +139,11 @@
         });
         actions.append(fix);
       }
+      if (text.alt) {
+        const alt = document.createElement('button'); alt.type = 'button'; alt.textContent = text.alt.label;
+        alt.addEventListener('click', () => { void text.alt.run(); });
+        actions.append(alt);
+      }
       const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = T('Copy report for the developer');
       copy.addEventListener('click', () => copyReport(copy));
       actions.append(copy);
@@ -127,7 +152,31 @@
     }
   }
 
-  const take = snapshot => { if (Array.isArray(snapshot?.problems)) { problems = snapshot.problems; render(); } };
+  // The Overview banner offers the same install while the addon is missing or older.
+  let addonOffer = null, installing = false;
+  function renderAddonOffer() {
+    const offer = addonOffer && addonOffer.action !== 'none' ? addonOffer : null;
+    $('addonBanner').hidden = !offer;
+    if (!offer) return;
+    const update = offer.action === 'update';
+    $('addonTitle').textContent = update ? T('A newer Guilded addon is ready') : T('The Guilded addon is not installed yet');
+    $('addonText').textContent = offer.blocked === 'wow-running'
+      ? T('Exit World of Warcraft first: WoW is running.')
+      : update ? T('The companion can update Guilded in your WoW folder. Your old folder is kept as a backup.') : T('The companion can put Guilded in your WoW folder for you.');
+    $('btnInstallAddon').textContent = update ? T('Update addon') : T('Install addon');
+    $('btnInstallAddon').disabled = installing || offer.blocked === 'wow-running';
+  }
+  $('btnInstallAddon').addEventListener('click', async event => {
+    const button = event.currentTarget, result = $('addonResult');
+    installing = true; button.disabled = true; result.textContent = T('Downloading and checking the addon...'); result.className = 'result';
+    try { result.textContent = await installAddon(); result.className = 'result ok'; }
+    catch (error) { result.textContent = error?.message || T('This action could not be completed.'); result.className = 'result bad'; }
+    finally { installing = false; renderAddonOffer(); }
+  });
+  const take = snapshot => {
+    if (snapshot && 'addonAction' in snapshot) { addonOffer = snapshot.addonAction; renderAddonOffer(); }
+    if (Array.isArray(snapshot?.problems)) { problems = snapshot.problems; render(); }
+  };
   $('btnProblems').addEventListener('click', () => go('problems'));
   $('btnCopyReport').addEventListener('click', event => copyReport(event.currentTarget));
   // No internet is a problem too; the desktop app cannot tell on its own.
@@ -135,7 +184,7 @@
   window.addEventListener('online', online);
   window.addEventListener('offline', online);
   if (!navigator.onLine) online();
-  document.addEventListener('companion-language', () => { shownKey = ''; render(); });
+  document.addEventListener('companion-language', () => { shownKey = ''; render(); renderAddonOffer(); });
   api.onState?.(take);
   api.getAll().then(take).catch(() => {});
 })();

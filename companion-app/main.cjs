@@ -7,6 +7,7 @@ const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables, pick
 const updates = require("./update-check.cjs");
 // Loaded on first use (Store build only): companion-app/store-update.cjs.
 const storeUpdatesModule = () => require("./store-update.cjs");
+const addonInstallerModule = () => require("./addon-installer.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
 // The Store build never replaces itself: the Store does that. Also true for any package under WindowsApps.
@@ -353,12 +354,19 @@ function problems(state) {
     updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online
   });
 }
+// Install addon / Update addon (8.5, track F3): offered when the watched game folder has no
+// Guilded, the wrong build, or one older than this companion (companion-app/addon-installer.cjs).
+function addonAction() {
+  try {
+    return addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning, wowEnabled: config.wowEnabled !== false });
+  } catch { return { action: "none", reason: "error" }; }
+}
 let shownProblems = "";
 function onState(state) {
   refreshUpdate(state);
   const status = health(state);
   const found = problems(state);
-  win?.webContents.send("state", { state, health: status, update, savedFile, problems: found });
+  win?.webContents.send("state", { state, health: status, update, savedFile, problems: found, addonAction: addonAction() });
   if (tray) {
     const icon = found.length && fs.existsSync(asset("tray-problem.png")) ? "tray-problem.png" : `tray-${found.length ? "error" : status.level}.png`;
     tray.setImage(nativeImage.createFromPath(asset(icon)).resize({ width: 32, height: 32 }));
@@ -379,7 +387,7 @@ function onState(state) {
 
 function currentState() {
   const state = engine.state();
-  return { state, health: health(state), update, savedFile, problems: problems(state) };
+  return { state, health: health(state), update, savedFile, problems: problems(state), addonAction: addonAction() };
 }
 
 function showWindow() {
@@ -923,6 +931,28 @@ registerIpc("copy-problem-report", () => {
 });
 // The Forever zip of this release when the folder needs Forever; otherwise the CurseForge page.
 registerIpc("open-addon-download", () => shell.openExternal(engineModules.addonDownloadUrl?.(savedFile?.addon?.expected, app.getVersion()) ?? "https://www.curseforge.com/wow/addons/guilded"));
+// Downloads this release's Forever zip, checks it against the release's SHA256SUMS, refuses while
+// WoW runs, backs up an existing Guilded folder and puts the new one in AddOns.
+let addonInstalling = false;
+registerIpc("install-addon", async () => {
+  if (addonInstalling) return { ok: false, message: T("The addon is already being installed.") };
+  addonInstalling = true;
+  try {
+    await refreshSavedFile();
+    const running = process.platform === "win32" ? await wowIsRunning() : false;
+    const result = await addonInstallerModule().installAddon({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: running });
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded addon {0} installed in {1}.", result.version, result.folder) + (result.backup ? " " + E("The previous Guilded folder was moved to {0}.", result.backup) : "") });
+    await refreshSavedFile();
+    return { ok: true, message: T("Guilded {0} is installed. Start WoW, open AddOns at the character screen, tick Guilded, then log in.", result.version) };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    pushLog({ time: new Date().toISOString(), level: "warn", message: E("The Guilded addon could not be installed: {0}", reason) });
+    return { ok: false, message: reason };
+  } finally {
+    addonInstalling = false;
+    if (engine) onState(engine.state());
+  }
+});
 registerIpc("set-online", (_event, value) => { online = value; if (engine) onState(engine.state()); return true; });
 // Folder picker (8.5, track F3): opens at the WoW install folder and finds the account folders
 // below whatever the member picks. One account: the page fills it in. Several: the member chooses.

@@ -12,6 +12,7 @@ export const PROBLEM_IDS = Object.freeze([
   "bot-unreachable",
   "addon-missing",
   "addon-wrong-edition",
+  "addon-outdated",
   "saved-file-missing",
   "saved-file-not-updated",
   "upload-rejected",
@@ -109,6 +110,10 @@ export function companionProblems(input = {}) {
     const addon = savedFile?.addon;
     if (addon?.status === "not-installed") add("addon-missing", { expected: addon.expected ?? null });
     else if (addon?.status === "wrong-edition") add("addon-wrong-edition", { expected: addon.expected ?? null, installed: (addon.installed ?? []).join(", ") || null });
+    // Older than this companion: the matching Forever build is one click away (Update addon).
+    else if (addon?.status === "ok" && addon.expected === "forever" && addon.version && newerVersion(input.version, addon.version)) {
+      add("addon-outdated", { installed: addon.version, current: versionParts(input.version)?.join(".") ?? null });
+    }
   }
   const addonBroken = problems.has("addon-missing") || problems.has("addon-wrong-edition");
 
@@ -158,6 +163,7 @@ const SAFE = {
   "bot-unreachable": { offline: "boolean" },
   "addon-missing": { expected: "edition" },
   "addon-wrong-edition": { expected: "edition", installed: "editions" },
+  "addon-outdated": { installed: "version", current: "version" },
   "saved-file-missing": { chosen: "boolean", othersSaved: "boolean" },
   "saved-file-not-updated": { moved: "boolean", days: "number" },
   "upload-rejected": { status: "number", applyError: "boolean" },

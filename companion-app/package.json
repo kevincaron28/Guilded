@@ -39,7 +39,8 @@
       "package.json",
       "ipc-security.cjs",
       "sign-in-loopback.cjs",
-      "store-update.cjs"
+      "store-update.cjs",
+      "addon-installer.cjs"
     ],
     "extraResources": [
       {

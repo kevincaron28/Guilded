@@ -72,7 +72,7 @@ function channel(messages: Record<string, unknown>) {
 const guildWith = (ch: ReturnType<typeof channel>) => ({ id: "d1", name: "QG", client: { user: { id: "bot" } }, channels: { fetch: vi.fn(async () => ch) } }) as never;
 
 describe("updateDuelBoard (delivery)", () => {
-  beforeEach(() => { vi.clearAllMocks(); settingsRow.current = { duelBoardEnabled: true, bgStatsChannelId: "c1", duelBoardMessageId: "m1", language: "fr" }; });
+  beforeEach(() => { vi.clearAllMocks(); settingsRow.current = { duelBoardEnabled: true, duelBoardChannelId: "c1", duelBoardMessageId: "m1", language: "fr" }; });
 
   it("edits the saved message in place and never posts a new one", async () => {
     const edit = vi.fn(async (payload: unknown) => payload);
@@ -102,11 +102,27 @@ describe("updateDuelBoard (delivery)", () => {
     expect(updateSettings).toHaveBeenCalledWith("g1", { duelBoardMessageId: "new" });
   });
 
-  it("does nothing unless the server opted in and has the PvP statistics channel", async () => {
+  it("moves the board to the duel channel and deletes only its own old copy in the statistics channel", async () => {
+    settingsRow.current = { duelBoardEnabled: true, duelBoardChannelId: "duels", bgStatsChannelId: "stats", duelBoardMessageId: "oldmsg", language: "en" };
+    const del = vi.fn(async () => ({}));
+    const oldCopy = { id: "oldmsg", editable: true, author: { id: "bot" }, embeds: [{ footer: { text: `${DUEL_BOARD_MARKER} • g1 • x` } }], delete: del };
+    const stranger = { id: "oldmsg", author: { id: "person" }, embeds: [{ footer: { text: `${DUEL_BOARD_MARKER} • g1 • x` } }], delete: vi.fn() };
+    const duels = channel({}), stats = channel({ oldmsg: oldCopy });
+    const guild = { id: "d1", name: "QG", client: { user: { id: "bot" } }, channels: { fetch: vi.fn(async (id: string) => id === "duels" ? duels : stats) } } as never;
+    expect(await updateDuelBoard(guild, true)).toBe(true);
+    expect(duels.send).toHaveBeenCalledTimes(1);
+    expect(del).toHaveBeenCalledTimes(1);
+    const other = channel({ oldmsg: stranger });
+    const guild2 = { id: "d1", name: "QG", client: { user: { id: "bot" } }, channels: { fetch: vi.fn(async (id: string) => id === "duels" ? channel({}) : other) } } as never;
+    await updateDuelBoard(guild2, true);
+    expect(stranger.delete).not.toHaveBeenCalled();
+  });
+
+  it("does nothing unless the server opted in and has the duel ladder channel", async () => {
     const ch = channel({});
-    settingsRow.current = { duelBoardEnabled: false, bgStatsChannelId: "c1" };
+    settingsRow.current = { duelBoardEnabled: false, duelBoardChannelId: "c1" };
     expect(await updateDuelBoard(guildWith(ch), true)).toBe(false);
-    settingsRow.current = { duelBoardEnabled: true, bgStatsChannelId: null };
+    settingsRow.current = { duelBoardEnabled: true, duelBoardChannelId: null };
     expect(await updateDuelBoard(guildWith(ch), true)).toBe(false);
     expect(ch.send).not.toHaveBeenCalled();
   });

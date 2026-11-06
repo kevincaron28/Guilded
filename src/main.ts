@@ -71,7 +71,7 @@ import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
 import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
-import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
+import { CRAFT_PREFIX, handleCraftButton, handleCraftModal, handleCraftSelect } from "./commands/craft-board.js";
 import { handleProfessionDetails } from "./commands/profession-details.js";
 import { PROFESSION_DETAILS_PREFIX } from "./services/profession-details.js";
 import {
@@ -788,6 +788,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isButton() && interaction.customId.startsWith(OFFER_PREFIX)) {
     await handleOfferButton(interaction).catch((error: unknown) => reportInteractionError("Craft offer button", interaction, error));
+    return;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`)) {
+    await handleCraftSelect(interaction).catch((error: unknown) => reportInteractionError("Craft menu", interaction, error));
     return;
   }
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith(PROFESSION_DETAILS_PREFIX)) {

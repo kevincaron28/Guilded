@@ -1,6 +1,7 @@
 import { ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder, escapeMarkdown } from "discord.js";
 import type { Lang } from "../i18n.js";
 import { lastSeenText } from "./last-seen.js";
+import { crafterLine, professionLegend, professionTitle } from "./profession-style.js";
 import { buildItemEmbed } from "./item-preview-embed.js";
 import type { ItemDetails } from "./item-preview-data.js";
 import type { ProfessionPost, ProfessionRecipe } from "./profession-board.js";
@@ -30,7 +31,8 @@ export function professionDetailsRow(post: ProfessionPost, lang: Lang): ActionRo
 /** The private "Details" answer: the item preview plus who can craft it and when they were last seen. */
 export function professionDetailsEmbed(post: ProfessionPost, recipe: ProfessionRecipe, lang: Lang, now = new Date(), details: ItemDetails | null = null): EmbedBuilder {
   const fr = lang === "fr";
-  const crafters = recipe.crafters.slice(0, 15).map(crafter => `${escapeMarkdown(crafter.character).slice(0, 40)} · ${lastSeenText(crafter.lastSeen, lang, now)}`).join("\n")
+  const skillOf = new Map(post.skilled.map(row => [row.character.trim().toLowerCase(), row.skillLevel]));
+  const crafters = recipe.crafters.slice(0, 15).map(crafter => crafterLine({ character: crafter.character, skill: skillOf.get(crafter.character.trim().toLowerCase()) ?? null, lastSeen: crafter.lastSeen }, lastSeenText(crafter.lastSeen, lang, now), now, value => escapeMarkdown(value).slice(0, 40))).join("\n")
     + (recipe.crafters.length > 15 ? `\n+${recipe.crafters.length - 15}` : "");
   // A positive key is an item id (verified, Wowhead link); a negative one is an enchant's spell id, shown without a link.
   const base = recipe.itemKey > 0
@@ -40,7 +42,7 @@ export function professionDetailsEmbed(post: ProfessionPost, recipe: ProfessionR
   if (base.description) embed.setDescription(base.description);
   if ("url" in base && base.url) embed.setURL(base.url);
   if ("thumbnail" in base && base.thumbnail) embed.setThumbnail(base.thumbnail.url);
-  embed.addFields({ name: `${post.profession} · ${fr ? "Artisans" : "Crafters"} (${recipe.crafters.length})`, value: crafters || (fr ? "Aucun" : "None") });
+  embed.addFields({ name: `${professionTitle(post.profession, lang)} · ${fr ? "Artisans" : "Crafters"} (${recipe.crafters.length})`, value: `${professionLegend(lang)}\n${crafters || (fr ? "Aucun" : "None")}`.slice(0, 1024) });
   return embed.setFooter({ text: fr ? "Recettes tirées des relevés de métiers · dernière présence selon le registre" : "Recipes from members' profession scans · last seen from the guild roster" });
 }
 

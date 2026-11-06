@@ -272,10 +272,10 @@ export function createSiteApp(client?: Client) {
   const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const gallery = createArtisansGallery({ db: prisma, access: guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"),
-    post: async (guildId, requestId) => {
+    post: async (guildId, requestId, askCrafter) => {
       const record = await prisma.guild.findUnique({ where: { id: guildId }, select: { discordId: true } });
       const discordGuild = record && client ? await client.guilds.fetch(record.discordId).catch(() => null) : null;
-      return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId))).posted : false;
+      return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId, askCrafter))).posted : false;
     } });
   const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows);
   const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb);

@@ -28,6 +28,7 @@ import { classLeaderRoleName, hasPermission, isPermissionRole, permissionRoleNam
 import { CLASSES } from "../wow-data.js";
 import { commandVisibility } from "../services/command-visibility.js";
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
+import { botCanRename } from "../services/nickname-sync.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
 import { ensureWelcomePanel, MAX_ONBOARDING_ROLES, rulesGateActive } from "../services/onboarding.js";
@@ -153,6 +154,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     dungeonLeaderboardChannel: await channelFact(guild, settings.dungeonLeaderboardChannelId),
     welcomeChannel: welcomeDelivery(settings) === "DM" ? null : await channelFact(guild, settings.welcomeChannelId),
     autoRoles,
+    ...(settings.nicknameSyncEnabled ? { nicknameSyncReady: botCanRename(guild) } : {}),
     epgpConfigured: settings.baseGp > 0,
     remindersOn: settings.raidReminderMinutes > 0,
     weeklyReportOn: settings.weeklyReportEnabled,

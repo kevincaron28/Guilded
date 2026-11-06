@@ -124,6 +124,7 @@ enum ApplicationStatus {
 
 model Guild {
   rankRoles GuildRankRole[]
+  memberNicknames MemberNickname[]
   pugBoard PugBoardGuild?
   pugBlocks PugBlock[]
   pugRequests PugRequest[]
@@ -916,6 +917,13 @@ model GuildSettings {
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
   duelBoardEnabled         Boolean @default(false)
   duelBoardMessageId       String?
+  // 8.5 track C: roster gaps, nickname sync and the Who's who board. All off until an officer turns them on.
+  rosterIgnoredRoleIds     String[] @default([])
+  nicknameSyncEnabled      Boolean @default(false)
+  nicknameFormat           String?
+  whosWhoEnabled           Boolean @default(false)
+  whosWhoChannelId         String?
+  whosWhoMessageId         String?
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -2835,4 +2843,19 @@ model MemberMilestone {
 
   @@unique([guildId, memberId, gameEdition, ref])
   @@index([guildId, memberId, kind])
+}
+
+// 8.5 track C: what the nickname sync changed, so a member's opt-out (or the officer turning it off) can restore
+// the nickname they had. originalNickname null means they had none (the Discord name shows).
+model MemberNickname {
+  id               String   @id @default(cuid())
+  guildId          String
+  discordUserId    String
+  originalNickname String?
+  appliedNickname  String?
+  optedOut         Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+  guild            Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, discordUserId])
 }

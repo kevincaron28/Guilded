@@ -5,6 +5,8 @@ import { characterKey } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
 import { characterName } from "./character-display.js";
 import { attachRosterActivity } from "./roster-activity.js";
+import { loadRosterGaps, type RosterGaps } from "./roster-gaps.js";
+import { loadRosterVisual, type RosterVisual } from "./roster-visual.js";
 
 export const ROSTER_LIMIT = 1_000;
 export interface RosterGuild { id: string; name: string; edition: string }
@@ -15,10 +17,12 @@ export interface RosterCharacter {
   professions: string[]; refreshedAt: Date | null; updatedAt?: Date;
   participation?: { seven: boolean; thirty: boolean } | null;
 }
-export interface RosterSnapshot { guild: RosterGuild; characters: RosterCharacter[]; truncated: boolean; activityAsOf?: Date }
+export interface RosterSnapshot { guild: RosterGuild; characters: RosterCharacter[]; truncated: boolean; activityAsOf?: Date; visual?: RosterVisual }
 export interface RosterDashboardStore {
   guilds(userId: string): Promise<RosterGuild[]>;
   load(userId: string, guildId: string): Promise<RosterSnapshot | null>;
+  /** 8.5: the "Discord only" view (in Discord, not in the guild). Optional so older stores keep working. */
+  gaps?(userId: string, guildId: string): Promise<RosterGaps | null>;
 }
 
 export function rosterProfessions(value: unknown): string[] {
@@ -39,7 +43,15 @@ export function prismaRosterDashboardStore(database: PrismaClient, client: Clien
     async load(userId, guildId) {
       const guild = await authorize(userId, guildId);
       if (!guild) return null;
-      return attachRosterActivity(database, await loadRosterSnapshot(database, guild));
+      const snapshot = await attachRosterActivity(database, await loadRosterSnapshot(database, guild));
+      return { ...snapshot, visual: await loadRosterVisual(database, guildId).catch(() => undefined) } as RosterSnapshot;
+    },
+    async gaps(userId, guildId) {
+      const guild = await authorize(userId, guildId);
+      if (!guild || !client?.isReady()) return null;
+      const row = await database.guild.findUnique({ where: { id: guildId }, select: { discordId: true } });
+      const discordGuild = row ? await client.guilds.fetch(row.discordId).catch(() => null) : null;
+      return discordGuild ? loadRosterGaps(database, discordGuild, guildId, guild.edition) : null;
     }
   };
 }

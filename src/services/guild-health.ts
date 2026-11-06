@@ -26,7 +26,7 @@ export interface GuildHealth {
   attention: string[];
 }
 
-const LEVEL_BANDS: [string, number, number][] = [["1-19", 1, 19], ["20-39", 20, 39], ["40-59", 40, 59], ["60+", 60, 999]];
+export const LEVEL_BANDS: [string, number, number][] = [["1-19", 1, 19], ["20-39", 20, 39], ["40-59", 40, 59], ["60+", 60, 999]];
 
 const tally = (values: (string | null)[]): [string, number][] => {
   const counts = new Map<string, number>();
@@ -57,10 +57,15 @@ export function buildRetention(members: { createdAt: Date; status: string }[], n
   return rows;
 }
 
+// The characters /guild-health counts (also the roster card's): linked to a member who has not left, test members excluded.
+export function healthCharacters(database: Pick<PrismaClient, "character">, guildId: string) {
+  return database.character.findMany({ where: { member: { guildId, isTest: false, status: { not: "LEFT" } } }, select: { className: true, race: true, level: true } });
+}
+
 export async function guildHealth(database: Db, guildId: string, now = new Date()): Promise<GuildHealth> {
   const [members, characters, openApplications] = await Promise.all([
     database.member.findMany({ where: { guildId, isTest: false }, select: { createdAt: true, status: true, _count: { select: { characters: true } } } }),
-    database.character.findMany({ where: { member: { guildId, isTest: false, status: { not: "LEFT" } } }, select: { className: true, race: true, level: true } }),
+    healthCharacters(database, guildId),
     database.application.count({ where: { guildId, status: { in: ["PENDING", "TRIAL"] } } })
   ]);
   const active = members.filter((member) => member.status !== "LEFT");

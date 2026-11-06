@@ -4,8 +4,9 @@ import { characterName } from "./character-display.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 import { previewAllows } from "./feature-preview.js";
 
-// 8.5 track C2: opt-in nickname sync. Off until an officer turns it on (/officer roster nicknames). Each member's
-// server nickname becomes "Discord name (Main First)" (the officer can pick another format), capped at 32
+// 8.5 track C2: nickname sync. Each member's server nickname becomes "Name (Main First Last)", where Name is the member's
+// OWN server nickname when they set one (9.0, owner decision), else their global display name, else their username
+// (the officer can pick another format), capped at 32
 // characters. A member can opt out any time (/character nickname off) and gets the nickname they had back.
 // The bot never renames the server owner, bots or anyone it cannot manage (a role above the bot's), and it
 // remembers the original nickname (MemberNickname) so turning the feature off restores everyone.
@@ -46,6 +47,28 @@ export function nicknameFor(baseName: string, mainName: string, format = DEFAULT
   return fits(fill(`${[...base].slice(0, room).join("").trimEnd()}…`, tight, firstName(main)));
 }
 
+/**
+ * Removes a trailing "(...)" that is the main character's name (full, first, or "First L." short form) so a nickname the
+ * member kept from our rename can never double up. Anything else in parentheses is theirs and stays.
+ */
+export function stripMainSuffix(nickname: string, mainName: string | null, earlier: readonly (string | null | undefined)[] = []): string {
+  const clean = nickname.replace(/[\p{Cc}]/gu, " ").replace(/\s+/g, " ").trim();
+  if (!mainName && !earlier.length) return clean;
+  const forms = new Set<string>();
+  for (const name of [mainName, ...earlier]) {
+    const main = (name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    if (!main) continue;
+    const words = main.split(" ");
+    forms.add(main); forms.add(words[0]!); forms.add(words.length > 1 ? `${words[0]} ${words[words.length - 1]!.charAt(0)}.` : main);
+  }
+  let current = clean;
+  for (;;) {
+    const match = /^(.*?)\s*\(([^()]*)\)$/u.exec(current);
+    if (!match || !forms.has(match[2]!.trim().toLowerCase())) return current;
+    current = match[1]!.trim();
+  }
+}
+
 export interface NicknamePerson {
   discordUserId: string;
   /** Discord's global name or username, never the current server nickname. */
@@ -62,12 +85,21 @@ export function planNicknames(people: readonly NicknamePerson[], format = DEFAUL
   const changes: NicknameChange[] = [];
   for (const person of people) {
     if (person.skip || person.record?.optedOut || !person.mainName) continue;
-    // Our own earlier rename is not the member's nickname; a different current nickname is theirs (they changed it).
+    // Our own earlier rename is not the member's nickname: their own one is the stored original. A different current
+    // nickname is theirs (they changed it), so it becomes the new base and the new original. Either way a trailing "(main)"
+    // is dropped before reuse, so the suffix can never double.
     const ours = person.record?.appliedNickname != null && person.nickname === person.record.appliedNickname;
-    const original = ours ? person.record!.originalNickname : person.nickname;
-    // The name part is the Discord account name, never the current nickname, so a re-sync does not nest.
-    const target = nicknameFor(person.accountName, person.mainName, format);
-    if (!target || target === person.nickname) continue;
+    // A main that changed since our last rename leaves the old "(Main)" behind: it is stripped too.
+    const earlier = [person.record?.appliedNickname?.match(/\(([^()]*)\)$/u)?.[1]];
+    const raw = (ours ? person.record!.originalNickname : person.nickname)?.trim();
+    const own = raw ? stripMainSuffix(raw, person.mainName, earlier) : "";
+    const original = own || null;
+    // Base name: their own server nickname, else the global display name, else the username (never the applied nickname).
+    const target = nicknameFor(own || person.accountName, person.mainName, format);
+    if (!target) continue;
+    // Already right: nothing to rename, but a changed base is still written down (record only).
+    if (target === person.nickname && person.record && person.record.originalNickname === original && person.record.appliedNickname === target) continue;
+    if (target === person.nickname && !person.record) continue;
     changes.push({ discordUserId: person.discordUserId, nickname: target, originalNickname: original });
   }
   return changes;
@@ -114,7 +146,7 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
     const member = guild.members.cache.get(change.discordUserId);
     if (!member) { failed++; continue; }
     try {
-      await member.setNickname(change.nickname, "Guilded nickname sync");
+      if (member.nickname !== change.nickname) await member.setNickname(change.nickname, "Guilded nickname sync");
       await prisma.memberNickname.upsert({
         where: { guildId_discordUserId: { guildId: row.id, discordUserId: change.discordUserId } },
         create: { guildId: row.id, discordUserId: change.discordUserId, originalNickname: change.originalNickname, appliedNickname: change.nickname },

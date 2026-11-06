@@ -305,6 +305,13 @@ async function refreshSavedFile() {
       // A build for another edition in this game folder never loads (companion/addon-install.mjs).
       result.addon = await engineModules.checkInstalledAddon(config.watchFile);
     } catch { /* checked again within the hour */ }
+  } else if (config.wowEnabled !== false) {
+    // Nothing chosen yet: a fresh PC whose AddOns folder is empty never saves a Guilded.lua to
+    // choose. Check the WoW install the app finds so the Problems panel can say so.
+    try {
+      const found = detectSavedVariables(savedNames(), engineModules.isFolderOnHold)[0];
+      if (found) result = { addon: await engineModules.checkInstalledAddon(found.path) };
+    } catch { /* checked again later */ }
   }
   if (ticket !== savedFileCheck) return;
   savedFile = result;
@@ -914,7 +921,8 @@ registerIpc("copy-problem-report", () => {
   pushLog({ time: new Date().toISOString(), level: "info", message: E("Report {0} copied for the developer.", report.reference) });
   return { reference: report.reference, text: report.text };
 });
-registerIpc("open-addon-download", () => shell.openExternal("https://www.curseforge.com/wow/addons/guilded"));
+// The Forever zip of this release when the folder needs Forever; otherwise the CurseForge page.
+registerIpc("open-addon-download", () => shell.openExternal(engineModules.addonDownloadUrl?.(savedFile?.addon?.expected, app.getVersion()) ?? "https://www.curseforge.com/wow/addons/guilded"));
 registerIpc("set-online", (_event, value) => { online = value; if (engine) onState(engine.state()); return true; });
 // Folder picker (8.5, track F3): opens at the WoW install folder and finds the account folders
 // below whatever the member picks. One account: the page fills it in. Several: the member chooses.

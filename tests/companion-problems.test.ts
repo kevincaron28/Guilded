@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { companionProblems, newerVersion, problemReference, problemReport, reportableProblems, wowRunningFrom, NOT_SAVED_WITH_OTHERS_MS } from "../companion/problems.mjs";
+import { addonDownloadUrl, companionProblems, newerVersion, problemReference, problemReport, reportableProblems, wowRunningFrom, NOT_SAVED_WITH_OTHERS_MS } from "../companion/problems.mjs";
 
 // Problems panel (8.5, track F1): one test per check that makes it fire, plus the quiet cases.
 const watchFile = "C:\\Games\\World of Warcraft\\_forever_\\WTF\\Account\\PRIVATEACCOUNT\\SavedVariables\\Guilded.lua";
@@ -15,6 +15,22 @@ describe("companion problem checks", () => {
   it("addon not installed in the watched game folder", () => {
     const problems = companionProblems({ config: linked, savedFile: { ...fine, changedAt: null, addon: { status: "not-installed", expected: "forever" } } });
     expect(problems).toEqual([{ id: "addon-missing", data: { expected: "forever" } }]);
+  });
+
+  it("fresh PC: empty AddOns folder found before any saved file is chosen (8.4.7 second-PC test)", () => {
+    const notChosen = { companionCredential: "connected", wowEnabled: true };
+    const problems = companionProblems({ config: notChosen, savedFile: { addon: { status: "not-installed", expected: "forever" } } as never });
+    expect(problems).toEqual([{ id: "addon-missing", data: { expected: "forever" } }]);
+    expect(ids({ config: { wowEnabled: true }, savedFile: { addon: { status: "not-installed", expected: "forever" } } as never })).toEqual(["addon-missing"]);
+    expect(ids({ config: { ...notChosen, wowEnabled: false }, savedFile: { addon: { status: "not-installed", expected: "forever" } } as never })).toEqual([]);
+  });
+
+  it("Get the addon opens this release's Forever zip", () => {
+    expect(addonDownloadUrl("forever", "8.4.7")).toBe("https://github.com/kevincaron28/Guilded/releases/download/v8.4.7/Guilded-v8.4.7-forever.zip");
+    expect(addonDownloadUrl("forever", "8.5.0-beta.1")).toBe("https://github.com/kevincaron28/Guilded/releases/download/v8.5.0/Guilded-v8.5.0-forever.zip");
+    expect(addonDownloadUrl("retail", "8.4.7")).toBe("https://www.curseforge.com/wow/addons/guilded");
+    expect(addonDownloadUrl("forever", "dev")).toBe("https://www.curseforge.com/wow/addons/guilded");
+    expect(addonDownloadUrl(null, null)).toBe("https://www.curseforge.com/wow/addons/guilded");
   });
 
   it("addon for the wrong edition, without also blaming the saved file", () => {

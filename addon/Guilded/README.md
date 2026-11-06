@@ -3,8 +3,10 @@
 In-game only is the default. Officers type `/guilded setup guild` (or press "Set up my guild"
 in `/guilded setup`) to open Guild tools > Local guild, which walks through three steps:
 create a raid core, choose how loot is given, add your raiders. All local cores share guild
-EP/GP. Officers can share awards as they happen with `/guilded ledgersync on`; Backup and
-Restore hand the whole copy to another officer.
+EP/GP. Ledger sharing between guildmates is on by default in In-game only guilds; turn it off per character with `/guilded ledgersync off` or in Settings.
+Members who heard the officer announce a batch can fetch it from another member later, even
+after the officer logs off. Use `/guilded sync peers` to request missing data while online.
+Backup and Restore hand the whole copy to another officer.
 The restore preview lists local cores/rosters and can be undone.
 
 Party games moved to the optional GuildedGames addon (/ggames). Only the host

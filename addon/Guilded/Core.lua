@@ -19,6 +19,7 @@ local MAX_ADDON_MESSAGE = 255
 local PEER_LEDGER_SECONDS = 12 * 60 * 60
 local MAX_PEER_LEDGER = 500
 local db
+local ledgerRoster
 local activeRaid
 
 local function L(text) return ns.L and ns.L(text) or text end
@@ -2142,8 +2143,10 @@ local function onEvent(_, event, ...)
     if activeRaid then recordPresence() end
     if inRaidGroup() then maybeAutoSync(AUTO_SYNC_RAID_INTERVAL_SECONDS) end
   elseif event == "PLAYER_GUILD_UPDATE" then
+    ledgerRoster = nil
     resolveGuildSoon()
   elseif event == "GUILD_ROSTER_UPDATE" then
+    ledgerRoster = nil
     -- Before anything is added to the roster: make sure it is the right guild's data.
     if resolveGuildData() then noteMyCharacter(db.character) end
     local count = GetNumGuildMembers and GetNumGuildMembers() or 0
@@ -2293,6 +2296,36 @@ ns.inspectReadiness = inspectReadiness
 ns.isOfficer = isOfficer
 ns.isOfficerName = isOfficerName
 ns.isGuildMember = isGuildMember
+-- Ledger whispers carry balances. Verify the full character address against the live
+-- roster; two characters on connected realms can share the same short name.
+ns.ledgerPeerRole = function(address)
+  if not db or not GetNumGuildMembers or not GetGuildRosterInfo then return nil end
+  local realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or GetRealmName()
+  local function qualified(name)
+    if type(name) ~= "string" or isSecret(name) then return nil end
+    return string.find(name, "-", 1, true) and name or (realm and name .. "-" .. realm:gsub("%s+", ""))
+  end
+  local wanted, short = qualified(address), normalizeName(address)
+  if not wanted or not short then return nil end
+  local count = GetNumGuildMembers()
+  if not ledgerRoster or ledgerRoster.count ~= count then
+    ledgerRoster = { count = count, rows = {}, shortCounts = {} }
+    for i = 1, count do
+      local name = GetGuildRosterInfo(i)
+      local full, key = qualified(name), normalizeName(name)
+      if full and key then
+        ledgerRoster.rows[full] = i
+        ledgerRoster.shortCounts[key] = (ledgerRoster.shortCounts[key] or 0) + 1
+      end
+    end
+  end
+  local row = ledgerRoster.rows[wanted]
+  if not row then return nil end
+  local name, _, rank = GetGuildRosterInfo(row)
+  if qualified(name) ~= wanted or rank == nil or isSecret(rank) then return nil end
+  if db.settings.officerRanks[rank] or (ledgerRoster.shortCounts[short] == 1 and db.settings.officers[short]) then return "officer" end
+  return "member"
+end
 ns.runCommand = command
 ns.getSettings = function() return db and db.settings end
 -- A setup preference, not a permission or a replacement for existing guild data.

@@ -1,4 +1,4 @@
--- Officer ledger sync for guilds that use Guilded without Discord (opt-in).
+-- Opt-in ledger sync for guilds that use Guilded without Discord.
 --
 -- Every EP/GP entry has a permanent id "<author>-<server time>-<sequence>" and is never edited:
 -- a void only marks it. So officers' ledgers merge without conflicts: the guild's ledger is
@@ -19,9 +19,11 @@
 -- A client whose game cannot pack text (no C_EncodingUtil) never says CAP, so it only ever gets
 -- E messages; older clients ignore CAP.
 --
--- Only officers' messages count, only in this guild, only while this client is in in-game-only
--- mode with sync on. Nothing is deleted. An entry that arrives twice is ignored; a received
--- entry counts like one made here (standings, publishing, backups). Only its author can void it.
+-- On by default for every member in In-game only guilds; /guilded ledgersync off (or the Settings
+-- checkbox) turns it off for that character.
+-- E/Z payloads come from officers. Members can also carry identical payloads whose
+-- SHA-256 receipt the recipient heard directly from an officer (LedgerRelay.lua).
+-- Both paths use the same entry validation, deduplication and void accounting.
 local addonName, ns = ...
 ns = ns or {}
 
@@ -50,6 +52,7 @@ local assemblies = {}
 -- addon messages never reached the other, while its whispers did), so SUM also goes by whisper.
 local MAX_DIRECT = 5
 local partners = {}
+local memberTransfers = {}
 -- Officers who said CAP|1|Z1 this session.
 local capable = {}
 local received, receivedFrom, noticeScheduled = 0, {}, false
@@ -67,9 +70,10 @@ local function settings()
   return d.settings
 end
 
+-- On unless the player turned it off (owner decision, 6 November 2026): an untouched setting is on.
 local function enabled()
   local s = settings()
-  return s and s.ledgerSync == true or false
+  return s ~= nil and s.ledgerSync ~= false
 end
 
 -- When each officer with sync on was last heard from (kept across reloads, newest 20), so the
@@ -95,10 +99,16 @@ local function ago(seconds)
   return string.format(L("%d d"), math.floor(seconds / 86400))
 end
 
--- Sync runs only for an officer, in this guild, in in-game-only mode, with sync on.
+local activeGuild
 local function active()
-  return enabled() and ns.isInGameOnly and ns.isInGameOnly() and ns.isOfficer and ns.isOfficer()
-    and IsInGuild and IsInGuild() and true or false
+  if not (enabled() and ns.isInGameOnly and ns.isInGameOnly() and IsInGuild and IsInGuild()) then return false end
+  local key = ns.currentGuildKey()
+  if not key or (db().guildKey and db().guildKey ~= key) then return false end
+  if activeGuild ~= key then
+    activeGuild, cache, lastSum = key, nil, nil
+    partners, assemblies, answered, capable, memberTransfers = {}, {}, {}, {}, {}
+  end
+  return true
 end
 
 local function hashText(text)
@@ -157,12 +167,16 @@ end
 
 local function send(text, channel, target)
   local guild = ns.currentGuildKey()
+  local officer = ns.isOfficer()
+  local peerRole = target and ns.ledgerPeerRole(target)
   local function stillAllowed()
     return guild ~= nil and active() and guild == ns.currentGuildKey()
-      and (not target or ns.isOfficerName(ns.normalizeName(target)))
+      and officer == ns.isOfficer()
+      and (not target or (peerRole ~= nil and peerRole == ns.ledgerPeerRole(target)))
   end
   ns.comm.send(PREFIX, text, channel, target, stillAllowed, "retry-lockdown")
 end
+local relay
 
 -- Sends "<key>=<count>.<hash>" items in as few messages as fit, each "<head><part>|<parts>|<items>".
 local function sendList(head, items, target)
@@ -218,6 +232,7 @@ end
 
 local function sendSum(force)
   if not active() then return end
+  if relay then relay.request() end
   local ix = index()
   local sum = ix.count .. "|" .. ix.hash
   if not force and sum == lastSum and clock() - lastSumAt < SUM_ANYWAY then return end
@@ -238,22 +253,26 @@ local function entryMessage(id)
   return head .. ns.util.truncate(reason, math.max(0, 250 - #head))
 end
 
-local function sendEntry(id, target)
+local function sendEntry(id, target, attest)
   local message = entryMessage(id)
-  if message then send(message, "WHISPER", target) end
+  if message then
+    if attest and relay then relay.remember(message, ns.playerName(), true) end
+    send(message, "WHISPER", target)
+  end
 end
 
 -- A day of entries as one compressed batch, to an officer who said Z1. False when it cannot go
 -- that way (then each entry goes as its own E message).
 local function sendBatch(author, day, ids, target)
   local E, method = packer()
-  local who = ns.normalizeName(target)
-  if not (E and who and capable[who]) then return false end
+  if not (E and capable[target]) then return false end
   local lines = {}
   for _, id in ipairs(ids) do
     local message = entryMessage(id)
     if message then lines[#lines + 1] = string.sub(message, 5) end
   end
+  -- Peers that learned the same entries in a different order can reuse one receipt.
+  table.sort(lines)
   local ok, packed = pcall(E.CompressString, table.concat(lines, "\n"), method)
   if not ok or type(packed) ~= "string" then return false end
   local encoded
@@ -262,6 +281,7 @@ local function sendBatch(author, day, ids, target)
   local parts = math.ceil(#encoded / BATCH_CHUNK)
   local head = "Z|1|" .. author .. "|" .. day .. "|"
   if parts < 1 or parts > BATCH_PARTS or #head + 6 + BATCH_CHUNK > 255 then return false end
+  if relay then relay.remember("Z|" .. encoded, ns.playerName(), true) end
   for part = 1, parts do
     send(head .. part .. "|" .. parts .. "|" .. string.sub(encoded, (part - 1) * BATCH_CHUNK + 1, part * BATCH_CHUNK), "WHISPER", target)
   end
@@ -269,11 +289,25 @@ local function sendBatch(author, day, ids, target)
 end
 
 local function sendDay(author, day, target)
+  if not ns.isOfficer() then return end
   local a = index().authors[author]
   local bucket = a and a.days[day]
   local ids = bucket and bucket.ids or {}
+  if #ids == 0 then return end
+  if ns.ledgerPeerRole(target) == "member" then
+    -- Duplicate summaries and explicit GETs may both request the same day.
+    local now = clock()
+    local recent = memberTransfers[target]
+    if not recent or now - recent.at >= ANSWER_COOLDOWN then
+      recent = { at = now, days = {} }
+      memberTransfers[target] = recent
+    end
+    local key = author .. ":" .. day
+    if recent.days[key] == bucket.hash then return end
+    recent.days[key] = bucket.hash
+  end
   if #ids > 1 and sendBatch(author, day, ids, target) then return end
-  for _, id in ipairs(ids) do sendEntry(id, target) end
+  for _, id in ipairs(ids) do sendEntry(id, target, #ids == 1) end
 end
 
 local function sendDays(author, target)
@@ -379,6 +413,23 @@ local function receiveBatch(encoded, sender)
     for field in string.gmatch(line .. "|", "([^|]*)|") do fields[#fields + 1] = field end
     if #fields >= 8 then receiveEntry(fields, sender) end
   end
+  return true
+end
+
+local function applyWire(wire, officer)
+  if wire:sub(1,2) == "Z|" then return receiveBatch(wire:sub(3), officer) end
+  if wire:sub(1,4) ~= "E|1|" then return false end
+  local fields = {}
+  for field in (wire:sub(5) .. "|"):gmatch("([^|]*)|") do fields[#fields+1] = field end
+  if #fields < 8 then return false end
+  receiveEntry(fields, officer)
+  return true
+end
+if ns.createLedgerRelay then
+  relay = ns.createLedgerRelay(send, applyWire, active, function(sender)
+    heard(ns.normalizeName(sender))
+    lastExchange = clock()
+  end)
 end
 
 -- An officer whose SUM differs from ours: tell them what we have per author.
@@ -388,7 +439,7 @@ local function answerSum(sender, count, hash)
   -- The same SUM again (it comes by guild and by whisper) waits; a changed ledger is news.
   local theirs = count .. "|" .. hash
   local last = answered[sender]
-  if last and last.sum == theirs and clock() - last.at < ANSWER_COOLDOWN then return end
+  if last and clock() - last.at < ANSWER_COOLDOWN and (last.sum == theirs or ns.ledgerPeerRole(sender) == "member") then return end
   answered[sender] = { at = clock(), sum = theirs }
   local items = {}
   for author, a in pairs(ix.authors) do items[#items + 1] = author .. "=" .. a.count .. "." .. a.hash end
@@ -408,7 +459,7 @@ local function compareAuthors(theirs, sender)
   end
   for author in pairs(theirs) do
     -- They have entries from an author we have none of: an empty day list asks for all of them.
-    if not ix.authors[author] then send("DAYS|1|" .. author .. "|1|1|", "WHISPER", sender) end
+    if not ix.authors[author] and ns.ledgerPeerRole(sender) == "officer" then send("DAYS|1|" .. author .. "|1|1|", "WHISPER", sender) end
   end
   lastExchange = clock()
 end
@@ -419,7 +470,7 @@ local function compareDays(author, theirs, sender)
   local mine = a and a.days or {}
   for day, t in pairs(theirs) do
     local m = mine[tonumber(day)]
-    if not m or m.count ~= t.count or m.hash ~= t.hash then send("GET|1|" .. author .. "|" .. day, "WHISPER", sender) end
+    if (not m or m.count ~= t.count or m.hash ~= t.hash) and ns.ledgerPeerRole(sender) == "officer" then send("GET|1|" .. author .. "|" .. day, "WHISPER", sender) end
   end
   for day, m in pairs(mine) do
     local t = theirs[tostring(day)]
@@ -431,12 +482,17 @@ end
 local function onMessage(text, channel, rawSender)
   if not active() then return end
   local sender = ns.normalizeName(rawSender)
-  if not sender or sender == ns.playerName() or not ns.isOfficerName(sender) then return end
+  if not sender or sender == ns.playerName() then return end
   if channel ~= "GUILD" and channel ~= "WHISPER" then return end
+  local role = ns.ledgerPeerRole(rawSender)
+  if not role then return end
   local kind = string.match(text, "^(%u+)|1|")
+  if relay and relay.handle(kind, text, channel, rawSender, role) then return end
+  if role ~= "officer" and not ns.isOfficer() then return end
+  if (kind == "E" or kind == "Z") and role ~= "officer" then return end
   if kind then
     heard(sender)
-    partners[sender] = { at = clock(), address = rawSender }
+    partners[rawSender] = { at = clock(), address = rawSender }
   end
   if kind == "SUM" then
     local count, hash = string.match(text, "^SUM|1|(%d+)|(%d+)$")
@@ -451,28 +507,26 @@ local function onMessage(text, channel, rawSender)
     end
   elseif kind == "AUTH" and channel == "WHISPER" then
     local part, parts, list = string.match(text, "^AUTH|1|(%d+)|(%d+)|(.*)$")
-    local whole = part and assemble("A:" .. sender, part, parts, list)
+    local whole = part and assemble("A:" .. rawSender, part, parts, list)
     if whole then compareAuthors(whole, rawSender) end
   elseif kind == "DAYS" and channel == "WHISPER" then
     local author, part, parts, list = string.match(text, "^DAYS|1|([^|]+)|(%d+)|(%d+)|(.*)$")
-    local whole = author and assemble("D:" .. sender .. ":" .. author, part, parts, list)
+    local whole = author and assemble("D:" .. rawSender .. ":" .. author, part, parts, list)
     if whole then compareDays(author, whole, rawSender) end
   elseif kind == "GET" and channel == "WHISPER" then
     local author, day = string.match(text, "^GET|1|([^|]+)|(%d+)$")
     if author then sendDay(author, tonumber(day), rawSender) end
   elseif kind == "E" and channel == "WHISPER" then
-    local fields = {}
-    for field in string.gmatch(string.sub(text, 5) .. "|", "([^|]*)|") do fields[#fields + 1] = field end
-    if #fields >= 8 then receiveEntry(fields, sender) end
+    if applyWire(text, sender) and relay then relay.remember(text, sender, false) end
   elseif kind == "CAP" then
     local list = string.match(text, "^CAP|1|(.*)$") or ""
-    capable[sender] = string.find("," .. list .. ",", ",Z1,", 1, true) and true or nil
+    capable[rawSender] = string.find("," .. list .. ",", ",Z1,", 1, true) and true or nil
   elseif kind == "Z" and channel == "WHISPER" then
     local author, day, part, parts, chunk = string.match(text, "^Z|1|([^|]+)|(%d+)|(%d+)|(%d+)|(.*)$")
     if not author then return end
-    local whole, requestDay = assemble("Z:" .. sender .. ":" .. author .. ":" .. day, part, parts, chunk, true)
+    local whole, requestDay = assemble("Z:" .. rawSender .. ":" .. author .. ":" .. day, part, parts, chunk, true)
     if requestDay then send("GET|1|" .. author .. "|" .. day, "WHISPER", rawSender) end
-    if whole then receiveBatch(whole, sender) end
+    if whole and receiveBatch(whole, sender) and relay then relay.remember("Z|" .. whole, sender, false) end
   end
 end
 
@@ -494,6 +548,7 @@ end
 
 ns.ledgerSync = {
   active = active,
+  enabled = enabled,
   waiting = waiting,
   summary = function() local ix = index(); return ix.count, ix.hash end,
   sendSum = sendSum
@@ -503,7 +558,6 @@ ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["ledgersync"] = function(args)
   local action = string.lower(args[1] or "status")
   if action == "on" or action == "off" then
-    if not (ns.isOfficer and ns.isOfficer()) then ns.message(L("Only an officer can change ledger sync.")); return end
     if action == "on" and not (ns.isInGameOnly and ns.isInGameOnly()) then
       ns.message(L("Ledger sync is for in-game-only guilds. Choose In-game only with /guilded setup first.")); return
     end
@@ -511,7 +565,7 @@ ns.commandHandlers["ledgersync"] = function(args)
     if not s then return end
     s.ledgerSync = action == "on"
     if action == "on" then
-      ns.message(L("Ledger sync is on. Officers who turn it on share EP/GP entries in game; nothing is deleted."))
+      ns.message(L("Ledger sync is on. Guildmates can relay officer-approved awards and reversals."))
       sendSum(true)
     else
       ns.message(L("Ledger sync is off. Entries already received stay."))
@@ -519,10 +573,10 @@ ns.commandHandlers["ledgersync"] = function(args)
     return
   end
   if action == "now" then
-    if not active() then ns.message(L("Ledger sync is off. An officer turns it on with /guilded ledgersync on.")); return end
+    if not active() then ns.message(L("Enable local ledger sync with /guilded ledgersync on.")); return end
     cache = nil -- Include awards/voids made since the last cached summary.
     sendSum(true)
-    ns.message(L("Ledger sync: asked online officers to compare ledgers."))
+    ns.message(L("Asked online guildmates to compare ledgers."))
     return
   end
   local ix = index()
@@ -536,7 +590,7 @@ ns.commandHandlers["ledgersync"] = function(args)
   for name in pairs(seen) do names[#names + 1] = name end
   table.sort(names, function(a, b) return seen[a] > seen[b] end)
   if #names == 0 then
-    ns.message(L("No other officer with ledger sync on has been seen yet. Sync needs two officers online at the same time."))
+    ns.message(L("No sync partner seen yet. Guildmates can relay entries after an officer announces them."))
     return
   end
   local match = s and type(s.ledgerSyncMatch) == "table" and s.ledgerSyncMatch or {}
@@ -545,11 +599,11 @@ ns.commandHandlers["ledgersync"] = function(args)
     ns.message(string.format(L("%s: last heard %s ago."), names[i], ago(clock() - seen[names[i]])) .. state)
   end
   if clock() - seen[names[1]] > 7 * 86400 then
-    ns.message(L("Over a week without another officer: entries sync only when two officers with sync on are online together."))
+    ns.message(L("No ledger sync partner seen in the past week."))
   end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, { officer = true, text = "/guilded ledgersync on | off | now | status - in-game-only guilds: officers share EP/GP entries with each other" })
+table.insert(ns.commandHelp, "/guilded ledgersync on | off | now | status - EP/GP history from guild officers and guildmates (on by default)")
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")

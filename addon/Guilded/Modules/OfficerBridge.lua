@@ -266,6 +266,7 @@ local function request()
   ns.comm.send(PREFIX, "CAP|2", "GUILD")
   ns.comm.send(PREFIX, "REQ|1|" .. (d.officerBridge and sameGuild(d.officerBridge.snapshot) and d.officerBridge.updatedAt or "0"), "GUILD")
 end
+ns.requestGuildBridge = request
 local function receive(text, sender)
   if not ns.isOfficerName(sender) then return end
   local version, stamp, index, total, payload = string.match(text, "^DATA|([12])|([^|]+)|(%d+)|(%d+)|(.*)$")

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/database.js", () => ({ prisma: {} }));
 vi.mock("../src/services/guild.js", () => ({ createGuildService: () => ({}) }));
-import { LEVEL_CAP, RACE_BOARD_MARKER, bestName, refreshHallNames, clampTop, hallEmbed, hallMode, loadRaceBoardData, nearLevel, nextEntry, orderRace, raceBoardEmbed, raceCard, syncHallOfFame, weekStart, type RaceBoardData, type RaceRow } from "../src/services/race-board.js";
+import { LEVEL_CAP, RACE_BOARD_MARKER, bestName, dedupeHallEntries, mergeFirstNames, mergeStored, refreshHallNames, clampTop, hallEmbed, hallMode, loadRaceBoardData, nearLevel, nextEntry, orderRace, raceBoardEmbed, raceCard, syncHallOfFame, weekStart, type RaceBoardData, type RaceRow } from "../src/services/race-board.js";
 import { bgLadderEmbed, bgLadders, BG_LADDER_MARKER } from "../src/services/bg-ladder.js";
 import { ensurePvpModule, pvpChannelNames } from "../src/services/battleground-setup.js";
 
@@ -120,7 +120,7 @@ describe("full names on the board (Forever, 8.4.x addons still upload first name
     expect(bestName("Chad Ho", "Chad Ho")).toBe("Chad Ho");
     expect(bestName("Chad", null, "Chad Ho")).toBe("Chad Ho");
   });
-  it("loads a first-name LevelRaceEntry under its full display name, linked or unclaimed, keeping the key", async () => {
+  it("loads a first-name LevelRaceEntry under its full display name and full-name key, linked or unclaimed", async () => {
     const upsert = vi.fn();
     const db = {
       character: { findMany: vi.fn()
@@ -130,14 +130,12 @@ describe("full names on the board (Forever, 8.4.x addons still upload first name
       unclaimedCharacter: { findMany: vi.fn(async () => [
         { nameKey: "chad", name: "Chad", displayName: "Chad Ho", className: "Priest", level: 20 },
         { nameKey: "lebowski", name: "Lebowski", displayName: "Lebowski Dude", className: "Rogue", level: 30 }]) },
-      levelRaceEntry: { findMany: vi.fn(async () => [{ nameKey: "chad", name: "Chad", className: "Priest", level: 20, reachedMaxAt: null, weekStartLevel: 20, weekStartedAt: new Date("2026-11-09T00:00:00Z"), firstSeenAt: new Date("2026-11-05T00:00:00Z") }]), upsert }
+      levelRaceEntry: { findMany: vi.fn(async () => [{ nameKey: "chad", name: "Chad", className: "Priest", level: 20, reachedMaxAt: null, weekStartLevel: 20, weekStartedAt: new Date("2026-11-09T00:00:00Z"), firstSeenAt: new Date("2026-11-05T00:00:00Z") }]), upsert, deleteMany: vi.fn() }
     };
     const result = await loadRaceBoardData(db as never, "g1", "forever", new Date("2026-11-11T12:00:00Z"));
     const byKey = new Map(result.rows.map(r => [r.key, r.name]));
-    expect(byKey.get("chad")).toBe("Chad Ho");
-    expect(byKey.get("lebowski")).toBe("Lebowski Dude");
-    const keys = [...byKey.keys()];
-    expect(keys.some(key => key.includes(" "))).toBe(false);
+    expect(byKey.get("chad ho")).toBe("Chad Ho");
+    expect(byKey.get("lebowski dude")).toBe("Lebowski Dude");
     expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ update: expect.objectContaining({ name: "Chad Ho" }) }));
   });
   it("edits an already posted Hall of Fame entry and the backfill summary to the full name, once known", async () => {
@@ -279,5 +277,61 @@ describe("battleground ladder (separate from the duel ladder)", () => {
     expect(json.fields?.[0]?.value).toContain("🥇 Aria — 2W 0L · 100% · 2 games");
     expect(json.footer?.text).toContain("player reports, not verified matches");
     expect(json.footer?.text).toContain("separate from the duel ladder");
+  });
+});
+
+describe("one character, one row (first-name and full-name copies)", () => {
+  const char = (key: string, name: string, level: number, over: Record<string, unknown> = {}) => ({ key, name, className: "Priest", race: "Human", level, memberId: null, discordId: null, professions: [], lastSeenAt: null, ...over });
+  it("folds a first-name copy into the full-name one: highest level, linked copy wins, alias remembered", () => {
+    const merged = mergeFirstNames([char("chad", "Chad", 40), char("chad ho", "Chad Ho", 38, { memberId: "m1" }), char("solo", "Solo", 10)]);
+    expect(merged.map(c => c.key).sort()).toEqual(["chad ho", "solo"]);
+    expect(merged.find(c => c.key === "chad ho")).toMatchObject({ name: "Chad Ho", level: 40, memberId: "m1", aliasKeys: ["chad"] });
+  });
+  it("folds a first-name copy whose own name is already full, even with no full-name twin", () => {
+    const merged = mergeFirstNames([char("chad", "Chad Ho", 20)]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ key: "chad ho", name: "Chad Ho", aliasKeys: ["chad"] });
+  });
+  it("leaves a first name alone when two full names share it", () => {
+    const merged = mergeFirstNames([char("sam", "Sam", 5), char("sam a", "Sam A", 6), char("sam b", "Sam B", 7)]);
+    expect(merged).toHaveLength(3);
+  });
+  it("merges stored entries: highest level, earliest finish, earliest first sighting", () => {
+    const a = { level: 60, reachedMaxAt: new Date("2026-11-10T00:00:00Z"), firstSeenAt: new Date("2026-11-05T00:00:00Z") };
+    const b = { level: 58, reachedMaxAt: new Date("2026-11-08T00:00:00Z"), firstSeenAt: new Date("2026-11-06T00:00:00Z") };
+    expect(mergeStored(a, [b])).toEqual({ level: 60, reachedMaxAt: b.reachedMaxAt, firstSeenAt: a.firstSeenAt });
+  });
+  it("the board shows a character once and removes the stale first-name entry", async () => {
+    const upsert = vi.fn(), deleteMany = vi.fn();
+    const when = new Date("2026-11-09T00:00:00Z");
+    const db = {
+      character: { findMany: vi.fn().mockResolvedValueOnce([]).mockResolvedValueOnce([]) },
+      unclaimedCharacter: { findMany: vi.fn(async () => [
+        { nameKey: "chad", name: "Chad", displayName: "Chad Ho", className: "Priest", level: 45 },
+        { nameKey: "chad ho", name: "Chad Ho", displayName: "Chad Ho", className: "Priest", level: 44 }]) },
+      levelRaceEntry: { findMany: vi.fn(async () => [
+        { nameKey: "chad", name: "Chad", className: "Priest", level: 45, reachedMaxAt: null, weekStartLevel: 40, weekStartedAt: when, firstSeenAt: new Date("2026-11-04T00:00:00Z") },
+        { nameKey: "chad ho", name: "Chad Ho", className: "Priest", level: 44, reachedMaxAt: null, weekStartLevel: 41, weekStartedAt: when, firstSeenAt: new Date("2026-11-07T00:00:00Z") }]), upsert, deleteMany }
+    };
+    const result = await loadRaceBoardData(db as never, "g1", "forever", new Date("2026-11-11T12:00:00Z"));
+    expect(result.rows.map(r => r.name)).toEqual(["Chad Ho"]);
+    expect(result.rows[0]).toMatchObject({ level: 45, firstSeenAt: new Date("2026-11-04T00:00:00Z") });
+    expect(deleteMany).toHaveBeenCalledWith({ where: { guildId: "g1", nameKey: { in: ["chad"] } } });
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId_nameKey: { guildId: "g1", nameKey: "chad ho" } } }));
+  });
+  it("the Hall keeps one entry per character: earliest number stays, the duplicate row and post go", async () => {
+    const at = new Date("2026-11-12T12:00:00Z");
+    const base = { className: "Priest", race: null, reachedAt: at, firstSeenAt: at, professions: null, memberDiscordId: null, posted: true, backfilled: false };
+    const entries = [{ ...base, id: "e1", nameKey: "chad", order: 3, name: "Chad", messageId: "m1" }, { ...base, id: "e2", nameKey: "chad ho", order: 5, name: "Chad Ho", messageId: "m2" },
+      { ...base, id: "e3", nameKey: "solo", order: 6, name: "Solo", messageId: "m3" }];
+    const del = vi.fn(async () => ({}));
+    const channel = { send: vi.fn(), messages: { fetch: vi.fn(async () => ({ delete: del })) } };
+    const db = { raceHallEntry: { delete: vi.fn(async () => ({})), update: vi.fn(async () => ({})) } };
+    const rows = [row("Chad Ho", 60, { key: "chad ho", aliasKeys: ["chad"] }), row("Solo", 60, { key: "solo" })];
+    expect(await dedupeHallEntries(db as never, channel as never, entries as never, rows)).toBe(1);
+    expect(db.raceHallEntry.delete).toHaveBeenCalledWith({ where: { id: "e2" } });
+    expect(del).toHaveBeenCalledTimes(1);
+    expect(db.raceHallEntry.update).toHaveBeenCalledWith({ where: { id: "e1" }, data: { nameKey: "chad ho" } });
+    expect(entries.map(e => [e.id, e.nameKey])).toEqual([["e1", "chad ho"], ["e3", "solo"]]);
   });
 });

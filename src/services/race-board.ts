@@ -25,9 +25,9 @@ export const DEFAULT_TOP = 25, MIN_TOP = 10, MAX_TOP = 30;
 const AUTO_END_MINIMUM = 3;
 const BARS = 14, GAINERS = 5, DESCRIPTION_BUDGET = 3800;
 
-export interface RaceChar { key: string; name: string; className: string; race: string | null; level: number; memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
+export interface RaceChar { aliasKeys?: string[]; key: string; name: string; className: string; race: string | null; level: number; memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
 export interface RaceEntryState { level: number; reachedMaxAt: Date | null; weekStartLevel: number; weekStartedAt: Date }
-export interface RaceRow { key: string; name: string; className: string; race: string | null; level: number; reachedMaxAt: Date | null; firstSeenAt: Date; weekGain: number;
+export interface RaceRow { aliasKeys?: string[]; key: string; name: string; className: string; race: string | null; level: number; reachedMaxAt: Date | null; firstSeenAt: Date; weekGain: number;
   memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
 export interface RaceBoardData { rows: RaceRow[]; total: number; finished: number; edition: string }
 
@@ -182,6 +182,48 @@ export function bestName(name: string, displayName: string | null | undefined, o
   return fullNameOf({ name, displayName: displayName ?? null }) ?? otherFull ?? name;
 }
 
+/**
+ * Pure: one entry per character even when a first-name copy and a full-name copy both exist (8.4.x addons keep uploading first
+ * names, and the production rename left old rows behind). A one-word key joins the full-name key when its own name is already
+ * full, or when exactly one full-name character starts with it; otherwise it stays alone. The linked copy wins, then the higher
+ * level; `aliasKeys` lists the first-name keys that were folded in so stored entries can be merged.
+ */
+export function mergeFirstNames(chars: readonly RaceChar[]): RaceChar[] {
+  const fullByFirst = new Map<string, Map<string, string>>(); // first word -> full key -> full name
+  for (const char of chars) {
+    if (!char.key.includes(" ")) continue;
+    const first = char.key.split(" ")[0]!;
+    const names = fullByFirst.get(first) ?? new Map<string, string>();
+    names.set(char.key, char.name); fullByFirst.set(first, names);
+  }
+  const out = new Map<string, RaceChar>();
+  for (const char of chars) {
+    let key = char.key, name = char.name;
+    if (!key.includes(" ")) {
+      const own = char.name.trim().replace(/\s+/g, " ");
+      const candidates = [...(fullByFirst.get(key) ?? new Map<string, string>()).entries()];
+      if (own.includes(" ") && own.toLowerCase().startsWith(`${key} `)) { key = own.toLowerCase(); name = own; }
+      else if (candidates.length === 1) { key = candidates[0]![0]; name = candidates[0]![1]; }
+    }
+    const aliases = key !== char.key ? [char.key] : [];
+    const have = out.get(key);
+    if (!have) { out.set(key, { ...char, key, name, aliasKeys: [...(char.aliasKeys ?? []), ...aliases] }); continue; }
+    const winner = have.memberId ? have : char.memberId ? { ...char, key, name } : have.level >= char.level ? have : { ...char, key, name };
+    out.set(key, { ...winner, key, name: name.length > have.name.length ? name : have.name, level: Math.max(have.level, char.level),
+      lastSeenAt: [have.lastSeenAt, char.lastSeenAt].filter((d): d is Date => d !== null).sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
+      aliasKeys: [...new Set([...(have.aliasKeys ?? []), ...(char.aliasKeys ?? []), ...aliases])] });
+  }
+  return [...out.values()];
+}
+
+/** Pure: the stored state of a merged character: highest level, earliest finish, earliest first sighting; the full-name entry's week baseline. */
+export function mergeStored<T extends { level: number; reachedMaxAt: Date | null; firstSeenAt: Date }>(primary: T, others: readonly T[]): T {
+  const all = [primary, ...others];
+  const finished = all.flatMap(entry => entry.reachedMaxAt ? [entry.reachedMaxAt] : []).sort((a, b) => a.getTime() - b.getTime());
+  return { ...primary, level: Math.max(...all.map(entry => entry.level)), reachedMaxAt: finished[0] ?? null,
+    firstSeenAt: all.map(entry => entry.firstSeenAt).sort((a, b) => a.getTime() - b.getTime())[0]! };
+}
+
 /** Records every guild character's level, then returns the board's data. Hidden members' characters are left out. */
 export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry">, guildId: string, edition: string, now = new Date()): Promise<RaceBoardData> {
   const linked = await db.character.findMany({ where: { guildId, gameEdition: edition, level: { not: null }, member: { guildId, status: "ACTIVE", raceHidden: false } },
@@ -203,14 +245,18 @@ export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "un
   }
   const stored = new Map((await db.levelRaceEntry.findMany({ where: { guildId } })).map(entry => [entry.nameKey, entry]));
   const rows: RaceRow[] = [];
-  for (const char of chars.values()) {
-    const before = stored.get(char.key) ?? null;
+  for (const char of mergeFirstNames([...chars.values()])) {
+    const legacy = (char.aliasKeys ?? []).flatMap(alias => stored.get(alias) ?? []);
+    const own = stored.get(char.key);
+    const primary = own ?? legacy[0];
+    const before = primary ? mergeStored(primary, own ? legacy : legacy.slice(1)) : null;
     const next = nextEntry(before, char.level, now);
-    const changed = !before || before.level !== next.level || before.name !== char.name || before.className !== char.className
+    const changed = !before || legacy.length > 0 || before.level !== next.level || before.name !== char.name || before.className !== char.className
       || before.weekStartLevel !== next.weekStartLevel || before.weekStartedAt.getTime() !== next.weekStartedAt.getTime() || before.reachedMaxAt?.getTime() !== next.reachedMaxAt?.getTime();
     if (changed) await db.levelRaceEntry.upsert({ where: { guildId_nameKey: { guildId, nameKey: char.key } },
-      create: { guildId, nameKey: char.key, name: char.name, className: char.className, ...next, firstSeenAt: now }, update: { name: char.name, className: char.className, ...next } });
-    rows.push({ key: char.key, name: char.name, className: char.className, race: char.race, level: next.level, reachedMaxAt: next.reachedMaxAt, firstSeenAt: before?.firstSeenAt ?? now,
+      create: { guildId, nameKey: char.key, name: char.name, className: char.className, ...next, firstSeenAt: before?.firstSeenAt ?? now }, update: { name: char.name, className: char.className, ...next, ...(before ? { firstSeenAt: before.firstSeenAt } : {}) } });
+    if (legacy.length) await db.levelRaceEntry.deleteMany({ where: { guildId, nameKey: { in: char.aliasKeys ?? [] } } });
+    rows.push({ ...(char.aliasKeys?.length ? { aliasKeys: char.aliasKeys } : {}), key: char.key, name: char.name, className: char.className, race: char.race, level: next.level, reachedMaxAt: next.reachedMaxAt, firstSeenAt: before?.firstSeenAt ?? now,
       weekGain: Math.max(0, next.level - next.weekStartLevel), memberId: char.memberId, discordId: char.discordId, professions: char.professions, lastSeenAt: char.lastSeenAt });
   }
   const ordered = orderRace(rows);
@@ -278,9 +324,40 @@ export async function refreshHallNames(db: HallDb, channel: HallChannel, guildId
   return renamed;
 }
 
+/**
+ * One Hall of Fame entry per character. When a first-name entry and a full-name entry both exist for the same character, the
+ * earliest number is kept (moved to the full-name key), the other row and its post are removed. A lone first-name entry just
+ * takes the full-name key. Mutates `existing` to match.
+ */
+export async function dedupeHallEntries(db: HallDb, channel: HallChannel, existing: HallStored[], rows: readonly RaceRow[]): Promise<number> {
+  let removed = 0;
+  for (const row of rows) {
+    const keys = new Set([row.key, ...(row.aliasKeys ?? [])]);
+    const group = existing.filter(entry => keys.has(entry.nameKey)).sort((a, b) => a.order - b.order);
+    if (!group.length) continue;
+    const [keep, ...extras] = group;
+    for (const extra of extras) {
+      try {
+        if (extra.messageId && !extra.backfilled && channel.messages) {
+          const message = await channel.messages.fetch(extra.messageId).catch(() => null) as { delete?: () => Promise<unknown> } | null;
+          await message?.delete?.().catch(() => undefined);
+        }
+        await db.raceHallEntry.delete({ where: { id: extra.id } });
+        existing.splice(existing.indexOf(extra), 1); removed++;
+      } catch (error) { console.warn("Hall of Fame duplicate removal failed; retrying next refresh", error); }
+    }
+    if (keep!.nameKey !== row.key && !existing.some(entry => entry !== keep && entry.nameKey === row.key)) {
+      try { await db.raceHallEntry.update({ where: { id: keep!.id }, data: { nameKey: row.key } }); keep!.nameKey = row.key; }
+      catch (error) { console.warn("Hall of Fame key move failed; retrying next refresh", error); }
+    }
+  }
+  return removed;
+}
+
 export async function syncHallOfFame(db: HallDb, channel: HallChannel, guildId: string, data: RaceBoardData, lang: Lang, backfilledAt: Date | null, now = new Date()): Promise<{ markBackfilled: boolean; posted: number }> {
   const finishers = data.rows.filter(row => row.level >= LEVEL_CAP);
   const existing = await db.raceHallEntry.findMany({ where: { guildId }, orderBy: { order: "asc" } });
+  await dedupeHallEntries(db, channel, existing as HallStored[], data.rows);
   await refreshHallNames(db, channel, guildId, existing as HallStored[], data.rows, lang);
   const known = new Set(existing.map(entry => entry.nameKey));
   const fresh = finishers.filter(row => !known.has(row.key));

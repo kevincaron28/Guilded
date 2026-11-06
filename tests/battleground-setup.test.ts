@@ -85,9 +85,14 @@ describe("optional battleground installation", () => {
     expect(f.guild.channels.create).not.toHaveBeenCalled(); expect(f.posted).toHaveLength(1);
     expect(f.settings["bgResultsChannelId"]).toBe("chosen"); expect(f.settings["bgCategoryId"]).toBeUndefined();
   });
-  it("does not create a public category when member role is missing", async () => {
-    const f = fixture({ role: null }); await expect(f.run()).rejects.toThrow("member role");
-    expect(f.guild.channels.create).not.toHaveBeenCalled();
+  it("without a member role creates the category visible to everyone and tells the officer", async () => {
+    const f = fixture({ role: null });
+    const note = await f.run();
+    const calls = f.guild.channels.create.mock.calls as unknown as [{ type: number; permissionOverwrites: { id: string; deny?: bigint[] }[] }][];
+    const category = calls.map(call => call[0]).find(options => options.type === ChannelType.GuildCategory);
+    expect(category).toBeDefined();
+    expect(category!.permissionOverwrites.some(overwrite => overwrite.id === f.guild.id && (overwrite.deny ?? []).length > 0)).toBe(false);
+    expect(note).toContain("visible to everyone");
   });
   it("rejects a foreign guild scope before any mutation", async () => {
     const f = fixture(); f.db.guild.findFirst.mockResolvedValue(null);

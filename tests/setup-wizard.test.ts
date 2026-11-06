@@ -106,6 +106,27 @@ describe("setup wizard screens", () => {
     }
   });
 
+  it("saves the member role picked in the step 6 select and acknowledges the click at once", async () => {
+    const listeners = new Map<string, (...args: never[]) => void>();
+    const collector = { on: (event: string, handler: (...args: never[]) => void) => listeners.set(event, handler) };
+    vi.mocked(requireGuildContext).mockResolvedValue({ guildId: "g1", memberId: "m1" } as never);
+    vi.mocked(guildService.updateSettings).mockResolvedValue(settings as never);
+    const editReply = vi.fn<(payload: { embeds: { data: { description: string } }[] }) => Promise<void>>(async () => undefined);
+    const deferUpdate = vi.fn(async () => undefined);
+    try {
+      await executeSetup({ guild, guildId: "discord", user: { id: "owner" }, member: { permissions: { has: () => true } },
+        options: { getBoolean: () => false }, deferReply: vi.fn(), editReply,
+        fetchReply: async () => ({ createMessageComponentCollector: () => collector }) } as never);
+      listeners.get("collect")!({ customId: "setup:role-member", user: { id: "owner" }, values: ["r1"], deferUpdate,
+        isChannelSelectMenu: () => false, isRoleSelectMenu: () => true, isStringSelectMenu: () => false } as never);
+      expect(deferUpdate).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(editReply).toHaveBeenCalledTimes(2));
+      expect(guildService.updateSettings).toHaveBeenCalledWith("g1", { memberRoleId: "r1" });
+    } finally {
+      vi.mocked(guildService.updateSettings).mockReset();
+      vi.mocked(requireGuildContext).mockReset();
+    }
+  });
   it("every step builds a payload Discord will accept", async () => {
     for (let step = 0; step <= 8; step++) {
       const screen = await renderStep(step, guild as never, "g1", step === 2 ? "Saved <#c1>." : "");

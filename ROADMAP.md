@@ -127,6 +127,76 @@ except where noted, so they can run at the same time.
 | Season 1 scoring check + Season 2 on 9 December | In progress (new session) |
 | `#invitation-guilde` invite queue + WoW-role DM + ✅ | In progress (new session) |
 
+### Owner decisions that apply everywhere (6 November 2026)
+
+- **Everything on by default** in every server, with no per-feature setup (rule 5).
+- **Sharing and sync are always on, with no option to turn them off**: stats, badges, profiles,
+  leaderboards, map sharing, ledger sync, the guildmate relay, the officer bridge and the presence
+  reports. The off switches are removed from the addon, the companion and the bot (Track A, batch 3 #8,
+  extended). The single exception is "Delete my data" (Store and Discord policy requirement).
+- **Channels Guilded creates are public** when the server has no member role. Québec Gold's
+  `#course-au-60` stays public (owner, 6 November).
+- **The next release is 9.0.0** after in-game testing and polishing.
+
+### Every owner request made on 6 November 2026, and where it is
+
+The owner's first message:
+- Server/guild stats + Google Sheets → G.
+- Arena module and channels → B.
+- Badges for new achievements; only Forever and guild achievements → A.
+- Discord members not in the game guild → C1.
+- Artisans' Gallery → D.
+- Arena ladder channel → B.
+- Race to 60 → B1.
+- Chat tab joins and online/offline → E1.
+- Character names in Discord → C2.
+- Companion alerts with a fix and a report → F1.
+- Less linking friction → F3 / L.
+- Fresh-PC install test → F4.
+- Minimap shortcuts → E2.
+- Companion niche options under Advanced → F2.
+- Last seen in crafting tooltips → E3 / D3.
+- Visual roster → C3.
+- Kinfolk analysis → H.
+
+Later the same day:
+- WoW Forever armory → I.
+- Call for help (world PvP) → J.
+- Companion link in game → E4.
+- Addon-only members still sync → K.
+- Professions as notes or on the roster → C4.
+- Initiate → Member promotion panel → C5.
+- Screenshots and website refresh, then the phone app (leaderboards, guild view, last-seen heat map, help pins, dungeon notifications) → final phases, M.
+- Everything on by default → rule 5.
+- Guildmate map on by default → M.
+- Main name in nicknames, with fallbacks `kevmister28(Lebowski H.)` / `kevmister28(Lebowski)` → C2.
+- Link confirmation by DM → F3.
+- Québec Gold Discord up to date → release step (done early in preview).
+- Race to 60: top 25 with details, then a Hall of Fame → B1.
+- Duel ladder and BG ladder with separate points → B2.
+- Separate duel and BG channels and cards → batch 3 #10.
+- Call for help as a minimap shortcut → Shift+right-click.
+- Store companion auto-update on Windows 10/11 → F5.
+- Remote-control testing that saves credits → `docs/V8_5_0_GAME_TEST_PLAN.md`.
+- Two-PC Discord and in-game tests → test plan, two-PC window.
+- Unlink, reinstall and relink here, including a second character → relink test.
+- Effortless linking (15 findings) → L.
+- Delete the pre-launch season and beta characters → cleanup #419.
+- Crashin's run credit for guildmates; credit players without the addon → #418 + Track J.
+- Dungeon scoring check and Season 2 on 9 December → batch 3 #1.
+- `[Item]` stats from guild chat, and in profession posts → batch 3 #2.
+- Companion self-repair and setup wizard → batch 3 #3.
+- Slimmer companion → batch 3 #4.
+- Google Play at low cost → batch 3 #5.
+- App heat map → M.
+- Call for help: who's in the zone and party invites → batch 3 #7.
+- Always share, no off switches → decisions above, batch 3 #8.
+- Request a craft from the gallery → batch 3 #9.
+- Better profession display → batch 3 #11.
+- Full names on the race board and beta removal → done / #419.
+- `#invitation-guilde` queue, ✅ reactions, remove `#wow-personnage`, DM on the WoW role → batch 3 #13/#14.
+- Version 9.0 → decisions above.
+
 ### Phases after the features
 
 | Phase | State |

@@ -220,6 +220,19 @@ export const addonCalendarEventSchema = z.object({
 
 export type AddonCalendarEvent = z.infer<typeof addonCalendarEventSchema>;
 
+// A raid answer the member gave in game (Sign up / Tentative / Can't on the Signups page, 9.0).
+// `at` is when they clicked: the newer of this and the Discord signup wins (services/signup-answers).
+export const addonSignupAnswerSchema = z.object({
+  raidId: z.string().min(1).max(80).regex(/^[a-zA-Z0-9_-]+$/),
+  character: z.string().min(1),
+  realm: z.string().min(1),
+  status: z.enum(["ACCEPTED", "TENTATIVE", "DECLINED"]),
+  role: z.enum(["TANK", "HEALER", "DPS"]).optional(),
+  at: z.coerce.date()
+});
+
+export type AddonSignupAnswer = z.infer<typeof addonSignupAnswerSchema>;
+
 export type AddonCharacter = z.infer<typeof addonCharacterSchema>;
 
 // An item price an officer set in game (Modules/Loot.lua, when /guilded drop had none).
@@ -250,6 +263,7 @@ export const addonSnapshotSchema = z.object({
   consumeScan: addonConsumeScanSchema.optional(),
   reserves: addonReservesSchema.optional(),
   calendarEvents: z.array(addonCalendarEventSchema).max(100).default([]),
+  signupAnswers: z.array(addonSignupAnswerSchema).max(100).default([]),
   recipes: z.array(addonRecipeSetSchema).max(400).default([]),
   recipeNames: z.record(z.string(), z.string().max(100)).default({}),
   cooldowns: z.array(addonCooldownSetSchema).max(300).default([]),
@@ -286,7 +300,7 @@ export type AddonSnapshot = z.infer<typeof addonSnapshotSchema>;
 const ROW_SCHEMAS = {
   transactions: addonTransactionSchema, epgpTransactions: addonEpgpTransactionSchema, readiness: addonReadinessSchema,
   attunements: addonAttunementSchema, raids: addonRaidSchema, loot: addonLootSchema, characters: addonCharacterSchema,
-  alts: addonCharacterSchema, itemPrices: addonItemPriceSchema, calendarEvents: addonCalendarEventSchema,
+  alts: addonCharacterSchema, itemPrices: addonItemPriceSchema, calendarEvents: addonCalendarEventSchema, signupAnswers: addonSignupAnswerSchema,
   recipes: addonRecipeSetSchema, cooldowns: addonCooldownSetSchema, battlegroundReports: battlegroundReportSchema
 } as const;
 

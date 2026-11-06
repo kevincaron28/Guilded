@@ -181,7 +181,7 @@ export function standingsToLua(data) {
     "-- Upcoming Discord raids (next three weeks): the addon can make in-game calendar events from them.",
     ...((data.raids ?? []).length ? [
       "GuildedRaids = {",
-      ...data.raids.map((raid) => `  { id = ${luaString(raid.id)}, title = ${luaString(raid.title)}, at = ${luaString(raid.at)}, core = ${luaString(raid.core ?? "")}, note = ${luaString(raid.note ?? "")} },`),
+      ...data.raids.map((raid) => `  { id = ${luaString(raid.id)}, title = ${luaString(raid.title)}, at = ${luaString(raid.at)}, core = ${luaString(raid.core ?? "")}, note = ${luaString(raid.note ?? "")}${raidSignupsToLua(raid.signups)} },`),
       "}"
     ] : ["GuildedRaids = nil"]),
     "",
@@ -209,6 +209,15 @@ export function standingsToLua(data) {
     ] : ["GuildedInvites = nil"]),
     ""
   ].join("\n");
+}
+
+// Who is down for a raid (bot raids only): { name, role T/H/D, class, status S/M/W, unix time }, at most 40.
+export function raidSignupsToLua(signups) {
+  if (!Array.isArray(signups) || signups.length === 0) return "";
+  const rows = signups.slice(0, 40)
+    .filter((row) => row && typeof row.name === "string" && row.name)
+    .map((row) => `{ ${luaString(row.name)}, ${luaString(["T", "H", "D"].includes(row.role) ? row.role : "D")}, ${luaString(String(row.class ?? "").replace(/[^A-Z]/g, ""))}, ${luaString(["S", "M", "W"].includes(row.status) ? row.status : "S")}, ${Math.trunc(Number(row.at) || 0)} }`);
+  return rows.length ? `, signups = { ${rows.join(", ")} }` : "";
 }
 
 // Public summary only: never copy signups, character names or officer notes into this feed.

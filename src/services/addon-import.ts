@@ -19,6 +19,7 @@ import { planCalendarSync } from "./calendar-sync.js";
 import { createSelfCharacter } from "./character-pairing.js";
 import { excludeHistoryBeforeReset } from "./import-reset.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { planSignupAnswers } from "./signup-answers.js";
 import { queueCharacterDisplayRefresh } from "./character-display-refresh.js";
 import { assertSnapshotEdition, gameEditionOf } from "./game-edition.js";
 
@@ -379,6 +380,12 @@ export function createAddonImportService(database: PrismaClient) {
         const calendarPlan = await planCalendarSync(tx, guildId, snapshot.calendarEvents,
           characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId })));
 
+        // Raid answers given in game (Signups page): only for the exporter's own characters, applied after
+        // this commits. The latest change wins per member (services/signup-answers).
+        const own = [...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts].map(character => ({ name: character.name, realm: character.realm }));
+        const signupJobs = planSignupAnswers(snapshot.signupAnswers.filter(answer => findCharacter(own, answer.character, answer.realm)),
+          characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId })));
+
         // In-game raid presence -> Discord raid attendance (best effort, like
         // readiness: an unmatched raid or character doesn't block the import).
         const raids = await applyRaidAttendance(tx, guildId, snapshot.raids, characters, appliedBy);
@@ -429,6 +436,7 @@ export function createAddonImportService(database: PrismaClient) {
           }
           await queueCharacterDisplayRefresh(tx, guildId, [...ids]);
         }
+        if (signupJobs.length) await enqueueDiscordJob(tx, guildId, `signup-answers:${imported.id}`, "SIGNUP_ANSWERS", { answers: JSON.parse(JSON.stringify(signupJobs)) });
         if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
         return {
           import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, battlegrounds, duels, milestones, skipped,

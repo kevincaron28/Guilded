@@ -128,6 +128,22 @@ export function linkedAsLua(account) {
   return name ? `GuildedLinkedAs = ${luaString(name)}\n` : "GuildedLinkedAs = nil\n";
 }
 
+// The bot's "ready to promote" list for an OFFICER's addon (Modules/Promotion.lua). Members never receive it.
+export function promotionToLua(promotion) {
+  const ready = Array.isArray(promotion?.ready) ? promotion.ready.filter(name => typeof name === "string" && name && !/[\t\r\n]/.test(name)).slice(0, 100) : null;
+  if (!ready) return ["GuildedPromotion = nil"];
+  const iso = typeof promotion.updatedAt === "string" && !Number.isNaN(Date.parse(promotion.updatedAt)) ? luaString(promotion.updatedAt) : "nil";
+  const days = Number.isInteger(promotion.minDays) && promotion.minDays >= 0 && promotion.minDays <= 3650 ? promotion.minDays : "nil";
+  return [
+    "GuildedPromotion = {",
+    `  updatedAt = ${iso}, fromRank = ${typeof promotion.fromRank === "string" ? luaString(promotion.fromRank.slice(0, 40)) : "nil"}, minDays = ${days},`,
+    "  ready = {",
+    ...ready.map(name => `    ${luaString(name)},`),
+    "  }",
+    "}"
+  ];
+}
+
 export function standingsToLua(data) {
   const rows = data.standings.map((row) =>
     `    { name = ${luaString(row.character)}, ${row.displayName ? `displayName = ${luaString(row.displayName)}, ` : ""}ep = ${Math.trunc(row.ep)}, gp = ${Math.trunc(row.gp)}, main = ${row.main ? "true" : "false"}, account = ${luaString(data.accounts?.[row.character] ?? "")} },`
@@ -172,6 +188,9 @@ export function standingsToLua(data) {
     "-- How each raid core decides loot: the system, set item prices, own-pool standings.",
     ...publicRaidsToLua(data.publicRaids),
     ...lootToLua(data.loot),
+    "",
+    "-- Officers only: who the bot says is ready to promote (the in-game Ready to promote panel).",
+    ...promotionToLua(data.promotion),
     "",
     "-- The next raid's signed-up players (main characters), for /guilded invite raid.",
     ...(data.nextRaid ? [

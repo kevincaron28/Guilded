@@ -141,8 +141,9 @@ Render images with `src/services/score-card.ts` (roster layout) so they match th
   stays one message.
 - **Owner decision (6 November 2026):** default format `Discord name (Main First Last)`, for example
   `kevmister28 (Lebowski Holyroller)`, main only. Discord caps nicknames at 32 characters, so fall back
-  in order: drop the space before `(`, then shorten the Discord name with `…`, then `(First Last)`
-  alone. Alts stay on the Who's who board (bots cannot write Discord's personal member notes).
+  in order: drop the space before `(`, then shorten the last name (`kevmister28(Lebowski H.)`), then
+  first name only (`kevmister28(Lebowski)`); only if that still does not fit, shorten the Discord name
+  with `…`. Alts stay on the Who's who board (bots cannot write Discord's personal member notes).
 
 **C3. Visual guild roster (classes and professions).**
 - Existing: `/guild-health` text (`buildComposition`, level bands, retention); roster dashboard

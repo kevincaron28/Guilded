@@ -21,9 +21,19 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 | E1 online/offline lines | Not seen yet: no guildmate logged in or out during the run. | — |
 | E3 last seen in the Crafted by tooltip | Not run: needs an item that a guild crafter makes. | — |
 
+### Retest after the fixes (candidate `75aa9b2b`, adds #396 C4/C5 and #397 Track K)
+
+| Item | Result |
+| --- | --- |
+| Addon loads | Pass: no Lua warning after the `Bindings.xml` fix. |
+| J bare `/gsos` | Pass: shows "Call for help now?" Yes/No. **No** sends nothing to guild chat. |
+| E2 left-click after Escape | Pass: the first click opens the window. |
+
 ### Learned for the test plan
 - `/chatlog` does not record addon output, so Guilded's lines are checked with zoomed screenshots.
 - WoW Forever's `/quit` returns to the login screen. Restart through Battle.net **Play** instead.
+- Bringing WoW forward with the desktop tool's "open application" **starts a new WoW copy**. Bring the
+  existing window forward through its window handle instead.
 - WoW asks "Allow custom scripts?" for `/run`. That is a game security setting, so it was declined.
   The tests use the real buttons instead.
 

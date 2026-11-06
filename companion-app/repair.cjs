@@ -4,7 +4,7 @@
 // failed. Every side effect comes in through `deps`, so the whole run is tested without Electron.
 // Text is an English key with {0} slots; the window translates it.
 
-const STEPS = ["disk", "folder", "addon", "signin", "link", "sync"];
+const STEPS = ["disk", "settings", "folder", "addon", "signin", "link", "sync"];
 
 /**
  * @param {{
@@ -17,6 +17,7 @@ const STEPS = ["disk", "folder", "addon", "signin", "link", "sync"];
  *   addonDecision: () => Promise<{ action: string, reason: string, blocked?: string }>,
  *   installAddon: () => Promise<{ version: string, backup: string | null }>,
  *   diskSpace?: () => { ok: boolean, freeMb: number | null, neededMb: number },
+ *   settingsSave?: () => { lastError: { message: string, at: string } | null, lastSavedAt: string | null, stuck: { step: string, seconds: number } | null },
  *   signedIn: () => boolean,
  *   me: () => Promise<any>,
  *   syncConfigured: () => boolean,
@@ -38,6 +39,15 @@ async function runRepair(deps) {
       diskLow = true;
       add("disk", "needs-you", "Not enough disk space: {0} MB free, about {1} MB needed. Free space with Windows Settings > Storage, then retry.", disk.freeMb, disk.neededMb);
     } else if (disk) add("disk", "ok", "There is enough free disk space.");
+  }
+
+  // Settings saved on this PC (9.0): a sign-in or folder that only lives in memory is lost at the next start.
+  if (deps.settingsSave) {
+    let save = null;
+    try { save = deps.settingsSave(); } catch { save = null; }
+    if (save?.stuck) add("settings", "failed", "Settings are not being saved: Windows protected storage has not answered for {0} s. Restart Windows, then open the companion again.", save.stuck.seconds);
+    else if (save?.lastError) add("settings", "failed", save.lastSavedAt ? "Settings not saved since {0}: {1}" : "Settings not saved since this start: {1}", save.lastSavedAt ?? "", save.lastError.message);
+    else if (save) add("settings", "ok", "Your settings are saved on this PC.");
   }
 
   // 1. The WoW folder: the watched Guilded.lua's account folder still exists, or find it again.
@@ -66,7 +76,7 @@ async function runRepair(deps) {
     let decision = null;
     try { decision = await deps.addonDecision(); } catch { decision = null; }
     if (!decision || decision.action === "none") {
-      add("addon", "ok", decision?.reason === "up-to-date" ? "The Guilded addon is installed and up to date." : "Nothing to change in the addon.");
+      add("addon", "ok", decision?.reason === "up-to-date" ? (decision.installed && decision.companion ? "The Guilded addon {0} is installed, the version this companion ({1}) uses." : "The Guilded addon is installed and up to date.") : "Nothing to change in the addon.", decision?.installed ?? "", decision?.companion ?? "");
     } else if (diskLow) {
       add("addon", "needs-you", "The Guilded addon needs to be installed or updated. Free some disk space first, then press Repair again.");
     } else if (decision.blocked === "wow-running") {

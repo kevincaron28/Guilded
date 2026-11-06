@@ -15,6 +15,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const KEEP_VERSION_BACKUPS = 3;
+// (9.0) Right after an install the old companion may still be letting go of its files: a settings
+// file that is busy, or reported missing while it is there, is read again a few times.
+const READ_ATTEMPTS = 5;
+const TRANSIENT = new Set(["EBUSY", "EPERM", "EACCES", "EAGAIN", "EMFILE"]);
 
 /** Nothing set up: no sign-in, no saved-data file, no other connection. */
 function isUnset(config) {
@@ -77,7 +81,7 @@ function backupCandidates(file, fsImpl = fs) {
  * }} input
  * @returns {Promise<{ config: Record<string, any>, source: "file" | "backup" | "none" }>}
  */
-async function loadSavedConfig({ store, file, legacyFile, isStore, defaults, version, log, fsImpl = fs }) {
+async function loadSavedConfig({ store, file, legacyFile, isStore, defaults, version, log, fsImpl = fs, sleep = (ms) => new Promise((done) => setTimeout(done, ms)) }) {
   const before = describeFile(file, fsImpl);
   log("info", "Looking for settings in {0}: {1}.", file, before.exists ? `found, ${before.size} bytes, saved ${before.modified}` : "no file");
   if (before.exists) {
@@ -89,7 +93,24 @@ async function loadSavedConfig({ store, file, legacyFile, isStore, defaults, ver
 
   let saved;
   try {
-    saved = isStore ? await store.read(file) : await store.migrate(file, legacyFile);
+    for (let attempt = 1; ; attempt++) {
+      try {
+        saved = isStore ? await store.read(file) : await store.migrate(file, legacyFile);
+      } catch (error) {
+        const code = /** @type {any} */ (error)?.code;
+        if (attempt >= READ_ATTEMPTS || !TRANSIENT.has(code)) throw error;
+        log("warn", "The settings file was busy ({0}); reading it again (try {1} of {2}).", code, attempt + 1, READ_ATTEMPTS);
+        store.forgetUnreadable?.(file);
+        await sleep(attempt * 500);
+        continue;
+      }
+      if (saved === null && attempt < READ_ATTEMPTS && describeFile(file, fsImpl).exists) {
+        log("warn", "The settings file was not readable yet; reading it again (try {0} of {1}).", attempt + 1, READ_ATTEMPTS);
+        await sleep(attempt * 500);
+        continue;
+      }
+      break;
+    }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     log("error", "Your saved settings in {0} ({1} bytes) could not be read: {2}. They were kept as they are; nothing will overwrite them.", file, before.size, reason);
@@ -118,4 +139,15 @@ async function loadSavedConfig({ store, file, legacyFile, isStore, defaults, ver
   return { config: { ...defaults }, source: "none" };
 }
 
-module.exports = { loadSavedConfig, backupBeforeVersion, isUnset, configSummary, describeFile, versionBackupName, KEEP_VERSION_BACKUPS };
+/**
+ * "pid,parentPid" lines for every process with the companion's exe name: how many belong to
+ * another companion. This process and its own Electron helpers (whose parent is this process)
+ * do not count; an older companion and its helpers do.
+ */
+function otherProcessCount(lines, selfPid) {
+  return String(lines).split(/\r?\n/)
+    .map((line) => /^(\d+),(\d+)$/.exec(line.trim()))
+    .filter((match) => match && Number(match[1]) !== selfPid && Number(match[2]) !== selfPid).length;
+}
+
+module.exports = { otherProcessCount, loadSavedConfig, backupBeforeVersion, isUnset, configSummary, describeFile, versionBackupName, KEEP_VERSION_BACKUPS };

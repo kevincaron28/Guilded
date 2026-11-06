@@ -38,6 +38,14 @@
   ; differential downloads. The companion updates itself with the full installer from GitHub
   ; (update-check.cjs), so the copy is never used: remove it.
   RMDir /r "$LOCALAPPDATA\guilded-companion-updater"
+  ; The start the installer launches waits for the old companion to be gone before it reads the
+  ; settings (main.cjs, INSTALLER_MARKER), and says in startup.log that the installer started it.
+  ClearErrors
+  FileOpen $0 "$INSTDIR\launched-by-installer" w
+  ${ifNot} ${Errors}
+    FileWrite $0 "1"
+    FileClose $0
+  ${endIf}
 !macroend
 
 ; Before any file is replaced (9.0 release blocker): the old companion must be fully closed, or the

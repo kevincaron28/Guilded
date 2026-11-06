@@ -165,6 +165,8 @@
   document.addEventListener('companion-language', () => { if (!saving) render(); });
   document.addEventListener('companion-connection-changing', () => { generation++; loading = false; saving = false; data = null; error = ''; render(); });
   document.addEventListener('companion-connection-changed', () => { loading = false; void load(); });
+  // (9.0) A sign-in made the "Not connected: connect your Discord account first" line out of date.
+  document.addEventListener('companion-signed-in', () => { generation++; loading = false; error = ''; void load(); });
   render();
   void load();
 })();

@@ -160,6 +160,8 @@ function createStoreConfig(safeStorage, { timeoutMs = STEP_TIMEOUT_MS, log = () 
       if (decrypted.shouldReEncrypt) await write(file, config);
       return config;
     },
+    /** A busy file is read again: drop the "never overwrite" mark from the failed try. */
+    forgetUnreadable: (file) => { unreadable.delete(file); },
     /** Why this file could not be read, or null. */
     unreadableReason: (file) => unreadable.get(file) ?? null
   };

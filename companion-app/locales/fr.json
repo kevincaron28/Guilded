@@ -1226,5 +1226,20 @@
   "Settings could not be saved: {0}": "Les paramètres n'ont pas pu être enregistrés : {0}",
   "Still showing? Copy the report and send it to the developer, with startup.log from the Guilded Companion folder in %APPDATA%.": "Toujours affiché ? Copiez le rapport et envoyez-le au développeur, avec startup.log du dossier Guilded Companion dans %APPDATA%.",
   "A new Discord sign-in page was opened.": "Une nouvelle page de connexion Discord a été ouverte.",
-  "Then choose your server, press Connect, and come back here.": "Choisissez ensuite votre serveur, appuyez sur Connecter, puis revenez ici."
+  "Then choose your server, press Connect, and come back here.": "Choisissez ensuite votre serveur, appuyez sur Connecter, puis revenez ici.",
+  "Guilded addon {0} is installed": "L'addon Guilded {0} est installé",
+  "It matches this companion. Reinstall it if WoW lists it as missing or out of date; your current folder is kept as a backup.": "Il correspond à ce compagnon. Réinstallez-le si WoW l'indique comme manquant ou périmé; votre dossier actuel est gardé en copie de sauvegarde.",
+  "Reinstall addon": "Réinstaller l'addon",
+  "Repair: {0} fixed, {1} need you, {2} failed.": "Réparation : {0} corrigé(s), {1} à faire par vous, {2} en échec.",
+  "Settings are not being saved: Windows protected storage has not answered for {0} s. Restart Windows, then open the companion again.": "Les paramètres ne sont pas enregistrés : le stockage protégé de Windows ne répond plus depuis {0} s. Redémarrez Windows, puis rouvrez le compagnon.",
+  "Settings not saved since {0}: {1}": "Paramètres non enregistrés depuis {0} : {1}",
+  "Settings not saved since this start: {1}": "Paramètres non enregistrés depuis ce démarrage : {1}",
+  "Your settings are saved on this PC.": "Vos paramètres sont enregistrés sur ce PC.",
+  "The Guilded addon {0} is installed, the version this companion ({1}) uses.": "L'addon Guilded {0} est installé, la version qu'utilise ce compagnon ({1}).",
+  "The settings file was busy ({0}); reading it again (try {1} of {2}).": "Le fichier de paramètres était occupé ({0}); nouvelle lecture (essai {1} sur {2}).",
+  "The settings file was not readable yet; reading it again (try {0} of {1}).": "Le fichier de paramètres n'était pas encore lisible; nouvelle lecture (essai {0} sur {1}).",
+  "Launch: working folder {0}, APPDATA {1}, user {2}, started by the installer: {3}.": "Lancement : dossier de travail {0}, APPDATA {1}, utilisateur {2}, lancé par le programme d'installation : {3}.",
+  "No older companion is running; reading the settings.": "Aucun ancien compagnon n'est en cours d'exécution; lecture des paramètres.",
+  "Waiting for the older companion to close ({0} process(es))...": "Attente de la fermeture de l'ancien compagnon ({0} processus)...",
+  "The older companion is still running after 20 s; reading the settings anyway.": "L'ancien compagnon tourne encore après 20 s; lecture des paramètres quand même."
 }

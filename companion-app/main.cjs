@@ -62,6 +62,31 @@ if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 // (installer.nsh customCheckAppRunning). With no companion running there is nothing to do:
 // never start one from that request.
 const QUIT_FOR_UPDATE = "--quit-for-update";
+// installer.nsh customInstall leaves this file next to the exe for the start it launches.
+const INSTALLER_MARKER = typeof process.execPath === "string" ? path.join(path.dirname(process.execPath), "launched-by-installer") : "";
+let launchedByInstaller = false;
+try { if (INSTALLER_MARKER && fs.existsSync(INSTALLER_MARKER)) { launchedByInstaller = true; fs.rmSync(INSTALLER_MARKER, { force: true }); } } catch { /* diagnostics only */ }
+// How many other Guilded Companion processes of this user run, not counting this one.
+function otherCompanions() {
+  if (process.platform !== "win32") return Promise.resolve(0);
+  const name = path.basename(process.execPath);
+  // Process id and parent id of every process with this exe name: Electron's own helpers (GPU,
+  // network) share the name and are this process's children, so they do not count.
+  const query = "Get-CimInstance Win32_Process -Filter \"Name='" + name.replace(/'/g, "") + "'\" | ForEach-Object { \"$($_.ProcessId),$($_.ParentProcessId)\" }";
+  return new Promise((resolve) => execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", query], { windowsHide: true, timeout: 15_000 }, (error, stdout) => {
+    if (error) return resolve(0);
+    resolve(require("./config-load.cjs").otherProcessCount(String(stdout), process.pid));
+  }));
+}
+async function waitForOtherCompanions() {
+  for (let waited = 0; waited <= 20; waited += 1) {
+    const others = await otherCompanions();
+    if (!others) { pushLog({ time: new Date().toISOString(), level: "info", message: E("No older companion is running; reading the settings.") }); return; }
+    if (waited === 0) pushLog({ time: new Date().toISOString(), level: "info", message: E("Waiting for the older companion to close ({0} process(es))...", others) });
+    await new Promise((done) => setTimeout(done, 1000));
+  }
+  pushLog({ time: new Date().toISOString(), level: "warn", message: E("The older companion is still running after 20 s; reading the settings anyway.") });
+}
 if (args.includes(QUIT_FOR_UPDATE)) { app.exit(0); process.exit(0); }
 
 let win;
@@ -450,7 +475,7 @@ function problems(state) {
 // Guilded, the wrong build, or one older than this companion (companion-app/addon-installer.cjs).
 function addonAction() {
   try {
-    return addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning, wowEnabled: config.wowEnabled !== false });
+    return { ...addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning, wowEnabled: config.wowEnabled !== false }), installed: savedFile?.addon?.version ?? null };
   } catch { return { action: "none", reason: "error" }; }
 }
 let shownProblems = "";
@@ -613,6 +638,10 @@ app.whenReady().then(async () => {
   try {
     try { fs.mkdirSync(app.getPath("userData"), { recursive: true }); fs.writeFileSync(path.join(app.getPath("userData"), "startup.log"), ""); } catch { /* diagnostics only */ }
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Starting Guilded Companion {0} from {1} (packaged: {2}, Store: {3}, data folder: {4}, arguments: {5}).", app.getVersion(), process.execPath, app.isPackaged ? "yes" : "no", STORE_INSTALL ? "yes" : "no", app.getPath("userData"), args.join(" ") || "none") });
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Launch: working folder {0}, APPDATA {1}, user {2}, started by the installer: {3}.", process.cwd(), process.env.APPDATA || "?", process.env.USERNAME || "?", launchedByInstaller ? "yes" : "no") });
+    // Started by the installer (9.0 release blocker): the old companion may still be closing. Wait
+    // until it is gone before reading the settings, so this start reads and saves them normally.
+    if (launchedByInstaller) await waitForOtherCompanions();
     storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage, { log: settingsLog });
     setInterval(noteSaveState, 10_000).unref?.();
     engineModules = await loadEngineModules();
@@ -1198,7 +1227,7 @@ registerIpc("open-addon-download", () => shell.openExternal(engineModules.addonD
 // WoW runs, backs up an existing Guilded folder and puts the new one in AddOns.
 let addonInstalling = false;
 // Throws with the reason; the IPC, Repair and the automatic update word it their own way.
-async function installAddonNow({ refresh = true } = {}) {
+async function installAddonNow({ refresh = true, force = false } = {}) {
   if (addonInstalling) throw new Error(T("The addon is already being installed."));
   addonInstalling = true;
   try {
@@ -1206,7 +1235,7 @@ async function installAddonNow({ refresh = true } = {}) {
     const disk = checkDisk();
     if (!disk.ok) throw new Error(lowDiskMessage(disk));
     const running = process.platform === "win32" ? await wowIsRunning() : false;
-    const result = await addonInstallerModule().installAddon({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: running });
+    const result = await addonInstallerModule().installAddon({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: running, force });
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded addon {0} installed in {1}.", result.version, result.folder) + (result.backup ? " " + E("The previous Guilded folder was moved to {0}.", result.backup) : "") });
     return result;
   } catch (error) {
@@ -1217,15 +1246,17 @@ async function installAddonNow({ refresh = true } = {}) {
     if (engine) onState(engine.state());
   }
 }
-registerIpc("install-addon", async () => {
+registerIpc("reinstall-addon", () => installAddonAnswer(true));
+registerIpc("install-addon", () => installAddonAnswer(false));
+async function installAddonAnswer(force) {
   try {
-    const result = await installAddonNow();
+    const result = await installAddonNow({ force });
     await refreshSavedFile();
     return { ok: true, message: T("Guilded {0} is installed. Start WoW, open AddOns at the character screen, tick Guilded, then log in.", result.version) };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) };
   }
-});
+}
 // Guilded Setup keeps both up to date (owner batch 3 #3): the companion updates itself (direct
 // build, or F5 on the Store) and, once it is newer, the addon follows: an installed Guilded older
 // than this companion is replaced while WoW is closed. At most one try per version every 6 hours;
@@ -1258,7 +1289,8 @@ registerIpc("repair", async () => {
     searchWow: () => searchWow(savedNames(), engineModules.isFolderOnHold, wowSearchOptions()),
     pick: (entries) => pickSavedVariables(entries.filter((entry) => entry.exists)) || pickSavedVariables(entries.filter((entry) => !/beta/i.test(entry.game))),
     setWatchFile: async (file) => { config = { ...config, watchFile: file, wowEnabled: true }; await saveConfig(); await engine?.configure(config); },
-    addonDecision: async () => { await refreshSavedFile(); return addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: process.platform === "win32" ? await wowIsRunning() : false, wowEnabled: config.wowEnabled !== false }); },
+    addonDecision: async () => { await refreshSavedFile(); return { ...addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: process.platform === "win32" ? await wowIsRunning() : false, wowEnabled: config.wowEnabled !== false }), installed: savedFile?.addon?.version ?? null, companion: app.getVersion() }; },
+    settingsSave: () => storeConfig.status(),
     installAddon: () => installAddonNow(),
     diskSpace: () => checkDisk(),
     signedIn: () => Boolean(config.companionCredential),

@@ -30,6 +30,7 @@ import { commandVisibility } from "../services/command-visibility.js";
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { botCanRename } from "../services/nickname-sync.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { archiveForRetire, deleteRetiredChannel, forgetRetirePlan, isManagedChannel, retirePlan } from "../services/channel-retire.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
 import { ensureWelcomePanel, MAX_ONBOARDING_ROLES, rulesGateActive } from "../services/onboarding.js";
 import { isValidTimeZone } from "../services/raid-time.js";
@@ -85,6 +86,8 @@ const STEP_TITLES = [
 const LAST_STEP = 7;
 // The checklist's "use an existing channel for…" choice, until the channel is picked (per guild).
 const pendingField = new Map<string, ChannelField>();
+// "Retire an old channel": picking (true) until a channel is chosen and archived; then confirming (retirePlan).
+const retiring = new Set<string>();
 const SUMMARY_STEP = 8;
 const BG_SETUP_STEP = 9;
 
@@ -163,7 +166,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     officerSyncAt: (await prisma.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }))?.officerSyncAt ?? null,
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
+    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId", "inviteChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
@@ -493,8 +496,16 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       button("create-community", T("Set up community"))
     ));
     // Link an existing channel instead of creating one: pick which, then the channel.
-    const pending = pendingField.get(guildId);
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
+    const plan = retirePlan(guildId);
+    const pending = plan || retiring.has(guildId) ? undefined : pendingField.get(guildId);
+    if (plan) {
+      components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+        button("retire-confirm", T("Delete #{name} for good", { name: plan.name }).slice(0, 80), ButtonStyle.Danger),
+        button("retire-cancel", T("Keep it"), ButtonStyle.Secondary)));
+    } else if (retiring.has(guildId)) {
+      components.push(new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder()
+        .setCustomId("setup:retire-pick").setPlaceholder(T("Pick the old channel to archive and retire")).setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)));
+    } else components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
       .setCustomId("setup:pick-field").setPlaceholder(T("Use an existing channel for..."))
       .addOptions([...ALL_CHANNELS].map((field) => ({
         label: `#${channelSpec(field, lang).name}`.slice(0, 100), value: field,
@@ -510,7 +521,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       button("restart", T("Go through setup again")),
       button("bg-open", lang === "fr" ? "JcJ (facultatif)" : "Battlegrounds (optional)"),
       button("close", T("Close"), ButtonStyle.Primary),
-      button("public-sharing-off", T("Turn public sharing off"), ButtonStyle.Secondary, !settings.publicDungeonRuns)
+      button("public-sharing-off", T("Turn public sharing off"), ButtonStyle.Secondary, !settings.publicDungeonRuns),
+      button("retire", T("Retire an old channel"), ButtonStyle.Secondary, Boolean(plan) || retiring.has(guildId))
     ));
   }
 
@@ -579,7 +591,7 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
 }
 
 export const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
-const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId"];
+const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId", "inviteChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
 export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];
@@ -775,9 +787,12 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
     const ownCategory = layout?.categoryId ? guild.channels.cache.get(layout.categoryId) : undefined;
     const existing = !currentGuildScope()?.permissionRoles && guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText
       && isSetupLeftover(field, candidate.name, candidate.parentId ? guild.channels.cache.get(candidate.parentId)?.name : undefined));
-    const category = existing && spec.category !== "guild" ? null
+    // The guild-invite channel is adopted whatever its category, and its permissions stay the server's own.
+    const adopted = field === "inviteChannelId" && !currentGuildScope()?.permissionRoles
+      ? guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText && channelNames(field).includes(candidate.name)) : undefined;
+    const category = adopted || (existing && spec.category !== "guild") ? null
       : ownCategory?.type === ChannelType.GuildCategory ? ownCategory : await ensureCategory(guild, spec.category, lang);
-    const channel = existing || (spec.forum
+    const channel = existing || adopted || (spec.forum
       ? await guild.channels.create({
         name: spec.name, type: ChannelType.GuildForum, topic: spec.topic, parent: category!.id,
         availableTags: boardTagNames(lang).map((name) => ({ name })),
@@ -787,6 +802,7 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
         name: spec.name, type: ChannelType.GuildText, topic: spec.topic, parent: category!.id,
         ...(overwrites ? { permissionOverwrites: overwrites } : {})
       }));
+    if (adopted?.type === ChannelType.GuildText && adopted.topic !== spec.topic) await adopted.setTopic(spec.topic, `${BRAND.name} /setup`).catch((error: unknown) => guidedFor(`<#${adopted.id}>`, error));
     // Recovered guide/FAQ/signup channels belong to setup too; reapply their
     // documented access so a reused guide cannot keep stale write permissions.
     if (existing && overwrites && "permissionOverwrites" in existing) {
@@ -989,6 +1005,32 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           note = created.length
             ? T("Created {roles}. Offer them in the welcome role buttons (step 5) so members can opt in to group finder pings.", { roles: created.join(", ") })
             : T("All LFG ping roles already exist.");
+        } else if (action === "retire") {
+          retiring.add(guildId); forgetRetirePlan(guildId);
+          note = T("Pick the old channel. Its messages are saved to a file first, and nothing is deleted until you confirm.");
+        } else if (i.isChannelSelectMenu() && action === "retire-pick") {
+          const channelId = i.values[0];
+          const settings = await guildService.getSettings(guildId);
+          const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+          if (!channel || channel.type !== ChannelType.GuildText) note = T("Pick a text channel.");
+          else if (isManagedChannel(settings as Record<string, unknown> | null, channel.id)) note = T("<#{id}> is a channel Guilded uses, so it cannot be retired here.", { id: channel.id });
+          else {
+            const destination = settings?.logChannelId ? await guild.channels.fetch(settings.logChannelId).catch(() => null) : null;
+            const target = destination?.isTextBased() && "send" in destination ? destination : i.channel && "send" in i.channel ? i.channel : null;
+            if (!target) note = T("There is no officer log channel to keep the archive in. Run the full setup first.");
+            else {
+              const made = await archiveForRetire(guild, channel, target);
+              retiring.delete(guildId);
+              note = T("Saved {count} messages of #{name} to a file in <#{where}>. Press the red button to delete the channel for good, or Keep it.", { count: made.archived, name: made.name, where: made.archiveChannelId });
+            }
+          }
+        } else if (action === "retire-cancel") {
+          retiring.delete(guildId); forgetRetirePlan(guildId);
+          note = T("Kept the channel. The archive file stays where it was posted.");
+        } else if (action === "retire-confirm") {
+          retiring.delete(guildId);
+          const outcome = await deleteRetiredChannel(guild, await guildService.getSettings(guildId) as Record<string, unknown> | null, `${BRAND.name} /setup retire, confirmed by ${i.user.tag}`);
+          note = outcome.ok ? T("Deleted #{name}. Its {count} messages are in the archive file.", { name: outcome.name ?? "", count: outcome.archived ?? 0 }) : T("Nothing was deleted: {reason}", { reason: outcome.message });
         } else if (i.isChannelSelectMenu() && action === "ch-pick") {
           const field = pendingField.get(guildId);
           const channelId = i.values[0];

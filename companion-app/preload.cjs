@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("companion", {
   signInReopen: () => ipcRenderer.invoke("sign-in-reopen"),
   signInSwitch: () => ipcRenderer.invoke("sign-in-switch"),
   companionMe: () => ipcRenderer.invoke("companion-me"),
+  repair: () => ipcRenderer.invoke("repair"),
   openInvite: (url) => ipcRenderer.invoke("open-invite", url),
   onSignInRestarted: (callback) => ipcRenderer.on("sign-in-restarted", (_event, started) => callback(started)),
   browseFile: () => ipcRenderer.invoke("browse-file"),

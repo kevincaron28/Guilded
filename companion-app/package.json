@@ -41,7 +41,8 @@
       "sign-in-loopback.cjs",
       "store-update.cjs",
       "addon-installer.cjs",
-      "link-identity.cjs"
+      "link-identity.cjs",
+      "repair.cjs"
     ],
     "extraResources": [
       {

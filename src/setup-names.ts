@@ -7,7 +7,7 @@ import type { Lang } from "./i18n.js";
 
 export type ChannelField = "pugChannelId" | "notifyChannelId" | "raidSignupChannelId" | "raidLogChannelId" | "logChannelId"
   | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "dungeonChannelId"
-  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "attendanceChannelId" | "guideChannelId" | "answerChannelId" | "weeklyReportChannelId";
+  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "attendanceChannelId" | "guideChannelId" | "answerChannelId" | "weeklyReportChannelId" | "inviteChannelId";
 
 // Access: "open" everyone talks; "readonly" everyone reads, only the bot and
 // leadership post (signup channels are read-only too: people use the buttons);
@@ -66,7 +66,8 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
   applicationChannelId: { access: "officers", category: "officers" },
   attendanceChannelId: { access: "officers", category: "officers" },
   answerChannelId: { access: "open", category: "guild" },
-  guideChannelId: { access: "pinned", category: "guild" }
+  guideChannelId: { access: "pinned", category: "guild" },
+  inviteChannelId: { access: "open", category: "guild" }
 };
 
 const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> = {
@@ -87,7 +88,8 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     readinessChannelId: { name: "raid-readiness", topic: "Who is ready for raid night: gear and consumable checks (officers and raid leaders only)" },
     attendanceChannelId: { name: "raid-attendance", topic: "Who was present, late, benched or absent at each raid (officers only), posted with the raid report" },
     applicationChannelId: { name: "raid-applications", topic: "New recruitment applications (officers only): decide on each card, or use /mod application list|view|approve|reject|trial" },
-    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" }
+    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" },
+    inviteChannelId: { name: "guild-invites", topic: "Want in the guild? Write your full in-game character name here (first and last name, for example Lebowski Holyroller). An officer will invite you in game, and the bot adds a ✅ when it is done." }
   },
   fr: {
     pugChannelId: { name: "raids-ouverts", topic: "Places de raid des autres guildes Guilded. Rejoignez le Discord hôte et utilisez son inscription. /raid pug board" },
@@ -106,7 +108,8 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" },
     attendanceChannelId: { name: "presences-raid", topic: "Présents, retards, banc et absents de chaque raid (officiers seulement), publié avec le rapport de raid" },
     applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : décidez sur chaque carte, ou utilisez /mod application list|view|approve|reject|trial" },
-    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Commence ici : utiliser Guilded, installer l’addon WoW et connecter le compagnon" }
+    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Commence ici : utiliser Guilded, installer l’addon WoW et connecter le compagnon" },
+    inviteChannelId: { name: "invitation-guilde", topic: "Envie de joindre la guilde ? Écris ici le nom complet de ton personnage en jeu (prénom et nom, par exemple Lebowski Holyroller). Un officier t’invitera en jeu et le bot ajoute un ✅ quand c’est fait." }
   }
 };
 

@@ -70,7 +70,22 @@ describe("Artisans' Gallery page", () => {
     expect(response.status).toBe(303);
     expect(response.headers["location"]).toContain("requested=posted");
     expect(db.craftRequest.create).toHaveBeenCalledWith({ data: expect.objectContaining({ guildId: "g1", requesterId: "m1", item: "Elixir <of> Power", quantity: 2, profession: "Alchemy" }) });
-    expect(post).toHaveBeenCalledWith("g1", "req1");
+    expect(post).toHaveBeenCalledWith("g1", "req1", undefined);
+  });
+  it("asks one crafter: Request on a crafter row carries the crafter, so the post pings them once", async () => {
+    post.mockClear();
+    const page = await run("/me/artisans?guild=g1&q=elixir");
+    expect(page.body).toContain('name="crafter" value="Ann"');
+    const response = await run("/me/artisans", "POST", { guild: "g1", item: "Elixir <of> Power", profession: "Alchemy", quantity: "1", crafter: "Ann", csrf: "tok" });
+    expect(response.status).toBe(303);
+    expect(post).toHaveBeenCalledWith("g1", "req1", "Ann");
+  });
+  it("offers Details for each item: the id, a link and an honest note when no item source is connected", async () => {
+    const page = await run("/me/artisans?guild=g1&q=elixir");
+    expect(page.body).toContain("<summary>Details</summary>");
+    expect(page.body).toContain("Item ID 7");
+    expect(page.body).toContain("https://www.wowhead.com/classic/item=7");
+    expect(page.body).toContain("▰");
   });
   it("shows a clear error and sends nothing when the request is invalid", async () => {
     const response = await run("/me/artisans", "POST", { guild: "g1", item: "x", quantity: "1", csrf: "tok" });

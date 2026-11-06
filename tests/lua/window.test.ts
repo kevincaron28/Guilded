@@ -697,6 +697,17 @@ describe("minimap button shortcuts (Track E2)", () => {
     expect(s.run(`return #DONE`)).toBe("0");
   });
 
+  it("hides the click catcher when the menu closes by Escape, so the next click reaches the button", () => {
+    const s = setup();
+    click(s, "RightButton");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
+    expect(s.run(`return tostring(MENU.catcher.shown)`)).toBe("true");
+    // Escape hides the frame through UISpecialFrames; the game then runs its OnHide script.
+    s.run(`MENU:Hide(); MENU.scripts.OnHide(MENU)`);
+    expect(s.run(`return tostring(MENU.catcher.shown)`)).toBe("false");
+    expect(click(s, "LeftButton")).toBe("window");
+  });
+
   it("the quick menu lists the pages, and only offers Race to 60 when that page exists", () => {
     const s = setup();
     click(s, "RightButton");

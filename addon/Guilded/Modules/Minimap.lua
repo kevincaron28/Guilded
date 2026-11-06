@@ -2609,6 +2609,9 @@ local function showQuickMenu()
     quickMenu.catcher:SetFrameLevel(1)
     quickMenu.catcher:RegisterForClicks("AnyUp")
     quickMenu.catcher:SetScript("OnClick", hideQuickMenu)
+    -- However the menu closes (Escape, an item, a click elsewhere), the full-screen catcher goes
+    -- with it; otherwise it would swallow the next click on the minimap button.
+    quickMenu:SetScript("OnHide", function() if quickMenu.catcher then quickMenu.catcher:Hide() end end)
     quickMenu.buttons = {}
     if UISpecialFrames then table.insert(UISpecialFrames, "GuildedQuickMenu") end
   end

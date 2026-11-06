@@ -39,6 +39,7 @@ import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
+import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
@@ -741,6 +742,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
       }
       if (!access.officer) {
+        // Guildmates heard in game (level, class, race, professions): applied to already-linked
+        // characters only, never over newer first-hand data (guildmate-relay.ts). Never fails the upload.
+        if (pairedMemberId) {
+          const relayed = await applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot)
+            .catch((error: unknown) => { console.error("Guildmate relay failed", error); return null; });
+          if (relayed && (relayed.updated || relayed.professions)) markGuildChanged(guild.id);
+        }
         const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
         preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned), createdBy);
       }

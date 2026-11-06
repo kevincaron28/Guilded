@@ -397,6 +397,14 @@ local BURST, PER_SECOND, MAX_TRIES = 8, 1, 5
 local MAX_QUEUED = 1024
 local INTERACTIVE_RESERVE = 16
 local LOCKDOWN_RETRY_SECONDS = 5
+local INSTANCE_RETRY_SECONDS = 10
+-- Inside a 5-player dungeon, raid, battleground, arena or scenario (IsInInstance's type).
+local HELD_INSTANCES = { party = true, raid = true, pvp = true, arena = true, scenario = true }
+function util.inInstance()
+  if type(IsInInstance) ~= "function" then return false end
+  local ok, inside, kind = pcall(IsInInstance)
+  return ok and inside == true and HELD_INSTANCES[kind or ""] == true
+end
 -- SendAddonMessage result codes (Enum.SendAddonMessageResult) that mean "try again".
 local THROTTLED = { [3] = true, [8] = true }
 local buckets = {}
@@ -459,6 +467,13 @@ pump = function(prefix)
       for i, candidate in ipairs(b.queue) do if not candidate.interactive then index = i break end end
     end
     local item = b.queue[index]
+    if item.holdInInstance and util.inInstance() then
+      -- Background sync waits outside; FIFO order and the guard are kept for the retry.
+      b.retryAt = b.at + INSTANCE_RETRY_SECONDS
+      b.lastResult, b.lastCode = "held", nil
+      b.results.held = (b.results.held or 0) + 1
+      break
+    end
     local allowed = true
     if item.guard then
       local ok, value = pcall(item.guard)
@@ -502,6 +517,8 @@ end
 -- default lane. Only independent, latency-sensitive messages opt into interactive.
 -- Optional guard is rechecked before every attempt, including throttled retries.
 -- "retry-lockdown" uses the bulk FIFO and retains packets through AddOnMessageLockdown.
+-- "hold-in-instance" does the same and also waits while the player is inside a dungeon, raid,
+-- battleground or arena (guild messages are unreliable there), for background sync only.
 -- A false result or error discards the packet without consuming a send token.
 function comm.send(prefix, text, channel, target, guard, priority)
   if not channel then return false end
@@ -518,8 +535,9 @@ function comm.send(prefix, text, channel, target, guard, priority)
     if b.results.overflow == 1 then diag("SEND", prefix .. ": message queue full; retry sync later") end
     return false
   end
+  local hold = priority == "hold-in-instance"
   table.insert(b.queue, { text = text, channel = channel, target = target, guard = guard,
-    interactive = priority == "interactive", retryLockdown = priority == "retry-lockdown" })
+    interactive = priority == "interactive", retryLockdown = hold or priority == "retry-lockdown", holdInInstance = hold })
   pump(prefix)
   return true
 end

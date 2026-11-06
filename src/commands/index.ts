@@ -29,6 +29,7 @@ import { coreCommand } from "./core.js";
 import { teamCommand } from "./team.js";
 import { inactiveCommand, executeInactive } from "./inactive.js";
 import { exportCommand, executeExport } from "./export.js";
+import { statsFeedCommand, executeStatsFeed } from "./stats-feed.js";
 import { guildHealthCommand, executeGuildHealth } from "./guild-health.js";
 import { pollCommand } from "./poll.js";
 import { statsCommand, executeStats } from "./stats.js";
@@ -123,6 +124,7 @@ const officer = new MergedCommand("officer", "Officers: EPGP, loot, dungeon chal
   { command: dungeonAdminCommand, handler: executeDungeonAdmin, as: "dungeon" },
   { command: characterCommand, handler: executeCharacter, as: "character", only: CHARACTER_OFFICER },
   { command: exportCommand, handler: executeExport, as: "export" },
+  { command: statsFeedCommand, handler: executeStatsFeed, as: "stats" },
   { command: rosterCommand, handler: executeRoster, as: "roster" },
   { command: promotionCommand, handler: executePromotion, as: "promotion" }
 ]).setDescriptionLocalizations({ fr: "Officiers : EPGP, butin, défi des donjons, liens de personnages et exports." });

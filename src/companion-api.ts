@@ -72,6 +72,8 @@ import { prismaAvailabilityStore } from "./services/web-availability-store.js";
 import { createWebAvailability } from "./services/web-availability.js";
 import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
 import { createGuildToolsPages } from "./services/guild-tools-pages.js";
+import { createStatsPage } from "./services/stats-page.js";
+import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
@@ -288,7 +290,7 @@ export function createSiteApp(client?: Client) {
     status: discordUserId => memberLinkStatus(prisma, discordUserId)
   };
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
@@ -438,6 +440,18 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (page) {
         response.writeHead(page.status, page.headers);
         response.end(request.method === "HEAD" ? undefined : page.body);
+        return;
+      }
+      // 8.5 track G: the Google Sheets feed. The key is in the address (IMPORTDATA cannot send headers); it is never logged
+      // here, and a wrong key answers 404 exactly like a missing feed, with the shared failure counter.
+      if (request.method === "GET" && url.pathname === "/api/v1/stats-feed") {
+        const address = clientAddress(request);
+        if (isLockedOut(address)) { json(response, 429, { error: "Too many failed attempts. Try again in a few minutes." }); return; }
+        const guildId = url.searchParams.get("guild") ?? "";
+        if (!await feedAccess(prisma, guildId, url.searchParams.get("key") ?? "")) { recordFailure(address); json(response, 404, { error: "Not found" }); return; }
+        const csv = statsCsv(await recentSnapshots(prisma, guildId, Number(url.searchParams.get("days")) || MAX_FEED_DAYS));
+        response.writeHead(200, { "content-type": "text/csv; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer", "x-robots-tag": "noindex" });
+        response.end(csv);
         return;
       }
       const isImport = request.method === "POST" && url.pathname === "/api/v1/addon-imports";

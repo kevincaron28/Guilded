@@ -142,6 +142,40 @@ describe("call for help: trigger and cooldown", () => {
   });
 });
 
+describe("call for help: confirm and all clear", () => {
+  it("a bare /guilded sos and /gsos show the options and ask, and send nothing", () => {
+    const lua = setup();
+    lua.run(`POPUPS = {}; StaticPopupDialogs = {}; function StaticPopup_Show(name) POPUPS[#POPUPS + 1] = name; return true end`);
+    lua.run(`NS.commandHandlers.sos({})`);
+    lua.run(`SlashCmdList["GUILDEDSOS"]("")`);
+    expect(sentCount()).toBe(0);
+    expect(chat()).toBe("");
+    expect(lua.run(`return table.concat(POPUPS, ",")`)).toBe("GUILDED_CALL_FOR_HELP,GUILDED_CALL_FOR_HELP");
+    expect(msgs()).toContain("/guilded sos now");
+    lua.run(`StaticPopupDialogs.GUILDED_CALL_FOR_HELP.OnAccept()`); // Yes
+    expect(sentCount()).toBe(1);
+  });
+  it("now sends at once, status only shows the options", () => {
+    const lua = setup();
+    lua.run(`NS.commandHandlers.sos({ "status" })`);
+    expect(sentCount()).toBe(0);
+    lua.run(`NS.commandHandlers.sos({ "now" })`);
+    expect(sentCount()).toBe(1);
+    expect(chat()).toContain("[Guilded] Help! Kev");
+  });
+  it("posts an all clear line in guild chat when the call did", () => {
+    const lua = setup();
+    lua.run(`NS.callForHelp.open(); NS.callForHelp.allClear()`);
+    expect(chat().split("\n")).toEqual(["GUILD:[Guilded] Help! Kev is under attack in Duskwood", "GUILD:[Guilded] All clear: Kev is safe."]);
+  });
+  it("posts no all clear line when the call stayed on Guilded", () => {
+    const lua = setup();
+    lua.run(`NS.commandHandlers.sos({ "chat", "off" }); NS.callForHelp.open(); NS.commandHandlers.sos({ "clear" })`);
+    expect(chat()).toBe("");
+    expect(sent()).toMatch(/C\|\d+$/);
+  });
+});
+
 describe("call for help: receiver", () => {
   it("shows the banner and sound to a defender in the same zone and moves the caller's pin", () => {
     const lua = setup();

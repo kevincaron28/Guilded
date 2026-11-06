@@ -116,6 +116,11 @@ if (luaparse) {
   }
 }
 
+// Blizzard loads a binding header once; a repeat raises "Binding header ... loaded more than once".
+const bindingsXml = readFileSync(new URL("Bindings.xml", root), "utf8");
+const bindingHeaders = [...bindingsXml.matchAll(/header="([^"]+)"/g)].map((m) => m[1]);
+if (new Set(bindingHeaders).size !== bindingHeaders.length) throw new Error("Bindings.xml repeats a binding header; only the first binding in a group may carry it");
+
 console.log("Guilded addon static validation passed.");
 // The standalone dungeon addon is built from these files: check it with them.
 await import("../GuildedDungeons/validate-addon.mjs");

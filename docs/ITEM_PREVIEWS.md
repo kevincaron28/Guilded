@@ -1,4 +1,24 @@
-# Discord-only WoW item previews (off by default, not tested live)
+# Discord-only WoW item previews (off until step 0 passes, not yet tested live)
+
+## Step 0 in one command (8.5)
+
+`/guilded-previews test channel:#chat-guilde` (bot owner, home server). The bot creates a TEMPORARY webhook in that
+channel, posts one test embed through the same code path production uses, and deletes the webhook again. Then look at
+the channel (the embed must be there) and at WoW guild chat (it must NOT be there) and press one button:
+
+- **Seen in Discord only: turn previews on** - the bot creates its own permanent webhook (no URL is typed or shown),
+  stores only the encrypted URL and turns previews on for that server. Needs `ITEM_PREVIEW_SECRET`,
+  `MESSAGE_CONTENT_INTENT=true` and the bot's Manage Webhooks in the channel.
+- **It showed in WoW chat: keep off** - nothing is stored.
+
+Either button deletes the test post. While `FEATURE_PREVIEW_GUILD_IDS` is set, previews also act only in those servers.
+
+## Profession posts and the gallery
+
+Profession posts keep one compact line per recipe. Under each post a **Details** menu (first 25 recipes) answers
+privately with the full preview: quality and item id, a Wowhead link for verified item ids (none for enchants), and every
+crafter with last seen. On the Artisans' Gallery page each recipe is one line (name, crafters, best skill, offers) that
+opens with **Details** to the crafter table and the request form.
 
 Implements the offline-safe part of the ROADMAP item "WoW-linked Discord item previews". Blizzard's
 own relay is untouched. **Nothing here has run against Discord or a WoW client.** The feature is inert

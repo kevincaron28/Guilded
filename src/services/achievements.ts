@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { ACHIEVEMENTS, wowLevelCap, type AchievementDef, type AchievementMetric } from "./achievements-catalogue.js";
+import { ACHIEVEMENTS, RETIRED_ACHIEVEMENT_IDS, wowLevelCap, type AchievementDef, type AchievementMetric } from "./achievements-catalogue.js";
 import { anniversariesAttended, serverCreatedAt } from "./server-anniversary.js";
 
 // Evaluates the catalogue against recorded data and stores what a member newly earned. Viewing is the only
@@ -207,7 +207,7 @@ export async function syncMemberAchievements(db: Db, guildId: string, memberId: 
 /** Stored rows only (no evaluation), for the public website. Earliest date wins across a member's guilds. */
 export async function storedAchievements(db: Pick<PrismaClient, "memberAchievement">, where: { memberId?: string; memberIds?: string[]; guildIds?: string[] }): Promise<Map<string, Date>> {
   const rows = await db.memberAchievement.findMany({
-    where: { ...(where.memberId ? { memberId: where.memberId } : {}), ...(where.memberIds ? { memberId: { in: where.memberIds } } : {}), ...(where.guildIds ? { guildId: { in: where.guildIds } } : {}) },
+    where: { key: { notIn: [...RETIRED_ACHIEVEMENT_IDS] }, ...(where.memberId ? { memberId: where.memberId } : {}), ...(where.memberIds ? { memberId: { in: where.memberIds } } : {}), ...(where.guildIds ? { guildId: { in: where.guildIds } } : {}) },
     select: { key: true, earnedAt: true }, take: 2000
   });
   const earned = new Map<string, Date>();

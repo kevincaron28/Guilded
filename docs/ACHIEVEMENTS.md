@@ -1,6 +1,6 @@
 # Achievements and badges
 
-130 rows (122 can be earned; 8 are legacy, see below), computed only from data Guilded already recorded. The MVP-of-the-week ladder (1, 3, 5, 10, 25 weeks) reads the community honors record (`CommunityHonorAward`, kind WEEK). Nothing is self-reported, nothing
+89 rows (catalogue version 7: 9 WoW Forever and 80 guild rows; every one has its own badge glyph), computed only from data Guilded already recorded. The MVP-of-the-week ladder (1, 3, 5, 10, 25 weeks) reads the community honors record (`CommunityHonorAward`, kind WEEK). Nothing is self-reported, nothing
 awards points, and nothing is posted to Discord automatically.
 
 ## Where things live
@@ -20,16 +20,14 @@ awards points, and nothing is posted to Discord automatically.
 
 | Metric | Source |
 | --- | --- |
-| WoW level (per edition) | highest `Character.level` among the member's synced characters of that `gameEdition` |
-| Maximum level / alts (per edition) | characters of that edition at its cap (`WOW_LEVEL_CAP`: forever 60 (fixed, per Blizzard), era 60, TBC 70, Mists 90, retail 90) |
+| WoW level (Forever) | highest `Character.level` among the member's synced characters of that `gameEdition` |
+| Maximum level / alts (Forever) | characters of that edition at its cap (`WOW_LEVEL_CAP`: forever 60 (fixed, per Blizzard), era 60, TBC 70, Mists 90, retail 90) |
 | Dungeon variety | first completion of each distinct dungeon (`DungeonRun.instanceId`) |
-| Profession skill (per edition) | highest `ProfessionSkill.skillLevel` on a character of that edition (Forever and Era 300, TBC 375, Mists 600; Retail has none because its skill is per expansion) |
+| Profession skill (Forever) | highest `ProfessionSkill.skillLevel` on a Forever character (steps 150 and 300) |
 | Dungeon runs | `DungeonRunPlayer` rows of valid, completed `DungeonRun`s |
 | Raids attended | `RaidAttendance` PRESENT, LATE or BENCHED on a COMPLETED, non-test raid |
 | Raid clears | those raids where every `RaidBoss` is KILLED |
 | Active days | distinct days in `CommunityParticipationDay` with messages, reactions or voice |
-| PoE2 level | `PoeLevelReached`, from the member's own client log ("is now level N") |
-| PoE2 maps | distinct `PoeMapVisit` instances |
 | Messages sent | larger of `MemberActivityTotal.messages` and the sum of `CommunityParticipationDay.messages` |
 | Voice hours | larger of `MemberActivityTotal.voiceSeconds` and `CommunityParticipationDay.voiceMs`, in whole hours |
 | Reactions given | larger of `MemberActivityTotal.reactionsGiven` and the participation reaction awards where the member is the actor |
@@ -43,32 +41,40 @@ awards points, and nothing is posted to Discord automatically.
   The public player page and its card only read stored rows. There is no scheduled job.
 - **Idempotent.** `@@unique([guildId, memberId, key])` plus `createMany(skipDuplicates)`; an earned row is
   never changed or removed, so an achievement stays earned if the underlying data later shrinks.
-- **Dates.** Counted achievements use the date of the Nth recorded event; PoE2 levels use the log's own
-  time; WoW levels keep no history, so they are dated when first seen.
+- **Dates.** Counted achievements use the date of the Nth recorded event; WoW levels keep no history, so they are dated when first seen.
 - **Default on.** `GuildSettings.achievementsEnabled` defaults true (existing guilds too, via the migration `20261207000000_achievements_default_on`); it is only a kill switch, with no command yet. The command and website skip a guild where it is false.
 - **No automation.** No DMs, channel posts or points. An announcement would be a separate per-guild opt-in
   (see `docs/archive` and `opt_in_automation`); not built.
 - **Web privacy.** Only members of guilds the site serves (`hostedPilot.allows`), only for public
   profiles; a hidden profile shows nothing publicly.
 
-## WoW achievements per edition
+## WoW Forever achievements
 
-Level, level-cap and profession rows exist once per edition (`wow-<edition>-level-N`, `-alts-3`,
-`-profession-N`; editions `forever`, `classic-era`, `classic-tbc`, `classic-mists`, `retail`) and read only
-characters whose `gameEdition` matches, so a Retail 90 earns nothing for Forever. Levels step by 10 up to the
-edition's cap, so none is unreachable: **WoW Forever is fixed at 60** (Blizzard: growth is horizontal;
-`docs/archive/PRE_RELEASE_AUDIT_2026-10-22.md`), Era 60, TBC 70, Mists 90, Retail 90. There is no Wrath
-edition in Guilded, so no level 80 row. Each edition has its own badge colour and glyph and names itself
-("Forever: Level 40" / "Forever : niveau 40"). The website lists them in one section per edition.
+Catalogue version 7 (8.5.0) holds **only WoW Forever rows and guild rows**. The Forever rows are
+`wow-forever-level-10` to `-60` (every 10 levels up to the cap of 60, fixed per Blizzard: growth is horizontal;
+`docs/archive/PRE_RELEASE_AUDIT_2026-10-22.md`), `wow-forever-alts-3` and `wow-forever-profession-150/300`: 9 rows. They read
+only characters whose `gameEdition` is `forever`, name themselves "Forever: Level 40" / "Forever : niveau 40" and have
+their own badge colour. The generator (`EDITION_ACHIEVEMENTS`) works for any edition listed in
+`CATALOGUE_EDITIONS`; the other editions' level caps and labels stay in the catalogue file.
 
 Dungeon runs, raids, Discord activity and the other guild rows stay common: runs and raid attendance do not
 record an edition, and they describe the guild, not a character.
 
-**Legacy rows.** The first WoW rows ignored the edition (`wow-level-20/40/60/80`, `wow-max-level`,
-`wow-max-level-3`, `profession-150/300`). They are flagged `legacy`: never awarded again, but a row a member
-already earned stays earned (never deleted, never re-announced) and is still listed on the website
-("earlier achievements") and the card. `ACHIEVEMENT_CATALOGUE_VERSION` is 3, so the first hourly pass after
-deploy records what history already earns for the new rows silently in every guild that announces.
+**Retired rows.** `RETIRED_ACHIEVEMENT_IDS` (in `achievements-catalogue.ts`) lists the 58 ids that left the catalogue in
+version 7: the edition-less rows (`wow-level-20/40/60/80`, `wow-max-level`, `wow-max-level-3`, `profession-150/300`), the six
+PoE2 rows (`poe2-level-75/90/99/100`, `poe2-maps-100/500`) and every Classic Era, TBC, Mists and Retail row
+(`wow-<edition>-level-N`, `-alts-3`, `-profession-N`). Never reuse one of these ids. Members' earned
+`MemberAchievement` rows stay in the database untouched, but a retired id is not in `ACHIEVEMENTS`, so nothing
+evaluates, announces, counts or shows it: not `/achievements`, the website (including the stored-rows read, which
+excludes the retired keys), the share and unlock cards, the unlock announcements and the anniversary card's total.
+This holds whatever `ACTIVE_EDITIONS`, `ACTIVE_GAMES` or `ACTIVE_TRACKING` say. `ACHIEVEMENT_CATALOGUE_VERSION` is 7, so
+the first hourly pass after deploy re-baselines every guild that announces, silently.
+
+**Bringing a retired row back.** Re-adding an edition: put it in `CATALOGUE_EDITIONS` and delete its ids from
+`RETIRED_ACHIEVEMENT_IDS`; earned rows show again. PoE2 rows (and the old edition-less rows) were deleted from the
+catalogue: restore their `def(...)` lines from git history (the 8.4.6 version of `achievements-catalogue.ts`), give each a
+glyph in `achievement-badges.ts`, remove the ids from the retired list and bump the catalogue version.
+`tests/achievements.test.ts` fails if an id is both active and retired.
 
 The website tiles are expandable without script (the CSP forbids it): a hidden checkbox plus label, so a tap,
 click or Space toggles the panel; with a mouse, hover or keyboard focus also shows it.
@@ -101,7 +107,9 @@ given and received, and voice seconds. It stores numbers only, never message tex
   already satisfies. A guild that announces is baselined once, silently, by the next hourly pass
   (`GuildSettings.achievementBaselineVersion`); nothing is announced for it until then.
 
-## PoE2 levels
+## PoE2 levels (no achievements for it any more)
+
+The PoE2 level and map achievements are retired (see above); the tracking described here is separate and still switched off.
 
 `PoeLevelReached` is filled through `POST /api/v1/poe/levels`. The companion parses the English
 client line `: Name (Class) is now level N` and uploads it for the character named in its settings,
@@ -114,11 +122,11 @@ not parsed.
 
 ## Badge artwork
 
-Generated from `achievement-badges.ts`: tier picks the frame and metal (bronze circle, silver hexagon, gold shield, platinum octagon, epic spiked star with gem, legendary sunburst with gem; long progressions add rank pips), game picks the plate and glyph colours (WoW blue and gold, guild green, PoE2 ember on dark red), and `GLYPH_BY_ID` picks the glyph. Locked badges are dark greyscale. The same SVG is drawn on the share card and inlined on the website (decorative, with name, tier and status kept as text). All artwork is original.
+Generated from `achievement-badges.ts`: tier picks the frame and metal (bronze circle, silver hexagon, gold shield, platinum octagon, epic spiked star with gem, legendary sunburst with gem; long progressions add rank pips), game picks the plate and glyph colours (WoW Forever violet, guild green), and `GLYPH_BY_ID` picks the glyph. Locked badges are dark greyscale. The same SVG is drawn on the share card and inlined on the website (decorative, with name, tier and status kept as text). All artwork is original.
 
 ## Adding an achievement
 
-Add a row to `ACHIEVEMENTS` and a glyph in `GLYPH_BY_ID` (a test fails without it). Never reuse or rename an id. A new kind of measurement needs a case in
+Add a row to the catalogue and a deliberate glyph in `achievement-badges.ts` (a single id in `SINGLE_GLYPH`, or a new ladder metric in `LADDER_GLYPH`): there is no fallback glyph, and `tests/achievement-badges.test.ts` fails and drawing throws without one. Regenerate the preview sheet with `npx tsx scripts/achievement-badge-sheet.ts` (writes `marketing/achievements-preview/badge-contact-sheet.png`). Never reuse or rename an id. A new kind of measurement needs a case in
 `measure()` and a fact in `gatherAchievementFacts()`.
 
 ## Sharing and announcements

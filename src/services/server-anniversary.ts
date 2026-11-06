@@ -1,6 +1,7 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { serverAnniversaryCard } from "./end-cards.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { RETIRED_ACHIEVEMENT_IDS } from "./achievements-catalogue.js";
 
 // Server anniversaries. The server's birthday is its Discord creation date, which is encoded in the server id
 // (a snowflake), so nothing is configured or stored. Two things use it: the member achievements ("Anniversary
@@ -66,7 +67,7 @@ export async function celebrateServerAnniversary(db: Db, guildId: string, now = 
   const [members, oldest, earned] = await Promise.all([
     db.member.count({ where: { guildId, status: "ACTIVE", isTest: false } }),
     db.member.findMany({ where: { guildId, status: "ACTIVE", isTest: false }, select: { displayName: true, createdAt: true }, orderBy: { createdAt: "asc" }, take: 5 }),
-    db.memberAchievement.count({ where: { guildId } })
+    db.memberAchievement.count({ where: { guildId, key: { notIn: [...RETIRED_ACHIEVEMENT_IDS] } } })
   ]);
   const card = serverAnniversaryCard({ serverName: guild.name, years: due.year, founded, members, achievementsEarned: earned, oldestMembers: oldest }, lang);
   const content = lang === "fr" ? `🎂 **${guild.name}** fête ses ${due.year} ${due.year === 1 ? "an" : "ans"} !` : `🎂 **${guild.name}** turns ${due.year}!`;

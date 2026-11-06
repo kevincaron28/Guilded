@@ -49,31 +49,35 @@ export const GLYPHS = {
   sparkle: `<path d="M12 2c1 5 3 8 8 10-5 2-7 5-8 10-1-5-3-8-8-10 5-2 7-5 8-10z"/>`,
   coin: `<circle cx="12" cy="12" r="9"/><path d="M12 6.500v11M9.500 9.500c0-2 5-2 5 0s-5 2-5 4.500 5 2.500 5 .5"/>`,
   bolt: `<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>`,
+  duel: `<path d="M4 4l9 9M20 4l-9 9M11 15l-2 2 1.500 1.500M13 15l2 2-1.500 1.500M12 21v-3"/><path d="M3 20l3-3M21 20l-3-3"/><circle cx="12" cy="10" r="1.200" fill="currentColor"/>`,
+  medal: `<circle cx="12" cy="15" r="6"/><path d="M8 3l4 7 4-7M12 12l1 2h2l-1.500 1.300.5 2-2-1.200-2 1.200.5-2L9 14h2z"/>`,
   cake: `<path d="M4 20h16v-6H4zM4 14c2 2 4 2 4 0 0 2 4 2 4 0 0 2 4 2 4 0 0 2 4 2 4 0M12 11V8M12 3c1 1.500 1 2.500 0 3.500-1-1-1-2 0-3.500z"/>`
 } as const;
 export type GlyphName = keyof typeof GLYPHS;
 
 // Long progressions share one glyph per metric; the tier frame and the rank pips tell the steps apart.
-const LADDER_GLYPH: Partial<Record<AchievementMetric, GlyphName>> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "skull", duelWins: "swords" };
+// Every ladder metric is listed here on purpose: a new ladder without a glyph fails to compile (and the test below).
+type LadderMetric = "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins";
+const LADDER_GLYPH: Record<LadderMetric, GlyphName> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "medal", duelWins: "duel" };
 const SINGLE_GLYPH: Record<string, GlyphName> = {
-  "wow-level-20": "chevron1", "wow-level-40": "chevron2", "wow-level-60": "chevron3", "wow-level-80": "chevron4",
-  "wow-max-level": "star", "wow-max-level-3": "stars",
-  "profession-150": "hammer", "profession-300": "anvil",
   "dungeon-runs-1": "door", "dungeon-runs-10": "key", "dungeon-runs-25": "torch", "dungeon-runs-50": "swords", "dungeon-runs-100": "crown",
   "dungeon-variety-1": "map", "dungeon-variety-5": "compass", "dungeon-variety-10": "gem", "duel-streak-5": "ascend", "duel-beat-top": "orb",
   "raids-1": "banner", "raids-5": "shield", "raids-10": "horn", "raids-25": "tower", "raids-50": "trophy",
   "raid-clears-1": "sword", "raid-clears-5": "skull", "raid-clears-10": "flame",
-  "active-days-7": "speech", "active-days-30": "calendar", "active-days-100": "heart",
-  "poe2-level-75": "gem", "poe2-level-90": "orb", "poe2-level-99": "ascend", "poe2-level-100": "sun",
-  "poe2-maps-100": "map", "poe2-maps-500": "pin"
+  "active-days-7": "speech", "active-days-30": "calendar", "active-days-100": "heart"
 };
 /** One glyph per achievement id. The test suite requires every catalogue id to appear here. */
 const EDITION_LEVEL_GLYPH: Record<WowEdition, GlyphName> = { forever: "flame", "classic-era": "shield", "classic-tbc": "gem", "classic-mists": "tower", retail: "crown" };
-const editionGlyph = (def: AchievementDef): GlyphName => def.metric === "wowEditionCap" ? "stars" : def.metric === "wowEditionProfession" ? "anvil" : EDITION_LEVEL_GLYPH[def.edition!];
+const editionGlyph = (def: AchievementDef): GlyphName => def.metric === "wowEditionCap" ? "stars" : def.metric === "wowEditionProfession" ? (def.threshold >= 300 ? "anvil" : "hammer") : EDITION_LEVEL_GLYPH[def.edition!];
+const ladderGlyph = (def: AchievementDef): GlyphName => {
+  const glyph = (LADDER_GLYPH as Partial<Record<AchievementMetric, GlyphName>>)[def.metric];
+  if (!glyph) throw new Error(`Achievement ${def.id} has no badge glyph: add its metric to LADDER_GLYPH or its id to SINGLE_GLYPH`);
+  return glyph;
+};
 export const GLYPH_BY_ID: Record<string, GlyphName> = {
   ...SINGLE_GLYPH,
   ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.edition).map(def => [def.id, editionGlyph(def)])),
-  ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.rank && !def.edition).map(def => [def.id, LADDER_GLYPH[def.metric] ?? "star"]))
+  ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.rank && !def.edition && !(def.id in SINGLE_GLYPH)).map(def => [def.id, ladderGlyph(def)]))
 };
 
 // Frame outlines on a 64x64 grid, one per tier: circle, hexagon, shield, octagon, spiked star, sunburst.
@@ -119,7 +123,9 @@ export function badgeInner(def: AchievementDef, earned: boolean): string {
   const gem = def.tier === "epic" || def.tier === "legendary" ? `<circle cx="32" cy="6.500" r="3.200" fill="${earned ? (def.tier === "epic" ? "#ff5ad0" : "#5ae6ff") : "#2a2d33"}" stroke="${edge}" stroke-width="1"/>` : "";
   // Rank pips (one per step of a long progression) under the glyph, so steps in the same tier look different.
   const pips = def.rank ? Array.from({ length: Math.min(def.rank, 10) }, (_, i) => `<circle cx="${(32 + (i - (Math.min(def.rank!, 10) - 1) / 2) * 3.200).toFixed(1)}" cy="49.500" r="1.100" fill="${glyph}"${earned ? "" : ` opacity=".7"`}/>`).join("") : "";
-  const body = GLYPHS[GLYPH_BY_ID[def.id] ?? "star"];
+  const glyphName = GLYPH_BY_ID[def.id];
+  if (!glyphName) throw new Error(`Achievement ${def.id} has no badge glyph`);
+  const body = GLYPHS[glyphName];
   return `<defs><linearGradient id="${id}-m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${m0}"/><stop offset=".5" stop-color="${m1}"/><stop offset="1" stop-color="${m2}"/></linearGradient>`
     + `<linearGradient id="${id}-p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p0}"/><stop offset="1" stop-color="${p1}"/></linearGradient></defs>`
     + `<g fill="url(#${id}-m)" stroke="${edge}" stroke-width="2">${frame}</g>`

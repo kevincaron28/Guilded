@@ -20,14 +20,22 @@ tests prove every surface follows them (`tests/forever-only-focus.test.ts`, `tes
   addresses to Forever), web filters, companion folder detection, the owner season commands' edition choices.
 - **PoE2 tracking**: `/poe` is not registered with Discord, `/help` and the FAQ stop mentioning it, the companion
   hides the PoE2 page, card and settings and never starts the log watcher, the bot answers old companions with
-  "paused" (status says disabled; nothing is stored), PoE2 achievements disappear from the achievements page and cards.
+  "paused" (status says disabled; nothing is stored), PoE2 achievements disappear from the achievements page and cards (see the next section: they are retired outright now).
 - **Still there**: the PoE2 Discord community (channels, roles, event board reminders, seasons, lottery PoE currency)
   and the Quebec Gold PoE2 page.
 
+## Achievements are Forever and guild only (catalogue version 7)
+
+From 8.5.0 the achievement catalogue holds only `wow-forever-*` and guild rows, regardless of the switches above.
+Rows for PoE2, Classic Era, TBC, Mists, Retail and the old edition-less WoW rows are retired
+(`RETIRED_ACHIEVEMENT_IDS` in `src/services/achievements-catalogue.ts`): members' earned rows stay in the database,
+but no surface shows, counts or announces them. Turning an edition or PoE2 tracking switch back on does **not** bring its
+achievements back. See "Bringing a retired row back" in `docs/ACHIEVEMENTS.md`.
+
 ## Turning things back on
 
-1. **An edition**: add its id to `ACTIVE_EDITIONS` (e.g. `[...GAME_EDITIONS]`). Run the tests and release.
-2. **PoE2 tracking**: set `ACTIVE_TRACKING = ["poe2"]`. The bot registers `/poe` on its next start; the companion
+1. **An edition**: add its id to `ACTIVE_EDITIONS` (e.g. `[...GAME_EDITIONS]`). Run the tests and release. To get its achievements back too, also add it to `CATALOGUE_EDITIONS` and remove its ids from `RETIRED_ACHIEVEMENT_IDS`.
+2. **PoE2 tracking**: set `ACTIVE_TRACKING = ["poe2"]` (PoE2 achievements stay retired; restoring them is described in `docs/ACHIEVEMENTS.md`). The bot registers `/poe` on its next start; the companion
    needs a new release; members re-enable it in Settings (their saved choice was kept).
 3. **PoE2 community off** (not requested): remove `"poe2"` from `ACTIVE_GAMES`.
 

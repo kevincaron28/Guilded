@@ -1,9 +1,9 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification, safeStorage, powerMonitor } = require("electron");
+const { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain, dialog, shell, Notification, safeStorage, powerMonitor, clipboard } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawn } = require("node:child_process");
+const { spawn, execFile } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables } = require("./detect-wow.cjs");
+const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables, pickerStart, accountsUnder } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
@@ -112,7 +112,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, activeEditionsModule, activeGamesModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("active-editions.mjs")), import(url("active-games.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")) };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")) };
 }
 
 function pushLog(entry) {
@@ -264,13 +264,42 @@ async function refreshSavedFile() {
   if (engine) onState(engine.state());
 }
 
+// Problems panel (8.5, companion/problems.mjs): what is wrong right now, each with its fix.
+// Whether WoW is open is checked once a minute (tasklist, Windows only).
+let wowRunning = false;
+function checkWowRunning() {
+  if (process.platform !== "win32") return;
+  execFile("tasklist", ["/FO", "CSV", "/NH", "/FI", "IMAGENAME eq Wow*"], { windowsHide: true, timeout: 15_000 }, (error, stdout) => {
+    const running = !error && engineModules.wowRunningFrom(stdout);
+    if (running === wowRunning) return;
+    wowRunning = running;
+    if (engine) onState(engine.state());
+  });
+}
+let online = true;
+function problems(state) {
+  if (typeof engineModules?.companionProblems !== "function") return [];
+  return engineModules.companionProblems({
+    config, state, savedFile, update, version: app.getVersion(), store: STORE_INSTALL, autoUpdate: config.autoUpdate !== false,
+    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online
+  });
+}
+let shownProblems = "";
 function onState(state) {
   refreshUpdate(state);
   const status = health(state);
-  win?.webContents.send("state", { state, health: status, update, savedFile });
+  const found = problems(state);
+  win?.webContents.send("state", { state, health: status, update, savedFile, problems: found });
   if (tray) {
-    tray.setImage(nativeImage.createFromPath(asset(`tray-${status.level}.png`)).resize({ width: 32, height: 32 }));
-    tray.setToolTip(`Guilded Companion\n${M(status.text)}${update ? T("\nUpdate available: {0}", update.version) : ""}${savedFile?.candidate ? T("\nWoW data may have moved: open to check") : ""}`);
+    const icon = found.length && fs.existsSync(asset("tray-problem.png")) ? "tray-problem.png" : `tray-${found.length ? "error" : status.level}.png`;
+    tray.setImage(nativeImage.createFromPath(asset(icon)).resize({ width: 32, height: 32 }));
+    tray.setToolTip(`Guilded Companion\n${found.length ? T("{0} problem(s): open to see how to fix", found.length) + "\n" : ""}${M(status.text)}${update ? T("\nUpdate available: {0}", update.version) : ""}${savedFile?.candidate ? T("\nWoW data may have moved: open to check") : ""}`);
+  }
+  // The red "!" on the taskbar button too, changed only when the list changes.
+  const key = found.map((problem) => problem.id).join(",");
+  if (win && key !== shownProblems) {
+    shownProblems = key;
+    try { win.setOverlayIcon(key ? nativeImage.createFromPath(asset("problem-badge.png")) : null, key ? T("{0} problem(s): open to see how to fix", found.length) : ""); } catch { /* not every Windows shell has overlays */ }
   }
   // An upload means the file changed: refresh its date for the status line.
   if (state.lastUpload?.at && state.lastUpload.at !== lastUploadAt) {
@@ -281,7 +310,7 @@ function onState(state) {
 
 function currentState() {
   const state = engine.state();
-  return { state, health: health(state), update, savedFile };
+  return { state, health: health(state), update, savedFile, problems: problems(state) };
 }
 
 function showWindow() {
@@ -428,7 +457,10 @@ app.whenReady().then(async () => {
   powerMonitor.on("resume", () => { void engine.resume().catch(error => pushLog({ level: "error", time: new Date().toISOString(), message: error.message })); });
   onState(engine.state());
   void refreshSavedFile();
-  setInterval(() => void refreshSavedFile(), 60 * 60 * 1000);
+  // Every 5 minutes: a few file dates, so a /reload that did not save Guilded.lua shows up soon.
+  setInterval(() => void refreshSavedFile(), 5 * 60 * 1000);
+  checkWowRunning();
+  setInterval(checkWowRunning, 60 * 1000);
   // Look for a newer release shortly after start, then every few hours.
   setTimeout(() => void checkForUpdate(), 20_000);
   setInterval(() => void checkForUpdate(), updates.CHECK_INTERVAL_MS);
@@ -798,3 +830,33 @@ registerIpc("open-discord-server", () => {
 });
 registerIpc("open-battlenet", () => shell.openExternal(new URL("/me/battlenet", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));
 registerIpc("recover-sync", () => engine.resume());
+
+// Problems panel: Copy report for the developer. Built here from the allowlisted summary
+// (companion/problems.mjs, companion/sync-status.mjs) and put on the clipboard; the page only
+// shows it. No path, name, server message or credential is in it.
+registerIpc("copy-problem-report", () => {
+  const state = engine.state();
+  const report = engineModules.problemReport({ problems: problems(state), config, state, evidence: state.syncEvidence ?? {}, companionVersion: app.getVersion() });
+  clipboard.writeText(report.text);
+  pushLog({ time: new Date().toISOString(), level: "info", message: E("Report {0} copied for the developer.", report.reference) });
+  return { reference: report.reference, text: report.text };
+});
+registerIpc("open-addon-download", () => shell.openExternal("https://www.curseforge.com/wow/addons/guilded"));
+registerIpc("set-online", (_event, value) => { online = value; if (engine) onState(engine.state()); return true; });
+// Folder picker (8.5, track F3): opens at the WoW install folder and finds the account folders
+// below whatever the member picks. One account: the page fills it in. Several: the member chooses.
+registerIpc("pick-wow-folder", async () => {
+  const start = pickerStart(config.watchFile, detectSavedVariables(savedNames(), engineModules.isFolderOnHold));
+  const result = await dialog.showOpenDialog(win, {
+    title: T("Choose your World of Warcraft folder"),
+    ...(start ? { defaultPath: start } : {}),
+    properties: ["openDirectory"]
+  });
+  if (result.canceled || !result.filePaths[0]) return { canceled: true, accounts: [] };
+  const accounts = accountsUnder(result.filePaths[0], savedNames(), engineModules.isFolderOnHold);
+  const picked = pickSavedVariables(accounts.filter((entry) => entry.exists));
+  return {
+    canceled: false,
+    accounts: accounts.map((entry) => ({ path: entry.path, account: entry.account, game: entry.game, exists: entry.exists, savedAt: entry.modifiedMs ? new Date(entry.modifiedMs).toISOString() : null, suggested: !!picked && picked.path === entry.path }))
+  };
+});

@@ -76,7 +76,9 @@
           "addon-install.mjs",
           "active-editions.mjs",
           "active-games.mjs",
-          "revoke.mjs"
+          "revoke.mjs",
+          "problems.mjs",
+          "sync-status.mjs"
         ]
       },
       {

@@ -11,23 +11,36 @@ const me = (join: unknown = null) => ({ ok: true, account: { username: "kev", di
 const ids = (wizard: ReturnType<typeof linkWizard>) => wizard.steps.map((step) => `${step.id}:${step.state}`);
 
 describe("link wizard steps", () => {
-  it("starts at Discord, then the guild's server, then the characters", () => {
-    expect(ids(linkWizard({}))).toEqual(["discord:current", "server:todo", "characters:todo"]);
-    expect(ids(linkWizard({ config: { companionCredential: "c", personal: true }, me: me() }))).toEqual(["discord:done", "server:current", "characters:todo"]);
-    expect(ids(linkWizard({ config: { companionCredential: "c" }, hub: { characters: [] } }))).toEqual(["discord:done", "server:done", "characters:current"]);
-    const done = linkWizard({ config: { companionCredential: "c" }, hub: { guild: { name: "Québec Gold" }, characters: [{ name: "Ann", displayName: "Ann Smith" }] } });
-    expect(ids(done)).toEqual(["discord:done", "server:done", "characters:done"]);
+  // WoW chosen and the addon fine, so the later steps are in front.
+  const wow = { watchFile: "Guilded.lua" };
+  it("Guilded Setup: WoW and the addon, then Discord, the guild's server, the characters", () => {
+    expect(ids(linkWizard({}))).toEqual(["wow:current", "discord:todo", "server:todo", "characters:todo"]);
+    expect(ids(linkWizard({ config: { wowEnabled: false } }))).toEqual(["wow:done", "discord:current", "server:todo", "characters:todo"]);
+    expect(ids(linkWizard({ config: wow }))).toEqual(["wow:done", "discord:current", "server:todo", "characters:todo"]);
+    expect(ids(linkWizard({ config: { ...wow, companionCredential: "c", personal: true }, me: me() }))).toEqual(["wow:done", "discord:done", "server:current", "characters:todo"]);
+    expect(ids(linkWizard({ config: { ...wow, companionCredential: "c" }, hub: { characters: [] } }))).toEqual(["wow:done", "discord:done", "server:done", "characters:current"]);
+    const done = linkWizard({ config: { ...wow, companionCredential: "c" }, hub: { guild: { name: "Québec Gold" }, characters: [{ name: "Ann", displayName: "Ann Smith" }] } });
+    expect(ids(done)).toEqual(["wow:done", "discord:done", "server:done", "characters:done"]);
     expect(done.current).toBeNull();
   });
 
+  it("step 1 waits for the addon, found from the install folder alone on a fresh PC", () => {
+    const fresh = linkWizard({ savedFile: { addon: { status: "not-installed", expected: "forever", folder: "D:/WoW/_forever_/Interface/AddOns/Guilded" } }, problems: [{ id: "addon-missing" }] });
+    expect(fresh.current).toBe("wow");
+    expect(fresh.setupHelp?.text).toMatch(/puts the Guilded addon in your WoW folder/);
+    expect(fresh.diagnostics.map((check) => `${check.ok ? "ok" : "no"}:${check.text}`)).toEqual(["ok:World of Warcraft is found on this PC", "no:The Guilded addon is installed"]);
+    expect(linkWizard({ savedFile: { addon: { status: "ok" } } }).current).toBe("discord");
+    expect(linkWizard({ config: wow, problems: [{ id: "addon-wrong-edition" }] }).current).toBe("wow");
+  });
+
   it("not in the guild's Discord: Join, then continue by itself once joined", () => {
-    const signed = { companionCredential: "c", personal: true };
+    const signed = { ...wow, companionCredential: "c", personal: true };
     expect(linkWizard({ config: signed, me: me({ serverName: "Québec Gold", inviteUrl: "https://discord.gg/qg", joined: false }) }).join)
       .toMatchObject({ kind: "invite", server: "Québec Gold", inviteUrl: "https://discord.gg/qg" });
     expect(linkWizard({ config: signed, me: me({ serverName: "Québec Gold", inviteUrl: "https://discord.gg/qg", joined: true }) }).join?.kind).toBe("joined");
     expect(linkWizard({ config: signed, me: me({ serverName: "Québec Gold", inviteUrl: null, joined: false }) }).join?.kind).toBe("ask");
     expect(linkWizard({ config: signed, me: me() }).join?.kind).toBe("unknown");
-    expect(linkWizard({ config: { companionCredential: "c" }, me: me() }).join).toBeNull();
+    expect(linkWizard({ config: { ...wow, companionCredential: "c" }, me: me() }).join).toBeNull();
   });
 
   it("shows who is signed in", () => {
@@ -36,17 +49,17 @@ describe("link wizard steps", () => {
   });
 
   it("explains where characters come from and checks each piece", () => {
-    const wizard = linkWizard({ config: { companionCredential: "c", watchFile: "Guilded.lua" }, hub: { characters: [] }, problems: [{ id: "addon-missing" }], state: {} });
+    const wizard = linkWizard({ config: { companionCredential: "c", watchFile: "Guilded.lua" }, hub: { characters: [] }, problems: [{ id: "saved-file-missing" }], state: {} });
     expect(wizard.charactersHelp).toMatchObject({ canDetect: true });
     expect(wizard.diagnostics.map((check) => `${check.ok ? "ok" : "no"}:${check.text}`)).toEqual([
-      "ok:Guilded's server answers", "ok:Your WoW folder is chosen", "no:The Guilded addon is installed", "ok:WoW saved your Guilded data", "no:The companion sent your data"
+      "ok:Guilded's server answers", "ok:Your WoW folder is chosen", "ok:The Guilded addon is installed", "no:WoW saved your Guilded data", "no:The companion sent your data"
     ]);
-    expect(linkWizard({ config: { companionCredential: "c" }, hub: { characters: [] }, problems: [{ id: "bot-unreachable" }] }).diagnostics[0]).toMatchObject({ ok: false });
+    expect(linkWizard({ config: { ...wow, companionCredential: "c" }, hub: { characters: [] }, problems: [{ id: "bot-unreachable" }] }).diagnostics[0]).toMatchObject({ ok: false });
   });
 
   it("the success screen names the characters like the Discord DM, at most 10", () => {
     const characters = Array.from({ length: 12 }, (_, index) => ({ name: `C${index}` }));
-    expect(linkWizard({ config: { companionCredential: "c" }, hub: { guild: { name: "Québec Gold" }, characters } }).success).toEqual({ server: "Québec Gold", names: characters.slice(0, 10).map((c) => c.name), more: 2 });
+    expect(linkWizard({ config: { ...wow, companionCredential: "c" }, hub: { guild: { name: "Québec Gold" }, characters } }).success).toEqual({ server: "Québec Gold", names: characters.slice(0, 10).map((c) => c.name), more: 2 });
     expect(successKey({ guildDiscordId: "111" }, me())).toBe("111:kev");
   });
 
@@ -59,14 +72,16 @@ describe("link wizard steps", () => {
   it("has French for every wizard text", () => {
     const scenarios = [
       linkWizard({}),
-      linkWizard({ config: { companionCredential: "c", personal: true }, me: me({ serverName: "Q", inviteUrl: "https://discord.gg/q", joined: false }) }),
-      linkWizard({ config: { companionCredential: "c", personal: true }, me: me({ serverName: "Q", inviteUrl: null, joined: false }) }),
-      linkWizard({ config: { companionCredential: "c", personal: true }, me: me({ serverName: "Q", inviteUrl: null, joined: true }) }),
-      linkWizard({ config: { companionCredential: "c", personal: true }, me: me() }),
-      linkWizard({ config: { companionCredential: "c" }, hub: { characters: [] }, problems: [{ id: "bot-unreachable" }, { id: "addon-missing" }] })
+      linkWizard({ problems: [{ id: "addon-missing" }] }),
+      linkWizard({ config: wow }),
+      linkWizard({ config: { ...wow, companionCredential: "c", personal: true }, me: me({ serverName: "Q", inviteUrl: "https://discord.gg/q", joined: false }) }),
+      linkWizard({ config: { ...wow, companionCredential: "c", personal: true }, me: me({ serverName: "Q", inviteUrl: null, joined: false }) }),
+      linkWizard({ config: { ...wow, companionCredential: "c", personal: true }, me: me({ serverName: "Q", inviteUrl: null, joined: true }) }),
+      linkWizard({ config: { ...wow, companionCredential: "c", personal: true }, me: me() }),
+      linkWizard({ config: { ...wow, companionCredential: "c" }, hub: { characters: [] }, problems: [{ id: "bot-unreachable" }, { id: "saved-file-missing" }] })
     ];
     for (const wizard of scenarios) {
-      const texts = [...wizard.steps.map((step) => step.label), wizard.join?.text[0], wizard.charactersHelp?.text, ...wizard.diagnostics.flatMap((check) => [check.text, check.fix])];
+      const texts = [...wizard.steps.map((step) => step.label), wizard.join?.text[0], wizard.setupHelp?.text, wizard.charactersHelp?.text, ...wizard.diagnostics.flatMap((check) => [check.text, check.fix])];
       for (const text of texts) if (text) expect(fr[text], text).toBeTypeOf("string");
     }
   });

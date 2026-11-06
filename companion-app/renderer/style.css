@@ -37,3 +37,7 @@ details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summ
 .success-mark { font-size: 56px; line-height: 1; margin: 0; color: var(--green); }
 .success-text { font-size: 18px; }
 .login-location { opacity: .85; }
+.diagnostics li.fixed::before { content: "\2713  "; color: var(--gold); }
+.repair-dialog { min-width: min(560px, 92vw); }
+.repair-dialog .diagnostics li { padding: 6px 0; }
+.nav-web-label { margin-top: 10px; }

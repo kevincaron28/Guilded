@@ -183,7 +183,7 @@ describe("optional battleground installation", () => {
   it("only emits supported, guild-bound buttons and suppresses mentions", () => {
     for (const part of BG_SETUP_PARTS.filter(p => p !== "duels")) for (const lang of ["en", "fr"] as const) {
       const panel = bgSetupPanel(part, "scope", lang);
-      for (const b of panel.components[0]!.components) expect(b.toJSON()).toMatchObject({ custom_id: expect.stringMatching(/^bgui:scope:(create|join|mine|upcoming|history|stats|privacy-help)$/) });
+      for (const b of panel.components[0]!.components) expect(b.toJSON()).toMatchObject({ custom_id: expect.stringMatching(/^bgui:scope:(create|looking|mine|upcoming|history|stats|privacy-help)$/) });
       expect(panel.allowedMentions).toEqual({ parse: [] });
     }
   });

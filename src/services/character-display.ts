@@ -37,6 +37,63 @@ export const GEAR_MAX_AGE_MS = 24 * 60 * 60_000;
 export function characterName(character: { name: string; displayName?: string | null }): string {
   return character.displayName?.trim() || character.name;
 }
+
+// 9.0: full Forever names ("First Last") in every bot message where one is known (owner decision, 6 November 2026).
+// A Forever row can be stored under the first name only while another source (the Character display name, an unlinked
+// guildmate, or the guild roster snapshot) already knows the full name. A FullNameBook is one guild's list of those, keyed
+// by first name; a first name that two different full names share is left alone (ambiguous), and a name is never guessed.
+export interface FullNameBook { fullFor(name: string): string | undefined }
+const squash = (value: string | null | undefined) => (value ?? "").trim().replace(/\s+/g, " ");
+const lowerName = (value: string) => value.normalize("NFC").toLowerCase();
+export const emptyNameBook: FullNameBook = { fullFor: () => undefined };
+
+/** Pure: builds a guild's book from rows that carry a name and maybe a display name (Character, UnclaimedCharacter, GuildRosterEntry). */
+export function fullNameBook(rows: Iterable<{ name?: string | null; displayName?: string | null }>): FullNameBook {
+  const byFirst = new Map<string, Set<string>>();
+  const add = (full: string) => {
+    const first = lowerName(full.split(" ")[0]!);
+    const set = byFirst.get(first) ?? new Set<string>();
+    set.add(full); byFirst.set(first, set);
+  };
+  for (const row of rows) {
+    const name = squash(row.name), display = squash(row.displayName);
+    if (name.includes(" ")) add(name);
+    else if (display.split(" ").length === 2 && lowerName(display.split(" ")[0]!) === lowerName(name)) add(display);
+  }
+  return { fullFor(name: string) {
+    const first = lowerName(squash(name));
+    const set = first && !first.includes(" ") ? byFirst.get(first) : undefined;
+    return set && set.size === 1 ? [...set][0] : undefined;
+  } };
+}
+
+/** Loads one guild's book from the bot's own tables. Never throws: a failed read gives an empty book (stored names are shown). */
+export async function loadFullNameBook(db: { character?: { findMany: (args: never) => Promise<{ name: string; displayName: string | null }[]> }; unclaimedCharacter?: { findMany: (args: never) => Promise<{ name: string; displayName: string | null }[]> }; guildRosterEntry?: { findMany: (args: never) => Promise<{ name: string }[]> } }, guildId: string): Promise<FullNameBook> {
+  try {
+    const [linked, unclaimed, roster] = await Promise.all([
+      db.character?.findMany({ where: { member: { guildId } }, select: { name: true, displayName: true }, take: 5_000 } as never) ?? [],
+      db.unclaimedCharacter?.findMany({ where: { guildId }, select: { name: true, displayName: true }, take: 5_000 } as never) ?? [],
+      db.guildRosterEntry?.findMany({ where: { guildId, inGuild: true }, select: { name: true }, take: 5_000 } as never) ?? []
+    ]);
+    return fullNameBook([...linked, ...unclaimed, ...roster]);
+  } catch { return emptyNameBook; }
+}
+
+/**
+ * The name to show for a character: the full "First Last" when known, else what is stored. Takes a character-like object
+ * or a plain name, plus the guild's book. Any one-word Forever name that the display name, the book, or the roster knows in
+ * full is shown in full; every other name (other editions, realm-qualified, already full) is returned exactly as stored.
+ */
+export function displayCharacterName(character: string | { name: string; displayName?: string | null }, guild: FullNameBook | null | undefined = null): string {
+  const row = typeof character === "string" ? { name: character, displayName: null } : character;
+  const name = squash(row.name);
+  if (!name) return row.displayName?.trim() || row.name;
+  if (name.includes(" ")) return name;
+  const display = squash(row.displayName);
+  const words = display.split(" ");
+  if (words.length === 2 && lowerName(words[0]!) === lowerName(name)) return display;
+  return guild?.fullFor(name) ?? characterName(row);
+}
 const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
 export function canonicalClass(value?: string | null): WowClass | undefined {
   const key = normalized(value ?? "");

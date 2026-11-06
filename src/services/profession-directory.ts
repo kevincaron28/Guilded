@@ -7,6 +7,7 @@ import { findProfessionHolders, professionCoverage } from "./profession-search.j
 import type { Lang } from "../i18n.js";
 import { offerDirectoryText } from "./craft-offers.js";
 import { byLastSeen, lastSeenText } from "./last-seen.js";
+import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { professionPostLinks, updateProfessionPosts } from "./profession-board.js";
 import { professionEmoji, professionLegend, professionName } from "./profession-style.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
@@ -21,12 +22,13 @@ export async function professionDirectoryText(database: Pick<PrismaClient, "prof
   let text = `${header}
 ${professionLegend(lang)}`;
   const coverage = await professionCoverage(database, guildId);
+  const book = await loadFullNameBook(database as never, guildId);
   for (const row of coverage) {
     const holders = await findProfessionHolders(database, guildId, row.profession);
     const recent = [...holders].sort((a, b) => byLastSeen(a.lastSeen, b.lastSeen))[0];
     const link = links.get(row.profession.trim().toLowerCase());
     const crafters = lang === "fr" ? `${row.characters} artisan${row.characters === 1 ? "" : "s"}` : `${row.characters} crafter${row.characters === 1 ? "" : "s"}`;
-    const seen = recent ? ` · ${lang === "fr" ? "vu récemment" : "last seen"}: ${recent.character} (${lastSeenText(recent.lastSeen, lang, now)})` : "";
+    const seen = recent ? ` · ${lang === "fr" ? "vu récemment" : "last seen"}: ${displayCharacterName(recent.character, book)} (${lastSeenText(recent.lastSeen, lang, now)})` : "";
     const line = `\n${professionEmoji(row.profession)} **${professionName(row.profession, lang)}** · ${crafters}${seen}${link ? ` → <#${link}>` : ""}`;
     if (text.length + line.length > 1850) return `${text}\n…`;
     text += line;

@@ -6,6 +6,7 @@ import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { percent } from "./duels.js";
 import { previewAllows } from "./feature-preview.js";
+import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 
 // The battleground LADDER (8.5, track B2): its own message in the ladder channel (`pvp-ladder`, the statistics channel),
 // edited in place, next to the duel ladder. The two never share points: this one counts consented battleground reports only
@@ -59,13 +60,14 @@ export function bgLadderEmbed(data: BgLadderData, lang: Lang, guildId = ""): Emb
   return embed.setFooter({ text: `${BG_LADDER_MARKER} • ${guildId} • ${t(`${data.edition} · player reports, not verified matches · separate from the duel ladder · no points or awards`, `${data.edition} · rapports de joueurs, pas des matchs vérifiés · distinct du classement des duels · aucun point ni récompense`)}`.slice(0, 2048) });
 }
 
-export async function loadBgLadderData(db: Pick<PrismaClient, "battlegroundReport" | "member">, guildId: string, edition: string, now = new Date()): Promise<BgLadderData> {
+export async function loadBgLadderData(db: Pick<PrismaClient, "battlegroundReport" | "member"> & Partial<Pick<PrismaClient, "unclaimedCharacter" | "guildRosterEntry" | "character">>, guildId: string, edition: string, now = new Date()): Promise<BgLadderData> {
   const since = new Date(now.getTime() - DAYS * 86_400_000);
   const groups = await db.battlegroundReport.groupBy({ by: ["memberId", "mode", "bracket", "outcome"], _count: { _all: true },
     where: { guildId, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now },
       member: { guildId, status: "ACTIVE" } } });
-  const members = await db.member.findMany({ where: { id: { in: [...new Set(groups.map(group => group.memberId))] } }, select: { id: true, displayName: true } });
-  const names = new Map(members.map(member => [member.id, member.displayName]));
+  const members = await db.member.findMany({ where: { id: { in: [...new Set(groups.map(group => group.memberId))] } }, select: { id: true, displayName: true, characters: { where: { gameEdition: edition }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 1, select: { name: true, displayName: true } } } });
+  const book = await loadFullNameBook(db as never, guildId);
+  const names = new Map(members.map(member => [member.id, member.characters?.[0] ? displayCharacterName(member.characters[0], book) : member.displayName]));
   return { brackets: bgLadders(groups, names), participations: groups.reduce((sum, group) => sum + group._count._all, 0), edition };
 }
 

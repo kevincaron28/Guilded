@@ -2,7 +2,7 @@ import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message 
 import { prisma } from "../database.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
-import { characterName } from "./character-display.js";
+import { characterName, displayCharacterName, fullNameBook } from "./character-display.js";
 import { guildWhere } from "./guild-scope.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { previewAllows } from "./feature-preview.js";
@@ -57,9 +57,11 @@ export async function loadWhoData(db: Pick<PrismaClient, "member">, guildId: str
     where: { guildId, status: "ACTIVE", isTest: false, characters: { some: { gameEdition: edition } } },
     select: { displayName: true, characters: { where: { gameEdition: edition }, select: { name: true, displayName: true, isMain: true } } }
   });
+  const book = fullNameBook(rows.flatMap((row) => row.characters));
+  const full = (c: { name: string; displayName: string | null }) => displayCharacterName(c, book);
   const people: WhoPerson[] = rows.map((row) => {
     const sorted = [...row.characters].sort((a, b) => Number(b.isMain) - Number(a.isMain) || characterName(a).localeCompare(characterName(b)));
-    return { displayName: row.displayName, main: characterName(sorted[0]!), alts: sorted.slice(1).map(characterName) };
+    return { displayName: row.displayName, main: full(sorted[0]!), alts: sorted.slice(1).map(full) };
   });
   return { people, members: people.length };
 }

@@ -138,6 +138,11 @@ function module.switches()
       set = function(on) local s = settings(); if s then s.chatEventsOfficersOnly = on and true or nil end end
     },
     {
+      label = L("Weekly reminder to get the Windows companion"),
+      get = function() return ns.companionLink and ns.companionLink.enabled() or false end,
+      set = function(on) run(on and "companion on" or "companion off") end
+    },
+    {
       label = L("Show what changed since my last login"),
       get = function() local d = db(); return not (d and d.digest and d.digest.enabled == false) end,
       set = function(on) run(on and "digest on" or "digest off") end

@@ -40,6 +40,7 @@ Modules\RaidBuffCatalog.lua
 Modules\ConsumableData.lua
 Modules\Consumables.lua
 Modules\Digest.lua
+Modules\CompanionLink.lua
 Modules\API.lua
 Modules\Backup.lua
 Modules\History.lua

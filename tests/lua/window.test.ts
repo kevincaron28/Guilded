@@ -706,5 +706,8 @@ describe("minimap button shortcuts (Track E2)", () => {
     s.run(`NS.windowState().tabs[#NS.windowState().tabs + 1] = { name = "Race to 60" }`);
     click(s, "RightButton");
     expect(s.run(`return tostring(#MENU.buttons)`)).toBe("7");
+    s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "help" end }`);
+    click(s, "RightButton");
+    expect(s.run(`return MENU.buttons[#MENU.buttons - 1].text.text`)).toBe("Call for help");
   });
 });

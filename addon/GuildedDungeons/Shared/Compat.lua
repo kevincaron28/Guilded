@@ -220,8 +220,46 @@ local bossCache = {}
 -- Numeric identities work independently of the client's locale.
 local finalBossFallbacks = {
   [36] = 2747,
+  [389] = 2735,  -- Bazzalan, seen in the owner's Ragefire Chasm run of 5 Nov 2026
   [3065] = 3496
 }
+
+-- Forever reports its own encounter ids (Ragefire Chasm 2732-2735, not the Classic Era
+-- 6xx/29xx ids in the sourced catalog), and the ids of most dungeons are not confirmed yet.
+-- A successful final-boss kill is therefore also recognised by NAME inside the matching
+-- instance (English and French, case-insensitive); the instance id comes from the client.
+-- The first run that goes unrecognised is kept in full (see Dungeon.lua recovery) and can
+-- be completed afterwards once its id or name is added here.
+local foreverFinalBossNames = {
+  [389] = { "Bazzalan" },
+  [43]  = { "Mutanus the Devourer", "Mutanus le D\195\169voreur" },
+  [36]  = { "Edwin VanCleef" },
+  [33]  = { "Archmage Arugal", "Archimage Arugal" },
+  [34]  = { "Bazil Thredd" },
+  [48]  = { "Aku'mai" },
+  [129] = { "Amnennar the Coldbringer", "Amnennar le Porte-Froid" },
+  [90]  = { "Mekgineer Thermaplugg", "M\195\169kgin\195\169er Thermaplugg" },
+  [47]  = { "Charlga Razorflank" },
+  [70]  = { "Archaedas" },
+  [3065] = { "Durgen Dirgehammer" }
+}
+
+local function lowerName(value)
+  if type(value) ~= "string" or secret(value) then return nil end
+  return (string.lower(value):gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function foreverFinalName(instanceId, name)
+  local wanted, aliases = lowerName(name), foreverFinalBossNames[instanceId]
+  if not wanted or not aliases then return false end
+  for _, alias in ipairs(aliases) do
+    if lowerName(alias) == wanted then return true end
+  end
+  return false
+end
+
+-- Diagnostic for /guilded dungeon check and run recovery.
+function compat.isForeverFinalBossName(instanceId, name) return foreverFinalName(instanceId, name) end
 
 function compat.isDungeonFinalBoss(instanceId, encounterId, name, difficultyId)
   if ns.dungeonRoutes and not secret(encounterId) and not secret(difficultyId)
@@ -237,6 +275,7 @@ function compat.isDungeonFinalBoss(instanceId, encounterId, name, difficultyId)
       ["High Inquisitor Whitemane"]=true, ["Grande Inquisitrice Blanchet\195\170te"]=true }
     if bosses[name] then return true end
   end
+  if ns.util.isForever() and foreverFinalName(instanceId, name) then return true end
   local boss = ns.util.isForever() and finalBossFallbacks[instanceId] or nil
   if not boss then return false end
   return not secret(encounterId) and tonumber(encounterId) == boss

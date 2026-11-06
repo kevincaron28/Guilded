@@ -1,10 +1,10 @@
-> 8.4.6 (6 November 2026): member ledger sync (#379, on by default), the live Discord duel board and Season 1 dungeon panel (#378), the companion account-folder watch fix (#376), combat-safe addon windows (#377), the compact Crafted by tooltip (#375) and the Forever-only focus (#380, see docs/FOREVER_ONLY_FOCUS.md) on top of 8.4.5's announcements, duels and guild message assistant. The Store requires strictly increasing versions: ship the companion as 8.4.6.0 (revision 0).
-> Next release: **8.5.0**, planned track by track in `ROADMAP.md` (tracks A-H, file ownership and migration timestamps per track). Work one track per session; only the coordinating session bumps the version.
-> Current checkpoint: 6 November 2026 (8.4.6 published; check each provider live before claiming status, including which Store version has certified). Member ledger sync, duels and announcements are not yet verified with several real clients.
+> 8.4.7 (6 November 2026): Forever dungeon final bosses and recovery of abandoned runs (#384), silent auto-update for the direct-download companion with a fixed-name `Guilded.Companion.Setup.exe` release asset (#383) on top of 8.4.6's member ledger sync (#379), live duel board (#378), companion account-folder fix (#376), combat-safe windows (#377), compact Crafted by tooltip (#375) and Forever-only focus (#380, see docs/FOREVER_ONLY_FOCUS.md). The Store requires strictly increasing versions: ship the companion as 8.4.7.0 (revision 0).
+> Next release: **8.5.0**, planned track by track in `ROADMAP.md` (tracks A-I, file ownership and migration timestamps per track). Work one track per session; only the coordinating session bumps the version.
+> Current checkpoint: 6 November 2026 (8.4.7 on GitHub and the bot; CurseForge and the Store still on 8.4.6 or earlier; check each provider live before claiming status, including which Store version has certified). Member ledger sync, duels and announcements are not yet verified with several real clients.
 > Cards: `src/services/score-card.ts` renders every share card (WoW theme, roster layout); `end-cards.ts` builds the raid and battleground cards; queued Discord messages store a card definition and draw it on delivery.
 > Docs: `docs/` holds living guides and design notes plus the 8.3+ release records; point-in-time handoffs, audits and older release notes live in `docs/archive/` (`docs/archive/releases/` for release notes and evidence before 8.3). Archived docs are history, not current status.
 > Latest owner authorization: ALL AVAILABLE TESTING NOW. Native/game testing is assigned to Claude; avoid concurrent desktop control.
-> Release evidence: `docs/V8_4_6_RELEASE_ACCEPTANCE.md` (latest), earlier 8.4.x and `docs/V8_3_0_RELEASE_ACCEPTANCE.md` beside it. Preserve published artifact bytes; never overwrite a published download.
+> Release evidence: `docs/V8_4_7_RELEASE_ACCEPTANCE.md` (latest), earlier 8.4.x and `docs/V8_3_0_RELEASE_ACCEPTANCE.md` beside it. Preserve published artifact bytes; never overwrite a published download.
 > Keep selected edition calendars unchanged ([EDITION_CALENDARS_2026-10-30.md](docs/EDITION_CALENDARS_2026-10-30.md)).
 > No automatic messages/awards without configured opt-in. Exception (owner decision, 5 November 2026): the addon's guild-chat milestone announcements (levels, first dungeon clears, PvP and duel milestones) are ON by default for members, after a one-time local notice; members turn them off with `/guilded announce off`, and an officer's guild-wide off switch wins. Discord echoes of them stay opt-in per server. Second exception (owner decision, 6 November 2026): a member gets one Discord DM confirming which characters were linked after their first companion link (skipped quietly when DMs are closed).
 
@@ -18,9 +18,10 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (6 November 2026): version 8.4.6, protocol 2.**
-8.4.6 is published (GitHub, CurseForge Forever-only, bot deployed; Store in certification at
-publication time). WoW Forever launched 4 November 2026; its first raids open 9 December.
+**Current status (6 November 2026): version 8.4.7, protocol 2.**
+8.4.7 is on GitHub (latest release) and the bot. CurseForge has the 8.4.6 Forever files; the
+Store has 8.4.4.0 live with 8.4.6.0 in certification. Check each provider live before claiming
+status. WoW Forever launched 4 November 2026; its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
 Both addons keep Forever, Era, TBC, Mists and Retail builds in source, but only Forever is shown
 to members (`companion/active-editions.mjs`). Message earning covers accessible guild

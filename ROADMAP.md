@@ -2,7 +2,7 @@
 
 ## Current stage — 6 November 2026
 
-Guilded **8.4.6** is published; the next release is 8.5.0 (planned below).
+Guilded **8.4.7** is published on GitHub and the bot (Forever dungeon final-boss fix and the self-updating direct-download companion); the next release is 8.5.0 (planned below).
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Forever is the only active edition and PoE2 is hidden ([Forever-only focus](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
@@ -333,6 +333,20 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
 ---
 
 ## Carried over (still open from 8.4)
+
+- **8.4.7 distribution** (GitHub v8.4.7 and the bot at `06f12f1` are live):
+  - CurseForge: upload the `Guilded-v8.4.7-forever.zip` (project 1712677, display name
+    "Guilded 8.4.7 (WoW Forever)") and `GuildedDungeons-v8.4.7-forever.zip` (1754138). Both are in
+    `C:\Users\Kev\Desktop\guilded-release-8.4.7\`. Game version 1.60.1 only, release type Release.
+  - Microsoft Store: after Submission 11 (8.4.6.0) certifies, submit
+    `Guilded.Companion.8.4.7.x64.STORE-SUBMISSION.msix` (8.4.7.0); upload trick in the
+    `release-8-4-6` memory note.
+  - Site pointer PR #388 (releases.json → 8.4.7): its Cloudflare preview build failed; rerun, then merge.
+  - Existing direct-download companions need one manual update to reach the self-updating 8.4.7.
+- **Dungeons:** unknown Forever final bosses log `DUNGEON_FINAL_UNMATCHED`. Add their ids as they
+  appear. For 8.5 the owner leans toward **dungeon Season 2 on current-v2 rules** (Season 1 stays
+  current-v1; the level-60 Best 8 is implemented but inactive). This needs a decision on the start
+  date before it is built.
 
 - **WoW-linked Discord item previews** in the Blizzard-linked guild chat channel: built off by
   default (`docs/ITEM_PREVIEWS.md`, `src/services/item-preview.ts`); webhook posting and non-echo

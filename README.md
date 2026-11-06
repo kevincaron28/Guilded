@@ -15,11 +15,10 @@ Free for noncommercial use ([license](LICENSE)).
 Every in-game and Discord command, and who can run it, is in [COMMANDS.md](COMMANDS.md).
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
-Latest release: **8.4.6**: guildmates now share the ledger with each other (on by default), a live
-duel board in Discord, a companion fix for members whose companion watched a character folder,
-no more blocked actions in combat, a compact "Crafted by" tooltip, and a Forever-only focus
-(other WoW editions and PoE2 tracking are hidden). See the
-[release notes](docs/V8_4_6_RELEASE_NOTES.md) and [acceptance checklist](docs/V8_4_6_RELEASE_ACCEPTANCE.md).
+Latest release: **8.4.7**: Forever dungeon runs now complete and count (and runs you already did with a
+final-boss kill are recovered after updating), and the directly downloaded companion now updates itself.
+8.4.6 added member ledger sync, the live duel board and the Forever-only focus. See the
+[release notes](docs/V8_4_7_RELEASE_NOTES.md) and [acceptance checklist](docs/V8_4_7_RELEASE_ACCEPTANCE.md).
 Check each channel for its version: the Microsoft Store companion updates separately after certification.
 
 ## Quick start
@@ -34,7 +33,7 @@ Check each channel for its version: the Microsoft Store companion updates separa
 - **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 8.4.6** (6 November 2026, protocol 2). [Release notes](docs/V8_4_6_RELEASE_NOTES.md) and [acceptance record](docs/V8_4_6_RELEASE_ACCEPTANCE.md).
+**Current version: 8.4.7** (6 November 2026, protocol 2). [Release notes](docs/V8_4_7_RELEASE_NOTES.md) and [acceptance record](docs/V8_4_7_RELEASE_ACCEPTANCE.md).
 Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
 across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).

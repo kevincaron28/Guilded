@@ -1,4 +1,4 @@
-import { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, type StringSelectMenuInteraction, type Guild as DiscordGuild, MessageFlags } from "discord.js";
+import { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, type StringSelectMenuInteraction, type Guild as DiscordGuild, type Message, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang, t } from "../i18n.js";
 import { formatLeaderboard, leaderboard } from "./dungeon-stats.js";
@@ -11,6 +11,18 @@ import { dungeonRating, hasDungeonRating, ratingEmbed } from "./dungeon-rating.j
 
 const guildService = createGuildService(prisma);
 export const DUNGEON_SEASON_SELECT = "dseason:choose";
+
+// Titles the bot has used for dungeon panels in this channel over time (beta scoring guide, rating and
+// participation boards, past-season blocks). A bot message with one of them that is not the live board is outdated.
+const PANEL_TITLE = /comment les points fonctionnent|how points work|^\W*(Exploration|Points de participation|Participation points)|Meilleures tentatives|Best runs|Saison passée|Past season/i;
+const isPanelMessage = (message: Pick<Message, "author" | "embeds" | "content">, botId: string) =>
+  message.author.id === botId && message.embeds.some(embed => PANEL_TITLE.test(embed.title ?? "") || PANEL_TITLE.test(embed.fields?.[0]?.name ?? ""));
+
+/** The season line on top of the board: it names the season in progress, so a new season is visible at a glance. */
+export function seasonHeader(season: { name: string; startsAt: Date }, lang: "fr" | "en"): string {
+  const when = `<t:${Math.floor(season.startsAt.getTime() / 1000)}:D>`;
+  return lang === "fr" ? `📅 Saison en cours : **${season.name}** · depuis le ${when}` : `📅 Current season: **${season.name}** · since ${when}`;
+}
 
 export async function handleDungeonSeasonSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!interaction.guild) return;
@@ -61,7 +73,9 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
     const embed = new EmbedBuilder()
       .setColor(0xd4a017)
       .setTitle(t(lang, "dungeon.board.season", { season: season?.name ?? "Season 1" }))
-      .setDescription(rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty"))
+      .setDescription(`${seasonHeader(season, lang === "fr" ? "fr" : "en")}
+
+${rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty")}`.slice(0, 4096))
       .setTimestamp(new Date());
     const seasons = await prisma.dungeonSeason.findMany({ where: { guildId: guild.id }, orderBy: { startsAt: "desc" }, take: 25 });
     for (const past of seasons.filter((row) => row.status === "ENDED").slice(0, 3)) {
@@ -80,15 +94,24 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
     if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setDescription("/dungeon leaderboard metric:participation");
     const payload = { embeds: rating ? [rating, best, embed] : [embed, best], components, allowedMentions: { parse: [] as never[] } };
 
-    const existing = settings.dungeonLeaderboardMessageId
+    const botId = discordGuild.client.user?.id ?? "";
+    const saved = settings.dungeonLeaderboardMessageId
       ? await channel.messages.fetch(settings.dungeonLeaderboardMessageId).catch(() => null)
       : null;
+    // Other dungeon panels the bot left in this channel (an older board, the beta scoring guide). Only the bot's
+    // own messages with a known panel title are ever touched.
+    const older = [...(await channel.messages.fetch({ limit: 50 }).catch(() => null))?.values() ?? []]
+      .filter(message => message.id !== saved?.id && isPanelMessage(message, botId));
+    // A saved message that is gone is replaced by the newest older panel (edited in place), not by a new post.
+    const existing = saved?.author.id === botId ? saved : older.shift() ?? null;
+    let keep: Message;
     if (existing?.editable) {
-      await existing.edit(payload);
+      keep = await existing.edit(payload);
     } else {
-      const sent = await channel.send(payload);
-      await guildService.updateSettings(guild.id, { dungeonLeaderboardMessageId: sent.id });
+      keep = await channel.send(payload);
     }
+    if (keep.id !== settings.dungeonLeaderboardMessageId) await guildService.updateSettings(guild.id, { dungeonLeaderboardMessageId: keep.id });
+    for (const message of older) if (message.id !== keep.id && message.deletable) await message.delete().catch(() => undefined);
     return true;
   } catch (error) {
     console.error("Failed to update dungeon leaderboard", error);

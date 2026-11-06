@@ -1,3 +1,4 @@
+import { armoryMarkdown } from "../services/armory-link.js";
 import { characterName } from "../services/character-display.js";
 import { selectedCharacter } from "../services/character-match.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
@@ -99,7 +100,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     await interaction.reply({
       content: characters.length === 0
         ? "You have no linked characters."
-        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${characterName(character)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}`).join("\n"),
+        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${characterName(character)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}${armoryMarkdown(character) ? ` · ${armoryMarkdown(character)}` : ""}`).join("\n"),
       flags: MessageFlags.Ephemeral
     });
     return;

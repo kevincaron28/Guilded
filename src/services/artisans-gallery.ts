@@ -1,3 +1,4 @@
+import { armoryAnchor } from "./armory-link.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import { createCraftService } from "./craft.js";
@@ -149,7 +150,7 @@ export function createArtisansGallery(deps: GalleryDeps) {
 <button class="button" type="submit">${t("Request this craft", "Demander cette fabrication")}</button></form>`;
         return `<article class="card"><h3${color ? ` style="color:${color}"` : ""}>${h(recipe.itemName)} <small class="muted">#${recipe.itemKey}</small></h3>${offers}<div class="table-wrap"><table><thead><tr><th scope="col">${t("Crafter", "Artisan")}</th><th scope="col">${t("Profession", "Métier")}</th><th scope="col">${t("Skill", "Compétence")}</th><th scope="col">${t("Last seen", "Dernière présence")}</th></tr></thead><tbody>${rows}</tbody></table></div>${form}</article>`;
       }));
-      const crafterCards = data.crafters.map(person => `<article class="card"><h3>${h(person.character)}${person.member && person.member.toLowerCase() !== person.character.toLowerCase() ? ` <small class="muted">(${h(person.member)})</small>` : ""}</h3>
+      const crafterCards = data.crafters.map(person => `<article class="card"><h3>${h(person.character)}${armoryAnchor({ name: person.character, gameEdition: guild.edition }, t)}${person.member && person.member.toLowerCase() !== person.character.toLowerCase() ? ` <small class="muted">(${h(person.member)})</small>` : ""}</h3>
 <p>${person.professions.map(entry => `${h(entry.profession)} ${entry.skill ?? "—"}`).join(" · ") || "—"}</p><p>${t("Last seen", "Dernière présence")}: ${seen(person.lastSeen)} · ${t("Recipes", "Recettes")}: ${person.recipeCount}</p>
 ${person.notable.length ? `<p>${t("Notable recipes", "Recettes notables")}: ${person.notable.map(h).join(", ")}</p>` : ""}${person.cooldownsReady.length ? `<p>${t("Cooldowns ready", "Délais prêts")}: ${[...new Set(person.cooldownsReady)].map(h).join(", ")}</p>` : ""}</article>`).join("");
       const body = `<h1>${title}</h1><p><strong>${h(guild.name)}</strong> · ${h(guild.edition)} · <a href="${h(link(GALLERY_PATH, lang))}">${t("Choose another guild", "Choisir une autre guilde")}</a></p>`

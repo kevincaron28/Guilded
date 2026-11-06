@@ -61,6 +61,20 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 - Startup log: setup complete for High Guard, Québec Gold and Kevmister28's server. No new errors; the `[diagnostic:…]` warnings after startup are the same as on earlier restarts.
 - Rollback: `/opt/guilded.previous.A5ACpyhx`, plus the recovery directory above.
 
+## Discord checks on the test server (preview bot, main-PC tester, 6 November 2026)
+
+| Item | Result |
+| --- | --- |
+| `/setup start` wizard | Runs through all 7 steps; one stray "This interaction failed" at step 5 |
+| PvP category, race-to-60 channel | **FAIL (bug):** not created when the server has no member role; `battleground-setup.ts:125` refuses. Sent to Track B (fallback to @everyone). |
+| Member role picker (step 6) | **FAIL (bug):** "This interaction failed", the choice is not saved. Sent to Track B. |
+| Duel and battleground ladders, Who's who, nickname format | Not tested: blocked by the bugs above, and the test server has no linked characters yet |
+| `/character nickname on:false` | Pass |
+| `/officer roster gaps` | Partial: lists members with no linked character and offers "Ask them to link"; no `/ginvite` lines without roster data |
+| `/character achievements` | Pass: 0/89, Forever 0/9 and guild 0/80 counters |
+| `/officer promotion list` | Pass: three empty lists |
+| Roster card | Pass: the command is `/report guild`; the docs said `/guild-health` |
+
 ## Still to do
 - Full test suite on the merged candidate (running).
 - Track K merge, then the two-PC window ([test plan](V8_5_0_GAME_TEST_PLAN.md)).

@@ -28,9 +28,11 @@
     "path": "features/",
     "title": "Guilded features — addon, Windows companion and Discord",
     "description": "Use Guilded in game, sync WoW standings with the Windows companion, edit wishlists and explore your personal PoE2 mapping journal.",
+    "descriptionNoPoe": "Use Guilded in game, sync WoW standings with the Windows companion and edit wishlists.",
     "lang": "en",
     "draft": false,
-    "descriptionFr": "Utilisez Guilded en jeu, synchronisez les classements WoW avec le compagnon Windows, modifiez vos souhaits et consultez votre journal PoE2."
+    "descriptionFr": "Utilisez Guilded en jeu, synchronisez les classements WoW avec le compagnon Windows, modifiez vos souhaits et consultez votre journal PoE2.",
+    "descriptionFrNoPoe": "Utilisez Guilded en jeu, synchronisez les classements WoW avec le compagnon Windows et modifiez vos souhaits."
   },
   {
     "source": "officers.md",
@@ -72,6 +74,7 @@
   },
   {
     "source": "poe2.md",
+    "requiresGame": "poe2",
     "path": "quebec-gold/poe2/",
     "title": "Quebec Gold — communauté francophone Path of Exile 2",
     "description": "Retrouvez Quebec Gold sur Path of Exile 2 à chaque nouvelle ligue : communauté francophone, heure de Montréal et contact Discord.",

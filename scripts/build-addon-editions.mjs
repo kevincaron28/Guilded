@@ -6,6 +6,7 @@ import { TextDecoder, TextEncoder } from "node:util";
 import { zipSync, unzipSync } from "fflate";
 import luaparse from "luaparse";
 import { GAME_EDITIONS, editionFromInterface } from "../companion/game-edition.mjs";
+import { activeEditions } from "../companion/active-editions.mjs";
 import { check } from "./build-dungeons-addon.mjs";
 import { releaseMetadata } from "./release-metadata.mjs";
 import { releaseSource } from "./release-source.mjs";
@@ -47,10 +48,15 @@ export function packageEdition(addon, edition, api = EDITION_INTERFACES[edition]
   return {filename:`${addon}-v${version}-${edition}.zip`,packed,version,edition,interface:api,sha256:createHash("sha256").update(packed).digest("hex")};
 }
 
+// Forever-only focus (companion/active-editions.mjs): a release builds, and so publishes, only the active editions.
+// `--all-editions` builds every edition (build checks, or when the other editions come back). Files that are
+// already published for other editions are never touched or removed.
+export const editionsToBuild = (args = []) => args.includes("--all-editions") ? [...GAME_EDITIONS] : activeEditions();
+
 export function buildEditionPackages(args=process.argv.slice(2)) {
   check();
   const apis={...EDITION_INTERFACES};
-  for(const arg of args) {
+  for(const arg of args.filter(arg=>arg!=="--all-editions")) {
     const match=/^--interface=([a-z-]+):(\d+)$/.exec(arg);
     if(!match || !GAME_EDITIONS.includes(match[1])) throw new Error(`Unknown argument: ${arg}`);
     apis[match[1]]=Number(match[2]);
@@ -59,11 +65,11 @@ export function buildEditionPackages(args=process.argv.slice(2)) {
   const sourceState=releaseSource();
   if(process.env.CI && sourceState.sourceDirty) throw new Error(`CI packaging changed source: ${[...sourceState.changedPaths,...sourceState.untrackedPaths].join(", ")}`);
   const manifest={sourceCommit:sourceState.sourceCommit,dirty:sourceState.sourceDirty,clientAcceptance:"pending",packages:[]};
-  for(const edition of GAME_EDITIONS) for(const addon of ["Guilded","GuildedDungeons"]) {
+  for(const edition of editionsToBuild(args)) for(const addon of ["Guilded","GuildedDungeons"]) {
     const {packed,...record}=packageEdition(addon,edition,apis[edition]);
     writeFileSync(join(dir,record.filename),packed); manifest.packages.push(record);
   }
   writeFileSync(join(dir,"manifest.json"),JSON.stringify(manifest,null,2)+"\n");
-  console.log(`Built and verified ${manifest.packages.length} edition packages in ${dir}. Client acceptance remains pending.`);
+  console.log(`Built and verified ${manifest.packages.length} edition packages in ${dir} (${editionsToBuild(args).join(", ")}). Client acceptance remains pending.`);
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)) buildEditionPackages();

@@ -1,8 +1,11 @@
 import { randomInt } from "node:crypto";
+import { POE_ENABLED } from "../../companion/active-games.mjs";
 import { z } from "zod";
 
 // A game is a plain string in the database: adding one here (and a label below) needs no migration.
 export const COMMUNITY_GAMES = ["DISCORD", "WOW", "POE2", "DIABLO2", "DIABLO4", "OTHER"] as const;
+// Forever-only focus (companion/active-games.mjs): the games a new season may pick. Saved seasons of a held game still work.
+export const offeredCommunityGames = (poe = POE_ENABLED): (typeof COMMUNITY_GAMES)[number][] => COMMUNITY_GAMES.filter(game => poe || game !== "POE2");
 export type CommunityGame = (typeof COMMUNITY_GAMES)[number];
 export const COMMUNITY_GAME_LABELS: Record<CommunityGame, { en: string; fr: string }> = {
   DISCORD: { en: "Discord", fr: "Discord" },

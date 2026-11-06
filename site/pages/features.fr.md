@@ -31,7 +31,7 @@ Une application Windows gratuite, facultative pour l’addon seul mais nécessai
 
 - **Liste de souhaits :** vos objets recherchés.
 - **Cores et prix :** règles, rosters et prix des objets, pour les responsables de raid.
-- **Path of Exile 2 :** un journal personnel des zones de cartes visitées.
+- **Path of Exile 2 :** un journal personnel des zones de cartes visitées. <!--poe-->
 
 Vos permissions Discord déterminent ce que vous pouvez consulter ou modifier.
 

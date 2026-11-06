@@ -1,9 +1,10 @@
+import { poeTrackingOn } from "./active-games.mjs";
 // Presentation readiness only. The engine remains authoritative for uploads and permissions.
 export function companionOverview(config = {}, state = {}) {
   const linked = Boolean(config.companionCredential);
   const wowEnabled = config.wowEnabled !== false;
   const wowFile = wowEnabled && Boolean(state.watching || config.watchFile);
-  const poeFile = Boolean(config.poeEnabled && config.poeLogFile);
+  const poeFile = Boolean(poeTrackingOn(config) && config.poeLogFile);
   const selectedFiles = Number(wowFile) + Number(poeFile);
   const paused = linked && !state.running;
   const phases = { "waiting-save": "Waiting for a game save", uploading: "Uploading saved data", synced: "Saved data synced", "officer-review": "Waiting for officer review", "apply-error": "Uploaded; server action needed", retry: "Connection interrupted; retrying", "needs-attention": "Connection needs attention" };

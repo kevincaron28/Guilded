@@ -1,4 +1,5 @@
 import { currentEdition, withEdition } from "./edition-context.js";
+import { isEditionActive } from "../../companion/active-editions.mjs";
 import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
 import { CLASSES } from "../wow-data.js";
 import {
@@ -201,7 +202,7 @@ export function createWebApp(deps: WebAppDeps) {
   function filterForm(ctx: WebContext, filters: Filters): string {
     const { t, lang } = ctx;
     const any = { value: "", label: t("Any", "Tous") };
-    return `<form class="filters" method="get" action="/recruitment/"><input type="hidden" name="lang" value="${lang}"><div><label for="edition">WoW</label><select name="edition" id="edition">${options(GAME_EDITIONS.map(value => ({value,label:value})),currentEdition())}</select></div>`
+    return `<form class="filters" method="get" action="/recruitment/"><input type="hidden" name="lang" value="${lang}"><div><label for="edition">WoW</label><select name="edition" id="edition">${options(GAME_EDITIONS.filter(value => isEditionActive(value) || value === currentEdition()).map(value => ({value,label:value})),currentEdition())}</select></div>`
       + `<div><label for="kind">${t("Show", "Afficher")}</label><select id="kind" name="kind">${options([{ value: "all", label: t("Everything", "Tout") }, { value: "guild", label: t("Guilds", "Guildes") }, { value: "core", label: t("Raid cores", "Cores de raid") }, { value: "raids", label: t("Open raid spots", "Places de raid") }, { value: "players", label: t("Players", "Joueurs") }], filters.kind)}</select></div>`
       + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
       + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`

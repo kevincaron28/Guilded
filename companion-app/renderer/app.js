@@ -3,6 +3,7 @@ const T = (key, ...values) => languageUI.t(key, ...values);
 const M = value => languageUI.message(value);
 const $ = id => document.getElementById(id);
 const api = window.companion;
+api.getAll().then(all => document.body.classList.toggle("poe-off", !all?.focus?.poeTracking)).catch(() => {}); // Forever-only focus: companion/active-games.mjs
 window.addEventListener('online', () => { void api.recoverSync?.().catch(() => {}); });
 const desktopNavigation = matchMedia('(min-width:1001px)');
 function closeNavigation() { document.body.classList.remove('nav-open'); $('btnNav').setAttribute('aria-expanded','false'); $('navBackdrop').hidden = true; document.querySelector('.sidebar').inert = !desktopNavigation.matches; document.querySelector('.workspace').inert = false; }

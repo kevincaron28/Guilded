@@ -9,8 +9,9 @@ import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { POE_ENABLED } from "../../companion/active-games.mjs";
 import { createCommunityService } from "../services/community.js";
-import { challengeRules, COMMUNITY_GAME_LABELS, COMMUNITY_GAMES, COMMUNITY_REWARDS, communityGameLabel, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
+import { challengeRules, COMMUNITY_GAME_LABELS, offeredCommunityGames, COMMUNITY_REWARDS, communityGameLabel, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { eventVenue } from "../services/scheduled-events.js";
 import { accessibleCommunityActivities, assertCommunityChannelAudience, communityAccess as access, resolveCommunitySeason, canAccessCommunity } from "../services/community-access.js";
@@ -40,7 +41,7 @@ const viewCommands = (builder: SlashCommandSubcommandsOnlyBuilder) => builder
 
 export const lotteryCommand = viewCommands(new SlashCommandBuilder().setName("lottery").setDescription("Free, activity points or in-game currency lotteries").setDescriptionLocalizations({ fr: "Loteries" })
   .addSubcommand(sub => dateOption(titleOption(seasonOption(sub.setName("create").setDescription("Create lottery").setDescriptionLocalizations({ fr: "Créer une loterie" }))), "ends")
-    .addStringOption(o => o.setName("mode").setDescription("Ticket type").setDescriptionLocalizations({ fr: "Type de billet" }).setRequired(true).addChoices({ name: "Free / Gratuit", value: "FREE" }, { name: "Activity points / Points", value: "POINTS" }, { name: "WoW gold / Or WoW", value: "WOW_GOLD" }, { name: "PoE currency / Monnaie PoE", value: "POE_CURRENCY" }))
+    .addStringOption(o => o.setName("mode").setDescription("Ticket type").setDescriptionLocalizations({ fr: "Type de billet" }).setRequired(true).addChoices({ name: "Free / Gratuit", value: "FREE" }, { name: "Activity points / Points", value: "POINTS" }, { name: "WoW gold / Or WoW", value: "WOW_GOLD" }, ...(POE_ENABLED ? [{ name: "PoE currency / Monnaie PoE", value: "POE_CURRENCY" }] : [])))
     .addStringOption(o => o.setName("prize").setDescription("Prize per winner").setDescriptionLocalizations({ fr: "Lot par gagnant" }).setRequired(true).setMaxLength(250))
     .addIntegerOption(o => o.setName("cost").setDescription("Price per ticket").setDescriptionLocalizations({ fr: "Prix du billet" }).setMinValue(1).setMaxValue(1_000_000))
     .addStringOption(o => o.setName("currency").setDescription("e.g. gold, Divine Orb").setDescriptionLocalizations({ fr: "Monnaie" }).setMaxLength(80))
@@ -78,7 +79,7 @@ export const challengeCommand = viewCommands(new SlashCommandBuilder().setName("
 
 export const communityCommand = new SlashCommandBuilder().setName("community").setDescription("Seasons, leaderboards, dice and quizzes").setDescriptionLocalizations({ fr: "Saisons et jeux" })
   .addSubcommand(sub => sub.setName("start-season").setDescription("Start a season").setDescriptionLocalizations({ fr: "Démarrer une saison" })
-    .addStringOption(o => o.setName("game").setDescription("Game").setDescriptionLocalizations({ fr: "Jeu" }).setRequired(true).addChoices(...COMMUNITY_GAMES.map(value => ({ name: COMMUNITY_GAME_LABELS[value].en, name_localizations: { fr: COMMUNITY_GAME_LABELS[value].fr }, value }))))
+    .addStringOption(o => o.setName("game").setDescription("Game").setDescriptionLocalizations({ fr: "Jeu" }).setRequired(true).addChoices(...offeredCommunityGames().map(value => ({ name: COMMUNITY_GAME_LABELS[value].en, name_localizations: { fr: COMMUNITY_GAME_LABELS[value].fr }, value }))))
     .addStringOption(o => o.setName("name").setDescription("Theme; defaults to month").setDescriptionLocalizations({ fr: "Thème; mois par défaut" }).setMaxLength(80))
     .addRoleOption(o => o.setName("role").setDescription("Game role; required outside Discord").setDescriptionLocalizations({ fr: "Rôle du jeu" })))
   .addSubcommand(sub => seasonOption(sub.setName("season-settings").setDescription("Rename or route announcements").setDescriptionLocalizations({ fr: "Nom et salon des annonces" }))

@@ -36,7 +36,7 @@ A free Windows app, optional for the addon alone but needed for Discord and webs
 
 - **Wishlist:** your wanted items.
 - **Cores & prices:** core rules, rosters and item prices, for raid leaders.
-- **Path of Exile 2:** a personal journal of the map areas you visit.
+- **Path of Exile 2:** a personal journal of the map areas you visit. <!--poe-->
 
 Your Discord permissions decide what you can see or change.
 

@@ -2,13 +2,16 @@
 import { createOwnerResources } from "./private-resources.mjs";
 import { localizedAsset } from "./localized-assets.mjs";
 import { editionSection, splitEditionPath } from "../site/nav.mjs";
+import { isEditionActive } from "../companion/active-editions.mjs";
+import { POE_ENABLED } from "../companion/active-games.mjs";
 
 // Each WoW edition has its own section (/retail/, /retail/leaderboards/...: site/nav.mjs). The
 // visitor's last edition is remembered in this cookie, so /leaderboards/ opens that edition.
 const EDITION_COOKIE = "guilded_edition";
 function rememberedEdition(request) {
   const match = /(?:^|;\s*)guilded_edition=([a-z-]{1,20})(?:;|$)/.exec(request.headers.get("cookie") ?? "");
-  return editionSection(match?.[1]);
+  const remembered = editionSection(match?.[1]);
+  return remembered && isEditionActive(remembered.id) ? remembered : null; // a held edition is not remembered
 }
 const editionCookie = (slug) => `${EDITION_COOKIE}=${slug}; Max-Age=31536000; Path=/; Secure; SameSite=Lax`;
 
@@ -190,6 +193,15 @@ async function route(request, env) {
     // Edition sections: /retail → /retail/ (the hub page); /retail/leaderboards/... is the bot's
     // /leaderboards/... page with ?edition=retail.
     const section = creator ? null : splitEditionPath(url.pathname);
+    // Forever-only focus (companion/active-editions.mjs, companion/active-games.mjs): the pages of a held edition or of
+    // PoE2 are not built; their old addresses lead to the live equivalent. Temporary (302) so turning them back on works.
+    if (!creator && ["GET", "HEAD"].includes(request.method)) {
+      const held = (target) => new Response(null, { status: 302, headers: { location: target + url.search, "cache-control": "no-store" } });
+      if (section && !isEditionActive(section.edition)) return held(`/forever${section.rest || "/"}`);
+      const editionPage = /^\/editions\/(classic-era|classic-tbc|classic-mists|retail)\/?$/.exec(url.pathname);
+      if (editionPage && !isEditionActive(editionPage[1])) return held("/editions/");
+      if (!POE_ENABLED && /^\/quebec-gold\/poe2\/?$/.test(url.pathname)) return held("/quebec-gold/");
+    }
     if (section && !section.rest) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
       return new Response(null, { status: 301, headers: { location: `/${section.slug}/${url.search}`, "cache-control": "public, max-age=86400" } });
@@ -200,7 +212,8 @@ async function route(request, env) {
     // the filter forms) moves into that edition's section; one without a section goes to the
     // visitor's remembered edition, Forever by default. Files (.json, .xml, .png) are never moved.
     if (!creator && dataPage && ["GET", "HEAD"].includes(request.method) && !/\.[a-z]{2,4}$/.test(pagePath)) {
-      const asked = editionSection(url.searchParams.get("edition"));
+      const askedSection = editionSection(url.searchParams.get("edition"));
+      const asked = askedSection && isEditionActive(askedSection.id) ? askedSection : editionSection("forever");
       const destination = asked ?? (section ? null : rememberedEdition(request) ?? editionSection("forever"));
       if (destination && (!section || url.searchParams.has("edition"))) {
         const query = new URLSearchParams(url.search);

@@ -2,6 +2,7 @@ import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, ty
 import { asLang, t, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { guildService } from "./context.js";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { CURRENT_VERSION } from "../services/version-announce.js";
 
 // Short, rank-aware command list in the guild's language: everyone sees the
@@ -9,6 +10,9 @@ import { CURRENT_VERSION } from "../services/version-announce.js";
 export const helpCommand = new SlashCommandBuilder()
   .setName("help")
   .setDescription("What can I do here? Lists the commands you can use.");
+
+// Forever-only focus (companion/active-games.mjs): lines about a switched-off game are not listed.
+export const visibleLines = (lines: string[], poe = POE_TRACKING_ENABLED): string[] => poe ? lines : lines.filter(line => !line.includes("`/poe "));
 
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
@@ -150,10 +154,10 @@ export async function executeHelp(interaction: ChatInputCommandInteraction): Pro
   const member = interaction.member as GuildMember | null;
   const can = (permission: Parameters<typeof hasPermission>[1]) => !!member && hasPermission(member, permission);
   const embed = new EmbedBuilder().setTitle(t(lang, "help.title")).setColor(0xd4af37);
-  addSection(embed, t(lang, "help.everyone"), LINES.everyone[lang]);
-  if (can("raidLeader")) addSection(embed, t(lang, "help.raidLeaders"), LINES.raidLeader[lang]);
-  if (can("dkpOfficer")) addSection(embed, t(lang, "help.epgpOfficers"), LINES.dkpOfficer[lang]);
-  if (can("officer")) addSection(embed, t(lang, "help.officers"), LINES.officer[lang]);
+  addSection(embed, t(lang, "help.everyone"), visibleLines(LINES.everyone[lang]));
+  if (can("raidLeader")) addSection(embed, t(lang, "help.raidLeaders"), visibleLines(LINES.raidLeader[lang]));
+  if (can("dkpOfficer")) addSection(embed, t(lang, "help.epgpOfficers"), visibleLines(LINES.dkpOfficer[lang]));
+  if (can("officer")) addSection(embed, t(lang, "help.officers"), visibleLines(LINES.officer[lang]));
   embed.setDescription(t(lang, "help.support"));
   embed.setFooter({ text: `Guilded ${CURRENT_VERSION} · ${t(lang, "help.footer")}` });
   await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });

@@ -1,4 +1,5 @@
 import { access, stat } from "node:fs/promises";
+import { POE_TRACKING_ENABLED, poeTrackingOn } from "./active-games.mjs";
 import { createHash } from "node:crypto";
 import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
@@ -20,14 +21,14 @@ import { GAME_EDITIONS } from "./game-edition.mjs";
 export function validateConfig(config) {
   const problems = [];
   if (config.wowEnabled !== false && !config.watchFile) problems.push(config.personal ? "The saved-data file (GuildedDungeons.lua or Guilded.lua) is not set." : "The saved-data file (Guilded.lua) is not set.");
-  if (config.wowEnabled === false && !config.poeEnabled) problems.push("Enable WoW or PoE2 tracking before starting.");
+  if (config.wowEnabled === false && !poeTrackingOn(config)) problems.push(POE_TRACKING_ENABLED ? "Enable WoW or PoE2 tracking before starting." : "Enable WoW sync before starting.");
   if (!config.uploadUrl) problems.push("The bot address is not set.");
   const linked = typeof config.companionCredential === "string" && config.companionCredential.length >= 32;
   if (!linked) problems.push("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup.");
   // Personal mode (leaderboards only, from Sign in with Discord or a /me/ code) has no guild: only public dungeon runs.
   else if (!config.guildDiscordId && !config.personal) problems.push("The Discord server ID is not set.");
   if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
-  return [...problems, ...validatePoeConfig(config)];
+  return POE_TRACKING_ENABLED ? [...problems, ...validatePoeConfig(config)] : problems;
 }
 
 // Checks the bot address and token without changing anything.
@@ -542,7 +543,7 @@ export function createEngine(initialConfig, hooks = {}) {
     const epoch = generation;
     const problems = validateConfig(config);
     if (problems.length > 0) { log("warn", `Not started: ${problems[0]}`); return false; }
-    if (config.poeEnabled) {
+    if (poeTrackingOn(config)) {
       poe = createPoeEngine(config, {
         onLog: ({ level, message }) => log(level, message),
         onState: next => { state.poe = next; state.botVersion = next.botVersion ?? state.botVersion; hooks.onState?.(snapshot()); }

@@ -1,7 +1,8 @@
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from "discord.js";
 import { prisma } from "../database.js";
 import { withEdition } from "../services/edition-context.js";
-import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
+import { activeEditions } from "../../companion/active-editions.mjs";
+import { gameEditionOf } from "../../companion/game-edition.mjs";
 import { validTimeZone, zonedInstant } from "../services/dungeon-season-schedule.js";
 import {
   cancelNextSeason, configureNextSeasonRules, loadOfficialWindows, officialWindowAt, scheduleNextSeason, scheduledNext, SeasonCalendarError, type OfficialWindow
@@ -17,18 +18,18 @@ export const ownerSeasonCommand = new SlashCommandBuilder()
   .setDescription("Bot owner: the dungeon season calendar every guild follows")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
   .addSubcommand((sub) => sub.setName("status").setDescription("The current season and the next one")
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...GAME_EDITIONS.map(value => ({ name: value, value })))))
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
   .addSubcommand((sub) => sub.setName("next").setDescription("Schedule the next season (it ends the current one)")
     .addStringOption((o) => o.setName("date").setDescription("Start date, e.g. 2027-01-26").setRequired(true))
     .addIntegerOption((o) => o.setName("hour").setDescription("Start hour, 0-23 (default 15)").setMinValue(0).setMaxValue(23))
     .addStringOption((o) => o.setName("time_zone").setDescription("Default America/Los_Angeles"))
     .addStringOption((o) => o.setName("name").setDescription("Default \"Season N\"").setMaxLength(60))
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...GAME_EDITIONS.map(value => ({ name: value, value })))))
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
   .addSubcommand(sub => sub.setName("rules").setDescription("Set reviewed dungeon rules for the next season")
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition").setRequired(true).addChoices(...GAME_EDITIONS.map(value => ({ name: value, value }))))
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition").setRequired(true).addChoices(...activeEditions().map(value => ({ name: value, value }))))
     .addAttachmentOption(o => o.setName("file").setDescription("JSON with gameEdition, routes and brackets").setRequired(true)))
   .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel the next season (the current one keeps running)")
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...GAME_EDITIONS.map(value => ({ name: value, value })))));
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))));
 
 let ownerId: string | null = null;
 /** The Discord application's owner (a team's owner for team apps), cached after the first look-up. */

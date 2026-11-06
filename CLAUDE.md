@@ -208,6 +208,7 @@ through a pull request, then `npm run bugs -- resolve REF [REF...] --note "what 
 
 ## Where things live (for a fresh session)
 
+- **Forever-only focus switches** — `companion/active-editions.mjs` (WoW editions) and `companion/active-games.mjs` (PoE2 community and tracking) decide what members see; hidden is never deleted. See `docs/FOREVER_ONLY_FOCUS.md` for how to turn each back on.
 - `src/commands/` — one file per Discord slash command; `src/commands/index.ts`
   registers them and merges a few into parents (see `MergedCommand` above).
 - `src/services/` — business logic, called by commands and by scheduled jobs

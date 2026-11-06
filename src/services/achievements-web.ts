@@ -1,4 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { isEditionActive } from "../../companion/active-editions.mjs";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, WOW_EDITIONS, ladderKey } from "./achievements-catalogue.js";
 import { badgeLabel, badgeSvg } from "./achievement-badges.js";
 import { storedAchievements, syncMemberAchievements } from "./achievements.js";
@@ -101,11 +103,11 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
       return `<h3>${escapeHtml(title)} <small>(${done}/${visible.length})</small></h3><div class="ach-grid">${tiles}</div>`;
     };
     const wow = (GAME_LABEL.wow)[lang];
-    return TILE_STYLE + `<p>${t(`${earned} of ${listed.length} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity totals and your own PoE2 log), never self-reported, and they give no points. Tap or hover a badge for details.`, `${earned} sur ${listed.length} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, totaux d'activité Discord et votre journal PoE2), jamais déclarés, et ne donnent aucun point. Touchez ou survolez un badge pour les détails.`)}</p>${nextUp}`
-      + WOW_EDITIONS.map(edition => section(`${wow} · ${EDITION_LABEL[edition][lang]}`, ACHIEVEMENTS.filter(def => def.edition === edition))).join("")
+    return TILE_STYLE + `<p>${t(`${earned} of ${listed.length} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity totals${POE_TRACKING_ENABLED ? " and your own PoE2 log" : ""}), never self-reported, and they give no points. Tap or hover a badge for details.`, `${earned} sur ${listed.length} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, totaux d'activité Discord${POE_TRACKING_ENABLED ? " et votre journal PoE2" : ""}), jamais déclarés, et ne donnent aucun point. Touchez ou survolez un badge pour les détails.`)}</p>${nextUp}`
+      + WOW_EDITIONS.filter(edition => isEditionActive(edition)).map(edition => section(`${wow} · ${EDITION_LABEL[edition][lang]}`, ACHIEVEMENTS.filter(def => def.edition === edition))).join("")
       + section(`${wow} · ${t("earlier achievements", "anciens succès")}`, ACHIEVEMENTS.filter(def => def.game === "wow" && !def.edition))
       + section(GAME_LABEL.guild[lang], ACHIEVEMENTS.filter(def => def.game === "guild"))
-      + section(GAME_LABEL.poe2[lang], ACHIEVEMENTS.filter(def => def.game === "poe2"));
+      + (POE_TRACKING_ENABLED ? section(GAME_LABEL.poe2[lang], ACHIEVEMENTS.filter(def => def.game === "poe2")) : "");
   }
 
   const route: WebRoute = async (ctx, kit) => {

@@ -2,6 +2,7 @@ import type { Prisma, PrismaClient, RaidRole } from "../generated/prisma/client.
 import type { AddonCalendarEvent } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
 import { createRaidService } from "./raid.js";
+import { addonSignupRows } from "./signup-answers.js";
 
 // The in-game guild calendar -> Discord. The addon reads the guild's calendar events and who
 // answered each one; here they fill in signups of the Discord raid at the same time.
@@ -133,15 +134,33 @@ export function describeCalendar(summary: CalendarSummary | null): string {
   return parts.join("\n");
 }
 
+// How many of the nearest raids carry their signup list into the addon (keeps the standings file small).
+const SIGNUP_RAIDS = 8;
+
 // The upcoming Discord raids the addon can turn into in-game events.
 export async function upcomingRaidsForAddon(database: Pick<PrismaClient, "raid">, guildId: string, now = new Date()) {
   const raids = await database.raid.findMany({
     where: { guildId, isTest: false, status: "PLANNED", scheduledAt: { gte: now, lte: new Date(now.getTime() + 21 * 86_400_000) } },
     orderBy: { scheduledAt: "asc" }, take: 50,
-    select: { id: true, title: true, scheduledAt: true, description: true, core: { select: { name: true } } }
+    select: {
+      id: true, title: true, scheduledAt: true, description: true, core: { select: { name: true } },
+      // Who is down for it, for the addon's Signups page (the nearest raids only; see SIGNUP_RAIDS).
+      signups: {
+        where: { status: { not: "CANCELLED" } }, orderBy: { signedUpAt: "asc" }, take: 40,
+        select: {
+          role: true, status: true, signedUpAt: true, characterName: true,
+          character: { select: { name: true, className: true } },
+          member: { select: { characters: { where: { isMain: true }, take: 1, select: { name: true, className: true } } } }
+        }
+      }
+    }
   });
-  return raids.map((raid) => ({
-    id: raid.id, title: raid.title.slice(0, 30), at: raid.scheduledAt.toISOString(),
-    core: raid.core?.name ?? null, note: (raid.description ?? "").replace(/\s+/g, " ").trim().slice(0, 200)
-  }));
+  return raids.map((raid, index) => {
+    const signups = index < SIGNUP_RAIDS ? addonSignupRows(raid.signups ?? []) : [];
+    return {
+      id: raid.id, title: raid.title.slice(0, 30), at: raid.scheduledAt.toISOString(),
+      core: raid.core?.name ?? null, note: (raid.description ?? "").replace(/\s+/g, " ").trim().slice(0, 200),
+      ...(signups.length ? { signups } : {})
+    };
+  });
 }

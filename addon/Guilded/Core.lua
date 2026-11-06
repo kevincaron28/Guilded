@@ -1627,6 +1627,7 @@ ns.MODULES = {
   { key = "guildbank", name = "Guild bank snapshot", desc = "what the guild bank held when it was last opened", commands = { "gbank" } },
   { key = "pugcheck", name = "Pug gear check", desc = "item level and missing enchants of group members from outside the guild", commands = { "pugcheck" } },
   { key = "milestones", name = "Milestone announcements", desc = "level, first dungeon clear, honorable kills and duel wins in guild chat, if you turn them on", commands = { "milestones", "announce" } },
+  { key = "raidsignup", name = "Raid sign-up", desc = "sign up for guild raids in game, with role and class counts", commands = { "signups" } },
   { key = "duels", name = "Guild duels", desc = "duel results between guildmates and a leaderboard", commands = { "duels" } },
   { key = "imports", name = "Loot imports", desc = "softres.it lists and That's My BiS priorities", commands = { "import", "tmb" } },
 }

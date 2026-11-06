@@ -1,9 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { Collection } from "discord.js";
-const mocks = vi.hoisted(() => ({ address: vi.fn(), planned: vi.fn(), calendar: vi.fn(), settings: vi.fn() }));
+const mocks = vi.hoisted(() => ({ address: vi.fn(), planned: vi.fn(), calendar: vi.fn(), settings: vi.fn(), answers: vi.fn() }));
 vi.mock("../src/database.js", () => ({ prisma: { guild: { findFirst: async () => ({ id: "guild", discordId: "server", scopeKey: "default", gameEdition: "forever" }) }, raid: { findMany: mocks.planned }, guildSettings: { findUnique: mocks.settings } } }));
 vi.mock("../src/services/notify.js", () => ({ resolveNotifyAddress: mocks.address }));
 vi.mock("../src/services/calendar-sync.js", () => ({ runCalendarPlan: mocks.calendar }));
+vi.mock("../src/services/signup-answers.js", () => ({ applySignupAnswers: mocks.answers }));
 import { dispatchDiscordJob } from "../src/services/discord-jobs.js";
 
 beforeEach(() => vi.resetAllMocks());
@@ -43,6 +44,15 @@ it("drops cancelled raids from a persisted calendar plan instead of retrying for
   await dispatchDiscordJob({} as never, { ...job({ plan: { matches: [{ raidId: "cancelled" }], unmatched: [] } }), kind: "CALENDAR" } as never);
   expect(mocks.planned).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ guildId: "guild", status: "PLANNED", isTest: false }) }));
   expect(mocks.calendar.mock.calls[0]?.[2].matches).toEqual([]);
+});
+
+it("applies the raid answers members gave in game for this guild only", async () => {
+  mocks.answers.mockResolvedValue({ applied: 1, unchanged: 0, failed: 0, changedRaidIds: [] });
+  const answers = [{ raidId: "r1", memberId: "m1", status: "ACCEPTED", role: "TANK", at: "2026-11-10T12:00:00.000Z" }];
+  await dispatchDiscordJob({} as never, { ...job({ answers }), kind: "SIGNUP_ANSWERS" } as never);
+  expect(mocks.answers).toHaveBeenCalledWith(expect.anything(), "guild", answers);
+  await dispatchDiscordJob({} as never, { ...job({ answers: "nonsense" }), kind: "SIGNUP_ANSWERS" } as never);
+  expect(mocks.answers).toHaveBeenLastCalledWith(expect.anything(), "guild", []);
 });
 
 it("notifies nobody unless a job names its users, and only valid user IDs", async () => {

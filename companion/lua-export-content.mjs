@@ -281,6 +281,17 @@ export function parseAddonExportText(text, realm) {
         .map((invite) => ({ character: String(invite.name), realm, status: String(invite.status) }))
     }));
 
+  // Raid answers given in game (addon Modules/RaidSignup.lua): Sign up / Tentative / Can't per raid.
+  const signupAnswers = Object.entries(database.signupAnswers ?? {})
+    .filter(([raidId, answer]) => /^[a-zA-Z0-9_-]{1,80}$/.test(String(raidId)) && answer?.name && Number(answer.at) > 0
+      && ["ACCEPTED", "TENTATIVE", "DECLINED"].includes(answer.status))
+    .slice(0, 100)
+    .map(([raidId, answer]) => ({
+      raidId: String(raidId), character: String(answer.name), realm, status: String(answer.status),
+      ...(["TANK", "HEALER", "DPS"].includes(answer.role) ? { role: String(answer.role) } : {}),
+      at: new Date(Number(answer.at) * 1000).toISOString()
+    }));
+
   // Who can craft what, and profession cooldowns (addon Modules/Recipes.lua).
   const recipeData = buildRecipes(database.recipeBook, realm);
 
@@ -340,6 +351,7 @@ export function parseAddonExportText(text, realm) {
     ...(recipeData.recipes.length ? { recipes: recipeData.recipes, recipeNames: recipeData.recipeNames } : {}),
     ...(recipeData.cooldowns.length ? { cooldowns: recipeData.cooldowns } : {}),
     ...(calendarEvents.length ? { calendarEvents } : {}),
+    ...(signupAnswers.length ? { signupAnswers } : {}),
     raids,
     loot,
     dungeonRuns,

@@ -48,9 +48,11 @@ function checkDiskSpace({ paths = [], statfs = fs.statfsSync, neededMb = DISK_SP
 
 // statfs needs a folder that exists: walk up to the first one (at worst the drive root).
 function existingAncestor(target) {
-  let current = path.resolve(target);
+  // Windows paths are walked as Windows paths on any platform (the tests run on Linux too).
+  const paths = /^([A-Za-z]:|[\\/]{2})/.test(target) ? path.win32 : path;
+  let current = paths.resolve(target);
   for (let i = 0; i < 40 && !fs.existsSync(current); i++) {
-    const parent = path.dirname(current);
+    const parent = paths.dirname(current);
     if (parent === current) break;
     current = parent;
   }

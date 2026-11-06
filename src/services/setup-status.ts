@@ -39,6 +39,8 @@ export interface SetupFacts {
   linkedCharacters: number;
   // Last upload from an officer's companion (Guild.officerSyncAt); omitted = not checked.
   officerSyncAt?: Date | null;
+  // 8.5: only set when nickname sync is on; whether the bot has Manage Nicknames.
+  nicknameSyncReady?: boolean;
   // The pinned group finder message is the pre-4.6 button, not the current menu.
   dungeonSignupGuideOutdated?: boolean;
   // Every other channel setup can create (field name -> state), shown as optional rows.
@@ -118,6 +120,12 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       optional: true,
       fix: T("My role must be above \"{name}\": Server Settings > Roles, drag my role higher.", { name: role.name })
     })),
+    ...(facts.nicknameSyncReady === undefined ? [] : [{
+      label: T("Nickname sync permission"),
+      ok: facts.nicknameSyncReady,
+      optional: true,
+      fix: T("Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.")
+    }]),
     {
       label: T("EPGP point values (base GP set)"),
       ok: facts.epgpConfigured,

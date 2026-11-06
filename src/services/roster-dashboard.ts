@@ -4,6 +4,8 @@ import { csvBuffer, toCsv } from "./exports.js";
 import type { RosterCharacter, RosterDashboardStore } from "./roster-dashboard-store.js";
 import { guildToolsNav } from "./guild-tools-pages.js";
 import { participationCounts } from "./roster-activity.js";
+import { inviteLines } from "./roster-gaps.js";
+import { rosterVisualSvg } from "./roster-visual.js";
 
 const PATH = "/me/roster";
 const PAGE_SIZE = 50;
@@ -68,6 +70,19 @@ export function createRosterDashboard(store: RosterDashboardStore) {
           + (guilds.length ? `<ul>${guilds.map(guild => `<li><a href="${h(link(PATH, lang, { guild: guild.id, edition: guild.edition }))}">${h(guild.name)} · ${h(guild.edition)}</a></li>`).join("")}</ul>`
             : `<p>${t("No eligible guilds are available. Check your membership and officer role in Discord.", "Aucune guilde admissible. Vérifiez votre adhésion et votre rôle d'officier dans Discord.")}</p>`), { noindex: true });
       }
+      if (query.get("view") === "gaps" && !ctx.request.path.endsWith("/export")) {
+        const gaps = await store.gaps?.(ctx.account.discordUserId, guildId);
+        if (!gaps) return kit.page(403, title, t("This view is unavailable with your current membership and permissions.", "Cette vue n'est pas accessible avec votre adhésion et vos permissions actuelles."), { noindex: true });
+        const back = h(link(PATH, lang, { guild: guildId, edition: query.get("edition") ?? "" }));
+        const list = (items: string[]) => items.length ? `<ul>${items.map(item => `<li>${item}</li>`).join("")}</ul>` : `<p>—</p>`;
+        const invites = inviteLines(gaps.notInGuild);
+        return kit.page(200, title, `<h1>${t("Discord only", "Seulement dans Discord")}</h1><p><a href="${back}">${t("Back to the roster", "Retour à l'effectif")}</a></p>`
+          + (gaps.syncFresh ? "" : `<p class="notice">${t("No officer upload in the last 14 days: \"not in the guild\" may be wrong.", "Aucun envoi d'officier depuis 14 jours : « hors de la guilde » peut être inexact.")}</p>`)
+          + `<section class="card"><h2>${t("In Discord, not in the guild", "Dans Discord, pas dans la guilde")} (${gaps.notInGuild.length})</h2>${list(gaps.notInGuild.map(row => `${h(row.displayName)} — <code>/ginvite ${h(row.inviteName)}</code>`))}`
+          + (invites.length ? `<p>${t("All invite lines (select all, copy):", "Toutes les lignes d'invitation (tout sélectionner, copier) :")}</p><textarea readonly rows="${Math.min(12, invites.length + 1)}" cols="48">${h(invites.join(String.fromCharCode(10)))}</textarea>` : "") + `</section>`
+          + `<section class="card"><h2>${t("No linked character", "Aucun personnage lié")} (${gaps.noLink.length})</h2>${list(gaps.noLink.map(row => h(row.displayName)))}</section>`
+          + `<section class="card"><h2>${t("In the guild, nobody claimed", "Dans la guilde, personne ne l'a réclamé")} (${gaps.unclaimed.length})</h2>${list(gaps.unclaimed.map(row => `${h(row.name)} · ${h(row.className)}${row.level ? ` ${row.level}` : ""}`))}</section>`, { noindex: true });
+      }
       const snapshot = await store.load(ctx.account.discordUserId, guildId);
       if (!snapshot) return kit.page(403, title, t("This roster is unavailable with your current membership and permissions.", "Cet effectif n'est pas accessible avec votre adhésion et vos permissions actuelles."), { noindex: true });
       const available = (filter: string, values: (string | null)[]) => !filter || filter === UNKNOWN || values.includes(filter);
@@ -109,7 +124,8 @@ export function createRosterDashboard(store: RosterDashboardStore) {
         + `<div><label for="roster-activity">${t("Member participation", "Participation du membre")}</label><select id="roster-activity" name="activity">${options(activityOptions, filters.activity ?? "")}</select></div>`
         + input("min", t("Minimum level", "Niveau minimum"), filters.min?.toString() ?? "", "number") + input("max", t("Maximum level", "Niveau maximum"), filters.max?.toString() ?? "", "number")
         + `<button class="button" type="submit">${t("Apply filters", "Appliquer les filtres")}</button></div></form>`
-        + `<p><a href="${h(link(PATH, lang, { guild: guildId, edition: snapshot.guild.edition }))}">${t("Clear filters", "Effacer les filtres")}</a></p>`
+        + `<p><a href="${h(link(PATH, lang, { guild: guildId, edition: snapshot.guild.edition }))}">${t("Clear filters", "Effacer les filtres")}</a> · <a href="${h(link(PATH, lang, { guild: guildId, edition: snapshot.guild.edition, view: "gaps" }))}">${t("Discord only (not in the guild)", "Seulement dans Discord (pas dans la guilde)")}</a></p>`
+        + (snapshot.visual ? rosterVisualSvg(snapshot.visual, lang) : "")
         + `<h2>${t("Matching records", "Enregistrements correspondants")}</h2><div class="cards">${[[t("Characters", "Personnages"), counts.characters], [t("Linked members represented", "Membres liés représentés"), counts.linkedMembers], [t("Unclaimed characters", "Personnages non liés"), counts.unclaimed]].map(([label, count]) => `<section class="card"><h3>${label}</h3><p>${count}</p></section>`).join("")}</div>`
         + `<p>${t("Unclaimed characters are not counted as distinct people. Main/alt status applies only to linked characters.", "Les personnages non liés ne sont pas comptés comme des personnes distinctes. Le statut principal/secondaire s'applique aux personnages liés.")}</p>`
         + (snapshot.activityAsOf ? `<section class="card"><h2>${t("Recorded member participation", "Participation enregistrée des membres")}</h2><p>${t("Last 7 days", "7 derniers jours")}: ${participation.seven} / ${participation.linked} · ${t("Last 30 days", "30 derniers jours")}: ${participation.thirty} / ${participation.linked}</p><p>${t("Distinct linked members in the filtered roster with present/late attendance in completed raids or valid completed guild dungeon runs. All of a member's alts share the same evidence. Missing records do not mean inactivity; signups and roster refreshes are excluded.", "Membres liés distincts de l'effectif filtré avec présence/retard dans un raid terminé ou un donjon de guilde terminé et valide. Les secondaires partagent les preuves du membre. L'absence de données ne signifie pas l'inactivité; inscriptions et actualisations sont exclues.")}</p><p>${t("As of", "En date du")}: ${h(snapshot.activityAsOf.toISOString())}</p></section>` : "")

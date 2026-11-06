@@ -26,6 +26,8 @@ local SEEN_SECONDS = 60
 local BANNER_SECONDS = 20
 local MAX_ATTACKERS = 3
 local POSITION_MAX_AGE = 600
+local MAX_MATES = 5
+local MATE_REFRESH_SECONDS = 5
 
 local module = {}
 ns.callForHelp = module
@@ -231,10 +233,72 @@ local function mapSize(mapId)
 end
 
 -- ---------------------------------------------------------------------
--- Frames (created lazily; plain frames, no protected actions)
+-- Guildmates in my zone (the guild roster gives every online member's zone) and party invites.
+-- WoW only lets an invite come from a click, so every invite here is a button.
 -- ---------------------------------------------------------------------
 
 local offerFrame, banner
+local mateRows = {}   -- the caller's zone list: { label, button, name } per row
+
+local function baseName(name)
+  return ns.normalizeName and ns.normalizeName(name) or name
+end
+
+-- Online guildmates (not me) whose roster zone is my zone, up to MAX_MATES, nearest-first is not
+-- known without positions, so they are listed by name.
+function module.zoneMates()
+  local list = {}
+  if not (GetNumGuildMembers and GetGuildRosterInfo) then return list end
+  local zone = zoneNames()
+  if zone == "" then return list end
+  local okCount, total = pcall(GetNumGuildMembers)
+  if not okCount or type(total) ~= "number" then return list end
+  local me = playerName()
+  for i = 1, total do
+    local ok, name, _, _, level, class, rosterZone, _, _, online = pcall(GetGuildRosterInfo, i)
+    if ok and name and online and not secret(rosterZone) and rosterZone == zone and baseName(name) ~= me then
+      list[#list + 1] = { name = name, level = level, class = class }
+    end
+  end
+  table.sort(list, function(a, b) return a.name < b.name end)
+  while #list > MAX_MATES do list[#list] = nil end
+  return list
+end
+
+local function partyInvite(name)
+  if C_PartyInfo and C_PartyInfo.InviteUnit then return pcall(C_PartyInfo.InviteUnit, name) end
+  if InviteUnit then return pcall(InviteUnit, name) end
+  return false
+end
+
+-- Invite button: a party invite to one guildmate.
+function module.invite(name)
+  if not name or name == "" then return false end
+  if partyInvite(name) then say(string.format(L("Invited %s to your party."), display(name))); return true end
+  say(string.format(L("Could not invite %s."), display(name)))
+  return false
+end
+
+-- Join button: ask the caller for a party invite the usual way (a whisper of "inv").
+function module.join()
+  if not (banner and banner.sender) then return false end
+  if SendChatMessage and pcall(SendChatMessage, "inv", "WHISPER", nil, banner.sender) then
+    say(string.format(L("Asked %s for a party invite."), display(banner.sender)))
+    return true
+  end
+  return false
+end
+
+-- Invite caller button: invite the caller to my party.
+function module.inviteCaller()
+  if not (banner and banner.sender) then return false end
+  return module.invite(banner.sender)
+end
+
+-- ---------------------------------------------------------------------
+-- Frames (created lazily; plain frames, no protected actions)
+-- ---------------------------------------------------------------------
+
 
 local function makeButton(parent, label, width, onClick)
   local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
@@ -278,6 +342,37 @@ local function refreshOffer()
     offerFrame.clear:Hide()
   end
   offerFrame.text:SetText(text)
+  module.refreshMates()
+end
+
+-- The caller's list of online guildmates in the same zone, each with an Invite button.
+function module.refreshMates()
+  if not offerFrame then return 0 end
+  local mates = mine and module.zoneMates() or {}
+  for i = 1, MAX_MATES do
+    local row = mateRows[i]
+    local mate = mates[i]
+    if mate and not row then
+      row = {}
+      row.label = offerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+      row.label:SetPoint("TOPLEFT", offerFrame, "TOPLEFT", 16, -30 - (i - 1) * 24)
+      row.button = makeButton(offerFrame, L("Invite"), 70, function() module.invite(row.name) end)
+      row.button:SetPoint("TOPRIGHT", offerFrame, "TOPRIGHT", -14, -26 - (i - 1) * 24)
+      mateRows[i] = row
+    end
+    if row then
+      if mate then
+        row.name = mate.name
+        row.label:SetText(display(mate.name) .. (mate.level and mate.level > 0 and (" (" .. mate.level .. ")") or ""))
+        row.label:Show(); row.button:Show()
+      else
+        row.name = nil
+        row.label:Hide(); row.button:Hide()
+      end
+    end
+  end
+  offerFrame:SetHeight(70 + (#mates > 0 and (#mates * 24 + 6) or 0))
+  return #mates
 end
 
 local function ensureOffer()
@@ -299,13 +394,17 @@ end
 
 local function ensureBanner()
   if banner then return banner end
-  banner = makeFrame(360, 96)
+  banner = makeFrame(360, 128)
   banner:SetPoint("TOP", UIParent, "TOP", 0, -90)
   banner.detail = banner:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   banner.detail:SetPoint("TOP", banner.text, "BOTTOM", 0, -4)
   banner.detail:SetWidth(340)
   banner.coming = makeButton(banner, L("On my way"), 120, function() module.reply(true) end)
   banner.coming:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -4, 10)
+  banner.join = makeButton(banner, L("Join"), 120, function() module.join() end)
+  banner.join:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -4, 40)
+  banner.inviteCaller = makeButton(banner, L("Invite caller"), 120, function() module.inviteCaller() end)
+  banner.inviteCaller:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 4, 40)
   banner.cant = makeButton(banner, L("Can't"), 120, function() module.reply(false) end)
   banner.cant:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 4, 10)
   return banner
@@ -556,6 +655,7 @@ register("CHAT_MSG_ADDON")
 register("UNIT_COMBAT")
 
 local sinceTick = 0
+local matesAt = 0
 local function onUpdate(_, elapsed)
   sinceTick = sinceTick + (elapsed or 0)
   if sinceTick < 1 then return end
@@ -567,6 +667,10 @@ local function onUpdate(_, elapsed)
     elseif offerUntil and t > offerUntil then offerFrame:Hide(); offerUntil = nil end
   end
   if banner and banner:IsShown() and banner.shownAt and t - banner.shownAt > BANNER_SECONDS then banner:Hide() end
+  if mine and offerFrame and offerFrame:IsShown() and t - (matesAt or 0) >= MATE_REFRESH_SECONDS then
+    matesAt = t
+    module.refreshMates()
+  end
   if not mine and not inInstance() then position() end -- remember where I was before combat
 end
 

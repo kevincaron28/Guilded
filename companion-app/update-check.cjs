@@ -7,6 +7,13 @@ const RELEASES_API = "https://api.github.com/repos/kevincaron28/Guilded/releases
 const RELEASES_PAGE = "https://github.com/kevincaron28/Guilded/releases/latest";
 const DOWNLOAD_PREFIX = "https://github.com/kevincaron28/Guilded/releases/download/";
 const MAX_INSTALLER_BYTES = 400 * 1024 * 1024;
+// The stable link members use: the newest release always carries a copy of the installer under this fixed name.
+const DIRECT_DOWNLOAD_URL = "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe";
+// Silent updates (8.5): a check every few hours (well under GitHub's anonymous limit of 60 requests an hour),
+// and at most this many failed installer runs before a downloaded update is dropped and fetched again.
+const CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const MAX_INSTALL_ATTEMPTS = 2;
+const STAGED_NAME = /^Guilded\.Companion\.Setup\.\d+\.\d+\.\d+\.exe$/;
 
 // "6.5.1" -> [6, 5, 1]; anything else (a "-beta" suffix, a typo) -> null.
 function parseVersion(text) {
@@ -90,12 +97,67 @@ async function downloadInstaller(installer, target, { fetchImpl = globalThis.fet
 
 // spawn errors are asynchronous (ENOENT/EACCES); a surrounding try/catch alone
 // cannot catch them. Only quit the app after Windows accepts the installer.
-function launchInstaller(target, spawn = require("node:child_process").spawn) {
+function launchInstaller(target, spawn = require("node:child_process").spawn, args = ["/S", "--updated", "--force-run"]) {
   return new Promise((resolve, reject) => {
-    const child = spawn(target, ["/S", "--updated", "--force-run"], { detached: true, stdio: "ignore", windowsHide: true });
+    const child = spawn(target, args, { detached: true, stdio: "ignore", windowsHide: true });
     child.once("error", reject);
     child.once("spawn", () => { child.unref(); resolve(); });
   });
 }
 
-module.exports = { parseVersion, isNewer, pickUpdate, fetchLatestRelease, installerFrom, downloadInstaller, launchInstaller, RELEASES_PAGE };
+// The Microsoft Store (MSIX) package updates itself through the Store and must never replace itself.
+function isStoreInstall({ windowsStore, execPath } = {}) {
+  return windowsStore === true || /[\\/]WindowsApps[\\/]/i.test(String(execPath ?? ""));
+}
+
+// Whether the companion may fetch and install updates without being asked. Only the packaged
+// direct-download (NSIS) build on Windows, and only while the member has not turned it off.
+function decideAutoUpdate({ store, packaged, platform = "win32", enabled, current, latest, pending }) {
+  if (store) return { action: "skip", reason: "store" };
+  if (!packaged || platform !== "win32") return { action: "skip", reason: "unpackaged" };
+  if (enabled === false) return { action: "skip", reason: "disabled" };
+  const update = pickUpdate(current, latest);
+  if (!update) return { action: "none" };
+  if (!update.installer) return { action: "skip", reason: "no-checked-installer" };
+  if (pending?.version === update.version && pending?.sha256 === update.installer.sha256) return { action: "staged", update };
+  return { action: "download", update };
+}
+
+// SHA-256 of a file, read in chunks so a 120 MB installer is never held in memory (also works at quit).
+function hashFileSync(file, fs = require("node:fs")) {
+  const { createHash } = require("node:crypto");
+  const hash = createHash("sha256");
+  const fd = fs.openSync(file, "r");
+  try {
+    const buffer = Buffer.alloc(1024 * 1024);
+    for (let read; (read = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0;) hash.update(buffer.subarray(0, read));
+  } finally { fs.closeSync(fd); }
+  return hash.digest("hex");
+}
+
+// What to do with an installer downloaded earlier: "none" (nothing staged), "clear" (stale, damaged, tampered
+// with or tried too often: forget it) or "install" (still newer than this build and matching its checksum).
+function inspectPending({ pending, current, directory, fs = require("node:fs"), path = require("node:path") }) {
+  if (!pending) return { action: "none" };
+  const shape = typeof pending.version === "string" && typeof pending.file === "string" && /^[0-9a-f]{64}$/.test(String(pending.sha256));
+  if (!shape) return { action: "clear", reason: "invalid" };
+  if (!isNewer(pending.version, current)) return { action: "clear", reason: "installed" };
+  const file = path.resolve(pending.file);
+  if (path.dirname(file) !== path.resolve(directory) || !STAGED_NAME.test(path.basename(file))) return { action: "clear", reason: "location" };
+  if ((pending.attempts ?? 0) >= MAX_INSTALL_ATTEMPTS) return { action: "clear", reason: "attempts" };
+  try {
+    if (hashFileSync(file, fs) !== pending.sha256) return { action: "clear", reason: "checksum" };
+  } catch { return { action: "clear", reason: "missing" }; }
+  return { action: "install", file, version: parseVersion(pending.version).join(".") };
+}
+
+// Used while the app is exiting: start the silent installer and return at once. It does not restart
+// the companion (the member just quit it); the new version runs the next time it is opened.
+function launchInstallerOnExit(target, spawn = require("node:child_process").spawn) {
+  try {
+    spawn(target, ["/S", "--updated"], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+    return true;
+  } catch { return false; }
+}
+
+module.exports = { parseVersion, isNewer, pickUpdate, fetchLatestRelease, installerFrom, downloadInstaller, launchInstaller, isStoreInstall, decideAutoUpdate, hashFileSync, inspectPending, launchInstallerOnExit, RELEASES_PAGE, DIRECT_DOWNLOAD_URL, CHECK_INTERVAL_MS };

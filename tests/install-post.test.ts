@@ -27,7 +27,7 @@ describe("install post", () => {
     const buttons = post.components[0]!.toJSON().components as unknown as { url: string; style: number }[];
     expect(buttons.map((b) => b.url)).toEqual([
       "https://www.curseforge.com/wow/addons/guilded",
-      "https://apps.microsoft.com/detail/9N680XX3QFL9", "https://github.com/kevincaron28/Guilded/releases/latest", START_URL
+      "https://apps.microsoft.com/detail/9N680XX3QFL9", "https://guilded.kcaron.top/companion/", START_URL
     ]);
     expect(buttons.every((b) => b.style === 5)).toBe(true);
     expect(post.allowedMentions).toEqual({ parse: [] });

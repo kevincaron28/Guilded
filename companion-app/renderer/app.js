@@ -289,6 +289,12 @@ bind('btnUpdate',async () => {
   finally { $('btnUpdate').textContent = result?.ok && result.action === 'installing' ? T("Installing…") : T("Update now"); }
 });
 api.onUpdateProgress?.(percent => { $('btnUpdate').textContent = T("Downloading {0}%", percent); });
+$('autoUpdate').addEventListener('change',event => action(event.target,async () => { $('autoUpdate').checked = await api.setAutoUpdate(event.target.checked); }));
+bind('btnCheckUpdate',async () => {
+  $('btnCheckUpdate').textContent = T("Checking update…");
+  try { const result = await api.checkUpdate(); toast(result.message,!result.ok); }
+  finally { $('btnCheckUpdate').textContent = T("Check for updates"); }
+});
 bind('btnHistory',async () => {
   if (!savedConfig.companionCredential) { showPage('settings'); toast(T("Connect your Discord account first.")); return; }
   const visits = await api.getPoeRuns();
@@ -369,7 +375,8 @@ async function init() {
   if (!languageUI.explicit && ['en','fr'].includes(all.language)) languageUI.set(all.language, false);
   for (const id of fields) $(id).value = all.config[id] ?? '';
   $('storeDistribution').hidden = !all.storePackage;
-  if (all.storePackage) $('autostartLabel').hidden = true;
+  if (all.storePackage) { $('autostartLabel').hidden = true; $('autoUpdateLabel').hidden = true; $('autoUpdateRow').hidden = true; }
+  $('autoUpdate').checked = all.config.autoUpdate !== false;
   $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});

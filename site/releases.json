@@ -42,6 +42,11 @@
         }
       }
     },
+    "companionDirect": {
+      "version": "8.4.6",
+      "url": "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe",
+      "sha256": "9ef7dc5a634ba033eb206350295e15254c343fe6974fa114b4cacf9640876b30"
+    },
     "microsoftStore": {
       "version": "8.3.0",
       "packageVersion": "8.3.0.0",

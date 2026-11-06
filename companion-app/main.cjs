@@ -7,6 +7,8 @@ const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables } = r
 const updates = require("./update-check.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
+// The Store build never replaces itself: the Store does that. Also true for any package under WindowsApps.
+const STORE_INSTALL = STORE_PACKAGE || /[\\/]WindowsApps[\\/]/i.test(String(process.execPath ?? "")); // same rule as updates.isStoreInstall
 let storeConfig;
 if (STORE_PACKAGE) {
   const storeDataDirectory = path.join(app.getPath("appData"), "Guilded Companion Store");
@@ -38,7 +40,8 @@ const DEFAULTS = {
   uploadToken: "",
   pairingCode: "",
   companionCredential: "",
-  standingsIntervalMinutes: 2
+  standingsIntervalMinutes: 2,
+  autoUpdate: true
 };
 
 // `electron .` includes the app path; an installed executable starts with its
@@ -141,6 +144,8 @@ function refreshUpdate() {
   update = next;
   if (!update || config.updateNotifiedVersion === update.version) return;
   config.updateNotifiedVersion = update.version;
+  // Silent updates install by themselves: no Windows notification for a version the member never has to act on.
+  if (update.installer && autoUpdateOn()) return;
   void saveConfig().catch(error => pushLog({ time: new Date().toISOString(), level: "error", message: error.message }));
   if (!Notification.isSupported()) return;
   const notice = new Notification({
@@ -156,7 +161,70 @@ async function checkForUpdate() {
   if (STORE_PACKAGE) return;
   latestRelease = await updates.fetchLatestRelease() ?? latestRelease;
   if (engine) onState(engine.state());
+  void stageUpdate();
 }
+
+// Silent updates for the direct-download build (8.5). The decision lives in update-check.cjs.
+const updateDirectory = () => path.join(app.getPath("userData"), "updates");
+const autoUpdateDecision = () => updates.decideAutoUpdate({ store: STORE_INSTALL, packaged: app.isPackaged, platform: process.platform, enabled: config.autoUpdate !== false, current: app.getVersion(), latest: latestRelease, pending: config.pendingUpdate });
+const autoUpdateOn = () => !["store", "unpackaged", "disabled"].includes(autoUpdateDecision().reason);
+let staging = false;
+let installerHandedOff = false; // the update installer, or data removal, already owns this exit
+async function stageUpdate() {
+  if (staging || installing) return;
+  const decision = autoUpdateDecision();
+  if (decision.action !== "download") return;
+  staging = true;
+  try {
+    fs.mkdirSync(updateDirectory(), { recursive: true });
+    const { installer, version } = decision.update;
+    const target = path.join(updateDirectory(), installer.name);
+    // Size and SHA-256 are checked against the release before the file is kept (update-check.cjs).
+    await updates.downloadInstaller(installer, target);
+    config.pendingUpdate = { version, file: target, sha256: installer.sha256, attempts: 0 };
+    await saveConfig();
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion {0} was downloaded and checked. It installs when you quit the companion or start it next.", version) });
+  } catch (error) {
+    // Offline, rate limited or interrupted: stay quiet and try again at the next check.
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Automatic update download skipped: {0}", error instanceof Error ? error.message : String(error)) });
+  } finally { staging = false; }
+}
+function forgetPendingUpdate(file) {
+  config.pendingUpdate = undefined;
+  if (file) try { fs.rmSync(file, { force: true }); fs.rmSync(file + ".part", { force: true }); } catch { /* best effort */ }
+}
+// Runs once at start, before the window: forget a stale download, say "Updated to vX" once after an
+// update, or install a downloaded update now. Returns true when the installer took over.
+async function startupUpdateStep() {
+  if (STORE_INSTALL || !app.isPackaged) return false;
+  const current = app.getVersion();
+  const previous = config.lastRunVersion;
+  config.lastRunVersion = current;
+  if (previous && updates.isNewer(current, previous)) {
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion updated to {0}.", current) });
+    if (Notification.isSupported()) new Notification({ title: T("Guilded Companion updated to {0}", current), body: T("Your settings and Discord link were kept."), icon: asset("icon.png") }).show();
+  }
+  const verdict = updates.inspectPending({ pending: config.pendingUpdate, current, directory: updateDirectory() });
+  if (verdict.action === "clear") forgetPendingUpdate(config.pendingUpdate?.file);
+  if (verdict.action !== "install" || config.autoUpdate === false) { await saveConfig(); return false; }
+  config.pendingUpdate = { ...config.pendingUpdate, attempts: (config.pendingUpdate.attempts ?? 0) + 1 };
+  await saveConfig();
+  try {
+    await updates.launchInstaller(verdict.file, spawn);
+  } catch (error) {
+    pushLog({ time: new Date().toISOString(), level: "error", message: E("Update failed: {0}", error instanceof Error ? error.message : String(error)) });
+    return false;
+  }
+  installerHandedOff = true; quitting = true;
+  setTimeout(() => app.quit(), 500);
+  return true;
+}
+// On quit: a downloaded, still-matching update installs silently in the background.
+app.on("will-quit", () => {
+  if (installerHandedOff || STORE_INSTALL || !app.isPackaged || config.autoUpdate === false) return;
+  const verdict = updates.inspectPending({ pending: config.pendingUpdate, current: app.getVersion(), directory: updateDirectory() });
+  if (verdict.action === "install" && updates.launchInstallerOnExit(verdict.file)) installerHandedOff = true;
+});
 
 // Launch-day check (companion/live-folder.mjs): when the watched file last changed, for the
 // Overview status line, and the live game's folder to offer when WoW saves somewhere else.
@@ -299,6 +367,7 @@ async function removeAllDataAndQuit() {
     });
   }
   setAutostart(false);
+  installerHandedOff = true; // removing data: never start an installer on the way out
   if (storeConfig) await storeConfig.flush().catch(() => {}); // A failed save has settled; deletion must still work.
   quitting = true;
   // config.json (the token and companion credential) first and on its own:
@@ -334,6 +403,7 @@ app.whenReady().then(async () => {
     engineModules = await loadEngineModules();
     await loadConfig();
     await repairSavedConfig();
+    if (await startupUpdateStep()) return;
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
     config.poeJournalFile = profileJournalFile();
     engine = engineModules.createProfileEngine(config, {
@@ -359,9 +429,9 @@ app.whenReady().then(async () => {
   onState(engine.state());
   void refreshSavedFile();
   setInterval(() => void refreshSavedFile(), 60 * 60 * 1000);
-  // Look for a newer release shortly after start, then twice a day.
+  // Look for a newer release shortly after start, then every few hours.
   setTimeout(() => void checkForUpdate(), 20_000);
-  setInterval(() => void checkForUpdate(), 12 * 60 * 60 * 1000);
+  setInterval(() => void checkForUpdate(), updates.CHECK_INTERVAL_MS);
 
   if (screenshotPath) {
     const capture = () => setTimeout(async () => {
@@ -464,6 +534,22 @@ registerIpc("open-startup-settings", () => shell.openExternal("ms-settings:start
 // "Update now" (7.2): download the checked installer, run it silently and quit; the installer
 // restarts the companion. Settings, the Discord link and the queue stay in the user data folder.
 let installing = false;
+// "Check for updates": look now and report. A new version then downloads in the background
+// (or the member chooses Update now); nothing is installed by the check itself.
+registerIpc("check-update", async () => {
+  if (STORE_INSTALL) return { ok: true, action: "store", message: T("Use Microsoft Store to update this installation.") };
+  await checkForUpdate();
+  if (!latestRelease) return { ok: false, message: T("Could not verify available updates. Try again when the release service is reachable.") };
+  if (!update) return { ok: true, action: "current", message: T("Your companion is up to date.") };
+  return { ok: true, action: "available", message: T("Version {0} is available. Choose Update now to install it.", update.version) };
+});
+registerIpc("set-auto-update", async (_event, on) => {
+  config.autoUpdate = on;
+  if (!on) forgetPendingUpdate(config.pendingUpdate?.file);
+  await saveConfig();
+  if (on) void checkForUpdate();
+  return on;
+});
 registerIpc("install-update", async () => {
   if (STORE_PACKAGE) {
     await shell.openExternal(STORE_UPDATES);
@@ -495,6 +581,7 @@ registerIpc("install-update", async () => {
     await updates.launchInstaller(target, spawn);
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Installer started for Guilded Companion {0}; restarting the companion.", selected.version) });
     handedOff = true;
+    installerHandedOff = true;
     quitting = true;
     setTimeout(() => app.quit(), 500);
     return { ok: true, action: "installing", message: T("Installing Guilded Companion {0}. It restarts by itself in a moment.", selected.version) };

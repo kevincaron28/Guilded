@@ -9,14 +9,14 @@ import { pinnedMessages } from "./pins.js";
 export const START_URL = "https://guilded.kcaron.top/start/";
 const ADDON_URL = "https://www.curseforge.com/wow/addons/guilded";
 const STORE_URL = "https://apps.microsoft.com/detail/9N680XX3QFL9";
-const GITHUB_URL = "https://github.com/kevincaron28/Guilded/releases/latest";
+const DIRECT_URL = "https://guilded.kcaron.top/companion/"; // Store or the auto-updating direct download
 
 const TITLES = { en: "⚡ Install Guilded in 1 minute", fr: "⚡ Installer Guilded en 1 minute" } as const;
 const OWNED_TITLES = new Set<string>(Object.values(TITLES));
 
 const BODY = {
-  en: "**1. Addon (required).** Pick the file for your WoW version. Close WoW before you install.\n**2. Companion (optional, Windows).** Sends your saved game data to Discord and the website. Latest from the Microsoft Store.\n**3. Sign in with Discord.** One click; pairing and sync are then automatic. The 1-minute guide has every step.",
-  fr: "**1. Addon (obligatoire).** Choisis le fichier de ta version de WoW. Ferme WoW avant d'installer.\n**2. Compagnon (facultatif, Windows).** Envoie tes données de jeu enregistrées vers Discord et le site. Dernière version du Microsoft Store.\n**3. Connecte-toi avec Discord.** Un clic; le lien et la synchronisation sont ensuite automatiques. Le guide d'une minute détaille chaque étape."
+  en: "**1. Addon (required).** Pick the file for your WoW version. Close WoW before you install.\n**2. Companion (optional, Windows).** Sends your saved game data to Discord and the website. Latest from the Microsoft Store, or a direct download that updates itself.\n**3. Sign in with Discord.** One click; pairing and sync are then automatic. The 1-minute guide has every step.",
+  fr: "**1. Addon (obligatoire).** Choisis le fichier de ta version de WoW. Ferme WoW avant d'installer.\n**2. Compagnon (facultatif, Windows).** Envoie tes données de jeu enregistrées vers Discord et le site. Dernière version du Microsoft Store, ou un téléchargement direct qui se met à jour seul.\n**3. Connecte-toi avec Discord.** Un clic; le lien et la synchronisation sont ensuite automatiques. Le guide d'une minute détaille chaque étape."
 } as const;
 
 const label = (lang: Lang, en: string, fr: string) => (lang === "fr" ? fr : en);
@@ -27,7 +27,7 @@ export function installPost(lang: Lang) {
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     link(label(lang, "1 · Addon (CurseForge)", "1 · Addon (CurseForge)"), ADDON_URL),
     link(label(lang, "2 · Companion (Store)", "2 · Compagnon (Store)"), STORE_URL),
-    link(label(lang, "Direct download (GitHub)", "Téléchargement direct (GitHub)"), GITHUB_URL),
+    link(label(lang, "Direct download (auto-updates)", "Téléchargement direct (mise à jour auto)"), DIRECT_URL),
     link(label(lang, "3 · Start here", "3 · Commencer ici"), lang === "fr" ? `${START_URL}?lang=fr` : START_URL)
   );
   return { embeds: [embed], components: [row], allowedMentions: { parse: [] as never[] } };

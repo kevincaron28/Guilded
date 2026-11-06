@@ -980,5 +980,10 @@
   "Open Discord server": "Ouvrir le serveur Discord",
   "Settings": "Paramètres",
   "Nothing is sent before you sign in. This PC then has its own private link to your account, never a shared one.": "Rien n’est envoyé avant votre connexion. Ce PC a ensuite son propre lien privé avec votre compte, jamais un lien partagé.",
-  "Skipping keeps every other way to link: the website, /guilded verify in game and a short code in Connection & setup.": "Passer conserve toutes les autres façons de relier : le site, /guilded verify en jeu et un code court dans Connexion et configuration."
+  "Skipping keeps every other way to link: the website, /guilded verify in game and a short code in Connection & setup.": "Passer conserve toutes les autres façons de relier : le site, /guilded verify en jeu et un code court dans Connexion et configuration.",
+  "Guilded Companion updated to {0}": "Le compagnon Guilded est passé à la version {0}",
+  "Your settings and Discord link were kept.": "Vos paramètres et votre lien Discord ont été conservés.",
+  "Version {0} is available. Choose Update now to install it.": "La version {0} est disponible. Choisissez Mettre à jour pour l’installer.",
+  "Check for updates": "Rechercher des mises à jour",
+  "Install updates automatically": "Installer les mises à jour automatiquement"
 }

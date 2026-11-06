@@ -2,7 +2,7 @@ import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, PermissionFl
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
-import { BG_SETUP_NAMES } from "../setup-names.js";
+import { BG_SETUP_NAMES, PVP_SETUP_NAMES } from "../setup-names.js";
 import { loadGuildScope, runInGuildScope } from "./guild-scope.js";
 
 export const BG_SETUP_PARTS = ["groups", "results", "stats"] as const;
@@ -19,6 +19,8 @@ export const QG_BG_ADOPTION = {
   stats: { channel: "1565740142977880104", message: "1565740363321442386" },
   results: { channel: "1565740144299081798", message: "1565740366987005953" }
 } as const;
+/** Every name a PvP channel may already have: the 8.4 battleground names and the 8.5 PvP names, in both languages. */
+export const pvpChannelNames = (part: BgSetupPart): string[] => [BG_SETUP_NAMES.en[part], BG_SETUP_NAMES.fr[part], PVP_SETUP_NAMES.en[part], PVP_SETUP_NAMES.fr[part]];
 const queues = new Map<string, Promise<unknown>>();
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 const posting = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks];
@@ -109,12 +111,20 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     categoryId = category.id;
     await save({ bgCategoryId: categoryId });
   }
+  // 8.5: channels already named like the battleground or PvP ones (all in one category) are adopted, not duplicated.
+  if (!selection && !categoryId && BG_SETUP_PARTS.some(p => !settings[BG_SETUP_FIELDS[p].channel])) {
+    const named = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.parentId && BG_SETUP_PARTS.some(p => pvpChannelNames(p).includes(c.name)));
+    const parents = new Set(named.map(c => c.parentId));
+    const parent = parents.size === 1 ? guild.channels.cache.get([...parents][0]!) : undefined;
+    if (parent?.type === ChannelType.GuildCategory) { categoryId = parent.id; await save({ bgCategoryId: categoryId }); }
+  }
   if (!selection && !categoryId && BG_SETUP_PARTS.some(p => !settings[BG_SETUP_FIELDS[p].channel])) {
     if (!me.permissions.has(PermissionFlagsBits.ManageChannels)) fail("Manage Channels is missing. Use the existing-channel menus instead.", "Gérer les salons manque. Utilisez les menus de salons existants.");
     const memberRoleId = scope.memberRoleId ?? settings.memberRoleId;
     if (!memberRoleId || memberRoleId === guild.id || !guild.roles.cache.has(memberRoleId)) fail("Configure a member role or select existing channels manually; no public category was created.", "Configurez un rôle membre ou choisissez les salons existants; aucune catégorie publique créée.");
-    const name = `${BG_SETUP_NAMES[lang].category} · ${scope.guild.name} · ${scope.guild.gameEdition}`.slice(0, 100);
-    const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory && c.name === name);
+    const name = `${PVP_SETUP_NAMES[lang].category} · ${scope.guild.name} · ${scope.guild.gameEdition}`.slice(0, 100);
+    const oldName = `${BG_SETUP_NAMES[lang].category} · ${scope.guild.name} · ${scope.guild.gameEdition}`.slice(0, 100);
+    const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildCategory && (c.name === name || c.name === oldName));
     if (matches.size) fail("An unsaved category has this name. Select its existing channels manually to avoid duplicates.", "Une catégorie non enregistrée porte ce nom. Choisissez ses salons manuellement pour éviter les doublons.");
     {
       const category = await guild.channels.create({ name, type: ChannelType.GuildCategory, permissionOverwrites: [
@@ -140,7 +150,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
       if (!categoryId) fail("Select an existing channel.", "Choisissez un salon existant.");
       const category = await fetchChannel(categoryId!);
       if (category.type !== ChannelType.GuildCategory) throw new Error(say(lang, "Saved category is not a category.", "La catégorie enregistrée est invalide."));
-      const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.parentId === categoryId && ([BG_SETUP_NAMES.en[part], BG_SETUP_NAMES.fr[part]] as string[]).includes(c.name));
+      const matches = guild.channels.cache.filter(c => c.type === ChannelType.GuildText && c.parentId === categoryId && pvpChannelNames(part).includes(c.name));
       if (matches.size > 1) fail("Several matching channels exist; select one manually.", "Plusieurs salons correspondent; choisissez-en un manuellement.");
       const existing = matches.first();
       if (existing) { await checkOwner(existing.id); id = existing.id; }
@@ -161,7 +171,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
         const bot = overwrites.find(o => o.id === me.id);
         if (bot) { bot.allow |= botAllow; bot.deny &= ~botAllow; }
         else overwrites.push({ id: me.id, type: 1, allow: botAllow, deny: 0n });
-        const created = await guild.channels.create({ name: BG_SETUP_NAMES[lang][part], type: ChannelType.GuildText, parent: category.id,
+        const created = await guild.channels.create({ name: PVP_SETUP_NAMES[lang][part], type: ChannelType.GuildText, parent: category.id,
           permissionOverwrites: overwrites, reason: "Guilded optional battleground setup" });
         id = created.id;
       }
@@ -195,3 +205,14 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
   return say(lang, `Battleground panels saved: ${notes.join(", ")}. No automation or consent settings changed.`, `Panneaux JcJ enregistrés : ${notes.join(", ")}. Aucun réglage d’automatisation ou de consentement modifié.`);
 }
 
+
+/**
+ * `/setup` hook (8.5): when an officer switched the PvP module on, create or repair the PvP category (groups, results,
+ * ladder). Returns "" when the module is off, so `/setup` is unchanged for every server that did not opt in.
+ */
+export async function ensurePvpModule(guild: DiscordGuild, db: PrismaClient, guildId: string, lang: Lang, actorId: string): Promise<string> {
+  const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { pvpModuleEnabled: true } });
+  if (!settings?.pvpModuleEnabled) return "";
+  try { return await ensureBattlegroundSetup(guild, db, guildId, lang, actorId); }
+  catch (error) { return `⚠️ ${say(lang, "PvP channels didn't finish: ", "Les salons JcJ n'ont pas fini : ")}${error instanceof Error ? error.message : String(error)}`; }
+}

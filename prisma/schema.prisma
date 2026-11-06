@@ -123,6 +123,7 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  levelRace LevelRaceEntry[]
   rankRoles GuildRankRole[]
   pugBoard PugBoardGuild?
   pugBlocks PugBlock[]
@@ -442,6 +443,8 @@ model CommunityParticipationDeletion {
 
 
 model Member {
+  // 8.5 track B: hide this member's characters from the race to 60 board.
+  raceHidden Boolean @default(false)
   achievements MemberAchievement[]
   poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
@@ -916,6 +919,11 @@ model GuildSettings {
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
   duelBoardEnabled         Boolean @default(false)
   duelBoardMessageId       String?
+  // 8.5 track B: Race to 60 board (opt-in, one message edited in place) and the PvP channel module switch.
+  raceBoardEnabled         Boolean @default(false)
+  raceBoardChannelId       String?
+  raceBoardMessageId       String?
+  pvpModuleEnabled         Boolean @default(false)
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -2835,4 +2843,22 @@ model MemberMilestone {
 
   @@unique([guildId, memberId, gameEdition, ref])
   @@index([guildId, memberId, kind])
+}
+
+// 8.5 track B: "Race to 60" board. One row per guild character (linked or not) remembering when it was first seen at the
+// level cap and its level at the start of the current week. Numbers only; hidden members are skipped when drawing.
+model LevelRaceEntry {
+  id             String    @id @default(cuid())
+  guildId        String
+  nameKey        String
+  name           String
+  className      String
+  level          Int
+  reachedMaxAt   DateTime?
+  weekStartLevel Int
+  weekStartedAt  DateTime
+  updatedAt      DateTime  @updatedAt
+  guild          Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, nameKey])
 }

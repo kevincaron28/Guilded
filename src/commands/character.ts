@@ -12,6 +12,7 @@ import { CLASSES } from "../wow-data.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { blockVerifiedCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
+import { addRaceSubcommand, executeRace } from "./race.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
@@ -56,7 +57,8 @@ export const characterCommand = new SlashCommandBuilder()
     .setDescription("Link reported characters named like a Discord member."))
   .addSubcommand((subcommand) => subcommand
     .setName("list")
-    .setDescription("List your linked characters."));
+    .setDescription("List your linked characters."))
+  .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
 
 // The realm most of the guild's characters use, so nobody types it.
 async function defaultRealm(guildId: string): Promise<string> {
@@ -77,6 +79,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language), "companion"));
     return;
   }
+  if (subcommand === "race") { await executeRace(interaction, context); return; }
   if (subcommand === "list") {
     const characters = await guildService.listCharacters(context.memberId);
     await interaction.reply({

@@ -91,6 +91,7 @@ import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
 import { updateDuelBoard } from "./services/duel-board.js";
+import { updateRaceBoard } from "./services/race-board.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
@@ -343,6 +344,7 @@ client.once(Events.ClientReady, (readyClient) => {
       await forEachGuildScope(prisma, guild.id, async () => {
         await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard", origin));
         await updateDuelBoard(guild).catch(reportJobError("Duel board", origin));
+        await updateRaceBoard(guild).catch(reportJobError("Race board", origin));
         await updateProfessionDirectory(guild).catch(reportJobError("Profession directory", origin));
         await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
       });
@@ -361,6 +363,7 @@ client.once(Events.ClientReady, (readyClient) => {
         await forEachGuildScope(prisma, guild.id, async () => {
           await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard refresh", origin));
           await updateDuelBoard(guild).catch(reportJobError("Duel board refresh", origin));
+          await updateRaceBoard(guild).catch(reportJobError("Race board refresh", origin));
         });
       }
     } finally { refreshingBoards = false; }

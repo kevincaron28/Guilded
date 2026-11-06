@@ -1,19 +1,29 @@
 # Battlegrounds — implementation and acceptance
 
-## Current checkpoint — October 30
+## Status — 8.5 (6 November 2026)
 
-8.3 organization is deployed with the website/Companion remodel and opt-in
-automation. GitHub's 23 public downloads and all ten approved CurseForge edition
-downloads are hash-verified. Store Submission 6 is published; installed 8.3
-verification remains pending. The selected season calendars are unchanged.
-All available testing is authorized now; the earlier wait-until-launch direction
-is superseded. Publication does not imply real-client acceptance.
+Battleground capture, consent, result cards and provisional statistics shipped with
+8.4 and the duel board with 8.4.6; real-client acceptance on Forever is still owed.
+The October 30 checkpoint that used to head this page (8.3 artifacts, Store
+Submission 6, the QuébecGold hub post) was point-in-time and is retired; the
+release records in `docs/V8_4_0_RELEASE_ACCEPTANCE.md` and `docs/archive/` hold it.
 
-The [QuébecGold BG hub](https://discord.com/channels/1323321076478119967/1552246570714402827/1565730945766527019)
-was posted in the existing scoped channel at 14:15 UTC. Its French Create, Join,
-My groups and Upcoming buttons use deployed **8.3 organization controls only**.
-Permissions were unchanged and mentions suppressed. Native click acceptance is
-not recorded; results/statistics buttons await deployment of the new handlers.
+### 8.5 track B: PvP channels and the ladder
+
+- **One PvP category.** An officer runs `/battleground pvp-module enabled:true`; `/setup`
+  then adds the category (`⚔️ PvP` / `⚔️ JcJ`) with `pvp-groups`, `pvp-results` and
+  `pvp-ladder` (`groupes-pvp`, `resultats-pvp`, `classement-pvp` in French) through the
+  button "Create missing channels". Channels already saved in the settings, or already named
+  like the 8.4 battleground channels (`battleground-groups` ...) and sitting together in one
+  category, are adopted and never duplicated. Nothing is created while the module is off.
+- **The ladder is the PvP ladder.** `pvp-ladder` is the same channel as the 8.4 statistics channel
+  (`bgStatsChannelId`): it holds the static statistics panel and the live duel board
+  (`/battleground duel-board`), which already combines duel standings with the consented
+  battleground summary. No separate board was built.
+- **Arena capture: later.** Owner decision (6 November 2026): the "arena module" means this
+  battleground/duel PvP module, so 8.5 builds no arena capture. If Forever arenas are ever
+  confirmed in the live client (`IsActiveBattlefieldArena`, `GetBattlefieldTeamInfo`), a bracket
+  ladder (2v2, 3v3, 5v5) can be added to `pvp-ladder` then.
 
 The **8.4 source candidate**, on `codex/bg-recorder-history-oct30`, now includes:
 
@@ -36,9 +46,7 @@ The **8.4 source candidate**, on `codex/bg-recorder-history-oct30`, now includes
   Distinct consenting reporters and compatible observations may corroborate a
   provisional association; a shared code never proves a universal match ID.
 
-Root is integrating these changes. They are not deployed or included in frozen
-8.3 artifacts. Focused checks have passed, while integrated CI, migrations,
-packaging and real acceptance remain release gates.
+Real acceptance on a Forever client remains a release gate.
 
 ### Still gated or incomplete
 

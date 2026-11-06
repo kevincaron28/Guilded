@@ -37,3 +37,31 @@ export async function discordCalendarEvents(client: Client | undefined, guildDis
   }));
   return events.filter((_event, index) => visible[index]);
 }
+
+// Hotfix 2 (8.5): the standings answer waited on these Discord calls with no limit, and right
+// after an upload they queue behind the import's own Discord posts. The companion and the
+// website proxy give up after 20 s. Answer within `ms` with the member's last known events (none
+// the first time); the call keeps running and refreshes them for the next answer.
+const lastEvents = new Map<string, APIGuildScheduledEvent[]>();
+const slowLoggedAt = new Map<string, number>();
+export async function calendarEventsWithin(fetchEvents: () => Promise<APIGuildScheduledEvent[]>, key: string, ms = 4_000): Promise<APIGuildScheduledEvent[]> {
+  const call = fetchEvents().then((events) => {
+    lastEvents.delete(key);
+    lastEvents.set(key, events);
+    while (lastEvents.size > 500) lastEvents.delete(lastEvents.keys().next().value!);
+    return events;
+  });
+  void call.catch(() => undefined);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), ms); });
+  try {
+    const events = await Promise.race([call, late]);
+    if (events) return events;
+  } finally { clearTimeout(timer); }
+  const guild = key.split(":")[0] ?? "";
+  if (Date.now() - (slowLoggedAt.get(guild) ?? 0) > 3_600_000) {
+    slowLoggedAt.set(guild, Date.now());
+    console.warn(`Discord scheduled events took over ${ms} ms for a standings answer; used the last known ones.`);
+  }
+  return lastEvents.get(key) ?? [];
+}

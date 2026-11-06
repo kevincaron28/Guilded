@@ -1,6 +1,6 @@
 # Member sync review
 
-Review this working copy before committing. In an in-game-only guild, any member can enable ledger sync on their PC with `/guilded ledgersync on`. In either mode, `/guilded sync peers` asks online guildmates for current standings, missing item insights and the dungeon board. It also requests the ledger when enabled, or the configured guild bridge in connected mode. Repeat commands within 30 seconds are coalesced.
+Review this working copy before committing. In an in-game-only guild, ledger sync is ON by default for every member (owner decision, 6 November 2026, for 8.4.6); `/guilded ledgersync off` or the Settings checkbox turns it off per character, and a saved explicit off stays off. In either mode, `/guilded sync peers` asks online guildmates for current standings, missing item insights and the dungeon board. It also requests the ledger when enabled, or the configured guild bridge in connected mode. Repeat commands within 30 seconds are coalesced.
 
 ## How an award reaches an offline officer's guildmates
 
@@ -110,3 +110,10 @@ The three-client test below needs an officer and two ordinary members on real Wo
 - `npx vitest run tests/lua` (with the placeholder environment from CLAUDE.md): 830 passed in 69 files (Codex reported 827 in 68; the difference is the three tests I added and one file that needs the environment). Without the placeholder environment, `character-names` and `share` fail to load on `src/config.ts`, as documented.
 - `npx tsc --noEmit -p .` and `npx eslint .`: clean.
 - `npm run addon:editions`: built and verified 10 edition packages; client acceptance remains pending.
+
+### Decision: on by default (6 November 2026, 8.4.6)
+
+Member ledger sync and the relay are on for every member of an In-game only guild; a setting never touched counts as on, an explicit off stays off. Connected-mode guilds keep the bot as the source of truth, so nothing runs there (the checkbox only records the choice). Safety rails are unchanged: officer-only authorization, the load-time SHA-256 self-test (fails closed), bad-peer skipping, size and memory bounds, paced queue. With everyone on, offers stay one short whisper each, now spread by 0-3 s of random delay, and only the chosen holder sends data. Limitation (item 7): a member who missed an officer's announcement and logs in when no officer is online waits for an officer to be online and re-send. Acceptable because the fallback is the existing officer exchange and the alternative would weaken officer-only authorization.
+
+Release-note text (EN): "Guildmates now share EP/GP history with each other automatically in In-game only guilds, so a member can catch up even when no officer is online. Only awards an officer announced are accepted, and they are checked before use. A member who missed the announcement still needs an officer online. Turn it off with /guilded ledgersync off or in Settings."
+Release-note text (FR): "Les membres partagent d'office l'historique EP/GP entre eux dans les guildes en mode En jeu seulement : un membre peut se mettre à jour même sans officier en ligne. Seules les attributions annoncées par un officier sont acceptées, après vérification. Un membre qui a manqué l'annonce a encore besoin d'un officier en ligne. Désactivation : /guilded ledgersync off ou dans les Réglages."

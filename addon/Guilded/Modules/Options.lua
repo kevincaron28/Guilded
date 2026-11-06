@@ -116,6 +116,12 @@ function module.switches()
         r.setTooltipMode("compact")
       end
     },
+    -- Ledger sync with guildmates (in-game-only guilds): on unless turned off (8.4.6).
+    {
+      label = L("Share EP/GP history with guildmates"),
+      get = function() return not (ns.ledgerSync and ns.ledgerSync.enabled and not ns.ledgerSync.enabled()) end,
+      set = function(on) run(on and "ledgersync on" or "ledgersync off") end
+    },
     -- Milestone announcements in guild chat: OFF until the player turns them on (8.4.5).
     {
       label = L("Announce my milestones in guild chat"),

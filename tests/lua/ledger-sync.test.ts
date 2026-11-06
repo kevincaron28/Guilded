@@ -40,7 +40,7 @@ function client(name: string, options: { officer?: boolean; local?: boolean; syn
       isInGameOnly = function() return DB.settings.setupMode == "local" end,
       currentGuildKey = function() return GetGuildInfo("player") .. "-Realm" end,
       message = function(text) CHAT_LOG = CHAT_LOG or {}; CHAT_LOG[#CHAT_LOG + 1] = text end,
-      commandHandlers = {}, commandHelp = {},
+      commandHandlers = {}, commandHelp = {}, ledgerOfferJitter = 0,
       util = {
         serverTime = function() return NOW end,
         tooFarAhead = function(stamp) return type(stamp) == "number" and stamp > NOW + 600 end,
@@ -258,6 +258,30 @@ describe("compressed ledger batches (7.5.0)", () => {
       expect(s.run(`return NS.ledgerDigest(string.rep("a", ${size}))`))
         .toBe(createHash("sha256").update("a".repeat(size)).digest("hex"));
     }
+  });
+
+  it("is on for a member who never touched the setting, and stays off once turned off", () => {
+    const { s } = client("Dave", { officer: false });
+    s.run("DB.settings.ledgerSync = nil");
+    expect(s.run("return tostring(NS.ledgerSync.active())")).toBe("true");
+    s.run('NS.commandHandlers.ledgersync({"off"})');
+    expect(s.run("return tostring(DB.settings.ledgerSync) .. tostring(NS.ledgerSync.active())")).toBe("falsefalse");
+    s.run('NS.commandHandlers.ledgersync({"on"})');
+    expect(s.run("return tostring(NS.ledgerSync.active())")).toBe("true");
+  });
+
+  it("spreads the short offers out, and drops one that is no longer valid", () => {
+    const holder = client("Dave", { officer: false, pack: true });
+    holder.s.run(`
+      NS.ledgerOfferJitter = 3; TIMERS = {}
+      C_Timer.After = function(_, fn) TIMERS[#TIMERS + 1] = fn end
+      local digest = string.rep("a", 64)
+      DB.ledgerRelay = { guild = NS.currentGuildKey(), order = { digest }, records = { [digest] = { officer = "Alice", wire = "E|1|x" } } }
+      fire_event("CHAT_MSG_ADDON", "GuildedLedger", "SEEK|1|" .. digest, "GUILD", "Eve-Realm")
+    `);
+    expect(holder.s.run("return #OUT .. ':' .. #TIMERS")).toBe("0:1");
+    holder.s.run("TIMERS[1]()");
+    expect(holder.s.run("return #OUT .. ':' .. OUT[1].text:sub(1, 5) .. OUT[1].channel")).toBe("1:HAVE|WHISPER");
   });
 
   it("computes the same digest with a native rotate", () => {

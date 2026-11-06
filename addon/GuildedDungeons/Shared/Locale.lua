@@ -1956,6 +1956,7 @@ local DE = {
   ["Your standing (from Discord)"] = "Dein Ranglistenstand (von Discord)",
   ["Your vote: %s for %s."] = "Deine Stimme: %s f\195\188r %s.",
   ["Yours"] = "Deine",
+  ["Share EP/GP history with guildmates"] = "EP/GP-Verlauf mit Gildenmitgliedern teilen",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3209,6 +3210,7 @@ local ES = {
   ["Your standing (from Discord)"] = "Tu clasificaci\195\179n (de Discord)",
   ["Your vote: %s for %s."] = "Tu voto: %s para %s.",
   ["Yours"] = "Tuyas",
+  ["Share EP/GP history with guildmates"] = "Compartir el historial de EP/GP con la hermandad",
 }
 -- END ES
 
@@ -3857,3 +3859,4 @@ FR["Ready: copy the text, then paste it in Guild (J) > Info > message of the day
 FR["This game client does not say whether you can edit the guild message, so nothing is offered."] = "Ce client de jeu n'indique pas si vous pouvez modifier le message de guilde : rien n'est propos\195\169."
 FR["Guild message ready: click the Update guild message button to copy it (%s)."] = "Message de guilde pr\195\169t : cliquez sur le bouton Mettre \195\160 jour le message de guilde pour le copier (%s)."
 FR["A reminder plus a copy box for the guild message of the day: WoW does not let addons set it, so you paste the ready text yourself and Guilded confirms it. Off by default; a manual edit pauses it."] = "Un rappel et une zone de copie pour le message du jour de la guilde : WoW ne permet pas aux addons de le d\195\169finir, vous collez donc le texte pr\195\169t vous-m\195\170me et Guilded le confirme. D\195\169sactiv\195\169 par d\195\169faut ; une modification manuelle le met en pause."
+FR["Share EP/GP history with guildmates"] = "Partager l'historique EP/GP avec la guilde"

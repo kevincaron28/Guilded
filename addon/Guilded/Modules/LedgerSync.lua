@@ -19,6 +19,8 @@
 -- A client whose game cannot pack text (no C_EncodingUtil) never says CAP, so it only ever gets
 -- E messages; older clients ignore CAP.
 --
+-- On by default for every member in In-game only guilds; /guilded ledgersync off (or the Settings
+-- checkbox) turns it off for that character.
 -- E/Z payloads come from officers. Members can also carry identical payloads whose
 -- SHA-256 receipt the recipient heard directly from an officer (LedgerRelay.lua).
 -- Both paths use the same entry validation, deduplication and void accounting.
@@ -68,9 +70,10 @@ local function settings()
   return d.settings
 end
 
+-- On unless the player turned it off (owner decision, 6 November 2026): an untouched setting is on.
 local function enabled()
   local s = settings()
-  return s and s.ledgerSync == true or false
+  return s ~= nil and s.ledgerSync ~= false
 end
 
 -- When each officer with sync on was last heard from (kept across reloads, newest 20), so the
@@ -545,6 +548,7 @@ end
 
 ns.ledgerSync = {
   active = active,
+  enabled = enabled,
   waiting = waiting,
   summary = function() local ix = index(); return ix.count, ix.hash end,
   sendSum = sendSum
@@ -599,7 +603,7 @@ ns.commandHandlers["ledgersync"] = function(args)
   end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded ledgersync on | off | now | status - receive EP/GP history from guild officers")
+table.insert(ns.commandHelp, "/guilded ledgersync on | off | now | status - EP/GP history from guild officers and guildmates (on by default)")
 
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")

@@ -4,6 +4,7 @@
 local _, ns = ...
 local CAPACITY, CHUNK, MAX_BYTES = 16, 160, 12002
 local MAX_PENDING = 8
+local OFFER_JITTER = 3  -- seconds; ns.ledgerOfferJitter overrides (tests)
 -- A holder whose bytes failed the digest, or who went quiet, is skipped for a while.
 local REFUSE_BAD, REFUSE_STALLED, MAX_REFUSED = 600, 300, 64
 
@@ -80,7 +81,10 @@ function ns.createLedgerRelay(send, apply, active, onDelivery)
       if ns.comm.pending and ns.comm.pending("GuildedLedger") > MAX_PENDING then return true end
       if not r.offerAt or now - r.offerAt >= 5 then
         r.offerAt, r.offerTo = now, sender
-        send("HAVE|1|" .. digest, "WHISPER", sender)
+        -- With everyone on, many holders hear one SEEK: spread the short offers out.
+        local function offer() if cache() == c and r.wire and r.offerTo == sender then send("HAVE|1|" .. digest, "WHISPER", sender) end end
+        local spread = ns.ledgerOfferJitter or OFFER_JITTER
+        if spread > 0 and C_Timer and C_Timer.After then C_Timer.After(math.random() * spread, offer) else offer() end
       end
     elseif kind == "FETCH" and channel == "WHISPER" and r and r.wire then
       if r.offerTo ~= sender or not r.offerAt or now - r.offerAt > 120 then return true end

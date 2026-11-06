@@ -566,7 +566,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!started) { json(response, 503, { error: "Too many sign-ins in progress. Try again in a few minutes." }); return; }
         const page = new URL("/me/companion", auth.siteUrl);
         page.searchParams.set("request", started.requestId);
-        json(response, 200, { requestId: started.requestId, confirm: started.confirm, expiresAt: started.expiresAt.toISOString(), url: page.href, loopbackAccepted: companionSignIn.loopbackFor(started.requestId) !== null });
+        json(response, 200, { requestId: started.requestId, confirm: started.confirm, expiresAt: started.expiresAt.toISOString(), expiresInSeconds: Math.max(0, Math.round((started.expiresAt.getTime() - Date.now()) / 1000)), url: page.href, loopbackAccepted: companionSignIn.loopbackFor(started.requestId) !== null });
         return;
       }
       if (isSignInPoll) {

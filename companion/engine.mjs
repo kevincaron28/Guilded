@@ -102,7 +102,11 @@ export async function startSignIn(config, { loopback } = {}) {
     if (typeof body.requestId !== "string" || typeof body.url !== "string" || typeof body.confirm !== "string") return { ok: false, message: "The bot's sign-in answer was incomplete." };
     const page = checkUrl(body.url);
     // When the bot forgets the request (20 minutes since 8.5; older bots 10): the window counts down to it.
-    const expiresAt = typeof body.expiresAt === "string" && Number.isFinite(Date.parse(body.expiresAt)) ? new Date(body.expiresAt).toISOString() : new Date(Date.now() + 10 * 60_000).toISOString();
+    // The bot says how long the request lives (expiresInSeconds, 9.0); counting from this PC's clock
+    // keeps the countdown right even when the PC clock is off. Older bots: their expiresAt.
+    const seconds = Number.isFinite(body.expiresInSeconds) && body.expiresInSeconds > 0 && body.expiresInSeconds <= 3600 ? body.expiresInSeconds : null;
+    const expiresAt = seconds !== null ? new Date(Date.now() + seconds * 1000).toISOString()
+      : typeof body.expiresAt === "string" && Number.isFinite(Date.parse(body.expiresAt)) ? new Date(body.expiresAt).toISOString() : new Date(Date.now() + 10 * 60_000).toISOString();
     return { ok: true, uploadUrl, requestId: body.requestId, confirm: body.confirm, url: page.href, expiresAt, automatic: !!loopback && body.loopbackAccepted === true };
   } catch (error) {
     return { ok: false, message: describeError(error) };

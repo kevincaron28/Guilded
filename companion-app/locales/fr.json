@@ -1217,5 +1217,14 @@
   "Closing for an update.": "Fermeture pour une mise à jour.",
   "Starting Guilded Companion {0} from {1} (packaged: {2}, Store: {3}, data folder: {4}, arguments: {5}).": "Démarrage de Guilded Companion {0} depuis {1} (empaqueté : {2}, Store : {3}, dossier de données : {4}, arguments : {5}).",
   "Start-up update step: {0}.": "Étape de mise à jour au démarrage : {0}.",
-  "Ready: {0} connection(s), signed in: {1}, restarted by Microsoft Store: {2}.": "Prêt : {0} connexion(s), connecté : {1}, redémarré par Microsoft Store : {2}."
+  "Ready: {0} connection(s), signed in: {1}, restarted by Microsoft Store: {2}.": "Prêt : {0} connexion(s), connecté : {1}, redémarré par Microsoft Store : {2}.",
+  "Settings could not be saved.": "Les paramètres n'ont pas pu être enregistrés.",
+  "Windows protected storage is not answering. What you change now is kept only until the companion closes.": "Le stockage protégé de Windows ne répond pas. Ce que vous changez maintenant n'est conservé que jusqu'à la fermeture du compagnon.",
+  "Windows refused to save the settings. What you change now is kept only until the companion closes.": "Windows a refusé d'enregistrer les paramètres. Ce que vous changez maintenant n'est conservé que jusqu'à la fermeture du compagnon.",
+  "Keep the companion open: it keeps syncing with what it has in memory.": "Gardez le compagnon ouvert : il continue de synchroniser avec ce qu'il a en mémoire.",
+  "Restart Windows, then open the companion and check your Discord link and WoW folder.": "Redémarrez Windows, puis ouvrez le compagnon et vérifiez votre liaison Discord et votre dossier WoW.",
+  "Settings could not be saved: {0}": "Les paramètres n'ont pas pu être enregistrés : {0}",
+  "Still showing? Copy the report and send it to the developer, with startup.log from the Guilded Companion folder in %APPDATA%.": "Toujours affiché ? Copiez le rapport et envoyez-le au développeur, avec startup.log du dossier Guilded Companion dans %APPDATA%.",
+  "A new Discord sign-in page was opened.": "Une nouvelle page de connexion Discord a été ouverte.",
+  "Then choose your server, press Connect, and come back here.": "Choisissez ensuite votre serveur, appuyez sur Connecter, puis revenez ici."
 }

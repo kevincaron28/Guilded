@@ -25,6 +25,12 @@
   function describe(problem) {
     const d = problem.data || {};
     switch (problem.id) {
+      case 'settings-not-saved': return {
+        title: T('Settings could not be saved.'),
+        detail: d.stuck ? T('Windows protected storage is not answering. What you change now is kept only until the companion closes.') : T('Windows refused to save the settings. What you change now is kept only until the companion closes.'),
+        steps: [T('Keep the companion open: it keeps syncing with what it has in memory.'), T('Restart Windows, then open the companion and check your Discord link and WoW folder.'), T('Still showing? Copy the report and send it to the developer, with startup.log from the Guilded Companion folder in %APPDATA%.')],
+        fix: null
+      };
       case 'disk-space-low': return {
         title: T('Not enough disk space: {0} MB free, about {1} MB needed. Free space with Windows Settings > Storage, then retry.', d.freeMb, d.neededMb),
         steps: [T('Choose Open Storage settings and remove temporary files or apps you no longer use.'), T('Then choose Check again. Updates and the addon install wait until there is room, so nothing stops halfway.')],

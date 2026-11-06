@@ -120,8 +120,35 @@ async function repairSavedConfig() {
   if (changed) await saveConfig();
 }
 
+// Every save is logged step by step in startup.log (store-config.cjs); a failure also goes to Activity
+// and to the Problems panel ("settings-not-saved").
 function saveConfig() {
-  return storeConfig.write(configFile(), config);
+  const save = storeConfig.write(configFile(), config);
+  save.then(() => noteSaveState(), (error) => {
+    pushLog({ time: new Date().toISOString(), level: "error", message: E("Settings could not be saved: {0}", error instanceof Error ? error.message : String(error)) });
+    noteSaveState();
+  });
+  return save;
+}
+let shownSaveState = "";
+function settingsSaveState() {
+  const status = storeConfig?.status?.() ?? {};
+  return status.lastError || status.stuck ? { failed: Boolean(status.lastError), stuck: Boolean(status.stuck), step: status.stuck?.step ?? null } : null;
+}
+function noteSaveState() {
+  const key = JSON.stringify(settingsSaveState());
+  if (key === shownSaveState) return;
+  shownSaveState = key;
+  if (engine) onState(engine.state());
+}
+// Settings diagnostics: appended to startup.log in the data folder for the whole run (kept under 256 KB).
+function settingsLog(line) {
+  try {
+    const target = path.join(app.getPath("userData"), "startup.log");
+    let size = 0; try { size = fs.statSync(target).size; } catch { /* new file */ }
+    if (size < 256 * 1024) fs.appendFileSync(target, `${new Date().toISOString()} settings ${line}
+`);
+  } catch { /* diagnostics only */ }
 }
 
 async function loadEngineModules() {
@@ -416,7 +443,7 @@ function problems(state) {
   if (typeof engineModules?.companionProblems !== "function") return [];
   return engineModules.companionProblems({
     config, state, savedFile, update, version: app.getVersion(), store: STORE_INSTALL, autoUpdate: config.autoUpdate !== false,
-    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online, diskSpace
+    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online, diskSpace, settingsSave: settingsSaveState()
   });
 }
 // Install addon / Update addon (8.5, track F3): offered when the watched game folder has no
@@ -586,7 +613,8 @@ app.whenReady().then(async () => {
   try {
     try { fs.mkdirSync(app.getPath("userData"), { recursive: true }); fs.writeFileSync(path.join(app.getPath("userData"), "startup.log"), ""); } catch { /* diagnostics only */ }
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Starting Guilded Companion {0} from {1} (packaged: {2}, Store: {3}, data folder: {4}, arguments: {5}).", app.getVersion(), process.execPath, app.isPackaged ? "yes" : "no", STORE_INSTALL ? "yes" : "no", app.getPath("userData"), args.join(" ") || "none") });
-    storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage);
+    storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage, { log: settingsLog });
+    setInterval(noteSaveState, 10_000).unref?.();
     engineModules = await loadEngineModules();
     await loadConfig();
     // Diagnostics (9.0 release blocker): say if a start-up step left the settings blank.
@@ -668,6 +696,7 @@ app.on("before-quit", event => {
     event.preventDefault();
     storeConfig.flush().then(() => { exitFlushed = true; app.quit(); }).catch(error => {
       quitting = false;
+      pushLog({ time: new Date().toISOString(), level: "error", message: E("Settings could not be saved: {0}", error.message) });
       dialog.showErrorBox(T("Guilded Companion could not save settings"), error.message);
     });
   }
@@ -872,6 +901,12 @@ registerIpc("sign-in-wait", async () => {
   for (let restarts = 0; ; restarts++) {
     const result = await engineModules.waitForSignIn({ ...config, ...current.next, uploadUrl: current.started.uploadUrl }, current.started.requestId, { signal: current.controller.signal, expiresAt: current.started.expiresAt, proof: () => current.loopback?.proof() });
     current.loopback?.close();
+    // "Reopen the page" swapped in a new request: follow it.
+    if (current.replacedBy && signIn === current.replacedBy) {
+      current = current.replacedBy;
+      win?.webContents.send("sign-in-restarted", signInView(current.started, 0));
+      continue;
+    }
     // Expired or forgotten by the bot (a restart): start a new request and open its page, so the
     // member is never left on a page that can only say "expired".
     if (result.expired && signIn === current && restarts < SIGN_IN_RESTARTS) {
@@ -939,11 +974,26 @@ registerIpc("open-invite", (_event, url) => {
   void shell.openExternal(url);
   return true;
 });
-// "Reopen the page": the same request, opened again (the first tab may be hidden or closed).
+// "Reopen the page" (9.0): always a new request. The first one may have expired, or its page may
+// already have been used (Connect pressed, the answer lost on the way back to this PC), and the
+// site then says "This sign-in expired" while the countdown here still runs. The waiting loop
+// above follows the new request.
 registerIpc("sign-in-reopen", async () => {
-  if (!signIn) return { ok: false, message: T("Choose Sign in with Discord first.") };
+  const current = signIn;
+  if (!current) return { ok: false, message: T("Choose Sign in with Discord first.") };
+  const begun = await beginSignIn(current.next);
+  if (!begun.current) {
+    // The bot did not answer: open the same page again, as before.
+    await openSignInPage(current);
+    return { ok: true, url: current.started.url };
+  }
+  if (signIn !== current) { endSignIn(begun.current); return { ok: false, message: T("Choose Sign in with Discord first.") }; }
+  current.replacedBy = begun.current;
+  signIn = begun.current;
+  current.controller.abort();
+  pushLog({ time: new Date().toISOString(), level: "info", message: E("A new Discord sign-in page was opened.") });
   await openSignInPage(signIn);
-  return { ok: true, url: signIn.started.url };
+  return { ok: true, url: signIn.started.url, started: signInView(signIn.started) };
 });
 registerIpc("sign-in-cancel", () => { endSignIn(signIn); signIn = null; return { ok: true }; });
 

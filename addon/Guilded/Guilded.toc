@@ -37,6 +37,7 @@ Modules\LocalGuild.lua
 Modules\Reserve.lua
 Modules\Recipes.lua
 Modules\Calendar.lua
+Modules\RaidSignup.lua
 Modules\PublicRaids.lua
 Modules\RaidBuffCatalog.lua
 Modules\ConsumableData.lua
@@ -58,6 +59,7 @@ Modules\Attunements.lua
 Modules\Ready.lua
 Modules\GuildMap.lua
 Modules\CallForHelp.lua
+Modules\LevelPartners.lua
 Modules\Presence.lua
 Modules\ClientTools.lua
 Modules\RosterTools.lua

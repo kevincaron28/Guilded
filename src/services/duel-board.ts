@@ -6,6 +6,7 @@ import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { duelLeaderboard, percent, streakText, type DuelStanding } from "./duels.js";
 import { previewAllows } from "./feature-preview.js";
+import { displayCharacterName, loadFullNameBook, type FullNameBook } from "./character-display.js";
 
 // The live "Duels de la guilde" board (8.4.6): ONE bot message in the PvP statistics channel, edited in place after
 // every duel upload and on a schedule. On by default (GuildSettings.duelBoardEnabled), it posts once the ladder channel
@@ -49,6 +50,12 @@ export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult">, gu
     recent: recentRows.map(row => ({ winner: row.winnerCharacter, loser: row.loserCharacter, endedAt: row.endedAt, reason: row.reason })) };
 }
 
+/** Pure: the board data with every character shown by its full name where the guild knows it. */
+export function withFullNames(data: DuelBoardData, book: FullNameBook): DuelBoardData {
+  return { ...data, standings: data.standings.map(row => ({ ...row, name: displayCharacterName(row.name, book) })),
+    recent: data.recent.map(duel => ({ ...duel, winner: displayCharacterName(duel.winner, book), loser: displayCharacterName(duel.loser, book) })) };
+}
+
 const isBoard = (message: Message, botId: string) => message.author.id === botId && message.embeds.some(embed => embed.footer?.text?.startsWith(`${DUEL_BOARD_MARKER} •`));
 
 /**
@@ -74,7 +81,7 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
     if (!channel?.isTextBased() || !("send" in channel)) return false;
     const lang = asLang(settings.language);
     const edition = guild.gameEdition ?? "forever";
-    const embed = duelBoardEmbed(await loadDuelBoardData(prisma, guild.id, edition), lang, guild.id).setTimestamp(new Date());
+    const embed = duelBoardEmbed(withFullNames(await loadDuelBoardData(prisma, guild.id, edition), await loadFullNameBook(prisma, guild.id)), lang, guild.id).setTimestamp(new Date());
     const payload = { embeds: [embed], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";
     let existing: Message | null = settings.duelBoardMessageId ? await channel.messages.fetch(settings.duelBoardMessageId).catch(() => null) : null;

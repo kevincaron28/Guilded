@@ -2,6 +2,7 @@ import { escapeMarkdown, type Client } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { t, type Lang } from "../i18n.js";
 import { previewAllows } from "./feature-preview.js";
+import { displayCharacterName, fullNameBook } from "./character-display.js";
 
 // 8.5 track F3, owner decision (6 November 2026): after a member's FIRST companion link, one Discord DM
 // ("You're linked: First Last, Second Last"), on by default. "First" means the upload took the member
@@ -34,10 +35,11 @@ export async function tellFirstCompanionLink(client: Messenger | null | undefine
   try {
     const characters = await database.character.findMany({ where: { memberId }, orderBy: [{ isMain: "desc" }, { name: "asc" }], select: { name: true, displayName: true } });
     if (!characters.length) return false;
+    const book = fullNameBook(characters);
     const member = await database.member.findUnique({ where: { id: memberId }, select: { discordUserId: true } });
     if (!member) return false;
     const server = (await client.guilds.fetch(guildDiscordId).catch(() => null))?.name ?? "Discord";
-    const content = firstLinkMessage(lang, server, characters.map((character) => character.displayName || character.name));
+    const content = firstLinkMessage(lang, server, characters.map((character) => displayCharacterName(character, book)));
     await client.users.send(member.discordUserId, { content, allowedMentions: { parse: [] } });
     return true;
   } catch {

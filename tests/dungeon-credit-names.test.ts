@@ -26,14 +26,14 @@ describe("rating board credits guildmates without the addon", () => {
     const rows = calculateDungeonRating([run([linked("Kev Caron"), guildmate("El Pirata"), outsider("Pug Stranger")], {})], rules);
     expect(rows.map(r => r.name).sort()).toEqual(["El Pirata", "Kev Caron"]);
     const el = rows.find(r => r.name === "El Pirata")!;
-    expect(el).toMatchObject({ memberId: "", unlinked: true });
+    expect(el).toMatchObject({ memberId: "char:el pirata" });
     expect(el.points).toBeGreaterThan(0);
-    expect(rows.find(r => r.name === "Kev Caron")!.unlinked).toBeUndefined();
+    expect(rows.find(r => r.name === "Kev Caron")!.memberId).toBe("m-Kev Caron");
   });
   it("moves the row to the member once the same character is linked", () => {
     const after = calculateDungeonRating([run([linked("Kev Caron"), linked("El Pirata")], {})], rules);
     expect(after.find(r => r.name === "El Pirata")).toMatchObject({ memberId: "m-El Pirata" });
-    expect(after.some(r => r.unlinked)).toBe(false);
+    expect(after.some(r => r.memberId.startsWith("char:"))).toBe(false);
   });
 });
 
@@ -96,5 +96,24 @@ describe("full character names", () => {
     const runs = [{ players: [player("El", null)] }, { players: [player("El Pirata", "El Pirata")] }] as unknown as LeaderRun[];
     const [bare] = withFullDisplayNames(runs);
     expect(bare!.players[0]).toMatchObject({ character: "El", displayName: "El Pirata" });
+  });
+});
+
+describe("first-name rows merge into the full-name row", () => {
+  const board = (...runs: RatingRun[]) => calculateDungeonRating(runs, rules);
+  it("joins a bare El to the single El Pirata of the same member, keeping the best result", () => {
+    const old = run([linked("Kev Caron")], {}, { runRef: "A", durationSec: 1500 });
+    old.players = [{ ...linked("Kev Caron"), character: "El", memberId: "m-El Pirata" }];
+    (old.competitionData as { players: { name: string }[] }).players = [{ name: "El", level: 16, minLevel: 16 } as never];
+    const fresh = run([{ ...linked("El Pirata"), memberId: "m-El Pirata" }], {}, { runRef: "B", durationSec: 1000, endedAt: new Date(start.getTime() + 1_000_000) });
+    const rows = board(old, fresh);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: "El Pirata", memberId: "m-El Pirata", dungeons: 1 });
+    expect(rows[0]!.points).toBe(board(fresh)[0]!.points);
+  });
+  it("leaves a bare name alone when two full names share it", () => {
+    const solo = (name: string, id: string, ref: string) => run([{ ...linked(name), memberId: id }], {}, { runRef: ref });
+    const bare = run([{ ...linked("El"), memberId: "m1" }], {}, { runRef: "C" });
+    expect(board(bare, solo("El Pirata", "m1", "D"), solo("El Bandido", "m2", "E"))).toHaveLength(3);
   });
 });

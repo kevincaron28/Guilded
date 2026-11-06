@@ -196,7 +196,7 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
   const totals = await database.dungeonPointTransaction.groupBy({
     by: ["seasonId", "memberId"], where: { guildId, seasonId: { in: selected.filter(season => !ratingRows.has(season.id) && finalRows(season.finalStandings) === null).map(season => season.id) } }, _sum: { amount: true }
   });
-  const ids = [...new Set([...totals.map(row => row.memberId), ...selected.flatMap(season => (ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.filter(row => !("unlinked" in row && row.unlinked)).map(row => row.memberId) ?? [])])];
+  const ids = [...new Set([...totals.map(row => row.memberId), ...selected.flatMap(season => (ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.filter(row => !row.memberId.startsWith("char:")).map(row => row.memberId) ?? [])])];
   const [members, characters] = await Promise.all([
     database.member.findMany({ where: { guildId, id: { in: ids } }, select: { id: true, displayName: true } }),
     database.character.findMany({ where: { member: { guildId }, memberId: { in: ids } },

@@ -2,6 +2,7 @@ import { armoryAnchor } from "./armory-link.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import { createCraftService } from "./craft.js";
+import { displayCharacterName, fullNameBook } from "./character-display.js";
 import { itemDetailLines, itemDetails } from "./item-details.js";
 import type { ItemDataProvider } from "./item-preview-data.js";
 import { professionEmoji, professionLegend, professionName, seenDot, skillBar } from "./profession-style.js";
@@ -33,6 +34,8 @@ export async function loadGallery(db: Db, guildId: string, query: string, now = 
   const text = query.trim();
   const people = await db.character.findMany({ where: { member: { guildId, status: "ACTIVE", isTest: false } }, select: { name: true, lastSeenAt: true, member: { select: { displayName: true } } }, take: 3_000 });
   const personByName = new Map(people.map(person => [key(person.name), person]));
+  const book = fullNameBook(people);
+  const shown = (name: string) => displayCharacterName(name, book);
   const skills = await db.professionSkill.findMany({ where: { character: { member: { guildId, status: "ACTIVE", isTest: false } } }, select: { profession: true, skillLevel: true, character: { select: { name: true } } }, take: 6_000 });
   const skillOf = new Map(skills.map(row => [`${key(row.character.name)}|${key(row.profession)}`, row.skillLevel]));
   // Crafters whose name (or Discord name) matches the search, so "Kev" lists what Kev can make.
@@ -47,7 +50,7 @@ export async function loadGallery(db: Db, guildId: string, query: string, now = 
     const person = personByName.get(key(row.character));
     let recipe = byItem.get(row.itemKey);
     if (!recipe) { recipe = { itemKey: row.itemKey, itemName: row.itemName, crafters: [], offers: [] }; byItem.set(row.itemKey, recipe); }
-    if (recipe.crafters.length < MAX_CRAFTERS_PER_RECIPE) recipe.crafters.push({ character: row.character, member: person?.member.displayName ?? null, profession: row.profession,
+    if (recipe.crafters.length < MAX_CRAFTERS_PER_RECIPE) recipe.crafters.push({ character: shown(row.character), member: person?.member.displayName ?? null, profession: row.profession,
       skill: skillOf.get(`${key(row.character)}|${key(row.profession)}`) ?? null, lastSeen: lastSeenOf(person?.lastSeenAt, row.scannedAt) });
   }
   const recipes = [...byItem.values()].slice(0, MAX_RECIPES);
@@ -72,7 +75,7 @@ export async function loadGallery(db: Db, guildId: string, query: string, now = 
   const cards = new Map<string, CrafterCard>();
   const card = (name: string): CrafterCard => {
     let existing = cards.get(key(name));
-    if (!existing) { const person = personByName.get(key(name)); existing = { character: person?.name ?? name, member: person?.member.displayName ?? null, lastSeen: person?.lastSeenAt ?? null, professions: [], recipeCount: 0, notable: [], cooldownsReady: [] }; cards.set(key(name), existing); }
+    if (!existing) { const person = personByName.get(key(name)); existing = { character: shown(person?.name ?? name), member: person?.member.displayName ?? null, lastSeen: person?.lastSeenAt ?? null, professions: [], recipeCount: 0, notable: [], cooldownsReady: [] }; cards.set(key(name), existing); }
     return existing;
   };
   for (const row of skills) if (cardNames.has(key(row.character.name))) card(row.character.name).professions.push({ profession: row.profession, skill: row.skillLevel });

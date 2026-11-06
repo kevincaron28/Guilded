@@ -287,7 +287,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("📜 **Raid reports and loot logs** — each raid core has its own, in the core's category (`/core setup` makes them). There is no server-wide one."),
       T("🔒 **Officer log** (WoW guild officers) — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
       T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) }),
-      T("💬 **Bot FAQ** — members ask questions and the bot answers automatically: {channel}", { channel: channelLabel(lang, settings.answerChannelId) }),
+      ...(settings.answerChannelId ? [T("💬 **Bot FAQ** is retired and no longer created. To remove the old {channel}, press **Retire an old channel** below and pick it: its messages are saved to a file first and nothing is deleted until you confirm.", { channel: channelLabel(lang, settings.answerChannelId) })] : []),
       T("🎉 **Community** — activities, leaderboard and chat, with a first season and participation rewards already on, plus a private **Discord admin** channel for community reviews (separate from the WoW officer channels). (\"Create the missing ones for me\" makes these too.)")
     ].join("\n"));
     const select = (id: string, placeholder: string) => new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
@@ -590,14 +590,15 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
   return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
 }
 
-export const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
+export const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId"];
 const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId", "inviteChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
 export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];
 // Server-wide raid log, loot log and roster channel: no longer created or offered (each core has
-// its own). Kept so /setup uninstall still finds the ones an earlier version made.
-export const RETIRED_CHANNELS: ChannelField[] = ["raidLogChannelId", "lootChannelId", "coreChannelId"];
+// its own), and the #bot-faq answer channel (9.0: unused, no longer created). Kept so /setup uninstall still finds the
+// ones an earlier version made; "Retire an old channel" archives and deletes #bot-faq after a confirmation.
+export const RETIRED_CHANNELS: ChannelField[] = ["raidLogChannelId", "lootChannelId", "coreChannelId", "answerChannelId"];
 // Managed when explicitly enabled, but not created or counted as missing by general setup.
 export const OPTIONAL_CHANNELS: ChannelField[] = ["pugChannelId"];
 
@@ -1011,9 +1012,11 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         } else if (i.isChannelSelectMenu() && action === "retire-pick") {
           const channelId = i.values[0];
           const settings = await guildService.getSettings(guildId);
+          // 9.0: the retired #bot-faq answer channel may be picked; the bot stops answering there once it is archived.
+          const retiringFaq = Boolean(channelId) && channelId === settings?.answerChannelId;
           const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
           if (!channel || channel.type !== ChannelType.GuildText) note = T("Pick a text channel.");
-          else if (isManagedChannel(settings as Record<string, unknown> | null, channel.id)) note = T("<#{id}> is a channel Guilded uses, so it cannot be retired here.", { id: channel.id });
+          else if (!retiringFaq && isManagedChannel(settings as Record<string, unknown> | null, channel.id)) note = T("<#{id}> is a channel Guilded uses, so it cannot be retired here.", { id: channel.id });
           else {
             const destination = settings?.logChannelId ? await guild.channels.fetch(settings.logChannelId).catch(() => null) : null;
             const target = destination?.isTextBased() && "send" in destination ? destination : i.channel && "send" in i.channel ? i.channel : null;
@@ -1021,6 +1024,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
             else {
               const made = await archiveForRetire(guild, channel, target);
               retiring.delete(guildId);
+              if (retiringFaq) { await guildService.updateSettings(guildId, { answerChannelId: null }); forgetAnswerSettings(guild.id); }
               note = T("Saved {count} messages of #{name} to a file in <#{where}>. Press the red button to delete the channel for good, or Keep it.", { count: made.archived, name: made.name, where: made.archiveChannelId });
             }
           }

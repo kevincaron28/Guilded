@@ -200,3 +200,40 @@ describe("Calendar.lua making in-game events from Discord raids", () => {
     expect(last(t)).toContain("No upcoming Discord raid");
   });
 });
+
+describe("Calendar.lua answering an event (the Signups page)", () => {
+  const stubAnswers = (s: LuaSession) => s.run(`
+    ANSWERED = {}
+    for _, name in ipairs({ "EventAvailable", "EventTentative", "EventDecline" }) do
+      C_Calendar[name] = function() ANSWERED[#ANSWERED + 1] = name .. ":" .. tostring(OPENED and OPENED.title) end
+    end
+  `);
+
+  it("opens the event and gives the game's own answer, then closes it", () => {
+    const s = withCalendar();
+    stubAnswers(s);
+    expect(s.run(`local r; NS.calendar.reply("501", "TENTATIVE", function(ok) r = ok end); return tostring(r) .. "|" .. ANSWERED[1] .. "|" .. tostring(OPENED)`)).toBe("true|EventTentative:Molten Core|nil");
+    s.run(`NS.calendar.reply("501", "DECLINED")`);
+    expect(s.run("return ANSWERED[2]")).toBe("EventDecline:Molten Core");
+  });
+
+  it("falls back to signing up when the event has no Available answer", () => {
+    const s = withCalendar();
+    s.run(`C_Calendar.EventSignUp = function() ANSWERED = "signed up" end`);
+    expect(s.run(`local r; NS.calendar.reply("501", "ACCEPTED", function(ok) r = ok end); return tostring(r) .. "|" .. tostring(ANSWERED)`)).toBe("true|signed up");
+  });
+
+  it("says no when the event is unknown or the client has no calendar API", () => {
+    const s = withCalendar();
+    stubAnswers(s);
+    expect(s.run(`local r; NS.calendar.reply("999", "ACCEPTED", function(ok) r = ok end); return tostring(r) .. "|" .. #ANSWERED`)).toBe("false|0");
+    const none = withCalendar({ api: false });
+    expect(none.run(`local r; NS.calendar.reply("501", "ACCEPTED", function(ok) r = ok end); return tostring(r)`)).toBe("false");
+  });
+
+  it("passes the bot's signup list through discordRaids", () => {
+    const s = withCalendar();
+    s.run(`GuildedRaids = { { id = "r1", title = "MC", at = "2026-10-02T18:00:00.000Z", core = "", note = "", signups = { { "Ann", "T", "WARRIOR", "S", 5 } } } }`);
+    expect(s.run(`return NS.calendar.discordRaids()[1].signups[1][1]`)).toBe("Ann");
+  });
+});

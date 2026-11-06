@@ -1,6 +1,6 @@
 import type { Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { characterName } from "./character-display.js";
+import { displayCharacterName, fullNameBook } from "./character-display.js";
 import { cacheAllMembers } from "./member-cache.js";
 import { officerSyncRecent } from "./officer-sync.js";
 
@@ -83,10 +83,11 @@ export async function loadRosterGaps(db: Db, discordGuild: Pick<DiscordGuild, "m
     db.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }),
     db.guildSettings.findUnique({ where: { guildId }, select: { rosterIgnoredRoleIds: true } })
   ]);
-  const characters = people.flatMap((person) => person.characters.map((c) => ({ discordUserId: person.discordUserId, name: characterName(c), isMain: c.isMain, guildRankAt: c.guildRankAt })));
+  const book = fullNameBook([...people.flatMap((person) => person.characters), ...unclaimed]);
+  const characters = people.flatMap((person) => person.characters.map((c) => ({ discordUserId: person.discordUserId, name: displayCharacterName(c, book), isMain: c.isMain, guildRankAt: c.guildRankAt })));
   const members = [...discordGuild.members.cache.values()].map((m) => ({ discordUserId: m.id, displayName: m.displayName, isBot: m.user.bot, roleIds: [...m.roles.cache.keys()] }));
   return planRosterGaps({
-    members, characters, unclaimed: unclaimed.map((u) => ({ name: characterName(u), className: u.className, level: u.level, lastSeenAt: u.lastSeenAt })),
+    members, characters, unclaimed: unclaimed.map((u) => ({ name: displayCharacterName(u, book), className: u.className, level: u.level, lastSeenAt: u.lastSeenAt })),
     ignoredRoleIds: settings?.rosterIgnoredRoleIds ?? [], syncFresh: officerSyncRecent(guild?.officerSyncAt), now
   });
 }

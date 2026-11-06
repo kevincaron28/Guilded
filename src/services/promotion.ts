@@ -1,6 +1,6 @@
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { characterName } from "./character-display.js";
+import { characterName, displayCharacterName, fullNameBook } from "./character-display.js";
 import { cacheAllMembers } from "./member-cache.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 import { RANK_MAX_AGE_MS } from "./rank-roles.js";
@@ -86,10 +86,11 @@ export async function loadPromotionPlan(db: Db, discordGuild: Pick<DiscordGuild,
     }),
     db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition, guildRankName: { not: null } }, select: { name: true, displayName: true, level: true, guildRankName: true, guildRankAt: true } })
   ]);
+  const book = fullNameBook([...people.flatMap((p) => p.characters), ...unclaimed]);
   const plan = planPromotions({
     people: people.map((p) => ({ discordUserId: p.discordUserId, displayName: p.displayName, inDiscord: discordGuild.members.cache.has(p.discordUserId),
-      characters: p.characters.map((c) => ({ addon: addonName(c.name, c.realm), name: characterName(c), level: c.level, rankName: c.guildRankName, rankAt: c.guildRankAt, since: c.rankSeen?.since ?? null, isMain: c.isMain })) })),
-    unclaimed: unclaimed.map((u) => ({ name: u.name, displayName: u.displayName, level: u.level, rankName: u.guildRankName, rankAt: u.guildRankAt })),
+      characters: p.characters.map((c) => ({ addon: addonName(c.name, c.realm), name: displayCharacterName(c, book), level: c.level, rankName: c.guildRankName, rankAt: c.guildRankAt, since: c.rankSeen?.since ?? null, isMain: c.isMain })) })),
+    unclaimed: unclaimed.map((u) => ({ name: displayCharacterName(u, book), displayName: null, level: u.level, rankName: u.guildRankName, rankAt: u.guildRankAt })),
     rule, now
   });
   return { plan, rule };

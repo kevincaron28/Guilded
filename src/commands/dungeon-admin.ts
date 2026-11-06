@@ -108,6 +108,10 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
       : "No dungeon points recorded for that yet.");
   } else if (subcommand === "config") {
     reply = `Dungeon scoring settings are locked for all guilds. These shared participation rules apply to new awards; existing points stay. Season targets, level bands and penalties are shared and frozen. See /dungeon rules for the active season.\n\n${describeConfig(sharedDungeonConfig(), new Map())}`;
+  } else if (subcommand === "why") {
+    const blocks = await explainDungeonRuns(prisma, context.guildId, { run: interaction.options.getString("run"), character: interaction.options.getString("character") });
+    await interaction.reply({ content: blocks.join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
   } else if (subcommand === "bracket-preview") {
     await interaction.reply({ embeds: [provisionalSeasonEmbed()], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;

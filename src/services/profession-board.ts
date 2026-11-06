@@ -5,6 +5,7 @@ import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import { previewAllows } from "./feature-preview.js";
 import { crafterLine, professionLegend, professionTitle, seenDot } from "./profession-style.js";
 import { professionDetailsRow } from "./profession-details.js";
+import { displayCharacterName, emptyNameBook, loadFullNameBook, type FullNameBook } from "./character-display.js";
 
 // 8.5 track D2: ONE post per profession in the craft forum, edited in place (the duel-board pattern), listing every
 // recipe and the crafters who know it with their last seen. It replaces the old "top 3 per profession" directory
@@ -27,7 +28,8 @@ type Db = Pick<PrismaClient, "professionSkill" | "recipeKnown">;
 const key = (value: string) => value.trim().toLowerCase();
 
 /** Everything the profession posts and the gallery show, grouped by profession (spelling variants merged). */
-export async function loadProfessionPosts(db: Db, guildId: string): Promise<ProfessionPost[]> {
+export async function loadProfessionPosts(db: Db, guildId: string, names: FullNameBook = emptyNameBook): Promise<ProfessionPost[]> {
+  const shown = (name: string) => displayCharacterName(name, names);
   const skills = await db.professionSkill.findMany({ where: { character: { member: { guildId, status: "ACTIVE" } } },
     select: { profession: true, skillLevel: true, character: { select: { name: true, lastSeenAt: true } } } });
   const recipes = await db.recipeKnown.findMany({ where: { guildId }, select: { character: true, profession: true, itemKey: true, itemName: true, scannedAt: true },
@@ -44,14 +46,14 @@ export async function loadProfessionPosts(db: Db, guildId: string): Promise<Prof
   };
   const newestScan = new Map<string, Date>();
   for (const row of recipes) { const current = newestScan.get(key(row.character)); if (!current || row.scannedAt > current) newestScan.set(key(row.character), row.scannedAt); }
-  for (const row of skills) post(row.profession).skilled.push({ character: row.character.name, skillLevel: row.skillLevel, lastSeen: lastSeenOf(row.character.lastSeenAt, newestScan.get(key(row.character.name))) });
+  for (const row of skills) post(row.profession).skilled.push({ character: shown(row.character.name), skillLevel: row.skillLevel, lastSeen: lastSeenOf(row.character.lastSeenAt, newestScan.get(key(row.character.name))) });
   const byItem = new Map<string, ProfessionRecipe>();
   for (const row of recipes) {
     const target = post(row.profession);
     const id = `${key(row.profession)}|${row.itemKey}`;
     let recipe = byItem.get(id);
     if (!recipe) { recipe = { itemKey: row.itemKey, itemName: row.itemName, crafters: [] }; byItem.set(id, recipe); target.recipes.push(recipe); }
-    recipe.crafters.push({ character: row.character, lastSeen: lastSeenFor(row.character, row.scannedAt) });
+    recipe.crafters.push({ character: shown(row.character), lastSeen: lastSeenFor(row.character, row.scannedAt) });
   }
   for (const entry of posts.values()) {
     entry.skilled.sort((a, b) => byLastSeen(a.lastSeen, b.lastSeen) || b.skillLevel - a.skillLevel || a.character.localeCompare(b.character));
@@ -135,7 +137,8 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
   let written = 0;
   try {
     const existing = await existingPosts(forum);
-    for (const post of await loadProfessionPosts(db, guildId)) {
+    const names = await loadFullNameBook(db, guildId);
+    for (const post of await loadProfessionPosts(db, guildId, names)) {
       if (!post.skilled.length && !post.recipes.length) continue;
       const details = professionDetailsRow(post, lang);
       const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };

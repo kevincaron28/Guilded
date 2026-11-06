@@ -8,6 +8,8 @@ import { syncDiagnosticPreview } from "./sync-status.mjs";
 
 /** Ids in the order the panel lists them: the cause first, its symptoms after. */
 export const PROBLEM_IDS = Object.freeze([
+  "settings-not-saved",
+  "disk-space-low",
   "sign-in-expired",
   "bot-unreachable",
   "addon-missing",
@@ -82,7 +84,9 @@ const ms = (iso) => (typeof iso === "string" && Number.isFinite(Date.parse(iso))
  *     addon?: { status: string, expected?: string, installed?: string[], version?: string | null } } | null,
  *   update?: { version: string, installer?: unknown } | null,
  *   version?: string, store?: boolean, autoUpdate?: boolean, updateAttempts?: number,
- *   wowRunning?: boolean, online?: boolean
+ *   wowRunning?: boolean, online?: boolean,
+ *   diskSpace?: { ok: boolean, freeMb: number | null, neededMb: number } | null,
+ *   settingsSave?: { failed: boolean, stuck: boolean, step?: string | null } | null
  * }} input
  * @returns {{ id: string, data: Record<string, string | number | boolean | null> }[]}
  */
@@ -94,6 +98,16 @@ export function companionProblems(input = {}) {
   const wow = config.wowEnabled !== false;
   const problems = new Map();
   const add = (id, data = {}) => { if (!problems.has(id)) problems.set(id, data); };
+
+  // The settings could not be written, or a save has been running too long (companion-app/store-config.cjs):
+  // a sign-in or folder chosen now would be lost at the next start.
+  const save = input.settingsSave;
+  if (save && (save.failed || save.stuck)) add("settings-not-saved", { failed: Boolean(save.failed), stuck: Boolean(save.stuck) });
+
+  // Too little free space for an update or an addon install (companion-app/disk-space.cjs):
+  // nothing is started until the member frees some.
+  const disk = input.diskSpace;
+  if (disk && disk.ok === false && Number.isFinite(disk.freeMb)) add("disk-space-low", { freeMb: disk.freeMb, neededMb: disk.neededMb ?? 600 });
 
   // Every error the engine holds right now: uploads, standings, and each background connection.
   const errors = [state.uploadError, state.standingsError, ...(state.profiles ?? []).map((profile) => profile?.error)]
@@ -160,6 +174,8 @@ export function companionProblems(input = {}) {
 // Never the bot's reason, a path, an account or character name.
 const EDITION = /^[a-z][a-z-]{1,30}$/;
 const SAFE = {
+  "settings-not-saved": { failed: "boolean", stuck: "boolean" },
+  "disk-space-low": { freeMb: "number", neededMb: "number" },
   "bot-unreachable": { offline: "boolean" },
   "addon-missing": { expected: "edition" },
   "addon-wrong-edition": { expected: "edition", installed: "editions" },

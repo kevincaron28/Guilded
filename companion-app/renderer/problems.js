@@ -25,6 +25,18 @@
   function describe(problem) {
     const d = problem.data || {};
     switch (problem.id) {
+      case 'settings-not-saved': return {
+        title: T('Settings could not be saved.'),
+        detail: d.stuck ? T('Windows protected storage is not answering. What you change now is kept only until the companion closes.') : T('Windows refused to save the settings. What you change now is kept only until the companion closes.'),
+        steps: [T('Keep the companion open: it keeps syncing with what it has in memory.'), T('Restart Windows, then open the companion and check your Discord link and WoW folder.'), T('Still showing? Copy the report and send it to the developer, with startup.log from the Guilded Companion folder in %APPDATA%.')],
+        fix: null
+      };
+      case 'disk-space-low': return {
+        title: T('Not enough disk space: {0} MB free, about {1} MB needed. Free space with Windows Settings > Storage, then retry.', d.freeMb, d.neededMb),
+        steps: [T('Choose Open Storage settings and remove temporary files or apps you no longer use.'), T('Then choose Check again. Updates and the addon install wait until there is room, so nothing stops halfway.')],
+        fix: { label: T('Open Storage settings'), run: async () => { await api.openStorageSettings(); return null; } },
+        alt: { label: T('Check again'), run: async () => { const result = await api.checkDiskSpace(); if (!result.ok) throw new Error(result.message); return result.message; } }
+      };
       case 'sign-in-expired': return {
         title: T('Your Discord sign-in has expired or was removed.'),
         steps: [T('Choose Sign in with Discord.'), T('Approve in your browser, then come back here.'), T('Your settings and saved data stay as they are.')],
@@ -141,7 +153,10 @@
       }
       if (text.alt) {
         const alt = document.createElement('button'); alt.type = 'button'; alt.textContent = text.alt.label;
-        alt.addEventListener('click', () => { void text.alt.run(); });
+        alt.addEventListener('click', async () => {
+          try { const message = await text.alt.run(); if (message) { result.textContent = window.companionLanguage.message(message); result.className = 'result ok'; } }
+          catch (error) { result.textContent = error?.message || T('This action could not be completed.'); result.className = 'result bad'; }
+        });
         actions.append(alt);
       }
       const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = T('Copy report for the developer');
@@ -153,11 +168,22 @@
   }
 
   // The Overview banner offers the same install while the addon is missing or older.
+  const wowRunningNow = () => (problems || []).some(problem => problem.id === 'wow-running-update');
   let addonOffer = null, installing = false;
   function renderAddonOffer() {
-    const offer = addonOffer && addonOffer.action !== 'none' ? addonOffer : null;
+    // (9.0) Installed and matching: still one visible button, to reinstall it.
+    const current = addonOffer && addonOffer.action === 'none' && addonOffer.reason === 'up-to-date';
+    const offer = addonOffer && (addonOffer.action !== 'none' || current) ? addonOffer : null;
     $('addonBanner').hidden = !offer;
     if (!offer) return;
+    $('addonBanner').classList.toggle('quiet-banner', !!current);
+    if (current) {
+      $('addonTitle').textContent = T('Guilded addon {0} is installed', offer.installed || '?');
+      $('addonText').textContent = T('It matches this companion. Reinstall it if WoW lists it as missing or out of date; your current folder is kept as a backup.');
+      $('btnInstallAddon').textContent = T('Reinstall addon');
+      $('btnInstallAddon').disabled = installing || wowRunningNow();
+      return;
+    }
     const update = offer.action === 'update';
     $('addonTitle').textContent = update ? T('A newer Guilded addon is ready') : T('The Guilded addon is not installed yet');
     $('addonText').textContent = offer.blocked === 'wow-running'
@@ -169,7 +195,11 @@
   $('btnInstallAddon').addEventListener('click', async event => {
     const button = event.currentTarget, result = $('addonResult');
     installing = true; button.disabled = true; result.textContent = T('Downloading and checking the addon...'); result.className = 'result';
-    try { result.textContent = await installAddon(); result.className = 'result ok'; }
+    try {
+      if (addonOffer?.action === 'none') { const answer = await api.reinstallAddon(); if (!answer.ok) throw new Error(window.companionLanguage.message(answer.message)); result.textContent = answer.message; }
+      else result.textContent = await installAddon();
+      result.className = 'result ok';
+    }
     catch (error) { result.textContent = error?.message || T('This action could not be completed.'); result.className = 'result bad'; }
     finally { installing = false; renderAddonOffer(); }
   });

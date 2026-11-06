@@ -1,6 +1,5 @@
 import type { Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { previewAllows } from "./feature-preview.js";
 import { loadPromotionPlan } from "./promotion.js";
 
 // 8.5 track C5 (feed): the in-game "Ready to promote" panel (addon/Guilded/Modules/Promotion.lua) lists the members the
@@ -12,7 +11,6 @@ export interface PromotionFeed { updatedAt: string; fromRank: string; minDays: n
 export type PromotionFeedDb = Parameters<typeof loadPromotionPlan>[0] & Pick<PrismaClient, "guild">;
 
 export async function promotionForAddon(db: PromotionFeedDb, discordGuild: Pick<DiscordGuild, "id" | "members" | "memberCount">, guildId: string, edition: string, now = new Date()): Promise<PromotionFeed | null> {
-  if (!previewAllows(discordGuild.id)) return null;
   const { plan, rule } = await loadPromotionPlan(db, discordGuild, guildId, edition, now);
   if (!rule.enabled) return null;
   const ready = [...new Set(plan.ready.map((r) => r.addon).filter((name): name is string => Boolean(name)))].slice(0, 100);

@@ -2,7 +2,7 @@
 
 ## Current stage — 6 November 2026
 
-Guilded **8.4.7** is published on GitHub and the bot (Forever dungeon final-boss fix and the self-updating direct-download companion); the next release is **9.0.0** (planned below as the "8.5" tracks; owner decision 6 November 2026: it ships as 9.0 after in-game testing and polishing). Branch and doc names keep "8.5".
+Guilded **9.0.0** is the 8.5 work shipped as 9.0 (tracks A-K and the owner batches below). The previous release, 8.4.7, is on GitHub and the bot. Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Forever is the only active edition and PoE2 is hidden ([Forever-only focus](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
@@ -211,6 +211,9 @@ Later the same day:
 | Dungeon guild leaderboards too strict: runs don't show up. Find which gate drops them (estimated targets vs evidence, presence, final boss, level band, season window) and relax what is unfair for Season 1 without breaking integrity; show "why not counted" to officers | season2-plan session | Targets are estimates until Season 1 data exists |
 | Welcome DM: a member who picks World of Warcraft gets a **Request a guild invite** button (form: full character name), or can simply reply with the name. The bot posts it in `#invitation-guilde` and adds it to the invite queue automatically | invite-queue session | No need to find the channel |
 | **Full character names in every bot message** (the dungeon "classement" showed "El" for "El Pirata"): one display helper used by dungeon boards, run posts, ladders, achievements, profession posts, roster, DMs and cards | season2-plan (dungeon surfaces) + Track C (everything else) | Fallback to first name only when no full name is known |
+| Nickname sync uses the member's **server nickname** as the base (not the account name) when they set one, never doubling the `(First Last)` suffix, and follows later nickname changes | Track C | Owner, 6 November evening |
+| Companion checks free disk space before installing or updating (the second PC had 26 MB free) | Track F | From the fresh-PC test |
+| **Maximum sharing, optimal sync:** keep and upload everything guildmates' addons broadcast (Guilded and Guilded Dungeons); login catch-up (store-and-forward) for runs, professions and the roster, so data recorded with no companion online still arrives later; Dungeons-only players relayed; batching, instance queueing, delta uploads; `/guilded sync stats` | Track K | Owner, 6 November evening |
 | Not adopted from Kinfolk | — | Module switches (they contradict always-on), in-game polls/board, class guides |
 
 ### Phases after the features
@@ -663,6 +666,14 @@ guildmate whose companion is running.
 - **Promotions:** GRM records promotion dates and has promote macros but no "ready to promote" list,
   so C5 is new work. Test in the Forever client that promoting from an addon click works with the
   officer's Promote permission.
+
+### Release blocker — the companion upgrade loses settings (found 6 November 2026, evening)
+
+Installing the 9.0 candidate companion over 8.4.7 on the second PC lost the Discord link and the
+WoW folder, although `config.secure` was still on disk, unchanged. Every member would have to set up
+again. Track F is finding the root cause and making upgrades always keep settings (never overwrite
+after a failed read, a `.bak` before migrations), with an 8.4.7 → 9.0 regression test. The retest is
+a true upgrade on the second PC (its old config is backed up).
 
 ### Release blocker — Forever characters keyed by first name only (found 6 November 2026)
 

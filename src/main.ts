@@ -140,7 +140,6 @@ import { createErrorReportService, isMemberAnswer } from "./services/error-repor
 import { buildGuildedReference } from "./services/guilded-reference.js";
 import { runRetention } from "./services/retention.js";
 import { runStatSnapshots } from "./services/stat-snapshots.js";
-import { previewAllows } from "./services/feature-preview.js";
 import { discordTrialDelivery, remindEndedTrials } from "./services/trial-reminders.js";
 import { warnDoNotInvite } from "./services/do-not-invite.js";
 import { handleStarReaction } from "./services/starboard.js";
@@ -415,7 +414,7 @@ client.once(Events.ClientReady, (readyClient) => {
   setTimeout(() => void retention(), 5 * 60 * 1000);
   setInterval(() => void retention(), 6 * 60 * 60 * 1000);
   // 8.5 track G: one statistics row per guild per UTC day (stat-snapshots.ts); a run later the same day refreshes it.
-  const statSnapshots = () => runStatSnapshots(prisma, (id) => readyClient.guilds.cache.get(id)?.memberCount ?? null, previewAllows)
+  const statSnapshots = () => runStatSnapshots(prisma, (id) => readyClient.guilds.cache.get(id)?.memberCount ?? null)
     .catch(reportJobError("Statistics snapshots"));
   setTimeout(() => void statSnapshots(), 7 * 60 * 1000);
   setInterval(() => void statSnapshots(), 6 * 60 * 60 * 1000);
@@ -625,7 +624,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
   const previewProvider = new CachedItemProvider(nullItemDataProvider);
   const previewBackoff = new Map<string, number>();
   client.on(Events.MessageCreate, (message) => {
-    if (!message.guildId || !hostedPilot.allows(message.guildId) || !previewAllows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket
+    if (!message.guildId || !hostedPilot.allows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket
     void handlePreviewMessage({
       loadConfig: (discordGuildId) => prisma.itemPreviewConfig.findUnique({ where: { discordGuildId } }),
       disable: async (discordGuildId, reason) => { await prisma.itemPreviewConfig.updateMany({ where: { discordGuildId }, data: { enabled: false, disabledReason: reason } }); },

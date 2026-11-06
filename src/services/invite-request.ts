@@ -4,7 +4,6 @@ import {
 } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
-import { previewAllows } from "./feature-preview.js";
 import { parseInviteName, recordInviteRequest, SEEN, type ParsedInviteName } from "./invite-queue.js";
 import { hostedPilot } from "../hosted-pilot.js";
 
@@ -45,7 +44,7 @@ export async function submitInviteRequest(client: Pick<Client, "guilds" | "chann
     select: { guildId: true, inviteChannelId: true, language: true }
   });
   const lang = asLang(settings?.language);
-  if (!settings?.inviteChannelId || !previewAllows(input.discordGuildId) || !hostedPilot.allows(input.discordGuildId)) return { status: "unavailable", lang };
+  if (!settings?.inviteChannelId || !hostedPilot.allows(input.discordGuildId)) return { status: "unavailable", lang };
   const guild = await client.guilds.fetch(input.discordGuildId).catch(() => null);
   const member = await guild?.members.fetch(input.discordUserId).catch(() => null);
   if (!member) return { status: "unavailable", lang };

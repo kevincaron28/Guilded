@@ -284,16 +284,19 @@ function M.buildPage(page, ui)
   local newLabel, newButton, at = ui.newLabel, ui.newButton, ui.at
   local view = { offset = 0, blocks = {} }
   M.view = view
-  at(newLabel(page, "Your answers reach Discord with the next companion upload; Discord signups show here after it refreshes the standings.", "GameFontHighlightSmall"), page, 0, 0)
+  -- Wrapped to the page width (it was cut off at the right edge), so the rest starts lower.
+  local intro = at(newLabel(page, "Your answers reach Discord with the next companion upload; Discord signups show here after it refreshes the standings.", "GameFontHighlightSmall"), page, 0, 0)
+  if ui.width and intro.SetWidth then intro:SetWidth(ui.width) end
+  if intro.SetJustifyH then intro:SetJustifyH("LEFT") end
   view.roleButtons = {}
   for i, role in ipairs({ "TANK", "HEALER", "DPS" }) do
-    view.roleButtons[role] = at(newButton(page, ROLE_TEXT[role], 90, function() M.setRole(role); M.refreshView() end), page, (i - 1) * 96, -40)
+    view.roleButtons[role] = at(newButton(page, ROLE_TEXT[role], 90, function() M.setRole(role); M.refreshView() end), page, (i - 1) * 96, -58)
   end
   view.scan = at(newButton(page, "Read calendar", 110, function()
     if ns.calendar and ns.calendar.scanEvents then ns.calendar.scanEvents(function() M.refreshView() end) end
-  end), page, 300, -40)
+  end), page, 300, -58)
   for i = 1, PER_PAGE do
-    local block = { top = -76 - (i - 1) * ROW }
+    local block = { top = -94 - (i - 1) * ROW }
     block.text = at(newLabel(page, "", "GameFontHighlight"), page, 0, block.top)
     if ui.width then block.text:SetWidth(ui.width) end
     block.yes = at(newButton(page, "Sign up", 90, function() if block.entry then M.answer(block.entry, "ACCEPTED") end end), page, 0, block.top - 66)
@@ -302,9 +305,10 @@ function M.buildPage(page, ui)
     block.mine = at(newLabel(page, "", "GameFontDisableSmall"), page, 290, block.top - 71)
     view.blocks[i] = block
   end
-  view.empty = at(newLabel(page, "", "GameFontDisableSmall"), page, 0, -80)
-  view.prev = at(newButton(page, "Previous", 90, function() view.offset = math.max(0, view.offset - PER_PAGE); M.refreshView() end), page, 0, -76 - PER_PAGE * ROW)
-  view.next = at(newButton(page, "Next", 90, function() view.offset = view.offset + PER_PAGE; M.refreshView() end), page, 96, -76 - PER_PAGE * ROW)
+  view.empty = at(newLabel(page, "", "GameFontDisableSmall"), page, 0, -98)
+  if ui.width and view.empty.SetWidth then view.empty:SetWidth(ui.width) end
+  view.prev = at(newButton(page, "Previous", 90, function() view.offset = math.max(0, view.offset - PER_PAGE); M.refreshView() end), page, 0, -94 - PER_PAGE * ROW)
+  view.next = at(newButton(page, "Next", 90, function() view.offset = view.offset + PER_PAGE; M.refreshView() end), page, 96, -94 - PER_PAGE * ROW)
   function M.refreshView()
     if not (page.IsShown and page:IsShown()) then return end
     local events = M.events()

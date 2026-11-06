@@ -118,3 +118,41 @@ describe("guild events in the Guilded tab", () => {
     expect(s.run(`return #LINES.main`)).toBe("0");
   });
 });
+
+describe("the Guilded tab is on by default (8.5 in-game fix)", () => {
+  // A client where the tab does not exist until FCF_OpenNewWindow makes it.
+  const FRESH = String.raw`
+    OPENED = false
+    GetChatWindowInfo = function(i) if i == 3 and OPENED then return "Guilded" end return ({ "General", "Log" })[i] end
+    FCF_OpenNewWindow = function(name) OPENED = true; OPENED_AS = name; return ChatFrame3 end
+    C_Timer = { After = function(_, fn) fn() end }
+    SETTINGS.chatTab = nil
+  `;
+
+  it("opens the tab at the first login with no saved choice and turns it on", () => {
+    const s = withEvents();
+    s.run(FRESH);
+    s.run(`fire_event("PLAYER_LOGIN")`);
+    expect(s.run(`return tostring(SETTINGS.chatTab) .. ":" .. tostring(OPENED_AS)`)).toBe("true:Guilded");
+    expect(s.run(`return LINES.tab[1]`)).toContain("This tab shows Guilded's messages");
+    // And guild events now reach it.
+    expect(say(s, "Ann has joined the guild.")).toBe("2");
+  });
+
+  it("leaves a saved choice alone, on or off", () => {
+    const off = withEvents();
+    off.run(FRESH);
+    off.run(`SETTINGS.chatTab = false; fire_event("PLAYER_LOGIN")`);
+    expect(off.run(`return tostring(OPENED)`)).toBe("false");
+    expect(off.run(`return tostring(SETTINGS.chatTab)`)).toBe("false");
+  });
+
+  it("gives up quietly after three logins on a client that cannot open a window", () => {
+    const s = withEvents();
+    s.run(FRESH + `FCF_OpenNewWindow = nil`);
+    for (let i = 0; i < 3; i++) s.run(`fire_event("PLAYER_LOGIN")`);
+    expect(s.run(`return tostring(SETTINGS.chatTab) .. ":" .. SETTINGS.chatTabTries`)).toBe("nil:3");
+    s.run(`fire_event("PLAYER_LOGIN")`);
+    expect(s.run(`return tostring(SETTINGS.chatTab)`)).toBe("false");
+  });
+});

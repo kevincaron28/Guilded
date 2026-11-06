@@ -111,6 +111,22 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
   - The re-preview shows nothing left in Québec Gold.
 - GitHub: merged #388 (site pointers to 8.4.7); closed the superseded #394 and #396. Dependabot #407 was reviewed (development tools only) and held until after 9.0.
 
+## Final 9.0 pass, main PC (bot ccc9cd4, candidate addon, Lebowski Holyroller)
+
+| Item | Result |
+| --- | --- |
+| No Lua error | Pass |
+| Minimap quick menu (Signups, Levelling partners, Call for help, …) | Pass |
+| Levelling partners | Pass: about 9 guildmates at levels 12-13, with Whisper/Invite |
+| Signups page | Pass (no event to sign up for) |
+| `/gsos` confirm popup → No | Pass, nothing sent |
+| Get the companion box | Pass |
+| Guild bank | Not tested (Lebowski is not at a bank) |
+| **Home says "Not linked to Discord yet" for a linked character** | **Bug**: likely first-name vs full-name keys between the 8.4.7 companion data and the 9.0 addon. Sent to Track K |
+| Québec Gold `/setup` Create missing channels | Created `#classement-duels` and configured `#invitation-guilde`; the BG ladder stays in `#statistiques-jcj` |
+| `#course-au-60` | Full names, no duplicates (14 characters). **Members can post in it**: board channels are being made read-only (Track B). A member said the board is "not up to date": levels refresh from uploads, and most members still run 8.4.7 |
+| Nicknames | Pass where seen ("Crashingbananas (Crashing Pally)") |
+
 ## Still to do
 - Full test suite on the merged candidate (running).
 - Track K merge, then the two-PC window ([test plan](V8_5_0_GAME_TEST_PLAN.md)).

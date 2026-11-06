@@ -1,10 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   cooldownState, ensureInviteGuide, guideText, markRecruitPosted, parseInviteAnswers, parseQuestions, questionsBlock, sendRecruitReminders, storedQuestions, updateRecruit
 } from "../src/services/recruiting-kit.js";
 import { formatInviteList, recordInviteRequest } from "../src/services/invite-queue.js";
 
-afterEach(() => { delete process.env["FEATURE_PREVIEW_GUILD_IDS"]; });
 const HOUR = 3_600_000;
 
 describe("interview questions and answers", () => {
@@ -82,12 +81,6 @@ describe("the shared recruiting cooldown", () => {
     expect(c.send).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("cooldown is over") }));
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ data: { recruitRemindedAt: expect.any(Date) } }));
     expect(over.guildSettings.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ recruitRemindedAt: null }) }));
-  });
-  it("stays quiet outside the preview servers", async () => {
-    process.env["FEATURE_PREVIEW_GUILD_IDS"] = "other";
-    const c = client();
-    expect(await sendRecruitReminders(c as never, { guildSettings: { findMany: vi.fn(async () => rows(80)), update: vi.fn() } } as never)).toBe(0);
-    expect(c.send).not.toHaveBeenCalled();
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { nicknameFor, planNicknames, restoreNickname, validNicknameFormat, type NicknamePerson } from "../src/services/nickname-sync.js";
+import { nicknameFor, planNicknames, restoreNickname, stripMainSuffix, validNicknameFormat, type NicknamePerson } from "../src/services/nickname-sync.js";
 
 const person = (over: Partial<NicknamePerson> = {}): NicknamePerson => ({ discordUserId: "u1", accountName: "Kevin", nickname: null, mainName: "Halidor Galemorne", skip: false, record: null, ...over });
 
@@ -37,20 +37,46 @@ describe("nickname format", () => {
 });
 
 describe("nickname plan", () => {
-  it("renames a member from the account name and remembers the nickname they had", () => {
-    expect(planNicknames([person({ nickname: "Kev" })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Halidor Galemorne)", originalNickname: "Kev" }]);
+  it("uses the member's own server nickname as the base and remembers it", () => {
+    expect(planNicknames([person({ nickname: "Kev" })])).toEqual([{ discordUserId: "u1", nickname: "Kev (Halidor Galemorne)", originalNickname: "Kev" }]);
+  });
+  it("falls back to the global display name (the account name the plan is given) when there is no server nickname", () => {
+    expect(planNicknames([person({ nickname: null })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Halidor Galemorne)", originalNickname: null }]);
+    expect(planNicknames([person({ nickname: null, accountName: "kevin_username" })])[0]).toMatchObject({ nickname: "kevin_username(Halidor G.)" }); // the usual 32-character fallback
   });
   it("skips opted-out members, the owner/unmanageable (skip), and members with no main", () => {
     expect(planNicknames([person({ record: { originalNickname: null, appliedNickname: null, optedOut: true } }), person({ discordUserId: "u2", skip: true }), person({ discordUserId: "u3", mainName: null })])).toEqual([]);
   });
-  it("is idempotent, and follows a main change without nesting", () => {
-    const applied = { originalNickname: "Kev", appliedNickname: "Kevin (Halidor Galemorne)", optedOut: false };
-    expect(planNicknames([person({ nickname: "Kevin (Halidor Galemorne)", record: applied })])).toEqual([]);
-    expect(planNicknames([person({ nickname: "Kevin (Halidor Galemorne)", mainName: "Aria Stone", record: applied })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Aria Stone)", originalNickname: "Kev" }]);
+  it("is idempotent, and follows a main change from the stored original without nesting", () => {
+    const applied = { originalNickname: "Kev", appliedNickname: "Kev (Halidor Galemorne)", optedOut: false };
+    expect(planNicknames([person({ nickname: "Kev (Halidor Galemorne)", record: applied })])).toEqual([]);
+    expect(planNicknames([person({ nickname: "Kev (Halidor Galemorne)", mainName: "Aria Stone", record: applied })])).toEqual([{ discordUserId: "u1", nickname: "Kev (Aria Stone)", originalNickname: "Kev" }]);
+    // A member with no server nickname keeps using the account name on every re-sync.
+    const none = { originalNickname: null, appliedNickname: "Kevin (Halidor Galemorne)", optedOut: false };
+    expect(planNicknames([person({ nickname: "Kevin (Halidor Galemorne)", mainName: "Aria Stone", record: none })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Aria Stone)", originalNickname: null }]);
   });
-  it("treats a nickname the member chose themselves as their new original (restored on opt-out)", () => {
-    const applied = { originalNickname: "Kev", appliedNickname: "Kevin (Halidor Galemorne)", optedOut: false };
-    expect(planNicknames([person({ nickname: "Chief", record: applied })])[0]).toMatchObject({ nickname: "Kevin (Halidor Galemorne)", originalNickname: "Chief" });
+  it("treats a nickname the member changed to between syncs as their new base and original", () => {
+    const applied = { originalNickname: "Kev", appliedNickname: "Kev (Halidor Galemorne)", optedOut: false };
+    expect(planNicknames([person({ nickname: "Chief", record: applied })])).toEqual([{ discordUserId: "u1", nickname: "Chief (Halidor Galemorne)", originalNickname: "Chief" }]);
+    // They cleared it: back to the global display name.
+    expect(planNicknames([person({ nickname: null, record: applied })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Halidor Galemorne)", originalNickname: null }]);
+  });
+  it("never doubles the suffix, even when the member edited our nickname or the stored original already has it", () => {
+    const applied = { originalNickname: "Kev", appliedNickname: "Kev (Halidor Galemorne)", optedOut: false };
+    // They edited the nickname but kept our "(Main)" part: already right, so only the new original is recorded.
+    expect(planNicknames([person({ nickname: "Chief (Halidor Galemorne)", record: applied })])).toEqual([{ discordUserId: "u1", nickname: "Chief (Halidor Galemorne)", originalNickname: "Chief" }]);
+    expect(planNicknames([person({ nickname: "Chief (Halidor)", record: applied })])[0]).toMatchObject({ nickname: "Chief (Halidor Galemorne)", originalNickname: "Chief" });
+    // A bad stored original that already carries the suffix is cleaned too.
+    expect(planNicknames([person({ nickname: "Kev (Halidor Galemorne)", record: { originalNickname: "Kev (Halidor Galemorne)", appliedNickname: "Kev (Halidor Galemorne)", optedOut: false }, mainName: "Aria Stone" })])).toEqual([{ discordUserId: "u1", nickname: "Kev (Aria Stone)", originalNickname: "Kev" }]);
+    // Parentheses that are not the main's name are the member's own.
+    expect(planNicknames([person({ nickname: "Kev (he/him)" })])[0]).toMatchObject({ nickname: "Kev (he/him) (Halidor Galemorne)", originalNickname: "Kev (he/him)" });
+  });
+  it("strips only a trailing main-character suffix", () => {
+    expect(stripMainSuffix("Kev (Halidor Galemorne)", "Halidor Galemorne")).toBe("Kev");
+    expect(stripMainSuffix("Kev (halidor g.)", "Halidor Galemorne")).toBe("Kev");
+    expect(stripMainSuffix("Kev (Halidor) (Halidor Galemorne)", "Halidor Galemorne")).toBe("Kev");
+    expect(stripMainSuffix("(Halidor) Kev", "Halidor Galemorne")).toBe("(Halidor) Kev");
+    expect(stripMainSuffix("Kev", null)).toBe("Kev");
   });
 });
 

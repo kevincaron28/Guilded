@@ -1,3 +1,4 @@
+> 9.0.0 (6 November 2026): the 8.5 work shipped as 9.0 — achievements, duel and battleground ladders, race to 60 board and Hall of Fame, nickname sync, guild roster/bank/event sync, call for help, PvP finder, levelling partners, in-game raid sign-up, recruiting kit, companion setup/repair and settings-save fixes. Store: ship the companion as 9.0.0.0.
 > 8.4.7 (6 November 2026): Forever dungeon final bosses and recovery of abandoned runs (#384), silent auto-update for the direct-download companion with a fixed-name `Guilded.Companion.Setup.exe` release asset (#383) on top of 8.4.6's member ledger sync (#379), live duel board (#378), companion account-folder fix (#376), combat-safe windows (#377), compact Crafted by tooltip (#375) and Forever-only focus (#380, see docs/FOREVER_ONLY_FOCUS.md). The Store requires strictly increasing versions: ship the companion as 8.4.7.0 (revision 0).
 > Next release: **9.0.0** (owner decision, 6 November 2026: the 8.5 work ships as 9.0 after in-game testing and polishing), planned track by track in `ROADMAP.md` (tracks A-M plus owner batches, file ownership and migration timestamps per track). Work one track per session; only the coordinating session bumps the version.
 > Current checkpoint: 6 November 2026 (8.4.7 on GitHub and the bot; CurseForge and the Store still on 8.4.6 or earlier; check each provider live before claiming status, including which Store version has certified). Member ledger sync, duels and announcements are not yet verified with several real clients.
@@ -18,7 +19,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (6 November 2026): version 8.4.7, protocol 2.**
+**Current status (6 November 2026): version 9.0.0, protocol 2.**
 8.4.7 is on GitHub (latest release) and the bot. CurseForge has the 8.4.6 Forever files; the
 Store has 8.4.4.0 live with 8.4.6.0 in certification. Check each provider live before claiming
 status. WoW Forever launched 4 November 2026; its first raids open 9 December.

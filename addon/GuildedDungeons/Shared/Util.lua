@@ -271,6 +271,26 @@ function util.sameCharacter(a, b)
   return not short:find(" ", 1, true) and long:find(" ", 1, true) ~= nil and util.firstName(long) == short
 end
 
+-- (9.0) The key under which `map` holds this character: the exact key, or, while saved data from
+-- an 8.4 companion or guildmate still uses first names, the one key that is the same character
+-- (util.sameCharacter). Like the bot's transitional rule, a first name counts only when it is not
+-- shared: two matching keys, or two known full names for that first name, mean no match.
+function util.findCharacterKey(map, name)
+  if type(map) ~= "table" or type(name) ~= "string" then return nil end
+  if map[name] ~= nil then return name end
+  if not util.isForever() then return nil end
+  local found
+  for key in pairs(map) do
+    if type(key) == "string" and util.sameCharacter(key, name) then
+      if found then return nil end
+      found = key
+    end
+  end
+  if not found then return nil end
+  if #util.fullNamesFor(util.firstName(found:find(" ", 1, true) and found or name)) > 1 then return nil end
+  return found
+end
+
 function util.unitKey(unit)
   local fn = (not util.isForever() and UnitFullName) or UnitName
   if not fn then return nil end
@@ -679,6 +699,7 @@ pump = function(prefix)
         break
       end
       b.results[status] = b.results[status] + 1
+      if status == "sent" then b.results.bytes = (b.results.bytes or 0) + #item.text end
       b.lastResult, b.lastCode = status, code
       if status == "throttled" then
         b.tokens = 0
@@ -747,6 +768,21 @@ function comm.status(prefix)
     queued = b and #b.queue or 0, lastResult = b and b.lastResult or nil,
     lastCode = b and b.lastCode or nil
   }
+end
+
+-- (9.0) This session's addon traffic, all prefixes together (for /guilded sync stats):
+-- messages sent and their bytes, messages held inside instances, and what Transport.lua
+-- counted as received from guildmates' Guilded addons.
+comm.received = comm.received or { count = 0, bytes = 0 }
+function comm.totals()
+  local out = { sent = 0, bytes = 0, held = 0, queued = 0, received = comm.received.count, receivedBytes = comm.received.bytes }
+  for _, b in pairs(buckets) do
+    out.sent = out.sent + (b.results.sent or 0)
+    out.bytes = out.bytes + (b.results.bytes or 0)
+    out.held = out.held + (b.results.held or 0)
+    out.queued = out.queued + #b.queue
+  end
+  return out
 end
 
 -- Registers an addon message prefix with whichever API this client has.

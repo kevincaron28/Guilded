@@ -444,12 +444,14 @@ function ns.effectiveStanding(rawName, coreId)
       if core.id == coreId then players, baseGp = core.players, core.baseGp or 0; break end
     end
   end
-  local baseline = players and players[name]
+  -- (9.0) Older standings may still hold this character under its first name only.
+  local baselineKey = players and util.findCharacterKey(players, name)
+  local baseline = baselineKey and players[baselineKey]
   local ep, gp = baseline and baseline.ep or 0, baseline and baseline.gp or 0
   local accepted = db and db.acceptedLedgerRefs or {}
   for character, account in pairs(db and db.epgp or {}) do
     local other = players and players[character]
-    local sameAccount = character == name or (baseline and baseline.account and other and other.account == baseline.account)
+    local sameAccount = character == name or character == baselineKey or (baseline and baseline.account and other and other.account == baseline.account)
     if sameAccount then
       for _, entry in ipairs(account.ledger or {}) do
         local samePool = (entry.coreId or "") == (coreId or "")

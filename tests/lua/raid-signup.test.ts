@@ -192,7 +192,7 @@ describe("RaidSignup.lua page", () => {
       function w:Show() self.shown = true end
       function w:Hide() self.shown = false end
       function w:IsShown() return self.shown end
-      function w:SetWidth() end
+      function w:SetWidth(v) self.width = v end
       function w:SetScript(name, fn) self[name] = fn end
       return w
     end
@@ -224,6 +224,13 @@ describe("RaidSignup.lua page", () => {
     // Can't clears it.
     s.run(`NS.raidSignup.view.blocks[1].no.click()`);
     expect(view(`NS.raidSignup.view.blocks[1].mine:GetText()`)).toBe("You can't make it.");
+  });
+
+  it("wraps the top text to the page width instead of letting it run off the edge", () => {
+    const s = withSignup();
+    s.run(PAGE);
+    expect(s.run(`return PAGEWIDGETS[1].width`)).toBe("500");
+    expect(s.run(`return tostring(PAGEWIDGETS[1].text:find("^Your answers") ~= nil)`)).toBe("true");
   });
 
   it("says so when no raid is known", () => {

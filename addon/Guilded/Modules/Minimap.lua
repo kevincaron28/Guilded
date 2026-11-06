@@ -1492,13 +1492,16 @@ local function buildHomePage(page)
     self:ClearFocus()
     if self:GetText() ~= "" then run("verify " .. self:GetText()); self:SetText("") end
   end)
-  linkWidget(tip(below(newButton(page, "Save code", 100, function()
+  local saveCode = linkWidget(tip(below(newButton(page, "Save code", 100, function()
     local text = ui.linkBox:GetText() or ""
     if text == "" then ns.message(L("Paste the code from Discord (/character pair) first.")); return end
     run("verify " .. text)
     ui.linkBox:SetText("")
   end), 182, -218), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))
-  linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -218), "Forgets the saved code on this WoW account."))
+  -- Beside Save code, wherever its (translated) width ends, so the two never overlap.
+  local removeCode = linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -218), "Forgets the saved code on this WoW account."))
+  removeCode:ClearAllPoints()
+  removeCode:SetPoint("LEFT", saveCode, "RIGHT", 6, 0)
 
   -- Get the companion (8.5.0): links to copy, since an addon cannot open a web page.
   if ns.companionLink then
@@ -2020,7 +2023,7 @@ updateGuildScroll = function()
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
   elseif tab.name == "Guild message" then height = 340
   elseif tab.name == "Announcements" then height = 290
-  elseif tab.name == "Signups" then height = 560
+  elseif tab.name == "Signups" then height = 590
   elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
   local scroll = ui.guildScroll
@@ -2708,7 +2711,9 @@ end
 -- ---------------------------------------------------------------------
 
 local function place(angle)
-  local radius = (Minimap:GetWidth() / 2) + RADIUS_PAD
+  local width = Minimap and Minimap.GetWidth and Minimap:GetWidth()
+  if type(width) ~= "number" or width < 50 then width = 140 end
+  local radius = (width / 2) + RADIUS_PAD
   button:ClearAllPoints()
   button:SetPoint("CENTER", Minimap, "CENTER", math.cos(angle) * radius, math.sin(angle) * radius)
 end
@@ -2726,6 +2731,10 @@ local function buildButton()
   button:SetHeight(32)
   button:SetFrameStrata("MEDIUM")
   button:SetFrameLevel(8)
+  -- Anchored and shown before anything that could fail: a half-built button with no anchor is
+  -- invisible, and that is how it was lost on one client (8.5 test, French Forever).
+  pcall(place, DEFAULT_ANGLE)
+  button:Show()
 
   local icon = button:CreateTexture(nil, "ARTWORK")
   icon:SetTexture(ICON)
@@ -2739,9 +2748,12 @@ local function buildButton()
   border:SetHeight(53)
   border:SetPoint("TOPLEFT", button, "TOPLEFT", 0, 0)
 
-  button:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-  button:RegisterForClicks("LeftButtonUp", "RightButtonUp", "MiddleButtonUp")
-  button:RegisterForDrag("LeftButton")
+  pcall(button.SetHighlightTexture, button, "Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+  -- A client that does not know the middle button still gets left and right.
+  if not pcall(button.RegisterForClicks, button, "LeftButtonUp", "RightButtonUp", "MiddleButtonUp") then
+    pcall(button.RegisterForClicks, button, "LeftButtonUp", "RightButtonUp")
+  end
+  pcall(button.RegisterForDrag, button, "LeftButton")
   button:SetScript("OnClick", function(_, mouseButton)
     minimapClick(mouseButton)
   end)
@@ -2763,13 +2775,25 @@ local function buildButton()
   button:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
 end
 
+-- The saved angle and hidden state, once the saved settings exist (they may not at first login).
+local function applySettings()
+  if not button then return end
+  local s = settings()
+  if not s then return end
+  pcall(place, s.minimapAngle or DEFAULT_ANGLE)
+  if s.minimapHidden then button:Hide() else button:Show() end
+end
+
+local buildError
 local function init()
   if built then return end
   built = true
-  buildButton()
-  local s = settings()
-  place((s and s.minimapAngle) or DEFAULT_ANGLE)
-  if s and s.minimapHidden then button:Hide() end
+  local ok, err = pcall(buildButton)
+  if not ok then
+    buildError = tostring(err)
+    if ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "minimap button: " .. buildError) end
+  end
+  applySettings()
 end
 
 -- /guilded minimap show|hide|reset  and  /guilded menu
@@ -2802,21 +2826,39 @@ function Guilded_ToggleWindow() togglePanel() end
 ns.commandHandlers["minimap"] = function(args)
   local action = string.lower(args[1] or "")
   local s = settings()
-  if not button or not s then ns.message("The minimap button is not ready yet."); return end
+  if not built then pcall(init) end
+  if not button or not s then
+    ns.message(L("The minimap button is not ready yet.") .. (buildError and (" " .. buildError) or "") .. " " .. L("Open the window with /guilded menu."))
+    return
+  end
+  -- Says what happened: it must never be silent (a hidden button looks like a broken command).
+  local function shown()
+    if button.IsVisible and button:IsVisible() then ns.message(L("Minimap button shown. Drag it to move it.")) return end
+    -- The minimap itself is hidden (another addon's interface): put the button on the screen edge.
+    pcall(function()
+      button:SetParent(UIParent)
+      button:ClearAllPoints()
+      button:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -40, -140)
+      button:Show()
+    end)
+    ns.message(L("The minimap is hidden, so the button was put at the top right of the screen. Open the window with /guilded menu."))
+  end
   if action == "hide" then
     s.minimapHidden = true
     button:Hide()
-    ns.message("Minimap button hidden. /guilded minimap show brings it back.")
+    ns.message(L("Minimap button hidden. /guilded minimap show brings it back."))
   elseif action == "show" then
     s.minimapHidden = false
     button:Show()
+    shown()
   elseif action == "reset" then
     s.minimapHidden = false
     s.minimapAngle = DEFAULT_ANGLE
     place(DEFAULT_ANGLE)
     button:Show()
+    shown()
   else
-    ns.message("/guilded minimap show | hide | reset   (or /guilded menu to open the tools window)")
+    ns.message(L("/guilded minimap show | hide | reset   (or /guilded menu to open the tools window)"))
   end
 end
 ns.commandHelp = ns.commandHelp or {}
@@ -2840,9 +2882,14 @@ end
 -- Wait until the world has loaded so Core.lua's saved settings exist.
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
-frame:SetScript("OnEvent", function()
+frame:RegisterEvent("PLAYER_LOGIN")
+frame:SetScript("OnEvent", function(_, event)
   local ok, err = pcall(init)
   if not ok then ns.message("Minimap button failed to load: " .. tostring(err)) end
+  -- First login on a new PC: the saved settings can appear after the world loads.
+  if event == "PLAYER_LOGIN" and C_Timer and C_Timer.After then
+    C_Timer.After(5, function() pcall(applySettings) end)
+  end
 end)
 
 -- Keep guild integration in this established TOC entry so /reload loads updates.

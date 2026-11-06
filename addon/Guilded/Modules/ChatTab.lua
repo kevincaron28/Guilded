@@ -270,6 +270,26 @@ function module.onSystem(text)
   return true
 end
 
+-- First login with no saved choice: open the Guilded tab and turn it on. Tried at most three logins
+-- (a client that cannot open a window from here is left alone, with the manual steps on /guilded chat tab).
+function module.firstRun()
+  local s = settings()
+  if not s or s.chatTab ~= nil then return false end
+  s.chatTabTries = (s.chatTabTries or 0) + 1
+  if s.chatTabTries > 3 then s.chatTab = false return false end
+  local ok = false
+  afterCombat("guilded-chat-tab-first", function()
+    local current = settings()
+    if not current or current.chatTab ~= nil then return end
+    local frame = module.frame(true)
+    if not frame then return end
+    current.chatTab = true
+    ok = true
+    if frame.AddMessage then frame:AddMessage("|cffd4af37[Guilded]|r " .. (ns.L and ns.L("This tab shows Guilded's messages and guild events (joins, leaves, online, offline). /guilded chat off turns it off.") or "This tab shows Guilded's messages and guild events (joins, leaves, online, offline). /guilded chat off turns it off.")) end
+  end)
+  return ok
+end
+
 -- A tab that was turned on but closed by the player: reopen it once at login, quietly.
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
@@ -285,4 +305,7 @@ frame:SetScript("OnEvent", function(_, event, text)
       if module.enabled() and not findFrame() then pcall(module.frame, true) end
     end)
   end
+  -- 8.5: on by default. The first time this character has no saved choice, open the tab once the
+  -- chat windows exist; /guilded chat off (or the options page) turns it off for good.
+  if C_Timer and C_Timer.After then C_Timer.After(6, function() pcall(module.firstRun) end) end
 end)

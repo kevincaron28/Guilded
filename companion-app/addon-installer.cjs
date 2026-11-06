@@ -41,7 +41,7 @@ function releaseAssets(version) {
  * `addon` is companion/addon-install.mjs's checkInstalledAddon result.
  * @returns {{ action: "install" | "update" | "none", reason: string, blocked?: "wow-running" }}
  */
-function decideAddonInstall({ addon, companionVersion, wowRunning = false, wowEnabled = true } = {}) {
+function decideAddonInstall({ addon, companionVersion, wowRunning = false, wowEnabled = true, force = false } = {}) {
   if (!wowEnabled) return { action: "none", reason: "wow-off" };
   if (!addon || !addon.folder) return { action: "none", reason: "unchecked" };
   // Only the Forever build is published as its own zip (docs/FOREVER_ONLY_FOCUS.md).
@@ -51,6 +51,10 @@ function decideAddonInstall({ addon, companionVersion, wowRunning = false, wowEn
   if (addon.status === "not-installed") decision = { action: "install", reason: "missing" };
   else if (addon.status === "wrong-edition") decision = { action: "update", reason: "wrong-edition" };
   else if (addon.status === "ok" && addon.version && newer(companionVersion, addon.version)) decision = { action: "update", reason: "older" };
+  // (9.0) No version line: it cannot be shown to match this companion, so offer the update.
+  else if (addon.status === "ok" && !addon.version) decision = { action: "update", reason: "unknown-version" };
+  // Reinstall addon: the same version again (files damaged or changed by hand).
+  else if (force && addon.status === "ok") decision = { action: "update", reason: "reinstall" };
   else return { action: "none", reason: addon.status === "ok" ? "up-to-date" : String(addon.status) };
   // WoW reads addon files only when it starts, and Windows may hold them open: never while it runs.
   return wowRunning ? { ...decision, blocked: "wow-running" } : decision;
@@ -177,8 +181,8 @@ async function fetchBuffer(url, fetchImpl, limit) {
  * The whole flow: release files for `companionVersion`, checksum, zip, install.
  * `addon` is the checkInstalledAddon result (its `folder` is …\Interface\AddOns\Guilded).
  */
-async function installAddon({ addon, companionVersion, wowRunning = false, fetchImpl = globalThis.fetch, fs = require("node:fs"), now = new Date() }) {
-  const decision = decideAddonInstall({ addon, companionVersion, wowRunning });
+async function installAddon({ addon, companionVersion, wowRunning = false, force = false, fetchImpl = globalThis.fetch, fs = require("node:fs"), now = new Date() }) {
+  const decision = decideAddonInstall({ addon, companionVersion, wowRunning, force });
   if (decision.action === "none") throw new Error("The Guilded addon is already installed and up to date.");
   if (decision.blocked === "wow-running") throw new Error("Exit World of Warcraft first: WoW is running.");
   const assets = releaseAssets(companionVersion);

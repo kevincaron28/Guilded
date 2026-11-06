@@ -36,8 +36,13 @@ if CreateFrame then
   local addressFrame = CreateFrame("Frame")
   addressFrame:RegisterEvent("CHAT_MSG_ADDON")
   addressFrame:SetScript("OnEvent", function(_, _, prefix, text, channel, sender)
-    if util.rememberAddress and comm.accept(prefix, text, channel, sender, prefix) and string.sub(prefix, 1, 7) == "Guilded" then
-      util.rememberAddress(sender)
+    if comm.accept(prefix, text, channel, sender, prefix) and string.sub(prefix, 1, 7) == "Guilded" then
+      -- (9.0) Counted for /guilded sync stats (our own messages echo back on GUILD: not counted).
+      if comm.received and not (ns.playerName and util.sameCharacter and util.sameCharacter(sender, ns.playerName())) then
+        comm.received.count = comm.received.count + 1
+        comm.received.bytes = comm.received.bytes + #text
+      end
+      if util.rememberAddress then util.rememberAddress(sender) end
     end
   end)
 end

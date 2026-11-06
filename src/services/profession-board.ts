@@ -2,7 +2,6 @@ import { EmbedBuilder, escapeMarkdown, type ForumChannel, type Guild as DiscordG
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
-import { previewAllows } from "./feature-preview.js";
 import { crafterLine, professionLegend, professionTitle, seenDot } from "./profession-style.js";
 import { professionDetailsRow } from "./profession-details.js";
 import { displayCharacterName, emptyNameBook, loadFullNameBook, type FullNameBook } from "./character-display.js";
@@ -149,7 +148,7 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
         if (thread.archived) await thread.setArchived(false).catch(() => undefined);
         await starter.edit(payload);
         written++;
-      } else if (previewAllows(discordGuild.id)) {
+      } else {
         await forum.threads.create({ name: `${THREAD_PREFIX}${post.profession}`.slice(0, 100), message: payload });
         written++;
       }

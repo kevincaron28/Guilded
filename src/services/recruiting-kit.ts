@@ -1,7 +1,6 @@
 import type { Client } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
-import { previewAllows } from "./feature-preview.js";
 import { nameKeyOf } from "./invite-queue.js";
 
 // 8.5 light recruiting kit, on top of the invite queue: a stage and an officer note on each recruit record, interview
@@ -100,7 +99,7 @@ export async function sendRecruitReminders(client: Pick<Client, "channels">, dat
   });
   let sent = 0;
   for (const row of rows) {
-    if (!previewAllows(row.guild.discordId) || cooldownState(row, now).cooling) continue;
+    if (cooldownState(row, now).cooling) continue;
     const channel = await client.channels.fetch(row.logChannelId!).catch(() => null);
     if (!channel?.isTextBased() || !("send" in channel)) continue;
     const text = asLang(row.language) === "fr"

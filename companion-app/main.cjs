@@ -9,6 +9,8 @@ const updates = require("./update-check.cjs");
 const storeUpdatesModule = () => require("./store-update.cjs");
 const linkIdentity = require("./link-identity.cjs");
 const addonInstallerModule = () => require("./addon-installer.cjs");
+const diskSpaceModule = require("./disk-space.cjs");
+const configLoadModule = () => require("./config-load.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
 // The Store build never replaces itself: the Store does that. Also true for any package under WindowsApps.
@@ -56,6 +58,36 @@ const screenshotPath = (args.find((a) => a.startsWith("--screenshot=")) ?? "").s
 const screenshotTab = (args.find((a) => a.startsWith("--tab=")) ?? "").slice("--tab=".length);
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
+// The installer asks a running companion to save and quit before it replaces any file
+// (installer.nsh customCheckAppRunning). With no companion running there is nothing to do:
+// never start one from that request.
+const QUIT_FOR_UPDATE = "--quit-for-update";
+// installer.nsh customInstall leaves this file next to the exe for the start it launches.
+const INSTALLER_MARKER = typeof process.execPath === "string" ? path.join(path.dirname(process.execPath), "launched-by-installer") : "";
+let launchedByInstaller = false;
+try { if (INSTALLER_MARKER && fs.existsSync(INSTALLER_MARKER)) { launchedByInstaller = true; fs.rmSync(INSTALLER_MARKER, { force: true }); } } catch { /* diagnostics only */ }
+// How many other Guilded Companion processes of this user run, not counting this one.
+function otherCompanions() {
+  if (process.platform !== "win32") return Promise.resolve(0);
+  const name = path.basename(process.execPath);
+  // Process id and parent id of every process with this exe name: Electron's own helpers (GPU,
+  // network) share the name and are this process's children, so they do not count.
+  const query = "Get-CimInstance Win32_Process -Filter \"Name='" + name.replace(/'/g, "") + "'\" | ForEach-Object { \"$($_.ProcessId),$($_.ParentProcessId)\" }";
+  return new Promise((resolve) => execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", query], { windowsHide: true, timeout: 15_000 }, (error, stdout) => {
+    if (error) return resolve(0);
+    resolve(require("./config-load.cjs").otherProcessCount(String(stdout), process.pid));
+  }));
+}
+async function waitForOtherCompanions() {
+  for (let waited = 0; waited <= 20; waited += 1) {
+    const others = await otherCompanions();
+    if (!others) { pushLog({ time: new Date().toISOString(), level: "info", message: E("No older companion is running; reading the settings.") }); return; }
+    if (waited === 0) pushLog({ time: new Date().toISOString(), level: "info", message: E("Waiting for the older companion to close ({0} process(es))...", others) });
+    await new Promise((done) => setTimeout(done, 1000));
+  }
+  pushLog({ time: new Date().toISOString(), level: "warn", message: E("The older companion is still running after 20 s; reading the settings anyway.") });
+}
+if (args.includes(QUIT_FOR_UPDATE)) { app.exit(0); process.exit(0); }
 
 let win;
 function registerIpc(channel, handler) {
@@ -77,11 +109,16 @@ const configFile = () => path.join(app.getPath("userData"), "config.secure");
 const profileJournalFile = () => path.join(app.getPath("userData"), !config.activeProfile || config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
 const asset = (name) => path.join(__dirname, "assets", name);
 
+// Settings at start (9.0): logged, backed up before any migration, restored from a backup when the
+// file is missing, and never overwritten after a failed read (companion-app/config-load.cjs).
 async function loadConfig() {
-  const saved = STORE_PACKAGE ? await storeConfig.read(configFile())
-    : await storeConfig.migrate(configFile(), path.join(app.getPath("userData"), "config.json"));
-  if (saved !== null) { config = { ...DEFAULTS, ...saved }; return; }
-  if (STORE_PACKAGE) return;
+  const loaded = await configLoadModule().loadSavedConfig({
+    store: storeConfig, file: configFile(), legacyFile: path.join(app.getPath("userData"), "config.json"),
+    isStore: STORE_PACKAGE, defaults: DEFAULTS, version: app.getVersion(),
+    log: (level, key, ...values) => { const message = E(key, ...values); pushLog({ time: new Date().toISOString(), level, message }); if (level !== "info") console.warn(message); }
+  });
+  config = loaded.config;
+  if (loaded.source !== "none" || STORE_PACKAGE) return;
   // Carry over the command-line companion's settings when running from the repo.
   if (args.includes("--fresh")) return;
   try {
@@ -108,8 +145,35 @@ async function repairSavedConfig() {
   if (changed) await saveConfig();
 }
 
+// Every save is logged step by step in startup.log (store-config.cjs); a failure also goes to Activity
+// and to the Problems panel ("settings-not-saved").
 function saveConfig() {
-  return storeConfig.write(configFile(), config);
+  const save = storeConfig.write(configFile(), config);
+  save.then(() => noteSaveState(), (error) => {
+    pushLog({ time: new Date().toISOString(), level: "error", message: E("Settings could not be saved: {0}", error instanceof Error ? error.message : String(error)) });
+    noteSaveState();
+  });
+  return save;
+}
+let shownSaveState = "";
+function settingsSaveState() {
+  const status = storeConfig?.status?.() ?? {};
+  return status.lastError || status.stuck ? { failed: Boolean(status.lastError), stuck: Boolean(status.stuck), step: status.stuck?.step ?? null } : null;
+}
+function noteSaveState() {
+  const key = JSON.stringify(settingsSaveState());
+  if (key === shownSaveState) return;
+  shownSaveState = key;
+  if (engine) onState(engine.state());
+}
+// Settings diagnostics: appended to startup.log in the data folder for the whole run (kept under 256 KB).
+function settingsLog(line) {
+  try {
+    const target = path.join(app.getPath("userData"), "startup.log");
+    let size = 0; try { size = fs.statSync(target).size; } catch { /* new file */ }
+    if (size < 256 * 1024) fs.appendFileSync(target, `${new Date().toISOString()} settings ${line}
+`);
+  } catch { /* diagnostics only */ }
 }
 
 async function loadEngineModules() {
@@ -119,7 +183,17 @@ async function loadEngineModules() {
   return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")) };
 }
 
+// Start-up diagnostics (9.0 release blocker): every line logged before the window is ready also
+// goes to startup.log in the data folder (rewritten each start, never holds a credential), so a
+// start that shows the wrong settings can be explained from that one file.
+let startupLogging = true;
+function startupLog(entry) {
+  if (!startupLogging) return;
+  try { fs.appendFileSync(path.join(app.getPath("userData"), "startup.log"), `${entry.time} ${entry.level} ${entry.message}
+`); } catch { /* diagnostics only */ }
+}
 function pushLog(entry) {
+  startupLog(entry);
   logs.push(entry);
   if (logs.length > 300) logs.shift();
   win?.webContents.send("log", entry);
@@ -156,7 +230,29 @@ function refreshUpdate() {
   notice.show();
 }
 
+// Free disk space (9.0): an update or addon install needs about 600 MB on every drive involved
+// (companion-app/disk-space.cjs). When it is short the Problems panel says so and nothing starts.
+let diskSpace = null; // the low result, or null when there is enough
+function checkDisk(extra = []) {
+  const folder = (target) => typeof target === "string" && target ? path.dirname(target) : null;
+  const appPath = (name) => { try { return app.getPath(name); } catch { return null; } };
+  const result = diskSpaceModule.checkDiskSpace({ paths: [folder(process.execPath), appPath("temp"), appPath("userData"), folder(config.watchFile), ...extra] });
+  const next = result.ok ? null : result;
+  const changed = (next?.freeMb ?? null) !== (diskSpace?.freeMb ?? null);
+  diskSpace = next;
+  if (changed && engine) onState(engine.state());
+  return result;
+}
+const lowDiskMessage = (result, translate = T) => translate(diskSpaceModule.LOW_DISK_MESSAGE, result.freeMb, result.neededMb);
+let lowDiskLogged = false;
+function logLowDisk(result, action) {
+  if (lowDiskLogged) return;
+  lowDiskLogged = true;
+  pushLog({ time: new Date().toISOString(), level: "warn", message: E("{0} was not started.", action) + " " + lowDiskMessage(result, E) });
+}
+
 async function checkForUpdate() {
+  checkDisk();
   if (STORE_PACKAGE) return;
   latestRelease = await updates.fetchLatestRelease() ?? latestRelease;
   if (engine) onState(engine.state());
@@ -173,6 +269,8 @@ async function stageUpdate() {
   if (staging || installing) return;
   const decision = autoUpdateDecision();
   if (decision.action !== "download") return;
+  const disk = checkDisk();
+  if (!disk.ok) { logLowDisk(disk, E("The automatic update")); return; }
   staging = true;
   try {
     fs.mkdirSync(updateDirectory(), { recursive: true });
@@ -192,6 +290,19 @@ function forgetPendingUpdate(file) {
   config.pendingUpdate = undefined;
   if (file) try { fs.rmSync(file, { force: true }); fs.rmSync(file + ".part", { force: true }); } catch { /* best effort */ }
 }
+// electron-builder keeps a copy of the installer (about 120 MB) in %LOCALAPPDATA%; the installer
+// removes it (installer.nsh customInstall), and so does every start, for a copy an older
+// installer left or an install that stopped before its last step.
+function removeStaleUpdaterCopy() {
+  const local = process.env.LOCALAPPDATA;
+  if (!local) return;
+  const folder = path.join(local, "guilded-companion-updater");
+  try {
+    if (!fs.existsSync(folder)) return;
+    fs.rmSync(folder, { recursive: true, force: true });
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Removed an old copy of the companion installer to free disk space.") });
+  } catch { /* best effort: in use or locked, tried again next start */ }
+}
 // Runs once at start, before the window: forget a stale download, say "Updated to vX" once after an
 // update, or install a downloaded update now. Returns true when the installer took over.
 async function startupUpdateStep() {
@@ -199,6 +310,7 @@ async function startupUpdateStep() {
   const current = app.getVersion();
   const previous = config.lastRunVersion;
   config.lastRunVersion = current;
+  removeStaleUpdaterCopy();
   if (previous && updates.isNewer(current, previous)) {
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion updated to {0}.", current) });
     if (Notification.isSupported()) new Notification({ title: T("Guilded Companion updated to {0}", current), body: T("Your settings and Discord link were kept."), icon: asset("icon.png") }).show();
@@ -206,6 +318,9 @@ async function startupUpdateStep() {
   const verdict = updates.inspectPending({ pending: config.pendingUpdate, current, directory: updateDirectory() });
   if (verdict.action === "clear") forgetPendingUpdate(config.pendingUpdate?.file);
   if (verdict.action !== "install" || config.autoUpdate === false) { await saveConfig(); return false; }
+  // Never start an installer that would fail partway: the update waits until space is freed.
+  const disk = checkDisk();
+  if (!disk.ok) { logLowDisk(disk, E("The automatic update")); await saveConfig(); return false; }
   config.pendingUpdate = { ...config.pendingUpdate, attempts: (config.pendingUpdate.attempts ?? 0) + 1 };
   await saveConfig();
   try {
@@ -222,7 +337,7 @@ async function startupUpdateStep() {
 app.on("will-quit", () => {
   if (installerHandedOff || STORE_INSTALL || !app.isPackaged || config.autoUpdate === false) return;
   const verdict = updates.inspectPending({ pending: config.pendingUpdate, current: app.getVersion(), directory: updateDirectory() });
-  if (verdict.action === "install" && updates.launchInstallerOnExit(verdict.file)) installerHandedOff = true;
+  if (verdict.action === "install" && checkDisk().ok && updates.launchInstallerOnExit(verdict.file)) installerHandedOff = true;
 });
 
 // Microsoft Store build updates itself (8.5, track F5; companion-app/store-update.cjs). Silent on
@@ -353,14 +468,14 @@ function problems(state) {
   if (typeof engineModules?.companionProblems !== "function") return [];
   return engineModules.companionProblems({
     config, state, savedFile, update, version: app.getVersion(), store: STORE_INSTALL, autoUpdate: config.autoUpdate !== false,
-    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online
+    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online, diskSpace, settingsSave: settingsSaveState()
   });
 }
 // Install addon / Update addon (8.5, track F3): offered when the watched game folder has no
 // Guilded, the wrong build, or one older than this companion (companion-app/addon-installer.cjs).
 function addonAction() {
   try {
-    return addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning, wowEnabled: config.wowEnabled !== false });
+    return { ...addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning, wowEnabled: config.wowEnabled !== false }), installed: savedFile?.addon?.version ?? null };
   } catch { return { action: "none", reason: "error" }; }
 }
 let shownProblems = "";
@@ -499,7 +614,17 @@ async function removeAllDataAndQuit() {
   return true;
 }
 
-app.on("second-instance", showWindow);
+app.on("second-instance", (event, argv) => {
+  if (Array.isArray(argv) && argv.includes(QUIT_FOR_UPDATE)) {
+    // before-quit flushes the settings; nothing is written after that.
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Closing for an update.") });
+    installerHandedOff = true; // an installer is already running: never start the quit-time one
+    quitting = true;
+    app.quit();
+    return;
+  }
+  showWindow();
+});
 
 // A startup failure must be loud: otherwise the process lives on with no
 // window and no tray, holding the single-instance lock, so every later launch
@@ -511,11 +636,24 @@ function failStartup(error) {
 
 app.whenReady().then(async () => {
   try {
-    storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage);
+    try { fs.mkdirSync(app.getPath("userData"), { recursive: true }); fs.writeFileSync(path.join(app.getPath("userData"), "startup.log"), ""); } catch { /* diagnostics only */ }
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Starting Guilded Companion {0} from {1} (packaged: {2}, Store: {3}, data folder: {4}, arguments: {5}).", app.getVersion(), process.execPath, app.isPackaged ? "yes" : "no", STORE_INSTALL ? "yes" : "no", app.getPath("userData"), args.join(" ") || "none") });
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Launch: working folder {0}, APPDATA {1}, user {2}, started by the installer: {3}.", process.cwd(), process.env.APPDATA || "?", process.env.USERNAME || "?", launchedByInstaller ? "yes" : "no") });
+    // Started by the installer (9.0 release blocker): the old companion may still be closing. Wait
+    // until it is gone before reading the settings, so this start reads and saves them normally.
+    if (launchedByInstaller) await waitForOtherCompanions();
+    storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage, { log: settingsLog });
+    setInterval(noteSaveState, 10_000).unref?.();
     engineModules = await loadEngineModules();
     await loadConfig();
-    await repairSavedConfig();
-    if (await startupUpdateStep()) return;
+    // Diagnostics (9.0 release blocker): say if a start-up step left the settings blank.
+    const setUp = !configLoadModule().isUnset(config);
+    const checkStep = (step) => { if (setUp && configLoadModule().isUnset(config)) pushLog({ time: new Date().toISOString(), level: "error", message: E("Settings became blank after {0}; the saved file was not changed.", step) }); };
+    await repairSavedConfig(); checkStep("repairSavedConfig");
+    const handedToInstaller = await startupUpdateStep();
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Start-up update step: {0}.", handedToInstaller ? "a downloaded update is installing; this start ends here" : "nothing to install") });
+    if (handedToInstaller) return;
+    checkStep("startupUpdateStep");
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
     config.poeJournalFile = profileJournalFile();
     engine = engineModules.createProfileEngine(config, {
@@ -524,6 +662,8 @@ app.whenReady().then(async () => {
       onState
     });
     restartedQuietly = readRestartMarker();
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Ready: {0} connection(s), signed in: {1}, restarted by Microsoft Store: {2}.", configLoadModule().configSummary(config).connections, configLoadModule().configSummary(config).signedIn ? "yes" : "no", restartedQuietly ? "yes" : "no") });
+    startupLogging = false;
     createWindow();
     createTray();
   } catch (error) {
@@ -585,6 +725,7 @@ app.on("before-quit", event => {
     event.preventDefault();
     storeConfig.flush().then(() => { exitFlushed = true; app.quit(); }).catch(error => {
       quitting = false;
+      pushLog({ time: new Date().toISOString(), level: "error", message: E("Settings could not be saved: {0}", error.message) });
       dialog.showErrorBox(T("Guilded Companion could not save settings"), error.message);
     });
   }
@@ -650,6 +791,12 @@ registerIpc("dismiss-live-folder", async () => {
   return true;
 });
 
+registerIpc("open-storage-settings", () => shell.openExternal("ms-settings:storagesense"));
+registerIpc("check-disk-space", () => {
+  const result = checkDisk();
+  if (result.ok) lowDiskLogged = false;
+  return { ok: result.ok, message: result.ok ? T("There is enough free disk space now. Try again.") : lowDiskMessage(result) };
+});
 registerIpc("open-update", () => shell.openExternal(STORE_PACKAGE ? STORE_UPDATES : update?.url || updates.RELEASES_PAGE));
 registerIpc("open-startup-settings", () => shell.openExternal("ms-settings:startupapps"));
 
@@ -688,6 +835,8 @@ registerIpc("install-update", async () => {
     if (!latestRelease) return { ok: false, message: T("Could not verify available updates. Try again when the release service is reachable.") };
     const selected = update;
     if (!selected) return { ok: true, action: "current", message: T("Your companion is up to date.") };
+    const disk = checkDisk();
+    if (selected.installer && !disk.ok) return { ok: false, message: lowDiskMessage(disk) };
     if (!selected.installer) {
       await shell.openExternal(selected.url || updates.RELEASES_PAGE);
       pushLog({ time: new Date().toISOString(), level: "info", message: E("Update download page opened; run the installer from that page to finish updating.") });
@@ -781,6 +930,12 @@ registerIpc("sign-in-wait", async () => {
   for (let restarts = 0; ; restarts++) {
     const result = await engineModules.waitForSignIn({ ...config, ...current.next, uploadUrl: current.started.uploadUrl }, current.started.requestId, { signal: current.controller.signal, expiresAt: current.started.expiresAt, proof: () => current.loopback?.proof() });
     current.loopback?.close();
+    // "Reopen the page" swapped in a new request: follow it.
+    if (current.replacedBy && signIn === current.replacedBy) {
+      current = current.replacedBy;
+      win?.webContents.send("sign-in-restarted", signInView(current.started, 0));
+      continue;
+    }
     // Expired or forgotten by the bot (a restart): start a new request and open its page, so the
     // member is never left on a page that can only say "expired".
     if (result.expired && signIn === current && restarts < SIGN_IN_RESTARTS) {
@@ -848,11 +1003,26 @@ registerIpc("open-invite", (_event, url) => {
   void shell.openExternal(url);
   return true;
 });
-// "Reopen the page": the same request, opened again (the first tab may be hidden or closed).
+// "Reopen the page" (9.0): always a new request. The first one may have expired, or its page may
+// already have been used (Connect pressed, the answer lost on the way back to this PC), and the
+// site then says "This sign-in expired" while the countdown here still runs. The waiting loop
+// above follows the new request.
 registerIpc("sign-in-reopen", async () => {
-  if (!signIn) return { ok: false, message: T("Choose Sign in with Discord first.") };
+  const current = signIn;
+  if (!current) return { ok: false, message: T("Choose Sign in with Discord first.") };
+  const begun = await beginSignIn(current.next);
+  if (!begun.current) {
+    // The bot did not answer: open the same page again, as before.
+    await openSignInPage(current);
+    return { ok: true, url: current.started.url };
+  }
+  if (signIn !== current) { endSignIn(begun.current); return { ok: false, message: T("Choose Sign in with Discord first.") }; }
+  current.replacedBy = begun.current;
+  signIn = begun.current;
+  current.controller.abort();
+  pushLog({ time: new Date().toISOString(), level: "info", message: E("A new Discord sign-in page was opened.") });
   await openSignInPage(signIn);
-  return { ok: true, url: signIn.started.url };
+  return { ok: true, url: signIn.started.url, started: signInView(signIn.started) };
 });
 registerIpc("sign-in-cancel", () => { endSignIn(signIn); signIn = null; return { ok: true }; });
 
@@ -1057,13 +1227,15 @@ registerIpc("open-addon-download", () => shell.openExternal(engineModules.addonD
 // WoW runs, backs up an existing Guilded folder and puts the new one in AddOns.
 let addonInstalling = false;
 // Throws with the reason; the IPC, Repair and the automatic update word it their own way.
-async function installAddonNow({ refresh = true } = {}) {
+async function installAddonNow({ refresh = true, force = false } = {}) {
   if (addonInstalling) throw new Error(T("The addon is already being installed."));
   addonInstalling = true;
   try {
     if (refresh) await refreshSavedFile();
+    const disk = checkDisk();
+    if (!disk.ok) throw new Error(lowDiskMessage(disk));
     const running = process.platform === "win32" ? await wowIsRunning() : false;
-    const result = await addonInstallerModule().installAddon({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: running });
+    const result = await addonInstallerModule().installAddon({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: running, force });
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded addon {0} installed in {1}.", result.version, result.folder) + (result.backup ? " " + E("The previous Guilded folder was moved to {0}.", result.backup) : "") });
     return result;
   } catch (error) {
@@ -1074,15 +1246,17 @@ async function installAddonNow({ refresh = true } = {}) {
     if (engine) onState(engine.state());
   }
 }
-registerIpc("install-addon", async () => {
+registerIpc("reinstall-addon", () => installAddonAnswer(true));
+registerIpc("install-addon", () => installAddonAnswer(false));
+async function installAddonAnswer(force) {
   try {
-    const result = await installAddonNow();
+    const result = await installAddonNow({ force });
     await refreshSavedFile();
     return { ok: true, message: T("Guilded {0} is installed. Start WoW, open AddOns at the character screen, tick Guilded, then log in.", result.version) };
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) };
   }
-});
+}
 // Guilded Setup keeps both up to date (owner batch 3 #3): the companion updates itself (direct
 // build, or F5 on the Store) and, once it is newer, the addon follows: an installed Guilded older
 // than this companion is replaced while WoW is closed. At most one try per version every 6 hours;
@@ -1115,8 +1289,10 @@ registerIpc("repair", async () => {
     searchWow: () => searchWow(savedNames(), engineModules.isFolderOnHold, wowSearchOptions()),
     pick: (entries) => pickSavedVariables(entries.filter((entry) => entry.exists)) || pickSavedVariables(entries.filter((entry) => !/beta/i.test(entry.game))),
     setWatchFile: async (file) => { config = { ...config, watchFile: file, wowEnabled: true }; await saveConfig(); await engine?.configure(config); },
-    addonDecision: async () => { await refreshSavedFile(); return addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: process.platform === "win32" ? await wowIsRunning() : false, wowEnabled: config.wowEnabled !== false }); },
+    addonDecision: async () => { await refreshSavedFile(); return { ...addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: process.platform === "win32" ? await wowIsRunning() : false, wowEnabled: config.wowEnabled !== false }), installed: savedFile?.addon?.version ?? null, companion: app.getVersion() }; },
+    settingsSave: () => storeConfig.status(),
     installAddon: () => installAddonNow(),
+    diskSpace: () => checkDisk(),
     signedIn: () => Boolean(config.companionCredential),
     me: () => companionMeFetch(),
     syncConfigured: () => engineModules.validateConfig(config).length === 0,

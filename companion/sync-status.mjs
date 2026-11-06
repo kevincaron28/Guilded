@@ -56,9 +56,41 @@ function recentErrors(list) {
  * Operational states are safe diagnostics; credentials are never needed here. */
 export function syncDiagnosticPreview(config = {}, state = {}, evidence = {}) {
   const status = syncStatus(config, state, evidence);
-  return { schemaVersion: 1, edition: status.edition, phase: status.phase, action: status.action,
+  const summary = { schemaVersion: 1, edition: status.edition, phase: status.phase, action: status.action,
     running: status.running, saved: status.saved, uploaded: status.uploaded, accepted: status.accepted,
     lastOperationAt: status.lastOperationAt, companionVersion: version(evidence.companionVersion),
     addonVersion: version(state.addonVersion), botVersion: version(state.botVersion),
-    recentErrors: recentErrors(state.recentErrors) };
+    recentErrors: recentErrors(state.recentErrors),
+    ...(gameSync(state.gameSync) ? { gameSync: gameSync(state.gameSync) } : {}) };
+  // (9.0) The window shows local times; with the PC's UTC offset the summary does too, and says which.
+  const offset = evidence.utcOffsetMinutes;
+  return Number.isInteger(offset) && Math.abs(offset) <= 14 * 60 ? { ...localTimes(summary, offset), timeZone: zoneName(offset) } : summary;
+}
+
+/** "UTC-05:00" for an offset of -300 minutes (east of UTC is positive). */
+export function zoneName(offset) {
+  const sign = offset < 0 ? "-" : "+", abs = Math.abs(offset);
+  return `UTC${sign}${String(Math.floor(abs / 60)).padStart(2, "0")}:${String(abs % 60).padStart(2, "0")}`;
+}
+/** Every UTC time in the summary, written as local time with its offset: 2026-11-06T15:47:08-05:00. */
+export function localTimes(value, offset) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/.test(value)) {
+    const local = new Date(Date.parse(value) + offset * 60_000).toISOString().slice(0, 19);
+    return local + zoneName(offset).slice(3);
+  }
+  if (Array.isArray(value)) return value.map((item) => localTimes(item, offset));
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, localTimes(item, offset)]));
+  return value;
+}
+
+/** (9.0) The addon's guild sync counters (/guilded sync stats): whole numbers and two dates. */
+function gameSync(value) {
+  if (!value || typeof value !== "object") return null;
+  const fields = ["sent", "bytes", "received", "receivedBytes", "held", "relayedIn", "relayedOut", "rounds", "acksSent", "acksHeard"];
+  const out = {};
+  for (const field of fields) out[field] = Number.isSafeInteger(value[field]) && value[field] >= 0 ? value[field] : 0;
+  for (const field of ["since", "lastCatchUpAt"]) {
+    if (typeof value[field] === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/.test(value[field])) out[field] = value[field];
+  }
+  return out;
 }

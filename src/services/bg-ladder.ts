@@ -5,7 +5,6 @@ import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { percent } from "./duels.js";
-import { previewAllows } from "./feature-preview.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 
 // The battleground LADDER (8.5, track B2): its own message in the ladder channel (`pvp-ladder`, the statistics channel),
@@ -78,7 +77,7 @@ const isBoard = (message: Message, botId: string) => message.author.id === botId
  * new one. Never throws. `delivery` is the job worker's call; any other call queues the refresh.
  */
 export async function updateBgLadder(discordGuild: DiscordGuild | null, delivery = false): Promise<boolean> {
-  if (!discordGuild || !previewAllows(discordGuild.id)) return false;
+  if (!discordGuild) return false;
   if (!delivery) {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);

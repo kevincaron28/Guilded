@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { promotionForAddon } from "../src/services/promotion-feed.js";
 import { promotionToLua, standingsToLua } from "../companion/standings-format.mjs";
 
@@ -12,29 +12,18 @@ const db = (people: unknown[], settings: unknown = null) => ({
 const discord = (id: string, inGuild: string[]) => ({ id, memberCount: inGuild.length, members: { cache: new Map(inGuild.map(u => [u, {}])), fetch: async () => undefined } }) as never;
 const person = (id: string, characters: unknown[]) => ({ discordUserId: id, displayName: id, characters });
 
-const saved = process.env["FEATURE_PREVIEW_GUILD_IDS"];
-afterEach(() => { if (saved === undefined) delete process.env["FEATURE_PREVIEW_GUILD_IDS"]; else process.env["FEATURE_PREVIEW_GUILD_IDS"] = saved; });
-
 describe("promotionForAddon", () => {
   it("lists in-game names of members in Discord who held the rank long enough, longest first", async () => {
-    delete process.env["FEATURE_PREVIEW_GUILD_IDS"];
     const feed = await promotionForAddon(db([person("a", [row("Amy Smith", days(8))]), person("b", [row("Bob Jones", days(30))]), person("c", [row("Cy", days(3))]), person("gone", [row("Dee", days(40))])]),
       discord("d1", ["a", "b", "c"]), "g1", "forever", NOW);
     expect(feed?.ready).toEqual(["Bob Jones", "Amy Smith"]);
     expect(feed).toMatchObject({ fromRank: "Initiate", minDays: 7 });
   });
   it("follows the officers' rule and goes quiet when they switched promotion off", async () => {
-    delete process.env["FEATURE_PREVIEW_GUILD_IDS"];
     const people = [person("a", [row("Amy", days(8))])];
     const strict = await promotionForAddon(db(people, { promotionMinDays: 14 }), discord("d1", ["a"]), "g1", "forever", NOW);
     expect(strict?.ready).toEqual([]);
     expect(await promotionForAddon(db(people, { promotionEnabled: false }), discord("d1", ["a"]), "g1", "forever", NOW)).toBeNull();
-  });
-  it("is limited to the preview servers while the preview switch is set", async () => {
-    process.env["FEATURE_PREVIEW_GUILD_IDS"] = "other";
-    expect(await promotionForAddon(db([person("a", [row("Amy", days(8))])]), discord("d1", ["a"]), "g1", "forever", NOW)).toBeNull();
-    process.env["FEATURE_PREVIEW_GUILD_IDS"] = "d1";
-    expect((await promotionForAddon(db([person("a", [row("Amy", days(8))])]), discord("d1", ["a"]), "g1", "forever", NOW))?.ready).toEqual(["Amy"]);
   });
 });
 

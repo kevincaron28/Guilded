@@ -2,7 +2,6 @@ import { type Client, type GuildMember, type Message, type MessageReaction, type
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
-import { previewAllows } from "./feature-preview.js";
 import { requestInviteRow } from "./invite-request.js";
 import { parseInviteAnswers, questionsBlock, storedQuestions } from "./recruiting-kit.js";
 import { markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, SEEN, type InvitedRow } from "./invite-queue.js";
@@ -33,7 +32,6 @@ function isOfficer(member: GuildMember | null | undefined): boolean {
 /** A player's post in the invite channel: record the full name and react 👀, or send a short hint that deletes itself. */
 export async function handleInviteMessage(message: Message, database: Database): Promise<"recorded" | "hinted" | "ignored"> {
   if (!message.guildId || message.author.bot || message.webhookId || !message.content?.trim()) return "ignored";
-  if (!previewAllows(message.guildId)) return "ignored";
   const settings = await database.guildSettings.findFirst({ where: { inviteChannelId: message.channelId, inviteQueueEnabled: true }, select: { guildId: true, language: true } });
   if (!settings) return "ignored";
   const parsed = parseInviteName(message.content);
@@ -81,14 +79,14 @@ export async function handleInviteReaction(client: Client, database: Database, r
 
 /** A roster upload showed these characters in the guild: their waiting posts are done. Automatic, so preview-gated. */
 export async function completeInvitesFromRoster(client: Pick<Client, "channels" | "user">, database: Database, guild: { id: string; discordId: string }, names: readonly string[]): Promise<number> {
-  if (!previewAllows(guild.discordId) || !names.length) return 0;
+  if (!names.length) return 0;
   const rows = await markInvitedByName(database, guild.id, names, "roster");
   return rows.length ? markPostsDone(client, rows) : 0;
 }
 
 /** Someone got the World of Warcraft role: one DM asking for their full character name in the invite channel. */
 export async function handleWowRoleGiven(before: GuildMember | PartialGuildMember, after: GuildMember, database: Database): Promise<boolean> {
-  if (after.user.bot || before.partial || !previewAllows(after.guild.id)) return false;
+  if (after.user.bot || before.partial) return false;
   const added = after.roles.cache.filter((role) => !before.roles.cache.has(role.id));
   if (!added.size) return false;
   const all = await database.guildSettings.findMany({ where: { guild: { discordId: after.guild.id }, inviteChannelId: { not: null }, inviteDmEnabled: true, inviteQueueEnabled: true },

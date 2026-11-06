@@ -319,6 +319,13 @@ local function makeFrame(width, height)
       edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 16, edgeSize = 16,
       insets = { left = 4, right = 4, top = 4, bottom = 4 } })
   end
+  -- A solid back as well: the dialog texture alone left the window see-through on one client.
+  if f.CreateTexture then
+    local solid = f:CreateTexture(nil, "BACKGROUND")
+    solid:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
+    solid:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -4, 4)
+    if solid.SetColorTexture then solid:SetColorTexture(0.04, 0.04, 0.05, 0.96) end
+  end
   f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   f.text:SetPoint("TOP", f, "TOP", 0, -10)
   f.text:SetWidth(width - 20)

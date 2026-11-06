@@ -304,7 +304,8 @@ api.onSignInRestarted?.(started => {
   if (!signInRun) return;
   const view = signInRun.view;
   showSignInBox(view, started);
-  signInViews[view].say(T("That sign-in expired, so a new one opened in your browser (it may be behind this window)."),true);
+  // restarted 0: "Reopen the page" asked for the new request; it says so itself.
+  if (started.restarted) signInViews[view].say(T("That sign-in expired, so a new one opened in your browser (it may be behind this window)."),true);
 });
 async function reopenSignIn(view) {
   const result = await api.signInReopen();
@@ -389,7 +390,7 @@ bind('btnHistory',async () => {
   $('poeHistory').replaceChildren(); $('poeHistory').className = 'history-list';
   for (const visit of visits) { const row = document.createElement('div'); row.className = 'history-row'; const info = document.createElement('div'); const title = document.createElement('strong'); title.textContent = T("{0} · Level {1}", visit.areaName || visit.areaId, visit.areaLevel); const note = document.createElement('p'); note.textContent = `${visit.character} · ${visit.league} · ${modeLabel(visit.mode)} · ${visit.durationSeconds === null ? T("Duration unknown") : T("{0}m {1}s observed", Math.floor(visit.durationSeconds / 60), visit.durationSeconds % 60)}`; const time = document.createElement('time'); time.dateTime = visit.startedAt; time.textContent = new Date(visit.startedAt).toLocaleString(languageUI.language, {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}); info.append(title,note); row.append(info,time); $('poeHistory').append(row); }
 });
-bind('btnDiagnostics',async () => { const all = await api.getAll(); const state = all.state || lastSnapshot?.state || {}; const summary = window.guildedSyncDiagnosticPreview(savedConfig, state, { ...(state.syncEvidence || {}), companionVersion: all.version }); $('diagnosticContent').textContent = JSON.stringify(summary,null,2); $('diagnosticPreview').showModal(); });
+bind('btnDiagnostics',async () => { const all = await api.getAll(); const state = all.state || lastSnapshot?.state || {}; const summary = window.guildedSyncDiagnosticPreview(savedConfig, state, { ...(state.syncEvidence || {}), companionVersion: all.version, utcOffsetMinutes: -new Date().getTimezoneOffset() }); $('diagnosticContent').textContent = JSON.stringify(summary,null,2); $('diagnosticPreview').showModal(); });
 bind('btnCancelDiagnostics',async () => $('diagnosticPreview').close());
 bind('btnSaveDiagnostics',async () => { const url = URL.createObjectURL(new Blob([$('diagnosticContent').textContent],{type:'application/json'})); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'Guilded-support-summary.json'; anchor.click(); setTimeout(() => URL.revokeObjectURL(url),1000); $('diagnosticPreview').close(); toast(T("Support summary saved without credentials, account IDs or file paths.")); });
 function setTheme(light) { document.body.classList.toggle('light',light); $('btnTheme').setAttribute('aria-label',light ? T("Switch to dark theme") : T("Switch to light theme")); try { localStorage.setItem('guilded.companion.theme',light ? 'light' : 'dark'); } catch { /* theme still applies */ } }

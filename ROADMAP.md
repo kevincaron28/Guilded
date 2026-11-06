@@ -139,7 +139,7 @@ Render images with `src/services/score-card.ts` (roster layout) so they match th
   duel-board pattern) listing each member with their main and alts, for when nicknames are off.
 - Done when: renaming works on a test server, opt-out restores the previous nickname, and the board
   stays one message.
-- **Owner decision:** nickname format and whether alts appear. Default: main first name only.
+- **Owner decision (6 November 2026):** default format `Discord name (Main First)`, main only, no alts.
 
 **C3. Visual guild roster (classes and professions).**
 - Existing: `/guild-health` text (`buildComposition`, level bands, retention); roster dashboard
@@ -232,8 +232,8 @@ member does not use (Pricing, Cores, Reserves, Wishlist) until the guild uses th
 - folder picker that starts at the WoW install root and finds the Forever account folder itself,
   including several accounts (pick one per character);
 - after the first companion link, a Discord confirmation ("You're linked: First Last, Second Last");
-  **owner decision** needed because it is an automatic message (default: an ephemeral line the next
-  time the member uses a Guilded command, no DM);
+  **owner decision (6 November 2026):** an ephemeral line the next time the member uses a Guilded
+  command, no DM;
 - `/guilded verify`: show "waiting for a guildmate's companion" vs "linked" in game, and keep the code
   in the guild digest until it is heard instead of losing it when nobody is online;
 - companion offers to install or update the matching addon (WoW closed check, correct edition folder).

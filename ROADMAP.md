@@ -2,7 +2,7 @@
 
 ## Current stage — 6 November 2026
 
-Guilded **8.4.7** is published on GitHub and the bot (Forever dungeon final-boss fix and the self-updating direct-download companion); the next release is 8.5.0 (planned below).
+Guilded **8.4.7** is published on GitHub and the bot (Forever dungeon final-boss fix and the self-updating direct-download companion); the next release is **9.0.0** (planned below as the "8.5" tracks; owner decision 6 November 2026: it ships as 9.0 after in-game testing and polishing). Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Forever is the only active edition and PoE2 is hidden ([Forever-only focus](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
@@ -23,7 +23,7 @@ request list: [roadmap history](docs/archive/ROADMAP-history.md).
      track. Merge conflicts there are expected and easy.
    - `src/setup-names.ts`: only tracks B and C add channels.
    - Never edit `package.json`'s version, `CHANGELOG.md`, `README.md`'s current version line or
-     the `.toc` versions. The coordinating session bumps to 8.5.0 once, at release.
+     the `.toc` versions. The coordinating session bumps to 9.0.0 once, at release.
 5. **Owner decision (6 November 2026): every new 8.5 feature is ON by default in every Discord
    server** (boards, nickname sync, Who's who, roster gaps, Defender alerts, profession posts,
    statistics, the guildmate map, the first-link DM). Each one keeps an off switch for officers
@@ -54,7 +54,7 @@ except where noted, so they can run at the same time.
 
 ---
 
-## 8.5.0 — requested 6 November 2026
+## 9.0.0 — requested 6 November 2026
 
 ### Track A — Achievements and badges
 
@@ -501,7 +501,7 @@ collapse into one entry: ledger account, dungeon runs, duels, recipes, roster, r
 legacy ledger history kept on an officer-assigned account) and backward compatibility for 8.4.x
 addons. Details: `docs/FOREVER_NAMES.md`. The relink and second-character test waits for it.
 
-### 8.5.0 release checklist (coordinator; review 6 November 2026, evening)
+### 9.0.0 release checklist (coordinator; review 6 November 2026, evening)
 
 **Work still open (PRs into `release/8.5-candidate`):**
 - Track F: #415 (support summary); then the setup wizard + Repair + slimmer companion (batch 3 #3/#4).
@@ -515,7 +515,7 @@ addons. Details: `docs/FOREVER_NAMES.md`. The relink and second-character test w
 - On the server, after a backup: `npm run names:forever` (preview, then `-- --apply`), and the pre-launch cleanup preview/apply (#419, `docs/PRELAUNCH_CLEANUP.md`).
 - Decide whether `#course-au-60` in Québec Gold stays public.
 - Merge or close on GitHub (agent merges into main were blocked): #388 site pointers to 8.4.7; close the superseded #394 and #396; review dependabot #407.
-- Microsoft Store: 8.4.7.0 after 8.4.6.0 certifies, then 8.5.0.0.
+- Microsoft Store: 8.4.7.0 after 8.4.6.0 certifies, then 9.0.0.0.
 - Google Play account (USD 25) when ready (`mobile/README.md`).
 - Change the Discord password used for testing.
 
@@ -529,7 +529,7 @@ addons. Details: `docs/FOREVER_NAMES.md`. The relink and second-character test w
 **Release steps:**
 1. Merge the last PRs.
 2. Full suite.
-3. Bump to **8.5.0** once (README, CLAUDE.md, ROADMAP current stage, CHANGELOG, `.toc`, companion `package.json`).
+3. Bump to **9.0.0** once (README, CLAUDE.md, ROADMAP current stage, CHANGELOG, `.toc`, companion `package.json`).
 4. Remove `FEATURE_PREVIEW_GUILD_IDS` from the server, and delete `src/services/feature-preview.ts` and its callers in the release PR.
 5. Deploy, then GitHub release, CurseForge (`node scripts/curseforge-upload.mjs`), Store.
 6. Website refresh and screenshots (final phase 1).
@@ -568,7 +568,7 @@ log, saved data and Discord page text, and takes about a dozen screenshots in to
 
 ### Final phase 1 — new screenshots and website refresh (after all tracks are merged)
 
-Owner request, 6 November 2026. Once 8.5.0 is feature-complete:
+Owner request, 6 November 2026. Once 9.0.0 is feature-complete:
 1. Take fresh screenshots in game (race board, PvP ladder, call for help banner, chat tab, minimap
    menu, roster card, Artisans' Gallery, companion Problems panel and settings) and in Discord.
    Sanitize names that are not Québec Gold members.
@@ -603,7 +603,7 @@ Owner request, 6 November 2026: an app to check leaderboards at work and to help
 
 ### Release step — bring the Québec Gold Discord up to date (owner request, 6 November 2026)
 
-After 8.5.0 is merged and deployed, the coordinating session turns the new features on in the
+After 9.0.0 is merged and deployed, the coordinating session turns the new features on in the
 Québec Gold server and checks each one live. Opt-in switches stay off for every other server.
 1. Re-run `/setup` so the PvP category (`pvp-groups`, `pvp-results`, `pvp-ladder`) and the race-to-60
    channel exist; existing battleground channels are adopted, not duplicated.

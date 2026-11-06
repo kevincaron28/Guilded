@@ -27,10 +27,15 @@ function unrankedLabel(reason: string, lang: Lang): string {
   return presence ? `Présence ${presence[1]} % / 80 % requis` : labels[reason] ?? reason;
 }
 
-// The importer resolves characters against this guild's linked roster. Do not
-// infer membership from points (a guild member can legitimately earn zero).
-function guildPlayers(run: DungeonImportSummary["results"][number]): Set<string> {
+// A player is a guild member when the addon flagged them as in our guild or they match a linked
+// character (the importer resolves against this guild's roster). Guildmates without the addon or a
+// link still count. Do not infer membership from points (a member can legitimately earn zero).
+function linkedPlayers(run: DungeonImportSummary["results"][number]): Set<string> {
   return new Set(run.players.filter((name) => !run.unlinked.includes(name)));
+}
+function guildPlayers(run: DungeonImportSummary["results"][number]): Set<string> {
+  const flagged = new Set(run.inGuildPlayers ?? []);
+  return new Set(run.players.filter((name) => !run.unlinked.includes(name) || flagged.has(name)));
 }
 
 // One post per import (roadmap D6): the completed runs, then the records
@@ -51,7 +56,7 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
     const tracked = details?.filter((player) => player.deaths !== null).length;
     const partial = tracked !== undefined && tracked < members.size;
     const memberDeaths = details ? (tracked ? details.reduce((sum, player) => sum + (player.deaths ?? 0), 0) : null)
-      : run.unlinked.length === 0 ? run.deaths : null;
+      : members.size === run.players.length ? run.deaths : null;
     const deaths = memberDeaths === null ? "" : ` · ${fr ? "morts de guilde" : "guild deaths"}: ${memberDeaths}${partial
       ? ` (${tracked}/${members.size} ${fr ? "suivis" : "tracked"})` : ""}`;
     const lines = [`✅ **${escapeMarkdown(label(run))}** ${formatDuration(run.durationSec as number)}${deaths}`];
@@ -60,7 +65,9 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
     if (run.endedAt) lines.push(`${fr ? "Terminé" : "Finished"} <t:${run.endedAt}:f> · ${run.completedBy === "manual"
       ? (fr ? "fin manuelle" : "manually completed") : run.completedBy === "final boss"
         ? (fr ? "boss final vaincu" : "final boss defeated") : (fr ? "donjon terminé" : "completed")}`);
-    lines.push(`${members.size} ${fr ? "membre(s) de guilde" : "guild member(s)"} · ${run.points} ${run.ratingEnabled ? (fr ? "points de participation" : "participation points") : (fr ? "points attribués au total" : "total points awarded")}`);
+    const linkedCount = linkedPlayers(run).size;
+    const linkedNote = members.size > linkedCount ? ` (${linkedCount} ${fr ? "lié(s)" : "linked"})` : "";
+    lines.push(`${members.size} ${fr ? "membre(s) de guilde" : "guild member(s)"}${linkedNote} · ${run.points} ${run.ratingEnabled ? (fr ? "points de participation" : "participation points") : (fr ? "points attribués au total" : "total points awarded")}`);
     if (details) {
       const roles: Record<string, string> = { TANK: "Tank", HEALER: fr ? "Soigneur" : "Healer", DPS: "DPS", DAMAGER: "DPS" };
       for (const player of details.slice(0, 8)) {

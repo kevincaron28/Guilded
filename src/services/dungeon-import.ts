@@ -55,6 +55,8 @@ export interface DungeonImportResult {
   ratingVersion?: number;
   playerDetails?: { character: string; class?: string; role?: string; spec?: string; specSource?: "run" | "profile"; deaths: number | null; presentSec: number; points: number; ratingGain?: number; ratingTotal?: number; unrankedReason?: string; participationRecipient?: string; participationMode?: "none" | "completion" | "helper" | "full" }[];
   unlinked: string[];
+  // Party names the addon flagged as guild members (UnitIsInMyGuild). Absent on results built before 8.5.
+  inGuildPlayers?: string[];
   achievements: { character: string; key: AchievementKey }[];
 }
 
@@ -458,6 +460,7 @@ export async function importDungeonRuns(
       deaths: run.players.some((player) => typeof player.deaths === "number")
         ? run.players.reduce((sum, player) => sum + (player.deaths ?? 0), 0) : null,
       unlinked: linked.filter((entry) => !entry.character).map((entry) => entry.player.character),
+      inGuildPlayers: run.players.filter((player) => player.inGuild).map((player) => player.character),
       achievements
     });
   }

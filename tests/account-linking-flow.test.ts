@@ -203,6 +203,12 @@ const world = vi.hoisted(() => {
       },
       async count({ where }: { where: { revokedAt: null; member: { discordUserId?: string; guildId?: string; status?: { not?: string } } } }) {
         return credentials.filter((row) => row["revokedAt"] === null && memberWhereMatches(memberOf(row["memberId"]), where.member)).length;
+      },
+      // link-status.ts: the newest device sync of this member's credentials.
+      async findFirst({ where }: { where: { revokedAt: null; member: { discordUserId?: string; guildId?: string; status?: { not?: string } } } }) {
+        const rows = credentials.filter((row) => row["revokedAt"] === null && row["lastUsedAt"] instanceof Date && memberWhereMatches(memberOf(row["memberId"]), where.member));
+        rows.sort((a, b) => (b["lastUsedAt"] as Date).getTime() - (a["lastUsedAt"] as Date).getTime());
+        return rows[0] ? { lastUsedAt: rows[0]["lastUsedAt"] } : null;
       }
     },
     characterVerifyCode: {
@@ -259,7 +265,12 @@ const world = vi.hoisted(() => {
         webCredentials.push(row);
         return row;
       },
-      async findFirst({ where }: { where: { tokenHash: string; revokedAt: null } }) {
+      async findFirst({ where }: { where: { tokenHash?: string; revokedAt: null; account?: { discordUserId: string } } }) {
+        if (where.account) {
+          const rows = webCredentials.filter((row) => row["revokedAt"] === null && row["lastUsedAt"] instanceof Date && accounts.some((account) => account["id"] === row["accountId"] && account["discordUserId"] === where.account!.discordUserId));
+          rows.sort((a, b) => (b["lastUsedAt"] as Date).getTime() - (a["lastUsedAt"] as Date).getTime());
+          return rows[0] ? { lastUsedAt: rows[0]["lastUsedAt"] } : null;
+        }
         const row = webCredentials.find((item) => item["tokenHash"] === where.tokenHash && item["revokedAt"] === null);
         if (!row) return null;
         const account = accounts.find((item) => item["id"] === row["accountId"]);
@@ -575,6 +586,10 @@ describe("account linking across Discord, the addon, the companion and the site"
     expect(both.filter((result) => result.status === "fulfilled" && result.value)).toHaveLength(1);
 
     expect(await memberLinkStatus(db, "user-ray")).toMatchObject({ battleNet: false, companion: true, characters: 0, lastSynced: null });
+    // A device that synced counts as "Last synced", even before any character is linked (8.5 fresh-PC test).
+    world.webCredentials[0]!["lastUsedAt"] = new Date("2026-11-01T12:00:00Z");
+    expect(await memberLinkStatus(db, "user-ray")).toMatchObject({ companion: true, characters: 0, lastSynced: new Date("2026-11-01T12:00:00Z") });
+    delete world.webCredentials[0]!["lastUsedAt"];
     world.battleNet.push({ id: "bn1", discordUserId: "user-ray" });
     world.members.push({ id: "m4", guildId: "g2", discordUserId: "user-ray", displayName: "Ray", status: "ACTIVE" });
     world.characters.push(

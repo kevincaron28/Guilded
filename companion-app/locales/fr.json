@@ -1088,5 +1088,21 @@
   "The addon download did not match the release checksum.": "Le téléchargement de l’addon ne correspond pas à la somme de contrôle de la version.",
   "The addon download is not a zip file.": "Le téléchargement de l’addon n’est pas un fichier zip.",
   "The addon zip is damaged.": "Le zip de l’addon est endommagé.",
-  "The addon download is larger than expected.": "Le téléchargement de l’addon est plus gros que prévu."
+  "The addon download is larger than expected.": "Le téléchargement de l’addon est plus gros que prévu.",
+  "Finish in your browser (it may be behind this window)": "Terminez dans votre navigateur (il est peut-être derrière cette fenêtre)",
+  "Reopen the page": "Rouvrir la page",
+  "The sign-in could not start. Check your internet connection, then try again.": "La connexion n’a pas pu démarrer. Vérifiez votre connexion Internet, puis réessayez.",
+  "That sign-in expired, so a new one opened in your browser (it may be behind this window).": "Cette connexion a expiré : une nouvelle page s’est ouverte dans votre navigateur (elle est peut-être derrière cette fenêtre).",
+  "The sign-in page opened again. Look for your browser behind this window or in the taskbar.": "La page de connexion s’est rouverte. Cherchez votre navigateur derrière cette fenêtre ou dans la barre des tâches.",
+  "Time left: {0}. If it runs out, the companion opens a new page by itself.": "Temps restant : {0}. S’il s’écoule, le compagnon ouvre lui-même une nouvelle page.",
+  "Time is up. The companion is opening a new sign-in page.": "Le temps est écoulé. Le compagnon ouvre une nouvelle page de connexion.",
+  "The sign-in did not finish. Press Sign in with Discord to try again.": "La connexion n’est pas allée au bout. Appuyez sur Se connecter avec Discord pour réessayer.",
+  "That sign-in expired. Choose Sign in with Discord again.": "Cette connexion a expiré. Appuyez de nouveau sur Se connecter avec Discord.",
+  "The Guilded server is restarting or unreachable; retrying in {0} s.": "Le serveur Guilded redémarre ou est injoignable ; nouvel essai dans {0} s.",
+  "Signed in for public dungeon rankings only": "Connecté pour les classements publics des donjons seulement",
+  "No guild server yet": "Pas encore de serveur de guilde",
+  "Signed in, but you're not in a Discord server that uses Guilded yet. Join your guild's Discord, then press Link to my guild.": "Connecté, mais vous n’êtes pas encore dans un serveur Discord qui utilise Guilded. Rejoignez le Discord de votre guilde, puis appuyez sur Relier à ma guilde.",
+  "Link to my guild": "Relier à ma guilde",
+  "Found World of Warcraft in {0}, but no account folder yet. Start WoW, log in once, then press Find it again.": "World of Warcraft trouvé dans {0}, mais pas encore de dossier de compte. Lancez WoW, connectez-vous une fois, puis appuyez de nouveau sur Rechercher.",
+  "No World of Warcraft folder found on {0}. Choose WoW folder and pick it yourself.": "Aucun dossier World of Warcraft trouvé sur {0}. Appuyez sur Choisir le dossier WoW et sélectionnez-le vous-même."
 }

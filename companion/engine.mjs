@@ -100,22 +100,28 @@ export async function startSignIn(config, { loopback } = {}) {
     if (!response.ok) return { ok: false, message: describeApiError(response.status, body.error) };
     if (typeof body.requestId !== "string" || typeof body.url !== "string" || typeof body.confirm !== "string") return { ok: false, message: "The bot's sign-in answer was incomplete." };
     const page = checkUrl(body.url);
-    return { ok: true, uploadUrl, requestId: body.requestId, confirm: body.confirm, url: page.href, automatic: !!loopback && body.loopbackAccepted === true };
+    // When the bot forgets the request (20 minutes since 8.5; older bots 10): the window counts down to it.
+    const expiresAt = typeof body.expiresAt === "string" && Number.isFinite(Date.parse(body.expiresAt)) ? new Date(body.expiresAt).toISOString() : new Date(Date.now() + 10 * 60_000).toISOString();
+    return { ok: true, uploadUrl, requestId: body.requestId, confirm: body.confirm, url: page.href, expiresAt, automatic: !!loopback && body.loopbackAccepted === true };
   } catch (error) {
     return { ok: false, message: describeError(error) };
   }
 }
 
-// Asks every few seconds until the member approves in the browser (or 10 minutes pass).
+// Asks every few seconds until the member approves in the browser, or the request expires: at
+// `expiresAt` (startSignIn's answer), when the bot answers 410 (a bot restart forgets requests), or
+// after `timeoutMs`. An expired answer carries `expired: true` so the app can start a new one.
 // proof: returns what came back through the loopback port (startSignIn's loopback), once it has.
-export async function waitForSignIn(config, requestId, { signal, proof = /** @type {(() => string | undefined) | undefined} */ (undefined), intervalMs = 2_000, timeoutMs = 10 * 60_000, sleep = (ms) => new Promise((done) => setTimeout(done, ms)) } = {}) {
+export async function waitForSignIn(config, requestId, { signal, proof = /** @type {(() => string | undefined) | undefined} */ (undefined), intervalMs = 2_000, timeoutMs = 20 * 60_000, expiresAt = /** @type {string | undefined} */ (undefined), sleep = (ms) => new Promise((done) => setTimeout(done, ms)) } = {}) {
   const uploadUrl = config.uploadUrl?.trim() || HOSTED_UPLOAD_URL;
-  const until = Date.now() + timeoutMs;
+  const deadline = expiresAt ? Date.parse(expiresAt) : NaN;
+  const until = Number.isFinite(deadline) ? Math.min(Date.now() + timeoutMs, deadline + 5_000) : Date.now() + timeoutMs;
   while (Date.now() < until) {
     if (signal?.aborted) return { ok: false, message: "Sign-in cancelled." };
     try {
       const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in/poll", uploadUrl), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId, ...(proof?.() ? { proof: proof() } : {}) }) }, signal, 10_000);
       if (response.status === 200) return { ...pairingResult(config, body), uploadUrl };
+      if (response.status === 410) return { ok: false, expired: true, message: SIGN_IN_EXPIRED };
       if (response.status !== 202) return { ok: false, message: describeApiError(response.status, body.error) };
     } catch (error) {
       if (signal?.aborted) return { ok: false, message: "Sign-in cancelled." };
@@ -124,8 +130,9 @@ export async function waitForSignIn(config, requestId, { signal, proof = /** @ty
     }
     await sleep(intervalMs);
   }
-  return { ok: false, message: "Sign-in timed out. Choose Sign in with Discord again." };
+  return { ok: false, expired: true, message: SIGN_IN_EXPIRED };
 }
+export const SIGN_IN_EXPIRED = "That sign-in expired. Choose Sign in with Discord again.";
 
 // "fetch failed" tells nobody anything: say what to check.
 // Shown in place of "GuildedDB was not found in the SavedVariables file." and a missing file: the

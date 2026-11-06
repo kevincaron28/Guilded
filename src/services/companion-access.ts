@@ -5,7 +5,7 @@ import { hasPermission } from "../permissions.js";
 import { hashCompanionSecret } from "./character-pairing.js";
 import { parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";
 import { currentGuildScope } from "./guild-scope.js";
-import { characterKey } from "../../companion/character-identity.mjs";
+import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
 import { relayableDungeonRuns } from "./guildmate-relay.js";
 
@@ -33,9 +33,17 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
   const edition = gameEditionOf(snapshot);
   const key = (name: string, realm: string) => edition === "forever" ? `${name.toLowerCase()}\0${realm.toLowerCase()}` : characterKey(name, realm, edition);
   const names = new Set(owned.map((c) => key(c.name, c.realm)));
-  const own = (c: { character: string; realm: string }) => names.has(key(c.character, c.realm));
-  const ownCharacter = (c: { name: string; realm: string }) => names.has(key(c.name, c.realm));
+  // WoW Forever, 8.5: an owned row may still hold the pre-8.5 first name ("Lebowski") while the
+  // upload says "Lebowski Holyroller"; that counts as the member's own only when that single
+  // owned row is the match (foreverSameName). Their own upload then renames the row.
+  // Only for characters this PC reports as its own (character + alts), never a guildmate's.
+  const pcNames = new Set([...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts].map((c) => c.name.trim().toLowerCase()));
+  const looseOwn = (name: string) => edition === "forever" && pcNames.has(name.split("-")[0]!.trim().toLowerCase())
+    && owned.filter((c) => foreverSameName(c.name, name)).length === 1;
+  const own = (c: { character: string; realm: string }) => names.has(key(c.character, c.realm)) || looseOwn(c.character);
+  const ownCharacter = (c: { name: string; realm: string }) => names.has(key(c.name, c.realm)) || looseOwn(c.name);
   const ownNames = new Set(owned.map((c) => c.name.toLowerCase()));
+  const ownsName = (name: string) => ownNames.has(name.split("-")[0]!.trim().toLowerCase()) || looseOwn(name);
   return parseAddonSnapshot({
     source: snapshot.source, exportedAt: snapshot.exportedAt, wowGuild: snapshot.wowGuild,
     gameEdition: snapshot.gameEdition, interface: snapshot.interface,
@@ -47,8 +55,8 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     // Own postmatch reports only. record() still requires Discord consent and drops the rest.
     battlegroundReports: snapshot.battlegroundReports.filter((row) => row.edition === edition && names.has(key(row.character, row.realm))),
     // Duels where the member took part, and the member's own milestones (names are matched on apply).
-    duelResults: snapshot.duelResults.filter((row) => { const r = row as { winner?: unknown; loser?: unknown } | null; return [r?.winner, r?.loser].some((n) => typeof n === "string" && ownNames.has(n.split("-")[0]!.toLowerCase())); }),
-    milestones: snapshot.milestones.filter((row) => { const c = (row as { character?: unknown } | null)?.character; return typeof c === "string" && ownNames.has(c.split("-")[0]!.toLowerCase()); }),
+    duelResults: snapshot.duelResults.filter((row) => { const r = row as { winner?: unknown; loser?: unknown } | null; return [r?.winner, r?.loser].some((n) => typeof n === "string" && ownsName(n)); }),
+    milestones: snapshot.milestones.filter((row) => { const c = (row as { character?: unknown } | null)?.character; return typeof c === "string" && ownsName(c); }),
     // 8.5: the member's own dungeon runs and guildmates' runs reported by someone who played them
     // (guildmate-relay.ts). The usual run validation and one-row-per-run-id still apply on import.
     dungeonRuns: relayableDungeonRuns(snapshot.dungeonRuns, ownNames)

@@ -784,6 +784,10 @@ local FR = {
   ["Guildmates with a companion:"] = "Membres avec un compagnon :",
   ["Guildmates' data held here: %d, oldest %s (dropped after 45 days)."] = "Donn\195\169es de membres gard\195\169es ici : %d, la plus ancienne %s (effac\195\169es apr\195\168s 45 jours).",
   ["Older Guilded (please update):"] = "Guilded plus ancien (\195\160 mettre \195\160 jour) :",
+  -- 8.5: Forever full names
+  ["%d saved entries use a first name shared by several characters. /guilded names lists them."] = "%d entr\195\169es enregistr\195\169es utilisent un pr\195\169nom partag\195\169 par plusieurs personnages. /guilded names les liste.",
+  ["Every saved character uses its full name."] = "Chaque personnage enregistr\195\169 utilise son nom complet.",
+  ["%d saved entries still use a first name only:"] = "%d entr\195\169es enregistr\195\169es n'utilisent encore qu'un pr\195\169nom :",
 }
 
 -- German and Spanish: all catalogued French-reference strings translated; unknown runtime text stays unchanged.
@@ -2126,6 +2130,10 @@ local DE = {
   ["Guildmates with a companion:"] = "Gildenmitglieder mit Begleiter:",
   ["Guildmates' data held here: %d, oldest %s (dropped after 45 days)."] = "Hier gespeicherte Daten von Gildenmitgliedern: %d, die \195\164ltesten %s (nach 45 Tagen gel\195\182scht).",
   ["Older Guilded (please update):"] = "\195\132lteres Guilded (bitte aktualisieren):",
+  -- 8.5: Forever full names
+  ["%d saved entries use a first name shared by several characters. /guilded names lists them."] = "%d gespeicherte Eintr\195\164ge nutzen einen Vornamen, den mehrere Charaktere teilen. /guilded names listet sie auf.",
+  ["Every saved character uses its full name."] = "Jeder gespeicherte Charakter nutzt seinen vollen Namen.",
+  ["%d saved entries still use a first name only:"] = "%d gespeicherte Eintr\195\164ge nutzen noch nur einen Vornamen:",
   ["Professions"] = "Berufe",
   ["No professions shared by guildmates yet."] = "Noch keine Berufe von Gildenmitgliedern geteilt.",
   ["No public notes to update."] = "Keine \195\182ffentlichen Notizen zu aktualisieren.",
@@ -3476,6 +3484,10 @@ local ES = {
   ["Guildmates with a companion:"] = "Miembros con compa\195\177ero:",
   ["Guildmates' data held here: %d, oldest %s (dropped after 45 days)."] = "Datos de miembros guardados aqu\195\173: %d, el m\195\161s antiguo %s (se borran a los 45 d\195\173as).",
   ["Older Guilded (please update):"] = "Guilded m\195\161s antiguo (actual\195\173zalo):",
+  -- 8.5: Forever full names
+  ["%d saved entries use a first name shared by several characters. /guilded names lists them."] = "%d entradas guardadas usan un nombre compartido por varios personajes. /guilded names las muestra.",
+  ["Every saved character uses its full name."] = "Cada personaje guardado usa su nombre completo.",
+  ["%d saved entries still use a first name only:"] = "%d entradas guardadas a\195\186n usan solo el nombre:",
   ["Professions"] = "Profesiones",
   ["No professions shared by guildmates yet."] = "Todav\195\173a nadie de la hermandad ha compartido profesiones.",
   ["No public notes to update."] = "No hay notas p\195\186blicas que actualizar.",

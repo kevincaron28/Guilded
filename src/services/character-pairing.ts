@@ -3,7 +3,7 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { AddonCharacter } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
-import { characterKey } from "../../companion/character-identity.mjs";
+import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
 import { guildRankUpdate } from "./guild-rank.js";
 import { gameEditionOf } from "./game-edition.js";
 
@@ -61,9 +61,15 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
     if (existing && existing.memberId !== memberId) return "owned-by-another" as const;
 
     if (existing) {
+      // WoW Forever, 8.5: the member's own upload names this character in full ("Lebowski
+      // Holyroller") while the row still has the pre-8.5 first-name key: it takes the full name,
+      // so the member's other "Lebowski" alts become their own rows instead of sharing this one.
+      const upgradeName = gameEditionOf(self) === "forever" && !existing.name.trim().includes(" ")
+        && self.name.trim().includes(" ") && foreverSameName(existing.name, self.name);
       await tx.character.update({
         where: { id: existing.id },
         data: {
+          ...(upgradeName ? { name: self.name.trim().replace(/\s+/g, " ") } : {}),
           ...(self.displayName ? { displayName: self.displayName } : {}),
           className: normalizeClassName(self.class as string),
           race: self.race ? normalizeRaceName(self.race) : null,

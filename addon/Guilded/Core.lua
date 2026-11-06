@@ -61,8 +61,7 @@ local function normalizeName(name)
   if ns.util and ns.util.characterKey then return ns.util.characterKey(name) end
   if type(name) ~= "string" or isSecret(name) then return nil end
   name = string.match(name, "^%s*(.-)%s*$")
-  -- Legacy accounting key. Forever surnames are preserved separately for display;
-  -- changing this key would orphan existing points, attendance and source refs.
+  -- Fallback only (Util.lua normally answers): the pre-8.5 first-name key.
   name = string.match(name, "^([^%-%s]+)") or name
   if name == "" then return nil end
   return string.upper(string.sub(name, 1, 1)) .. string.lower(string.sub(name, 2))
@@ -1577,6 +1576,16 @@ end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHelp = ns.commandHelp or {}
 
+-- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
+-- name on their own. Nothing is changed here; an officer moves or merges them by hand.
+ns.commandHandlers["names"] = function()
+  local lines = ns.util.nameMigrationLines and ns.util.nameMigrationLines(db) or {}
+  if #lines == 0 then message(L("Every saved character uses its full name.")) return end
+  message(string.format(L("%d saved entries still use a first name only:"), #lines))
+  for index = 1, math.min(20, #lines) do message(lines[index]) end
+end
+table.insert(ns.commandHelp, "/guilded names - saved entries still filed under a first name shared by several characters (WoW Forever)")
+
 -- Optional modules. Each can be turned off for yourself (/guilded modules off
 -- casino) or for the whole guild by an officer (/guilded modules guild off
 -- casino; shared through Modules/Sync.lua). Core (raids, EPGP, loot, gear
@@ -1893,8 +1902,10 @@ local function handlePeerReadiness(text, sender, channel)
   if parts[1] ~= "READINESS" or not parts[2] then return end
   -- A client may only report its own character; otherwise anyone could
   -- overwrite a guildmate's readiness in every officer's export.
-  local name = normalizeName(parts[2])
-  if not name or name ~= normalizeName(sender) then return end
+  -- (8.5) An older addon names a Forever character by first name only: still the sender's own
+  -- digest when the first name matches; it is kept under the sender's full name.
+  local name = normalizeName(sender)
+  if not name or not ns.util.sameCharacter(parts[2], sender) then return end
   -- The guild channel only carries guildmates; in a raid or party a pug's digest would end
   -- up in every officer's export (and the bot would "discover" them), so only members count.
   if channel ~= "GUILD" and not isGuildMember(name) then return end
@@ -2170,6 +2181,14 @@ local function onEvent(_, event, ...)
           and type(rosterRankIndex) == "number" and rosterRankIndex >= 0 and rosterRankIndex < 20 then
           entry.rankName, entry.rankIndex = string.sub(rosterRankName, 1, 60), rosterRankIndex
         end
+      end
+    end
+    -- Forever (8.5): first-name keys from older saved data move to the full name the roster
+    -- just listed, before anyone is marked as having left (Util.lua, util.migrateForeverNames).
+    if count > 0 and ns.util.migrateForeverNames then
+      local okMigrate, result = pcall(ns.util.migrateForeverNames, db)
+      if okMigrate and result.flagged > 0 and isOfficer() then
+        message(string.format(L("%d saved entries use a first name shared by several characters. /guilded names lists them."), result.flagged))
       end
     end
     -- A full roster that no longer lists someone means they left. Nothing is concluded from

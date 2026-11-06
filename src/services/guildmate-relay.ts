@@ -3,6 +3,7 @@ import type { AddonSnapshot } from "../integrations/addon.js";
 import { gameEditionOf } from "./game-edition.js";
 import { findCharacter } from "./character-match.js";
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
+import { foreverSameName } from "../../companion/character-identity.mjs";
 
 // Addon-only members still reach Discord (8.5, Track K; docs/ADDON_ONLY_SYNC.md).
 //
@@ -44,12 +45,14 @@ export function relayableDungeonRuns(runs: readonly unknown[], ownedNames: Reado
     const run = raw as { players?: unknown; reporterNames?: unknown; endedAt?: unknown };
     const endedAt = Number(run.endedAt);
     if (!Number.isFinite(endedAt) || endedAt <= 0 || endedAt < nowSec - RELAYED_RUN_MAX_AGE_SEC || endedAt > nowSec + 600) continue;
-    const players = new Set((Array.isArray(run.players) ? run.players : [])
-      .map((player) => baseName((player as { character?: unknown } | null)?.character)).filter(Boolean));
-    if (!players.size) continue;
-    const own = [...ownedNames].some((name) => players.has(name));
+    const players = (Array.isArray(run.players) ? run.players : [])
+      .map((player) => baseName((player as { character?: unknown } | null)?.character)).filter(Boolean);
+    if (!players.length) continue;
+    // Forever names: a first-name row from before 8.5 still matches "First Last" (foreverSameName).
+    const played = (name: string) => players.some((player) => foreverSameName(player, name));
+    const own = [...ownedNames].some(played);
     const reporters = Array.isArray(run.reporterNames) ? run.reporterNames.map(baseName).filter(Boolean) : [];
-    if (own || reporters.some((name) => players.has(name))) kept.push({ run: raw, endedAt });
+    if (own || reporters.some(played)) kept.push({ run: raw, endedAt });
   }
   return kept.sort((a, b) => b.endedAt - a.endedAt).slice(0, RELAYED_RUNS_PER_UPLOAD).map((entry) => entry.run);
 }

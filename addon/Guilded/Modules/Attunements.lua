@@ -113,7 +113,9 @@ function module.handleMessage(text, channel, sender)
   local name, key, flag = string.match(text or "", "^ATTUNEMENT|([^|]+)|([^|]+)|(%a+)$")
   if not name then return false end
   local who = ns.normalizeName and ns.normalizeName(sender)
-  if not who or who ~= ns.normalizeName(name) or who == ns.playerName() then return false end
+  -- (8.5) An older addon names a Forever character by first name only: kept under the sender's full name.
+  local same = ns.util and ns.util.sameCharacter and ns.util.sameCharacter(name, sender) or who == ns.normalizeName(name)
+  if not who or not same or who == ns.playerName() then return false end
   local d = ns.getDb and ns.getDb()
   if not d then return false end
   key = ns.canonicalKey and ns.canonicalKey(key) or key

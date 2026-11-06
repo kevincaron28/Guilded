@@ -74,6 +74,13 @@ in **one planned window** after the 8.5 candidate is installed on both PCs, so n
 Second-PC session rules are the same as above; it sends each result to the coordinator, which records
 everything in `docs/V8_5_0_RELEASE_ACCEPTANCE.md`.
 
+## Relink test after the next deploy (owner request, 6 November 2026)
+
+On the main PC, as the owner's own member path: record the current links, unlink Lebowski on the test
+server, uninstall the companion, download and install it fresh, sign in (the owner types the
+login), link, check the DM and `/character list`, then link a second character (an alt) through
+`/reload`. Note every friction point with timings.
+
 ## Test list
 
 Each line: what to do, how to verify, and whether a screenshot is needed (S).

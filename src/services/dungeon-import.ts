@@ -66,6 +66,15 @@ export interface DungeonImportSummary {
 
 const NEAR_DUPLICATE_SECONDS = 120;
 
+// Why a run was dropped or earned nothing. Map ids, states and reasons only: no player names
+// and no run references (those contain the recorder's character name).
+export function logDungeonRun(reason: string, run: { instanceId?: unknown; difficultyId?: unknown; state?: unknown; gameEdition?: unknown; completedBy?: unknown; endReason?: unknown; encounters?: unknown } | null | undefined): void {
+  const r = run ?? {};
+  const encounters = Array.isArray(r.encounters) ? r.encounters.length : 0;
+  console.info(`Dungeon run not scored: ${reason} (instance ${String(r.instanceId ?? "?")}, difficulty ${String(r.difficultyId ?? "?")}, `
+    + `edition ${String(r.gameEdition ?? "?")}, state ${String(r.state ?? "?")}, ended by ${String(r.completedBy ?? r.endReason ?? "?")}, ${encounters} encounters)`);
+}
+
 export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSeason" | "officialSeason">, guildId: string, now = new Date()) {
   const current = await tx.dungeonSeason.findFirst({ where: { guildId, status: "ACTIVE" }, orderBy: { startsAt: "desc" } });
   if (current) return current;
@@ -115,9 +124,15 @@ export async function importDungeonRuns(
   const cutoff = dungeonResetCutoff();
   const parsed = rawRuns.map((raw) => dungeonRunSchema.safeParse(raw));
   summary.malformed = parsed.filter((result) => !result.success).length;
+  parsed.forEach((result, index) => {
+    if (result.success) return;
+    const issue = result.error.issues[0];
+    logDungeonRun(`malformed (${issue ? `${issue.path.join(".")}: ${issue.code}` : "unreadable"})`, rawRuns[index] as Record<string, unknown> | null);
+  });
   const runs = parsed.filter((result) => result.success).map((result) => result.data)
     .filter(run => {
       if (!predatesDungeonReset(run, cutoff)) return true;
+      logDungeonRun("predates the dungeon reset", run);
       summary.duplicates++;
       return false;
     })
@@ -186,7 +201,35 @@ export async function importDungeonRuns(
         }
       }
     }
-    if (existing && !reconciled || !existing && await isNearDuplicate(tx, guildId, run)) {
+    // A run first stored as ABANDONED/INVALID can arrive again as COMPLETED under the same id: the
+    // addon recovers a final-boss kill it did not recognise (8.4.4 to 8.4.6, Forever dungeons).
+    // It replaces the stored copy once; a COMPLETED run is never rewritten this way.
+    let upgraded: typeof existing = null;
+    if (existing && !reconciled && existing.state !== "COMPLETED" && run.state === "COMPLETED" && check.ok
+      && existing.instanceId === run.instanceId && run.startedAt && run.endedAt) {
+      const recoveredDuration = run.endedAt - run.startedAt;
+      upgraded = await tx.dungeonRun.update({ where: { id: existing.id }, data: {
+        state: run.state, valid: true, invalidReason: null,
+        startedAt: new Date(run.startedAt * 1000), endedAt: new Date(run.endedAt * 1000), durationSec: recoveredDuration,
+        completedBy: run.completedBy ?? run.endReason ?? null,
+        difficultyId: run.difficultyId,
+        competitionData: { ...(run.integrity ? { integrity: run.integrity } : {}),
+          players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null, ...(p.integrity ? { integrity: p.integrity } : {}) })),
+          encounters: run.encounters ?? [], observerReports: [run], gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null,
+          challengeMode: run.challengeMode ?? false, upgradedFrom: existing.state } as Prisma.InputJsonValue,
+        addonVersion: run.addonVersion ?? existing.addonVersion,
+        players: { deleteMany: {}, create: run.players.map(player => ({
+          character: player.character, memberId: findCharacter(characters, player.character, player.realm, gameEditionOf(run))?.memberId ?? null,
+          class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild })) }
+      } });
+    }
+    if (existing && !reconciled && !upgraded) {
+      logDungeonRun(`already stored as ${existing.state}`, run);
+      summary.duplicates++;
+      continue;
+    }
+    if (!existing && await isNearDuplicate(tx, guildId, run)) {
+      logDungeonRun("same crew, dungeon and start time as a stored run", run);
       summary.duplicates++;
       continue;
     }
@@ -212,6 +255,13 @@ export async function importDungeonRuns(
     const windowReason = currentIntegrityPolicy(season.ratingRules)
       ? season.status === "ENDED" ? "Season finalized" : integrityWindowReason(evidence.startedAt, evidence.endedAt, now, { from: season.startsAt, to: season.endsAt }) : undefined;
     const earnsPoints = !windowReason && (!bestEight || evidence.completedBy === "final boss" && !run.id.startsWith("SIM-")) && check.ok && run.state === "COMPLETED" && durationSec !== null && inSeason;
+
+    if (!earnsPoints) {
+      logDungeonRun(!check.ok ? `invalid (${check.reason ?? "unknown"})` : run.state !== "COMPLETED" ? `not completed (${run.state})`
+        : windowReason ? windowReason : durationSec === null ? "no start or end time" : !inSeason ? "outside the season window"
+        : bestEight && evidence.completedBy !== "final boss" ? "completion was not detected as the final boss"
+        : "no earning rule applied", run);
+    }
 
     // Records and history are judged BEFORE this run is saved.
     let guildRecord = false;
@@ -266,7 +316,7 @@ export async function importDungeonRuns(
       }
     }
 
-    const stored = existing ?? await tx.dungeonRun.create({
+    const stored = upgraded ?? existing ?? await tx.dungeonRun.create({
       data: {
         guildId,
         createdAt: now,

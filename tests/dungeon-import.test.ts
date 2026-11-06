@@ -41,6 +41,13 @@ function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: s
         const run = { ...data, id: `run-${runs.length + 1}`, players: data.players.create };
         runs.push(run);
         return run;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: Partial<StoredRun> & { players?: { create: StoredPlayer[] } } }) => {
+        const run = runs.find(row => row.id === where.id)!;
+        const { players, ...fields } = data;
+        Object.assign(run, fields);
+        if (players) run.players = players.create;
+        return run;
       }
     },
     dungeonAchievement: {
@@ -48,6 +55,7 @@ function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: s
       create: async ({ data }: { data: { memberId: string; key: string; runId: string } }) => { achievements.push(data); return data; }
     },
     dungeonPointTransaction: {
+      findMany: async ({ where }: { where: { runId: string } }) => points.filter(row => row.runId === where.runId),
       create: async ({ data }: { data: { memberId: string; amount: number; source: string; runId: string } }) => {
         points.push(data);
         return data;
@@ -288,6 +296,42 @@ describe("importDungeonRuns", () => {
     expect(summary.results[0]).toMatchObject({ valid: false });
     expect(runs[0]?.valid).toBe(false);
     expect(points).toHaveLength(0);
+  });
+
+  it("upgrades a run stored as ABANDONED when the recovered COMPLETED copy arrives, once", async () => {
+    const { tx, runs, points } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("recovered", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", endedAt: start + 3000 })],
+      characters, "officer", "imp1", now);
+    expect(runs[0]).toMatchObject({ state: "ABANDONED", durationSec: 3000 });
+    expect(points).toHaveLength(0);
+    const second = await importDungeonRuns(tx, "g1", [run("recovered")], characters, "officer", "imp2", now);
+    expect(second.duplicates).toBe(0);
+    expect(second.results[0]).toMatchObject({ state: "COMPLETED", durationSec: 1500 });
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ state: "COMPLETED", durationSec: 1500, valid: true });
+    expect(points.length).toBeGreaterThan(0);
+    // A COMPLETED run is final: the same id again changes nothing and awards nothing more.
+    const before = points.length;
+    const third = await importDungeonRuns(tx, "g1", [run("recovered", { endedAt: start + 1400 })], characters, "officer", "imp3", now);
+    expect(third.duplicates).toBe(1);
+    expect(runs[0]).toMatchObject({ durationSec: 1500 });
+    expect(points.length).toBe(before);
+    // An abandoned copy never downgrades or replaces a stored run either.
+    await importDungeonRuns(tx, "g1", [run("recovered", { state: "ABANDONED" })], characters, "officer", "imp4", now);
+    expect(runs[0]?.state).toBe("COMPLETED");
+  });
+
+  it("says why a run earned nothing without naming players", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    try {
+      const { tx } = fakeTx();
+      await importDungeonRuns(tx, "g1", [run("left-early", { state: "ABANDONED", instanceId: 389, name: "Ragefire Chasm", gameEdition: "forever", completedBy: undefined, endReason: "left the dungeon" }),
+        { id: "broken", instanceId: 389 }], characters, "officer", "imp1", now);
+      const lines = info.mock.calls.map(call => String(call[0]));
+      expect(lines.some(line => line.includes("not completed (ABANDONED)") && line.includes("instance 389") && line.includes("edition forever"))).toBe(true);
+      expect(lines.some(line => line.includes("malformed") && line.includes("instance 389"))).toBe(true);
+      expect(lines.join(" ")).not.toMatch(/Kev|Bob|left-early|broken/);
+    } finally { info.mockRestore(); }
   });
 
   it("gives no points for abandoned runs", async () => {

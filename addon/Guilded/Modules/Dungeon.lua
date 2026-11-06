@@ -251,6 +251,16 @@ local function finish(state, reason)
   run.state = state
   run.endedAt = now()
   if state == "COMPLETED" then run.completedBy = reason else run.endReason = reason end
+  -- Kills were recorded but none was recognised as the final boss: leave a trace (game ids and
+  -- boss names only) so an unknown Forever dungeon id or name can be added to Compat.lua.
+  if state == "ABANDONED" and ns.logDiagnostic and not run.challengeMode then
+    local last
+    for _, encounter in ipairs(run.encounters or {}) do if encounter.success and not encounter.kind then last = encounter end end
+    if last then
+      pcall(ns.logDiagnostic, "DUNGEON_FINAL_UNMATCHED", string.format("instance %s (%s) last kill %s %s; abandoned: %s",
+        tostring(run.instanceId), tostring(run.gameEdition), tostring(last.id), tostring(last.name), tostring(reason)))
+    end
+  end
   send(string.format("END|%s|%s|%d|%s", run.id, state, run.endedAt, reason or ""))
   finalize(run)
 end
@@ -735,6 +745,8 @@ local function onEvent(_, event, ...)
     ns.comm.register(PREFIX)
     if C_Timer then C_Timer.After(30, function()
       dungeon.markSynced()
+      -- After markSynced: a recovered run is changed, so it must upload again.
+      pcall(dungeon.recoverRuns)
       dungeon.replayPending()
       if ns.isOfficer and ns.isOfficer() then send("REQUEST|1", "GUILD") end
     end) end
@@ -878,6 +890,66 @@ function dungeon.markSynced()
   for id, run in pairs(d.runs) do
     if run.synced and (run.endedAt or run.detectedAt or 0) < cutoff then d.runs[id] = nil end
   end
+end
+
+-- Recovery for runs that ended ABANDONED although the client's own ENCOUNTER_END/BOSS_KILL
+-- already recorded the final boss (8.4.4-8.4.6 did not know Forever's final-boss ids: a
+-- Ragefire Chasm run with Bazzalan killed finished as ABANDONED). A run is completed only
+-- from its own saved, timestamped, successful native kill of a boss that today's tables
+-- call final, taken inside the run's own time span. Nothing else is invented: a run with
+-- no such kill stays ABANDONED, and the end time becomes the kill, not the abandon time.
+local RECOVERY_VERSION = 1
+function dungeon.recoverRuns()
+  local d = db()
+  if not d then return 0 end
+  local recovered = 0
+  for _, run in pairs(d.runs) do
+    if run.state == "ABANDONED" and not run.challengeMode and run.startedAt and run.endedAt
+      and run.gameEdition == ns.util.gameEdition() then
+      local final
+      for _, encounter in ipairs(run.encounters or {}) do
+        if encounter.success and not encounter.kind and encounter.source == "native" and tonumber(encounter.id)
+          and tonumber(encounter.at) and encounter.at > run.startedAt and encounter.at <= run.endedAt
+          and ((run.finalEncounterId and tonumber(encounter.id) == run.finalEncounterId)
+            or compat.isDungeonFinalBoss(run.instanceId, encounter.id, encounter.name, run.difficultyId)) then
+          if not final or encounter.at > final.at then final = encounter end
+        end
+      end
+      if final then
+        local abandonedAt = run.endedAt
+        run.state, run.endedAt, run.completedBy = "COMPLETED", final.at, "final boss"
+        run.endReason, run.synced = nil, nil
+        run.recoveredFrom = { state = "ABANDONED", endedAt = abandonedAt, version = RECOVERY_VERSION }
+        run.durationSec = run.endedAt - run.startedAt
+        -- Presence never exceeds the (shorter) run; observed intervals stop at the kill.
+        for _, player in pairs(run.players or {}) do
+          player.presentSec = math.min(player.presentSec or 0, run.durationSec)
+          local seen = player.integrity
+          if seen then
+            local kept, known = {}, 0
+            for _, span in ipairs(seen.knownIntervals or {}) do
+              local from, to = span[1], math.min(span[2], run.endedAt)
+              if from < to then kept[#kept + 1] = { from, to }; known = known + (to - from) end
+            end
+            seen.knownIntervals, seen.knownSec = kept, known
+            seen.unknownSec = math.max(0, math.min(seen.unknownSec or 0, run.durationSec - known))
+          end
+        end
+        if run.durationSec > 0 then
+          recovered = recovered + 1
+          if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
+        else
+          run.state, run.endedAt, run.completedBy, run.endReason, run.recoveredFrom = "ABANDONED", abandonedAt, nil, "left the dungeon", nil
+          run.durationSec = run.endedAt - run.startedAt
+        end
+      end
+    end
+  end
+  if recovered > 0 then
+    ns.message(string.format("Guilded recovered %d dungeon run(s) whose final boss was killed; they upload with your next sync.", recovered))
+    if ns.onDungeonChange then pcall(ns.onDungeonChange) end
+  end
+  return recovered
 end
 
 -- Retry only our own recent unsynced runs. An officer arriving later can request

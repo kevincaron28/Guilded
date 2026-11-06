@@ -75,6 +75,15 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 | `/officer promotion list` | Pass: three empty lists |
 | Roster card | Pass: the command is `/report guild`; the docs said `/guild-health` |
 
+## Preview deploy 2: Québec Gold added (6 November 2026, about 15:15-15:35 UTC)
+
+- Owner asked "please update quebec gold server" and accepted editing the permanent Hall of Fame posts later.
+- Backup verified: `/home/ubuntu/guilded-recovery/2026-11-06T15-15-02-370Z`, with an encrypted copy on the PC.
+- Preview list is now `1563959517337747556,1323321076478119967` (test server + Québec Gold).
+- **Incident:** the first merge request failed (an accented character in the JSON title), so the update script restarted the old preview code `08dc53f` with Québec Gold already on the list, for a few minutes. The log shows three `error:7f90f8ace781` lines in that window; the cause is unknown.
+- Fixed: #406 merged as `51d450b` (tested candidate `8245f5c`: #400, #401, #402, #403, #404, #405) and redeployed. Migrations applied: artisans gallery, guild stat snapshots, forever full names. No errors since.
+- **Owner action:** the Forever-name backfill dry run (`npm run names:forever` on the server) was blocked for the agent as a production read. See the steps in `docs/FOREVER_NAMES.md`.
+
 ## Still to do
 - Full test suite on the merged candidate (running).
 - Track K merge, then the two-PC window ([test plan](V8_5_0_GAME_TEST_PLAN.md)).

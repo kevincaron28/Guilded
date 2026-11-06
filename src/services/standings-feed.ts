@@ -33,6 +33,8 @@ export interface StandingsFeedOptions {
   // A burst of writes (an import creates many rows) wakes waiting companions once.
   wakeDelayMs?: number;
   maxEntries?: number;
+  // A rebuild slower than this answers with the member's previous answer, if any (default 10 s).
+  composeBudgetMs?: number;
   now?: () => number;
   // Called when a guild's shared stamp moves, so it can be kept across restarts.
   onStamp?: (guildId: string, stamp: Stamp) => void;
@@ -47,6 +49,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   const maxWaitMs = options.maxWaitMs ?? 25_000;
   const wakeDelayMs = options.wakeDelayMs ?? 1_500;
   const maxEntries = options.maxEntries ?? 500;
+  const composeBudgetMs = options.composeBudgetMs ?? 10_000;
   const now = options.now ?? Date.now;
   const cache = new Map<string, Cached>();
   const inflight = new Map<string, Promise<Cached>>();
@@ -56,6 +59,22 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   const wakeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   const generation = (guildId: string) => generations.get(guildId) ?? 0;
+
+  // One log line per guild per hour when reads keep being overtaken by writes, not one per request.
+  const unstableLoggedAt = new Map<string, number>();
+  function unstable(guildId: string) {
+    const last = unstableLoggedAt.get(guildId);
+    if (last !== undefined && now() - last < 3_600_000) return;
+    unstableLoggedAt.set(guildId, now());
+    console.warn(`Standings for guild ${guildId} kept changing during refresh; served the latest read under the previous stamp.`);
+  }
+  const slowLoggedAt = new Map<string, number>();
+  function slow(guildId: string) {
+    const last = slowLoggedAt.get(guildId);
+    if (last !== undefined && now() - last < 3_600_000) return;
+    slowLoggedAt.set(guildId, now());
+    console.warn(`Standings for guild ${guildId} took over ${composeBudgetMs} ms to rebuild; served the previous answer meanwhile.`);
+  }
 
   // The stamp only moves when the shared content changes, and always forward.
   function sharedStamp(guildId: string, hash: string): string {
@@ -79,13 +98,39 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
     }
   }
 
-  async function build(key: string, guildId: string, compose: () => Promise<FeedParts>, header: Record<string, unknown>): Promise<Cached> {
-    const running = inflight.get(key);
-    if (running) return running;
-    const promise = (async () => {
+  // Hotfix 2 (8.5): a companion gives up after 20 s, and so does the website proxy. When a
+  // rebuild takes longer than `composeBudgetMs` and this member already had an answer, that
+  // answer is served (its own, older stamp: never presented as newer) while the rebuild
+  // finishes in the background and replaces it in the cache.
+  async function build(key: string, guildId: string, compose: () => Promise<FeedParts>, header: Record<string, unknown>, previous?: Cached): Promise<Cached> {
+    let work = inflight.get(key);
+    if (!work) {
+      const started = composeOnce(key, guildId, compose, header);
+      work = started;
+      inflight.set(key, started);
+      void started.catch(() => undefined).finally(() => { if (inflight.get(key) === started) inflight.delete(key); });
+    }
+    if (!previous || composeBudgetMs <= 0) return work;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), composeBudgetMs); });
+    try {
+      const winner = await Promise.race([work, late]);
+      if (winner) return winner;
+    } finally { clearTimeout(timer); }
+    slow(guildId);
+    return previous;
+  }
+
+  async function composeOnce(key: string, guildId: string, compose: () => Promise<FeedParts>, header: Record<string, unknown>): Promise<Cached> {
+    {
+      let latest: FeedParts | undefined;
+      const begun = now();
       for (let attempt = 0; attempt < 3; attempt++) {
+        // Out of time: answer with what was read rather than reading again.
+        if (attempt > 0 && now() - begun >= composeBudgetMs) break;
         const started = generation(guildId);
         const parts = await compose();
+        latest = parts;
         // A write during the read invalidates this snapshot. Never stamp old data as newer
         // than another member's response; the addon trusts that timestamp when syncing.
         if (started !== generation(guildId)) continue;
@@ -95,10 +140,17 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
         remember(key, entry);
         return entry;
       }
-      throw new Error("Standings changed during refresh; retry shortly.");
-    })();
-    inflight.set(key, promise);
-    try { return await promise; } finally { inflight.delete(key); }
+      // Writes kept landing during every read (8.5: uploads every minute from several
+      // companions). Answer with the freshest read rather than an error, under the guild's
+      // PREVIOUS stamp (the epoch when there is none): an addon never takes it as newer than
+      // what it holds, so the "never stamp old data as newer" rule stands. Not cached as fresh,
+      // so the next request reads again; the stamp moves once a read completes undisturbed.
+      unstable(guildId);
+      const parts = latest!;
+      const updatedAt = new Date(stamps.get(guildId)?.at ?? 0).toISOString();
+      const body = JSON.stringify({ ...header, updatedAt, ...parts.shared, ...parts.personal });
+      return { at: now(), generation: -1, etag: `"${contentHash(body).slice(0, 32)}"`, body };
+    }
   }
 
   function wait(guildId: string, ms: number): Promise<void> {
@@ -121,7 +173,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
       for (;;) {
         const cached = cache.get(key);
         const fresh = cached && cached.generation === generation(input.guildId) && now() - cached.at < ttlMs;
-        const entry = fresh ? cached : await build(key, input.guildId, input.compose, input.header);
+        const entry = fresh ? cached : await build(key, input.guildId, input.compose, input.header, cached);
         if (!input.ifNoneMatch || input.ifNoneMatch !== entry.etag) return { status: 200, etag: entry.etag, body: entry.body };
         const left = deadline - now();
         if (left <= 0) return { status: 304, etag: entry.etag };

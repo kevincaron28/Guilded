@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/database.js", () => ({ prisma: {} }));
 vi.mock("../src/services/guild.js", () => ({ createGuildService: () => ({}) }));
-import { LEVEL_CAP, RACE_BOARD_MARKER, clampTop, hallEmbed, hallMode, loadRaceBoardData, nearLevel, nextEntry, orderRace, raceBoardEmbed, raceCard, syncHallOfFame, weekStart, type RaceBoardData, type RaceRow } from "../src/services/race-board.js";
+import { LEVEL_CAP, RACE_BOARD_MARKER, bestName, refreshHallNames, clampTop, hallEmbed, hallMode, loadRaceBoardData, nearLevel, nextEntry, orderRace, raceBoardEmbed, raceCard, syncHallOfFame, weekStart, type RaceBoardData, type RaceRow } from "../src/services/race-board.js";
 import { bgLadderEmbed, bgLadders, BG_LADDER_MARKER } from "../src/services/bg-ladder.js";
 import { ensurePvpModule, pvpChannelNames } from "../src/services/battleground-setup.js";
 
@@ -109,6 +109,66 @@ describe("race board data", () => {
     expect(result.rows.find(r => r.name === "Aria Stone")?.level).toBe(60);
     expect(result.finished).toBe(1);
     expect(upsert).toHaveBeenCalledTimes(result.total);
+  });
+});
+
+describe("full names on the board (Forever, 8.4.x addons still upload first names)", () => {
+  it("shows the display name when it is the stored first name plus a last name, and never invents one", () => {
+    expect(bestName("Chad", "Chad Ho")).toBe("Chad Ho");
+    expect(bestName("Chad", null)).toBe("Chad");
+    expect(bestName("Chad", "Somebody Else")).toBe("Chad");
+    expect(bestName("Chad Ho", "Chad Ho")).toBe("Chad Ho");
+    expect(bestName("Chad", null, "Chad Ho")).toBe("Chad Ho");
+  });
+  it("loads a first-name LevelRaceEntry under its full display name, linked or unclaimed, keeping the key", async () => {
+    const upsert = vi.fn();
+    const db = {
+      character: { findMany: vi.fn()
+        .mockResolvedValueOnce([{ name: "Domichammon", displayName: "Domichammon Graves", realm: "Realm", className: "Mage", race: "Human", level: 41, memberId: "m1", lastSeenAt: null, member: { discordUserId: "42" }, professions: [] },
+          { name: "Lebowski", displayName: null, realm: "Realm", className: "Rogue", race: "Human", level: 33, memberId: "m2", lastSeenAt: null, member: { discordUserId: "43" }, professions: [] }])
+        .mockResolvedValueOnce([]) },
+      unclaimedCharacter: { findMany: vi.fn(async () => [
+        { nameKey: "chad", name: "Chad", displayName: "Chad Ho", className: "Priest", level: 20 },
+        { nameKey: "lebowski", name: "Lebowski", displayName: "Lebowski Dude", className: "Rogue", level: 30 }]) },
+      levelRaceEntry: { findMany: vi.fn(async () => [{ nameKey: "chad", name: "Chad", className: "Priest", level: 20, reachedMaxAt: null, weekStartLevel: 20, weekStartedAt: new Date("2026-11-09T00:00:00Z"), firstSeenAt: new Date("2026-11-05T00:00:00Z") }]), upsert }
+    };
+    const result = await loadRaceBoardData(db as never, "g1", "forever", new Date("2026-11-11T12:00:00Z"));
+    const byKey = new Map(result.rows.map(r => [r.key, r.name]));
+    expect(byKey.get("chad")).toBe("Chad Ho");
+    expect(byKey.get("lebowski")).toBe("Lebowski Dude");
+    const keys = [...byKey.keys()];
+    expect(keys.some(key => key.includes(" "))).toBe(false);
+    expect(upsert).toHaveBeenCalledWith(expect.objectContaining({ update: expect.objectContaining({ name: "Chad Ho" }) }));
+  });
+  it("edits an already posted Hall of Fame entry and the backfill summary to the full name, once known", async () => {
+    const at = new Date("2026-11-12T12:00:00Z");
+    const entries = [
+      { id: "e1", nameKey: "hulke", order: 1, name: "Hulke", className: "Warrior", race: "Human", reachedAt: at, firstSeenAt: at, professions: null, memberDiscordId: null, posted: true, backfilled: true, messageId: null },
+      { id: "e2", nameKey: "chad", order: 2, name: "Chad", className: "Priest", race: "Human", reachedAt: at, firstSeenAt: at, professions: null, memberDiscordId: null, posted: true, backfilled: false, messageId: "m-chad" },
+      { id: "e3", nameKey: "already", order: 3, name: "Already Full", className: "Mage", race: null, reachedAt: at, firstSeenAt: at, professions: null, memberDiscordId: null, posted: true, backfilled: false, messageId: "m-a" }];
+    const edit = vi.fn(async () => ({}));
+    const summaryEdit = vi.fn(async () => ({}));
+    const channel = { send: vi.fn(), messages: { fetch: vi.fn(async (arg: unknown) => arg === "m-chad" ? { id: "m-chad", edit }
+      : new Map([["s1", { id: "s1", embeds: [{ footer: { text: "Guilded hall of fame • g1 • summary" } }], edit: summaryEdit }]])) } };
+    const db = { raceHallEntry: { update: vi.fn(async () => ({})) } };
+    const rows = [row("Hulke Hogan", 60, { key: "hulke" }), row("Chad Ho", 60, { key: "chad" }), row("Already Full", 60, { key: "already" })];
+    expect(await refreshHallNames(db as never, channel as never, "g1", entries, rows, "en")).toBe(2);
+    expect(edit).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(edit.mock.calls[0])).toContain("Chad Ho");
+    expect(summaryEdit).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(summaryEdit.mock.calls[0])).toContain("Hulke Hogan");
+    expect(db.raceHallEntry.update).toHaveBeenCalledWith({ where: { id: "e2" }, data: { name: "Chad Ho" } });
+    expect(db.raceHallEntry.update).toHaveBeenCalledWith({ where: { id: "e1" }, data: { name: "Hulke Hogan" } });
+    // nothing left to change: a second pass edits nothing
+    expect(await refreshHallNames(db as never, channel as never, "g1", entries, rows, "en")).toBe(0);
+  });
+  it("keeps the old name when the edit fails, so the next refresh retries", async () => {
+    const at = new Date("2026-11-12T12:00:00Z");
+    const entries = [{ id: "e2", nameKey: "chad", order: 2, name: "Chad", className: "Priest", race: null, reachedAt: at, firstSeenAt: at, professions: null, memberDiscordId: null, posted: true, backfilled: false, messageId: "m-chad" }];
+    const channel = { send: vi.fn(), messages: { fetch: vi.fn(async () => ({ id: "m-chad", edit: vi.fn(async () => { throw new Error("rate limited"); }) })) } };
+    const db = { raceHallEntry: { update: vi.fn(async () => ({})) } };
+    expect(await refreshHallNames(db as never, channel as never, "g1", entries, [row("Chad Ho", 60, { key: "chad" })], "en")).toBe(0);
+    expect(db.raceHallEntry.update).not.toHaveBeenCalled();
   });
 });
 

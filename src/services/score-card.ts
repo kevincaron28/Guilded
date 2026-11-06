@@ -35,8 +35,17 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
 const images = new Map<string, Buffer>();
 const pending = new Map<string, Promise<Buffer>>();
-const escapeText = (text: string) => text.replace(/\p{Cc}/gu, " ").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
-const clip = (text: string, max: number) => { const chars = [...text]; return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : text; };
+/**
+ * The bundled card font is a Latin subset, so decorative symbols (a fleur-de-lis around a guild name, say),
+ * emoji and invisible joiners draw as empty boxes. Drop them; letters, accents, digits and ordinary
+ * punctuation stay. When something was dropped the leftover gaps are tidied.
+ */
+export const drawable = (text: string) => {
+  const kept = text.replace(/[\p{So}\p{Sk}\p{Cf}\p{Co}\p{Cn}\uFE00-\uFE0F]/gu, c => (c.codePointAt(0)! <= 0xff ? c : ""));
+  return kept === text ? text : kept.replace(/\s{2,}/g, " ").trim();
+};
+const escapeText = (text: string) => drawable(text).replace(/\p{Cc}/gu, " ").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[c]!);
+const clip = (text: string, max: number) => { text = drawable(text); const chars = [...text]; return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : text; };
 
 interface Theme { bg: string; bar: string; panel: string; edge: string; ink: string; muted: string; gold: string; green: string; red: string; frame: string | null;
   ok: { fill: string; edge: string }; warn: { fill: string; edge: string }; quiet: { fill: string; edge: string } }
@@ -105,7 +114,7 @@ async function render(card: ScoreCard): Promise<Buffer> {
   const leftW = hasRows ? 500 : 1080;
 
   // The title shrinks to fit the narrower left column rather than being cut short.
-  const titleLen = [...card.title].length, titleSize = !hasRows || titleLen <= 12 ? 62 : titleLen <= 17 ? 50 : 40;
+  const titleLen = [...drawable(card.title)].length, titleSize = !hasRows || titleLen <= 12 ? 62 : titleLen <= 17 ? 50 : 40;
   await put(caps(th.gold, clip(card.eyebrow ?? "Guilded · Dungeons", 44)), 20, 60, 40, leftW);
   await put(span(th.ink, clip(card.title, hasRows ? 26 : 38)), titleSize, 58, 68 + (62 - titleSize) / 2, leftW);
   await put(span(th.muted, clip(card.subtitle, hasRows ? 38 : 90)), 25, 60, 146, leftW);

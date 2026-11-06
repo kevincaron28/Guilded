@@ -4,6 +4,7 @@ import { prisma } from "../database.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
+import { fullNameOf } from "./forever-names.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { classColor, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { previewAllows } from "./feature-preview.js";
@@ -172,22 +173,32 @@ const professionText = (name: string, skill: number) => `${name} ${skill}`;
 const jsonProfessions = (value: unknown): string[] => Array.isArray(value)
   ? (value as ProfessionJson[]).flatMap(item => typeof item?.name === "string" && typeof item.skillLevel === "number" ? [professionText(item.name, item.skillLevel)] : []) : [];
 
+/**
+ * The best full name known for a character: a one-word Forever name whose display name is that first name plus a last name shows
+ * the display name (8.4.x addons still upload first names, and old rows stay first-name keyed until `npm run names:forever`);
+ * otherwise a full name from the other source with the same key, otherwise the stored name. Keys never change here.
+ */
+export function bestName(name: string, displayName: string | null | undefined, otherFull: string | null = null): string {
+  return fullNameOf({ name, displayName: displayName ?? null }) ?? otherFull ?? name;
+}
+
 /** Records every guild character's level, then returns the board's data. Hidden members' characters are left out. */
 export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry">, guildId: string, edition: string, now = new Date()): Promise<RaceBoardData> {
   const linked = await db.character.findMany({ where: { guildId, gameEdition: edition, level: { not: null }, member: { guildId, status: "ACTIVE", raceHidden: false } },
-    select: { name: true, realm: true, className: true, race: true, level: true, memberId: true, lastSeenAt: true, member: { select: { discordUserId: true } },
+    select: { name: true, displayName: true, realm: true, className: true, race: true, level: true, memberId: true, lastSeenAt: true, member: { select: { discordUserId: true } },
       professions: { select: { profession: true, skillLevel: true }, orderBy: { skillLevel: "desc" } } } });
   const hiddenLinked = await db.character.findMany({ where: { guildId, gameEdition: edition, member: { guildId, raceHidden: true } }, select: { name: true, realm: true } });
   const unclaimed = await db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition, level: { not: null } },
-    select: { nameKey: true, name: true, className: true, race: true, level: true, professions: true, lastSeenAt: true } });
+    select: { nameKey: true, name: true, displayName: true, className: true, race: true, level: true, professions: true, lastSeenAt: true } });
+  const unclaimedFull = new Map(unclaimed.flatMap(row => { const full = fullNameOf({ name: row.name, displayName: row.displayName }); return full ? [[row.nameKey, full] as const] : []; }));
   const hiddenKeys = new Set(hiddenLinked.map(row => String(characterKey(row.name, row.realm, edition))));
   const chars = new Map<string, RaceChar>();
-  for (const row of unclaimed) if (row.level && !hiddenKeys.has(row.nameKey)) chars.set(row.nameKey, { key: row.nameKey, name: row.name, className: row.className, race: row.race, level: row.level,
+  for (const row of unclaimed) if (row.level && !hiddenKeys.has(row.nameKey)) chars.set(row.nameKey, { key: row.nameKey, name: bestName(row.name, row.displayName), className: row.className, race: row.race, level: row.level,
     memberId: null, discordId: null, professions: jsonProfessions(row.professions), lastSeenAt: row.lastSeenAt });
   // A linked character wins over a stale unclaimed copy of the same name.
   for (const row of linked) {
     const key = String(characterKey(row.name, row.realm, edition));
-    if (row.level) chars.set(key, { key, name: row.name, className: row.className, race: row.race, level: row.level, memberId: row.memberId, discordId: row.member?.discordUserId ?? null,
+    if (row.level) chars.set(key, { key, name: bestName(row.name, row.displayName, unclaimedFull.get(key) ?? null), className: row.className, race: row.race, level: row.level, memberId: row.memberId, discordId: row.member?.discordUserId ?? null,
       professions: (row.professions ?? []).map(skill => professionText(skill.profession, skill.skillLevel)), lastSeenAt: row.lastSeenAt });
   }
   const stored = new Map((await db.levelRaceEntry.findMany({ where: { guildId } })).map(entry => [entry.nameKey, entry]));
@@ -207,7 +218,12 @@ export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "un
 }
 
 type HallDb = Pick<PrismaClient, "raceHallEntry" | "memberMilestone">;
-interface HallChannel { send(payload: { embeds: EmbedBuilder[]; allowedMentions: { parse: never[] } }): Promise<{ id: string }> }
+interface HallPayload { embeds: EmbedBuilder[]; allowedMentions: { parse: never[] } }
+interface HallMessage { id: string; editable?: boolean; embeds?: { footer?: { text?: string | null } | null }[]; edit(payload: HallPayload): Promise<unknown> }
+interface HallChannel {
+  send(payload: HallPayload): Promise<{ id: string }>;
+  messages?: { fetch(arg: string | { limit: number }): Promise<unknown> };
+}
 
 /**
  * The Hall of Fame. First run (no `raceHallBackfilledAt`): every 60 already on the board is stored, in order of the member's
@@ -215,9 +231,57 @@ interface HallChannel { send(payload: { embeds: EmbedBuilder[]; allowedMentions:
  * claimed in the database first (the unique keys stop a second post after a restart or a parallel refresh), then posted;
  * a post that failed is retried on the next refresh. Posted messages are never edited or deleted.
  */
+interface HallStored extends HallRecord { id: string; nameKey: string; messageId: string | null; posted: boolean; backfilled: boolean }
+
+/**
+ * A name only ever grows here: when the board now knows a character's full name ("Chad" became "Chad Ho"), the stored entry takes
+ * it and its permanent post is edited to match (the owner allows editing permanent posts for this). The one summary message of
+ * the backfill is found by its footer and rewritten once. A failed edit leaves the old name so the next refresh tries again.
+ */
+export async function refreshHallNames(db: HallDb, channel: HallChannel, guildId: string, existing: HallStored[], rows: readonly RaceRow[], lang: Lang): Promise<number> {
+  const best = new Map(rows.map(row => [row.key, row.name]));
+  const changed = existing.filter(entry => { const name = best.get(entry.nameKey); return name !== undefined && Boolean(entry.name) && name !== entry.name && name.toLowerCase().startsWith(`${entry.name.toLowerCase()} `); });
+  if (!changed.length) return 0;
+  const messages = channel.messages;
+  const fetchOne = async (id: string): Promise<HallMessage | null> => {
+    const found = await messages?.fetch(id).catch(() => null) as HallMessage | null | undefined;
+    return found && typeof found.edit === "function" ? found : null;
+  };
+  let renamed = 0;
+  const summaryChanges: HallStored[] = [];
+  for (const entry of changed) {
+    const name = best.get(entry.nameKey)!;
+    try {
+      if (entry.backfilled) { summaryChanges.push(entry); continue; }
+      if (entry.posted && entry.messageId && messages) {
+        const message = await fetchOne(entry.messageId);
+        if (message) await message.edit({ embeds: [hallEmbed({ ...entry, name }, lang, guildId, entry.nameKey)], allowedMentions: { parse: [] as never[] } });
+      }
+      await db.raceHallEntry.update({ where: { id: entry.id }, data: { name } });
+      entry.name = name; renamed++;
+    } catch (error) { console.warn(`Hall of Fame name edit failed for ${entry.nameKey}; retrying next refresh`, error); }
+  }
+  if (summaryChanges.length) {
+    try {
+      const everyone = existing.filter(entry => entry.backfilled).sort((a, b) => a.order - b.order)
+        .map(entry => ({ ...entry, name: summaryChanges.includes(entry) ? best.get(entry.nameKey)! : entry.name }));
+      let summary: HallMessage | null = null;
+      if (messages) {
+        const recent = await messages.fetch({ limit: 100 }).catch(() => null) as Map<string, HallMessage> | null | undefined;
+        const list = recent && typeof recent.values === "function" ? [...recent.values()] : [];
+        summary = list.find(message => message.embeds?.some(embed => embed.footer?.text?.startsWith(`${HALL_MARKER} • ${guildId} • summary`))) ?? null;
+      }
+      if (summary) await summary.edit({ embeds: [hallSummaryEmbed(everyone, lang, guildId)], allowedMentions: { parse: [] as never[] } });
+      for (const entry of summaryChanges) { await db.raceHallEntry.update({ where: { id: entry.id }, data: { name: best.get(entry.nameKey)! } }); entry.name = best.get(entry.nameKey)!; renamed++; }
+    } catch (error) { console.warn("Hall of Fame summary name edit failed; retrying next refresh", error); }
+  }
+  return renamed;
+}
+
 export async function syncHallOfFame(db: HallDb, channel: HallChannel, guildId: string, data: RaceBoardData, lang: Lang, backfilledAt: Date | null, now = new Date()): Promise<{ markBackfilled: boolean; posted: number }> {
   const finishers = data.rows.filter(row => row.level >= LEVEL_CAP);
   const existing = await db.raceHallEntry.findMany({ where: { guildId }, orderBy: { order: "asc" } });
+  await refreshHallNames(db, channel, guildId, existing as HallStored[], data.rows, lang);
   const known = new Set(existing.map(entry => entry.nameKey));
   const fresh = finishers.filter(row => !known.has(row.key));
   let posted = 0;

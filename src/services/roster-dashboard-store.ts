@@ -14,7 +14,7 @@ export interface RosterCharacter {
   characterId?: string;
   key: string; name: string; realm: string; className: string; race: string | null;
   level: number | null; memberId: string | null; isMain: boolean | null;
-  professions: string[]; refreshedAt: Date | null; updatedAt?: Date;
+  professions: string[]; professionSkills?: { name: string; skill: number | null }[]; refreshedAt: Date | null; updatedAt?: Date;
   participation?: { seven: boolean; thirty: boolean } | null;
 }
 export interface RosterSnapshot { guild: RosterGuild; characters: RosterCharacter[]; truncated: boolean; activityAsOf?: Date; visual?: RosterVisual }
@@ -32,6 +32,22 @@ export function rosterProfessions(value: unknown): string[] {
     const name: unknown = row.name ?? row.profession;
     return typeof name === "string" && name.trim() ? [name.trim()] : [];
   }))].sort();
+}
+
+/** Profession names with the skill when the record has one (linked rows keep ProfessionSkill, discovered rows the upload's skillLevel). */
+export function rosterProfessionSkills(value: unknown): { name: string; skill: number | null }[] {
+  if (!Array.isArray(value)) return [];
+  const best = new Map<string, number | null>();
+  for (const row of value) {
+    if (!row || typeof row !== "object") continue;
+    const name: unknown = row.name ?? row.profession;
+    const skill: unknown = row.skillLevel ?? row.skill;
+    if (typeof name !== "string" || !name.trim()) continue;
+    const level = typeof skill === "number" && Number.isFinite(skill) ? skill : null;
+    const old = best.get(name.trim());
+    best.set(name.trim(), old == null ? level : level == null ? old : Math.max(old, level));
+  }
+  return [...best].map(([name, skill]) => ({ name, skill })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 // Match /officer export: active linked members with current officer authority.
@@ -63,7 +79,7 @@ export async function loadRosterSnapshot(database: Pick<Prisma.TransactionClient
       // Bounded, explicit field selections: never include notes, credentials or Discord IDs.
       const linked = await database.character.findMany({
         where: { ...where, member: { guildId, status: "ACTIVE", isTest: false } },
-        select: { id: true, name: true, displayName: true, realm: true, className: true, race: true, level: true, memberId: true, isMain: true, updatedAt: true, lastSeenAt: true, professions: { select: { profession: true } } },
+        select: { id: true, name: true, displayName: true, realm: true, className: true, race: true, level: true, memberId: true, isMain: true, updatedAt: true, lastSeenAt: true, professions: { select: { profession: true, skillLevel: true } } },
         orderBy: [{ name: "asc" }, { realm: "asc" }, { id: "asc" }], take: ROSTER_LIMIT + 1
       });
       const unclaimed = await database.unclaimedCharacter.findMany({
@@ -77,7 +93,7 @@ export async function loadRosterSnapshot(database: Pick<Prisma.TransactionClient
         characters.set(key, { key, name: characterName(row), realm: row.realm, className: row.className, race: row.race,
           ...("memberId" in row ? { characterId: row.id, updatedAt: row.updatedAt } : {}),
           level: row.level, memberId: "memberId" in row ? row.memberId : null, isMain: "isMain" in row ? row.isMain : null,
-          professions: rosterProfessions(row.professions), refreshedAt: row.lastSeenAt });
+          professions: rosterProfessions(row.professions), professionSkills: rosterProfessionSkills(row.professions), refreshedAt: row.lastSeenAt });
       }
       const truncated = linked.length > ROSTER_LIMIT || unclaimed.length > ROSTER_LIMIT || characters.size > ROSTER_LIMIT;
       return { guild, characters: [...characters.values()].slice(0, ROSTER_LIMIT).sort((a, b) => a.name.localeCompare(b.name) || a.realm.localeCompare(b.realm)), truncated };

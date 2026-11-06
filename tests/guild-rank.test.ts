@@ -64,7 +64,7 @@ describe("storing and reading the rank", () => {
     expect(guildRankUpdate({}, at)).toEqual({});
     expect(guildRankUpdate({ guildRankName: "Officer" }, at)).toEqual({});
   });
-  it("refreshes a linked character's rank but never stores it for unclaimed ones", async () => {
+  it("refreshes a linked character's rank and keeps only the rank name (no index) for unclaimed ones (8.5 C5)", async () => {
     const upserts: Record<string, unknown>[] = [];
     const client = {
       character: { update: vi.fn(async () => ({})), findUnique: vi.fn(async () => null) },
@@ -75,7 +75,8 @@ describe("storing and reading the rank", () => {
     await applyDiscoveredCharacters(client as never, "g", [entry("Ray"), entry("Amy")], [{ id: "c1", name: "Ray", realm: "Realm" }]);
     expect(client.character.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ guildRankName: "Officer", guildRankIndex: 1 }) }));
     expect(upserts).toHaveLength(1);
-    expect(upserts[0]).not.toHaveProperty("guildRankName");
+    expect(upserts[0]).toMatchObject({ guildRankName: "Officer" });
+    expect(upserts[0]).not.toHaveProperty("guildRankIndex");
   });
   it("exposes the rank to cards and role logic", () => {
     expect(guildRankOf({ guildRankName: "Officer", guildRankIndex: 1 })).toEqual({ name: "Officer", index: 1 });

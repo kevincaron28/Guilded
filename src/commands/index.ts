@@ -57,6 +57,7 @@ import { executeRecruit, recruitCommand } from "./recruit.js";
 import { executePublicLeaderboard, publicLeaderboardCommand } from "./public-leaderboard.js";
 import { executeRankRoles, rankRolesCommand } from "./rank-roles.js";
 import { executeRoster, rosterCommand } from "./roster.js";
+import { executePromotion, promotionCommand } from "./promotion.js";
 import { executePug, pugCommand } from "./pug.js";
 import { executePugs, pugsCommand } from "./pug-requests.js";
 
@@ -122,7 +123,8 @@ const officer = new MergedCommand("officer", "Officers: EPGP, loot, dungeon chal
   { command: dungeonAdminCommand, handler: executeDungeonAdmin, as: "dungeon" },
   { command: characterCommand, handler: executeCharacter, as: "character", only: CHARACTER_OFFICER },
   { command: exportCommand, handler: executeExport, as: "export" },
-  { command: rosterCommand, handler: executeRoster, as: "roster" }
+  { command: rosterCommand, handler: executeRoster, as: "roster" },
+  { command: promotionCommand, handler: executePromotion, as: "promotion" }
 ]).setDescriptionLocalizations({ fr: "Officiers : EPGP, butin, défi des donjons, liens de personnages et exports." });
 
 const mod = new MergedCommand("mod", "Officers: moderation, applications, answer channel, web page, recruitment and leaderboards.", [

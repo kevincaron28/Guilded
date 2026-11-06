@@ -43,7 +43,10 @@ describe("dungeonAnnouncement", () => {
     expect(en.description).toContain("58 total points awarded");
     expect(en.description).toContain("**C**");
     expect(en.description).toContain("0 pts");
-    for (const outsider of run.unlinked) expect(en.description).not.toContain(`**${outsider}**`);
+    // Outsiders are listed too, after the guild, and marked.
+    expect(en.description).toContain("From outside the guild (4)");
+    for (const outsider of run.unlinked) expect(en.description).toContain(`🌐 **${outsider}**`);
+    expect(en.description!.indexOf("**C**")).toBeLessThan(en.description!.indexOf("From outside the guild"));
     const fr = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "fr")!.toJSON();
     expect(fr.description).toContain("Soigneur");
     expect(fr.description).toContain("morts non suivies");
@@ -88,7 +91,9 @@ describe("dungeonAnnouncement", () => {
       personalRecords: [{ character: "Bob", previous: 1500, now: 1300 }],
       achievements: [{ character: "Bob", key: "firstBlood" }] });
     const embed = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON();
-    expect(JSON.stringify(embed)).not.toContain("Bob");
+    // Bob is listed as an outsider, but gets no record or achievement credit.
+    expect(embed.description).toContain("🌐 **Bob**");
+    expect(JSON.stringify(embed.fields ?? [])).not.toContain("Bob");
     expect(embed.description).not.toContain("guild deaths: 9");
     expect(dungeonAnnouncement({ results: [result({ unlinked: ["Kev", "Bob"] })], duplicates: 0, malformed: 0 }, "en")).toBeNull();
   });
@@ -130,5 +135,22 @@ describe("test dungeon runs", () => {
   it("are marked [TEST] in the channel", () => {
     const embed = dungeonAnnouncement({ results: [result({ runRef: "SIM-1790000000-abcde", dungeonName: "Test Dungeon" })], duplicates: 0, malformed: 0 }, "en");
     expect(embed?.toJSON().description).toContain("**[TEST] Test Dungeon (Normal)**");
+  });
+
+  it("lists the whole party: guildmates first with a tag and a mention, others marked as from outside the guild", () => {
+    const players = ["Kev", "Pug One", "Pug Two"];
+    const run = result({ players, unlinked: ["Pug One", "Pug Two"], inGuildPlayers: ["Kev"], mentions: { Kev: "1234" }, points: 50,
+      playerDetails: players.map((character, i) => ({ character, class: "MAGE", role: i === 0 ? "DPS" : "TANK", deaths: 1, presentSec: 1000, points: i === 0 ? 50 : 0 })) });
+    const en = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON().description!;
+    expect(en).toContain("🏰 **Kev** <@1234>");
+    expect(en).toContain("🌐 **Pug One**");
+    expect(en).toContain("🌐 **Pug Two**");
+    expect(en).toContain("1 guild member(s)");
+    expect(dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "fr")!.toJSON().description).toContain("Hors guilde (2)");
+  });
+  it("still lists outsiders when the run has no per-player details", () => {
+    const run = result({ players: ["Kev", "Pug"], unlinked: ["Pug"], inGuildPlayers: ["Kev"] });
+    const en = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON().description!;
+    expect(en).toContain("🌐 **Pug**");
   });
 });

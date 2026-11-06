@@ -34,7 +34,9 @@ export function participationRecordEligible(run: ParticipationRun, band: LevelBa
 // Presence is observed for the whole run; a participant history is not a party-size check.
 export function participationMode(run: ParticipationRun, character: string, band: LevelBand | undefined, rules?: RouteRules): "none" | "completion" | "helper" | "full" {
   if (rules && currentIntegrityPolicy(rules) && (participationIntegrityReason(run, rules) || !integrityPresence(observation(run, character), run.durationSec ?? 0, run.startedAt ? run.startedAt.getTime()/1000 : undefined))) return "none";
-  if (rules && (run.completedBy !== "final boss" || resolveNovemberRoute(run, rules).reason)) return "none";
+  // A completed final-boss run on a map the season has no route for (no target, no level band) is still a real
+  // clear: it earns completion points, never records or bonuses. Any other route problem still earns nothing.
+  if (rules && (run.completedBy !== "final boss" || resolveNovemberRoute(run, rules).reason && !unmappedMap(run, rules))) return "none";
   const player = run.players.find(p => p.character === character);
   if (!player || !run.durationSec || run.durationSec <= 0 || !Number.isFinite(player.presentSec) || player.presentSec < run.durationSec * 0.5) return "none";
   const levels = (run.competitionData as { players?: { name: string; level: number | null; minLevel: number | null }[] } | null)?.players;
@@ -46,6 +48,11 @@ export function participationMode(run: ParticipationRun, character: string, band
     return helping ? "helper" : "none";
   }
   return participationRecordEligible(run, band, rules) ? "full" : "completion";
+}
+
+/** True when the season's rules contain no route at all for this run's map (so there is nothing to resolve or time). */
+export function unmappedMap(run: Pick<ParticipationRun, "instanceId">, rules: RouteRules): boolean {
+  return !rules.routes.some(route => route.instanceId === run.instanceId);
 }
 
 function observation(run: ParticipationRun, character: string): unknown {

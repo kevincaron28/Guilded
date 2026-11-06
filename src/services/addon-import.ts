@@ -405,7 +405,7 @@ export function createAddonImportService(database: PrismaClient) {
         // Guildmates who linked since their run was stored get their credit now (held credit).
         await creditHeldRunPlayers(tx, guildId, characters, appliedBy);
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
-          characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec })), appliedBy, importId);
+          characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec, discordId: character.member?.discordUserId ?? null })), appliedBy, importId);
         const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);
         // Duels and milestones come only from a paired member's own companion (never an officer's whole-guild upload).
         const guildEdition = gameEditionOf(guild ?? {});

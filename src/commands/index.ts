@@ -59,6 +59,7 @@ import { executePublicLeaderboard, publicLeaderboardCommand } from "./public-lea
 import { executeRankRoles, rankRolesCommand } from "./rank-roles.js";
 import { executeRoster, rosterCommand } from "./roster.js";
 import { executePromotion, promotionCommand } from "./promotion.js";
+import { executeInvites, invitesCommand } from "./invites.js";
 import { executePug, pugCommand } from "./pug.js";
 import { executePugs, pugsCommand } from "./pug-requests.js";
 
@@ -135,6 +136,7 @@ const mod = new MergedCommand("mod", "Officers: moderation, applications, answer
   { command: faqCommand, handler: executeFaq, as: "faq" },
   { command: guildPageCommand, handler: executeGuildPage, as: "page" },
   { command: recruitCommand, handler: executeRecruit, as: "recruit" },
+  { command: invitesCommand, handler: executeInvites, as: "invites" },
   { command: rankRolesCommand, handler: executeRankRoles, as: "rankroles" },
   { command: publicLeaderboardCommand, handler: executePublicLeaderboard, as: "leaderboard" }
 ], { command: moderationCommand, handler: executeModeration });

@@ -37,7 +37,7 @@ export function signInOutcome(result) {
   return { ok: false, message: message ?? SIGN_IN_UNFINISHED };
 }
 
-const UNREACHABLE = /Could not reach the bot|temporarily unavailable|fetch failed|ECONNREFUSED|ETIMEDOUT|\((?:502|503|504|52\d|530)\)/i;
+const UNREACHABLE = /Could not reach the bot|took too long to answer|temporarily unavailable|fetch failed|ECONNREFUSED|ETIMEDOUT|\((?:502|503|504|52\d|530)\)/i;
 /** True for an error that means the bot is down or restarting, not a refusal. */
 export function isUnreachable(error) {
   return typeof error === "string" && UNREACHABLE.test(error);

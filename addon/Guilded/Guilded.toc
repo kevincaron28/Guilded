@@ -28,6 +28,7 @@ Modules\LedgerDigest.lua
 Modules\LedgerRelay.lua
 Modules\LedgerSync.lua
 Modules\GuildRelay.lua
+Modules\GuildSnapshot.lua
 Modules\Sim.lua
 Modules\Bidding.lua
 Modules\Council.lua
@@ -36,6 +37,7 @@ Modules\LocalGuild.lua
 Modules\Reserve.lua
 Modules\Recipes.lua
 Modules\Calendar.lua
+Modules\RaidSignup.lua
 Modules\PublicRaids.lua
 Modules\RaidBuffCatalog.lua
 Modules\ConsumableData.lua
@@ -57,6 +59,7 @@ Modules\Attunements.lua
 Modules\Ready.lua
 Modules\GuildMap.lua
 Modules\CallForHelp.lua
+Modules\LevelPartners.lua
 Modules\Presence.lua
 Modules\ClientTools.lua
 Modules\RosterTools.lua
@@ -64,6 +67,7 @@ Modules\GRMMigration.lua
 Modules\RosterAdmin.lua
 Modules\RosterProfessions.lua
 Modules\Promotion.lua
+Modules\InviteQueue.lua
 Modules\Scores.lua
 Modules\Milestones.lua
 Modules\Duels.lua

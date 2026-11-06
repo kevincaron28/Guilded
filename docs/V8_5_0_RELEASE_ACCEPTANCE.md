@@ -101,6 +101,16 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 - Deploy restarts briefly showed "Could not reach the bot" / "Upload failed (502)" in companions; the auto-retry recovered within about 4 minutes.
 - Still open (Track F): the support summary leaves out the companion version and error details.
 
+## Owner data actions run by the coordinator (6 November 2026, owner's request)
+
+- **Forever full names** (`npm run names:forever`, after backup `2026-11-06T17-36-16-389Z`): the preview showed 14 renames in Québec Gold, 0 ambiguous. Applied: 14 rows renamed, 15 keys moved. The re-preview shows 0 left.
+- **Pre-launch cleanup** (`npm run cleanup:prelaunch`, deploy 4 `a20ad1d`, after backup `2026-11-06T17-48-31-078Z`):
+  - Québec Gold: deleted 3 beta unlinked characters (Frumpy, Naomine, Espionne), 98 beta recipes, 3 race-board entries and the "Pre-launch testing" season.
+  - Kept (active since launch, despite a beta realm label): Aethyria Sylvaeryn and Mortdreath Bloodkazull.
+  - Two other servers keep an old "Beta" season that the rule listed for review.
+  - The re-preview shows nothing left in Québec Gold.
+- GitHub: merged #388 (site pointers to 8.4.7); closed the superseded #394 and #396. Dependabot #407 was reviewed (development tools only) and held until after 9.0.
+
 ## Still to do
 - Full test suite on the merged candidate (running).
 - Track K merge, then the two-PC window ([test plan](V8_5_0_GAME_TEST_PLAN.md)).

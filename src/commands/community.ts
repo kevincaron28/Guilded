@@ -1,5 +1,4 @@
-import { initializeCommunityBadgeHistory, communityBadgeShelf, configureCommunityBadges, setCommunityBadgeSharing } from "../services/community-badges.js";
-import { memberBadgeShelves } from "../services/community-badge-policy.js";
+import { initializeCommunityBadgeHistory, communityBadgeShelf, configureCommunityBadges } from "../services/community-badges.js";
 import { badgeLabel, COMMUNITY_MILESTONE_LABEL } from "../services/community-badge-rules.js";
 import { deliverCommunityBadges } from "../services/community-badge-delivery.js";
 import { guildWhere } from "../services/guild-scope.js";
@@ -102,8 +101,7 @@ export const communityCommand = new SlashCommandBuilder().setName("community").s
     .addIntegerOption(o => o.setName("correct").setDescription("Correct answer: 1=A, 2=B, 3=C, 4=D").setDescriptionLocalizations({ fr: "Bonne réponse" }).setRequired(true).setMinValue(1).setMaxValue(4)))
   .addSubcommand(sub => ref(sub.setName("close-quiz").setDescription("Close a quiz").setDescriptionLocalizations({ fr: "Fermer un quiz" })))
   .addSubcommand(sub => seasonOption(sub.setName("badges").setDescription("Season badge shelf").setDescriptionLocalizations({ fr: "Badges de saison" }), false)
-    .addUserOption(o => o.setName("player").setDescription("Member").setDescriptionLocalizations({ fr: "Membre" }))
-    .addBooleanOption(o => o.setName("share").setDescription("Share your season shelf with its members").setDescriptionLocalizations({ fr: "Partager tes badges avec les membres de cette saison" })))
+    .addUserOption(o => o.setName("player").setDescription("Member").setDescriptionLocalizations({ fr: "Membre" })))
   .addSubcommand(sub => seasonOption(sub.setName("badge-settings").setDescription("Milestone celebrations").setDescriptionLocalizations({ fr: "Célébrations des paliers" }))
     .addBooleanOption(o => o.setName("enabled").setDescription("Enable future celebrations").setDescriptionLocalizations({ fr: "Activer les futures célébrations" }).setRequired(true))
     .addChannelOption(o => o.setName("channel").setDescription("Same audience as season").setDescriptionLocalizations({ fr: "Même public que la saison" }).addChannelTypes(ChannelType.GuildText).setRequired(true)))
@@ -147,18 +145,12 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
   if (sub === "badges") {
     const target = interaction.options.getUser("player")?.id ?? actor;
     await access(guild, target, current!);
-    const shared = interaction.options.getBoolean("share");
-    if (shared !== null) {
-      await setCommunityBadgeSharing(prisma, current!.id, actor, target, shared);
-    }
     await initializeCommunityBadgeHistory(prisma, context.guildId, current!.id);
     const badges = await communityBadgeShelf(prisma, current!.id, actor, target);
-    if (!badges) content = say(lang, "This member has not shared this season's shelf.", "Ce membre n'a pas partagé ses badges pour cette saison.");
+    if (!badges) content = say(lang, "Season not found.", "Saison introuvable.");
     else content = say(lang, "Season badges", "Badges de saison") + " · " + COMMUNITY_MILESTONE_LABEL + "\n" +
       (badges.map(badge => badgeLabel(badge.code, lang) + " · " + (badge.earnedAt ? badge.earnedAt.toISOString().slice(0, 10) : say(lang, "Historical; date unknown", "Historique; date inconnue"))).join("\n") || say(lang, "No badges recorded yet.", "Aucun badge enregistré.")) + "\n\n" +
-      (memberBadgeShelves(guild.id)
-        ? say(lang, "Cosmetic only. Shelves are visible to members who can access this season. Sharing cannot be turned off here. Archives: select a season. Private proof and public profiles are unchanged.", "Décoratifs seulement. Les collections sont visibles aux membres ayant accès à cette saison. Le partage ne peut pas être désactivé ici. Archives : choisis une saison. Les preuves privées et les profils publics restent inchangés.")
-        : say(lang, "Cosmetic only. Private by default. share:true shares only this season's shelf with members who can access it; share:false hides it again. Archives: select a season.", "Décoratifs seulement. Privés par défaut. share:true partage les badges de cette saison avec les membres qui y ont accès; share:false les masque. Archives : choisis une saison."));
+      say(lang, "Cosmetic only. Shelves are visible to members who can access this season, and everything is shared. Archives: select a season.", "Décoratifs seulement. Les collections sont visibles aux membres ayant accès à cette saison, et tout est partagé. Archives : choisis une saison.");
   } else if (sub === "badge-settings") {
     const channelId = interaction.options.getChannel("channel", true).id;
     await validateCommunityDestination(guild, current!, channelId, actor);

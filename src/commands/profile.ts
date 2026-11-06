@@ -1,3 +1,4 @@
+import { armoryMarkdown } from "../services/armory-link.js";
 import { characterName } from "../services/character-display.js";
 import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { createEpgpService } from "../services/epgp.js";
@@ -28,7 +29,7 @@ export async function executeProfile(interaction: ChatInputCommandInteraction): 
         .map((skill) => `${skill.profession} ${skill.skillLevel}`)
         .join(", ");
       const seen = character.lastSeenAt ? ` · seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : "";
-      return `${character.isMain ? "**Main**" : "Alt"}: ${characterName(character)} (${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? `, ${character.spec}` : ""})${professions ? ` — ${professions}` : ""}${seen}`;
+      return `${character.isMain ? "**Main**" : "Alt"}: ${characterName(character)} (${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? `, ${character.spec}` : ""})${professions ? ` — ${professions}` : ""}${seen}${armoryMarkdown(character) ? ` · ${armoryMarkdown(character)}` : ""}`;
     });
   await interaction.reply({
     embeds: [new EmbedBuilder()

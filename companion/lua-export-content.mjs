@@ -261,6 +261,8 @@ export function parseAddonExportText(text, realm) {
   const battlegroundReports = exportBattlegroundReports(database);
   const duelResults = exportDuelResults(database);
   const milestones = exportMilestones(database);
+  const guildData = exportGuildData(database);
+  const guildBank = exportGuildBank(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -278,6 +280,17 @@ export function parseAddonExportText(text, realm) {
         .filter((invite) => invite?.name && ["ACCEPTED", "TENTATIVE", "DECLINED"].includes(invite.status))
         .slice(0, 200)
         .map((invite) => ({ character: String(invite.name), realm, status: String(invite.status) }))
+    }));
+
+  // Raid answers given in game (addon Modules/RaidSignup.lua): Sign up / Tentative / Can't per raid.
+  const signupAnswers = Object.entries(database.signupAnswers ?? {})
+    .filter(([raidId, answer]) => /^[a-zA-Z0-9_-]{1,80}$/.test(String(raidId)) && answer?.name && Number(answer.at) > 0
+      && ["ACCEPTED", "TENTATIVE", "DECLINED"].includes(answer.status))
+    .slice(0, 100)
+    .map(([raidId, answer]) => ({
+      raidId: String(raidId), character: String(answer.name), realm, status: String(answer.status),
+      ...(["TANK", "HEALER", "DPS"].includes(answer.role) ? { role: String(answer.role) } : {}),
+      at: new Date(Number(answer.at) * 1000).toISOString()
     }));
 
   // Who can craft what, and profession cooldowns (addon Modules/Recipes.lua).
@@ -339,12 +352,15 @@ export function parseAddonExportText(text, realm) {
     ...(recipeData.recipes.length ? { recipes: recipeData.recipes, recipeNames: recipeData.recipeNames } : {}),
     ...(recipeData.cooldowns.length ? { cooldowns: recipeData.cooldowns } : {}),
     ...(calendarEvents.length ? { calendarEvents } : {}),
+    ...(signupAnswers.length ? { signupAnswers } : {}),
     raids,
     loot,
     dungeonRuns,
     ...(battlegroundReports.length ? { battlegroundReports } : {}),
     ...(duelResults.length ? { duelResults } : {}),
-    ...(milestones.length ? { milestones } : {})
+    ...(milestones.length ? { milestones } : {}),
+    ...guildData,
+    ...guildBank
   }, edition.gameEdition, realm);
 }
 
@@ -359,7 +375,7 @@ export function exportBattlegroundReports(database) {
   const integer = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max;
   return Object.values(d.reports).filter(r => r && r.version === 1 && r.edition === edition
     && r.adapter === `${edition}-postmatch-v1` && r.realmType === "normal" && r.postmatch === true && r.consent === true
-    && text(r.character, 80) && text(r.realm, 100) && d.consents?.[`${r.character}-${r.realm}`] === true
+    && text(r.character, 80) && text(r.realm, 100)
     && typeof r.reportId === "string" && /^[a-zA-Z0-9_:-]{8,100}$/.test(r.reportId)
     && ["casual", "rated", "blitz"].includes(r.mode) && text(r.bracket, 30)
     && integer(r.mapId, 1, 1000000) && integer(r.endedAt, 1, 4102444800)
@@ -385,6 +401,78 @@ export function exportDuelResults(database) {
       && (r.reason === "knockout" || r.reason === "retreat"))
     .sort((a, b) => b.at - a.at).slice(0, 200)
     .map((r) => ({ winner: r.winner, loser: r.loser, at: r.at, reason: r.reason }));
+}
+
+// The guild bank (addon Modules/GuildBank.lua, 9.0): the last contents and gold, the gold history
+// and the game's item and money logs. Whitelisted field by field (docs/GUILD_BANK_LEDGER.md).
+export function exportGuildBank(database) {
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const name = (v) => typeof v === "string" && v.length > 0 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
+  const kind = (v) => typeof v === "string" && /^[A-Za-z]{1,20}$/.test(v);
+  const copper = (v) => Number.isSafeInteger(v) && v >= 0 && v < 1e13;
+  const label = (v, max) => typeof v === "string" && v.trim() ? v.trim().replace(/[|\p{Cc}]/gu, " ").slice(0, max) : undefined;
+  const bank = {};
+  const snap = database?.guildBank;
+  if (snap && typeof snap === "object" && snap.tabs && typeof snap.tabs === "object") {
+    const at = typeof snap.at === "string" ? Date.parse(snap.at) : NaN;
+    const tabs = Object.entries(snap.tabs).flatMap(([tab, info]) => {
+      const index = Math.trunc(Number(tab));
+      if (!Number.isInteger(index) || index < 1 || index > 8 || !info || typeof info !== "object") return [];
+      const items = Object.entries(info.items ?? {}).flatMap(([id, item]) => {
+        const itemId = Math.trunc(Number(id)), count = Math.trunc(Number(item?.count));
+        return itemId > 0 && count > 0 ? [{ id: itemId, name: label(item?.name, 100) ?? `Item ${itemId}`, count: Math.min(count, 1_000_000) }] : [];
+      }).slice(0, 200);
+      return [{ tab: index, name: label(info.name, 40) ?? `Tab ${index}`, items }];
+    });
+    if (Number.isFinite(at) && tabs.length) bank.contents = { at: Math.floor(at / 1000), ...(copper(snap.money) ? { money: snap.money } : {}), tabs };
+  }
+  const log = database?.guildBankLog;
+  const list = (value) => Object.values(value ?? {});
+  const gold = list(log?.gold).filter((p) => p && epoch(p.at) && copper(p.money)).map((p) => ({ at: p.at, money: p.money })).slice(-400);
+  if (gold.length) bank.gold = gold;
+  const items = list(log?.items).filter((l) => l && kind(l.type) && name(l.name) && Number.isInteger(l.item) && l.item > 0 && epoch(Math.trunc(Number(l.at))))
+    .map((l) => ({ type: l.type, name: l.name, itemId: l.item, ...(label(l.itemName, 100) ? { itemName: label(l.itemName, 100) } : {}),
+      count: Math.max(1, Math.min(1_000_000, Math.trunc(Number(l.count)) || 1)), ...(Number.isInteger(l.tab) ? { tab: l.tab } : {}),
+      ...(Number.isInteger(l.tab2) ? { tab2: l.tab2 } : {}), at: Math.trunc(Number(l.at)) }))
+    .sort((a, b) => b.at - a.at).slice(0, 1000);
+  if (items.length) bank.itemLog = items;
+  const money = list(log?.money).filter((l) => l && kind(l.type) && name(l.name) && copper(l.amount) && epoch(Math.trunc(Number(l.at))))
+    .map((l) => ({ type: l.type, name: l.name, amount: l.amount, at: Math.trunc(Number(l.at)) })).sort((a, b) => b.at - a.at).slice(0, 1000);
+  if (money.length) bank.moneyLog = money;
+  return Object.keys(bank).length ? { guildBank: bank } : {};
+}
+
+// What the game shows every member about the whole guild (addon Modules/GuildSnapshot.lua and
+// Modules/GuildLog.lua): the roster with levels, classes, ranks and last online, the guild event
+// log, the MOTD and info text. Whitelisted field by field; notes are never read by the addon.
+export function exportGuildData(database) {
+  const out = {};
+  const name = (v) => typeof v === "string" && v.length > 0 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const snap = database?.guildSnapshot;
+  if (snap && typeof snap === "object" && epoch(snap.at) && snap.members && typeof snap.members === "object") {
+    const members = Object.entries(snap.members).filter(([key, m]) => name(key) && m && typeof m === "object").slice(0, 1000).map(([key, m]) => ({
+      name: key,
+      ...(Number.isInteger(m.level) && m.level >= 1 && m.level <= 100 ? { level: m.level } : {}),
+      ...(typeof m.class === "string" && /^[A-Z]{1,20}$/.test(m.class) ? { class: m.class } : {}),
+      ...(typeof m.rankName === "string" && m.rankName.trim() ? { rankName: m.rankName.trim().slice(0, 60) } : {}),
+      ...(Number.isInteger(m.rankIndex) && m.rankIndex >= 0 && m.rankIndex < 20 ? { rankIndex: m.rankIndex } : {}),
+      online: m.online === true,
+      ...(epoch(m.lastOnline) ? { lastOnline: m.lastOnline } : {})
+    }));
+    if (members.length) out.guildRoster = { at: snap.at, complete: snap.complete === true, members };
+    const text = (v, max) => typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined;
+    if (text(snap.motd, 255) !== undefined || text(snap.info, 1000) !== undefined) {
+      out.guildInfo = { at: epoch(snap.textAt) ? snap.textAt : snap.at, ...(text(snap.motd, 255) !== undefined ? { motd: text(snap.motd, 255) } : {}), ...(text(snap.info, 1000) !== undefined ? { info: text(snap.info, 1000) } : {}) };
+    }
+  }
+  const kinds = new Set(["invite", "join", "promote", "demote", "remove", "quit"]);
+  const events = Object.values(database?.guildLog?.events ?? {})
+    .filter((e) => e && kinds.has(e.type) && name(e.p1) && (e.p2 === undefined || e.p2 === null || name(e.p2)) && epoch(Math.trunc(Number(e.at))))
+    .map((e) => ({ type: e.type, actor: e.p1, ...(name(e.p2) ? { target: e.p2 } : {}), ...(typeof e.rank === "string" && e.rank.trim() ? { rank: e.rank.trim().slice(0, 60) } : {}), at: Math.trunc(Number(e.at)) }))
+    .sort((a, b) => b.at - a.at).slice(0, 500);
+  if (events.length) out.guildEvents = events;
+  return out;
 }
 
 // Personal milestones (Modules/Milestones.lua): level steps, first dungeon clears, honorable kills, duel wins. Own characters

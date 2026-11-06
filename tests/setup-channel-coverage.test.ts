@@ -5,7 +5,7 @@ vi.mock("../src/database.js", () => ({ prisma: {
   raidCore: { findMany: mocks.cores }, ...Object.fromEntries(["member", "character", "raid", "epgpTransaction", "lootAward", "addonImport", "dungeonRun"].map(key => [key, { count: mocks.count }]))
 } }));
 import { gatherImpact } from "../src/commands/uninstall.js";
-import { ALL_CHANNELS, createSectionChannels, organizeChannels, repairCraftBoardPermissions, withGameGate } from "../src/commands/setup.js";
+import { ALL_CHANNELS, CORE_CHANNELS, RETIRED_CHANNELS, createSectionChannels, organizeChannels, repairCraftBoardPermissions, withGameGate } from "../src/commands/setup.js";
 import { guildService } from "../src/commands/context.js";
 import { channelSpec } from "../src/setup-names.js";
 const channel = (id: string, name: string, parentId: string | null = null, type = ChannelType.GuildText) => ({ id, name, parentId, type, isTextBased: () => false,
@@ -17,8 +17,10 @@ function fakeGuild(channels: ReturnType<typeof channel>[]) {
 }
 beforeEach(() => vi.restoreAllMocks());
 describe("setup and reset channel coverage", () => {
-  it("includes FAQ in fresh setup with member posting enabled", () => {
-    expect(ALL_CHANNELS).toContain("answerChannelId");
+  it("no longer creates #bot-faq in setup, but still finds and removes the old one", () => {
+    expect(ALL_CHANNELS).not.toContain("answerChannelId");
+    expect(CORE_CHANNELS).not.toContain("answerChannelId");
+    expect(RETIRED_CHANNELS).toContain("answerChannelId");
     expect(channelSpec("answerChannelId", "en")).toMatchObject({ name: "bot-faq", access: "open" });
     expect(channelSpec("answerChannelId", "fr").name).toBe("bot-faq");
   });
@@ -32,28 +34,6 @@ describe("setup and reset channel coverage", () => {
     const guild = fakeGuild([channel("category", "⚜️ Guilded", null, ChannelType.GuildCategory), channel("raidcategory", "⚔️ Raids", null, ChannelType.GuildCategory), channel("guide", "guilded-addon", "category"), channel("faq", "bot-faq", "category"), channel("raid", "raid-inscription", "raidcategory"), channel("manual", "bot-faq")]);
     const impact = await gatherImpact(guild as never, "guild", { welcomeRoleIds: [] } as never);
     expect(impact.removableChannels.map(c => c.id)).toEqual(["guide", "faq", "raid"]);
-  });
-  it("setup reuses the surviving FAQ instead of creating a duplicate and saves its link", async () => {
-    const guild = fakeGuild([channel("category", "⚜️ Guilded", null, ChannelType.GuildCategory), channel("faq", "bot-faq", "category")]);
-    vi.spyOn(guildService, "getSettings").mockResolvedValue({} as never);
-    const save = vi.spyOn(guildService, "updateSettings").mockResolvedValue({} as never);
-    await createSectionChannels(guild as never, "guild", ["answerChannelId"], "en");
-    expect(guild.channels.create).not.toHaveBeenCalled();
-    expect(save).toHaveBeenCalledWith("guild", { answerChannelId: "faq" });
-  });
-  it("setup creates and saves a missing FAQ channel", async () => {
-    const guild = fakeGuild([channel("category", "⚜️ Guild", null, ChannelType.GuildCategory)]);
-    guild.channels.create.mockResolvedValue(channel("faq", "bot-faq", "category"));
-    vi.spyOn(guildService, "getSettings").mockResolvedValue({} as never);
-    const save = vi.spyOn(guildService, "updateSettings").mockResolvedValue({} as never);
-    await createSectionChannels(guild as never, "guild", ["answerChannelId"], "fr");
-    expect(guild.channels.create).toHaveBeenCalledWith(expect.objectContaining({ name: "bot-faq", type: ChannelType.GuildText, parent: "category" }));
-    expect(save).toHaveBeenCalledWith("guild", { answerChannelId: "faq" });
-    expect(guild.channels.cache.get("category")?.setName).toHaveBeenCalledWith("⚜️ Guilded");
-    expect(guild.channels.cache.get("category")?.permissionOverwrites.edit).toHaveBeenCalledWith("everyone", { ViewChannel: true, ReadMessageHistory: true });
-    const created = guild.channels.create.mock.calls[0]?.[0] as { permissionOverwrites: { id: string; allow: bigint[] }[] };
-    const everyone = created.permissionOverwrites.find(entry => entry.id === "everyone");
-    expect(new PermissionsBitField(everyone?.allow).has([PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages])).toBe(true);
   });
   it("keeps the shared guide readable on a server whose default channels are hidden", async () => {
     const guild = fakeGuild([channel("category", "⚜️ Guilded", null, ChannelType.GuildCategory)]);

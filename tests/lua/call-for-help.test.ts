@@ -241,3 +241,63 @@ describe("call for help: receiver", () => {
     expect(lua.run(`return type(NS.commandHandlers.sos) .. type(Guilded_CallForHelp)`)).toBe("functionfunction");
   });
 });
+
+describe("call for help: guildmates in the zone and party invites", () => {
+  function withRoster() {
+    const lua = setup();
+    lua.run(`INVITES = {}; WHISPERS = {}
+      ROSTER = { { "Kev", 60, "ROGUE", "Duskwood", true }, { "Ann-Realm", 58, "MAGE", "Duskwood", true },
+        { "Bo-Realm", 40, "WARRIOR", "Duskwood", false }, { "Cy-Realm", 60, "PRIEST", "Stranglethorn Vale", true },
+        { "Dee-Realm", 52, "HUNTER", "Duskwood", true } }
+      function GetNumGuildMembers() return #ROSTER end
+      function GetGuildRosterInfo(i) local r = ROSTER[i]; return r[1], "Member", 3, r[2], r[3], r[4], "", "", r[5] end
+      function InviteUnit(name) INVITES[#INVITES + 1] = name end
+      function SendChatMessage(text, channel, _, target) if channel == "WHISPER" then WHISPERS[#WHISPERS + 1] = target .. ":" .. text else CHAT_OUT[#CHAT_OUT + 1] = channel .. ":" .. text end end`);
+    return lua;
+  }
+  const invites = () => s!.run(`return table.concat(INVITES, ",")`);
+
+  it("lists online guildmates in my zone, not me, offline members or other zones", () => {
+    const lua = withRoster();
+    expect(lua.run(`local t = {} for _, m in ipairs(NS.callForHelp.zoneMates()) do t[#t + 1] = m.name end return table.concat(t, ",")`)).toBe("Ann-Realm,Dee-Realm");
+  });
+
+  it("shows them under the caller's call and invites one on click", () => {
+    const lua = withRoster();
+    lua.run(`NS.callForHelp.open()`);
+    expect(lua.run(`return tostring(NS.callForHelp.refreshMates())`)).toBe("2");
+    expect(lua.run(`return tostring(NS.callForHelp.invite("Ann-Realm"))`)).toBe("true");
+    expect(invites()).toBe("Ann-Realm");
+    expect(msgs()).toContain("Invited Ann-Realm to your party.");
+  });
+
+  it("keeps the list to five names", () => {
+    const lua = withRoster();
+    lua.run(`for i = 1, 8 do ROSTER[#ROSTER + 1] = { "Extra" .. i .. "-Realm", 30, "MAGE", "Duskwood", true } end`);
+    expect(lua.run(`return tostring(#NS.callForHelp.zoneMates())`)).toBe("5");
+  });
+
+  it("gives a defender Join (whisper inv) and Invite caller", () => {
+    const lua = withRoster();
+    expect(callFrom("Bob-Realm", goodCall)).toBe("banner");
+    expect(lua.run(`return tostring(NS.callForHelp.join())`)).toBe("true");
+    expect(lua.run(`return table.concat(WHISPERS, ",")`)).toBe("Bob-Realm:inv");
+    expect(lua.run(`return tostring(NS.callForHelp.inviteCaller())`)).toBe("true");
+    expect(invites()).toBe("Bob-Realm");
+  });
+
+  it("does nothing without a banner or without an invite function", () => {
+    const lua = withRoster();
+    expect(lua.run(`return tostring(NS.callForHelp.join())`)).toBe("false");
+    expect(lua.run(`return tostring(NS.callForHelp.inviteCaller())`)).toBe("false");
+    lua.run(`InviteUnit = nil`);
+    expect(lua.run(`return tostring(NS.callForHelp.invite("Ann-Realm"))`)).toBe("false");
+    expect(msgs()).toContain("Could not invite Ann-Realm.");
+  });
+
+  it("translates the new buttons to French", () => {
+    const lua = setup();
+    lua.run(`NS.locale = "frFR"`);
+    expect(lua.run(`return NS.L("Invite caller")`)).toBeTruthy();
+  });
+});

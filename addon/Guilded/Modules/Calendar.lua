@@ -318,6 +318,51 @@ local function scanEvents(done)
 end
 calendar.scanEvents = scanEvents
 
+-- Answers one guild event in the game's own calendar, like the buttons in its window (9.0, the
+-- Signups page). Only called from a click, because the game wants one for this. Where the API is
+-- missing or refuses, nothing happens and done(false) says so; the Guilded answer is kept either way.
+local REPLY_CALLS = { ACCEPTED = { "EventAvailable", "EventSignUp" }, TENTATIVE = { "EventTentative" }, DECLINED = { "EventDecline" } }
+function calendar.reply(ref, answer, done)
+  done = done or function() end
+  local calls = REPLY_CALLS[answer]
+  if not calls or scanning or not (C_Calendar and has("GetNumDayEvents") and has("GetDayEvent") and has("OpenEvent")) then done(false) return end
+  local target
+  pcall(function()
+    local now = C_DateAndTime and C_DateAndTime.GetCurrentCalendarTime and C_DateAndTime.GetCurrentCalendarTime()
+    if not now then local d = date("*t"); now = { year = d.year, month = d.month, monthDay = d.day } end
+    if has("SetAbsMonth") then C_Calendar.SetAbsMonth(now.month, now.year) end
+    for dayOffset = 0, SYNC_DAYS_AHEAD - 1 do
+      local day = addDays(now, dayOffset)
+      local monthOffset = (day.year - now.year) * 12 + (day.month - now.month)
+      for index = 1, (C_Calendar.GetNumDayEvents(monthOffset, day.monthDay) or 0) do
+        local event = C_Calendar.GetDayEvent(monthOffset, day.monthDay, index)
+        if event and tostring(event.calendarType) == "GUILD_EVENT" and tostring(event.eventID) == tostring(ref) then
+          target = { monthOffset, day.monthDay, index }
+          return
+        end
+      end
+    end
+  end)
+  if not target then done(false) return end
+  local finished = false
+  local function act()
+    if finished then return end
+    finished = true
+    onOpened = nil
+    pcall(function() openFrame:UnregisterEvent("CALENDAR_OPEN_EVENT") end)
+    local ok = false
+    for _, name in ipairs(calls) do
+      if not ok and has(name) then ok = pcall(C_Calendar[name]) end
+    end
+    pcall(function() if has("CloseEvent") then C_Calendar.CloseEvent() end end)
+    done(ok)
+  end
+  onOpened = act
+  pcall(function() openFrame:RegisterEvent("CALENDAR_OPEN_EVENT") end)
+  if not pcall(C_Calendar.OpenEvent, target[1], target[2], target[3]) then finished = true; onOpened = nil; done(false) return end
+  if C_Timer and C_Timer.After then C_Timer.After(2, function() if not finished then act() end end) end
+end
+
 local function syncEvents(silent)
   scanEvents(function(events, problem)
     if not events then
@@ -346,7 +391,8 @@ function calendar.discordRaids()
     local at = type(raid) == "table" and isoEpoch(raid.at)
     if at and at >= serverNow() then local core = type(raid.core) == "string" and raid.core ~= "" and raid.core or nil
       local note = type(raid.note) == "string" and raid.note ~= "" and raid.note or nil
-      table.insert(out, { id = tostring(raid.id or ""), title = tostring(raid.title or "Raid"), at = at, core = core, note = note }) end
+      table.insert(out, { id = tostring(raid.id or ""), title = tostring(raid.title or "Raid"), at = at, core = core, note = note,
+        signups = type(raid.signups) == "table" and raid.signups or nil }) end
   end
   table.sort(out, function(a, b) return a.at < b.at end)
   return out

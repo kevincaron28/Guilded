@@ -3,10 +3,10 @@
 This source is a provisional Forever adapter, not real-client acceptance and
 not part of frozen 8.3.0 files. Forever validation requires its November 4 opening.
 
-In game, `/guilded bgcapture on normal` opts in the current character only;
-`/guilded bgcapture off` stops capture and suppresses its retained records from
-subsequent Companion exports. French aliases are `activer normal` and `desactiver`.
-Discord `/bg privacy` is a separate server-side consent gate. WoW must save
+8.5: there is no consent switch any more. Where the client supports it (the adapter checks below),
+the addon captures your own postmatch results automatically and everything is shared in the guild's
+battleground statistics. `/guilded bgcapture` only shows the status (and `premade <code>` still sets the
+unverified premade hint). The Discord `/bg privacy` command was removed. WoW must save
 SavedVariables through reload/logout before Companion can read the records.
 
 The adapter requires Forever edition identity, a readable negative Hardcore

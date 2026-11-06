@@ -197,6 +197,7 @@ model Guild {
   faqEntries          FaqEntry[]
   polls               Poll[]
   unclaimedCharacters UnclaimedCharacter[]
+  inviteRequests InviteRequest[]
   characterPairings   CharacterPairing[]
   characterVerifyCodes  CharacterVerifyCode[]
   characterVerifyClaims CharacterVerifyClaim[]
@@ -890,6 +891,20 @@ model GuildSettings {
   weeklyReportLastAt       DateTime?
   // WoW report delivery is separate from future shared-guild and PoE reports.
   weeklyReportChannelId    String?
+  // 8.5 batch 3 (#13/#14): the guild-invite channel where players post their full character name, the DM prompt for the WoW role, and the queue's off switch.
+  inviteChannelId          String?
+  inviteQueueEnabled       Boolean   @default(true)
+  inviteDmEnabled          Boolean   @default(true)
+  // 8.5 light recruiting kit: interview questions (JSON array of strings), the pinned guide message in the invite channel,
+  // the recruiting post template and its shared cooldown (one reminder when it is over).
+  inviteQuestions          Json?
+  inviteGuideMessageId     String?
+  recruitPostTemplate      String?
+  recruitCooldownHours     Int       @default(72)
+  recruitLastPostAt        DateTime?
+  recruitLastPostBy        String?
+  recruitRemindedAt        DateTime?
+  inviteWowRoleId          String?
   // Opt-in: loot and EPGP belong to individual raid cores, never a shared guild pool.
   coreLootOnly             Boolean   @default(false)
   characterSignups         Boolean   @default(false)
@@ -930,6 +945,8 @@ model GuildSettings {
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
   duelBoardEnabled         Boolean @default(true)
   duelBoardMessageId       String?
+  // 8.5 track B: the duel ladder has its own channel (duel-ladder); the battleground ladder stays in bgStatsChannelId.
+  duelBoardChannelId       String?
   // 8.5 track D: one auto-updated post per profession in the craft forum. On by default; officers switch it off
   // with /craft posts-setting. Posts are found by their thread title, so no message ids are stored.
   professionPostsEnabled   Boolean @default(true)
@@ -959,6 +976,9 @@ model GuildSettings {
   promotionWeeklyEnabled   Boolean @default(true)
   promotionChannelId       String?
   promotionLastPostAt      DateTime?
+  // 9.0 guild bank ledger: weekly summary in the officer log channel (on by default; /officer stats bank).
+  guildBankWeeklyEnabled   Boolean @default(true)
+  guildBankLastPostAt      DateTime?
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -2511,7 +2531,7 @@ model CommunityBadge {
 model CommunityBadgeSharing {
   seasonId String
   userId String
-  shared Boolean @default(false)
+  shared Boolean @default(true)
   season CommunitySeason @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   @@id([seasonId, userId])
 }
@@ -2605,8 +2625,8 @@ model WeeklyQuestionOccurrence {
 model BattlegroundConsent {
   memberId String @id
   guildId String
-  capture Boolean @default(false)
-  guildStats Boolean @default(false)
+  capture Boolean @default(true)
+  guildStats Boolean @default(true)
   consentedAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -2992,4 +3012,140 @@ model GuildStatSnapshot {
   guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, day])
+}
+
+// 8.5 batch 3 (#14): a player's post in the guild-invite channel. Officers see PENDING rows in /officer invites and in the
+// addon's To invite panel; a roster upload that contains the character, or an officer's check mark, makes it INVITED.
+model InviteRequest {
+  id            String    @id @default(cuid())
+  guildId       String
+  // Lowercase "first last" (Forever names have both).
+  nameKey       String
+  displayName   String
+  discordUserId String
+  channelId     String
+  messageId     String
+  // PENDING (asked) -> INVITED -> JOINED -> PROMOTED. Officers move it on with /mod invites record.
+  status        String    @default("PENDING")
+  // Where the request came from: "discord" (the invite channel) or "website".
+  source        String    @default("discord")
+  // Officer-only note, and the applicant's answers to the interview questions.
+  note          String?
+  answers       String?
+  // "roster" (seen in a guild roster upload), or the Discord ID of the officer who reacted.
+  invitedBy     String?
+  createdAt     DateTime  @default(now())
+  invitedAt     DateTime?
+  guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, messageId])
+  @@index([guildId, status])
+}
+
+// 8.5 batch 3 (#13): the WoW-role DM was sent to this member in this server; never sent twice.
+model InviteDm {
+  guildId       String
+  discordUserId String
+  sentAt        DateTime @default(now())
+
+  @@id([guildId, discordUserId])
+}
+
+// 8.5 guild data (docs/GUILD_DATA_INVENTORY.md): what the game's guild roster, event log and info
+// panel show every member, uploaded by any member's companion. Guild-wide, latest snapshot wins.
+model GuildRosterEntry {
+  id           String    @id @default(cuid())
+  guildId      String
+  gameEdition  String    @default("forever")
+  // characterKey(name): lowercase "first last" on Forever.
+  nameKey      String
+  name         String
+  level        Int?
+  className    String?
+  rankName     String?
+  rankIndex    Int?
+  lastOnlineAt DateTime?
+  inGuild      Boolean   @default(true)
+  // When the uploader's game read this row, and whose companion brought it (Member id).
+  observedAt   DateTime
+  reportedById String?
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([guildId, gameEdition, nameKey])
+  @@index([guildId, inGuild])
+}
+
+// The game's guild event log (invites, joins, promotions, demotions, removals, quits). The game
+// gives ages in hours, so the same event read by two members can differ by an hour or two: an
+// event with the same kind, names and rank within 3 hours of a stored one is the same event.
+model GuildEventEntry {
+  id           String   @id @default(cuid())
+  guildId      String
+  gameEdition  String   @default("forever")
+  kind         String
+  actor        String
+  target       String?
+  rank         String?
+  at           DateTime
+  reportedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([guildId, at])
+  @@index([guildId, kind, actor])
+}
+
+// The guild's message of the day and information text, as last read in game.
+model GuildText {
+  guildId      String   @id
+  motd         String?
+  info         String?
+  observedAt   DateTime
+  reportedById String?
+  updatedAt    DateTime @updatedAt
+}
+
+// 9.0 guild bank ledger (docs/GUILD_BANK_LEDGER.md): what any member's companion uploads after
+// someone with access opened the guild bank. Read-only in Discord and on the website.
+model GuildBankContents {
+  guildId      String   @id
+  observedAt   DateTime
+  // Copper.
+  money        BigInt?
+  // [{ tab, name, items: [{ id, name, count }] }]
+  tabs         Json
+  reportedById String?
+  updatedAt    DateTime @updatedAt
+}
+
+// One gold reading per bank visit, for the gold history chart.
+model GuildBankGold {
+  id      String   @id @default(cuid())
+  guildId String
+  at      DateTime
+  money   BigInt
+
+  @@unique([guildId, at])
+}
+
+// The game's guild bank logs. The game gives ages in hours, so the same line read by two members
+// within 3 hours is the same line (services/guild-bank.ts).
+model GuildBankTransaction {
+  id           String   @id @default(cuid())
+  guildId      String
+  // "item" or "money"
+  kind         String
+  // The game's word: deposit, withdraw, move, repair, buyTab, ...
+  type         String
+  actor        String
+  itemId       Int?
+  itemName     String?
+  count        Int?
+  tab          Int?
+  tab2         Int?
+  amount       BigInt?
+  at           DateTime
+  reportedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([guildId, at])
 }

@@ -82,11 +82,6 @@ export async function handleAchievementShare(i: ButtonInteraction): Promise<void
     await reply(t("Achievements are not available for this member.", "Les succès ne sont pas disponibles pour ce membre."));
     return;
   }
-  // Another member's card is shared only when their profile is not hidden.
-  if (target.discordUserId !== i.user.id) {
-    const account = await prisma.webAccount.findFirst({ where: { discordUserId: target.discordUserId }, select: { publicProfile: true } });
-    if (account && !account.publicProfile) { await reply(t("That member keeps their profile hidden.", "Ce membre garde son profil masqué.")); return; }
-  }
   lastShared.set(i.user.id, now);
   if (lastShared.size > 500) for (const [user, at] of lastShared) if (now - at > SHARE_COOLDOWN_MS) lastShared.delete(user);
   await i.deferReply();

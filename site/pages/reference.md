@@ -148,7 +148,7 @@ everything. Officer rows need the officer rank in your WoW guild.
 | `/guilded chat tab\|off` · `chattags on\|off` | Own chat tab; show an alt's main name | Everyone |
 | `/guilded digest` · `map` · `gbank` · `guildlog` | Changes since last login; guildmates on the map; guild bank; guild log | Everyone |
 | `/guilded dungeon status\|results\|start\|complete\|abandon\|check` | Record and check dungeon runs | Everyone |
-| `/guilded bgcapture on\|off` | Your own battleground result capture | Everyone |
+| `/guilded bgcapture` | Status of your own battleground result capture (always on where supported) | Everyone |
 | `/guilded pugcheck on\|off\|now\|last` | Item level and enchants of non-guild group members | Everyone |
 | `/guilded backup` · `restore` | Copy this guild's saved data as one code, or put it back | Everyone |
 | `/guilded perf` | Record how long Guilded's work takes | Everyone |

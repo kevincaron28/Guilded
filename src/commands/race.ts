@@ -5,13 +5,13 @@ import { hasPermission } from "../permissions.js";
 import { guildService } from "./context.js";
 import { clampTop, createRaceChannel, loadRaceBoardData, MAX_TOP, MIN_TOP, nearLevel, updateRaceBoard, LEVEL_CAP } from "../services/race-board.js";
 
-// `/character race ...` (8.5 track B1): members find levelling partners and hide their characters from the board;
+// `/character race ...` (8.5 track B1): members find levelling partners (everyone is on the board, there is no hide option);
 // officers switch the board off or back on (it is on by default and posts once /setup has created or adopted its channel). Bilingual by the guild's language, like the board itself.
-export const RACE_ACTIONS = ["near", "hide", "show", "board-on", "board-off", "top", "end", "resume"] as const;
+export const RACE_ACTIONS = ["near", "board-on", "board-off", "top", "end", "resume"] as const;
 
 export function addRaceSubcommand(sub: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
-  return sub.setName("race").setDescription("Race to 60: who is near your level, hide yourself, officer board")
-    .setDescriptionLocalizations({ fr: "Course au 60 : proches de ton niveau, te masquer, tableau officiers" })
+  return sub.setName("race").setDescription("Race to 60: who is near your level, officer board")
+    .setDescriptionLocalizations({ fr: "Course au 60 : proches de ton niveau, tableau officiers" })
     .addStringOption(o => o.setName("action").setDescription("What to do").setDescriptionLocalizations({ fr: "Action" }).setRequired(true)
       .addChoices(...RACE_ACTIONS.map(value => ({ name: value, value }))))
     .addChannelOption(o => o.setName("channel").setDescription("Officers: board channel (default: create race-to-60)").setDescriptionLocalizations({ fr: "Officiers : salon du tableau (défaut : course-au-60)" })
@@ -25,13 +25,6 @@ export async function executeRace(interaction: ChatInputCommandInteraction, cont
   const t = (en: string, french: string) => fr ? french : en;
   const action = interaction.options.getString("action", true);
   const reply = (content: string) => interaction.reply({ content, flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-  if (action === "hide" || action === "show") {
-    await prisma.member.update({ where: { id: context.memberId }, data: { raceHidden: action === "hide" } });
-    if (interaction.guild) await updateRaceBoard(interaction.guild).catch(() => false);
-    await reply(action === "hide" ? t("Your characters are hidden from the Race to 60 board.", "Tes personnages sont masqués du tableau de la course au 60.")
-      : t("Your characters show on the Race to 60 board again.", "Tes personnages apparaissent de nouveau sur le tableau de la course au 60."));
-    return;
-  }
   if (action === "near") {
     const edition = (await prisma.guild.findUnique({ where: { id: context.guildId }, select: { gameEdition: true } }))?.gameEdition ?? "forever";
     const mine = await prisma.character.findMany({ where: { memberId: context.memberId, level: { not: null } }, select: { name: true, level: true }, orderBy: { level: "desc" } });

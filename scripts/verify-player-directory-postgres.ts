@@ -28,7 +28,9 @@ export async function verifyPlayerDirectoryPostgres(database: PrismaClient): Pro
     }
     await database.character.create({ data: { guildId: guild.id, memberId: people[0]!.member.id, name: "Diralt", realm: "Doomhowl", className: "Warrior", level: 60, isMain: false } });
     await database.raidCoreMember.create({ data: { coreId: core.id, memberId: people[1]!.member.id, role: "HEALER", characterId: people[1]!.main.id } });
-    // A hidden profile, a member of a blocked server and a companion-only player.
+    // Always-share (8.5): a profile created with publicProfile=false (an old row) is listed anyway, which makes 32 players
+    // (30 mains + Dirhidden + the companion-only Dircompanion), 8 on the second page after the first 24. A member of a blocked server
+    // and a companion-only player are the other cases.
     const hidden = await person(90, false);
     await database.character.create({ data: { guildId: guild.id, memberId: hidden.member.id, name: "Dirhidden", realm: "Doomhowl", className: "Rogue" } });
     const outsider = await database.webAccount.create({ data: { discordUserId: `${prefix}user-91`, username: "outsider", characters: { create: { name: "Dircompanion", realm: "Doomhowl" } } } });
@@ -41,12 +43,13 @@ export async function verifyPlayerDirectoryPostgres(database: PrismaClient): Pro
     const first = await store.list(filters(), null);
     assert.equal(first.length, PAGE_SIZE + 1);
     assert.equal(first[0]!.character, "Dirchar00"); // the main, not the alt (Diralt would sort first)
-    assert.ok(!first.some((row) => ["Dirhidden", "Dirblocked", "Diralt"].includes(row.character)));
+    assert.ok(!first.some((row) => ["Dirblocked", "Diralt"].includes(row.character)));
     const cursor = decodeCursor(encodeCursor(first[PAGE_SIZE - 1]!))!;
     const second = await store.list(filters(), cursor);
-    assert.equal(second.length, 31 - PAGE_SIZE);
-    assert.equal(second.at(-1)!.character, "Dircompanion"); // companion characters count too, sorted by name
-    assert.equal(new Set([...first.slice(0, PAGE_SIZE), ...second].map((row) => row.id)).size, 31);
+    assert.equal(second.length, 32 - PAGE_SIZE);
+    assert.equal(second.at(-1)!.character, "Dirhidden"); // companion characters count too, sorted by name (Dircompanion just before this one)
+    assert.ok(second.some((row) => row.character === "Dircompanion"));
+    assert.equal(new Set([...first.slice(0, PAGE_SIZE), ...second].map((row) => row.id)).size, 32);
     assert.deepEqual((await store.list(filters({ className: "Warrior" }), null)).map((row) => row.character), ["Diralt"]);
     assert.deepEqual((await store.list(filters({ role: "HEALER" }), null)).map((row) => row.character), ["Dirchar01"]);
     assert.equal((await store.list(filters({ guild: "directory", className: "Mage" }), null)).length, 15);

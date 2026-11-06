@@ -149,7 +149,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | `/guilded chat tab\|off` · `chattags on\|off` | Onglet de discussion à part ; afficher le nom du principal d’un reroll | Tout le monde |
 | `/guilded digest` · `map` · `gbank` · `guildlog` | Changements depuis la dernière connexion ; guildmates sur la carte ; banque de guilde ; journal de guilde | Tout le monde |
 | `/guilded dungeon status\|results\|start\|complete\|abandon\|check` | Enregistrer et vérifier les parties de donjon | Tout le monde |
-| `/guilded bgcapture on\|off` | Capture de vos propres résultats de champ de bataille | Tout le monde |
+| `/guilded bgcapture` | État de la capture de vos résultats de champ de bataille (toujours active si prise en charge) | Tout le monde |
 | `/guilded pugcheck on\|off\|now\|last` | Niveau d’objet et enchantements des joueurs hors guilde de votre groupe | Tout le monde |
 | `/guilded backup` · `restore` | Copier les données de la guilde en un code, ou les remettre | Tout le monde |
 | `/guilded perf` | Mesurer le temps de travail de Guilded | Tout le monde |

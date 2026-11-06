@@ -1,4 +1,5 @@
-import { characterName } from "../services/character-display.js";
+import { armoryMarkdown } from "../services/armory-link.js";
+import { characterName, displayCharacterName, loadFullNameBook } from "../services/character-display.js";
 import { selectedCharacter } from "../services/character-match.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
@@ -96,10 +97,11 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   if (subcommand === "race") { await executeRace(interaction, context); return; }
   if (subcommand === "list") {
     const characters = await guildService.listCharacters(context.memberId);
+    const book = await loadFullNameBook(prisma, context.guildId);
     await interaction.reply({
       content: characters.length === 0
         ? "You have no linked characters."
-        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${characterName(character)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}`).join("\n"),
+        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${displayCharacterName(character, book)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}${armoryMarkdown(character) ? ` · ${armoryMarkdown(character)}` : ""}`).join("\n"),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -144,9 +146,10 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     }
     if (subcommand === "unclaimed") {
       const rows = await prisma.unclaimedCharacter.findMany({ where: { guildId: context.guildId }, orderBy: { name: "asc" }, take: 60 });
+      const book = await loadFullNameBook(prisma, context.guildId);
       await interaction.reply({
         content: rows.length
-          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${characterName(row)} — ${row.realm} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1950)
+          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${displayCharacterName(row, book)} — ${row.realm} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1950)
           : "Every character the addons reported is linked.",
         flags: MessageFlags.Ephemeral
       });

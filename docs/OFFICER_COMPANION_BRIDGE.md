@@ -19,7 +19,7 @@ too: it adds automatic/background file synchronization.
    sync and save standings to that WoW installation, then log in or `/reload`.
 4. Sharing starts automatically for a recognized officer with loaded companion
    data. Check that the companion's Discord guild matches the current WoW guild.
-   An explicit `/guilded bridge off` persists; `/guilded bridge on` re-enables it.
+   There is no off any more (8.5): `/guilded bridge off` is treated as `on`.
    The companion source binding survives switching the addon's guild data. After
    intentionally changing the companion guild, save new standings and reload,
    then use `/guilded bridge on` to rebind. Legacy standings do not contain a WoW
@@ -33,7 +33,7 @@ compact `DATA|2` (about half the messages); older addons keep getting `DATA|1`. 
 a few seconds before answering and stay quiet when another officer is already sending the same
 snapshot. See [the sync speed-ups](SYNC_SPEEDUPS_2026-10-15.md).
 
-The officer can run `/guilded bridge off` to stop the new core/calendar relay.
+The relay is always on (8.5).
 Existing standings sharing remains available. Changes from Discord require the
 officer to save a fresh companion snapshot and `/reload` again.
 

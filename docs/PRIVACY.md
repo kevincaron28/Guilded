@@ -1,8 +1,15 @@
 # Guilded privacy / Confidentialité
 
-Last updated / Dernière mise à jour : 30 October / octobre 2026.
+Last updated / Dernière mise à jour : 6 November / novembre 2026.
 
 ## English
+
+**Everything is shared.** From Guilded 8.5 there are no privacy or sharing settings. When you install Guilded and
+connect your characters, everything it records about them is shared by design: your stats, levels, gear and
+professions, achievements and badges, dungeon runs and scores, battleground results, duel results, map position
+in the addon, the race to 60 and the leaderboards, in your guild and on the public leaderboards and player
+profiles of guilded.kcaron.top. Do not install or connect Guilded if you do not want that. The one control left is
+**Delete my data** (below).
 
 This notice describes Guilded Companion, the Guilded website and the project-hosted
 Guilded service operated by Kevin Caron (Guilded). A guild using its own server has
@@ -76,12 +83,23 @@ Microsoft handles Store installation and updates. External services have their
 own privacy notices. Data may be processed outside your country.
 
 Guild records are shown according to guild roles and feature permissions.
-Public profiles and leaderboards have separate sharing controls. Content posted
+Profiles, badges, statistics and leaderboards are shared by default and there is
+no switch to turn that off; private items such as pairing codes, application
+messages and credentials are never shared. Content posted
 to Discord or a public page can be copied by people with access. Guilded uses
 authentication, access checks and HTTPS for its hosted service. Configure a
 trusted HTTPS endpoint when using a separately hosted server.
 
 ### Choices, access and deletion
+
+**Delete my data.** Sign in on the Guilded website, open My data (`/me/data`) and press
+**Delete my data** (type DELETE to confirm). This removes your website account (profile, recruitment card,
+Battle.net selection, devices and sign-ins), your guild characters and what hangs off them, and your
+personal records (battleground reports, achievements, milestones, recap schedule, alerts, availability,
+pairing and companion credentials, badge shelves). Your Discord ID and name on guild member rows are replaced
+by "Deleted member"; points, loot and raid attendance stay in each guild's history under that name, because other
+members' records depend on them. Backups and Discord messages already posted are not changed (see Retention).
+You can also ask through the support contact below.
 
 Pause tracking, disable an optional game connection, or quit the companion to
 stop its ongoing tracking. Removing locally saved app data leaves your game files
@@ -122,6 +140,13 @@ guild exports in public channels. This notice will be updated when data practice
 change.
 
 ## Français
+
+**Tout est partagé.** À partir de Guilded 8.5, il n'y a aucun réglage de confidentialité ni de partage. Lorsque vous
+installez Guilded et reliez vos personnages, tout ce qu'il enregistre à leur sujet est partagé par conception : vos
+statistiques, niveaux, équipement et métiers, succès et badges, donjons et scores, résultats de champs de bataille,
+résultats de duels, position sur la carte dans l'addon, la course au 60 et les classements, dans votre guilde et
+sur les classements et profils publics de guilded.kcaron.top. N'installez pas et ne reliez pas Guilded si vous ne
+le souhaitez pas. Le seul contrôle restant est **Supprimer mes données** (ci-dessous).
 
 Le bilan hebdomadaire facultatif conserve votre horaire, fuseau, heures de silence,
 choix actif/inactif et dernier résultat d'envoi. Un MP Discord est envoyé seulement
@@ -199,13 +224,24 @@ fournisseurs. Discord gère la connexion et les messages; Microsoft gère le Sto
 et ses mises à jour. Leurs politiques s'appliquent également. Le traitement peut
 avoir lieu hors de votre pays.
 
-La visibilité suit les rôles et permissions. Les profils et classements publics
-disposent de contrôles de partage distincts. Les publications Discord ou publiques
+La visibilité suit les rôles et permissions. Les profils, badges, statistiques et
+classements sont partagés par défaut, sans réglage pour l'éviter; les éléments
+privés (codes d'appairage, messages de candidature, identifiants) ne sont jamais
+partagés. Les publications Discord ou publiques
 peuvent être copiées par leurs lecteurs. Le service hébergé utilise HTTPS,
 l'authentification et des contrôles d'accès. Pour un hébergement autonome,
 configurez une adresse HTTPS de confiance.
 
 ### Choix, accès et suppression
+
+**Supprimer mes données.** Connectez-vous au site Guilded, ouvrez Mes données (`/me/data`) et appuyez sur
+**Supprimer mes données** (tapez DELETE pour confirmer). Cela supprime votre compte du site (profil, fiche de
+recrutement, sélection Battle.net, appareils et connexions), vos personnages de guilde et leurs dépendances, et vos
+données personnelles (rapports JcJ, succès, jalons, bilans, alertes, disponibilité, identifiants d'appairage et du
+compagnon, badges). Votre identifiant et votre nom Discord sur les fiches de membre sont remplacés par « Deleted
+member »; les points, le butin et les présences de raid restent dans l'historique de chaque guilde sous ce nom, car
+les dossiers des autres membres en dépendent. Les sauvegardes et les messages Discord déjà publiés ne sont pas
+modifiés (voir Durées de conservation). Vous pouvez aussi la demander au contact ci-dessous.
 
 Suspendez le suivi, désactivez une connexion facultative ou quittez le compagnon
 pour arrêter le suivi actif. Supprimer les données locales ne supprime ni vos

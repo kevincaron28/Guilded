@@ -3,6 +3,9 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import { previewAllows } from "./feature-preview.js";
+import { crafterLine, professionLegend, professionTitle, seenDot } from "./profession-style.js";
+import { professionDetailsRow } from "./profession-details.js";
+import { displayCharacterName, emptyNameBook, loadFullNameBook, type FullNameBook } from "./character-display.js";
 
 // 8.5 track D2: ONE post per profession in the craft forum, edited in place (the duel-board pattern), listing every
 // recipe and the crafters who know it with their last seen. It replaces the old "top 3 per profession" directory
@@ -11,7 +14,7 @@ import { previewAllows } from "./feature-preview.js";
 
 export const PROFESSION_POST_MARKER = "Guilded profession board";
 const THREAD_PREFIX = "📚 ";
-const DESCRIPTION_LIMIT = 3900, MAX_CRAFTERS_SHOWN = 3;
+const DESCRIPTION_LIMIT = 3900, MAX_CRAFTERS_SHOWN = 3, MAX_CRAFTER_LINES = 8;
 
 export interface ProfessionRecipe { itemKey: number; itemName: string; crafters: { character: string; lastSeen: Date | null }[] }
 export interface ProfessionPost {
@@ -25,7 +28,8 @@ type Db = Pick<PrismaClient, "professionSkill" | "recipeKnown">;
 const key = (value: string) => value.trim().toLowerCase();
 
 /** Everything the profession posts and the gallery show, grouped by profession (spelling variants merged). */
-export async function loadProfessionPosts(db: Db, guildId: string): Promise<ProfessionPost[]> {
+export async function loadProfessionPosts(db: Db, guildId: string, names: FullNameBook = emptyNameBook): Promise<ProfessionPost[]> {
+  const shown = (name: string) => displayCharacterName(name, names);
   const skills = await db.professionSkill.findMany({ where: { character: { member: { guildId, status: "ACTIVE" } } },
     select: { profession: true, skillLevel: true, character: { select: { name: true, lastSeenAt: true } } } });
   const recipes = await db.recipeKnown.findMany({ where: { guildId }, select: { character: true, profession: true, itemKey: true, itemName: true, scannedAt: true },
@@ -42,14 +46,14 @@ export async function loadProfessionPosts(db: Db, guildId: string): Promise<Prof
   };
   const newestScan = new Map<string, Date>();
   for (const row of recipes) { const current = newestScan.get(key(row.character)); if (!current || row.scannedAt > current) newestScan.set(key(row.character), row.scannedAt); }
-  for (const row of skills) post(row.profession).skilled.push({ character: row.character.name, skillLevel: row.skillLevel, lastSeen: lastSeenOf(row.character.lastSeenAt, newestScan.get(key(row.character.name))) });
+  for (const row of skills) post(row.profession).skilled.push({ character: shown(row.character.name), skillLevel: row.skillLevel, lastSeen: lastSeenOf(row.character.lastSeenAt, newestScan.get(key(row.character.name))) });
   const byItem = new Map<string, ProfessionRecipe>();
   for (const row of recipes) {
     const target = post(row.profession);
     const id = `${key(row.profession)}|${row.itemKey}`;
     let recipe = byItem.get(id);
     if (!recipe) { recipe = { itemKey: row.itemKey, itemName: row.itemName, crafters: [] }; byItem.set(id, recipe); target.recipes.push(recipe); }
-    recipe.crafters.push({ character: row.character, lastSeen: lastSeenFor(row.character, row.scannedAt) });
+    recipe.crafters.push({ character: shown(row.character), lastSeen: lastSeenFor(row.character, row.scannedAt) });
   }
   for (const entry of posts.values()) {
     entry.skilled.sort((a, b) => byLastSeen(a.lastSeen, b.lastSeen) || b.skillLevel - a.skillLevel || a.character.localeCompare(b.character));
@@ -64,25 +68,46 @@ export function professionPostEmbed(post: ProfessionPost, lang: Lang, guildId = 
   const t = (en: string, french: string) => fr ? french : en;
   const name = (value: string) => escapeMarkdown(value).slice(0, 40);
   const seen = (date: Date | null) => lastSeenText(date, lang, now);
-  const lines: string[] = [];
-  lines.push(`**${t("Crafters", "Artisans")}** (${post.skilled.length}): ${post.skilled.slice(0, 8).map(row => `${name(row.character)} ${row.skillLevel} · ${seen(row.lastSeen)}`).join(" — ") || t("none recorded", "aucun enregistré")}`);
-  const header = lines.join("\n");
-  let used = header.length;
+  const head = [professionLegend(lang), "", `**${t("Crafters", "Artisans")}** (${post.skilled.length})`];
+  if (!post.skilled.length) head.push(t("none recorded", "aucun enregistré"));
+  for (const row of post.skilled.slice(0, MAX_CRAFTER_LINES)) head.push(crafterLine({ character: row.character, skill: row.skillLevel, lastSeen: row.lastSeen }, seen(row.lastSeen), now, name));
+  if (post.skilled.length > MAX_CRAFTER_LINES) head.push(t(`…and ${post.skilled.length - MAX_CRAFTER_LINES} more`, `…et ${post.skilled.length - MAX_CRAFTER_LINES} autres`));
+  const header = head.join("\n");
+  let used = header.length + 40;
   const rows: string[] = [];
   let omitted = 0;
   for (const recipe of post.recipes) {
-    const who = recipe.crafters.slice(0, MAX_CRAFTERS_SHOWN).map(crafter => `${name(crafter.character)} (${seen(crafter.lastSeen)})`).join(", ")
+    const who = recipe.crafters.slice(0, MAX_CRAFTERS_SHOWN).map(crafter => `${seenDot(crafter.lastSeen, now)} ${name(crafter.character)}`).join(", ")
       + (recipe.crafters.length > MAX_CRAFTERS_SHOWN ? ` +${recipe.crafters.length - MAX_CRAFTERS_SHOWN}` : "");
     const line = `• **${escapeMarkdown(recipe.itemName).slice(0, 80)}** — ${who}`;
-    if (used + line.length + 1 > DESCRIPTION_LIMIT - 120) { omitted++; continue; }
+    if (used + line.length + 1 > DESCRIPTION_LIMIT - 160) { omitted++; continue; }
     rows.push(line); used += line.length + 1;
   }
-  const more = omitted ? `\n${t(`…and ${omitted} more recipes. Search them with /craft who or on the Artisans' Gallery.`, `…et ${omitted} autres recettes. Cherchez-les avec /craft who ou dans la Galerie des artisans.`)}` : "";
-  const empty = post.recipes.length ? "" : `\n${t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvrez la fenêtre de ce métier en jeu avec Guilded pour ajouter les vôtres.")}`;
-  const gallery = siteUrl ? `\n${t("Gallery", "Galerie")}: ${new URL("/me/artisans", siteUrl).href}` : "";
-  return new EmbedBuilder().setColor(0xd4af37).setTitle(`${THREAD_PREFIX}${post.profession}`.slice(0, 256))
-    .setDescription(`${header}\n\n${rows.join("\n")}${more}${empty}${gallery}`.slice(0, 4096))
+  const recipesTitle = post.recipes.length ? `
+
+**${t("Recipes", "Recettes")}** (${post.recipes.length}) — ${t("pick one below to request it or see its details", "choisissez-en une ci-dessous pour la demander ou voir ses détails")}
+` : "";
+  const more = omitted ? `
+${t(`…and ${omitted} more recipes. Search them with /craft who or on the Artisans' Gallery.`, `…et ${omitted} autres recettes. Cherchez-les avec /craft who ou dans la Galerie des artisans.`)}` : "";
+  const empty = post.recipes.length ? "" : `
+
+${t("No recipe recorded yet. Open this profession's window in game with Guilded to add yours.", "Aucune recette enregistrée. Ouvrez la fenêtre de ce métier en jeu avec Guilded pour ajouter les vôtres.")}`;
+  const gallery = siteUrl ? `
+${t("Gallery", "Galerie")}: ${new URL("/me/artisans", siteUrl).href}` : "";
+  return new EmbedBuilder().setColor(0xd4af37).setTitle(professionTitle(post.profession, lang).slice(0, 256))
+    .setDescription(`${header}${recipesTitle}${rows.join("\n")}${more}${empty}${gallery}`.slice(0, 4096))
     .setFooter({ text: `${PROFESSION_POST_MARKER} • ${guildId} • ${t("recipes come from members' profession scans · last seen from the guild roster", "recettes tirées des relevés de métiers · dernière présence selon le registre de guilde")}`.slice(0, 2048) });
+}
+
+/** Who knows one recipe, with skill and last seen, for the picker's reply. */
+export async function recipeCrafters(db: Db, guildId: string, itemKey: number): Promise<{ itemName: string; profession: string; crafters: { character: string; skill: number | null; lastSeen: Date | null }[] } | null> {
+  for (const post of await loadProfessionPosts(db, guildId)) {
+    const recipe = post.recipes.find(candidate => candidate.itemKey === itemKey);
+    if (!recipe) continue;
+    const skill = new Map(post.skilled.map(row => [key(row.character), row.skillLevel]));
+    return { itemName: recipe.itemName, profession: post.profession, crafters: recipe.crafters.map(crafter => ({ character: crafter.character, skill: skill.get(key(crafter.character)) ?? null, lastSeen: crafter.lastSeen })) };
+  }
+  return null;
 }
 
 /** The forum's profession posts by thread (title starts with the marker emoji); archived ones are opened. */
@@ -112,9 +137,11 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
   let written = 0;
   try {
     const existing = await existingPosts(forum);
-    for (const post of await loadProfessionPosts(db, guildId)) {
+    const names = await loadFullNameBook(db, guildId);
+    for (const post of await loadProfessionPosts(db, guildId, names)) {
       if (!post.skilled.length && !post.recipes.length) continue;
-      const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], allowedMentions: { parse: [] as never[] } };
+      const details = professionDetailsRow(post, lang);
+      const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
       const thread = existing.get(key(post.profession));
       if (thread) {
         const starter = await thread.fetchStarterMessage().catch(() => null);

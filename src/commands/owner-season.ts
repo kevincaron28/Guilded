@@ -1,9 +1,11 @@
-import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from "discord.js";
+import { AttachmentBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from "discord.js";
 import { prisma } from "../database.js";
 import { withEdition } from "../services/edition-context.js";
 import { activeEditions } from "../../companion/active-editions.mjs";
 import { gameEditionOf } from "../../companion/game-edition.mjs";
 import { validTimeZone, zonedInstant } from "../services/dungeon-season-schedule.js";
+import { activateSeason2, observationsEmbed, loadSeasonObservations, reviewSeason2, season2Embed } from "../services/dungeon-season2-admin.js";
+import { SEASON2_DATE, SEASON2_NAME } from "../services/dungeon-season2.js";
 import {
   cancelNextSeason, configureNextSeasonRules, loadOfficialWindows, officialWindowAt, scheduleNextSeason, scheduledNext, SeasonCalendarError, type OfficialWindow
 } from "../services/official-seasons.js";
@@ -28,6 +30,16 @@ export const ownerSeasonCommand = new SlashCommandBuilder()
   .addSubcommand(sub => sub.setName("rules").setDescription("Set reviewed dungeon rules for the next season")
     .addStringOption(o => o.setName("edition").setDescription("WoW edition").setRequired(true).addChoices(...activeEditions().map(value => ({ name: value, value }))))
     .addAttachmentOption(o => o.setName("file").setDescription("JSON with gameEdition, routes and brackets").setRequired(true)))
+  .addSubcommand(sub => sub.setName("observations").setDescription("Real completion times per dungeon this season (observation only)")
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
+  .addSubcommand(sub => sub.setName("season2-review").setDescription("Preview Season 2's targets computed from observed times (nothing is scheduled)")
+    .addStringOption(o => o.setName("evidence").setDescription("Evidence policy (default current-v2)").addChoices({ name: "current-v2", value: "current-v2" }, { name: "current-v1", value: "current-v1" }))
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
+  .addSubcommand(sub => sub.setName("season2-activate").setDescription("Schedule Season 2 (default 9 December) and store the computed targets")
+    .addStringOption(o => o.setName("date").setDescription(`Start date (default ${SEASON2_DATE.date})`))
+    .addStringOption(o => o.setName("evidence").setDescription("Evidence policy (default current-v2)").addChoices({ name: "current-v2", value: "current-v2" }, { name: "current-v1", value: "current-v1" }))
+    .addBooleanOption(o => o.setName("keep_rules").setDescription("Keep rules already uploaded for the next season"))
+    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
   .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel the next season (the current one keeps running)")
     .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))));
 
@@ -66,11 +78,21 @@ export async function executeOwnerSeason(interaction: ChatInputCommandInteractio
   }
   return withEdition(gameEditionOf({ gameEdition: interaction.options.getString("edition") ?? "forever" }), () => executeInEdition(interaction));
 }
+/** Season 2's start: the date option (YYYY-MM-DD) or the planned 9 December, at 15:00 Pacific like Season 1. */
+function season2Start(interaction: ChatInputCommandInteraction): Date {
+  const text = (interaction.options.getString("date") ?? SEASON2_DATE.date).trim();
+  const [y, m, d] = (/^(\d{4})-(\d{2})-(\d{2})$/.exec(text) ?? []).slice(1).map(Number);
+  if (!y || !m || !d) throw new SeasonCalendarError("Give the date as YYYY-MM-DD.");
+  return zonedInstant(y, m - 1, d, SEASON2_DATE.hour, SEASON2_DATE.timeZone);
+}
+const season2Policy = (interaction: ChatInputCommandInteraction) => interaction.options.getString("evidence") === "current-v1" ? "current-v1" as const : "current-v2" as const;
 async function executeInEdition(interaction: ChatInputCommandInteraction): Promise<void> {
   const sub = interaction.options.getSubcommand();
-  if (sub === "rules") await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+  if (sub === "rules" || sub === "observations" || sub === "season2-review" || sub === "season2-activate") await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const now = new Date();
   let note = "";
+  let embeds: EmbedBuilder[] | null = null;
+  let files: AttachmentBuilder[] = [];
   try {
     if (sub === "next") {
       const [y, m, d] = (/^(\d{4})-(\d{2})-(\d{2})$/.exec(interaction.options.getString("date", true).trim()) ?? []).slice(1).map(Number);
@@ -96,6 +118,20 @@ async function executeInEdition(interaction: ChatInputCommandInteraction): Promi
       try { input = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { throw new SeasonCalendarError("The attachment is not valid JSON."); }
       const count = await configureNextSeasonRules(prisma, input, now);
       note = `Saved ${count} reviewed routes for the next season. Existing seasons keep their frozen rules.`;
+    } else if (sub === "observations") {
+      const loaded = await loadSeasonObservations(prisma, now);
+      if (!loaded) throw new SeasonCalendarError("No season has started yet: nothing to observe.");
+      embeds = [observationsEmbed(loaded)];
+    } else if (sub === "season2-review") {
+      const review = await reviewSeason2(prisma, season2Start(interaction), now, season2Policy(interaction));
+      if (!review) throw new SeasonCalendarError("No season has started yet: nothing to compute from.");
+      embeds = [season2Embed(review)];
+      files = [new AttachmentBuilder(Buffer.from(JSON.stringify(review.proposal.rules, null, 2)), { name: "season2-rules.json" })];
+    } else if (sub === "season2-activate") {
+      const result = await activateSeason2(prisma, { startsAt: season2Start(interaction), name: SEASON2_NAME, actorId: interaction.user.id,
+        keepRules: interaction.options.getBoolean("keep_rules") ?? false, policy: season2Policy(interaction) }, now);
+      note = result.routes === null ? `Scheduled **${result.name}**; the rules already uploaded for it were kept.`
+        : `Scheduled **${result.name}** with ${result.routes} targets computed from this season's observed times${result.replaced ? " (replacing the rules stored before)" : ""}. Run \`/guilded-season status\` to confirm.`;
     } else if (sub === "cancel") {
       const cancelled = await cancelNextSeason(prisma, now);
       note = cancelled ? `Cancelled **${cancelled.name}**; the current season keeps running with no end.` : "No next season was scheduled.";
@@ -106,7 +142,7 @@ async function executeInEdition(interaction: ChatInputCommandInteraction): Promi
     else await interaction.reply({ content: error.message, flags: MessageFlags.Ephemeral });
     return;
   }
-  const answer = { ...(note ? { content: note } : {}), embeds: [calendarEmbed(await loadOfficialWindows(prisma), now)], allowedMentions: { parse: [] } };
+  const answer = { ...(note ? { content: note } : {}), embeds: embeds ?? [calendarEmbed(await loadOfficialWindows(prisma), now)], ...(files.length ? { files } : {}), allowedMentions: { parse: [] } };
   if (interaction.deferred) await interaction.editReply(answer);
   else await interaction.reply({ ...answer, flags: MessageFlags.Ephemeral });
 }

@@ -1,6 +1,10 @@
 import { PermissionFlagsBits, Routes, type Client, type APIGuildScheduledEvent } from "discord.js";
 
-export interface CalendarExportEvent { id: string; title: string; at: string; core: string | null; note: string }
+export interface CalendarExportEvent {
+  id: string; title: string; at: string; core: string | null; note: string;
+  // Who is down for a bot raid (name, role T/H/D, class, status S/M/W, when), for the addon's Signups page.
+  signups?: import("./signup-answers.js").AddonRaidSignup[];
+}
 
 // Discord's scheduled events and bot raid signups share the existing companion format.
 export function mergeCalendarEvents(raids: CalendarExportEvent[], events: APIGuildScheduledEvent[], now = new Date()): CalendarExportEvent[] {

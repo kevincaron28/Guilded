@@ -42,14 +42,18 @@ import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
+import { applyGuildData } from "./services/guild-data.js";
+import { applyGuildBank } from "./services/guild-bank.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
+import { deleteMyData } from "./services/data-deletion.js";
 import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
 import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
+import { promotionForAddon } from "./services/promotion-feed.js";
 import { raidPlanningStore } from "./services/raid-planning.js";
 import { createRaidPlanning } from "./services/raid-planning-page.js";
 import { readFileSync } from "node:fs";
@@ -75,6 +79,7 @@ import { createWebAvailability } from "./services/web-availability.js";
 import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
 import { createGuildToolsPages } from "./services/guild-tools-pages.js";
 import { createStatsPage } from "./services/stats-page.js";
+import { createGuildBankPage } from "./services/guild-bank-page.js";
 import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
 import { createArtisansGallery } from "./services/artisans-gallery.js";
 import { postCraftRequest } from "./commands/craft-board.js";
@@ -88,6 +93,8 @@ import { companionSignInRoute, createCompanionSignIn } from "./services/companio
 import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
+import { inviteListForAddon, pendingInvites } from "./services/invite-queue.js";
+import { completeInvitesFromRoster } from "./services/invite-channel.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
@@ -271,10 +278,10 @@ export function createSiteApp(client?: Client) {
   const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const gallery = createArtisansGallery({ db: prisma, access: guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"),
-    post: async (guildId, requestId) => {
+    post: async (guildId, requestId, askCrafter) => {
       const record = await prisma.guild.findUnique({ where: { id: guildId }, select: { discordId: true } });
       const discordGuild = record && client ? await client.guilds.fetch(record.discordId).catch(() => null) : null;
-      return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId))).posted : false;
+      return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId, askCrafter))).posted : false;
     } });
   const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows);
   const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb);
@@ -288,7 +295,7 @@ export function createSiteApp(client?: Client) {
   });
   const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
   const devices = createDevicePages(prismaDeviceStore(prisma));
-  const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
+  const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), discordUserId => deleteMyData(prisma, discordUserId));
   const raidPlanning = createRaidPlanning(raidPlanningStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), client));
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
@@ -300,7 +307,7 @@ export function createSiteApp(client?: Client) {
     status: discordUserId => memberLinkStatus(prisma, discordUserId)
   };
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, gallery.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, gallery.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
@@ -409,9 +416,18 @@ function logStandingsTiming(request: IncomingMessage, response: ServerResponse, 
   response.on("close", () => { if (!response.writableFinished) log("closed"); });
 }
 
+async function officerPromotionFeed(client: Client, guild: { id: string; discordId: string }) {
+  const discordGuild = client.guilds.cache.get(guild.discordId);
+  if (!discordGuild) return null;
+  const edition = (await prisma.guild.findUnique({ where: { id: guild.id }, select: { gameEdition: true } }))?.gameEdition ?? "forever";
+  return Promise.race([promotionForAddon(prisma, discordGuild, guild.id, edition), new Promise<null>((resolve) => setTimeout(() => resolve(null), 4_000))]);
+}
+
 // Read-only EP/GP/PR per linked character and what goes with it. The companion writes it
 // into the addon folder so /guilded standings shows the bot's numbers.
-async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string }, client?: Client): Promise<FeedParts> {
+async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string; officer?: boolean }, client?: Client): Promise<FeedParts> {
+  // Officers only: who the promotion rule says is ready (never in the shared part, never for members).
+  const promotion = access.officer && client ? await officerPromotionFeed(client, guild).catch(() => null) : null;
   // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts).
   const scheduledEvents = await calendarEventsWithin(() => discordCalendarEvents(client, guild.discordId, access.actorId),
     `${guild.discordId}:${access.actorId}`).catch(() => {
@@ -446,7 +462,9 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     // per member and dungeon/ledger acknowledgements do not change what the addon shows.
     return {
       shared: { accounts, baseGp, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
-      personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids,
+      personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids, ...(promotion ? { promotion } : {}),
+        // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
+        ...(access.officer ? { officerInvites: inviteListForAddon(await pendingInvites(database, guild.id)) } : {}),
         publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
       stampOnly: { botRaids }
     };
@@ -819,6 +837,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
       // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).
       if (access.officer) await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined);
+      // Characters in an officer's roster upload are in the guild: their waiting invite posts get a check mark.
+      if (access.officer && client) {
+        const rosterNames = [preview.snapshot.character, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name, ...(entry.displayName ? [entry.displayName] : [])] : []);
+        void completeInvitesFromRoster(client, prisma, { id: guild.id, discordId: guild.discordId }, rosterNames)
+          .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite check marks failed", error));
+      }
       if (access.officer || pairedMemberId) {
         const verified = await linkVerifiedCharacters(prisma, guild.id, { officer: access.officer, memberId: pairedMemberId }, preview.snapshot.characters)
           .catch((error: unknown) => { console.error("Linking verified characters failed", error); return []; });
@@ -826,6 +850,18 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
           void tellVerified(client, guild.discordId, asLang(language?.language), verified).catch(() => undefined);
         }
+      }
+      // 8.5: the game's guild roster, event log and MOTD from any member's upload (guild-data.ts):
+      // members without the addon reach the race board, last seen and roster gaps. Rank only from
+      // officers. No markGuildChanged: none of it is in the standings feed. Never fails the upload.
+      if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
+        await prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
+          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild data upload failed", error); });
+      }
+      // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
+      if (preview.snapshot.guildBank !== undefined) {
+        await prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
+          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild bank upload failed", error); });
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadProfessionPosts, professionPostEmbed, updateProfessionPosts } from "../src/services/profession-board.js";
-import { professionDirectoryText } from "../src/services/profession-directory.js";
+import { loadProfessionPosts, professionPostEmbed, recipeCrafters, updateProfessionPosts } from "../src/services/profession-board.js";
+import { professionDetailsRow } from "../src/services/profession-details.js";
+import { professionDirectoryText, professionNavRows } from "../src/services/profession-directory.js";
 import { findProfessionHolders } from "../src/services/profession-search.js";
 
 const NOW = new Date("2026-11-10T12:00:00Z");
@@ -33,7 +34,10 @@ describe("profession posts and last seen", () => {
   it("renders one embed per profession with last seen, in both languages, and marks itself for adoption", async () => {
     const [alchemy] = await loadProfessionPosts(db as never, "g1");
     const en = professionPostEmbed(alchemy!, "en", "g1", NOW).toJSON();
-    expect(en.description).toContain("**Elixir** — Fresh (today), Old (5 weeks ago)");
+    expect(en.title).toBe("🧪 Alchemy");
+    expect(en.description).toContain("skill (out of 300)");
+    expect(en.description).toContain("🟢 **Fresh** ▰▰▰▰▱▱▱▱ 150 · today");
+    expect(en.description).toContain("**Elixir** — 🟢 Fresh, ⚪ Old");
     expect(en.footer?.text).toContain("Guilded profession board");
     expect(professionPostEmbed(alchemy!, "fr", "g1", NOW).toJSON().description).toContain("aujourd'hui");
   });
@@ -47,7 +51,8 @@ describe("profession posts and last seen", () => {
     const holders = await findProfessionHolders(db as never, "g1", "mining");
     expect(holders[0]?.lastSeen).toEqual(ago(5));
     const text = await professionDirectoryText(db as never, "g1", "en", new Map([["alchemy", "999"]]), NOW);
-    expect(text).toContain("**Alchemy**: 2 crafters · last seen: Fresh (today) → <#999>");
+    expect(text).toContain("🧪 **Alchemy** · 2 crafters · last seen: Fresh (today) → <#999>");
+    expect(text).toContain("⛏️ **Mining** · 1 crafter");
   });
   it("stays quiet when an officer switched the posts off", async () => {
     const forum = { threads: { fetchActive: vi.fn(), create: vi.fn() } };
@@ -69,5 +74,26 @@ describe("profession posts and last seen", () => {
     expect(create).not.toHaveBeenCalled();
     expect(await updateProfessionPosts({ id: "d1" } as never, forum as never, on as never, "g1", "en", NOW)).toBe(2);
     expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps ONE Details menu under each post (25 at most) and one jump button per profession under the directory", async () => {
+    const [alchemy] = await loadProfessionPosts(db as never, "g1");
+    const row = professionDetailsRow(alchemy!, "en")!.toJSON();
+    expect((row.components[0] as { custom_id: string }).custom_id).toBe("pdet:alchemy");
+    expect((row.components[0] as { options: { value: string }[] }).options.map(option => option.value)).toEqual(["1"]);
+    const many = { profession: "Cooking", skilled: [], recipes: Array.from({ length: 60 }, (_, index) => ({ itemKey: index, itemName: `Dish ${index}`, crafters: [{ character: "Ann", lastSeen: NOW }] })) };
+    expect((professionDetailsRow(many, "en")!.toJSON().components[0] as { options: unknown[] }).options).toHaveLength(25);
+    expect(professionDetailsRow({ profession: "Mining", skilled: [], recipes: [] }, "en")).toBeNull();
+    const rows = professionNavRows(["Alchemy", "Mining", "Fishing"], new Map([["alchemy", "999"], ["mining", "1000"]]), "d1");
+    expect(rows).toHaveLength(1);
+    const buttons = rows[0]!.toJSON().components as { url: string; label: string }[];
+    expect(buttons.map(button => button.url)).toEqual(["https://discord.com/channels/d1/999", "https://discord.com/channels/d1/1000"]);
+  });
+  it("lists who can craft one recipe with skill and last seen", async () => {
+    const found = await recipeCrafters(db as never, "g1", 1);
+    expect(found?.itemName).toBe("Elixir");
+    expect(found?.profession).toBe("Alchemy");
+    expect(found?.crafters.map(crafter => [crafter.character, crafter.skill])).toEqual([["Fresh", 150], ["Old", 300]]);
+    expect(await recipeCrafters(db as never, "g1", 999)).toBeNull();
   });
 });

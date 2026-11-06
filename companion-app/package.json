@@ -41,7 +41,8 @@
       "sign-in-loopback.cjs",
       "store-update.cjs",
       "addon-installer.cjs",
-      "link-identity.cjs"
+      "link-identity.cjs",
+      "repair.cjs"
     ],
     "extraResources": [
       {
@@ -81,7 +82,8 @@
           "active-games.mjs",
           "revoke.mjs",
           "problems.mjs",
-          "sync-status.mjs"
+          "sync-status.mjs",
+          "error-detail.mjs"
         ]
       },
       {

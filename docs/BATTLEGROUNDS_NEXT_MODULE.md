@@ -22,9 +22,15 @@ release records in `docs/V8_4_0_RELEASE_ACCEPTANCE.md` and `docs/archive/` hold 
   **battleground ladder** (`bg-ladder.ts`: consented player reports per mode and bracket, wins, losses, draws, win rate,
   games; the capture records no kills, so none are shown; labelled player reports, not verified matches).
   `/battleground bg-ladder enabled:false` switches the second one off.
-- **Where they live.** `pvp-ladder` is the same channel as the 8.4 statistics channel
-  (`bgStatsChannelId`): it holds the static statistics panel and the two live ladders
-  (`/battleground duel-board`, `/battleground bg-ladder`).
+- **Where they live (owner batch 3 #10: duels and battlegrounds are separate).** The **duel ladder** has its own channel,
+  `duel-ladder` / `classement-duels` (`GuildSettings.duelBoardChannelId`, no static panel: the live board is the content).
+  The **battleground ladder** stays in the statistics channel (`bgStatsChannelId`), which new servers get as `bg-ladder` /
+  `classement-cdb`; the earlier names `battleground-statistics`, `statistiques-jcj`, `pvp-ladder` and `classement-pvp` are
+  still adopted. In Québec Gold the existing `statistiques-jcj` is adopted for the battleground ladder (the less disruptive
+  side: its panel and history stay) and `/setup` creates only `duel-ladder`; a re-run never duplicates either. The duel
+  board posts only once `duelBoardChannelId` exists. When it first posts in its new channel the bot deletes its own old
+  duel board message in the statistics channel. Outputs were already separate: `/bg duels` (duel leaderboard) and
+  `/bg stats` / `/bg result` (battleground reports).
 - **Arena capture: later.** Owner decision (6 November 2026): the "arena module" means this
   battleground/duel PvP module, so 8.5 builds no arena capture. If Forever arenas are ever
   confirmed in the live client (`IsActiveBattlefieldArena`, `GetBattlefieldTeamInfo`), a bracket
@@ -126,3 +132,12 @@ requires a capability-checked postmatch adapter; Forever live verification canno
 run before November 4. Unsupported adapters remain disabled, and provisional
 evidence cannot grant competitive points or trigger public sends. This sequence
 does not remove the remaining features from scope.
+
+## PvP group finder (9.0)
+
+The pvp-groups channel works like the dungeon group finder: **Create** (any member) opens a form (what/when, size 2-40, levels)
+and posts one message per group with the same `dgrp:` buttons (Tank/Healer/DPS, Leave, Start now, Close), a waiting list when
+full, an optional private voice channel, the `LFG PvP` role ping, group alerts, and a 24-hour auto-expiry. It is a normal
+`DungeonGroup` of kind `PVP` (`src/services/pvp-group.ts`, `src/commands/pvp-group.ts`). **Who's looking** lists the open groups
+with who is in and waiting; **My groups** and **Upcoming** list finder groups first, then planned sessions. Planned,
+scheduled sessions stay on `/bg create` (activity core). Needs a real Discord check (post, buttons, expiry).

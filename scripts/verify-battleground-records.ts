@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createPrismaClient } from "../src/database.js";
-import { battlegroundHistory, battlegroundStats, correctBattlegroundReport, importBattlegroundReports, setBattlegroundConsent } from "../src/services/battleground-records.js";
+import { battlegroundHistory, battlegroundStats, correctBattlegroundReport, importBattlegroundReports } from "../src/services/battleground-records.js";
 import { createAddonImportService } from "../src/services/addon-import.js";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 
@@ -17,7 +17,6 @@ try {
     characters: { create: { guildId: guild.id, gameEdition: "forever", name, realm: "Forever", className: "Mage" } }
   }, include: { characters: true } })));
   const [one, two, three] = people; assert(one && two && three);
-  for (const person of people) await setBattlegroundConsent(db, guild.id, person.id, { capture: true, guildStats: true }, start);
   const report = { version: 1, reportId: "match-report-001", adapter: "forever-postmatch-v1", edition: "forever",
     character: "One", realm: "Forever", realmType: "normal", mode: "casual", mapId: 489, bracket: "60",
     endedAt: now.getTime() / 1000 - 60, durationSeconds: 600, outcome: "win", presence: "complete", reloaded: false,
@@ -31,36 +30,24 @@ try {
   const pair = await db.battlegroundReport.findMany({ where: { guildId: guild.id } });
   assert.equal(pair.length, 2); assert(pair.every(r => r.corroborated && r.status === "PROVISIONAL"));
   const scope = { edition: "forever", mode: "casual", bracket: "60", startsAt: start, endsAt: now };
-  let stats = await battlegroundStats(db, guild.id, scope);
+  const stats = await battlegroundStats(db, guild.id, scope);
   assert.equal(stats.participations, 2); assert.equal(stats.wins, 2); assert.equal(stats.verifiedMatches, null);
-  await setBattlegroundConsent(other, guild.id, two.id, { capture: true, guildStats: false }, now);
-  assert.equal((await battlegroundStats(db, guild.id, scope)).participations, 1, "revoked stats consent applies immediately");
-  await setBattlegroundConsent(other, guild.id, two.id, { capture: false, guildStats: false }, now);
   await ingest(db, three.id, [{ ...report, character: "Three", reportId: "match-report-003" }]);
-  assert.equal((await db.battlegroundReport.findFirstOrThrow({ where: { guildId: guild.id, memberId: two.id } })).corroborated, false,
-    "a new peer must not recorroborate a revoked participant");
   await ingest(db, one.id, [{ ...report, outcome: "loss" }]);
-  assert((await db.battlegroundReport.findMany({ where: { guildId: guild.id } })).every(r => r.status === "CONFLICT"));
-  assert.equal((await battlegroundStats(db, guild.id, scope)).participations, 0);
+  assert.equal((await db.battlegroundReport.findFirstOrThrow({ where: { guildId: guild.id, memberId: one.id } })).status, "CONFLICT");
   await correctBattlegroundReport(db, guild.id, one.id, report.reportId, "Fixture correction");
   await ingest(db, one.id, [report]);
   assert.equal((await battlegroundHistory(db, guild.id, one.id, report.reportId))[0]?.status, "WITHDRAWN");
   await assert.rejects(correctBattlegroundReport(db, guild.id, two.id, report.reportId, "Not mine"));
-  await setBattlegroundConsent(db, guild.id, one.id, { capture: false, guildStats: false }, now);
-  assert.equal((await ingest(other, one.id, [{ ...report, reportId: "match-report-003" }])).rejected, 1);
-  stats = await battlegroundStats(db, guild.id, scope); assert.equal(stats.winRate, null);
-  // Staging must acquire the same consent lock before reading and persisting.
-  await setBattlegroundConsent(db, guild.id, one.id, { capture: true, guildStats: false }, start);
   const staging: { pending?: ReturnType<ReturnType<typeof createAddonImportService>["record"]> } = {};
   await db.$transaction(async tx => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guild.id}, 0))`;
-    await tx.battlegroundConsent.update({ where: { memberId: one.id }, data: { capture: false, guildStats: false } });
     staging.pending = createAddonImportService(other).record(guild.id, parseAddonSnapshot({ source: "BG fixture", gameEdition: "forever",
       exportedAt: now.toISOString(), battlegroundReports: [report] }), "bg-staging-race", one.discordUserId, one.id);
   });
   assert(staging.pending); const stagedRow = await staging.pending;
-  assert.deepEqual((stagedRow.payload as { battlegroundReports: unknown[] }).battlegroundReports, []);
-  console.log("BG concurrent replay, own-character consent, provisional corroboration/conflicts, scoped statistics and withdrawal passed.");
+  assert.equal((stagedRow.payload as { battlegroundReports: unknown[] }).battlegroundReports.length, 1, "the member's own report is staged (no consent switch)");
+  console.log("BG concurrent replay, own-character ownership, provisional corroboration/conflicts, scoped statistics and withdrawal passed.");
 } finally {
   await db.guild.delete({ where: { id: guild.id } });
   await Promise.all([db.$disconnect(), other.$disconnect()]);

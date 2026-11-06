@@ -6,12 +6,14 @@ import { BG_SETUP_NAMES, PVP_SETUP_NAMES } from "../setup-names.js";
 import { loadGuildScope, runInGuildScope } from "./guild-scope.js";
 import { previewAllows } from "./feature-preview.js";
 
-export const BG_SETUP_PARTS = ["groups", "results", "stats"] as const;
+export const BG_SETUP_PARTS = ["groups", "results", "stats", "duels"] as const;
 export type BgSetupPart = typeof BG_SETUP_PARTS[number];
 export const BG_SETUP_FIELDS = {
   groups: { channel: "bgGroupsChannelId", message: "bgGroupsMessageId" },
   results: { channel: "bgResultsChannelId", message: "bgResultsMessageId" },
-  stats: { channel: "bgStatsChannelId", message: "bgStatsMessageId" }
+  stats: { channel: "bgStatsChannelId", message: "bgStatsMessageId" },
+  // The duel ladder's own channel. Its message is the live board (edited by duel-board.ts), not a static panel.
+  duels: { channel: "duelBoardChannelId", message: "duelBoardMessageId" }
 } as const;
 // Reviewed legacy installation: adopt only the default scope of this exact server.
 export const QG_BG_ADOPTION = {
@@ -21,20 +23,25 @@ export const QG_BG_ADOPTION = {
   results: { channel: "1565740144299081798", message: "1565740366987005953" }
 } as const;
 /** Every name a PvP channel may already have: the 8.4 battleground names and the 8.5 PvP names, in both languages. */
-export const pvpChannelNames = (part: BgSetupPart): string[] => [BG_SETUP_NAMES.en[part], BG_SETUP_NAMES.fr[part], PVP_SETUP_NAMES.en[part], PVP_SETUP_NAMES.fr[part]];
+export const pvpChannelNames = (part: BgSetupPart): string[] => part === "duels"
+  ? [PVP_SETUP_NAMES.en.duels, PVP_SETUP_NAMES.fr.duels]
+  : [BG_SETUP_NAMES.en[part], BG_SETUP_NAMES.fr[part], PVP_SETUP_NAMES.en[part], PVP_SETUP_NAMES.fr[part],
+    ...(part === "stats" ? [PVP_SETUP_NAMES.en.legacyStats, PVP_SETUP_NAMES.fr.legacyStats] : [])];
+/** The panel parts: every part except the duel ladder, whose message is the live board. */
+export type BgPanelPart = Exclude<BgSetupPart, "duels">;
 const queues = new Map<string, Promise<unknown>>();
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 const posting = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks];
 
-export function bgSetupPanel(part: BgSetupPart, guildId: string, lang: Lang) {
+export function bgSetupPanel(part: BgPanelPart, guildId: string, lang: Lang) {
   const fr = lang === "fr";
   const marker = `Guilded BG setup • ${guildId} • ${part}`;
   const texts = {
-    groups: fr ? "Créez ou rejoignez un groupe JcJ. Chaque joueur choisit sa participation. Aucun résultat, point ou récompense automatique." : "Create or join a PvP group. Each player chooses their participation. No automatic results, points or rewards.",
-    results: fr ? "Mes résultats ouvre votre historique privé. /bg result affiche une fiche; /bg correct retire un rapport des statistiques. Capture et contribution aux statistiques exigent votre consentement dans /bg privacy. Rapports provisoires, sans classement officiel." : "My results opens your private history. /bg result shows a card; /bg correct withdraws a report from statistics. Capture and statistics contribution require your consent in /bg privacy. Provisional reports, no official ranking.",
+    groups: fr ? "Cherchez un groupe JcJ ? Créez-en un (tout membre) : il a son propre message ici avec les boutons Tank/Soigneur/DPS, une liste d'attente, un salon vocal facultatif, et expire après 24 h. Qui cherche liste les groupes ouverts. Aucun résultat, point ou récompense automatique." : "Looking for a PvP group? Create one (any member): it gets its own post here with Tank/Healer/DPS buttons, a waiting list, an optional voice channel, and expires after 24 hours. Who's looking lists the open groups. No automatic results, points or rewards.",
+    results: fr ? "Mes résultats ouvre votre historique privé. /bg result affiche une fiche; /bg correct retire un rapport des statistiques. Tout est partagé, sans réglage de confidentialité. Rapports provisoires, sans classement officiel." : "My results opens your private history. /bg result shows a card; /bg correct withdraws a report from statistics. Everything is shared, with no privacy setting. Provisional reports, no official ranking.",
     stats: fr ? "Statistiques de participations provisoires, pas de matchs uniques certifiés ni de MMR. Choisissez édition/saison, mode et identifiant API du bracket provenant de /bg result (pas une tranche de niveaux vérifiée). Seuls les membres consentants contribuent; conflits et retraits sont exclus." : "Provisional participation statistics, not certified unique matches or MMR. Choose edition/season, mode and the API bracket identifier from /bg result (not a verified level range). Only consenting members contribute; conflicts and withdrawals are excluded."
   };
-  const actions = part === "groups" ? [["create", fr ? "Créer" : "Create"], ["join", fr ? "Rejoindre" : "Join"], ["mine", fr ? "Mes groupes" : "My groups"], ["upcoming", fr ? "À venir" : "Upcoming"]]
+  const actions = part === "groups" ? [["create", fr ? "Créer" : "Create"], ["looking", fr ? "Qui cherche" : "Who's looking"], ["mine", fr ? "Mes groupes" : "My groups"], ["upcoming", fr ? "À venir" : "Upcoming"]]
     : part === "results" ? [["history", fr ? "Mes résultats" : "My results"], ["privacy-help", fr ? "Confidentialité" : "Privacy"]]
     : [["stats", fr ? "Statistiques" : "Statistics"], ["privacy-help", fr ? "Confidentialité" : "Privacy"]];
   return { content: texts[part], embeds: [{ footer: { text: marker }, description: fr ? "Panneau statique • réponses personnelles privées" : "Static panel • private personal responses" }],
@@ -64,7 +71,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     // Match every ownership source used by interactionGuildScope, for channels AND parents.
     const [other, core, activity, binding] = await Promise.all([
       db.guildSettings.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, OR: [
-        "raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"
+        "raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId", "duelBoardChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"
       ].map(f => ({ [f]: id })) } }),
       db.raidCore.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, OR: ["categoryId", "rosterChannelId", "signupChannelId", "lootChannelId", "raidLogChannelId", "chatChannelId", "voiceChannelId", "attendanceChannelId"].map(f => ({ [f]: id })) } }),
       db.activityCore.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, channelId: id } }),
@@ -144,7 +151,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
   for (const part of selection ? [selection.part] : BG_SETUP_PARTS) {
     const fields = BG_SETUP_FIELDS[part];
     let id = settings[fields.channel];
-    if (!id && legacy && !selection) {
+    if (!id && legacy && !selection && part !== "duels") {
       const old = await fetchChannel(legacy[part].channel);
       if (old.type !== ChannelType.GuildText || old.parentId !== categoryId) fail("Legacy layout changed. Select channels manually.", "La disposition précédente a changé. Choisissez les salons manuellement.");
       id = old.id;
@@ -175,7 +182,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
         const bot = overwrites.find(o => o.id === me.id);
         if (bot) { bot.allow |= botAllow; bot.deny &= ~botAllow; }
         else overwrites.push({ id: me.id, type: 1, allow: botAllow, deny: 0n });
-        const created = await guild.channels.create({ name: PVP_SETUP_NAMES[lang][part], type: ChannelType.GuildText, parent: category.id,
+        const created = await guild.channels.create({ name: PVP_SETUP_NAMES[lang][part === "duels" ? "duels" : part], type: ChannelType.GuildText, parent: category.id,
           permissionOverwrites: overwrites, reason: "Guilded optional battleground setup" });
         id = created.id;
       }
@@ -184,6 +191,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     const channel = await fetchChannel(id!);
     if (channel.type !== ChannelType.GuildText || !channel.permissionsFor(me)?.has(posting)) fail("Cannot post this panel. Grant view/history/send/embed access or select another channel.", "Impossible de publier ce panneau. Accordez voir/historique/envoyer/liens ou choisissez un autre salon.");
     const text = channel as TextChannel;
+    if (part === "duels") { notes.push(`<#${text.id}>`); continue; }
     const payload = bgSetupPanel(part, guildId, lang);
     const marker = `Guilded BG setup • ${guildId} • ${part}`;
     const savedId = settings[fields.message];

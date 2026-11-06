@@ -1608,7 +1608,7 @@ ns.MODULES = {
   { key = "reserve", name = "Soft reserves", desc = "reserve items for a raid, see who reserved what", commands = { "reserve", "res" } },
   { key = "recipes", name = "Recipes and cooldowns", desc = "who can craft what, profession cooldowns", commands = { "recipes", "cooldowns" } },
   { key = "dungeon", name = "Dungeons", desc = "dungeon run tracking and points", commands = { "dungeon" } },
-  { key = "battleground", name = "Battleground capture", desc = "opt-in provisional own-character postmatch capture", commands = { "bgcapture" } },
+  { key = "battleground", name = "Battleground capture", desc = "provisional own-character postmatch capture (always on where supported)", commands = { "bgcapture" } },
   { key = "calendar", name = "Calendar", desc = "guild calendar check", commands = { "calendar" } },
   { key = "syncnow", name = "Send to Discord", desc = "a Send to Discord button and reminder so the companion uploads sooner", commands = { "sync" } },
   { key = "autoinvite", name = "Auto-invite", desc = "guild invite when someone whispers a phrase", commands = { "autoinvite", "invite" } },
@@ -1627,6 +1627,7 @@ ns.MODULES = {
   { key = "guildbank", name = "Guild bank snapshot", desc = "what the guild bank held when it was last opened", commands = { "gbank" } },
   { key = "pugcheck", name = "Pug gear check", desc = "item level and missing enchants of group members from outside the guild", commands = { "pugcheck" } },
   { key = "milestones", name = "Milestone announcements", desc = "level, first dungeon clear, honorable kills and duel wins in guild chat, if you turn them on", commands = { "milestones", "announce" } },
+  { key = "raidsignup", name = "Raid sign-up", desc = "sign up for guild raids in game, with role and class counts", commands = { "signups" } },
   { key = "duels", name = "Guild duels", desc = "duel results between guildmates and a leaderboard", commands = { "duels" } },
   { key = "imports", name = "Loot imports", desc = "softres.it lists and That's My BiS priorities", commands = { "import", "tmb" } },
 }

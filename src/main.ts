@@ -5,7 +5,6 @@ import { dispatchGroupWatches } from "./services/group-watch-discord.js";
 import { BG_PREFIX, executeBattleground, handleBattlegroundComponent } from "./commands/battleground.js";
 import "./services/diagnostic-console.js";
 import { GAME_EDITIONS } from "../companion/game-edition.mjs";
-import { badgeCommandsForGuild } from "./services/community-badge-policy.js";
 import { withEdition } from "./services/edition-context.js";
 import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, withGuildScope, forEachGuildScope } from "./services/guild-scope.js";
 import { executeWow } from "./commands/wow.js";
@@ -66,12 +65,18 @@ import { ACHIEVEMENT_SHARE_PREFIX, handleAchievementShare } from "./commands/ach
 import { syncAllRankRoles } from "./services/rank-roles.js";
 import { syncAllNicknames } from "./services/nickname-sync.js";
 import { postAllWeeklyPromotions } from "./services/promotion.js";
+import { sendRecruitReminders } from "./services/recruiting-kit.js";
+import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
+import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
+import { handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { updateWhosWhoBoard } from "./services/whos-who-board.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
 import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
-import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
+import { CRAFT_PREFIX, handleCraftButton, handleCraftModal, handleCraftSelect } from "./commands/craft-board.js";
+import { handleProfessionDetails } from "./commands/profession-details.js";
+import { PROFESSION_DETAILS_PREFIX } from "./services/profession-details.js";
 import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
 } from "./commands/dungeon-group.js";
@@ -101,7 +106,8 @@ import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
-import { executeOwnerPreviews, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
+import { executeOwnerPreviews, handleItemPreviewButton, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
+import { ITEM_PREVIEW_PREFIX } from "./services/item-preview-step0.js";
 import { handlePreviewMessage } from "./services/item-preview.js";
 import { CachedItemProvider, nullItemDataProvider, PreviewGate } from "./services/item-preview-data.js";
 import { botOwnerId, executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
@@ -148,10 +154,10 @@ import { logMessageDelete, logMessageEdit } from "./services/message-log.js";
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildVoiceStates, GatewayIntentBits.GuildMessageReactions, GatewayIntentBits.DirectMessages,
     ...(config.MESSAGE_CONTENT_INTENT ? [GatewayIntentBits.MessageContent] : [])
   ],
-  partials: [Partials.Message, Partials.Reaction, Partials.User]
+  partials: [Partials.Message, Partials.Reaction, Partials.User, Partials.Channel]
 });
 const participationTracker = createParticipationTracker(prisma, config.MESSAGE_CONTENT_INTENT);
 // Numbers-only activity totals for the message, voice and reaction achievements (never message text).
@@ -324,7 +330,10 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void syncAllRankRoles(prisma, readyClient.guilds.cache.values(), reportJobError("Rank roles")), 60 * 60_000);
   // Opt-in (off until an officer turns it on): member nicknames follow "Name (Main)".
   // On by default: at most one weekly "Ready to promote" list per server, only when someone is ready.
+  setInterval(() => void sendRecruitReminders(readyClient, prisma).catch(reportJobError("Recruiting cooldown reminders")), 60 * 60_000);
   setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
+  // 9.0, on by default: at most one weekly guild bank summary per server, only when the bank moved.
+  setInterval(() => void postAllWeeklyGuildBanks(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly guild bank")), 60 * 60_000);
   setInterval(() => void syncAllNicknames(prisma, readyClient.guilds.cache.values(), reportJobError("Nickname sync")), 60 * 60_000);
   // Crafter offers past their time are closed (a no-op for servers that never turned them on).
   setInterval(() => void sweepCraftOffers(readyClient).catch(reportJobError("Craft offer expiry")), 10 * 60_000);
@@ -582,6 +591,11 @@ client.on(Events.GuildMemberRemove, async (member) => {
   }
 });
 
+// The guild-invite channel (8.5 batch 3): reactions and the World of Warcraft role DM do not need message text.
+client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void handleInviteReaction(client, prisma, reaction, user).catch(reportJobError("Guild invite reaction", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
+client.on(Events.GuildMemberUpdate, (before, after) => { if (hostedPilot.allows(after.guild.id)) void handleWowRoleGiven(before, after, prisma).catch(reportJobError("Guild invite DM", { guildId: after.guild.id })); });
+// A plain DM that looks like a full name, from a member the role DM asked (DirectMessages is not a privileged intent).
+client.on(Events.MessageCreate, message => { if (!message.guildId && !message.author.bot) void handleInviteDm(message, prisma).catch(reportJobError("Guild invite DM reply")); });
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void activityTotals.message(message).catch(reportJobError("Activity totals messages", { guildId: message.guildId, channelId: message.channelId })); });
 client.on(Events.MessageReactionAdd, (reaction, user) => { if (reaction.message.guildId && hostedPilot.allows(reaction.message.guildId)) void activityTotals.reaction(reaction, user).catch(reportJobError("Activity totals reactions", { guildId: reaction.message.guildId, channelId: reaction.message.channelId })); });
 client.on(Events.MessageCreate, message => { if (message.guildId && hostedPilot.allows(message.guildId)) void participationTracker.message(message).catch(reportJobError("Participation messages", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });
@@ -605,12 +619,13 @@ client.on(Events.ShardReconnecting, () => participationTracker.reset());
 client.on(Events.ShardResume, () => participationTracker.reset());
 // The answer channel (5.0): only when the bot may read message text.
 if (config.MESSAGE_CONTENT_INTENT) {
+  client.on(Events.MessageCreate, (message) => { if (message.guildId && hostedPilot.allows(message.guildId)) void handleInviteMessage(message, prisma).catch(reportJobError("Guild invite post", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });
   // Discord-only item previews (docs/ITEM_PREVIEWS.md): inert until an owner enables a server.
   const previewGate = new PreviewGate();
   const previewProvider = new CachedItemProvider(nullItemDataProvider);
   const previewBackoff = new Map<string, number>();
   client.on(Events.MessageCreate, (message) => {
-    if (!message.guildId || !hostedPilot.allows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket
+    if (!message.guildId || !hostedPilot.allows(message.guildId) || !previewAllows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket
     void handlePreviewMessage({
       loadConfig: (discordGuildId) => prisma.itemPreviewConfig.findUnique({ where: { discordGuildId } }),
       disable: async (discordGuildId, reason) => { await prisma.itemPreviewConfig.updateMany({ where: { discordGuildId }, data: { enabled: false, disabledReason: reason } }); },
@@ -636,7 +651,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
 client.on(Events.InteractionCreate, async interaction => {
   try {
     const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_PREVIEWS_COMMAND, OWNER_CONSOLE_COMMAND];
-    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, PUG_PREFIX, CONSOLE_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, INVITE_REQUEST_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
     const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
@@ -662,6 +677,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   // The owner's private console: every id is owner-checked inside, in the home server only.
   if ("customId" in interaction && interaction.customId.startsWith(CONSOLE_PREFIX)) {
     await ownerConsole.handle(interaction).catch((error: unknown) => reportInteractionError("Owner console", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(ITEM_PREVIEW_PREFIX)) {
+    await handleItemPreviewButton(interaction).catch((error: unknown) => reportInteractionError("Item preview step 0", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(PILOT_REQUEST_PREFIX)) {
@@ -748,6 +767,15 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     });
     return;
   }
+  if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(INVITE_REQUEST_PREFIX)) {
+    await handleInviteRequestInteraction(interaction, prisma).catch(async (error: unknown) => {
+      reportInteractionError("Guild invite request", interaction, error);
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    });
+    return;
+  }
   if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(ONBOARD_PREFIX)) {
     await handleOnboardingInteraction(interaction).catch(async (error: unknown) => {
       reportInteractionError("Onboarding", interaction, error);
@@ -781,6 +809,14 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isButton() && interaction.customId.startsWith(OFFER_PREFIX)) {
     await handleOfferButton(interaction).catch((error: unknown) => reportInteractionError("Craft offer button", interaction, error));
+    return;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`)) {
+    await handleCraftSelect(interaction).catch((error: unknown) => reportInteractionError("Craft menu", interaction, error));
+    return;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(PROFESSION_DETAILS_PREFIX)) {
+    await handleProfessionDetails(interaction).catch((error: unknown) => reportInteractionError("Profession details", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(CRAFT_PREFIX)) {
@@ -962,7 +998,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
   const full = [...body, ...(guildId === config.DISCORD_GUILD_ID ? [ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON(), ownerPreviewsCommand.toJSON()] : []), ...(guildId === config.OWNER_CONSOLE_GUILD_ID ? [ownerConsoleCommand.toJSON()] : [])];
-  await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: badgeCommandsForGuild(guildId, full) });
+  await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: full });
 }
 
 // Commands are per-guild, so every server the bot is in needs them registered.

@@ -85,7 +85,7 @@ export function createStatsPage(database: PrismaClient, access: GuildDashboardAc
         : statsBody(await recentSnapshots(database, guildId, days), t)
           + `<p>${t("Want these in Google Sheets? An officer runs /officer stats feed and pastes the address into =IMPORTDATA(\"…\").", "Dans Google Sheets? Un officier lance /officer stats feed et colle l'adresse dans =IMPORTDATA(\"…\").")}</p>`;
       const style = `<style>.stat-chart{margin:1rem 0}.stat-chart figcaption{font-weight:600}.stat-key{display:inline-block;margin-right:1rem;font-size:.9em}.stat-key i{display:inline-block;width:.8em;height:.8em;margin-right:.3em;border-radius:2px}</style>`;
-      const header = `<h1>${title}</h1><p><strong>${h(guild.name)}</strong> · ${h(guild.edition)} · <a href="${h(link("/me/statistics", lang))}">${t("Choose another guild", "Choisir une autre guilde")}</a></p>`
+      const header = `<h1>${title}</h1><p><strong>${h(guild.name)}</strong> · ${h(guild.edition)} · <a href="${h(link("/me/statistics", lang))}">${t("Choose another guild", "Choisir une autre guilde")}</a> · <a href="${h(link("/me/guild-bank", lang, { guild: guild.id, edition: guild.edition }))}">${t("Guild bank", "Banque de guilde")}</a></p>`
         + `<p>${[7, 30, 90, 365].map(n => n === days ? `<strong>${n} ${t("days", "jours")}</strong>` : `<a href="${h(link("/me/statistics", lang, { guild: guild.id, edition: guild.edition, days: String(n) }))}">${n} ${t("days", "jours")}</a>`).join(" · ")}</p>`;
       return kit.page(200, title, style + header + body, { noindex: true, languageParams: { guild: guild.id, edition: guild.edition } });
     } catch {

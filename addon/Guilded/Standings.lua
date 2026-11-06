@@ -6,4 +6,6 @@ GuildedStandings = {
   players = {}
 }
 
+GuildedPromotion = nil
+
 GuildedItems = nil

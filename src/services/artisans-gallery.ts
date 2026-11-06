@@ -1,6 +1,11 @@
+import { armoryAnchor } from "./armory-link.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import { createCraftService } from "./craft.js";
+import { displayCharacterName, fullNameBook } from "./character-display.js";
+import { itemDetailLines, itemDetails } from "./item-details.js";
+import type { ItemDataProvider } from "./item-preview-data.js";
+import { professionEmoji, professionLegend, professionName, seenDot, skillBar } from "./profession-style.js";
 import type { GuildDashboardAccess } from "./guild-dashboard-access.js";
 import { escapeHtml as h, link, SECURITY_HEADERS } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
@@ -21,7 +26,6 @@ export interface GalleryOffer { id: string; crafter: string; price: string | nul
 export interface GalleryRecipe { itemKey: number; itemName: string; crafters: GalleryCrafter[]; offers: GalleryOffer[] }
 export interface CrafterCard { character: string; member: string | null; lastSeen: Date | null; professions: { profession: string; skill: number | null }[]; recipeCount: number; notable: string[]; cooldownsReady: string[] }
 export interface GalleryData { recipes: GalleryRecipe[]; crafters: CrafterCard[]; truncated: boolean }
-export interface ItemDetailsLookup { (itemKey: number): Promise<{ quality?: number } | null> }
 
 const key = (value: string) => value.trim().toLowerCase();
 
@@ -30,6 +34,8 @@ export async function loadGallery(db: Db, guildId: string, query: string, now = 
   const text = query.trim();
   const people = await db.character.findMany({ where: { member: { guildId, status: "ACTIVE", isTest: false } }, select: { name: true, lastSeenAt: true, member: { select: { displayName: true } } }, take: 3_000 });
   const personByName = new Map(people.map(person => [key(person.name), person]));
+  const book = fullNameBook(people);
+  const shown = (name: string) => displayCharacterName(name, book);
   const skills = await db.professionSkill.findMany({ where: { character: { member: { guildId, status: "ACTIVE", isTest: false } } }, select: { profession: true, skillLevel: true, character: { select: { name: true } } }, take: 6_000 });
   const skillOf = new Map(skills.map(row => [`${key(row.character.name)}|${key(row.profession)}`, row.skillLevel]));
   // Crafters whose name (or Discord name) matches the search, so "Kev" lists what Kev can make.
@@ -44,7 +50,7 @@ export async function loadGallery(db: Db, guildId: string, query: string, now = 
     const person = personByName.get(key(row.character));
     let recipe = byItem.get(row.itemKey);
     if (!recipe) { recipe = { itemKey: row.itemKey, itemName: row.itemName, crafters: [], offers: [] }; byItem.set(row.itemKey, recipe); }
-    if (recipe.crafters.length < MAX_CRAFTERS_PER_RECIPE) recipe.crafters.push({ character: row.character, member: person?.member.displayName ?? null, profession: row.profession,
+    if (recipe.crafters.length < MAX_CRAFTERS_PER_RECIPE) recipe.crafters.push({ character: shown(row.character), member: person?.member.displayName ?? null, profession: row.profession,
       skill: skillOf.get(`${key(row.character)}|${key(row.profession)}`) ?? null, lastSeen: lastSeenOf(person?.lastSeenAt, row.scannedAt) });
   }
   const recipes = [...byItem.values()].slice(0, MAX_RECIPES);
@@ -69,7 +75,7 @@ export async function loadGallery(db: Db, guildId: string, query: string, now = 
   const cards = new Map<string, CrafterCard>();
   const card = (name: string): CrafterCard => {
     let existing = cards.get(key(name));
-    if (!existing) { const person = personByName.get(key(name)); existing = { character: person?.name ?? name, member: person?.member.displayName ?? null, lastSeen: person?.lastSeenAt ?? null, professions: [], recipeCount: 0, notable: [], cooldownsReady: [] }; cards.set(key(name), existing); }
+    if (!existing) { const person = personByName.get(key(name)); existing = { character: shown(person?.name ?? name), member: person?.member.displayName ?? null, lastSeen: person?.lastSeenAt ?? null, professions: [], recipeCount: 0, notable: [], cooldownsReady: [] }; cards.set(key(name), existing); }
     return existing;
   };
   for (const row of skills) if (cardNames.has(key(row.character.name))) card(row.character.name).professions.push({ profession: row.profession, skill: row.skillLevel });
@@ -96,8 +102,9 @@ export interface GalleryDeps {
   db: Db & Pick<PrismaClient, "craftRequest">;
   access: Pick<GuildDashboardAccess, "authorize" | "guilds">;
   /** Posts a new request to the craft board in Discord (false when there is no forum). */
-  post(guildId: string, requestId: string): Promise<boolean>;
-  details?: ItemDetailsLookup;
+  post(guildId: string, requestId: string, askCrafter?: string): Promise<boolean>;
+  /** Item data for Details; the default knows nothing, so Details shows the item id and a link. */
+  items?: ItemDataProvider;
 }
 
 export function createArtisansGallery(deps: GalleryDeps) {
@@ -130,7 +137,8 @@ export function createArtisansGallery(deps: GalleryDeps) {
           if (!member) throw new Error(t("The gallery is only for members of this guild.", "La galerie est réservée aux membres de cette guilde."));
           const created = await craft.request({ guildId, requesterId: member.id, item: ctx.form?.get("item") ?? "", profession: ctx.form?.get("profession") ?? undefined,
             quantity: Number.isFinite(quantity) ? quantity : 1, note: (ctx.form?.get("note") ?? "").slice(0, 300) || undefined, materialsProvided: ctx.form?.get("materials") === "on" });
-          const posted = await deps.post(guildId, created.id).catch(() => false);
+          const askCrafter = (ctx.form?.get("crafter") ?? "").trim().slice(0, 40) || undefined;
+          const posted = await deps.post(guildId, created.id, askCrafter).catch(() => false);
           return kit.redirect(link(GALLERY_PATH, lang, { ...params, q, requested: posted ? "posted" : "saved" }));
         } catch (error) { notice = error instanceof Error ? error.message : t("The request could not be sent.", "La demande n'a pas pu être envoyée."); failed = true; }
       }
@@ -139,23 +147,28 @@ export function createArtisansGallery(deps: GalleryDeps) {
       const data = await loadGallery(deps.db, guildId, q, ctx.now);
       const hidden = `<input type="hidden" name="guild" value="${h(guild.id)}"><input type="hidden" name="edition" value="${h(guild.edition)}"><input type="hidden" name="lang" value="${lang}">`;
       const seen = (date: Date | null) => h(lastSeenText(date, lang, ctx.now));
+      const requestForm = (recipe: GalleryRecipe, crafter: GalleryCrafter | null, extra: string) => `<form method="post" action="${h(link(GALLERY_PATH, lang))}"${crafter ? ` class="inline"` : ""}><input type="hidden" name="csrf" value="${h(ctx.csrf ?? "")}">${hidden}<input type="hidden" name="q" value="${h(q)}"><input type="hidden" name="item" value="${h(recipe.itemName)}"><input type="hidden" name="profession" value="${h(crafter?.profession ?? recipe.crafters[0]?.profession ?? "")}">${crafter ? `<input type="hidden" name="crafter" value="${h(crafter.character)}"><input type="hidden" name="quantity" value="1">` : ""}${extra}</form>`;
       const recipeCards = await Promise.all(data.recipes.map(async recipe => {
-        const details = await deps.details?.(recipe.itemKey).catch(() => null);
-        const color = details?.quality !== undefined ? QUALITY_CLASS[details.quality] : undefined;
-        const rows = recipe.crafters.map(crafter => `<tr><td>${h(crafter.character)}${crafter.member && crafter.member.toLowerCase() !== crafter.character.toLowerCase() ? ` <span class="muted">(${h(crafter.member)})</span>` : ""}</td><td>${h(crafter.profession)}</td><td>${crafter.skill ?? "—"}</td><td>${seen(crafter.lastSeen)}</td></tr>`).join("");
+        const view = await itemDetails(recipe.itemKey, recipe.itemName, deps.items);
+        const color = view.quality !== undefined ? QUALITY_CLASS[view.quality] : undefined;
+        const rows = recipe.crafters.map(crafter => `<tr><td>${seenDot(crafter.lastSeen, ctx.now)} ${h(crafter.character)}${crafter.member && crafter.member.toLowerCase() !== crafter.character.toLowerCase() ? ` <span class="muted">(${h(crafter.member)})</span>` : ""}</td><td>${professionEmoji(crafter.profession)} ${h(professionName(crafter.profession, lang))}</td><td><span aria-hidden="true">${skillBar(crafter.skill)}</span> ${crafter.skill ?? "—"}</td><td>${seen(crafter.lastSeen)}</td><td>${requestForm(recipe, crafter, `<button class="button" type="submit">${t("Request", "Demander")}</button>`)}</td></tr>`).join("");
         const offers = recipe.offers.length ? `<p><strong>${t("Open offers", "Offres ouvertes")}:</strong> ${recipe.offers.map(offer => `${h(offer.crafter)}${offer.price ? ` — ${h(offer.price)}` : ""}${offer.verified ? "" : ` (${t("unverified", "non vérifié")})`}`).join(" · ")}</p>` : "";
-        const form = `<form method="post" action="${h(link(GALLERY_PATH, lang))}"><input type="hidden" name="csrf" value="${h(ctx.csrf ?? "")}">${hidden}<input type="hidden" name="q" value="${h(q)}"><input type="hidden" name="item" value="${h(recipe.itemName)}"><input type="hidden" name="profession" value="${h(recipe.crafters[0]?.profession ?? "")}">
-<label>${t("How many", "Combien")} <input name="quantity" type="number" min="1" max="200" value="1" style="width:5em"></label> <label><input type="checkbox" name="materials"> ${t("I bring the materials", "J'apporte les matériaux")}</label> <label>${t("Note", "Note")} <input name="note" maxlength="300"></label>
-<button class="button" type="submit">${t("Request this craft", "Demander cette fabrication")}</button></form>`;
-        return `<article class="card"><h3${color ? ` style="color:${color}"` : ""}>${h(recipe.itemName)} <small class="muted">#${recipe.itemKey}</small></h3>${offers}<div class="table-wrap"><table><thead><tr><th scope="col">${t("Crafter", "Artisan")}</th><th scope="col">${t("Profession", "Métier")}</th><th scope="col">${t("Skill", "Compétence")}</th><th scope="col">${t("Last seen", "Dernière présence")}</th></tr></thead><tbody>${rows}</tbody></table></div>${form}</article>`;
+        const details = `<details><summary>${t("Details", "Détails")}</summary><ul>${itemDetailLines(view, lang).map(line => `<li>${h(line)}</li>`).join("")}</ul><p><a href="${h(view.url)}" rel="noopener noreferrer" target="_blank">${t("Open on Wowhead", "Ouvrir sur Wowhead")}</a></p></details>`;
+        const form = requestForm(recipe, null, `<label>${t("How many", "Combien")} <input name="quantity" type="number" min="1" max="200" value="1" style="width:5em"></label> <label><input type="checkbox" name="materials"> ${t("I bring the materials", "J'apporte les matériaux")}</label> <label>${t("Note", "Note")} <input name="note" maxlength="300"></label>
+<button class="button" type="submit">${t("Request this craft", "Demander cette fabrication")}</button>`);
+        // One compact line per recipe; details, crafters, offers and the request form open under it.
+        const best = recipe.crafters.map(crafter => crafter.skill ?? 0).reduce((a, b) => Math.max(a, b), 0);
+        const summary = `<span${color ? ` style="color:${color}"` : ""}><strong>${h(recipe.itemName)}</strong></span> <small class="muted">#${recipe.itemKey}</small> · ${recipe.crafters.length} ${t("crafter(s)", "artisan(s)")}${best ? ` · ${t("best skill", "meilleure compétence")} ${best}` : ""}${recipe.offers.length ? ` · ${recipe.offers.length} ${t("offer(s)", "offre(s)")}` : ""} <span class="muted">— ${t("Details", "Détails")}</span>`;
+        return `<details class="card recipe-line"><summary>${summary}</summary>${details}${offers}<div class="table-wrap"><table><thead><tr><th scope="col">${t("Crafter", "Artisan")}</th><th scope="col">${t("Profession", "Métier")}</th><th scope="col">${t("Skill", "Compétence")}</th><th scope="col">${t("Last seen", "Dernière présence")}</th><th scope="col">${t("Ask this crafter", "Demander à cet artisan")}</th></tr></thead><tbody>${rows}</tbody></table></div>${form}</details>`;
       }));
-      const crafterCards = data.crafters.map(person => `<article class="card"><h3>${h(person.character)}${person.member && person.member.toLowerCase() !== person.character.toLowerCase() ? ` <small class="muted">(${h(person.member)})</small>` : ""}</h3>
-<p>${person.professions.map(entry => `${h(entry.profession)} ${entry.skill ?? "—"}`).join(" · ") || "—"}</p><p>${t("Last seen", "Dernière présence")}: ${seen(person.lastSeen)} · ${t("Recipes", "Recettes")}: ${person.recipeCount}</p>
+      const crafterCards = data.crafters.map(person => `<article class="card"><h3>${h(person.character)}${armoryAnchor({ name: person.character, gameEdition: guild.edition }, t)}${person.member && person.member.toLowerCase() !== person.character.toLowerCase() ? ` <small class="muted">(${h(person.member)})</small>` : ""}</h3>
+<p>${person.professions.map(entry => `${professionEmoji(entry.profession)} ${h(professionName(entry.profession, lang))} <span aria-hidden="true">${skillBar(entry.skill)}</span> ${entry.skill ?? "—"}`).join("<br>") || "—"}</p><p>${seenDot(person.lastSeen, ctx.now)} ${t("Last seen", "Dernière présence")}: ${seen(person.lastSeen)} · ${t("Recipes", "Recettes")}: ${person.recipeCount}</p>
 ${person.notable.length ? `<p>${t("Notable recipes", "Recettes notables")}: ${person.notable.map(h).join(", ")}</p>` : ""}${person.cooldownsReady.length ? `<p>${t("Cooldowns ready", "Délais prêts")}: ${[...new Set(person.cooldownsReady)].map(h).join(", ")}</p>` : ""}</article>`).join("");
       const body = `<h1>${title}</h1><p><strong>${h(guild.name)}</strong> · ${h(guild.edition)} · <a href="${h(link(GALLERY_PATH, lang))}">${t("Choose another guild", "Choisir une autre guilde")}</a></p>`
         + (notice ? `<p class="notice"${failed ? ` role="alert"` : ""}>${h(notice)}</p>` : "")
         + `<p>${t("Who in the guild can craft what, from the recipes members scanned with Guilded. A match does not prove the crafter is online or that materials are available.", "Qui peut fabriquer quoi dans la guilde, d'après les recettes relevées avec Guilded. Un résultat ne prouve pas que l'artisan est en ligne ni que les matériaux sont disponibles.")}</p>`
         + `<form method="get" action="${GALLERY_PATH}">${hidden}<label for="gallery-q">${t("Item name, item ID or crafter", "Nom d'objet, identifiant ou artisan")}</label><input id="gallery-q" name="q" maxlength="100" value="${h(q)}"><button class="button" type="submit">${t("Search", "Chercher")}</button></form>`
+        + `<p class="muted">${h(professionLegend(lang))}</p>`
         + `<p class="muted">${t("Searching by reagent needs the recipe materials, which Guilded does not collect yet.", "La recherche par composant demande les matériaux des recettes, que Guilded ne collecte pas encore.")}</p>`
         + (q && !data.recipes.length && !data.crafters.length ? `<p>${t("No known matching recipe or crafter. This does not prove nobody can craft it.", "Aucune recette ou aucun artisan correspondant connu. Cela ne prouve pas que personne ne peut la fabriquer.")}</p>` : "")
         + (recipeCards.length ? `<h2>${t("Recipes", "Recettes")}</h2>${recipeCards.join("")}` : "")

@@ -19,6 +19,7 @@ import { planCalendarSync } from "./calendar-sync.js";
 import { createSelfCharacter } from "./character-pairing.js";
 import { excludeHistoryBeforeReset } from "./import-reset.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { planSignupAnswers } from "./signup-answers.js";
 import { queueCharacterDisplayRefresh } from "./character-display-refresh.js";
 import { assertSnapshotEdition, gameEditionOf } from "./game-edition.js";
 
@@ -77,17 +78,14 @@ export function createAddonImportService(database: PrismaClient) {
     },
 
     async record(guildId: string, snapshot: AddonSnapshot, checksum: string, createdBy: string, pairedMemberId?: string) {
-      // BG consent is independent of officer import access. Do not retain a BG
-      // payload in staging when its authenticated reporter has not opted in.
-      const persist = async (tx: Pick<Prisma.TransactionClient, "addonImport" | "battlegroundConsent" | "character" | "member">) => {
+      // Keep only the authenticated reporter's own battleground reports (their paired member and characters).
+      const persist = async (tx: Pick<Prisma.TransactionClient, "addonImport" | "character" | "member">) => {
         let battlegroundReports: AddonSnapshot["battlegroundReports"] = [];
         if (pairedMemberId && snapshot.battlegroundReports.length) {
-          const consent = await tx.battlegroundConsent.findUnique({ where: { memberId: pairedMemberId } });
           const member = await tx.member.findFirst({ where: { id: pairedMemberId, guildId, status: "ACTIVE" }, select: { id: true } });
-          if (member && consent?.capture && consent.guildId === guildId) {
+          if (member) {
             const own = await tx.character.findMany({ where: { guildId, memberId: pairedMemberId } });
-            battlegroundReports = snapshot.battlegroundReports.filter(row => row.endedAt * 1000 >= consent.consentedAt.getTime()
-              && own.some(c => c.gameEdition === row.edition && findCharacter([c], row.character, row.realm, row.edition)));
+            battlegroundReports = snapshot.battlegroundReports.filter(row => own.some(c => c.gameEdition === row.edition && findCharacter([c], row.character, row.realm, row.edition)));
           }
         }
         return tx.addonImport.create({
@@ -122,7 +120,7 @@ export function createAddonImportService(database: PrismaClient) {
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
-        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, duelBoardEnabled: true, bgStatsChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
+        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, duelBoardEnabled: true, duelBoardChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
         const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true, wowSpace: { select: { name: true, realm: true } } } });
@@ -382,6 +380,12 @@ export function createAddonImportService(database: PrismaClient) {
         const calendarPlan = await planCalendarSync(tx, guildId, snapshot.calendarEvents,
           characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId })));
 
+        // Raid answers given in game (Signups page): only for the exporter's own characters, applied after
+        // this commits. The latest change wins per member (services/signup-answers).
+        const own = [...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts].map(character => ({ name: character.name, realm: character.realm }));
+        const signupJobs = planSignupAnswers(snapshot.signupAnswers.filter(answer => findCharacter(own, answer.character, answer.realm)),
+          characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId })));
+
         // In-game raid presence -> Discord raid attendance (best effort, like
         // readiness: an unmatched raid or character doesn't block the import).
         const raids = await applyRaidAttendance(tx, guildId, snapshot.raids, characters, appliedBy);
@@ -408,7 +412,7 @@ export function createAddonImportService(database: PrismaClient) {
         // Guildmates who linked since their run was stored get their credit now (held credit).
         await creditHeldRunPlayers(tx, guildId, characters, appliedBy);
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
-          characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec })), appliedBy, importId);
+          characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec, discordId: character.member?.discordUserId ?? null, displayName: (character as { displayName?: string | null }).displayName ?? null })), appliedBy, importId);
         const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);
         // Duels and milestones come only from a paired member's own companion (never an officer's whole-guild upload).
         const guildEdition = gameEditionOf(guild ?? {});
@@ -422,7 +426,7 @@ export function createAddonImportService(database: PrismaClient) {
         // The import and its public refresh requests commit together. A process crash
         // between commit and followUpImport cannot leave the display stale forever.
         if (settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");
-        if (duels.recorded && settings?.duelBoardEnabled && settings.bgStatsChannelId) await enqueueDiscordJob(tx, guildId, "duel-board", "DUEL_BOARD");
+        if (duels.recorded && settings?.duelBoardEnabled && settings.duelBoardChannelId) await enqueueDiscordJob(tx, guildId, "duel-board", "DUEL_BOARD");
         if (settings?.craftChannelId) await enqueueDiscordJob(tx, guildId, "professions", "PROFESSIONS");
         if (settings?.characterSignups && (readinessSnapshots.length || discovery.refreshed)) {
           const ids = new Set(readinessSnapshots.map(row => row.characterId));
@@ -432,6 +436,7 @@ export function createAddonImportService(database: PrismaClient) {
           }
           await queueCharacterDisplayRefresh(tx, guildId, [...ids]);
         }
+        if (signupJobs.length) await enqueueDiscordJob(tx, guildId, `signup-answers:${imported.id}`, "SIGNUP_ANSWERS", { answers: JSON.parse(JSON.stringify(signupJobs)) });
         if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
         return {
           import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, battlegrounds, duels, milestones, skipped,

@@ -281,12 +281,13 @@ function showSignInBox(view, started) {
   tick();
   signInRun = { view, timer: setInterval(tick, 1000) };
 }
-async function runSignIn(view) {
+async function runSignIn(view, switchAccount = false) {
   const ui = signInViews[view];
   // Leaderboards only is not a guild link: Link everything signs in again to reach the guild's server.
-  if (view === 'link' && savedConfig.companionCredential && !savedConfig.personal) { ui.say(T("Already linked, nothing to do."),true); return; }
+  if (!switchAccount && view === 'link' && savedConfig.companionCredential && !savedConfig.personal) { ui.say(T("Already linked, nothing to do."),true); return; }
   ui.say(T("Opening Discord sign-in…"),true);
-  const started = await api.signInStart(readForm());
+  // "Not you? Switch" (Track L): the same sign-in, with Discord showing which account it is.
+  const started = switchAccount ? await api.signInSwitch() : await api.signInStart(readForm());
   if (!started.ok) { stopSignInBox(); ui.say(started.message || T("The sign-in could not start. Check your internet connection, then try again."),false); return; }
   showSignInBox(view, started);
   ui.say(started.automatic ? T("Your browser opened. Choose your server there and press Connect.") : T("Your browser opened. Type {0} on the sign-in page.", started.confirm),true);
@@ -311,6 +312,7 @@ async function reopenSignIn(view) {
 }
 bind('btnSignIn',() => runSignIn('setup'));
 bind('btnLinkSignIn',() => runSignIn('link'));
+bind('btnSwitchAccount',() => runSignIn('link', true));
 bind('btnSignInReopen',() => reopenSignIn('setup'));
 bind('btnLinkSignInReopen',() => reopenSignIn('link'));
 bind('btnSignInCancel',async () => { await api.signInCancel(); stopSignInBox(); say(T("Sign-in cancelled."),false); });

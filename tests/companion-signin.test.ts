@@ -94,6 +94,23 @@ describe("/me/companion", () => {
     expect(expired.body).toContain("il ouvre lui-même une nouvelle page de connexion");
   });
 
+  it("Not you? Switch: signs in again through Discord's account screen, even with a website session", async () => {
+    const { signIn, request, signedIn } = setup();
+    const started = signIn.start({ loopback: 50123 })!;
+    const back = `/me/companion?request=${encodeURIComponent(started.requestId)}&lang=en`;
+    const { cookie } = await signedIn(back);
+    const page = await request("GET", `/me/companion?request=${started.requestId}&switch=1`, { cookie });
+    expect(page.status).toBe(302);
+    const login = new URL(String(page.headers["location"]), SITE);
+    expect(login.pathname).toBe("/auth/login");
+    expect(login.searchParams.get("switch")).toBe("1");
+    const discord = await request("GET", login.pathname + login.search);
+    expect(new URL(String(discord.headers["location"])).searchParams.get("prompt")).toBe("consent");
+    // A request typed by hand (no app port) never switches by link.
+    const typed = signIn.start()!;
+    expect((await request("GET", `/me/companion?request=${typed.requestId}&switch=1`, { cookie })).status).toBe(200);
+  });
+
   it("asks for Discord sign-in, then returns to the same request", async () => {
     const { signIn, request, signedIn } = setup();
     const started = signIn.start()!;

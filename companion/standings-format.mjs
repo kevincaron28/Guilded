@@ -119,6 +119,15 @@ export function publicScoreToLua(board) {
     ...(board ? [`GuildedDungeonsPublicScore.character = ${luaString(board.character)}`, `GuildedDungeonsPublicScore.realm = ${luaString(board.realm)}`] : [])].join("\n") + "\n";
 }
 
+// In game, "Linked to Discord as <name>" once after the first sync (Modules/CompanionLink.lua,
+// 8.5 Track L). The companion adds this line for its own signed-in account; only a plain name goes in.
+export function linkedAsLua(account) {
+  const raw = account && (account.displayName || account.username);
+  const plain = (char) => char.charCodeAt(0) >= 32 && char !== '"' && char !== "\\" && char !== "|";
+  const name = typeof raw === "string" ? Array.from(raw).filter(plain).join("").trim().slice(0, 40) : "";
+  return name ? `GuildedLinkedAs = ${luaString(name)}\n` : "GuildedLinkedAs = nil\n";
+}
+
 export function standingsToLua(data) {
   const rows = data.standings.map((row) =>
     `    { name = ${luaString(row.character)}, ${row.displayName ? `displayName = ${luaString(row.displayName)}, ` : ""}ep = ${Math.trunc(row.ep)}, gp = ${Math.trunc(row.gp)}, main = ${row.main ? "true" : "false"}, account = ${luaString(data.accounts?.[row.character] ?? "")} },`

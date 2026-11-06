@@ -40,7 +40,8 @@
       "ipc-security.cjs",
       "sign-in-loopback.cjs",
       "store-update.cjs",
-      "addon-installer.cjs"
+      "addon-installer.cjs",
+      "link-identity.cjs"
     ],
     "extraResources": [
       {

@@ -128,7 +128,7 @@ export function createWebApp(deps: WebAppDeps) {
     if (path === "/auth/login") {
       if (!deps.auth) return kit.signInPrompt();
       const state = newToken();
-      return kit.redirect(authorizeUrl(deps.auth, state), [stateCookie(deps.auth, state, safeReturnPath(request.query.get("return")), ctx.now)]);
+      return kit.redirect(authorizeUrl(deps.auth, state, request.query.get("switch") === "1"), [stateCookie(deps.auth, state, safeReturnPath(request.query.get("return")), ctx.now)]);
     }
     if (path === "/auth/callback") {
       if (!deps.auth) return kit.signInPrompt();

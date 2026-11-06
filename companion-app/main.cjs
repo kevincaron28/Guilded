@@ -7,6 +7,7 @@ const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables, pick
 const updates = require("./update-check.cjs");
 // Loaded on first use (Store build only): companion-app/store-update.cjs.
 const storeUpdatesModule = () => require("./store-update.cjs");
+const linkIdentity = require("./link-identity.cjs");
 const addonInstallerModule = () => require("./addon-installer.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
@@ -125,15 +126,9 @@ function pushLog(entry) {
 }
 
 // What the tray icon and the window's header say about the whole app.
+// Guilded's own outages read as amber "waiting", never red (8.5 Track L, link-identity.cjs).
 function health(state) {
-  const problems = engineModules.validateConfig(config);
-  if (problems.length > 0) return { level: "setup", text: "Setup needed" };
-  if (!state.running) return { level: "error", text: "Not running" };
-  if (state.uploadError || state.standingsError) return { level: "error", text: state.uploadError || state.standingsError };
-  if (state.poe?.error) return { level: "error", text: state.poe.error };
-  if (state.poe?.pending) return { level: "setup", text: `PoE2: ${state.poe.pending} visit(s) waiting to sync` };
-  if (state.pendingUpload) return { level: "setup", text: state.retryAt ? `Upload pending; retry at ${state.retryAt}` : "Uploading saved data..." };
-  return { level: "ok", text: "Running: watching for changes" };
+  return linkIdentity.companionHealth({ setupProblems: engineModules.validateConfig(config).length, state });
 }
 
 // A newer Guilded release, shown on Overview, in the tray and once as a Windows notification.
@@ -368,12 +363,14 @@ function onState(state) {
   const found = problems(state);
   win?.webContents.send("state", { state, health: status, update, savedFile, problems: found, addonAction: addonAction() });
   if (tray) {
-    const icon = found.length && fs.existsSync(asset("tray-problem.png")) ? "tray-problem.png" : `tray-${found.length ? "error" : status.level}.png`;
+    // Only problems the member can fix turn the tray red; Guilded's outages stay amber.
+    const own = linkIdentity.memberProblems(found);
+    const icon = own.length && fs.existsSync(asset("tray-problem.png")) ? "tray-problem.png" : `tray-${own.length ? "error" : status.level}.png`;
     tray.setImage(nativeImage.createFromPath(asset(icon)).resize({ width: 32, height: 32 }));
     tray.setToolTip(`Guilded Companion\n${found.length ? T("{0} problem(s): open to see how to fix", found.length) + "\n" : ""}${M(status.text)}${update ? T("\nUpdate available: {0}", update.version) : ""}${savedFile?.candidate ? T("\nWoW data may have moved: open to check") : ""}`);
   }
   // The red "!" on the taskbar button too, changed only when the list changes.
-  const key = found.map((problem) => problem.id).join(",");
+  const key = linkIdentity.memberProblems(found).map((problem) => problem.id).join(",");
   if (win && key !== shownProblems) {
     shownProblems = key;
     try { win.setOverlayIcon(key ? nativeImage.createFromPath(asset("problem-badge.png")) : null, key ? T("{0} problem(s): open to see how to fix", found.length) : ""); } catch { /* not every Windows shell has overlays */ }
@@ -752,15 +749,25 @@ async function beginSignIn(next) {
   return { current: { controller: new AbortController(), started, next, ...(port ? { loopback } : {}) }, started };
 }
 const signInView = (started, restarted = 0) => ({ ok: true, confirm: started.confirm, url: started.url, expiresAt: started.expiresAt, automatic: started.automatic === true, restarted });
-registerIpc("sign-in-start", async (_event, next) => {
+async function startSignInFlow(next, switchAccount = false) {
   endSignIn(signIn);
   signIn = null;
   const begun = await beginSignIn(next);
   if (!begun.current) return begun.started;
   signIn = begun.current;
+  // "Not you? Switch" (Track L): the page asks Discord to show the account; the old link is
+  // revoked once the new one works.
+  if (switchAccount && signIn.started.automatic) {
+    const url = new URL(signIn.started.url);
+    url.searchParams.set("switch", "1");
+    signIn.started = { ...signIn.started, url: url.href };
+    signIn.previous = config.companionCredential ? { ...config } : null;
+  }
   await openSignInPage(signIn);
   return signInView(signIn.started);
-});
+}
+registerIpc("sign-in-start", (_event, next) => startSignInFlow(next));
+registerIpc("sign-in-switch", () => startSignInFlow({}, true));
 registerIpc("sign-in-wait", async () => {
   let current = signIn;
   if (!current) return { ok: false, message: T("Choose Sign in with Discord first.") };
@@ -781,8 +788,57 @@ registerIpc("sign-in-wait", async () => {
       if (begun.current) endSignIn(begun.current);
     }
     if (signIn === current) signIn = null;
-    return applyPairing(current.next, result);
+    const applied = await applyPairing(current.next, result);
+    // A new account or server: forget the old name until /me answers, and revoke the replaced link.
+    if (applied.ok) {
+      config = { ...config, discordAccount: undefined };
+      await saveConfig();
+      engine?.setLinkedAccount?.(undefined);
+      const previous = current.previous;
+      if (previous?.companionCredential && previous.companionCredential !== config.companionCredential) {
+        void Promise.resolve(engineModules.revokeSavedConnections?.({ ...previous, profiles: {} })).catch(() => {});
+      }
+    }
+    return applied;
   }
+});
+
+// Track L: who is signed in ("Connected as"), their Guilded servers, and the Join button for the
+// in-game guild's Discord (from GuildedDB.guildKey in the watched Guilded.lua).
+const DISCORD_INVITE = /^https:\/\/(discord\.gg|(www\.)?discord\.com\/invite)\/[\w-]{2,40}$/;
+registerIpc("companion-me", async () => {
+  if (!config.companionCredential) return { ok: false, signedOut: true };
+  let guild = null;
+  if (config.watchFile && config.wowEnabled !== false) {
+    try { guild = linkIdentity.guildFromSavedText(await fs.promises.readFile(config.watchFile, "utf8")); } catch { /* not saved yet */ }
+  }
+  try {
+    const url = new URL("/api/v1/companion/me", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top"));
+    if (guild) { url.searchParams.set("guild", guild.name); url.searchParams.set("realm", guild.realm); }
+    const { response, body } = await engineModules.requestJson(url, { headers: engineModules.credentialHeaders(config) });
+    if (response.status === 404) return { ok: false, unsupported: true, guild };
+    if (!response.ok) return { ok: false, error: body.error || T("The bot answered {0}.", response.status), guild };
+    const text = (value, max) => typeof value === "string" ? value.slice(0, max) : null;
+    const avatar = text(body.account?.avatarUrl, 300);
+    const account = { username: text(body.account?.username, 80) || "", displayName: text(body.account?.displayName, 80), avatarUrl: avatar && /^https:\/\/cdn\.discordapp\.com\//.test(avatar) ? avatar : null };
+    if (JSON.stringify(config.discordAccount ?? null) !== JSON.stringify(account)) {
+      config = { ...config, discordAccount: account };
+      await saveConfig();
+      engine?.setLinkedAccount?.(account);
+    }
+    const join = body.join && typeof body.join.serverName === "string"
+      ? { serverName: body.join.serverName.slice(0, 100), inviteUrl: typeof body.join.inviteUrl === "string" && DISCORD_INVITE.test(body.join.inviteUrl) ? body.join.inviteUrl : null, joined: body.join.joined === true }
+      : null;
+    return { ok: true, account, personal: body.personal === true, servers: Array.isArray(body.servers) ? body.servers.filter((name) => typeof name === "string").slice(0, 20) : [], join, guild };
+  } catch (error) {
+    return { ok: false, unreachable: true, error: engineModules.describeError(error), guild };
+  }
+});
+// The Join button: only a Discord invite link.
+registerIpc("open-invite", (_event, url) => {
+  if (typeof url !== "string" || !DISCORD_INVITE.test(url)) return false;
+  void shell.openExternal(url);
+  return true;
 });
 // "Reopen the page": the same request, opened again (the first tab may be hidden or closed).
 registerIpc("sign-in-reopen", async () => {

@@ -171,6 +171,11 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     if (!confirm) {
       return kit.page(410, title, expiredBody(t), { noindex: true });
     }
+    // "Not you? Switch" in the companion: sign in again even with a website session, and let
+    // Discord show which account it is (its consent screen has "Not you?").
+    if (ctx.request.method === "GET" && ctx.request.query.get("switch") === "1" && deps.signIn.loopbackFor(requestId)) {
+      return kit.redirect(link("/auth/login", lang, { return: `/me/companion?request=${encodeURIComponent(requestId)}&lang=${lang}`, switch: "1" }));
+    }
     if (!ctx.account) {
       const back = `/me/companion?request=${encodeURIComponent(requestId)}&lang=${lang}`;
       // Opened by the Windows app (it gave its 127.0.0.1 port): go straight to Discord's sign-in

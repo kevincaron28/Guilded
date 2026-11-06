@@ -3,6 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import { previewAllows } from "./feature-preview.js";
+import { professionDetailsRow } from "./profession-details.js";
 
 // 8.5 track D2: ONE post per profession in the craft forum, edited in place (the duel-board pattern), listing every
 // recipe and the crafters who know it with their last seen. It replaces the old "top 3 per profession" directory
@@ -114,7 +115,8 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
     const existing = await existingPosts(forum);
     for (const post of await loadProfessionPosts(db, guildId)) {
       if (!post.skilled.length && !post.recipes.length) continue;
-      const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], allowedMentions: { parse: [] as never[] } };
+      const details = professionDetailsRow(post, lang);
+      const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
       const thread = existing.get(key(post.profession));
       if (thread) {
         const starter = await thread.fetchStarterMessage().catch(() => null);

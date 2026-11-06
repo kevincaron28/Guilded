@@ -1,7 +1,7 @@
 import type { WebhookPayload } from "./item-preview-embed.js";
 
 export type WebhookResult =
-  | { ok: true }
+  | { ok: true; messageId?: string }
   | { ok: false; status: number; disable: boolean; retryAfterMs?: number };
 
 export type FetchLike = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ status: number; headers: { get(name: string): string | null }; json(): Promise<unknown> }>;
@@ -27,7 +27,11 @@ export async function postWebhook(fetchImpl: FetchLike, webhookUrl: string, payl
     const res = await fetchImpl(`https://discord.com/api/v10/webhooks/${parts.id}/${parts.token}?wait=true`, {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload), signal: controller.signal
     });
-    if (res.status >= 200 && res.status < 300) return { ok: true };
+    if (res.status >= 200 && res.status < 300) {
+      // wait=true returns the created message; its id lets the owner's step-0 test clean up after itself.
+      const body = await res.json().catch(() => null) as { id?: unknown } | null;
+      return typeof body?.id === "string" && /^\d{15,25}$/.test(body.id) ? { ok: true, messageId: body.id } : { ok: true };
+    }
     if (res.status === 401 || res.status === 404) return { ok: false, status: res.status, disable: true };
     if (res.status === 429) {
       const header = res.headers.get("retry-after");

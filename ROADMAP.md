@@ -315,6 +315,20 @@ and companion stay the source of truth; nothing breaks when the armory is down o
   race board) and no automated reading. No scraping of undocumented endpoints.
 - Battle.net sign-in stays hidden for Forever members until I0 proves it links Forever characters.
 
+### Release step — bring the Québec Gold Discord up to date (owner request, 6 November 2026)
+
+After 8.5.0 is merged and deployed, the coordinating session turns the new features on in the
+Québec Gold server and checks each one live. Opt-in switches stay off for every other server.
+1. Re-run `/setup` so the PvP category (`pvp-groups`, `pvp-results`, `pvp-ladder`) and the race-to-60
+   channel exist; existing battleground channels are adopted, not duplicated.
+2. Turn on and check: race-to-60 board, PvP ladder board, Who's who board, nickname sync
+   (`kevmister28 (Lebowski Holyroller)` style; check Manage Nicknames and role order first),
+   profession posts / Artisans' Gallery, statistics snapshots and the Sheets feed.
+3. Run `/officer roster gaps` and hand the `/ginvite` list to an officer.
+4. Check that `/achievements` and the web page show only Forever and guild achievements.
+5. Update pinned guides and the bot-guide channel text where commands changed; record the results
+   in `docs/V8_5_0_RELEASE_ACCEPTANCE.md`.
+
 ---
 
 ## Carried over (still open from 8.4)

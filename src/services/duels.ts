@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import { foreverNameMatches } from "../../companion/character-identity.mjs";
 
 // Guild duels (8.4.5). The addon records "X has defeated Y in a duel" when both players are in the guild and each
 // paired participant's companion uploads it. Nothing here posts anything or awards points.
@@ -45,8 +46,8 @@ const reportKey = (winnerId: string, loserId: string, at: number) =>
 
 /** A character name to the single member that owns it, or null when unknown or ambiguous. */
 function memberOf(characters: readonly Row[], name: string): { memberId: string; name: string } | null {
-  const bare = name.split("-")[0]!.trim().toLowerCase();
-  const matches = characters.filter(character => character.name.toLowerCase() === bare);
+  // Exact name, or (WoW Forever, 8.5) the single row still stored under the first name.
+  const matches: Row[] = foreverNameMatches(characters, name);
   const owners = new Set(matches.map(character => character.memberId));
   return owners.size === 1 ? { memberId: matches[0]!.memberId, name: matches[0]!.name } : null;
 }
@@ -104,7 +105,7 @@ export async function importMilestones(tx: Pick<Tx, "memberMilestone">, guildId:
   const data: Prisma.MemberMilestoneCreateManyInput[] = [];
   for (const raw of rows.slice(0, 300)) {
     const parsed = milestoneSchema.safeParse(raw);
-    if (!parsed.success || !own.has(parsed.data.character.split("-")[0]!.toLowerCase()) || parsed.data.at * 1000 > now.getTime() + 300_000) { result.rejected++; continue; }
+    if (!parsed.success || !(own.has(parsed.data.character.split("-")[0]!.trim().toLowerCase()) || foreverNameMatches(ownCharacters, parsed.data.character).length === 1) || parsed.data.at * 1000 > now.getTime() + 300_000) { result.rejected++; continue; }
     const m = parsed.data;
     data.push({ guildId, memberId, gameEdition: edition, kind: m.kind, ref: m.ref, value: m.value, reachedAt: new Date(m.at * 1000) });
   }

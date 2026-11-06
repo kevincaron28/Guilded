@@ -41,14 +41,14 @@ describe("addon-only guild administration", () => {
     expect(text).toContain("Bob - Healer - Bench");
   });
 
-  it("accepts WoW Forever first+last names and files them under the first name", () => {
+  it("accepts WoW Forever first+last names and files them under the full name", () => {
     setup();
     s.run(`NS.localGuild.create("Team")`);
     expect(s.run(`return tostring(NS.localGuild.member("Team","Highpriest Cheech","HEALER","main"))`)).toBe("true");
-    expect(s.run(`return NS.loot.core().roster[1].name`)).toBe("Highpriest");
+    expect(s.run(`return NS.loot.core().roster[1].name`)).toBe("Highpriest Cheech");
     // The slash command keeps a quoted full name together.
     s.run(`NS.runCommand('localcore add "Naomine Merriweather" DPS bench')`);
-    expect(s.run(`return #NS.loot.core().roster .. ":" .. NS.loot.core().roster[2].name .. ":" .. NS.loot.core().roster[2].spot`)).toBe("2:Naomine:bench");
+    expect(s.run(`return #NS.loot.core().roster .. ":" .. NS.loot.core().roster[2].name .. ":" .. NS.loot.core().roster[2].spot`)).toBe("2:Naomine Merriweather:bench");
     expect(s.run(`return tostring(NS.localGuild.member("Team","Bad|Hname","DPS","main"))`)).toBe("false");
   });
   it("/guilded standings shows the local ledger in in-game-only mode, not an old companion snapshot", () => {

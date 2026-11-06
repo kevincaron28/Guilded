@@ -93,6 +93,13 @@ Render images with `src/services/score-card.ts` (roster layout) so they match th
   class (class colour and icon), race, level with a progress bar and % to next level when known,
   professions with skill, last seen, the linked Discord member, and, for those at 60, the date they
   reached it (finish order). Below it: "levels gained this week" top 5 and the guild's count of 60s.
+- **Hall of Fame (owner request, 6 November 2026):** the channel is kept after the race. Each time a
+  guild character reaches 60, the bot posts a **permanent Hall of Fame entry** in the channel (number
+  in order, e.g. "#7 to reach 60", name, class, race, date, days since first seen in the guild,
+  professions, linked member) that is never edited or deleted, and stores it in the database so the
+  history survives channel resets. The live top-25 board stays the channel's first message. When an
+  officer ends the race (`/officer race end`) or everyone tracked is 60, the board switches to Hall of
+  Fame mode: every level 60 in the order they arrived.
 - Build: a permanent board in a `race-to-60` channel (or a channel the officer picks): every guild
   character ordered by level, class-coloured progress bars, time each one reached 60 (finish order),
   "levels gained this week". Linked and unlinked characters both count (unlinked shown by character

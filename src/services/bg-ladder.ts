@@ -5,6 +5,7 @@ import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { percent } from "./duels.js";
+import { previewAllows } from "./feature-preview.js";
 
 // The battleground LADDER (8.5, track B2): its own message in the ladder channel (`pvp-ladder`, the statistics channel),
 // edited in place, next to the duel ladder. The two never share points: this one counts consented battleground reports only
@@ -76,7 +77,7 @@ const isBoard = (message: Message, botId: string) => message.author.id === botId
  * new one. Never throws. `delivery` is the job worker's call; any other call queues the refresh.
  */
 export async function updateBgLadder(discordGuild: DiscordGuild | null, delivery = false): Promise<boolean> {
-  if (!discordGuild) return false;
+  if (!discordGuild || !previewAllows(discordGuild.id)) return false;
   if (!delivery) {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);

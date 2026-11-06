@@ -5,6 +5,7 @@ import { asLang, type Lang } from "../i18n.js";
 import { characterName } from "./character-display.js";
 import { guildWhere } from "./guild-scope.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
+import { previewAllows } from "./feature-preview.js";
 
 // 8.5 track C2: the "Who's who" board. ONE bot message (up to three embeds) in an officer-chosen channel, edited in
 // place, listing each member with their main and alts, for servers where nicknames stay off. On by default (owner decision, 6 November 2026), per server
@@ -70,7 +71,7 @@ const isBoard = (message: Message, botId: string) => message.author.id === botId
  * posting a new one. Never throws. `delivery` is the job worker's call; any other call queues the refresh.
  */
 export async function updateWhosWhoBoard(discordGuild: DiscordGuild | null, delivery = false): Promise<boolean> {
-  if (!discordGuild) return false;
+  if (!discordGuild || !previewAllows(discordGuild.id)) return false;
   try {
     const guild = await prisma.guild.findUnique({ where: guildWhere(discordGuild.id), select: { id: true, gameEdition: true, settings: true } });
     const settings = guild?.settings;

@@ -4,6 +4,7 @@ import { characterName } from "./character-display.js";
 import { cacheAllMembers } from "./member-cache.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 import { RANK_MAX_AGE_MS } from "./rank-roles.js";
+import { previewAllows } from "./feature-preview.js";
 
 // 8.5 track C5: the promotion panel. Officers set a rule (default: in Discord, a linked character at rank "Initiate"
 // for 7+ days, optional minimum level). The bot computes "Ready to promote" and "Not in Discord yet". Read-only:
@@ -108,6 +109,7 @@ export function formatPromotionPlan(plan: PromotionPlan, rule: PromotionRule, la
 // The weekly post: one message in the officer channel (or the log channel) when someone is ready. On by default,
 // at most once every 7 days, never when nobody is ready.
 export async function postWeeklyPromotions(db: Db & Pick<PrismaClient, "guildSettings">, discordGuild: DiscordGuild, now = new Date()): Promise<boolean> {
+  if (!previewAllows(discordGuild.id)) return false;
   const guild = await db.guild.findUnique({ where: guildWhere(discordGuild.id), select: { id: true, gameEdition: true, settings: true } });
   const settings = guild?.settings;
   if (!guild || !settings || settings.promotionEnabled === false || settings.promotionWeeklyEnabled === false) return false;

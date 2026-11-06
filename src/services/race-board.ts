@@ -6,6 +6,7 @@ import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { classColor, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { previewAllows } from "./feature-preview.js";
 
 // The live "Race to 60" leaderboard and Hall of Fame (8.5, track B1). The channel's FIRST message is the live board: the
 // top N guild characters (default 25, officers pick 10-30) with class, race, level bar, professions, last seen and the
@@ -285,6 +286,7 @@ export async function createRaceChannel(discordGuild: DiscordGuild, memberRoleId
  * then post the board. Returns "" when there is nothing to do, so `/setup` is unchanged for servers that switched it off.
  */
 export async function ensureRaceBoard(discordGuild: DiscordGuild, guildId: string, lang: Lang): Promise<string> {
+  if (!previewAllows(discordGuild.id)) return "";
   const settings = await guildService.getSettings(guildId);
   if (!settings?.raceBoardEnabled) return "";
   const say = (en: string, french: string) => lang === "fr" ? french : en;
@@ -311,7 +313,7 @@ export async function ensureRaceBoard(discordGuild: DiscordGuild, guildId: strin
  * `delivery` is the job worker's call; any other call queues the refresh.
  */
 export async function updateRaceBoard(discordGuild: DiscordGuild | null, delivery = false): Promise<boolean> {
-  if (!discordGuild) return false;
+  if (!discordGuild || !previewAllows(discordGuild.id)) return false;
   if (!delivery) {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);

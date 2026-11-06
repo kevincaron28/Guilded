@@ -2,6 +2,7 @@ import { PermissionFlagsBits, type Guild, type GuildMember } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterName } from "./character-display.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
+import { previewAllows } from "./feature-preview.js";
 
 // 8.5 track C2: opt-in nickname sync. Off until an officer turns it on (/officer roster nicknames). Each member's
 // server nickname becomes "Discord name (Main First)" (the officer can pick another format), capped at 32
@@ -88,6 +89,7 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   const row = await prisma.guild.findUnique({ where: guildWhere(guild.id), select: { id: true, gameEdition: true, settings: { select: { nicknameSyncEnabled: true, nicknameFormat: true } } } });
   if (!row) return none("This server is not set up yet.");
   if (row.settings?.nicknameSyncEnabled === false) return none("Nickname sync is off.");
+  if (!previewAllows(guild.id)) return none("Nickname sync is in preview on other servers only.");
   if (!botCanRename(guild)) return none("I need the Manage Nicknames permission.");
   const format = row.settings?.nicknameFormat && validNicknameFormat(row.settings?.nicknameFormat) ? row.settings?.nicknameFormat : DEFAULT_NICKNAME_FORMAT;
   const [members, records] = await Promise.all([

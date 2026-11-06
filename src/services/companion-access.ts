@@ -3,6 +3,7 @@ import type { Client } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { hasPermission } from "../permissions.js";
 import { hashCompanionSecret } from "./character-pairing.js";
+import { noteCredentialUse } from "./credential-use.js";
 import { parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js";
 import { currentGuildScope } from "./guild-scope.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
@@ -18,6 +19,7 @@ export async function companionAccess(database: PrismaClient, client: Client | u
     select: { memberId: true, member: { select: { discordUserId: true } } }
   });
   if (!credential) return null;
+  noteCredentialUse(database.companionCredential, hashCompanionSecret(secret));
   // Force a fresh fetch: a demoted or departed member must not retain officer access.
   const guild = await client.guilds.fetch(discordId);
   const member = await guild.members.fetch({ user: credential.member.discordUserId, force: true }).catch(() => null);

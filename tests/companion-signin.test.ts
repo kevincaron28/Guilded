@@ -13,7 +13,7 @@ const { startSignInLoopback } = createRequire(import.meta.url)("../companion-app
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe("companion sign-in requests", () => {
-  it("hands the grant out once, after approval, and expires after 10 minutes", async () => {
+  it("hands the grant out once, after approval, and expires after 20 minutes", async () => {
     let now = NOW.getTime();
     const signIn = createCompanionSignIn({ now: () => now });
     const started = signIn.start()!;
@@ -28,7 +28,10 @@ describe("companion sign-in requests", () => {
     expect(await signIn.poll(started.requestId)).toEqual(grant);
     expect(await signIn.poll(started.requestId)).toBe("expired");
     const late = signIn.start()!;
-    now += 10 * 60_000 + 1;
+    // 20 minutes: long enough to join the guild's Discord in between (8.5 fresh-PC test).
+    now += 15 * 60_000;
+    expect(await signIn.poll(late.requestId)).toBe("pending");
+    now += 5 * 60_000 + 1;
     expect(await signIn.poll(late.requestId)).toBe("expired");
     expect(signIn.approve(late.requestId, grant)).toBe(false);
   });
@@ -77,6 +80,19 @@ describe("/me/companion", () => {
     }
     return { signIn, request, signedIn, issued };
   }
+
+  it("sends a request from the Windows app straight to Discord sign-in, with no extra click", async () => {
+    const { signIn, request } = setup();
+    const started = signIn.start({ loopback: 50123 })!;
+    const page = await request("GET", `/me/companion?request=${started.requestId}&lang=fr`);
+    expect(page.status).toBe(302);
+    const location = new URL(String(page.headers["location"]), SITE);
+    expect(location.pathname).toBe("/auth/login");
+    expect(location.searchParams.get("return")).toBe(`/me/companion?request=${encodeURIComponent(started.requestId)}&lang=fr`);
+    const expired = await request("GET", "/me/companion?request=" + "x".repeat(43) + "&lang=fr");
+    expect(expired.status).toBe(410);
+    expect(expired.body).toContain("il ouvre lui-même une nouvelle page de connexion");
+  });
 
   it("asks for Discord sign-in, then returns to the same request", async () => {
     const { signIn, request, signedIn } = setup();
@@ -270,7 +286,18 @@ describe("companion engine sign-in", () => {
     expect(result).toMatchObject({ ok: true, personal: false, companionCredential: "c".repeat(43), guildDiscordId: "111", uploadUrl: `${SITE}/api/v1/addon-imports` });
     expect(fetch).toHaveBeenCalledTimes(2);
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(410, { error: "This sign-in expired." })));
-    expect((await waitForSignIn({ uploadUrl: "" }, "r".repeat(43), { sleep: async () => {} })).message).toContain("expired");
+    // 410 (expired, or forgotten by a bot restart) is flagged so the app starts a new request by itself.
+    expect(await waitForSignIn({ uploadUrl: "" }, "r".repeat(43), { sleep: async () => {} })).toMatchObject({ ok: false, expired: true, message: expect.stringContaining("expired") });
+  });
+
+  it("stops waiting at the request's own expiry and passes it on (8.5 fresh-PC test)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(200, { requestId: "r".repeat(43), confirm: "ABC-DEF", url: `${SITE}/me/companion?request=x`, expiresAt: "2026-11-06T18:20:00.000Z" })));
+    expect(await startSignIn({ uploadUrl: "" })).toMatchObject({ expiresAt: "2026-11-06T18:20:00.000Z" });
+    const pending = vi.fn().mockResolvedValue(reply(202, { status: "pending" }));
+    vi.stubGlobal("fetch", pending);
+    const expiresAt = new Date(Date.now() - 10_000).toISOString();
+    expect(await waitForSignIn({ uploadUrl: "" }, "r".repeat(43), { sleep: async () => {}, expiresAt })).toMatchObject({ ok: false, expired: true });
+    expect(pending).not.toHaveBeenCalled();
   });
 
   it("gives the bot the app's local port and brings back the proof once it arrives", async () => {

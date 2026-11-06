@@ -34,7 +34,10 @@
     summary.textContent = T('Links') + ': ' + window.guildedLinkSummary(view).replace('Characters', T('Characters'));
     summary.hidden = false;
     const signedIn = Boolean(config.companionCredential);
-    $('btnLinkSignIn').hidden = signedIn;
+    // Leaderboards only (often: not in a server that uses Guilded yet): sign in again to reach the guild.
+    const personal = signedIn && config.personal === true;
+    $('btnLinkSignIn').hidden = signedIn && !personal;
+    $('btnLinkSignIn').textContent = personal ? T('Link to my guild') : T('Sign in with Discord');
     $('btnLinkFind').hidden = !signedIn;
     $('btnLinkCheck').hidden = !signedIn;
     $('btnLinkBattleNet').disabled = !signedIn;

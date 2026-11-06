@@ -2055,6 +2055,8 @@ model CompanionCredential {
   tokenHash String    @unique
   createdAt DateTime  @default(now())
   revokedAt DateTime?
+  /// When this device last synced (at most every few minutes); shown as "Last synced" on /me/.
+  lastUsedAt DateTime?
   member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId, revokedAt])
@@ -2328,6 +2330,8 @@ model WebCompanionCredential {
   tokenHash String     @unique
   createdAt DateTime   @default(now())
   revokedAt DateTime?
+  /// When this device last synced (at most every few minutes); shown as "Last synced" on /me/.
+  lastUsedAt DateTime?
   account   WebAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   @@index([accountId, revokedAt])

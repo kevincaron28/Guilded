@@ -3,7 +3,18 @@
   if (!api?.hubView) return;
   const $ = id => document.getElementById(id);
   const T = (key, ...args) => window.companionLanguage.t(key, ...args);
-  let data = null, offline = false, savedAt = '', error = '', loading = false, saving = false, generation = 0;
+  let data = null, offline = false, savedAt = '', error = '', personal = false, loading = false, saving = false, generation = 0;
+  // A short outage (the bot restarting during a deploy): say so, count down and load again by itself.
+  let retryAt = 0, retryAttempt = 0, retryTimer = null, retryTick = null;
+  const M = value => window.companionLanguage.message(value);
+  function scheduleRetry() {
+    clearTimeout(retryTimer); clearInterval(retryTick);
+    const seconds = window.guildedSignIn.retryDelaySeconds(retryAttempt++);
+    retryAt = Date.now() + seconds * 1000;
+    retryTick = setInterval(renderStatus, 1000);
+    retryTimer = setTimeout(() => { clearInterval(retryTick); retryAt = 0; void load(); }, seconds * 1000);
+  }
+  function clearRetry() { clearTimeout(retryTimer); clearInterval(retryTick); retryAt = 0; retryAttempt = 0; }
   const el = (tag, props = {}, ...children) => {
     const node = document.createElement(tag);
     for (const [key, value] of Object.entries(props)) {
@@ -23,14 +34,18 @@
     try {
       const result = await api.hubView(window.companionLanguage.language);
       if (request !== generation) return;
+      personal = result.personal === true;
       if (result.ok) { data = result.data; offline = !!result.offline; savedAt = result.savedAt || ''; error = ''; document.dispatchEvent(new CustomEvent('companion-hub-data', { detail: data })); }
       else { data = null; offline = false; error = result.error || T('Connect a guild account to see your characters and server.'); }
+      // Offline copy or no answer because the bot is unreachable: try again by itself.
+      if ((offline || (!result.ok && window.guildedSignIn.isUnreachable(result.error))) && result.unreachable !== false) scheduleRetry(); else clearRetry();
     } catch (e) { if (request === generation) { data = null; error = e.message; } }
     finally { if (request === generation) { loading = false; render(); } }
   }
 
   // The one status line on Home: connected or not, last refresh, and what to do next.
   function nextStep() {
+    if (personal) return T("Signed in, but you're not in a Discord server that uses Guilded yet. Join your guild's Discord, then press Link to my guild.");
     if (!data) return T('Next: connect your Discord account in Sync & setup.');
     const todo = (data.server?.checks || []).filter(c => !c.ok && !c.optional).length;
     if (todo) return T('Next: {0} setup item(s) need an officer. Open Server.', todo);
@@ -40,16 +55,19 @@
   function renderStatus() {
     const node = $('hubStatus'); if (!node) return;
     let line;
-    if (data && !offline) line = T('Connected to {0} · updated {1}', data.guild.name, when(data.updatedAt));
-    else if (data) line = T('Not connected: showing the data saved on {0}', when(savedAt));
-    else line = error ? T('Not connected: {0}', error) : T('Not connected yet.');
+    const retrying = retryAt ? T(window.guildedSignIn.SERVER_RESTARTING, Math.max(0, Math.ceil((retryAt - Date.now()) / 1000))) : '';
+    if (personal) line = T('Signed in for public dungeon rankings only');
+    else if (data && !offline) line = T('Connected to {0} · updated {1}', data.guild.name, when(data.updatedAt));
+    else if (data) line = T('Not connected: showing the data saved on {0}', when(savedAt)) + (retrying ? ` · ${retrying}` : '');
+    else if (retrying) line = retrying;
+    else line = error ? T('Not connected: {0}', M(error)) : T('Not connected yet.');
     node.textContent = `${line} · ${nextStep()}`;
     node.hidden = false;
   }
 
   function renderCharacters() {
     const host = $('charactersContent'); host.replaceChildren();
-    if (!data) { host.append(text(error || T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
+    if (!data) { host.append(text(error ? M(error) : T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
     if (offline) host.append(text(T('Not connected: showing the data saved on {0}', when(savedAt)), 'result bad'));
     if (!data.characters.length) { host.append(text(T('No character is linked to you yet. Save in WoW and sync, or use /character pair in Discord.'))); return; }
     const groups = new Map();
@@ -72,7 +90,7 @@
 
   function renderReserves() {
     const host = $('reservesContent'); host.replaceChildren();
-    if (!data) { host.append(text(error || T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
+    if (!data) { host.append(text(error ? M(error) : T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
     const r = data.reserves;
     const modes = r.cores.filter(c => c.lootMode === 'RESERVE');
     host.append(el('article', { class: 'panel' }, el('h2', { text: T('Where to reserve') }),
@@ -109,7 +127,7 @@
   function renderServer() {
     const host = $('serverContent'); host.replaceChildren();
     $('serverNav').hidden = !(data && data.me.officer);
-    if (!data) { host.append(text(error || T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
+    if (!data) { host.append(text(error ? M(error) : T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
     if (!data.me.officer) { host.append(text(T('Only officers and guild masters can see this page.'))); return; }
     if (offline) { host.append(text(T('Not connected: showing the data saved on {0}', when(savedAt)), 'result bad')); return; }
     const s = data.server;

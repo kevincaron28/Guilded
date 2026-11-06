@@ -161,8 +161,9 @@ function refreshUpdate() {
 // (companion-app/disk-space.cjs). When it is short the Problems panel says so and nothing starts.
 let diskSpace = null; // the low result, or null when there is enough
 function checkDisk(extra = []) {
-  const watched = config.watchFile ? path.dirname(config.watchFile) : null;
-  const result = diskSpaceModule.checkDiskSpace({ paths: [path.dirname(process.execPath), app.getPath("temp"), app.getPath("userData"), watched, ...extra] });
+  const folder = (target) => typeof target === "string" && target ? path.dirname(target) : null;
+  const appPath = (name) => { try { return app.getPath(name); } catch { return null; } };
+  const result = diskSpaceModule.checkDiskSpace({ paths: [folder(process.execPath), appPath("temp"), appPath("userData"), folder(config.watchFile), ...extra] });
   const next = result.ok ? null : result;
   const changed = (next?.freeMb ?? null) !== (diskSpace?.freeMb ?? null);
   diskSpace = next;

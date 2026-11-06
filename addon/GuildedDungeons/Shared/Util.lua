@@ -271,6 +271,26 @@ function util.sameCharacter(a, b)
   return not short:find(" ", 1, true) and long:find(" ", 1, true) ~= nil and util.firstName(long) == short
 end
 
+-- (9.0) The key under which `map` holds this character: the exact key, or, while saved data from
+-- an 8.4 companion or guildmate still uses first names, the one key that is the same character
+-- (util.sameCharacter). Like the bot's transitional rule, a first name counts only when it is not
+-- shared: two matching keys, or two known full names for that first name, mean no match.
+function util.findCharacterKey(map, name)
+  if type(map) ~= "table" or type(name) ~= "string" then return nil end
+  if map[name] ~= nil then return name end
+  if not util.isForever() then return nil end
+  local found
+  for key in pairs(map) do
+    if type(key) == "string" and util.sameCharacter(key, name) then
+      if found then return nil end
+      found = key
+    end
+  end
+  if not found then return nil end
+  if #util.fullNamesFor(util.firstName(found:find(" ", 1, true) and found or name)) > 1 then return nil end
+  return found
+end
+
 function util.unitKey(unit)
   local fn = (not util.isForever() and UnitFullName) or UnitName
   if not fn then return nil end

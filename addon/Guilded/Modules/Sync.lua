@@ -74,8 +74,10 @@ end
 local function lookup(name)
   local s = standings()
   name = ns.normalizeName(name)
-  if not s or not name then return nil end
-  return s.players[name]
+  if not s or not name or type(s.players) ~= "table" then return nil end
+  -- (9.0) Full Forever names, or a unique first name from older saved standings.
+  local key = ns.util.findCharacterKey(s.players, name)
+  return key and s.players[key] or nil
 end
 
 local function after(seconds, fn)

@@ -12,6 +12,7 @@ import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
+import { displayCharacterName } from "./character-display.js";
 import { competitionReason, completionReason, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import {
@@ -28,7 +29,7 @@ import {
 type Tx = Pick<Prisma.TransactionClient, "officialSeason" | "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement" | "auditLog">
   & Partial<Pick<Prisma.TransactionClient, "$executeRaw">>;
 
-interface LinkedCharacter { name: string; realm: string; memberId: string; spec?: string | null; discordId?: string | null }
+interface LinkedCharacter { name: string; realm: string; memberId: string; spec?: string | null; discordId?: string | null; displayName?: string | null }
 
 export interface DungeonImportResult {
   runRef: string;
@@ -59,6 +60,8 @@ export interface DungeonImportResult {
   inGuildPlayers?: string[];
   // Party character -> Discord user id for linked members (8.5: the run post mentions them, without a ping).
   mentions?: Record<string, string>;
+  // Party character -> full "First Last" name where the stored name is only a first name.
+  fullNames?: Record<string, string>;
   achievements: { character: string; key: AchievementKey }[];
 }
 
@@ -464,6 +467,10 @@ export async function importDungeonRuns(
       unlinked: linked.filter((entry) => !entry.character).map((entry) => entry.player.character),
       inGuildPlayers: run.players.filter((player) => player.inGuild).map((player) => player.character),
       mentions: Object.fromEntries(linked.flatMap(({ player, character }) => character?.discordId ? [[player.character, character.discordId] as const] : [])),
+      fullNames: Object.fromEntries(run.players.flatMap(player => {
+        const full = displayCharacterName(player.character, characters.flatMap(c => [c.displayName, c.name]), run.players.map(p => p.character));
+        return full !== player.character ? [[player.character, full] as const] : [];
+      })),
       achievements
     });
   }

@@ -2,6 +2,9 @@ import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { integrityStartReason, integrityPresence, integrityRole, integrityRuleWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { foreverNameMatches, foreverSameName } from "../../companion/character-identity.mjs";
+import { displayCharacterName } from "./character-display.js";
+import { currentEdition } from "./edition-context.js";
 import type { Lang } from "../i18n.js";
 import { bracketForLevel, nativeCompletionReason, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
   type BracketedRules, type DungeonBracket, type NovemberRules } from "./dungeon-november-rules.js";
@@ -85,6 +88,8 @@ export interface BossRecord { id: number; name: string; durationSec: number; run
 export interface RatingRun {
   competitionData?: unknown; difficultyId?: number; startedAt?: Date | null; endedAt?: Date | null; createdAt?: Date | null; completedBy?: string | null;
   instanceId: number; durationSec: number | null; dungeonName?: string; runRef?: string;
+  /** Levels read from the guild roster for players whose run record has none (lowercase character name). */
+  rosterLevels?: Record<string, number>;
   players: { character?: string; memberId: string | null; role?: string | null; presentSec: number; member: { displayName: string } | null; inGuild?: boolean }[];
 }
 /** Rating rows of a guildmate with no linked member are keyed by character under this prefix. */
@@ -101,17 +106,32 @@ export function timeRating(seconds: number, target: number | null): number {
 export function competitionReason(run: RatingRun, band: LevelBand | undefined, allowance = 0): string | undefined {
   if (!band) return "Level range not configured";
   if (run.difficultyId !== band.difficultyId) return "Different difficulty";
-  const data = run.competitionData as { players?: { name: string; level: number | null; minLevel: number | null }[] } | null;
-  if (!Array.isArray(data?.players) || data.players.length !== run.players.length || !data.players.length) return "Party levels unknown";
-  const seen = new Set<string>();
-  for (const p of data.players) {
-    if (!p || typeof p.name !== "string" || seen.has(p.name) || !run.players.some(r => r.character === p.name)
-      || !Number.isInteger(p.level) || !Number.isInteger(p.minLevel) || p.minLevel! < 1 || p.level! > 100 || p.minLevel! > p.level!) return "Party levels unknown";
-    seen.add(p.name);
-  }
-  if (data.players.some(p => p.level! > band.max + allowance)) return "Overlevel carry";
-  if (data.players.some(p => p.minLevel! < band.min)) return "Below level range";
+  // A player whose level is not recorded no longer sinks the run: they are left out of the level
+  // check (and out of the rating, see calculateDungeonRating); only a run with NO known level fails.
+  const known = knownLevels(run);
+  if (!known.length) return "Party levels unknown";
+  if (known.some(p => p.level > band.max + allowance)) return "Overlevel carry";
+  if (known.some(p => p.minLevel < band.min)) return "Below level range";
   return undefined;
+}
+interface KnownLevel { name: string; level: number; minLevel: number }
+/** Party members of this run with a valid recorded level; anyone else is "unknown". */
+function knownLevels(run: RatingRun): KnownLevel[] {
+  const data = run.competitionData as { players?: { name: string; level: number | null; minLevel: number | null }[] } | null;
+  if (!Array.isArray(data?.players)) return [];
+  const seen = new Set<string>();
+  const out: KnownLevel[] = [];
+  for (const p of data.players) {
+    if (!p || typeof p.name !== "string" || seen.has(p.name) || !run.players.some(r => r.character === p.name)) continue;
+    seen.add(p.name);
+    if (!Number.isInteger(p.level) || !Number.isInteger(p.minLevel) || p.minLevel! < 1 || p.level! > 100 || p.minLevel! > p.level!) continue;
+    out.push({ name: p.name, level: p.level!, minLevel: p.minLevel! });
+  }
+  return out;
+}
+/** Whether this character's own level is recorded in the run. */
+export function levelRecorded(run: RatingRun, character: string): boolean {
+  return knownLevels(run).some(p => p.name === character);
 }
 /** Levels the highest participant is above the band (0 when none is); call after competitionReason. */
 export function overlevelBy(run: RatingRun, band: LevelBand): number {
@@ -191,6 +211,16 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       const unlinked = !player.memberId && player.inGuild === true && timed;
       if (!unlinked && (!player.memberId || !player.member)) continue;
       const memberId = unlinked ? UNLINKED_RATING_PREFIX + player.character.trim().toLowerCase() : player.memberId!;
+      // A player with no recorded level is left out of the rating, not the run. A level read later
+      // from the guild roster only qualifies them while it still sits inside the route's band.
+      let ownOver = 0;
+      if (timed && !reason && !levelRecorded(run, player.character)) {
+        const rosterLevel = run.rosterLevels?.[player.character.trim().toLowerCase()];
+        const band = brackets?.levelBands[key];
+        if (!brackets || !band || !rosterLevel || rosterLevel < band.min || rosterLevel > band.max + brackets.overlevelPenalty.maxLevels) continue;
+        ownOver = Math.max(0, rosterLevel - band.max) * brackets.overlevelPenalty.percentPerLevel;
+      }
+      const playerPenalty = Math.max(penaltyPercent, ownOver);
       if (brackets?.evidencePolicy === "current-v2" && (reason || !integrityPresence(playerIntegrityOf(run, player.character), run.durationSec, run.startedAt ? run.startedAt.getTime()/1000 : undefined))) continue;
       // Version 6: the character's level during this run picks the bracket. A ranked
       // run already kept every participant inside the route's band, so it agrees with the route.
@@ -201,8 +231,8 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       const member = members.get(identity) ?? { memberId, name: player.character.trim(), ...(bracket ? { bracket } : {}), bests: new Map<string, DungeonRatingDetail>() };
       const targetSec = verdict ? verdict.targetSec : targets[key] ?? null;
       const speedBonus = timed ? 0 : speedPoints(run.durationSec, targetSec);
-      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5 | 6, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : penalized(timeRating(run.durationSec, targetSec), targetSec ? penaltyPercent : 0) : 100 + speedBonus,
-        ...(penaltyPercent && targetSec ? { penaltyPercent } : {}),
+      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5 | 6, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : penalized(timeRating(run.durationSec, targetSec), targetSec ? playerPenalty : 0) : 100 + speedBonus,
+        ...(playerPenalty && targetSec ? { penaltyPercent: playerPenalty } : {}),
         speedBonus, durationSec: run.durationSec, targetSec, runRef: run.runRef ?? "" };
       const previous = member.bests.get(key);
       const bossBests = new Map((previous?.bosses ?? []).map(b => [b.id, b]));
@@ -216,7 +246,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       members.set(identity, member);
     }
   }
-  return [...members.values()].map(member => {
+  return mergeFirstNameMembers([...members.values()]).map(member => {
     const details = [...member.bests.values()].sort((a, b) => a.instanceId - b.instanceId || (a.dungeonKey ?? "").localeCompare(b.dungeonKey ?? ""));
     const counted = bestEightKeys(details, member.bracket?.bestCount);
     if (bestEight) for (const detail of details) detail.counted = counted.has(detail.dungeonKey!);
@@ -225,6 +255,36 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       ...(rules !== undefined ? { details } : {}), ...(member.bracket ? { bracket: member.bracket.key, bestCount: member.bracket.bestCount } : {}) };
   }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name) || a.memberId.localeCompare(b.memberId)
     || (a.bracket ?? "").localeCompare(b.bracket ?? ""));
+}
+interface RatingMember { memberId: string; name: string; bracket?: DungeonBracket; bests: Map<string, DungeonRatingDetail> }
+/**
+ * One row per character even when a first-name copy ("El", from an older addon or a pre-8.5 row) and a full-name copy
+ * ("El Pirata") both exist, as on the race board (race-board.ts mergeFirstNames). A bare row joins the single full-name row
+ * of its bracket that it extends, only when that is unambiguous and both belong to the same member (or one is unlinked);
+ * the best result per route is kept, so the merged row never scores less than either part.
+ */
+export function mergeFirstNameMembers<T extends RatingMember>(list: T[]): T[] {
+  const full = list.filter(m => m.name.includes(" "));
+  const absorbed = new Set<T>();
+  for (const bare of list) {
+    if (bare.name.includes(" ")) continue;
+    const same = full.filter(f => f.bracket?.key === bare.bracket?.key && foreverSameName(f.name, bare.name));
+    const target = same[0];
+    if (same.length !== 1 || !target) continue;
+    const bareUnlinked = isUnlinkedRating(bare.memberId), targetUnlinked = isUnlinkedRating(target.memberId);
+    if (bare.memberId !== target.memberId && !bareUnlinked && !targetUnlinked) continue;
+    if (targetUnlinked && !bareUnlinked) target.memberId = bare.memberId;
+    for (const [key, detail] of bare.bests) {
+      const have = target.bests.get(key);
+      const better = !have || detail.points > have.points || detail.points === have.points
+        && (detail.durationSec < have.durationSec || detail.durationSec === have.durationSec && detail.runRef < have.runRef);
+      const bosses = new Map([...(have?.bosses ?? []), ...(detail.bosses ?? [])].map(b => [b.id, b] as const));
+      for (const b of [...(have?.bosses ?? []), ...(detail.bosses ?? [])]) if (b.durationSec < bosses.get(b.id)!.durationSec) bosses.set(b.id, b);
+      target.bests.set(key, { ...(better ? detail : have!), bosses: [...bosses.values()].sort((a, b) => a.id - b.id) });
+    }
+    absorbed.add(bare);
+  }
+  return list.filter(m => !absorbed.has(m));
 }
 // The bracket of the character's own level in this run. Without a recorded
 // level, the run is placed in its route's bracket (where it is unranked anyway).
@@ -293,7 +353,7 @@ function validFrozenRoles(row: RatingRow): boolean {
     && row.roles.every(r => r && dungeonRole(r.role) && Number.isInteger(r.points) && r.points >= 0 && r.points <= row.points
       && Array.isArray(r.details) && (r.details.length === 0 ? r.points === 0 : validDetails({ ...row, ...r, dungeons: r.details.length })));
 }
-export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, guildId: string,
+export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun"> & Partial<Pick<PrismaClient, "character" | "guildRosterEntry">>, guildId: string,
   season: { id: string; startsAt: Date; endsAt?: Date | null; status: string; ratingRules?: unknown; finalRating?: unknown }, instanceId: number | null = null, includeRoles = false): Promise<RatingRow[]> {
   if (!hasDungeonRating(season.ratingRules)) return [];
   if (season.status === "ENDED") {
@@ -315,10 +375,34 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, 
     ...(!timed ? { where: { member: { guildId } } } : {}),
     select: { character: true, memberId: true, role: true, presentSec: true, inGuild: true, member: { select: { displayName: true, guildId: true } } }
   } } });
-  const eligible = timed ? runs.map(run => ({ ...run, players: run.players.map(p => ({ ...p,
-    member: p.member?.guildId === guildId ? p.member : null })) })) : runs;
+  // The guild roster (any paired member's upload) gives levels the run record lacks and the full
+  // "First Last" names; both are optional, so callers without those tables keep working.
+  const roster = timed && database.guildRosterEntry
+    ? await database.guildRosterEntry.findMany({ where: { guildId, gameEdition: currentEdition(), inGuild: true }, select: { name: true, level: true } }) : [];
+  const eligible = timed ? runs.map(run => {
+    const rosterLevels: Record<string, number> = {};
+    for (const p of run.players) {
+      const found = p.character && !levelRecorded({ ...run, players: run.players.map(q => ({ ...q, member: null })) }, p.character)
+        ? foreverNameMatches(roster, p.character, (r: { name: string }) => r.name)[0] as { level: number | null } | undefined : undefined;
+      if (found?.level) rosterLevels[p.character.trim().toLowerCase()] = found.level;
+    }
+    return { ...run, rosterLevels, players: run.players.map(p => ({ ...p, member: p.member?.guildId === guildId ? p.member : null })) };
+  }) : runs;
   const rules = validBracketedRules(season.ratingRules) ? withIntegrityWindow(season.ratingRules, season.startsAt, season.endsAt) : season.ratingRules;
-  return includeRoles && validBracketedRules(rules) ? ratingWithRoles(eligible, rules) : calculateDungeonRating(eligible, rules);
+  const rows = includeRoles && validBracketedRules(rules) ? ratingWithRoles(eligible, rules) : calculateDungeonRating(eligible, rules);
+  return timed ? await withFullNames(database, guildId, rows, roster.map(r => r.name), runs.flatMap(run => run.players.map(p => p.character))) : rows;
+}
+
+/** Shows each rated character by its full Forever name (linked Character first, then the roster, then the runs' own names). */
+export async function withFullNames<T extends { name: string; character?: string }>(database: Partial<Pick<PrismaClient, "character">>, guildId: string,
+  rows: T[], rosterNames: readonly string[] = [], runNames: readonly (string | undefined)[] = []): Promise<T[]> {
+  if (!rows.length) return rows;
+  const linked = database.character ? await database.character.findMany({ where: { member: { guildId } }, select: { name: true, displayName: true } }) : [];
+  const tiers = [linked.flatMap(c => [c.displayName, c.name]), rosterNames, runNames];
+  return rows.map(row => {
+    const name = displayCharacterName(row.character ?? row.name, ...tiers);
+    return { ...row, name, ...(row.character !== undefined ? { character: name } : {}) };
+  });
 }
 
 /** Keep the whole party for eligibility; only award the selected character's recorded role. */
@@ -328,7 +412,7 @@ export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules): Ratin
       return { ...p, member: match ? p.member : null, inGuild: match && p.inGuild === true }; }) })), rules) }));
   return calculateDungeonRating(runs, rules).map(row => {
     const levels = runs.flatMap(run => {
-      if (!run.players.some(p => (p.memberId ?? (isUnlinkedRating(row.memberId) ? UNLINKED_RATING_PREFIX + (p.character ?? "").trim().toLowerCase() : null)) === row.memberId && p.character === row.character)) return [];
+      if (!run.players.some(p => (p.memberId ?? (isUnlinkedRating(row.memberId) ? UNLINKED_RATING_PREFIX + (p.character ?? "").trim().toLowerCase() : null)) === row.memberId && foreverSameName(p.character ?? "", row.character ?? ""))) return [];
       const metadata = run.competitionData as { players?: { name: string; level?: number }[] } | null;
       return metadata?.players?.filter(p => p.name === row.character && Number.isInteger(p.level)).map(p => p.level!) ?? [];
     });

@@ -30,7 +30,7 @@ describe("participation for maps the season has no route for", () => {
   });
 });
 
-describe("/officer dungeon why", () => {
+describe("/dungeon-admin audit why:true", () => {
   const row = (over: Record<string, unknown> = {}) => ({ id: "r1", runRef: "QG-1", dungeonName: "Ragefire Chasm", instanceId: 389, difficultyId: 0, state: "COMPLETED", valid: true, invalidReason: null,
     startedAt: start, endedAt: new Date(start.getTime() + 1500_000), createdAt: start, durationSec: 1500, completedBy: "final boss", seasonId: "s1",
     competitionData: { players: [{ name: "Kev", level: 16, minLevel: 16 }, { name: "Pug", level: 16, minLevel: 16 }], encounters: [] },

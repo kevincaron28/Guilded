@@ -2,6 +2,7 @@ import type { Guild } from "discord.js";
 import { CLASSES } from "../wow-data.js";
 import { CLASS_NAMES_FR } from "../permissions.js";
 import type { Lang } from "../i18n.js";
+import { foreverSameName } from "../../companion/character-identity.mjs";
 import { WOW_SPECIALIZATIONS, canonicalSpecialization, type SpecEmojiKey } from "../wow-specializations.js";
 
 type WowClass = typeof CLASSES[number];
@@ -81,10 +82,13 @@ export async function loadFullNameBook(db: { character?: { findMany: (args: neve
 
 /**
  * The name to show for a character: the full "First Last" when known, else what is stored. Takes a character-like object
- * or a plain name, plus the guild's book. Any one-word Forever name that the display name, the book, or the roster knows in
- * full is shown in full; every other name (other editions, realm-qualified, already full) is returned exactly as stored.
+ * or a plain name, then any mix of: a guild's FullNameBook, and `tiers` (lists of known names in priority order, e.g. the
+ * linked Character's names, the roster snapshot, the run players' own names). A bare Forever first name takes the single
+ * full name that starts with it (the display name, then the book, then the first tier that has exactly one); two different
+ * full names are ambiguous and the stored name stays. Names that are already full, or are not Forever names, are returned as stored.
  */
-export function displayCharacterName(character: string | { name: string; displayName?: string | null }, guild: FullNameBook | null | undefined = null): string {
+export function displayCharacterName(character: string | { name: string; displayName?: string | null },
+  ...sources: (FullNameBook | null | undefined | readonly (string | null | undefined)[])[]): string {
   const row = typeof character === "string" ? { name: character, displayName: null } : character;
   const name = squash(row.name);
   if (!name) return row.displayName?.trim() || row.name;
@@ -92,7 +96,18 @@ export function displayCharacterName(character: string | { name: string; display
   const display = squash(row.displayName);
   const words = display.split(" ");
   if (words.length === 2 && lowerName(words[0]!) === lowerName(name)) return display;
-  return guild?.fullFor(name) ?? characterName(row);
+  for (const source of sources) {
+    if (!source) continue;
+    if (!Array.isArray(source)) { const full = (source as FullNameBook).fullFor(name); if (full) return full; continue; }
+    const found = new Map<string, string>();
+    for (const candidate of source as readonly (string | null | undefined)[]) {
+      const value = squash(candidate);
+      if (value.includes(" ") && foreverSameName(value, name)) found.set(value.toLowerCase(), value);
+    }
+    if (found.size === 1) return [...found.values()][0]!;
+    if (found.size > 1) return characterName(row);
+  }
+  return characterName(row);
 }
 const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
 export function canonicalClass(value?: string | null): WowClass | undefined {

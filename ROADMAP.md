@@ -463,9 +463,11 @@ Owner request, 6 November 2026: an app to check leaderboards at work and to help
   2. **Guild view:** roster with class/level/professions, who is online now, last seen, mains and alts,
      the Artisans' Gallery search.
   3. **World map of guildmates:** last known position of guildmates who share their map position,
-     shown as dots, with a **last-seen heatmap** of where the guild plays. **Owner decision needed:**
-     on 26 October the owner declined a guild-wide web activity heatmap (activity stays on each PC).
-     This map is opt-in per member, guild-members-only and never public. Positions only reach the bot
+     shown as dots, with a **last-seen heatmap** of where the guild plays. **Owner decision
+     (6 November 2026): approved as opt-in.** Each member chooses to share (off by default), only
+     signed-in members of the same guild see it, it is never public, and a member who turns it off
+     has their stored positions deleted. (This is separate from the 26 October refusal of a
+     guild-wide activity-time heatmap, which still stands.) Positions only reach the bot
      when a companion uploads (at reload or logout), so they are "last seen", not live, unless the
      companion chat-log watcher from Track J is built.
   4. **Call for help on the map:** active calls from Track J shown as pins with time and attackers;

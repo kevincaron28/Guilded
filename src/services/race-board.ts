@@ -144,6 +144,31 @@ export async function createRaceChannel(discordGuild: DiscordGuild, memberRoleId
 }
 
 /**
+ * `/setup` hook: with the board on (the default) and no channel yet, adopt a channel already named race-to-60 or create one,
+ * then post the board. Returns "" when there is nothing to do, so `/setup` is unchanged for servers that switched it off.
+ */
+export async function ensureRaceBoard(discordGuild: DiscordGuild, guildId: string, lang: Lang): Promise<string> {
+  const settings = await guildService.getSettings(guildId);
+  if (!settings?.raceBoardEnabled) return "";
+  const say = (en: string, french: string) => lang === "fr" ? french : en;
+  try {
+    let channelId = settings.raceBoardChannelId;
+    if (!channelId) {
+      await discordGuild.channels.fetch();
+      const named = discordGuild.channels.cache.filter(c => c.type === ChannelType.GuildText && ["race-to-60", "course-au-60"].includes(c.name));
+      if (named.size > 1) return say("Several race-to-60 channels exist: pick one with /character race board-on.", "Plusieurs salons course-au-60 existent : choisissez-en un avec /character race board-on.");
+      channelId = named.first()?.id ?? await createRaceChannel(discordGuild, settings.memberRoleId ?? null, lang);
+      if (!channelId) return say("Race to 60 board: pick its channel with /character race board-on (I need Manage Channels and a member role to create one).", "Tableau de la course au 60 : choisissez son salon avec /character race board-on (il me faut Gérer les salons et un rôle membre pour en créer un).");
+      await guildService.updateSettings(guildId, { raceBoardChannelId: channelId });
+    }
+    const posted = await updateRaceBoard(discordGuild);
+    return say(`Race to 60 board ${posted ? "ready" : "saved"} in <#${channelId}>.`, `Tableau de la course au 60 ${posted ? "prêt" : "enregistré"} dans <#${channelId}>.`);
+  } catch (error) {
+    return `⚠️ ${say("Race to 60 board didn't finish: ", "Le tableau de la course au 60 n'a pas fini : ")}${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
+/**
  * Edits the saved board message in place; if it is gone, adopts an existing bot board in the channel before ever
  * posting a new one. Never throws. `delivery` is the job worker's call; any other call queues the refresh.
  */

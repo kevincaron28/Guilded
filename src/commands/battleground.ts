@@ -102,7 +102,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { pvpModuleEnabled: enabled } });
     await i.editReply({ content: enabled
-      ? t("PvP channels on. Run /setup and press Create all channels: it adds one PvP category (groups, results, ladder) and adopts battleground channels you already have. Nothing is posted until then.", "Salons JcJ activés. Lancez /setup et appuyez sur Créer tous les salons : une catégorie JcJ (groupes, résultats, classement) est ajoutée et vos salons de champs de bataille existants sont repris. Rien n'est publié avant.")
+      ? t("PvP channels on (the default). Run /setup and press Create missing channels: it adds one PvP category (groups, results, ladder) and adopts battleground channels you already have. Nothing is posted until then.", "Salons JcJ activés (par défaut). Lancez /setup et appuyez sur Créer les salons manquants : une catégorie JcJ (groupes, résultats, classement) est ajoutée et vos salons de champs de bataille existants sont repris. Rien n'est publié avant.")
       : t("PvP channels off. Existing channels and boards stay as they are.", "Salons JcJ désactivés. Les salons et tableaux existants restent en place."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "duel-board") {

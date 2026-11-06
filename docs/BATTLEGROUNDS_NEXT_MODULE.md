@@ -10,12 +10,13 @@ release records in `docs/V8_4_0_RELEASE_ACCEPTANCE.md` and `docs/archive/` hold 
 
 ### 8.5 track B: PvP channels and the ladder
 
-- **One PvP category.** An officer runs `/battleground pvp-module enabled:true`; `/setup`
-  then adds the category (`⚔️ PvP` / `⚔️ JcJ`) with `pvp-groups`, `pvp-results` and
+- **One PvP category.** The module is on by default (`/battleground pvp-module enabled:false` switches it off); `/setup`
+  adds the category (`⚔️ PvP` / `⚔️ JcJ`) with `pvp-groups`, `pvp-results` and
   `pvp-ladder` (`groupes-pvp`, `resultats-pvp`, `classement-pvp` in French) through the
   button "Create missing channels". Channels already saved in the settings, or already named
   like the 8.4 battleground channels (`battleground-groups` ...) and sitting together in one
-  category, are adopted and never duplicated. Nothing is created while the module is off.
+  category, are adopted and never duplicated. Nothing is created while the module is off, and the duel board (also on by default) posts only once the
+  ladder channel exists.
 - **The ladder is the PvP ladder.** `pvp-ladder` is the same channel as the 8.4 statistics channel
   (`bgStatsChannelId`): it holds the static statistics panel and the live duel board
   (`/battleground duel-board`), which already combines duel standings with the consented

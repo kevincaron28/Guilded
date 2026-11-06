@@ -917,13 +917,13 @@ model GuildSettings {
   bgResultsMessageId       String?
   bgStatsMessageId         String?
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
-  duelBoardEnabled         Boolean @default(false)
+  duelBoardEnabled         Boolean @default(true)
   duelBoardMessageId       String?
-  // 8.5 track B: Race to 60 board (opt-in, one message edited in place) and the PvP channel module switch.
-  raceBoardEnabled         Boolean @default(false)
+  // 8.5 track B: Race to 60 board (on by default, officers switch it off; posts once its channel exists) and the PvP channel module switch.
+  raceBoardEnabled         Boolean @default(true)
   raceBoardChannelId       String?
   raceBoardMessageId       String?
-  pvpModuleEnabled         Boolean @default(false)
+  pvpModuleEnabled         Boolean @default(true)
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).

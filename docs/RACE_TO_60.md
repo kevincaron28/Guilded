@@ -4,12 +4,15 @@ A permanent board for WoW Forever (level cap 60): one bot message in its own cha
 place (the duel-board pattern), with a class-coloured bar image from `src/services/score-card.ts`
 (`race` layout) and text fields for the finish order, who is still racing and the week's best.
 
-## Turning it on (officers)
+## On by default, off switch for officers
 
-`/character race action:board-on` (optionally with `channel:`). Without a channel the bot creates
+Owner decision (6 November 2026): the board is on in every server. It posts only once its channel
+exists: `/setup` "Create missing channels" adopts a channel already named `race-to-60` / `course-au-60` or creates
+one. `/character race action:board-off` stops it (`board-on` turns it back on, optionally with `channel:`).
+Without a channel the bot creates
 `race-to-60` (`course-au-60` in French), visible only to the server's member role and read-only;
-if it cannot do that safely (no Manage Channels or no member role) it asks for a channel. Off by
-default. `board-off` stops updates and leaves the message.
+if it cannot do that safely (no Manage Channels or no member role) it asks for a channel.
+`board-off` stops updates and leaves the message.
 
 ## What counts
 

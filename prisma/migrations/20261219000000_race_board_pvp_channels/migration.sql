@@ -1,8 +1,12 @@
--- 8.5 track B: Race to 60 board and the PvP channel module. Additive only; everything is off until an officer opts in.
-ALTER TABLE "GuildSettings" ADD COLUMN "raceBoardEnabled" BOOLEAN NOT NULL DEFAULT false;
+-- 8.5 track B: Race to 60 board and the PvP channel module. Additive only. Owner decision (6 Nov 2026): new 8.5 features are on
+-- by default in every server; boards post only once their channel exists (created or adopted by /setup). Officers switch them off.
+ALTER TABLE "GuildSettings" ADD COLUMN "raceBoardEnabled" BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE "GuildSettings" ADD COLUMN "raceBoardChannelId" TEXT;
 ALTER TABLE "GuildSettings" ADD COLUMN "raceBoardMessageId" TEXT;
-ALTER TABLE "GuildSettings" ADD COLUMN "pvpModuleEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "GuildSettings" ADD COLUMN "pvpModuleEnabled" BOOLEAN NOT NULL DEFAULT true;
+-- The 8.4.6 duel board (the PvP ladder) follows the same rule; it still needs the statistics channel to post.
+ALTER TABLE "GuildSettings" ALTER COLUMN "duelBoardEnabled" SET DEFAULT true;
+UPDATE "GuildSettings" SET "duelBoardEnabled" = true;
 ALTER TABLE "Member" ADD COLUMN "raceHidden" BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE "LevelRaceEntry" (

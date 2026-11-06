@@ -6,7 +6,7 @@ import { guildService } from "./context.js";
 import { createRaceChannel, loadRaceBoardData, nearLevel, updateRaceBoard, LEVEL_CAP } from "../services/race-board.js";
 
 // `/character race ...` (8.5 track B1): members find levelling partners and hide their characters from the board;
-// officers switch the board on or off. Bilingual by the guild's language, like the board itself.
+// officers switch the board off or back on (it is on by default and posts once /setup has created or adopted its channel). Bilingual by the guild's language, like the board itself.
 export const RACE_ACTIONS = ["near", "hide", "show", "board-on", "board-off"] as const;
 
 export function addRaceSubcommand(sub: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {

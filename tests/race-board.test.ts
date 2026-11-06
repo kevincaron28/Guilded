@@ -97,3 +97,17 @@ describe("PvP channels", () => {
     await expect(ensurePvpModule({} as never, db as never, "g1", "en", "u1")).resolves.toBe("");
   });
 });
+
+describe("on by default (owner decision, 6 November 2026)", () => {
+  it("declares the 8.5 switches on in the schema and migration", async () => {
+    const { readFileSync } = await import("node:fs");
+    const schema = readFileSync("prisma/schema.prisma", "utf8");
+    for (const field of ["raceBoardEnabled", "pvpModuleEnabled", "duelBoardEnabled"]) {
+      const line = schema.split("\n").find(text => text.trim().startsWith(`${field} `));
+      expect(line, field).toContain("@default(true)");
+    }
+    const sql = readFileSync("prisma/migrations/20261219000000_race_board_pvp_channels/migration.sql", "utf8");
+    expect(sql).toContain('"raceBoardEnabled" BOOLEAN NOT NULL DEFAULT true');
+    expect(sql).toContain('"pvpModuleEnabled" BOOLEAN NOT NULL DEFAULT true');
+  });
+});

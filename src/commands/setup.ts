@@ -45,6 +45,7 @@ import { BRAND } from "../brand.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { LITE_SETUP_STEPS, LITE_SUMMARY } from "./lite.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
+import { ensureRaceBoard } from "../services/race-board.js";
 import { ensureBattlegroundSetup, ensurePvpModule, BG_SETUP_PARTS, BG_SETUP_FIELDS } from "../services/battleground-setup.js";
 import { communitySetupState, ensureCommunitySetup } from "../services/community-setup.js";
 
@@ -455,9 +456,9 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
   if (step === SUMMARY_STEP) {
     const checks = setupChecks(await gatherFacts(guild, guildId, settings), lang);
     const done = setupComplete(checks);
-    // 8.5: with the PvP module on, its missing channels count too, so the button still works when every core channel exists.
+    // 8.5: with the PvP module and race board on (the defaults), its missing channels count too, so the button still works when every core channel exists.
     const missingPvp = settings.pvpModuleEnabled ? BG_SETUP_PARTS.filter((part) => !settings[BG_SETUP_FIELDS[part].channel]).length : 0;
-    const missingChannels = ALL_CHANNELS.filter((field) => !settings[field]).length + missingPvp;
+    const missingChannels = ALL_CHANNELS.filter((field) => !settings[field]).length + missingPvp + (settings.raceBoardEnabled && !settings.raceBoardChannelId ? 1 : 0);
     await guild.roles.fetch();
     const missingRoles = REQUIRED_ROLES.filter((permission) => !guild.roles.cache.some((role) => isPermissionRole(permission, role))).length;
     embed.setDescription([
@@ -940,7 +941,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         } else if (action === "create-channels") note = await withCommunity(await createSectionChannels(guild, guildId, CORE_CHANNELS, lang));
         else if (action === "create-raidteam-channels") note = await createSectionChannels(guild, guildId, RAIDTEAM_CHANNELS, lang);
         else if (action === "create-dungeon-channels") note = await createSectionChannels(guild, guildId, DUNGEON_CHANNELS, lang);
-        else if (action === "create-all-channels") note = [await withCommunity(await createSectionChannels(guild, guildId, ALL_CHANNELS, lang)), await ensurePvpModule(guild, prisma, guildId, lang, i.user.id)].filter(Boolean).join("\n");
+        else if (action === "create-all-channels") note = [await withCommunity(await createSectionChannels(guild, guildId, ALL_CHANNELS, lang)), await ensurePvpModule(guild, prisma, guildId, lang, i.user.id), await ensureRaceBoard(guild, guildId, lang)].filter(Boolean).join("\n");
         else if (action === "create-community") note = await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id);
         else if (action === "dungeon-guide") {
           const settings = await guildService.getSettings(guildId);

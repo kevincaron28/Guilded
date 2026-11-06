@@ -73,9 +73,11 @@ describe("WoW folder search", () => {
     const d = drive();
     const install = join(d, "Somewhere", "Deep", "Inside", "World of Warcraft");
     account(install);
-    const text = `\u0012\u0000${install}\u0012\u0004wow_frFR\u0000E:/Missing/World of Warcraft\u0000`;
-    expect(detect.battleNetInstallPaths(text)).toContain(install);
-    expect(detect.wowInstalls({ drives: [], home: join(d, "nobody"), recorded: detect.battleNetInstallPaths(text) })).toEqual([install]);
+    // product.db holds the paths as plain text between protobuf bytes.
+    const text = "\u0012\u0000D:\\Jeux\\World of Warcraft\u0012\u0004wow_frFR\u0000E:/Games/World of Warcraft\u0000";
+    expect(detect.battleNetInstallPaths(text).map((item: string) => item.replaceAll("\\", "/"))).toEqual(["D:/Jeux/World of Warcraft", "E:/Games/World of Warcraft"]);
+    // A recorded path that exists is used even where no drive scan would reach it; a missing one is not.
+    expect(detect.wowInstalls({ drives: [], home: join(d, "nobody"), recorded: [install, join(d, "Missing", "World of Warcraft")] })).toEqual([install]);
   });
 
   it("reports installs that have no account folder yet", () => {

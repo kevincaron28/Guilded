@@ -60,5 +60,18 @@ export function syncDiagnosticPreview(config = {}, state = {}, evidence = {}) {
     running: status.running, saved: status.saved, uploaded: status.uploaded, accepted: status.accepted,
     lastOperationAt: status.lastOperationAt, companionVersion: version(evidence.companionVersion),
     addonVersion: version(state.addonVersion), botVersion: version(state.botVersion),
-    recentErrors: recentErrors(state.recentErrors) };
+    recentErrors: recentErrors(state.recentErrors),
+    ...(gameSync(state.gameSync) ? { gameSync: gameSync(state.gameSync) } : {}) };
+}
+
+/** (9.0) The addon's guild sync counters (/guilded sync stats): whole numbers and two dates. */
+function gameSync(value) {
+  if (!value || typeof value !== "object") return null;
+  const fields = ["sent", "bytes", "received", "receivedBytes", "held", "relayedIn", "relayedOut", "rounds", "acksSent", "acksHeard"];
+  const out = {};
+  for (const field of fields) out[field] = Number.isSafeInteger(value[field]) && value[field] >= 0 ? value[field] : 0;
+  for (const field of ["since", "lastCatchUpAt"]) {
+    if (typeof value[field] === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/.test(value[field])) out[field] = value[field];
+  }
+  return out;
 }

@@ -678,6 +678,7 @@ pump = function(prefix)
         break
       end
       b.results[status] = b.results[status] + 1
+      if status == "sent" then b.results.bytes = (b.results.bytes or 0) + #item.text end
       b.lastResult, b.lastCode = status, code
       if status == "throttled" then
         b.tokens = 0
@@ -746,6 +747,21 @@ function comm.status(prefix)
     queued = b and #b.queue or 0, lastResult = b and b.lastResult or nil,
     lastCode = b and b.lastCode or nil
   }
+end
+
+-- (9.0) This session's addon traffic, all prefixes together (for /guilded sync stats):
+-- messages sent and their bytes, messages held inside instances, and what Transport.lua
+-- counted as received from guildmates' Guilded addons.
+comm.received = comm.received or { count = 0, bytes = 0 }
+function comm.totals()
+  local out = { sent = 0, bytes = 0, held = 0, queued = 0, received = comm.received.count, receivedBytes = comm.received.bytes }
+  for _, b in pairs(buckets) do
+    out.sent = out.sent + (b.results.sent or 0)
+    out.bytes = out.bytes + (b.results.bytes or 0)
+    out.held = out.held + (b.results.held or 0)
+    out.queued = out.queued + #b.queue
+  end
+  return out
 end
 
 -- Registers an addon message prefix with whichever API this client has.

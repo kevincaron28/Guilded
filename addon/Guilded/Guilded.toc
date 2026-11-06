@@ -50,6 +50,7 @@ Modules\History.lua
 Modules\SyncNow.lua
 Modules\AutoInvite.lua
 Modules\Dungeon.lua
+Modules\CatchUp.lua
 Modules\Battleground.lua
 Modules\RunResults.lua
 Modules\SeasonSync.lua

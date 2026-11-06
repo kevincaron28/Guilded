@@ -32,10 +32,14 @@ local CHUNK_BYTES = 200
 local KEEP_SYNCED_DAYS = 30
 
 local compat = ns.compat
-local dungeon = { addonUsers = {}, outbox = {}, incoming = {}, lastHello = 0 }
+local dungeon = { addonUsers = {}, outbox = {}, incoming = {}, lastHello = 0, acked = {},
+  stats = { acksSent = 0, acksHeard = 0, pruned = 0 } }
 ns.dungeon = dungeon
 
 local TERMINAL = { COMPLETED = true, ABANDONED = true, INVALID = true, ERROR = true }
+-- (9.0) Guildmates' runs nobody's bot confirmed are dropped after this long (the bot takes
+-- relayed runs up to 30 days old, so older copies can never reach it).
+local KEEP_PEER_DAYS = 45
 
 local function db()
   local root = ns.getDb and ns.getDb()
@@ -66,7 +70,9 @@ local function flush()
   dungeon.outbox = {}
   for _, message in ipairs(queued) do
     local channel = message.channel == "GROUP" and groupChannel() or message.channel
-    if channel then ns.comm.send(PREFIX, message.text, channel) end
+    -- (9.0) Guild summaries wait until the player is outside: guild messages from inside an
+    -- instance are unreliable, and nobody in the guild needs them before the group leaves.
+    if channel then ns.comm.send(PREFIX, message.text, channel, nil, nil, channel == "GUILD" and "hold-in-instance" or nil) end
   end
 end
 
@@ -655,6 +661,16 @@ local function onAddonMessage(text, sender)
     end
   elseif kind == "REQUEST" and ns.isOfficerName and ns.isOfficerName(sender) then
     dungeon.replayPending()
+  elseif kind == "ACK" then
+    -- (9.0) A guildmate whose companion's bot already stored this run: stop replaying it at
+    -- every login. Only our own copy is marked; the bot still dedupes by run id.
+    local id = string.match(text, "^ACK|([^|]+)$")
+    local saved = id and d and d.runs[id]
+    if saved and not saved.synced and not saved.syncedVia then
+      saved.syncedVia = sender
+      saved.syncedViaAt = now()
+      dungeon.stats.acksHeard = dungeon.stats.acksHeard + 1
+    end
   elseif kind == "SUM" then
     local id, index, total, payload = string.match(text, "^SUM|([^|]+)|(%d+)|(%d+)|(.*)$")
     index, total = tonumber(index), tonumber(total)
@@ -681,6 +697,14 @@ local function onAddonMessage(text, sender)
       -- Only someone who was in the run can report it, and not with times in the future.
       if peer and peer.players[sender] and not ns.util.tooFarAhead(peer.endedAt or 0)
         and not ns.util.tooFarAhead(peer.startedAt or 0) then
+        local known = d and d.runs[id]
+        -- (9.0) A replay of a run this PC's bot already stored: say so once, so the sender
+        -- (a Guilded Dungeons-only player, or someone without the companion) stops replaying it.
+        if known and known.synced and not dungeon.acked[id] then
+          dungeon.acked[id] = true
+          dungeon.stats.acksSent = dungeon.stats.acksSent + 1
+          send("ACK|" .. id, "GUILD")
+        end
         storePeerRun(peer, sender)
       end
     end
@@ -861,7 +885,7 @@ local function onEvent(_, event, ...)
     local prefix, text, channel, sender = ...
     if not ns.comm.accept(prefix, text, channel, sender, PREFIX, function(author, delivery)
       local kind = string.match(text, "^(%u+)|")
-      if kind == "SUM" or kind == "REQUEST" then
+      if kind == "SUM" or kind == "REQUEST" or kind == "ACK" then
         return delivery == "GUILD" and ns.comm.authorized(author, "guild")
       end
       return (delivery == "PARTY" or delivery == "RAID" or delivery == "INSTANCE_CHAT")
@@ -888,9 +912,37 @@ function dungeon.markSynced()
     if d.runs[id] then d.runs[id].synced = true end
   end
   local cutoff = now() - KEEP_SYNCED_DAYS * 86400
+  local peerCutoff = now() - KEEP_PEER_DAYS * 86400
+  local mine = me()
   for id, run in pairs(d.runs) do
-    if run.synced and (run.endedAt or run.detectedAt or 0) < cutoff then d.runs[id] = nil end
+    local at = run.endedAt or run.detectedAt or 0
+    -- (9.0) A copy a guildmate's bot confirmed (ACK or catch-up) ages out like a synced one; a
+    -- guildmate's run nobody confirmed goes after 45 days. Our own unconfirmed runs stay.
+    local confirmed = run.synced or run.syncedVia
+    local ours = mine and run.players and run.players[mine]
+    if (confirmed and at < cutoff) or (not confirmed and not ours and at < peerCutoff) then
+      d.runs[id] = nil
+      dungeon.stats.pruned = dungeon.stats.pruned + 1
+    end
   end
+end
+
+-- (9.0) Every saved run, for the catch-up module (Modules/CatchUp.lua).
+function dungeon.savedRuns()
+  local d = db()
+  return d and d.runs or {}
+end
+
+-- (9.0) A run a guildmate forwarded during catch-up: stored exactly as if `reporter` (who was
+-- in the run, checked by the caller) had sent it, plus who passed it on. Returns true when new.
+function dungeon.storeForwarded(run, reporter, via)
+  local d = db()
+  if not d or not run or not run.id or not run.players or not run.players[reporter] then return false end
+  local isNew = d.runs[run.id] == nil
+  storePeerRun(run, reporter)
+  if isNew and d.runs[run.id] then d.runs[run.id].forwardedBy = via end
+  if isNew and ns.onDungeonChange then pcall(ns.onDungeonChange) end
+  return isNew
 end
 
 -- Recovery for runs that ended ABANDONED although the client's own ENCOUNTER_END/BOSS_KILL
@@ -961,7 +1013,7 @@ function dungeon.replayPending()
   local d = db()
   local runs = {}
   for _, run in pairs(d and d.runs or {}) do
-    if not run.synced and run.players and run.players[me()] and TERMINAL[run.state]
+    if not run.synced and not run.syncedVia and run.players and run.players[me()] and TERMINAL[run.state]
       and (run.endedAt or 0) >= now() - 7 * 86400 then runs[#runs + 1] = run end
   end
   table.sort(runs, function(a, b) return (a.endedAt or 0) > (b.endedAt or 0) end)

@@ -226,6 +226,8 @@ export function createEngine(initialConfig, hooks = {}) {
     standingsError: null,
     // The last few failures, as small records for the support summary (error-detail.mjs).
     recentErrors: [],
+    // The addon's guild sync counters from the last save (9.0; support summary only).
+    gameSync: null,
     uploads: 0,
     syncPhase: "waiting-save",
     syncEvidence: {},
@@ -365,6 +367,12 @@ export function createEngine(initialConfig, hooks = {}) {
       : JSON.parse(await readSavedText(current.watchFile));
     const stamp = await stat(current.watchFile);
     if (`${stamp.mtimeMs}:${stamp.size}` !== lastFile) throw new Error("Saved data changed during reading. Retrying the latest save.");
+    // (9.0) The addon's guild sync counters are for the support summary only, never uploaded,
+    // and they change at every save, so they stay out of the revision too.
+    if (full && typeof full === "object" && "syncStats" in full) {
+      state.gameSync = full.syncStats;
+      delete full.syncStats;
+    }
     const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
     state.syncEvidence = { savedAt: stamp.mtime.toISOString(), savedRevision: revision,
       character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null,

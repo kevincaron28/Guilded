@@ -105,6 +105,11 @@ end
 ns.commandHandlers = ns.commandHandlers or {}
 local lastPeerRequest
 ns.commandHandlers["sync"] = function(args)
+  if string.lower(args[1] or "") == "stats" then
+    -- (9.0) Messages, bytes, relayed items and the last catch-up (Modules/CatchUp.lua).
+    if ns.catchUp then for _, line in ipairs(ns.catchUp.statsLines()) do ns.message(line) end end
+    return
+  end
   if string.lower(args[1] or "") == "peers" then
     if not (IsInGuild and IsInGuild()) then ns.message(ns.L("Join a guild to sync with guildmates.")); return end
     if lastPeerRequest and clock() - lastPeerRequest < 30 then
@@ -115,6 +120,7 @@ ns.commandHandlers["sync"] = function(args)
     if ns.requestGuildDungeonBoard then ns.requestGuildDungeonBoard() end
     if ns.requestGuildBridge and not (ns.isInGameOnly and ns.isInGameOnly()) then ns.requestGuildBridge() end
     if ns.ledgerSync and ns.ledgerSync.active() then ns.ledgerSync.sendSum(true) end
+    if ns.catchUp then ns.catchUp.sendDigest(true) end
     ns.message(ns.L("Requested updates from online guildmates."))
     return
   end
@@ -136,4 +142,5 @@ ns.commandHandlers["sync"] = function(args)
 end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded sync peers - request shared data from online guildmates")
+table.insert(ns.commandHelp, "/guilded sync stats - guild sync traffic, relayed items and the last catch-up")
 table.insert(ns.commandHelp, "/guilded sync | sync status - how to send your data to Discord now (/reload, or the Send to Discord button)")

@@ -122,3 +122,116 @@ tests/lua/guild-relay.test.ts), not delivery between real clients.
 6. Inside a dungeon, `/guilded ledgersync` traffic and `HI` wait until the group leaves; check
    nothing is lost and `/guilded relay` still answers.
 7. A client with a newer protocol (edit `PROTOCOL` locally) makes the other print the update line once.
+
+---
+
+# 9.0: maximum sharing and optimal sync
+
+Owner request (6 November 2026): "make sure we share the most data possible and we are optimal to
+sync." Goal: whenever any companion user is online, the bot learns everything the guild's addons
+know, including Guilded Dungeons-only players and players with no addon.
+
+## Audit: every message a Guilded addon hears from guildmates
+
+| Prefix (module) | What it carries | Kept in SavedVariables (with author and time) | Uploaded by the companion |
+| --- | --- | --- | --- |
+| `Guilded` READINESS (Core.lua) | Level, class, race, spec, professions, readiness, verify code | `peerRoster[name]`, `seenAt`, `reportedBy` | Yes (`characters`, readiness) |
+| `GuildedDgn` SUM (Dungeon.lua, both addons) | Finished runs | `dungeon.runs[id]`, `reporters` | Yes (`dungeonRuns`) |
+| `GuildedDgn` HELLO/START/ACTIVE/DEATH/END | The live run in your own group | Into your own run | Yes, as part of the run |
+| `GuildedDgn` ACK (new) | "My bot already has this run" | `syncedVia`, `syncedViaAt` on your copy | No (local bookkeeping) |
+| `GuildedRcp` (Recipes.lua) | Recipes, names, cooldowns | `recipeBook.people/cooldowns`, `v` stamp | Yes (`recipes`, `cooldowns`) |
+| `GuildedDuel` (Duels.lua) | Duel results, from one of the two players | `duels.results` | Yes (`duelResults`) |
+| `GuildedLedger`, `Guilded` LEDGER (officers) | EP/GP entries | `epgp` | Yes (officers) |
+| `GuildedRes` (Reserve.lua) | The keeper's soft-reserve list | `reserves` | Yes |
+| `GuildedRly` HI (GuildRelay.lua) | Protocol, carrier flag | `relay.carriers` | No (local) |
+| `GuildedCatch` (CatchUp.lua, new) | Catch-up digests, forwarded runs and digests | Into `dungeon.runs` / `peerRoster` with `forwardedBy` / `via` | Yes, like first-hand copies |
+| `GuildedMile` GOFF | The officer switch for announcements | `milestones.guild` | No (a setting) |
+| `GuildedSeason`, `GuildedSync`, `GuildedBridge`, `GuildedRating`, `GuildedScore` | Bot data passed down to members, version check | Standings, boards | No (comes from the bot) |
+| `GuildedFree` (Presence.lua) | Opt-in availability | **Memory only, by design** (consent) | No |
+| `GuildedMap` | Positions | **Not kept, by design** (location) | No |
+| `GuildedSOS`, `GuildedLC`, `GuildedBid`, `GuildedMotd`, `GuildedRec`, `GuildedHist` | Live calls, council, bids, MOTD helper, welcome, history replies | Transient (their results end up in loot, the ledger or the MOTD) | Through those results |
+
+Heard but dropped, and what happened to each:
+
+1. **Runs heard by a member without a companion** were never passed on: only the run's author
+   replayed it (last 7 days, at login, or when an officer asked). **Fixed** by catch-up.
+2. **Guildmates' digests heard by a member without a companion**: same. **Fixed** by catch-up
+   (level, class, race, spec, professions; never readiness or verify codes).
+3. **Guildmates' milestones** are only guild chat text, never an addon message: nothing to keep.
+   Level milestones follow from relayed levels; a milestone relay needs a bot rule first (left).
+4. **Guildmates' runs nobody's bot confirmed piled up forever** in members' saved files. Now
+   dropped after 45 days (the bot takes relayed runs up to 30 days old).
+
+The roster, last online, MOTD, info text, event log and guild bank need no relay: every member's
+own client reads them from the game (docs/GUILD_DATA_INVENTORY.md), so any companion user uploads
+them for the whole guild, whoever else is online. Catch-up therefore covers runs and digests only.
+
+## Catch-up on login (Modules/CatchUp.lua)
+
+Store and forward, generalizing LedgerSync's digest, offer and request pattern:
+
+1. 40 s after login (and on `/guilded sync peers`), each client sends one `DIG`: for runs (R) and
+   guildmates' digests (P) from the last 14 days, a count and a 24-bit hash sum. One message.
+2. A guildmate whose digest differs answers with `HAVE`: its item keys (4 characters each: a hash of
+   the run id, or of name + level + professions date), `*` marking runs its bot already has. Only
+   one guildmate answers: a companion user answers a member first, a member answers a companion
+   user first, and everyone else goes quiet once they hear an answer. At most 8 parts, and the same
+   asker is answered at most once per 10 minutes.
+3. The asker requests what it lacks (`WANT`, up to 40 keys) and pushes what the other lacks (up to
+   8 items, newest first). The holder sends up to 8 items per request.
+4. Items travel as `RUN` (Dungeon.lua's summary format, with a reporter who was in the run) and
+   `PEER` (level, class, race, spec, professions and their date). They are broadcast on GUILD, so
+   every online guildmate stores them; the next companion sync uploads them.
+
+Checks are the same as first-hand: a run only with a reporter who played it, ended within 14 days,
+nothing from the future; a digest only about a guild member, only when newer than the copy held,
+professions never replaced by an older list, never a verify code (a first-hand one is kept).
+Forwarded digests feed `characters`, never readiness rows. The bot then applies its own rules
+(levels only go up, newer professions only, relayed runs need a participant reporter). A run's `*`
+mark sets `syncedVia`: the author stops replaying it and the copy ages out after 30 days.
+
+**Dungeons-only players.** Guilded Dungeons shares Dungeon.lua, so its `SUM` replays are stored
+and relayed exactly like Guilded members' runs (credit by character, `reporterNames`), and catch-up
+forwards them. New in the shared file: a companion user hearing a replay of a run its bot already
+stored answers `ACK|<id>` once, and the author (either addon) stops replaying it. Before, a
+Dungeons-only player with no companion replayed the same runs at every login for a week.
+
+## Efficiency
+
+- **Batched**: one `DIG` per login; item lists are 4-character keys, and only missing items travel.
+- **Queued in instances**: catch-up traffic, the dungeon `SUM`/`ACK` guild messages and the relay
+  use the `hold-in-instance` lane and leave after the group exits. Group messages are never held.
+- **Upload size**: the companion already sends one combined upload per save and leaves out ledger
+  and loot rows the bot acknowledged (`delta.mjs`); identical bytes are answered "nothing new".
+  The addon's sync counters stay out of the upload and out of its revision hash.
+- **Compression**: not added (no deflate in WoW's Lua without a library; summaries are short text).
+
+## Measure
+
+- `/guilded sync stats`: this session's messages sent and received with bytes and messages held in
+  instances; relayed items in and out, dungeon confirmations heard and sent; totals since the first
+  count (saved at logout in `GuildedDB.syncStats`); the last catch-up and with whom.
+- The companion's support summary (`syncDiagnosticPreview`) adds `gameSync`: the same numbers and
+  two dates, never names.
+
+## Left for later
+
+1. **Guilded Dungeons answering catch-up**: Dungeons-only players replay their own runs and accept
+   ACKs, but do not hold or forward others' runs (no CatchUp module in that addon).
+2. **Recipes in catch-up**: recipes still travel first-hand only (`Q` makes everyone online
+   re-share their own). Forwarding needs per-profession keys and a third-party recipe format.
+3. **Milestones relay**: needs a bot rule for milestones of characters the uploader does not own.
+4. **Run delta upload**: skipping runs already marked synced would shrink uploads, but a second
+   witness's copy may matter to public score evidence; decide with the scoring owner.
+5. **Compression** (LibDeflate-style) for long summaries.
+
+## Needs a real client
+
+1. Three Forever clients in one guild: A (Guilded Dungeons only), B (Guilded, no companion),
+   C (Guilded with a running companion). A finishes a dungeon with only B online. Later C logs in
+   with only B online: within about a minute C's addon holds A's run (`forwardedBy` = B); C's next
+   sync puts it on the website once.
+2. A logs in with C online: C answers A's replay with `ACK`; A's next login sends no replay.
+3. `/guilded sync stats` on B and C shows relayed items and "Last catch-up: ... with ..."; the
+   companion's support summary shows `gameSync`.
+4. Inside a dungeon, no `GuildedCatch` traffic leaves until the group exits.

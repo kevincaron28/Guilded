@@ -159,7 +159,9 @@ export function parseAddonExportText(text, realm) {
   // they're converted into readiness entries with synthesized findings
   // instead of real gear data — this is what lets one officer's export
   // carry a readiness picture for the whole online guild, not just themselves.
-  const peerReadiness = Object.entries(database.peerRoster ?? {}).map(([character, entry]) => {
+  // (9.0) A digest a guildmate forwarded during catch-up (Modules/CatchUp.lua) is old news for
+  // readiness: it still feeds the character list below, never a readiness row.
+  const peerReadiness = Object.entries(database.peerRoster ?? {}).filter(([, entry]) => entry?.forwarded !== true).map(([character, entry]) => {
     const professions = digestProfessions(entry.professions);
     const findings = [];
     if ((entry.missing ?? 0) > 0) {
@@ -314,7 +316,8 @@ export function parseAddonExportText(text, realm) {
     }));
   const exportKeys = Object.keys(database.exports ?? {}).sort();
   const exportedAt = exportKeys.at(-1) ?? new Date().toISOString();
-  return normalizeExportIdentities({
+  const syncStats = exportSyncStats(database);
+  const identities = normalizeExportIdentities({
     source: "Guilded",
     ...edition,
     exportedAt,
@@ -362,6 +365,21 @@ export function parseAddonExportText(text, realm) {
     ...guildData,
     ...guildBank
   }, edition.gameEdition, realm);
+  return syncStats ? { ...identities, syncStats } : identities;
+}
+
+// Guild sync counters (addon Modules/CatchUp.lua, 9.0): numbers and two dates, never names. The
+// companion shows them in its support summary and does not upload them (engine.mjs).
+export function exportSyncStats(database) {
+  const saved = database?.syncStats;
+  if (!saved || typeof saved !== "object") return null;
+  const count = (v) => Number.isSafeInteger(v) && v >= 0 && v < 1e12 ? v : 0;
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const fields = ["sent", "bytes", "received", "receivedBytes", "held", "relayedIn", "relayedOut", "rounds", "acksSent", "acksHeard"];
+  const stats = Object.fromEntries(fields.map((field) => [field, count(saved[field])]));
+  if (epoch(saved.since)) stats.since = new Date(saved.since * 1000).toISOString();
+  if (epoch(saved.lastCatchUpAt)) stats.lastCatchUpAt = new Date(saved.lastCatchUpAt * 1000).toISOString();
+  return stats;
 }
 
 // Private self-reports only: whitelist the protocol rather than forwarding arbitrary

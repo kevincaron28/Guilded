@@ -67,8 +67,8 @@ describe("Repair", () => {
   it("tells leaderboards-only, an expired sign-in and an outage apart", async () => {
     const personal: Result[] = await runRepair(deps({ me: async () => ({ ok: true, personal: true, account: { username: "kev" }, join: { serverName: "Québec Gold" } }) }));
     expect(personal.find((item) => item.id === "link")).toMatchObject({ status: "needs-you", text: [expect.stringContaining("Join {0}"), "Québec Gold"] });
-    expect(byId(await runRepair(deps({ me: async () => ({ ok: false, error: "This companion link is no longer valid." }) }))).signin).toBe("needs-you");
-    expect(byId(await runRepair(deps({ me: async () => ({ ok: false, unreachable: true }) }))).signin).toBe("failed");
+    expect(byId(await runRepair(deps({ me: async () => ({ ok: false, error: "This companion link is no longer valid." }) })))["signin"]).toBe("needs-you");
+    expect(byId(await runRepair(deps({ me: async () => ({ ok: false, unreachable: true }) })))["signin"]).toBe("failed");
   });
 
   it("reports an addon install that failed", async () => {

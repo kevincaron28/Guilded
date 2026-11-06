@@ -88,6 +88,11 @@ Render images with `src/services/score-card.ts` (roster layout) so they match th
 - Existing: `Character.level` from uploads; level milestones every 10 levels (`Milestones.lua` →
   `MemberMilestone`), achievements `wow-forever-level-N`. The officer's addon upload also sees levels
   of guildmates who never linked (`UnclaimedCharacter.level`).
+- **Owner request (6 November 2026):** the `race-to-60` channel shows a leaderboard of the **top 25
+  guild characters** (officers can set 10-30) with, per row: rank, character first and last name,
+  class (class colour and icon), race, level with a progress bar and % to next level when known,
+  professions with skill, last seen, the linked Discord member, and, for those at 60, the date they
+  reached it (finish order). Below it: "levels gained this week" top 5 and the guild's count of 60s.
 - Build: a permanent board in a `race-to-60` channel (or a channel the officer picks): every guild
   character ordered by level, class-coloured progress bars, time each one reached 60 (finish order),
   "levels gained this week". Linked and unlinked characters both count (unlinked shown by character

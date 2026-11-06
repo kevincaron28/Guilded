@@ -124,6 +124,7 @@ enum ApplicationStatus {
 
 model Guild {
   levelRace LevelRaceEntry[]
+  raceHall RaceHallEntry[]
   rankRoles GuildRankRole[]
   pugBoard PugBoardGuild?
   pugBlocks PugBlock[]
@@ -924,6 +925,12 @@ model GuildSettings {
   raceBoardChannelId       String?
   raceBoardMessageId       String?
   pvpModuleEnabled         Boolean @default(true)
+  raceBoardTop             Int     @default(25)
+  raceEnded                Boolean @default(false)
+  raceHallBackfilledAt     DateTime?
+  // Separate battleground ladder message in the ladder channel (the duel board keeps its own message and points).
+  bgLadderEnabled          Boolean @default(true)
+  bgLadderMessageId        String?
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -2857,8 +2864,33 @@ model LevelRaceEntry {
   reachedMaxAt   DateTime?
   weekStartLevel Int
   weekStartedAt  DateTime
+  firstSeenAt    DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   guild          Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, nameKey])
+}
+
+// 8.5 track B1: the Hall of Fame. One permanent row per character that reached 60, numbered in arrival order, so the history
+// survives channel resets and re-syncs. `posted` is false until its message is sent; backfilled rows were found on the first run.
+model RaceHallEntry {
+  id              String   @id @default(cuid())
+  guildId         String
+  nameKey         String
+  order           Int
+  name            String
+  className       String
+  race            String?
+  reachedAt       DateTime
+  firstSeenAt     DateTime
+  professions     String?
+  memberDiscordId String?
+  backfilled      Boolean  @default(false)
+  posted          Boolean  @default(false)
+  messageId       String?
+  createdAt       DateTime @default(now())
+  guild           Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, nameKey])
+  @@unique([guildId, order])
 }

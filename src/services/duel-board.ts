@@ -7,16 +7,16 @@ import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./disc
 import { duelLeaderboard, percent, streakText, type DuelStanding } from "./duels.js";
 
 // The live "Duels de la guilde" board (8.4.6): ONE bot message in the PvP statistics channel, edited in place after
-// every duel upload and on a schedule. Opt-in per server (GuildSettings.duelBoardEnabled), nothing is awarded and
-// nothing is posted as new chatter. It sits next to the static /bg panel, which it never touches.
+// every duel upload and on a schedule. On by default (GuildSettings.duelBoardEnabled), it posts once the ladder channel
+// exists; nothing is awarded. It is the DUEL ladder only: battleground reports have their own message and their own
+// numbers (bg-ladder.ts), never combined. It sits next to the static /bg panel, which it never touches.
 
 const guildService = createGuildService(prisma);
 export const DUEL_BOARD_MARKER = "Guilded duel board";
 const TOP = 10, RECENT = 5, RECENT_DAYS = 7;
 
 export interface RecentDuel { winner: string; loser: string; endedAt: Date; reason: string }
-export interface BgSummary { participations: number; wins: number; losses: number; draws: number }
-export interface DuelBoardData { standings: DuelStanding[]; duels: number; recent: RecentDuel[]; bg: BgSummary | null; edition: string }
+export interface DuelBoardData { standings: DuelStanding[]; duels: number; recent: RecentDuel[]; edition: string }
 
 /** Pure: the board's embed. Same input, same output (the timestamp is added by the caller). */
 export function duelBoardEmbed(data: DuelBoardData, lang: Lang, guildId = ""): EmbedBuilder {
@@ -37,26 +37,14 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, guildId = ""): E
         `<t:${Math.floor(duel.endedAt.getTime() / 1000)}:R> · **${name(duel.winner)}** ${duel.reason === "retreat" ? t("won (opponent fled) against", "gagne (adversaire en fuite) contre") : t("beat", "bat")} ${name(duel.loser)}`).join("\n").slice(0, 1024) });
     }
   }
-  if (data.bg && data.bg.participations > 0) {
-    embed.addFields({ name: t("Battlegrounds (last 30 days)", "Champs de bataille (30 derniers jours)"),
-      value: t(`${data.bg.participations} reported participations from consenting members: ${data.bg.wins} wins, ${data.bg.losses} losses, ${data.bg.draws} draws. Provisional, not unique matches.`,
-        `${data.bg.participations} participations rapportées par des membres consentants : ${data.bg.wins} victoires, ${data.bg.losses} défaites, ${data.bg.draws} nuls. Provisoire, pas des matchs uniques.`) });
-  }
   return embed.setFooter({ text: `${DUEL_BOARD_MARKER} • ${guildId} • ${t(`${data.duels} counted duels · ${data.edition} · max 5 per pair per day · no points or awards`, `${data.duels} duels comptés · ${data.edition} · 5 par paire et par jour au plus · aucun point ni récompense`)}`.slice(0, 2048) });
 }
 
-export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult" | "battlegroundReport">, guildId: string, edition: string, now = new Date()): Promise<DuelBoardData> {
+export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult">, guildId: string, edition: string, now = new Date()): Promise<DuelBoardData> {
   const { standings, duels } = await duelLeaderboard(db, guildId, edition, { limit: TOP });
   const recentRows = await db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, endedAt: { gte: new Date(now.getTime() - RECENT_DAYS * 86_400_000) } },
     orderBy: { endedAt: "desc" }, take: RECENT, select: { winnerCharacter: true, loserCharacter: true, endedAt: true, reason: true } });
-  const since = new Date(now.getTime() - 30 * 86_400_000);
-  // Same consent filter as /bg stats: only members who allowed guild statistics contribute.
-  const groups = await db.battlegroundReport.groupBy({ by: ["outcome"], _count: { _all: true }, where: { guildId, gameEdition: edition, status: "PROVISIONAL", endedAt: { gte: since, lt: now },
-    member: { guildId, status: "ACTIVE", battlegroundConsent: { is: { guildId, capture: true, guildStats: true } } } } });
-  const count = (outcome: string) => groups.find(row => row.outcome === outcome)?._count._all ?? 0;
-  const wins = count("win"), losses = count("loss"), draws = count("draw");
-  const participations = groups.reduce((sum, row) => sum + row._count._all, 0);
-  return { standings, duels, edition, bg: participations ? { participations, wins, losses, draws } : null,
+  return { standings, duels, edition,
     recent: recentRows.map(row => ({ winner: row.winnerCharacter, loser: row.loserCharacter, endedAt: row.endedAt, reason: row.reason })) };
 }
 

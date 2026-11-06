@@ -13,6 +13,7 @@ import { battlegroundEndCard } from "../services/end-cards.js";
 import { scoreCardPng } from "../services/score-card.js";
 import { duelLeaderboard, percent, streakText } from "../services/duels.js";
 import { updateDuelBoard } from "../services/duel-board.js";
+import { updateBgLadder } from "../services/bg-ladder.js";
 
 export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDescription("Battleground planning")
   .setDescriptionLocalizations({ fr: "Organisation des champs de bataille" })
@@ -59,6 +60,8 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
   .addSubcommand(s => s.setName("duels").setDescription("Guild duel leaderboard: wins, losses, win rate and streak").setDescriptionLocalizations({ fr: "Classement des duels de la guilde" }))
   .addSubcommand(s => s.setName("duel-board").setDescription("Officers: keep a live duel board in the PvP statistics channel").setDescriptionLocalizations({ fr: "Officiers : tableau des duels en direct dans le salon des statistiques JcJ" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the live board on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le tableau" }).setRequired(true)))
+  .addSubcommand(s => s.setName("bg-ladder").setDescription("Officers: the battleground ladder message in the ladder channel (on by default)").setDescriptionLocalizations({ fr: "Officiers : classement des champs de bataille dans le salon du classement (activé par défaut)" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn the battleground ladder on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le classement" }).setRequired(true)))
   .addSubcommand(s => s.setName("pvp-module").setDescription("Officers: include the PvP channels (groups, results, ladder) in /setup").setDescriptionLocalizations({ fr: "Officiers : inclure les salons JcJ (groupes, résultats, classement) dans /setup" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the PvP channels on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver les salons JcJ" }).setRequired(true)))
   .addSubcommand(s => s.setName("setup").setDescription("Officer setup instructions; changes no channels or permissions").setDescriptionLocalizations({ fr: "Guide officiers, sans modification de salons ou permissions" }));
@@ -97,7 +100,15 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
   if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if ((sub === "setup" || sub === "duel-board" || sub === "pvp-module") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if ((sub === "setup" || sub === "duel-board" || sub === "pvp-module" || sub === "bg-ladder") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if (sub === "bg-ladder") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { bgLadderEnabled: enabled } });
+    const posted = enabled ? await updateBgLadder(i.guild) : false;
+    await i.editReply({ content: enabled
+      ? t(`Battleground ladder ${posted ? "posted" : "on; it appears once the ladder channel exists (/setup)"}. It is edited in place, separate from the duel ladder.`, `Classement des champs de bataille ${posted ? "publié" : "activé; il apparaîtra quand le salon du classement existera (/setup)"}. Il est modifié sur place, distinct de celui des duels.`)
+      : t("Battleground ladder off. The existing message stays; delete it if you wish.", "Classement des champs de bataille désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+  }
   if (sub === "pvp-module") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { pvpModuleEnabled: enabled } });

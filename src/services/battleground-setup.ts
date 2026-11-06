@@ -213,6 +213,14 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
 export async function ensurePvpModule(guild: DiscordGuild, db: PrismaClient, guildId: string, lang: Lang, actorId: string): Promise<string> {
   const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { pvpModuleEnabled: true } });
   if (!settings?.pvpModuleEnabled) return "";
-  try { return await ensureBattlegroundSetup(guild, db, guildId, lang, actorId); }
+  try {
+    const note = await ensureBattlegroundSetup(guild, db, guildId, lang, actorId);
+    // Both ladders post as soon as the ladder channel exists (each is a no-op when an officer switched it off).
+    const { updateDuelBoard } = await import("./duel-board.js");
+    const { updateBgLadder } = await import("./bg-ladder.js");
+    await updateDuelBoard(guild).catch(() => false);
+    await updateBgLadder(guild).catch(() => false);
+    return note;
+  }
   catch (error) { return `⚠️ ${say(lang, "PvP channels didn't finish: ", "Les salons JcJ n'ont pas fini : ")}${error instanceof Error ? error.message : String(error)}`; }
 }

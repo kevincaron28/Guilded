@@ -519,6 +519,10 @@ model Character {
   race               String?
   lastSeenAt         DateTime?
   professionsUpdatedAt DateTime?
+  // 8.5 track K: the last time a guildmate's companion (not this member's own) updated this
+  // character from the guild digest, and that guildmate's Member id ("reported by a guildmate").
+  relayedAt          DateTime?
+  relayedById        String?
   guildRankName     String?
   guildRankIndex    Int?
   guildRankAt       DateTime?

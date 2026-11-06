@@ -700,6 +700,19 @@ local FR = {
   ["%s: last heard %s ago."] = "%s : entendu il y a %s.",
   ["No other officer with ledger sync on has been seen yet. Sync needs two officers online at the same time."] = "Aucun autre officier avec la synchro du registre n'a encore \195\169t\195\169 vu. La synchro demande deux officiers en ligne en m\195\170me temps.",
   ["Over a week without another officer: entries sync only when two officers with sync on are online together."] = "Plus d'une semaine sans autre officier : les entr\195\169es se synchronisent seulement quand deux officiers avec la synchro sont en ligne ensemble.",
+  -- 8.5 Track K: guildmate relay (Modules/GuildRelay.lua)
+  ["just now"] = "\195\160 l'instant",
+  ["%d min ago"] = "il y a %d min",
+  ["%d h ago"] = "il y a %d h",
+  ["Synced via %s, %s."] = "Synchronis\195\169 via %s, %s.",
+  ["%s runs a newer Guilded sync (%s). Please update Guilded so your data keeps reaching Discord."] = "%s utilise une synchro Guilded plus r\195\169cente (%s). Mettez Guilded \195\160 jour pour que vos donn\195\169es continuent d'arriver sur Discord.",
+  ["Guild sync protocol %d. Companion on this PC: %s."] = "Protocole de synchro de guilde %d. Compagnon sur ce PC : %s.",
+  ["connected (you carry guildmates' data)"] = "connect\195\169 (vous transmettez les donn\195\169es des membres)",
+  ["not connected"] = "non connect\195\169",
+  ["No guildmate with a connected companion seen yet. Your data reaches Discord when one is online with you."] = "Aucun membre avec un compagnon connect\195\169 vu pour l'instant. Vos donn\195\169es arrivent sur Discord quand l'un d'eux est en ligne avec vous.",
+  ["Guildmates with a companion:"] = "Membres avec un compagnon :",
+  ["Guildmates' data held here: %d, oldest %s (dropped after 45 days)."] = "Donn\195\169es de membres gard\195\169es ici : %d, la plus ancienne %s (effac\195\169es apr\195\168s 45 jours).",
+  ["Older Guilded (please update):"] = "Guilded plus ancien (\195\160 mettre \195\160 jour) :",
 }
 
 -- German and Spanish: all catalogued French-reference strings translated; unknown runtime text stays unchanged.
@@ -1958,6 +1971,19 @@ local DE = {
   ["Your vote: %s for %s."] = "Deine Stimme: %s f\195\188r %s.",
   ["Yours"] = "Deine",
   ["Share EP/GP history with guildmates"] = "EP/GP-Verlauf mit Gildenmitgliedern teilen",
+  -- 8.5 Track K: guildmate relay (Modules/GuildRelay.lua)
+  ["just now"] = "gerade eben",
+  ["%d min ago"] = "vor %d Min.",
+  ["%d h ago"] = "vor %d Std.",
+  ["Synced via %s, %s."] = "Synchronisiert \195\188ber %s, %s.",
+  ["%s runs a newer Guilded sync (%s). Please update Guilded so your data keeps reaching Discord."] = "%s nutzt eine neuere Guilded-Synchronisierung (%s). Bitte aktualisiere Guilded, damit deine Daten weiter Discord erreichen.",
+  ["Guild sync protocol %d. Companion on this PC: %s."] = "Gilden-Sync-Protokoll %d. Begleiter auf diesem PC: %s.",
+  ["connected (you carry guildmates' data)"] = "verbunden (du \195\188bertr\195\164gst die Daten der Gildenmitglieder)",
+  ["not connected"] = "nicht verbunden",
+  ["No guildmate with a connected companion seen yet. Your data reaches Discord when one is online with you."] = "Noch kein Gildenmitglied mit verbundenem Begleiter gesehen. Deine Daten erreichen Discord, wenn eines mit dir online ist.",
+  ["Guildmates with a companion:"] = "Gildenmitglieder mit Begleiter:",
+  ["Guildmates' data held here: %d, oldest %s (dropped after 45 days)."] = "Hier gespeicherte Daten von Gildenmitgliedern: %d, die \195\164ltesten %s (nach 45 Tagen gel\195\182scht).",
+  ["Older Guilded (please update):"] = "\195\132lteres Guilded (bitte aktualisieren):",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3213,6 +3239,19 @@ local ES = {
   ["Your vote: %s for %s."] = "Tu voto: %s para %s.",
   ["Yours"] = "Tuyas",
   ["Share EP/GP history with guildmates"] = "Compartir el historial de EP/GP con la hermandad",
+  -- 8.5 Track K: guildmate relay (Modules/GuildRelay.lua)
+  ["just now"] = "ahora mismo",
+  ["%d min ago"] = "hace %d min",
+  ["%d h ago"] = "hace %d h",
+  ["Synced via %s, %s."] = "Sincronizado mediante %s, %s.",
+  ["%s runs a newer Guilded sync (%s). Please update Guilded so your data keeps reaching Discord."] = "%s usa una sincronizaci\195\179n de Guilded m\195\161s reciente (%s). Actualiza Guilded para que tus datos sigan llegando a Discord.",
+  ["Guild sync protocol %d. Companion on this PC: %s."] = "Protocolo de sincronizaci\195\179n de hermandad %d. Compa\195\177ero en este PC: %s.",
+  ["connected (you carry guildmates' data)"] = "conectado (llevas los datos de la hermandad)",
+  ["not connected"] = "no conectado",
+  ["No guildmate with a connected companion seen yet. Your data reaches Discord when one is online with you."] = "A\195\186n no se ha visto ning\195\186n miembro con el compa\195\177ero conectado. Tus datos llegan a Discord cuando uno est\195\161 en l\195\173nea contigo.",
+  ["Guildmates with a companion:"] = "Miembros con compa\195\177ero:",
+  ["Guildmates' data held here: %d, oldest %s (dropped after 45 days)."] = "Datos de miembros guardados aqu\195\173: %d, el m\195\161s antiguo %s (se borran a los 45 d\195\173as).",
+  ["Older Guilded (please update):"] = "Guilded m\195\161s antiguo (actual\195\173zalo):",
 }
 -- END ES
 

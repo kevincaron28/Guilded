@@ -174,7 +174,8 @@ local function send(text, channel, target)
       and officer == ns.isOfficer()
       and (not target or (peerRole ~= nil and peerRole == ns.ledgerPeerRole(target)))
   end
-  ns.comm.send(PREFIX, text, channel, target, stillAllowed, "retry-lockdown")
+  -- Ledger traffic is background sync: it also waits while the player is in an instance.
+  ns.comm.send(PREFIX, text, channel, target, stillAllowed, "hold-in-instance")
 end
 local relay
 

@@ -55,20 +55,29 @@ local function state()
   return db.digest, db
 end
 
+-- "Synced via Lebowski, 2 h ago." when a guildmate's companion carries this member's data
+-- (Modules/GuildRelay.lua); nothing when this PC runs the companion or none was heard.
+local function showVia()
+  local ok, text = pcall(function() return ns.relay and ns.relay.viaText and ns.relay.viaText() end)
+  if ok and type(text) == "string" then ns.message(text) end
+end
+
 local function show(force)
   local digest, db = state()
   if not digest then return end
   if not digest.lastSeen then
     if not force then return end
     ns.message("No earlier login recorded yet; the digest starts from now.")
+    showVia()
     return
   end
   local lines = build(db, digest.lastSeen)
   if #lines == 0 then
-    if force then ns.message("Nothing new since " .. digest.lastSeen .. ".") end
+    if force then ns.message("Nothing new since " .. digest.lastSeen .. "."); showVia() end
     return
   end
   ns.message("Since your last login (" .. digest.lastSeen .. "): " .. table.concat(lines, ", ") .. ".")
+  showVia()
 end
 module.show = show
 

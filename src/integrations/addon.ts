@@ -142,7 +142,10 @@ export const addonCharacterSchema = z.object({
   guildRankName: z.string().trim().min(1).max(60).optional(),
   guildRankIndex: z.number().int().min(0).max(19).optional(),
   // The member's /guilded verify code this guildmate's digest carried (services/character-verify).
-  verify: z.string().max(40).optional()
+  verify: z.string().max(40).optional(),
+  // 8.5: when the uploader's addon heard this guildmate's own digest (provenance for relayed data,
+  // services/guildmate-relay). Absent for the uploader's own characters and from older companions.
+  observedAt: z.coerce.date().optional()
 });
 
 // Result of the officer's last /guilded consumes group scan.

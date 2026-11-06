@@ -7,6 +7,7 @@ import { parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js
 import { currentGuildScope } from "./guild-scope.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
+import { relayableDungeonRuns } from "./guildmate-relay.js";
 
 // A credential is revocable and scoped to one active Discord member in one guild.
 // Never accept the old server-wide upload token as member authorization.
@@ -47,6 +48,9 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     battlegroundReports: snapshot.battlegroundReports.filter((row) => row.edition === edition && names.has(key(row.character, row.realm))),
     // Duels where the member took part, and the member's own milestones (names are matched on apply).
     duelResults: snapshot.duelResults.filter((row) => { const r = row as { winner?: unknown; loser?: unknown } | null; return [r?.winner, r?.loser].some((n) => typeof n === "string" && ownNames.has(n.split("-")[0]!.toLowerCase())); }),
-    milestones: snapshot.milestones.filter((row) => { const c = (row as { character?: unknown } | null)?.character; return typeof c === "string" && ownNames.has(c.split("-")[0]!.toLowerCase()); })
+    milestones: snapshot.milestones.filter((row) => { const c = (row as { character?: unknown } | null)?.character; return typeof c === "string" && ownNames.has(c.split("-")[0]!.toLowerCase()); }),
+    // 8.5: the member's own dungeon runs and guildmates' runs reported by someone who played them
+    // (guildmate-relay.ts). The usual run validation and one-row-per-run-id still apply on import.
+    dungeonRuns: relayableDungeonRuns(snapshot.dungeonRuns, ownNames)
   });
 }

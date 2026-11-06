@@ -84,6 +84,18 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 - Fixed: #406 merged as `51d450b` (tested candidate `8245f5c`: #400, #401, #402, #403, #404, #405) and redeployed. Migrations applied: artisans gallery, guild stat snapshots, forever full names. No errors since.
 - **Owner action:** the Forever-name backfill dry run (`npm run names:forever` on the server) was blocked for the agent as a production read. See the steps in `docs/FOREVER_NAMES.md`.
 
+## Discord retest and Québec Gold setup (bot 230b8d8, main-PC tester)
+
+| Server | Item | Result |
+| --- | --- | --- |
+| Test server | Member-role picker, Create missing channels, PvP category, separate duel and BG ladders | Pass |
+| Québec Gold | `/setup` checklist → Create missing channels only | Adopted the existing PvP channels and created `course-au-60`, which is **public** (no member role set; "restrict it later") |
+| Québec Gold | Race board | Pass with real data (17 characters, levels, professions, last seen, mentions). **Shows first names only**, sent to Track B |
+| Québec Gold | Duel and BG ladders | Pass, two separate messages |
+| Québec Gold | `/officer roster gaps` | Pass: 258 members with no linked character, 8 in-guild characters nobody claimed |
+| Québec Gold | `/report guild` card | Pass; the ⚜ glyph draws as boxes (sent to Track C) |
+| Québec Gold | Who's who, nicknames, Hall of Fame, `/ginvite` lines | Not checked yet (nickname sync is hourly; no level 60 yet) |
+
 ## Live regression and hotfixes (6 November 2026)
 
 - **Found by the second-PC tester:** with Québec Gold in the preview, the companion's standings refresh failed after every upload ("Could not reach the bot"), while uploads themselves worked.

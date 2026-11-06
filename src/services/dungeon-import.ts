@@ -28,7 +28,7 @@ import {
 type Tx = Pick<Prisma.TransactionClient, "officialSeason" | "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement" | "auditLog">
   & Partial<Pick<Prisma.TransactionClient, "$executeRaw">>;
 
-interface LinkedCharacter { name: string; realm: string; memberId: string; spec?: string | null }
+interface LinkedCharacter { name: string; realm: string; memberId: string; spec?: string | null; discordId?: string | null }
 
 export interface DungeonImportResult {
   runRef: string;
@@ -57,6 +57,8 @@ export interface DungeonImportResult {
   unlinked: string[];
   // Party names the addon flagged as guild members (UnitIsInMyGuild). Absent on results built before 8.5.
   inGuildPlayers?: string[];
+  // Party character -> Discord user id for linked members (8.5: the run post mentions them, without a ping).
+  mentions?: Record<string, string>;
   achievements: { character: string; key: AchievementKey }[];
 }
 
@@ -461,6 +463,7 @@ export async function importDungeonRuns(
         ? run.players.reduce((sum, player) => sum + (player.deaths ?? 0), 0) : null,
       unlinked: linked.filter((entry) => !entry.character).map((entry) => entry.player.character),
       inGuildPlayers: run.players.filter((player) => player.inGuild).map((player) => player.character),
+      mentions: Object.fromEntries(linked.flatMap(({ player, character }) => character?.discordId ? [[player.character, character.discordId] as const] : [])),
       achievements
     });
   }

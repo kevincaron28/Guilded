@@ -9,6 +9,7 @@ import { describeEvidence, provisionalSeasonEmbed, recalibrationEvidence } from 
 import { postToLogChannel } from "../services/housekeeping.js";
 import { runCredit } from "../services/dungeon-held-credit.js";
 import { findPlayer } from "../services/player-search.js";
+import { explainDungeonRuns } from "../services/dungeon-explain.js";
 import { requireGuildContext } from "./context.js";
 
 const auditService = createAuditService(prisma);
@@ -31,8 +32,11 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("character").setDescription("Or a character name"))
     .addStringOption((o) => o.setName("run").setDescription("Or one run (pick from the list)").setAutocomplete(true)))
   .addSubcommand((sub) => sub.setName("config").setDescription("View the fixed dungeon participation rules for all guilds"))
-  .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview shared season targets (read only)"))
-  .addSubcommand(sub => sub.setName("recalibrate").setDescription("Review timed-run evidence for future shared rules (read only)")
+  .addSubcommand(sub => sub.setName("why").setDescription("Why a run counts or not")
+    .addStringOption(o => o.setName("character").setDescription("Name"))
+    .addStringOption(o => o.setName("run").setDescription("Run")))
+  .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview shared season targets"))
+  .addSubcommand(sub => sub.setName("recalibrate").setDescription("Timed-run evidence for future rules")
     .addStringOption(o => o.setName("route").setDescription("Route (pick from the list)").setAutocomplete(true).setRequired(true)));
 
 async function memberFromOptions(interaction: ChatInputCommandInteraction, guildId: string) {
@@ -101,6 +105,10 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
       : "No dungeon points recorded for that yet.");
   } else if (subcommand === "config") {
     reply = `Dungeon scoring settings are locked for all guilds. These shared participation rules apply to new awards; existing points stay. Season targets, level bands and penalties are shared and frozen. See /dungeon rules for the active season.\n\n${describeConfig(sharedDungeonConfig(), new Map())}`;
+  } else if (subcommand === "why") {
+    const blocks = await explainDungeonRuns(prisma, context.guildId, { run: interaction.options.getString("run"), character: interaction.options.getString("character") });
+    await interaction.reply({ content: blocks.join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
   } else if (subcommand === "bracket-preview") {
     await interaction.reply({ embeds: [provisionalSeasonEmbed()], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;

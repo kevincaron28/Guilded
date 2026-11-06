@@ -92,10 +92,11 @@ describe("Season 2 proposal", () => {
     expect(JSON.stringify(rules)).toBe(before);
     expect(rules.targets["389"]).toBe(1200);
   });
-  it("keeps current-v2 when frozen for the official calendar; everything else still freezes as current-v1", () => {
+  it("keeps current-v2 only on the owner's reviewed path; every other freeze stays current-v1", () => {
     const s2 = season2Proposal(rules, [], start).rules;
-    expect(snapshotRules(s2, start).rules.evidencePolicy).toBe("current-v2");
-    expect(readRuleSnapshot(snapshotRules(s2, start))).not.toBeNull();
+    expect(snapshotRules(s2, start).rules.evidencePolicy).toBe("current-v1");
+    expect(snapshotRules(s2, start, true).rules.evidencePolicy).toBe("current-v2");
+    expect(readRuleSnapshot(snapshotRules(s2, start, true))).not.toBeNull();
     expect(snapshotRules(publicRules(), start).rules.evidencePolicy).toBe("current-v1");
   });
 });

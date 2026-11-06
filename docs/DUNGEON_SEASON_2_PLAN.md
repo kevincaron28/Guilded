@@ -25,7 +25,7 @@ Season 1 keeps its frozen rules (current-v1). Nothing is scheduled until the own
 
 | # | Finding | Where | Status |
 | --- | --- | --- | --- |
-| 1 | `snapshotRules` forced `evidencePolicy: "current-v1"` on every frozen rule set, so an owner-uploaded **current-v2** Season 2 (`/guilded-season rules`) would silently be stored as current-v1. | `public-score.ts` `snapshotRules` | **Fixed**, test in `tests/dungeon-season2.test.ts`. Season 1 and every default still freeze as current-v1. |
+| 1 | `snapshotRules` forces `evidencePolicy: "current-v1"` on every frozen rule set (a deliberate no-silent-activation guard), so an owner-uploaded **current-v2** Season 2 (`/guilded-season rules`) was stored as current-v1. | `public-score.ts` `snapshotRules` | **Fixed** with an explicit `reviewed` flag, passed only by `configureNextSeasonRules` (the owner's reviewed path). Season 1, `freezeSeasonRules` and every default still freeze as current-v1. |
 | 2 | Three rated Season 1 routes have **no Forever final-boss id or name** in the addon: Ruins of Lordaeron (2999), Excavation Site: Wetlands (2998), City of Dalaran (2959). Unless the Encounter Journal supplies them, their runs end ABANDONED (unranked) and log `DUNGEON_FINAL_UNMATCHED`. Armory and Cathedral rely on the Scarlet name list. | `addon/Guilded/Compat.lua` `foreverFinalBossNames` / `finalBossFallbacks` | **Open**: needs the real names or ids from a player's `DUNGEON_FINAL_UNMATCHED` log (no guessing). `#384` recovery then completes saved runs after the next addon update. |
 | 3 | **No 45-59 or 60 route exists.** Players reaching 60 before 9 December earn no dungeon rating. Season 1 can still gain routes (`addedRules`), but a **current-v2 season cannot** (`addedRules` returns null for v2): Season 2's routes must be complete before activation. | `official-seasons.ts`, `public-score.ts addedRules` | By design; the new observations list cleared-but-unrated maps with their map ids, levels and times so routes can be added. |
 | 4 | Forever name transition: a character reported as bare "Kev" by an older addon and "Kev Caron" by 8.5 is two ranking rows (public `characterId`, guild `ratingCharacterKey`). Matching elsewhere uses `foreverSameName` only when unique. | `public-score.ts characterId`, `dungeon-rating.ts ratingCharacterKey` | **Open**, transitional: closes as members update the addon. Merging scores needs an owner decision (a first name is ambiguous). |
@@ -99,5 +99,5 @@ Season 1 and officers get no new setting.
 
 `tests/dungeon-season2.test.ts`: observation statistics (median, quartiles, crew/day dedupe, exclusions, unrated
 maps, window), the target formula (carry, blend, measure, clamps), the proposal is a valid current-v2 rule set that
-leaves Season 1's rules untouched, and `snapshotRules` keeps current-v2 only when explicitly asked.
+leaves Season 1's rules untouched, and `snapshotRules` keeps current-v2 only on the reviewed path.
 Not run against live data: the production database was not available from this session.

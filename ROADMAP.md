@@ -441,6 +441,39 @@ guildmate whose companion is running.
   so C5 is new work. Test in the Forever client that promoting from an addon click works with the
   officer's Promote permission.
 
+### Final phase 1 — new screenshots and website refresh (after all tracks are merged)
+
+Owner request, 6 November 2026. Once 8.5.0 is feature-complete:
+1. Take fresh screenshots in game (race board, PvP ladder, call for help banner, chat tab, minimap
+   menu, roster card, Artisans' Gallery, companion Problems panel and settings) and in Discord.
+   Sanitize names that are not Québec Gold members.
+2. Update guilded.kcaron.top and kcaron.top: features page, guides (`docs/MEMBER_INSTALL.md`,
+   `docs/QUICK_START.md`), companion page (Store self-update, direct download), FAQ and `/help`.
+   English and French. Merges to `main` publish the site.
+
+### Final phase 2 — the phone app as a "glance and group" companion (Track M)
+
+Owner request, 6 November 2026: an app to check leaderboards at work and to help group while playing.
+- **Existing (`mobile/`, Expo, preview APK 0.2.0 live):** public leaderboards; companion sign-in for
+  characters, reserves, wishlist, raid standings and on-device reminders. PR #345 adds the server
+  side for mobile alerts and sign-in renewal.
+- **Build:**
+  1. **Leaderboards first:** dungeon season, race to 60, PvP ladder, duels, achievements; fast,
+     cached, readable in 5 seconds.
+  2. **Guild view:** roster with class/level/professions, who is online now, last seen, mains and alts,
+     the Artisans' Gallery search.
+  3. **World map of guildmates:** last known position of guildmates who share their map position,
+     shown as dots, with a **last-seen heatmap** of where the guild plays. **Owner decision needed:**
+     on 26 October the owner declined a guild-wide web activity heatmap (activity stays on each PC).
+     This map is opt-in per member, guild-members-only and never public. Positions only reach the bot
+     when a companion uploads (at reload or logout), so they are "last seen", not live, unless the
+     companion chat-log watcher from Track J is built.
+  4. **Call for help on the map:** active calls from Track J shown as pins with time and attackers;
+     push notification to Defenders who opted in on the phone.
+  5. **Dungeon and group notifications:** a group needs your role, a vacancy in a raid you signed up
+     for, your dungeon run counted, someone in the guild beat your score. Each one off/on per member.
+- Ship as the next APK after PR #345 is merged, then Google Play.
+
 ### Release step — bring the Québec Gold Discord up to date (owner request, 6 November 2026)
 
 After 8.5.0 is merged and deployed, the coordinating session turns the new features on in the

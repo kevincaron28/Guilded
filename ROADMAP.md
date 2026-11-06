@@ -501,6 +501,40 @@ collapse into one entry: ledger account, dungeon runs, duels, recipes, roster, r
 legacy ledger history kept on an officer-assigned account) and backward compatibility for 8.4.x
 addons. Details: `docs/FOREVER_NAMES.md`. The relink and second-character test waits for it.
 
+### 8.5.0 release checklist (coordinator; review 6 November 2026, evening)
+
+**Work still open (PRs into `release/8.5-candidate`):**
+- Track F: #415 (support summary); then the setup wizard + Repair + slimmer companion (batch 3 #3/#4).
+- Track J: no-addon credit by character (follow-up to #418); then party invites in call for help (batch 3 #7).
+- Track B: separate duel/BG channels (batch 3 #10). Track C: item previews (batch 3 #2), then the bot feed for the promotion panel.
+- Track D: gallery Request/Details + profession display (batch 3 #9/#11). Track A: always-share, keep only "Delete my data" (batch 3 #8).
+- Track I: Armory links on character cards. New sessions: Season 2 plan (batch 3 #1), guild invite queue (batch 3 #13/#14).
+- Kinfolk ideas (Track H) stay unscheduled until the owner picks some.
+
+**Owner actions:**
+- On the server, after a backup: `npm run names:forever` (preview, then `-- --apply`), and the pre-launch cleanup preview/apply (#419, `docs/PRELAUNCH_CLEANUP.md`).
+- Decide whether `#course-au-60` in Québec Gold stays public.
+- Merge or close on GitHub (agent merges into main were blocked): #388 site pointers to 8.4.7; close the superseded #394 and #396; review dependabot #407.
+- Microsoft Store: 8.4.7.0 after 8.4.6.0 certifies, then 8.5.0.0.
+- Google Play account (USD 25) when ready (`mobile/README.md`).
+- Change the Discord password used for testing.
+
+**Testing still owed:**
+- Québec Gold nickname sync (hourly) and the bot's Manage Nicknames permission.
+- The two-PC window with the 8.5 addon on both PCs: duel, Defender banner, chat-tab online lines.
+- The relink + second-character test (after the 8.5 companion release).
+- The live item-preview step 0.
+- Uninstall on the second PC (last).
+
+**Release steps:**
+1. Merge the last PRs.
+2. Full suite.
+3. Bump to **8.5.0** once (README, CLAUDE.md, ROADMAP current stage, CHANGELOG, `.toc`, companion `package.json`).
+4. Remove `FEATURE_PREVIEW_GUILD_IDS` from the server, and delete `src/services/feature-preview.ts` and its callers in the release PR.
+5. Deploy, then GitHub release, CurseForge (`node scripts/curseforge-upload.mjs`), Store.
+6. Website refresh and screenshots (final phase 1).
+7. Phone app (Track M).
+
 ### Owner requests, 6 November 2026 (afternoon)
 
 - **Delete the pre-launch season and all beta characters.** They still appear in Québec Gold's professions, the race to 60 and the unlinked characters. Track K is building a cleanup script: preview first, `--apply` after a backup, never touching EP/GP history or Season 1. See `docs/PRELAUNCH_CLEANUP.md`.

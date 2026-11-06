@@ -6,12 +6,14 @@ import { BG_SETUP_NAMES, PVP_SETUP_NAMES } from "../setup-names.js";
 import { loadGuildScope, runInGuildScope } from "./guild-scope.js";
 import { previewAllows } from "./feature-preview.js";
 
-export const BG_SETUP_PARTS = ["groups", "results", "stats"] as const;
+export const BG_SETUP_PARTS = ["groups", "results", "stats", "duels"] as const;
 export type BgSetupPart = typeof BG_SETUP_PARTS[number];
 export const BG_SETUP_FIELDS = {
   groups: { channel: "bgGroupsChannelId", message: "bgGroupsMessageId" },
   results: { channel: "bgResultsChannelId", message: "bgResultsMessageId" },
-  stats: { channel: "bgStatsChannelId", message: "bgStatsMessageId" }
+  stats: { channel: "bgStatsChannelId", message: "bgStatsMessageId" },
+  // The duel ladder's own channel. Its message is the live board (edited by duel-board.ts), not a static panel.
+  duels: { channel: "duelBoardChannelId", message: "duelBoardMessageId" }
 } as const;
 // Reviewed legacy installation: adopt only the default scope of this exact server.
 export const QG_BG_ADOPTION = {
@@ -21,12 +23,17 @@ export const QG_BG_ADOPTION = {
   results: { channel: "1565740144299081798", message: "1565740366987005953" }
 } as const;
 /** Every name a PvP channel may already have: the 8.4 battleground names and the 8.5 PvP names, in both languages. */
-export const pvpChannelNames = (part: BgSetupPart): string[] => [BG_SETUP_NAMES.en[part], BG_SETUP_NAMES.fr[part], PVP_SETUP_NAMES.en[part], PVP_SETUP_NAMES.fr[part]];
+export const pvpChannelNames = (part: BgSetupPart): string[] => part === "duels"
+  ? [PVP_SETUP_NAMES.en.duels, PVP_SETUP_NAMES.fr.duels]
+  : [BG_SETUP_NAMES.en[part], BG_SETUP_NAMES.fr[part], PVP_SETUP_NAMES.en[part], PVP_SETUP_NAMES.fr[part],
+    ...(part === "stats" ? [PVP_SETUP_NAMES.en.legacyStats, PVP_SETUP_NAMES.fr.legacyStats] : [])];
+/** The panel parts: every part except the duel ladder, whose message is the live board. */
+export type BgPanelPart = Exclude<BgSetupPart, "duels">;
 const queues = new Map<string, Promise<unknown>>();
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 const posting = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks];
 
-export function bgSetupPanel(part: BgSetupPart, guildId: string, lang: Lang) {
+export function bgSetupPanel(part: BgPanelPart, guildId: string, lang: Lang) {
   const fr = lang === "fr";
   const marker = `Guilded BG setup • ${guildId} • ${part}`;
   const texts = {
@@ -64,7 +71,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     // Match every ownership source used by interactionGuildScope, for channels AND parents.
     const [other, core, activity, binding] = await Promise.all([
       db.guildSettings.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, OR: [
-        "raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"
+        "raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId", "duelBoardChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"
       ].map(f => ({ [f]: id })) } }),
       db.raidCore.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, OR: ["categoryId", "rosterChannelId", "signupChannelId", "lootChannelId", "raidLogChannelId", "chatChannelId", "voiceChannelId", "attendanceChannelId"].map(f => ({ [f]: id })) } }),
       db.activityCore.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, channelId: id } }),
@@ -144,7 +151,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
   for (const part of selection ? [selection.part] : BG_SETUP_PARTS) {
     const fields = BG_SETUP_FIELDS[part];
     let id = settings[fields.channel];
-    if (!id && legacy && !selection) {
+    if (!id && legacy && !selection && part !== "duels") {
       const old = await fetchChannel(legacy[part].channel);
       if (old.type !== ChannelType.GuildText || old.parentId !== categoryId) fail("Legacy layout changed. Select channels manually.", "La disposition précédente a changé. Choisissez les salons manuellement.");
       id = old.id;
@@ -175,7 +182,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
         const bot = overwrites.find(o => o.id === me.id);
         if (bot) { bot.allow |= botAllow; bot.deny &= ~botAllow; }
         else overwrites.push({ id: me.id, type: 1, allow: botAllow, deny: 0n });
-        const created = await guild.channels.create({ name: PVP_SETUP_NAMES[lang][part], type: ChannelType.GuildText, parent: category.id,
+        const created = await guild.channels.create({ name: PVP_SETUP_NAMES[lang][part === "duels" ? "duels" : part], type: ChannelType.GuildText, parent: category.id,
           permissionOverwrites: overwrites, reason: "Guilded optional battleground setup" });
         id = created.id;
       }
@@ -184,6 +191,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     const channel = await fetchChannel(id!);
     if (channel.type !== ChannelType.GuildText || !channel.permissionsFor(me)?.has(posting)) fail("Cannot post this panel. Grant view/history/send/embed access or select another channel.", "Impossible de publier ce panneau. Accordez voir/historique/envoyer/liens ou choisissez un autre salon.");
     const text = channel as TextChannel;
+    if (part === "duels") { notes.push(`<#${text.id}>`); continue; }
     const payload = bgSetupPanel(part, guildId, lang);
     const marker = `Guilded BG setup • ${guildId} • ${part}`;
     const savedId = settings[fields.message];

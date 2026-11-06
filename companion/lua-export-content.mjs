@@ -261,6 +261,7 @@ export function parseAddonExportText(text, realm) {
   const battlegroundReports = exportBattlegroundReports(database);
   const duelResults = exportDuelResults(database);
   const milestones = exportMilestones(database);
+  const guildData = exportGuildData(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -344,7 +345,8 @@ export function parseAddonExportText(text, realm) {
     dungeonRuns,
     ...(battlegroundReports.length ? { battlegroundReports } : {}),
     ...(duelResults.length ? { duelResults } : {}),
-    ...(milestones.length ? { milestones } : {})
+    ...(milestones.length ? { milestones } : {}),
+    ...guildData
   }, edition.gameEdition, realm);
 }
 
@@ -385,6 +387,39 @@ export function exportDuelResults(database) {
       && (r.reason === "knockout" || r.reason === "retreat"))
     .sort((a, b) => b.at - a.at).slice(0, 200)
     .map((r) => ({ winner: r.winner, loser: r.loser, at: r.at, reason: r.reason }));
+}
+
+// What the game shows every member about the whole guild (addon Modules/GuildSnapshot.lua and
+// Modules/GuildLog.lua): the roster with levels, classes, ranks and last online, the guild event
+// log, the MOTD and info text. Whitelisted field by field; notes are never read by the addon.
+export function exportGuildData(database) {
+  const out = {};
+  const name = (v) => typeof v === "string" && v.length > 0 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const snap = database?.guildSnapshot;
+  if (snap && typeof snap === "object" && epoch(snap.at) && snap.members && typeof snap.members === "object") {
+    const members = Object.entries(snap.members).filter(([key, m]) => name(key) && m && typeof m === "object").slice(0, 1000).map(([key, m]) => ({
+      name: key,
+      ...(Number.isInteger(m.level) && m.level >= 1 && m.level <= 100 ? { level: m.level } : {}),
+      ...(typeof m.class === "string" && /^[A-Z]{1,20}$/.test(m.class) ? { class: m.class } : {}),
+      ...(typeof m.rankName === "string" && m.rankName.trim() ? { rankName: m.rankName.trim().slice(0, 60) } : {}),
+      ...(Number.isInteger(m.rankIndex) && m.rankIndex >= 0 && m.rankIndex < 20 ? { rankIndex: m.rankIndex } : {}),
+      online: m.online === true,
+      ...(epoch(m.lastOnline) ? { lastOnline: m.lastOnline } : {})
+    }));
+    if (members.length) out.guildRoster = { at: snap.at, complete: snap.complete === true, members };
+    const text = (v, max) => typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined;
+    if (text(snap.motd, 255) !== undefined || text(snap.info, 1000) !== undefined) {
+      out.guildInfo = { at: epoch(snap.textAt) ? snap.textAt : snap.at, ...(text(snap.motd, 255) !== undefined ? { motd: text(snap.motd, 255) } : {}), ...(text(snap.info, 1000) !== undefined ? { info: text(snap.info, 1000) } : {}) };
+    }
+  }
+  const kinds = new Set(["invite", "join", "promote", "demote", "remove", "quit"]);
+  const events = Object.values(database?.guildLog?.events ?? {})
+    .filter((e) => e && kinds.has(e.type) && name(e.p1) && (e.p2 === undefined || e.p2 === null || name(e.p2)) && epoch(Math.trunc(Number(e.at))))
+    .map((e) => ({ type: e.type, actor: e.p1, ...(name(e.p2) ? { target: e.p2 } : {}), ...(typeof e.rank === "string" && e.rank.trim() ? { rank: e.rank.trim().slice(0, 60) } : {}), at: Math.trunc(Number(e.at)) }))
+    .sort((a, b) => b.at - a.at).slice(0, 500);
+  if (events.length) out.guildEvents = events;
+  return out;
 }
 
 // Personal milestones (Modules/Milestones.lua): level steps, first dungeon clears, honorable kills, duel wins. Own characters

@@ -1,3 +1,4 @@
+import { creditHeldRunPlayers } from "./dungeon-held-credit.js";
 import { withEdition } from "./edition-context.js";
 import { assertAddonGuildScope } from "./addon-scope.js";
 import { createHash } from "node:crypto";
@@ -118,7 +119,7 @@ export function createAddonImportService(database: PrismaClient) {
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
-        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, duelBoardEnabled: true, bgStatsChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
+        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, duelBoardEnabled: true, duelBoardChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
         const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true, wowSpace: { select: { name: true, realm: true } } } });
@@ -401,6 +402,8 @@ export function createAddonImportService(database: PrismaClient) {
           const cleared = [...importedRefs, ...loot.recordedRefs].filter((ref) => knownHeld.some((row) => row.sourceRef === ref && !row.dismissedAt));
           if (cleared.length) await heldStore.deleteMany({ where: { guildId, dismissedAt: null, sourceRef: { in: cleared } } });
         }
+        // Guildmates who linked since their run was stored get their credit now (held credit).
+        await creditHeldRunPlayers(tx, guildId, characters, appliedBy);
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
           characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec })), appliedBy, importId);
         const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);
@@ -416,7 +419,7 @@ export function createAddonImportService(database: PrismaClient) {
         // The import and its public refresh requests commit together. A process crash
         // between commit and followUpImport cannot leave the display stale forever.
         if (settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");
-        if (duels.recorded && settings?.duelBoardEnabled && settings.bgStatsChannelId) await enqueueDiscordJob(tx, guildId, "duel-board", "DUEL_BOARD");
+        if (duels.recorded && settings?.duelBoardEnabled && settings.duelBoardChannelId) await enqueueDiscordJob(tx, guildId, "duel-board", "DUEL_BOARD");
         if (settings?.craftChannelId) await enqueueDiscordJob(tx, guildId, "professions", "PROFESSIONS");
         if (settings?.characterSignups && (readinessSnapshots.length || discovery.refreshed)) {
           const ids = new Set(readinessSnapshots.map(row => row.characterId));

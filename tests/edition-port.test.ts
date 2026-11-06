@@ -49,7 +49,7 @@ describe("full edition routing", () => {
     expect((await entityGuildScope(db as never,"server","apply-form:decide:approve:application"))?.guild.id).toBe("one");
     expect(db.application.findUnique).toHaveBeenCalledWith({where:{id:"application"},select:{guildId:true}});
   });
-  it.each(["bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId"])("routes persisted %s before the member's other guild selection", async field => {
+  it.each(["bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId", "duelBoardChannelId"])("routes persisted %s before the member's other guild selection", async field => {
     const selection = vi.fn();
     const settings = vi.fn(async (query: { where: { guild: { discordId: string }; OR: Record<string, { in: string[] }>[] } }) =>
       query.where.guild.discordId === "server" && query.where.OR.some(row => row[field]?.in.includes("bg-channel")) ? [{ guildId: "bg-owner" }] : []);

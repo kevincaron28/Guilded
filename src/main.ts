@@ -70,7 +70,9 @@ import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
 import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
-import { CRAFT_PREFIX, handleCraftButton, handleCraftModal } from "./commands/craft-board.js";
+import { CRAFT_PREFIX, handleCraftButton, handleCraftModal, handleCraftSelect } from "./commands/craft-board.js";
+import { handleProfessionDetails } from "./commands/profession-details.js";
+import { PROFESSION_DETAILS_PREFIX } from "./services/profession-details.js";
 import {
   cleanupDungeonGroups, DUNGEON_GROUP_PREFIX, handleDungeonGroupButton, handleDungeonGuideButton, handleDungeonGuideModal, handleDungeonGuideSelect
 } from "./commands/dungeon-group.js";
@@ -100,7 +102,8 @@ import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
-import { executeOwnerPreviews, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
+import { executeOwnerPreviews, handleItemPreviewButton, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
+import { ITEM_PREVIEW_PREFIX } from "./services/item-preview-step0.js";
 import { handlePreviewMessage } from "./services/item-preview.js";
 import { CachedItemProvider, nullItemDataProvider, PreviewGate } from "./services/item-preview-data.js";
 import { botOwnerId, executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
@@ -609,7 +612,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
   const previewProvider = new CachedItemProvider(nullItemDataProvider);
   const previewBackoff = new Map<string, number>();
   client.on(Events.MessageCreate, (message) => {
-    if (!message.guildId || !hostedPilot.allows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket
+    if (!message.guildId || !hostedPilot.allows(message.guildId) || !previewAllows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket
     void handlePreviewMessage({
       loadConfig: (discordGuildId) => prisma.itemPreviewConfig.findUnique({ where: { discordGuildId } }),
       disable: async (discordGuildId, reason) => { await prisma.itemPreviewConfig.updateMany({ where: { discordGuildId }, data: { enabled: false, disabledReason: reason } }); },
@@ -635,7 +638,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
 client.on(Events.InteractionCreate, async interaction => {
   try {
     const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_PREVIEWS_COMMAND, OWNER_CONSOLE_COMMAND];
-    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, PUG_PREFIX, CONSOLE_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
     const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
@@ -661,6 +664,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   // The owner's private console: every id is owner-checked inside, in the home server only.
   if ("customId" in interaction && interaction.customId.startsWith(CONSOLE_PREFIX)) {
     await ownerConsole.handle(interaction).catch((error: unknown) => reportInteractionError("Owner console", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(ITEM_PREVIEW_PREFIX)) {
+    await handleItemPreviewButton(interaction).catch((error: unknown) => reportInteractionError("Item preview step 0", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(PILOT_REQUEST_PREFIX)) {
@@ -780,6 +787,14 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isButton() && interaction.customId.startsWith(OFFER_PREFIX)) {
     await handleOfferButton(interaction).catch((error: unknown) => reportInteractionError("Craft offer button", interaction, error));
+    return;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`)) {
+    await handleCraftSelect(interaction).catch((error: unknown) => reportInteractionError("Craft menu", interaction, error));
+    return;
+  }
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(PROFESSION_DETAILS_PREFIX)) {
+    await handleProfessionDetails(interaction).catch((error: unknown) => reportInteractionError("Profession details", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(CRAFT_PREFIX)) {

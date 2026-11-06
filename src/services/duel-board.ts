@@ -61,7 +61,7 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
   if (!delivery) {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);
-    if (!settings?.duelBoardEnabled || !settings.bgStatsChannelId || (!settings.duelBoardMessageId && !previewAllows(discordGuild.id))) return false;
+    if (!settings?.duelBoardEnabled || !settings.duelBoardChannelId || (!settings.duelBoardMessageId && !previewAllows(discordGuild.id))) return false;
     const job = await enqueueDiscordJob(prisma, guild.id, "duel-board", "DUEL_BOARD");
     await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(discordGuild, current));
     return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
@@ -69,8 +69,8 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
   try {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);
-    if (!settings?.duelBoardEnabled || !settings.bgStatsChannelId || (!settings.duelBoardMessageId && !previewAllows(discordGuild.id))) return false;
-    const channel = await discordGuild.channels.fetch(settings.bgStatsChannelId).catch(() => null);
+    if (!settings?.duelBoardEnabled || !settings.duelBoardChannelId || (!settings.duelBoardMessageId && !previewAllows(discordGuild.id))) return false;
+    const channel = await discordGuild.channels.fetch(settings.duelBoardChannelId).catch(() => null);
     if (!channel?.isTextBased() || !("send" in channel)) return false;
     const lang = asLang(settings.language);
     const edition = guild.gameEdition ?? "forever";
@@ -88,7 +88,15 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
       if (existing.id !== settings.duelBoardMessageId) await guildService.updateSettings(guild.id, { duelBoardMessageId: existing.id });
     } else {
       const sent = await channel.send(payload);
+      const previousId = settings.duelBoardMessageId;
       await guildService.updateSettings(guild.id, { duelBoardMessageId: sent.id });
+      // Before 8.5 the duel board shared the statistics channel with the battleground ladder. Once it lives in its own channel,
+      // the bot removes its own old copy there (only a message of this bot that carries the duel board footer).
+      if (previousId && settings.bgStatsChannelId && settings.bgStatsChannelId !== channel.id) {
+        const old = await discordGuild.channels.fetch(settings.bgStatsChannelId).catch(() => null);
+        const stale = old?.isTextBased() ? await old.messages.fetch(previousId).catch(() => null) : null;
+        if (stale && isBoard(stale, botId)) await stale.delete().catch(() => undefined);
+      }
     }
     return true;
   } catch (error) {

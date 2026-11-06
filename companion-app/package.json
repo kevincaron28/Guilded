@@ -81,7 +81,8 @@
           "active-games.mjs",
           "revoke.mjs",
           "problems.mjs",
-          "sync-status.mjs"
+          "sync-status.mjs",
+          "error-detail.mjs"
         ]
       },
       {

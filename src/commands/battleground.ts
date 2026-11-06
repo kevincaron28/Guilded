@@ -55,7 +55,7 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
     .addStringOption(o => o.setName("bracket").setDescription("Reported API bracket identifier from /bg result").setRequired(true).setMaxLength(20))
     .addIntegerOption(o => o.setName("season").setDescription("Season number; defaults to current").setMinValue(1)))
   .addSubcommand(s => s.setName("duels").setDescription("Guild duel leaderboard: wins, losses, win rate and streak").setDescriptionLocalizations({ fr: "Classement des duels de la guilde" }))
-  .addSubcommand(s => s.setName("duel-board").setDescription("Officers: keep a live duel board in the PvP statistics channel").setDescriptionLocalizations({ fr: "Officiers : tableau des duels en direct dans le salon des statistiques JcJ" })
+  .addSubcommand(s => s.setName("duel-board").setDescription("Officers: keep a live duel board in the duel ladder channel").setDescriptionLocalizations({ fr: "Officiers : tableau des duels en direct dans le salon des statistiques JcJ" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the live board on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le tableau" }).setRequired(true)))
   .addSubcommand(s => s.setName("bg-ladder").setDescription("Officers: the battleground ladder message in the ladder channel (on by default)").setDescriptionLocalizations({ fr: "Officiers : classement des champs de bataille dans le salon du classement (activé par défaut)" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the battleground ladder on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le classement" }).setRequired(true)))
@@ -115,12 +115,12 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   }
   if (sub === "duel-board") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
-    const settings = await prisma.guildSettings.findUniqueOrThrow({ where: { guildId: ctx.guildId }, select: { bgStatsChannelId: true } });
-    if (enabled && !settings.bgStatsChannelId) { await i.editReply({ content: t("Set up the PvP statistics channel first (/bg setup).", "Configurez d'abord le salon des statistiques JcJ (/bg setup).") }); return; }
+    const settings = await prisma.guildSettings.findUniqueOrThrow({ where: { guildId: ctx.guildId }, select: { duelBoardChannelId: true } });
+    if (enabled && !settings.duelBoardChannelId) { await i.editReply({ content: t("The duel ladder channel does not exist yet: run /setup and press Create missing channels.", "Le salon du classement des duels n'existe pas encore : lancez /setup et appuyez sur Créer les salons manquants.") }); return; }
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { duelBoardEnabled: enabled } });
     const posted = enabled ? await updateDuelBoard(i.guild) : false;
     await i.editReply({ content: enabled
-      ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.bgStatsChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${settings.bgStatsChannelId}>. Il est modifié sur place, jamais republié.`)
+      ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.duelBoardChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${settings.duelBoardChannelId}>. Il est modifié sur place, jamais republié.`)
       : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "setup" || sub === "privacy-help") {

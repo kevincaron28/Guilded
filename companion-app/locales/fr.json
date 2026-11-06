@@ -1150,5 +1150,6 @@
   "In WoW, Guilded says \"Linked to Discord as\" after your next /reload. Not yours? Use /character unlink in Discord.": "Dans WoW, Guilded affiche « Relié à Discord en tant que » après votre prochain /reload. Pas à vous ? Utilisez /character unlink dans Discord.",
   "Discord may email you to confirm a new login location: open that email, choose Yes, it's me, then come back. You can also log in with the QR code using the Discord app on your phone.": "Discord peut vous écrire pour confirmer un nouvel emplacement de connexion : ouvrez ce courriel, choisissez « Oui, c’est moi », puis revenez. Vous pouvez aussi vous connecter avec le code QR depuis l’application Discord de votre téléphone.",
   "Guilded's server is restarting or busy. Your data is safe and is sent automatically.": "Le serveur Guilded redémarre ou est occupé. Vos données sont en sécurité et seront envoyées automatiquement.",
-  "Upload OK · rankings delayed. They refresh by themselves.": "Envoi réussi · classements retardés. Ils se mettent à jour tout seuls."
+  "Upload OK · rankings delayed. They refresh by themselves.": "Envoi réussi · classements retardés. Ils se mettent à jour tout seuls.",
+  "The Guilded server took too long to answer (over 20 s); retrying.": "Le serveur Guilded a mis trop de temps à répondre (plus de 20 s) ; nouvel essai en cours."
 }

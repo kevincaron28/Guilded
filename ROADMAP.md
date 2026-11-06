@@ -139,7 +139,10 @@ Render images with `src/services/score-card.ts` (roster layout) so they match th
   duel-board pattern) listing each member with their main and alts, for when nicknames are off.
 - Done when: renaming works on a test server, opt-out restores the previous nickname, and the board
   stays one message.
-- **Owner decision (6 November 2026):** default format `Discord name (Main First)`, main only, no alts.
+- **Owner decision (6 November 2026):** default format `Discord name (Main First Last)`, for example
+  `kevmister28 (Lebowski Holyroller)`, main only. Discord caps nicknames at 32 characters, so fall back
+  in order: drop the space before `(`, then shorten the Discord name with `…`, then `(First Last)`
+  alone. Alts stay on the Who's who board (bots cannot write Discord's personal member notes).
 
 **C3. Visual guild roster (classes and professions).**
 - Existing: `/guild-health` text (`buildComposition`, level bands, retention); roster dashboard

@@ -17,7 +17,7 @@ Validation includes mirrored-post recovery, shared-channel deduplication, serial
 
 ## Setup/reset channel coverage correction
 
-Setup now includes the automatic FAQ channel (`answerChannelId`, `bot-faq`)
+(Retired in 9.0, see GUILDED_SHARED_SUPPORT.md.) Setup then included the automatic FAQ channel (`answerChannelId`, `bot-faq`)
 with member posting enabled, alongside the general raid signup and member guide.
 The setup checklist and channel picker include FAQ; saving it refreshes the
 answer listener immediately. Creating missing channels saves each ID before

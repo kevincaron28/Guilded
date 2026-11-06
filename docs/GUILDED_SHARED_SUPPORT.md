@@ -11,3 +11,6 @@ In a recognized Guilded category (or when the parent cannot be resolved), the an
 The Québec guild's current priority is finishing WoW, then implementing PoE 2 competition. Diablo IV channels and season remain deferred. This change does not create or enable a PoE or Diablo competition.
 
 Validation: fresh/recovered shared FAQ, legacy category reuse, readable/readonly guide on a hidden server, retained raid visibility on organize, retained craft gate on repair, deterministic install help, no private database facts in shared AI requests, missing-parent fallback and complete replies within Discord text limits. Run the full repository checks and required release gates before redeploying. A real member question in bot-faq is the final end-to-end check; a local second gateway bot is never started.
+
+
+**9.0:** the `#bot-faq` channel is retired. `/setup` no longer creates or counts it, and nothing is posted or refreshed there. An existing one is removed from `/setup` > **Retire an old channel** (pick it: its messages are saved to a file in the officer log first, and it is deleted only after a confirmation; the bot stops answering there once archived). `/mod faq` (officer answers, ephemeral replies) stays, and an officer can still point `/mod faq channel` at any channel on purpose.

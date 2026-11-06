@@ -90,6 +90,7 @@ import { runRaidReminders } from "./services/reminders.js";
 import { queueExpiredPolls } from "./services/poll-expiry.js";
 import { runCooldownPings } from "./services/recipes.js";
 import { DUNGEON_SEASON_SELECT, handleDungeonSeasonSelect, updateDungeonLeaderboard } from "./services/dungeon-leaderboard.js";
+import { updateDuelBoard } from "./services/duel-board.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
@@ -340,12 +341,30 @@ client.once(Events.ClientReady, (readyClient) => {
       const origin = { guildId: guild.id, guildName: guild.name };
       await forEachGuildScope(prisma, guild.id, async () => {
         await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard", origin));
+        await updateDuelBoard(guild).catch(reportJobError("Duel board", origin));
         await updateProfessionDirectory(guild).catch(reportJobError("Profession directory", origin));
         await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
       });
       await refreshExistingBotGuides(guild, prisma).catch(reportJobError("Pinned bot guides", origin));
     }
   })();
+  // The live boards are edited in place every 30 minutes (and after uploads), so a season change or a missed
+  // refresh never leaves a stale panel for long. Both are no-ops for a server without the channel/opt-in.
+  let refreshingBoards = false;
+  const refreshBoards = async () => {
+    if (refreshingBoards) return;
+    refreshingBoards = true;
+    try {
+      for (const guild of readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()) {
+        const origin = { guildId: guild.id, guildName: guild.name };
+        await forEachGuildScope(prisma, guild.id, async () => {
+          await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard refresh", origin));
+          await updateDuelBoard(guild).catch(reportJobError("Duel board refresh", origin));
+        });
+      }
+    } finally { refreshingBoards = false; }
+  };
+  setInterval(() => void refreshBoards(), 30 * 60 * 1000);
   logSetupStatus(readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()).catch(reportJobError("Setup status log"));
   // One-shot: the running version only changes on a redeploy/restart, so a
   // per-ClientReady check is enough (safe on reconnect too: it marks each

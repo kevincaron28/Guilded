@@ -40,6 +40,11 @@ request list: [roadmap history](docs/archive/ROADMAP-history.md).
 | G | Server and guild statistics with graphs and Google Sheets | `20261222000000` | new `stat-snapshot` service, owner/guild tools web page |
 | H | Ideas from Kinfolk Guild Hub (later) | n/a | design notes only until picked |
 | I | WoW Forever armory: spike, then links or lookups | none until the spike | new `docs/FOREVER_ARMORY.md`, later a small `armory.ts` service |
+| J | Call for help (world PvP) | none expected | new `addon/Guilded/Modules/CallForHelp.lua`; companion chat-log watcher later |
+| K | Addon-only members still sync | none expected | `LedgerSync.lua`, `LedgerRelay.lua`, `Digest.lua`, `character-verify.ts` |
+
+C4 and C5 (roster professions, promotion panel) belong to track C; E4 (companion link in game)
+belongs to track E. They were added after wave 1 started, so they ship as follow-up PRs.
 
 Suggested order if one session does everything: A, C, E, B, D, F, G. Tracks are independent
 except where noted, so they can run at the same time.
@@ -153,6 +158,30 @@ Render images with `src/services/score-card.ts` (roster layout) so they match th
   roster dashboard web page. Optional permanent board in an officer channel.
 - Done when: card renders for 0, 1 and 150 members without overlap; numbers equal `/guild-health`.
 
+**C4. Professions on the guild roster (requested 6 November 2026).**
+- **Recommendation:** show professions in the roster, not in notes by default. Guild notes are 31
+  characters, are often already used by other addons or for main/alt names, and editing them
+  needs officer permission. Guilded already shares professions by addon message.
+- Build: (1) professions and skill as icons in the roster view (C3 web dashboard and the addon's
+  roster window) and in the tooltip when hovering a name in Blizzard's guild roster; (2) an
+  **opt-in officer tool** "write professions to public notes" using the existing reviewed note
+  action (`Modules/RosterTools.lua`, one click per batch): it writes a short tag such as
+  `Alch300 Herb300` only into notes that are empty or already carry the Guilded tag, shows a
+  preview first, and never touches officer notes.
+
+**C5. Promotion panel: Initiate → Member (requested 6 November 2026).**
+- Existing: one-click reviewed promote in the addon (`RosterTools.lua`, `RosterAdmin.lua`); in-game
+  rank → Discord role sync (`src/services/rank-roles.ts`); the officer bridge brings bot data into
+  the addon.
+- Build: officers set the rule with `/officer promotion` (default: in the Discord server, at least one
+  linked character, rank "Initiate" for 7+ days; optional minimum level or activity). The bot
+  computes **Ready to promote** and **Not in Discord yet**; officers see it as (1) a weekly list in the
+  officer channel (opt-in) and (2) an addon **Ready to promote** panel, fed by the officer bridge,
+  with one **Promote** click per member. After the in-game promotion, `rank-roles` updates the
+  Discord role by itself, so nobody edits roles by hand.
+- Done when: the list matches a hand check, and promoting in game changes the Discord role on the
+  next sync.
+
 ### Track D — Artisans' Gallery and "last seen"
 
 **Recommendation:** one **Artisans' Gallery** built on data we already store, shown in three places,
@@ -210,6 +239,12 @@ reads the same value from the guild roster). Show it as "today", "2 days ago", "
 **E3. "Last seen" in the Crafted by tooltip.** Read `GetGuildRosterLastOnline` for crafters (online
 now = "online"), cache it in SavedVariables with the time it was read, and add it to the compact
 Crafted by line (8.4.6 #375) without making the tooltip taller.
+
+**E4. "Get the companion" in game (requested 6 November 2026).** Addons cannot open web pages, so
+the addon shows a copy box with the short link (`guilded.kcaron.top/companion/`) and the stable
+direct link, on the Home page and in Settings, plus a gentle reminder at most once a week for members
+whose characters have not been uploaded by their own companion in 7 days (the officer bridge tells
+the addon who that is). The reminder says what syncing gives them and can be turned off.
 
 ### Track F — Companion
 
@@ -329,6 +364,82 @@ and companion stay the source of truth; nothing breaks when the armory is down o
 - **If only the website exists:** add armory **links** (character cards, `/character list`, gallery,
   race board) and no automated reading. No scraping of undocumented endpoints.
 - Battle.net sign-in stays hidden for Forever members until I0 proves it links Forever characters.
+
+### Track J — Call for help (world PvP), requested 6 November 2026
+
+**Goal:** a member being ganked presses one button and the right guildmates know at once, in game
+and in Discord.
+
+**Recommendation (who gets alerted):** guildmates with Guilded who opted in as **Defenders**
+(default on for level 60s, off below level 40, a member setting), within the same zone, sorted by
+distance when the guild map knows both positions. Everyone else in the guild sees one quiet chat line.
+
+- **Existing:** guild map position sharing (`Modules/GuildMap.lua`, default on, paused in instances
+  and combat, so the last position before combat is still known); the paced addon-message queue
+  (`ns.comm.send`); the Guilded chat tab; Québec Gold's **Blizzard-native guild chat ↔ Discord link**
+  (`#chat-guilde`), which already carries guild chat into Discord with no bot involvement.
+- **Build, addon:**
+  1. Trigger: `/guilded help`, a key binding, the minimap quick menu (E2) and a **Call for help**
+     button that appears for 20 s when an enemy player damages you outside a battleground
+     (`COMBAT_LOG_EVENT_UNFILTERED`, hostile player source). Never sends by itself.
+  2. Message (prefix `GuildedSOS`): caller, zone, subzone, map position if known, level, attacker
+     names/classes/levels seen in the combat log, time.
+  3. Receivers who are Defenders get a raid-warning-style banner, a sound, distance and direction
+     when known, a map pin, and **On my way** / **Can't** buttons; the caller sees who is coming.
+     Others get one line in the Guilded chat tab. No secure or protected action (works in combat).
+  4. Optional **Also post in guild chat** (caller's choice, default on): one short guild-chat line
+     such as `[Guilded] Help! Lebowski is under attack in Duskwood (2 Horde, 58-60)`. Through the
+     native link it appears in Discord immediately.
+  5. Anti-spam: one call per caller per 2 minutes, an "all clear" button, auto-expiry after 5 minutes.
+- **Build, Discord (optional, opt-in per server):** a `@Defenders` role ping in a chosen channel.
+  The addon cannot reach Discord itself and SavedVariables are only written on reload or logout, so
+  live pings need the companion: it watches the game's chat log file (`Logs/WoWChatLog.txt`, written
+  live while `/chatlog` is on) for the `[Guilded] Help!` line and forwards it to the bot.
+  Feasibility of the chat log on Forever is step 0 of this part.
+- **Done when:** Lua tests cover the trigger, cooldown and receiver filter; in game, two clients in
+  the same zone see the banner within 2 seconds; the guild-chat line shows in Québec Gold's Discord.
+
+### Track K — Addon-only members still sync (and sync is as good as other addons)
+
+**Goal:** a member who never installs the companion still has their data (characters, levels,
+professions, recipes, dungeon runs, duels, attendance) reach Discord and the website, through any
+guildmate whose companion is running.
+
+- **Existing:** member ledger sync on by default (`LedgerSync.lua`, `LedgerDigest.lua`,
+  `LedgerRelay.lua`: officer receipts, whisper delivery, digest checks), the officer bridge for the
+  other direction (`docs/OFFICER_COMPANION_BRIDGE.md`), `/guilded verify` for linking without a
+  companion, and the provisional/trusted upload rules in `src/services/character-verify.ts`.
+- **Build:**
+  1. Audit, field by field, which member data travels by addon message today and which only leaves
+     the PC through that member's own companion. Write the table in `docs/ADDON_ONLY_SYNC.md`.
+  2. For each gap, add the field to the guild digest or relay, with provenance (who saw it, when)
+     so the bot can mark relayed data "reported by a guildmate" and prefer first-hand uploads.
+  3. Compare with how other guild addons sync (findings below) and adopt what is better: chunking,
+     throttling, version checks, conflict rules.
+  4. Show in game which guildmates have a companion syncing ("Synced via Lebowski, 2 h ago").
+- **Done when:** in a two-client test, a member with no companion gets their level, professions and
+  a dungeon run onto the website through the other member's companion.
+
+**What other addons do (research 6 November 2026; search snippets, not code review):**
+- **GRM** syncs over GUILD addon messages, needs matching versions, sets edit rights by rank, and on
+  Retail can no longer edit public/officer notes (it keeps its own "custom note"). Whether Forever
+  still allows addon note edits must be tested in game before C4's note tool ships.
+- **CEPGP/EPGP** store standings in officer notes, so other addons must never write officer notes.
+- **Guildbook, GuildCrafts, Recipe Registry, Profession Master** share professions by addon message
+  after each player opens their profession window; none writes notes. GuildCrafts prunes data not
+  refreshed in 45 days and notes that GUILD addon messages are not delivered inside instances.
+- **No guild addon uploads to a website**; Raider.IO and Warcraft Logs use their own desktop apps.
+  So Guilded's companion relay is already ahead. The lesson is to make every relayed record
+  self-describing (author, time, id) so the bot can deduplicate and trust first-hand data first.
+- Adopt for Guilded: an explicit addon version check with a "please update" line, stale-data pruning
+  with a visible age, and queueing sends while in an instance until the player is back outside.
+- **Call for help:** WarlordsPvP has a manual SOS (command, minimap click, button) that posts zone,
+  coordinates and nearby enemies to guild chat with a 10 s cooldown; Spy2 detects enemies from the
+  combat log. No addon alerts opted-in guildmates with a banner and "On my way" replies, so Track J
+  would be new. Write it from scratch: these addons are references for ideas only.
+- **Promotions:** GRM records promotion dates and has promote macros but no "ready to promote" list,
+  so C5 is new work. Test in the Forever client that promoting from an addon click works with the
+  officer's Promote permission.
 
 ### Release step — bring the Québec Gold Discord up to date (owner request, 6 November 2026)
 

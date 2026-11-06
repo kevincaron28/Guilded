@@ -619,6 +619,8 @@ registerIpc("set-auto-update", async (_event, on) => {
   if (!on) forgetPendingUpdate(config.pendingUpdate?.file);
   await saveConfig();
   if (on) void checkForUpdate();
+  // Store build: turning it back on looks for a Store update now (still never while WoW runs).
+  if (on && STORE_PACKAGE) { config.storeUpdateCheckedAt = undefined; void maybeStoreUpdate(); }
   return on;
 });
 registerIpc("install-update", async () => {

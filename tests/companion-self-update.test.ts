@@ -51,4 +51,18 @@ describe("companion one-click update", () => {
   it("keeps Start with Windows when an upgrade runs the old uninstaller", () => {
     expect(readFileSync("companion-app/installer.nsh", "utf8")).toMatch(/\$\{ifNot\} \$\{isUpdated\}\s+DeleteRegValue/);
   });
+
+  // 8.4.7 fresh-PC install: the app did not open ("cannot find ...Guilded Companion.lnk"),
+  // Apps & features had no install location, and a 123 MB installer copy stayed behind.
+  it("starts the installed exe, records InstallLocation and removes the installer copy", () => {
+    const script = readFileSync("companion-app/installer.nsh", "utf8");
+    const install = /!macro customInstall\b([\s\S]*?)!macroend/.exec(script)?.[1] ?? "";
+    expect(install).toContain('StrCpy $launchLink "$INSTDIR\\${APP_EXECUTABLE_FILENAME}"');
+    expect(install).toContain('WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" InstallLocation "$INSTDIR"');
+    expect(install).toContain('RMDir /r "$LOCALAPPDATA\\guilded-companion-updater"');
+    const uninstall = /!macro customUnInstall\b([\s\S]*?)!macroend/.exec(script)?.[1] ?? "";
+    expect(uninstall).toMatch(/\$\{ifNot\} \$\{isUpdated\}[\s\S]*RMDir \/r "\$LOCALAPPDATA\\guilded-companion-updater"[\s\S]*\$\{endIf\}/);
+    // electron-builder names that folder after package.json's name.
+    expect(JSON.parse(readFileSync("companion-app/package.json", "utf8")).name).toBe("guilded-companion");
+  });
 });

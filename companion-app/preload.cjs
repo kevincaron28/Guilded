@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld("companion", {
   linkFindSavedData: () => ipcRenderer.invoke("link-find-saved-data"),
   copyProblemReport: () => ipcRenderer.invoke("copy-problem-report"),
   openAddonDownload: () => ipcRenderer.invoke("open-addon-download"),
+  installAddon: () => ipcRenderer.invoke("install-addon"),
   setOnline: (online) => ipcRenderer.invoke("set-online", online),
   pickWowFolder: () => ipcRenderer.invoke("pick-wow-folder"),
   recoverSync: () => ipcRenderer.invoke("recover-sync"),

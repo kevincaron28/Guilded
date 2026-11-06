@@ -12,6 +12,7 @@ export const PROBLEM_IDS = Object.freeze([
   "bot-unreachable",
   "addon-missing",
   "addon-wrong-edition",
+  "addon-outdated",
   "saved-file-missing",
   "saved-file-not-updated",
   "upload-rejected",
@@ -46,6 +47,20 @@ const minorNewer = (a, b) => {
   const left = versionParts(a), right = versionParts(b);
   return !!left && !!right && (left[0] > right[0] || left[0] === right[0] && left[1] > right[1]);
 };
+
+const ADDON_PAGE = "https://www.curseforge.com/wow/addons/guilded";
+/**
+ * Where "Get the addon" goes: the Forever zip of this very release (the addon and the companion
+ * share one version, and every GitHub release carries Guilded-v<version>-forever.zip), or the
+ * CurseForge page for any other edition or an unreadable version.
+ * @param {string | null | undefined} edition @param {string | null | undefined} version
+ */
+export function addonDownloadUrl(edition, version) {
+  const parts = versionParts(version);
+  if (edition !== "forever" || !parts) return ADDON_PAGE;
+  const tag = parts.join(".");
+  return `https://github.com/kevincaron28/Guilded/releases/download/v${tag}/Guilded-v${tag}-forever.zip`;
+}
 
 /** True when Windows' task list (tasklist /FO CSV /NH) shows a World of Warcraft game client. */
 export function wowRunningFrom(tasklist) {
@@ -89,14 +104,20 @@ export function companionProblems(input = {}) {
     else if (input.online === false || errors.some((text) => UNREACHABLE.test(text))) add("bot-unreachable", { offline: input.online === false });
   }
 
-  if (wow && config.watchFile) {
+  // Checked against the chosen saved file, or (none chosen yet) the WoW install the app found:
+  // a fresh PC with an empty AddOns folder never saves a Guilded.lua to choose.
+  if (wow && (config.watchFile || savedFile?.addon)) {
     const addon = savedFile?.addon;
     if (addon?.status === "not-installed") add("addon-missing", { expected: addon.expected ?? null });
     else if (addon?.status === "wrong-edition") add("addon-wrong-edition", { expected: addon.expected ?? null, installed: (addon.installed ?? []).join(", ") || null });
+    // Older than this companion: the matching Forever build is one click away (Update addon).
+    else if (addon?.status === "ok" && addon.expected === "forever" && addon.version && newerVersion(input.version, addon.version)) {
+      add("addon-outdated", { installed: addon.version, current: versionParts(input.version)?.join(".") ?? null });
+    }
   }
   const addonBroken = problems.has("addon-missing") || problems.has("addon-wrong-edition");
 
-  if (wow && linked && !config.personal && !config.watchFile) add("saved-file-missing", { chosen: false });
+  if (wow && linked && !config.personal && !config.watchFile && !addonBroken) add("saved-file-missing", { chosen: false });
   else if (wow && config.watchFile && !addonBroken) {
     const missing = (savedFile && savedFile.changedAt === null) || (typeof state.uploadError === "string" && NOT_SAVED_YET.test(state.uploadError));
     const changed = ms(savedFile?.changedAt), others = ms(savedFile?.othersChangedAt);
@@ -142,6 +163,7 @@ const SAFE = {
   "bot-unreachable": { offline: "boolean" },
   "addon-missing": { expected: "edition" },
   "addon-wrong-edition": { expected: "edition", installed: "editions" },
+  "addon-outdated": { installed: "version", current: "version" },
   "saved-file-missing": { chosen: "boolean", othersSaved: "boolean" },
   "saved-file-not-updated": { moved: "boolean", days: "number" },
   "upload-rejected": { status: "number", applyError: "boolean" },

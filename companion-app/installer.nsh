@@ -20,5 +20,22 @@
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Guilded Companion"
+    ; The installer copy electron-builder keeps (see customInstall below).
+    RMDir /r "$LOCALAPPDATA\guilded-companion-updater"
   ${endIf}
+!macroend
+
+; Runs at the end of every install and update, after the files, registry and shortcuts are
+; written and just before the one-click installer starts the app.
+!macro customInstall
+  ; Start the installed exe itself. electron-builder launches the Start Menu shortcut when the
+  ; file exists, but on a fresh PC the shell may not see the new .lnk yet, so Windows showed
+  ; "cannot find ...\Guilded Companion.lnk" and the app did not open after install.
+  StrCpy $launchLink "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+  ; electron-builder writes InstallLocation only under its own key; Apps & features reads it here.
+  WriteRegStr SHELL_CONTEXT "${UNINSTALL_REGISTRY_KEY}" InstallLocation "$INSTDIR"
+  ; electron-builder keeps a full copy of this installer (about 120 MB) for electron-updater's
+  ; differential downloads. The companion updates itself with the full installer from GitHub
+  ; (update-check.cjs), so the copy is never used: remove it.
+  RMDir /r "$LOCALAPPDATA\guilded-companion-updater"
 !macroend

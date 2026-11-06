@@ -28,7 +28,7 @@ request list: [roadmap history](docs/archive/ROADMAP-history.md).
    server** (boards, nickname sync, Who's who, roster gaps, Defender alerts, profession posts,
    statistics, the guildmate map, the first-link DM). Each one keeps an off switch for officers
    (server-wide) and, where it is about a member, for that member. Features that need a channel use
-   the channel  creates or adopts; nothing posts until that channel exists.
+   the channel `/setup` creates or adopts; nothing posts until that channel exists.
 6. One PR per track against `main`, green on all four checks in CLAUDE.md. Then report back to the
    coordinating session with the PR link, what was verified, and what still needs a real game client.
 

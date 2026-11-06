@@ -1,5 +1,5 @@
 import { createEngine } from "./engine.mjs";
-import { savedProfiles } from "./profiles.mjs";
+import { savedProfiles, isBlankProfile } from "./profiles.mjs";
 import { resolveStandingsPath } from "./standings.mjs";
 import { resolveAcceptedPath } from "./personal-runs.mjs";
 import { resolve, dirname, basename, join } from "node:path";
@@ -32,8 +32,11 @@ export function planProfiles(config) {
     const key = pathKey(p.watchFile);
     inputs.set(key, [...(inputs.get(key) || []), p]);
   }
+  // An empty connection (no bot address, never signed in) is left alone, silently, once another
+  // connection is set up: it would only log "Not started" at every retry.
+  const configured = entries.some(([, p]) => !isBlankProfile(p));
   return entries.map(([id, p]) => {
-    const enabled = p.syncEnabled === true || (id === active && p.syncEnabled !== false);
+    const enabled = (p.syncEnabled === true || (id === active && p.syncEnabled !== false)) && !(configured && isBlankProfile(p));
     const peers = inputs.get(pathKey(p.watchFile)) || [];
     // Two guild destinations reading one file need explicit routing. A public
     // connection may share the input with a guild connection by user consent.

@@ -2210,7 +2210,10 @@ local function buildPanel()
     end
     refresh()
   end)
-  panel:HookScript("OnHide", function()
+  -- Putting the panel back on UIParent touches a frame that sat inside the (protected) guild
+  -- window; the game refuses SetParent/SetPoint/Hide on it in combat (ADDON_ACTION_BLOCKED), so
+  -- in combat this waits for PLAYER_REGEN_ENABLED. The hidden panel stays under its host until then.
+  local function restoreUndocked()
     if ui.scope == "main" then return end
     restoreHostPortrait()
     for _, b in ipairs(ui.sizeButtons or {}) do b:Show() end
@@ -2247,6 +2250,15 @@ local function buildPanel()
     }) end
     if ns.guildPanel and ns.guildPanel.tab then ns.guildPanel.tab:SetChecked(false) end
     ui.lastOfficer = nil
+  end
+  panel:HookScript("OnHide", function()
+    if ui.scope == "main" then return end
+    if ns.util.inCombat() then
+      -- If the panel was shown again before combat ended, leave it where it is.
+      ns.util.afterCombat("guilded-panel-restore", function() if not panel:IsShown() then restoreUndocked() end end)
+      return
+    end
+    restoreUndocked()
   end)
 
   -- Shift-clicking an item normally inserts its link into chat; also put it
@@ -2438,12 +2450,16 @@ function ns.openGuildPanel(host, scope, initialName)
     if host and scope ~= "calendar" then ui.closeButton:Hide() else ui.closeButton:Show() end
     if host and scope == "calendar" then
       ui.closeButton:SetScript("OnClick", function()
-        ns.util.hideWindow(host)
-        -- The game's window normally reports its own hiding; make sure the panel follows anyway.
-        if panel:IsShown() and ui.scope ~= "main" then ns.closeGuildPanel(host) end
+        ns.util.afterCombat("guilded-calendar-close", function()
+          ns.util.hideWindow(host)
+          -- The game's window normally reports its own hiding; make sure the panel follows anyway.
+          if panel:IsShown() and ui.scope ~= "main" then ns.closeGuildPanel(host) end
+        end)
       end)
     else
-      ui.closeButton:SetScript("OnClick", function() panel:Hide() end)
+      ui.closeButton:SetScript("OnClick", function()
+        ns.util.afterCombat("guilded-panel-close-button", function() panel:Hide() end)
+      end)
     end
   end
   -- Raise the whole Guilded subtree, including previously built pages and
@@ -2468,6 +2484,12 @@ end
 
 function ns.closeGuildPanel(host)
   if ui.scope ~= "main" and panel and (not host or ui.guildHost == host) then
+    -- In combat panel:Hide() is blocked while the panel is embedded in the guild/calendar window
+    -- (the window is closing anyway when this is the host's OnHide). Finish after combat.
+    if ns.util.inCombat() then
+      ns.util.afterCombat("guilded-panel-close", function() ns.closeGuildPanel(host) end)
+      return
+    end
     local back = ui.scope == "calendar" and ui.returnToPanel
     ui.returnToPanel = false
     panel:Hide()

@@ -73,6 +73,12 @@ const cmd = (s: LuaSession, name: string, line: string) =>
 const receive = (s: LuaSession, from: string, text: string, channel = "GUILD") =>
   s.run(`fire_event("CHAT_MSG_ADDON", "GuildedRcp", ${JSON.stringify(text)}, ${JSON.stringify(channel)}, ${JSON.stringify(from)})`);
 const last = (s: LuaSession) => s.run("return CHAT_LOG[#CHAT_LOG]");
+// The tooltip lines as text, one per line; the middle dot is shown as "*".
+const tip = (s: LuaSession, id: number, opts = "") =>
+  s.run(`local t = NS.recipes.tooltipLines(${id}${opts ? ", " + opts : ""}); local o = {}; for _, l in ipairs(t) do o[#o + 1] = (string.gsub(l.raw, "\\194\\183", "*")) end; return table.concat(o, "\\n")`);
+// Several people who can craft the same First Aid recipe (item 555), each seen at a later time.
+const craftFirstAid = (s: LuaSession, names: string[], profession = "First Aid") =>
+  names.forEach((name, index) => receive(s, name, `R|${profession}|${100 + index}|1|1|555`));
 const keysOf = (s: LuaSession, who: string, profession: string) =>
   s.run(`local t = {}; for _, k in ipairs(DB.recipeBook.people[${JSON.stringify(who)}][${JSON.stringify(profession)}].keys) do t[#t + 1] = tostring(k) end; return table.concat(t, ",")`);
 
@@ -264,7 +270,7 @@ describe("Recipes.lua receiving from guildmates", () => {
   it("says who can craft an item on its tooltip", () => {
     const s = withRecipes();
     receive(s, "Ann", "R|Tailoring|100|1|1|555");
-    expect(s.run("return NS.recipes.tooltipLines(555)[1]")).toBe("Crafted by Ann (Tailoring)");
+    expect(tip(s, 555)).toBe("Guilded * Tailoring: Ann");
     expect(s.run("return #NS.recipes.tooltipLines(1)")).toBe("0");
   });
 
@@ -281,7 +287,7 @@ describe("Recipes.lua receiving from guildmates", () => {
     receive(s, "Ann", "R|Tailoring|100|1|1|555");
     receive(s, "Ann", "CD|Tailoring|1800000000|Mooncloth");
     expect(s.run(`return NS.recipes.whoText("item:555")`)).toContain("Ann River (Tailoring)");
-    expect(s.run(`return NS.recipes.tooltipLines(555)[1]`)).toContain("Ann River (Tailoring)");
+    expect(tip(s, 555)).toBe("Guilded * Tailoring: Ann");
     expect(s.run(`return NS.recipes.cooldownLines(false)[1]`)).toContain("Ann River - Mooncloth");
     expect(keysOf(s, "Ann", "Tailoring")).toBe("555");
   });
@@ -322,5 +328,92 @@ describe("profession relay removals", () => {
     receive(s, "Ann", "N|1001~Elixir of X;9999~Unknown recipe");
     expect(s.run('return DB.recipeBook.names[1001]')).toBe("Elixir of X");
     expect(s.run('return tostring(DB.recipeBook.names[9999])')).toBe("nil");
+  });
+});
+
+describe("Recipes.lua compact tooltip", () => {
+  const prepare = (me = "Ray") => {
+    const s = withRecipes(me);
+    s.run(`
+      SHIFT = false; function IsShiftKeyDown() return SHIFT end
+      ONLINE = {}
+      function GetNumGuildMembers() return #ONLINE end
+      function GetGuildRosterInfo(i) return ONLINE[i] .. "-Realm", "", 0, 0, "", "", "", "", true end
+      NS.getSettings = function() DB.settings = DB.settings or {}; return DB.settings end
+    `);
+    return s;
+  };
+
+  it("names the profession once and lists up to three crafters on one line", () => {
+    const s = prepare();
+    craftFirstAid(s, ["Ann", "Bob"]);
+    expect(tip(s, 555)).toBe("Guilded * First Aid: Bob, Ann"); // most recently shared first
+    craftFirstAid(s, ["Ann", "Bob", "Cy"]);
+    expect(tip(s, 555)).toBe("Guilded * First Aid: Cy, Bob, Ann");
+  });
+
+  it("shows the count and three names plus '+N more' for four to six crafters", () => {
+    const s = prepare();
+    craftFirstAid(s, ["Ann", "Bob", "Cy", "Dan"]);
+    expect(tip(s, 555)).toBe("Guilded * First Aid: 4 crafters\nDan, Cy, Bob +1 more");
+    craftFirstAid(s, ["Ann", "Bob", "Cy", "Dan", "Eve", "Fay"]);
+    expect(tip(s, 555)).toBe("Guilded * First Aid: 6 crafters\nFay, Eve, Dan +3 more");
+  });
+
+  it("shows only the count when more than six can craft it", () => {
+    const s = prepare();
+    craftFirstAid(s, ["Ann", "Bob", "Cy", "Dan", "Eve", "Fay", "Gus"]);
+    expect(tip(s, 555)).toBe("Guilded * First Aid: 7 crafters");
+    expect(s.run("local _, more = NS.recipes.tooltipLines(555); return tostring(more)")).toBe("true");
+  });
+
+  it("puts you first as 'you', then guildmates online, then the most recent", () => {
+    const s = prepare("Ray");
+    craftFirstAid(s, ["Ann", "Bob", "Cy", "Dan"]);
+    s.run(`DB.recipeBook.people.Ray = { ["First Aid"] = { v = 50, keys = { 555 } } }; ONLINE = { "Ann" }`); // your own recipes come from the profession window, not a message
+    expect(tip(s, 555)).toBe("Guilded * First Aid: 5 crafters\nyou, Ann, Dan +2 more");
+  });
+
+  it("uses full names only where two crafters share a first name", () => {
+    const s = prepare();
+    s.run(`NS.util.gameEdition = function() return "forever" end; DB.displayNames = { Ann = "Ann River", Bob = "Bob Stone", Cy = "Ann Lake" }`);
+    craftFirstAid(s, ["Ann", "Bob", "Cy"]);
+    expect(tip(s, 555)).toBe("Guilded * First Aid: Ann Lake, Bob, Ann River");
+  });
+
+  it("lists everyone with online status while Shift is held", () => {
+    const s = prepare("Ray");
+    craftFirstAid(s, ["Ann", "Bob", "Cy", "Dan", "Eve", "Fay", "Gus"]);
+    s.run(`DB.recipeBook.people.Ray = { ["First Aid"] = { v = 50, keys = { 555 } } }; ONLINE = { "Gus" }; SHIFT = true`);
+    const text = tip(s, 555);
+    const rows = text.split("\n");
+    expect(rows[0]).toBe("Guilded * First Aid: 8 crafters");
+    expect(rows).toHaveLength(9);
+    expect(rows[1]).toBe("  Ray (you) - |cff40ff40online|r");
+    expect(rows[2]).toBe("  Gus - |cff40ff40online|r");
+    expect(rows[3]).toBe("  Fay - |cff9d9d9doffline|r");
+    expect(s.run("local _, more = NS.recipes.tooltipLines(555); return tostring(more)")).toBe("false");
+  });
+
+  it("follows the setting: off, compact (default) and full", () => {
+    const s = prepare();
+    craftFirstAid(s, ["Ann", "Bob", "Cy", "Dan"]);
+    expect(s.run("return NS.recipes.tooltipMode()")).toBe("compact");
+    cmd(s, "recipes", "tooltip full");
+    expect(s.run("return DB.settings.tooltipCrafters")).toBe("full");
+    expect(tip(s, 555).split("\n")).toHaveLength(5);
+    cmd(s, "recipes", "tooltip off");
+    expect(s.run("return #NS.recipes.tooltipLines(555)")).toBe("0");
+    cmd(s, "recipes", "tooltip nonsense");
+    expect(s.run("return NS.recipes.tooltipMode()")).toBe("off");
+    cmd(s, "recipes", "tooltip compact");
+    expect(tip(s, 555)).toBe("Guilded * First Aid: 4 crafters\nDan, Cy, Bob +1 more");
+  });
+
+  it("keeps the professions apart when a recipe is shared by two", () => {
+    const s = prepare();
+    receive(s, "Ann", "R|Alchemy|100|1|1|555");
+    receive(s, "Bob", "R|Tailoring|101|1|1|555");
+    expect(tip(s, 555)).toBe("Guilded * Alchemy: Ann\nGuilded * Tailoring: Bob");
   });
 });

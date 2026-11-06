@@ -141,6 +141,14 @@ export function describeError(error) {
   return text;
 }
 
+// For the log only (hotfix 2, 8.5): what actually failed under "Could not reach the bot" —
+// the network code (ECONNRESET, UND_ERR_HEADERS_TIMEOUT...) or a timeout/abort — so a support
+// report tells a 20 s timeout from a dropped connection. Nothing secret is in these codes.
+export function errorCodeNote(error) {
+  const code = error?.cause?.code ?? error?.code ?? (error?.name === "TimeoutError" || error?.name === "AbortError" ? error.name : null);
+  return typeof code === "string" && /^[A-Za-z0-9_]{1,40}$/.test(code) ? ` [${code}]` : "";
+}
+
 // The bot doesn't recognize this Discord server ID at all (wrong ID, or the
 // bot isn't in that server). Distinct from a bad token (401/403) or a config
 // problem on the bot's own side.
@@ -305,7 +313,7 @@ export function createEngine(initialConfig, hooks = {}) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
       state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
-      log("error", `Upload failed: ${state.uploadError}`);
+      log("error", `Upload failed: ${state.uploadError}${errorCodeNote(error)}`);
       if (error.retryable !== false && state.running) {
         const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
         state.retryAt = new Date(Date.now() + delay).toISOString();
@@ -397,7 +405,7 @@ export function createEngine(initialConfig, hooks = {}) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
       state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
-      log("error", `Upload failed: ${state.uploadError}`);
+      log("error", `Upload failed: ${state.uploadError}${errorCodeNote(error)}`);
       if (error.retryable !== false && state.running) {
         const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
         state.retryAt = new Date(Date.now() + delay).toISOString();
@@ -466,7 +474,7 @@ export function createEngine(initialConfig, hooks = {}) {
     } catch (error) {
       if (epoch !== generation) return;
       state.standingsError = describeError(error);
-      log("error", `Standings update failed: ${state.standingsError}`);
+      log("error", `Standings update failed: ${state.standingsError}${errorCodeNote(error)}`);
     } finally { refreshing = false; hooks.onState?.(snapshot()); }
   }
 
@@ -499,7 +507,7 @@ export function createEngine(initialConfig, hooks = {}) {
       } catch (error) {
         if (epoch !== generation) return;
         state.standingsError = describeError(error);
-        if (errors === 0) log("error", `Standings update failed: ${state.standingsError}`);
+        if (errors === 0) log("error", `Standings update failed: ${state.standingsError}${errorCodeNote(error)}`);
         errors++;
         await sleep(Math.min(300_000, 5_000 * 2 ** Math.min(errors - 1, 6)), epoch);
         continue;

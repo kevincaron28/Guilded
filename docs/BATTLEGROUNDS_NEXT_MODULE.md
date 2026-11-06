@@ -17,10 +17,14 @@ release records in `docs/V8_4_0_RELEASE_ACCEPTANCE.md` and `docs/archive/` hold 
   like the 8.4 battleground channels (`battleground-groups` ...) and sitting together in one
   category, are adopted and never duplicated. Nothing is created while the module is off, and the duel board (also on by default) posts only once the
   ladder channel exists.
-- **The ladder is the PvP ladder.** `pvp-ladder` is the same channel as the 8.4 statistics channel
-  (`bgStatsChannelId`): it holds the static statistics panel and the live duel board
-  (`/battleground duel-board`), which already combines duel standings with the consented
-  battleground summary. No separate board was built.
+- **Two ladders, never combined points** (owner request, 6 November 2026), each its own message in the ladder channel, edited in
+  place and on by default: the **duel ladder** (`duel-board.ts`, `DuelResult`: wins, losses, win rate, streaks) and the
+  **battleground ladder** (`bg-ladder.ts`: consented player reports per mode and bracket, wins, losses, draws, win rate,
+  games; the capture records no kills, so none are shown; labelled player reports, not verified matches).
+  `/battleground bg-ladder enabled:false` switches the second one off.
+- **Where they live.** `pvp-ladder` is the same channel as the 8.4 statistics channel
+  (`bgStatsChannelId`): it holds the static statistics panel and the two live ladders
+  (`/battleground duel-board`, `/battleground bg-ladder`).
 - **Arena capture: later.** Owner decision (6 November 2026): the "arena module" means this
   battleground/duel PvP module, so 8.5 builds no arena capture. If Forever arenas are ever
   confirmed in the live client (`IsActiveBattlefieldArena`, `GetBattlefieldTeamInfo`), a bracket

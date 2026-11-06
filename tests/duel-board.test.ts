@@ -4,7 +4,7 @@ const { settingsRow, updateSettings } = vi.hoisted(() => ({
   settingsRow: { current: null as Record<string, unknown> | null }, updateSettings: vi.fn()
 }));
 vi.mock("../src/database.js", () => ({ prisma: {
-  duelResult: { findMany: vi.fn(async () => []) }, battlegroundReport: { groupBy: vi.fn(async () => []) }, discordJob: {}
+  duelResult: { findMany: vi.fn(async () => []) }, discordJob: {}
 } }));
 vi.mock("../src/services/guild.js", () => ({ createGuildService: () => ({
   ensureGuild: async () => ({ id: "g1", gameEdition: "forever" }), getSettings: async () => settingsRow.current, updateSettings
@@ -13,7 +13,7 @@ import { DUEL_BOARD_MARKER, duelBoardEmbed, loadDuelBoardData, updateDuelBoard, 
 
 const row = (name: string, wins: number, losses: number, bestStreak = wins, streak = 1) =>
   ({ memberId: name, name, wins, losses, games: wins + losses, winRate: wins / (wins + losses), streak, bestStreak });
-const data = (over: Partial<DuelBoardData> = {}): DuelBoardData => ({ standings: [], duels: 0, recent: [], bg: null, edition: "forever", ...over });
+const data = (over: Partial<DuelBoardData> = {}): DuelBoardData => ({ standings: [], duels: 0, recent: [], edition: "forever", ...over });
 
 describe("duel board embed", () => {
   it("shows the French empty state for Québec Gold", () => {
@@ -42,26 +42,20 @@ describe("duel board embed", () => {
     expect(lines).toHaveLength(10);
     expect(lines[0]).toContain("\\*\\*Bold\\*\\*");
   });
-  it("adds the battleground participation summary only when there is data", () => {
+  it("never mixes battleground numbers into the duel ladder (they have their own board)", () => {
     expect(duelBoardEmbed(data({ standings: [row("A", 1, 0)] }), "en").toJSON().fields ?? []).toEqual([]);
-    const json = duelBoardEmbed(data({ bg: { participations: 7, wins: 4, losses: 2, draws: 1 } }), "fr").toJSON();
-    expect(json.fields?.[0]?.name).toContain("Champs de bataille");
-    expect(json.fields?.[0]?.value).toContain("7 participations");
   });
 });
 
 describe("duel board data", () => {
-  it("builds standings from counted duels and a consent-filtered battleground summary", async () => {
+  it("builds standings from counted duels only", async () => {
     const findMany = vi.fn()
       .mockResolvedValueOnce([{ winnerId: "a", loserId: "b", winnerCharacter: "Aria", loserCharacter: "Brom" }])
       .mockResolvedValueOnce([{ winnerCharacter: "Aria", loserCharacter: "Brom", endedAt: new Date(), reason: "knockout" }]);
-    const groupBy = vi.fn(async () => [{ outcome: "win", _count: { _all: 3 } }, { outcome: "loss", _count: { _all: 1 } }]);
-    const result = await loadDuelBoardData({ duelResult: { findMany }, battlegroundReport: { groupBy } } as never, "g1", "forever");
+    const result = await loadDuelBoardData({ duelResult: { findMany } } as never, "g1", "forever");
     expect(result.standings[0]).toMatchObject({ name: "Aria", wins: 1 });
     expect(result.recent).toHaveLength(1);
-    expect(result.bg).toEqual({ participations: 4, wins: 3, losses: 1, draws: 0 });
     expect((findMany.mock.calls as unknown as [[{ where: { counted: boolean } }]])[0][0].where.counted).toBe(true);
-    expect((groupBy.mock.calls as unknown as [[{ where: { member: { battlegroundConsent: { is: unknown } } } }]])[0][0].where.member.battlegroundConsent.is).toMatchObject({ capture: true, guildStats: true });
   });
 });
 

@@ -7,20 +7,26 @@ import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { classColor, scoreCardPng, type ScoreCard } from "./score-card.js";
 
-// The live "Race to 60" board (8.5, track B1): ONE bot message in its own channel, edited in place after every
-// sync that changes a level and on the 30-minute refresh. Same pattern as the duel board: a marker in the footer,
-// a pure builder, refresh through discord-jobs, opt-in per server (GuildSettings.raceBoardEnabled). Nothing is
-// awarded and nothing is posted as new chatter. Every guild character counts, linked or not; members can hide
-// theirs with `/character race hide`.
+// The live "Race to 60" leaderboard and Hall of Fame (8.5, track B1). The channel's FIRST message is the live board: the
+// top N guild characters (default 25, officers pick 10-30) with class, race, level bar, professions, last seen and the
+// linked Discord member, edited in place after every sync. Every character that reaches 60 then gets its own permanent
+// Hall of Fame message, never edited or deleted, backed by a database row so history survives channel resets.
+// Same pattern as the duel board: footer marker, pure builders, refresh through discord-jobs. On by default; officers
+// switch it off. Members hide their characters with `/character race action:hide`.
 
 const guildService = createGuildService(prisma);
 export const RACE_BOARD_MARKER = "Guilded race board";
+export const HALL_MARKER = "Guilded hall of fame";
 export const LEVEL_CAP = 60;
-const BARS = 14, FINISHERS = 10, GAINERS = 3;
+export const DEFAULT_TOP = 25, MIN_TOP = 10, MAX_TOP = 30;
+/** With at least this many tracked characters, everyone reaching 60 switches the board to Hall of Fame mode by itself. */
+const AUTO_END_MINIMUM = 3;
+const BARS = 14, GAINERS = 5, DESCRIPTION_BUDGET = 3800;
 
-export interface RaceChar { key: string; name: string; className: string; level: number; memberId: string | null }
+export interface RaceChar { key: string; name: string; className: string; race: string | null; level: number; memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
 export interface RaceEntryState { level: number; reachedMaxAt: Date | null; weekStartLevel: number; weekStartedAt: Date }
-export interface RaceRow { name: string; className: string; level: number; reachedMaxAt: Date | null; weekGain: number; memberId: string | null }
+export interface RaceRow { key: string; name: string; className: string; race: string | null; level: number; reachedMaxAt: Date | null; firstSeenAt: Date; weekGain: number;
+  memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
 export interface RaceBoardData { rows: RaceRow[]; total: number; finished: number; edition: string }
 
 /** Monday 00:00 UTC of the week containing `now`. */
@@ -53,59 +59,135 @@ export function orderRace(rows: RaceRow[]): RaceRow[] {
   return [...done, ...racing];
 }
 
+/** Pure: the leaderboard order. Highest level first, 60s ahead by arrival, then name. */
+export function leaderboardOrder(rows: RaceRow[]): RaceRow[] {
+  return [...rows].sort((a, b) => b.level - a.level || (a.reachedMaxAt?.getTime() ?? 0) - (b.reachedMaxAt?.getTime() ?? 0) || a.name.localeCompare(b.name));
+}
+
 /** Pure: up to `limit` other characters within `spread` levels of `level`, closest first. */
 export function nearLevel(rows: RaceRow[], level: number, own: ReadonlySet<string>, spread = 3, limit = 8): RaceRow[] {
   return rows.filter(row => row.level < LEVEL_CAP && !own.has(row.name.toLowerCase()) && Math.abs(row.level - level) <= spread)
     .sort((a, b) => Math.abs(a.level - level) - Math.abs(b.level - level) || a.name.localeCompare(b.name)).slice(0, limit);
 }
 
-export function raceCard(data: RaceBoardData, lang: Lang): ScoreCard {
+export const clampTop = (value: number | null | undefined) => Math.max(MIN_TOP, Math.min(MAX_TOP, Math.trunc(value ?? DEFAULT_TOP) || DEFAULT_TOP));
+/** The board switches to Hall of Fame mode when an officer ends the race or everyone tracked has reached 60. */
+export const hallMode = (data: RaceBoardData, ended: boolean) => ended || (data.total >= AUTO_END_MINIMUM && data.finished === data.total);
+
+const bar = (level: number) => { const filled = Math.round(Math.min(level, LEVEL_CAP) / LEVEL_CAP * 8); return "▰".repeat(filled) + "▱".repeat(8 - filled); };
+const stamp = (date: Date, style: "d" | "R") => `<t:${Math.floor(date.getTime() / 1000)}:${style}>`;
+const shortProfessions = (professions: string[], limit = 2) => professions.slice(0, limit).join(", ");
+
+export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP): ScoreCard {
   const fr = lang === "fr";
+  const ranked = leaderboardOrder(data.rows).slice(0, top);
   return {
     eyebrow: "Guilded · WoW Forever", title: fr ? "Course au niveau 60" : "Race to 60",
     subtitle: fr ? `${data.finished} sur ${data.total} personnages au niveau ${LEVEL_CAP}` : `${data.finished} of ${data.total} characters at level ${LEVEL_CAP}`,
-    stats: [], footer: fr ? "Tous les personnages de la guilde, liés ou non · les membres peuvent se masquer" : "Every guild character, linked or not · members can hide theirs",
-    race: data.rows.slice(0, BARS).map(row => ({ name: row.name, color: classColor(row.className), level: row.level, max: LEVEL_CAP, done: row.level >= LEVEL_CAP,
+    stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · détails dans le message · les membres peuvent se masquer` : `Top ${ranked.length} of ${data.total} · details in the message · members can hide theirs`,
+    race: ranked.slice(0, BARS).map(row => ({ name: row.name, color: classColor(row.className), level: row.level, max: LEVEL_CAP, done: row.level >= LEVEL_CAP,
       ...(row.weekGain > 0 ? { note: fr ? `+${row.weekGain} sem.` : `+${row.weekGain} wk` } : {}) }))
   };
 }
 
-/** Pure: the board's embed. `image` is the attachment name the card is sent under. */
-export function raceBoardEmbed(data: RaceBoardData, lang: Lang, guildId = "", image?: string): EmbedBuilder {
+/** Pure: one leaderboard line. */
+export function raceLine(row: RaceRow, rank: number, lang: Lang, hall = false): string {
+  const fr = lang === "fr";
+  const name = escapeMarkdown(row.name).slice(0, 32);
+  const kind = [row.className, row.race].filter(Boolean).join(" ");
+  const parts = [`**${rank}.** ${name}`, kind];
+  if (row.level >= LEVEL_CAP) parts.push(`**60** ✅${row.reachedMaxAt ? ` ${stamp(row.reachedMaxAt, "d")}` : ""}`);
+  else parts.push(`**${row.level}** ${bar(row.level)} ${Math.round(row.level / LEVEL_CAP * 100)}%`);
+  if (!hall) {
+    if (row.professions.length) parts.push(shortProfessions(row.professions));
+    if (row.lastSeenAt) parts.push(`${fr ? "vu" : "seen"} ${stamp(row.lastSeenAt, "R")}`);
+  }
+  if (row.discordId) parts.push(`<@${row.discordId}>`);
+  return parts.filter(Boolean).join(" · ");
+}
+
+/** Pure: the board's embed. `image` is the attachment name the card is sent under; `hall` lists every 60 in arrival order. */
+export function raceBoardEmbed(data: RaceBoardData, lang: Lang, guildId = "", options: { image?: string | undefined; top?: number; hall?: boolean } = {}): EmbedBuilder {
   const fr = lang === "fr";
   const t = (en: string, french: string) => fr ? french : en;
-  const name = (value: string) => escapeMarkdown(value).slice(0, 32);
-  const embed = new EmbedBuilder().setColor(0xffd100).setTitle(t("🏁 Race to 60", "🏁 Course au niveau 60"));
+  const hall = options.hall === true;
+  const embed = new EmbedBuilder().setColor(0xffd100).setTitle(hall ? t("🏆 Hall of Fame — level 60", "🏆 Temple de la renommée — niveau 60") : t("🏁 Race to 60", "🏁 Course au niveau 60"));
   if (!data.total) {
     embed.setDescription(t("No levelled character reported yet. Officers' addon uploads fill this board.", "Aucun personnage avec niveau rapporté. Les envois de l'addon des officiers remplissent ce tableau."));
   } else {
-    embed.setDescription(t(`**${data.finished}** of **${data.total}** characters have reached level ${LEVEL_CAP}.`, `**${data.finished}** personnages sur **${data.total}** ont atteint le niveau ${LEVEL_CAP}.`));
-    const done = data.rows.filter(row => row.level >= LEVEL_CAP).slice(0, FINISHERS);
-    if (done.length) {
-      embed.addFields({ name: t("Finish order", "Ordre d'arrivée"), value: done.map((row, index) => `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${name(row.name)}${row.reachedMaxAt ? ` · <t:${Math.floor(row.reachedMaxAt.getTime() / 1000)}:d>` : ""}`).join("\n").slice(0, 1024) });
+    const rows = hall ? data.rows.filter(row => row.level >= LEVEL_CAP).sort((a, b) => (a.reachedMaxAt?.getTime() ?? 0) - (b.reachedMaxAt?.getTime() ?? 0) || a.name.localeCompare(b.name))
+      : leaderboardOrder(data.rows).slice(0, clampTop(options.top));
+    const head = hall ? t(`**${data.finished}** characters reached level ${LEVEL_CAP}, in arrival order.`, `**${data.finished}** personnages ont atteint le niveau ${LEVEL_CAP}, par ordre d'arrivée.`)
+      : t(`Top **${rows.length}** of **${data.total}** characters · **${data.finished}** at level ${LEVEL_CAP}.`, `Top **${rows.length}** sur **${data.total}** personnages · **${data.finished}** au niveau ${LEVEL_CAP}.`);
+    const lines: string[] = [];
+    let used = head.length + 2;
+    for (const [index, row] of rows.entries()) {
+      const line = raceLine(row, index + 1, lang, hall);
+      if (used + line.length + 1 > DESCRIPTION_BUDGET) { lines.push("…"); break; }
+      lines.push(line); used += line.length + 1;
     }
-    const racing = data.rows.filter(row => row.level < LEVEL_CAP).slice(0, 5);
-    if (racing.length) embed.addFields({ name: t("Still racing", "Toujours en course"), value: racing.map(row => `${name(row.name)} — ${t("level", "niveau")} ${row.level}`).join("\n").slice(0, 1024) });
+    embed.setDescription(`${head}\n\n${lines.join("\n")}`);
     const gainers = data.rows.filter(row => row.weekGain > 0).sort((a, b) => b.weekGain - a.weekGain || a.name.localeCompare(b.name)).slice(0, GAINERS);
-    if (gainers.length) embed.addFields({ name: t("Most levels this week", "Plus de niveaux cette semaine"), value: gainers.map(row => `${name(row.name)} +${row.weekGain}`).join("\n").slice(0, 1024) });
+    if (gainers.length && !hall) embed.addFields({ name: t("Most levels this week", "Plus de niveaux cette semaine"), value: gainers.map(row => `${escapeMarkdown(row.name).slice(0, 32)} +${row.weekGain}`).join("\n").slice(0, 1024), inline: true });
+    embed.addFields({ name: t("Level 60", "Niveau 60"), value: String(data.finished), inline: true });
   }
-  if (image && data.total) embed.setImage(`attachment://${image}`);
+  if (options.image && data.total) embed.setImage(`attachment://${options.image}`);
   return embed.setFooter({ text: `${RACE_BOARD_MARKER} • ${guildId} • ${t("/character race near finds partners at your level · /character race hide opts out", "/character race near trouve des partenaires de ton niveau · /character race hide pour te masquer")}`.slice(0, 2048) });
 }
+
+export interface HallRecord { order: number; name: string; className: string; race: string | null; reachedAt: Date; firstSeenAt: Date; professions: string | null; memberDiscordId: string | null }
+
+/** Pure: one permanent Hall of Fame post. */
+export function hallEmbed(entry: HallRecord, lang: Lang, guildId = "", nameKey = ""): EmbedBuilder {
+  const fr = lang === "fr";
+  const t = (en: string, french: string) => fr ? french : en;
+  const days = Math.max(0, Math.floor((entry.reachedAt.getTime() - entry.firstSeenAt.getTime()) / 86_400_000));
+  const lines = [`**${escapeMarkdown(entry.name).slice(0, 40)}** — ${[entry.className, entry.race].filter(Boolean).join(" ")}`,
+    t(`Reached level ${LEVEL_CAP} on ${stamp(entry.reachedAt, "d")}`, `A atteint le niveau ${LEVEL_CAP} le ${stamp(entry.reachedAt, "d")}`),
+    t(`${days} day${days === 1 ? "" : "s"} after first being seen in the guild`, `${days} jour${days === 1 ? "" : "s"} après sa première apparition dans la guilde`)];
+  if (entry.professions) lines.push(entry.professions);
+  if (entry.memberDiscordId) lines.push(`<@${entry.memberDiscordId}>`);
+  return new EmbedBuilder().setColor(0xffd100).setTitle(t(`🏆 #${entry.order} to reach ${LEVEL_CAP}`, `🏆 N° ${entry.order} à atteindre le niveau ${LEVEL_CAP}`)).setDescription(lines.join("\n"))
+    .setFooter({ text: `${HALL_MARKER} • ${guildId} • ${nameKey}`.slice(0, 2048) });
+}
+
+/** Pure: the single message that replaces individual posts for every 60 found on the first run. */
+export function hallSummaryEmbed(entries: HallRecord[], lang: Lang, guildId = ""): EmbedBuilder {
+  const t = (en: string, french: string) => lang === "fr" ? french : en;
+  const lines: string[] = [];
+  let used = 0;
+  for (const entry of entries) {
+    const line = `**#${entry.order}** ${escapeMarkdown(entry.name).slice(0, 32)} · ${[entry.className, entry.race].filter(Boolean).join(" ")} · ${stamp(entry.reachedAt, "d")}`;
+    if (used + line.length + 1 > DESCRIPTION_BUDGET) { lines.push("…"); break; }
+    lines.push(line); used += line.length + 1;
+  }
+  return new EmbedBuilder().setColor(0xffd100).setTitle(t("🏆 Hall of Fame — already at level 60", "🏆 Temple de la renommée — déjà niveau 60"))
+    .setDescription(`${t("Found when the Hall of Fame started, in order of their recorded date:", "Trouvés au démarrage du temple, selon la date enregistrée :")}\n\n${lines.join("\n")}`)
+    .setFooter({ text: `${HALL_MARKER} • ${guildId} • summary` });
+}
+
+interface ProfessionJson { name?: unknown; skillLevel?: unknown }
+const professionText = (name: string, skill: number) => `${name} ${skill}`;
+const jsonProfessions = (value: unknown): string[] => Array.isArray(value)
+  ? (value as ProfessionJson[]).flatMap(item => typeof item?.name === "string" && typeof item.skillLevel === "number" ? [professionText(item.name, item.skillLevel)] : []) : [];
 
 /** Records every guild character's level, then returns the board's data. Hidden members' characters are left out. */
 export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry">, guildId: string, edition: string, now = new Date()): Promise<RaceBoardData> {
   const linked = await db.character.findMany({ where: { guildId, gameEdition: edition, level: { not: null }, member: { guildId, status: "ACTIVE", raceHidden: false } },
-    select: { name: true, realm: true, className: true, level: true, memberId: true } });
+    select: { name: true, realm: true, className: true, race: true, level: true, memberId: true, lastSeenAt: true, member: { select: { discordUserId: true } },
+      professions: { select: { profession: true, skillLevel: true }, orderBy: { skillLevel: "desc" } } } });
   const hiddenLinked = await db.character.findMany({ where: { guildId, gameEdition: edition, member: { guildId, raceHidden: true } }, select: { name: true, realm: true } });
-  const unclaimed = await db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition, level: { not: null } }, select: { nameKey: true, name: true, className: true, level: true } });
+  const unclaimed = await db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition, level: { not: null } },
+    select: { nameKey: true, name: true, className: true, race: true, level: true, professions: true, lastSeenAt: true } });
   const hiddenKeys = new Set(hiddenLinked.map(row => String(characterKey(row.name, row.realm, edition))));
   const chars = new Map<string, RaceChar>();
-  for (const row of unclaimed) if (row.level && !hiddenKeys.has(row.nameKey)) chars.set(row.nameKey, { key: row.nameKey, name: row.name, className: row.className, level: row.level, memberId: null });
+  for (const row of unclaimed) if (row.level && !hiddenKeys.has(row.nameKey)) chars.set(row.nameKey, { key: row.nameKey, name: row.name, className: row.className, race: row.race, level: row.level,
+    memberId: null, discordId: null, professions: jsonProfessions(row.professions), lastSeenAt: row.lastSeenAt });
   // A linked character wins over a stale unclaimed copy of the same name.
   for (const row of linked) {
     const key = String(characterKey(row.name, row.realm, edition));
-    if (row.level) chars.set(key, { key, name: row.name, className: row.className, level: row.level, memberId: row.memberId });
+    if (row.level) chars.set(key, { key, name: row.name, className: row.className, race: row.race, level: row.level, memberId: row.memberId, discordId: row.member?.discordUserId ?? null,
+      professions: (row.professions ?? []).map(skill => professionText(skill.profession, skill.skillLevel)), lastSeenAt: row.lastSeenAt });
   }
   const stored = new Map((await db.levelRaceEntry.findMany({ where: { guildId } })).map(entry => [entry.nameKey, entry]));
   const rows: RaceRow[] = [];
@@ -115,26 +197,81 @@ export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "un
     const changed = !before || before.level !== next.level || before.name !== char.name || before.className !== char.className
       || before.weekStartLevel !== next.weekStartLevel || before.weekStartedAt.getTime() !== next.weekStartedAt.getTime() || before.reachedMaxAt?.getTime() !== next.reachedMaxAt?.getTime();
     if (changed) await db.levelRaceEntry.upsert({ where: { guildId_nameKey: { guildId, nameKey: char.key } },
-      create: { guildId, nameKey: char.key, name: char.name, className: char.className, ...next }, update: { name: char.name, className: char.className, ...next } });
-    rows.push({ name: char.name, className: char.className, level: next.level, reachedMaxAt: next.reachedMaxAt, weekGain: Math.max(0, next.level - next.weekStartLevel), memberId: char.memberId });
+      create: { guildId, nameKey: char.key, name: char.name, className: char.className, ...next, firstSeenAt: now }, update: { name: char.name, className: char.className, ...next } });
+    rows.push({ key: char.key, name: char.name, className: char.className, race: char.race, level: next.level, reachedMaxAt: next.reachedMaxAt, firstSeenAt: before?.firstSeenAt ?? now,
+      weekGain: Math.max(0, next.level - next.weekStartLevel), memberId: char.memberId, discordId: char.discordId, professions: char.professions, lastSeenAt: char.lastSeenAt });
   }
   const ordered = orderRace(rows);
   return { rows: ordered, total: ordered.length, finished: ordered.filter(row => row.level >= LEVEL_CAP).length, edition };
 }
 
+type HallDb = Pick<PrismaClient, "raceHallEntry" | "memberMilestone">;
+interface HallChannel { send(payload: { embeds: EmbedBuilder[]; allowedMentions: { parse: never[] } }): Promise<{ id: string }> }
+
+/**
+ * The Hall of Fame. First run (no `raceHallBackfilledAt`): every 60 already on the board is stored, in order of the member's
+ * recorded level-60 milestone date when there is one, and announced with ONE summary message. Afterwards each new 60 is
+ * claimed in the database first (the unique keys stop a second post after a restart or a parallel refresh), then posted;
+ * a post that failed is retried on the next refresh. Posted messages are never edited or deleted.
+ */
+export async function syncHallOfFame(db: HallDb, channel: HallChannel, guildId: string, data: RaceBoardData, lang: Lang, backfilledAt: Date | null, now = new Date()): Promise<{ markBackfilled: boolean; posted: number }> {
+  const finishers = data.rows.filter(row => row.level >= LEVEL_CAP);
+  const existing = await db.raceHallEntry.findMany({ where: { guildId }, orderBy: { order: "asc" } });
+  const known = new Set(existing.map(entry => entry.nameKey));
+  const fresh = finishers.filter(row => !known.has(row.key));
+  let posted = 0;
+  let nextOrder = existing.reduce((max, entry) => Math.max(max, entry.order), 0) + 1;
+  const professions = (row: RaceRow) => row.professions.length ? shortProfessions(row.professions, 3) : null;
+  const send = (embed: EmbedBuilder) => channel.send({ embeds: [embed], allowedMentions: { parse: [] as never[] } });
+  if (!backfilledAt) {
+    if (fresh.length) {
+      const milestones = await db.memberMilestone.findMany({ where: { guildId, kind: "level", value: LEVEL_CAP, memberId: { in: fresh.flatMap(row => row.memberId ? [row.memberId] : []) } }, select: { memberId: true, reachedAt: true } });
+      const dates = new Map<string, Date>();
+      for (const milestone of milestones) { const seen = dates.get(milestone.memberId); if (!seen || milestone.reachedAt < seen) dates.set(milestone.memberId, milestone.reachedAt); }
+      const dated = fresh.map(row => ({ row, at: (row.memberId ? dates.get(row.memberId) : undefined) ?? row.reachedMaxAt ?? now }))
+        .sort((a, b) => a.at.getTime() - b.at.getTime() || a.row.name.localeCompare(b.row.name));
+      const records: HallRecord[] = [];
+      for (const { row, at } of dated) {
+        const order = nextOrder++;
+        await db.raceHallEntry.create({ data: { guildId, nameKey: row.key, order, name: row.name, className: row.className, race: row.race, reachedAt: at, firstSeenAt: row.firstSeenAt,
+          professions: professions(row), memberDiscordId: row.discordId, backfilled: true, posted: true } });
+        records.push({ order, name: row.name, className: row.className, race: row.race, reachedAt: at, firstSeenAt: row.firstSeenAt, professions: professions(row), memberDiscordId: row.discordId });
+      }
+      await send(hallSummaryEmbed(records, lang, guildId));
+      posted++;
+    }
+    return { markBackfilled: true, posted };
+  }
+  const post = async (entry: { id: string; nameKey: string } & HallRecord) => {
+    const sent = await send(hallEmbed(entry, lang, guildId, entry.nameKey));
+    await db.raceHallEntry.update({ where: { id: entry.id }, data: { posted: true, messageId: sent.id } });
+    posted++;
+  };
+  for (const row of fresh.sort((a, b) => (a.reachedMaxAt?.getTime() ?? 0) - (b.reachedMaxAt?.getTime() ?? 0) || a.name.localeCompare(b.name))) {
+    let created;
+    try {
+      created = await db.raceHallEntry.create({ data: { guildId, nameKey: row.key, order: nextOrder, name: row.name, className: row.className, race: row.race, reachedAt: row.reachedMaxAt ?? now,
+        firstSeenAt: row.firstSeenAt, professions: professions(row), memberDiscordId: row.discordId } });
+    } catch { continue; } // another refresh claimed this character or number first
+    nextOrder++;
+    await post(created).catch((error: unknown) => console.error("Hall of Fame post failed; retrying next refresh", error));
+  }
+  for (const entry of existing.filter(item => !item.posted && !item.backfilled)) await post(entry).catch((error: unknown) => console.error("Hall of Fame retry failed", error));
+  return { markBackfilled: false, posted };
+}
+
 const isBoard = (message: Message, botId: string) => message.author.id === botId && message.embeds.some(embed => embed.footer?.text?.startsWith(`${RACE_BOARD_MARKER} •`));
 
 /**
- * Creates the `race-to-60` channel for `/officer race-board` when no channel is picked: visible to the member role only
- * (or inheriting a category the officer's server already uses), read-only for everyone. Returns null when it is unsafe
- * to guess, in which case the caller asks the officer to pick a channel.
+ * Creates the `race-to-60` channel for `/setup` when none exists: visible to the member role only, read-only for everyone.
+ * Returns null when it is unsafe to guess, in which case the caller asks the officer to pick a channel.
  */
 export async function createRaceChannel(discordGuild: DiscordGuild, memberRoleId: string | null, lang: Lang): Promise<string | null> {
   if (!discordGuild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels)) return null;
   if (!memberRoleId || memberRoleId === discordGuild.id || !discordGuild.roles.cache.has(memberRoleId)) return null;
   const me = discordGuild.members.me.id;
   const channel = await discordGuild.channels.create({ name: lang === "fr" ? "course-au-60" : "race-to-60", type: ChannelType.GuildText,
-    topic: lang === "fr" ? "Course au niveau 60 de la guilde, tableau tenu à jour par Guilded." : "The guild's race to level 60, kept up to date by Guilded.",
+    topic: lang === "fr" ? "Course au niveau 60 de la guilde et temple de la renommée, tenus à jour par Guilded." : "The guild's race to level 60 and its Hall of Fame, kept up to date by Guilded.",
     permissionOverwrites: [
       { id: discordGuild.id, deny: [PermissionFlagsBits.ViewChannel] },
       { id: memberRoleId, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory], deny: [PermissionFlagsBits.SendMessages] },
@@ -169,8 +306,9 @@ export async function ensureRaceBoard(discordGuild: DiscordGuild, guildId: strin
 }
 
 /**
- * Edits the saved board message in place; if it is gone, adopts an existing bot board in the channel before ever
- * posting a new one. Never throws. `delivery` is the job worker's call; any other call queues the refresh.
+ * Edits the saved board message in place (it stays the channel's first message), then posts any new Hall of Fame entries.
+ * If the board is gone, adopts an existing bot board in the channel before ever posting a new one. Never throws.
+ * `delivery` is the job worker's call; any other call queues the refresh.
  */
 export async function updateRaceBoard(discordGuild: DiscordGuild | null, delivery = false): Promise<boolean> {
   if (!discordGuild) return false;
@@ -189,9 +327,11 @@ export async function updateRaceBoard(discordGuild: DiscordGuild | null, deliver
     const channel = await discordGuild.channels.fetch(settings.raceBoardChannelId).catch(() => null);
     if (!channel?.isTextBased() || !("send" in channel)) return false;
     const lang = asLang(settings.language);
+    const top = clampTop(settings.raceBoardTop);
     const data = await loadRaceBoardData(prisma, guild.id, guild.gameEdition ?? "forever");
-    const png = data.total ? await scoreCardPng(raceCard(data, lang)).catch(() => null) : null;
-    const embed = raceBoardEmbed(data, lang, guild.id, png ? "race.png" : undefined).setTimestamp(new Date());
+    const hall = hallMode(data, settings.raceEnded);
+    const png = data.total && !hall ? await scoreCardPng(raceCard(data, lang, top)).catch(() => null) : null;
+    const embed = raceBoardEmbed(data, lang, guild.id, { image: png ? "race.png" : undefined, top, hall }).setTimestamp(new Date());
     const payload = { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: "race.png" })] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";
     let existing: Message | null = settings.raceBoardMessageId ? await channel.messages.fetch(settings.raceBoardMessageId).catch(() => null) : null;
@@ -207,6 +347,9 @@ export async function updateRaceBoard(discordGuild: DiscordGuild | null, deliver
       const sent = await channel.send(payload);
       await guildService.updateSettings(guild.id, { raceBoardMessageId: sent.id });
     }
+    // The board is posted first, so it stays the first message; the Hall of Fame follows it.
+    const result = await syncHallOfFame(prisma, channel as unknown as HallChannel, guild.id, data, lang, settings.raceHallBackfilledAt ?? null).catch((error: unknown) => { console.error("Hall of Fame sync failed", error); return null; });
+    if (result?.markBackfilled) await guildService.updateSettings(guild.id, { raceHallBackfilledAt: new Date() });
     return true;
   } catch (error) {
     console.error("Failed to update race board", error);

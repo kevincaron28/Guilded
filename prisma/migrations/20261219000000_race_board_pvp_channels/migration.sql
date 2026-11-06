@@ -4,6 +4,11 @@ ALTER TABLE "GuildSettings" ADD COLUMN "raceBoardEnabled" BOOLEAN NOT NULL DEFAU
 ALTER TABLE "GuildSettings" ADD COLUMN "raceBoardChannelId" TEXT;
 ALTER TABLE "GuildSettings" ADD COLUMN "raceBoardMessageId" TEXT;
 ALTER TABLE "GuildSettings" ADD COLUMN "pvpModuleEnabled" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "GuildSettings" ADD COLUMN "raceBoardTop" INTEGER NOT NULL DEFAULT 25;
+ALTER TABLE "GuildSettings" ADD COLUMN "raceEnded" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "GuildSettings" ADD COLUMN "raceHallBackfilledAt" TIMESTAMP(3);
+ALTER TABLE "GuildSettings" ADD COLUMN "bgLadderEnabled" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "GuildSettings" ADD COLUMN "bgLadderMessageId" TEXT;
 -- The 8.4.6 duel board (the PvP ladder) follows the same rule; it still needs the statistics channel to post.
 ALTER TABLE "GuildSettings" ALTER COLUMN "duelBoardEnabled" SET DEFAULT true;
 UPDATE "GuildSettings" SET "duelBoardEnabled" = true;
@@ -19,8 +24,31 @@ CREATE TABLE "LevelRaceEntry" (
     "reachedMaxAt" TIMESTAMP(3),
     "weekStartLevel" INTEGER NOT NULL,
     "weekStartedAt" TIMESTAMP(3) NOT NULL,
+    "firstSeenAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     CONSTRAINT "LevelRaceEntry_pkey" PRIMARY KEY ("id")
 );
 CREATE UNIQUE INDEX "LevelRaceEntry_guildId_nameKey_key" ON "LevelRaceEntry"("guildId", "nameKey");
 ALTER TABLE "LevelRaceEntry" ADD CONSTRAINT "LevelRaceEntry_guildId_fkey" FOREIGN KEY ("guildId") REFERENCES "Guild"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+CREATE TABLE "RaceHallEntry" (
+    "id" TEXT NOT NULL,
+    "guildId" TEXT NOT NULL,
+    "nameKey" TEXT NOT NULL,
+    "order" INTEGER NOT NULL,
+    "name" TEXT NOT NULL,
+    "className" TEXT NOT NULL,
+    "race" TEXT,
+    "reachedAt" TIMESTAMP(3) NOT NULL,
+    "firstSeenAt" TIMESTAMP(3) NOT NULL,
+    "professions" TEXT,
+    "memberDiscordId" TEXT,
+    "backfilled" BOOLEAN NOT NULL DEFAULT false,
+    "posted" BOOLEAN NOT NULL DEFAULT false,
+    "messageId" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "RaceHallEntry_pkey" PRIMARY KEY ("id")
+);
+CREATE UNIQUE INDEX "RaceHallEntry_guildId_nameKey_key" ON "RaceHallEntry"("guildId", "nameKey");
+CREATE UNIQUE INDEX "RaceHallEntry_guildId_order_key" ON "RaceHallEntry"("guildId", "order");
+ALTER TABLE "RaceHallEntry" ADD CONSTRAINT "RaceHallEntry_guildId_fkey" FOREIGN KEY ("guildId") REFERENCES "Guild"("id") ON DELETE CASCADE ON UPDATE CASCADE;

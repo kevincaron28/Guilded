@@ -3,11 +3,11 @@ import { prisma } from "../database.js";
 import { asLang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { guildService } from "./context.js";
-import { createRaceChannel, loadRaceBoardData, nearLevel, updateRaceBoard, LEVEL_CAP } from "../services/race-board.js";
+import { clampTop, createRaceChannel, loadRaceBoardData, MAX_TOP, MIN_TOP, nearLevel, updateRaceBoard, LEVEL_CAP } from "../services/race-board.js";
 
 // `/character race ...` (8.5 track B1): members find levelling partners and hide their characters from the board;
 // officers switch the board off or back on (it is on by default and posts once /setup has created or adopted its channel). Bilingual by the guild's language, like the board itself.
-export const RACE_ACTIONS = ["near", "hide", "show", "board-on", "board-off"] as const;
+export const RACE_ACTIONS = ["near", "hide", "show", "board-on", "board-off", "top", "end", "resume"] as const;
 
 export function addRaceSubcommand(sub: SlashCommandSubcommandBuilder): SlashCommandSubcommandBuilder {
   return sub.setName("race").setDescription("Race to 60: characters near your level, hide yourself, or (officers) the board")
@@ -15,7 +15,8 @@ export function addRaceSubcommand(sub: SlashCommandSubcommandBuilder): SlashComm
     .addStringOption(o => o.setName("action").setDescription("What to do").setDescriptionLocalizations({ fr: "Action" }).setRequired(true)
       .addChoices(...RACE_ACTIONS.map(value => ({ name: value, value }))))
     .addChannelOption(o => o.setName("channel").setDescription("Officers, board-on: channel for the board (default: create race-to-60)").setDescriptionLocalizations({ fr: "Officiers, board-on : salon du tableau (défaut : créer course-au-60)" })
-      .addChannelTypes(ChannelType.GuildText));
+      .addChannelTypes(ChannelType.GuildText))
+    .addIntegerOption(o => o.setName("count").setDescription("Officers, top: how many characters the board lists (10-30)").setDescriptionLocalizations({ fr: "Officiers, top : nombre de personnages listés (10-30)" }).setMinValue(MIN_TOP).setMaxValue(MAX_TOP));
 }
 
 export async function executeRace(interaction: ChatInputCommandInteraction, context: { guildId: string; memberId: string }): Promise<void> {
@@ -45,6 +46,20 @@ export async function executeRace(interaction: ChatInputCommandInteraction, cont
     return;
   }
   if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) throw new Error("Officer required / Officier requis.");
+  if (action === "top") {
+    const count = clampTop(interaction.options.getInteger("count") ?? undefined);
+    await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { raceBoardTop: count } });
+    if (interaction.guild) await updateRaceBoard(interaction.guild).catch(() => false);
+    await reply(t(`The Race to 60 board now lists the top ${count}.`, `Le tableau de la course au 60 liste maintenant le top ${count}.`));
+    return;
+  }
+  if (action === "end" || action === "resume") {
+    await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { raceEnded: action === "end" } });
+    if (interaction.guild) await updateRaceBoard(interaction.guild).catch(() => false);
+    await reply(action === "end" ? t("The race is over: the board now shows the Hall of Fame, every level 60 in arrival order. New 60s are still added.", "La course est terminée : le tableau montre le temple de la renommée, tous les niveaux 60 par ordre d'arrivée. Les nouveaux 60 sont toujours ajoutés.")
+      : t("The race is back on: the board shows the top again.", "La course reprend : le tableau montre de nouveau le top."));
+    return;
+  }
   if (action === "board-off") {
     await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { raceBoardEnabled: false } });
     await reply(t("Race to 60 board off. The existing message stays; delete it if you wish.", "Tableau de la course au 60 désactivé. Le message existant reste; supprimez-le si vous le souhaitez."));

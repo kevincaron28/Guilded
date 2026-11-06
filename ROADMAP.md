@@ -197,6 +197,16 @@ Later the same day:
 - `#invitation-guilde` queue, ✅ reactions, remove `#wow-personnage`, DM on the WoW role → batch 3 #13/#14.
 - Version 9.0 → decisions above.
 
+### Added to 9.0.0 on 6 November 2026 (evening, owner approved)
+
+| Item | Owner | Notes |
+| --- | --- | --- |
+| In-game raid sign-up (Sign up / Tentative / Can't + role) with role and class counts, mirrored to Discord signups | Track E | Kinfolk idea, written from scratch |
+| "Near your level" levelling partners (±3 levels, zone, Whisper/Invite) | Track J | From roster data, so no addon is needed on their side |
+| Light recruiting kit: recruit records, interview questions, recruiting-post cooldown | invite-queue session | Builds on `#invitation-guilde` |
+| **Guild bank ledger** (owner confirmed Forever has a guild bank): contents, gold history, transactions, weekly officer summary | Track K | Captured when anyone with access opens the bank |
+| Not adopted from Kinfolk | — | Module switches (they contradict always-on), in-game polls/board, class guides |
+
 ### Phases after the features
 
 | Phase | State |

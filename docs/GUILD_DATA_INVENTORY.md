@@ -36,6 +36,11 @@ reach Discord and the website.
   filled. That feeds the race board, last seen and statistics for members without the addon.
 - **Unlinked guild members**: listed (`UnclaimedCharacter`) with level, class and last seen, never
   linked to anyone. That feeds "unlinked characters", the race board and roster gaps.
+- **Names**: the addon files every roster member under the full Forever "First Last"
+  (`util.characterKey`, which drops a "-Realm" suffix; docs/FOREVER_NAMES.md). An unlinked row still
+  stored under the pre-8.5 first name takes the roster's full name (old key kept in `legacyName`)
+  instead of a second row being added, unless another listed member shares that first name. The
+  race board reads characters and unlinked rows, so its own duplicate-name rules apply unchanged.
 - **Rank is applied only from an officer's upload**: rank drives Discord rank roles and the
   roster-gap freshness rule, and a member's saved file could be edited by hand. Every reading is
   still kept in the roster table.

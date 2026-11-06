@@ -30,6 +30,21 @@ function setup() {
 const value = (expr: string) => s!.run(`return tostring(${expr})`);
 
 describe("GuildSnapshot.lua", () => {
+  it("files every member under the full Forever name, with the real resolver", () => {
+    s = newLuaSession();
+    s.run(`function GetServerTime() return 1800000000 end
+      ROSTER = { { "lebowski holyroller-OtherSegment", "Member", 3, 20, "Priest", "", "", "", false, 0, "PRIEST" },
+        { "Lebowski Greenleaf", "Member", 3, 15, "Druid", "", "", "", false, 0, "DRUID" } }
+      function GetNumGuildMembers() return #ROSTER end
+      function GetGuildRosterInfo(i) return unpack(ROSTER[i]) end
+      GuildedDB = {} NS = {}`);
+    s.load("Core.lua");
+    s.load("Modules/GuildSnapshot.lua");
+    s.run(`fire_event("PLAYER_LOGIN"); NS.guildSnapshot.read(true)`);
+    expect(s.run(`local out = {} for key in pairs(GuildedDB.guildSnapshot.members) do out[#out + 1] = key end table.sort(out) return table.concat(out, "|")`))
+      .toBe("Lebowski Greenleaf|Lebowski Holyroller");
+  });
+
   it("keeps every member's level, class, rank and last online, but never notes", () => {
     const lua = setup();
     lua.run(`fire_event("GUILD_ROSTER_UPDATE")`);

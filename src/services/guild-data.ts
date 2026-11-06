@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Prisma } from "../generated/prisma/client.js";
 import type { AddonSnapshot } from "../integrations/addon.js";
-import { characterKey } from "../../companion/character-identity.mjs";
+import { characterKey, foreverNameMatches } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
 import { findCharacter } from "./character-match.js";
 
@@ -47,6 +47,7 @@ type Tx = Pick<Prisma.TransactionClient, "guildRosterEntry" | "guildEventEntry" 
 
 const toDate = (epoch: number | undefined) => epoch === undefined ? undefined : new Date(epoch * 1000);
 const later = (a: Date | null | undefined, b: Date | undefined) => b && (!a || b > a) ? b : undefined;
+interface UnclaimedRow { id: string; nameKey: string; level: number | null; lastSeenAt: Date }
 const titleClass = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
 /** Applies one upload's guild data inside the caller's transaction. */
@@ -103,10 +104,21 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         }
         continue;
       }
-      const existing = unclaimedByKey.get(key);
+      // Exact name first; else the single row still stored under the pre-8.5 first name (it takes
+      // the roster's full name, so the race board and the unlinked list never show both).
+      const loose = unclaimedByKey.has(key) ? undefined
+        : foreverNameMatches([...unclaimedByKey.values()], member.name, (row: UnclaimedRow) => row.nameKey)[0] as UnclaimedRow | undefined;
+      // Only when no other listed member shares that first name (else the old row could be theirs).
+      const first = key.split(" ")[0]!;
+      const sharesFirst = [...unclaimedByKey.keys()].some((other) => other !== key && other.startsWith(`${first} `));
+      const existing = unclaimedByKey.get(key) ?? (loose && !loose.nameKey.includes(" ") && !sharesFirst ? loose : undefined);
       const seen = later(existing?.lastSeenAt, lastOnlineOk);
       if (existing) {
         const update: Prisma.UnclaimedCharacterUpdateInput = {};
+        if (existing.nameKey !== key && member.name.includes(" ")) {
+          update.name = member.name; update.nameKey = key; update.legacyName = existing.nameKey;
+          unclaimedByKey.delete(existing.nameKey); unclaimedByKey.set(key, existing); existing.nameKey = key;
+        }
         if (member.level && member.level > (existing.level ?? 0)) update.level = member.level;
         if (seen) update.lastSeenAt = seen;
         if (uploader.officer && member.rankName !== undefined) { update.guildRankName = member.rankName; update.guildRankAt = observedAt; }

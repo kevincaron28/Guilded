@@ -79,6 +79,17 @@ describe("guild roster from any member's upload", () => {
     expect(db.tables.unclaimed![0]!.guildRankName).toBeUndefined();
   });
 
+  it("renames an unlinked row stored under a first name instead of listing the member twice", async () => {
+    const db = fakeDb({ unclaimed: [{ id: "u1", nameKey: "dude", name: "Dude", level: 8, lastSeenAt: new Date((T - 86400) * 1000) }] });
+    await applyGuildData(db.tx, "g", { memberId: "m", officer: false }, upload([{ name: "Dude Lebowski", level: 12, class: "WARRIOR" }]), NOW);
+    expect(db.tables.unclaimed).toHaveLength(1);
+    expect(db.tables.unclaimed[0]).toMatchObject({ nameKey: "dude lebowski", name: "Dude Lebowski", legacyName: "dude", level: 12 });
+    // Two members share the first name: no guess, the old row stays and the new one is listed in full.
+    const shared = fakeDb({ unclaimed: [{ id: "u1", nameKey: "dude", name: "Dude", level: 8, lastSeenAt: new Date(0) }, { id: "u2", nameKey: "dude smith", name: "Dude Smith", level: 3, lastSeenAt: new Date(0) }] });
+    await applyGuildData(shared.tx, "g", { memberId: "m", officer: false }, upload([{ name: "Dude Lebowski", level: 12, class: "WARRIOR" }]), NOW);
+    expect(shared.tables.unclaimed.map((row: { nameKey: string }) => row.nameKey)).toEqual(["dude", "dude smith", "dude lebowski"]);
+  });
+
   it("an officer's upload also sets the rank", async () => {
     const db = fakeDb({ characters: [linked("c1", "Walter Sobchak")] });
     await applyGuildData(db.tx, "g", { memberId: "m-officer", officer: true }, upload([{ name: "Walter Sobchak", level: 22, class: "PALADIN", rankName: "Officer", rankIndex: 1, online: true }]), NOW);

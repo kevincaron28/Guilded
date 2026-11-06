@@ -248,6 +248,10 @@ local function receive(text, sender)
   GuildedDungeonBoard = accepted
   if ns.onDungeonChange then pcall(ns.onDungeonChange) end
 end
+function ns.requestGuildDungeonBoard()
+  local board = current()
+  ns.comm.send(PREFIX, "REQUEST|" .. ((board and board.updatedAt) or "0"), "GUILD")
+end
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_ENTERING_WORLD"); frame:RegisterEvent("CHAT_MSG_ADDON")
 frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
@@ -260,7 +264,7 @@ frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
     if current() then GuildedDungeonBoard = current() end
     if C_Timer then C_Timer.After(25, function()
       if ns.isOfficer() or fresh then share() end
-      ns.comm.send(PREFIX, "REQUEST|" .. ((current() and current().updatedAt) or "0"), "GUILD")
+      ns.requestGuildDungeonBoard()
     end) end
   elseif ns.comm.accept(prefix, text, channel, sender, PREFIX) and channel == "GUILD" and not ns.isSecret(text) and not ns.isSecret(sender) then
     sender = ns.normalizeName(sender)

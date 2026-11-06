@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import { newLuaSession, type LuaSession } from "./harness.js";
 
 // Two (or three) officers' clients with the real LedgerSync.lua, connected by a fake guild
@@ -31,6 +32,11 @@ function client(name: string, options: { officer?: boolean; local?: boolean; syn
       normalizeName = function(n) return n and string.match(n, "^([^%-]+)") end,
       isSecret = function() return false end, isOfficer = function() return ${options.officer === false ? "false" : "true"} end,
       isOfficerName = function(n) return n == "Alice" or n == "Bob" or n == "Cara" end,
+      ledgerPeerRole = function(address)
+        local name = address:match("^([^-]+)%-Realm$")
+        if NS.isOfficerName(name) then return "officer" end
+        if name == "Dave" or name == "Eve" or name == "Fay" then return "member" end
+      end,
       isInGameOnly = function() return DB.settings.setupMode == "local" end,
       currentGuildKey = function() return GetGuildInfo("player") .. "-Realm" end,
       message = function(text) CHAT_LOG = CHAT_LOG or {}; CHAT_LOG[#CHAT_LOG + 1] = text end,
@@ -52,6 +58,13 @@ function client(name: string, options: { officer?: boolean; local?: boolean; syn
     function balance(player) local a = DB.epgp[player]; return a and (a.ep .. "/" .. a.gp) or "none" end
     function count(player) local a = DB.epgp[player]; return a and #a.ledger or 0 end
   `);
+  // Fengari exposes Lua 5.3 operators; WoW supplies these operations via LuaBitOp. No ror here on purpose: WoW's bit table may lack it.
+  s.run(`bit = {
+    band = function(a,b) return a & b end, bxor = function(a,b,c) return a ~ b ~ (c or 0) end,
+    rshift = function(a,n) return a >> n end, bor = function(a,b) return a | b end, lshift = function(a,n) return a << n end
+  }`);
+  s.load("Modules/LedgerDigest.lua");
+  s.load("Modules/LedgerRelay.lua");
   s.load("Modules/LedgerSync.lua");
   return { name, s };
 }
@@ -199,14 +212,15 @@ describe("officer ledger sync (in-game-only guilds)", () => {
     expect(cara.s.run('return balance("P30")')).toBe("30/0");
   });
 
-  it("ignores members, officers with sync off, connected guilds and malformed entries", () => {
+  it("supplies a member while refusing forged entries, disabled peers and connected guilds", () => {
     const alice = client("Alice");
     const member = client("Dave", { officer: false });
     const off = client("Bob", { sync: false });
     const connected = client("Cara", { local: false });
     alice.s.run('award("Tank", 10, 0, 1); NS.commandHandlers.ledgersync({"now"})');
     pump([alice, member, off, connected]);
-    for (const c of [member, off, connected]) expect(c.s.run('return balance("Tank")')).toBe("none");
+    expect(member.s.run('return balance("Tank")')).toBe("10/0");
+    for (const c of [off, connected]) expect(c.s.run('return balance("Tank")')).toBe("none");
     // A non-officer's entry, an absurd amount and a future entry are refused.
     const bob = client("Bob");
     bob.s.run('fire_event("CHAT_MSG_ADDON", "GuildedLedger", "E|1|Dave-1800000000-1|Tank|5|0||EP_AWARD|0|x", "WHISPER", "Dave-Realm")');
@@ -221,7 +235,7 @@ describe("officer ledger sync (in-game-only guilds)", () => {
     expect(bob.s.run('return balance("Tank") .. "/" .. count("Tank")')).toBe("10/0/1");
   });
 
-  it("is turned on by officers in in-game-only mode only", () => {
+  it("can be enabled by any member in in-game-only mode", () => {
     const officer = client("Alice", { sync: false });
     officer.s.run('NS.commandHandlers.ledgersync({"on"})');
     expect(officer.s.run("return tostring(DB.settings.ledgerSync)")).toBe("true");
@@ -231,13 +245,81 @@ describe("officer ledger sync (in-game-only guilds)", () => {
     expect(connected.s.run("return CHAT_LOG[#CHAT_LOG]")).toContain("in-game-only");
     const member = client("Dave", { officer: false, sync: false });
     member.s.run('NS.commandHandlers.ledgersync({"on"})');
-    expect(member.s.run("return tostring(DB.settings.ledgerSync)")).toBe("false");
+    expect(member.s.run("return tostring(DB.settings.ledgerSync)")).toBe("true");
     officer.s.run('NS.commandHandlers.ledgersync({"status"})');
     expect(officer.s.run("return table.concat(CHAT_LOG, ' | ')")).toContain("0 entries here");
   });
 });
 
 describe("compressed ledger batches (7.5.0)", () => {
+  it("matches independent SHA-256 vectors across padding and chunk boundaries", () => {
+    const { s } = client("Dave", { officer: false });
+    for (const size of [0, 3, 55, 56, 64, 160, 640]) {
+      expect(s.run(`return NS.ledgerDigest(string.rep("a", ${size}))`))
+        .toBe(createHash("sha256").update("a".repeat(size)).digest("hex"));
+    }
+  });
+
+  it("computes the same digest with a native rotate", () => {
+    const { s } = client("Dave", { officer: false });
+    s.run('bit.ror = function(a,n) return (a >> n) | (a << (32-n)) end; NS.ledgerDigest = nil');
+    s.load("Modules/LedgerDigest.lua");
+    expect(s.run('return NS.ledgerDigest("abc")')).toBe(createHash("sha256").update("abc").digest("hex"));
+  });
+
+  it("stays off, rather than wrong, when the client has no bit operations", () => {
+    const { s } = client("Dave", { officer: false });
+    s.run('bit = { band = bit.band }; NS.ledgerDigest = nil');
+    s.load("Modules/LedgerDigest.lua");
+    expect(s.run("return tostring(NS.ledgerDigest)")).toBe("nil");
+  });
+
+  it.each([1, 8])("delivers %i officer-approved awards between two ordinary members with the officer offline", (size) => {
+    const boss = client("Alice", { pack: true });
+    const holder = client("Dave", { officer: false, pack: true });
+    const reader = client("Eve", { officer: false, pack: true });
+    boss.s.run(`for i = 1, ${size} do award("Tank", 5, 0, i) end`);
+    holder.s.run('NS.commandHandlers.ledgersync({"now"})');
+    pump([boss, holder]);
+    const seal = delivered.find(m => m.from === "Alice" && m.text.startsWith("SEAL|"))?.text;
+    expect(seal).toMatch(/^SEAL\|1\|[a-f0-9]{64}$/);
+    const receive = (text: string, from: string, channel: string) =>
+      reader.s.run(`fire_event("CHAT_MSG_ADDON","GuildedLedger",${JSON.stringify(text)},"${channel}","${from}-Realm")`);
+    receive(seal!, "Dave", "GUILD");
+    expect(reader.s.run("return #DB.ledgerRelay.order")).toBe("0");
+    receive(seal!, "Alice", "GUILD");
+    const digest = seal!.slice(7);
+    // The receiver heard the officer's receipt but missed the original data.
+    reader.s.run('NS.commandHandlers.ledgersync({"now"})');
+    receive("HAVE|1|" + digest, "Fay", "WHISPER");
+    receive("PART|1|" + digest + "|1|1|E|1|Alice-1800000000-1|Tank|999|0||EP_AWARD|0|forged", "Fay", "WHISPER");
+    expect(reader.s.run('return balance("Tank")')).toBe("none");
+    reader.s.run("OUT = {}");
+    advance([holder, reader], 20);
+    reader.s.run('NS.commandHandlers.ledgersync({"now"})');
+    // The peer whose bytes failed the digest is not asked again for a while.
+    receive("HAVE|1|" + digest, "Fay", "WHISPER");
+    expect(reader.s.run('for _, m in ipairs(OUT) do if m.text:sub(1, 5) == "FETCH" then return "fetched" end end return "none"')).toBe("none");
+    pump([holder, reader]);
+    expect(reader.s.run('return count("Tank") .. ":" .. balance("Tank")')).toBe(`${size}:${5*size}/0`);
+    reader.s.run('NS.commandHandlers.ledgersync({"now"})');
+    pump([holder, reader]);
+    expect(summary(reader)).toBe(summary(boss));
+    advance([boss, holder, reader], 300);
+    boss.s.run('DB.epgp.Tank.ledger[1].voided = "now"; DB.epgp.Tank.ep = DB.epgp.Tank.ep - 5; NS.commandHandlers.ledgersync({"now"})');
+    pump([boss, holder]);
+    const seals = delivered.filter(m => m.from === "Alice" && m.text.startsWith("SEAL|"));
+    const reversal = seals[seals.length-1]!.text;
+    expect(reversal).not.toBe(seal);
+    receive(reversal, "Alice", "GUILD");
+    reader.s.run('NS.commandHandlers.ledgersync({"now"})');
+    pump([holder, reader]);
+    expect(reader.s.run('return count("Tank") .. ":" .. balance("Tank")')).toBe(`${size}:${5*size-5}/0`);
+    expect(summary(reader)).toBe(summary(boss));
+    reader.s.run('GetGuildInfo = function() return "Other Guild" end; OUT = {}');
+    receive("SEEK|1|" + digest, "Dave", "GUILD");
+    expect(reader.s.run("return #DB.ledgerRelay.order .. ':' .. #OUT")).toBe("0:0");
+  });
   const sentBy = (name: string, kind: string) => delivered.filter((m) => m.from === name && m.text.startsWith(kind + "|")).length;
 
   it("sends a day of entries as one batch between officers whose game can pack text", () => {
@@ -373,7 +455,7 @@ describe("ledger sync status", () => {
 
   it("says when no partner was seen, then remembers each officer across reloads and warns after a quiet week", () => {
     const alice = client("Alice"), bob = client("Bob");
-    expect(status(alice)).toContain("No other officer with ledger sync on has been seen yet");
+    expect(status(alice)).toContain("No sync partner seen yet");
     bob.s.run('award("Tank", 10, 0, 1)');
     alice.s.run('NS.commandHandlers.ledgersync({"now"})');
     pump([alice, bob]);
@@ -383,7 +465,7 @@ describe("ledger sync status", () => {
     advance([alice, bob], 8 * 86_400);
     const later = status(alice);
     expect(later).toContain("Bob: last heard 8 d ago.");
-    expect(later).toContain("Over a week without another officer");
+    expect(later).toContain("No ledger sync partner seen in the past week");
   });
 });
 

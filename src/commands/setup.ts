@@ -48,6 +48,7 @@ import { hostedPilot } from "../hosted-pilot.js";
 import { LITE_SETUP_STEPS, LITE_SUMMARY } from "./lite.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
 import { ensureRaceBoard } from "../services/race-board.js";
+import { repairBoardPermissions } from "../services/board-permissions.js";
 import { ensureBattlegroundSetup, ensurePvpModule, BG_SETUP_PARTS, BG_SETUP_FIELDS } from "../services/battleground-setup.js";
 import { communitySetupState, ensureCommunitySetup } from "../services/community-setup.js";
 
@@ -960,7 +961,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         } else if (action === "create-channels") note = await withCommunity(await createSectionChannels(guild, guildId, CORE_CHANNELS, lang));
         else if (action === "create-raidteam-channels") note = await createSectionChannels(guild, guildId, RAIDTEAM_CHANNELS, lang);
         else if (action === "create-dungeon-channels") note = await createSectionChannels(guild, guildId, DUNGEON_CHANNELS, lang);
-        else if (action === "create-all-channels") note = [await withCommunity(await createSectionChannels(guild, guildId, ALL_CHANNELS, lang)), await ensurePvpModule(guild, prisma, guildId, lang, i.user.id), await ensureRaceBoard(guild, guildId, lang)].filter(Boolean).join("\n");
+        else if (action === "create-all-channels") note = [await withCommunity(await createSectionChannels(guild, guildId, ALL_CHANNELS, lang)), await ensurePvpModule(guild, prisma, guildId, lang, i.user.id), await ensureRaceBoard(guild, guildId, lang), await repairBoardPermissions(guild, prisma, guildId, lang).catch(() => "")].filter(Boolean).join("\n");
         else if (action === "create-community") note = await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id);
         else if (action === "dungeon-guide") {
           const settings = await guildService.getSettings(guildId);

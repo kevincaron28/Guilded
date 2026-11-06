@@ -59,3 +59,30 @@ describe("companion link and weekly reminder", () => {
     expect(out).toContain("Guilded.Companion.Setup.exe");
   });
 });
+
+// Track L 14: "Linked to Discord as <name>" once after the companion's first sync.
+describe("linked to Discord line", () => {
+  it("says it once per name, from the line the companion writes", () => {
+    const s = withLink(`GuildedLinkedAs = "Kev"`);
+    expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("true");
+    expect(s.run(`return MSGS[1]`)).toContain("Linked to Discord as Kev");
+    expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("false");
+    s.run(`GuildedLinkedAs = "Kev Two"`);
+    expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("true");
+  });
+
+  it("stays quiet without a linked name, and a linked PC is never reminded to get the companion", () => {
+    const s = withLink(`GuildedLinkedAs = nil`);
+    expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("false");
+    s.run(`GuildedLinkedAs = "Kev"`);
+    expect(s.run(`return tostring(NS.companionLink.needed())`)).toBe("false");
+    s.run(`GuildedLinkedAs = "a|cffff0000b"`);
+    expect(s.run(`return NS.companionLink.linkedAs()`)).toBe("acffff0000b");
+  });
+
+  it("/guilded companion shows the linked line first", () => {
+    const s = withLink(`GuildedLinkedAs = "Kev"`);
+    s.run(`NS.commandHandlers["companion"]({})`);
+    expect(s.run(`return MSGS[1]`)).toContain("Linked to Discord as Kev");
+  });
+});

@@ -320,6 +320,36 @@ Store and WoW steps). Time each step, screenshot each screen, fix what confuses,
 - Done when: a non-technical member can go from the Discord prompt to "Everything is linked" in under
   10 minutes with no question to an officer.
 
+### Track L — Effortless linking (owner request, 6 November 2026)
+
+**Goal:** a member goes from the Discord prompt to "linked, with my characters" in about 2 minutes
+alone. Measured on a fresh PC today: about 25 minutes with help, and at least 5 places where a
+member alone would stop. The owner's standing preference is the fewest steps, automatic where
+possible, with a DM and an undo. Builds on F1-F5; same files (`companion/`, `companion-app/`, site
+`/me/companion`, the bot's link-request expiry).
+
+| # | Item | Status |
+| --- | --- | --- |
+| 1 | Find WoW on any drive (all drives, Battle.net install record, `.build.info`); pick the account `Guilded.lua`; list several if found; say when none; Browse starts at the WoW root | in Track F fix list |
+| 2 | Install or update the addon from the companion (checksum-verified), and say when it's missing | done (#403) |
+| 3 | Account not in the guild's Discord: detect it, show a **Join Québec Gold** invite button, then continue the link by itself. Later: accept by in-game guild membership | next |
+| 4 | "Connected as <name>" with avatar and "Not you? Switch"; sign in through the Discord desktop app when possible | next |
+| 5 | Browser opened behind the windows: bring it forward, plus a "Waiting for your browser… Reopen / Copy link" panel and a taskbar flash | in Track F fix list |
+| 6 | One Discord click, not two (go straight to sign-in when coming from the companion) | in Track F fix list |
+| 7 | Link request lasts 15 min, with a countdown in the companion and on the page and a Restart button | in Track F fix list |
+| 8 | Warn ahead about Discord's "new login location" email check; offer QR-code login | next |
+| 9 | Never say "Everything is linked" unless Discord, the guild server and at least one character are confirmed; otherwise a checklist (Discord ✓ / server ✗ Join / character ✗ play and `/reload`) | in Track F fix list |
+| 10 | One live source of truth for status (companion home, website "Mon Guilded", the browser box) | in Track F fix list |
+| 11 | All errors translated, in friendly words ("Guilded's server is restarting, retrying in 1 min") | in Track F fix list |
+| 12 | Partial status: upload OK / rankings delayed; server-side issues never turn the member's badge red | next |
+| 13 | Explain where characters come from (play with the addon, `/reload`; Battle.net optional on Forever), plus a **Detect now** button that waits for the next save | next |
+| 14 | A big success screen mirroring the DM, and in game "Linked to Discord as … ✓" after the first sync | next |
+| 15 | First-run wizard, 3 steps (Discord → server → character) with progress; each step has "Something's wrong?" running diagnostics, plus one-click "Copy support summary" | next |
+
+**Done when:** a non-technical member on a fresh PC, with WoW on a non-default drive and a Discord
+account that isn't in the guild yet, links without help in about 2 minutes, measured by the
+second-PC tester.
+
 ### Track G — Server and guild statistics
 
 **Recommendation:** charts on the guild tools web page first, Google Sheets as a live feed, not the

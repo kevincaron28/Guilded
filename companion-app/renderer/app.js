@@ -253,26 +253,70 @@ function showUsedPages(hub) {
   $('navExtras').hidden = ![...$('navExtras').querySelectorAll('.nav')].some(button => !button.hidden && getComputedStyle(button).display !== 'none');
 }
 document.addEventListener('companion-hub-data', event => showUsedPages(event.detail)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
-bind('btnDetect',async () => { $('detectNote').textContent = T("Looking for your addon data…"); const found = await api.detectWow(); if (found.length) { $('watchFile').value = found[0].path; $('detectNote').textContent = found.length > 1 ? T("Found {0} accounts. Check the selected file before saving.", found.length) : found[0].exists ? T("Found your addon data.") : (savedConfig.personal ? T("Account found. Use /reload with Guilded Dungeons (or Guilded) enabled to create its saved file.") : T("Account found. Use /reload with the addon enabled to create Guilded.lua.")); } else if (await api.detectWowHeld()) $('detectNote').textContent = T("Guilded is focused on WoW Forever for now. Your other WoW version is on hold and will come back later; nothing was changed."); else $('detectNote').textContent = (savedConfig.personal ? T("Choose Browse and select GuildedDungeons.lua or Guilded.lua in your account’s SavedVariables folder.") : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.")); });
+// Find it: every drive and Battle.net's own record; always says what it found or which drives it searched.
+bind('btnDetect',async () => { $('detectNote').textContent = T("Looking for your addon data…"); const answer = window.guildedWowSearchMessage(await api.searchWow(), { personal: savedConfig.personal === true }); if (answer.path) $('watchFile').value = answer.path; $('detectNote').textContent = T(...answer.text); });
 bind('btnLiveSwitch',async () => { const result = await api.switchLiveFolder(); if (!result.path) return; savedConfig = (await api.getAll()).config; $('watchFile').value = savedConfig.watchFile || ''; toast(result.ok ? liveText().switched(result.path) : liveText().notStarted,!result.ok); });
 bind('btnLiveKeep',async () => { await api.dismissLiveFolder(); toast(liveText().kept); });
 bind('btnTest',async () => { say(T("Checking your connection…"),true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });
 bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say(T("Paste the code from /character pair (or from guilded.kcaron.top/me/) first, or use Sign in with Discord."),false); $('pairingCode').focus(); return; } say(T("Connecting your Discord account…"),true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
 // Sign in with Discord (7.2): the browser opens the website; the companion waits for the approval.
 // The same sign-in serves Connection & setup and the Link everything page: only the places that show progress differ.
+// 8.5 (fresh-PC test): the browser may open behind this window, so the box says so, counts down to
+// the request's expiry, offers Reopen the page, follows an automatic restart, and every ending says something.
 const signInViews = {
-  setup: { say, waiting: 'signInWaiting', code: 'signInCode', line: 'signInCodeLine', link: 'signInLink' },
-  link: { say: (message, ok) => { $('linkResult').textContent = M(message); $('linkResult').className = `result ${ok ? 'ok' : 'bad'}`; }, waiting: 'linkSignInWaiting', code: 'linkSignInCode', line: 'linkSignInCodeLine', link: 'linkSignInLink' }
+  setup: { say, waiting: 'signInWaiting', code: 'signInCode', line: 'signInCodeLine', time: 'signInTimeLeft' },
+  link: { say: (message, ok) => { $('linkResult').textContent = M(message); $('linkResult').className = `result ${ok ? 'ok' : 'bad'}`; }, waiting: 'linkSignInWaiting', code: 'linkSignInCode', line: 'linkSignInCodeLine', time: 'linkSignInTimeLeft' }
 };
-async function runSignIn(view) {
+let signInRun = null;
+function stopSignInBox() {
+  if (signInRun?.timer) clearInterval(signInRun.timer);
+  signInRun = null;
+  for (const view of Object.values(signInViews)) $(view.waiting).hidden = true;
+}
+function showSignInBox(view, started) {
+  stopSignInBox();
   const ui = signInViews[view];
-  if (view === 'link' && savedConfig.companionCredential) { ui.say(T("Already linked, nothing to do."),true); return; }
-  ui.say(T("Opening Discord sign-in…"),true); const started = await api.signInStart(readForm()); if (!started.ok) { ui.say(started.message,false); return; } if (started.url) { $(ui.link).href = started.url; } $(ui.code).textContent = started.confirm; $(ui.line).hidden = !!started.automatic; $(ui.waiting).hidden = false; ui.say(started.automatic ? T("Your browser opened. Choose your server there and press Connect.") : T("Your browser opened. Type {0} on the sign-in page.", started.confirm),true); const result = await api.signInWait(); $(ui.waiting).hidden = true; ui.say(result.message,result.ok); if (result.ok) { savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; $('uploadUrl').value = savedConfig.uploadUrl || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); document.dispatchEvent(new CustomEvent('companion-signed-in')); }
+  $(ui.code).textContent = started.confirm || ''; $(ui.line).hidden = !!started.automatic; $(ui.waiting).hidden = false;
+  const tick = () => { const line = window.guildedSignIn.timeLeftLine(started.expiresAt); $(ui.time).textContent = line ? T(...line) : ''; };
+  tick();
+  signInRun = { view, timer: setInterval(tick, 1000) };
+}
+async function runSignIn(view, switchAccount = false) {
+  const ui = signInViews[view];
+  // Leaderboards only is not a guild link: Link everything signs in again to reach the guild's server.
+  if (!switchAccount && view === 'link' && savedConfig.companionCredential && !savedConfig.personal) { ui.say(T("Already linked, nothing to do."),true); return; }
+  ui.say(T("Opening Discord sign-in…"),true);
+  // "Not you? Switch" (Track L): the same sign-in, with Discord showing which account it is.
+  const started = switchAccount ? await api.signInSwitch() : await api.signInStart(readForm());
+  if (!started.ok) { stopSignInBox(); ui.say(started.message || T("The sign-in could not start. Check your internet connection, then try again."),false); return; }
+  showSignInBox(view, started);
+  ui.say(started.automatic ? T("Your browser opened. Choose your server there and press Connect.") : T("Your browser opened. Type {0} on the sign-in page.", started.confirm),true);
+  let result;
+  try { result = await api.signInWait(); } catch (error) { result = { ok: false, message: error?.message }; }
+  stopSignInBox();
+  const outcome = window.guildedSignIn.signInOutcome(result);
+  const current = signInViews[view];
+  current.say(outcome.message, outcome.ok);
+  if (result?.ok) { savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; $('uploadUrl').value = savedConfig.uploadUrl || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); document.dispatchEvent(new CustomEvent('companion-signed-in')); }
+}
+// The bot forgot the request (expired, or it restarted): the companion opened a new page by itself.
+api.onSignInRestarted?.(started => {
+  if (!signInRun) return;
+  const view = signInRun.view;
+  showSignInBox(view, started);
+  signInViews[view].say(T("That sign-in expired, so a new one opened in your browser (it may be behind this window)."),true);
+});
+async function reopenSignIn(view) {
+  const result = await api.signInReopen();
+  signInViews[view].say(result.ok ? T("The sign-in page opened again. Look for your browser behind this window or in the taskbar.") : result.message, !!result.ok);
 }
 bind('btnSignIn',() => runSignIn('setup'));
 bind('btnLinkSignIn',() => runSignIn('link'));
-bind('btnSignInCancel',async () => { await api.signInCancel(); $('signInWaiting').hidden = true; say(T("Sign-in cancelled."),false); });
-bind('btnLinkSignInCancel',async () => { await api.signInCancel(); $('linkSignInWaiting').hidden = true; signInViews.link.say(T("Sign-in cancelled."),false); });
+bind('btnSwitchAccount',() => runSignIn('link', true));
+bind('btnSignInReopen',() => reopenSignIn('setup'));
+bind('btnLinkSignInReopen',() => reopenSignIn('link'));
+bind('btnSignInCancel',async () => { await api.signInCancel(); stopSignInBox(); say(T("Sign-in cancelled."),false); });
+bind('btnLinkSignInCancel',async () => { await api.signInCancel(); stopSignInBox(); signInViews.link.say(T("Sign-in cancelled."),false); });
 $('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say(T("Saving your preferences…"),true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
 bind('btnConnections', () => api.openConnections ? api.openConnections() : window.open('/me/connections','_blank','noopener'));

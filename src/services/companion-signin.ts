@@ -7,8 +7,9 @@ import type { WebAccountView } from "./web-store.js";
 // The companion asks for a
 // sign-in request, opens /me/companion?request=… in a browser, and asks again every few seconds.
 // On that page the signed-in member chooses a server (or the public leaderboards); the next poll
-// then returns the same answer a pairing code would. Requests live 10 minutes in memory: a bot
-// restart only means signing in again.
+// then returns the same answer a pairing code would. Requests live 20 minutes in memory (a member
+// may join their guild's Discord in between); a bot restart loses them, and the companion then
+// starts a new one by itself.
 //
 // The page must not approve a request someone else started and sent as a link. Two proofs:
 // - the Windows app listens on 127.0.0.1 and gives its port; after approval the page sends the
@@ -17,7 +18,7 @@ import type { WebAccountView } from "./web-store.js";
 //   before the proof arrives);
 // - otherwise (the command-line companion) the member types the short code it shows.
 
-const LIFETIME_MS = 10 * 60_000;
+export const SIGN_IN_LIFETIME_MS = 20 * 60_000;
 const MAX_PENDING = 2_000;
 // No 0/O or 1/I: the code is read from one screen and compared on another.
 const LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -60,7 +61,7 @@ export function createCompanionSignIn(options: { now?: () => number } = {}) {
       if (pending.size >= MAX_PENDING) return null;
       const requestId = randomBytes(32).toString("base64url");
       const confirm = confirmCode();
-      const expiresAt = now() + LIFETIME_MS;
+      const expiresAt = now() + SIGN_IN_LIFETIME_MS;
       const loopback = typeof options.loopback === "number" && Number.isInteger(options.loopback) && options.loopback >= 1024 && options.loopback <= 65535 ? options.loopback : undefined;
       pending.set(hashCompanionSecret(requestId), { confirm, expiresAt, grant: null, ...(loopback ? { loopback } : {}) });
       return { requestId, confirm, expiresAt: new Date(expiresAt) };
@@ -144,6 +145,11 @@ export function defaultDeviceName(userAgent: string | undefined, lang: "en" | "f
   return browser ? `${base} (${browser})` : base;
 }
 
+/** The page for an expired or unknown request. The companion starts a new one by itself and opens it. */
+function expiredBody(t: (en: string, fr: string) => string): string {
+  return `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1><p>${t("Go back to your Guilded companion: it opens a new sign-in page by itself. If it does not, choose Sign in with Discord again.", "Revenez au compagnon Guilded : il ouvre lui-même une nouvelle page de connexion. Sinon, choisissez de nouveau Connexion avec Discord.")}</p>`;
+}
+
 // --- /me/companion: the page the companion opens -------------------------------------------------
 
 export interface SignInPageDeps {
@@ -163,10 +169,19 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     const title = t("Connect your companion", "Relier votre compagnon");
     const confirm = deps.signIn.confirmFor(requestId);
     if (!confirm) {
-      return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1><p>${t("Go back to your companion and choose Sign in with Discord again.", "Revenez au compagnon et choisissez de nouveau Connexion avec Discord.")}</p>`, { noindex: true });
+      return kit.page(410, title, expiredBody(t), { noindex: true });
+    }
+    // "Not you? Switch" in the companion: sign in again even with a website session, and let
+    // Discord show which account it is (its consent screen has "Not you?").
+    if (ctx.request.method === "GET" && ctx.request.query.get("switch") === "1" && deps.signIn.loopbackFor(requestId)) {
+      return kit.redirect(link("/auth/login", lang, { return: `/me/companion?request=${encodeURIComponent(requestId)}&lang=${lang}`, switch: "1" }));
     }
     if (!ctx.account) {
       const back = `/me/companion?request=${encodeURIComponent(requestId)}&lang=${lang}`;
+      // Opened by the Windows app (it gave its 127.0.0.1 port): go straight to Discord's sign-in
+      // instead of asking for a second click. Safe: nothing is approved before the member presses
+      // Connect on this page afterwards, and only the app that started the request gets the proof.
+      if (deps.signIn.loopbackFor(requestId)) return kit.redirect(link("/auth/login", lang, { return: back }));
       return kit.page(401, title, `<h1>${title}</h1><p>${t("Sign in with your Discord account to connect the Guilded companion. Guilded only reads your Discord name and ID.", "Connectez-vous avec votre compte Discord pour relier le compagnon Guilded. Guilded ne lit que votre nom et votre identifiant Discord.")}</p><p><a class="button" href="${link("/auth/login", lang, { return: back })}">${t("Sign in with Discord", "Connexion avec Discord")}</a></p>`, { noindex: true });
     }
     const servers = await deps.servers(ctx.account.discordUserId);
@@ -177,13 +192,13 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
         return kit.page(400, title, `<h1>${t("The code does not match", "Le code ne correspond pas")}</h1><p>${t("Type the code shown on your own companion.", "Tapez le code affiché sur votre propre compagnon.")}</p><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and try again", "Revenir et réessayer")}</a></p>`, { noindex: true });
       }
       const choice = ctx.form?.get("personalOnly") ? "personal" : ctx.form?.get("choice") ?? "";
-      if (!deps.signIn.beginApproval(requestId)) return kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1>`, { noindex: true });
+      if (!deps.signIn.beginApproval(requestId)) return kit.page(410, title, expiredBody(t), { noindex: true });
       try {
       const account = ctx.account;
       const deviceName = (ctx.form?.get("deviceName") || defaultDeviceName(ctx.request.headers["user-agent"], lang)).slice(0, 80);
       const selected = servers.find(server => (server.wowGuildId ?? server.discordId) === choice);
       const notAvailable = () => kit.page(400, title, `<h1>${t("That choice is not available", "Ce choix n'est pas disponible")}</h1><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and choose again", "Revenir et choisir de nouveau")}</a></p>`, { noindex: true });
-      const expired = () => kit.page(410, title, `<h1>${t("This sign-in expired", "Cette connexion a expiré")}</h1><p>${t("Go back to your companion and choose Sign in with Discord again.", "Revenez au compagnon et choisissez de nouveau Connexion avec Discord.")}</p>`, { noindex: true });
+      const expired = () => kit.page(410, title, expiredBody(t), { noindex: true });
       if (choice !== "personal" && !selected) return notAvailable();
       const issue = async (): Promise<SignInGrant | null> => {
         if (choice === "personal") return { companionCredential: await deps.issuePersonal(account.id, deviceName), personal: true };

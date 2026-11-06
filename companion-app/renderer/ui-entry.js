@@ -15,4 +15,10 @@ try { storage = window.localStorage; } catch { /* language still works */ }
 window.companionLanguage = createLanguageUI(document, storage, navigator.language, location.href);
 window.guildedOverview = companionOverview;
 import { pagesInUse } from "../../companion/page-visibility.mjs";
+import { timeLeftLine, signInOutcome, isUnreachable, retryDelaySeconds, SERVER_RESTARTING } from "../../companion/sign-in-flow.mjs";
+window.guildedSignIn = { timeLeftLine, signInOutcome, isUnreachable, retryDelaySeconds, SERVER_RESTARTING };
+import { wowSearchMessage } from "../../companion/wow-search.mjs";
+import { linkWizard, successKey, savedSince } from "../../companion/link-wizard.mjs";
+window.guildedLinkWizard = { linkWizard, successKey, savedSince };
+window.guildedWowSearchMessage = wowSearchMessage;
 window.guildedPagesInUse = pagesInUse;

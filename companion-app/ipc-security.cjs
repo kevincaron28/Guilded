@@ -2,7 +2,7 @@ const { pathToFileURL } = require("node:url");
 const path = require("node:path");
 
 const configFields = new Set(["uploadUrl", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes", "poeLogFile", "poeCharacter", "poeLeague", "poeMode", "wowEnabled", "poeEnabled", "syncEnabled"]);
-const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "check-update", "sign-in-wait", "sign-in-cancel", "browse-file", "detect-wow", "detect-wow-held", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "toggle-tracking", "get-poe-runs", "manage-view", "link-find-saved-data", "open-discord-server", "copy-problem-report", "open-addon-download", "pick-wow-folder", "install-addon"]);
+const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "check-update", "sign-in-wait", "sign-in-cancel", "sign-in-reopen", "browse-file", "detect-wow", "detect-wow-held", "search-wow", "companion-me", "sign-in-switch", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "toggle-tracking", "get-poe-runs", "manage-view", "link-find-saved-data", "open-discord-server", "copy-problem-report", "open-addon-download", "pick-wow-folder", "install-addon"]);
 function fail() { throw new Error("Invalid companion request."); }
 function object(value, fields) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail();
@@ -25,6 +25,7 @@ function validateIpc(channel, args) {
   } else if (channel === "set-language") {
     if (!["en", "fr"].includes(value)) throw new Error("Unsupported language");
   } else if (channel === "set-autostart" || channel === "set-auto-update" || channel === "set-online") { if (typeof value !== "boolean") fail(); }
+  else if (channel === "open-invite") text(value, 120);
   else if (channel === "change-profile") {
     object(value, new Set(["id", "name"]));
     if (Boolean(value.id) === Boolean(value.name)) fail();

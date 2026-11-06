@@ -76,6 +76,11 @@ describe("plain status line", () => {
   const now = new Date("2026-11-02T12:00:00Z");
   it("picks one next step", () => {
     expect(nextStep({ battleNet: false, companion: false, characters: 0, lastSynced: null })).toBe("connect");
+    // The app is connected but nothing is linked yet: never "install the app" again.
+    expect(nextStep({ battleNet: false, companion: true, characters: 0, lastSynced: now })).toBe("characters");
+    const appOnly = { battleNet: false, companion: true, characters: 0, lastSynced: now };
+    expect(linkStatusLines(appOnly, "fr", now, false).join(" ")).toContain("Rejoins le serveur Discord de ta guilde");
+    expect(linkStatusLines(appOnly, "fr", now, false).join(" ")).not.toContain("Installe l'application");
     expect(nextStep({ battleNet: true, companion: false, characters: 1, lastSynced: null })).toBe("sync");
     expect(nextStep({ battleNet: true, companion: true, characters: 1, lastSynced: now })).toBe("done");
     // WoW Forever only: Blizzard knows none of its characters, so the first step is the Windows app, not Battle.net.

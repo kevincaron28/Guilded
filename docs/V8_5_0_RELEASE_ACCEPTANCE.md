@@ -50,7 +50,7 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 | Addon present | That PC had no addon at all, and the companion doesn't install it. This is the member-journey gap (audit item 7); the F1 "addon missing" check must catch it. |
 | Manual addon install (member path) | Done: the v8.4.7 Forever zip (hash matches) has one `Guilded` folder; 70 files copied. About 6 steps and 1-2 minutes if you know the folder; finding `_forever_\Interface\AddOns` is the stumbling point. Companion "Install addon" button sent to Track F. |
 | Restart through Battle.net | Pass: goes straight to the character screen (Blunt Cruising), no login. |
-| Discord sign-in and link | Waiting for the owner (12:00). |
+| Discord sign-in and link | Done 10:15-10:32 (owner signed in): about 6-8 min for a member with at least 4 points where they could give up. The browser opened behind the windows; "Tout est relié" was shown with 0 characters (not in a Guilded server yet); the WoW folder on `D:\Jeux` was not found and Search gave no feedback; "Relier" expired after about 5 min with no warning. Smaller items: a second click on the web page, English text in the French UI, a stale "finish in your browser" box, and the website saying "never synced". All sent to Track F. Good: after joining Québec Gold's Discord the second sign-in needed no login, and the link DM arrived. The "bot unreachable" at 10:32 was our deploy restart. |
 
 ## Preview deploy to the live bot (6 November 2026, 14:20-14:27 UTC)
 
@@ -74,6 +74,23 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 | `/character achievements` | Pass: 0/89, Forever 0/9 and guild 0/80 counters |
 | `/officer promotion list` | Pass: three empty lists |
 | Roster card | Pass: the command is `/report guild`; the docs said `/guild-health` |
+
+## Preview deploy 2: Québec Gold added (6 November 2026, about 15:15-15:35 UTC)
+
+- Owner asked "please update quebec gold server" and accepted editing the permanent Hall of Fame posts later.
+- Backup verified: `/home/ubuntu/guilded-recovery/2026-11-06T15-15-02-370Z`, with an encrypted copy on the PC.
+- Preview list is now `1563959517337747556,1323321076478119967` (test server + Québec Gold).
+- **Incident:** the first merge request failed (an accented character in the JSON title), so the update script restarted the old preview code `08dc53f` with Québec Gold already on the list, for a few minutes. The log shows three `error:7f90f8ace781` lines in that window; the cause is unknown.
+- Fixed: #406 merged as `51d450b` (tested candidate `8245f5c`: #400, #401, #402, #403, #404, #405) and redeployed. Migrations applied: artisans gallery, guild stat snapshots, forever full names. No errors since.
+- **Owner action:** the Forever-name backfill dry run (`npm run names:forever` on the server) was blocked for the agent as a production read. See the steps in `docs/FOREVER_NAMES.md`.
+
+## Live regression and hotfixes (6 November 2026)
+
+- **Found by the second-PC tester:** with Québec Gold in the preview, the companion's standings refresh failed after every upload ("Could not reach the bot"), while uploads themselves worked.
+- **Hotfix 1** (#409, bot `14bd458`): guildmate relay no longer re-flags unchanged professions, and the standings never throw after retries. The "Standings changed during refresh" log errors stopped (0 after deploy).
+- **Hotfix 2** (#412, bot `230b8d8`): the refresh right after an upload still hit the companion's 20 s timeout (measured: the error came about 20 s after the upload). Rebuilds over 10 s now answer with the previous standings; Discord calls are capped at 4 s; each request is logged with its time. **Retest passed:** Synchroniser at 16:29:45Z, standings refreshed with no error, and the badge stayed green.
+- Deploy restarts briefly showed "Could not reach the bot" / "Upload failed (502)" in companions; the auto-retry recovered within about 4 minutes.
+- Still open (Track F): the support summary leaves out the companion version and error details.
 
 ## Still to do
 - Full test suite on the merged candidate (running).

@@ -29,41 +29,84 @@ function findWtfFolders(root) {
   return found;
 }
 
-function candidateRoots() {
-  const home = os.homedir();
-  const parents = [];
-  for (const drive of ["C", "D", "E", "F", "G"]) {
-    for (const sub of ["", "Games", "Program Files (x86)", "Program Files", "Blizzard", "Battle.net"]) parents.push(`${drive}:\\${sub}`);
-  }
-  parents.push(path.join(home, "Desktop"), path.join(home, "Games"), path.join(home, "Downloads"), path.join(home, "AppData", "Local"));
-  const roots = [];
+// Where WoW may be installed (8.5 fresh-PC test: it was on D:\Jeux and nothing found it).
+// Every drive letter that exists (not A: or B:), its folders two levels down (three under a games,
+// Blizzard or Battle.net folder), the user's usual folders, and the paths Battle.net itself records.
+const WOW_NAME = /warcraft|wow|forever/i;
+const CONTAINER = /^(games?|jeux|juegos|spiele|giochi|blizzard( entertainment)?|battle\.?net|program files( \(x86\))?)$/i;
+const MAX_LISTED = 400;
+function driveRoots(letters = "CDEFGHIJKLMNOPQRSTUVWXYZ") {
+  return [...letters].map((letter) => `${letter}:\\`).filter((root) => { try { return fs.statSync(root).isDirectory(); } catch { return false; } });
+}
+// Battle.net keeps each game's install path in %ProgramData%\Battle.net\Agent\product.db (protobuf):
+// the paths are plain text inside it.
+function battleNetInstallPaths(text) {
+  const found = new Set();
+  for (const match of String(text ?? "").matchAll(/[A-Za-z]:[\\/][^\x00-\x1f"*<>?|]{0,200}?World of Warcraft(?=[\\/]|[\x00-\x1f"]|$)/g)) found.add(path.normalize(match[0]));
+  return [...found];
+}
+function battleNetRecord(programData = process.env.ProgramData || "C:\\ProgramData") {
+  try { return battleNetInstallPaths(fs.readFileSync(path.join(programData, "Battle.net", "Agent", "product.db")).toString("latin1")); } catch { return []; }
+}
+// A folder that is (or holds) a WoW install: it has a WTF folder, or a _forever_ / _retail_ style game folder.
+function looksLikeInstall(dir) {
+  return fs.existsSync(path.join(dir, "WTF")) || subdirs(dir).some((sub) => /^_[a-z_]+_$/i.test(path.basename(sub)));
+}
+/** Every WoW install folder found, newest-first order not implied. Options are for tests. */
+function wowInstalls({ drives = driveRoots(), home = os.homedir(), recorded = battleNetRecord() } = {}) {
+  const roots = new Set();
+  // A game folder (_forever_, _retail_) belongs to the install around it, which is found instead.
+  const consider = (dir) => { const name = path.basename(dir); if (!name.startsWith("_") && WOW_NAME.test(name) && looksLikeInstall(dir)) roots.add(path.normalize(dir)); };
+  for (const dir of recorded) if (fs.existsSync(dir)) roots.add(path.normalize(dir));
+  const parents = [...drives, path.join(home, "Desktop"), path.join(home, "Games"), path.join(home, "Downloads"), path.join(home, "AppData", "Local")];
   for (const parent of parents) {
-    for (const dir of subdirs(parent)) {
-      if (/warcraft|wow|forever/i.test(path.basename(dir))) roots.push(dir);
+    for (const first of subdirs(parent).slice(0, MAX_LISTED)) {
+      consider(first);
+      if (WOW_NAME.test(path.basename(first))) continue;
+      for (const second of subdirs(first).slice(0, MAX_LISTED)) {
+        consider(second);
+        if (CONTAINER.test(path.basename(first)) || CONTAINER.test(path.basename(second))) for (const third of subdirs(second).slice(0, MAX_LISTED)) consider(third);
+      }
     }
   }
-  return roots;
+  return [...roots];
+}
+function candidateRoots(options) {
+  return wowInstalls(options);
 }
 
 // `isHeld(game)`: true for a game folder whose edition is switched off (companion/active-editions.mjs);
 // those files are left out, never offered. Use detectHeldSavedVariables to count them.
 // Returns [{ path, exists }]: the file itself when it exists, otherwise where
-// it will appear once the game has saved once (an account's SavedVariables).
+// it will appear once the game has saved once (an account's SavedVariables, which WoW creates at
+// the first logout: an account folder without one still counts).
 // `names` in order of preference: leaderboards-only (personal) mode passes
 // GuildedDungeons.lua then Guilded.lua; the companion reads both from the folder.
-function detectSavedVariables(names = ["Guilded.lua"], isHeld = () => false) {
+function detectSavedVariables(names = ["Guilded.lua"], isHeld = () => false, options = undefined) {
   const results = [];
-  for (const root of candidateRoots()) {
+  for (const root of candidateRoots(options)) {
     for (const wtf of findWtfFolders(root)) {
       for (const account of subdirs(path.join(wtf, "Account"))) {
+        if (path.basename(account).toLowerCase() === "savedvariables") continue;
         const folder = path.join(account, "SavedVariables");
-        if (!fs.existsSync(folder)) continue;
         const found = names.map((name) => path.join(folder, name)).find((file) => fs.existsSync(file));
         results.push({ path: found ?? path.join(folder, names[0]), exists: !!found, game: path.basename(path.dirname(wtf)), account: path.basename(account), modifiedMs: found ? modifiedMs(found) : 0, hasDatabase: found ? hasDatabase(found) : false });
       }
     }
   }
-  return rankSavedVariables(results);
+  const unique = [...new Map(results.map((item) => [item.path.toLowerCase(), item])).values()];
+  return rankSavedVariables(unique);
+}
+
+/**
+ * Find it: what the search found, so the window can always say something. Installs without an
+ * account folder yet (WoW never started) are reported too.
+ */
+function searchWow(names = ["Guilded.lua"], isHeld = () => false, options = {}) {
+  const drives = options.drives ?? driveRoots();
+  const installs = wowInstalls({ ...options, drives });
+  const entries = detectSavedVariables(names, isHeld, { ...options, drives });
+  return { entries, installs, drives: drives.map((root) => root.slice(0, 2)) };
 }
 
 // Same scan, but only the files of editions that are on hold (so the app can say so plainly).
@@ -121,12 +164,12 @@ function installRootOf(file) {
   return /^[A-Za-z]:$/.test(text) ? text + path.sep : text;
 }
 
-// Where the picker opens: the watched file's install, a detected one, or the usual Battle.net
-// folder when it exists. Undefined lets Windows choose.
-function pickerStart(watchFile, detected = []) {
-  const known = installRootOf(watchFile) || detected.map((entry) => installRootOf(entry.path)).find(Boolean);
+// Where the picker (and Browse) opens: the watched file's install, a detected account's or install's,
+// the usual Battle.net folder, or Program Files (x86): never Windows' own choice (Downloads).
+function pickerStart(watchFile, detected = [], installs = []) {
+  const known = installRootOf(watchFile) || detected.map((entry) => installRootOf(entry.path)).find(Boolean) || installs[0];
   if (known && fs.existsSync(known)) return known;
-  for (const guess of ["C:\\Program Files (x86)\\World of Warcraft", "C:\\Program Files\\World of Warcraft"]) if (fs.existsSync(guess)) return guess;
+  for (const guess of ["C:\\Program Files (x86)\\World of Warcraft", "C:\\Program Files\\World of Warcraft", "C:\\Program Files (x86)"]) if (fs.existsSync(guess)) return guess;
   return undefined;
 }
 
@@ -160,4 +203,4 @@ function accountsUnder(folder, names = ["Guilded.lua"], isHeld = () => false) {
   return rankSavedVariables(playable.length ? playable : unique.filter((item) => !isHeld(item.game)));
 }
 
-module.exports = { hasDatabase, detectSavedVariables, detectHeldSavedVariables, rankSavedVariables, pickSavedVariables, installRootOf, pickerStart, accountsUnder };
+module.exports = { hasDatabase, wowInstalls, battleNetInstallPaths, searchWow, detectSavedVariables, detectHeldSavedVariables, rankSavedVariables, pickSavedVariables, installRootOf, pickerStart, accountsUnder };

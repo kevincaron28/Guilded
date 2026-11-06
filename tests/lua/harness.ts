@@ -37,6 +37,7 @@ function CreateFrame()
   FRAMES[#FRAMES + 1] = f
   return f
 end
+GUILDED_TEST_HOME_WAIT = 0
 UIParent = stub()
 -- Sends a game event to every frame that handles OnEvent (like the client would).
 function fire_event(event, ...)

@@ -3,10 +3,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn, execFile } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables, pickerStart, accountsUnder } = require("./detect-wow.cjs");
+const { detectSavedVariables, detectHeldSavedVariables, pickSavedVariables, pickerStart, accountsUnder, searchWow } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 // Loaded on first use (Store build only): companion-app/store-update.cjs.
 const storeUpdatesModule = () => require("./store-update.cjs");
+const linkIdentity = require("./link-identity.cjs");
 const addonInstallerModule = () => require("./addon-installer.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
@@ -125,15 +126,9 @@ function pushLog(entry) {
 }
 
 // What the tray icon and the window's header say about the whole app.
+// Guilded's own outages read as amber "waiting", never red (8.5 Track L, link-identity.cjs).
 function health(state) {
-  const problems = engineModules.validateConfig(config);
-  if (problems.length > 0) return { level: "setup", text: "Setup needed" };
-  if (!state.running) return { level: "error", text: "Not running" };
-  if (state.uploadError || state.standingsError) return { level: "error", text: state.uploadError || state.standingsError };
-  if (state.poe?.error) return { level: "error", text: state.poe.error };
-  if (state.poe?.pending) return { level: "setup", text: `PoE2: ${state.poe.pending} visit(s) waiting to sync` };
-  if (state.pendingUpload) return { level: "setup", text: state.retryAt ? `Upload pending; retry at ${state.retryAt}` : "Uploading saved data..." };
-  return { level: "ok", text: "Running: watching for changes" };
+  return linkIdentity.companionHealth({ setupProblems: engineModules.validateConfig(config).length, state });
 }
 
 // A newer Guilded release, shown on Overview, in the tray and once as a Windows notification.
@@ -310,7 +305,7 @@ async function refreshSavedFile() {
     // Nothing chosen yet: a fresh PC whose AddOns folder is empty never saves a Guilded.lua to
     // choose. Check the WoW install the app finds so the Problems panel can say so.
     try {
-      const found = detectSavedVariables(savedNames(), engineModules.isFolderOnHold)[0];
+      const found = detectSavedVariables(savedNames(), engineModules.isFolderOnHold, wowSearchOptions())[0];
       if (found) result = { addon: await engineModules.checkInstalledAddon(found.path) };
     } catch { /* checked again later */ }
   }
@@ -368,12 +363,14 @@ function onState(state) {
   const found = problems(state);
   win?.webContents.send("state", { state, health: status, update, savedFile, problems: found, addonAction: addonAction() });
   if (tray) {
-    const icon = found.length && fs.existsSync(asset("tray-problem.png")) ? "tray-problem.png" : `tray-${found.length ? "error" : status.level}.png`;
+    // Only problems the member can fix turn the tray red; Guilded's outages stay amber.
+    const own = linkIdentity.memberProblems(found);
+    const icon = own.length && fs.existsSync(asset("tray-problem.png")) ? "tray-problem.png" : `tray-${own.length ? "error" : status.level}.png`;
     tray.setImage(nativeImage.createFromPath(asset(icon)).resize({ width: 32, height: 32 }));
     tray.setToolTip(`Guilded Companion\n${found.length ? T("{0} problem(s): open to see how to fix", found.length) + "\n" : ""}${M(status.text)}${update ? T("\nUpdate available: {0}", update.version) : ""}${savedFile?.candidate ? T("\nWoW data may have moved: open to check") : ""}`);
   }
   // The red "!" on the taskbar button too, changed only when the list changes.
-  const key = found.map((problem) => problem.id).join(",");
+  const key = linkIdentity.memberProblems(found).map((problem) => problem.id).join(",");
   if (win && key !== shownProblems) {
     shownProblems = key;
     try { win.setOverlayIcon(key ? nativeImage.createFromPath(asset("problem-badge.png")) : null, key ? T("{0} problem(s): open to see how to fix", found.length) : ""); } catch { /* not every Windows shell has overlays */ }
@@ -734,31 +731,126 @@ registerIpc("pair-account", async (_event, next) => applyPairing(next, await eng
 // Since 8.1 the website sends the browser back to a 127.0.0.1 port with a proof: no code to type.
 let signIn = null;
 const endSignIn = (current) => { current?.controller.abort(); current?.loopback?.close(); };
-registerIpc("sign-in-start", async (_event, next) => {
-  endSignIn(signIn);
-  signIn = null;
+// A request the bot forgot (expired, or the bot restarted) is replaced by itself this many times.
+const SIGN_IN_RESTARTS = 2;
+async function openSignInPage(current) {
+  await shell.openExternal(current.started.url);
+  // Windows often opens the browser behind this window (and behind WoW): step aside so the page is
+  // seen. The proof that comes back through 127.0.0.1 brings the companion forward again.
+  if (current.started.automatic && win && !win.isDestroyed() && win.isFocused()) setTimeout(() => { if (signIn === current && win && !win.isDestroyed()) win.minimize(); }, 600);
+}
+async function beginSignIn(next) {
   // Without a free local port the sign-in still works the 7.2 way, with the code.
-  const loopback = require("./sign-in-loopback.cjs").startSignInLoopback({ onProof: () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.focus(); } } });
+  const loopback = require("./sign-in-loopback.cjs").startSignInLoopback({ onProof: () => { if (win && !win.isDestroyed()) { if (win.isMinimized()) win.restore(); win.show(); win.focus(); } } });
   const port = await loopback.ready.catch(() => null);
   if (!port) loopback.close();
   const started = await engineModules.startSignIn({ ...config, ...next }, port ? { loopback: port } : {});
-  if (!started.ok) { if (port) loopback.close(); return started; }
-  signIn = { controller: new AbortController(), started, next, ...(port ? { loopback } : {}) };
-  await shell.openExternal(started.url);
-  return { ok: true, confirm: started.confirm, url: started.url, automatic: started.automatic === true };
-});
+  if (!started.ok) { if (port) loopback.close(); return { started }; }
+  return { current: { controller: new AbortController(), started, next, ...(port ? { loopback } : {}) }, started };
+}
+const signInView = (started, restarted = 0) => ({ ok: true, confirm: started.confirm, url: started.url, expiresAt: started.expiresAt, automatic: started.automatic === true, restarted });
+async function startSignInFlow(next, switchAccount = false) {
+  endSignIn(signIn);
+  signIn = null;
+  const begun = await beginSignIn(next);
+  if (!begun.current) return begun.started;
+  signIn = begun.current;
+  // "Not you? Switch" (Track L): the page asks Discord to show the account; the old link is
+  // revoked once the new one works.
+  if (switchAccount && signIn.started.automatic) {
+    const url = new URL(signIn.started.url);
+    url.searchParams.set("switch", "1");
+    signIn.started = { ...signIn.started, url: url.href };
+    signIn.previous = config.companionCredential ? { ...config } : null;
+  }
+  await openSignInPage(signIn);
+  return signInView(signIn.started);
+}
+registerIpc("sign-in-start", (_event, next) => startSignInFlow(next));
+registerIpc("sign-in-switch", () => startSignInFlow({}, true));
 registerIpc("sign-in-wait", async () => {
-  const current = signIn;
+  let current = signIn;
   if (!current) return { ok: false, message: T("Choose Sign in with Discord first.") };
-  const result = await engineModules.waitForSignIn({ ...config, ...current.next, uploadUrl: current.started.uploadUrl }, current.started.requestId, { signal: current.controller.signal, proof: () => current.loopback?.proof() });
-  current.loopback?.close();
-  if (signIn === current) signIn = null;
-  return applyPairing(current.next, result);
+  for (let restarts = 0; ; restarts++) {
+    const result = await engineModules.waitForSignIn({ ...config, ...current.next, uploadUrl: current.started.uploadUrl }, current.started.requestId, { signal: current.controller.signal, expiresAt: current.started.expiresAt, proof: () => current.loopback?.proof() });
+    current.loopback?.close();
+    // Expired or forgotten by the bot (a restart): start a new request and open its page, so the
+    // member is never left on a page that can only say "expired".
+    if (result.expired && signIn === current && restarts < SIGN_IN_RESTARTS) {
+      const begun = await beginSignIn(current.next);
+      if (begun.current && signIn === current) {
+        signIn = current = begun.current;
+        pushLog({ time: new Date().toISOString(), level: "info", message: E("The Discord sign-in expired; a new one was opened in the browser.") });
+        await openSignInPage(current);
+        win?.webContents.send("sign-in-restarted", signInView(current.started, restarts + 1));
+        continue;
+      }
+      if (begun.current) endSignIn(begun.current);
+    }
+    if (signIn === current) signIn = null;
+    const applied = await applyPairing(current.next, result);
+    // A new account or server: forget the old name until /me answers, and revoke the replaced link.
+    if (applied.ok) {
+      config = { ...config, discordAccount: undefined };
+      await saveConfig();
+      engine?.setLinkedAccount?.(undefined);
+      const previous = current.previous;
+      if (previous?.companionCredential && previous.companionCredential !== config.companionCredential) {
+        void Promise.resolve(engineModules.revokeSavedConnections?.({ ...previous, profiles: {} })).catch(() => {});
+      }
+    }
+    return applied;
+  }
+});
+
+// Track L: who is signed in ("Connected as"), their Guilded servers, and the Join button for the
+// in-game guild's Discord (from GuildedDB.guildKey in the watched Guilded.lua).
+const DISCORD_INVITE = /^https:\/\/(discord\.gg|(www\.)?discord\.com\/invite)\/[\w-]{2,40}$/;
+registerIpc("companion-me", async () => {
+  if (!config.companionCredential) return { ok: false, signedOut: true };
+  let guild = null;
+  if (config.watchFile && config.wowEnabled !== false) {
+    try { guild = linkIdentity.guildFromSavedText(await fs.promises.readFile(config.watchFile, "utf8")); } catch { /* not saved yet */ }
+  }
+  try {
+    const url = new URL("/api/v1/companion/me", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top"));
+    if (guild) { url.searchParams.set("guild", guild.name); url.searchParams.set("realm", guild.realm); }
+    const { response, body } = await engineModules.requestJson(url, { headers: engineModules.credentialHeaders(config) });
+    if (response.status === 404) return { ok: false, unsupported: true, guild };
+    if (!response.ok) return { ok: false, error: body.error || T("The bot answered {0}.", response.status), guild };
+    const text = (value, max) => typeof value === "string" ? value.slice(0, max) : null;
+    const avatar = text(body.account?.avatarUrl, 300);
+    const account = { username: text(body.account?.username, 80) || "", displayName: text(body.account?.displayName, 80), avatarUrl: avatar && /^https:\/\/cdn\.discordapp\.com\//.test(avatar) ? avatar : null };
+    if (JSON.stringify(config.discordAccount ?? null) !== JSON.stringify(account)) {
+      config = { ...config, discordAccount: account };
+      await saveConfig();
+      engine?.setLinkedAccount?.(account);
+    }
+    const join = body.join && typeof body.join.serverName === "string"
+      ? { serverName: body.join.serverName.slice(0, 100), inviteUrl: typeof body.join.inviteUrl === "string" && DISCORD_INVITE.test(body.join.inviteUrl) ? body.join.inviteUrl : null, joined: body.join.joined === true }
+      : null;
+    return { ok: true, account, personal: body.personal === true, servers: Array.isArray(body.servers) ? body.servers.filter((name) => typeof name === "string").slice(0, 20) : [], join, guild };
+  } catch (error) {
+    return { ok: false, unreachable: true, error: engineModules.describeError(error), guild };
+  }
+});
+// The Join button: only a Discord invite link.
+registerIpc("open-invite", (_event, url) => {
+  if (typeof url !== "string" || !DISCORD_INVITE.test(url)) return false;
+  void shell.openExternal(url);
+  return true;
+});
+// "Reopen the page": the same request, opened again (the first tab may be hidden or closed).
+registerIpc("sign-in-reopen", async () => {
+  if (!signIn) return { ok: false, message: T("Choose Sign in with Discord first.") };
+  await openSignInPage(signIn);
+  return { ok: true, url: signIn.started.url };
 });
 registerIpc("sign-in-cancel", () => { endSignIn(signIn); signIn = null; return { ok: true }; });
 
 registerIpc("browse-file", async () => {
-  const start = config.watchFile ? path.dirname(config.watchFile) : undefined;
+  // The watched file's folder, else the WoW install the search finds, else Program Files (x86): never Downloads.
+  const start = config.watchFile ? path.dirname(config.watchFile) : (() => { const found = searchWow(savedNames(), engineModules.isFolderOnHold, wowSearchOptions()); return pickerStart(undefined, found.entries, found.installs); })();
   const result = await dialog.showOpenDialog(win, {
     title: config.personal
       ? T("Pick GuildedDungeons.lua or Guilded.lua (inside WTF > Account > your account > SavedVariables)")
@@ -772,7 +864,27 @@ registerIpc("browse-file", async () => {
 
 // Leaderboards only: either addon's file; the engine then reads both from that folder.
 const savedNames = () => (config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]);
-registerIpc("detect-wow", () => detectSavedVariables(savedNames(), engineModules.isFolderOnHold));
+// The WoW search covers every fixed disk (8.5 fresh-PC test: WoW was on D:\Jeux). Windows says
+// which drives are local disks once at start; until it answers (or off Windows) every existing
+// letter is used. Network and removable drives are left out so a missing share never stalls a search.
+let fixedDrives = null;
+function readFixedDrives() {
+  if (process.platform !== "win32") return;
+  execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", "(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3').DeviceID -join ','"], { windowsHide: true, timeout: 20_000 }, (error, stdout) => {
+    const letters = error ? [] : String(stdout).split(",").map((part) => part.trim()).filter((part) => /^[A-Z]:$/i.test(part));
+    if (letters.length) fixedDrives = letters.map((letter) => `${letter.toUpperCase()}\\`);
+  });
+}
+readFixedDrives();
+const wowSearchOptions = () => (fixedDrives ? { drives: fixedDrives } : undefined);
+registerIpc("detect-wow", () => detectSavedVariables(savedNames(), engineModules.isFolderOnHold, wowSearchOptions()));
+// Find it (8.5 fresh-PC test): every drive and Battle.net's own record, and what was searched, so the
+// window always says what it found or did not.
+registerIpc("search-wow", () => {
+  const found = searchWow(savedNames(), engineModules.isFolderOnHold, wowSearchOptions());
+  const held = detectHeldSavedVariables(savedNames(), engineModules.isFolderOnHold).filter((entry) => entry.exists).length;
+  return { entries: found.entries, installs: found.installs, drives: found.drives, held };
+});
 // How many saved files exist only for editions that are on hold (Forever-first, companion/active-editions.mjs).
 registerIpc("detect-wow-held", () => detectHeldSavedVariables(savedNames(), engineModules.isFolderOnHold).filter((entry) => entry.exists).length);
 // "Link everything", step 3: after sign-in, pick the saved-data file by itself when exactly one
@@ -786,7 +898,7 @@ registerIpc("link-find-saved-data", async () => {
     try { current = await engineModules.checkSavedFile(config.watchFile); } catch { /* look again below */ }
     if (current && current.changedAt !== null && !current.candidate) return { ok: true, found: 1, already: true };
   }
-  const detected = await detectSavedVariables(savedNames(), engineModules.isFolderOnHold);
+  const detected = await detectSavedVariables(savedNames(), engineModules.isFolderOnHold, wowSearchOptions());
   const found = detected.filter((entry) => entry.exists);
   const heldCount = detectHeldSavedVariables(savedNames(), engineModules.isFolderOnHold).filter((entry) => entry.exists).length;
   // Addon just installed and not saved yet (no /reload so far): the file does not exist, but its account
@@ -867,7 +979,7 @@ registerIpc("get-poe-runs", async () => {
 // The Wishlist and Cores & prices pages: read what this member may see, send one change.
 // Answers { ok, data | error } so the page shows the bot's own message, not Electron's wrapper.
 async function manageRequest(change) {
-  if (!config.companionCredential) return { ok: false, error: "Connect your Discord account first." };
+  if (!config.companionCredential) return { ok: false, error: T("Connect your Discord account first.") };
   try {
     const url = new URL("/api/v1/manage", config.uploadUrl);
     if (!change) url.searchParams.set("guild", config.guildDiscordId);
@@ -883,7 +995,9 @@ async function manageRequest(change) {
 // good answer is kept on this PC so the pages still show something offline, marked as saved.
 const hubCacheFile = () => path.join(app.getPath("userData"), "hub-cache.json");
 async function hubRequest(change, lang) {
-  if (!config.companionCredential) return { ok: false, error: "Connect your Discord account first." };
+  if (!config.companionCredential) return { ok: false, error: T("Connect your Discord account first.") };
+  // Leaderboards only has no guild to read: say that plainly instead of a guild error.
+  if (config.personal === true) return { ok: false, personal: true, unreachable: false, error: T("Signed in for public dungeon rankings only") };
   try {
     const url = new URL("/api/v1/hub", config.uploadUrl);
     if (!change) { url.searchParams.set("guild", config.guildDiscordId); url.searchParams.set("lang", lang === "fr" ? "fr" : "en"); }
@@ -957,7 +1071,8 @@ registerIpc("set-online", (_event, value) => { online = value; if (engine) onSta
 // Folder picker (8.5, track F3): opens at the WoW install folder and finds the account folders
 // below whatever the member picks. One account: the page fills it in. Several: the member chooses.
 registerIpc("pick-wow-folder", async () => {
-  const start = pickerStart(config.watchFile, detectSavedVariables(savedNames(), engineModules.isFolderOnHold));
+  const found = searchWow(savedNames(), engineModules.isFolderOnHold, wowSearchOptions());
+  const start = pickerStart(config.watchFile, found.entries, found.installs);
   const result = await dialog.showOpenDialog(win, {
     title: T("Choose your World of Warcraft folder"),
     ...(start ? { defaultPath: start } : {}),

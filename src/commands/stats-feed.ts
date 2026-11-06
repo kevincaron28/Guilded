@@ -15,6 +15,8 @@ export const statsFeedCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("action").setDescription("Default: create the address").addChoices(
       { name: "Create (or say one exists)", value: "show" }, { name: "New address (the old one stops)", value: "regenerate" }, { name: "Revoke (stop the feed)", value: "revoke" })))
   .addSubcommand((sub) => sub.setName("toggle").setDescription("Turn the daily statistics on or off.")
+    .addBooleanOption((o) => o.setName("on").setDescription("On or off").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("bank").setDescription("Weekly bank summary")
     .addBooleanOption((o) => o.setName("on").setDescription("On or off").setRequired(true)));
 
 export async function executeStatsFeed(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -28,6 +30,13 @@ export async function executeStatsFeed(interaction: ChatInputCommandInteraction)
   const settings = await prisma.guildSettings.findUnique({ where: { guildId }, select: { statsEnabled: true, statsFeedKeyHash: true, statsFeedKeyAt: true } });
   if (!settings) { await reply(t("Run /setup first.", "Lancez d'abord /setup.")); return; }
 
+  if (interaction.options.getSubcommand() === "bank") {
+    const on = interaction.options.getBoolean("on", true);
+    await prisma.guildSettings.update({ where: { guildId }, data: { guildBankWeeklyEnabled: on } });
+    await reply(on ? t("The weekly guild bank summary is on: once a week in the log channel, only when the bank moved. The Guild bank page is on the guild tools site.", "Le résumé hebdomadaire de la banque de guilde est activé.")
+      : t("The weekly guild bank summary is off. The Guild bank page still works.", "Le résumé hebdomadaire de la banque de guilde est désactivé. La page reste disponible."));
+    return;
+  }
   if (interaction.options.getSubcommand() === "toggle") {
     const on = interaction.options.getBoolean("on", true);
     await prisma.guildSettings.update({ where: { guildId }, data: { statsEnabled: on } });

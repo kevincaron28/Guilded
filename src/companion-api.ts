@@ -43,6 +43,7 @@ import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, i
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { applyGuildData } from "./services/guild-data.js";
+import { applyGuildBank } from "./services/guild-bank.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
@@ -78,6 +79,7 @@ import { createWebAvailability } from "./services/web-availability.js";
 import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
 import { createGuildToolsPages } from "./services/guild-tools-pages.js";
 import { createStatsPage } from "./services/stats-page.js";
+import { createGuildBankPage } from "./services/guild-bank-page.js";
 import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
 import { createArtisansGallery } from "./services/artisans-gallery.js";
 import { postCraftRequest } from "./commands/craft-board.js";
@@ -305,7 +307,7 @@ export function createSiteApp(client?: Client) {
     status: discordUserId => memberLinkStatus(prisma, discordUserId)
   };
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, gallery.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, gallery.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
@@ -855,6 +857,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
         await prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
           { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild data upload failed", error); });
+      }
+      // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
+      if (preview.snapshot.guildBank !== undefined) {
+        await prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
+          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild bank upload failed", error); });
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

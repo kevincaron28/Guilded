@@ -67,6 +67,7 @@ import { syncAllNicknames } from "./services/nickname-sync.js";
 import { postAllWeeklyPromotions } from "./services/promotion.js";
 import { sendRecruitReminders } from "./services/recruiting-kit.js";
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
+import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
 import { handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { updateWhosWhoBoard } from "./services/whos-who-board.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
@@ -331,6 +332,8 @@ client.once(Events.ClientReady, (readyClient) => {
   // On by default: at most one weekly "Ready to promote" list per server, only when someone is ready.
   setInterval(() => void sendRecruitReminders(readyClient, prisma).catch(reportJobError("Recruiting cooldown reminders")), 60 * 60_000);
   setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
+  // 9.0, on by default: at most one weekly guild bank summary per server, only when the bank moved.
+  setInterval(() => void postAllWeeklyGuildBanks(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly guild bank")), 60 * 60_000);
   setInterval(() => void syncAllNicknames(prisma, readyClient.guilds.cache.values(), reportJobError("Nickname sync")), 60 * 60_000);
   // Crafter offers past their time are closed (a no-op for servers that never turned them on).
   setInterval(() => void sweepCraftOffers(readyClient).catch(reportJobError("Craft offer expiry")), 10 * 60_000);

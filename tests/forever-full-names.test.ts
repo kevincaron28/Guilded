@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { findCharacter, ledgerOwner } from "../src/services/character-match.js";
 import { foreverNameMatches, foreverSameName } from "../companion/character-identity.mjs";
 import { personalSnapshot } from "../src/services/companion-access.js";
@@ -229,5 +229,25 @@ describe("migration 20261226000000_forever_full_names", () => {
   it("only adds a nullable column; existing rows are untouched", async () => {
     expect((await db.query(`SELECT * FROM "Character"`)).rows).toEqual([{ id: "c", name: "Lebowski", legacyName: null }]);
     expect((await db.query(`SELECT * FROM "UnclaimedCharacter"`)).rows).toEqual([{ id: "u", name: "Dude", legacyName: null }]);
+  });
+});
+
+describe("race to 60 key cleanup", () => {
+  const level = (id: string, nameKey: string, name = nameKey) => ({ id, guildId: "g1", nameKey, name });
+  it("merges a first-name key into the one full name that extends it, and moves a lone one", async () => {
+    const { planRaceKeyMerges } = await import("../src/services/forever-names.js");
+    const plan = planRaceKeyMerges("level", [level("a", "chad", "Chad"), level("b", "chad ho", "Chad Ho"), level("c", "hulke", "Hulke"), level("d", "sam"), level("e", "sam a"), level("f", "sam b")],
+      new Map([["g1\nhulke hogan", "Hulke Hogan"]]));
+    expect(plan.map(m => [m.fromId, m.toId, m.toKey])).toEqual([["a", "b", "chad ho"], ["c", null, "hulke hogan"]]);
+  });
+  it("applies a merge keeping the highest level and earliest dates, and deletes the first-name row", async () => {
+    const { applyRaceKeyMerges } = await import("../src/services/forever-names.js");
+    const from = { id: "a", level: 50, reachedMaxAt: null, firstSeenAt: new Date("2026-11-04T00:00:00Z") };
+    const to = { id: "b", level: 44, reachedMaxAt: null, firstSeenAt: new Date("2026-11-07T00:00:00Z") };
+    const store = { findUnique: vi.fn(async ({ where }: { where: { id: string } }) => where.id === "a" ? from : to), update: vi.fn(), delete: vi.fn() };
+    const result = await applyRaceKeyMerges({ levelRaceEntry: store, raceHallEntry: store } as never, [{ store: "level", guildId: "g1", fromId: "a", toId: "b", toKey: "chad ho", toName: "Chad Ho" }]);
+    expect(result).toEqual({ merged: 1, moved: 0 });
+    expect(store.update).toHaveBeenCalledWith({ where: { id: "b" }, data: expect.objectContaining({ level: 50, firstSeenAt: from.firstSeenAt, name: "Chad Ho" }) });
+    expect(store.delete).toHaveBeenCalledWith({ where: { id: "a" } });
   });
 });

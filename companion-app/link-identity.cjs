@@ -16,7 +16,7 @@ function guildFromSavedText(text) {
 // A problem on Guilded's side (the bot restarting during a deploy, a 5xx, a rate limit) is not the
 // member's to fix: amber "waiting", never the red "needs attention". Uploads that went through while
 // only the rankings could not be fetched read as a partial success.
-const SERVER_SIDE = /Could not reach the bot|temporarily unavailable|fetch failed|ECONNREFUSED|ETIMEDOUT|Too many|\((?:429|5\d\d)\)|failed \((?:429|5\d\d)\)/i;
+const SERVER_SIDE = /Could not reach the bot|took too long to answer|temporarily unavailable|fetch failed|ECONNREFUSED|ETIMEDOUT|Too many|\((?:429|5\d\d)\)|failed \((?:429|5\d\d)\)/i;
 function isServerSide(text) {
   return typeof text === "string" && SERVER_SIDE.test(text);
 }

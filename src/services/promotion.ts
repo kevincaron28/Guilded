@@ -5,6 +5,7 @@ import { cacheAllMembers } from "./member-cache.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 import { RANK_MAX_AGE_MS } from "./rank-roles.js";
 import { previewAllows } from "./feature-preview.js";
+import { addonName } from "./addon-name.js";
 
 // 8.5 track C5: the promotion panel. Officers set a rule (default: in Discord, a linked character at rank "Initiate"
 // for 7+ days, optional minimum level). The bot computes "Ready to promote" and "Not in Discord yet". Read-only:
@@ -14,9 +15,9 @@ import { previewAllows } from "./feature-preview.js";
 export interface PromotionRule { enabled: boolean; fromRank: string; minDays: number; minLevel: number | null }
 export const DEFAULT_PROMOTION_RULE: PromotionRule = { enabled: true, fromRank: "Initiate", minDays: 7, minLevel: null };
 
-export interface PromotionCharacter { name: string; level: number | null; rankName: string | null; rankAt: Date | null; since: Date | null; isMain: boolean }
+export interface PromotionCharacter { /** The name the addon sees in the guild roster. */ addon?: string; name: string; level: number | null; rankName: string | null; rankAt: Date | null; since: Date | null; isMain: boolean }
 export interface PromotionPerson { discordUserId: string; displayName: string; inDiscord: boolean; characters: readonly PromotionCharacter[] }
-export interface ReadyToPromote { discordUserId: string; displayName: string; character: string; days: number; level: number | null }
+export interface ReadyToPromote { discordUserId: string; displayName: string; character: string; /** The in-game roster name (addonName). */ addon?: string | undefined; days: number; level: number | null }
 export interface PromotionPlan {
   ready: ReadyToPromote[];
   /** Linked members at the rank who left the Discord server. */
@@ -42,7 +43,7 @@ export function planPromotions(input: { people: readonly PromotionPerson[]; uncl
     if (!person.inDiscord) { plan.left.push({ displayName: person.displayName, character: characterName(best) }); continue; }
     const days = Math.floor((now - (best.since?.getTime() ?? now)) / DAY);
     const levelOk = input.rule.minLevel === null || (best.level !== null && best.level >= input.rule.minLevel);
-    if (days >= input.rule.minDays && levelOk) plan.ready.push({ discordUserId: person.discordUserId, displayName: person.displayName, character: characterName(best), days, level: best.level });
+    if (days >= input.rule.minDays && levelOk) plan.ready.push({ discordUserId: person.discordUserId, displayName: person.displayName, character: characterName(best), addon: best.addon, days, level: best.level });
     else plan.waiting.push({ displayName: person.displayName, character: characterName(best), daysLeft: Math.max(0, input.rule.minDays - days) });
   }
   for (const row of input.unclaimed) if (same(row.rankName, input.rule.fromRank) && fresh(row.rankAt)) plan.unclaimed.push({ name: characterName(row as { name: string; displayName?: string | null }), level: row.level });
@@ -81,13 +82,13 @@ export async function loadPromotionPlan(db: Db, discordGuild: Pick<DiscordGuild,
   const [people, unclaimed] = await Promise.all([
     db.member.findMany({
       where: { guildId, status: "ACTIVE", isTest: false, characters: { some: { gameEdition: edition, guildRankName: { not: null } } } },
-      select: { discordUserId: true, displayName: true, characters: { where: { gameEdition: edition }, select: { name: true, displayName: true, level: true, guildRankName: true, guildRankAt: true, isMain: true, rankSeen: { select: { since: true } } } } }
+      select: { discordUserId: true, displayName: true, characters: { where: { gameEdition: edition }, select: { name: true, realm: true, displayName: true, level: true, guildRankName: true, guildRankAt: true, isMain: true, rankSeen: { select: { since: true } } } } }
     }),
     db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition, guildRankName: { not: null } }, select: { name: true, displayName: true, level: true, guildRankName: true, guildRankAt: true } })
   ]);
   const plan = planPromotions({
     people: people.map((p) => ({ discordUserId: p.discordUserId, displayName: p.displayName, inDiscord: discordGuild.members.cache.has(p.discordUserId),
-      characters: p.characters.map((c) => ({ name: characterName(c), level: c.level, rankName: c.guildRankName, rankAt: c.guildRankAt, since: c.rankSeen?.since ?? null, isMain: c.isMain })) })),
+      characters: p.characters.map((c) => ({ addon: addonName(c.name, c.realm), name: characterName(c), level: c.level, rankName: c.guildRankName, rankAt: c.guildRankAt, since: c.rankSeen?.since ?? null, isMain: c.isMain })) })),
     unclaimed: unclaimed.map((u) => ({ name: u.name, displayName: u.displayName, level: u.level, rankName: u.guildRankName, rankAt: u.guildRankAt })),
     rule, now
   });

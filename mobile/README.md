@@ -116,3 +116,26 @@ upload.
   upload.
 - **A real Discord account** to try the live guild screens. Sample data is
   only a preview.
+
+## Google Play at the lowest cost (plan, 6 November 2026)
+
+Only the owner can do these steps (accounts, payment, identity). Nothing needs Google Cloud OAuth
+verification: Guilded signs in with Discord, not Google, and calls no Google API.
+
+1. **Developer account:** play.google.com/console, personal account, one-time **USD 25**. Identity
+   verification (government ID) and phone verification are free. Allow a few days.
+2. **App listing:** package `top.kcaron.guilded`. Fill in Data safety (what is collected: Discord ID,
+   characters, stats; everything is shared, per `docs/PRIVACY.md`), content rating and target audience,
+   and link the privacy policy URL on the website.
+3. **Closed test:** new personal accounts must run a closed test with **at least 12 testers for 14
+   continuous days** before production. Invite Québec Gold members by email or Google Group;
+   they install through the Play testing link. Ship the existing EAS build with
+   `eas build -p android --profile store` (AAB), then upload it to the closed track.
+4. **Production:** after the 14 days, apply for production access in the Console (a short
+   questionnaire about the test), then publish. Updates go out through EAS OTA for JS changes
+   and new AABs for native changes.
+5. **Push notifications** (optional, free): a Firebase project for `top.kcaron.guilded`, the
+   `google-services.json` as an EAS file secret, and FCM credentials in EAS. Needed only for
+   remote alerts such as calls for help; on-device reminders work without it.
+
+Total cost: USD 25 once. Until then, the free preview APK on GitHub stays available.

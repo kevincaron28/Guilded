@@ -44,11 +44,13 @@ describe("optional battleground installation", () => {
   it("creates once under concurrent installs, persists IDs and makes only new info channels readonly", async () => {
     const f = fixture();
     await Promise.all([f.run(), f.run()]);
-    expect(f.guild.channels.create).toHaveBeenCalledTimes(4);
+    expect(f.guild.channels.create).toHaveBeenCalledTimes(5);
     expect(f.posted).toHaveLength(3);
     expect(f.posted.every(m => m.edit.mock.calls.length === 1)).toBe(true);
-    for (const part of ["Results", "Stats"]) {
-      const c = f.channels.get(f.settings[`bg${part}ChannelId`] as string);
+    expect(f.channels.get(f.settings["duelBoardChannelId"] as string).name).toBe("duel-ladder");
+    expect(f.channels.get(f.settings["bgStatsChannelId"] as string).name).toBe("bg-ladder");
+    for (const id of [f.settings["bgResultsChannelId"], f.settings["bgStatsChannelId"], f.settings["duelBoardChannelId"]]) {
+      const c = f.channels.get(id as string);
       expect(c.permissionOverwrites.cache.get("members").deny.bitfield & PermissionFlagsBits.SendMessages).not.toBe(0n);
     }
     expect(f.settings["bgCategoryId"]).toBeTruthy();
@@ -60,14 +62,14 @@ describe("optional battleground installation", () => {
     f.channels.delete(f.settings["bgResultsChannelId"] as string);
     await f.run();
     expect(f.settings["bgGroupsChannelId"]).toBe(groups);
-    expect(f.guild.channels.create).toHaveBeenCalledTimes(5);
+    expect(f.guild.channels.create).toHaveBeenCalledTimes(6);
     expect(f.posted).toHaveLength(4);
   });
   it("updates language on saved panels without changing channels or overwrites", async () => {
     const f = fixture(); await f.run();
     const before = [...f.channels.values()].map(c => c.permissionOverwrites);
     await f.run(undefined, "fr");
-    expect(f.guild.channels.create).toHaveBeenCalledTimes(4);
+    expect(f.guild.channels.create).toHaveBeenCalledTimes(5);
     expect([...f.channels.values()].map(c => c.permissionOverwrites)).toEqual(before);
     expect(f.posted[0].edit.mock.calls[0][0].content).toContain("Créez");
   });
@@ -147,12 +149,20 @@ describe("optional battleground installation", () => {
   it("adopts reviewed QG default IDs and panels without duplicate channels or messages", async () => {
     const f = fixture({ discordId: QG_BG_ADOPTION.discordId });
     f.channel(QG_BG_ADOPTION.category, ChannelType.GuildCategory);
-    for (const part of BG_SETUP_PARTS) {
+    for (const part of BG_SETUP_PARTS.filter(p => p !== "duels")) {
       const legacy = QG_BG_ADOPTION[part]; const c = f.channel(legacy.channel, ChannelType.GuildText, QG_BG_ADOPTION.category);
       const msg = await c.send({ embeds: [] }); msg.id = legacy.message;
       c.messages.fetch.mockImplementation(async (id: any) => typeof id === "string" ? msg : new Collection([[msg.id, msg]]));
     }
-    await f.run(); expect(f.guild.channels.create).not.toHaveBeenCalled(); expect(f.posted).toHaveLength(3);
+    await f.run();
+    // The existing statistics channel is adopted for the battleground ladder; only the separate duel channel is new.
+    expect(f.guild.channels.create).toHaveBeenCalledTimes(1);
+    expect(f.guild.channels.create.mock.calls[0][0]).toMatchObject({ name: "duel-ladder", parent: QG_BG_ADOPTION.category });
+    expect(f.settings["bgStatsChannelId"]).toBe(QG_BG_ADOPTION.stats.channel);
+    expect(f.settings["duelBoardChannelId"]).not.toBe(QG_BG_ADOPTION.stats.channel);
+    expect(f.posted.filter(m => m.embeds.some((e: any) => e.footer?.text?.startsWith("Guilded BG setup")))).toHaveLength(3);
+    await f.run(); // a re-run never duplicates a channel
+    expect(f.guild.channels.create).toHaveBeenCalledTimes(1);
     expect(f.settings["bgGroupsChannelId"]).toBe(QG_BG_ADOPTION.groups.channel);
     expect(f.settings["bgGroupsMessageId"]).toBe(QG_BG_ADOPTION.groups.message);
   });
@@ -171,7 +181,7 @@ describe("optional battleground installation", () => {
     await expect(f.run()).rejects.toEqual({ code: 50001 }); expect(f.posted).toHaveLength(3);
   });
   it("only emits supported, guild-bound buttons and suppresses mentions", () => {
-    for (const part of BG_SETUP_PARTS) for (const lang of ["en", "fr"] as const) {
+    for (const part of BG_SETUP_PARTS.filter(p => p !== "duels")) for (const lang of ["en", "fr"] as const) {
       const panel = bgSetupPanel(part, "scope", lang);
       for (const b of panel.components[0]!.components) expect(b.toJSON()).toMatchObject({ custom_id: expect.stringMatching(/^bgui:scope:(create|join|mine|upcoming|history|stats|privacy-help)$/) });
       expect(panel.allowedMentions).toEqual({ parse: [] });

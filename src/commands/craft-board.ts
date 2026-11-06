@@ -1,5 +1,6 @@
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
+  StringSelectMenuBuilder, type StringSelectMenuInteraction,
   type ButtonInteraction, type ForumChannel, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction, type ThreadChannel,
   MessageFlags,
 } from "discord.js";
@@ -11,6 +12,9 @@ import { createCraftService } from "../services/craft.js";
 import { findProfessionHolders } from "../services/profession-search.js";
 import { findCrafters } from "../services/recipes.js";
 import { PROFESSIONS } from "../wow-data.js";
+import { recipeCrafters } from "../services/profession-board.js";
+import { PROFESSION_FR } from "../services/profession-style.js";
+import { lastSeenText } from "../services/last-seen.js";
 import { guildService } from "./context.js";
 
 // The craft board: a forum channel where every craft request is its own post
@@ -30,12 +34,7 @@ const STATUS_LABELS: Record<Lang, Record<CraftRequestStatus, string>> = {
 const STATUS_COLOR: Record<CraftRequestStatus, number> = { OPEN: 0x57f287, CLAIMED: 0xfee75c, DONE: 0x808080, CANCELLED: 0x808080 };
 const STATUSES: CraftRequestStatus[] = ["OPEN", "CLAIMED", "DONE", "CANCELLED"];
 
-// Profession names as shown to a French guild (the stored value stays the English name).
-const PROFESSION_FR: Record<string, string> = {
-  Alchemy: "Alchimie", Blacksmithing: "Forge", Enchanting: "Enchantement", Engineering: "Ingénierie", Leatherworking: "Travail du cuir",
-  Tailoring: "Couture", Jewelcrafting: "Joaillerie", Inscription: "Calligraphie", Herbalism: "Herboristerie", Mining: "Minage",
-  Skinning: "Dépeçage", Cooking: "Cuisine", "First Aid": "Premiers soins", Fishing: "Pêche", Archaeology: "Archéologie"
-};
+// Profession names as shown to a French guild live in profession-style.ts (the stored value stays the English name).
 export const professionLabel = (lang: Lang, profession: string): string => (lang === "fr" ? PROFESSION_FR[profession] ?? profession : profession);
 const statusLabel = (lang: Lang, status: CraftRequestStatus) => STATUS_LABELS[lang][status];
 
@@ -168,8 +167,17 @@ async function requestCrafters(request: { guildId: string; item: string; profess
   return (await findProfessionHolders(prisma, request.guildId, request.profession)).slice(0, 5).map((crafter) => `${crafter.character} (${crafter.skillLevel}; recipe unverified)`);
 }
 
+// Track D (request 9): a request made for one crafter pings that crafter once, in the new post. The mention is only
+// sent here at creation, never again when the post is edited, and only to the one asked person (not the requester).
+async function pingAskedCrafter(thread: ThreadChannel, request: RequestRow & { guildId: string }, character: string, lang: Lang): Promise<void> {
+  const asked = await prisma.character.findFirst({ where: { name: { equals: character, mode: "insensitive" }, member: { guildId: request.guildId, status: "ACTIVE" } }, select: { name: true, member: { select: { discordUserId: true } } } });
+  const id = asked?.member.discordUserId;
+  if (!id || id === request.requester.discordUserId) return;
+  await thread.send({ content: tx(lang, "<@{id}>, {requester} would like {item} from you ({character}). Press **I'll craft it** if you can.", { id, requester: request.requester.displayName, item: `${request.quantity}× ${request.item}`, character: asked.name }), allowedMentions: { users: [id] } }).catch(() => undefined);
+}
+
 // Creates the forum post for a new request. False when the craft channel is not a forum.
-export async function postCraftRequest(discordGuild: DiscordGuild | null, requestId: string): Promise<{ posted: boolean; threadId?: string }> {
+export async function postCraftRequest(discordGuild: DiscordGuild | null, requestId: string, askCrafter?: string): Promise<{ posted: boolean; threadId?: string }> {
   if (!discordGuild) return { posted: false };
   try {
     const request = await loadRequest(requestId);
@@ -184,6 +192,7 @@ export async function postCraftRequest(discordGuild: DiscordGuild | null, reques
       appliedTags: tagIds(forum, request.status, request.profession)
     });
     await prisma.craftRequest.update({ where: { id: request.id }, data: { threadId: thread.id } });
+    if (askCrafter) await pingAskedCrafter(thread, request, askCrafter, lang);
     return { posted: true, threadId: thread.id };
   } catch (error) {
     console.error("Failed to post the craft request to the board", error);
@@ -229,6 +238,14 @@ export async function handleCraftButton(interaction: ButtonInteraction): Promise
     await interaction.showModal(requestModal(await boardLang(settingsGuild.id)));
     return;
   }
+  if (rest.startsWith("ask:")) {
+    const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
+    const lang = await boardLang(guild.id);
+    const found = await recipeCrafters(prisma, guild.id, Number(rest.slice(4)));
+    if (!found) { await interaction.reply({ content: tx(lang, "That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
+    await interaction.showModal(requestModal(lang, { item: found.itemName, profession: found.profession }));
+    return;
+  }
   const [requestId, action] = rest.split(":");
   if (!requestId || !action) return;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -262,13 +279,17 @@ export async function handleCraftButton(interaction: ButtonInteraction): Promise
   }
 }
 
-function requestModal(lang: Lang) {
+function requestModal(lang: Lang, prefill: { item?: string; profession?: string; crafter?: string | undefined } = {}) {
   const T = (english: string) => tx(lang, english);
-  const input = (id: string, label: string, placeholder: string, required: boolean, style = TextInputStyle.Short, max = 100) =>
-    new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId(id).setLabel(label).setPlaceholder(placeholder).setStyle(style).setRequired(required).setMaxLength(max));
-  return new ModalBuilder().setCustomId(`${CRAFT_PREFIX}new-modal`).setTitle(T("Request a craft")).addComponents(
-    input("item", T("Item"), T("Flask of the Titans"), true),
-    input("profession", T("Profession"), T("Alchemy"), false, TextInputStyle.Short, 40),
+  const input = (id: string, label: string, placeholder: string, required: boolean, style = TextInputStyle.Short, max = 100, value?: string) => {
+    const field = new TextInputBuilder().setCustomId(id).setLabel(label).setPlaceholder(placeholder).setStyle(style).setRequired(required).setMaxLength(max);
+    if (value) field.setValue(value.slice(0, max));
+    return new ActionRowBuilder<TextInputBuilder>().addComponents(field);
+  };
+  // The asked crafter rides in the form's id (Discord ids are limited to 100 characters).
+  return new ModalBuilder().setCustomId(`${CRAFT_PREFIX}new-modal${prefill.crafter ? `:${prefill.crafter.slice(0, 40)}` : ""}`).setTitle(T("Request a craft")).addComponents(
+    input("item", T("Item"), T("Flask of the Titans"), true, TextInputStyle.Short, 100, prefill.item),
+    input("profession", T("Profession"), T("Alchemy"), false, TextInputStyle.Short, 40, prefill.profession),
     input("quantity", T("How many"), "1", false, TextInputStyle.Short, 3),
     input("note", T("Details (materials, deadline)"), T("I have the herbs"), false, TextInputStyle.Paragraph, 300)
   );
@@ -291,7 +312,8 @@ export async function handleCraftModal(interaction: ModalSubmitInteraction): Pro
       guildId: guild.id, requesterId: member.id, item: interaction.fields.getTextInputValue("item"), profession,
       quantity: Number.isInteger(quantity) ? quantity : 1, note: interaction.fields.getTextInputValue("note") || undefined, materialsProvided: false
     });
-    const posted = await postCraftRequest(interaction.guild, request.id);
+    const asked = interaction.customId.split(":")[2];
+    const posted = await postCraftRequest(interaction.guild, request.id, asked);
     const lang = await boardLang(guild.id);
     await interaction.editReply({ content: posted.posted
       ? tx(lang, "Posted: <#{id}>. You'll get a DM when a crafter takes it.", { id: posted.threadId ?? "" })
@@ -299,4 +321,25 @@ export async function handleCraftModal(interaction: ModalSubmitInteraction): Pro
   } catch (error) {
     await interaction.editReply({ content: error instanceof Error ? error.message : "Could not create the request." });
   }
+}
+
+// Track D (request 9): under a profession post's Details answer (commands/profession-details.ts) a member can press
+// Request, or pick one crafter to ask. Both open the ordinary request form already filled in; the crafter menu's
+// choice rides in the form id and the new post mentions that crafter once.
+export function requestRows(lang: Lang, itemKey: number, crafters: { character: string; skill: number | null; lastSeen: Date | null }[], now = new Date()) {
+  const T = (english: string) => tx(lang, english);
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${CRAFT_PREFIX}ask:${itemKey}`).setLabel(T("Request")).setStyle(ButtonStyle.Primary));
+  if (!crafters.length) return [buttons];
+  const who = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${CRAFT_PREFIX}askwho:${itemKey}`).setPlaceholder(T("Or request it from one crafter"))
+    .addOptions(crafters.slice(0, 25).map(crafter => ({ label: crafter.character.slice(0, 100), value: crafter.character.slice(0, 40), description: `${crafter.skill ?? "—"} · ${lastSeenText(crafter.lastSeen, lang, now)}`.slice(0, 100) }))));
+  return [who, buttons];
+}
+
+export async function handleCraftSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  if (!interaction.guild || !interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`)) return;
+  const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
+  const lang = await boardLang(guild.id);
+  const found = await recipeCrafters(prisma, guild.id, Number(interaction.customId.split(":")[2]));
+  if (!found) { await interaction.reply({ content: tx(lang, "That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
+  await interaction.showModal(requestModal(lang, { item: found.itemName, profession: found.profession, crafter: interaction.values[0] }));
 }

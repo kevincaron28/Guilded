@@ -307,8 +307,15 @@ async function refreshSavedFile() {
     try {
       const found = detectSavedVariables(savedNames(), engineModules.isFolderOnHold, wowSearchOptions())[0];
       if (found) result = { addon: await engineModules.checkInstalledAddon(found.path) };
+      else {
+        // WoW installed but never started with this account (Guilded Setup on a fresh PC): the
+        // addon can still go in, from the install folder alone.
+        const install = searchWow(savedNames(), engineModules.isFolderOnHold, wowSearchOptions()).installs[0];
+        if (install) result = { addon: await engineModules.checkInstalledAddon(path.join(install, "_forever_", "WTF", "Account", "-", "SavedVariables", "Guilded.lua")) };
+      }
     } catch { /* checked again later */ }
   }
+  void maybeAutoUpdateAddon(result?.addon);
   if (ticket !== savedFileCheck) return;
   savedFile = result;
   const candidate = savedFile?.candidate;
@@ -806,7 +813,8 @@ registerIpc("sign-in-wait", async () => {
 // Track L: who is signed in ("Connected as"), their Guilded servers, and the Join button for the
 // in-game guild's Discord (from GuildedDB.guildKey in the watched Guilded.lua).
 const DISCORD_INVITE = /^https:\/\/(discord\.gg|(www\.)?discord\.com\/invite)\/[\w-]{2,40}$/;
-registerIpc("companion-me", async () => {
+registerIpc("companion-me", () => companionMeFetch());
+async function companionMeFetch() {
   if (!config.companionCredential) return { ok: false, signedOut: true };
   let guild = null;
   if (config.watchFile && config.wowEnabled !== false) {
@@ -833,7 +841,7 @@ registerIpc("companion-me", async () => {
   } catch (error) {
     return { ok: false, unreachable: true, error: engineModules.describeError(error), guild };
   }
-});
+}
 // The Join button: only a Discord invite link.
 registerIpc("open-invite", (_event, url) => {
   if (typeof url !== "string" || !DISCORD_INVITE.test(url)) return false;
@@ -1048,24 +1056,78 @@ registerIpc("open-addon-download", () => shell.openExternal(engineModules.addonD
 // Downloads this release's Forever zip, checks it against the release's SHA256SUMS, refuses while
 // WoW runs, backs up an existing Guilded folder and puts the new one in AddOns.
 let addonInstalling = false;
-registerIpc("install-addon", async () => {
-  if (addonInstalling) return { ok: false, message: T("The addon is already being installed.") };
+// Throws with the reason; the IPC, Repair and the automatic update word it their own way.
+async function installAddonNow({ refresh = true } = {}) {
+  if (addonInstalling) throw new Error(T("The addon is already being installed."));
   addonInstalling = true;
   try {
-    await refreshSavedFile();
+    if (refresh) await refreshSavedFile();
     const running = process.platform === "win32" ? await wowIsRunning() : false;
     const result = await addonInstallerModule().installAddon({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: running });
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded addon {0} installed in {1}.", result.version, result.folder) + (result.backup ? " " + E("The previous Guilded folder was moved to {0}.", result.backup) : "") });
-    await refreshSavedFile();
-    return { ok: true, message: T("Guilded {0} is installed. Start WoW, open AddOns at the character screen, tick Guilded, then log in.", result.version) };
+    return result;
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    pushLog({ time: new Date().toISOString(), level: "warn", message: E("The Guilded addon could not be installed: {0}", reason) });
-    return { ok: false, message: reason };
+    pushLog({ time: new Date().toISOString(), level: "warn", message: E("The Guilded addon could not be installed: {0}", error instanceof Error ? error.message : String(error)) });
+    throw error;
   } finally {
     addonInstalling = false;
     if (engine) onState(engine.state());
   }
+}
+registerIpc("install-addon", async () => {
+  try {
+    const result = await installAddonNow();
+    await refreshSavedFile();
+    return { ok: true, message: T("Guilded {0} is installed. Start WoW, open AddOns at the character screen, tick Guilded, then log in.", result.version) };
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+});
+// Guilded Setup keeps both up to date (owner batch 3 #3): the companion updates itself (direct
+// build, or F5 on the Store) and, once it is newer, the addon follows: an installed Guilded older
+// than this companion is replaced while WoW is closed. At most one try per version every 6 hours;
+// "Install updates automatically" off stops it.
+let addonAutoUpdating = false;
+async function maybeAutoUpdateAddon(addon) {
+  if (addonAutoUpdating || config.autoUpdate === false || config.wowEnabled === false || !addon) return;
+  const decision = addonInstallerModule().decideAddonInstall({ addon, companionVersion: app.getVersion(), wowRunning });
+  if (decision.action !== "update" || decision.reason !== "older" || decision.blocked) return;
+  const last = config.addonAutoUpdate;
+  if (last?.version === app.getVersion() && Date.now() - Date.parse(last.at) < 6 * 60 * 60 * 1000) return;
+  addonAutoUpdating = true;
+  try {
+    config = { ...config, addonAutoUpdate: { version: app.getVersion(), at: new Date().toISOString() } };
+    await saveConfig();
+    if (process.platform === "win32" && await wowIsRunning()) return;
+    const result = await installAddonNow({ refresh: false });
+    pushLog({ time: new Date().toISOString(), level: "ok", message: E("The Guilded addon was updated to {0} automatically. Start WoW to use it.", result.version) });
+    setTimeout(() => void refreshSavedFile(), 1000);
+  } catch { /* logged by installAddonNow; tried again in 6 hours */ } finally { addonAutoUpdating = false; }
+}
+// Repair (owner batch 3 #3): re-check the WoW folder, the addon, the sign-in, the link and the
+// sync, fix what can be fixed here, and say what was done (companion-app/repair.cjs).
+registerIpc("repair", async () => {
+  const repair = require("./repair.cjs");
+  const results = await repair.runRepair({
+    wowEnabled: config.wowEnabled !== false,
+    watchFile: () => config.watchFile || null,
+    watchedFileExists: async () => { try { await fs.promises.access(path.dirname(config.watchFile)); return true; } catch { return fs.existsSync(path.dirname(path.dirname(config.watchFile))); } },
+    searchWow: () => searchWow(savedNames(), engineModules.isFolderOnHold, wowSearchOptions()),
+    pick: (entries) => pickSavedVariables(entries.filter((entry) => entry.exists)) || pickSavedVariables(entries.filter((entry) => !/beta/i.test(entry.game))),
+    setWatchFile: async (file) => { config = { ...config, watchFile: file, wowEnabled: true }; await saveConfig(); await engine?.configure(config); },
+    addonDecision: async () => { await refreshSavedFile(); return addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: process.platform === "win32" ? await wowIsRunning() : false, wowEnabled: config.wowEnabled !== false }); },
+    installAddon: () => installAddonNow(),
+    signedIn: () => Boolean(config.companionCredential),
+    me: () => companionMeFetch(),
+    syncConfigured: () => engineModules.validateConfig(config).length === 0,
+    syncRunning: () => Boolean(engine?.state().running),
+    restartSync: async () => { await engine?.configure(config); }
+  });
+  const summary = repair.repairSummary(results);
+  pushLog({ time: new Date().toISOString(), level: summary.failed || summary.needsYou ? "warn" : "ok", message: E("Repair: {0} fixed, {1} need you, {2} failed.", summary.fixed, summary.needsYou, summary.failed) });
+  await refreshSavedFile();
+  if (engine) onState(engine.state());
+  return { results, summary };
 });
 registerIpc("set-online", (_event, value) => { online = value; if (engine) onState(engine.state()); return true; });
 // Folder picker (8.5, track F3): opens at the WoW install folder and finds the account folders

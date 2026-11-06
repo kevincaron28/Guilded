@@ -108,3 +108,59 @@ export function describePlan(plan: ForeverNamePlan, guildNames: ReadonlyMap<stri
   if (!lines.length) lines.push("No WoW Forever character still uses a first name only.");
   return lines;
 }
+
+// ---- Race to 60 key cleanup (hotfix, 6 November 2026) ----------------------------------------------------------------
+// 8.4.x addons kept uploading first names after the rename, so `LevelRaceEntry` / `RaceHallEntry` can hold both "chad" and
+// "chad ho" for one character. The board now merges them on the fly; this one-off step merges the stored rows too.
+
+export interface RaceKeyRow { id: string; guildId: string; nameKey: string; name: string; level?: number; reachedMaxAt?: Date | null; firstSeenAt?: Date; order?: number }
+export interface RaceKeyMerge { store: "level" | "hall"; guildId: string; fromId: string; toId: string | null; toKey: string; toName: string }
+
+/** Pure: each one-word key that exactly one known full name (another row, or a character) extends is merged into it. */
+export function planRaceKeyMerges(store: "level" | "hall", rows: readonly RaceKeyRow[], fullNames: ReadonlyMap<string, string>): RaceKeyMerge[] {
+  const merges: RaceKeyMerge[] = [];
+  for (const row of rows) {
+    const key = lower(row.nameKey);
+    if (!key || key.includes(" ")) continue;
+    const candidates = new Map<string, { id: string | null; name: string }>();
+    for (const other of rows) if (other.guildId === row.guildId && lower(other.nameKey).startsWith(`${key} `)) candidates.set(lower(other.nameKey), { id: other.id, name: other.name });
+    for (const [full, name] of fullNames) {
+      const [guildId, fullKey] = full.split("\n") as [string, string];
+      if (guildId === row.guildId && fullKey.startsWith(`${key} `) && !candidates.has(fullKey)) candidates.set(fullKey, { id: null, name });
+    }
+    if (candidates.size !== 1) continue;
+    const [toKey, target] = [...candidates.entries()][0]!;
+    merges.push({ store, guildId: row.guildId, fromId: row.id, toId: target.id, toKey, toName: target.name });
+  }
+  return merges;
+}
+
+type RaceTx = Pick<Prisma.TransactionClient, "levelRaceEntry" | "raceHallEntry">;
+
+/** Applies the merges: highest level, earliest finish and first sighting survive; for the Hall the earliest number survives. */
+export async function applyRaceKeyMerges(tx: RaceTx, merges: readonly RaceKeyMerge[]): Promise<{ merged: number; moved: number }> {
+  const result = { merged: 0, moved: 0 };
+  for (const merge of merges) {
+    if (merge.store === "level") {
+      const from = await tx.levelRaceEntry.findUnique({ where: { id: merge.fromId } });
+      if (!from) continue;
+      const to = merge.toId ? await tx.levelRaceEntry.findUnique({ where: { id: merge.toId } }) : null;
+      if (!to) { await tx.levelRaceEntry.update({ where: { id: from.id }, data: { nameKey: merge.toKey, name: merge.toName } }); result.moved++; continue; }
+      const finished = [from.reachedMaxAt, to.reachedMaxAt].filter((d): d is Date => d !== null).sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+      await tx.levelRaceEntry.update({ where: { id: to.id }, data: { name: merge.toName, level: Math.max(from.level, to.level), reachedMaxAt: finished,
+        firstSeenAt: from.firstSeenAt < to.firstSeenAt ? from.firstSeenAt : to.firstSeenAt } });
+      await tx.levelRaceEntry.delete({ where: { id: from.id } });
+      result.merged++;
+    } else {
+      const from = await tx.raceHallEntry.findUnique({ where: { id: merge.fromId } });
+      if (!from) continue;
+      const to = merge.toId ? await tx.raceHallEntry.findUnique({ where: { id: merge.toId } }) : null;
+      if (!to) { await tx.raceHallEntry.update({ where: { id: from.id }, data: { nameKey: merge.toKey, name: merge.toName } }); result.moved++; continue; }
+      const [keep, drop] = from.order < to.order ? [from, to] : [to, from];
+      await tx.raceHallEntry.delete({ where: { id: drop.id } });
+      await tx.raceHallEntry.update({ where: { id: keep.id }, data: { nameKey: merge.toKey, name: merge.toName } });
+      result.merged++;
+    }
+  }
+  return result;
+}

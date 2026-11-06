@@ -42,6 +42,7 @@ import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
+import { applyGuildData } from "./services/guild-data.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
@@ -50,6 +51,7 @@ import { companionAccess, personalSnapshot } from "./services/companion-access.j
 import { createMemberData, memberDataStore } from "./services/member-data.js";
 import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
 import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
+import { promotionForAddon } from "./services/promotion-feed.js";
 import { raidPlanningStore } from "./services/raid-planning.js";
 import { createRaidPlanning } from "./services/raid-planning-page.js";
 import { readFileSync } from "node:fs";
@@ -273,10 +275,10 @@ export function createSiteApp(client?: Client) {
   const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const gallery = createArtisansGallery({ db: prisma, access: guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"),
-    post: async (guildId, requestId) => {
+    post: async (guildId, requestId, askCrafter) => {
       const record = await prisma.guild.findUnique({ where: { id: guildId }, select: { discordId: true } });
       const discordGuild = record && client ? await client.guilds.fetch(record.discordId).catch(() => null) : null;
-      return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId))).posted : false;
+      return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId, askCrafter))).posted : false;
     } });
   const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows);
   const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb);
@@ -411,9 +413,18 @@ function logStandingsTiming(request: IncomingMessage, response: ServerResponse, 
   response.on("close", () => { if (!response.writableFinished) log("closed"); });
 }
 
+async function officerPromotionFeed(client: Client, guild: { id: string; discordId: string }) {
+  const discordGuild = client.guilds.cache.get(guild.discordId);
+  if (!discordGuild) return null;
+  const edition = (await prisma.guild.findUnique({ where: { id: guild.id }, select: { gameEdition: true } }))?.gameEdition ?? "forever";
+  return Promise.race([promotionForAddon(prisma, discordGuild, guild.id, edition), new Promise<null>((resolve) => setTimeout(() => resolve(null), 4_000))]);
+}
+
 // Read-only EP/GP/PR per linked character and what goes with it. The companion writes it
 // into the addon folder so /guilded standings shows the bot's numbers.
 async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string; officer?: boolean }, client?: Client): Promise<FeedParts> {
+  // Officers only: who the promotion rule says is ready (never in the shared part, never for members).
+  const promotion = access.officer && client ? await officerPromotionFeed(client, guild).catch(() => null) : null;
   // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts).
   const scheduledEvents = await calendarEventsWithin(() => discordCalendarEvents(client, guild.discordId, access.actorId),
     `${guild.discordId}:${access.actorId}`).catch(() => {
@@ -448,7 +459,7 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     // per member and dungeon/ledger acknowledgements do not change what the addon shows.
     return {
       shared: { accounts, baseGp, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
-      personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids,
+      personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids, ...(promotion ? { promotion } : {}),
         // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
         ...(access.officer ? { officerInvites: inviteListForAddon(await pendingInvites(database, guild.id)) } : {}),
         publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
@@ -836,6 +847,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
           void tellVerified(client, guild.discordId, asLang(language?.language), verified).catch(() => undefined);
         }
+      }
+      // 8.5: the game's guild roster, event log and MOTD from any member's upload (guild-data.ts):
+      // members without the addon reach the race board, last seen and roster gaps. Rank only from
+      // officers. No markGuildChanged: none of it is in the standings feed. Never fails the upload.
+      if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
+        await prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
+          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild data upload failed", error); });
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

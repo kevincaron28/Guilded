@@ -154,6 +154,7 @@
   document.querySelectorAll('[data-page="pricing"],[data-page="leaderboards"]').forEach(b=>b.addEventListener('click',load));
   document.addEventListener('companion-language',()=>{if(data&&!saving){renderPrices();renderBoards();}});
   document.addEventListener('companion-connection-changing',()=>{generation++;switching=true;loading=false;saving=false;data=null;coreId='';drafts.clear();$('pricingContent').replaceChildren();$('boardsContent').replaceChildren();notices('');});
-  document.addEventListener('companion-connection-changed',()=>{switching=false;$('pricingContent').inert=false;void load();});
+  // Since 8.5 these pages open on the website (owner batch 3 #4): load only when one is shown.
+  document.addEventListener('companion-connection-changed',()=>{switching=false;$('pricingContent').inert=false;if(['page-pricing','page-leaderboards'].some(id=>document.getElementById(id)&&!document.getElementById(id).hidden))void load();});
   if(['pricing','leaderboards'].includes(new URLSearchParams(location.search).get('tab')))void load();
 })();

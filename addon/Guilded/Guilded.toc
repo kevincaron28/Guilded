@@ -28,6 +28,7 @@ Modules\LedgerDigest.lua
 Modules\LedgerRelay.lua
 Modules\LedgerSync.lua
 Modules\GuildRelay.lua
+Modules\GuildSnapshot.lua
 Modules\Sim.lua
 Modules\Bidding.lua
 Modules\Council.lua

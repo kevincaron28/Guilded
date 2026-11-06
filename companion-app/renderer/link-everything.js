@@ -76,6 +76,8 @@
       if (join.kind === 'joined' && !autoLinked) { autoLinked = true; $('btnLinkSignIn').click(); }
       if (join.kind === 'invite') watchJoin(); else stopJoinWatch();
     } else stopJoinWatch();
+    $('wizardSetup').hidden = !wizard.setupHelp;
+    if (wizard.setupHelp) $('wizardSetupText').textContent = T(wizard.setupHelp.text);
     $('wizardCharacters').hidden = !wizard.charactersHelp;
     if (wizard.charactersHelp) { $('wizardCharactersText').textContent = T(wizard.charactersHelp.text); $('btnDetectNow').hidden = !wizard.charactersHelp.canDetect; }
     const checks = $('wizardDiagnostics'); checks.replaceChildren();

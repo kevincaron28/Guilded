@@ -444,13 +444,13 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
   if (step === BG_SETUP_STEP) {
     const fr = lang === "fr";
     embed.setTitle(fr ? "JcJ — module facultatif" : "Battlegrounds — optional module").setDescription(fr
-      ? "Installer/réparer crée uniquement les salons manquants et actualise les panneaux statiques. Les salons existants gardent leurs accès et leur historique. Sans Gérer les salons, choisissez trois salons ci-dessous. Aucun enregistrement, consentement, classement ou envoi automatique activé."
-      : "Install/repair creates only missing channels and updates static panels. Existing channels retain access and history. Without Manage Channels, select three existing channels below. No capture, consent, ranking or automatic posting is enabled.");
+      ? "Installer/réparer crée uniquement les salons manquants et actualise les panneaux statiques. Les salons existants gardent leurs accès et leur historique. Sans Gérer les salons, choisissez les salons ci-dessous. Aucun enregistrement, consentement, classement ou envoi automatique activé."
+      : "Install/repair creates only missing channels and updates static panels. Existing channels retain access and history. Without Manage Channels, select the existing channels below. No capture, consent, ranking or automatic posting is enabled.");
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("bg-install", fr ? "Installer / réparer les panneaux" : "Install / repair panels", ButtonStyle.Success),
       button("jump-summary", fr ? "Retour" : "Back")));
     for (const part of BG_SETUP_PARTS) {
-      const label = part === "groups" ? (fr ? "Groupes" : "Groups") : part === "results" ? (fr ? "Résultats privés" : "Private results") : (fr ? "Statistiques" : "Statistics");
+      const label = part === "groups" ? (fr ? "Groupes" : "Groups") : part === "results" ? (fr ? "Résultats privés" : "Private results") : part === "duels" ? (fr ? "Classement des duels" : "Duel ladder") : (fr ? "Statistiques et classement CdB" : "Statistics and battleground ladder");
       embed.addFields({ name: label, value: channelLabel(lang, settings[BG_SETUP_FIELDS[part].channel]) });
       components.push(new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder()
         .setCustomId(`setup:bg-select-${part}`).setPlaceholder(`${label} — ${fr ? "utiliser un salon existant" : "use an existing channel"}`)

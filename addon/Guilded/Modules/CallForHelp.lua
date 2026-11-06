@@ -2,7 +2,7 @@
 --
 --   /guilded sos            call for help now (also /gsos, and the key binding GUILDED_CALL_FOR_HELP)
 --   /guilded sos clear      all clear
---   /guilded sos defender on|off   get the loud alert when a guildmate in your zone calls (default: on at max level)
+--   /guilded sos defender on|off   get the loud alert when a guildmate in your zone calls (default: on)
 --   /guilded sos chat on|off       also post one short line in guild chat (default on)
 --
 -- (/guilded help is Core's command list, so the call uses /guilded sos.)
@@ -70,13 +70,9 @@ end
 -- Settings
 -- ---------------------------------------------------------------------
 
--- Defender: an explicit choice wins; otherwise on at the maximum level, off below it.
+-- Defender: on for every member at any level unless the member turned it off.
 function module.defender()
-  local value = settings().helpDefender
-  if value ~= nil then return value == true end
-  local level = UnitLevel and tonumber(UnitLevel("player")) or 0
-  local cap = GetMaxPlayerLevel and tonumber(GetMaxPlayerLevel()) or 60
-  return level >= cap
+  return settings().helpDefender ~= false
 end
 
 function module.guildChat()

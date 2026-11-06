@@ -160,12 +160,11 @@ describe("call for help: receiver", () => {
     expect(callFrom("Cy", goodCall)).toBe("line");
     expect(lua.run(`return tostring(SOUNDS)`)).toBe("0");
   });
-  it("is a defender by default only at the maximum level, and the setting wins", () => {
+  it("is a defender by default at any level, and the member can turn it off", () => {
     const lua = setup();
+    lua.run(`LEVEL = 12`);
     expect(lua.run(`return tostring(NS.callForHelp.defender())`)).toBe("true");
-    lua.run(`LEVEL = 39`);
-    expect(lua.run(`return tostring(NS.callForHelp.defender())`)).toBe("false");
-    lua.run(`LEVEL = 50`);
+    lua.run(`NS.commandHandlers.sos({ "defender", "off" })`);
     expect(lua.run(`return tostring(NS.callForHelp.defender())`)).toBe("false");
     lua.run(`NS.commandHandlers.sos({ "defender", "on" })`);
     expect(lua.run(`return tostring(NS.callForHelp.defender())`)).toBe("true");

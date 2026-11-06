@@ -110,8 +110,9 @@ Render images with `src/services/score-card.ts` (roster layout) so they match th
   arena capture waits behind the edition switch.
 - Done when: `/setup` creates the PvP category once, the ladder board updates from uploads, and
   `docs/BATTLEGROUNDS_NEXT_MODULE.md` drops its stale 30 October checkpoint header.
-- **Owner decision:** "arena module" means Forever arenas, or the existing battleground/duel PvP
-  module? Default until answered: build the channels and PvP ladder; arena capture only after step 0.
+- **Owner decision (6 November 2026):** "arena module" means the existing **battleground/duel PvP
+  module**. Build the PvP channels and the PvP ladder (duels plus battleground reports). Arena
+  capture is not part of 8.5; step 0 stays as a note for later.
 
 ### Track C — Roster and membership
 

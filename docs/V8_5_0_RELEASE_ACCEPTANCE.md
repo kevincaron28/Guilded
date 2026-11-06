@@ -50,7 +50,7 @@ Install: the candidate Forever build was copied into `_forever_\Interface\AddOns
 | Addon present | That PC had no addon at all, and the companion doesn't install it. This is the member-journey gap (audit item 7); the F1 "addon missing" check must catch it. |
 | Manual addon install (member path) | Done: the v8.4.7 Forever zip (hash matches) has one `Guilded` folder; 70 files copied. About 6 steps and 1-2 minutes if you know the folder; finding `_forever_\Interface\AddOns` is the stumbling point. Companion "Install addon" button sent to Track F. |
 | Restart through Battle.net | Pass: goes straight to the character screen (Blunt Cruising), no login. |
-| Discord sign-in and link | Waiting for the owner (12:00). |
+| Discord sign-in and link | Done 10:15-10:32 (owner signed in): about 6-8 min for a member with at least 4 points where they could give up. The browser opened behind the windows; "Tout est relié" was shown with 0 characters (not in a Guilded server yet); the WoW folder on `D:\Jeux` was not found and Search gave no feedback; "Relier" expired after about 5 min with no warning. Smaller items: a second click on the web page, English text in the French UI, a stale "finish in your browser" box, and the website saying "never synced". All sent to Track F. Good: after joining Québec Gold's Discord the second sign-in needed no login, and the link DM arrived. The "bot unreachable" at 10:32 was our deploy restart. |
 
 ## Preview deploy to the live bot (6 November 2026, 14:20-14:27 UTC)
 

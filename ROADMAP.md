@@ -461,6 +461,16 @@ guildmate whose companion is running.
   so C5 is new work. Test in the Forever client that promoting from an addon click works with the
   officer's Promote permission.
 
+### Release blocker — Forever characters keyed by first name only (found 6 November 2026)
+
+A live two-PC test showed that on WoW Forever every key uses only the first word of a character's
+name, so alts that share a first name (the owner's "Lebowski Holyroller", "Lebowski Highspirits"…)
+collapse into one entry: ledger account, dungeon runs, duels, recipes, roster, relay, the bot's
+`Character` row and every name-keyed table. Track K is switching Forever keys to the full
+"First Last" name, with a no-loss migration (dry run first, ambiguous rows flagged for an officer,
+legacy ledger history kept on an officer-assigned account) and backward compatibility for 8.4.x
+addons. Details: `docs/FOREVER_NAMES.md`. The relink and second-character test waits for it.
+
 ### Release step — in-game testing by desktop control
 
 After the track PRs are merged into the 8.5 candidate, one Sonnet tester session runs

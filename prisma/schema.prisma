@@ -123,6 +123,7 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  statSnapshots GuildStatSnapshot[]
   levelRace LevelRaceEntry[]
   raceHall RaceHallEntry[]
   rankRoles GuildRankRole[]
@@ -528,6 +529,9 @@ model Character {
   // character from the guild digest, and that guildmate's Member id ("reported by a guildmate").
   relayedAt          DateTime?
   relayedById        String?
+  // 8.5: the pre-8.5 Forever first name this row had before it took its full "First Last" name
+  // (owner backfill scripts/forever-names.ts, or the member's own upload). Never a key.
+  legacyName         String?
   guildRankName     String?
   guildRankIndex    Int?
   guildRankAt       DateTime?
@@ -926,6 +930,9 @@ model GuildSettings {
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
   duelBoardEnabled         Boolean @default(true)
   duelBoardMessageId       String?
+  // 8.5 track D: one auto-updated post per profession in the craft forum. On by default; officers switch it off
+  // with /craft posts-setting. Posts are found by their thread title, so no message ids are stored.
+  professionPostsEnabled   Boolean @default(true)
   // 8.5 track C: roster gaps, nickname sync and the Who's who board. All off until an officer turns them on.
   rosterIgnoredRoleIds     String[] @default([])
   nicknameSyncEnabled      Boolean @default(true)
@@ -995,6 +1002,11 @@ model GuildSettings {
   publicDungeonRuns        Boolean   @default(false)
   // New-guild automatic sharing only includes runs started at/after setup. Null preserves existing opt-ins.
   publicDungeonRunsSince   DateTime?
+  // 8.5 track G: daily statistics snapshots (on unless an officer turns them off) and the read-only CSV feed
+  // for Google Sheets. Only a SHA-256 hash of the feed key is stored; null = no feed.
+  statsEnabled             Boolean   @default(true)
+  statsFeedKeyHash         String?
+  statsFeedKeyAt           DateTime?
 }
 
 // Personal, self-reported log observations; never completion evidence or loot points.
@@ -1973,6 +1985,8 @@ model UnclaimedCharacter {
   nameKey     String
   name        String
   displayName String?
+  // 8.5: the pre-8.5 Forever first name this row had before it took its full name.
+  legacyName  String?
   realm       String
   className   String
   race        String?
@@ -2943,4 +2957,35 @@ model CharacterRankSeen {
   since       DateTime
   updatedAt   DateTime  @updatedAt
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+}
+
+// 8.5 track G: one row per guild per UTC day (services/stat-snapshots.ts). Charts and the CSV feed read these.
+model GuildStatSnapshot {
+  id             String   @id @default(cuid())
+  guildId        String
+  // UTC day, YYYY-MM-DD.
+  day            String
+  discordMembers Int      @default(0)
+  // Members whose message or voice totals changed in the 24 hours before the snapshot.
+  activeMembers  Int      @default(0)
+  // Active members with at least one linked character.
+  linkedMembers  Int      @default(0)
+  rosterSize     Int      @default(0)
+  // Characters seen online in the 24 hours before the snapshot (highest value of the day).
+  onlinePeak     Int      @default(0)
+  level60        Int      @default(0)
+  messages       Int      @default(0)
+  voiceMinutes   Int      @default(0)
+  raids          Int      @default(0)
+  dungeonRuns    Int      @default(0)
+  // Running totals, so the next day's messages and voice minutes are differences.
+  totalMessages  Int      @default(0)
+  totalVoiceSeconds Int   @default(0)
+  levelBands     Json     @default("{}")
+  classCounts    Json     @default("{}")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, day])
 }

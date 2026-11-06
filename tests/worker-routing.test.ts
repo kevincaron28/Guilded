@@ -167,6 +167,16 @@ describe("unified website and companion", () => {
     expect(upstream).not.toHaveBeenCalled();
   });
 
+  it("forwards the statistics CSV feed (GET only) with its query and returns the CSV untouched", async () => {
+    const upstream = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async () => new Response("day\r\n", { headers: { "content-type": "text/csv; charset=utf-8" } }));
+    vi.stubGlobal("fetch", upstream);
+    const response = await worker.fetch(new Request(base + "/api/v1/stats-feed?guild=g1&key=abc"), env);
+    expect(response.headers.get("content-type")).toContain("text/csv");
+    expect(await response.text()).toBe("day\r\n");
+    expect(upstream.mock.calls[0]![0]).toContain("/api/v1/stats-feed?guild=g1&key=abc");
+    expect((await worker.fetch(new Request(base + "/api/v1/stats-feed", { method: "POST" }), env)).status).toBe(405);
+  });
+
   it("does not forward pairing credentials on redirects", async () => {
     const upstream = vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://other.example/" } }));
     vi.stubGlobal("fetch", upstream);

@@ -14,7 +14,7 @@ function client(build = 16001) {
   session.run('fire_event("PLAYER_LOGIN")');
   return session;
 }
-describe("Forever display names without changing accounting identity", () => {
+describe("Forever characters are keyed by their full name (8.5)", () => {
   it("keeps same-named party members on separate realms and falls back for local units", () => {
     const s = client(120105);
     s.run(`GetNormalizedRealmName = function() return "Area52" end
@@ -28,13 +28,19 @@ describe("Forever display names without changing accounting identity", () => {
     s.run('issecretvalue=function(value) return value == "HIDDEN_REALM" end');
     expect(s.run('return tostring(NS.util.characterKey("Amy","HIDDEN_REALM"))')).toBe("nil");
   });
-  it("captures both names and preserves the existing key and points", () => {
+  it("captures both names, keys by the full name, and moves the old first-name points once the roster loads", () => {
     const s = client();
     expect(s.run('return GuildedDB.character.displayName')).toBe("Halidor Galemorne");
-    expect(s.run('return GuildedDB.character.name')).toBe("Halidor");
+    expect(s.run('return GuildedDB.character.name')).toBe("Halidor Galemorne");
+    expect(s.run('return NS.playerName()')).toBe("Halidor Galemorne");
     expect(s.run('return NS.displayName("Halidor")')).toBe("Halidor Galemorne");
-    expect(s.run('return tostring(GuildedDB.epgp.Halidor.ep) .. ":" .. tostring(GuildedDB.epgp.Halidor.gp)')).toBe("100:40");
-    expect(s.run('return tostring(GuildedDB.epgp["Halidor Galemorne"])')).toBe("nil");
+    // Points stay under the old key until the roster proves only one Halidor is in the guild.
+    expect(s.run('return tostring(GuildedDB.epgp.Halidor.ep)')).toBe("100");
+    s.run(`GetNumGuildMembers = function() return 2 end
+      GetGuildRosterInfo = function(i) if i == 1 then return "Halidor Galemorne", "Officer", 1 end return "Dude Lebowski", "Member", 3 end
+      fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(s.run('return tostring(GuildedDB.epgp["Halidor Galemorne"].ep) .. ":" .. tostring(GuildedDB.epgp["Halidor Galemorne"].gp)')).toBe("100:40");
+    expect(s.run('return tostring(GuildedDB.epgp.Halidor)')).toBe("nil");
   });
   it.each([11508, 50500, 120105])("does not turn the realm into a surname on interface %i", build => {
     const s = client(build);
@@ -59,7 +65,8 @@ describe("Forever display names without changing accounting identity", () => {
     s.run('NS.util.rememberAddress("Highpriest Cheech")');
     expect(s.run('return NS.displayName("Highpriest")')).toBe("Highpriest Cheech");
     expect(s.run('return NS.util.address("Highpriest")')).toBe("Highpriest Cheech");
-    expect(s.run('return NS.normalizeName("Highpriest Cheech")')).toBe("Highpriest");
+    expect(s.run('return NS.normalizeName("Highpriest Cheech")')).toBe("Highpriest Cheech");
+    expect(s.run('return NS.normalizeName("highpriest cheech-Realm")')).toBe("Highpriest Cheech");
     s.run('NS.util.rememberDisplayName("Highpriest |Hbad")');
     expect(s.run('return NS.displayName("Highpriest")')).toBe("Highpriest Cheech");
   });

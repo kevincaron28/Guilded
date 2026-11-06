@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { lastSeenOf } from "./last-seen.js";
 
 export interface ProfessionHolder {
   character: string;
@@ -6,6 +7,8 @@ export interface ProfessionHolder {
   isMain: boolean;
   profession: string;
   skillLevel: number;
+  /** Character.lastSeenAt, or the newest recipe scan of the character when the roster has none (8.5 track D3). */
+  lastSeen: Date | null;
 }
 
 export interface ProfessionCoverage {
@@ -15,21 +18,29 @@ export interface ProfessionCoverage {
   topCharacter: string;
 }
 
-type Db = Pick<PrismaClient, "professionSkill">;
+type Db = Pick<PrismaClient, "professionSkill"> & Partial<Pick<PrismaClient, "recipeKnown">>;
 
 // Guild professions are few enough (a few hundred rows at most) to load and
 // group in memory, which also merges "mining" / "Mining" typed differently.
-async function loadGuildSkills(database: Db, guildId: string): Promise<ProfessionHolder[]> {
+export async function loadGuildSkills(database: Db, guildId: string): Promise<ProfessionHolder[]> {
   const rows = await database.professionSkill.findMany({
     where: { character: { member: { guildId, status: "ACTIVE" } } },
     include: { character: { include: { member: true } } }
   });
+  // The fallback date: the newest recipe scan per character name, only for characters the roster never saw.
+  const unseen = rows.filter((row) => !row.character.lastSeenAt).map((row) => row.character.name);
+  const scans = new Map<string, Date>();
+  if (unseen.length && database.recipeKnown) {
+    const grouped = await database.recipeKnown.groupBy({ by: ["character"], where: { guildId, character: { in: [...new Set(unseen)] } }, _max: { scannedAt: true } });
+    for (const row of grouped) if (row._max.scannedAt) scans.set(row.character.toLowerCase(), row._max.scannedAt);
+  }
   return rows.map((row) => ({
     character: row.character.name,
     member: row.character.member.displayName,
     isMain: row.character.isMain,
     profession: row.profession,
-    skillLevel: row.skillLevel
+    skillLevel: row.skillLevel,
+    lastSeen: lastSeenOf(row.character.lastSeenAt, scans.get(row.character.name.toLowerCase()))
   }));
 }
 

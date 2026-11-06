@@ -52,6 +52,8 @@ const apiMethods = new Map([
   ["/api/v1/addon-pairings", ["POST"]],
   ["/api/v1/public-runs", ["POST"]],
   ["/api/v1/standings", ["GET"]],
+  // 8.5: the Google Sheets statistics feed (IMPORTDATA); the key travels in the query and is checked by the bot.
+  ["/api/v1/stats-feed", ["GET"]],
   ["/api/v1/poe/visits", ["GET", "POST"]],
   ["/api/v1/poe/levels", ["POST"]],
   ["/api/v1/poe/status", ["GET"]],

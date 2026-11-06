@@ -40,8 +40,8 @@ function util.dungeonRole(value)
   return nil
 end
 
--- Forever's second UnitName result is a surname, not a realm. Keep the old
--- accounting keys; full names are presentation data and never ledger IDs.
+-- Forever's second UnitName result is a surname, not a realm. Since 8.5 Forever keys are the
+-- full "First Last" (see util.characterKey); never treat the surname as a realm.
 function util.isForever()
   if not GetBuildInfo then return false end
   local ok, _, _, _, interface = pcall(GetBuildInfo)
@@ -65,8 +65,8 @@ function util.gameEdition()
   return "unknown"
 end
 
--- Blizzard characters are identified by name AND realm. Forever's legacy
--- keys intentionally remain first names; its second UnitName value is a surname.
+-- Blizzard characters are identified by name AND realm; Forever characters by "First Last"
+-- (its second UnitName value is a surname, and its realm labels are unreliable).
 function util.realmKey(realm)
   if type(realm) ~= "string" or isSecret(realm) then return "" end
   return (realm:gsub("%s+", ""))
@@ -81,30 +81,216 @@ function util.localRealm()
   return ""
 end
 
+-- WoW Forever characters have a first AND a last name, and one player's alts often share the
+-- first name ("Lebowski Holyroller", "Lebowski Greenleaf"). Since 8.5 a Forever key is the full
+-- "First Last" (each word capitalized); before, it was the first word only, so such alts shared
+-- one ledger account, roster row and Discord character. A first name alone (old saved data, an
+-- older guildmate's addon, a bot row from before the fix, a typed command) resolves to the full
+-- name only when exactly one known character has that first name; otherwise it stays as is and
+-- Modules/ForeverNames.lua lists it for an officer.
+local function capitalized(word)
+  return word:sub(1, 1):upper() .. word:sub(2):lower()
+end
+
+local fullNames, fullNamesSeeded = {}, false -- lower(first) -> { [full] = true }
+local seedFullNames
+function util.learnFullName(full)
+  if type(full) ~= "string" or isSecret(full) then return end
+  local first = full:match("^(%S+) %S+$")
+  if not first then return end
+  seedFullNames()
+  local key = first:lower()
+  fullNames[key] = fullNames[key] or {}
+  fullNames[key][full] = true
+end
+
+-- Full names this PC already knows from saved data (roster, guildmates heard, own characters).
+seedFullNames = function()
+  local db = ns.getDb and ns.getDb()
+  if type(db) ~= "table" or fullNamesSeeded == db then return end
+  -- Another guild's saved data (or the first call): its own names only.
+  fullNames, fullNamesSeeded = {}, db
+  for _, tableName in ipairs({ "roster", "peerRoster", "myCharacters", "displayNames" }) do
+    for key, value in pairs(type(db[tableName]) == "table" and db[tableName] or {}) do
+      if type(key) == "string" then util.learnFullName(util.characterKey(key)) end
+      if type(value) == "string" then util.learnFullName(util.characterKey(value))
+      elseif type(value) == "table" and type(value.displayName) == "string" then util.learnFullName(util.characterKey(value.displayName)) end
+    end
+  end
+end
+-- After a guild switch or in tests: forget and re-read.
+function util.resetFullNames() fullNames, fullNamesSeeded = {}, false end
+
+-- The one full name known for a first name, or nil (none, or several: ambiguous).
+function util.fullNameFor(first)
+  if type(first) ~= "string" then return nil end
+  seedFullNames()
+  local found
+  for full in pairs(fullNames[first:lower()] or {}) do
+    if found then return nil end
+    found = full
+  end
+  return found
+end
+-- Every known full name sharing this first name (for the officer's list of ambiguous keys).
+function util.fullNamesFor(first)
+  seedFullNames()
+  local list = {}
+  for full in pairs(fullNames[(first or ""):lower()] or {}) do table.insert(list, full) end
+  table.sort(list)
+  return list
+end
+
 function util.characterKey(name, realm)
   if type(name) ~= "string" or isSecret(name) then return nil end
   if isSecret(realm) then return nil end
   name = name:match("^%s*(.-)%s*$")
+  -- Missing build information is the old client/test contract: first names only.
+  if util.isForever() then
+    local base = name:match("^([^%-]+)%-") or name
+    local first, last = base:match("^(%S+)%s+(%S+)")
+    first = first or base:match("^(%S+)")
+    if not first or first == "" then return nil end
+    first = capitalized(first)
+    if last then
+      local full = first .. " " .. capitalized(last)
+      util.learnFullName(full)
+      return full
+    end
+    return util.fullNameFor(first) or first
+  end
   local first, suffix = name:match("^([^%-%s]+)%-(.+)$")
   first = first or name:match("^([^%-%s]+)")
   if not first or first == "" then return nil end
-  first = first:sub(1, 1):upper() .. first:sub(2):lower()
-  -- Missing build information is the old client/test contract.
-  if util.isForever() or not util.clientInterface() then return first end
+  first = capitalized(first)
+  if not util.clientInterface() then return first end
   realm = util.realmKey(suffix or (realm ~= "" and realm) or util.localRealm())
   return realm ~= "" and (first .. "-" .. realm:lower()) or first
+end
+
+-- Saved data from before 8.5 keyed Forever characters by first name. After each roster load
+-- (the roster lists every guild member's full name, so "only one Lebowski" is a fact and not a
+-- guess from partial data), a first-name key moves to the one full name known for it. Descriptive tables
+-- (roster, digests heard, recipes...) merge into an existing full-name entry, newest first.
+-- Accounting tables (EP/GP, reserves) never merge: if both keys exist, or several characters
+-- share the first name, the old key stays untouched and is listed for an officer
+-- (db.nameMigration.flagged, /guilded names). Nothing is ever deleted without a new home.
+local NAME_TABLES = {
+  { path = { "roster" } }, { path = { "peerRoster" } }, { path = { "readiness" } },
+  { path = { "displayNames" } }, { path = { "myCharacters" } }, { path = { "attunements" } },
+  { path = { "crafterSeen" } }, { path = { "recipeBook", "people" } }, { path = { "recipeBook", "cooldowns" } },
+  { path = { "recipeBook", "cooldownAt" } }, { path = { "scores", "bests" } }, { path = { "scores", "board" } },
+  { path = { "relay", "carriers" } }, { path = { "settings", "officers" } },
+  { path = { "epgp" }, accounting = true }, { path = { "reserves", "entries" }, accounting = true },
+  { path = { "reserves", "plus" }, accounting = true }
+}
+
+local function tableAt(db, path)
+  local node = db
+  for _, step in ipairs(path) do
+    if type(node) ~= "table" then return nil end
+    node = node[step]
+  end
+  return type(node) == "table" and node or nil
+end
+
+function util.migrateForeverNames(db)
+  if not util.isForever() or type(db) ~= "table" then return { moved = 0, flagged = 0 } end
+  db.nameMigration = type(db.nameMigration) == "table" and db.nameMigration or {}
+  local state = db.nameMigration
+  state.flagged = type(state.flagged) == "table" and state.flagged or {}
+  local moved, flagged = 0, 0
+  for _, spec in ipairs(NAME_TABLES) do
+    local where = table.concat(spec.path, ".")
+    local entries = tableAt(db, spec.path)
+    local keys = {}
+    for key in pairs(entries or {}) do
+      if type(key) == "string" and not key:find(" ", 1, true) and not key:find("-", 1, true) then table.insert(keys, key) end
+    end
+    table.sort(keys)
+    for _, key in ipairs(keys) do
+      local flagKey = where .. ":" .. key
+      local full = util.fullNameFor(key)
+      local value = entries[key]
+      if full and entries[full] == nil then
+        entries[full], entries[key] = value, nil
+        state.flagged[flagKey] = nil
+        moved = moved + 1
+      elseif full and not spec.accounting and type(value) == "table" and type(entries[full]) == "table" then
+        for field, old in pairs(value) do
+          local current = entries[full][field]
+          -- The roster scan just created the full-name row: the old row knows the real first sighting.
+          if current == nil or ((field == "firstSeen" or field == "joinedAt") and type(old) == "string"
+            and type(current) == "string" and old < current) then entries[full][field] = old end
+        end
+        entries[key] = nil
+        state.flagged[flagKey] = nil
+        moved = moved + 1
+      elseif full and not spec.accounting and type(value) ~= "table" then
+        entries[key] = nil -- a string/flag already present under the full name
+        moved = moved + 1
+      elseif full or #util.fullNamesFor(key) > 1 then
+        local candidates = full and { full } or util.fullNamesFor(key)
+        if not state.flagged[flagKey] then flagged = flagged + 1 end
+        state.flagged[flagKey] = { table = where, key = key, candidates = candidates,
+          reason = full and "both" or "shared first name" }
+      end
+    end
+  end
+  return { moved = moved, flagged = flagged }
+end
+
+-- Lines for /guilded names: first-name keys an officer must sort out by hand.
+function util.nameMigrationLines(db)
+  local lines = {}
+  for _, entry in pairs(type(db) == "table" and type(db.nameMigration) == "table" and db.nameMigration.flagged or {}) do
+    if type(entry) == "table" then
+      table.insert(lines, string.format("%s %s -> %s (%s)", tostring(entry.table), tostring(entry.key),
+        table.concat(type(entry.candidates) == "table" and entry.candidates or {}, " / "), tostring(entry.reason)))
+    end
+  end
+  table.sort(lines)
+  return lines
+end
+
+-- The first name of a key ("Lebowski" for "Lebowski Holyroller"); the key itself elsewhere.
+function util.firstName(key)
+  if type(key) ~= "string" then return nil end
+  return key:match("^(%S+) ") or key
+end
+
+-- Two names are the same character: equal keys, or (an older addon or saved row that knew only
+-- the first name) one is a bare first name and the other a full name starting with it.
+function util.sameCharacter(a, b)
+  local ka, kb = util.characterKey(a or ""), util.characterKey(b or "")
+  if not ka or not kb then return false end
+  if ka == kb then return true end
+  if not util.isForever() then return false end
+  local short, long = ka, kb
+  if ka:find(" ", 1, true) then short, long = kb, ka end
+  return not short:find(" ", 1, true) and long:find(" ", 1, true) ~= nil and util.firstName(long) == short
 end
 
 function util.unitKey(unit)
   local fn = (not util.isForever() and UnitFullName) or UnitName
   if not fn then return nil end
-  local ok, first, realm = pcall(fn, unit)
+  local ok, first, second = pcall(fn, unit)
   if not ok then return nil end
-  return util.characterKey(first, util.isForever() and nil or realm)
+  if util.isForever() then
+    -- Forever's second UnitName value is the surname, not a realm.
+    if type(first) == "string" and not isSecret(first) and not first:find(" ", 1, true)
+      and type(second) == "string" and not isSecret(second) and second:match("^%S+$") then
+      return util.characterKey(first .. " " .. second)
+    end
+    return util.characterKey(first)
+  end
+  return util.characterKey(first, second)
 end
 
+-- A name without its realm. On Forever that keeps "First Last".
 function util.bareName(name)
   if type(name) ~= "string" or isSecret(name) then return nil end
+  if util.isForever() then return (name:match("^([^%-]+)") or name):match("^%s*(.-)%s*$") end
   return name:match("^([^%-%s]+)") or name
 end
 

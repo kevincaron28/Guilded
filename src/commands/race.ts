@@ -69,13 +69,15 @@ export async function executeRace(interaction: ChatInputCommandInteraction, cont
     if (!interaction.guild) throw new Error("Server only / Serveur seulement.");
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const picked = interaction.options.getChannel("channel");
-    const channelId = picked?.id ?? settings?.raceBoardChannelId ?? await createRaceChannel(interaction.guild, settings?.memberRoleId ?? null, fr ? "fr" : "en").catch(() => null);
+    const made = picked || settings?.raceBoardChannelId ? null : await createRaceChannel(interaction.guild, settings?.memberRoleId ?? null, fr ? "fr" : "en").catch(() => null);
+    const channelId = picked?.id ?? settings?.raceBoardChannelId ?? made?.id ?? null;
+    const openNote = made?.open ? t(" It is visible to everyone because no member role is set; restrict it later.", " Il est visible par tous car aucun rôle membre n'est défini; restreignez-le plus tard.") : "";
     if (!channelId) {
-      await interaction.editReply({ content: t("Pick the channel with the channel option: I could not create a private race-to-60 channel (needs Manage Channels and a member role).", "Choisis le salon avec l'option channel : je n'ai pas pu créer un salon course-au-60 privé (il faut Gérer les salons et un rôle membre).") });
+      await interaction.editReply({ content: t("Pick the channel with the channel option: I could not create the race-to-60 channel (needs Manage Channels).", "Choisis le salon avec l'option channel : je n'ai pas pu créer le salon course-au-60 (il faut Gérer les salons).") });
       return;
     }
     await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { raceBoardEnabled: true, raceBoardChannelId: channelId, ...(picked && picked.id !== settings?.raceBoardChannelId ? { raceBoardMessageId: null } : {}) } });
     const posted = await updateRaceBoard(interaction.guild);
-    await interaction.editReply({ content: t(`Race to 60 board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${channelId}>. It is edited in place, never re-posted.`, `Tableau de la course au 60 ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${channelId}>. Il est modifié sur place, jamais republié.`), allowedMentions: { parse: [] } });
+    await interaction.editReply({ content: t(`Race to 60 board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${channelId}>. It is edited in place, never re-posted.${openNote}`, `Tableau de la course au 60 ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${channelId}>. Il est modifié sur place, jamais republié.${openNote}`), allowedMentions: { parse: [] } });
   }
 }

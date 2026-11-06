@@ -97,10 +97,12 @@ describe("attunements track themselves", () => {
     expect(take("ATTUNEMENT|Amy|Molten Core|true", "WHISPER", "Amy-Realm")).toBe("false");
   });
 
-  it("a player is one name whatever the realm looks like, so 'Ray' and 'Ray Realm' are one entry", () => {
+  it("a Forever player is their full name; a realm suffix is dropped and a lone first name resolves when only one is known", () => {
     const s = loggedIn();
-    expect(s.run(`return NS.normalizeName("ray-Pissjug") .. "|" .. NS.normalizeName("Ray pissjug") .. "|" .. NS.normalizeName("  ray  ")`)).toBe("Ray|Ray|Ray");
+    expect(s.run(`return NS.normalizeName("  ray  ") .. "|" .. NS.normalizeName("Ray pissjug") .. "|" .. NS.normalizeName("ray pissjug-Realm") .. "|" .. NS.normalizeName("ray")`)).toBe("Ray|Ray Pissjug|Ray Pissjug|Ray Pissjug");
     s.run(`MOCK_UNITS.player.name = "Ray pissjug"`);
-    expect(s.run(`return NS.playerName()`)).toBe("Ray");
+    expect(s.run(`return NS.playerName()`)).toBe("Ray Pissjug");
+    // A second Ray makes the lone first name ambiguous again.
+    expect(s.run(`return NS.normalizeName("Ray Sunfire") .. "|" .. NS.normalizeName("Ray")`)).toBe("Ray Sunfire|Ray");
   });
 });

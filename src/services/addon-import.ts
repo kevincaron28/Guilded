@@ -9,7 +9,7 @@ import { importDungeonRuns } from "./dungeon-import.js";
 import { importBattlegroundReports } from "./battleground-records.js";
 import { importDuelResults, importMilestones } from "./duels.js";
 import { applyDiscoveredCharacters } from "./roster-discovery.js";
-import { findCharacter } from "./character-match.js";
+import { findCharacter, ledgerOwner } from "./character-match.js";
 import { applyReserves } from "./reserves.js";
 import { applyAddonItemPrices } from "./item-values.js";
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
@@ -23,7 +23,7 @@ import { assertSnapshotEdition, gameEditionOf } from "./game-edition.js";
 
 // Why a row is waiting (see AddonHeldEntry). Every reason clears by itself once the cause is
 // fixed, because each upload carries the whole ledger again; a dismissed row is never imported.
-export type HeldReason = "UNLINKED" | "NO_CORE" | "UNKNOWN_POOL" | "NO_CORE_RAID";
+export type HeldReason = "UNLINKED" | "NO_CORE" | "UNKNOWN_POOL" | "NO_CORE_RAID" | "SHARED_FIRST_NAME";
 export interface HeldRow { kind: "EPGP" | "DKP" | "LOOT"; sourceRef: string; character: string; reason: HeldReason; detail: string }
 const signed = (value: number) => `${value >= 0 ? "+" : ""}${value}`;
 
@@ -183,7 +183,8 @@ export function createAddonImportService(database: PrismaClient) {
         for (const item of snapshot.transactions) {
           const sourceRef = ledgerRef(item);
           if (alreadyImported.has(sourceRef) || dismissedDkp.has(sourceRef)) { skipped++; continue; }
-          const character = findCharacter(characters, item.character, item.realm);
+          const character = ledgerOwner(characters, item.character, item.realm);
+          if (character === "shared") { held.push({ kind: "DKP", sourceRef, character: item.character, reason: "SHARED_FIRST_NAME", detail: `${signed(item.amount)} DKP - ${item.reason}` }); continue; }
           if (!character) { held.push({ kind: "DKP", sourceRef, character: item.character, reason: "UNLINKED", detail: `${signed(item.amount)} DKP - ${item.reason}` }); continue; }
           alreadyImported.add(sourceRef);
           importedRefs.push(sourceRef);
@@ -234,7 +235,9 @@ export function createAddonImportService(database: PrismaClient) {
           const hold = (reason: HeldReason) => held.push({ kind: "EPGP", sourceRef, character: item.character, reason, detail });
           if (item.coreId && !validPoolIds.has(item.coreId)) { hold("UNKNOWN_POOL"); continue; }
           if (settings?.coreLootOnly && !item.coreId) { hold("NO_CORE"); continue; }
-          const character = findCharacter(characters, item.character, item.realm);
+          // WoW Forever, 8.5: a pre-8.5 first name goes to the member when all its characters are theirs.
+          const character = ledgerOwner(characters, item.character, item.realm);
+          if (character === "shared") { hold("SHARED_FIRST_NAME"); continue; }
           if (!character) { hold("UNLINKED"); continue; }
           alreadyImported.add(sourceRef);
           importedRefs.push(sourceRef);

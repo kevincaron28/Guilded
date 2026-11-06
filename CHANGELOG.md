@@ -1,5 +1,13 @@
 # Changelog
 
+## 8.4.7 — 6 November 2026
+
+Forever dungeon runs now complete and count: the addon recognises Forever final bosses
+(previously only Deadmines and Hall of Thanes), and at login it recovers saved runs that were
+marked abandoned but hold a native final-boss kill. The directly downloaded companion now
+updates itself silently, and every release carries a fixed-name `Guilded.Companion.Setup.exe`
+for a stable download link. Protocol remains 2. See [release notes](docs/V8_4_7_RELEASE_NOTES.md).
+
 ## 8.4.6 — 6 November 2026
 
 Guildmates share the ledger with each other (on by default; `/guilded ledgersync off` turns

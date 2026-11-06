@@ -1,5 +1,5 @@
-> 8.4.6 (6 November 2026): member ledger sync (#379, on by default), the live Discord duel board and Season 1 dungeon panel (#378), the companion account-folder watch fix (#376), combat-safe addon windows (#377), the compact Crafted by tooltip (#375) and the Forever-only focus (#380, see docs/FOREVER_ONLY_FOCUS.md) on top of 8.4.5's announcements, duels and guild message assistant. The Store requires strictly increasing versions: ship the companion as 8.4.6.0 (revision 0).
-> Current checkpoint: 6 November 2026 (8.4.6 prepared; check each provider live before claiming status, including which Store version has certified). Member ledger sync, duels and announcements are not yet verified with several real clients.
+> 8.4.7 (6 November 2026): Forever dungeon final bosses and recovery of abandoned runs (#384), silent auto-update for the direct-download companion with a fixed-name `Guilded.Companion.Setup.exe` release asset (#383) on top of 8.4.6's member ledger sync, live duel board, companion account-folder fix, combat-safe windows, compact Crafted by tooltip and Forever-only focus (see docs/FOREVER_ONLY_FOCUS.md). The Store requires strictly increasing versions: ship the companion as 8.4.7.0 (revision 0).
+> Current checkpoint: 6 November 2026 (8.4.7 prepared; 8.4.6 is published; check each provider live before claiming status, including which Store version has certified). Member ledger sync, duels and announcements are not yet verified with several real clients.
 > Cards: `src/services/score-card.ts` renders every share card (WoW theme, roster layout); `end-cards.ts` builds the raid and battleground cards; queued Discord messages store a card definition and draw it on delivery. Point-in-time handoffs, audits and evidence from before 8.4 live in docs/archive/.
 > Latest owner authorization: ALL AVAILABLE TESTING NOW. The older wait-until-launch waiver is superseded. Claude acknowledged the expanded QA handoff and completed a first pass; Retail evidence is addon8.2, native isolated-profile evidence8.3.
 > Active release evidence: docs/V8_4_0_RELEASE_ACCEPTANCE.md; previous deployed evidence: docs/V8_3_0_RELEASE_ACCEPTANCE.md. Historical statements below are not current provider status.
@@ -39,7 +39,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (6 November 2026): version 8.4.6, protocol 2.**
+**Current status (6 November 2026): version 8.4.7, protocol 2.**
 GitHub v8.4.0 is the latest published release and the bot runs 8.4.0 code until 8.4.1 is deployed; provider records below may lag. WoW Forever launches
 4 November 2026 (beta closed 21 October); its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.

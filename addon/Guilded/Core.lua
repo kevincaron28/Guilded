@@ -2004,23 +2004,60 @@ local function guildHomeRealm()
   return nil
 end
 
--- Returns the guild key, and the key older versions built from this character's own realm.
+-- Forever realm names arrive both with spaces ("CAMWOW US2 Realm 2 PvP", GetRealmName) and
+-- without ("CAMWOWUS2Realm2PvP", the home realm from GetGuildInfo): keys always use the compact form.
+local function compactRealm(realm)
+  return (string.gsub(realm, "%s+", ""))
+end
+
+-- Returns the guild key, the key built from this character's own realm (same form), and that key
+-- as older versions wrote it (spaces kept). The fourth result is whether the home realm is known:
+-- on Forever a missing home realm may only mean the guild info has not arrived yet.
 local function currentGuildKey()
   if not (IsInGuild and IsInGuild()) then return nil end
   local guildName = GetGuildInfo and GetGuildInfo("player")
   if type(guildName) ~= "string" or guildName == "" or isSecret(guildName) then return nil end
   local realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or ""
-  return guildName .. "-" .. (guildHomeRealm() or realm), guildName .. "-" .. realm
+  local rawOwn = guildName .. "-" .. realm
+  local home = guildHomeRealm()
+  if ns.util.isForever() then
+    return guildName .. "-" .. compactRealm(home or realm), guildName .. "-" .. compactRealm(realm), rawOwn, home ~= nil
+  end
+  return guildName .. "-" .. (home or realm), rawOwn, rawOwn, home ~= nil
 end
 ns.currentGuildKey = currentGuildKey
 
 -- Returns "recorded", "same", "switched" or nil (guild not known yet / no guild).
+-- (The Lua test harness sets GUILDED_TEST_HOME_WAIT so ordinary tests do not wait.)
+local HOME_WAIT_SECONDS = rawget(_G, "GUILDED_TEST_HOME_WAIT") or 20
+local homeWaitStart, homeWaitOver
+local function homeNow() return (GetServerTime and GetServerTime()) or time() end
+local function guildPart(text) return (string.match(text, "^(.*)%-[^%-]*$")) or text end
+-- Never merged between guild keys: points are only ever owned by the key that earned them.
+local function isLedgerField(field)
+  return field == "epgp" or field == "dkp" or string.find(string.lower(tostring(field)), "ledger", 1, true) ~= nil
+end
+
 local function resolveGuildData()
   if not db then return nil end
-  local key, ownRealmKey = currentGuildKey()
+  local key, ownRealmKey, rawOwnKey, homeKnown = currentGuildKey()
   if not key then return nil end
   local edition = ns.util.gameEdition()
   local oldEdition = db.guildEdition or edition
+  -- Saved before the realm was written without spaces: the same key, spelled the old way.
+  if edition == "forever" and oldEdition == edition and db.guildKey and db.guildKey ~= key
+    and compactRealm(db.guildKey) == key then
+    db.guildKey = key
+  end
+  -- Forever: the guild's home realm may not have arrived with the guild name. Until it does (or
+  -- a short wait is over), do not file anything under this character's own realm, which would
+  -- strand the data for characters on the guild's own segment. Nothing is lost meanwhile: the
+  -- data sits at the root of the saved file and only gets its guild label once settled.
+  if edition == "forever" and not homeKnown and db.guildKey ~= key and not homeWaitOver then
+    homeWaitStart = homeWaitStart or homeNow()
+    if homeNow() - homeWaitStart < HOME_WAIT_SECONDS then return nil end
+    homeWaitOver = true
+  end
   -- Settled on this guild for the session. A later guild or realm change
   -- (common on launch day, and not always followed by /reload) still swaps.
   if guildResolved and db.guildKey == key and oldEdition == edition then return nil end
@@ -2039,14 +2076,13 @@ local function resolveGuildData()
   db.otherGuilds = db.otherGuilds or {}
   -- Saved before the guild's home realm was used: the key was built from this character's own
   -- realm, which is the same guild name, so only the realm part moves. Nothing is parked.
-  if edition == "forever" and oldEdition == edition and old == ownRealmKey and key ~= ownRealmKey and not db.otherGuilds[key] then
+  if edition == "forever" and oldEdition == edition and (old == ownRealmKey or old == rawOwnKey) and key ~= ownRealmKey and not db.otherGuilds[key] then
     db.guildKey = key
     db.guildEdition = edition
     return "rekeyed"
   end
   -- Only an explicitly recorded Forever realm alias can rename a scope.
   -- Matching guild names alone never establish identity across realms.
-  local function guildPart(text) return (string.match(text, "^(.*)%-[^%-]*$")) or text end
   local aliases = db.settings and db.settings.guildRealmAliases
   if edition == "forever" and oldEdition == edition and type(aliases) == "table" and aliases[old] == key
     and guildPart(old) == guildPart(key) and not db.otherGuilds[key] then
@@ -2063,6 +2099,24 @@ local function resolveGuildData()
   db.otherGuilds[storageKey(old, oldEdition)] = parked
   local incoming = db.otherGuilds[storageKey(key, edition)]
   db.otherGuilds[storageKey(key, edition)] = nil
+  -- The data saved under this character's own realm (a first load before the home realm was
+  -- known) belongs to the same guild: copy what the home data does not already have into it,
+  -- once. Points are never merged; they stay under the old key.
+  local mergedFields
+  if incoming and edition == "forever" and oldEdition == edition and guildPart(old) == guildPart(key)
+    and (old == ownRealmKey or old == rawOwnKey) and not parked.mergedIntoHome then
+    mergedFields = 0
+    for field, value in pairs(parked) do
+      local have = incoming[field]
+      local empty = have == nil or (type(have) == "table" and next(have) == nil)
+      if field ~= "settings" and field ~= "mergedIntoHome" and not isLedgerField(field) and empty
+        and not (type(value) == "table" and next(value) == nil) then
+        incoming[field] = value
+        mergedFields = mergedFields + 1
+      end
+    end
+    parked.mergedIntoHome = key
+  end
   local restored = false
   if incoming then
     for field, value in pairs(incoming) do db[field] = value end
@@ -2071,6 +2125,10 @@ local function resolveGuildData()
   db.guildKey = key
   db.guildEdition = edition
   ensureDb()
+  if mergedFields then
+    message(string.format("Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended.", old, key, mergedFields))
+    return "merged"
+  end
   message(string.format("Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended.",
     key, restored and "restored" or "new", old))
   return "switched"
@@ -2098,7 +2156,7 @@ end
 -- Joining a guild mid-session: GetGuildInfo stays empty for a few seconds after
 -- PLAYER_GUILD_UPDATE, and no roster update may follow until the guild window is opened, so
 -- the guild was only picked up after a /reload. Try again now and a few times after.
-local GUILD_RETRY_SECONDS = { 2, 5, 15 }
+local GUILD_RETRY_SECONDS = { 2, 5, 15, 25 }
 local function resolveGuildSoon()
   local function try()
     if db and resolveGuildData() then noteMyCharacter(db.character) end
@@ -2132,7 +2190,8 @@ local function onEvent(_, event, ...)
   end
   if not db then return end
   if event == "PLAYER_ENTERING_WORLD" then
-    resolveGuildData()
+    -- On Forever the home realm can arrive after the guild name: retry for a bit.
+    if ns.util.isForever() then resolveGuildSoon() else resolveGuildData() end
     db.character = collectCharacter()
     noteMyCharacter(db.character)
     maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS)

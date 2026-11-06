@@ -982,6 +982,18 @@ local function buildStandingsPage(page)
   tip(publish, "For guilds without the Discord bot: sends the EP and GP recorded on this PC to the guild as the standings. A newer upload from the bot replaces them.")
 end
 
+-- A box showing a link that can be selected and copied (Ctrl+C); typing does not change it.
+local function copyBox(parent, text, width)
+  local box = newEdit(parent, width)
+  box:SetText(text)
+  if box.SetCursorPosition then box:SetCursorPosition(0) end
+  box:SetScript("OnTextChanged", function(self, user)
+    if user and self:GetText() ~= text then self:SetText(text) end
+  end)
+  box:SetScript("OnEditFocusGained", function(self) if self.HighlightText then self:HighlightText() end end)
+  return box
+end
+
 local function buildToolsPage(page)
   at(newButton(page, "Guilded setup", 170, function() run("setup") end), page, PAGE_WIDTH - 170, -64)
   local everyone = {
@@ -1020,10 +1032,17 @@ local function buildToolsPage(page)
   tip(at(newButton(page, "+", 30, function() run("menu scale bigger") end), page, 124, -234), "Bigger window")
   tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -234), "Normal size, back in the middle of the screen")
 
+  -- Get the companion (8.5.0): addons cannot open web pages, so the links are here to copy.
+  at(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormalSmall"), page, 0, -266)
+  if ns.companionLink then
+    at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -282)
+    at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -282)
+  end
+
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -266)
+    "GameFontHighlightSmall"), page, 0, -316)
   help:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
@@ -1478,6 +1497,13 @@ local function buildHomePage(page)
     ui.linkBox:SetText("")
   end), 182, -218), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))
   linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -218), "Forgets the saved code on this WoW account."))
+
+  -- Get the companion (8.5.0): links to copy, since an addon cannot open a web page.
+  if ns.companionLink then
+    below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -262)
+    below(copyBox(page, ns.companionLink.SHORT, 250), 6, -282)
+    below(copyBox(page, ns.companionLink.DIRECT, 250), 270, -282)
+  end
 end
 
 -- Sidebar order: pages are grouped under these headings.
@@ -2553,6 +2579,7 @@ local function quickMenuItems()
     { "Guild map", function() run("map open") end }
   }
   if tabExists("Race to 60") then table.insert(items, { "Race to 60", function() openPage("Race to 60") end }) end
+  if ns.callForHelp and ns.callForHelp.open then table.insert(items, { "Call for help", function() ns.callForHelp.open() end }) end
   table.insert(items, { "Settings", function() openPage("Tools") end })
   return items
 end

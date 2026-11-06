@@ -768,9 +768,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // Guildmates heard in game (level, class, race, professions): applied to already-linked
         // characters only, never over newer first-hand data (guildmate-relay.ts). Never fails the upload.
         if (pairedMemberId) {
-          const relayed = await applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot)
+          // No markGuildChanged: levels and professions are not in the standings feed, and a
+          // generation bump per member upload kept the feed from ever finishing (8.5 hotfix).
+          await applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot)
             .catch((error: unknown) => { console.error("Guildmate relay failed", error); return null; });
-          if (relayed && (relayed.updated || relayed.professions)) markGuildChanged(guild.id);
         }
         const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
         preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned), createdBy);

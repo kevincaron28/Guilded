@@ -9,6 +9,7 @@ const updates = require("./update-check.cjs");
 const storeUpdatesModule = () => require("./store-update.cjs");
 const linkIdentity = require("./link-identity.cjs");
 const addonInstallerModule = () => require("./addon-installer.cjs");
+const diskSpaceModule = require("./disk-space.cjs");
 const STORE_PACKAGE = process.windowsStore === true;
 const STORE_UPDATES = "ms-windows-store://downloadsandupdates";
 // The Store build never replaces itself: the Store does that. Also true for any package under WindowsApps.
@@ -156,7 +157,28 @@ function refreshUpdate() {
   notice.show();
 }
 
+// Free disk space (9.0): an update or addon install needs about 600 MB on every drive involved
+// (companion-app/disk-space.cjs). When it is short the Problems panel says so and nothing starts.
+let diskSpace = null; // the low result, or null when there is enough
+function checkDisk(extra = []) {
+  const watched = config.watchFile ? path.dirname(config.watchFile) : null;
+  const result = diskSpaceModule.checkDiskSpace({ paths: [path.dirname(process.execPath), app.getPath("temp"), app.getPath("userData"), watched, ...extra] });
+  const next = result.ok ? null : result;
+  const changed = (next?.freeMb ?? null) !== (diskSpace?.freeMb ?? null);
+  diskSpace = next;
+  if (changed && engine) onState(engine.state());
+  return result;
+}
+const lowDiskMessage = (result, translate = T) => translate(diskSpaceModule.LOW_DISK_MESSAGE, result.freeMb, result.neededMb);
+let lowDiskLogged = false;
+function logLowDisk(result, action) {
+  if (lowDiskLogged) return;
+  lowDiskLogged = true;
+  pushLog({ time: new Date().toISOString(), level: "warn", message: E("{0} was not started.", action) + " " + lowDiskMessage(result, E) });
+}
+
 async function checkForUpdate() {
+  checkDisk();
   if (STORE_PACKAGE) return;
   latestRelease = await updates.fetchLatestRelease() ?? latestRelease;
   if (engine) onState(engine.state());
@@ -173,6 +195,8 @@ async function stageUpdate() {
   if (staging || installing) return;
   const decision = autoUpdateDecision();
   if (decision.action !== "download") return;
+  const disk = checkDisk();
+  if (!disk.ok) { logLowDisk(disk, E("The automatic update")); return; }
   staging = true;
   try {
     fs.mkdirSync(updateDirectory(), { recursive: true });
@@ -192,6 +216,19 @@ function forgetPendingUpdate(file) {
   config.pendingUpdate = undefined;
   if (file) try { fs.rmSync(file, { force: true }); fs.rmSync(file + ".part", { force: true }); } catch { /* best effort */ }
 }
+// electron-builder keeps a copy of the installer (about 120 MB) in %LOCALAPPDATA%; the installer
+// removes it (installer.nsh customInstall), and so does every start, for a copy an older
+// installer left or an install that stopped before its last step.
+function removeStaleUpdaterCopy() {
+  const local = process.env.LOCALAPPDATA;
+  if (!local) return;
+  const folder = path.join(local, "guilded-companion-updater");
+  try {
+    if (!fs.existsSync(folder)) return;
+    fs.rmSync(folder, { recursive: true, force: true });
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Removed an old copy of the companion installer to free disk space.") });
+  } catch { /* best effort: in use or locked, tried again next start */ }
+}
 // Runs once at start, before the window: forget a stale download, say "Updated to vX" once after an
 // update, or install a downloaded update now. Returns true when the installer took over.
 async function startupUpdateStep() {
@@ -199,6 +236,7 @@ async function startupUpdateStep() {
   const current = app.getVersion();
   const previous = config.lastRunVersion;
   config.lastRunVersion = current;
+  removeStaleUpdaterCopy();
   if (previous && updates.isNewer(current, previous)) {
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded Companion updated to {0}.", current) });
     if (Notification.isSupported()) new Notification({ title: T("Guilded Companion updated to {0}", current), body: T("Your settings and Discord link were kept."), icon: asset("icon.png") }).show();
@@ -206,6 +244,9 @@ async function startupUpdateStep() {
   const verdict = updates.inspectPending({ pending: config.pendingUpdate, current, directory: updateDirectory() });
   if (verdict.action === "clear") forgetPendingUpdate(config.pendingUpdate?.file);
   if (verdict.action !== "install" || config.autoUpdate === false) { await saveConfig(); return false; }
+  // Never start an installer that would fail partway: the update waits until space is freed.
+  const disk = checkDisk();
+  if (!disk.ok) { logLowDisk(disk, E("The automatic update")); await saveConfig(); return false; }
   config.pendingUpdate = { ...config.pendingUpdate, attempts: (config.pendingUpdate.attempts ?? 0) + 1 };
   await saveConfig();
   try {
@@ -222,7 +263,7 @@ async function startupUpdateStep() {
 app.on("will-quit", () => {
   if (installerHandedOff || STORE_INSTALL || !app.isPackaged || config.autoUpdate === false) return;
   const verdict = updates.inspectPending({ pending: config.pendingUpdate, current: app.getVersion(), directory: updateDirectory() });
-  if (verdict.action === "install" && updates.launchInstallerOnExit(verdict.file)) installerHandedOff = true;
+  if (verdict.action === "install" && checkDisk().ok && updates.launchInstallerOnExit(verdict.file)) installerHandedOff = true;
 });
 
 // Microsoft Store build updates itself (8.5, track F5; companion-app/store-update.cjs). Silent on
@@ -353,7 +394,7 @@ function problems(state) {
   if (typeof engineModules?.companionProblems !== "function") return [];
   return engineModules.companionProblems({
     config, state, savedFile, update, version: app.getVersion(), store: STORE_INSTALL, autoUpdate: config.autoUpdate !== false,
-    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online
+    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online, diskSpace
   });
 }
 // Install addon / Update addon (8.5, track F3): offered when the watched game folder has no
@@ -650,6 +691,12 @@ registerIpc("dismiss-live-folder", async () => {
   return true;
 });
 
+registerIpc("open-storage-settings", () => shell.openExternal("ms-settings:storagesense"));
+registerIpc("check-disk-space", () => {
+  const result = checkDisk();
+  if (result.ok) lowDiskLogged = false;
+  return { ok: result.ok, message: result.ok ? T("There is enough free disk space now. Try again.") : lowDiskMessage(result) };
+});
 registerIpc("open-update", () => shell.openExternal(STORE_PACKAGE ? STORE_UPDATES : update?.url || updates.RELEASES_PAGE));
 registerIpc("open-startup-settings", () => shell.openExternal("ms-settings:startupapps"));
 
@@ -688,6 +735,8 @@ registerIpc("install-update", async () => {
     if (!latestRelease) return { ok: false, message: T("Could not verify available updates. Try again when the release service is reachable.") };
     const selected = update;
     if (!selected) return { ok: true, action: "current", message: T("Your companion is up to date.") };
+    const disk = checkDisk();
+    if (selected.installer && !disk.ok) return { ok: false, message: lowDiskMessage(disk) };
     if (!selected.installer) {
       await shell.openExternal(selected.url || updates.RELEASES_PAGE);
       pushLog({ time: new Date().toISOString(), level: "info", message: E("Update download page opened; run the installer from that page to finish updating.") });
@@ -1062,6 +1111,8 @@ async function installAddonNow({ refresh = true } = {}) {
   addonInstalling = true;
   try {
     if (refresh) await refreshSavedFile();
+    const disk = checkDisk();
+    if (!disk.ok) throw new Error(lowDiskMessage(disk));
     const running = process.platform === "win32" ? await wowIsRunning() : false;
     const result = await addonInstallerModule().installAddon({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: running });
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded addon {0} installed in {1}.", result.version, result.folder) + (result.backup ? " " + E("The previous Guilded folder was moved to {0}.", result.backup) : "") });
@@ -1117,6 +1168,7 @@ registerIpc("repair", async () => {
     setWatchFile: async (file) => { config = { ...config, watchFile: file, wowEnabled: true }; await saveConfig(); await engine?.configure(config); },
     addonDecision: async () => { await refreshSavedFile(); return addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: process.platform === "win32" ? await wowIsRunning() : false, wowEnabled: config.wowEnabled !== false }); },
     installAddon: () => installAddonNow(),
+    diskSpace: () => checkDisk(),
     signedIn: () => Boolean(config.companionCredential),
     me: () => companionMeFetch(),
     syncConfigured: () => engineModules.validateConfig(config).length === 0,

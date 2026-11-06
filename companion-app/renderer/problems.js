@@ -25,6 +25,12 @@
   function describe(problem) {
     const d = problem.data || {};
     switch (problem.id) {
+      case 'disk-space-low': return {
+        title: T('Not enough disk space: {0} MB free, about {1} MB needed. Free space with Windows Settings > Storage, then retry.', d.freeMb, d.neededMb),
+        steps: [T('Choose Open Storage settings and remove temporary files or apps you no longer use.'), T('Then choose Check again. Updates and the addon install wait until there is room, so nothing stops halfway.')],
+        fix: { label: T('Open Storage settings'), run: async () => { await api.openStorageSettings(); return null; } },
+        alt: { label: T('Check again'), run: async () => { const result = await api.checkDiskSpace(); if (!result.ok) throw new Error(result.message); return result.message; } }
+      };
       case 'sign-in-expired': return {
         title: T('Your Discord sign-in has expired or was removed.'),
         steps: [T('Choose Sign in with Discord.'), T('Approve in your browser, then come back here.'), T('Your settings and saved data stay as they are.')],
@@ -141,7 +147,10 @@
       }
       if (text.alt) {
         const alt = document.createElement('button'); alt.type = 'button'; alt.textContent = text.alt.label;
-        alt.addEventListener('click', () => { void text.alt.run(); });
+        alt.addEventListener('click', async () => {
+          try { const message = await text.alt.run(); if (message) { result.textContent = window.companionLanguage.message(message); result.className = 'result ok'; } }
+          catch (error) { result.textContent = error?.message || T('This action could not be completed.'); result.className = 'result bad'; }
+        });
         actions.append(alt);
       }
       const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = T('Copy report for the developer');

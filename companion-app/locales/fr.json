@@ -1194,5 +1194,15 @@
   "Your Discord sign-in is no longer valid. Press Sign in with Discord again.": "Votre connexion Discord n’est plus valide. Appuyez de nouveau sur Se connecter avec Discord.",
   "Sync is running.": "La synchronisation est active.",
   "Restarted the sync.": "Synchronisation redémarrée.",
-  "The sync did not start. Open Problems to see why.": "La synchronisation n’a pas démarré. Ouvrez Problèmes pour voir pourquoi."
+  "The sync did not start. Open Problems to see why.": "La synchronisation n’a pas démarré. Ouvrez Problèmes pour voir pourquoi.",
+  "Not enough disk space: {0} MB free, about {1} MB needed. Free space with Windows Settings > Storage, then retry.": "Espace disque insuffisant : {0} Mo libres, environ {1} Mo nécessaires. Libérez de l'espace avec Paramètres Windows > Stockage, puis réessayez.",
+  "Choose Open Storage settings and remove temporary files or apps you no longer use.": "Choisissez Ouvrir les paramètres de stockage et supprimez les fichiers temporaires ou les applications dont vous ne vous servez plus.",
+  "Then choose Check again. Updates and the addon install wait until there is room, so nothing stops halfway.": "Choisissez ensuite Vérifier à nouveau. Les mises à jour et l'installation de l'addon attendent qu'il y ait de la place : rien ne s'arrête à mi-chemin.",
+  "Open Storage settings": "Ouvrir les paramètres de stockage",
+  "There is enough free disk space now. Try again.": "Il y a maintenant assez d'espace disque libre. Réessayez.",
+  "There is enough free disk space.": "Il y a assez d'espace disque libre.",
+  "The Guilded addon needs to be installed or updated. Free some disk space first, then press Repair again.": "L'addon Guilded doit être installé ou mis à jour. Libérez d'abord de l'espace disque, puis appuyez de nouveau sur Réparer.",
+  "{0} was not started.": "{0} n'a pas été lancée.",
+  "The automatic update": "La mise à jour automatique",
+  "Removed an old copy of the companion installer to free disk space.": "Une ancienne copie du programme d'installation du compagnon a été supprimée pour libérer de l'espace disque."
 }

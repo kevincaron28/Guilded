@@ -42,6 +42,8 @@ contextBridge.exposeInMainWorld("companion", {
   copyProblemReport: () => ipcRenderer.invoke("copy-problem-report"),
   openAddonDownload: () => ipcRenderer.invoke("open-addon-download"),
   installAddon: () => ipcRenderer.invoke("install-addon"),
+  openStorageSettings: () => ipcRenderer.invoke("open-storage-settings"),
+  checkDiskSpace: () => ipcRenderer.invoke("check-disk-space"),
   setOnline: (online) => ipcRenderer.invoke("set-online", online),
   pickWowFolder: () => ipcRenderer.invoke("pick-wow-folder"),
   recoverSync: () => ipcRenderer.invoke("recover-sync"),

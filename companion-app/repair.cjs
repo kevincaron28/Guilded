@@ -4,7 +4,7 @@
 // failed. Every side effect comes in through `deps`, so the whole run is tested without Electron.
 // Text is an English key with {0} slots; the window translates it.
 
-const STEPS = ["folder", "addon", "signin", "link", "sync"];
+const STEPS = ["disk", "folder", "addon", "signin", "link", "sync"];
 
 /**
  * @param {{
@@ -16,6 +16,7 @@ const STEPS = ["folder", "addon", "signin", "link", "sync"];
  *   setWatchFile: (path: string) => Promise<void>,
  *   addonDecision: () => Promise<{ action: string, reason: string, blocked?: string }>,
  *   installAddon: () => Promise<{ version: string, backup: string | null }>,
+ *   diskSpace?: () => { ok: boolean, freeMb: number | null, neededMb: number },
  *   signedIn: () => boolean,
  *   me: () => Promise<any>,
  *   syncConfigured: () => boolean,
@@ -26,6 +27,18 @@ const STEPS = ["folder", "addon", "signin", "link", "sync"];
 async function runRepair(deps) {
   const results = [];
   const add = (id, status, ...text) => results.push({ id, status, text });
+
+  // 0. Free disk space: an update or addon install needs about 600 MB (disk-space.cjs). Too little
+  // and the addon step below is not tried, so nothing stops halfway.
+  let diskLow = false;
+  if (deps.diskSpace) {
+    let disk = null;
+    try { disk = deps.diskSpace(); } catch { disk = null; }
+    if (disk && disk.ok === false) {
+      diskLow = true;
+      add("disk", "needs-you", "Not enough disk space: {0} MB free, about {1} MB needed. Free space with Windows Settings > Storage, then retry.", disk.freeMb, disk.neededMb);
+    } else if (disk) add("disk", "ok", "There is enough free disk space.");
+  }
 
   // 1. The WoW folder: the watched Guilded.lua's account folder still exists, or find it again.
   if (!deps.wowEnabled) add("folder", "ok", "World of Warcraft is off in this companion.");
@@ -54,6 +67,8 @@ async function runRepair(deps) {
     try { decision = await deps.addonDecision(); } catch { decision = null; }
     if (!decision || decision.action === "none") {
       add("addon", "ok", decision?.reason === "up-to-date" ? "The Guilded addon is installed and up to date." : "Nothing to change in the addon.");
+    } else if (diskLow) {
+      add("addon", "needs-you", "The Guilded addon needs to be installed or updated. Free some disk space first, then press Repair again.");
     } else if (decision.blocked === "wow-running") {
       add("addon", "needs-you", "The Guilded addon needs an update. Exit World of Warcraft, then press Repair again.");
     } else {

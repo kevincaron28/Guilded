@@ -14,7 +14,7 @@ import { previewAllows } from "./feature-preview.js";
 // linked Discord member, edited in place after every sync. Every character that reaches 60 then gets its own permanent
 // Hall of Fame message, never edited or deleted, backed by a database row so history survives channel resets.
 // Same pattern as the duel board: footer marker, pure builders, refresh through discord-jobs. On by default; officers
-// switch it off. Members hide their characters with `/character race action:hide`.
+// switch it off. Every guild character is on the board; there is no hide option.
 
 const guildService = createGuildService(prisma);
 export const RACE_BOARD_MARKER = "Guilded race board";
@@ -86,7 +86,7 @@ export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP): Sc
   return {
     eyebrow: "Guilded · WoW Forever", title: fr ? "Course au niveau 60" : "Race to 60",
     subtitle: fr ? `${data.finished} sur ${data.total} personnages au niveau ${LEVEL_CAP}` : `${data.finished} of ${data.total} characters at level ${LEVEL_CAP}`,
-    stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · détails dans le message · les membres peuvent se masquer` : `Top ${ranked.length} of ${data.total} · details in the message · members can hide theirs`,
+    stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · détails dans le message` : `Top ${ranked.length} of ${data.total} · details in the message`,
     race: ranked.slice(0, BARS).map(row => ({ name: row.name, color: classColor(row.className), level: row.level, max: LEVEL_CAP, done: row.level >= LEVEL_CAP,
       ...(row.weekGain > 0 ? { note: fr ? `+${row.weekGain} sem.` : `+${row.weekGain} wk` } : {}) }))
   };
@@ -134,7 +134,7 @@ export function raceBoardEmbed(data: RaceBoardData, lang: Lang, guildId = "", op
     embed.addFields({ name: t("Level 60", "Niveau 60"), value: String(data.finished), inline: true });
   }
   if (options.image && data.total) embed.setImage(`attachment://${options.image}`);
-  return embed.setFooter({ text: `${RACE_BOARD_MARKER} • ${guildId} • ${t("/character race near finds partners at your level · /character race hide opts out", "/character race near trouve des partenaires de ton niveau · /character race hide pour te masquer")}`.slice(0, 2048) });
+  return embed.setFooter({ text: `${RACE_BOARD_MARKER} • ${guildId} • ${t("/character race near finds partners at your level", "/character race near trouve des partenaires de ton niveau")}`.slice(0, 2048) });
 }
 
 export interface HallRecord { order: number; name: string; className: string; race: string | null; reachedAt: Date; firstSeenAt: Date; professions: string | null; memberDiscordId: string | null }
@@ -182,18 +182,16 @@ export function bestName(name: string, displayName: string | null | undefined, o
   return fullNameOf({ name, displayName: displayName ?? null }) ?? otherFull ?? name;
 }
 
-/** Records every guild character's level, then returns the board's data. Hidden members' characters are left out. */
+/** Records every guild character's level, then returns the board's data. */
 export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry">, guildId: string, edition: string, now = new Date()): Promise<RaceBoardData> {
-  const linked = await db.character.findMany({ where: { guildId, gameEdition: edition, level: { not: null }, member: { guildId, status: "ACTIVE", raceHidden: false } },
+  const linked = await db.character.findMany({ where: { guildId, gameEdition: edition, level: { not: null }, member: { guildId, status: "ACTIVE" } },
     select: { name: true, displayName: true, realm: true, className: true, race: true, level: true, memberId: true, lastSeenAt: true, member: { select: { discordUserId: true } },
       professions: { select: { profession: true, skillLevel: true }, orderBy: { skillLevel: "desc" } } } });
-  const hiddenLinked = await db.character.findMany({ where: { guildId, gameEdition: edition, member: { guildId, raceHidden: true } }, select: { name: true, realm: true } });
   const unclaimed = await db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition, level: { not: null } },
     select: { nameKey: true, name: true, displayName: true, className: true, race: true, level: true, professions: true, lastSeenAt: true } });
   const unclaimedFull = new Map(unclaimed.flatMap(row => { const full = fullNameOf({ name: row.name, displayName: row.displayName }); return full ? [[row.nameKey, full] as const] : []; }));
-  const hiddenKeys = new Set(hiddenLinked.map(row => String(characterKey(row.name, row.realm, edition))));
   const chars = new Map<string, RaceChar>();
-  for (const row of unclaimed) if (row.level && !hiddenKeys.has(row.nameKey)) chars.set(row.nameKey, { key: row.nameKey, name: bestName(row.name, row.displayName), className: row.className, race: row.race, level: row.level,
+  for (const row of unclaimed) if (row.level) chars.set(row.nameKey, { key: row.nameKey, name: bestName(row.name, row.displayName), className: row.className, race: row.race, level: row.level,
     memberId: null, discordId: null, professions: jsonProfessions(row.professions), lastSeenAt: row.lastSeenAt });
   // A linked character wins over a stale unclaimed copy of the same name.
   for (const row of linked) {

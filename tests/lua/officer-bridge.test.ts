@@ -142,14 +142,13 @@ describe("officer companion bridge", () => {
     member.run('GuildedNextRaid = nil; GuildedRaids = nil; fire_event("PLAYER_ENTERING_WORLD")');
     expect(member.run('return GuildedNextRaid.id')).toBe("raid1");
   });
-  it("preserves explicit off through login and reports missing companion data", () => {
+  it("ignores an old off through login and reports missing companion data", () => {
     const officer = client(true);
     officer.run('NS.commandHandlers.bridge({"status"})');
     expect(officer.run('return CHAT_LOG[#CHAT_LOG]')).toContain("needs companion data");
     snapshot(officer);
     officer.run('NS.commandHandlers.bridge({"off"}); fire_event("PLAYER_ENTERING_WORLD"); fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies(); NS.commandHandlers.bridge({"status"})');
-    expect(packets(officer)).toHaveLength(0);
-    expect(officer.run('return CHAT_LOG[#CHAT_LOG]')).toContain("OFF");
+    expect(officer.run('return CHAT_LOG[#CHAT_LOG]')).not.toContain("OFF");
   });
   it("does not automatically rebind a companion snapshot to another guild", () => {
     const officer = client(true); snapshot(officer);
@@ -189,7 +188,7 @@ describe("officer companion bridge", () => {
     const fresh = client(); deliver(fresh, old.map(p => p.replace("2026-10-05", "2099-10-05")));
     expect(fresh.run('return tostring(DB.officerBridge)')).toBe("nil");
   });
-  it("answers late members from cached data with a bounded guild broadcast and opt-out", () => {
+  it("answers late members from cached data with a bounded guild broadcast", () => {
     const officer = client(true); snapshot(officer); officer.run('NS.commandHandlers.bridge({"on"}); SENT = {}');
     officer.run('fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Member"); run_replies()');
     expect(packets(officer)).toHaveLength(0);
@@ -197,8 +196,6 @@ describe("officer companion bridge", () => {
     const count = packets(officer).length; expect(count).toBeGreaterThan(0);
     officer.run('fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Other"); run_replies()');
     expect(packets(officer)).toHaveLength(count);
-    officer.run('NS.commandHandlers.bridge({"off"}); NOW = NOW + 100; SENT = {}; fire_event("CHAT_MSG_ADDON", "GuildedBridge", "REQ|1|0", "GUILD", "Late"); run_replies()');
-    expect(packets(officer)).toHaveLength(0);
   });
   it("members cannot enable the bridge and changing guild clears received raid globals", () => {
     const officer = client(true); snapshot(officer); officer.run('NS.commandHandlers.bridge({"on"})');

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { csrfToken } from "../src/services/web-auth.js";
 import { createMemberData, memberDataStore } from "../src/services/member-data.js";
 import type { WebContext, WebKit } from "../src/services/web-app.js";
 
@@ -39,5 +40,30 @@ describe("private member data centre", () => {
     expect(db.recurringRecap.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId: { in: ["allowed"] }, member: { discordUserId: "member" } } }));
     expect(db.battlegroundReport.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId: { in: ["allowed"] }, member: { discordUserId: "member" } } }));
     expect(JSON.stringify(result)).not.toContain("secret"); expect(JSON.stringify(result)).not.toContain("tokenHash");
+  });
+});
+
+describe("Delete my data route", () => {
+  const secret = "s".repeat(40), token = "session-token", siteUrl = "https://guilded.kcaron.top";
+  const post = (form: Record<string, string>, over: Partial<WebContext> = {}): WebContext => ({
+    ...context(), request: { path: "/me/data/delete", method: "POST", query: new URLSearchParams(), headers: { origin: siteUrl } },
+    sessionToken: token, csrf: csrfToken(secret, token), form: new URLSearchParams(form),
+    auth: { clientId: "1", clientSecret: "x", siteUrl, sessionSecret: secret }, ...over });
+  const summary = { members: 1, characters: 2, account: true };
+  it("deletes only after sign-in, a good CSRF token, the same origin and the typed word", async () => {
+    const erase = vi.fn(async () => summary), page = createMemberData(vi.fn(async () => snapshot), erase);
+    expect((await page.route({ ...post({}), account: null }, kit))?.status).toBe(401);
+    expect((await page.route(post({ csrf: "wrong", confirm: "DELETE" }), kit))?.status).toBe(403);
+    expect((await page.route(post({ csrf: csrfToken(secret, token), confirm: "DELETE" }, { request: { path: "/me/data/delete", method: "POST", query: new URLSearchParams(), headers: { origin: "https://evil.example" } } }), kit))?.status).toBe(403);
+    expect((await page.route(post({ csrf: csrfToken(secret, token), confirm: "nope" }), kit))?.status).toBe(400);
+    expect(erase).not.toHaveBeenCalled();
+    const ok = await page.route(post({ csrf: csrfToken(secret, token), confirm: "DELETE", discordUserId: "someone-else" }), kit);
+    expect(ok?.status).toBe(200);
+    expect(erase).toHaveBeenCalledWith("member");
+  });
+  it("shows the form on the data page and refuses GET on the delete path", async () => {
+    const page = createMemberData(vi.fn(async () => snapshot), vi.fn(async () => summary));
+    expect((await page.route(context(), kit))?.body).toContain("/me/data/delete");
+    expect((await page.route({ ...context(), request: { path: "/me/data/delete", method: "GET", query: new URLSearchParams(), headers: {} } }, kit))?.status).toBe(405);
   });
 });

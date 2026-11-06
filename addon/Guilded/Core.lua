@@ -1608,7 +1608,7 @@ ns.MODULES = {
   { key = "reserve", name = "Soft reserves", desc = "reserve items for a raid, see who reserved what", commands = { "reserve", "res" } },
   { key = "recipes", name = "Recipes and cooldowns", desc = "who can craft what, profession cooldowns", commands = { "recipes", "cooldowns" } },
   { key = "dungeon", name = "Dungeons", desc = "dungeon run tracking and points", commands = { "dungeon" } },
-  { key = "battleground", name = "Battleground capture", desc = "opt-in provisional own-character postmatch capture", commands = { "bgcapture" } },
+  { key = "battleground", name = "Battleground capture", desc = "provisional own-character postmatch capture (always on where supported)", commands = { "bgcapture" } },
   { key = "calendar", name = "Calendar", desc = "guild calendar check", commands = { "calendar" } },
   { key = "syncnow", name = "Send to Discord", desc = "a Send to Discord button and reminder so the companion uploads sooner", commands = { "sync" } },
   { key = "autoinvite", name = "Auto-invite", desc = "guild invite when someone whispers a phrase", commands = { "autoinvite", "invite" } },

@@ -12,8 +12,7 @@ function fixture() {
     characters: [{ name: "Kev", realm: "Forever", source: "guild" }], runs: [] };
   const store: ProfileStore = {
     list: vi.fn(async () => profile.public ? [{ id: profile.id, character: profile.characters[0]!.name, realm: "Forever", className: "Mage", role: null, level: 60, guild: "Quebec Gold", sortKey: "kev" }] : []),
-    get: vi.fn(async id => id === profile.id ? profile : null),
-    visibility: vi.fn(async (_id, visible) => { profile.public = visible; })
+    get: vi.fn(async id => id === profile.id ? profile : null)
   };
   const memory = memoryWebStore();
   const profiles = createPlayerProfiles(store);
@@ -46,24 +45,15 @@ describe("player profiles", () => {
     const directory = await request("/players/");
     expect(directory!.body).toContain(`/players/${profileId}`);
   });
-  it("hides private profiles in both the directory and direct URL", async () => {
-    const { profile, request } = fixture();
-    profile.public = false;
-    expect((await request(`/players/${profileId}`))!.status).toBe(404);
-    expect((await request("/players/"))!.body).not.toContain(`/players/${profileId}`);
-  });
-  it("requires a session and CSRF for visibility changes, and always changes the signed-in account", async () => {
-    const { memory, store, request } = fixture();
-    expect((await request("/me/profile", "POST", "public=false"))!.status).toBe(401);
+  it("has no visibility switch: the old POST route is gone", async () => {
+    const { memory, request } = fixture();
     const account = await memory.store.upsertAccount({ id: "discord", username: "me", displayName: null }, new Date());
     const token = "test-token";
     await memory.store.createSession(account.id, hashToken(token), new Date(Date.now() + 60_000));
     const cookie = `${SESSION_COOKIE}=${sign(auth.sessionSecret, token)}`;
-    expect((await request("/me/profile", "POST", "public=false&csrf=wrong", cookie))!.status).toBe(403);
-    expect(store.visibility).not.toHaveBeenCalled();
-    const body = new URLSearchParams({ public: "false", csrf: csrfToken(auth.sessionSecret, token), accountId: profileId }).toString();
-    expect((await request("/me/profile", "POST", body, cookie))!.status).toBe(303);
-    expect(store.visibility).toHaveBeenCalledWith(account.id, false);
+    const body = new URLSearchParams({ public: "false", csrf: csrfToken(auth.sessionSecret, token) }).toString();
+    const response = await request("/me/profile", "POST", body, cookie);
+    expect(response === null || response.status === 404).toBe(true);
   });
   it("never associates every party member with an account or reads private dungeon records", async () => {
     const run = { id: "r", instanceId: 36, routeKey: "36", difficultyId: 0, dungeonName: "Deadmines", durationSec: 2000,
@@ -89,7 +79,7 @@ describe("players directory (/players/)", () => {
   const row = (id: string, character: string) => ({ id, character, realm: "Doomhowl", className: "Mage", role: "DPS", level: 60, guild: "Quebec Gold", sortKey: character.toLowerCase() });
   function directory(rows: ReturnType<typeof row>[]) {
     const list = vi.fn(async () => rows);
-    const store: ProfileStore = { list, get: vi.fn(async () => null), visibility: vi.fn(async () => {}) };
+    const store: ProfileStore = { list, get: vi.fn(async () => null) };
     const app = createWebApp({ auth, store: memoryWebStore().store, allows: () => true, postApplication: async () => null, routes: [createPlayerProfiles(store).route] });
     const open = (query: string) => app.respond({ method: "GET", path: "/players/", query: new URLSearchParams(query), headers: {} });
     return { list, open };

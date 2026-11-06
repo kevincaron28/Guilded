@@ -112,8 +112,8 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     const match = /^\/players\/([a-z0-9]{20,40})\/achievements\.png$/.exec(ctx.request.path);
     if (!match) return null;
     if (ctx.request.method !== "GET" && ctx.request.method !== "HEAD") return kit.page(405, "Method not allowed", "");
-    const account = await db.webAccount.findUnique({ where: { id: match[1]! }, select: { discordUserId: true, username: true, displayName: true, publicProfile: true } });
-    if (!account?.publicProfile) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
+    const account = await db.webAccount.findUnique({ where: { id: match[1]! }, select: { discordUserId: true, username: true, displayName: true } });
+    if (!account) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
     const data = await progress(account.discordUserId, false, ctx.now);
     return scoreCardResponse(achievementsCard(account.displayName ?? account.username, ACHIEVEMENTS.map(def => ({ id: def.id, ...data.get(def.id)! })), ctx.lang), ctx.request.method === "HEAD");
   };
@@ -133,11 +133,10 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     /** On /me/: evaluates the signed-in member's data and records what is newly earned. */
     async meSection(ctx: WebContext): Promise<string> {
       if (!ctx.account) return "";
-      const account = await db.webAccount.findUnique({ where: { id: ctx.account.id }, select: { discordUserId: true, publicProfile: true } });
+      const account = await db.webAccount.findUnique({ where: { id: ctx.account.id }, select: { discordUserId: true } });
       if (!account) return "";
       const data = await progress(account.discordUserId, true, ctx.now);
       return `<h2 id="achievements">${ctx.t("My achievements", "Mes succès")}</h2><p><img src="${link(`/me/achievements.png`, ctx.lang)}" alt="${ctx.t("Achievements share card", "Carte de partage des succès")}" width="600" height="315" loading="lazy" style="max-width:100%;height:auto"></p>${list(ctx, data, true)}`
-        + (account.publicProfile ? "" : `<p>${ctx.t("Your profile is hidden, so these are not shown publicly.", "Votre profil est masqué : ces succès ne sont pas affichés publiquement.")}</p>`);
     },
     /** The signed-in owner's own card image, evaluated fresh. */
     ownerRoute: (async (ctx, kit) => {

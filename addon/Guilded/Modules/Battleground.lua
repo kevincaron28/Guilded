@@ -47,7 +47,7 @@ local function supported()
     and type(C_PvP.IsBrawlSoloRBG) == "function"
 end
 local function enabled(d, key)
-  return d and key and d.consents[key] == true and supported()
+  return d and key and supported()
     and (not ns.moduleActive or ns.moduleActive("battleground"))
 end
 local function instance()
@@ -135,24 +135,17 @@ ns.commandHandlers["bgcapture"] = function(args)
         or "Invalid code: use 8-100 characters A-Z, a-z, 0-9, _, :, -."); return
     end
     if not enabled(d, key) then
-      ns.message(fr and "Activez d'abord la capture disponible : /guilded bgcapture activer normal."
-        or "First enable available capture: /guilded bgcapture on normal."); return
-    end
-    nextPremade[key] = code
-  elseif action == "off" or action == "desactiver" then
-    d.consents[key] = nil; d.active[key] = nil; nextPremade[key] = nil
-  elseif action == "on normal" or action == "activer normal" then
-    if supported() then d.consents[key] = true else
       ns.message(fr and "Capture indisponible : edition/API/royaume non verifie. Aucune donnee capturee."
         or "Capture unavailable: edition/API/realm not verified. No data captured."); return
     end
+    nextPremade[key] = code
   end
-  ns.message((fr and "Capture JcJ provisoire : " or "Provisional BG capture: ") .. (d.consents[key] and "ON" or "OFF")
-    .. ". /guilded bgcapture on normal | off. " .. (fr and "Accord Discord /bg privacy requis; aucun point automatique."
-    or "Discord /bg privacy also required; no automatic points.")
+  ns.message((fr and "Capture JcJ provisoire : " or "Provisional BG capture: ") .. (enabled(d, key) and "ON" or "OFF")
+    .. ". " .. (fr and "Toujours active quand le client la prend en charge; aucun point automatique."
+    or "Always on where the client supports it; no automatic points.")
     .. (nextPremade[key] and ((fr and " Code prochain resultat (non verifie) : " or " Next-result code (unverified): ") .. nextPremade[key]) or ""))
 end
-table.insert(ns.commandHelp, "/guilded bgcapture on normal | off - own postmatch pilot / pilote JcJ personnel")
+table.insert(ns.commandHelp, "/guilded bgcapture - status of the own postmatch capture / etat de la capture JcJ personnelle")
 table.insert(ns.commandHelp, "/guilded bgcapture premade <code> - next result only, unverified / prochain resultat non verifie")
 local frame = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_LEAVING_WORLD", "PVP_MATCH_ACTIVE", "PVP_MATCH_COMPLETE" }) do

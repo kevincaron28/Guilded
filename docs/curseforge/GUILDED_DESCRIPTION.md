@@ -6,7 +6,7 @@ Record raid attendance, manage EP/GP and loot, find guild crafters and review yo
 
 ## 8.4.0 launch update
 
-Adds opt-in, private battleground records for your own character (provisional, never auto-awarded), clearer leaderboard filters, narrow-window help menus and companion connection checks that explain what is missing. Includes the 8.0.2 safety fixes (spreadsheet exports stay literal) and all 8.0 features. Existing data and SavedVariables are retained.
+Adds battleground records for your own character (provisional, never auto-awarded), clearer leaderboard filters, narrow-window help menus and companion connection checks that explain what is missing. Includes the 8.0.2 safety fixes (spreadsheet exports stay literal) and all 8.0 features. Existing data and SavedVariables are retained.
 
 All 1,052 catalogued addon strings are translated in French, German and Spanish. Includes the 8.0 security, lossless ledger compaction, versioned Retail overtime scoring and privacy improvements. Existing points, rosters, SavedVariables and frozen season rules are preserved.
 

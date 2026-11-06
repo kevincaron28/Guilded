@@ -2547,6 +2547,7 @@ end
 --   Ctrl + left   check my gear
 --   Alt + left    guild map
 --   Middle        settings
+--   Shift + right call for help (works in combat: the one shortcut that matters during a gank)
 local function modifier(name)
   local fn = _G["Is" .. name .. "KeyDown"]
   return fn and fn() and true or false
@@ -2654,6 +2655,9 @@ local function minimapClick(mouseButton)
     if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
     openPage("Tools")
     return "settings"
+  elseif mouseButton == "RightButton" and modifier("Shift") then
+    if ns.callForHelp and ns.callForHelp.open then ns.callForHelp.open() return "help" end
+    return "unavailable"
   elseif mouseButton == "RightButton" then
     if inCombat() then ns.message(L("Not in combat.")) return "blocked" end
     showQuickMenu()
@@ -2686,6 +2690,7 @@ local function fillTooltip()
   GameTooltip:AddLine(L("Ctrl-click: check my gear"), 1, 1, 1)
   GameTooltip:AddLine(L("Alt-click: guild map"), 1, 1, 1)
   GameTooltip:AddLine(L("Middle-click: settings"), 1, 1, 1)
+  if ns.callForHelp and ns.callForHelp.open then GameTooltip:AddLine(L("Shift-right-click: call for help"), 1, 0.5, 0.4) end
   local waiting = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
   if waiting then GameTooltip:AddLine(L("Changes waiting to be saved (/reload)"), 1, 0.82, 0.2) end
 end

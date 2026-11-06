@@ -676,6 +676,10 @@ describe("minimap button shortcuts (Track E2)", () => {
     expect(click(s, "LeftButton", "alt = true")).toBe("map");
     expect(click(s, "MiddleButton")).toBe("settings");
     expect(click(s, "RightButton")).toBe("menu");
+    expect(click(s, "RightButton", "shift = true")).toBe("unavailable");
+    s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "sos" end }; COMBAT = true`);
+    expect(click(s, "RightButton", "shift = true")).toBe("help"); // works in combat
+    s.run(`COMBAT = false; table.remove(DONE)`);
     expect(s.run(`return table.concat(DONE, ",")`)).toBe("dungeons run,inspect,map open");
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Tools"); // middle opened settings
   });

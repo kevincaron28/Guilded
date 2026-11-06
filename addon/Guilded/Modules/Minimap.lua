@@ -1473,6 +1473,8 @@ local function buildHomePage(page)
   officerOnly(link("Raid", "Run a raid", 178, -56, 170, "Start a raid, record bosses and attendance."))
   officerOnly(link("Loot", "Give loot", 356, -56, 170, "Bids, council and direct loot."))
   officerOnly(link("Local guild", "Pick a raid core", 0, -94, 170, "Choose or create the raid core (team) that loot and standings use."))
+  -- Online guildmates within 3 levels of you; shown only while levelling (refreshHome).
+  ui.homeLevelling = tip(below(newButton(page, "Levelling partners", 170, function() if ns.levelPartners then ns.levelPartners.open() end end, 30), 178, -94), "Online guildmates within 3 levels of you, with Whisper and Invite buttons.")
 
   -- Linking to Discord, in the open: the Windows app does it in one step; the code is the fallback.
   ui.linkWidgets = {}
@@ -1737,6 +1739,9 @@ end
 -- Home page text: plain-language state, and the Discord-sync line.
 local function refreshHome(db, officer, me)
   if not ui.homeGreeting then return end
+  if ui.homeLevelling then
+    if ns.levelPartners and ns.levelPartners.available() then ui.homeLevelling:Show() else ui.homeLevelling:Hide() end
+  end
   local localOnly = ns.isInGameOnly and ns.isInGameOnly()
   if ui.sidebarSave then ui.sidebarSave:SetText(L(localOnly and "Save my addon data" or (officer and "Send to Discord" or "Save my addon data"))) end
   -- The guild rank name as the game shows it ("Guild Master", custom ranks), else Officer/Member.
@@ -2580,6 +2585,7 @@ local function quickMenuItems()
     { "Guild map", function() run("map open") end }
   }
   if tabExists("Race to 60") then table.insert(items, { "Race to 60", function() openPage("Race to 60") end }) end
+  if ns.levelPartners and ns.levelPartners.available() then table.insert(items, { "Levelling partners", function() ns.levelPartners.open() end }) end
   if ns.callForHelp and ns.callForHelp.open then table.insert(items, { "Call for help", function() ns.callForHelp.open() end }) end
   table.insert(items, { "Settings", function() openPage("Tools") end })
   return items

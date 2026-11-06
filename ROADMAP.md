@@ -24,8 +24,11 @@ request list: [roadmap history](docs/archive/ROADMAP-history.md).
    - `src/setup-names.ts`: only tracks B and C add channels.
    - Never edit `package.json`'s version, `CHANGELOG.md`, `README.md`'s current version line or
      the `.toc` versions. The coordinating session bumps to 8.5.0 once, at release.
-5. Everything that posts in Discord on its own is **off by default** with a `/config` or `/officer`
-   switch (CLAUDE.md rule), except where this file records an owner decision saying otherwise.
+5. **Owner decision (6 November 2026): every new 8.5 feature is ON by default in every Discord
+   server** (boards, nickname sync, Who's who, roster gaps, Defender alerts, profession posts,
+   statistics, the guildmate map, the first-link DM). Each one keeps an off switch for officers
+   (server-wide) and, where it is about a member, for that member. Features that need a channel use
+   the channel  creates or adopts; nothing posts until that channel exists.
 6. One PR per track against `main`, green on all four checks in CLAUDE.md. Then report back to the
    coordinating session with the PR link, what was verified, and what still needs a real game client.
 

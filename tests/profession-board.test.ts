@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { CRAFT_PICK_ID, loadProfessionPosts, professionPostComponents, professionPostEmbed, recipeCrafters, updateProfessionPosts } from "../src/services/profession-board.js";
+import { loadProfessionPosts, professionPostEmbed, recipeCrafters, updateProfessionPosts } from "../src/services/profession-board.js";
+import { professionDetailsRow } from "../src/services/profession-details.js";
 import { professionDirectoryText, professionNavRows } from "../src/services/profession-directory.js";
 import { findProfessionHolders } from "../src/services/profession-search.js";
 
@@ -75,14 +76,14 @@ describe("profession posts and last seen", () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 
-  it("puts a recipe picker under each post (25 at most) and one jump button per profession under the directory", async () => {
+  it("keeps ONE Details menu under each post (25 at most) and one jump button per profession under the directory", async () => {
     const [alchemy] = await loadProfessionPosts(db as never, "g1");
-    const row = professionPostComponents(alchemy!, "en", NOW)[0]!.toJSON();
-    expect((row.components[0] as { custom_id: string }).custom_id).toBe(CRAFT_PICK_ID);
+    const row = professionDetailsRow(alchemy!, "en")!.toJSON();
+    expect((row.components[0] as { custom_id: string }).custom_id).toBe("pdet:alchemy");
     expect((row.components[0] as { options: { value: string }[] }).options.map(option => option.value)).toEqual(["1"]);
     const many = { profession: "Cooking", skilled: [], recipes: Array.from({ length: 60 }, (_, index) => ({ itemKey: index, itemName: `Dish ${index}`, crafters: [{ character: "Ann", lastSeen: NOW }] })) };
-    expect((professionPostComponents(many, "en", NOW)[0]!.toJSON().components[0] as { options: unknown[] }).options).toHaveLength(25);
-    expect(professionPostComponents({ profession: "Mining", skilled: [], recipes: [] }, "en", NOW)).toEqual([]);
+    expect((professionDetailsRow(many, "en")!.toJSON().components[0] as { options: unknown[] }).options).toHaveLength(25);
+    expect(professionDetailsRow({ profession: "Mining", skilled: [], recipes: [] }, "en")).toBeNull();
     const rows = professionNavRows(["Alchemy", "Mining", "Fishing"], new Map([["alchemy", "999"], ["mining", "1000"]]), "d1");
     expect(rows).toHaveLength(1);
     const buttons = rows[0]!.toJSON().components as { url: string; label: string }[];

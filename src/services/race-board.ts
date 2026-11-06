@@ -1,3 +1,4 @@
+import { armoryUrl } from "./armory-link.js";
 import { AttachmentBuilder, ChannelType, EmbedBuilder, escapeMarkdown, PermissionFlagsBits, type Guild as DiscordGuild, type Message } from "discord.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { prisma } from "../database.js";
@@ -93,11 +94,12 @@ export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP): Sc
 }
 
 /** Pure: one leaderboard line. */
-export function raceLine(row: RaceRow, rank: number, lang: Lang, hall = false): string {
+export function raceLine(row: RaceRow, rank: number, lang: Lang, hall = false, edition = "forever"): string {
   const fr = lang === "fr";
   const name = escapeMarkdown(row.name).slice(0, 32);
   const kind = [row.className, row.race].filter(Boolean).join(" ");
-  const parts = [`**${rank}.** ${name}`, kind];
+  const armory = armoryUrl({ name: row.name, gameEdition: edition });
+  const parts = [`**${rank}.** ${armory ? `[${name}](<${armory}>)` : name}`, kind];
   if (row.level >= LEVEL_CAP) parts.push(`**60** ✅${row.reachedMaxAt ? ` ${stamp(row.reachedMaxAt, "d")}` : ""}`);
   else parts.push(`**${row.level}** ${bar(row.level)} ${Math.round(row.level / LEVEL_CAP * 100)}%`);
   if (!hall) {
@@ -123,8 +125,12 @@ export function raceBoardEmbed(data: RaceBoardData, lang: Lang, guildId = "", op
       : t(`Top **${rows.length}** of **${data.total}** characters · **${data.finished}** at level ${LEVEL_CAP}.`, `Top **${rows.length}** sur **${data.total}** personnages · **${data.finished}** au niveau ${LEVEL_CAP}.`);
     const lines: string[] = [];
     let used = head.length + 2;
-    for (const [index, row] of rows.entries()) {
-      const line = raceLine(row, index + 1, lang, hall);
+    // Armory links make every line about 110 characters longer: use them only when no row is cut off by them.
+    const linked = rows.map((row, index) => raceLine(row, index + 1, lang, hall, data.edition));
+    const plain = rows.map((row, index) => raceLine(row, index + 1, lang, hall, ""));
+    const useLinks = used + linked.reduce((sum, line) => sum + line.length + 1, 0) <= DESCRIPTION_BUDGET;
+    for (const index of rows.keys()) {
+      const line = (useLinks ? linked : plain)[index]!;
       if (used + line.length + 1 > DESCRIPTION_BUDGET) { lines.push("…"); break; }
       lines.push(line); used += line.length + 1;
     }

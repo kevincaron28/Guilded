@@ -55,8 +55,8 @@ describe("race board embed and card", () => {
       row("Brom", 41, { weekGain: 9, professions: ["Mining 300", "Herbalism 225", "Cooking 100"], lastSeenAt: new Date("2026-11-06T10:00:00Z") }), row("Cy", 20)];
     const json = raceBoardEmbed(data(rows), "en", "g1", { image: "race.png" }).toJSON();
     expect(json.description).toContain("Top **3** of **3** characters");
-    expect(json.description).toContain("**1.** Aria · Mage Human · **60** ✅ <t:1793966400:d> · <@42>");
-    expect(json.description).toContain("**2.** Brom · Mage Human · **41** ▰▰▰▰▰▱▱▱ 68% · Mining 300, Herbalism 225 · seen <t:1793959200:R>");
+    expect(json.description).toContain("**1.** [Aria](<https://worldofwarcraft.blizzard.com/en-us/forever/us/armory?q=Aria>) · Mage Human · **60** ✅ <t:1793966400:d> · <@42>");
+    expect(json.description).toContain("**2.** [Brom](<https://worldofwarcraft.blizzard.com/en-us/forever/us/armory?q=Brom>) · Mage Human · **41** ▰▰▰▰▰▱▱▱ 68% · Mining 300, Herbalism 225 · seen <t:1793959200:R>");
     expect(json.description).not.toContain("Cooking");
     expect(json.fields?.map(f => f.name)).toEqual(["Most levels this week", "Level 60"]);
     expect(json.fields?.[0]?.value).toBe("Brom +9\nAria +4");
@@ -174,8 +174,9 @@ describe("full names on the board (Forever, 8.4.x addons still upload first name
 
 describe("PvP channels", () => {
   it("adopts the battleground names and the new PvP names in both languages", () => {
-    expect(pvpChannelNames("stats")).toEqual(["battleground-statistics", "statistiques-jcj", "pvp-ladder", "classement-pvp"]);
+    expect(pvpChannelNames("stats")).toEqual(["battleground-statistics", "statistiques-jcj", "bg-ladder", "classement-cdb", "pvp-ladder", "classement-pvp"]);
     expect(pvpChannelNames("groups")).toContain("pvp-groups");
+    expect(pvpChannelNames("duels")).toEqual(["duel-ladder", "classement-duels"]);
   });
   it("does nothing for a server that has not switched the module on", async () => {
     const db = { guildSettings: { findUnique: vi.fn(async () => ({ pvpModuleEnabled: false })) } };

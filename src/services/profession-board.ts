@@ -1,9 +1,10 @@
-import { ActionRowBuilder, EmbedBuilder, StringSelectMenuBuilder, escapeMarkdown, type ForumChannel, type Guild as DiscordGuild, type ThreadChannel } from "discord.js";
+import { EmbedBuilder, escapeMarkdown, type ForumChannel, type Guild as DiscordGuild, type ThreadChannel } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import { previewAllows } from "./feature-preview.js";
 import { crafterLine, professionLegend, professionTitle, seenDot } from "./profession-style.js";
+import { professionDetailsRow } from "./profession-details.js";
 
 // 8.5 track D2: ONE post per profession in the craft forum, edited in place (the duel-board pattern), listing every
 // recipe and the crafters who know it with their last seen. It replaces the old "top 3 per profession" directory
@@ -13,8 +14,6 @@ import { crafterLine, professionLegend, professionTitle, seenDot } from "./profe
 export const PROFESSION_POST_MARKER = "Guilded profession board";
 const THREAD_PREFIX = "📚 ";
 const DESCRIPTION_LIMIT = 3900, MAX_CRAFTERS_SHOWN = 3, MAX_CRAFTER_LINES = 8;
-/** Custom id of the recipe picker; handled in commands/craft-board.ts. */
-export const CRAFT_PICK_ID = "craft:pick";
 
 export interface ProfessionRecipe { itemKey: number; itemName: string; crafters: { character: string; lastSeen: Date | null }[] }
 export interface ProfessionPost {
@@ -98,17 +97,6 @@ ${t("Gallery", "Galerie")}: ${new URL("/me/artisans", siteUrl).href}` : "";
     .setFooter({ text: `${PROFESSION_POST_MARKER} • ${guildId} • ${t("recipes come from members' profession scans · last seen from the guild roster", "recettes tirées des relevés de métiers · dernière présence selon le registre de guilde")}`.slice(0, 2048) });
 }
 
-/** The recipe picker under a post: up to 25 recipes (most recently seen crafters first), each opening Request and Details. */
-export function professionPostComponents(post: ProfessionPost, lang: Lang, now = new Date()): ActionRowBuilder<StringSelectMenuBuilder>[] {
-  if (!post.recipes.length) return [];
-  const fr = lang === "fr";
-  const newest = (recipe: ProfessionRecipe) => recipe.crafters.reduce((best, crafter) => Math.max(best, crafter.lastSeen?.getTime() ?? 0), 0);
-  const picks = [...post.recipes].sort((a, b) => newest(b) - newest(a) || a.itemName.localeCompare(b.itemName)).slice(0, 25);
-  const menu = new StringSelectMenuBuilder().setCustomId(CRAFT_PICK_ID).setPlaceholder(fr ? "Choisir une recette : demander ou voir les détails" : "Pick a recipe: request it or see details")
-    .addOptions(picks.map(recipe => ({ label: recipe.itemName.slice(0, 100), value: String(recipe.itemKey), description: `${recipe.crafters.slice(0, 3).map(crafter => crafter.character).join(", ")} · ${lastSeenText(recipe.crafters[0]?.lastSeen ?? null, lang, now)}`.slice(0, 100) })));
-  return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)];
-}
-
 /** Who knows one recipe, with skill and last seen, for the picker's reply. */
 export async function recipeCrafters(db: Db, guildId: string, itemKey: number): Promise<{ itemName: string; profession: string; crafters: { character: string; skill: number | null; lastSeen: Date | null }[] } | null> {
   for (const post of await loadProfessionPosts(db, guildId)) {
@@ -149,7 +137,8 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
     const existing = await existingPosts(forum);
     for (const post of await loadProfessionPosts(db, guildId)) {
       if (!post.skilled.length && !post.recipes.length) continue;
-      const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], components: professionPostComponents(post, lang, now), allowedMentions: { parse: [] as never[] } };
+      const details = professionDetailsRow(post, lang);
+      const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };
       const thread = existing.get(key(post.profession));
       if (thread) {
         const starter = await thread.fetchStarterMessage().catch(() => null);

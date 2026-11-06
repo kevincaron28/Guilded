@@ -14,7 +14,7 @@ vi.mock("../src/commands/context.js", () => ({
   guildService: { ensureGuild: async () => ({ id: "g1" }), getSettings: async () => mocks.settings, ensureMember: async () => ({ id: "m1" }) }
 }));
 
-import { handleCraftButton, handleCraftSelect, postCraftRequest } from "../src/commands/craft-board.js";
+import { handleCraftButton, handleCraftSelect, postCraftRequest, requestRows } from "../src/commands/craft-board.js";
 
 beforeEach(() => {
   mocks.prisma.professionSkill.findMany.mockResolvedValue([
@@ -33,18 +33,11 @@ const interaction = (extra: Record<string, unknown>) => ({
 });
 
 describe("profession post picker (Request and Details)", () => {
-  it("shows who can craft the picked recipe with icon, bar and last seen, plus Request, Details and a crafter menu", async () => {
-    const i = interaction({ customId: "craft:pick", values: ["7"] });
-    await handleCraftSelect(i as never);
-    const reply = i.editReply.mock.calls[0]![0];
-    const text = reply.embeds[0].toJSON().description as string;
-    expect(text).toContain("🧪 Alchemy");
-    expect(text).toContain("🟢 **Ann** ▰▰▰▰▰▰▰▰ 300 · today");
-    expect(text).toContain("⚪ **Bob**");
-    const rows = reply.components.map((row: { toJSON(): { components: { custom_id: string; label?: string }[] } }) => row.toJSON().components);
-    expect(rows[0][0].custom_id).toBe("craft:askwho:7");
-    expect(rows[1].map((button: { custom_id: string }) => button.custom_id)).toEqual(["craft:ask:7", "craft:info:7"]);
-    expect(rows[1].map((button: { label: string }) => button.label)).toEqual(["Request", "Details"]);
+  it("adds Request and a crafter menu under the Details answer", () => {
+    const rows = requestRows("en", 7, [{ character: "Ann", skill: 300, lastSeen: new Date(NOW) }]).map(row => row.toJSON().components as unknown as { custom_id: string; label?: string }[]);
+    expect(rows[0]![0]!.custom_id).toBe("craft:askwho:7");
+    expect(rows[1]!.map(button => [button.custom_id, button.label])).toEqual([["craft:ask:7", "Request"]]);
+    expect(requestRows("en", 7, [])).toHaveLength(1);
   });
   it("opens the ordinary request form already filled with the item and the chosen crafter", async () => {
     const menu = interaction({ customId: "craft:askwho:7", values: ["Ann"] });
@@ -56,17 +49,6 @@ describe("profession post picker (Request and Details)", () => {
     const button = interaction({ customId: "craft:ask:7" });
     await handleCraftButton(button as never);
     expect(button.showModal.mock.calls[0]![0].toJSON().custom_id).toBe("craft:new-modal");
-  });
-  it("shows Details with the item id and link, and says so when the recipe is gone", async () => {
-    const info = interaction({ customId: "craft:info:7" });
-    await handleCraftButton(info as never);
-    const embed = info.editReply.mock.calls[0]![0].embeds[0].toJSON();
-    expect(embed.title).toBe("Elixir");
-    expect(embed.description).toContain("Item ID 7");
-    expect(embed.url).toBe("https://www.wowhead.com/classic/item=7");
-    const gone = interaction({ customId: "craft:info:99" });
-    await handleCraftButton(gone as never);
-    expect(gone.editReply.mock.calls[0]![0].content).toBe("That recipe is no longer listed.");
   });
 });
 

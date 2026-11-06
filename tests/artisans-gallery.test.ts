@@ -65,6 +65,18 @@ describe("Artisans' Gallery page", () => {
     expect(page.body).toContain("Request this craft");
     expect(page.body).toContain("reagent");
   });
+  it("shows each recipe as one compact line with the crafters and the request form behind Details", async () => {
+    const page = await run("/me/artisans?guild=g1&q=elixir");
+    const lines = page.body.match(/<details class="card recipe-line"><summary>[\s\S]*?<\/summary>/g) ?? [];
+    expect(lines.length).toBeGreaterThan(0);
+    for (const line of lines) {
+      expect(line).toContain("Details");
+      expect(line).not.toContain("<table");
+      expect(line).not.toContain("<form");
+    }
+    expect(page.body).toMatch(/<details[^>]*><summary>[\s\S]*?<table[\s\S]*?<form[\s\S]*?<\/details>/);
+    expect(page.body).not.toContain("<details open");
+  });
   it("turns a Request into the ordinary craft request and posts it to the board", async () => {
     const response = await run("/me/artisans", "POST", { guild: "g1", item: "Elixir <of> Power", profession: "Alchemy", quantity: "2", csrf: "tok" });
     expect(response.status).toBe(303);

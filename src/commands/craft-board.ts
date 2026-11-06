@@ -12,9 +12,8 @@ import { createCraftService } from "../services/craft.js";
 import { findProfessionHolders } from "../services/profession-search.js";
 import { findCrafters } from "../services/recipes.js";
 import { PROFESSIONS } from "../wow-data.js";
-import { itemDetails, itemDetailsEmbed } from "../services/item-details.js";
-import { CRAFT_PICK_ID, recipeCrafters } from "../services/profession-board.js";
-import { crafterLine, PROFESSION_FR, professionLegend, professionTitle } from "../services/profession-style.js";
+import { recipeCrafters } from "../services/profession-board.js";
+import { PROFESSION_FR } from "../services/profession-style.js";
 import { lastSeenText } from "../services/last-seen.js";
 import { guildService } from "./context.js";
 
@@ -239,20 +238,12 @@ export async function handleCraftButton(interaction: ButtonInteraction): Promise
     await interaction.showModal(requestModal(await boardLang(settingsGuild.id)));
     return;
   }
-  if (rest.startsWith("ask:") || rest.startsWith("info:")) {
+  if (rest.startsWith("ask:")) {
     const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
     const lang = await boardLang(guild.id);
-    const asking = rest.startsWith("ask:");
-    const itemKey = Number(rest.slice(asking ? 4 : 5));
-    const found = await recipeCrafters(prisma, guild.id, itemKey);
-    if (asking) {
-      if (!found) { await interaction.reply({ content: tx(lang, "That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
-      await interaction.showModal(requestModal(lang, { item: found.itemName, profession: found.profession }));
-      return;
-    }
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    if (!found) { await interaction.editReply({ content: tx(lang, "That recipe is no longer listed.") }); return; }
-    await interaction.editReply({ embeds: [itemDetailsEmbed(await itemDetails(itemKey, found.itemName), lang)] });
+    const found = await recipeCrafters(prisma, guild.id, Number(rest.slice(4)));
+    if (!found) { await interaction.reply({ content: tx(lang, "That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
+    await interaction.showModal(requestModal(lang, { item: found.itemName, profession: found.profession }));
     return;
   }
   const [requestId, action] = rest.split(":");
@@ -332,32 +323,23 @@ export async function handleCraftModal(interaction: ModalSubmitInteraction): Pro
   }
 }
 
-// Track D (request 9): the recipe picker under each profession post. Picking a recipe shows who can craft it (icon,
-// skill bar, last seen) with Request and Details, and a menu to ask one particular crafter.
+// Track D (request 9): under a profession post's Details answer (commands/profession-details.ts) a member can press
+// Request, or pick one crafter to ask. Both open the ordinary request form already filled in; the crafter menu's
+// choice rides in the form id and the new post mentions that crafter once.
+export function requestRows(lang: Lang, itemKey: number, crafters: { character: string; skill: number | null; lastSeen: Date | null }[], now = new Date()) {
+  const T = (english: string) => tx(lang, english);
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${CRAFT_PREFIX}ask:${itemKey}`).setLabel(T("Request")).setStyle(ButtonStyle.Primary));
+  if (!crafters.length) return [buttons];
+  const who = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${CRAFT_PREFIX}askwho:${itemKey}`).setPlaceholder(T("Or request it from one crafter"))
+    .addOptions(crafters.slice(0, 25).map(crafter => ({ label: crafter.character.slice(0, 100), value: crafter.character.slice(0, 40), description: `${crafter.skill ?? "—"} · ${lastSeenText(crafter.lastSeen, lang, now)}`.slice(0, 100) }))));
+  return [who, buttons];
+}
+
 export async function handleCraftSelect(interaction: StringSelectMenuInteraction): Promise<void> {
-  if (!interaction.guild) return;
+  if (!interaction.guild || !interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`)) return;
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const lang = await boardLang(guild.id);
-  const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
-  if (interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`)) {
-    const found = await recipeCrafters(prisma, guild.id, Number(interaction.customId.split(":")[2]));
-    if (!found) { await interaction.reply({ content: T("That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
-    await interaction.showModal(requestModal(lang, { item: found.itemName, profession: found.profession, crafter: interaction.values[0] }));
-    return;
-  }
-  if (interaction.customId !== CRAFT_PICK_ID) return;
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  const itemKey = Number(interaction.values[0]);
-  const found = await recipeCrafters(prisma, guild.id, itemKey);
-  if (!found) { await interaction.editReply({ content: T("That recipe is no longer listed.") }); return; }
-  const now = new Date();
-  const lines = found.crafters.slice(0, 10).map(crafter => crafterLine(crafter, lastSeenText(crafter.lastSeen, lang, now), now));
-  const embed = new EmbedBuilder().setColor(0xd4af37).setTitle(found.itemName.slice(0, 250))
-    .setDescription(`${professionTitle(found.profession, lang)}\n${professionLegend(lang)}\n\n${lines.join("\n") || T("nobody yet")}${found.crafters.length > 10 ? `\n+${found.crafters.length - 10}` : ""}`.slice(0, 4000));
-  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId(`${CRAFT_PREFIX}ask:${itemKey}`).setLabel(T("Request")).setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`${CRAFT_PREFIX}info:${itemKey}`).setLabel(T("Details")).setStyle(ButtonStyle.Secondary));
-  const who = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${CRAFT_PREFIX}askwho:${itemKey}`).setPlaceholder(T("Or request it from one crafter"))
-    .addOptions(found.crafters.slice(0, 25).map(crafter => ({ label: crafter.character.slice(0, 100), value: crafter.character.slice(0, 40), description: `${crafter.skill ?? "—"} · ${lastSeenText(crafter.lastSeen, lang, now)}`.slice(0, 100) }))));
-  await interaction.editReply({ embeds: [embed], components: found.crafters.length ? [who, buttons] : [buttons] });
+  const found = await recipeCrafters(prisma, guild.id, Number(interaction.customId.split(":")[2]));
+  if (!found) { await interaction.reply({ content: tx(lang, "That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
+  await interaction.showModal(requestModal(lang, { item: found.itemName, profession: found.profession, crafter: interaction.values[0] }));
 }

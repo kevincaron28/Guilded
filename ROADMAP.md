@@ -501,6 +501,11 @@ collapse into one entry: ledger account, dungeon runs, duels, recipes, roster, r
 legacy ledger history kept on an officer-assigned account) and backward compatibility for 8.4.x
 addons. Details: `docs/FOREVER_NAMES.md`. The relink and second-character test waits for it.
 
+### Owner requests, 6 November 2026 (afternoon)
+
+- **Delete the pre-launch season and all beta characters.** They still appear in Québec Gold's professions, the race to 60 and the unlinked characters. Track K is building a cleanup script: preview first, `--apply` after a backup, never touching EP/GP history or Season 1. See `docs/PRELAUNCH_CLEANUP.md`.
+- **Crashin's Ragefire run didn't credit Xaldin or El Pirata.** Track J is investigating how party members get run credit (linking, two-word names, validation) and will fix it.
+
 ### Release step — in-game testing by desktop control
 
 After the track PRs are merged into the 8.5 candidate, one Sonnet tester session runs

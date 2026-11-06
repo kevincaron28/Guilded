@@ -927,6 +927,9 @@ model GuildSettings {
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
   duelBoardEnabled         Boolean @default(true)
   duelBoardMessageId       String?
+  // 8.5 track D: one auto-updated post per profession in the craft forum. On by default; officers switch it off
+  // with /craft posts-setting. Posts are found by their thread title, so no message ids are stored.
+  professionPostsEnabled   Boolean @default(true)
   // 8.5 track C: roster gaps, nickname sync and the Who's who board. All off until an officer turns them on.
   rosterIgnoredRoleIds     String[] @default([])
   nicknameSyncEnabled      Boolean @default(true)

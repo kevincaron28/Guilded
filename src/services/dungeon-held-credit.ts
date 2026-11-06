@@ -9,7 +9,8 @@ import { findCharacter } from "./character-match.js";
 // rows get their member and the evidence-based awards and rating are recomputed. A run already
 // stored is otherwise skipped as a duplicate, so without this the credit would never arrive.
 
-type Tx = Pick<Prisma.TransactionClient, "dungeonRun" | "dungeonRunPlayer" | "dungeonPointTransaction" | "dungeonAchievement" | "auditLog">
+type Tx = Pick<Prisma.TransactionClient, "dungeonRun" | "dungeonPointTransaction" | "dungeonAchievement" | "auditLog">
+  & Partial<Pick<Prisma.TransactionClient, "dungeonRunPlayer">>
   & Partial<Pick<Prisma.TransactionClient, "$executeRaw">>;
 
 /** Held rows older than this are left alone (matches the relay's 30-day window with slack). */
@@ -18,6 +19,7 @@ const HELD_CREDIT_ROWS = 500;
 
 export async function creditHeldRunPlayers(tx: Tx, guildId: string,
   characters: readonly { name: string; realm: string; memberId: string }[], actorId: string, now = new Date()): Promise<{ players: number; runs: number }> {
+  if (!tx.dungeonRunPlayer) return { players: 0, runs: 0 }; // in-memory test adapters without run players
   const held = await tx.dungeonRunPlayer.findMany({
     where: { memberId: null, run: { guildId, valid: true, state: "COMPLETED", endedAt: { gte: new Date(now.getTime() - HELD_CREDIT_MAX_AGE_MS) } } },
     select: { id: true, runId: true, character: true },

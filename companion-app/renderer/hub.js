@@ -23,7 +23,7 @@
     try {
       const result = await api.hubView(window.companionLanguage.language);
       if (request !== generation) return;
-      if (result.ok) { data = result.data; offline = !!result.offline; savedAt = result.savedAt || ''; error = ''; }
+      if (result.ok) { data = result.data; offline = !!result.offline; savedAt = result.savedAt || ''; error = ''; document.dispatchEvent(new CustomEvent('companion-hub-data', { detail: data })); }
       else { data = null; offline = false; error = result.error || T('Connect a guild account to see your characters and server.'); }
     } catch (e) { if (request === generation) { data = null; error = e.message; } }
     finally { if (request === generation) { loading = false; render(); } }

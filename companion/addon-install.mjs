@@ -35,5 +35,7 @@ export async function checkInstalledAddon(watchFile) {
   let toc;
   try { toc = await readFile(join(folder, "Guilded.toc"), "utf8"); } catch { return { status: "not-installed", expected, folder }; }
   const installed = tocEditions(toc);
-  return installed.includes(expected) ? { status: "ok", expected, installed, folder } : { status: "wrong-edition", expected, installed, folder };
+  // The version on disk: newer than the one that last saved means WoW still runs the old files.
+  const version = /^##\s*Version:\s*(\d{1,3}\.\d{1,3}\.\d{1,3})\s*$/m.exec(toc)?.[1] ?? null;
+  return installed.includes(expected) ? { status: "ok", expected, installed, folder, version } : { status: "wrong-edition", expected, installed, folder, version };
 }

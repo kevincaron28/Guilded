@@ -9,3 +9,9 @@ dialog#diagnosticPreview{width:min(640px,calc(100vw - 32px));max-height:85vh;ove
 
 /* Forever-only focus: PoE2 tracking is hidden unless the app says it is on (companion/active-games.mjs). */
 body.poe-off .poe-only{display:none!important}
+/* 8.5 track F: Problems panel, Advanced settings, WoW account choice */
+.problem-alert{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:3px 10px 3px 4px;border-radius:999px;border:1px solid #e57a7466;background:#e57a7418;color:var(--red);font-size:12px;font-weight:700}.problem-alert>span:first-child{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#d93a32;color:#fff;font-size:14px;font-weight:800}.problem-alert:hover{background:#e57a7428;border-color:var(--red)}
+.problem-card{border-left:3px solid var(--red)}.problem-card h2{font-size:17px}.problem-card h3{font-size:13px;margin-top:16px;color:var(--muted)}.problem-card .help-list{margin:6px 0 0}.problem-detail{font-size:13px;padding:10px 12px;border-radius:7px;background:var(--bg);overflow-wrap:anywhere}
+.report-text{font:11px/1.5 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;background:var(--bg);border-radius:7px;padding:12px;color:var(--muted)}
+details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summary{font-size:15px;font-weight:650;color:var(--text)}.advanced-group{border-top:1px solid var(--line);padding-top:18px;margin-top:20px}.advanced-group h3{font-size:15px}.advanced-group>.muted{font-size:12px}
+.account-choice{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}.account-option{margin:8px 0 0;font-weight:500;color:var(--text)}.account-option input{width:16px;height:16px;accent-color:var(--gold)}

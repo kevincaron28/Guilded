@@ -109,4 +109,55 @@ function pickSavedVariables(existing) {
   return null;
 }
 
-module.exports = { hasDatabase, detectSavedVariables, detectHeldSavedVariables, rankSavedVariables, pickSavedVariables };
+// Folder picker (8.5, track F3). The install folder of a saved file (…\World of Warcraft for
+// …\World of Warcraft\_forever_\WTF\Account\X\SavedVariables\Guilded.lua), or null.
+function installRootOf(file) {
+  const parts = String(file ?? "").split(/[\\/]/);
+  const wtf = parts.findIndex((part, index) => index > 0 && part.toLowerCase() === "wtf");
+  if (wtf < 1) return null;
+  const game = parts.slice(0, wtf);
+  const root = game.length > 1 && game.at(-1).startsWith("_") ? game.slice(0, -1) : game;
+  const text = root.join(path.sep);
+  return /^[A-Za-z]:$/.test(text) ? text + path.sep : text;
+}
+
+// Where the picker opens: the watched file's install, a detected one, or the usual Battle.net
+// folder when it exists. Undefined lets Windows choose.
+function pickerStart(watchFile, detected = []) {
+  const known = installRootOf(watchFile) || detected.map((entry) => installRootOf(entry.path)).find(Boolean);
+  if (known && fs.existsSync(known)) return known;
+  for (const guess of ["C:\\Program Files (x86)\\World of Warcraft", "C:\\Program Files\\World of Warcraft"]) if (fs.existsSync(guess)) return guess;
+  return undefined;
+}
+
+// Every WoW account below a folder the member picked: the install folder, a game folder
+// (_forever_), WTF, WTF\Account, one account folder or anything inside it, or a folder that holds
+// the install. Editions on hold and the beta client are left out when anything else is found.
+// Same entries as detectSavedVariables, ranked the same way.
+function accountsUnder(folder, names = ["Guilded.lua"], isHeld = () => false) {
+  const parts = String(folder ?? "").split(/[\\/]/).filter((part, index) => part !== "" || index === 0);
+  const wtfIndex = parts.findIndex((part, index) => index > 0 && part.toLowerCase() === "wtf");
+  const entry = (account, wtf) => {
+    const saved = path.join(account, "SavedVariables");
+    const found = names.map((name) => path.join(saved, name)).find((file) => fs.existsSync(file));
+    return { path: found ?? path.join(saved, names[0]), exists: !!found, game: path.basename(path.dirname(wtf)), account: path.basename(account), modifiedMs: found ? modifiedMs(found) : 0, hasDatabase: found ? hasDatabase(found) : false };
+  };
+  const accountsIn = (wtf) => subdirs(path.join(wtf, "Account")).filter((dir) => path.basename(dir).toLowerCase() !== "savedvariables").map((account) => entry(account, wtf));
+  let results = [];
+  if (wtfIndex > 0) {
+    const wtf = parts.slice(0, wtfIndex + 1).join(path.sep);
+    // Inside one account (…\WTF\Account\X\…): that account only.
+    if (parts.length > wtfIndex + 2 && parts[wtfIndex + 1].toLowerCase() === "account") {
+      results = [entry(parts.slice(0, wtfIndex + 3).join(path.sep), wtf)];
+    } else results = accountsIn(wtf);
+  } else {
+    // The install, a game folder, or one level above the install ("C:\Games").
+    const roots = [folder, ...subdirs(folder)];
+    for (const root of roots) for (const wtf of findWtfFolders(root)) results.push(...accountsIn(wtf));
+  }
+  const unique = [...new Map(results.map((item) => [item.path.toLowerCase(), item])).values()];
+  const playable = unique.filter((item) => !isHeld(item.game) && !/beta/i.test(item.game));
+  return rankSavedVariables(playable.length ? playable : unique.filter((item) => !isHeld(item.game)));
+}
+
+module.exports = { hasDatabase, detectSavedVariables, detectHeldSavedVariables, rankSavedVariables, pickSavedVariables, installRootOf, pickerStart, accountsUnder };

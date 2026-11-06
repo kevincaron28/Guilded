@@ -53,7 +53,7 @@ export function describeRunCredit(run: CreditRun, points: readonly { memberId: s
   for (const player of run.players) {
     if (!player.memberId) {
       lines.push(player.inGuild
-        ? `• ${player.character}: guildmate, not linked to a Discord member yet. Credit is held and applies on the next sync after they link (\`/guilded verify\` in game or \`/character claim\`).`
+        ? `• ${player.character}: guildmate, not linked to a Discord member yet. Counted in the rating by character now; Guild Points and achievements move to their member on the next sync after they link (\`/guilded verify\` in game or \`/character claim\`).`
         : `• ${player.character}: not linked and not flagged as a guildmate by the addon (outside the guild, or no addon data).`);
       continue;
     }

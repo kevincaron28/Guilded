@@ -58,6 +58,11 @@ const screenshotPath = (args.find((a) => a.startsWith("--screenshot=")) ?? "").s
 const screenshotTab = (args.find((a) => a.startsWith("--tab=")) ?? "").slice("--tab=".length);
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
+// The installer asks a running companion to save and quit before it replaces any file
+// (installer.nsh customCheckAppRunning). With no companion running there is nothing to do:
+// never start one from that request.
+const QUIT_FOR_UPDATE = "--quit-for-update";
+if (args.includes(QUIT_FOR_UPDATE)) { app.exit(0); process.exit(0); }
 
 let win;
 function registerIpc(channel, handler) {
@@ -126,7 +131,17 @@ async function loadEngineModules() {
   return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")) };
 }
 
+// Start-up diagnostics (9.0 release blocker): every line logged before the window is ready also
+// goes to startup.log in the data folder (rewritten each start, never holds a credential), so a
+// start that shows the wrong settings can be explained from that one file.
+let startupLogging = true;
+function startupLog(entry) {
+  if (!startupLogging) return;
+  try { fs.appendFileSync(path.join(app.getPath("userData"), "startup.log"), `${entry.time} ${entry.level} ${entry.message}
+`); } catch { /* diagnostics only */ }
+}
 function pushLog(entry) {
+  startupLog(entry);
   logs.push(entry);
   if (logs.length > 300) logs.shift();
   win?.webContents.send("log", entry);
@@ -547,7 +562,17 @@ async function removeAllDataAndQuit() {
   return true;
 }
 
-app.on("second-instance", showWindow);
+app.on("second-instance", (event, argv) => {
+  if (Array.isArray(argv) && argv.includes(QUIT_FOR_UPDATE)) {
+    // before-quit flushes the settings; nothing is written after that.
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Closing for an update.") });
+    installerHandedOff = true; // an installer is already running: never start the quit-time one
+    quitting = true;
+    app.quit();
+    return;
+  }
+  showWindow();
+});
 
 // A startup failure must be loud: otherwise the process lives on with no
 // window and no tray, holding the single-instance lock, so every later launch
@@ -559,6 +584,8 @@ function failStartup(error) {
 
 app.whenReady().then(async () => {
   try {
+    try { fs.mkdirSync(app.getPath("userData"), { recursive: true }); fs.writeFileSync(path.join(app.getPath("userData"), "startup.log"), ""); } catch { /* diagnostics only */ }
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Starting Guilded Companion {0} from {1} (packaged: {2}, Store: {3}, data folder: {4}, arguments: {5}).", app.getVersion(), process.execPath, app.isPackaged ? "yes" : "no", STORE_INSTALL ? "yes" : "no", app.getPath("userData"), args.join(" ") || "none") });
     storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage);
     engineModules = await loadEngineModules();
     await loadConfig();
@@ -566,7 +593,9 @@ app.whenReady().then(async () => {
     const setUp = !configLoadModule().isUnset(config);
     const checkStep = (step) => { if (setUp && configLoadModule().isUnset(config)) pushLog({ time: new Date().toISOString(), level: "error", message: E("Settings became blank after {0}; the saved file was not changed.", step) }); };
     await repairSavedConfig(); checkStep("repairSavedConfig");
-    if (await startupUpdateStep()) return;
+    const handedToInstaller = await startupUpdateStep();
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Start-up update step: {0}.", handedToInstaller ? "a downloaded update is installing; this start ends here" : "nothing to install") });
+    if (handedToInstaller) return;
     checkStep("startupUpdateStep");
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
     config.poeJournalFile = profileJournalFile();
@@ -576,6 +605,8 @@ app.whenReady().then(async () => {
       onState
     });
     restartedQuietly = readRestartMarker();
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Ready: {0} connection(s), signed in: {1}, restarted by Microsoft Store: {2}.", configLoadModule().configSummary(config).connections, configLoadModule().configSummary(config).signedIn ? "yes" : "no", restartedQuietly ? "yes" : "no") });
+    startupLogging = false;
     createWindow();
     createTray();
   } catch (error) {

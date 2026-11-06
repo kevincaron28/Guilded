@@ -184,3 +184,25 @@ describe("what counts as set up", () => {
     expect(readFileSync("companion-app/main.cjs", "utf8")).toContain("configLoadModule().loadSavedConfig");
   });
 });
+
+describe("the installer closes the old companion before replacing files", () => {
+  const nsis = readFileSync("companion-app/installer.nsh", "utf8");
+  const check = nsis.slice(nsis.indexOf("!macro customCheckAppRunning"));
+
+  it("asks a running companion to save and quit, then closes any left by name and waits", () => {
+    expect(check).toContain("--quit-for-update");
+    expect(nsis).toMatch(/IMAGENAME eq \$\{APP_EXECUTABLE_FILENAME\}/);
+    expect(check).toMatch(/taskkill \/F \/T \/IM "\$\{APP_EXECUTABLE_FILENAME\}" \/FI "USERNAME eq %USERNAME%"/);
+    // It loops until nothing is running, and asks the member only after ten seconds of trying.
+    expect(check).toMatch(/Goto guilded_kill/);
+    expect(check).toMatch(/\$R1 > 20/);
+    // The quit request is sent only while a companion runs, so it never starts one.
+    expect(check.indexOf("${GUILDED_FIND_RUNNING}")).toBeLessThan(check.indexOf("--quit-for-update"));
+  });
+
+  it("is the companion's answer to that request: save and quit, or exit at once when alone", () => {
+    const main = readFileSync("companion-app/main.cjs", "utf8");
+    expect(main).toMatch(/if \(args\.includes\(QUIT_FOR_UPDATE\)\) \{ app\.exit\(0\);/);
+    expect(main).toMatch(/second-instance", \(event, argv\) => \{[\s\S]{0,200}QUIT_FOR_UPDATE[\s\S]{0,300}installerHandedOff = true[\s\S]{0,120}app\.quit\(\)/);
+  });
+});

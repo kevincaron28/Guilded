@@ -197,6 +197,7 @@ model Guild {
   faqEntries          FaqEntry[]
   polls               Poll[]
   unclaimedCharacters UnclaimedCharacter[]
+  inviteRequests InviteRequest[]
   characterPairings   CharacterPairing[]
   characterVerifyCodes  CharacterVerifyCode[]
   characterVerifyClaims CharacterVerifyClaim[]
@@ -890,6 +891,11 @@ model GuildSettings {
   weeklyReportLastAt       DateTime?
   // WoW report delivery is separate from future shared-guild and PoE reports.
   weeklyReportChannelId    String?
+  // 8.5 batch 3 (#13/#14): the guild-invite channel where players post their full character name, the DM prompt for the WoW role, and the queue's off switch.
+  inviteChannelId          String?
+  inviteQueueEnabled       Boolean   @default(true)
+  inviteDmEnabled          Boolean   @default(true)
+  inviteWowRoleId          String?
   // Opt-in: loot and EPGP belong to individual raid cores, never a shared guild pool.
   coreLootOnly             Boolean   @default(false)
   characterSignups         Boolean   @default(false)
@@ -2994,6 +3000,37 @@ model GuildStatSnapshot {
   guild          Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, day])
+}
+
+// 8.5 batch 3 (#14): a player's post in the guild-invite channel. Officers see PENDING rows in /officer invites and in the
+// addon's To invite panel; a roster upload that contains the character, or an officer's check mark, makes it INVITED.
+model InviteRequest {
+  id            String    @id @default(cuid())
+  guildId       String
+  // Lowercase "first last" (Forever names have both).
+  nameKey       String
+  displayName   String
+  discordUserId String
+  channelId     String
+  messageId     String
+  status        String    @default("PENDING")
+  // "roster" (seen in a guild roster upload), or the Discord ID of the officer who reacted.
+  invitedBy     String?
+  createdAt     DateTime  @default(now())
+  invitedAt     DateTime?
+  guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, messageId])
+  @@index([guildId, status])
+}
+
+// 8.5 batch 3 (#13): the WoW-role DM was sent to this member in this server; never sent twice.
+model InviteDm {
+  guildId       String
+  discordUserId String
+  sentAt        DateTime @default(now())
+
+  @@id([guildId, discordUserId])
 }
 
 // 8.5 guild data (docs/GUILD_DATA_INVENTORY.md): what the game's guild roster, event log and info

@@ -325,7 +325,7 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, 
 export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules): RatingRow[] {
   const roles = ["TANK", "HEALER", "DAMAGER"].map(role => ({ role, rows: calculateDungeonRating(runs.map(run => ({ ...run,
     players: run.players.map(p => { const match = (rules.evidencePolicy === "current-v2" ? integrityRole(playerIntegrityOf(run, p.character)) : dungeonRole(p.role)) === dungeonRole(role);
-      return { ...p, member: match ? p.member : null, inGuild: match && p.inGuild }; }) })), rules) }));
+      return { ...p, member: match ? p.member : null, inGuild: match && p.inGuild === true }; }) })), rules) }));
   return calculateDungeonRating(runs, rules).map(row => {
     const levels = runs.flatMap(run => {
       if (!run.players.some(p => (p.memberId ?? (isUnlinkedRating(row.memberId) ? UNLINKED_RATING_PREFIX + (p.character ?? "").trim().toLowerCase() : null)) === row.memberId && p.character === row.character)) return [];

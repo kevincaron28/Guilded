@@ -84,6 +84,23 @@ async function loadConfig() {
   } catch { /* nothing to import */ }
 }
 
+// Startup repair: a saved file picked in a character folder (…\Account\X\<realm>\<character>\SavedVariables)
+// never holds GuildedDB, and a blank leftover connection only logs "Not started". Fix both, once, in every
+// saved connection (companion/saved-folder.mjs, companion/profiles.mjs). Re-saving keeps the sign-in.
+async function repairSavedConfig() {
+  let changed = false;
+  const paths = engineModules.migrateWatchFiles(config);
+  if (paths.changed) {
+    const before = config.watchFile;
+    config = paths.config;
+    changed = true;
+    pushLog({ time: new Date().toISOString(), level: "info", message: E("Saved-data folder corrected to the account folder: {0}.", config.watchFile || before) });
+  }
+  const pruned = engineModules.pruneBlankProfiles(config);
+  if (pruned.changed) { config = pruned.config; changed = true; }
+  if (changed) await saveConfig();
+}
+
 function saveConfig() {
   return storeConfig.write(configFile(), config);
 }
@@ -92,7 +109,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, activeEditionsModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("active-editions.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold, ...await import(url("saved-folder.mjs")) };
 }
 
 function pushLog(entry) {
@@ -316,6 +333,7 @@ app.whenReady().then(async () => {
     storeConfig = require("./store-config.cjs").createStoreConfig(safeStorage);
     engineModules = await loadEngineModules();
     await loadConfig();
+    await repairSavedConfig();
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
     config.poeJournalFile = profileJournalFile();
     engine = engineModules.createProfileEngine(config, {
@@ -407,6 +425,7 @@ registerIpc("set-language", (_event, value) => {
 });
 
 registerIpc("save-config", async (_event, next) => {
+  if (typeof next.watchFile === "string") next = { ...next, watchFile: engineModules.normalizeSavedPath(next.watchFile, savedNames()[0]) };
   config = { ...config, ...next, poeJournalFile: profileJournalFile(), standingsIntervalMinutes: Math.max(1, Number(next.standingsIntervalMinutes) || 2) };
   const problems = engineModules.validateConfig(config);
   await saveConfig();
@@ -540,7 +559,8 @@ registerIpc("browse-file", async () => {
     ...(start ? { defaultPath: start } : {}),
     properties: ["openFile"], filters: [{ name: T("Addon saved data"), extensions: ["lua"] }]
   });
-  return result.canceled ? null : result.filePaths[0];
+  // A file inside a character folder never holds GuildedDB: use the account's SavedVariables instead.
+  return result.canceled ? null : engineModules.normalizeSavedPath(result.filePaths[0]);
 });
 
 // Leaderboards only: either addon's file; the engine then reads both from that folder.
@@ -566,7 +586,7 @@ registerIpc("link-find-saved-data", async () => {
   // folder does. With exactly one live account folder, watch that path now; the upload starts at the first save.
   const pending = found.length === 0 ? pickSavedVariables(detected.filter((entry) => !/beta/i.test(entry.game))) : null;
   const chosen = pickSavedVariables(found) || pending;
-  if (!chosen) return { ok: false, found: found.length, ...(heldCount && !found.length ? { onHold: heldCount } : {}), message: heldCount && !found.length ? T("Guilded is focused on WoW Forever for now. Your other WoW version is on hold and will come back later; nothing was changed.") : found.length ? T("Found {0} accounts. Check the selected file before saving.", found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
+  if (!chosen) return { ok: false, found: found.length, ...(heldCount && !found.length ? { onHold: heldCount } : {}), message: heldCount && !found.length ? T("Guilded is focused on WoW Forever for now. Your other WoW version is on hold and will come back later; nothing was changed.") : found.length ? T("Found several WoW accounts ({0}). Choose Browse and pick Guilded.lua of the account you play.", found.map((entry) => entry.account).filter(Boolean).join(", ") || found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
   if (config.watchFile && config.watchFile.toLowerCase() === chosen.path.toLowerCase()) return { ok: true, found: 1, already: true };
   const switched = Boolean(config.watchFile);
   config = { ...config, watchFile: chosen.path, wowEnabled: true };

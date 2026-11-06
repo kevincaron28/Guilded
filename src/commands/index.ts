@@ -51,6 +51,7 @@ import { PermissionFlagsBits } from "discord.js";
 import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
 import { poeCommand } from "./poe.js";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { participationCommand } from "./participation.js";
 import { executeRecruit, recruitCommand } from "./recruit.js";
 import { executePublicLeaderboard, publicLeaderboardCommand } from "./public-leaderboard.js";
@@ -165,7 +166,7 @@ export const commands: AnyCommand[] = [
   wowCommand,
   gameEventsCommand, setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer,
-  community, poeCommand, participationCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize
+  community, ...(POE_TRACKING_ENABLED ? [poeCommand] : []), participationCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize
 ];
 
 // Commands whose every subcommand checks a leader role (Raid Leader for /lead, Officer or Guild

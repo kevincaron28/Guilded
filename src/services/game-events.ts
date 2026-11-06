@@ -4,12 +4,19 @@ import { enqueueDiscordJob } from "./discord-jobs.js";
 import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 import { createHash } from "node:crypto";
 import { BRAND } from "../brand.js";
+import { isEditionActive } from "../../companion/active-editions.mjs";
+import { POE_ENABLED } from "../../companion/active-games.mjs";
 
 export const EVENT_GAMES = ["WOW_FOREVER", "WOW_CLASSIC_ERA", "WOW_CLASSIC_TBC", "WOW_CLASSIC_MISTS", "WOW_RETAIL", "POE2"] as const;
 export const EVENT_GAME_LABELS: Record<typeof EVENT_GAMES[number], string> = {
   WOW_FOREVER: "WoW Forever", WOW_CLASSIC_ERA: "WoW Classic Era", WOW_CLASSIC_TBC: "WoW Classic TBC",
   WOW_CLASSIC_MISTS: "WoW Classic Mists", WOW_RETAIL: "WoW Retail", POE2: "Path of Exile 2"
 };
+// Forever-only focus (companion/active-editions.mjs, companion/active-games.mjs): the games a board may
+// show or be set up with. Saved boards and events of other games are kept, just not offered or drawn.
+const EVENT_GAME_EDITION: Record<string, string> = { WOW_FOREVER: "forever", WOW_CLASSIC_ERA: "classic-era", WOW_CLASSIC_TBC: "classic-tbc", WOW_CLASSIC_MISTS: "classic-mists", WOW_RETAIL: "retail" };
+export const isEventGameActive = (game: string): boolean => game === "POE2" ? POE_ENABLED : isEditionActive(EVENT_GAME_EDITION[game] ?? "");
+export const activeEventGames = (): (typeof EVENT_GAMES[number])[] => EVENT_GAMES.filter(isEventGameActive);
 export function eventGameLabel(game: string): string { return EVENT_GAME_LABELS[game as typeof EVENT_GAMES[number]] ?? game; }
 export const EVENT_REGIONS = ["GLOBAL", "NA", "EU", "KR", "TW"] as const;
 export const EVENT_STATES = ["SCHEDULED", "TBA", "POSTPONED", "CANCELLED", "REACHED"] as const;
@@ -329,7 +336,7 @@ export function eventBoardEmbeds(events: OfficialGameEvent[], board: Pick<GameEv
   }
   const embeds = [header];
   if (!board.enabled) return embeds;
-  for (const game of EVENT_GAMES.filter(game => board.games.includes(game))) {
+  for (const game of EVENT_GAMES.filter(game => board.games.includes(game) && isEventGameActive(game))) {
     const rows = events.filter(event => event.game === game && visibleEvent(event, board)).sort((a, b) => {
       const time = (event: OfficialGameEvent) => effectiveEventState(event, now) === "SCHEDULED" ? event.startsAt!.getTime() : Number.MAX_SAFE_INTEGER;
       return time(a) - time(b) || a.id.localeCompare(b.id);

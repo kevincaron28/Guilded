@@ -33,7 +33,7 @@ sub-commands.
 | `/report` `bug` `ping` `stats` | Send a private bug report; check the bot is up; guild activity | Everyone |
 | `/automation` `recap` | Weekly recap by private message (off by default) | Everyone |
 | `/wow` `list` `use` | Choose which in-game guild your commands use | Everyone |
-| `/poe` `pair` `status` `runs` `summary` | Path of Exile 2 mapping journal | Everyone |
+| `/poe` `pair` `status` `runs` `summary` | Path of Exile 2 mapping journal | Everyone | <!--poe-->
 
 ### Raids
 

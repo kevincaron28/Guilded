@@ -6,6 +6,8 @@ import { marked } from "marked";
 import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwitchHref, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../site/nav.mjs";
 import { WOW_EDITIONS, editionCards, editionHubs, editionPages } from "../site/editions.mjs";
 import { ACTIVE_EDITIONS, editionList, isEditionActive } from "../companion/active-editions.mjs";
+import { POE_ENABLED } from "../companion/active-games.mjs";
+import { buildEverything, keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
 const origin = "https://guilded.kcaron.top";
@@ -127,10 +129,12 @@ for (const source of sources) {
 }
 // Public content is explicitly curated; never import guild/database data here.
 
-const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge), ...editionHubs(version, publishedGuilded.curseforge)];
+// Forever-only focus (companion/active-editions.mjs, companion/active-games.mjs): pages of a held edition or game
+// are not built; the Worker redirects their old addresses (worker/index.mjs). The sources stay in the repo.
+const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge), ...editionHubs(version, publishedGuilded.curseforge)].filter(page => keepPage(page)).map(page => withoutPoe(page));
 // The bot-served public pages too, in each edition's section; published guild pages have their
 // own sitemap, served by the bot.
-const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
+const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.filter(({ id }) => buildEverything() || isEditionActive(id)).flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);
   const french = page.lang === "fr";
@@ -138,10 +142,10 @@ for (const page of pages) {
   const pageText = (en, fr) => bilingual ? `<span data-en="${escape(en)}" data-fr="${escape(fr)}">${en}</span>` : french ? fr : en;
   const descriptionAttributes = bilingual ? ` data-content-en="${escape(page.description)}" data-content-fr="${escape(page.descriptionFr)}"` : '';
   const titleAttributes = bilingual ? ` data-content-en="${escape(page.title)}" data-content-fr="${escape(page.titleFr)}"` : '';
-  const fill = (markdown, fr) => renderVersions(markdown).replaceAll("{{START_EDITIONS}}", startEditions(fr));
+  const fill = (markdown, fr) => renderVersions(stripPoe(markdown)).replaceAll("{{START_EDITIONS}}", startEditions(fr));
   const enBody = page.body ?? marked.parse(fill(readFileSync(`site/pages/${page.source}`, "utf8"), french));
   const body = page.sourceFr ? `<div data-language-copy="en" lang="en">${enBody}</div><div data-language-copy="fr" lang="fr" hidden>${marked.parse(fill(readFileSync(`site/pages/${page.sourceFr}`, "utf8"), true))}</div>` : enBody;
-  const communityNav = french ? `<nav class="community-subnav" aria-label="Dans Quebec Gold">${[['quebec-gold/', 'La communauté'], ['g/quebec-gold/', 'World of Warcraft'], ['quebec-gold/poe2/', 'Path of Exile 2']].map(([path, label]) => `<a href="${prefix}${path}"${page.path === path ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>` : '';
+  const communityNav = french ? `<nav class="community-subnav" aria-label="Dans Quebec Gold">${[['quebec-gold/', 'La communauté'], ['g/quebec-gold/', 'World of Warcraft'], ...(POE_ENABLED ? [['quebec-gold/poe2/', 'Path of Exile 2']] : [])].map(([path, label]) => `<a href="${prefix}${path}"${page.path === path ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>` : '';
   mkdirSync(`${out}/${page.path}`, { recursive: true });
   writeFileSync(`${out}/${page.path}index.html`, `<!doctype html>
 <html lang="${page.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title${bilingual ? ` data-en="${escape(page.title)}" data-fr="${escape(page.titleFr)}"` : ""}>${escape(page.title)}</title><meta name="description" content="${escape(page.description)}"${descriptionAttributes}><link rel="canonical" href="${origin}/${page.path}">${page.draft ? '<meta name="robots" content="noindex,follow">' : ''}<meta property="og:title" content="${escape(page.title)}"${titleAttributes}><meta property="og:description" content="${escape(page.description)}"${descriptionAttributes}><meta property="og:type" content="website"><meta property="og:url" content="${origin}/${page.path}"><meta property="og:image" content="${origin}/images/social/guilded-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="${prefix}favicon.png" type="image/png"><link rel="apple-touch-icon" href="${prefix}apple-touch-icon.png"><link rel="stylesheet" href="${prefix}design-tokens.css"><link rel="stylesheet" href="${prefix}style.css"><link rel="stylesheet" href="${prefix}atelier.css"><script src="${prefix}site.js" defer></script>${bilingual ? `<script src="${prefix}language.js" type="module"></script>` : ""}</head>

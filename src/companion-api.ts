@@ -52,6 +52,7 @@ import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
 import { addonCharacterSchema } from "./integrations/addon.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
+import { GAME_ON_HOLD_NOTE, POE_TRACKING_ENABLED } from "../companion/active-games.mjs";
 import { createPoeMappingService, poeAreaName, PoeMappingError } from "./services/poe-mapping.js";
 import { notify } from "./services/notify.js";
 import { allowManageWrite, createCompanionManage, ManageError } from "./services/companion-manage.js";
@@ -669,6 +670,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           await syncCoreRoster(discordGuild, prisma, guild.id, result.rosterCoreId);
         }
         json(response, 200, { ok: true, message: result.message, ...(result.rosterCoreId ? { rosterCoreId: result.rosterCoreId } : {}), botVersion: BOT_VERSION });
+        return;
+      }
+      // Forever-only focus (companion/active-games.mjs): PoE2 is paused. Old companions are told tracking is off
+      // (status) or that it is paused (everything else); nothing is stored and saved data stays untouched.
+      if ((isPoeRecent || isPoeStatus || isPoeLevels || isPoeUpload) && !POE_TRACKING_ENABLED) {
+        if (isPoeStatus) json(response, 200, { enabled: false, paused: true, botVersion: BOT_VERSION });
+        else json(response, 409, { error: GAME_ON_HOLD_NOTE[0], paused: true });
         return;
       }
       if (isPoeRecent) {

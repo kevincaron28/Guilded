@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+// Turns the Forever-only focus switches on for this file (see tests/helpers/focus-switches.ts).
+vi.mock("../companion/active-editions.mjs", async (original) => (await import("./helpers/focus-switches.js")).allEditionsOn(await original()));
 import { Collection, ChannelType, PermissionFlagsBits, type Guild, type TextChannel } from "discord.js";
 import type { DiscordJob, GameEventBoard, OfficialGameEvent, PrismaClient } from "../src/generated/prisma/client.js";
 import { BRAND } from "../src/brand.js";

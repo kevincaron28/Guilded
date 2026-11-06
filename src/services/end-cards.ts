@@ -1,4 +1,5 @@
 import { badgeInner } from "./achievement-badges.js";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { ACTIVE_ACHIEVEMENTS, TIER_COLOR, TIER_LABEL, achievementById, groupLabel, ladderKey, type AchievementDef, type AchievementGame, type AchievementTier } from "./achievements-catalogue.js";
 import type { RaidReport } from "./raid-report.js";
 import { formatDuration } from "./raid-report.js";
@@ -89,10 +90,10 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
     ],
     rowsLabel: earned.length ? t("Latest achievements", "Derniers succès") : t("Closest to unlocking", "Les plus proches"), rows: shown,
     badges: [
-      { text: `PoE2 ${count("poe2")}`, tone: "muted" },
+      ...(POE_TRACKING_ENABLED ? [{ text: `PoE2 ${count("poe2")}`, tone: "muted" as const }] : []),
       ...(next ? [{ text: t(`Next: ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`, `Prochain : ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`), tone: "ok" as const }] : [])
     ],
-    footer: t("Earned from synced characters, runs, raid attendance and your own PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et de votre journal PoE2 · Aucun point · guilded.kcaron.top")
+    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and your own PoE2 log" : ""} · No points · guilded.kcaron.top`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et de votre journal PoE2" : ""} · Aucun point · guilded.kcaron.top`)
   };
 }
 
@@ -140,6 +141,6 @@ export function achievementUnlockedCard(name: string, ids: string[], totalEarned
     unlocksMore: newest.length - shown.length, moreLabel: t("more", "autres"),
     progress: { label: t("Achievements unlocked", "Succès débloqués"), value: totalEarned, max: total, note: lang === "fr" ? `${percent} % du catalogue` : `${percent}% of the catalogue` },
     tierCounts,
-    footer: t("Earned from synced characters, runs, raid attendance and the PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et du journal PoE2 · Aucun point · guilded.kcaron.top")
+    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and the PoE2 log" : ""} · No points · guilded.kcaron.top`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et du journal PoE2" : ""} · Aucun point · guilded.kcaron.top`)
   };
 }

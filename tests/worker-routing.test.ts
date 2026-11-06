@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+// Turns the Forever-only focus switches on for this file (see tests/helpers/focus-switches.ts).
+vi.mock("../companion/active-editions.mjs", async (original) => (await import("./helpers/focus-switches.js")).allEditionsOn(await original()));
 import worker from "../worker/index.mjs";
 
 afterEach(() => vi.unstubAllGlobals());

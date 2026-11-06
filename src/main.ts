@@ -118,6 +118,7 @@ import { prismaWebStore } from "./services/web-store.js";
 import { publishGuildRuns } from "./services/public-runs.js";
 import { keepStampsOnDisk, standingsFeed } from "./services/standings-feed.js";
 import { executePoe } from "./commands/poe.js";
+import { POE_TRACKING_ENABLED } from "../companion/active-games.mjs";
 import { executeParticipation } from "./commands/participation.js";
 import { createParticipationTracker } from "./services/participation-discord.js";
 import { createActivityTracker, VOICE_TICK_MS } from "./services/activity-totals.js";
@@ -213,7 +214,7 @@ handlers.set("help", executeHelp);
 handlers.set("uninstall", executeUninstall);
 handlers.set("system", executeSystem);
 handlers.set("community", executeCommunity);
-handlers.set("poe", executePoe);
+if (POE_TRACKING_ENABLED) handlers.set("poe", executePoe); // Forever-only focus: companion/active-games.mjs
 handlers.set("participation", executeParticipation);
 
 async function repairCoreRaids(guild: import("discord.js").Guild, provision = false): Promise<void> {

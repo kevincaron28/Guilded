@@ -1,4 +1,5 @@
 import type { Lang } from "../i18n.js";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { foldText, wordFits } from "./answers.js";
 
 // Free, deterministic product answers, a default FAQ seed and an unanswered-question log for the
@@ -20,6 +21,7 @@ const SYNC_ANSWER: Bilingual = {
 };
 
 export function looksLikePoe2Question(text: string): boolean {
+  if (!POE_TRACKING_ENABLED) return false; // Forever-only focus (companion/active-games.mjs)
   return /\b(poe ?2|poe|path of exile)\b/.test(foldText(text)) && /\b(companion|compagnon|diary|journal|client txt|log|upload|track|sync|install|pair|pairing|jumel\w*|overlay)\b/.test(foldText(text));
 }
 export const poe2Answer = (lang: Lang): string => pick(POE2_ANSWER, lang);
@@ -76,7 +78,7 @@ const SEEDS: Seed[] = [
 ];
 
 export function defaultFaqEntries(lang: Lang): { triggers: string[]; answer: string }[] {
-  return SEEDS.map((seed) => ({ triggers: lang === "fr" ? seed.triggers.fr : seed.triggers.en, answer: pick(seed.answer, lang) }));
+  return SEEDS.filter((seed) => POE_TRACKING_ENABLED || seed.answer !== POE2_ANSWER).map((seed) => ({ triggers: lang === "fr" ? seed.triggers.fr : seed.triggers.en, answer: pick(seed.answer, lang) }));
 }
 
 // Entries whose trigger set already exists are skipped, so importing twice adds nothing.

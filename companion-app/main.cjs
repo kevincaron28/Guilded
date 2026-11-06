@@ -108,8 +108,8 @@ function saveConfig() {
 async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
-  const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, activeEditionsModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("active-editions.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold, ...await import(url("saved-folder.mjs")) };
+  const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, activeEditionsModule, activeGamesModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("active-editions.mjs")), import(url("active-games.mjs"))]);
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isFolderOnHold: activeEditionsModule.isFolderOnHold, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")) };
 }
 
 function pushLog(entry) {
@@ -398,7 +398,7 @@ app.on("before-quit", event => {
   }
 });
 
-registerIpc("get-all", () => ({ config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
+registerIpc("get-all", () => ({ focus: { poeTracking: engineModules.poeTracking === true }, config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
 registerIpc("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
 registerIpc("change-profile", async (_event, choice) => {
   try {

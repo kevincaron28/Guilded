@@ -2,12 +2,13 @@ import { guildWhere } from "../services/guild-scope.js";
 import { ChannelType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { botOwnerId } from "./owner-season.js";
-import { EVENT_GAMES, EVENT_REGIONS, EVENT_STATES, EVENT_TRANSACTION_OPTIONS, GameEventInputError, eventGameLabel, reminderSettings, retainEventReminders, eventBoardEmbeds, eventLock, eventText, parseEventInstant, saveOfficialEvent } from "../services/game-events.js";
+import { POE_ENABLED } from "../../companion/active-games.mjs";
+import { activeEventGames, EVENT_REGIONS, EVENT_STATES, EVENT_TRANSACTION_OPTIONS, GameEventInputError, eventGameLabel, reminderSettings, retainEventReminders, eventBoardEmbeds, eventLock, eventText, parseEventInstant, saveOfficialEvent } from "../services/game-events.js";
 import { retryTransientTransaction } from "../services/transaction-retry.js";
 import { eventChannel, eventRole } from "../services/game-events-discord.js";
 import { enqueueDiscordJob } from "../services/discord-jobs.js";
 
-const gameChoices = EVENT_GAMES.map(value => ({ name: eventGameLabel(value), value }));
+const gameChoices = activeEventGames().map(value => ({ name: eventGameLabel(value), value }));
 const regions = EVENT_REGIONS.filter(value => value !== "GLOBAL").map(value => ({ name: value, value }));
 export const gameEventsCommand = new SlashCommandBuilder().setName("events")
   .setDescription("Manage the Upcoming Events board and opt-in game reminders.")
@@ -15,7 +16,7 @@ export const gameEventsCommand = new SlashCommandBuilder().setName("events")
   .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
   .addSubcommand(s => s.setName("board").setDescription("Enable/update one board in this channel. Reminders stay off initially.")
     .addChannelOption(o => o.setName("channel").setDescription("Board channel").addChannelTypes(ChannelType.GuildText).setRequired(true))
-    .addStringOption(o => o.setName("games").setDescription("Games to show").setRequired(true).addChoices(...gameChoices, { name: "Forever + PoE2", value: "BOTH" }, { name: "All games / Tous les jeux", value: "ALL" }))
+    .addStringOption(o => o.setName("games").setDescription("Games to show").setRequired(true).addChoices(...gameChoices, ...(POE_ENABLED ? [{ name: "Forever + PoE2", value: "BOTH" }] : []), ...(gameChoices.length > 1 ? [{ name: "All games / Tous les jeux", value: "ALL" }] : [])))
     .addStringOption(o => o.setName("region").setDescription("WoW region (name reservation times differ)").setRequired(true).addChoices(...regions)))
   .addSubcommand(s => s.setName("reminders").setDescription("Set opt-in reminders for a game; off disables them.")
     .addChannelOption(o => o.setName("channel").setDescription("Configured board channel").addChannelTypes(ChannelType.GuildText).setRequired(true))
@@ -83,7 +84,7 @@ export async function executeGameEvents(interaction: ChatInputCommandInteraction
       let current = await tx.gameEventBoard.findUnique({ where: { guildId_channelId: { guildId: record.id, channelId } } });
       if (sub === "board") {
         const games = interaction.options.getString("games", true);
-        const data = { enabled: true, games: games === "ALL" ? [...EVENT_GAMES] : games === "BOTH" ? ["WOW_FOREVER", "POE2"] : [games], region: interaction.options.getString("region", true) };
+        const data = { enabled: true, games: games === "ALL" ? [...activeEventGames()] : games === "BOTH" ? ["WOW_FOREVER", "POE2"] : [games], region: interaction.options.getString("region", true) };
         current = await tx.gameEventBoard.upsert({ where: { guildId_channelId: { guildId: record.id, channelId } },
           create: { guildId: record.id, channelId, ...data }, update: { ...data, ...retainEventReminders(current, data.games) } });
       } else if (!current) throw new GameEventInputError(eventText(fr, "Configure /events board first.", "Configurez /events board d’abord."));

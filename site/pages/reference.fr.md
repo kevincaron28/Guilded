@@ -34,7 +34,7 @@ suivent sont ses sous-commandes.
 | `/report` `bug` `ping` `stats` | Envoyer un rapport de bogue privé ; vérifier que le bot répond ; activité de la guilde | Tout le monde |
 | `/automation` `recap` | Récapitulatif hebdomadaire en message privé (désactivé par défaut) | Tout le monde |
 | `/wow` `list` `use` | Choisir la guilde en jeu utilisée par vos commandes | Tout le monde |
-| `/poe` `pair` `status` `runs` `summary` | Journal de cartes de Path of Exile 2 | Tout le monde |
+| `/poe` `pair` `status` `runs` `summary` | Journal de cartes de Path of Exile 2 | Tout le monde | <!--poe-->
 
 ### Raids
 

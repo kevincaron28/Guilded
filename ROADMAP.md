@@ -211,6 +211,8 @@ Later the same day:
 | Dungeon guild leaderboards too strict: runs don't show up. Find which gate drops them (estimated targets vs evidence, presence, final boss, level band, season window) and relax what is unfair for Season 1 without breaking integrity; show "why not counted" to officers | season2-plan session | Targets are estimates until Season 1 data exists |
 | Welcome DM: a member who picks World of Warcraft gets a **Request a guild invite** button (form: full character name), or can simply reply with the name. The bot posts it in `#invitation-guilde` and adds it to the invite queue automatically | invite-queue session | No need to find the channel |
 | **Full character names in every bot message** (the dungeon "classement" showed "El" for "El Pirata"): one display helper used by dungeon boards, run posts, ladders, achievements, profession posts, roster, DMs and cards | season2-plan (dungeon surfaces) + Track C (everything else) | Fallback to first name only when no full name is known |
+| Nickname sync uses the member's **server nickname** as the base (not the account name) when they set one, never doubling the `(First Last)` suffix, and follows later nickname changes | Track C | Owner, 6 November evening |
+| Companion checks free disk space before installing or updating (the second PC had 26 MB free) | Track F | From the fresh-PC test |
 | Not adopted from Kinfolk | — | Module switches (they contradict always-on), in-game polls/board, class guides |
 
 ### Phases after the features

@@ -123,6 +123,11 @@ Render images with `src/services/score-card.ts` (roster layout) so they match th
   arena capture waits behind the edition switch.
 - Done when: `/setup` creates the PvP category once, the ladder board updates from uploads, and
   `docs/BATTLEGROUNDS_NEXT_MODULE.md` drops its stale 30 October checkpoint header.
+- **Owner decision (6 November 2026): two separate ladders, never mixed points.** A **duel ladder**
+  (wins/losses, win rate, streak, from `DuelResult`; the existing duel board feeds it) and a
+  **battleground ladder** (from battleground reports: games, wins, win rate, kills/honorable kills
+  and other stats the capture provides, per bracket), each its own message in `pvp-ladder` with its
+  own scoring. Battleground stats stay labelled as player reports, not verified matches.
 - **Owner decision (6 November 2026):** "arena module" means the existing **battleground/duel PvP
   module**. Build the PvP channels and the PvP ladder (duels plus battleground reports). Arena
   capture is not part of 8.5; step 0 stays as a note for later.

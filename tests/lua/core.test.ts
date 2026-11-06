@@ -410,7 +410,7 @@ describe("one saved-data set per WoW guild", () => {
     // Just invited: the client fires PLAYER_GUILD_UPDATE before GetGuildInfo knows the name.
     s.run(`function GetGuildInfo() return nil end; fire_event("PLAYER_GUILD_UPDATE")`);
     expect(s.run(`return tostring(GuildedDB.guildKey)`)).toBe("nil");
-    expect(s.run(`return #TIMERS`)).toBe("3");
+    expect(s.run(`return #TIMERS`)).toBe("4");
     inGuild(s, "Alpha");
     s.run(`for _, fn in ipairs(TIMERS) do fn() end`);
     expect(s.run(`return GuildedDB.guildKey`)).toBe("Alpha-TestRealm");
@@ -529,6 +529,67 @@ describe("WoW Forever synced realms share one guild key", () => {
       function GetGuildInfo() return "Alpha", "Officer", 1, "RealmA" end`);
     r.load("Core.lua"); r.load("Compat.lua"); r.run(`fire_event("PLAYER_LOGIN"); fire_event("GUILD_ROSTER_UPDATE")`);
     expect(r.run("return GuildedDB.guildKey")).toBe("Alpha-RealmB");
+  });
+});
+
+describe("WoW Forever guild key while the home realm is still arriving", () => {
+  const OWN = "CAMWOW US2 Realm 8 PvP";
+  const HOME = "CAMWOWUS2Realm2PvP";
+  const start = (saved: string) => {
+    session = newLuaSession(); const s = session;
+    s.run(`GuildedDB = ${saved}; NS = {}; MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
+      NOW = 1800000000; GetServerTime = function() return NOW end; GUILDED_TEST_HOME_WAIT = 20
+      HOME_KNOWN = false
+      function GetBuildInfo() return "1.60.1", "70790", "Nov 1 2026", 16001 end
+      function GetRealmName() return ${JSON.stringify(OWN)} end
+      function GetGuildInfo() if HOME_KNOWN then return "Alpha", "Officer", 1, ${JSON.stringify(HOME)} end return "Alpha", "Officer", 1 end`);
+    s.load("Core.lua"); s.load("Compat.lua");
+    s.run(`fire_event("PLAYER_LOGIN"); fire_event("PLAYER_ENTERING_WORLD"); fire_event("GUILD_ROSTER_UPDATE")`);
+    return s;
+  };
+
+  it("does not file the guild under the character's own realm before the home realm arrives", () => {
+    const s = start("nil");
+    expect(s.run("return tostring(GuildedDB.guildKey)")).toBe("nil");
+    s.run(`HOME_KNOWN = true; fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(s.run("return GuildedDB.guildKey")).toBe("Alpha-" + HOME);
+    expect(s.run("return tostring(next(GuildedDB.otherGuilds or {}))")).toBe("nil");
+  });
+
+  it("falls back to the own realm, spelled without spaces, when no home realm ever arrives", () => {
+    const s = start("nil");
+    s.run(`NOW = NOW + 25; fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(s.run("return GuildedDB.guildKey")).toBe("Alpha-CAMWOWUS2Realm8PvP");
+  });
+
+  it("recognises a key saved with spaces as the same key", () => {
+    const s = start(`{ version = 4, guildKey = "Alpha-CAMWOW US2 Realm 8 PvP", guildEdition = "forever", roster = { Bob = {} }, settings = { officers = {} } }`);
+    s.run(`NOW = NOW + 25; fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(s.run("return GuildedDB.guildKey")).toBe("Alpha-CAMWOWUS2Realm8PvP");
+    expect(s.run("return tostring(next(GuildedDB.otherGuilds or {}))")).toBe("nil");
+  });
+
+  const stranded = (homeRoster: string) => `{ version = 4, guildKey = "Alpha-${OWN}", guildEdition = "forever",
+    epgp = { Bob = { ep = 50, gp = 0, ledger = {} } }, roster = { Bob = {} }, raids = { { id = "r1", title = "MC" } }, settings = { officers = {} },
+    otherGuilds = { ["Alpha-${HOME}"] = { epgp = { Cy = { ep = 7, gp = 0, ledger = {} } }, roster = ${homeRoster}, settings = { officers = {} } } } }`;
+
+  it("merges data stranded under the own-realm key into the home data once, and never merges points", () => {
+    const s = start(stranded("{}"));
+    s.run(`HOME_KNOWN = true; fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(s.run("return GuildedDB.guildKey")).toBe("Alpha-" + HOME);
+    expect(s.run("return tostring(GuildedDB.roster.Bob ~= nil)")).toBe("true");       // merged
+    expect(s.run("return GuildedDB.raids[1].id")).toBe("r1");                          // merged
+    expect(s.run("return tostring(GuildedDB.epgp.Bob)")).toBe("nil");                  // points stay behind
+    expect(s.run("return GuildedDB.epgp.Cy.ep")).toBe("7");
+    expect(s.run(`return GuildedDB.otherGuilds["Alpha-CAMWOWUS2Realm8PvP"].epgp.Bob.ep`)).toBe("50");
+    expect(s.chat().join(" ")).toContain("merged into");
+  });
+
+  it("does not overwrite home data that already exists", () => {
+    const s = start(stranded(`{ Dan = {} }`));
+    s.run(`HOME_KNOWN = true; fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(s.run("return tostring(GuildedDB.roster.Dan ~= nil) .. tostring(GuildedDB.roster.Bob ~= nil)")).toBe("truefalse");
+    expect(s.run(`return tostring(GuildedDB.otherGuilds["Alpha-CAMWOWUS2Realm8PvP"].roster.Bob ~= nil)`)).toBe("true");
   });
 });
 

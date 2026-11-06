@@ -2127,6 +2127,17 @@ local DE = {
   ["Guildmates with a companion:"] = "Gildenmitglieder mit Begleiter:",
   ["Guildmates' data held here: %d, oldest %s (dropped after 45 days)."] = "Hier gespeicherte Daten von Gildenmitgliedern: %d, die \195\164ltesten %s (nach 45 Tagen gel\195\182scht).",
   ["Older Guilded (please update):"] = "\195\132lteres Guilded (bitte aktualisieren):",
+  ["Professions"] = "Berufe",
+  ["No professions shared by guildmates yet."] = "Noch keine Berufe von Gildenmitgliedern geteilt.",
+  ["No public notes to update."] = "Keine \195\182ffentlichen Notizen zu aktualisieren.",
+  ["Professions to notes"] = "Berufe in Notizen",
+  ["Ready to promote"] = "Bereit zur Bef\195\182rderung",
+  ["Promote"] = "Bef\195\182rdern",
+  ["Rule: rank %s for %d+ days."] = "Regel: Rang %s seit %d+ Tagen.",
+  ["Nobody is ready to promote yet."] = "Noch niemand ist bereit zur Bef\195\182rderung.",
+  ["days"] = "Tage",
+  ["+%d more"] = "+%d weitere",
+  ["Promotion requested. Wait for the roster to confirm it before the next one."] = "Bef\195\182rderung angefordert. Warte, bis die Liste sie best\195\164tigt, bevor du die n\195\164chste vergibst.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3466,6 +3477,17 @@ local ES = {
   ["Guildmates with a companion:"] = "Miembros con compa\195\177ero:",
   ["Guildmates' data held here: %d, oldest %s (dropped after 45 days)."] = "Datos de miembros guardados aqu\195\173: %d, el m\195\161s antiguo %s (se borran a los 45 d\195\173as).",
   ["Older Guilded (please update):"] = "Guilded m\195\161s antiguo (actual\195\173zalo):",
+  ["Professions"] = "Profesiones",
+  ["No professions shared by guildmates yet."] = "Todav\195\173a nadie de la hermandad ha compartido profesiones.",
+  ["No public notes to update."] = "No hay notas p\195\186blicas que actualizar.",
+  ["Professions to notes"] = "Profesiones a notas",
+  ["Ready to promote"] = "Listos para ascender",
+  ["Promote"] = "Ascender",
+  ["Rule: rank %s for %d+ days."] = "Regla: rango %s durante %d+ d\195\173as.",
+  ["Nobody is ready to promote yet."] = "Todav\195\173a nadie est\195\161 listo para ascender.",
+  ["days"] = "d\195\173as",
+  ["+%d more"] = "+%d m\195\161s",
+  ["Promotion requested. Wait for the roster to confirm it before the next one."] = "Ascenso solicitado. Espera a que la lista lo confirme antes del siguiente.",
 }
 -- END ES
 
@@ -4115,3 +4137,15 @@ FR["This game client does not say whether you can edit the guild message, so not
 FR["Guild message ready: click the Update guild message button to copy it (%s)."] = "Message de guilde pr\195\169t : cliquez sur le bouton Mettre \195\160 jour le message de guilde pour le copier (%s)."
 FR["A reminder plus a copy box for the guild message of the day: WoW does not let addons set it, so you paste the ready text yourself and Guilded confirms it. Off by default; a manual edit pauses it."] = "Un rappel et une zone de copie pour le message du jour de la guilde : WoW ne permet pas aux addons de le d\195\169finir, vous collez donc le texte pr\195\169t vous-m\195\170me et Guilded le confirme. D\195\169sactiv\195\169 par d\195\169faut ; une modification manuelle le met en pause."
 FR["Share EP/GP history with guildmates"] = "Partager l'historique EP/GP avec la guilde"
+-- 8.5 track C: professions on the roster and the promotion panel.
+FR["Professions"] = "M\195\169tiers"
+FR["No professions shared by guildmates yet."] = "Aucun m\195\169tier partag\195\169 par la guilde pour l'instant."
+FR["No public notes to update."] = "Aucune note publique \195\160 mettre \195\160 jour."
+FR["Professions to notes"] = "M\195\169tiers vers notes"
+FR["Ready to promote"] = "Pr\195\170ts \195\160 \195\170tre promus"
+FR["Promote"] = "Promouvoir"
+FR["Rule: rank %s for %d+ days."] = "R\195\168gle : rang %s depuis %d+ jours."
+FR["Nobody is ready to promote yet."] = "Personne n'est encore pr\195\170t \195\160 \195\170tre promu."
+FR["days"] = "jours"
+FR["+%d more"] = "+%d de plus"
+FR["Promotion requested. Wait for the roster to confirm it before the next one."] = "Promotion demand\195\169e. Attendez que la liste la confirme avant la suivante."

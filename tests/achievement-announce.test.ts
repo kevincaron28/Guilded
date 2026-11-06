@@ -6,7 +6,7 @@ interface Row { id: string; guildId: string; memberId: string; key: string; earn
 type Where = { id?: { in: string[] }; announcedAt?: null; guildId?: string; memberId?: string };
 
 function fakeDb(options: { enabled?: boolean; channel?: string | null; hidden?: boolean; language?: string; keys?: string[]; baseline?: number } = {}) {
-  const rows: Row[] = (options.keys ?? ["wow-level-20", "dungeon-runs-1"]).map((key, i) => ({ id: `r${i}`, guildId: "g1", memberId: "m1", key, earnedAt: new Date(2026, 10, 1 + i), announcedAt: null }));
+  const rows: Row[] = (options.keys ?? ["wow-forever-level-20", "dungeon-runs-1"]).map((key, i) => ({ id: `r${i}`, guildId: "g1", memberId: "m1", key, earnedAt: new Date(2026, 10, 1 + i), announcedAt: null }));
   const jobs: { key: string; kind: string; payload: Record<string, unknown> }[] = [];
   const match = (row: Row, where: Where) => (!where.id || where.id.in.includes(row.id)) && (where.announcedAt === undefined || row.announcedAt === where.announcedAt) && (!where.guildId || row.guildId === where.guildId) && (!where.memberId || row.memberId === where.memberId);
   const db = {
@@ -86,7 +86,7 @@ describe("achievement announcements", () => {
     expect(JSON.stringify(jobs[0]!.payload)).toContain("Bravo");
   });
   it("lists a few and counts the rest when many unlock at once", async () => {
-    const { db, jobs } = fakeDb({ keys: ["wow-level-20", "wow-level-40", "wow-level-60", "wow-level-80", "raids-1", "raids-5", "raids-10", "dungeon-runs-1"] });
+    const { db, jobs } = fakeDb({ keys: ["wow-forever-level-10", "wow-forever-level-20", "wow-forever-level-30", "wow-forever-level-40", "raids-1", "raids-5", "raids-10", "dungeon-runs-1"] });
     await announceNewAchievements(db, "g1", "m1");
     expect(JSON.stringify(jobs[0]!.payload)).toContain("…and 2 more");
   });

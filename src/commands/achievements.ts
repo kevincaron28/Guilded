@@ -1,5 +1,4 @@
 import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ButtonInteraction, type ChatInputCommandInteraction } from "discord.js";
-import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { prisma } from "../database.js";
 import { achievementsCard } from "../services/end-cards.js";
 import { scoreCardPng } from "../services/score-card.js";
@@ -22,7 +21,7 @@ async function render(guildId: string, memberId: string, name: string, fr: boole
   const embed = new EmbedBuilder().setTitle(`⚜️ ${t("Achievements", "Succès")} · ${name}`.slice(0, 256))
     .setDescription((earned.length
       ? earned.sort((a, b) => b.earnedAt!.getTime() - a.earnedAt!.getTime()).slice(0, 12).map(row => `**${row.def[fr ? "fr" : "en"].name}** — ${row.def[fr ? "fr" : "en"].description} <t:${Math.floor(row.earnedAt!.getTime() / 1000)}:d>${view.newlyEarned.includes(row.def.id) ? ` ✨ ${t("new", "nouveau")}` : ""}`).join("\n")
-      : t(`No achievements yet. They are earned from synced characters, dungeon runs, raid attendance${POE_TRACKING_ENABLED ? " and your PoE2 log" : ""}.`, `Aucun succès pour l'instant. Ils s'obtiennent avec les personnages synchronisés, les donjons, les présences aux raids${POE_TRACKING_ENABLED ? " et votre journal PoE2" : ""}.`)).slice(0, 4000))
+      : t(`No achievements yet. They are earned from synced characters, dungeon runs, raid attendance.`, `Aucun succès pour l'instant. Ils s'obtiennent avec les personnages synchronisés, les donjons, les présences aux raids.`)).slice(0, 4000))
     .setFooter({ text: `${earned.length}/${view.results.length} · ${t("computed from recorded data, no points", "calculé à partir des données enregistrées, sans points")} · ${t("Full list", "Liste complète")}: guilded.kcaron.top/me/` });
   if (png) embed.setImage("attachment://achievements.png");
   return { embed, png, view };

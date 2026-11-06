@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 // Turns PoE2 tracking on for this file (see tests/helpers/focus-switches.ts).
 vi.mock("../companion/active-games.mjs", async (original) => (await import("./helpers/focus-switches.js")).poeTrackingOn(await original()));
-import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, EDITION_LABEL, WOW_EDITIONS, achievementById, wowLevelCap } from "../src/services/achievements-catalogue.js";
+import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, ACHIEVEMENT_CATALOGUE_VERSION, CATALOGUE_EDITIONS, EDITION_LABEL, RETIRED_ACHIEVEMENT_IDS, WOW_EDITIONS, achievementById, wowLevelCap } from "../src/services/achievements-catalogue.js";
 import { emptyFacts, evaluateAchievements, syncMemberAchievements, type AchievementFacts } from "../src/services/achievements.js";
 import { achievementsCard } from "../src/services/end-cards.js";
 import { scoreCardPng } from "../src/services/score-card.js";
@@ -22,11 +22,18 @@ describe("achievement catalogue", () => {
       for (const lang of [row.en, row.fr]) { expect(lang.name.length).toBeGreaterThan(2); expect(lang.description.length).toBeGreaterThan(10); }
       expect(achievementById(row.id)).toBe(row);
     }
-    expect([...new Set(ACHIEVEMENTS.map(row => row.game))].sort()).toEqual(["guild", "poe2", "wow"]);
+    expect([...new Set(ACHIEVEMENTS.map(row => row.game))].sort()).toEqual(["guild", "wow"]);
   });
-  it("covers the PoE2 levels 90, 99 and 100 and the WoW level cap", () => {
-    expect(ACHIEVEMENTS.filter(row => row.metric === "poeLevel").map(row => row.threshold).sort((a, b) => a - b)).toEqual([75, 90, 99, 100]);
-    expect(achievementById("wow-max-level")?.metric).toBe("wowMaxLevel");
+  it("is version 7: only WoW Forever and guild rows, and every retired id stays out of it for good", () => {
+    expect(ACHIEVEMENT_CATALOGUE_VERSION).toBe(7);
+    expect(CATALOGUE_EDITIONS).toEqual(["forever"]);
+    for (const row of ACHIEVEMENTS) expect(row.game === "guild" || row.id.startsWith("wow-forever-"), row.id).toBe(true);
+    expect(new Set(RETIRED_ACHIEVEMENT_IDS).size).toBe(RETIRED_ACHIEVEMENT_IDS.length);
+    for (const id of RETIRED_ACHIEVEMENT_IDS) expect(achievementById(id), id).toBeUndefined();
+    // The ids the removed rows had in catalogue 6: Era, TBC, Mists and Retail (a ladder per edition), PoE2, and the edition-less rows.
+    expect(RETIRED_ACHIEVEMENT_IDS).toEqual(expect.arrayContaining(["poe2-level-100", "poe2-maps-500", "wow-level-60", "wow-max-level-3", "profession-300", "wow-classic-era-level-60", "wow-classic-tbc-profession-375", "wow-classic-mists-level-90", "wow-retail-level-90", "wow-retail-alts-3"]));
+    expect(RETIRED_ACHIEVEMENT_IDS).toHaveLength(8 + 6 + 9 + 11 + 14 + 10);
+    expect(ACHIEVEMENTS.filter(row => row.metric === "poeLevel" || row.metric === "poeMaps")).toEqual([]);
     expect(wowLevelCap("classic-tbc")).toBe(70);
     expect(wowLevelCap("retail")).toBe(90);
     expect(wowLevelCap("unknown-edition")).toBe(60);
@@ -42,26 +49,22 @@ describe("evaluateAchievements", () => {
     expect(earnedIds(forever(60, 1))).not.toContain("wow-forever-alts-3");
     expect(earnedIds(forever(60, 3))).toContain("wow-forever-alts-3");
   });
-  it("counts each edition on its own: a Retail level 90 earns nothing for Forever, Era or TBC", () => {
-    const ids = earnedIds({ editions: { retail: { highestLevel: 90, atCap: 1, profession: 0 } } });
-    expect(ids).toContain("wow-retail-level-90");
-    expect(ids).toContain("wow-retail-level-10");
-    for (const edition of ["forever", "classic-era", "classic-tbc", "classic-mists"]) expect(ids.filter(id => id.startsWith(`wow-${edition}-`))).toEqual([]);
+  it("earns nothing for the retired editions: a Retail level 90 or a TBC profession changes no active row", () => {
+    const ids = earnedIds({ editions: { retail: { highestLevel: 90, atCap: 3, profession: 0 }, "classic-tbc": { highestLevel: 70, atCap: 1, profession: 375 } } });
+    expect(ids).toEqual([]);
   });
-  it("has no unreachable edition achievement: levels stop at each edition's cap, with the real caps named", () => {
+  it("has no unreachable edition achievement: Forever levels stop at its cap of 60, with the real caps named", () => {
     expect(WOW_EDITIONS.map(edition => wowLevelCap(edition))).toEqual([60, 60, 70, 90, 90]);
-    for (const edition of WOW_EDITIONS) {
+    for (const edition of CATALOGUE_EDITIONS) {
       const levels = ACHIEVEMENTS.filter(row => row.edition === edition && row.metric === "wowEditionLevel").map(row => row.threshold);
       expect(Math.max(...levels), edition).toBe(wowLevelCap(edition));
       expect(levels.filter(level => level >= 10 && level % 10 === 0 || level === wowLevelCap(edition)).length).toBe(levels.length);
       expect(achievementById(`wow-${edition}-level-${wowLevelCap(edition)}`)?.en.name).toContain("Max");
       expect(achievementById(`wow-${edition}-level-${wowLevelCap(edition) + 10}`)).toBeUndefined();
     }
-    // WoW Forever is fixed at 60: nothing at 70 or 80.
-    expect(ACHIEVEMENTS.filter(row => row.edition === "forever").every(row => row.metric !== "wowEditionLevel" || row.threshold <= 60)).toBe(true);
   });
   it("names the edition in English and French and uses an accent per edition", () => {
-    for (const edition of WOW_EDITIONS) for (const row of ACHIEVEMENTS.filter(def => def.edition === edition)) {
+    for (const edition of CATALOGUE_EDITIONS) for (const row of ACHIEVEMENTS.filter(def => def.edition === edition)) {
       expect(row.en.name.startsWith(`${EDITION_LABEL[edition].short}:`), row.id).toBe(true);
       expect(row.fr.name.startsWith(`${EDITION_LABEL[edition].short} :`), row.id).toBe(true);
       expect(row.game).toBe("wow");
@@ -69,19 +72,16 @@ describe("evaluateAchievements", () => {
     expect(achievementById("wow-forever-level-40")?.en.name).toBe("Forever: Level 40");
     expect(achievementById("wow-forever-level-40")?.fr.name).toBe("Forever : niveau 40");
   });
-  it("keeps the old edition-less rows as legacy: never awarded again, still known by id", () => {
-    const legacy = ACHIEVEMENTS.filter(row => row.legacy).map(row => row.id).sort();
-    expect(legacy).toEqual(["profession-150", "profession-300", "wow-level-20", "wow-level-40", "wow-level-60", "wow-level-80", "wow-max-level", "wow-max-level-3"]);
-    expect(ACTIVE_ACHIEVEMENTS.some(row => row.legacy)).toBe(false);
-    const ids = earnedIds({ highestWowLevel: 80, charactersAtCap: 5, highestProfessionSkill: 300, editions: { retail: { highestLevel: 80, atCap: 0, profession: 0 } } });
-    expect(ids.filter(id => legacy.includes(id))).toEqual([]);
-    expect(evaluateAchievements(facts({ highestWowLevel: 80 }), now).find(row => row.def.id === "wow-level-60")).toMatchObject({ earned: false, value: 80 });
+  it("never awards or evaluates the edition-less rows any more", () => {
+    const ids = earnedIds({ highestWowLevel: 80, charactersAtCap: 5, highestProfessionSkill: 300 });
+    expect(ids).toEqual([]);
+    expect(evaluateAchievements(facts({ highestWowLevel: 80 }), now).find(row => row.def.id === "wow-level-60")).toBeUndefined();
   });
-  it("splits profession skill per edition", () => {
+  it("earns Forever profession steps from Forever characters only", () => {
     const ids = earnedIds({ editions: { "classic-tbc": { highestLevel: 70, atCap: 0, profession: 375 }, forever: { highestLevel: 30, atCap: 0, profession: 200 } } });
-    expect(ids).toEqual(expect.arrayContaining(["wow-classic-tbc-profession-150", "wow-classic-tbc-profession-300", "wow-classic-tbc-profession-375", "wow-forever-profession-150"]));
+    expect(ids).toContain("wow-forever-profession-150");
     expect(ids).not.toContain("wow-forever-profession-300");
-    expect(ACHIEVEMENTS.some(row => row.id.startsWith("wow-retail-profession"))).toBe(false);
+    expect(ids.some(id => id.includes("tbc"))).toBe(false);
   });
   it("dates a counted achievement by the Nth recorded event", () => {
     const runs = Array.from({ length: 12 }, (_, i) => day(i + 1));
@@ -94,11 +94,6 @@ describe("evaluateAchievements", () => {
     const ids = earnedIds({ raidsAttended: [day(1), day(2)], raidClears: [day(2)] });
     expect(ids).toEqual(expect.arrayContaining(["raids-1", "raid-clears-1"]));
     expect(ids).not.toContain("raids-5");
-  });
-  it("uses the log's own date for PoE2 levels", () => {
-    const results = evaluateAchievements(facts({ poeLevels: [{ level: 92, reachedAt: day(5) }, { level: 91, reachedAt: day(4) }] }), now);
-    expect(results.find(row => row.def.id === "poe2-level-90")).toMatchObject({ earned: true, earnedAt: day(4) });
-    expect(results.find(row => row.def.id === "poe2-level-99")).toMatchObject({ earned: false, value: 92 });
   });
   it("clamps a future date to now and dates level-only achievements at detection", () => {
     const results = evaluateAchievements(facts({ dungeonRuns: [new Date("2030-01-01")], editions: { forever: { highestLevel: 20, atCap: 0, profession: 0 } } }), now);
@@ -199,10 +194,11 @@ describe("achievement card", () => {
     expect(card.stats[1]).toMatchObject({ label: "WoW", value: `2/${ACTIVE_ACHIEVEMENTS.filter(def => def.game === "wow").length}` });
     expect(card.rows).toHaveLength(2); // a ladder shows only its top earned step
   });
-  it("lists a legacy row only when it was already earned, and names the edition on edition rows", () => {
-    const earnedLegacy = achievementsCard("Kevin", items(["wow-level-60", "wow-forever-level-60"]), "en");
-    expect(earnedLegacy.stats[0]).toMatchObject({ value: `2/${ACTIVE_ACHIEVEMENTS.length + 1}` });
-    expect(earnedLegacy.rows!.some(row => row.sub?.includes("WoW Forever"))).toBe(true);
+  it("never lists a retired row, even one a member already earned, and names the edition on Forever rows", () => {
+    const earnedRetired = achievementsCard("Kevin", [...items(["wow-forever-level-60"]), { id: "wow-level-60", earnedAt: day(2), value: 60 }, { id: "poe2-level-90", earnedAt: day(2), value: 90 }, { id: "wow-retail-level-90", earnedAt: day(2), value: 90 }], "en");
+    expect(earnedRetired.stats[0]).toMatchObject({ value: `1/${ACTIVE_ACHIEVEMENTS.length}` });
+    expect(earnedRetired.rows!.some(row => row.sub?.includes("WoW Forever"))).toBe(true);
+    expect(JSON.stringify(earnedRetired)).not.toMatch(/Retail|Sixty and Counting|Exile/);
     expect(achievementsCard("Kevin", items([]), "en").stats[0]).toMatchObject({ value: `0/${ACTIVE_ACHIEVEMENTS.length}` });
   });
   it("shows the closest locked ones before anything is earned, in French when asked", () => {
@@ -212,7 +208,7 @@ describe("achievement card", () => {
     expect(card.stats[0]!.label).toBe("Débloqués");
   });
   it("renders to a PNG", async () => {
-    const png = await scoreCardPng(achievementsCard("Kevin Caron", items(["wow-forever-level-20", "wow-level-40", "wow-level-60", "wow-forever-level-60", "dungeon-runs-1", "dungeon-runs-10", "raids-1"]), "en"));
+    const png = await scoreCardPng(achievementsCard("Kevin Caron", items(["wow-forever-level-20", "wow-forever-level-40", "wow-forever-level-60", "dungeon-runs-1", "dungeon-runs-10", "raids-1"]), "en"));
     expect(png?.subarray(1, 4).toString()).toBe("PNG");
   });
 });

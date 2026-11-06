@@ -154,7 +154,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     dungeonLeaderboardChannel: await channelFact(guild, settings.dungeonLeaderboardChannelId),
     welcomeChannel: welcomeDelivery(settings) === "DM" ? null : await channelFact(guild, settings.welcomeChannelId),
     autoRoles,
-    ...(settings.nicknameSyncEnabled ? { nicknameSyncReady: botCanRename(guild) } : {}),
+    ...(settings.nicknameSyncEnabled !== false ? { nicknameSyncReady: botCanRename(guild) } : {}),
     epgpConfigured: settings.baseGp > 0,
     remindersOn: settings.raidReminderMinutes > 0,
     weeklyReportOn: settings.weeklyReportEnabled,

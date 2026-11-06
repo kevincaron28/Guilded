@@ -7,8 +7,8 @@ import { guildWhere } from "./guild-scope.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 
 // 8.5 track C2: the "Who's who" board. ONE bot message (up to three embeds) in an officer-chosen channel, edited in
-// place, listing each member with their main and alts, for servers where nicknames stay off. Opt-in per server
-// (GuildSettings.whosWhoEnabled); it posts nothing new after the first message and awards nothing. Same pattern as
+// place, listing each member with their main and alts, for servers where nicknames stay off. On by default (owner decision, 6 November 2026), per server
+// (GuildSettings.whosWhoEnabled; officers switch it off); it posts nothing new after the first message and awards nothing. Same pattern as
 // the duel board (services/duel-board.ts).
 
 export const WHOS_WHO_MARKER = "Guilded who's who";
@@ -74,13 +74,14 @@ export async function updateWhosWhoBoard(discordGuild: DiscordGuild | null, deli
   try {
     const guild = await prisma.guild.findUnique({ where: guildWhere(discordGuild.id), select: { id: true, gameEdition: true, settings: true } });
     const settings = guild?.settings;
-    if (!guild || !settings?.whosWhoEnabled || !settings.whosWhoChannelId) return false;
+    const channelId = settings?.whosWhoChannelId ?? settings?.guideChannelId; // on by default: the bot guide channel until an officer picks one
+    if (!guild || !settings || settings.whosWhoEnabled === false || !channelId) return false;
     if (!delivery) {
       const job = await enqueueDiscordJob(prisma, guild.id, "whos-who-board", "WHOS_WHO_BOARD");
       await deliverDiscordJob(prisma, job.id, (current) => dispatchDiscordJob(discordGuild, current));
       return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
     }
-    const channel = await discordGuild.channels.fetch(settings.whosWhoChannelId).catch(() => null);
+    const channel = await discordGuild.channels.fetch(channelId).catch(() => null);
     if (!channel?.isTextBased() || !("send" in channel)) return false;
     const { embeds } = whosWhoEmbeds(await loadWhoData(prisma, guild.id, guild.gameEdition ?? "forever"), asLang(settings.language), guild.id);
     embeds[embeds.length - 1]!.setTimestamp(new Date());

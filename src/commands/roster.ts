@@ -81,14 +81,14 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
       const data = { ...(on !== null ? { nicknameSyncEnabled: on } : {}), ...(format !== null ? { nicknameFormat: format } : {}) };
       await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, ...data }, update: data });
     }
-    const enabled = on ?? settings?.nicknameSyncEnabled ?? false;
+    const enabled = on ?? settings?.nicknameSyncEnabled ?? true;
     if (on === false) {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const restored = await restoreAllNicknames(prisma, interaction.guild, guildId);
       await interaction.editReply(t(`Nickname sync is off. ${restored} nickname(s) restored.`, `Synchro des pseudos désactivée. ${restored} pseudo(s) restauré(s).`));
       return;
     }
-    if (!enabled) { await reply(t("Nickname sync is **off**. Turn it on with `on:true`; members can opt out with /character nickname.", "La synchro des pseudos est **désactivée**. Active-la avec `on:true`; les membres peuvent s'exclure avec /character nickname.")); return; }
+    if (!enabled) { await reply(t("Nickname sync is **off**. Turn it on with `on:true`. It is on by default; members can opt out with /character nickname.", "La synchro des pseudos est **désactivée**. Active-la avec `on:true`; les membres peuvent s'exclure avec /character nickname.")); return; }
     if (!botCanRename(interaction.guild)) { await reply(t("Saved, but I need the **Manage Nicknames** permission (and my role above the members) to rename anyone.", "Enregistré, mais il me faut la permission **Gérer les pseudos** (et mon rôle au-dessus des membres).")); return; }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const result = await syncNicknames(prisma, interaction.guild, { dryRun: !apply });
@@ -105,8 +105,6 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
   const on = interaction.options.getBoolean("on");
   const channel = interaction.options.getChannel("channel");
   if (on !== null || channel) {
-    const channelId = channel?.id ?? settings?.whosWhoChannelId ?? null;
-    if (on === true && !channelId) { await reply(t("Pick a channel too: `channel:#…`.", "Choisis aussi un salon : `channel:#…`.")); return; }
     const data = { ...(on !== null ? { whosWhoEnabled: on } : {}), ...(channel ? { whosWhoChannelId: channel.id, whosWhoMessageId: null } : {}) };
     await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, ...data }, update: data });
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -115,7 +113,8 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
       : posted ? t("Who's who board is on and posted.", "Le tableau Qui est qui est actif et publié.") : t("Saved, but I could not post in that channel. Check my permissions there.", "Enregistré, mais je n'ai pas pu publier dans ce salon. Vérifie mes permissions."));
     return;
   }
-  await reply(settings?.whosWhoEnabled ? t(`Who's who board is on in <#${settings.whosWhoChannelId}>.`, `Le tableau Qui est qui est actif dans <#${settings.whosWhoChannelId}>.`) : t("Who's who board is off. Use `on:true channel:#…`.", "Le tableau Qui est qui est désactivé. Utilise `on:true channel:#…`."));
+  const where = settings?.whosWhoChannelId ?? settings?.guideChannelId;
+  await reply(settings?.whosWhoEnabled === false ? t("Who's who board is off. Use `on:true`.", "Le tableau Qui est qui est désactivé. Utilise `on:true`.") : where ? t(`Who's who board is on in <#${where}>. Pick another channel with \`channel:\`.`, `Le tableau Qui est qui est actif dans <#${where}>. Choisis un autre salon avec \`channel:\`.`) : t("Who's who board is on but has no channel yet. Use `channel:#…`.", "Le tableau Qui est qui est actif mais sans salon. Utilise `channel:#…`."));
 }
 
 /** The buttons under /officer roster gaps. Each click re-checks the clicker's current officer role. */

@@ -87,9 +87,9 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   const none = (skipped: string | null): NicknameSyncResult => ({ changes: [], applied: 0, failed: 0, skipped });
   const row = await prisma.guild.findUnique({ where: guildWhere(guild.id), select: { id: true, gameEdition: true, settings: { select: { nicknameSyncEnabled: true, nicknameFormat: true } } } });
   if (!row) return none("This server is not set up yet.");
-  if (!row.settings?.nicknameSyncEnabled) return none("Nickname sync is off.");
+  if (row.settings?.nicknameSyncEnabled === false) return none("Nickname sync is off.");
   if (!botCanRename(guild)) return none("I need the Manage Nicknames permission.");
-  const format = row.settings.nicknameFormat && validNicknameFormat(row.settings.nicknameFormat) ? row.settings.nicknameFormat : DEFAULT_NICKNAME_FORMAT;
+  const format = row.settings?.nicknameFormat && validNicknameFormat(row.settings?.nicknameFormat) ? row.settings?.nicknameFormat : DEFAULT_NICKNAME_FORMAT;
   const [members, records] = await Promise.all([
     prisma.member.findMany({
       where: { guildId: row.id, status: "ACTIVE", isTest: false, characters: { some: { gameEdition: row.gameEdition ?? "forever" } } },

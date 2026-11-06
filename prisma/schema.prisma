@@ -919,9 +919,9 @@ model GuildSettings {
   duelBoardMessageId       String?
   // 8.5 track C: roster gaps, nickname sync and the Who's who board. All off until an officer turns them on.
   rosterIgnoredRoleIds     String[] @default([])
-  nicknameSyncEnabled      Boolean @default(false)
+  nicknameSyncEnabled      Boolean @default(true)
   nicknameFormat           String?
-  whosWhoEnabled           Boolean @default(false)
+  whosWhoEnabled           Boolean @default(true)
   whosWhoChannelId         String?
   whosWhoMessageId         String?
   dungeonChannelId         String?

@@ -1,8 +1,8 @@
--- 8.5 track C: roster gaps (ignored roles), opt-in nickname sync and the Who's who board. Additive only, all off by default.
+-- 8.5 track C: roster gaps (ignored roles), opt-in nickname sync and the Who's who board. Additive only, all on by default (owner decision, 6 November 2026), with officer off switches and member opt-out.
 ALTER TABLE "GuildSettings" ADD COLUMN "rosterIgnoredRoleIds" TEXT[] DEFAULT ARRAY[]::TEXT[];
-ALTER TABLE "GuildSettings" ADD COLUMN "nicknameSyncEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "GuildSettings" ADD COLUMN "nicknameSyncEnabled" BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE "GuildSettings" ADD COLUMN "nicknameFormat" TEXT;
-ALTER TABLE "GuildSettings" ADD COLUMN "whosWhoEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "GuildSettings" ADD COLUMN "whosWhoEnabled" BOOLEAN NOT NULL DEFAULT true;
 ALTER TABLE "GuildSettings" ADD COLUMN "whosWhoChannelId" TEXT;
 ALTER TABLE "GuildSettings" ADD COLUMN "whosWhoMessageId" TEXT;
 

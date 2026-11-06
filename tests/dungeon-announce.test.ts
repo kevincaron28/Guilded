@@ -49,6 +49,31 @@ describe("dungeonAnnouncement", () => {
     expect(fr.description).toContain("morts non suivies");
   });
 
+  it("counts guildmates the addon flagged even when only one is linked", () => {
+    const players = ["Crashin", "Ann", "Bo", "Cy", "Di"];
+    const run = result({ players, unlinked: ["Ann", "Bo", "Cy", "Di"], inGuildPlayers: players, deaths: 2,
+      playerDetails: players.map((character) => ({ character, role: "DPS", deaths: 0, presentSec: 1000, points: 0 })) });
+    const en = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON().description!;
+    expect(en).toContain("5 guild member(s) (1 linked)");
+    expect(en).toContain("guild deaths: 0");
+    expect(en).not.toContain("tracked)");
+    expect(dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "fr")!.toJSON().description).toContain("5 membre(s) de guilde (1 lié(s))");
+  });
+  it("posts a run whose guildmates are all unlinked but flagged, and keeps skipping one with no guildmates", () => {
+    const flagged = result({ players: ["A", "B"], unlinked: ["A", "B"], inGuildPlayers: ["A", "B"] });
+    expect(dungeonAnnouncement({ results: [flagged], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("2 guild member(s) (0 linked)");
+    const strangers = result({ players: ["A", "B"], unlinked: ["A", "B"], inGuildPlayers: [] });
+    expect(dungeonAnnouncement({ results: [strangers], duplicates: 0, malformed: 0 }, "en")).toBeNull();
+  });
+  it("keeps today's count for an old run without the flag", () => {
+    const old = result({ players: ["Kev", "Guest"], unlinked: ["Guest"] });
+    expect(dungeonAnnouncement({ results: [old], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("1 guild member(s) ·");
+  });
+  it("matches Forever full names (first and last)", () => {
+    const players = ["Lebowski Holyroller", "Walter Sobchak"];
+    const run = result({ players, unlinked: ["Walter Sobchak"], inGuildPlayers: ["Walter Sobchak"] });
+    expect(dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("2 guild member(s) (1 linked)");
+  });
   it("posts a solo completion and stays within Discord's embed budget for large imports", () => {
     const single = result({ players: ["Kev"] });
     expect(dungeonAnnouncement({ results: [single], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("1 guild member(s)");

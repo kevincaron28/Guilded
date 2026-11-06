@@ -7,6 +7,7 @@ import { adjustPoints, describeConfig, invalidateRun, pointHistory } from "../se
 import { formatDuration, sharedDungeonConfig } from "../services/dungeon-rules.js";
 import { describeEvidence, provisionalSeasonEmbed, recalibrationEvidence } from "../services/dungeon-bracket-season.js";
 import { postToLogChannel } from "../services/housekeeping.js";
+import { runCredit } from "../services/dungeon-held-credit.js";
 import { findPlayer } from "../services/player-search.js";
 import { requireGuildContext } from "./context.js";
 
@@ -89,12 +90,15 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     const member = await memberFromOptions(interaction, context.guildId);
     const runRef = interaction.options.getString("run");
     const rows = await pointHistory(prisma, context.guildId, { ...(member ? { memberId: member.id } : {}), ...(runRef ? { runRef } : {}) });
-    reply = rows.length
+    const credit = runRef ? await runCredit(prisma, context.guildId, runRef) : null;
+    reply = (credit ? `${credit}
+
+` : "") + (rows.length
       ? rows.map((row) => {
         const by = row.source.startsWith("rule:") ? "auto" : `<@${row.createdBy}>`;
         return `<t:${Math.floor(row.createdAt.getTime() / 1000)}:d> **${row.member.displayName}** ${row.amount > 0 ? "+" : ""}${row.amount} — ${row.reason} · ${row.source} · ${by}`;
       }).join("\n")
-      : "No dungeon points recorded for that yet.";
+      : "No dungeon points recorded for that yet.");
   } else if (subcommand === "config") {
     reply = `Dungeon scoring settings are locked for all guilds. These shared participation rules apply to new awards; existing points stay. Season targets, level bands and penalties are shared and frozen. See /dungeon rules for the active season.\n\n${describeConfig(sharedDungeonConfig(), new Map())}`;
   } else if (subcommand === "bracket-preview") {

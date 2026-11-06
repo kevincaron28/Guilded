@@ -15,6 +15,7 @@ import { linkedCharacterCount, tellFirstCompanionLink } from "./services/compani
 import { companionMe } from "./services/companion-me.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
 import { createDevicePages, prismaDeviceStore } from "./services/companion-devices.js";
@@ -35,7 +36,7 @@ import { publicRaids } from "./services/public-raids.js";
 import { createPlayerProfiles, prismaProfileStore } from "./services/player-profiles.js";
 import { createAchievementsWeb } from "./services/achievements-web.js";
 import { createGuildDirectory, prismaGuildDirectoryStore } from "./services/guild-directory.js";
-import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
+import { calendarEventsWithin, discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
@@ -379,10 +380,41 @@ export async function lootRefsFor(database: Pick<PrismaClient, "lootAward">, gui
 // finish inside that, including time spent waiting for a pool connection.
 export const STANDINGS_READ_BUDGET_MS = { query: 15_000, poolWait: 3_000, workerAbort: 20_000 } as const;
 
+/**
+ * One log line per standings request (hotfix 2, 8.5): status, time, bytes, the guild as a short
+ * hash, whether it was a long poll. A client that hangs up first (the companion's or the website
+ * proxy's 20 s limit) is logged as "closed". Never the credential, never the Discord id itself.
+ */
+export function standingsTimingLine(input: { guild: string | null; status: number | "closed"; ms: number; bytes: number; wait: string | null; conditional: boolean }): string {
+  const guild = input.guild ? createHash("sha256").update(input.guild).digest("hex").slice(0, 8) : "none";
+  return `standings guild=${guild} status=${input.status} ms=${Math.round(input.ms)} bytes=${input.bytes} wait=${input.wait ?? 0} conditional=${input.conditional ? 1 : 0}`;
+}
+function logStandingsTiming(request: IncomingMessage, response: ServerResponse, url: URL, startedAt: number): void {
+  let bytes = 0;
+  const end = response.end.bind(response) as (...args: unknown[]) => ServerResponse;
+  (response as unknown as { end: (...args: unknown[]) => ServerResponse }).end = (...args: unknown[]) => {
+    const chunk = args[0];
+    if (typeof chunk === "string") bytes += Buffer.byteLength(chunk);
+    else if (chunk instanceof Uint8Array) bytes += chunk.byteLength;
+    return end(...args);
+  };
+  let logged = false;
+  const log = (status: number | "closed") => {
+    if (logged) return;
+    logged = true;
+    console.info(standingsTimingLine({ guild: url.searchParams.get("guild"), status, ms: Date.now() - startedAt, bytes, wait: url.searchParams.get("wait"),
+      conditional: typeof request.headers["if-none-match"] === "string" || url.searchParams.has("since") }));
+  };
+  response.on("finish", () => log(response.statusCode));
+  response.on("close", () => { if (!response.writableFinished) log("closed"); });
+}
+
 // Read-only EP/GP/PR per linked character and what goes with it. The companion writes it
 // into the addon folder so /guilded standings shows the bot's numbers.
 async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string }, client?: Client): Promise<FeedParts> {
-  const scheduledEvents = await discordCalendarEvents(client, guild.discordId, access.actorId).catch(() => {
+  // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts).
+  const scheduledEvents = await calendarEventsWithin(() => discordCalendarEvents(client, guild.discordId, access.actorId),
+    `${guild.discordId}:${access.actorId}`).catch(() => {
     console.warn("Discord calendar events could not be fetched; exporting bot raids only.");
     return [];
   });
@@ -425,6 +457,7 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
 export function startCompanionApi(client?: Client): ReturnType<typeof createServer> {
   const site = createSiteApp(client);
   const server = createServer(async (request, response) => {
+    const requestStartedAt = Date.now();
     try {
       response.setHeader("cache-control", "no-store");
       response.setHeader("x-content-type-options", "nosniff");
@@ -467,6 +500,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isImport = request.method === "POST" && url.pathname === "/api/v1/addon-imports";
       const isPairing = request.method === "POST" && url.pathname === "/api/v1/addon-pairings";
       const isStandings = request.method === "GET" && url.pathname === "/api/v1/standings";
+      if (isStandings) logStandingsTiming(request, response, url, requestStartedAt);
       const isPoeUpload = request.method === "POST" && url.pathname === "/api/v1/poe/visits";
       const isPoeLevels = request.method === "POST" && url.pathname === "/api/v1/poe/levels";
       const isPublicRuns = request.method === "POST" && url.pathname === "/api/v1/public-runs";
@@ -797,9 +831,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // Guildmates heard in game (level, class, race, professions): applied to already-linked
         // characters only, never over newer first-hand data (guildmate-relay.ts). Never fails the upload.
         if (pairedMemberId) {
-          const relayed = await applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot)
+          // No markGuildChanged: levels and professions are not in the standings feed, and a
+          // generation bump per member upload kept the feed from ever finishing (8.5 hotfix).
+          await applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot)
             .catch((error: unknown) => { console.error("Guildmate relay failed", error); return null; });
-          if (relayed && (relayed.updated || relayed.professions)) markGuildChanged(guild.id);
         }
         const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
         preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned), createdBy);

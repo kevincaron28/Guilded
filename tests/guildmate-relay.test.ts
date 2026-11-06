@@ -27,6 +27,7 @@ function fakeDatabase(rows: Row[]) {
       create: async () => { throw new Error("the relay must never create a character"); }
     },
     professionSkill: {
+      findMany: async ({ where }: { where: { characterId: string } }) => skills.filter((skill) => skill.characterId === where.characterId).map(({ profession, skillLevel }) => ({ profession, skillLevel })),
       deleteMany: async ({ where }: { where: { characterId: string; profession: { notIn: string[] } } }) => {
         for (let i = skills.length - 1; i >= 0; i--) if (skills[i]!.characterId === where.characterId && !where.profession.notIn.includes(skills[i]!.profession)) skills.splice(i, 1);
       },
@@ -85,6 +86,18 @@ describe("guildmate relay: characters", () => {
     ]), NOW);
     expect(result).toEqual({ updated: 0, professions: 0, unlinked: 0, ignored: 2 });
     expect(db.updates).toEqual([]);
+  });
+
+  it("a newer stamp with the same skills is no change: nothing written, nothing counted (8.5 hotfix)", async () => {
+    const db = fakeDatabase([linked({ level: 24 })]);
+    db.skills.push({ characterId: "c1", profession: "Mining", skillLevel: 120 });
+    // Every 10-minute digest carries a fresh professionsAt; only real differences count.
+    const result = await applyGuildmateRelay(db.database, "g", "m-walter", snapshot([heard({ professionsAt: "2026-12-20T11:50:00Z" })]), NOW);
+    expect(result).toEqual({ updated: 0, professions: 0, unlinked: 0, ignored: 1 });
+    expect(db.updates).toEqual([]);
+    // A real skill-up still counts.
+    const changed = await applyGuildmateRelay(db.database, "g", "m-walter", snapshot([heard({ professionsAt: "2026-12-20T11:55:00Z", professions: [{ name: "Mining", skillLevel: 121 }] })]), NOW);
+    expect(changed.professions).toBe(1);
   });
 
   it("an incomplete profession list never replaces anything", async () => {

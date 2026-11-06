@@ -2,7 +2,7 @@
 
 ## Current stage — 6 November 2026
 
-Guilded **8.4.7** is published on GitHub and the bot (Forever dungeon final-boss fix and the self-updating direct-download companion); the next release is 8.5.0 (planned below).
+Guilded **8.4.7** is published on GitHub and the bot (Forever dungeon final-boss fix and the self-updating direct-download companion); the next release is **9.0.0** (planned below as the "8.5" tracks; owner decision 6 November 2026: it ships as 9.0 after in-game testing and polishing). Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Forever is the only active edition and PoE2 is hidden ([Forever-only focus](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
@@ -23,7 +23,7 @@ request list: [roadmap history](docs/archive/ROADMAP-history.md).
      track. Merge conflicts there are expected and easy.
    - `src/setup-names.ts`: only tracks B and C add channels.
    - Never edit `package.json`'s version, `CHANGELOG.md`, `README.md`'s current version line or
-     the `.toc` versions. The coordinating session bumps to 8.5.0 once, at release.
+     the `.toc` versions. The coordinating session bumps to 9.0.0 once, at release.
 5. **Owner decision (6 November 2026): every new 8.5 feature is ON by default in every Discord
    server** (boards, nickname sync, Who's who, roster gaps, Defender alerts, profession posts,
    statistics, the guildmate map, the first-link DM). Each one keeps an off switch for officers
@@ -54,7 +54,94 @@ except where noted, so they can run at the same time.
 
 ---
 
-## 8.5.0 — requested 6 November 2026
+## Status board — every item and where it stands (6 November 2026, evening)
+
+**What the states mean:**
+- **Live (preview):** on `main` and running on the bot (`e16d381`), active only for the servers in
+  `FEATURE_PREVIEW_GUILD_IDS`: the test server and Québec Gold.
+- **In candidate:** merged into `release/8.5-candidate`, not deployed yet.
+- **Needs client release:** the bot side is live, but members get it only with the next addon/companion
+  release (version 9.0.0).
+- **In progress:** a worker session is building it.
+- **Owner:** waiting for the owner.
+- **Planned:** not started.
+
+### Original 8.5 list → 9.0.0
+
+| Item | Track | State | Notes / evidence |
+| --- | --- | --- | --- |
+| Achievements Forever + guild only, a badge for each | A | Live (preview) | Test server: 0/89, Forever 0/9, guild 0/80 |
+| Arena = battleground/duel PvP module + channels | B | Live (preview) | PvP category on the test server; Québec Gold's existing PvP channels adopted |
+| Separate duel and BG ladders | B | Live (preview) | Two messages, separate points |
+| Separate duel and BG **channels** and cards | B | In progress | Batch 3 #10 |
+| Race to 60: top 25 with details, full names | B | Live (preview) | Québec Gold `#course-au-60`: full names (e.g. "Lebowski Holyroller") |
+| Race to 60 Hall of Fame (permanent, editable) | B | Live (preview) | No level 60 yet, so not seen |
+| Server/guild statistics + Google Sheets feed | G | Live (preview) | #400; IMPORTDATA feed, no Google credentials |
+| Discord vs guild roster gaps (`/officer roster gaps`) | C1 | Live (preview) | Québec Gold: 258 unlinked members, 8 unclaimed characters |
+| Nicknames `Name (First Last)` with fallbacks | C2 | Live (preview), **not yet seen** | Hourly; check the bot's Manage Nicknames in Québec Gold |
+| Who's who board (mains + alts) | C2 | Live (preview) | Québec Gold `#guilded-guide`, 7 of 7 linked |
+| Roster card (classes, professions) | C3 | Live (preview) | `/report guild`; the ⚜ fix is live |
+| Professions on the roster + opt-in public-note tool | C4 | Needs client release | Bot #396, addon #401 |
+| Promotion panel (Initiate → Member) | C5 | Live (bot list); **gap:** the addon panel gets no bot data | Bot feed queued with Track C |
+| Artisans' Gallery + per-profession posts + last seen | D | Live (preview) | #402 |
+| Gallery Request/Details buttons; better profession display | D | In progress | Batch 3 #9/#11 |
+| Guild events in the chat tab (join/online/offline) | E1 | Needs client release | Online lines not seen live yet |
+| Minimap shortcuts (+ Shift+right-click = call for help) | E2 | Needs client release | Tested in game on the main PC: pass |
+| Last seen in the Crafted by tooltip | E3 | Needs client release | Not seen live (needs a guild-crafted item) |
+| "Get the companion" in game | E4 | Needs client release | Tested in game: pass |
+| Companion problem alerts + support report | F1 | Needs client release | #415 (summary fields) in progress |
+| Simpler companion settings / Advanced | F2 | Needs client release | |
+| Less friction linking, first-link DM | F3 | DM live (preview); companion parts need release | DM confirmed on the second PC |
+| Fresh-PC install test | F4 | Done once (8.4.7) | Friction list → Track L |
+| Store companion updates itself (Win 10/11) | F5 | Needs client release | #393; real Store test owed |
+| Effortless linking (15 findings) | L | Partly done (#411, #413); rest in progress | Target: 2 min alone |
+| Setup wizard, Repair, slimmer companion | F | In progress | Batch 3 #3/#4 |
+| Server stats feed / Sheets | G | Live (preview) | |
+| Kinfolk ideas (events RSVP, recruiting kit, board…) | H | Planned (owner picks) | |
+| Forever armory | I | Recommendation done (links only); links in progress | `docs/FOREVER_ARMORY.md` |
+| Call for help (button, Defenders, guild line, confirm) | J | Needs client release | Sending tested live; Defender banner not yet tested |
+| Call for help: who's in the zone + party invites | J | In progress | Batch 3 #7 |
+| Addon-only members still sync (relay) | K | Live (bot) + needs client release | |
+| Forever full names (alts no longer merge) | K | Live (bot) | **Owner:** run `npm run names:forever` |
+
+### Fixes found by today's live tests
+
+| Fix | State |
+| --- | --- |
+| Duplicate key-binding header (Lua warning) | In candidate/main; addon release |
+| `/gsos` asks before sending; All clear posts a line | Main; addon release (popup verified in game) |
+| Minimap first click after Escape | Main; addon release (verified in game) |
+| Command-size overflow (`/character`) | Live |
+| Channels without a member role; setup role picker | Live (verified on the test server) |
+| Standings feed starving (hotfix 1) and 20 s timeout (hotfix 2) | Live; retest passed on the second PC |
+| "0 guildmates" on dungeon posts (#408) | Live (preview) |
+| Guild key on first login (#410) | Addon release |
+| Installer: launch before the shortcut, empty InstallLocation, 123 MB leftover, Install addon button | Companion release (#403) |
+| Card ⚜ glyph | Live |
+| Race board first names | Live |
+| Run credit for players linked later (#418) | In candidate (next deploy) |
+| Credit players **without the addon** by character | In progress (Track J) |
+| Beta characters + pre-launch season cleanup (#419) | In candidate; **owner** runs the preview/apply after the next deploy |
+| Item stats from guild chat `[Item]` → Discord | In progress (Track C) |
+| Always share, only "Delete my data" kept | In progress (Track A) |
+| Season 1 scoring check + Season 2 on 9 December | In progress (new session) |
+| `#invitation-guilde` invite queue + WoW-role DM + ✅ | In progress (new session) |
+
+### Phases after the features
+
+| Phase | State |
+| --- | --- |
+| Two-PC window (duel, Defender banner, online lines) with the 9.0 addon on both PCs | Planned (after the client build) |
+| Relink + second-character test | Planned (after the companion release) |
+| Release 9.0.0: bump, remove the preview list, deploy, GitHub, CurseForge (script), Store | Planned |
+| Québec Gold rollout | Done early (preview); finish nicknames and Hall of Fame checks |
+| Screenshots + website refresh | Planned |
+| Phone app (Track M), opt-in → on-by-default guildmate map | Planned |
+| Google Play (USD 25, 12 testers / 14 days) | Owner; plan in `mobile/README.md` |
+
+---
+
+## 9.0.0 — requested 6 November 2026
 
 ### Track A — Achievements and badges
 
@@ -320,6 +407,36 @@ Store and WoW steps). Time each step, screenshot each screen, fix what confuses,
 - Done when: a non-technical member can go from the Discord prompt to "Everything is linked" in under
   10 minutes with no question to an officer.
 
+### Track L — Effortless linking (owner request, 6 November 2026)
+
+**Goal:** a member goes from the Discord prompt to "linked, with my characters" in about 2 minutes
+alone. Measured on a fresh PC today: about 25 minutes with help, and at least 5 places where a
+member alone would stop. The owner's standing preference is the fewest steps, automatic where
+possible, with a DM and an undo. Builds on F1-F5; same files (`companion/`, `companion-app/`, site
+`/me/companion`, the bot's link-request expiry).
+
+| # | Item | Status |
+| --- | --- | --- |
+| 1 | Find WoW on any drive (all drives, Battle.net install record, `.build.info`); pick the account `Guilded.lua`; list several if found; say when none; Browse starts at the WoW root | in Track F fix list |
+| 2 | Install or update the addon from the companion (checksum-verified), and say when it's missing | done (#403) |
+| 3 | Account not in the guild's Discord: detect it, show a **Join Québec Gold** invite button, then continue the link by itself. Later: accept by in-game guild membership | next |
+| 4 | "Connected as <name>" with avatar and "Not you? Switch"; sign in through the Discord desktop app when possible | next |
+| 5 | Browser opened behind the windows: bring it forward, plus a "Waiting for your browser… Reopen / Copy link" panel and a taskbar flash | in Track F fix list |
+| 6 | One Discord click, not two (go straight to sign-in when coming from the companion) | in Track F fix list |
+| 7 | Link request lasts 15 min, with a countdown in the companion and on the page and a Restart button | in Track F fix list |
+| 8 | Warn ahead about Discord's "new login location" email check; offer QR-code login | next |
+| 9 | Never say "Everything is linked" unless Discord, the guild server and at least one character are confirmed; otherwise a checklist (Discord ✓ / server ✗ Join / character ✗ play and `/reload`) | in Track F fix list |
+| 10 | One live source of truth for status (companion home, website "Mon Guilded", the browser box) | in Track F fix list |
+| 11 | All errors translated, in friendly words ("Guilded's server is restarting, retrying in 1 min") | in Track F fix list |
+| 12 | Partial status: upload OK / rankings delayed; server-side issues never turn the member's badge red | next |
+| 13 | Explain where characters come from (play with the addon, `/reload`; Battle.net optional on Forever), plus a **Detect now** button that waits for the next save | next |
+| 14 | A big success screen mirroring the DM, and in game "Linked to Discord as … ✓" after the first sync | next |
+| 15 | First-run wizard, 3 steps (Discord → server → character) with progress; each step has "Something's wrong?" running diagnostics, plus one-click "Copy support summary" | next |
+
+**Done when:** a non-technical member on a fresh PC, with WoW on a non-default drive and a Discord
+account that isn't in the guild yet, links without help in about 2 minutes, measured by the
+second-PC tester.
+
 ### Track G — Server and guild statistics
 
 **Recommendation:** charts on the guild tools web page first, Google Sheets as a live feed, not the
@@ -471,6 +588,64 @@ collapse into one entry: ledger account, dungeon runs, duels, recipes, roster, r
 legacy ledger history kept on an officer-assigned account) and backward compatibility for 8.4.x
 addons. Details: `docs/FOREVER_NAMES.md`. The relink and second-character test waits for it.
 
+### 9.0.0 release checklist (coordinator; review 6 November 2026, evening)
+
+**Work still open (PRs into `release/8.5-candidate`):**
+- Track F: #415 (support summary); then the setup wizard + Repair + slimmer companion (batch 3 #3/#4).
+- Track J: no-addon credit by character (follow-up to #418); then party invites in call for help (batch 3 #7).
+- Track B: separate duel/BG channels (batch 3 #10). Track C: item previews (batch 3 #2), then the bot feed for the promotion panel.
+- Track D: gallery Request/Details + profession display (batch 3 #9/#11). Track A: always-share, keep only "Delete my data" (batch 3 #8).
+- Track I: Armory links on character cards. New sessions: Season 2 plan (batch 3 #1), guild invite queue (batch 3 #13/#14).
+- Kinfolk ideas (Track H) stay unscheduled until the owner picks some.
+
+**Owner actions:**
+- On the server, after a backup: `npm run names:forever` (preview, then `-- --apply`), and the pre-launch cleanup preview/apply (#419, `docs/PRELAUNCH_CLEANUP.md`).
+- Decide whether `#course-au-60` in Québec Gold stays public.
+- Merge or close on GitHub (agent merges into main were blocked): #388 site pointers to 8.4.7; close the superseded #394 and #396; review dependabot #407.
+- Microsoft Store: 8.4.7.0 after 8.4.6.0 certifies, then 9.0.0.0.
+- Google Play account (USD 25) when ready (`mobile/README.md`).
+- Change the Discord password used for testing.
+
+**Testing still owed:**
+- Québec Gold nickname sync (hourly) and the bot's Manage Nicknames permission.
+- The two-PC window with the 8.5 addon on both PCs: duel, Defender banner, chat-tab online lines.
+- The relink + second-character test (after the 8.5 companion release).
+- The live item-preview step 0.
+- Uninstall on the second PC (last).
+
+**Release steps:**
+1. Merge the last PRs.
+2. Full suite.
+3. Bump to **9.0.0** once (README, CLAUDE.md, ROADMAP current stage, CHANGELOG, `.toc`, companion `package.json`).
+4. Remove `FEATURE_PREVIEW_GUILD_IDS` from the server, and delete `src/services/feature-preview.ts` and its callers in the release PR.
+5. Deploy, then GitHub release, CurseForge (`node scripts/curseforge-upload.mjs`), Store.
+6. Website refresh and screenshots (final phase 1).
+7. Phone app (Track M).
+
+### Owner requests, 6 November 2026 (afternoon)
+
+- **Delete the pre-launch season and all beta characters.** They still appear in Québec Gold's professions, the race to 60 and the unlinked characters. Track K is building a cleanup script: preview first, `--apply` after a backup, never touching EP/GP history or Season 1. See `docs/PRELAUNCH_CLEANUP.md`.
+- **Crashin's Ragefire run didn't credit Xaldin or El Pirata.** Track J is investigating how party members get run credit (linking, two-word names, validation) and will fix it.
+
+### Owner requests, 6 November 2026 (batch 3) — recommendations and owners
+
+| # | Request | Recommendation | Owner |
+| --- | --- | --- | --- |
+| 1 | Verify dungeon scoring; adaptive first season, Season 2 on 9 December with better estimates | Season 1 keeps its frozen rules (current-v1) for fairness, but the bot records real run times per dungeon and bracket. Season 2 starts **9 December** (Forever's first raids) on targets computed from Season 1's real times (median and percentiles), published in advance. An analysis doc first: `docs/DUNGEON_SEASON_2_PLAN.md`. | new session (Sonnet) |
+| 2 | Item links `[Item]` from in-game guild chat shown with stats in Discord; same in profession posts, not crowded | The item-preview feature is already built and off (`docs/ITEM_PREVIEWS.md`). Verify the webhook in the Blizzard-linked channel (step 0), then turn it on for Québec Gold. Profession posts get compact one-line items, with full stats on a button ("Details"). | Track C |
+| 3 | Companion repairs and links itself; a simple link + install wizard that auto-updates | One **Guilded Setup**: installs the companion **and** the addon, finds WoW, signs in, links, then auto-updates both. A **Repair** button re-checks files, folder, sign-in and pairing and fixes what it can. Builds on Track L. | Track F |
+| 4 | Remove extra things from the companion that the phone app will cover | The companion keeps only sync, status, linking, addon install and updates. Raid planning pages (Cores, Pricing, Reserves, Wishlist, Leaderboards) leave the companion and open the website instead, until the app covers them. | Track F |
+| 5 | Start the Google app verification, free or very low cost | **Google Play:** a developer account costs a one-time USD 25 plus free identity verification. A new personal account must run a closed test with 12 testers for 14 days before going public (the guild can be the testers). No Google Cloud OAuth verification is needed, because Guilded uses no Google sign-in. Owner-only steps; the plan goes in `mobile/README.md`. | coordinator (doc) + owner |
+| 6 | App: heat map of last-seen guild members | Already Track M item 3, on by default. | Track M |
+| 7 | Call for help: see who is in the same zone and invite them to the party | The guild roster already gives every online member's **zone** (no addon needed). The caller's banner lists online guildmates in the zone, with **Invite** buttons (party invite on click; WoW only allows invites from a click). Defenders get **Join** (whisper "inv") and **Invite caller**. | Track J |
+| 8 | Remove the privacy options: everything (stats, badges) is shared, always on | Done the simple way: no per-feature sharing switches; everything is shared within the guild and on public boards. One exception: keep a single **"Delete my data"** request, because the Microsoft Store privacy policy and Discord's developer terms require a way to remove personal data. Update `docs/PRIVACY.md` and the Store listing text. | Track A |
+| 9 | Link profession chats so a member can request a craft from the gallery | In the gallery and the profession posts, each item gets **Request** (opens the existing craft request, prefilled) and **Details** (stats). The request thread pings the crafter once. | Track D |
+| 10 | Separate duels from battlegrounds (channels, stat cards) | Separate `duel-ladder` and `bg-ladder` channels and cards. Existing Québec Gold channels are adopted, not duplicated. | Track B |
+| 11 | Better profession names in Discord | Profession icon, name and skill bar per crafter, grouped by profession, with a short legend. Research first, then apply to the directory, the gallery and the posts. | Track D |
+| 12 | Full names on the race to 60, and remove the beta characters | Full names done (deploy 3). Beta cleanup: Track K #419. | done / Track K |
+| 13 | Québec Gold: remove `#wow-personnage`, use `#invitation-guilde` for in-game names; tell officers in game who needs an invite; ✅ reaction once invited | New **guild invite queue**: a member posts their full character name in `#invitation-guilde`, and the bot reads it and adds it to an officer list. In game, the officer addon shows **To invite** with an **Invite** button (guild invite on click). The bot adds ✅ on the message when the character shows up in the guild roster (or when an officer reacts ✅). `#wow-personnage` is removed by the owner's `/setup` action, after its messages are archived. | new session (Sonnet) |
+| 14 | DM when a member takes the World of Warcraft role, asking for their full character name in `#invitation-guilde`; update that channel's description | Part of 13: one DM per member per role grant, with a link to the channel. The channel topic is updated (EN/FR) by `/setup`. | same as 13 |
+
 ### Release step — in-game testing by desktop control
 
 After the track PRs are merged into the 8.5 candidate, one Sonnet tester session runs
@@ -480,7 +655,7 @@ log, saved data and Discord page text, and takes about a dozen screenshots in to
 
 ### Final phase 1 — new screenshots and website refresh (after all tracks are merged)
 
-Owner request, 6 November 2026. Once 8.5.0 is feature-complete:
+Owner request, 6 November 2026. Once 9.0.0 is feature-complete:
 1. Take fresh screenshots in game (race board, PvP ladder, call for help banner, chat tab, minimap
    menu, roster card, Artisans' Gallery, companion Problems panel and settings) and in Discord.
    Sanitize names that are not Québec Gold members.
@@ -515,7 +690,7 @@ Owner request, 6 November 2026: an app to check leaderboards at work and to help
 
 ### Release step — bring the Québec Gold Discord up to date (owner request, 6 November 2026)
 
-After 8.5.0 is merged and deployed, the coordinating session turns the new features on in the
+After 9.0.0 is merged and deployed, the coordinating session turns the new features on in the
 Québec Gold server and checks each one live. Opt-in switches stay off for every other server.
 1. Re-run `/setup` so the PvP category (`pvp-groups`, `pvp-results`, `pvp-ladder`) and the race-to-60
    channel exist; existing battleground channels are adopted, not duplicated.

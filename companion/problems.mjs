@@ -22,7 +22,7 @@ export const PROBLEM_IDS = Object.freeze([
 
 // The text describeError() gives for a missing or never-saved file (companion/engine.mjs).
 const NOT_SAVED_YET = /Guilded hasn't saved yet/;
-const UNREACHABLE = /Could not reach the bot|temporarily unavailable|\((?:502|503|504|52\d|530)\)/i;
+const UNREACHABLE = /Could not reach the bot|took too long to answer|temporarily unavailable|\((?:502|503|504|52\d|530)\)/i;
 const SIGNED_OUT = /\(401\)|refused this companion|Sign in with Discord again|Pair this companion again/i;
 // "Upload failed (400): reason" (engine.mjs) or the size limit message, which also never retries.
 const REJECTED = /^Upload failed \((\d{3})\):\s*([\s\S]*)$/;

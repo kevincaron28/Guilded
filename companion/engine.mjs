@@ -12,6 +12,7 @@ import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 import { personalSavedFiles, uploadPersonalRuns } from "./personal-runs.mjs";
 import { GAME_EDITIONS } from "./game-edition.mjs";
 import { normalizeSavedPath } from "./saved-folder.mjs";
+import { errorDetail, isTimeout, rememberError } from "./error-detail.mjs";
 
 // The companion's working parts, shared by the command-line watcher
 // (watcher.mjs) and the desktop app (companion-app/). It watches the addon's
@@ -139,9 +140,12 @@ export const SIGN_IN_EXPIRED = "That sign-in expired. Choose Sign in with Discor
 // addon has not saved yet (or the addon is off).
 export const NOT_SAVED_YET = "Guilded hasn't saved yet: in WoW, make sure the Guilded addon is enabled, then type /reload or log out once.";
 
+export const SERVER_TIMEOUT = "The Guilded server took too long to answer (over 20 s); retrying.";
 export function describeError(error) {
   const text = error instanceof Error ? error.message : String(error);
   if (/GuildedDB was not found in the SavedVariables file|GuildedDungeonsDB was not found in the SavedVariables file/.test(text) || (/ENOENT|no such file/i.test(text) && /\.lua/i.test(text))) return NOT_SAVED_YET;
+  // Slow, not down: the request ran out of time (a long deploy restart, a busy server).
+  if (isTimeout(error)) return SERVER_TIMEOUT;
   if (/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|timed out|aborted/i.test(text + (error?.cause?.code ?? ""))) {
     return "Could not reach the bot. Is it running, and is the bot address right?";
   }
@@ -212,6 +216,8 @@ export function createEngine(initialConfig, hooks = {}) {
     retryAt: null,
     uploadError: null,
     standingsError: null,
+    // The last few failures, as small records for the support summary (error-detail.mjs).
+    recentErrors: [],
     uploads: 0,
     syncPhase: "waiting-save",
     syncEvidence: {},
@@ -283,6 +289,11 @@ export function createEngine(initialConfig, hooks = {}) {
     return result;
   }
 
+  // Support summary: what failed, where and how long it took (no message text, no IDs).
+  const noteError = (operation, error, startedAt) => {
+    state.recentErrors = rememberError(state.recentErrors, errorDetail(operation, error, { startedAt, uploadUrl: config.uploadUrl?.trim() || HOSTED_UPLOAD_URL }));
+  };
+
   // Personal mode: finished dungeon runs to the public leaderboards (personal-runs.mjs).
   async function personalUpload() {
     if (uploading) { queued = true; return; }
@@ -293,6 +304,7 @@ export function createEngine(initialConfig, hooks = {}) {
     state.pendingUpload = true;
     state.syncPhase = "uploading";
     state.retryAt = null;
+    const startedAt = Date.now();
     try {
       lastFile = await savedStamp(current);
       const result = await uploadPersonalRuns(current, controller.signal, evidence => { if (epoch === generation) state.syncEvidence = evidence; });
@@ -311,6 +323,7 @@ export function createEngine(initialConfig, hooks = {}) {
     } catch (error) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
+      noteError("upload", error, startedAt);
       state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
       log("error", `Upload failed: ${state.uploadError}`);
       if (error.retryable !== false && state.running) {
@@ -336,6 +349,7 @@ export function createEngine(initialConfig, hooks = {}) {
     state.pendingUpload = true;
     state.syncPhase = "uploading";
     state.retryAt = null;
+    const startedAt = Date.now();
     try {
     lastFile = await fileStamp(current.watchFile);
     const full = current.watchFile.toLowerCase().endsWith(".lua")
@@ -403,6 +417,7 @@ export function createEngine(initialConfig, hooks = {}) {
     } catch (error) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
+      noteError("upload", error, startedAt);
       state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
       log("error", `Upload failed: ${state.uploadError}`);
       if (error.retryable !== false && state.running) {
@@ -468,11 +483,13 @@ export function createEngine(initialConfig, hooks = {}) {
     if (!state.running || refreshing || config.wowEnabled === false || config.personal) return;
     refreshing = true;
     const epoch = generation;
+    const startedAt = Date.now();
     try {
       await fetchStandings(epoch, options);
     } catch (error) {
       if (epoch !== generation) return;
       state.standingsError = describeError(error);
+      noteError("standings", error, startedAt);
       log("error", `Standings update failed: ${state.standingsError}`);
     } finally { refreshing = false; hooks.onState?.(snapshot()); }
   }
@@ -506,6 +523,7 @@ export function createEngine(initialConfig, hooks = {}) {
       } catch (error) {
         if (epoch !== generation) return;
         state.standingsError = describeError(error);
+        noteError("standings", error, startedAt);
         if (errors === 0) log("error", `Standings update failed: ${state.standingsError}`);
         errors++;
         await sleep(Math.min(300_000, 5_000 * 2 ** Math.min(errors - 1, 6)), epoch);

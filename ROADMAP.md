@@ -54,6 +54,93 @@ except where noted, so they can run at the same time.
 
 ---
 
+## Status board — every item and where it stands (6 November 2026, evening)
+
+**What the states mean:**
+- **Live (preview):** on `main` and running on the bot (`e16d381`), active only for the servers in
+  `FEATURE_PREVIEW_GUILD_IDS`: the test server and Québec Gold.
+- **In candidate:** merged into `release/8.5-candidate`, not deployed yet.
+- **Needs client release:** the bot side is live, but members get it only with the next addon/companion
+  release (version 9.0.0).
+- **In progress:** a worker session is building it.
+- **Owner:** waiting for the owner.
+- **Planned:** not started.
+
+### Original 8.5 list → 9.0.0
+
+| Item | Track | State | Notes / evidence |
+| --- | --- | --- | --- |
+| Achievements Forever + guild only, a badge for each | A | Live (preview) | Test server: 0/89, Forever 0/9, guild 0/80 |
+| Arena = battleground/duel PvP module + channels | B | Live (preview) | PvP category on the test server; Québec Gold's existing PvP channels adopted |
+| Separate duel and BG ladders | B | Live (preview) | Two messages, separate points |
+| Separate duel and BG **channels** and cards | B | In progress | Batch 3 #10 |
+| Race to 60: top 25 with details, full names | B | Live (preview) | Québec Gold `#course-au-60`: full names (e.g. "Lebowski Holyroller") |
+| Race to 60 Hall of Fame (permanent, editable) | B | Live (preview) | No level 60 yet, so not seen |
+| Server/guild statistics + Google Sheets feed | G | Live (preview) | #400; IMPORTDATA feed, no Google credentials |
+| Discord vs guild roster gaps (`/officer roster gaps`) | C1 | Live (preview) | Québec Gold: 258 unlinked members, 8 unclaimed characters |
+| Nicknames `Name (First Last)` with fallbacks | C2 | Live (preview), **not yet seen** | Hourly; check the bot's Manage Nicknames in Québec Gold |
+| Who's who board (mains + alts) | C2 | Live (preview) | Québec Gold `#guilded-guide`, 7 of 7 linked |
+| Roster card (classes, professions) | C3 | Live (preview) | `/report guild`; the ⚜ fix is live |
+| Professions on the roster + opt-in public-note tool | C4 | Needs client release | Bot #396, addon #401 |
+| Promotion panel (Initiate → Member) | C5 | Live (bot list); **gap:** the addon panel gets no bot data | Bot feed queued with Track C |
+| Artisans' Gallery + per-profession posts + last seen | D | Live (preview) | #402 |
+| Gallery Request/Details buttons; better profession display | D | In progress | Batch 3 #9/#11 |
+| Guild events in the chat tab (join/online/offline) | E1 | Needs client release | Online lines not seen live yet |
+| Minimap shortcuts (+ Shift+right-click = call for help) | E2 | Needs client release | Tested in game on the main PC: pass |
+| Last seen in the Crafted by tooltip | E3 | Needs client release | Not seen live (needs a guild-crafted item) |
+| "Get the companion" in game | E4 | Needs client release | Tested in game: pass |
+| Companion problem alerts + support report | F1 | Needs client release | #415 (summary fields) in progress |
+| Simpler companion settings / Advanced | F2 | Needs client release | |
+| Less friction linking, first-link DM | F3 | DM live (preview); companion parts need release | DM confirmed on the second PC |
+| Fresh-PC install test | F4 | Done once (8.4.7) | Friction list → Track L |
+| Store companion updates itself (Win 10/11) | F5 | Needs client release | #393; real Store test owed |
+| Effortless linking (15 findings) | L | Partly done (#411, #413); rest in progress | Target: 2 min alone |
+| Setup wizard, Repair, slimmer companion | F | In progress | Batch 3 #3/#4 |
+| Server stats feed / Sheets | G | Live (preview) | |
+| Kinfolk ideas (events RSVP, recruiting kit, board…) | H | Planned (owner picks) | |
+| Forever armory | I | Recommendation done (links only); links in progress | `docs/FOREVER_ARMORY.md` |
+| Call for help (button, Defenders, guild line, confirm) | J | Needs client release | Sending tested live; Defender banner not yet tested |
+| Call for help: who's in the zone + party invites | J | In progress | Batch 3 #7 |
+| Addon-only members still sync (relay) | K | Live (bot) + needs client release | |
+| Forever full names (alts no longer merge) | K | Live (bot) | **Owner:** run `npm run names:forever` |
+
+### Fixes found by today's live tests
+
+| Fix | State |
+| --- | --- |
+| Duplicate key-binding header (Lua warning) | In candidate/main; addon release |
+| `/gsos` asks before sending; All clear posts a line | Main; addon release (popup verified in game) |
+| Minimap first click after Escape | Main; addon release (verified in game) |
+| Command-size overflow (`/character`) | Live |
+| Channels without a member role; setup role picker | Live (verified on the test server) |
+| Standings feed starving (hotfix 1) and 20 s timeout (hotfix 2) | Live; retest passed on the second PC |
+| "0 guildmates" on dungeon posts (#408) | Live (preview) |
+| Guild key on first login (#410) | Addon release |
+| Installer: launch before the shortcut, empty InstallLocation, 123 MB leftover, Install addon button | Companion release (#403) |
+| Card ⚜ glyph | Live |
+| Race board first names | Live |
+| Run credit for players linked later (#418) | In candidate (next deploy) |
+| Credit players **without the addon** by character | In progress (Track J) |
+| Beta characters + pre-launch season cleanup (#419) | In candidate; **owner** runs the preview/apply after the next deploy |
+| Item stats from guild chat `[Item]` → Discord | In progress (Track C) |
+| Always share, only "Delete my data" kept | In progress (Track A) |
+| Season 1 scoring check + Season 2 on 9 December | In progress (new session) |
+| `#invitation-guilde` invite queue + WoW-role DM + ✅ | In progress (new session) |
+
+### Phases after the features
+
+| Phase | State |
+| --- | --- |
+| Two-PC window (duel, Defender banner, online lines) with the 9.0 addon on both PCs | Planned (after the client build) |
+| Relink + second-character test | Planned (after the companion release) |
+| Release 9.0.0: bump, remove the preview list, deploy, GitHub, CurseForge (script), Store | Planned |
+| Québec Gold rollout | Done early (preview); finish nicknames and Hall of Fame checks |
+| Screenshots + website refresh | Planned |
+| Phone app (Track M), opt-in → on-by-default guildmate map | Planned |
+| Google Play (USD 25, 12 testers / 14 days) | Owner; plan in `mobile/README.md` |
+
+---
+
 ## 9.0.0 — requested 6 November 2026
 
 ### Track A — Achievements and badges

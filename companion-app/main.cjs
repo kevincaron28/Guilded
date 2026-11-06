@@ -278,6 +278,7 @@ function checkWowRunning() {
 }
 let online = true;
 function problems(state) {
+  if (typeof engineModules?.companionProblems !== "function") return [];
   return engineModules.companionProblems({
     config, state, savedFile, update, version: app.getVersion(), store: STORE_INSTALL, autoUpdate: config.autoUpdate !== false,
     updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online
@@ -482,9 +483,6 @@ app.whenReady().then(async () => {
     // Startup awaits can let the renderer finish before this point.
     if (win.webContents.isLoading()) win.webContents.once("did-finish-load", capture);
     else capture();
-    // Long pages (Connection & setup) fit one capture with --screenshot-height=1600.
-    const height = Number((args.find((a) => a.startsWith("--screenshot-height=")) ?? "").slice("--screenshot-height=".length));
-    if (height >= 600 && height <= 4000) win.setSize(1180, height);
     win.show();
   }
 }).catch(failStartup);

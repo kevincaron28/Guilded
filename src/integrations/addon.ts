@@ -272,6 +272,8 @@ export const addonSnapshotSchema = z.object({
   guildRoster: z.object({ at: z.number().int().positive(), complete: z.boolean().default(false), members: z.array(z.unknown()).max(1000).default([]) }).optional(),
   guildEvents: z.array(z.unknown()).max(500).default([]),
   guildInfo: z.object({ at: z.number().int().positive(), motd: z.string().max(255).optional(), info: z.string().max(1000).optional() }).optional(),
+  // 9.0 guild bank ledger: validated piece by piece on apply (services/guild-bank.ts).
+  guildBank: z.unknown().optional(),
   // Rows left out because they were malformed (see parseAddonSnapshot); the rest still imports.
   rejected: z.array(z.object({ section: z.string().max(40), label: z.string().max(120), reason: z.string().max(200) })).max(MAX_REJECTED).default([])
 });

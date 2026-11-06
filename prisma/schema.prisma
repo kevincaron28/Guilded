@@ -967,6 +967,9 @@ model GuildSettings {
   promotionWeeklyEnabled   Boolean @default(true)
   promotionChannelId       String?
   promotionLastPostAt      DateTime?
+  // 9.0 guild bank ledger: weekly summary in the officer log channel (on by default; /officer stats bank).
+  guildBankWeeklyEnabled   Boolean @default(true)
+  guildBankLastPostAt      DateTime?
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -3084,4 +3087,50 @@ model GuildText {
   observedAt   DateTime
   reportedById String?
   updatedAt    DateTime @updatedAt
+}
+
+// 9.0 guild bank ledger (docs/GUILD_BANK_LEDGER.md): what any member's companion uploads after
+// someone with access opened the guild bank. Read-only in Discord and on the website.
+model GuildBankContents {
+  guildId      String   @id
+  observedAt   DateTime
+  // Copper.
+  money        BigInt?
+  // [{ tab, name, items: [{ id, name, count }] }]
+  tabs         Json
+  reportedById String?
+  updatedAt    DateTime @updatedAt
+}
+
+// One gold reading per bank visit, for the gold history chart.
+model GuildBankGold {
+  id      String   @id @default(cuid())
+  guildId String
+  at      DateTime
+  money   BigInt
+
+  @@unique([guildId, at])
+}
+
+// The game's guild bank logs. The game gives ages in hours, so the same line read by two members
+// within 3 hours is the same line (services/guild-bank.ts).
+model GuildBankTransaction {
+  id           String   @id @default(cuid())
+  guildId      String
+  // "item" or "money"
+  kind         String
+  // The game's word: deposit, withdraw, move, repair, buyTab, ...
+  type         String
+  actor        String
+  itemId       Int?
+  itemName     String?
+  count        Int?
+  tab          Int?
+  tab2         Int?
+  amount       BigInt?
+  at           DateTime
+  reportedById String?
+  createdAt    DateTime @default(now())
+
+  @@index([guildId, at])
 }

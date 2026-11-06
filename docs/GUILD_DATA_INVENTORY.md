@@ -19,8 +19,8 @@ reach Discord and the website.
 | Guild event log: invites, joins, promotions, demotions, removals, quits | `QueryGuildEventLog`, `GetGuildEventInfo` | Kept and deduplicated in game (`Modules/GuildLog.lua`, 2000 events), never uploaded | **Uploaded**; stored once whoever reads it; dates "in this rank since" for the promotion panel |
 | Message of the day | `GetGuildRosterMOTD` | Read by GuildMotd.lua for its reminder only | **Saved and uploaded** (`GuildText`) |
 | Guild information text | `GetGuildInfoText` | Unused | **Saved and uploaded** (`GuildText`) |
-| Guild bank contents and gold | `GetGuildBankItemInfo`, `GetGuildBankMoney` | Snapshot in game when someone opens the bank (`Modules/GuildBank.lua`) | Not uploaded yet |
-| Guild bank item and money logs | `QueryGuildBankLog`, `GetGuildBankTransaction`, `GetGuildBankMoneyTransaction` | Unused | **Not built**: whether WoW Forever has guild bank tabs is not confirmed in a real client (the module notes Classic Era has none). A read-only ledger page waits for that check |
+| Guild bank contents and gold | `GetGuildBankItemInfo`, `GetGuildBankMoney` | Snapshot in game when someone opens the bank (`Modules/GuildBank.lua`) | **Uploaded** with a gold history (9.0, docs/GUILD_BANK_LEDGER.md) |
+| Guild bank item and money logs | `QueryGuildBankLog`, `GetGuildBankTransaction`, `GetGuildBankMoneyTransaction` | Unused | **Kept and uploaded** (9.0): the read-only Guild bank page and a weekly officer summary. The owner confirmed Forever has a guild bank (6 November 2026) |
 | Guild calendar events and answers | `C_Calendar` | Uploaded (`Modules/Calendar.lua`) | Unchanged |
 | Professions | Not in the roster on classic-style clients | Shared by addon users only (digest, `Recipes.lua`) | Unchanged (Track K relays them through any guildmate) |
 | Guild achievements, news, guild level | Not on classic-style clients | Not available on Forever | Not available |

@@ -1,8 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { handleInviteDm, handleInviteRequestInteraction, requestInviteModal, requestInviteRow, submitInviteRequest } from "../src/services/invite-request.js";
 import { parseInviteName } from "../src/services/invite-queue.js";
 
-afterEach(() => { delete process.env["FEATURE_PREVIEW_GUILD_IDS"]; });
 
 const settings = { guildId: "g1", inviteChannelId: "chan", language: "en" };
 function setup(overrides: { requests?: Record<string, unknown>[]; settings?: unknown; member?: boolean; asked?: string[] } = {}) {
@@ -73,15 +72,11 @@ describe("one request per member per character", () => {
     const other = parseInviteName("Amy Archer")!;
     expect((await submitInviteRequest(deps.client as never, deps.database as never, { discordGuildId: "guild", discordUserId: "u1", parsed: other })).status).toBe("posted");
   });
-  it("is unavailable without a channel, for a non-member, or outside the preview servers", async () => {
+  it("is unavailable without a channel, for a non-member", async () => {
     const noChannel = setup({ settings: null });
     expect((await submitInviteRequest(noChannel.client as never, noChannel.database as never, { discordGuildId: "guild", discordUserId: "u1", parsed })).status).toBe("unavailable");
     const gone = setup({ member: false });
     expect((await submitInviteRequest(gone.client as never, gone.database as never, { discordGuildId: "guild", discordUserId: "u1", parsed })).status).toBe("unavailable");
-    process.env["FEATURE_PREVIEW_GUILD_IDS"] = "other";
-    const preview = setup();
-    expect((await submitInviteRequest(preview.client as never, preview.database as never, { discordGuildId: "guild", discordUserId: "u1", parsed })).status).toBe("unavailable");
-    expect(preview.send).not.toHaveBeenCalled();
   });
 });
 

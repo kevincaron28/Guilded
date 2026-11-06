@@ -5,7 +5,6 @@ import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { duelLeaderboard, percent, streakText, type DuelStanding } from "./duels.js";
-import { previewAllows } from "./feature-preview.js";
 import { displayCharacterName, loadFullNameBook, type FullNameBook } from "./character-display.js";
 
 // The live "Duels de la guilde" board (8.4.6): ONE bot message in the PvP statistics channel, edited in place after
@@ -68,7 +67,7 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
   if (!delivery) {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);
-    if (!settings?.duelBoardEnabled || !settings.duelBoardChannelId || (!settings.duelBoardMessageId && !previewAllows(discordGuild.id))) return false;
+    if (!settings?.duelBoardEnabled || !settings.duelBoardChannelId ) return false;
     const job = await enqueueDiscordJob(prisma, guild.id, "duel-board", "DUEL_BOARD");
     await deliverDiscordJob(prisma, job.id, current => dispatchDiscordJob(discordGuild, current));
     return (await prisma.discordJob.findUnique({ where: { id: job.id } }))?.status === "DONE";
@@ -76,7 +75,7 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
   try {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
     const settings = await guildService.getSettings(guild.id);
-    if (!settings?.duelBoardEnabled || !settings.duelBoardChannelId || (!settings.duelBoardMessageId && !previewAllows(discordGuild.id))) return false;
+    if (!settings?.duelBoardEnabled || !settings.duelBoardChannelId ) return false;
     const channel = await discordGuild.channels.fetch(settings.duelBoardChannelId).catch(() => null);
     if (!channel?.isTextBased() || !("send" in channel)) return false;
     const lang = asLang(settings.language);

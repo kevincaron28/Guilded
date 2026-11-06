@@ -1,7 +1,6 @@
 import { z } from "zod";
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
-import { previewAllows } from "./feature-preview.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 
 // 9.0 guild bank ledger (docs/GUILD_BANK_LEDGER.md). Whenever anyone with access opens the guild
@@ -150,7 +149,6 @@ type WeeklyDb = Db & Pick<PrismaClient, "guild" | "guildSettings">;
 
 /** Weekly summary in the officer log channel. On by default, at most once every 7 days, never when nothing moved. */
 export async function postWeeklyGuildBank(db: WeeklyDb, discordGuild: DiscordGuild, now = new Date()): Promise<boolean> {
-  if (!previewAllows(discordGuild.id)) return false;
   const guild = await db.guild.findUnique({ where: guildWhere(discordGuild.id), select: { id: true, settings: true } });
   const settings = guild?.settings;
   if (!guild || !settings || settings.guildBankWeeklyEnabled === false || !settings.logChannelId) return false;

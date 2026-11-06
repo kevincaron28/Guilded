@@ -3,7 +3,7 @@ import { Collection } from "discord.js";
 import { completeInvitesFromRoster, findWowRoleId, handleInviteMessage, handleInviteReaction, handleWowRoleGiven, markPostsDone } from "../src/services/invite-channel.js";
 
 vi.mock("../src/permissions.js", () => ({ hasPermission: (member: { officer?: boolean }) => Boolean(member.officer) }));
-afterEach(() => { vi.useRealTimers(); delete process.env["FEATURE_PREVIEW_GUILD_IDS"]; });
+afterEach(() => { vi.useRealTimers(); });
 
 const LF = String.fromCharCode(10);
 const settings = { guildId: "g1", language: "en", inviteChannelId: "chan", inviteWowRoleId: null as string | null };
@@ -54,12 +54,6 @@ describe("a post in the invite channel", () => {
     const off = database(); off.guildSettings.findFirst = vi.fn(async () => null);
     expect(await handleInviteMessage(post("Amy Archer") as never, off as never)).toBe("ignored");
   });
-  it("does nothing outside the preview servers while the preview list is set", async () => {
-    process.env["FEATURE_PREVIEW_GUILD_IDS"] = "someone-else";
-    const db = database();
-    expect(await handleInviteMessage(post("Amy Archer") as never, db as never)).toBe("ignored");
-    expect(db.requests).toHaveLength(0);
-  });
 });
 
 describe("check marks", () => {
@@ -85,12 +79,10 @@ describe("check marks", () => {
     expect(await handleInviteReaction(client(p) as never, db as never, reaction("✅") as never, { id: "officer", bot: false } as never)).toBe(1);
     expect(db.inviteRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "INVITED", invitedBy: "officer" }) }));
   });
-  it("a roster upload marks names done automatically, but only in preview servers", async () => {
+  it("a roster upload marks names done automatically", async () => {
     const db = database(); await handleInviteMessage(post("Amy Archer") as never, db as never);
     const p = { react: vi.fn(async () => undefined), reactions: { cache: new Map() } };
     expect(await completeInvitesFromRoster(client(p) as never, db as never, { id: "g1", discordId: "guild" }, ["Amy Archer"])).toBe(1);
-    process.env["FEATURE_PREVIEW_GUILD_IDS"] = "other";
-    expect(await completeInvitesFromRoster(client(p) as never, db as never, { id: "g1", discordId: "guild" }, ["Amy Archer"])).toBe(0);
   });
 });
 

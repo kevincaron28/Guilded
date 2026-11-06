@@ -33,7 +33,6 @@ export const onboardingGuildService = guildService;
 
 import { findWowRoleId } from "./invite-channel.js";
 import { requestInviteRow } from "./invite-request.js";
-import { previewAllows } from "./feature-preview.js";
 
 export const ONBOARD_PREFIX = "onboard:";
 export const MAX_ONBOARDING_ROLES = 25;
@@ -281,7 +280,7 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
     if (failed.length) lines.push(t(lang, "onboard.games.failed", { roles: failed.join(", ") }));
     // Picked World of Warcraft and the server has an invite channel: offer the one-click guild invite request.
     const wowRoleId = findWowRoleId(discordGuild.roles.cache.values(), settings.inviteWowRoleId);
-    const inviteRow = wowRoleId && held.has(wowRoleId) && settings.inviteChannelId && settings.inviteQueueEnabled && previewAllows(discordGuild.id)
+    const inviteRow = wowRoleId && held.has(wowRoleId) && settings.inviteChannelId && settings.inviteQueueEnabled
       ? [requestInviteRow(lang, discordGuild.id)] : [];
     await interaction.editReply({ content: `${lines.join("\n")}\n\n${await checklist(progress)}`, components: [buttons(), ...inviteRow] });
     return;

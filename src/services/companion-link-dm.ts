@@ -1,7 +1,6 @@
 import { escapeMarkdown, type Client } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { t, type Lang } from "../i18n.js";
-import { previewAllows } from "./feature-preview.js";
 import { displayCharacterName, fullNameBook } from "./character-display.js";
 
 // 8.5 track F3, owner decision (6 November 2026): after a member's FIRST companion link, one Discord DM
@@ -31,7 +30,7 @@ export function firstLinkMessage(lang: Lang, server: string, names: readonly str
  */
 export async function tellFirstCompanionLink(client: Messenger | null | undefined, database: Database,
   { guildDiscordId, memberId, lang, before }: { guildDiscordId: string; memberId: string; lang: Lang; before: number }): Promise<boolean> {
-  if (!client || before > 0 || !previewAllows(guildDiscordId)) return false;
+  if (!client || before > 0) return false;
   try {
     const characters = await database.character.findMany({ where: { memberId }, orderBy: [{ isMain: "desc" }, { name: "asc" }], select: { name: true, displayName: true } });
     if (!characters.length) return false;

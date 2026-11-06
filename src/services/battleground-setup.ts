@@ -4,7 +4,6 @@ import type { Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { BG_SETUP_NAMES, PVP_SETUP_NAMES } from "../setup-names.js";
 import { loadGuildScope, runInGuildScope } from "./guild-scope.js";
-import { previewAllows } from "./feature-preview.js";
 
 export const BG_SETUP_PARTS = ["groups", "results", "stats", "duels"] as const;
 export type BgSetupPart = typeof BG_SETUP_PARTS[number];
@@ -224,7 +223,6 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
  * ladder). Returns "" when the module is off, so `/setup` is unchanged for every server that did not opt in.
  */
 export async function ensurePvpModule(guild: DiscordGuild, db: PrismaClient, guildId: string, lang: Lang, actorId: string): Promise<string> {
-  if (!previewAllows(guild.id)) return "";
   const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { pvpModuleEnabled: true } });
   if (!settings?.pvpModuleEnabled) return "";
   try {

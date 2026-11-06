@@ -2,7 +2,7 @@
 
 ## Current stage — 6 November 2026
 
-Guilded **8.4.7** is published on GitHub and the bot (Forever dungeon final-boss fix and the self-updating direct-download companion); the next release is **9.0.0** (planned below as the "8.5" tracks; owner decision 6 November 2026: it ships as 9.0 after in-game testing and polishing). Branch and doc names keep "8.5".
+Guilded **9.0.0** is the 8.5 work shipped as 9.0 (tracks A-K and the owner batches below). The previous release, 8.4.7, is on GitHub and the bot. Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Forever is the only active edition and PoE2 is hidden ([Forever-only focus](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished

@@ -60,19 +60,14 @@ describe("profession posts and last seen", () => {
     expect(await updateProfessionPosts({ id: "d1" } as never, forum as never, off as never, "g1", "en", NOW)).toBe(0);
     expect(forum.threads.fetchActive).not.toHaveBeenCalled();
   });
-  it("edits an existing post in place and creates a missing one only where the preview allows", async () => {
+  it("edits an existing post in place and creates a missing one", async () => {
     const edit = vi.fn();
     const existing = { name: "📚 Alchemy", archived: false, fetchStarterMessage: async () => ({ editable: true, edit }), setArchived: vi.fn() };
     const create = vi.fn();
     const forum = { threads: { fetchActive: async () => ({ threads: new Map([["1", existing]]) }), fetchArchived: async () => ({ threads: new Map() }), create } };
     const on = { guildSettings: { findUnique: async () => ({ professionPostsEnabled: true }) }, ...db };
-    process.env["FEATURE_PREVIEW_GUILD_IDS"] = "someone-else";
-    try {
-      expect(await updateProfessionPosts({ id: "d1" } as never, forum as never, on as never, "g1", "en", NOW)).toBe(1);
-    } finally { delete process.env["FEATURE_PREVIEW_GUILD_IDS"]; }
-    expect(edit).toHaveBeenCalledTimes(1);
-    expect(create).not.toHaveBeenCalled();
     expect(await updateProfessionPosts({ id: "d1" } as never, forum as never, on as never, "g1", "en", NOW)).toBe(2);
+    expect(edit).toHaveBeenCalledTimes(1);
     expect(create).toHaveBeenCalledTimes(1);
   });
 

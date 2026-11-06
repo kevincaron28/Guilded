@@ -43,7 +43,8 @@
       "addon-installer.cjs",
       "link-identity.cjs",
       "repair.cjs",
-      "disk-space.cjs"
+      "disk-space.cjs",
+      "config-load.cjs"
     ],
     "extraResources": [
       {

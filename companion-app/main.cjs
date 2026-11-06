@@ -78,11 +78,16 @@ const configFile = () => path.join(app.getPath("userData"), "config.secure");
 const profileJournalFile = () => path.join(app.getPath("userData"), !config.activeProfile || config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
 const asset = (name) => path.join(__dirname, "assets", name);
 
+// Settings at start (9.0): logged, backed up before any migration, restored from a backup when the
+// file is missing, and never overwritten after a failed read (companion-app/config-load.cjs).
 async function loadConfig() {
-  const saved = STORE_PACKAGE ? await storeConfig.read(configFile())
-    : await storeConfig.migrate(configFile(), path.join(app.getPath("userData"), "config.json"));
-  if (saved !== null) { config = { ...DEFAULTS, ...saved }; return; }
-  if (STORE_PACKAGE) return;
+  const loaded = await require("./config-load.cjs").loadSavedConfig({
+    store: storeConfig, file: configFile(), legacyFile: path.join(app.getPath("userData"), "config.json"),
+    isStore: STORE_PACKAGE, defaults: DEFAULTS, version: app.getVersion(),
+    log: (level, key, ...values) => { const message = E(key, ...values); pushLog({ time: new Date().toISOString(), level, message }); if (level !== "info") console.warn(message); }
+  });
+  config = loaded.config;
+  if (loaded.source !== "none" || STORE_PACKAGE) return;
   // Carry over the command-line companion's settings when running from the repo.
   if (args.includes("--fresh")) return;
   try {

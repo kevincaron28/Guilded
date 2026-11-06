@@ -6,10 +6,14 @@ const { randomUUID } = require("node:crypto");
 // plaintext or overwrite an unreadable encrypted configuration with defaults.
 function createStoreConfig(safeStorage) {
   let pending = Promise.resolve();
+  // A settings file that exists but could not be read is never overwritten: saving would replace
+  // the member's sign-in and folders with whatever this run has (usually the defaults).
+  const unreadable = new Map();
   async function available() {
     if (!safeStorage || !await safeStorage.isAsyncEncryptionAvailable()) throw new Error("Windows protected storage is unavailable. Your settings were not saved.");
   }
   function write(file, config) {
+    if (unreadable.has(file)) return Promise.reject(new Error(`Your saved settings could not be read (${unreadable.get(file)}), so they were kept as they are and nothing was saved.`));
     const snapshot = JSON.stringify(config);
     const save = pending.catch(() => {}).then(async () => {
       await available();
@@ -49,14 +53,23 @@ function createStoreConfig(safeStorage) {
     },
     async read(file) {
       let encrypted;
-      try { encrypted = fs.readFileSync(file); } catch (error) { if (error.code === "ENOENT") return null; throw error; }
-      await available();
-      const decrypted = await safeStorage.decryptStringAsync(encrypted);
-      const config = JSON.parse(decrypted.result);
-      if (!config || typeof config !== "object" || Array.isArray(config)) throw new Error("Protected settings are invalid.");
+      try { encrypted = fs.readFileSync(file); } catch (error) { if (error.code === "ENOENT") return null; unreadable.set(file, error.code || "read error"); throw error; }
+      let config, decrypted;
+      try {
+        await available();
+        decrypted = await safeStorage.decryptStringAsync(encrypted);
+        config = JSON.parse(decrypted.result);
+        if (!config || typeof config !== "object" || Array.isArray(config)) throw new Error("Protected settings are invalid.");
+      } catch (error) {
+        unreadable.set(file, error instanceof Error ? error.message : String(error));
+        throw error;
+      }
+      unreadable.delete(file);
       if (decrypted.shouldReEncrypt) await write(file, config);
       return config;
-    }
+    },
+    /** Why this file could not be read, or null. */
+    unreadableReason: (file) => unreadable.get(file) ?? null
   };
 }
 module.exports = { createStoreConfig };

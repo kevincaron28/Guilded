@@ -1204,5 +1204,11 @@
   "The Guilded addon needs to be installed or updated. Free some disk space first, then press Repair again.": "L'addon Guilded doit être installé ou mis à jour. Libérez d'abord de l'espace disque, puis appuyez de nouveau sur Réparer.",
   "{0} was not started.": "{0} n'a pas été lancée.",
   "The automatic update": "La mise à jour automatique",
-  "Removed an old copy of the companion installer to free disk space.": "Une ancienne copie du programme d'installation du compagnon a été supprimée pour libérer de l'espace disque."
+  "Removed an old copy of the companion installer to free disk space.": "Une ancienne copie du programme d'installation du compagnon a été supprimée pour libérer de l'espace disque.",
+  "Settings from the previous version were kept in {0}.": "Les paramètres de la version précédente ont été conservés dans {0}.",
+  "The settings backup could not be written: {0}": "La copie de sauvegarde des paramètres n'a pas pu être écrite : {0}",
+  "Your saved settings in {0} ({1} bytes) could not be read: {2}. They were kept as they are; nothing will overwrite them.": "Vos paramètres enregistrés dans {0} ({1} octets) n'ont pas pu être lus : {2}. Ils ont été conservés tels quels; rien ne les remplacera.",
+  "Settings loaded from {0} ({1} bytes, saved {2}): {3} connection(s), signed in: {4}, WoW folder chosen: {5}.": "Paramètres chargés depuis {0} ({1} octets, enregistrés le {2}) : {3} connexion(s), connecté : {4}, dossier WoW choisi : {5}.",
+  "No settings file was found in {0}; your settings were restored from {1} ({2} connection(s), signed in: {3}).": "Aucun fichier de paramètres dans {0}; vos paramètres ont été restaurés depuis {1} ({2} connexion(s), connecté : {3}).",
+  "No saved settings in {0}: starting with a new setup.": "Aucun paramètre enregistré dans {0} : nouvelle configuration."
 }

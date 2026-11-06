@@ -10,6 +10,7 @@ import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 import { personalSavedFiles, uploadPersonalRuns } from "./personal-runs.mjs";
 import { GAME_EDITIONS } from "./game-edition.mjs";
+import { normalizeSavedPath } from "./saved-folder.mjs";
 
 // The companion's working parts, shared by the command-line watcher
 // (watcher.mjs) and the desktop app (companion-app/). It watches the addon's
@@ -126,8 +127,13 @@ export async function waitForSignIn(config, requestId, { signal, proof = /** @ty
 }
 
 // "fetch failed" tells nobody anything: say what to check.
+// Shown in place of "GuildedDB was not found in the SavedVariables file." and a missing file: the
+// addon has not saved yet (or the addon is off).
+export const NOT_SAVED_YET = "Guilded hasn't saved yet: in WoW, make sure the Guilded addon is enabled, then type /reload or log out once.";
+
 export function describeError(error) {
   const text = error instanceof Error ? error.message : String(error);
+  if (/GuildedDB was not found in the SavedVariables file|GuildedDungeonsDB was not found in the SavedVariables file/.test(text) || (/ENOENT|no such file/i.test(text) && /\.lua/i.test(text))) return NOT_SAVED_YET;
   if (/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|timed out|aborted/i.test(text + (error?.cause?.code ?? ""))) {
     return "Could not reach the bot. Is it running, and is the bot address right?";
   }
@@ -158,7 +164,10 @@ const WATCH_RETRY_MS = 5 * 60_000;
 const WATCH_STABLE_MS = 10 * 60_000;
 
 export function createEngine(initialConfig, hooks = {}) {
-  let config = initialConfig;
+  // A file picked inside a character folder (WTF\Account\X\<realm>\<character>\SavedVariables) never holds GuildedDB:
+  // watch the account-level one instead (companion/saved-folder.mjs).
+  const accountLevel = (value) => (value?.watchFile ? { ...value, watchFile: normalizeSavedPath(value.watchFile) } : value);
+  let config = accountLevel(initialConfig);
   let watcher;
   let poe;
   let uploadTimer;
@@ -182,6 +191,7 @@ export function createEngine(initialConfig, hooks = {}) {
   let watchStartedAt = 0;
   let watchGaveUpAt = 0;
   const active = new Set();
+  const reported = new Set();
   const state = {
     running: false,
     watching: null,
@@ -213,6 +223,12 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     const at = new Date().toISOString();
     if (level === "error") state.lastError = { at, message };
+    // A problem that is still the same is said once, not at every retry; a success or a new
+    // start clears it so a later return of the problem is said again.
+    if (level === "error" || level === "warn") {
+      if (reported.has(message)) { hooks.onState?.(snapshot()); return; }
+      reported.add(message);
+    } else if (level === "ok" || /^Watching /.test(message)) reported.clear();
     hooks.onLog?.({ time: at, level, message });
     hooks.onState?.(snapshot());
   };
@@ -611,7 +627,7 @@ export function createEngine(initialConfig, hooks = {}) {
       if (was) log("info", "Stopped."); else hooks.onState?.(snapshot());
     },
     // Apply new settings and restart.
-    async configure(next) { await this.stop(); state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = next; etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
+    async configure(next) { await this.stop(); state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = accountLevel(next); etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
     refreshStandings: () => { const pending = config.personal ? personalUpload() : refreshStandings({ force: true }); track(pending); return pending; }

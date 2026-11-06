@@ -4,6 +4,15 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 
+// True when the file defines the account-wide table (a per-character Guilded.lua holds only
+// GuildedPresenceDB). A file that cannot be read counts as "no".
+function hasDatabase(file) {
+  try {
+    if (fs.statSync(file).size > 64 * 1024 * 1024) return false;
+    return /^\s*GuildedDB\s*=/m.test(fs.readFileSync(file, "utf8"));
+  } catch { return false; }
+}
+
 function subdirs(dir) {
   try {
     return fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => path.join(dir, e.name));
@@ -50,7 +59,7 @@ function detectSavedVariables(names = ["Guilded.lua"], isHeld = () => false) {
         const folder = path.join(account, "SavedVariables");
         if (!fs.existsSync(folder)) continue;
         const found = names.map((name) => path.join(folder, name)).find((file) => fs.existsSync(file));
-        results.push({ path: found ?? path.join(folder, names[0]), exists: !!found, game: path.basename(path.dirname(wtf)), modifiedMs: found ? modifiedMs(found) : 0 });
+        results.push({ path: found ?? path.join(folder, names[0]), exists: !!found, game: path.basename(path.dirname(wtf)), account: path.basename(account), modifiedMs: found ? modifiedMs(found) : 0, hasDatabase: found ? hasDatabase(found) : false });
       }
     }
   }
@@ -66,18 +75,38 @@ function modifiedMs(file) {
   try { return fs.statSync(file).mtimeMs; } catch { return 0; }
 }
 
-// Existing files first; then the live WoW Forever folder before any other game, the beta client
-// last (it stops saving once the live client is installed), and the newest file within a tier.
+// Existing files first, then those that hold GuildedDB (the real account file); then the live WoW
+// Forever folder before any other game, the beta client last (it stops saving once the live client
+// is installed), and the newest file within a tier.
 function rankSavedVariables(results) {
   const tier = (entry) => (/forever/i.test(entry.game) ? 0 : /beta/i.test(entry.game) ? 2 : 1);
-  return [...results].sort((a, b) => Number(b.exists) - Number(a.exists) || tier(a) - tier(b) || b.modifiedMs - a.modifiedMs);
+  return [...results].sort((a, b) => Number(b.exists) - Number(a.exists) || Number(!!b.hasDatabase) - Number(!!a.hasDatabase) || tier(a) - tier(b) || b.modifiedMs - a.modifiedMs);
 }
 
-// The file to pick without asking: the only one, or the only one in a WoW Forever folder.
+// Several accounts (Battle.net ids, "#1" / "#2" logins): the newest file wins only when it is clearly
+// the one being played, not a copy from the same hour.
+const CLEARLY_NEWER_MS = 10 * 60 * 1000;
+function newestClear(list) {
+  if (list.length === 1) return list[0];
+  const sorted = [...list].sort((a, b) => b.modifiedMs - a.modifiedMs);
+  return sorted.length > 1 && sorted[0].modifiedMs - sorted[1].modifiedMs >= CLEARLY_NEWER_MS ? sorted[0] : null;
+}
+
+// The file to pick without asking: the only one, or the only one in a WoW Forever folder; entries that
+// hold GuildedDB are preferred, and among several of them the clearly newest one. Otherwise null (ask).
 function pickSavedVariables(existing) {
   if (existing.length === 1) return existing[0];
+  const withDatabase = existing.filter((entry) => entry.hasDatabase === true);
+  if (withDatabase.length > 0 && withDatabase.length < existing.length) {
+    const picked = pickSavedVariables(withDatabase);
+    if (picked) return picked;
+  }
   const forever = existing.filter((entry) => /forever/i.test(entry.game));
-  return forever.length === 1 ? forever[0] : null;
+  if (forever.length === 1) return forever[0];
+  if (existing.every((entry) => entry.hasDatabase === true)) {
+    return newestClear(forever.length > 1 ? forever : existing);
+  }
+  return null;
 }
 
-module.exports = { detectSavedVariables, detectHeldSavedVariables, rankSavedVariables, pickSavedVariables };
+module.exports = { hasDatabase, detectSavedVariables, detectHeldSavedVariables, rankSavedVariables, pickSavedVariables };

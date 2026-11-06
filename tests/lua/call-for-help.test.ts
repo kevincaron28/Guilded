@@ -241,3 +241,72 @@ describe("call for help: receiver", () => {
     expect(lua.run(`return type(NS.commandHandlers.sos) .. type(Guilded_CallForHelp)`)).toBe("functionfunction");
   });
 });
+
+describe("call for help: nearby guildmates and invites", () => {
+  const roster = (lua: LuaSession) => lua.run(`
+    ROSTER = {
+      { "Kev-Realm", "Officer", 1, 60, "Rogue", "Duskwood", "", "", true, 0, "ROGUE" },
+      { "Ann-Realm", "Member", 3, 58, "Mage", "Duskwood", "", "", true, 0, "MAGE" },
+      { "Dan-Realm", "Member", 3, 55, "Priest", "Duskwood", "", "", true, 0, "PRIEST" },
+      { "Eli-Realm", "Member", 3, 50, "Druid", "Duskwood", "", "", true, 0, "DRUID" },
+      { "Bob-Realm", "Member", 3, 60, "Mage", "Elwynn Forest", "", "", true, 0, "MAGE" },
+      { "Cy-Realm", "Member", 3, 60, "Mage", "Duskwood", "", "", false, 0, "MAGE" } }
+    function GetNumGuildMembers() return #ROSTER end
+    function GetGuildRosterInfo(i) return table.unpack(ROSTER[i]) end
+    C_Map = { GetMapWorldSize = function() return 1000, 1000 end }
+    INVITED = {}; WHISPERS = {}
+    function InviteUnit(name) if FAIL_INVITE then error("blocked") end INVITED[#INVITED + 1] = name end
+    function SendChatMessage(text, channel, _, target) if channel == "WHISPER" then WHISPERS[#WHISPERS + 1] = target .. ":" .. text else CHAT_OUT[#CHAT_OUT + 1] = channel .. ":" .. text end end
+  `);
+  const names = (lua: LuaSession) => lua.run(`local t = {}; for _, e in ipairs(NS.callForHelp.nearby()) do t[#t + 1] = e.short .. (e.yards and ("@" .. e.yards) or "") end; return table.concat(t, ",")`);
+
+  it("lists online guildmates in my zone only, never me, offline players or other zones", () => {
+    const lua = setup();
+    roster(lua);
+    expect(names(lua)).toBe("Ann,Dan,Eli");
+  });
+
+  it("puts the nearest first when positions are known, the rest by name", () => {
+    const lua = setup();
+    roster(lua);
+    lua.run(`NS.guildMap.members.Eli = { mapId = 47, x = 0.51, y = 0.5 }; NS.guildMap.members.Dan = { mapId = 47, x = 0.8, y = 0.5 }`);
+    expect(names(lua)).toBe("Eli@10,Dan@300,Ann");
+  });
+
+  it("shows an Invite button per guildmate once I have called, and clicking invites that player", () => {
+    const lua = setup();
+    roster(lua);
+    lua.run(`NS.callForHelp.open()`);
+    const invited = lua.run(`
+      local _, _, rows = NS.callForHelp.frames()
+      rows[1].invite.scripts.OnClick()
+      return table.concat(INVITED, ",") .. "|" .. tostring(rows[3].target) .. "|" .. tostring(rawget(rows[4], "target"))`);
+    expect(invited).toBe("Ann-Realm|Eli-Realm|nil");
+    expect(msgs()).toContain("Invited Ann");
+  });
+
+  it("says what to type when the invite is refused", () => {
+    const lua = setup();
+    roster(lua);
+    lua.run(`FAIL_INVITE = true; NS.callForHelp.open(); local _, _, rows = NS.callForHelp.frames(); rows[1].invite.scripts.OnClick()`);
+    expect(msgs()).toContain("Could not invite Ann. Type /invite Ann-Realm.");
+  });
+
+  it("gives a defender Join (whisper inv) and Invite caller buttons, only on a click", () => {
+    const lua = setup();
+    roster(lua);
+    callFrom("Bob-Realm", goodCall);
+    expect(lua.run(`return #WHISPERS + #INVITED`)).toBe("0"); // nothing happens by itself
+    lua.run(`local _, banner = NS.callForHelp.frames(); banner.join.scripts.OnClick(); banner.inviteCaller.scripts.OnClick()`);
+    expect(lua.run(`return WHISPERS[1]`)).toBe("Bob-Realm:inv");
+    expect(lua.run(`return INVITED[1]`)).toBe("Bob-Realm");
+    expect(msgs()).toContain("Asked Bob for an invite.");
+  });
+
+  it("French labels", () => {
+    const lua = setup();
+    lua.run(`GetLocale = function() return "frFR" end; SETTINGS.language = "fr"`);
+    lua.load("Locale.lua");
+    expect(lua.run(`return NS.L("Invite caller")`)).toBe("Inviter l'appelant");
+  });
+});

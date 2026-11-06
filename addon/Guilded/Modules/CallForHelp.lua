@@ -13,7 +13,11 @@
 -- command). The call goes to the guild on the addon prefix GuildedSOS; guildmates in the same
 -- zone who are Defenders get a banner, a sound, distance and direction, and On my way / Can't
 -- buttons. Everyone else gets one line in Guilded's chat tab. No protected action is used, so
--- it works in combat. The combat log is deliberately NOT read (restricted on Retail and
+-- it works in combat. The caller's panel lists online guildmates in the same zone (from the guild
+-- roster, so they need no addon), nearest first when map positions are known, each with an Invite
+-- button; a defender's banner has Join (whisper "inv" to the caller) and Invite caller. Every one is
+-- a click on a button: the game only allows invites and whispers from a click, and nothing here
+-- invites or whispers by itself. The combat log is deliberately NOT read (restricted on Retail and
 -- Forever); attackers are seen through the target, focus, mouseover and nameplate units.
 local addonName, ns = ...
 ns = ns or {}
@@ -26,6 +30,8 @@ local SEEN_SECONDS = 60
 local BANNER_SECONDS = 20
 local MAX_ATTACKERS = 3
 local POSITION_MAX_AGE = 600
+local MAX_NEARBY = 5
+local ROW_HEIGHT = 24
 
 local module = {}
 ns.callForHelp = module
@@ -231,10 +237,73 @@ local function mapSize(mapId)
 end
 
 -- ---------------------------------------------------------------------
+-- Nearby guildmates, party invites and whispers (all from button clicks)
+-- ---------------------------------------------------------------------
+
+-- Online guildmates in my zone, nearest first when positions are known, then by name.
+-- Each: { name, class, level, yards }. Read from the guild roster: no addon needed on their side.
+function module.nearby()
+  local list = {}
+  if not (GetNumGuildMembers and GetGuildRosterInfo) then return list end
+  local myZone = zoneNames()
+  if myZone == "" then return list end
+  local me = playerName()
+  local mapId, x, y = position()
+  local w, h = nil, nil
+  if mapId then w, h = mapSize(mapId) end
+  for i = 1, math.min(GetNumGuildMembers() or 0, 1000) do
+    local rosterName, _, _, level, _, zone, _, _, online, _, classFile = GetGuildRosterInfo(i)
+    if online and type(rosterName) == "string" and not secret(rosterName) and type(zone) == "string" and zone == myZone then
+      local short = ns.normalizeName and ns.normalizeName(rosterName) or rosterName
+      if short ~= me then
+        local entry = { name = rosterName, short = short, class = classFile, level = tonumber(level) or 0 }
+        local pin = ns.guildMap and ns.guildMap.members and ns.guildMap.members[short]
+        if pin and mapId and pin.mapId == mapId and pin.x and x then
+          local yards = module.bearing(x, y, pin.x, pin.y, w, h)
+          entry.yards = yards
+          entry.near = math.sqrt((pin.x - x) ^ 2 + (pin.y - y) ^ 2)
+        end
+        list[#list + 1] = entry
+      end
+    end
+  end
+  table.sort(list, function(a, b)
+    if (a.near ~= nil) ~= (b.near ~= nil) then return a.near ~= nil end
+    if a.near and b.near and a.near ~= b.near then return a.near < b.near end
+    return a.short < b.short
+  end)
+  while #list > MAX_NEARBY do list[#list] = nil end
+  return list
+end
+
+local function shown(name) return display(ns.normalizeName and ns.normalizeName(name) or name) end
+
+-- A party invite for `name`. Only works from a click; says so instead of failing silently.
+function module.invite(name)
+  if type(name) ~= "string" or name == "" then return false end
+  local invite = (C_PartyInfo and C_PartyInfo.InviteUnit) or InviteUnit
+  if not invite then say(string.format(L("Could not invite %s. Type /invite %s."), shown(name), name)); return false end
+  local ok = pcall(invite, name)
+  if not ok then say(string.format(L("Could not invite %s. Type /invite %s."), shown(name), name)); return false end
+  say(string.format(L("Invited %s."), shown(name)))
+  return true
+end
+
+-- "inv" whispered to the caller, the usual way to ask for a party invite.
+function module.askToJoin(name)
+  if type(name) ~= "string" or name == "" or not SendChatMessage then return false end
+  local ok = pcall(SendChatMessage, "inv", "WHISPER", nil, name)
+  if not ok then say(string.format(L("Could not whisper %s. Type /w %s inv."), shown(name), name)); return false end
+  say(string.format(L("Asked %s for an invite."), shown(name)))
+  return true
+end
+
+-- ---------------------------------------------------------------------
 -- Frames (created lazily; plain frames, no protected actions)
 -- ---------------------------------------------------------------------
 
 local offerFrame, banner
+local nearbyRows = {} -- the caller's Invite rows
 
 local function makeButton(parent, label, width, onClick)
   local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
@@ -262,8 +331,44 @@ local function makeFrame(width, height)
   return f
 end
 
+local function refreshNearby()
+  if not offerFrame then return end
+  local list = mine and module.nearby() or {}
+  for i = 1, MAX_NEARBY do
+    local row = nearbyRows[i]
+    if not row then
+      row = CreateFrame("Frame", nil, offerFrame)
+      row:SetWidth(220)
+      row:SetHeight(ROW_HEIGHT)
+      row:SetPoint("TOP", offerFrame, "TOP", 0, -34 - (i - 1) * ROW_HEIGHT)
+      row.label = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      row.label:SetPoint("LEFT", row, "LEFT", 0, 0)
+      row.invite = makeButton(row, L("Invite"), 60, function() module.invite(row.target) end)
+      row.invite:SetHeight(20)
+      row.invite:SetPoint("RIGHT", row, "RIGHT", 0, 0)
+      nearbyRows[i] = row
+    end
+    local entry = list[i]
+    if entry then
+      row.target = entry.name
+      local label = display(entry.short)
+      if entry.yards then label = label .. " (" .. string.format(L("%d yd"), entry.yards) .. ")" end
+      row.label:SetText(label)
+      row:Show()
+    else
+      row.target = nil
+      row:Hide()
+    end
+  end
+  offerFrame:SetHeight(70 + (#list > 0 and (#list * ROW_HEIGHT + 6) or 0))
+end
+module.refreshNearby = refreshNearby
+-- For the tests: the caller's panel and the defender banner.
+function module.frames() return offerFrame, banner, nearbyRows end
+
 local function refreshOffer()
   if not offerFrame then return end
+  refreshNearby()
   local text
   if mine then
     local names = {}
@@ -299,15 +404,20 @@ end
 
 local function ensureBanner()
   if banner then return banner end
-  banner = makeFrame(360, 96)
+  banner = makeFrame(360, 126)
   banner:SetPoint("TOP", UIParent, "TOP", 0, -90)
   banner.detail = banner:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   banner.detail:SetPoint("TOP", banner.text, "BOTTOM", 0, -4)
   banner.detail:SetWidth(340)
   banner.coming = makeButton(banner, L("On my way"), 120, function() module.reply(true) end)
-  banner.coming:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -4, 10)
+  banner.coming:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -4, 40)
   banner.cant = makeButton(banner, L("Can't"), 120, function() module.reply(false) end)
-  banner.cant:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 4, 10)
+  banner.cant:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 4, 40)
+  -- Join: whisper "inv" to the caller. Invite caller: party invite. Both only on a click.
+  banner.join = makeButton(banner, L("Join"), 120, function() if banner.sender then module.askToJoin(banner.sender) end end)
+  banner.join:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -4, 10)
+  banner.inviteCaller = makeButton(banner, L("Invite caller"), 120, function() if banner.sender then module.invite(banner.sender) end end)
+  banner.inviteCaller:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 4, 10)
   return banner
 end
 
@@ -356,6 +466,7 @@ function module.open()
     mine.name = call.name
   end
   say(L("Call for help sent to the guild."))
+  if C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) elseif GuildRoster then pcall(GuildRoster) end
   showOffer()
   return true
 end
@@ -556,6 +667,7 @@ register("CHAT_MSG_ADDON")
 register("UNIT_COMBAT")
 
 local sinceTick = 0
+local sinceNearby = 0
 local function onUpdate(_, elapsed)
   sinceTick = sinceTick + (elapsed or 0)
   if sinceTick < 1 then return end
@@ -565,6 +677,10 @@ local function onUpdate(_, elapsed)
     if mine then
       if t - mine.at > EXPIRE_SECONDS then mine = nil; offerFrame:Hide(); say(L("Your call for help expired.")) end
     elseif offerUntil and t > offerUntil then offerFrame:Hide(); offerUntil = nil end
+  end
+  if mine and offerFrame and offerFrame:IsShown() then
+    sinceNearby = sinceNearby + 1
+    if sinceNearby >= 5 then sinceNearby = 0; if GuildRoster then pcall(GuildRoster) elseif C_GuildInfo and C_GuildInfo.GuildRoster then pcall(C_GuildInfo.GuildRoster) end; refreshNearby() end
   end
   if banner and banner:IsShown() and banner.shownAt and t - banner.shownAt > BANNER_SECONDS then banner:Hide() end
   if not mine and not inInstance() then position() end -- remember where I was before combat

@@ -8,6 +8,51 @@ Forever is the only active edition and PoE2 is hidden ([Forever-only focus](docs
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
+## Start here — 7 November 2026 (next session)
+
+9.0.0 was released on the evening of 6 November (PR #453). The feature-preview gate is gone: every 9.0 feature is ON in every
+server. The owner plays tonight and brings new ideas and fixes tomorrow. Add them under "Owner requests,
+7 November" below, then plan them as tracks (one track per session, coordinator merges).
+
+**Still to verify with real clients (not blockers for the bot, but blockers for calling 9.0 "accepted"):**
+- Companion settings survive an upgrade. The 9.0 companion saves through a fallback, logs every step to
+  `%APPDATA%\Guilded Companion\startup.log`, and its installer-launched start waits for the old copy and retries
+  (#449, #450, #452). The second PC still has to confirm it with test build 3/4 or 9.0.0. Collect startup.log.
+- In game (French Forever client): minimap button visible, `/guilded minimap show` feedback, Guilded chat tab
+  at first login, French login line, panel layout fixes (#451).
+- Guild bank link in Statistics (needs real bank data); `/officer dungeon audit` with real runs; welcome DM
+  "Request a guild invite"; two-PC call for help and duel; relink of a second character.
+- Dungeon posts listed the same player twice (5 Nov Ragefire Chasm post in Québec Gold). Fixed for new imports
+  in 9.0.0 (one row per character); old posts stay as they are.
+
+**Partial items found by the 6 November audit (do these first):**
+1. Race to 60 Hall of Fame is permanent but officers cannot edit it: add officer add/remove/correct.
+2. Owner rule "sharing and sync always on, only Delete my data": `/setup` still has "Turn public sharing off"
+   and `/character nickname off` remains; "Delete my data" is only a web page (`/me/data/delete`). Add a
+   Delete-my-data button in the companion and the member page; decide whether to remove the public-sharing switch.
+3. PoE2 still appears in the companion (`companion-app/renderer/index.html` "Mapping journal" card) and in
+   `achievement-badges.ts`. Hide it when `active-games.mjs` hides PoE2.
+4. Dungeon leaderboards "too strict": confirm officers see why a run was not counted (`dungeon-explain.ts`).
+5. Polish: `/officer dungeon audit` with no options says "for that" instead of asking which member or run;
+   dungeon posts' "0 pts" and "Non classé" lines are noisy for unranked members.
+
+**After that:** Store (8.4.6.0 certification, then 9.0.0.0), screenshots and website (final phase 1), the phone
+app (Track M), Google Play, dependabot #407, delete the v9.0.0-test.* pre-releases.
+
+**Release status (6 Nov, 23:45 UTC):** bot live at 9.0.0 (main 0a5fd16, backup
+`/home/ubuntu/guilded-recovery/2026-11-06T23-35-29-673Z` plus an encrypted copy on the owner's PC). The GitHub release v9.0.0
+and the CurseForge uploads wait for the owner's go-ahead. The assets are built in `C:\Users\Kev\Desktop\guilded-9.0.0-release\`
+(installer sha256 a655f1ff…, addon 08baae60…, dungeons e2e16672…). Publishing GitHub "latest" auto-updates every
+member's companion. The FEATURE_PREVIEW_GUILD_IDS line in the server's .env.local is now unused and can be deleted.
+
+### Owner requests, 7 November 2026
+
+- (6 Nov, late) Make the dungeon season **a lot less strict** so more runs show up, and start building the
+  database of timed runs now: record every valid completed guild run's time and party, ranked or not; loosen
+  the level band, the presence rule, the uncalibrated targets and the evidence gates; keep the SIM, season-window
+  and final-boss checks. Dispatched to the "dungeon scoring + Season 2" session (PR into main, coordinator deploys).
+- (add tonight's ideas here)
+
 ## How to work from this file (any AI session)
 
 1. Read `CLAUDE.md` first (checks to run, command-size limit, French rules, migrations, never start the bot).

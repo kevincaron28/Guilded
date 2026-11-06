@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext } from "./context.js";
@@ -14,6 +14,8 @@ import { scoreCardPng } from "../services/score-card.js";
 import { duelLeaderboard, percent, streakText } from "../services/duels.js";
 import { updateDuelBoard } from "../services/duel-board.js";
 import { updateBgLadder } from "../services/bg-ladder.js";
+import { loadPvpGroups, pvpGroupLine } from "../services/pvp-group.js";
+import { createPvpGroupFromModal, PVP_FORM_ACTION, pvpGroupModal, showPvpLooking } from "./pvp-group.js";
 
 export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDescription("Battleground planning")
   .setDescriptionLocalizations({ fr: "Organisation des champs de bataille" })
@@ -212,10 +214,12 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       try { await requireTeamChannel(i.guild, session.core.channelId, actor); visible.push(session); } catch { /* private/deleted channel */ }
       if (visible.length === 5) break;
     }
-    await i.editReply(visible.length ? { embeds: [new EmbedBuilder().setTitle(t("Upcoming groups", "Groupes à venir")).setDescription(visible.map(s => `${escapeMarkdown(s.core.name)} · <t:${Math.floor(s.scheduledAt.getTime() / 1000)}:F>\n/bg view session:${s.id}`).join("\n\n"))], allowedMentions: { parse: [] } }
+    // The PvP group finder's posts (kind PVP) come first: they are what members join with the buttons.
+    const finder = (await loadPvpGroups(prisma, ctx.guildId, i.guild.id, sub === "mine" ? ctx.memberId : null)).slice(0, 5).map(group => pvpGroupLine(group, fr ? "fr" : "en"));
+    await i.editReply(visible.length || finder.length ? { embeds: [new EmbedBuilder().setTitle(t("Upcoming groups", "Groupes à venir")).setDescription([...finder, ...visible.map(s => `${escapeMarkdown(s.core.name)} · <t:${Math.floor(s.scheduledAt.getTime() / 1000)}:F>\n/bg view session:${s.id}`)].join("\n\n").slice(0, 4000))], allowedMentions: { parse: [] } }
       : { content: sub === "mine"
-        ? t("You have not joined any upcoming groups. Use Upcoming to find one, then /bg join.", "Vous n'avez rejoint aucun groupe à venir. Utilisez À venir pour en trouver un, puis /bg join.")
-        : t("No upcoming groups you can access yet. Leaders can start one with /bg create.", "Aucun groupe à venir accessible pour le moment. Les responsables peuvent en créer un avec /bg create.") });
+        ? t("You have not joined any groups. Press Who's looking to find one, or Create to start your own.", "Vous n'avez rejoint aucun groupe. Appuyez sur Qui cherche pour en trouver un, ou sur Créer pour lancer le vôtre.")
+        : t("No open groups yet. Press Create to start one; leaders can also plan a session with /bg create.", "Aucun groupe ouvert pour le moment. Appuyez sur Créer pour en lancer un ; les responsables peuvent aussi planifier une séance avec /bg create.") });
     return;
   }
   const id = text("session", true);
@@ -236,7 +240,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
 export const BG_PREFIX = "bgui:";
 export function battlegroundPanel(fr: boolean, guildId: string) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    ...[["create", fr ? "Créer" : "Create"], ["join", fr ? "Rejoindre" : "Join"], ["mine", fr ? "Mes groupes" : "My groups"], ["upcoming", fr ? "À venir" : "Upcoming"]].map(([id, label]) =>
+    ...[["create", fr ? "Créer" : "Create"], ["looking", fr ? "Qui cherche" : "Who's looking"], ["mine", fr ? "Mes groupes" : "My groups"], ["upcoming", fr ? "À venir" : "Upcoming"]].map(([id, label]) =>
       new ButtonBuilder().setCustomId(`${BG_PREFIX}${guildId}:${id}`).setLabel(label!).setStyle(ButtonStyle.Secondary)));
 }
 
@@ -283,6 +287,8 @@ export function battlegroundFormInput(i: Pick<ModalSubmitInteraction, "customId"
 
 export async function handleBattlegroundComponent(i: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction) {
   const action = i.customId.split(":").slice(2).join(":");
+  if (i.isModalSubmit() && action === PVP_FORM_ACTION) { await createPvpGroupFromModal(i); return; }
+  if (i.isButton() && action === "looking") { await showPvpLooking(i); return; }
   if (i.isModalSubmit()) { await executeBattleground(i, battlegroundFormInput(i)); return; }
   if (i.isButton() && ["mine", "upcoming", "history", "stats", "privacy-help", "setup"].includes(action)) {
     await executeBattleground(i, { action: action }); return;
@@ -293,16 +299,9 @@ export async function handleBattlegroundComponent(i: ButtonInteraction | ModalSu
   await requireTeamChannel(i.guild, i.channelId, actor);
   const fr = await teamLanguage(prisma, ctx.guildId);
   if (i.isButton() && action === "join") { await i.showModal(battlegroundJoinModal(fr, ctx.guildId)); return; }
+  // Create is the PvP group finder: any member, one post per group (like the dungeon finder). Scheduled sessions stay on /bg create.
+  if (i.isButton() && action === "create") { await i.showModal(pvpGroupModal(fr, ctx.guildId)); return; }
   if (!hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if (i.isButton() && action === "create") {
-    await i.reply({ flags: MessageFlags.Ephemeral, content: fr
-      ? "Choisissez le format et la faction. Ce choix confirme un royaume normal (sans Hardcore). Le salon actuel définit l'accès au groupe. Aucun message public ne sera envoyé."
-      : "Choose format and faction. This confirms a normal realm (not Hardcore). The current channel defines group access. No public post will be sent.",
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${BG_PREFIX}${ctx.guildId}:format`)
-      .setPlaceholder(fr ? "Format · faction · royaume normal" : "Format · faction · normal realm")
-      .addOptions(...["casual", "rated", "blitz"].flatMap(mode => ["Alliance", "Horde"].map(faction => ({ label: `${mode} · ${faction}`, value: `${mode}:${faction}` })))))] });
-    return;
-  }
   if (i.isStringSelectMenu() && action === "format") {
     const match = /^(casual|rated|blitz):(Alliance|Horde)$/.exec(i.values[0] ?? "");
     if (!match) throw new Error("Invalid BG format / Format JcJ invalide.");

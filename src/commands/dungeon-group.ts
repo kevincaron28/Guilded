@@ -79,7 +79,7 @@ function groupLevels(kind: GroupKind, title: string, typed: string): { minLevel:
 
 // Posts a new group: the kind's "LFG" role is pinged (as before 5.0), plus the members whose
 // group alerts fit it (kind, level, roles still needed), mentioned by name.
-async function postGroup(
+export async function postGroup(
   guild: DiscordGuild, channel: GuildTextBasedChannel, group: { id: string; guildId: string; kind: string; title: string; status: DungeonGroup["status"]; minLevel: number | null; maxLevel: number | null },
   leaderDiscordId: string, lang: Lang
 ): Promise<void> {
@@ -262,8 +262,9 @@ async function createVoice(guild: DiscordGuild, groupId: string): Promise<string
   const group = await prisma.dungeonGroup.findUniqueOrThrow({ where: { id: groupId } });
   const overwrites = await dungeonVoiceOverwrites(guild, group);
   const settings = await guildService.getSettings(group.guildId);
-  // Same category as the dungeon signups channel, when there is one.
-  const signupChannel = settings?.dungeonSignupChannelId ? await guild.channels.fetch(settings.dungeonSignupChannelId).catch(() => null) : null;
+  // Same category as the group's own post (the dungeon or the PvP groups channel), else the dungeon signups channel.
+  const signupId = group.signupChannelId ?? settings?.dungeonSignupChannelId;
+  const signupChannel = signupId ? await guild.channels.fetch(signupId).catch(() => null) : null;
   const parent = signupChannel && "parentId" in signupChannel ? signupChannel.parentId : null;
   const channel = await guild.channels.create({
     name: `🎧 ${group.title}`.slice(0, 100), type: ChannelType.GuildVoice, userLimit: Math.min(99, group.maxSize),

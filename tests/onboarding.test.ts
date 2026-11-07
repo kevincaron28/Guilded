@@ -115,7 +115,7 @@ describe("onboarding checklist", () => {
     const panel = welcomePanel({ welcomeRoleIds: ["wow"], rulesChannelId: "rules" }, { id: "g1", name: "QG" }, "fr");
     expect(panel.embeds[0]!.data.title).toBe("👋 Commence ici");
     expect(panel.embeds[0]!.data.description).toContain("<#rules>");
-    expect(customIds(panel)).toEqual(["onboard:rules:g1", "onboard:games:g1", "onboard:pair:g1", "onboard:steps:g1"]);
+    expect(customIds(panel)).toEqual(["onboard:rules:g1", "onboard:games:g1", "onboard:pair:g1", "onboard:chat:g1", "onboard:steps:g1"]);
   });
 });
 
@@ -209,6 +209,20 @@ describe("game menu and pairing", () => {
     expect(issueCharacterPairingCode).not.toHaveBeenCalled();
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(interaction.deferReply.mock.invocationCallOrder[0]).toBeLessThan(interaction.guild.members.fetch.mock.invocationCallOrder[0]!);
+  });
+
+  it("explains guild chat and the Discord link privately, pointing at the invite channel when there is one", async () => {
+    accepted();
+    useSettings({ ...baseSettings, inviteChannelId: "inv1", inviteQueueEnabled: true });
+    const withChannel = click("onboard:chat:g1", fakeGuild(fakeMember()));
+    await handleOnboardingInteraction(withChannel as never);
+    expect(withChannel.editReply.mock.calls[0]![0].content).toContain("<#inv1>");
+    expect(withChannel.editReply.mock.calls[0]![0].content).toContain("Blizzard");
+    useSettings({ ...baseSettings, inviteChannelId: null });
+    const without = click("onboard:chat:g1", fakeGuild(fakeMember()));
+    await handleOnboardingInteraction(without as never);
+    expect(without.editReply.mock.calls[0]![0].content).toContain("/character pair");
+    expect(without.editReply.mock.calls[0]![0].content).not.toContain("<#");
   });
 
   it("shows a French member their existing main and alts before the code", async () => {

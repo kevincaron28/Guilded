@@ -127,6 +127,11 @@ State words: **Released** = in a published client (members have it); **Live** = 
 Standings, craft board and public-runs timeouts (#527, #528, #563); deploys at low priority (#562); community honors refusal warning (#526);
 dungeon board one row per player (#538); public rankings guild table, runs and guild pages (#522); records (#523).
 
+Bug sweep 7 Nov 19:15 UTC: no member reports. Every bot error in the last two hours (about 30, P2028 and pg timeouts) fell inside
+deploy windows: the build starved the 1 GB server. Fixed by #562 (low priority) and #572 (reuse node_modules when the lock is
+unchanged, capped build heap); the 19:05 deploy logged no errors. 25 saved reports resolved. Also live since 9.0.2: correct roles on
+dungeon cards (#569), online officers tagged for invite requests (#570), world PvP board (#565), Forever-only bot part 1 (#573).
+
 ### Waiting for owner
 
 - **Release 9.0.3** (world PvP client parts) and **CurseForge review** of 9.0.2; Store submission (skipped for 9.0.1 and 9.0.2, his call).
@@ -138,7 +143,29 @@ dungeon board one row per player (#538); public rankings guild table, runs and g
 - **World PvP default answers** (`docs/WORLD_PVP.md`).
 - **Plans waiting for a pick:** character pictures, Lite/Plus (payout route: Canada is not on Discord's list), several game accounts (4 questions), Forever-only removal (Battle.net option A or B), phone app restructure, TCG design.
 - **Android / Google Play** (#345 draft, `EXPO_TOKEN`, Firebase, 12 testers) and a new phone APK.
+- Create the CurseForge API token in his own account (CurseForge page freezes for him) if uploads should be automated.
 - His own nickname in Québec Gold (Discord never lets a bot rename the server owner).
+
+### Owner-message cross-check (7 Nov, all 129 messages since 5 Nov)
+
+Every message in the owner's chat history (5-7 Nov, plus the 21-29 Oct linking and website messages) was read against this file, the Control Board export and `git log origin/main`.
+Almost everything was already a row above or in the older tables. These are the gaps found, with their status:
+
+| Owner message | Status | Evidence / next step |
+| --- | --- | --- |
+| "Two Guilded companions on my PC, keep just one" (6 Nov) | Released 9.0.2: the installer replaces a Store install and keeps its settings | #546 (was not in any table) |
+| Auto-change the guild message of the day (5 Nov, idea 1) | Built as a reminder plus copy box, off by default: WoW does not let addons set the MOTD | `docs/GUILD_MOTD_AUTOMATION.md`, `GuildMotd.lua`; no roadmap row until now |
+| Messaging lockdown (SendAddonMessage result 11) lost sync chunks (5 Nov) | Fixed and released (officer ledger transfers recover after lockdown) | #365; real two-player lockdown check still owed |
+| Delete the pre-launch season and beta characters (6 Nov) | **Applied on production** (names and cleanup) | `b720467d`; the older rows saying "owner runs the preview/apply" are out of date |
+| Crashin's Ragefire run did not credit Xaldin or El Pirata (6 Nov) | Fixed: guildmates are credited by character without the addon or a link | `21eeb537`, #513; the older "Track J is investigating" row is out of date |
+| Make realms work the way Forever does (horde PvP ruleset, synced realms), 5 Nov | Done: synced-realm guilds recognised as one | `docs/V8_4_4_RELEASE_NOTES.md` |
+| Research the Jeeves bot (it changed how it syncs characters and guilds), 5 Nov | **No write-up found** | Not started: a short comparison in `docs/` (see below) |
+| "Create an API token for me" for CurseForge, "CurseForge freezes for me" (6 Nov) | Owner-side: the token has to be created by him in the CurseForge account page | Added to Waiting for owner |
+| Five screenshots posted 7 Nov 00:13-03:01 (second PC and crashingbananas) | Contents are images and were not readable here; the bug sweeps after them are #475, #481, #488, #492, #505 | Owner to confirm none is still open |
+| Clean the storage, delete old worktrees (6 Nov); close and archive sessions (6-7 Nov) | Process work, not product; done by the coordinator and deploy sessions | none |
+| Oct 21-29 messages: `/guilded verify`, the `/setup` officer-sync warning, website update plan items 1-7, 9-11, 14, 16 | Merged long ago (`officerSyncAt` is in `src/commands/setup.ts`; site refresh #262-#268) | none |
+
+Everything else in the file (arena ladder, Race to 60 and Hall of Fame, call for help, minimap shortcuts, fresh-PC test, advanced options, Kinfolk, bank, TCG, character names in Discord, in-game guild board, item previews, profession cards, companion decisions 1-4) is already a row above with a PR.
 
 ### Not started
 
@@ -154,7 +181,8 @@ Each line: what, then the files it would touch.
 8. **Forever achievements beyond professions** (needs an in-game API probe): `addon/Guilded` achievements module, `src/services/achievement-badges.ts`, `docs/plans/FOREVER_ACHIEVEMENTS.md`.
 9. **PoE2 leftovers in code** (`src/services/achievement-badges.ts`, companion hidden markup), unverified since #456, and **availability module deletion** (hidden, not deleted): `src/commands/application.ts`, `autocomplete.ts`, `community.ts`, `craft.ts`, `team.ts`.
 10. **Armory enrichment**: blocked on Blizzard; re-run `scripts/forever-armory-probe.mjs` after Forever patches.
-11. Housekeeping: close superseded PRs #515 and #557.
+11. **Jeeves bot research** (asked 5 Nov, never written up): a short comparison of how it now syncs characters and guilds versus Guilded; new `docs/JEEVES_COMPARISON.md`, then rows in this file.
+12. Housekeeping: close superseded PRs #515 and #557.
 
 **First priorities (owner, 7 Nov 01:45 UTC):**
 1. **Dungeon cards (item 13) now, not later.** One `#donjons-terminés` post bundled three runs (two Wailing

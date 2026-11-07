@@ -40,13 +40,12 @@ export function boardChannelIds(settings: Record<string, unknown> | null): strin
   if (!settings) return [];
   const id = (key: string) => typeof settings[key] === "string" ? settings[key] as string : null;
   const never = new Set([id("bgGroupsChannelId"), id("guideChannelId"), id("dungeonSignupChannelId")].filter((v): v is string => Boolean(v)));
-  const ids = [id("raceBoardChannelId"), id("duelBoardChannelId"), id("bgStatsChannelId"), id("bgResultsChannelId"), id("whosWhoChannelId")];
+  const ids = [id("raceBoardChannelId"), id("duelBoardChannelId"), id("bgStatsChannelId"), id("bgResultsChannelId")];
   return [...new Set(ids.filter((v): v is string => Boolean(v) && !never.has(v!)))];
 }
 
 /**
- * `/setup` repair: makes every saved board channel (race to 60, duel ladder, battleground ladder and results, Who's who when it
- * has its own channel) read-only for members. Touches only those channels' own overwrites, never another channel or a category.
+ * `/setup` repair: makes every saved board channel (race to 60, duel ladder, battleground ladder and results) read-only for members. Touches only those channels' own overwrites, never another channel or a category.
  * Returns "" when nothing needed fixing; otherwise a short note (what was fixed, or what I could not).
  */
 export async function repairBoardPermissions(guild: DiscordGuild, db: PrismaClient, guildId: string, lang: Lang): Promise<string> {

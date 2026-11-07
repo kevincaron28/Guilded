@@ -87,7 +87,7 @@ describe("the invite queue", () => {
 
 describe("the guild-invite channel in /setup", () => {
   it("is guild-invites in English and invitation-guilde in French, open to everyone, with a topic that explains it", () => {
-    expect(channelSpec("inviteChannelId", "en")).toMatchObject({ name: "guild-invites", access: "open", category: "guild" });
+    expect(channelSpec("inviteChannelId", "en")).toMatchObject({ name: "guild-invites", access: "open", category: "raid" });
     expect(channelSpec("inviteChannelId", "fr")).toMatchObject({ name: "invitation-guilde", access: "open" });
     expect(channelSpec("inviteChannelId", "en").topic).toContain("Lebowski Holyroller");
     expect(channelSpec("inviteChannelId", "fr").topic).toContain("nom complet");

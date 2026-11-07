@@ -130,7 +130,7 @@ const officer = new MergedCommand("officer", "Officers: EPGP, loot, dungeon chal
   { command: promotionCommand, handler: executePromotion, as: "promotion" }
 ]).setDescriptionLocalizations({ fr: "Officiers : EPGP, butin, défi des donjons, liens de personnages et exports." });
 
-const mod = new MergedCommand("mod", "Officers: moderation, applications, answer channel, web page, recruitment and leaderboards.", [
+const mod = new MergedCommand("mod", "Officers: moderation, applications, answer channel, web page, recruiting.", [
   { command: applicationCommand, handler: executeApplication, as: "application" },
   { command: dniCommand, handler: executeDni, as: "dni" },
   { command: faqCommand, handler: executeFaq, as: "faq" },

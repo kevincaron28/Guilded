@@ -4,7 +4,7 @@ import { revokeCompanionCredential } from "./services/companion-revoke.js";
 import { createWebCommunityBadges } from "./services/web-community-badges.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
-import { GameEditionError, gameEditionOf } from "./services/game-edition.js";
+import { assertForeverEdition, GameEditionError, gameEditionOf } from "./services/game-edition.js";
 import { withEdition } from "./services/edition-context.js";
 import { addonName } from "./services/addon-name.js";
 import { characterKey, realmKey } from "../companion/character-identity.mjs";
@@ -768,6 +768,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         let gameEdition;
         try {
           gameEdition = gameEditionOf(body?.character ?? {});
+          assertForeverEdition(gameEdition);
         } catch (error) {
           json(response, 409, { error: error instanceof Error ? error.message : "Invalid WoW edition" }); return;
         }

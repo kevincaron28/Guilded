@@ -26,8 +26,9 @@ feature).
 Store has 8.4.4.0 live with 8.4.6.0 in certification. Check each provider live before claiming
 status. WoW Forever launched 4 November 2026; its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-Both addons keep Forever, Era, TBC, Mists and Retail builds in source, but only Forever is shown
-to members (`companion/active-editions.mjs`). Message earning covers accessible guild
+Guilded supports WoW Forever only: the other WoW editions are being removed in staged PRs
+(`docs/plans/FOREVER_ONLY_REMOVAL.md`); stored rows of other editions stay readable and new uploads from them are
+refused (`assertForeverEdition` in `companion/game-edition.mjs`). Message earning covers accessible guild
 channels/threads; officers inspect coverage with `/participation channels`
 (`docs/PARTICIPATION_CHANNEL_COVERAGE_2026-10-28.md`). Loot-history import: `docs/LOOT_HISTORY_IMPORT.md`.
 Battle.net developer-app setup: `docs/BATTLENET_SETUP.md`. Still-owed real-client checks are
@@ -176,7 +177,7 @@ through a pull request, then `npm run bugs -- resolve REF [REF...] --note "what 
 
 ## Where things live (for a fresh session)
 
-- **Forever-only focus switches** — `companion/active-editions.mjs` (WoW editions) and `companion/active-games.mjs` (PoE2 community and tracking) decide what members see; hidden is never deleted. See `docs/FOREVER_ONLY_FOCUS.md` for how to turn each back on.
+- **WoW Forever only** — the other WoW editions are removed (`docs/plans/FOREVER_ONLY_REMOVAL.md`). `companion/active-games.mjs` (PoE2 community and tracking) still decides what members see of PoE2; hidden is never deleted (`docs/FOREVER_ONLY_FOCUS.md`).
 - `src/commands/` — one file per Discord slash command; `src/commands/index.ts`
   registers them and merges a few into parents (see `MergedCommand` above).
 - `src/services/` — business logic, called by commands and by scheduled jobs

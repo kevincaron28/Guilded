@@ -31,10 +31,10 @@ describe("edition provenance and import isolation", () => {
   it("refuses to merge personal files from different clients", () => {
     expect(() => personalPayloadFrom([saved(16001), saved(120105)])).toThrow("one WoW edition");
   });
-  it("rejects mismatched guild uploads before import lookup or any mutation", async () => {
+  it("refuses an upload from another WoW version before import lookup or any mutation (WoW Forever only)", async () => {
     const findFirst = vi.fn();
     const db = { guild: { findUnique: vi.fn().mockResolvedValue({ gameEdition: "forever" }) }, guildSettings: { findUnique: vi.fn().mockResolvedValue({ gameEdition: "forever" }) }, addonImport: { findFirst } };
-    await expect(createAddonImportService(db as never).preview("g", { source: "Guilded", exportedAt: new Date(), gameEdition: "retail" }, "u")).rejects.toThrow("This guild uses forever");
+    await expect(createAddonImportService(db as never).preview("g", { source: "Guilded", exportedAt: new Date(), gameEdition: "retail" }, "u")).rejects.toThrow("Guilded supports WoW Forever only");
     expect(findFirst).not.toHaveBeenCalled();
   });
   it("rechecks a queued import before touching any character or ledger", async () => {
@@ -46,7 +46,7 @@ describe("edition provenance and import isolation", () => {
       character: { findMany }
     };
     const db = { $transaction: (fn: (value: unknown) => unknown) => fn(tx) };
-    await expect(createAddonImportService(db as never).apply("g", "queued", "u")).rejects.toThrow("This guild uses forever");
+    await expect(createAddonImportService(db as never).apply("g", "queued", "u")).rejects.toThrow("Guilded supports WoW Forever only");
     expect(findMany).not.toHaveBeenCalled();
   });
   it("rejects a mixed run or character even under a valid envelope", () => {

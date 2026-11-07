@@ -1,6 +1,6 @@
 import { validDungeonKey, validLevelBand, type LevelBand } from "./dungeon-rating.js";
 import { z } from "zod";
-import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
+import { GAME_EDITIONS, gameEditionOf, SUPPORTED_EDITION } from "../../companion/game-edition.mjs";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { challengeEvidenceSchema } from "./challenge-evidence.js";
 import { dungeonIntegritySchema, playerIntegritySchema } from "./dungeon-integrity.js";
@@ -157,6 +157,7 @@ export function validateRun(run: DungeonRunInput, now = new Date()): Validation 
   if (duration > MAX_DURATION_SEC) return { ok: false, reason: `too long (${Math.round(duration / 60)} min)` };
   let edition;
   try { edition = gameEditionOf(run); } catch { return { ok: false, reason: "Invalid WoW edition" }; }
+  if (edition !== SUPPORTED_EDITION) return { ok: false, reason: "WoW Forever only" };
   // WoW Forever has no Mythic+ keystones: keystone evidence (old Retail clients) is never accepted.
   if (run.challenge) return { ok: false, reason: "Mythic+ keystone runs are not supported" };
   const names = new Set(run.players.map((player) => characterKey(player.character, player.realm, edition)));

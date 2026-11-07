@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { deleteLine, editLine, logMessageDelete, logMessageEdit } from "../src/services/message-log.js";
 import { starboardPayload, visibleEnough } from "../src/services/starboard.js";
-import { keyLevelFromTitle, teamAttendance } from "../src/services/guild-tools-store.js";
+import { teamAttendance } from "../src/services/guild-tools-store.js";
 import { filterGroupPosts } from "../src/services/guild-tools-pages.js";
 import { profileDescription, type PlayerProfile } from "../src/services/player-profiles.js";
 import { communityCard } from "../src/commands/community.js";
@@ -38,14 +38,9 @@ describe("message log", () => {
 });
 
 describe("guild tool pages", () => {
-  it("reads a keystone level from a group title", () => {
-    expect(["Ara-Kara +12", "+7 Dawnbreaker", "M+ 15 Priory", "Stonevault key 9", "clé 10 Cinderbrew", "Deadmines", "Raid 2+3", "+1 run"].map(keyLevelFromTitle))
-      .toEqual([12, 7, 15, 9, 10, null, null, null]);
-  });
-  it("filters groups by minimum key level, leaving out groups without one", () => {
+  it("lists every open group post when no filter is set", () => {
     const row = (title: string, keyLevel: number | null) => ({ title, keyLevel, kind: "DUNGEON", minLevel: null, maxLevel: null, createdAt: new Date(), size: 5, signedUp: 2, missing: { TANK: 1, HEALER: 1, DPS: 1 }, url: null });
     const rows = [row("Ara +12", 12), row("Floodgate +8", 8), row("Normal run", null)];
-    expect(filterGroupPosts(rows, "", "", 10).map((r) => r.title)).toEqual(["Ara +12"]);
     expect(filterGroupPosts(rows, "", "").length).toBe(3);
   });
   it("counts a member's attendance over the team's own recent raids; no record is a miss", () => {

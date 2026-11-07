@@ -5,7 +5,7 @@ import { MessageFlags } from "discord.js";
 // overwrites an officer's correction, and acknowledgement before slow work.
 const mocks = vi.hoisted(() => ({
   calls: [] as string[],
-  edition: "classic-era",
+  edition: "forever",
   tx: {} as Record<string, unknown>,
   settings: { language: "en", timezone: "UTC", characterSignups: false } as Record<string, unknown>
 }));
@@ -27,7 +27,7 @@ import { nameList, voiceAttendanceSummary } from "../src/services/voice-attendan
 import { createRaidService } from "../src/services/raid.js";
 import { handleRaidSignupButton, RAID_SIGNUP_PREFIX } from "../src/commands/raid.js";
 
-beforeEach(() => { mocks.calls.length = 0; mocks.edition = "classic-era"; mocks.settings["characterSignups"] = false; });
+beforeEach(() => { mocks.calls.length = 0; mocks.edition = "forever"; mocks.settings["characterSignups"] = false; });
 
 describe("bounded replies", () => {
   it("a full world-buff list of maximum-length drops stays under 2,000 characters, whole lines only", () => {

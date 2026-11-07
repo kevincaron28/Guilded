@@ -1,8 +1,6 @@
 import { AttachmentBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder, type ChatInputCommandInteraction, type Client } from "discord.js";
 import { prisma } from "../database.js";
 import { withEdition } from "../services/edition-context.js";
-import { activeEditions } from "../../companion/active-editions.mjs";
-import { gameEditionOf } from "../../companion/game-edition.mjs";
 import { validTimeZone, zonedInstant } from "../services/dungeon-season-schedule.js";
 import { activateSeason2, observationsEmbed, loadSeasonObservations, reviewSeason2, season2Embed } from "../services/dungeon-season2-admin.js";
 import { SCORING_V2, SEASON2_DATE, SEASON2_NAME } from "../services/dungeon-season2.js";
@@ -19,31 +17,24 @@ export const ownerSeasonCommand = new SlashCommandBuilder()
   .setName(OWNER_SEASON_COMMAND)
   .setDescription("Bot owner: the dungeon season calendar every guild follows")
   .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-  .addSubcommand((sub) => sub.setName("status").setDescription("The current season and the next one")
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
+  .addSubcommand((sub) => sub.setName("status").setDescription("The current season and the next one"))
   .addSubcommand((sub) => sub.setName("next").setDescription("Schedule the next season (it ends the current one)")
     .addStringOption((o) => o.setName("date").setDescription("Start date, e.g. 2027-01-26").setRequired(true))
     .addIntegerOption((o) => o.setName("hour").setDescription("Start hour, 0-23 (default 15)").setMinValue(0).setMaxValue(23))
     .addStringOption((o) => o.setName("time_zone").setDescription("Default America/Los_Angeles"))
-    .addStringOption((o) => o.setName("name").setDescription("Default \"Season N\"").setMaxLength(60))
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
+    .addStringOption((o) => o.setName("name").setDescription("Default \"Season N\"").setMaxLength(60)))
   .addSubcommand(sub => sub.setName("rules").setDescription("Set reviewed dungeon rules for the next season")
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition").setRequired(true).addChoices(...activeEditions().map(value => ({ name: value, value }))))
     .addAttachmentOption(o => o.setName("file").setDescription("JSON with gameEdition, routes and brackets").setRequired(true)))
-  .addSubcommand(sub => sub.setName("observations").setDescription("Real completion times per dungeon this season (observation only)")
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
+  .addSubcommand(sub => sub.setName("observations").setDescription("Real completion times per dungeon this season (observation only)"))
   .addSubcommand(sub => sub.setName("season2-review").setDescription("Preview Season 2's targets computed from observed times (nothing is scheduled)")
     .addStringOption(o => o.setName("evidence").setDescription("Evidence policy (default current-v2)").addChoices({ name: "current-v2", value: "current-v2" }, { name: "current-v1", value: "current-v1" }))
-    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum"))
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
+    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum")))
   .addSubcommand(sub => sub.setName("season2-activate").setDescription("Schedule Season 2 (default 9 December) and store the computed targets")
     .addStringOption(o => o.setName("date").setDescription(`Start date (default ${SEASON2_DATE.date})`))
     .addStringOption(o => o.setName("evidence").setDescription("Evidence policy (default current-v2)").addChoices({ name: "current-v2", value: "current-v2" }, { name: "current-v1", value: "current-v1" }))
     .addBooleanOption(o => o.setName("keep_rules").setDescription("Keep rules already uploaded for the next season"))
-    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum"))
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))))
-  .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel the next season (the current one keeps running)")
-    .addStringOption(o => o.setName("edition").setDescription("WoW edition (default Forever)").addChoices(...activeEditions().map(value => ({ name: value, value })))));
+    .addBooleanOption(o => o.setName("scoring_v2").setDescription("Level-fair targets and a party minimum")))
+  .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel the next season (the current one keeps running)"));
 
 let ownerId: string | null = null;
 /** The Discord application's owner (a team's owner for team apps), cached after the first look-up. */
@@ -78,7 +69,7 @@ export async function executeOwnerSeason(interaction: ChatInputCommandInteractio
     await interaction.reply({ content: "Only the Guilded bot's owner can change dungeon seasons. / Seul le propriétaire du bot Guilded peut changer les saisons.", flags: MessageFlags.Ephemeral });
     return;
   }
-  return withEdition(gameEditionOf({ gameEdition: interaction.options.getString("edition") ?? "forever" }), () => executeInEdition(interaction));
+  return withEdition("forever", () => executeInEdition(interaction));
 }
 /** Season 2's start: the date option (YYYY-MM-DD) or the planned 9 December, at 15:00 Pacific like Season 1. */
 function season2Start(interaction: ChatInputCommandInteraction): Date {

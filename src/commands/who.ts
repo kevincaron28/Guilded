@@ -7,7 +7,6 @@ import { guildService, requireGuildContext } from "./context.js";
 import { canonicalClass, displayCharacterName } from "../services/character-display.js";
 import { canonicalSpecialization } from "../wow-specializations.js";
 import { specRole } from "../services/dps-kind.js";
-import { currentEdition } from "../services/edition-context.js";
 
 const epgpService = createEpgpService(prisma);
 const meritService = createMeritService(prisma);
@@ -37,7 +36,7 @@ export async function executeWho(interaction: ChatInputCommandInteraction): Prom
     // A damage spec says whether it plays melee or ranged.
     const className = canonicalClass(character.className);
     const spec = className ? canonicalSpecialization(className, character.spec) : undefined;
-    const role = spec ? specRole(spec, currentEdition()) : null;
+    const role = spec ? specRole(spec) : null;
     const kind = role === "MELEE" ? "(melee)" : role === "RANGED" ? "(ranged)" : null;
     const details = [character.level ? `${character.level}` : null, character.race, character.className, character.spec, kind].filter(Boolean).join(" ");
     return `${character.isMain ? "⭐" : "•"} **${displayCharacterName(character)}** — ${details}${professions ? ` — ${professions}` : ""}${seen}`;

@@ -17,9 +17,9 @@ function db(drops: Record<string, { id: string; createdBy: string }> = {}) {
 }
 
 describe("world-buff drops", () => {
-  it("only Classic Era and Forever guilds get them", () => {
+  it("only WoW Forever guilds get them", () => {
     expect(["forever", "classic-era", "classic-tbc", "classic-mists", "retail"].filter((edition) => worldBuffsSupported(edition as never)))
-      .toEqual(["forever", "classic-era"]);
+      .toEqual(["forever"]);
   });
 
   it("saves what a member announced, pruning old drops, and refuses past, far-off or unknown ones", async () => {

@@ -11,7 +11,7 @@ export function teamClassLabel(value: string, lang: string): string {
   return name ? lang === "fr" ? CLASS_NAMES_FR[name] ?? name : name : value;
 }
 export function teamComposition(core: TeamView, edition: string) {
-  const allowed = new Set([...CLASSES, ...(["classic-mists", "retail"].includes(edition) ? ["DEATHKNIGHT", "MONK"] : []), ...(edition === "retail" ? ["DEMONHUNTER", "EVOKER"] : [])]);
+  const allowed = new Set(CLASSES);
   const classes = new Map<string, string[]>();
   const seen = new Set<string>();
   let unknown = 0, duplicates = 0;

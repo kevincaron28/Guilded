@@ -147,6 +147,20 @@ describe("the Guilded tab is on by default (8.5 in-game fix)", () => {
     expect(off.run(`return tostring(SETTINGS.chatTab)`)).toBe("false");
   });
 
+  it("tries again in the same session when the chat windows are not ready yet", () => {
+    const s = withEvents();
+    s.run(FRESH + String.raw`
+      READY = false
+      FCF_OpenNewWindow = function(name) if not READY then return nil end OPENED = true; OPENED_AS = name; return ChatFrame3 end
+      TIMERS = {}
+      C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end }
+    `);
+    s.run(`fire_event("PLAYER_LOGIN"); TIMERS[1]()`);
+    expect(s.run(`return tostring(SETTINGS.chatTab) .. ":" .. #TIMERS`)).toBe("nil:2");
+    s.run(`READY = true; TIMERS[2]()`);
+    expect(s.run(`return tostring(SETTINGS.chatTab) .. ":" .. tostring(OPENED_AS)`)).toBe("true:Guilded");
+  });
+
   it("gives up quietly after three logins on a client that cannot open a window", () => {
     const s = withEvents();
     s.run(FRESH + `FCF_OpenNewWindow = nil`);

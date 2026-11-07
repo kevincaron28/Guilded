@@ -47,6 +47,10 @@ export const dungeonRunSchema = z.object({
   deathPoints: z.array(z.object({
     x: z.number().min(0).max(1), y: z.number().min(0).max(1), map: z.number().int().positive().max(100000), character: z.string().max(40).optional()
   })).max(60).optional().catch(undefined),
+  // Traced dungeon maps (9.2): the uploader's own walked grid cells per floor (key = column * 200 + row), no times. Merged into
+  // the shared per-floor grid on import and never stored with the run; malformed data is dropped, never invalidating a run.
+  mapCells: z.array(z.object({ map: z.number().int().positive().max(100000), cells: z.array(z.number().int().min(0).max(39999)).max(600) }))
+    .max(20).optional().catch(undefined),
   players: z.array(z.object({
     character: z.string().min(1).max(40),
     displayName: z.string().trim().min(1).max(80).optional().catch(undefined),

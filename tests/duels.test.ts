@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { importDuelResults, importMilestones, standingsFromDuels, duelLeaderboard, PAIR_DAILY_CAP, REPORTER_DAILY_CAP } from "../src/services/duels.js";
+import { duelPoints, importDuelResults, importMilestones, standingsFromDuels, duelLeaderboard, PAIR_DAILY_CAP, REPORTER_DAILY_CAP } from "../src/services/duels.js";
 import { exportDuelResults, exportMilestones } from "../companion/lua-export-content.mjs";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 import { personalSnapshot } from "../src/services/companion-access.js";
@@ -187,5 +187,38 @@ describe("duel and milestone achievements", () => {
     expect(facts).toMatchObject({ duelWins: 3, duelStreak: 2, beatTopDuelist: 1, honorableKills: 100 });
     db.duelResult.groupBy = async () => [{ winnerId: "m", _count: { _all: 9 } }];
     expect((await gatherAchievementFacts(db as never, "g", "m")).beatTopDuelist).toBe(0);
+  });
+});
+
+describe("duel score by level difference", () => {
+  it("pays more for beating a higher level and little or nothing for a much lower one", () => {
+    expect(duelPoints(30, 30)).toBe(10);
+    expect(duelPoints(30, 33)).toBe(16);
+    expect(duelPoints(30, 40)).toBe(20); // capped
+    expect(duelPoints(30, 28)).toBe(6);
+    expect(duelPoints(40, 30)).toBe(0); // 10 levels lower: nothing
+    expect(duelPoints(30, 25)).toBe(0);
+    expect(duelPoints(25, 30)).toBe(20);
+  });
+
+  it("keeps the base score when a level is unknown, so older duels are not rewritten", () => {
+    expect(duelPoints(null, 30)).toBe(10);
+    expect(duelPoints(30, undefined)).toBe(10);
+  });
+
+  it("ranks by score first: one win over a higher level beats two farmed wins over a much lower one", () => {
+    const rows = [
+      { winnerId: "a", loserId: "x", winnerCharacter: "A", loserCharacter: "X", winnerLevel: 30, loserLevel: 20 },
+      { winnerId: "a", loserId: "x", winnerCharacter: "A", loserCharacter: "X", winnerLevel: 30, loserLevel: 20 },
+      { winnerId: "b", loserId: "y", winnerCharacter: "B", loserCharacter: "Y", winnerLevel: 30, loserLevel: 35 }
+    ];
+    const standings = standingsFromDuels(rows);
+    expect(standings.map(row => [row.name, row.score, row.wins])).toEqual([["B", 20, 1], ["A", 0, 2], ["Y", 0, 0], ["X", 0, 0]]);
+  });
+
+  it("stores both levels when a duel is imported", async () => {
+    const { tx, rows } = fakeTx();
+    await importDuelResults(tx, "g", "forever", "m1", [{ ...characters[0]!, level: 32 }, { ...characters[1]!, level: 38 }], [duel("Kev", "Bob", at(0))], now);
+    expect(rows[0]).toMatchObject({ winnerLevel: 32, loserLevel: 38 });
   });
 });

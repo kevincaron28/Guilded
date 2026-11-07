@@ -61,6 +61,7 @@ Modules\Ready.lua
 Modules\GuildMap.lua
 Modules\CallForHelp.lua
 Modules\LevelPartners.lua
+Modules\WorldPvP.lua
 Modules\GuildOverview.lua
 Modules\GuildBoard.lua
 Modules\Presence.lua

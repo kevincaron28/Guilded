@@ -32,13 +32,13 @@ export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBoo
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Duels de la guilde" : "Guild duels",
     subtitle: fr ? `${data.duels} duels comptés · ${data.standings.length} duellistes` : `${data.duels} counted duels · ${data.standings.length} duellists`,
-    stats: [], footer: fr ? "5 duels par paire et par jour au plus · aucun point ni récompense" : "At most 5 duels per pair per day · no points or awards",
+    stats: [], footer: fr ? "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · 5 duels par paire et par jour au plus · aucune récompense" : "Score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · max 5 duels per pair per day · no rewards",
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun duel enregistré." : "No duel recorded yet.",
-      columns: [{ label: fr ? "V" : "W", width: 44, primary: true }, { label: fr ? "D" : "L", width: 44 }, { label: fr ? "% vict." : "Win %", width: 64 },
+      columns: [{ label: "Score", width: 52, primary: true }, { label: fr ? "V" : "W", width: 44 }, { label: fr ? "D" : "L", width: 44 }, { label: fr ? "% vict." : "Win %", width: 64 },
         { label: fr ? "Record" : "Best", width: 56 }, { label: fr ? "Série" : "Streak", width: 56 }, ...(moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: data.standings.slice(0, CARD_TOP).map((row, index) => ({ rank: index + 1, name: row.name, color: classColor(classOf(classes, row.name)),
-        values: [String(row.wins), String(row.losses), percent(row.winRate), String(row.bestStreak), streakText(row.streak), ""], ...moveFields(moves, row.memberId, lang) })) }]
+        values: [String(row.score), String(row.wins), String(row.losses), percent(row.winRate), String(row.bestStreak), streakText(row.streak), ""], ...moveFields(moves, row.memberId, lang) })) }]
     }
   };
 }
@@ -54,7 +54,7 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, guildId = "", im
   } else {
     const rows = data.standings.slice(0, image ? 3 : TOP).map((row, index) => {
       const medal = ["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`;
-      return `${medal} ${name(row.name)} — ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} · ${percent(row.winRate)} · ${t("best streak", "meilleure série")} ${row.bestStreak} · ${streakText(row.streak)}`;
+      return `${medal} ${name(row.name)} — ${row.score} pts · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} · ${percent(row.winRate)} · ${t("best streak", "meilleure série")} ${row.bestStreak} · ${streakText(row.streak)}`;
     });
     embed.setDescription(rows.join("\n"));
     if (data.recent.length) {
@@ -63,7 +63,7 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, guildId = "", im
     }
   }
   if (image && data.standings.length) embed.setImage(`attachment://${image}`);
-  return embed.setFooter({ text: `${DUEL_BOARD_MARKER} • ${guildId} • ${t(`${data.duels} counted duels · ${data.edition} · max 5 per pair per day · no points or awards`, `${data.duels} duels comptés · ${data.edition} · 5 par paire et par jour au plus · aucun point ni récompense`)}`.slice(0, 2048) });
+  return embed.setFooter({ text: `${DUEL_BOARD_MARKER} • ${guildId} • ${t(`${data.duels} counted duels · ${data.edition} · score: 10 per win, +2 per level above you, -2 per level below (0-20) · max 5 per pair per day · no rewards`, `${data.duels} duels comptés · ${data.edition} · score : 10 par victoire, +2 par niveau au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour · aucune récompense`)}`.slice(0, 2048) });
 }
 
 export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult">, guildId: string, edition: string, now = new Date()): Promise<DuelBoardData> {

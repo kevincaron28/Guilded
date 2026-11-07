@@ -2,7 +2,8 @@
 <p class="eyebrow">COMPANION · WINDOWS</p>
 <h1 id="companion-title">Get the Guilded <em>companion.</em></h1>
 <p>A small free Windows app that sends your addon's saved data to Discord and the website, and brings standings back to the game.</p>
-<div class="actions"><a class="button" href="https://apps.microsoft.com/detail/9N680XX3QFL9">Microsoft Store (recommended, signed) <span aria-hidden="true">↗</span></a><a class="button secondary" href="{{COMPANION_DIRECT_URL}}">Direct download (auto-updating) <span aria-hidden="true">↓</span></a></div>
+<div class="actions"><a class="button" href="{{COMPANION_DIRECT_URL}}">Download for Windows <span aria-hidden="true">↓</span></a><a class="button secondary" href="https://apps.microsoft.com/detail/9N680XX3QFL9">Microsoft Store <span aria-hidden="true">↗</span></a></div>
+<p class="micro">Free · Windows 10 and 11 · about 120 MB · updates itself</p>
 </section>
 
 ## Android app (preview)
@@ -20,13 +21,16 @@ SHA-256 of the file: `{{ANDROID_SHA256}}`. You can compare it with the checksum 
 
 The companion works on **Windows only**. There is no Mac or Linux version and no browser version.
 
-## Install
+## Install in three steps
 
-1. **Microsoft Store (recommended, signed).** Open the [Guilded Companion listing](https://apps.microsoft.com/detail/9N680XX3QFL9). It is Store-signed and the Store updates it by itself. To update right away, choose **Open Microsoft Store** on the companion's Home: it opens this listing, where the Store shows **Update**.
-2. **Direct download (auto-updating).** For people who would rather not use the Store: [download the installer]({{COMPANION_DIRECT_URL}}). This link always gives the newest version. Install it once and forget it: the companion checks for new releases every few hours, verifies each download against its published checksum and installs it quietly when you close it or start it next. To update right away, choose **Update now** on the companion's Home; it shows the version you have and the newest one. You can turn automatic updates off in the companion's settings.
+1. **Download.** [Download for Windows]({{COMPANION_DIRECT_URL}}). The link always gives the newest version.
+2. **Run it.** Open the file you downloaded. Windows may say it "protected your PC": choose **More info → Run anyway** (the installer is free and not code-signed). There is nothing to choose: it installs and opens the companion by itself.
+3. **Let the setup do the rest.** The companion finds World of Warcraft on any drive, installs or updates the Guilded addon, and opens Discord in your browser: pick your guild's server and press **Connect**. After your next `/reload` in WoW (or when you log out) it syncs by itself, and keeps syncing from the tray.
 
-**About the Windows warning.** The direct installer is not code-signed, so Windows SmartScreen may say it "protected your PC". Choose **More info → Run anyway**. To check the file yourself, its SHA-256 (version {{COMPANION_DIRECT_VERSION}}) is `{{COMPANION_DIRECT_SHA256}}`, and every release lists its checksums in `SHA256SUMS` on the [release page](https://github.com/kevincaron28/Guilded/releases/latest). The Store version never updates itself this way, because the Store does it.
+That's all. The companion **updates itself**: new versions download in the background and install when you quit or restart it, or at once with **Update now** on its Home page.
 
-Then open the companion, choose **Sign in with Discord**, pick your server (or public leaderboards only) and choose your saved data. After playing, `/reload` in WoW and the companion syncs. See the [member installation guide](../docs/MEMBER_INSTALL.html) for every step.
+**Already have Guilded Companion from the Microsoft Store?** This installer replaces it and keeps your settings and Discord link, so you only have one. Prefer the Store? [Get it from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) instead: it is Store-signed and the Store updates it (to update right away, choose **Open Microsoft Store** on the companion's Home).
 
-Moved here from the old online companion? Your Discord link lives in the Windows app: sign in once and you are set.
+**Something not working?** Open the companion and press **Repair**: it checks the WoW folder, the addon, your sign-in and the sync, fixes what it can, and says plainly what is left. See the [member installation guide](../docs/MEMBER_INSTALL.html) for every step with pictures.
+
+**Checking the file yourself.** The SHA-256 of the installer (version {{COMPANION_DIRECT_VERSION}}) is `{{COMPANION_DIRECT_SHA256}}`, and every release lists its checksums in `SHA256SUMS` on the [release page](https://github.com/kevincaron28/Guilded/releases/latest).

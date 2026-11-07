@@ -18,7 +18,26 @@ prepare_application() {
   # Arguments, not interpolated shell text: paths may contain spaces.
   # The live bot still serves Discord's short interaction deadline while staging.
   # Prefer its CPU work over npm extraction/Prisma generation on the small VM.
-  sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && npm ci --no-audit --no-fund && npm run companion:build' _ "$STAGED_APP"
+  if can_reuse_dependencies "$source" "$app"; then
+    # Same dependency tree as the running application: copy its node_modules rather than running npm ci,
+    # the step that drove the 1 GB server into swap. A real copy, not links, so nothing written in
+    # staging can reach the live tree. Prisma's client is regenerated; npm ci would have done that too.
+    cp -a "$app/node_modules" "$STAGED_APP/node_modules" || return 1
+    chown -R "$owner:$owner" "$STAGED_APP/node_modules" || return 1
+    sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate' _ "$STAGED_APP" || return 1
+  else
+    sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && npm ci --no-audit --no-fund' _ "$STAGED_APP" || return 1
+  fi
+  # The bundle build gets a heap cap so it cannot take the memory the running bot needs.
+  sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm run companion:build' _ "$STAGED_APP"
+}
+
+# True when the running application was installed from the same package.json and package-lock.json
+# and has a node_modules tree to copy. Byte comparison: any difference means a fresh npm ci.
+can_reuse_dependencies() {
+  local source="$1" app="$2"
+  [ -d "$app/node_modules" ] && [ ! -L "$app/node_modules" ] || return 1
+  cmp -s "$source/package.json" "$app/package.json" && cmp -s "$source/package-lock.json" "$app/package-lock.json"
 }
 
 activate_application() {

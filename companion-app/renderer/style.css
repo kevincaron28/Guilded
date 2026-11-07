@@ -41,3 +41,24 @@ details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summ
 .repair-dialog { min-width: min(560px, 92vw); }
 .repair-dialog .diagnostics li { padding: 6px 0; }
 .nav-web-label { margin-top: 10px; }
+
+/* Home: the companion version panel (installed, latest, the one thing to do). */
+.version-panel { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.version-panel h2 { margin: 2px 0 4px; }
+.version-panel .actions { flex-shrink: 0; }
+
+/* Home: the Sync status card (redesign PR 1). One state, one button. */
+.status-card { display: flex; align-items: flex-start; gap: 16px; padding: 20px 22px; border-radius: 14px; border: 1px solid var(--line, rgba(255,255,255,.12)); background: var(--panel, rgba(255,255,255,.04)); margin: 4px 0 6px; }
+.status-card .status-dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; background: #8a8170; }
+.status-card[data-tone="ok"] .status-dot { background: #5fbf7a; }
+.status-card[data-tone="busy"] .status-dot { background: #d9b45a; animation: status-pulse 1.4s ease-in-out infinite; }
+.status-card[data-tone="warn"] .status-dot { background: #e0a43a; }
+.status-card[data-tone="bad"] .status-dot { background: #e0605a; }
+.status-card .status-body { flex: 1; min-width: 0; }
+.status-card h2 { margin: 0 0 6px; font-size: 1.35rem; }
+.status-card p { margin: 0 0 4px; }
+.status-card .status-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+.status-line { margin: 0 0 14px 2px; color: var(--muted, #b9ae99); }
+@keyframes status-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .status-card[data-tone="busy"] .status-dot { animation: none; } }
+@media (max-width: 720px) { .status-card { flex-wrap: wrap; } .status-card .status-actions { flex-direction: row; align-items: center; } }

@@ -566,6 +566,11 @@ export const FR_TEXT: Record<string, string> = {
   // 8.5 track C
   // 8.5 batch 3: the guild-invite channel and retiring an old channel.
   "Guild invites channel": "Salon d’invitations de guilde",
+  "Delete the old Who's who post": "Supprimer l’ancien message Qui est qui",
+  "Old Who's who post": "Ancien message Qui est qui",
+  "The Who's who post was retired: mains and alts now show on the roster card, in /character and on the guild page. Press the red button to delete the old message, or Keep it. Nothing is deleted until you confirm.": "Le message Qui est qui est retiré : principaux et secondaires s’affichent maintenant sur la carte du roster, dans /character et sur la page de guilde. Appuyez sur le bouton rouge pour supprimer l’ancien message, ou sur Le garder. Rien n’est supprimé avant votre confirmation.",
+  "Kept the old Who's who post. It is no longer updated.": "L’ancien message Qui est qui est conservé. Il n’est plus mis à jour.",
+  "Deleted the old Who's who post.": "L’ancien message Qui est qui a été supprimé.",
   "Retire an old channel": "Retirer un ancien salon",
   "Delete #{name} for good": "Supprimer #{name} pour de bon",
   "Keep it": "Le garder",
@@ -580,5 +585,19 @@ export const FR_TEXT: Record<string, string> = {
   "Nothing was deleted: {reason}": "Rien n’a été supprimé : {reason}",
   "Nickname sync permission": "Permission de synchro des pseudos",
   "My role is below {count} member(s)' top role, so I can't rename them. Server Settings > Roles: drag my role above the member ranks.": "Mon rôle est sous le rôle principal de {count} membre(s): je ne peux pas les renommer. Paramètres du serveur > Rôles: glissez mon rôle au-dessus des rangs des membres.",
-  "Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.": "Accordez à mon rôle la permission « Gérer les pseudos », au-dessus des membres à renommer."
+  "Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.": "Accordez à mon rôle la permission « Gérer les pseudos », au-dessus des membres à renommer.",
+  // 9.1 in-game guild board (src/commands/poll.ts)
+  "📌 Guild news": "📌 Nouvelles de la guilde",
+  "{name}, from the game · also on the in-game guild board": "{name}, depuis le jeu · aussi sur le tableau de guilde en jeu",
+  "{name} · also on the in-game guild board": "{name} · aussi sur le tableau de guilde en jeu",
+  "I can't post in this channel.": "Je ne peux pas publier dans ce salon.",
+  "News posted. Members see it on the Board page of the Guilded window after their next sync.": "Nouvelle publiée. Les membres la voient sur la page Tableau de la fenêtre Guilded après leur prochaine synchronisation.",
+  "News posted here. The in-game board is off (/poll board enabled:True turns it on).": "Nouvelle publiée ici. Le tableau en jeu est désactivé (/poll board enabled:True le réactive).",
+  "The in-game guild board is on.": "Le tableau de guilde en jeu est activé.",
+  "The in-game guild board is off: no news or polls in game, and votes from the game are ignored.": "Le tableau de guilde en jeu est désactivé : ni nouvelles ni sondages en jeu, et les votes faits en jeu sont ignorés.",
+  "News post taken down.": "Nouvelle retirée.",
+  "The in-game guild board is on: the newest news and the open polls show on the Board page of the Guilded window, and members vote from there.": "Le tableau de guilde en jeu est activé : les dernières nouvelles et les sondages ouverts s’affichent sur la page Tableau de la fenêtre Guilded, et les membres y votent.",
+  "The in-game guild board is off.": "Le tableau de guilde en jeu est désactivé.",
+  "News on the board: {count}.": "Nouvelles sur le tableau : {count}.",
+  "No news yet. Post some with /poll news.": "Aucune nouvelle pour l’instant. Publiez-en avec /poll news."
 };

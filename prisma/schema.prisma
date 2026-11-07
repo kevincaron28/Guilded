@@ -126,6 +126,7 @@ model Guild {
   mapSightings GuildMapSighting[]
   helpCalls GuildHelpCall[]
   statSnapshots GuildStatSnapshot[]
+  dungeonHighlights DungeonHighlight[]
   levelRace LevelRaceEntry[]
   raceHall RaceHallEntry[]
   rankRoles GuildRankRole[]
@@ -150,6 +151,8 @@ model Guild {
   wowChannels WowGuildChannel[]
   scopeKey            String @default("default")
   gameEdition         String @default("forever")
+  // Owner-marked test server (Guild.isTestServer): kept out of public leaderboards, directory, pages and cross-server feeds; its own data is never hidden from it.
+  isTestServer        Boolean @default(false)
   wowSpace            WowGuild? @relation("WowGuildScope")
   wowGuilds           WowGuild[]
   gameEventBoards GameEventBoard[]
@@ -198,6 +201,7 @@ model Guild {
   groupAlerts         GroupAlert[]
   faqEntries          FaqEntry[]
   polls               Poll[]
+  boardPosts          BoardPost[]
   unclaimedCharacters UnclaimedCharacter[]
   inviteRequests InviteRequest[]
   characterPairings   CharacterPairing[]
@@ -970,9 +974,13 @@ model GuildSettings {
   raceBoardChannelId       String?
   raceBoardMessageId       String?
   pvpModuleEnabled         Boolean @default(true)
-  raceBoardTop             Int     @default(25)
+  raceBoardTop             Int     @default(50)
   raceEnded                Boolean @default(false)
   raceHallBackfilledAt     DateTime?
+  // 9.1 records and recaps (docs/plans/RECORDS_AND_RECAPS.md): record/challenge callouts on run posts and the daily recap card, both on by default.
+  dungeonHighlightsEnabled Boolean @default(true)
+  dailyRecapEnabled        Boolean @default(true)
+  dailyRecapLastDay        String?
   // Separate battleground ladder message in the ladder channel (the duel board keeps its own message and points).
   bgLadderEnabled          Boolean @default(true)
   bgLadderMessageId        String?
@@ -996,6 +1004,9 @@ model GuildSettings {
   // Track M: the guildmate map on the phone (last-seen positions, heat map, help pins). Officers' off switch.
   guildMapEnabled          Boolean @default(true)
   bankRequestChannelId     String?
+  // 9.1 in-game guild board (docs/GUILD_BOARD.md): officers' news and open polls in the addon,
+  // voting from the game. On by default; officers turn it off with /poll board.
+  guildBoardEnabled        Boolean @default(true)
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -1597,6 +1608,7 @@ model DungeonRun {
   guild           Guild                     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   season          DungeonSeason?            @relation(fields: [seasonId], references: [id], onDelete: SetNull)
   players         DungeonRunPlayer[]
+  highlights      DungeonHighlight[]
   points          DungeonPointTransaction[]
   achievements    DungeonAchievement[]
 
@@ -2018,6 +2030,30 @@ model PollVote {
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([pollId, memberId, option])
+}
+
+// 9.1 in-game guild board (docs/GUILD_BOARD.md): an officer's news post, from Discord (/poll news)
+// or from the game (the addon's Board page, uploaded by the officer's companion). Shown on the
+// addon's Board page; a post from the game is also posted in the announcements channel.
+model BoardPost {
+  id        String    @id @default(cuid())
+  guildId   String
+  body      String
+  // The name shown in game: the officer's Discord display name or character name.
+  author    String
+  authorId  String?
+  memberId  String?
+  source    String    @default("discord")
+  // The addon's own reference for a post from the game, so a resent upload posts it once.
+  clientRef String?
+  channelId String?
+  messageId String?
+  removedAt DateTime?
+  createdAt DateTime  @default(now())
+  guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, clientRef])
+  @@index([guildId, createdAt])
 }
 
 // A character the addons revealed (through the guild digest) that no Discord
@@ -2967,6 +3003,11 @@ model LevelRaceEntry {
   reachedMaxAt   DateTime?
   weekStartLevel Int
   weekStartedAt  DateTime
+  // 9.1 daily recap: the level at the start of the server's day, and the last finished day's gain (kept across the rollover).
+  dayStartLevel    Int?
+  dayStartedAt     DateTime?
+  lastDayGain      Int       @default(0)
+  lastDayStartedAt DateTime?
   firstSeenAt    DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   guild          Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
@@ -3200,6 +3241,31 @@ model MemberLinkNotice {
   characterIds String  @default("")
   notifiedAt  DateTime @default(now())
   member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+// 9.1 guild records and challenges (docs/plans/RECORDS_AND_RECAPS.md). One row per record or challenge; the unique key makes
+// each one happen once (a re-upload or second observer never repeats it). `kind`: clear, boss, first, deathless, guild5.
+model DungeonHighlight {
+  id           String     @id @default(cuid())
+  guildId      String
+  runId        String
+  key          String
+  kind         String
+  instanceId   Int
+  difficultyId Int
+  dungeonName  String
+  // Boss name for a boss record.
+  label        String?
+  valueSec     Int?
+  previousSec  Int?
+  players      String[]
+  createdAt    DateTime   @default(now())
+  guild        Guild      @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  run          DungeonRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, key])
+  @@index([guildId, createdAt])
+  @@index([runId])
 }
 
 // Track M (phone guildmate map): where a member's own character was last seen outdoors, from their

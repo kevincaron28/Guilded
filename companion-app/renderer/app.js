@@ -63,8 +63,45 @@ const say = (message, ok) => { $('formResult').textContent = M(message); $('form
 function gameFields() { $('wowSettings').hidden = !$('wowEnabled').checked; $('poeSettings').hidden = !$('poeEnabled').checked; }
 ['wowEnabled','poeEnabled'].forEach(id => $(id).addEventListener('change',gameFields));
 function pill(id, text, level) { $(id).textContent = text; $(id).className = `pill ${level || ''}`; }
+// The version panel (owner request, 7 November): what is installed, what is out, and the one thing
+// to do, in plain words (update-check.cjs versionStatus decides the state).
+let versionInfo = null, versionTimer = null;
+const when = (iso) => iso ? new Date(iso).toLocaleString(languageUI.language, { dateStyle: 'medium', timeStyle: 'short' }) : '';
+function versionTexts(info) {
+  const auto = info.autoUpdate ? T("New versions download by themselves and install when you quit or restart the companion.") : T("Automatic updates are off: choose Check now from time to time, or turn them back on in Sync & setup.");
+  const checked = info.checkedAt ? T("Latest release: {0} · checked {1}", info.latest || '?', when(info.checkedAt)) : '';
+  switch (info.status) {
+    case 'up-to-date': return { title: T("Guilded Companion {0} is up to date", info.installed), line: checked, help: auto };
+    case 'update-ready': return { title: T("Version {0} is ready to install", info.latest), line: T("You have {0}.", info.installed), help: T("It installs by itself when you quit or restart the companion. Install now does it at once: the companion closes and restarts in about a minute."), button: T("Install now") };
+    case 'update-available': return { title: T("Version {0} is available", info.latest), line: T("You have {0}.", info.installed), help: T("Update now downloads it, checks it and restarts the companion. Your settings and Discord link are kept."), button: T("Update now") };
+    case 'installing': return { title: T("Installing the update…"), line: T("You have {0}.", info.installed), help: T("The companion closes and restarts by itself.") };
+    case 'store-update': return { title: info.latest ? T("Version {0} is out; you have {1}", info.latest, info.installed) : T("A Microsoft Store update is waiting"), line: '', help: T("Microsoft Store installs it: choose Open Microsoft Store, then Update on the Guilded Companion page."), button: T("Open Microsoft Store") };
+    case 'store-up-to-date': return { title: T("Guilded Companion {0} is up to date", info.installed), line: checked, help: T("Microsoft Store keeps it up to date. To check right away, open it and choose Update if it shows one."), button: T("Open Microsoft Store"), quiet: true };
+    case 'store-unknown': return { title: T("Guilded Companion {0}", info.installed), line: '', help: T("Microsoft Store keeps it up to date. To check right away, open it and choose Update if it shows one."), button: T("Open Microsoft Store"), quiet: true };
+    default: return { title: T("Guilded Companion {0}", info.installed), line: info.checkFailed ? T("The release service could not be reached; the companion asks again every few hours.") : T("Not checked yet."), help: auto };
+  }
+}
+function paintVersion() {
+  if (!versionInfo) return;
+  const text = versionTexts(versionInfo);
+  $('versionTitle').textContent = text.title;
+  $('versionLine').textContent = text.line || '';
+  $('versionLine').hidden = !text.line;
+  $('versionHelp').textContent = text.help || '';
+  const button = $('btnVersionAction');
+  button.hidden = !text.button;
+  if (text.button && !button.dataset.busy) button.textContent = text.button;
+  button.className = text.quiet ? '' : 'primary';
+  $('btnVersionCheck').hidden = versionInfo.status.startsWith('store-');
+}
+async function refreshVersion() {
+  try { versionInfo = await api.versionInfo(); paintVersion(); } catch { /* older main process */ }
+}
+function scheduleVersion() { clearTimeout(versionTimer); versionTimer = setTimeout(() => void refreshVersion(), 300); }
 function renderUpdate(update) {
-  $('updateBanner').hidden = !update;
+  scheduleVersion();
+  // The version panel says it now; the old banner stays hidden.
+  $('updateBanner').hidden = true;
   if (!update) return;
   $('updateTitle').textContent = T("Guilded Companion {0} is available", update.version);
   $('updateText').textContent = T("You have {0}. {1}: your settings and Discord link are kept.", $('version').textContent.replace(/^Version /, ''), storePackage ? T("Update now opens Microsoft Store to install it") : update.installer ? T("Update now installs it and restarts the companion") : T("Download the new installer and run it"));
@@ -101,9 +138,50 @@ function renderSavedFile(snapshot) {
   $('liveTitle').textContent = candidate.reason === 'beta' ? liveText().betaTitle : liveText().staleTitle(Math.floor((Date.now() - Date.parse(file.changedAt)) / 86400000));
   $('liveText').textContent = liveText().text(candidate.path.split(/[\\/]/).pop(), candidate.gameFolder, candidate.account, since(candidate.changedAt));
 }
+// The Sync status card (redesign PR 1): one state, most urgent first, one button
+// (companion/status-card.mjs decides; this only words and wires it).
+let shownCard = null;
+function renderStatusCard(snapshot) {
+  const card = window.guildedStatusCard.statusCard({ problems: snapshot.problems || [], config: savedConfig, state: snapshot.state || {} });
+  shownCard = card;
+  const words = (parts) => parts ? T(parts[0], ...parts.slice(1).map((value) => value && typeof value === 'object' && value.ago ? ago(value.ago).toLowerCase() : value)) : '';
+  $('statusCard').dataset.tone = card.tone;
+  $('statusCard').dataset.state = card.id;
+  $('statusTitle').textContent = words(card.title);
+  $('statusDetail').textContent = words(card.detail);
+  $('statusDetail').hidden = !card.detail;
+  const button = $('btnStatusAction');
+  button.hidden = !card.button;
+  if (card.button && !button.dataset.busy) button.textContent = T(card.button.label);
+  const line = window.guildedStatusCard.guildLine({ config: savedConfig, savedFile: snapshot.savedFile });
+  const parts = [line.guild, line.lastReload ? T("last /reload {0}", ago(line.lastReload).toLowerCase()) : null].filter(Boolean);
+  $('statusGuildLine').textContent = parts.join(' · ');
+  $('statusGuildLine').hidden = !parts.length;
+}
+async function statusAction() {
+  const action = shownCard?.button?.action;
+  const result = $('statusResult');
+  const say = (message, ok = true) => { result.textContent = message ? M(message) : ''; result.className = ok ? 'result ok' : 'result bad'; };
+  say('');
+  switch (action) {
+    case 'sign-in': showPage('link'); return;
+    case 'problems': showPage('problems'); return;
+    case 'settings': showPage('settings'); return;
+    case 'storage': await api.openStorageSettings(); return;
+    case 'find-wow': { const answer = await api.repair(); say(answer?.summary ? T("Repair: {0} fixed, {1} need you, {2} failed.", answer.summary.fixed, answer.summary.needsYou, answer.summary.failed) : '', !answer?.summary?.failed); return; }
+    case 'install-addon': { const answer = await api.installAddon(); say(answer.message, answer.ok); return; }
+    case 'switch-folder': { const answer = await api.switchLiveFolder(); say(answer?.path ? T('Switched. Now watching {0}', answer.path) : '', true); return; }
+    case 'retry': await api.recoverSync(); await api.uploadNow(); say(T('Trying again. Follow the result in Activity.')); return;
+    case 'sync-now': await api.uploadNow(); say(T('Syncing now. Follow the result in Activity.')); return;
+    default: return;
+  }
+}
+bind('btnStatusAction', statusAction);
+bind('btnStatusDetails', async () => showPage('activity'));
 function renderState(snapshot) {
   updateProfileLinks();
   lastSnapshot = snapshot;
+  try { renderStatusCard(snapshot); } catch { /* the rest of the page still renders */ }
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
   const {state,health} = snapshot;
   const sync = window.guildedSyncStatus(savedConfig, state, state.syncEvidence);
@@ -378,7 +456,31 @@ bind('btnUpdate',async () => {
   try { result = await api.installUpdate(); toast(result.message,!result.ok); }
   finally { $('btnUpdate').textContent = result?.ok && result.action === 'installing' ? T("Installing…") : T("Update now"); }
 });
-api.onUpdateProgress?.(percent => { $('btnUpdate').textContent = T("Downloading {0}%", percent); });
+api.onUpdateProgress?.(percent => {
+  $('btnUpdate').textContent = T("Downloading {0}%", percent);
+  $('versionResult').textContent = T("Downloading and checking the update: {0}%", percent); $('versionResult').className = 'result';
+});
+bind('btnVersionAction', async () => {
+  if (!versionInfo) return;
+  const result = $('versionResult');
+  if (versionInfo.action === 'open-store') { await api.openStoreListing(); result.textContent = T("Microsoft Store opened at Guilded Companion. Choose Update there (or Get updates in the Library)."); result.className = 'result ok'; return; }
+  const button = $('btnVersionAction');
+  button.dataset.busy = 'true'; button.textContent = versionInfo.action === 'install-now' ? T("Installing…") : T("Checking update…");
+  result.textContent = ''; result.className = 'result';
+  let answer;
+  try { answer = await api.installUpdate(); }
+  catch (error) { answer = { ok: false, message: error?.message }; }
+  finally { delete button.dataset.busy; }
+  result.textContent = M(answer?.message || T("This action could not be completed.")); result.className = answer?.ok ? 'result ok' : 'result bad';
+  await refreshVersion();
+});
+bind('btnVersionCheck', async () => {
+  const result = $('versionResult');
+  $('btnVersionCheck').textContent = T("Checking update…");
+  try { const answer = await api.checkUpdate(); result.textContent = M(answer.message); result.className = answer.ok ? 'result ok' : 'result bad'; }
+  finally { $('btnVersionCheck').textContent = T("Check now"); await refreshVersion(); }
+});
+document.addEventListener('companion-language', paintVersion);
 $('autoUpdate').addEventListener('change',event => action(event.target,async () => { $('autoUpdate').checked = await api.setAutoUpdate(event.target.checked); }));
 bind('btnCheckUpdate',async () => {
   $('btnCheckUpdate').textContent = T("Checking update…");

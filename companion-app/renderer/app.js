@@ -34,8 +34,9 @@ function ago(iso) {
   if (seconds < 86400) return T("{0} hr ago", Math.floor(seconds / 3600));
   return T("{0} days ago", Math.floor(seconds / 86400));
 }
+const POE_PAGES = new Set(['poe']); // pages that exist only while PoE2 tracking is on (companion/active-games.mjs)
 function showPage(name) {
-  if (!names[name]) name = 'status';
+  if (!names[name] || (POE_PAGES.has(name) && document.body.classList.contains('poe-off'))) name = 'status';
   const selectedNav = document.querySelector(`.nav[data-page="${name}"]`);
   if (selectedNav?.closest('details')) selectedNav.closest('details').open = true;
   document.querySelectorAll('.page').forEach(page => page.hidden = page.id !== `page-${name}`);
@@ -366,6 +367,7 @@ bind('btnLootImportSave', async () => {
   $('lootImportResult').textContent = M(result.message); if (result.ok) resetLootPreview();
 });
 bind('btnRemoveData',() => api.removeData());
+bind('btnDeleteMyData',() => api.deleteMyData()); // native confirm dialog in main.cjs
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
 bind('btnStoreUpdates', () => api.openUpdate());
 bind('btnStoreStartup', () => api.openStartupSettings());

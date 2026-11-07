@@ -1,5 +1,5 @@
 import type { AchievementDef, AchievementGame, AchievementMetric, AchievementTier, WowEdition } from "./achievements-catalogue.js";
-import { ACHIEVEMENTS, TIER_LABEL } from "./achievements-catalogue.js";
+import { ACHIEVEMENTS, TIER_LABEL, achievementGameVisible } from "./achievements-catalogue.js";
 
 // Badge artwork for the achievements, generated as SVG from this one module (original shapes, no game
 // or publisher artwork). Tier picks the frame shape and metal, the game picks the colours of the centre
@@ -112,7 +112,8 @@ const EDITION_ACCENT: Record<WowEdition, { plate: [string, string]; glyph: strin
 const LOCKED = { metal: ["#4a4f58", "#33373e", "#24272c", "#181a1e"], plate: ["#16181c", "#0b0c0e"], glyph: "#5e6268" };
 
 /** The badge's elements on a 64x64 grid (no outer svg), with ids unique to this def and state. */
-export function badgeInner(def: AchievementDef, earned: boolean): string {
+export function badgeInner(def: AchievementDef, earned: boolean, tracking?: boolean): string {
+  if (!achievementGameVisible(def, tracking)) return ""; // PoE2 badges follow the tracking switch (data is kept)
   const id = `ab-${def.id}-${earned ? "e" : "l"}`;
   const [m0, m1, m2, edge] = earned ? METAL[def.tier] : (LOCKED.metal as [string, string, string, string]);
   const accent = def.edition ? EDITION_ACCENT[def.edition] : GAME[def.game];
@@ -138,11 +139,12 @@ export function badgeInner(def: AchievementDef, earned: boolean): string {
  * A standalone badge. With `label` it is an image with that accessible name; without, it is decorative
  * (aria-hidden), for lists that already carry the name and status in text.
  */
-export function badgeSvg(def: AchievementDef, earned: boolean, options: { size?: number; label?: string } = {}): string {
+export function badgeSvg(def: AchievementDef, earned: boolean, options: { size?: number; label?: string; tracking?: boolean } = {}): string {
+  if (!achievementGameVisible(def, options.tracking)) return "";
   const size = options.size ?? 64;
   const name = options.label === undefined ? ` aria-hidden="true" focusable="false"` : ` role="img" aria-label="${escapeAttr(options.label)}"`;
   const title = options.label === undefined ? "" : `<title>${escapeAttr(options.label)}</title>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}"${name}>${title}${badgeInner(def, earned)}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}"${name}>${title}${badgeInner(def, earned, options.tracking)}</svg>`;
 }
 
 /** Accessible name in both languages, e.g. "Dungeon Regular: Bronze, unlocked". */

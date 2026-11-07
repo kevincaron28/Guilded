@@ -571,8 +571,8 @@ function setAutostart(on) {
 // under userData, then quit. Uninstalling normally (Add/Remove Programs)
 // does the same via the nsis "deleteAppDataOnUninstall" option and
 // installer.nsh, for anyone who uninstalls without opening the app first.
-async function removeAllDataAndQuit() {
-  const choice = dialog.showMessageBoxSync(win ?? undefined, {
+async function removeAllDataAndQuit(skipPrompt = false) {
+  const choice = skipPrompt ? 1 : dialog.showMessageBoxSync(win ?? undefined, {
     type: "warning",
     buttons: [T("Cancel"), T("Remove and quit")],
     defaultId: 0,
@@ -612,6 +612,33 @@ async function removeAllDataAndQuit() {
   exitFlushed = true;
   app.quit();
   return true;
+}
+
+// "Delete my data" (9.0.1): asks the bot to erase this member's records (the same erasure as the website's
+// /me/data page), after a confirm step, then clears this PC like "Remove data & quit". It cannot be undone.
+async function deleteMyDataEverywhere() {
+  if (!config.companionCredential) {
+    dialog.showMessageBoxSync(win ?? undefined, { type: "info", buttons: [T("OK")], message: T("Connect your Discord account first."), detail: T("There is nothing stored online for you yet. Use Remove data & quit to clear this PC.") });
+    return false;
+  }
+  const choice = dialog.showMessageBoxSync(win ?? undefined, {
+    type: "warning", buttons: [T("Cancel"), T("Delete my data")], defaultId: 0, cancelId: 0,
+    title: T("Delete my data"), message: T("Delete all your Guilded data?"),
+    detail: T("This erases your website account, your guild characters and your personal records on the bot (battleground reports, achievements, recap schedule, devices), then clears this PC. Points, loot and raid history stay in each guild as \"Deleted member\". It cannot be undone.")
+  });
+  if (choice !== 1) return false;
+  try {
+    const url = new URL("/api/v1/companion/delete-my-data", config.uploadUrl);
+    const { response, body } = await engineModules.requestJson(url, { method: "POST", headers: { ...engineModules.credentialHeaders(config), "content-type": "application/json" }, body: JSON.stringify({ confirm: "DELETE" }) }, undefined, 30000);
+    if (!response.ok) {
+      dialog.showMessageBoxSync(win ?? undefined, { type: "error", buttons: [T("OK")], message: T("Your data was not deleted."), detail: response.status === 404 ? T("This bot does not support deleting from the companion yet. Use your Guilded page on the website (Your data), or ask the owner.") : body.error || T("The bot answered {0}.", response.status) });
+      return false;
+    }
+  } catch (error) {
+    dialog.showMessageBoxSync(win ?? undefined, { type: "error", buttons: [T("OK")], message: T("Your data was not deleted."), detail: engineModules.describeError(error) });
+    return false;
+  }
+  return removeAllDataAndQuit(true);
 }
 
 app.on("second-instance", (event, argv) => {
@@ -1140,6 +1167,7 @@ registerIpc("open-addon-folder", () => {
   return !!target;
 });
 registerIpc("remove-data", () => removeAllDataAndQuit());
+registerIpc("delete-my-data", () => deleteMyDataEverywhere());
 registerIpc("toggle-tracking", async () => {
   config.syncEnabled = config.syncEnabled === false;
   await saveConfig();

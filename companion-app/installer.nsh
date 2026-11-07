@@ -1,4 +1,4 @@
-; Extra uninstall cleanup for Guilded Companion.
+﻿; Extra uninstall cleanup for Guilded Companion.
 ;
 ; electron-builder's "deleteAppDataOnUninstall" option (set in package.json)
 ; already removes %APPDATA%\Guilded Companion (config.json, which holds the
@@ -133,4 +133,34 @@
     ; Give Windows a moment to release the files.
     Sleep 1000
   ${endIf}
+  ; Then the Microsoft Store version, if any (it was closed above too: same exe name).
+  !insertmacro GUILDED_REPLACE_STORE
+!macroend
+
+; Replace a Microsoft Store Guilded Companion with this one (owner, 7 November 2026: "when we install
+; the companion it uninstalls other versions"). replace-store.ps1 moves the Store version's settings
+; and Discord link into this version's folder, then removes the Store package. Only the installer
+; does this (never the uninstaller), after the running companion is closed and before any file is
+; copied. Older direct-download installs are replaced by electron-builder's own upgrade step.
+!macro GUILDED_REPLACE_STORE
+  !ifndef BUILD_UNINSTALLER
+    File "/oname=$PLUGINSDIR\guilded-replace-store.ps1" "${PROJECT_DIR}\replace-store.ps1"
+    nsExec::Exec `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\guilded-replace-store.ps1"`
+    Pop $R0
+    ${if} $R0 == 10
+    ${orIf} $R0 == 11
+      ${if} $LANGUAGE == 1036
+        MessageBox MB_OK|MB_ICONINFORMATION "La version Microsoft Store de Guilded Companion a été remplacée par celle-ci, qui se met à jour toute seule. Vos réglages et votre liaison Discord sont conservés." /SD IDOK
+      ${else}
+        MessageBox MB_OK|MB_ICONINFORMATION "The Microsoft Store version of Guilded Companion was replaced by this one, which updates itself. Your settings and Discord link are kept." /SD IDOK
+      ${endIf}
+      DetailPrint "Microsoft Store version replaced ($R0)."
+    ${elseIf} $R0 == 20
+      ${if} $LANGUAGE == 1036
+        MessageBox MB_OK|MB_ICONEXCLAMATION "La version Microsoft Store de Guilded Companion est aussi installée et n'a pas pu être retirée. Après l'installation, retirez-la dans Paramètres Windows > Applications pour n'en garder qu'une." /SD IDOK
+      ${else}
+        MessageBox MB_OK|MB_ICONEXCLAMATION "The Microsoft Store version of Guilded Companion is also installed and could not be removed. After this install, remove it in Windows Settings > Apps so only one is left." /SD IDOK
+      ${endIf}
+    ${endIf}
+  !endif
 !macroend

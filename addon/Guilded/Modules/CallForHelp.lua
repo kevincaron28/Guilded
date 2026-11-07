@@ -521,6 +521,7 @@ function module.open()
   local okSave, savedKey = pcall(module.saveCall, call)
   mine.saved = okSave and savedKey or nil
   lastCallAt = now()
+  if ns.worldPvp then pcall(ns.worldPvp.note, "call") end
   if module.guildChat() and SendChatMessage then
     local t, key = now(), zone ~= "" and zone or "?"
     if not module.attacked() then
@@ -646,6 +647,7 @@ function module.receive(text, sender, channel)
     if channel ~= "WHISPER" or not mine or mine.id ~= msg.id then return "ignored" end
     if mine.responders[name] == msg.coming then return "ignored" end
     mine.responders[name] = msg.coming
+    if msg.coming and ns.worldPvp then pcall(ns.worldPvp.note, "answered") end
     say(string.format(msg.coming and L("%s is on the way.") or L("%s can't come."), display(name)))
     refreshOffer()
     return "reply"
@@ -682,6 +684,7 @@ function module.reply(coming)
   local entry = ns.normalizeName and incoming[ns.normalizeName(banner.sender)]
   local id = entry and entry.id or banner.call.id
   ns.comm.send(PREFIX, "R|" .. id .. "|" .. (coming and "Y" or "N"), "WHISPER", banner.sender, nil, "interactive")
+  if coming and ns.worldPvp then pcall(ns.worldPvp.note, "responded") end
   banner:Hide()
   return true
 end

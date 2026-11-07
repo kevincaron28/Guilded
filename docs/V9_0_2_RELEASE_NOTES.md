@@ -4,6 +4,8 @@
 that went live during the day. Protocol 2, Forever only. The server side is already live;
 members get the addon and companion parts by updating.
 
+Real-client checks: docs/V8_5_0_RELEASE_ACCEPTANCE.md.
+
 ## In game (addon)
 
 - **Dungeon stats**: click a dungeon card for your best and average time, deaths per run, your

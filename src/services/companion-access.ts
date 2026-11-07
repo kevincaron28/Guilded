@@ -8,7 +8,7 @@ import { parseAddonSnapshot, type AddonSnapshot } from "../integrations/addon.js
 import { currentGuildScope } from "./guild-scope.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
-import { relayableDungeonRuns } from "./guildmate-relay.js";
+import { relayableCraftData, relayableDungeonRuns, type RelayLinkedCharacter } from "./guildmate-relay.js";
 
 // A credential is revocable and scoped to one active Discord member in one guild.
 // Never accept the old server-wide upload token as member authorization.
@@ -31,7 +31,8 @@ export async function companionAccess(database: PrismaClient, client: Client | u
 
 // Personal companions cannot change the ledger, other players' readiness, prices,
 // attendance or reserves. Build an allowlist, so newly added fields default to denied.
-export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string; realm: string }[]): AddonSnapshot {
+export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string; realm: string }[],
+  guildmates?: { uploaderMemberId: string; linked: readonly RelayLinkedCharacter[]; now?: Date }): AddonSnapshot {
   const edition = gameEditionOf(snapshot);
   const key = (name: string, realm: string) => edition === "forever" ? `${name.toLowerCase()}\0${realm.toLowerCase()}` : characterKey(name, realm, edition);
   const names = new Set(owned.map((c) => key(c.name, c.realm)));
@@ -44,6 +45,8 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     && owned.filter((c) => foreverSameName(c.name, name)).length === 1;
   const own = (c: { character: string; realm: string }) => names.has(key(c.character, c.realm)) || looseOwn(c.character);
   const ownCharacter = (c: { name: string; realm: string }) => names.has(key(c.name, c.realm)) || looseOwn(c.name);
+  // 9.1: guildmates' crafting data the uploader's addon heard (only for characters already linked in this guild).
+  const crafts = guildmates ? relayableCraftData(snapshot, guildmates.uploaderMemberId, guildmates.linked, guildmates.now) : null;
   const ownNames = new Set(owned.map((c) => c.name.toLowerCase()));
   const ownsName = (name: string) => ownNames.has(name.split("-")[0]!.trim().toLowerCase()) || looseOwn(name);
   return parseAddonSnapshot({
@@ -51,9 +54,9 @@ export function personalSnapshot(snapshot: AddonSnapshot, owned: { name: string;
     gameEdition: snapshot.gameEdition, interface: snapshot.interface,
     ...(snapshot.character && ownCharacter(snapshot.character) ? { character: snapshot.character } : {}),
     alts: snapshot.alts.filter(ownCharacter),
-    readiness: snapshot.readiness.filter(own), attunements: snapshot.attunements.filter(own),
-    recipes: snapshot.recipes.filter(own), cooldowns: snapshot.cooldowns.filter(own),
-    recipeNames: Object.fromEntries(Object.entries(snapshot.recipeNames).filter(([key]) => snapshot.recipes.filter(own).some((set) => set.keys.includes(Number(key))))),
+    readiness: snapshot.readiness.filter(own), attunements: [...snapshot.attunements.filter(own), ...(crafts?.attunements ?? [])],
+    recipes: [...snapshot.recipes.filter(own), ...(crafts?.recipes ?? [])], cooldowns: [...snapshot.cooldowns.filter(own), ...(crafts?.cooldowns ?? [])],
+    recipeNames: { ...Object.fromEntries(Object.entries(snapshot.recipeNames).filter(([key]) => snapshot.recipes.filter(own).some((set) => set.keys.includes(Number(key))))), ...(crafts?.recipeNames ?? {}) },
     // Own postmatch reports only. record() still requires Discord consent and drops the rest.
     battlegroundReports: snapshot.battlegroundReports.filter((row) => row.edition === edition && names.has(key(row.character, row.realm))),
     // Duels where the member took part, and the member's own milestones (names are matched on apply).

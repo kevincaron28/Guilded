@@ -31,7 +31,7 @@ import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { runDiscordJobs } from "./services/discord-jobs.js";
 import { queueGuildScheduledEvents } from "./services/scheduled-events.js";
 import { commandRegistration } from "./services/command-registration.js";
-import { interactionReportOrigin, withReportContext, type InteractionReportInput, type ReportScope } from "./services/report-context.js";
+import { interactionLabel, interactionReportOrigin, withReportContext, type InteractionReportInput, type ReportScope } from "./services/report-context.js";
 import { queueCharacterDisplayRefresh } from "./services/character-display-refresh.js";
 import { executeSystem } from "./commands/system.js";
 import { executeConfig } from "./commands/settings.js";
@@ -177,7 +177,7 @@ const reportJobError = (source: string, origin: ReportScope = {}) => (error: unk
 const reportInteractionError = (source: string, interaction: InteractionReportInput & { guildId: string | null; guild: { name: string } | null; user: { id: string } }, error: unknown): void => {
   if (isMemberAnswer(error)) { console.warn(`${source}: ${(error as Error).message}`); return; }
   console.error(`${source} failed`, error);
-  void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id, ...interactionReportOrigin(interaction), operation: source });
+  void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id, ...interactionReportOrigin(interaction), operation: `${source} ${interactionLabel(interaction)}`.trim() });
 };
 
 // Stops cleanly: no new companion requests, Discord and the database closed. systemd sends

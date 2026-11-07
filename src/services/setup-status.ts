@@ -41,6 +41,8 @@ export interface SetupFacts {
   officerSyncAt?: Date | null;
   // 8.5: only set when nickname sync is on; whether the bot has Manage Nicknames.
   nicknameSyncReady?: boolean;
+  // How many members the bot cannot rename because their top role is at or above the bot's (cached members only).
+  nicknameBlockedMembers?: number;
   // The pinned group finder message is the pre-4.6 button, not the current menu.
   dungeonSignupGuideOutdated?: boolean;
   // Every other channel setup can create (field name -> state), shown as optional rows.
@@ -122,9 +124,11 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
     })),
     ...(facts.nicknameSyncReady === undefined ? [] : [{
       label: T("Nickname sync permission"),
-      ok: facts.nicknameSyncReady,
+      ok: facts.nicknameSyncReady && !facts.nicknameBlockedMembers,
       optional: true,
-      fix: T("Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.")
+      fix: facts.nicknameSyncReady
+        ? T("My role is below {count} member(s)' top role, so I can't rename them. Server Settings > Roles: drag my role above the member ranks.", { count: facts.nicknameBlockedMembers ?? 0 })
+        : T("Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.")
     }]),
     {
       label: T("EPGP point values (base GP set)"),

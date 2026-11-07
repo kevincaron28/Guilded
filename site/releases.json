@@ -1,5 +1,5 @@
 {
-  "verifiedAt": "2026-11-06",
+  "verifiedAt": "2026-11-07",
   "mobile": {
     "android": {
       "version": "0.2.0",
@@ -11,9 +11,9 @@
   },
   "guilded": {
     "github": {
-      "version": "9.0.0",
+      "version": "9.0.1",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.0.0"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.0.1"
     },
     "curseforge": {
       "version": "8.4.2",

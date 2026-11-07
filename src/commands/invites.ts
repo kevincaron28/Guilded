@@ -18,7 +18,7 @@ export const invitesCommand = new SlashCommandBuilder()
   .setName("invites")
   .setDescription("Invite queue.")
   .addSubcommand((sub) => sub.setName("list").setDescription("Waiting."))
-  .addSubcommand((sub) => sub.setName("extra").setDescription("Extra channel."))
+  .addSubcommand((sub) => sub.setName("extra").setDescription("Extra."))
   .addSubcommand((sub) => sub.setName("record").setDescription("Stage, note.")
     .addStringOption((o) => o.setName("name").setDescription("First Last").setRequired(true).setMaxLength(60))
     .addStringOption((o) => o.setName("stage").setDescription("Stage").addChoices(...STAGES.map((value) => ({ name: STAGE_LABEL[value], value }))))
@@ -26,6 +26,7 @@ export const invitesCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("settings").setDescription("Switches.")
     .addBooleanOption((o) => o.setName("queue").setDescription("Queue"))
     .addBooleanOption((o) => o.setName("dm").setDescription("Role DM"))
+    .addBooleanOption((o) => o.setName("notify").setDescription("Tag"))
     .addRoleOption((o) => o.setName("role").setDescription("WoW role")))
   .addSubcommand((sub) => sub.setName("questions").setDescription("Questions.")
     .addStringOption((o) => o.setName("text").setDescription("Split by |").setMaxLength(800)))
@@ -112,10 +113,11 @@ export async function executeInvites(interaction: ChatInputCommandInteraction): 
   const data = {
     ...(o.getBoolean("queue") !== null ? { inviteQueueEnabled: o.getBoolean("queue")! } : {}),
     ...(o.getBoolean("dm") !== null ? { inviteDmEnabled: o.getBoolean("dm")! } : {}),
+    ...(o.getBoolean("notify") !== null ? { inviteNotifyEnabled: o.getBoolean("notify")! } : {}),
     ...(o.getRole("role") ? { inviteWowRoleId: o.getRole("role")!.id } : {})
   };
   if (Object.keys(data).length) await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, ...data }, update: data });
   const merged = { ...settings, ...data };
   const on = (value: boolean | undefined) => value === false ? "**off**" : "**on**";
-  await reply(`Invite queue: ${on(merged.inviteQueueEnabled)}${merged.inviteChannelId ? ` in <#${merged.inviteChannelId}>` : " (no channel yet)"}. WoW-role DM: ${on(merged.inviteDmEnabled)}, role: ${merged.inviteWowRoleId ? `<@&${merged.inviteWowRoleId}>` : "the one named like \"World of Warcraft\""}.`);
+  await reply(`Invite queue: ${on(merged.inviteQueueEnabled)}${merged.inviteChannelId ? ` in <#${merged.inviteChannelId}>` : " (no channel yet)"}. WoW-role DM: ${on(merged.inviteDmEnabled)}, tag online officers: ${on(merged.inviteNotifyEnabled)}, role: ${merged.inviteWowRoleId ? `<@&${merged.inviteWowRoleId}>` : "the one named like \"World of Warcraft\""}.`);
 }

@@ -90,3 +90,7 @@ and hourly. Posts the bot made itself (the **Request a guild invite** flow) carr
 Asking for an invite (button or a typed name) records the name as a request and makes sure the asker has a member row. When any upload then shows that full name in the guild (the uploader's own or guildmates' characters with a class, or the stored guild roster), `src/services/invite-prelink.ts` links the character to the asker, writes a `PROVISIONAL` verify claim (an officer upload or `/guilded verify` still confirms or moves it) and sends one DM (`invite.prelinked`) plus a log-channel line. It never links a name already linked to anyone, a name two people asked for, a first-name-only request, or a character that member unlinked (`BLOCKED`/`REMOVED`).
 
 The welcome panel has a **WoW chat ↔ Discord** button (`onboard:chat`) that explains Blizzard's guild Discord integration and how to link a character. The bot has no guild-chat relay of its own, so the text does not describe one.
+
+## Tagging online officers (7 November 2026)
+
+When someone asks for an invite (button or typed name), `src/services/invite-notify.ts` replies under the request once, tagging up to 3 linked members in the guild's top ranks (guild master plus ranks 1-2) whose character the latest roster upload shows online (last online within 10 minutes; never Discord presence). Nobody known online: it pings the officer role once. `notifiedAt` on the request makes it once per request; `/mod invites settings notify:false` turns it off (on by default). Mentions are limited to exactly the tagged users or role.

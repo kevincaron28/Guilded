@@ -184,7 +184,7 @@ async function loadEngineModules() {
 }
 
 // Start-up diagnostics (9.0 release blocker): every line logged before the window is ready also
-// goes to startup.log in the data folder (rewritten each start, never holds a credential), so a
+// goes to startup.log in the data folder (appended, one header line per start, never holds a credential), so a
 // start that shows the wrong settings can be explained from that one file.
 let startupLogging = true;
 function startupLog(entry) {
@@ -641,15 +641,32 @@ async function deleteMyDataEverywhere() {
   return removeAllDataAndQuit(true);
 }
 
+// The installer asks a running companion to close (installer.nsh customCheckAppRunning) by writing
+// quit-for-update in the data folder; nothing is started, so no second window flashes. The
+// companion checks for it every second, saves its settings and quits. --quit-for-update on a second
+// launch still works the same way.
+const QUIT_REQUEST_FILE = "quit-for-update";
+const quitRequestPath = () => path.join(app.getPath("userData"), QUIT_REQUEST_FILE);
+function quitForUpdate(source) {
+  if (quitting) return;
+  // before-quit flushes the settings; nothing is written after that.
+  const entry = { time: new Date().toISOString(), level: "info", message: E("Closing for an update ({0}).", source) };
+  pushLog(entry);
+  // In startup.log too, so an install can be followed from that one file.
+  try { fs.appendFileSync(path.join(app.getPath("userData"), "startup.log"), `${entry.time} ${entry.level} ${entry.message}\n`); } catch { /* diagnostics only */ }
+  installerHandedOff = true; // an installer is already running: never start the quit-time one
+  quitting = true;
+  app.quit();
+}
+function checkQuitRequest() {
+  try {
+    if (!fs.existsSync(quitRequestPath())) return;
+    fs.rmSync(quitRequestPath(), { force: true });
+  } catch { return; }
+  quitForUpdate("installer request");
+}
 app.on("second-instance", (event, argv) => {
-  if (Array.isArray(argv) && argv.includes(QUIT_FOR_UPDATE)) {
-    // before-quit flushes the settings; nothing is written after that.
-    pushLog({ time: new Date().toISOString(), level: "info", message: E("Closing for an update.") });
-    installerHandedOff = true; // an installer is already running: never start the quit-time one
-    quitting = true;
-    app.quit();
-    return;
-  }
+  if (Array.isArray(argv) && argv.includes(QUIT_FOR_UPDATE)) { quitForUpdate("second launch"); return; }
   showWindow();
 });
 
@@ -663,7 +680,16 @@ function failStartup(error) {
 
 app.whenReady().then(async () => {
   try {
-    try { fs.mkdirSync(app.getPath("userData"), { recursive: true }); fs.writeFileSync(path.join(app.getPath("userData"), "startup.log"), ""); } catch { /* diagnostics only */ }
+    try {
+      fs.mkdirSync(app.getPath("userData"), { recursive: true });
+      const log = path.join(app.getPath("userData"), "startup.log");
+      // Kept across starts so the start before this one can still be read; one older file is kept.
+      if (fs.existsSync(log) && fs.statSync(log).size > 256 * 1024) fs.renameSync(log, log + ".1");
+      fs.appendFileSync(log, `----- ${new Date().toISOString()} start, pid ${process.pid} -----\n`);
+    } catch { /* diagnostics only */ }
+    // A request left by an installer that finished while no companion ran is not for this start.
+    try { fs.rmSync(quitRequestPath(), { force: true }); } catch { /* none */ }
+    setInterval(checkQuitRequest, 1000).unref?.();
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Starting Guilded Companion {0} from {1} (packaged: {2}, Store: {3}, data folder: {4}, arguments: {5}).", app.getVersion(), process.execPath, app.isPackaged ? "yes" : "no", STORE_INSTALL ? "yes" : "no", app.getPath("userData"), args.join(" ") || "none") });
     pushLog({ time: new Date().toISOString(), level: "info", message: E("Launch: working folder {0}, APPDATA {1}, user {2}, started by the installer: {3}.", process.cwd(), process.env.APPDATA || "?", process.env.USERNAME || "?", launchedByInstaller ? "yes" : "no") });
     // Started by the installer (9.0 release blocker): the old companion may still be closing. Wait

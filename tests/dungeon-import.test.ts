@@ -347,6 +347,23 @@ describe("importDungeonRuns", () => {
     expect(slower.results[0]).toMatchObject({ guildRecord: false, guildRank: { rank: 3, of: 3 } });
   });
 
+  it("merges walked map cells into the shared per-floor grid and never stores them with the run", async () => {
+    const { tx, runs } = fakeTx();
+    const grid: Record<number, { cells: Record<string, number> }> = {};
+    Object.assign(tx, { dungeonMapGrid: {
+      findUnique: async ({ where }: { where: { mapId: number } }) => grid[where.mapId] ?? null,
+      upsert: async ({ where, create, update }: { where: { mapId: number }; create: { cells: Record<string, number> }; update: { cells: Record<string, number> } }) =>
+        (grid[where.mapId] = grid[where.mapId] ? { ...grid[where.mapId], cells: update.cells } : create)
+    } });
+    const summary = await importDungeonRuns(tx, "g1", [run("traced", { mapCells: [{ map: 291, cells: [1, 2, 3] }] })], characters, "officer", null, now);
+    expect(grid[291]).toMatchObject({ cells: { 1: 1, 2: 1, 3: 1 } });
+    expect(JSON.stringify(runs)).not.toContain("mapCells");
+    expect(summary.results[0]).not.toHaveProperty("mapCells");
+    // A simulation run never feeds the shared grid.
+    await importDungeonRuns(tx, "g1", [run("SIM-1790000000-abcde", { mapCells: [{ map: 292, cells: [4] }] })], characters, "officer", null, now);
+    expect(grid[292]).toBeUndefined();
+  });
+
   it("gives no points for abandoned runs", async () => {
     const { tx, points } = fakeTx();
     const summary = await importDungeonRuns(tx, "g1", [run("left", { state: "ABANDONED" })], characters, "officer", "imp1", now);

@@ -3403,3 +3403,14 @@ model LadderSnapshot {
 
   @@unique([guildId, board, day])
 }
+
+// Traced dungeon maps (9.2): one shared, anonymous occupancy grid per dungeon floor (uiMapID), merged from members' walked
+// grid cells on import. `cells` maps a cell key (column * 200 + row) to how many runs walked it; no player, run or time is kept,
+// and the per-run cells are dropped once merged. The dungeon card draws the floor's outline from it (dungeon-map-grid.ts).
+model DungeonMapGrid {
+  mapId       Int      @id
+  dungeonName String
+  cells       Json
+  runs        Int      @default(0)
+  updatedAt   DateTime @updatedAt
+}

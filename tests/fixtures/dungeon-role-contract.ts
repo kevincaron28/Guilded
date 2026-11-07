@@ -15,7 +15,8 @@ export function dungeonRoleFixture(standalone = false, nativeRole = "DAMAGER", c
       function IsInGroup() return (MOCK_GROUP_SIZE or 1)>1 end
       function UnitGroupRolesAssigned() return ${JSON.stringify(nativeRole)} end
       C_AddOns={IsAddOnLoaded=function() return false end}
-      C_Timer.NewTicker=function(_,fn) DUNGEON_TICK=fn end`);
+      -- The dungeon module's 30-second run tick (presence and abandon checks); other tickers (the 1.5 s map trace) are ignored.
+      C_Timer.NewTicker=function(seconds,fn) if seconds==30 then DUNGEON_TICK=fn end end`);
     if (standalone) for (const file of tocFiles()) {
       const source = readFileSync(new URL(`../../addon/GuildedDungeons/${file}`, import.meta.url), "utf8");
       lua.run(`loadaddon("GuildedDungeons", [=====[${source}]=====], NS)`);

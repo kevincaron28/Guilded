@@ -27,3 +27,24 @@ The death map draws on `site/dungeon-maps/<slug>.png` (slug of the dungeon name,
 ## Death positions (9.1, shipped)
 
 Addon (`Modules/Dungeon.lua`, copied to GuildedDungeons by `npm run dungeons:sync`): on `PLAYER_DEAD` inside the run each client records its own position (`C_Map.GetBestMapForUnit` + `C_Map.GetPlayerMapPosition`, rounded to 3 decimals, with the uiMapID) in `run.deathPoints` (at most 60 per run; nothing is recorded when the position is unknown, 0,0, restricted or the API is missing) and tells the group with a separate `DPOS|run|name|x‰|y‰|map` message, which older clients ignore. Receivers keep only a player's own DPOS, for a player in that run, with valid ranges. Companion export (`lua-export-content.mjs`) sends `deathPoints` (validated, capped); the bot schema accepts them as optional and never invalidates a run over them; they are stored in `competitionData.deathPoints` and drawn on the card. A dungeon with several floors draws the floor with the most deaths. Run summaries shared with officers (`SUM`) do not carry positions; only the recorder's own export does.
+
+## Traced dungeon maps (9.2)
+
+The death heat map draws on an accurate map of the floor, traced from where members actually walk. There is no Blizzard art and nothing is drawn from memory.
+
+- **Addon** (`Modules/Dungeon.lua`, `ns.dungeonTrace`): while a run is active inside an instance, a sample every 1.5 s snaps the player's own position (`C_Map.GetBestMapForUnit` + `GetPlayerMapPosition`, the same as death positions) to a 200 x 200 grid of that floor's map.
+  - Short steps between samples are filled in a straight line; a teleport or a floor change never is.
+  - Only the set of cells per floor is kept, in `run.trace = { { map, cells = "key,..." } }` (key = column * 200 + row), with no times and no order. At most 600 cells per run.
+  - Nothing is sent to the group; only the recorder's own export uploads it.
+  - On by default. Members turn it off with `/guilded maptrace off` (and back on with `on`).
+- **Companion** (`lua-export-content.mjs`): exports `mapCells: [{ map, cells }]`, deduplicated and capped at 20 floors and 600 cells.
+- **Bot**:
+  - `dungeonRunSchema` accepts `mapCells` as optional and drops malformed data without invalidating a run.
+  - On import (`dungeon-import.ts` → `dungeon-map-grid.ts`), the cells of valid, non-simulation runs are merged into **one shared anonymous grid per floor** (`DungeonMapGrid`: cell → number of runs; migration `20270119000000_dungeon_map_grid`).
+  - The per-run cells are taken off the run before anything else, so they are never stored with it (not even in observer reports). No player, run or time is kept in the grid.
+  - Grids are shared across servers (map geometry is the same for everyone), and writers lock per floor.
+- **Card**:
+  - When the floor the deaths are drawn on (the one with the most deaths) has at least `MIN_OUTLINE_CELLS` (120) cells, the card draws its outline: rooms and corridors in gold, filled dark, with the heat map on top.
+  - The view frames the walked area and the deaths at the map's 3:2 shape (`mapView`), and the party rows tighten so the map gets a taller box.
+  - Until then, the box is translucent over the painted scene (or uses a `site/dungeon-maps/` file when one exists).
+- Samples: `docs/cards/dungeon-map-*.png`, from `npx tsx scripts/render-dungeon-maps.ts`. Their walked cells are **synthetic** (rooms joined by corridors), to show the renderer; real outlines appear once members' runs are recorded.

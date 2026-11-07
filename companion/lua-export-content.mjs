@@ -747,6 +747,19 @@ export function exportDungeonRuns(database, realm, options = {}) {
         if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1) || !Number.isInteger(map) || map <= 0 || map > 100000) return [];
         return [{ x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000, map, ...(typeof point.name === "string" && point.name ? { character: point.name.slice(0, 40) } : {}) }];
       }) } : {}),
+      // Traced dungeon maps (9.2): the recorder's own breadcrumb, snapped grid cells per uiMapID ("key,key,..." strings in the
+      // SavedVariables, key = column * 200 + row). No times. At most 20 floors and 600 cells; anything malformed is dropped.
+      ...(run.trace ? (() => {
+        let budget = 600;
+        const mapCells = Object.values(run.trace).slice(0, 20).flatMap(entry => {
+          const map = Number(entry?.map);
+          if (!Number.isInteger(map) || map <= 0 || map > 100000 || typeof entry.cells !== "string" || budget <= 0) return [];
+          const cells = [...new Set(entry.cells.split(",").filter(Boolean).map(Number).filter(key => Number.isInteger(key) && key >= 0 && key < 40000))].slice(0, budget);
+          budget -= cells.length;
+          return cells.length ? [{ map, cells }] : [];
+        });
+        return mapCells.length ? { mapCells } : {};
+      })() : {}),
       reporters: Object.keys(run.reporters ?? {}).length || 1,
       // Who reported it, so the bot can check at least one of them was in the run.
       ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),

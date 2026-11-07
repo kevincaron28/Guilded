@@ -15,7 +15,7 @@ On by default in every server (ROADMAP rule 5). Off switches:
 ## Discord to game
 
 - `/poll news text:` (officers) posts a news embed in the current channel and stores a `BoardPost`
-  (migration `20270104000000_guild_board`). `/poll board remove:` takes one down (and deletes its message).
+  (migration `20270105000000_guild_board`). `/poll board remove:` takes one down (and deletes its message).
 - `boardForAddon` (`src/services/guild-board.ts`) adds `board` to the **shared** part of the standings
   feed: the 5 newest news posts of the last 60 days (300 characters each) and the 5 newest open polls
   (question, up to 25 options, counts, how many voted, picks allowed, closing time). The **personal**

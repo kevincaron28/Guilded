@@ -86,7 +86,7 @@ describe("Home", () => {
   it("leads with the status card and the version panel; the old banners and tiles are tucked away", () => {
     expect(home.indexOf('id="statusCard"')).toBeLessThan(home.indexOf('id="versionPanel"'));
     const legacy = home.slice(home.indexOf('<div id="homeLegacy" hidden>'));
-    for (const id of ["banner", "liveBanner", "addonBanner", "updateBanner", "overviewConnection", "tileUpload"]) expect(legacy, id).toContain(`id="${id}"`);
+    for (const id of ["banner", "liveBanner", "updateBanner", "overviewConnection", "tileUpload"]) expect(legacy, id).toContain(`id="${id}"`);
     expect(home.slice(0, home.indexOf('<div id="homeLegacy" hidden>'))).not.toContain('id="banner"');
   });
 

@@ -1318,5 +1318,15 @@
   "Tools": "Outils",
   "Run setup again": "Refaire la configuration",
   "Automatic updates are off: choose Check now from time to time, or turn them back on in Settings.": "Les mises à jour automatiques sont désactivées : choisissez Vérifier maintenant de temps en temps, ou réactivez-les dans Paramètres.",
-  "Next: connect your Discord account in Settings.": "Prochaine étape : connectez votre compte Discord dans Paramètres."
+  "Next: connect your Discord account in Settings.": "Prochaine étape : connectez votre compte Discord dans Paramètres.",
+  "Your Discord account, your WoW folder and how the companion runs.": "Votre compte Discord, votre dossier WoW et le fonctionnement du compagnon.",
+  "Discord account": "Compte Discord",
+  "Which option is right for me?": "Quelle option me convient ?",
+  "Your browser opens: choose your server there and press Connect. The companion finds your WoW folder by itself.": "Votre navigateur s'ouvre : choisissez-y votre serveur et appuyez sur Relier. Le compagnon trouve votre dossier WoW tout seul.",
+  "Your WoW folder": "Votre dossier WoW",
+  "Games": "Jeux",
+  "How the companion runs": "Fonctionnement du compagnon",
+  "EXTRAS": "EXTRAS",
+  "Export your guild's data to a spreadsheet, or bring it in from another addon.": "Exportez les données de votre guilde vers un tableur, ou importez-les depuis un autre addon.",
+  "WoW settings": "Paramètres WoW"
 }

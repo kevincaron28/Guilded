@@ -45,7 +45,7 @@ function snapshot.read(force)
   local now = clock()
   local saved = db.guildSnapshot
   if not force and type(saved) == "table" and tonumber(saved.at) and now - saved.at < MIN_INTERVAL then return saved end
-  local count = tonumber(GetNumGuildMembers()) or 0
+  local count = tonumber((GetNumGuildMembers())) or 0
   if count < 1 then return nil end
   local members, kept = {}, 0
   for index = 1, math.min(count, MAX_MEMBERS) do

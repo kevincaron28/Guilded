@@ -27,7 +27,7 @@ function ns.slash(text)
     table.remove(args, 1)
     ns.commandHandlers[action](args)
   else
-    ns.message("/gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto")
+    ns.message(ns.L("Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"))
   end
 end
 

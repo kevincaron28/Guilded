@@ -38,9 +38,11 @@ export interface FleetRow {
   hasAdminChannel: boolean;
   /** The bot has no database record for this server yet (nobody ran a command there). */
   untracked: boolean;
+  /** Owner-marked test server: kept out of public surfaces (Guild.isTestServer). */
+  isTest?: boolean;
 }
 
-export type ActionId = "messages" | "channels" | "check" | "tier" | "achievements" | "announcements" | "sharing" | "weekly" | "send" | "leave";
+export type ActionId = "messages" | "channels" | "check" | "tier" | "achievements" | "announcements" | "sharing" | "weekly" | "testmark" | "send" | "leave";
 
 export interface ActionInfo { id: ActionId; label: string; style: ButtonStyle; help: string; confirm: string }
 
@@ -53,6 +55,7 @@ export const ACTIONS: readonly ActionInfo[] = [
   { id: "announcements", label: "Toggle announcements", style: ButtonStyle.Secondary, help: "Turns achievement celebration posts on or off. Turning them on records everything already earned as announced (no backfill).", confirm: "Switch achievement announcement posts for that server." },
   { id: "sharing", label: "Toggle public sharing", style: ButtonStyle.Secondary, help: "Turns the server's public dungeon run sharing on or off (the public leaderboard).", confirm: "Switch public dungeon sharing for that server." },
   { id: "weekly", label: "Toggle weekly report", style: ButtonStyle.Secondary, help: "Turns the weekly guild report post on or off.", confirm: "Switch the weekly report for that server." },
+  { id: "testmark", label: "Toggle test server", style: ButtonStyle.Secondary, help: "Test servers stay off public pages (or /guilded-console test).", confirm: "Switch the test-server mark for that server." },
   { id: "send", label: "Message admin channel", style: ButtonStyle.Primary, help: "Posts text you type to the server's private admin channel, signed as from the bot owner. Never sent automatically.", confirm: "Post your text to that server's admin channel." },
   { id: "leave", label: "Leave server", style: ButtonStyle.Danger, help: "Makes the bot leave the server. You must type LEAVE to confirm. Not available for the home server.", confirm: "Remove the bot from that server." }
 ];
@@ -86,7 +89,7 @@ const errorText = (count: number): string => `${errorMarker(count)} ${count} err
 
 /** One server as an embed field: a title line, then status, activity, data and the id. */
 export function fleetField(row: FleetRow, rank: number): { name: string; value: string; inline: false } {
-  const name = `${rank}. ${safeName(row.name)} · ${TIER_BADGE[row.tier]} · ${row.language.toUpperCase()} · 👥 ${row.memberCount}`;
+  const name = `${rank}. ${row.isTest ? "🧪 " : ""}${safeName(row.name)} · ${TIER_BADGE[row.tier]} · ${row.language.toUpperCase()} · 👥 ${row.memberCount}`;
   const value = [
     `${setupBar(row.setupDone, row.setupTotal)} setup · ${errorText(row.errors24h)}`,
     `🏆 Achievements ${toggle(row.achievements)} · 📣 Announce ${toggle(row.announcements)} · 🌐 Public ${toggle(row.publicSharing)} · 📰 Weekly ${toggle(row.weeklyReport)}`,
@@ -111,9 +114,10 @@ export interface FleetSummary { servers: number; members: number }
 
 /** Header line(s) for the board: fleet totals, plus problem counts for the servers shown. */
 export function fleetSummary(rows: readonly FleetRow[], summary: FleetSummary, paged: boolean): string {
+  const tests = rows.filter(row => row.isTest).length;
   const withErrors = rows.filter(row => row.errors24h > 0).length, unsynced = rows.filter(row => !row.lastSync).length;
   const scope = paged ? " on this page" : "";
-  return `🖥️ **${summary.servers}** server${summary.servers === 1 ? "" : "s"} · 👥 **${summary.members}** members · ${errorMarker(withErrors ? Math.max(...rows.map(row => row.errors24h)) : 0)} **${withErrors}** with errors${scope} · 🔄 **${unsynced}** not synced${scope}`;
+  return `🖥️ **${summary.servers}** server${summary.servers === 1 ? "" : "s"} · 👥 **${summary.members}** members${tests ? ` · 🧪 **${tests}** test${scope}` : ""} · ${errorMarker(withErrors ? Math.max(...rows.map(row => row.errors24h)) : 0)} **${withErrors}** with errors${scope} · 🔄 **${unsynced}** not synced${scope}`;
 }
 
 export function healthColor(rows: readonly FleetRow[]): number {
@@ -158,7 +162,7 @@ export function helpText(): string {
 
 export function detailEmbed(row: FleetRow, now: Date): EmbedBuilder {
   return new EmbedBuilder().setColor(row.errors24h >= ERROR_SPIKE ? 0xef4444 : row.errors24h > 0 || row.tier !== "approved" ? 0xf59e0b : 0x22c55e).setTitle(safeName(row.name))
-    .setDescription(`${TIER_BADGE[row.tier]} · ${row.language.toUpperCase()} · 👥 ${row.memberCount} members
+    .setDescription(`${TIER_BADGE[row.tier]}${row.isTest ? " · 🧪 Test server" : " · 🌍 Live"} · ${row.language.toUpperCase()} · 👥 ${row.memberCount} members
 \`${row.discordId}\`${row.untracked ? " · ⚠️ not set up" : ""}`)
     .addFields(
       { name: "🧭 Setup", value: `${setupBar(row.setupDone, row.setupTotal)} key channels set${row.hasAdminChannel ? "" : "\n⚠️ no admin channel: messaging unavailable"}`, inline: true },
@@ -177,7 +181,7 @@ export function detailEmbed(row: FleetRow, now: Date): EmbedBuilder {
 export function detailComponents(row: FleetRow, home: boolean): ActionRowBuilder<ButtonBuilder>[] {
   const button = (action: ActionInfo) => new ButtonBuilder().setCustomId(`${CONSOLE_PREFIX}act:${action.id}:${row.discordId}`).setLabel(action.label).setStyle(action.style)
     .setDisabled((home && (action.id === "leave" || action.id === "tier")) || (action.id === "send" && !row.hasAdminChannel) || (row.untracked && !["tier", "leave"].includes(action.id)));
-  const groups: ActionId[][] = [["messages", "channels", "check", "tier"], ["achievements", "announcements", "sharing", "weekly"], ["send", "leave"]];
+  const groups: ActionId[][] = [["messages", "channels", "check", "tier"], ["achievements", "announcements", "sharing", "weekly"], ["testmark", "send", "leave"]];
   return groups.map(ids => new ActionRowBuilder<ButtonBuilder>().addComponents(ids.map(id => button(actionInfo(id)!))));
 }
 

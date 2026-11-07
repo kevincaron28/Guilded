@@ -83,7 +83,7 @@ export const resolveNotifyAddress = notifyAddress;
 // Dungeon challenge posts go to /config channel, or the normal
 // announcements channel when none is set. A post is an embed, an optional card drawn on delivery
 // and optional buttons (the run post's Chronologie button).
-export interface DungeonMessage { embed: EmbedBuilder; card?: ScoreCard | null; components?: ActionRowBuilder<ButtonBuilder>[] }
+export interface DungeonMessage { embed: EmbedBuilder; card?: ScoreCard | null; components?: ActionRowBuilder<ButtonBuilder>[]; content?: string | undefined }
 export async function notifyDungeon(discordGuild: DiscordGuild | null, post: Localized<DungeonMessage>): Promise<boolean> {
   if (!discordGuild) return false;
   try {
@@ -92,7 +92,7 @@ export async function notifyDungeon(discordGuild: DiscordGuild | null, post: Loc
     const channelId = settings?.dungeonChannelId ?? settings?.notifyChannelId;
     if (!channelId) return false;
     const message = post(asLang(settings?.language));
-    return durableMessage(discordGuild, guild.id, channelId, { embeds: [message.embed], ...(message.components?.length ? { components: message.components } : {}) }, "dungeon", null, message.card ?? null);
+    return durableMessage(discordGuild, guild.id, channelId, { ...(message.content ? { content: message.content } : {}), embeds: [message.embed], ...(message.components?.length ? { components: message.components } : {}) }, "dungeon", null, message.card ?? null);
   } catch (error) {
     console.error("Failed to post dungeon announcement", error);
     return false;

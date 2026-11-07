@@ -5,6 +5,7 @@ import { canonicalSpecialization } from "../wow-specializations.js";
 import type { DungeonImportResult } from "./dungeon-import.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { difficultyName } from "./dungeon-stats.js";
+import { highlightBadge } from "./dungeon-records.js";
 import type { DungeonScene } from "./dungeon-art.js";
 import { classColor, type DungeonMotif, type DungeonVisual, type ScoreCard } from "./score-card.js";
 
@@ -136,7 +137,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
         note: tracked && tracked < party.length ? t(`${tracked}/${party.length} tracked`, `${tracked}/${party.length} suivis`) : tracked ? undefined : t("Not tracked", "Non suivies") }
     ],
     rowsLabel: t(`Party · ${members} from the guild`, `Groupe · ${members} de la guilde`),
-    badges: rankBadges(run, t),
+    badges: rankBadges(run, t, lang),
     footer: t("Guilded · Dungeon run as recorded by the party's addons · guilded.kcaron.top", "Guilded · Donjon noté par les addons du groupe · guilded.kcaron.top"),
     dungeon: {
       theme: dungeonTheme(run.dungeonName),
@@ -181,7 +182,13 @@ function scoreColumn(details: Detail[], t: (en: string, fr: string) => string): 
 }
 
 /** The record line under the stats: a new guild record, the guild's first clear, or where this time ranks among the guild's clears. */
-function rankBadges(run: Run, t: (en: string, fr: string) => string): NonNullable<ScoreCard["badges"]> {
+function rankBadges(run: Run, t: (en: string, fr: string) => string, lang: Lang): NonNullable<ScoreCard["badges"]> {
+  // 9.1: the records and challenges this run set (dungeon-records.ts), up to three, records first.
+  if (run.highlights?.length) {
+    const order = ["clear", "boss", "first", "deathless", "guild5"];
+    return [...new Set([...run.highlights].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind)).map(item => highlightBadge(item, lang)))]
+      .slice(0, 3).map(text => ({ text, tone: "ok" as const }));
+  }
   if (run.guildRecord) return [{ text: t("New guild record", "Nouveau record de guilde"), tone: "ok" }];
   const rank = run.guildRank;
   if (!rank) return [];

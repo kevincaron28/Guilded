@@ -22,3 +22,5 @@ import { linkWizard, successKey, savedSince } from "../../companion/link-wizard.
 window.guildedLinkWizard = { linkWizard, successKey, savedSince };
 window.guildedWowSearchMessage = wowSearchMessage;
 window.guildedPagesInUse = pagesInUse;
+import { statusCard, guildLine } from "../../companion/status-card.mjs";
+window.guildedStatusCard = { statusCard, guildLine };

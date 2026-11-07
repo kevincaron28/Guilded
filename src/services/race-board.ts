@@ -6,11 +6,12 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { fullNameOf } from "./forever-names.js";
+import { dayStart, participationDay } from "./participation-rules.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
-import { classColor, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 
 // The live "Race to 60" leaderboard and Hall of Fame (8.5, track B1). The channel's FIRST message is the live board: the
-// top N guild characters (default 25, officers pick 10-30) with class, race, level bar, professions, last seen and the
+// top N guild characters (default 50, officers pick 10-50) with class, race, level bar, professions, last seen and the
 // linked Discord member, edited in place after every sync. Every character that reaches 60 then gets its own permanent
 // Hall of Fame message, never edited or deleted, backed by a database row so history survives channel resets.
 // Same pattern as the duel board: footer marker, pure builders, refresh through discord-jobs. On by default; officers
@@ -20,10 +21,10 @@ const guildService = createGuildService(prisma);
 export const RACE_BOARD_MARKER = "Guilded race board";
 export const HALL_MARKER = "Guilded hall of fame";
 export const LEVEL_CAP = 60;
-export const DEFAULT_TOP = 25, MIN_TOP = 10, MAX_TOP = 30;
+export const DEFAULT_TOP = 50, MIN_TOP = 10, MAX_TOP = 50;
 /** With at least this many tracked characters, everyone reaching 60 switches the board to Hall of Fame mode by itself. */
 const AUTO_END_MINIMUM = 3;
-const CARD_ROWS = 30, SHORT_LEADERS = 3, GAINERS = 5, DESCRIPTION_BUDGET = 3800;
+const CARD_ROWS = 50, SHORT_LEADERS = 3, GAINERS = 5, DESCRIPTION_BUDGET = 3800;
 /** WoW Forever launched on 4 November 2026 (Season 1 opens at 23:00 UTC that day); "time to 60" counts from here. */
 export const LAUNCH_AT = new Date("2026-11-04T23:00:00Z");
 export const RACE_CARD_FILE = "race.png", HALL_CARD_FILE = "hall-60.png";
@@ -32,7 +33,9 @@ export const KNOWN_CLASSES = ["Warrior", "Paladin", "Hunter", "Rogue", "Priest",
 export const normalizeClass = (value: string | null | undefined) => KNOWN_CLASSES.find(name => name.toLowerCase() === (value ?? "").trim().replace(/\s+/g, " ").toLowerCase()) ?? null;
 
 export interface RaceChar { aliasKeys?: string[]; key: string; name: string; className: string; race: string | null; level: number; memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
-export interface RaceEntryState { level: number; reachedMaxAt: Date | null; weekStartLevel: number; weekStartedAt: Date }
+export interface RaceEntryState { level: number; reachedMaxAt: Date | null; weekStartLevel: number; weekStartedAt: Date;
+  /** 9.1 daily recap: the level at the start of the server's day, and the last finished day's gain (kept across the rollover). */
+  dayStartLevel?: number | null; dayStartedAt?: Date | null; lastDayGain?: number; lastDayStartedAt?: Date | null }
 export interface RaceRow { aliasKeys?: string[]; key: string; name: string; className: string; race: string | null; level: number; reachedMaxAt: Date | null; firstSeenAt: Date; weekGain: number;
   memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
 export interface RaceBoardData { rows: RaceRow[]; total: number; finished: number; edition: string }
@@ -48,16 +51,35 @@ export function weekStart(now: Date): Date {
  * Pure: the stored state after seeing a character at `level`. A level that went down means the name was
  * re-rolled, so its history restarts. First seen at the cap counts as reaching it now (the real date is unknowable).
  */
-export function nextEntry(previous: RaceEntryState | null, level: number, now: Date): RaceEntryState {
+export function nextEntry(previous: RaceEntryState | null, level: number, now: Date, dayFrom?: Date): RaceEntryState {
   const monday = weekStart(now);
-  if (!previous || level < previous.level) return { level, reachedMaxAt: level >= LEVEL_CAP ? now : null, weekStartLevel: level, weekStartedAt: monday };
+  if (!previous || level < previous.level) return { level, reachedMaxAt: level >= LEVEL_CAP ? now : null, weekStartLevel: level, weekStartedAt: monday,
+    ...(dayFrom ? { dayStartLevel: level, dayStartedAt: dayFrom, lastDayGain: 0, lastDayStartedAt: null } : {}) };
   const rolled = previous.weekStartedAt < monday;
+  // A new day: the finished day's gain is kept (measured with the last level seen that day), and today starts from it.
+  // Without the server's day (a read-only caller), the day fields are kept as they are.
+  const known = Boolean(previous.dayStartedAt && typeof previous.dayStartLevel === "number");
+  if (!dayFrom) return { level, reachedMaxAt: previous.reachedMaxAt ?? (level >= LEVEL_CAP ? now : null),
+    weekStartLevel: rolled ? previous.level : previous.weekStartLevel, weekStartedAt: rolled ? monday : previous.weekStartedAt,
+    dayStartLevel: previous.dayStartLevel ?? null, dayStartedAt: previous.dayStartedAt ?? null, lastDayGain: previous.lastDayGain ?? 0, lastDayStartedAt: previous.lastDayStartedAt ?? null };
+  const newDay = !known || previous.dayStartedAt! < dayFrom;
   return {
     level,
     reachedMaxAt: previous.reachedMaxAt ?? (level >= LEVEL_CAP ? now : null),
     weekStartLevel: rolled ? previous.level : previous.weekStartLevel,
-    weekStartedAt: rolled ? monday : previous.weekStartedAt
+    weekStartedAt: rolled ? monday : previous.weekStartedAt,
+    dayStartLevel: newDay ? previous.level : previous.dayStartLevel!,
+    dayStartedAt: newDay ? dayFrom : previous.dayStartedAt!,
+    lastDayGain: newDay ? known ? Math.max(0, previous.level - previous.dayStartLevel!) : 0 : previous.lastDayGain ?? 0,
+    lastDayStartedAt: newDay ? known ? previous.dayStartedAt! : null : previous.lastDayStartedAt ?? null
   };
+}
+
+/** Levels gained during the day that started at `dayFrom`, from a stored entry (0 when that day is unknown). */
+export function dayGain(entry: Pick<RaceEntryState, "level" | "dayStartLevel" | "dayStartedAt" | "lastDayGain" | "lastDayStartedAt">, dayFrom: Date): number {
+  if (entry.dayStartedAt?.getTime() === dayFrom.getTime() && typeof entry.dayStartLevel === "number") return Math.max(0, entry.level - entry.dayStartLevel);
+  if (entry.lastDayStartedAt?.getTime() === dayFrom.getTime()) return Math.max(0, entry.lastDayGain ?? 0);
+  return 0;
 }
 
 /** Pure: finishers first in the order they got there, then everyone else by level (ties by name). */
@@ -87,22 +109,28 @@ const stamp = (date: Date, style: "d" | "R") => `<t:${Math.floor(date.getTime() 
 const shortProfessions = (professions: string[], limit = 2) => professions.slice(0, limit).join(", ");
 
 /**
- * Pure: the leaderboard picture. Top N (10-30, the officer's setting) in leaderboard order: full name and rank in the class colour,
- * class, race and the linked Discord member under it, a level bar and the week's gain. `memberNames` maps Discord ids to display names.
+ * Pure: the leaderboard picture, in the shared ladder layout. Top N (10-50, the officer's setting, 50 by default) in leaderboard
+ * order: rank (medals for the top 3), full name in the class colour, class, race and the linked Discord member under it, a level bar,
+ * the level, and the levels gained this week as a green arrow. `memberNames` maps Discord ids to display names.
  */
-export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, memberNames: ReadonlyMap<string, string> = new Map()): ScoreCard {
+export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, memberNames: ReadonlyMap<string, string> = new Map(), updatedAt = new Date()): ScoreCard {
   const fr = lang === "fr";
   const ranked = leaderboardOrder(data.rows).slice(0, Math.min(clampTop(top), CARD_ROWS));
   return {
     eyebrow: "Guilded · WoW Forever", title: fr ? "Course au niveau 60" : "Race to 60",
     subtitle: fr ? `${data.finished} sur ${data.total} personnages au niveau ${LEVEL_CAP}` : `${data.finished} of ${data.total} characters at level ${LEVEL_CAP}`,
     stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · mis à jour à chaque synchronisation · /character race near trouve des partenaires` : `Top ${ranked.length} of ${data.total} · updated after every sync · /character race near finds partners`,
-    race: ranked.map(row => {
-      const member = row.discordId ? memberNames.get(row.discordId) : undefined;
-      return { name: row.name, color: classColor(row.className), level: row.level, max: LEVEL_CAP, done: row.level >= LEVEL_CAP,
-        sub: [row.className, row.race, member ? `@${member}` : ""].filter(Boolean).join(" · "),
-        ...(row.weekGain > 0 ? { note: fr ? `+${row.weekGain} sem.` : `+${row.weekGain} wk` } : {}) };
-    })
+    ladder: {
+      meta: ladderMeta(lang, updatedAt),
+      columns: [{ label: fr ? "Progression" : "Progress", width: 120, kind: "bar" }, { label: fr ? "Niv." : "Lvl", width: 40, primary: true },
+        { label: fr ? "Semaine" : "Week", width: 56, kind: "move" }],
+      boards: [{ rows: ranked.map((row, index) => {
+        const member = row.discordId ? memberNames.get(row.discordId) : undefined;
+        return { rank: index + 1, name: row.name, color: classColor(row.className), values: ["", String(row.level), ""], bar: { value: row.level, max: LEVEL_CAP },
+          sub: [row.className, row.race, member ? `@${member}` : ""].filter(Boolean).join(" · "),
+          ...(row.weekGain > 0 ? { move: row.weekGain, moveLabel: `+${row.weekGain}` } : {}) };
+      }) }]
+    }
   };
 }
 
@@ -303,7 +331,8 @@ export function mergeStored<T extends { level: number; reachedMaxAt: Date | null
 }
 
 /** Records every guild character's level, then returns the board's data. */
-export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry">, guildId: string, edition: string, now = new Date()): Promise<RaceBoardData> {
+export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry">, guildId: string, edition: string, now = new Date(), timezone?: string): Promise<RaceBoardData> {
+  const dayFrom = timezone ? dayStart(participationDay(now, timezone), timezone) : undefined;
   const linked = await db.character.findMany({ where: { guildId, gameEdition: edition, level: { not: null }, member: { guildId, status: "ACTIVE" } },
     select: { name: true, displayName: true, realm: true, className: true, race: true, level: true, memberId: true, lastSeenAt: true, member: { select: { discordUserId: true } },
       professions: { select: { profession: true, skillLevel: true }, orderBy: { skillLevel: "desc" } } } });
@@ -326,9 +355,10 @@ export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "un
     const own = stored.get(char.key);
     const primary = own ?? legacy[0];
     const before = primary ? mergeStored(primary, own ? legacy : legacy.slice(1)) : null;
-    const next = nextEntry(before, char.level, now);
+    const next = nextEntry(before, char.level, now, dayFrom);
     const changed = !before || legacy.length > 0 || before.level !== next.level || before.name !== char.name || before.className !== char.className
-      || before.weekStartLevel !== next.weekStartLevel || before.weekStartedAt.getTime() !== next.weekStartedAt.getTime() || before.reachedMaxAt?.getTime() !== next.reachedMaxAt?.getTime();
+      || before.weekStartLevel !== next.weekStartLevel || before.weekStartedAt.getTime() !== next.weekStartedAt.getTime() || before.reachedMaxAt?.getTime() !== next.reachedMaxAt?.getTime()
+      || before.dayStartLevel !== next.dayStartLevel || before.dayStartedAt?.getTime() !== next.dayStartedAt?.getTime();
     if (changed) await db.levelRaceEntry.upsert({ where: { guildId_nameKey: { guildId, nameKey: char.key } },
       create: { guildId, nameKey: char.key, name: char.name, className: char.className, ...next, firstSeenAt: before?.firstSeenAt ?? now }, update: { name: char.name, className: char.className, ...next, ...(before ? { firstSeenAt: before.firstSeenAt } : {}) } });
     if (legacy.length) await db.levelRaceEntry.deleteMany({ where: { guildId, nameKey: { in: char.aliasKeys ?? [] } } });
@@ -682,7 +712,7 @@ export async function updateRaceBoard(discordGuild: DiscordGuild | null, deliver
     if (!channel?.isTextBased() || !("send" in channel)) return false;
     const lang = asLang(settings.language);
     const top = clampTop(settings.raceBoardTop);
-    const data = await loadRaceBoardData(prisma, guild.id, guild.gameEdition ?? "forever");
+    const data = await loadRaceBoardData(prisma, guild.id, guild.gameEdition ?? "forever", new Date(), settings.timezone);
     const hall = hallMode(data, settings.raceEnded);
     const names = await memberNames(discordGuild, [...new Set(data.rows.flatMap(row => row.discordId ? [row.discordId] : []))]);
     const png = data.total && !hall ? await scoreCardPng(raceCard(data, lang, top, names)).catch(() => null) : null;

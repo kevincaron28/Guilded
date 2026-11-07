@@ -72,7 +72,6 @@ import { handleLinkedButton, LINKED_PREFIX } from "./services/companion-link-dm.
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
 import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
-import { updateWhosWhoBoard } from "./services/whos-who-board.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
@@ -86,7 +85,7 @@ import {
 import { DUNGEON_GUIDE_PREFIX } from "./services/dungeon-guide.js";
 import { answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.js";
 import { GROUP_ALERT_OPEN_ID, GROUP_ALERT_PREFIX, handleGroupAlertComponent, openGroupAlerts } from "./commands/group-alerts.js";
-import { runWeeklyReports } from "./commands/stats.js";
+import { runDailyRecaps, runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
 import { executeBank, handleBankRequestButton } from "./commands/bank.js";
 import { BANK_REQUEST_PREFIX } from "./services/guild-bank-member.js";
@@ -394,7 +393,6 @@ client.once(Events.ClientReady, (readyClient) => {
         await forEachGuildScope(prisma, guild.id, async () => {
           await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard refresh", origin));
           await updateDuelBoard(guild).catch(reportJobError("Duel board refresh", origin));
-          await updateWhosWhoBoard(guild).catch(reportJobError("Who's who board refresh", origin));
           await updateRaceBoard(guild).catch(reportJobError("Race board refresh", origin));
           await updateBgLadder(guild).catch(reportJobError("Battleground ladder refresh", origin));
         });
@@ -530,6 +528,8 @@ client.once(Events.ClientReady, (readyClient) => {
       }
     })().catch(reportJobError("Character display refresh"));
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
+    // 9.1: the daily recap card, once per server day (on by default, officers switch it off with /stats recap-posts:false).
+    runDailyRecaps(readyClient).catch(reportJobError("Daily recap check"));
     // Automatic EPGP decay after each weekly reset (guilds that turned it on).
     runAutoDecay(prisma).catch(reportJobError("Automatic decay"));
     // One private reminder to new members who have not finished onboarding (guilds that turned it on).

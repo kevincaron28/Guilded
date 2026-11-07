@@ -71,8 +71,7 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const { updateDuelBoard } = await import("./duel-board.js");
     if (!await updateDuelBoard(guild, true)) throw new Error("Duel board unavailable");
   } else if (job.kind === "WHOS_WHO_BOARD") {
-    const { updateWhosWhoBoard } = await import("./whos-who-board.js");
-    if (!await updateWhosWhoBoard(guild, true)) throw new Error("Who's who board unavailable");
+    // Retired in 9.0.2: a job queued before the update finishes quietly and posts nothing.
   } else if (job.kind === "BG_LADDER") {
     const { updateBgLadder } = await import("./bg-ladder.js");
     if (!await updateBgLadder(guild, true)) throw new Error("Battleground ladder unavailable");

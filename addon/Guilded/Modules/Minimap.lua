@@ -1628,6 +1628,7 @@ end
 
 local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Overview", build = buildHomePage },
+  { name = "Guild overview", hint = "classes and levels of the whole guild at a glance", group = "Overview", build = function(page) if ns.guildOverview and ns.guildOverview.buildPage then ns.guildOverview.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Overview", usesPlayer = true, build = buildMePage },
   { name = "Open raids", hint = "find a raid with room for you", group = "Overview", build = buildPublicRaidsPage },
   { name = "Standings", scope = "guild", group = "Guild", usesPlayer = true, build = buildStandingsPage },

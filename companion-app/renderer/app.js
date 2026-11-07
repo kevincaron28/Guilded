@@ -153,6 +153,29 @@ async function answerAccount(yes) {
   result.className = answer?.ok === false ? 'result bad' : 'result ok';
 }
 bind('btnAccountYes', () => answerAccount(true));
+// One line per WoW account (plan step 2): on the Sync page when there are several, and in Settings
+// with a switch beside each further account (the first one goes off with WoW itself).
+function accountText(row) { return T(row.text[0], ...row.text.slice(1).map((value) => value && typeof value === 'object' && value.ago ? ago(value.ago).toLowerCase() : value)); }
+function renderAccounts(snapshot) {
+  const rows = snapshot.accountRows || [];
+  const several = rows.length > 1;
+  $('statusAccounts').hidden = !several;
+  $('statusAccounts').replaceChildren(...(several ? rows.filter((row) => row.on) : []).map((row) => { const item = document.createElement('li'); item.textContent = accountText(row); return item; }));
+  $('accountList').hidden = !several;
+  $('accountList').replaceChildren(...(several ? rows : []).map((row) => {
+    const item = document.createElement('li');
+    const label = document.createElement('label');
+    const box = document.createElement('input');
+    box.type = 'checkbox'; box.checked = row.on; box.disabled = row.first;
+    box.title = row.first ? T('The first account syncs while World of Warcraft is on.') : T('Sync this account');
+    box.addEventListener('change', async () => { box.disabled = true; const answer = await api.setAccount(row.file, box.checked); if (!answer?.ok) box.checked = !box.checked; box.disabled = false; });
+    const text = document.createElement('span');
+    text.textContent = accountText(row);
+    label.append(box, text);
+    item.append(label);
+    return item;
+  }));
+}
 bind('btnAccountNo', () => answerAccount(false));
 bind('btnStatusDetails', async () => showPage('activity'));
 function renderState(snapshot) {
@@ -160,6 +183,7 @@ function renderState(snapshot) {
   lastSnapshot = snapshot;
   try { renderStatusCard(snapshot); } catch { /* the rest of the page still renders */ }
   try { renderAccountAsk(snapshot); } catch { /* the rest of the page still renders */ }
+  try { renderAccounts(snapshot); } catch { /* the rest of the page still renders */ }
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
   const {state,health} = snapshot;
   const sync = window.guildedSyncStatus(savedConfig, state, state.syncEvidence);

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createProfileEngine, planProfiles } from "../companion/profile-engine.mjs";
-import { accountFiles, accountName, answerAccount, MAX_ACCOUNTS, newAccounts } from "../companion/wow-accounts.mjs";
+import { accountFiles, accountName, accountRows, answerAccount, MAX_ACCOUNTS, newAccounts, switchAccount } from "../companion/wow-accounts.mjs";
 
 // docs/plans/MULTI_ACCOUNT.md, step 1 (owner decisions, 7 November 2026): sync every WoW account
 // folder found, but add a second one only after the member says once that it is theirs too.
@@ -122,5 +122,47 @@ describe("setup and Repair no longer stop at several accounts", () => {
   it("is worded in French", () => {
     for (const key of ["Another WoW account on this PC has Guilded data: {0}. Is it yours too?", "Say no if someone else plays on this PC with their own Discord account. You are asked only once.",
       "Yes, sync it too", "No, not mine", "{0} syncs too from now on.", "{0} was added, but the sync did not start. Open Problems to see why.", "{0} will not sync. You will not be asked again."]) expect(fr[key], key).toBeTruthy();
+  });
+});
+
+describe("per-account status and switches (step 2)", () => {
+  const two = { watchFile: wow1, watchFiles: [wow2] };
+
+  it("switches a further account off and on; never the first, never an unknown file", () => {
+    const off = switchAccount(two, wow2, false);
+    expect(accountFiles(off)).toEqual([wow1]);
+    expect(off["accountsDeclined"]).toEqual([wow2]);
+    expect(newAccounts(off, [entry(wow1), entry(wow2)])).toEqual([]);
+    expect(accountFiles(switchAccount(off, wow2, true))).toEqual([wow1, wow2]);
+    expect(switchAccount(two, wow1, false)).toBe(two);
+    expect(switchAccount(two, wow3, true)).toBe(two);
+    expect(switchAccount(two, "C:/Other/WTF/Account/X/SavedVariables/Guilded.lua", true)).toBe(two);
+  });
+
+  it("one line per account with what it is doing; switched-off accounts last", () => {
+    const rows = accountRows({ ...two, accountsDeclined: [wow3] }, [
+      { file: wow1, running: true, lastUpload: { at: "2026-11-07T17:00:00Z" } },
+      { file: wow2, running: true, lastUpload: null }
+    ]);
+    expect(rows.map((row) => [row.account, row.on, row.first])).toEqual([["WOW1", true, true], ["WOW2", true, false], ["WOW3", false, false]]);
+    expect(rows[0]!.text).toEqual(["{0}: synced {1}", "WOW1", { ago: "2026-11-07T17:00:00Z" }]);
+    expect(rows[1]!.text[0]).toBe("{0}: waiting for WoW to save Guilded's data. Log in on that account and type /reload once.");
+    expect(accountRows({ ...two, wowEnabled: false })).toEqual([]);
+    expect(accountRows(two, [{ file: wow2, error: "Missing folder" }])[1]!.text).toEqual(["{0}: {1}", "WOW2", "Missing folder"]);
+  });
+
+  it("is wired, validated and worded in French", () => {
+    const main = readFileSync("companion-app/main.cjs", "utf8");
+    expect(main).toContain('registerIpc("set-account", async (_event, { file, on }) => {');
+    expect(main).toContain("accountRows: accountRowsFor(state)");
+    const security = require("../companion-app/ipc-security.cjs");
+    expect(() => security.validateIpc("set-account", [{ file: wow2, on: true }])).not.toThrow();
+    expect(() => security.validateIpc("set-account", [{ file: wow2, on: "yes" }])).toThrow();
+    expect(() => security.validateIpc("set-account", [{ file: wow2, on: true, extra: 1 }])).toThrow();
+    const html = readFileSync("companion-app/renderer/index.html", "utf8");
+    expect(html).toContain('<ul id="accountList" class="account-list" hidden></ul>');
+    expect(html).toContain('<ul id="statusAccounts" class="account-lines" hidden></ul>');
+    for (const text of [...accountRows({ ...two, accountsDeclined: [wow3] }, [{ file: wow1, lastUpload: { at: "x" } }, { file: wow2, running: true }]).map((row) => String(row.text[0])), "{0}: not syncing yet", "{0}: {1}",
+      "The first account syncs while World of Warcraft is on.", "Sync this account"]) expect(fr[text], text).toBeTruthy();
   });
 });

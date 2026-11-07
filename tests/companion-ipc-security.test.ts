@@ -31,9 +31,10 @@ describe("desktop IPC boundary", () => {
     expect(rendererConfig(source)).toEqual({ companionCredential: "connected", pairingCode: "", realm: "Test" });
     expect(source.companionCredential).toBe("private");
   });
-  it("accepts the five supported GRM editions and rejects oversized edits", () => {
-    for (const edition of ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"]) {
-      expect(() => validateIpc("convert-grm", [{ guild: "Test", realm: "Realm", edition, includePrivate: false }])).not.toThrow();
+  it("accepts WoW Forever GRM imports only and rejects oversized edits", () => {
+    expect(() => validateIpc("convert-grm", [{ guild: "Test", realm: "Realm", edition: "forever", includePrivate: false }])).not.toThrow();
+    for (const edition of ["classic-era", "classic-tbc", "classic-mists", "retail"]) {
+      expect(() => validateIpc("convert-grm", [{ guild: "Test", realm: "Realm", edition, includePrivate: false }])).toThrow();
     }
     expect(() => validateIpc("manage-edit", [{ action: "prices.set", text: "x".repeat(220_001) }])).toThrow();
   });

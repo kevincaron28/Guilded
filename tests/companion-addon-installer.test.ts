@@ -61,7 +61,7 @@ describe("addon install: what to offer", () => {
     expect(decide({ status: "ok", version: "8.6.0" }).action).toBe("none");
     // (9.0) No version line: it cannot be shown to match, so the update is offered.
     expect(decide({ status: "ok", version: null })).toMatchObject({ action: "update", reason: "unknown-version" });
-    expect(decide({ status: "on-hold" }).action).toBe("none");
+    expect(decide({ status: "other-edition" }).action).toBe("none");
     expect(decide({ status: "not-installed", expected: "retail" }).reason).toBe("not-forever");
     expect(installer.decideAddonInstall({ addon: { status: "unchecked" }, companionVersion: "8.5.0" }).action).toBe("none");
     expect(decide({ status: "not-installed" }, { companionVersion: "dev" }).reason).toBe("no-release");

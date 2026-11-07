@@ -5,7 +5,7 @@
 // Nothing is deleted: database tables, saved uploads, the code and the PoE2 docs all stay.
 //
 // TO TURN PoE2 COMMUNITY OFF: remove "poe2" from ACTIVE_GAMES (event boards, seasons, site pages follow). tests/forever-only-focus.test.ts proves that every surface follows.
-// The WoW editions have their own switch: companion/active-editions.mjs.
+// WoW editions: Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md).
 //
 // Plain ESM with no imports so the companion, site build, Worker and bot can all load it.
 export const ACTIVE_GAMES = /** @type {readonly string[]} */ (["wow", "poe2"]);

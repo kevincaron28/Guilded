@@ -1,6 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 import { join, sep } from "node:path";
-import { isFolderOnHold } from "./active-editions.mjs";
+import { isOtherEditionFolder } from "./wow-folder.mjs";
 
 // Launch-day check (WoW Forever goes live on 4 November 2026). The companion watches the exact
 // saved file the player picked, and every tested install points into the beta client
@@ -83,8 +83,8 @@ export async function checkSavedFile(watchFile, { now = Date.now(), ignore = /**
   const found = [];
   for (const game of games) {
     if (samePath(game.name, parts.flavor) || isBeta(game.name)) continue;
-    // Never offer another edition's file while that edition is on hold (companion/active-editions.mjs).
-    if (isFolderOnHold(game.name)) continue;
+    // Never offer another WoW version's file: Guilded supports WoW Forever only.
+    if (isOtherEditionFolder(game.name)) continue;
     const accounts = join(game.path, "WTF", "Account");
     for (const account of await subfolders(accounts)) {
       const path = join(accounts, account, "SavedVariables", parts.file);

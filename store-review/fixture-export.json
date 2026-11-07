@@ -1,17 +1,17 @@
 {
   "source": "Guilded",
-  "gameEdition": "retail",
-  "interface": 120105,
+  "gameEdition": "forever",
+  "interface": 16001,
   "exportedAt": "2026-10-26T16:00:00.000Z",
   "wowGuild": "Guilded Review Sandbox-Review Realm",
   "character": {
-    "gameEdition": "retail",
-    "interface": 120105,
+    "gameEdition": "forever",
+    "interface": 16001,
     "name": "Reviewmage",
-    "realm": "reviewrealm",
+    "realm": "Review Realm",
     "class": "MAGE",
     "race": "",
-    "level": 80,
+    "level": 60,
     "spec": "",
     "professions": [],
     "professionsComplete": false

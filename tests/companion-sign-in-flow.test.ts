@@ -104,8 +104,8 @@ describe("Find it always says what happened", () => {
     expect(wowSearchMessage({ entries: [{ path: "a", exists: true }, { path: "b", exists: true }] }).text).toEqual(["Found {0} accounts. Check the selected file before saving.", 2]);
     expect(wowSearchMessage({ entries: [], installs: ["D:\\Jeux\\World of Warcraft"], drives: ["C:", "D:"] }).text).toEqual(["Found World of Warcraft in {0}, but no account folder yet. Start WoW, log in once, then press Find it again.", "D:\\Jeux\\World of Warcraft"]);
     expect(wowSearchMessage({ entries: [], installs: [], drives: ["C:", "D:"] }).text).toEqual(["No World of Warcraft folder found on {0}. Choose WoW folder and pick it yourself.", "C:, D:"]);
-    expect(wowSearchMessage({ held: 1 }).text[0]).toMatch(/on hold/);
-    for (const result of [{ entries: [{ path: "a", exists: true }] }, { entries: [{ path: "a", exists: false }] }, { entries: [{ path: "a", exists: false }] }, { installs: ["x"] }, {}, { held: 1 }]) {
+    expect(wowSearchMessage({ otherEdition: 1 }).text[0]).toMatch(/WoW Forever only/);
+    for (const result of [{ entries: [{ path: "a", exists: true }] }, { entries: [{ path: "a", exists: false }] }, { entries: [{ path: "a", exists: false }] }, { installs: ["x"] }, {}, { otherEdition: 1 }]) {
       expect(fr[wowSearchMessage(result).text[0] as string], String(wowSearchMessage(result).text[0])).toBeTypeOf("string");
     }
     expect(fr[wowSearchMessage({ entries: [{ path: "a", exists: false }] }, { personal: true }).text[0] as string]).toBeTypeOf("string");

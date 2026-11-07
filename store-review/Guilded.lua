@@ -2,7 +2,7 @@
 GuildedDB = {
   addonVersion = "7.5.0",
   guildKey = "Guilded Review Sandbox-Review Realm",
-  character = { name = "Reviewmage", realm = "Review Realm", gameEdition = "retail", interface = 120105, class = "MAGE", level = 80 },
+  character = { name = "Reviewmage", realm = "Review Realm", gameEdition = "forever", interface = 16001, class = "MAGE", level = 60 },
   epgp = {},
   exports = { ["2026-10-26T16:00:00.000Z"] = true },
 }

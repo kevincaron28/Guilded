@@ -233,7 +233,7 @@ async function choosePoe() { const file = await api.browsePoeLog(readForm()); if
 bind('btnBrowse',chooseWow);
 // Folder picker (8.5, track F3): the dialog opens at the WoW install folder; the companion finds the
 // account folder(s) below whatever is picked. Several accounts: the member chooses one here.
-const GAME_FOLDERS = {_forever_:'WoW Forever',_classic_era_:'Classic Era',_classic_:'Classic',_retail_:'Retail',_classic_beta_:'Beta'};
+const GAME_FOLDERS = {_forever_:'WoW Forever',_classic_:'Classic',_classic_beta_:'Beta'};
 const gameLabel = game => T(GAME_FOLDERS[String(game).toLowerCase()] || game);
 function chooseAccount(account) {
   $('watchFile').value = account.path;

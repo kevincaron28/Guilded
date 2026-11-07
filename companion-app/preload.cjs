@@ -21,7 +21,6 @@ contextBridge.exposeInMainWorld("companion", {
   browsePoeLog: () => ipcRenderer.invoke("browse-poe-log"),
   detectWow: () => ipcRenderer.invoke("detect-wow"),
   searchWow: () => ipcRenderer.invoke("search-wow"),
-  detectWowHeld: () => ipcRenderer.invoke("detect-wow-held"),
   switchLiveFolder: () => ipcRenderer.invoke("switch-live-folder"),
   dismissLiveFolder: () => ipcRenderer.invoke("dismiss-live-folder"),
   uploadNow: () => ipcRenderer.invoke("upload-now"),

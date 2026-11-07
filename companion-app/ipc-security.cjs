@@ -2,7 +2,7 @@ const { pathToFileURL } = require("node:url");
 const path = require("node:path");
 
 const configFields = new Set(["uploadUrl", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes", "poeLogFile", "poeCharacter", "poeLeague", "poeMode", "wowEnabled", "poeEnabled", "syncEnabled"]);
-const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "check-update", "sign-in-wait", "sign-in-cancel", "sign-in-reopen", "browse-file", "detect-wow", "detect-wow-held", "search-wow", "companion-me", "sign-in-switch", "repair", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "delete-my-data", "toggle-tracking", "get-poe-runs", "manage-view", "link-find-saved-data", "open-discord-server", "copy-problem-report", "open-addon-download", "pick-wow-folder", "install-addon", "version-info", "open-store-listing", "reinstall-addon", "open-storage-settings", "check-disk-space"]);
+const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "open-update", "open-startup-settings", "install-update", "check-update", "sign-in-wait", "sign-in-cancel", "sign-in-reopen", "browse-file", "detect-wow", "search-wow", "companion-me", "sign-in-switch", "repair", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "delete-my-data", "toggle-tracking", "get-poe-runs", "manage-view", "link-find-saved-data", "open-discord-server", "copy-problem-report", "open-addon-download", "pick-wow-folder", "install-addon", "version-info", "open-store-listing", "reinstall-addon", "open-storage-settings", "check-disk-space"]);
 function fail() { throw new Error("Invalid companion request."); }
 function object(value, fields) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail();
@@ -34,11 +34,11 @@ function validateIpc(channel, args) {
   else if (channel === "convert-grm") {
     object(value, new Set(["guild", "realm", "edition", "includePrivate"]));
     text(value.guild, 120); text(value.realm, 120);
-    if (!["forever", "classic-era", "classic-tbc", "classic-mists", "retail"].includes(value.edition) || typeof value.includePrivate !== "boolean") fail();
+    if (value.edition !== "forever" || typeof value.includePrivate !== "boolean") fail();
   } else if (channel === "loot-history-preview") {
     object(value, new Set(["guild", "realm", "edition", "source"]));
     text(value.guild, 120); text(value.realm, 120);
-    if (!["forever", "classic-era", "classic-tbc", "classic-mists", "retail"].includes(value.edition) || !["rclootcouncil", "gargul"].includes(value.source)) fail();
+    if (value.edition !== "forever" || !["rclootcouncil", "gargul"].includes(value.source)) fail();
   } else if (channel === "loot-history-save") {
     object(value, new Set(["token", "characterMap", "allowUnidentified"]));
     if (!Number.isSafeInteger(value.token) || value.token < 1 || typeof value.allowUnidentified !== "boolean") fail();

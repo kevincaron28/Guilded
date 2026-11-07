@@ -194,7 +194,7 @@ function renderState(snapshot) {
     'wait-for-acceptance': 'Check Activity for the bot receipt before retrying.',
     'reload-in-game': 'After saving standings to the addon, use /reload in WoW.',
     'officer-review': 'Your upload needs officer review in Discord.',
-    'review-application-error': 'Your upload was received but could not be applied. Ask an officer to review it.',
+    'review-application-error': 'Your sync was received but could not be applied. Ask an officer to review it.',
     'wait-for-retry': 'Keep the companion open while it retries.',
     'check-connection': 'Check your connection and the Activity messages.'
   };

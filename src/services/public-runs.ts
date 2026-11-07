@@ -307,6 +307,10 @@ function rawRevision(value: unknown): unknown {
   delete data["previousRevisions"];return data;
 }
 
+// An upload transaction takes two advisory locks and reads the run, its uploads and the season calendar before it writes, and the 1 GB server
+// can be slow under load. Prisma's 5 s default timed out (P2028, saved error V2HP78CX); the agreement checks must stay inside the locks, so the
+// budget is raised instead of moving reads out (the same budget as the other lock-protected upload transactions).
+export const PUBLIC_RUN_TX = { timeout: 60_000, maxWait: 15_000 } as const;
 export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>new Date()): PublicRunStore {
   const select = { id: true, status: true, gameEdition: true, instanceId: true, difficultyId: true, routeKey: true, durationSec: true, startedAt: true, endedAt: true,
     evidenceVersion: true, integrity: true, completedBy: true, encounters: true, challenge: true, players: true, uploads: { select: { uploaderKey: true, reporters: true, evidence: true, historyOnly: true } } } as const;
@@ -337,7 +341,7 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
           evidence:{...uploadEvidence(summary) as Prisma.InputJsonObject,canonicalEligible:!historyOnly,admittedAt:admittedAt.toISOString()} } }
       } });
       return {historyOnly};
-      });
+      }, PUBLIC_RUN_TX);
     },
     async addUpload(runId, uploader, summary) {
       return database.$transaction(async tx => {
@@ -393,7 +397,7 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
             players: { deleteMany: {}, create: promoted.players } } : {})
         } });
         return { agree, duplicate: false };
-      });
+      }, PUBLIC_RUN_TX);
     },
     uploadsSince: (uploaderKey, since) => database.publicRunUpload.count({ where: { uploaderKey, createdAt: { gte: since } } }),
     async storedRefs(uploaderKey, gameEdition = "forever") {

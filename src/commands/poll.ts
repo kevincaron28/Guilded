@@ -12,12 +12,16 @@ import { asLang, tx, type Lang } from "../i18n.js";
 import { weeklyQuestionDraft } from "../services/weekly-question.js";
 import { actOnWeeklyQuestion, pauseWeeklyQuestion, reviewWeeklyQuestion, saveWeeklyQuestion } from "../services/weekly-question-store.js";
 import { withGuildScope } from "../services/guild-scope.js";
+import { boardEnabled, createBoardService, MAX_BOARD_POST } from "../services/guild-board.js";
+import { markGuildChanged } from "../services/standings-feed.js";
+import type { Client } from "discord.js";
 
 import { createParticipationService } from "../services/participation.js";
 import { eligibleParticipationMember } from "../services/participation-discord.js";
 import { participationRules } from "../services/participation-rules.js";
 
 const service = createPollService(prisma);
+const board = createBoardService(prisma);
 const participation = createParticipationService(prisma);
 export const POLL_PREFIX = "poll:";
 export const WEEKLY_QUESTION_PREFIX = "weeklyq:";
@@ -52,7 +56,15 @@ export const pollCommand = new SlashCommandBuilder()
     return sub;
   })
   .addSubcommand((sub) => sub.setName("close").setDescription("Officers: close a poll and post the result.")
-    .addStringOption((o) => o.setName("poll").setDescription("Pick the open poll to close").setAutocomplete(true).setRequired(true)));
+    .addStringOption((o) => o.setName("poll").setDescription("Pick the open poll to close").setAutocomplete(true).setRequired(true)))
+  // 9.1 in-game guild board (services/guild-board.ts): news and open polls on the addon's Board page.
+  .addSubcommand((sub) => sub.setName("news").setDescription("Officers: post news here and on the in-game guild board.")
+    .setDescriptionLocalizations({ fr: "Officiers : publier une nouvelle ici et sur le tableau en jeu" })
+    .addStringOption((o) => o.setName("text").setDescription("The news").setMinLength(3).setMaxLength(MAX_BOARD_POST).setRequired(true)))
+  .addSubcommand((sub) => sub.setName("board").setDescription("Officers: the in-game guild board (on/off, take news down).")
+    .setDescriptionLocalizations({ fr: "Officiers : tableau de guilde en jeu (activer, retirer une nouvelle)" })
+    .addBooleanOption((o) => o.setName("enabled").setDescription("Show news and polls in game (on by default)"))
+    .addStringOption((o) => o.setName("remove").setDescription("Take a news post off the board").setAutocomplete(true)));
 
 async function pollEmbed(pollId: string): Promise<EmbedBuilder> {
   const { poll, counts, total } = await service.results(pollId);
@@ -134,8 +146,17 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
     await showWeeklyQuestionReview(interaction, context.guildId);
     return;
   }
+  if (subcommand === "news") {
+    await postNews(interaction, context.guildId);
+    return;
+  }
+  if (subcommand === "board") {
+    await boardSettings(interaction, context.guildId);
+    return;
+  }
   if (subcommand === "close") {
     const poll = await service.close(interaction.options.getString("poll", true), context.guildId);
+    markGuildChanged(context.guildId);
     await syncPoll(interaction.guild, poll.id);
     const { counts, total } = await service.results(poll.id);
     await interaction.reply({
@@ -154,7 +175,78 @@ export async function executePoll(interaction: ChatInputCommandInteraction): Pro
   if (!channel?.isTextBased() || !("send" in channel)) throw new Error("I can't post in this channel.");
   const message = await channel.send({ embeds: [await pollEmbed(poll.id)], components: pollButtons(poll.id, poll.options, false) });
   await service.setMessage(poll.id, channel.id, message.id);
+  markGuildChanged(context.guildId);
   await interaction.reply({ content: `Poll posted. Close it with \`/poll close poll:${poll.id}\`.`, flags: MessageFlags.Ephemeral });
+}
+
+// ---------------------------------------------------------------------------------------------
+// 9.1 in-game guild board: officers' news, shown in Discord and on the addon's Board page.
+// ---------------------------------------------------------------------------------------------
+export function newsEmbed(lang: Lang, post: { body: string; author: string; source: string }): EmbedBuilder {
+  return new EmbedBuilder().setColor(0xc9a227).setTitle(tx(lang, "📌 Guild news")).setDescription(escapeMarkdown(post.body))
+    .setFooter({ text: post.source === "game" ? tx(lang, "{name}, from the game · also on the in-game guild board", { name: post.author }) : tx(lang, "{name} · also on the in-game guild board", { name: post.author }) });
+}
+
+async function postNews(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const lang = asLang((await guildService.getSettings(guildId))?.language);
+  const channel = interaction.channel;
+  if (!channel?.isTextBased() || !("send" in channel)) throw new Error(tx(lang, "I can't post in this channel."));
+  const author = (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username;
+  const post = await board.post({ guildId, body: interaction.options.getString("text", true), author, authorId: interaction.user.id });
+  const message = await channel.send({ embeds: [newsEmbed(lang, post)], allowedMentions: { parse: [] } });
+  await board.setMessage(post.id, channel.id, message.id);
+  markGuildChanged(guildId);
+  const note = await boardEnabled(prisma, guildId) ? tx(lang, "News posted. Members see it on the Board page of the Guilded window after their next sync.")
+    : tx(lang, "News posted here. The in-game board is off (/poll board enabled:True turns it on).");
+  await interaction.reply({ content: note, flags: MessageFlags.Ephemeral });
+}
+
+async function boardSettings(interaction: ChatInputCommandInteraction, guildId: string): Promise<void> {
+  const lang = asLang((await guildService.getSettings(guildId))?.language);
+  const enabled = interaction.options.getBoolean("enabled");
+  const remove = interaction.options.getString("remove");
+  const lines: string[] = [];
+  if (enabled !== null) {
+    await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, guildBoardEnabled: enabled }, update: { guildBoardEnabled: enabled } });
+    lines.push(enabled ? tx(lang, "The in-game guild board is on.") : tx(lang, "The in-game guild board is off: no news or polls in game, and votes from the game are ignored."));
+  }
+  if (remove) {
+    const post = await board.remove(remove, guildId);
+    if (post.channelId && post.messageId && interaction.guild) {
+      const channel = await interaction.guild.channels.fetch(post.channelId).catch(() => null);
+      if (channel?.isTextBased()) await channel.messages.delete(post.messageId).catch(() => undefined);
+    }
+    lines.push(tx(lang, "News post taken down."));
+  }
+  if (!lines.length) {
+    const on = await boardEnabled(prisma, guildId);
+    const recent = await board.recent(guildId, 5);
+    lines.push(on ? tx(lang, "The in-game guild board is on: the newest news and the open polls show on the Board page of the Guilded window, and members vote from there.")
+      : tx(lang, "The in-game guild board is off."));
+    lines.push(recent.length ? tx(lang, "News on the board: {count}.", { count: recent.length }) : tx(lang, "No news yet. Post some with /poll news."));
+  }
+  if (enabled !== null || remove) markGuildChanged(guildId);
+  await interaction.reply({ content: lines.join("\n"), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+}
+
+/** A news post an officer wrote in game: posted in the announcements channel (skipped quietly without one). */
+export async function postGameNews(client: Client, guildId: string, post: { id: string; body: string; author: string; source: string }): Promise<void> {
+  const record = await prisma.guild.findUnique({ where: { id: guildId }, select: { discordId: true } });
+  const settings = await prisma.guildSettings.findUnique({ where: { guildId }, select: { notifyChannelId: true, language: true } });
+  const channelId = settings?.notifyChannelId;
+  if (!record || !channelId) return;
+  const discordGuild = client.guilds.cache.get(record.discordId);
+  const channel = discordGuild ? await discordGuild.channels.fetch(channelId).catch(() => null) : null;
+  if (!channel?.isTextBased() || !("send" in channel)) return;
+  const message = await channel.send({ embeds: [newsEmbed(asLang(settings?.language), post)], allowedMentions: { parse: [] } });
+  await board.setMessage(post.id, channel.id, message.id);
+}
+
+/** Refreshes a poll's Discord message after votes from the game. */
+export async function syncPollById(client: Client, pollId: string): Promise<void> {
+  const poll = await prisma.poll.findUnique({ where: { id: pollId }, select: { guild: { select: { discordId: true } } } });
+  const discordGuild = poll ? client.guilds.cache.get(poll.guild.discordId) : undefined;
+  if (discordGuild) await syncPoll(discordGuild, pollId);
 }
 
 async function showWeeklyQuestionReview(interaction: ChatInputCommandInteraction, guildId: string) {
@@ -240,6 +332,7 @@ export async function handlePollButton(interaction: ButtonInteraction): Promise<
       ? tx(lang, "Your picks ({count} of {max}): **{options}**. Click an option again to remove it.", { count: selected.length, max: poll.maxChoices, options: picks || "—" })
       : tx(lang, "Your vote for **{option}** is recorded. Click another option to change it.", { option: poll.options[Number(optionText)] ?? "" });
     await interaction.editReply({ content: recorded + (earned ? "\n" + tx(lang, "+1 community point for voting.") : ""), allowedMentions: { parse: [] } });
+    markGuildChanged(guild.id);
     await syncPoll(interaction.guild, pollId);
   } catch (error) {
     await interaction.editReply({ content: error instanceof Error ? error.message : "Could not record your vote.", allowedMentions: { parse: [] } }).catch(() => undefined);

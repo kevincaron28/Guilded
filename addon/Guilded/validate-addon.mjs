@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { validateCombatLog } from "../../scripts/validate-combat-log.mjs";
+import { validateMixinHooks } from "../../scripts/validate-mixin-hooks.mjs";
 
 const root = new URL(".", import.meta.url);
 const rootPath = fileURLToPath(root);
@@ -74,6 +75,7 @@ for (const file of addonFiles) {
   if (file === "Util.lua") continue;
   const source = readFileSync(new URL(file, root), "utf8");
   if (/SendAddonMessage\(/.test(source)) throw new Error(`${file} calls SendAddonMessage directly; use ns.comm.send (Util.lua)`);
+  validateMixinHooks(source, file);
   // GuildSetMOTD is Blizzard-UI only (ADDON_ACTION_FORBIDDEN): Modules/GuildMotd.lua is a reminder + copy box.
   if (/\b(GuildSetMOTD|SetMOTD)\s*\(/.test(source)) throw new Error(`${file} calls GuildSetMOTD; WoW does not let addons set the MOTD (see Modules/GuildMotd.lua)`);
   if (file === "Modules/GuildMotd.lua") {

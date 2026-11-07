@@ -3,19 +3,22 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { difficultyName, type RecordRow } from "./dungeon-stats.js";
 import { formatDuration } from "./dungeon-rules.js";
+import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 
-export async function seasonBestRuns(database: Pick<PrismaClient, "dungeonRun">, guildId: string, seasonId: string): Promise<RecordRow[]> {
+export async function seasonBestRuns(database: Pick<PrismaClient, "dungeonRun"> & Partial<Pick<PrismaClient, "character" | "unclaimedCharacter" | "guildRosterEntry">>, guildId: string, seasonId: string): Promise<RecordRow[]> {
   const where = { guildId, seasonId, valid: true, state: "COMPLETED", durationSec: { not: null },
-    NOT: { runRef: { startsWith: "SIM-" } }, players: { some: { memberId: { not: null } } } };
+    NOT: { runRef: { startsWith: "SIM-" } }, players: { some: { OR: [{ memberId: { not: null } }, { inGuild: true }] } } };
   // Aggregate first so many short clears cannot crowd a longer dungeon out.
   const bests = await database.dungeonRun.groupBy({ by: ["instanceId", "difficultyId"], where, _min: { durationSec: true } });
   const rows = await Promise.all(bests.map(best => database.dungeonRun.findFirst({
     where: { ...where, instanceId: best.instanceId, difficultyId: best.difficultyId, durationSec: best._min.durationSec },
     orderBy: [{ endedAt: "asc" }, { id: "asc" }],
     select: { instanceId: true, dungeonName: true, difficultyId: true, durationSec: true, endedAt: true,
-      players: { where: { memberId: { not: null } }, select: { character: true } } }
+      players: { where: { OR: [{ memberId: { not: null } }, { inGuild: true }] }, select: { character: true } } }
   })));
-  return rows.flatMap(row => row?.durationSec !== null && row ? [{ ...row, durationSec: row.durationSec!, players: row.players.map(player => player.character) }] : [])
+  // The whole guild party (linked or not), by full character name.
+  const book = await loadFullNameBook(database, guildId);
+  return rows.flatMap(row => row?.durationSec !== null && row ? [{ ...row, durationSec: row.durationSec!, players: row.players.map(player => displayCharacterName(player.character, book)) }] : [])
     .sort((a, b) => a.dungeonName.localeCompare(b.dungeonName) || a.difficultyId - b.difficultyId);
 }
 

@@ -75,6 +75,9 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
     lines.push(`${members.size} ${fr ? "membre(s) de guilde" : "guild member(s)"}${linkedNote} · ${run.points} ${run.ratingEnabled ? (fr ? "points de participation" : "participation points") : (fr ? "points attribués au total" : "total points awarded")}`);
     if (details) {
       const roles: Record<string, string> = { TANK: "Tank", HEALER: fr ? "Soigneur" : "Healer", DPS: "DPS", DAMAGER: "DPS" };
+      // One summary line instead of "0 pts / Unranked" under every member (9.0.1).
+      const unranked = new Map<string, number>();
+      let noPoints = 0;
       for (const player of details.slice(0, 8)) {
         const className = canonicalClass(player.class);
         const spec = canonicalSpecialization(className, player.spec);
@@ -86,15 +89,17 @@ export function dungeonAnnouncement(summary: DungeonImportSummary, lang: Lang, e
           role ? roles[role] : undefined].filter(Boolean).join(" / ");
         const deathText = player.deaths === null ? (fr ? "morts non suivies" : "deaths untracked") : t(lang, "dungeon.deaths", { count: player.deaths });
         const mention = run.mentions?.[player.character];
-        lines.push(`${icons || "•"} 🏰 **${escapeMarkdown(run.fullNames?.[player.character] ?? player.character)}**${mention ? ` <@${mention}>` : ""}${info ? ` — ${escapeMarkdown(info)}` : ""}\n  ${deathText} · **${player.points} pts**`);
+        lines.push(`${icons || "•"} 🏰 **${escapeMarkdown(run.fullNames?.[player.character] ?? player.character)}**${mention ? ` <@${mention}>` : ""}${info ? ` — ${escapeMarkdown(info)}` : ""}\n  ${deathText}${player.points ? ` · **${player.points} pts**` : ""}`);
         if (player.participationMode === "helper") lines.push(fr ? "  Aide : points de complétion seulement." : "  Helper: completion points only.");
         if (player.participationRecipient) lines.push(fr ? `  Points du compte attribués via ${escapeMarkdown(player.participationRecipient)}.` : `  Account points awarded through ${escapeMarkdown(player.participationRecipient)}.`);
-        if (player.participationMode === "none") lines.push(run.ratingVersion === 5
-          ? fr ? "  Aucun point de participation : preuves de parcours, présence ou conditions d’entraide non remplies." : "  No participation points: route evidence, presence or helper requirements not met."
-          : fr ? "  Aucun point de participation : présence insuffisante ou aide sans membre admissible." : "  No participation points: insufficient presence or no eligible member to help.");
-        if (player.unrankedReason) lines.push(`  ${fr ? "Non classé" : "Unranked"}: ${escapeMarkdown(unrankedLabel(player.unrankedReason, lang))}`);
+        if (player.participationMode === "none") noPoints++;
+        if (player.unrankedReason) unranked.set(player.unrankedReason, (unranked.get(player.unrankedReason) ?? 0) + 1);
         else if (player.ratingTotal !== undefined) lines.push(`  🏅 ${(run.ratingVersion ?? 0) >= 3 ? (fr ? "Score de donjon" : "Dungeon Rating") : (fr ? "Exploration" : "Exploration rating")}: **${player.ratingTotal}** (+${player.ratingGain ?? 0})`);
       }
+      if (unranked.size) lines.push(`  ${fr ? "Non classé" : "Unranked"}: ${[...unranked].map(([reason, count]) => `${escapeMarkdown(unrankedLabel(reason, lang))}${count > 1 ? ` ×${count}` : ""}`).join(" · ")}`);
+      if (noPoints) lines.push(run.ratingVersion === 5
+        ? fr ? `  Aucun point de participation (${noPoints}) : preuves de parcours, présence ou entraide non remplies.` : `  No participation points (${noPoints}): route evidence, presence or helper requirements not met.`
+        : fr ? `  Aucun point de participation (${noPoints}) : présence insuffisante ou aide sans membre admissible.` : `  No participation points (${noPoints}): insufficient presence or no eligible member to help.`);
       if (details.length > 8) lines.push(t(lang, "dungeon.post.more", { count: details.length - 8 }));
       if (details.some(player => player.specSource === "profile")) lines.push(fr ? "* Spé du profil lié; non relevée pendant ce donjon." : "* Spec from linked profile; not captured during this run.");
     } else lines.push(`  ${[...members].map((name) => `🏰 ${escapeMarkdown(run.fullNames?.[name] ?? name)}${run.mentions?.[name] ? ` <@${run.mentions[name]}>` : ""}`).join(", ")}`);

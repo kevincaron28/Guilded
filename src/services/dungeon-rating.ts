@@ -6,7 +6,7 @@ import { foreverNameMatches, foreverSameName } from "../../companion/character-i
 import { displayCharacterName } from "./character-display.js";
 import { currentEdition } from "./edition-context.js";
 import type { Lang } from "../i18n.js";
-import { bracketForLevel, nativeCompletionReason, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
+import { bracketForLevel, leniencyOf, nativeCompletionReason, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
   type BracketedRules, type DungeonBracket, type NovemberRules } from "./dungeon-november-rules.js";
 
 // Version 1 remains readable forever. New seasons use a frozen version 3 copy.
@@ -103,7 +103,7 @@ export function timeRating(seconds: number, target: number | null): number {
   return target && seconds > 0 ? Math.max(50, Math.min(400, Math.round(200 * target / seconds))) : 0;
 }
 // Version 6 lets a participant be up to `allowance` levels above the band, for a penalty.
-export function competitionReason(run: RatingRun, band: LevelBand | undefined, allowance = 0): string | undefined {
+export function competitionReason(run: RatingRun, band: LevelBand | undefined, allowance = 0, belowAllowance = 0): string | undefined {
   if (!band) return "Level range not configured";
   if (run.difficultyId !== band.difficultyId) return "Different difficulty";
   // A player whose level is not recorded no longer sinks the run: they are left out of the level
@@ -111,7 +111,7 @@ export function competitionReason(run: RatingRun, band: LevelBand | undefined, a
   const known = knownLevels(run);
   if (!known.length) return "Party levels unknown";
   if (known.some(p => p.level > band.max + allowance)) return "Overlevel carry";
-  if (known.some(p => p.minLevel < band.min)) return "Below level range";
+  if (known.some(p => p.minLevel < band.min - belowAllowance)) return "Below level range";
   return undefined;
 }
 interface KnownLevel { name: string; level: number; minLevel: number }
@@ -149,8 +149,8 @@ export function completionReason(completedBy: string | null | undefined): string
   return completedBy === "final boss" ? undefined : "Automatic final-boss completion required";
 }
 /** A participant earns a ranked run only when inside it for 80% of its time. */
-export function presentEnough(presentSec: number, durationSec: number): boolean {
-  return Number.isFinite(presentSec) && presentSec >= durationSec * DUNGEON_RATING_RULES.minimumPresence;
+export function presentEnough(presentSec: number, durationSec: number, minimum: number = DUNGEON_RATING_RULES.minimumPresence): boolean {
+  return Number.isFinite(presentSec) && presentSec >= durationSec * minimum;
 }
 /** Version 6: the run's route from boss evidence, why it is unranked (if it is), its over-level penalty and target. */
 export function playerIntegrityOf(run: RatingRun, character?: string): unknown {
@@ -170,7 +170,7 @@ export function bracketedVerdict(run: RatingRun, rules: BracketedRules): ReturnT
     ? !run.startedAt || !run.endedAt || !Array.isArray(data?.players) || !Array.isArray(data?.encounters)
       ? "Current evidence required by this season" : completionReason(run.completedBy)
     : undefined;
-  const reason = strictReason ?? currentEvidenceReason ?? route.reason ?? (!rules.targets[route.key] ? "Participation-only route" : competitionReason(run, band, rules.overlevelPenalty.maxLevels));
+  const reason = strictReason ?? currentEvidenceReason ?? route.reason ?? (!rules.targets[route.key] ? "Participation-only route" : competitionReason(run, band, leniencyOf(rules).overLevels, leniencyOf(rules).belowLevels));
   return { ...route, ...(reason ? { reason } : {}), penaltyPercent: !reason && band ? overlevelBy(run, band) * rules.overlevelPenalty.percentPerLevel : 0,
     targetSec: routeTargetAt(rules, route.key, run.endedAt) ?? null };
 }
@@ -205,7 +205,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
     const penaltyPercent = verdict?.penaltyPercent ?? 0;
     const bosses = timed && !reason && targets[key] ? bossRecords(run) : [];
     for (const player of run.players) {
-      if (!player.character?.trim() || !presentEnough(player.presentSec, run.durationSec)) continue;
+      if (!player.character?.trim() || !presentEnough(player.presentSec, run.durationSec, brackets ? leniencyOf(brackets).presence : undefined)) continue;
       // A guildmate the addon flagged but nobody has linked yet (or one without the addon) is rated by
       // character, full Forever name included; linking later re-keys the same stored row to the member.
       const unlinked = !player.memberId && player.inGuild === true && timed;
@@ -467,6 +467,9 @@ const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {
 export const provisionalNote = (fr: boolean) => fr
   ? "⚠️ **Cibles provisoires** : des recommandations en attendant de vrais chronos. Cibles communes à toutes les guildes et figées pour la saison; les ajustements attendent une future saison."
   : "⚠️ **Provisional targets**: recommendations until real timed runs exist. Targets are shared by all guilds and frozen for the season; adjustments wait for a future season.";
+/** The footer states the presence rule the season actually applies (80% strict, 50% with leniency). */
+const footerText = (fr: boolean, rules: BracketedRules) => { const pct = Math.round(leniencyOf(rules).presence * 100);
+  return fr ? `Boss final détecté + présence ≥ ${pct} %. Points de participation séparés.` : `Detected final boss + ≥${pct}% presence. Participation points are separate.`; };
 const bracketLabel = (b: DungeonBracket, fr: boolean) => b.min === b.max ? `${fr ? "Niveau" : "Level"} ${b.min}` : `${fr ? "Niveaux" : "Levels"} ${b.min}–${b.max}`;
 // One bracket in full, or (no bracket chosen) the top five of every bracket.
 function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: BracketedRules, key?: string): EmbedBuilder {
@@ -478,7 +481,7 @@ function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
     fr ? `Groupe au-dessus de la plage : −${rules.overlevelPenalty.percentPerLevel} % par niveau du plus haut participant, jusqu’à ${rules.overlevelPenalty.maxLevels} niveaux; au-delà, transport : 0.`
       : `Group above the band: −${rules.overlevelPenalty.percentPerLevel}% per level of the highest participant, up to ${rules.overlevelPenalty.maxLevels} levels; beyond that it is a carry: 0.`];
   if (rules.provisionalTargets) lines.unshift(provisionalNote(fr));
-  const embed = new EmbedBuilder().setColor(0x8b5cf6).setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de participation séparés." : "Detected final boss + ≥80% presence. Participation points are separate." });
+  const embed = new EmbedBuilder().setColor(0x8b5cf6).setFooter({ text: footerText(fr, rules) });
   if (chosen) {
     const own = rows.filter(row => row.bracket === chosen.key);
     lines.push(fr ? `**${bracketLabel(chosen, true)} : vos ${chosen.bestCount} meilleurs parcours distincts comptent.**` : `**${bracketLabel(chosen, false)}: your best ${chosen.bestCount} distinct routes count.**`);

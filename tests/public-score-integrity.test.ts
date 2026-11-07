@@ -50,7 +50,7 @@ describe("public runs rank like guild seasons on the same evidence", () => {
     expect(rateRun(manual.site, rules)).toEqual({ score: null, reason: "Automatic final-boss completion required" });
     expect(guildPoints(manual.guild, rules)).toEqual({ Kev: null, Amy: null });
     // Level 16 at the end, but 14 when the run started: below the 15-18 band.
-    const levelled = bothShapes({ members: [kev, { name: "Amy", level: 16, minLevel: 14 }] });
+    const levelled = bothShapes({ members: [kev, { name: "Amy", level: 16, minLevel: 10 }] });
     expect(rateRun(levelled.site, rules).reason).toBe("Below level range");
     expect(guildPoints(levelled.guild, rules)).toEqual({ Kev: null, Amy: null });
     // A Scarlet wing needs its last boss killed inside the run.
@@ -65,11 +65,11 @@ describe("public runs rank like guild seasons on the same evidence", () => {
     expect(rateRun(bothShapes({ instanceId: 2437, members: [kev] }).site, rules).reason).toBe("Route not rated yet");
   });
 
-  it("counts a run only for players present 80% of it, in both", () => {
-    const { guild, site } = bothShapes({ members: [kev, { ...amy, presentSec: 500 }] });
+  it("counts a run only for players present half of it, in both", () => {
+    const { guild, site } = bothShapes({ members: [kev, { ...amy, presentSec: 300 }] });
     expect(calculateDungeonRating([guild], rules).map((row) => row.name)).toEqual(["Kev"]);
     expect(characterScores([site], rules).map((row) => row.player.character)).toEqual(["Kev"]);
-    expect(rateRun(site, rules, site.players[1]).reason).toBe("Presence under 80%");
+    expect(rateRun(site, rules, site.players[1]).reason).toBe("Presence under 50%");
     // The run itself still ranks (top runs), for the players who earned it.
     expect(rateRun(site, rules).score?.points).toBe(240);
   });

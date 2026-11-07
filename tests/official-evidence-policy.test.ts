@@ -29,9 +29,9 @@ describe("versioned official current-evidence policy",()=>{
     expect(rateRun({...current,evidence:{...current.evidence!,completedBy:"manual"}},official).score).toBeNull();
     const absentLevels={...current,players:current.players.map(p=>({...p,minLevel:null}))};
     expect(rateRun(absentLevels,official).reason).toBe("Party levels unknown");
-    for(const fraction of [.79,.8,.81]) {
+    for(const fraction of [.49,.5,.51]) {
       const run={...current,players:current.players.map(p=>({...p,presentSec:1200*fraction}))};
-      expect(characterScores([run],official).length).toBe(fraction<.8?0:1);
+      expect(characterScores([run],official).length).toBe(fraction<.5?0:1);
     }
     const old={format:1 as const,frozenAt:new Date().toISOString(),rules:beta,additions:[]};
     expect(readRuleSnapshot(old)).toBe(old);expect(readRuleSnapshot(old)?.rules.evidencePolicy).toBeUndefined();

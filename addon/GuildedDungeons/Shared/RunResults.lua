@@ -131,7 +131,7 @@ function results.estimate(run)
     end
     model.target, model.minLevel, model.maxLevel = route[1], route[2], route[3]
     if count == 0 then model.reason = L("Party levels missing")
-    elseif low < route[2] or high > route[3] + 3 then model.reason = L("Party levels outside the public range")
+    elseif low < route[2] - 3 or high > route[3] + 6 then model.reason = L("Party levels outside the public range")
     else
       model.penalty = math.max(0, high - route[3]) * 10
       model.base = math.max(50, math.min(400, math.floor(200 * route[1] / run.durationSec + 0.5)))

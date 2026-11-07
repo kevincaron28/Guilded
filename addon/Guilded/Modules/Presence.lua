@@ -45,7 +45,7 @@ local function state()
     local keys = {}; for k in pairs(root.scopes) do keys[#keys + 1] = k end
     table.sort(keys, function(a, b) return root.scopes[a].seen < root.scopes[b].seen end)
     for i = 1, #keys - 9 do root.scopes[keys[i]] = nil end
-    root.scopes[key] = { share = false, observe = false, keys = false, mode = "F", role = "ANY", hours = {} }
+    root.scopes[key] = { share = false, observe = false, mode = "F", role = "ANY", hours = {} }
   end
   local s = root.scopes[key]; s.seen = stamp(); s.hours = s.hours or {}
   for hour in pairs(s.hours) do
@@ -70,23 +70,8 @@ function presence.myStatus()
   if inside then return "B" end
   return "F"
 end
-local function integer(value, maximum)
-  return type(value) == "number" and value >= 1 and value <= maximum and value == math.floor(value)
-end
--- Retail's owned key, not the active dungeon's key or an alt's inventory.
--- API absence, secret values and nil all remain unknown. Never called on Classic/Forever.
-function presence.myKey()
-  local s, edition = state()
-  if edition ~= "retail" or not s or not s.keys or not s.share or combatState() ~= false or not C_MythicPlus then return nil end
-  local map = call(C_MythicPlus.GetOwnedKeystoneChallengeMapID)
-  local level = call(C_MythicPlus.GetOwnedKeystoneLevel)
-  if integer(map, 1000000) and integer(level, 1000) then return map, level end
-  return nil
-end
 local function send(edition, status, role)
   local text = "1|" .. edition .. "|" .. status .. "|" .. role
-  local map, level
-  if status ~= "G" then map, level = presence.myKey(); if map then text = text .. "|" .. map .. "|" .. level end end
   local queuedScope, queuedAt = context(), clock()
   -- Throttled packets must not outlive consent, guild context or current status.
   local function stillCurrent()
@@ -96,10 +81,6 @@ local function send(edition, status, role)
     if not s then return false end
     if status == "G" then return not s.share end
     if not s.share or s.role ~= role or presence.myStatus() ~= status then return false end
-    if map then
-      local currentMap, currentLevel = presence.myKey()
-      if currentMap ~= map or currentLevel ~= level then return false end
-    end
     return true
   end
   return ns.comm and ns.comm.send(PREFIX, text, "GUILD", nil, stillCurrent)
@@ -110,12 +91,6 @@ function presence.receive(text, sender, channel)
   if not s or not (s.share or s.observe) or type(text) ~= "string" or #text > 100 then return false end
   if type(sender) ~= "string" or #sender > 80 or sender:find("[|%c]") or sender == "" then return false end
   local version, remoteEdition, status, role = text:match("^(%d+)|([%l%-]+)|([FBAUG])|([%u]+)$")
-  local map, level
-  if not version then
-    version, remoteEdition, status, role, map, level = text:match("^(%d+)|([%l%-]+)|([FBAU])|([%u]+)|(%d+)|(%d+)$")
-    map, level = tonumber(map), tonumber(level)
-    if edition ~= "retail" or not integer(map, 1000000) or not integer(level, 1000) then return false end
-  end
   if version ~= "1" or remoteEdition ~= edition or not ({ ANY = true, TANK = true, HEALER = true, DPS = true })[role] then return false end
   local key = ns.normalizeName(sender)
   if not key or key == ns.playerName() then return false end
@@ -124,7 +99,7 @@ function presence.receive(text, sender, channel)
   local count = 0; for _ in pairs(presence.peers) do count = count + 1 end
   if count >= 1000 and not presence.peers[key] then return false end
   -- Identity comes only from the actual sender supplied by the game.
-  presence.peers[key] = { name = sender, status = status, role = role, at = clock(), keyMap = map, keyLevel = level }
+  presence.peers[key] = { name = sender, status = status, role = role, at = clock() }
   return true
 end
 function presence.rows(filter)
@@ -136,8 +111,7 @@ function presence.rows(filter)
   for _, row in pairs(presence.peers) do
     if (query == "" or row.name:lower():find(query, 1, true))
       and (not filter.role or filter.role == "ANY" or row.role == filter.role)
-      and (not filter.free or row.status == "F")
-      and (not filter.minKey or (row.keyLevel and row.keyLevel >= filter.minKey)) then rows[#rows + 1] = row end
+      and (not filter.free or row.status == "F") then rows[#rows + 1] = row end
   end
   table.sort(rows, function(a, b)
     if a.status == b.status then return a.name < b.name end
@@ -151,7 +125,7 @@ function presence.tick()
   if not active() then presence.peers = {}; return end
   local now, combat = clock(), combatState()
   if s.share and combat == false then
-    local current = presence.myStatus() .. "|" .. s.role .. "|" .. tostring(s.keys)
+    local current = presence.myStatus() .. "|" .. s.role
     if now - lastSent >= 30 or (current ~= lastState and now - lastSent >= 5) then
       if send(edition, presence.myStatus(), s.role) then lastSent = now; lastState = current; wasSharing = true end
     end
@@ -174,8 +148,7 @@ function presence.tick()
 end
 function presence.configure(action, value)
   local s = state(); if not s then return false end
-  if (action == "share" or action == "observe" or action == "keys") and (value == "on" or value == "off") then
-    if action == "keys" and ns.util.gameEdition() ~= "retail" then return false end
+  if (action == "share" or action == "observe") and (value == "on" or value == "off") then
     s[action] = value == "on"
     if not s.share and not s.observe then presence.peers = {} end
   elseif action == "status" and ({ free = "F", busy = "B", away = "A" })[value] then s.mode = ({ free = "F", busy = "B", away = "A" })[value]
@@ -190,16 +163,10 @@ function presence.describe(filter)
   local lines = { L("Availability sharing") .. ": " .. L(s.share and "On" or "Off") .. " | " .. L("Local observations") .. ": " .. L(s.observe and "On" or "Off"),
     L("My status") .. ": " .. L(STATUS[presence.myStatus()]) .. " / " .. s.role,
     L("Self-reported characters, not unique players. Entries expire after 90 seconds.") }
-  if ns.util.gameEdition() == "retail" then lines[#lines + 1] = L("Owned-key sharing") .. ": " .. L(s.keys and "On" or "Off") end
   local rows = presence.rows(filter)
   for i = 1, math.min(#rows, 25) do
     local row = rows[i]
-    local keyText = ""
-    if row.keyMap then
-      local name = C_ChallengeMode and call(C_ChallengeMode.GetMapUIInfo, row.keyMap)
-      keyText = " / " .. (type(name) == "string" and name or ("#" .. row.keyMap)) .. " +" .. row.keyLevel
-    end
-    lines[#lines + 1] = row.name .. " - " .. L(STATUS[row.status]) .. " / " .. L(row.role) .. keyText
+    lines[#lines + 1] = row.name .. " - " .. L(STATUS[row.status]) .. " / " .. L(row.role)
   end
   if #rows == 0 then lines[#lines + 1] = L("No fresh opt-in reports. This does not mean nobody is online.") end
   if #rows > 25 then lines[#lines + 1] = L("Showing the first 25 reports.") end
@@ -249,7 +216,7 @@ ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers.free = function(args)
   if args[1] == "activity" then ns.showCopyText(presence.activityText(), L("Local activity observations")); return end
   if args[1] == "characters" then ns.showCopyText(presence.charactersText(), L("My recorded characters")); return end
-  if args[1] and not presence.configure(args[1], args[2]) then ns.message("/guilded free [share on|off | observe on|off | keys on|off (Retail) | status free|busy|away | role any|tank|healer|dps | activity | clear]"); return end
+  if args[1] and not presence.configure(args[1], args[2]) then ns.message("/guilded free [share on|off | observe on|off | status free|busy|away | role any|tank|healer|dps | activity | clear]"); return end
   ns.message(presence.describe())
 end
 local frame = CreateFrame("Frame")

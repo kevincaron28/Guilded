@@ -43,36 +43,12 @@ data.VANTUS = set({
 data.WELL_FED_ICONS = set({ 136000 })
 data.EATING_ICONS = set({ 132805, 133950 })
 
--- Raid buffs a class brings. `class` is who provides it; a player is only blamed for
--- lacking it when someone of that class is in the group. `spells` are the aura ids
--- that count (the class spell and its look-alikes).
-data.RAID_BUFFS = {
-  { key = "ap", label = "Attack power", class = "WARRIOR", spells = { 6673 } },
-  { key = "sta", label = "Stamina", class = "PRIEST", spells = { 21562 } },
-  { key = "int", label = "Intellect", class = "MAGE", spells = { 1459 } },
-  { key = "vers", label = "Versatility", class = "DRUID", spells = { 1126 } },
-  { key = "mast", label = "Mastery", class = "SHAMAN", spells = { 462854 } },
-  { key = "move", label = "Movement", class = "EVOKER",
-    spells = { 381748, 381758, 381732, 381741, 381746, 381750, 381749, 381751, 381752, 381753, 381754, 381756, 381757 } },
-}
-
--- spell id -> raid buff key
-data.RAID_BUFF_BY_SPELL = {}
-for _, buff in ipairs(data.RAID_BUFFS) do
-  for _, id in ipairs(buff.spells) do data.RAID_BUFF_BY_SPELL[id] = buff.key end
-end
-
-data.RAID_BUFF_BY_KEY = {}
-for _, buff in ipairs(data.RAID_BUFFS) do data.RAID_BUFF_BY_KEY[buff.key] = buff end
-
--- This catalog describes Retail. Classic spell ranks, party-only buffs and
--- Forever's custom rules cannot be inferred from Retail class membership.
+-- Raid buffs come from Forever's catalog in Modules/RaidBuffCatalog.lua.
 -- nil means no verified coverage catalog, not a fully buffed group.
 function data.activeRaidBuffs()
   local edition = ns.util and ns.util.gameEdition()
   local catalog = ns.raidBuffCatalogs and ns.raidBuffCatalogs[edition]
   if catalog then return catalog.buffs end
-  if edition == "retail" then return data.RAID_BUFFS end
   return nil
 end
 
@@ -87,11 +63,11 @@ function data.raidBuffKey(id, name)
   for _, buff in ipairs(buffs) do
     for _, spell in ipairs(buff.spells) do
       buffCache.ids[spell] = buff.key
-      -- A ranked TBC spell may have a new ID but the same localized base name.
+      -- A ranked spell may have a new ID but the same localized base name.
       -- Only compare names actually supplied by this client, not English guesses.
       -- World-effect variants can mean "stored in Chronoboon", not active.
       -- Only the explicitly listed active aura IDs establish world-buff evidence.
-      if edition ~= "retail" and buff.scope ~= "world" then
+      if buff.scope ~= "world" then
         local fn = C_Spell and C_Spell.GetSpellName or GetSpellInfo
         if type(fn) == "function" then
           local ok, known = pcall(fn, spell)

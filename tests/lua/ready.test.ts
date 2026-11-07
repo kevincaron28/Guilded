@@ -209,8 +209,8 @@ function withScanner(): LuaSession {
       commandHandlers = {}, commandHelp = {}
     }
   `);
-  for (const file of ["Modules/ConsumableData.lua", "Modules/Consumables.lua", "Modules/Ready.lua"]) session.load(file);
-  session.run(`NS.util.gameEdition = function() return "retail" end`);
+  for (const file of ["Modules/ConsumableData.lua", "Modules/RaidBuffCatalog.lua", "Modules/Consumables.lua", "Modules/Ready.lua"]) session.load(file);
+  session.run(`NS.util.gameEdition = function() return "forever" end`);
   return session;
 }
 const row = (s: LuaSession, name: string) => s.run(`for _, r in ipairs(NS.ready.collect().rows) do if r.name == "${name}" then return r.status .. "[" .. table.concat(r.reasons, ";") .. "]" end end`);
@@ -226,12 +226,11 @@ describe("Ready.lua: reading buffs by id, in any language", () => {
       expect(row(s, "Bob")).not.toContain("no raid buff");
     }
   });
-  it("everyone with a flask, food and the buff of every class present is ready", () => {
+  it("everyone with a flask and food is ready", () => {
     const s = withScanner();
     expect(row(s, "Amy")).toBe("READY[]");
     expect(row(s, "Bob")).toBe("READY[]");
     expect(cell(s, "Amy", "flask")).toBe("ok");
-    expect(cell(s, "Amy", "buffs")).toBe("ok");
   });
 
   it("a flask that is running out is flagged with the minutes left", () => {
@@ -250,18 +249,10 @@ describe("Ready.lua: reading buffs by id, in any language", () => {
     expect(row(s, "Bob")).toBe("PARTIAL[no flask]");
   });
 
-  it("a raid buff is only asked of players when someone can give it", () => {
+  it("a missing raid buff never makes a player not ready (coverage is a separate officer view)", () => {
     const s = withScanner();
-    // Bob lacks Stamina and a priest is here: blamed.
     s.run(`table.remove(AURAS.Bob, 1)`);
-    expect(row(s, "Bob")).toBe("PARTIAL[no raid buff: Stamina]");
-    expect(cell(s, "Bob", "buffs")).toBe("bad");
-    // With the priest gone nobody can give Stamina, so nobody is blamed.
-    s.run(`CLASSES.Kev = "ROGUE"`);
     expect(row(s, "Bob")).toBe("READY[]");
-    s.run(`SETTINGS.readyChecks = { buffs = false }; CLASSES.Kev = "PRIEST"`);
-    expect(row(s, "Bob")).toBe("READY[]");
-    expect(cell(s, "Bob", "buffs")).toBe("none");
   });
 });
 

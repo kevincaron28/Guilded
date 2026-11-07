@@ -34,7 +34,7 @@ local PROF_ANNOUNCED = { [150] = true, [300] = true }
 -- Skill line ids do not depend on the game language; the key is what the bot reads in the upload.
 local PROF_KEYS = { [171] = "alchemy", [164] = "blacksmithing", [333] = "enchanting", [202] = "engineering", [182] = "herbalism",
   [165] = "leatherworking", [186] = "mining", [393] = "skinning", [197] = "tailoring", [185] = "cooking", [129] = "firstaid", [356] = "fishing" }
-local EDITION_CAP = { forever = 60, ["classic-era"] = 60, ["classic-tbc"] = 70, ["classic-mists"] = 90, retail = 90 }
+local FOREVER_CAP = 60
 
 local function L(text) return ns.L and ns.L(text) or text end
 local function active() return not ns.moduleActive or ns.moduleActive("milestones") end
@@ -85,7 +85,7 @@ end
 local function maxLevel()
   local cap = safe(GetMaxPlayerLevel)
   if type(cap) == "number" and cap >= 10 then return cap end
-  return EDITION_CAP[ns.util and ns.util.gameEdition and ns.util.gameEdition() or "forever"] or 60
+  return FOREVER_CAP
 end
 
 -- ----- announcing ------------------------------------------------------

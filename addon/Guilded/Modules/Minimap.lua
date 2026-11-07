@@ -1099,16 +1099,12 @@ local function buildAvailabilityPage(page)
   for i, role in ipairs({ "any", "tank", "healer", "dps" }) do
     at(newButton(page, role:upper(), 80, action("role " .. role)), page, 88 + (i - 1) * 88, -68)
   end
-  local note = at(newLabel(page, "Instances automatically mark you busy. Reports pause in combat. Location is never shared; Retail key sharing is optional.", "GameFontHighlightSmall"), page, 0, -104)
+  local note = at(newLabel(page, "Instances automatically mark you busy. Reports pause in combat. Location is never shared.", "GameFontHighlightSmall"), page, 0, -104)
   note:SetWidth(PAGE_WIDTH)
   at(newButton(page, "Observe locally", 130, action("observe on")), page, 0, -146)
   at(newButton(page, "Stop observing", 130, action("observe off")), page, 138, -146)
   at(newButton(page, "Clear observations", 150, action("clear")), page, 276, -146)
   at(newButton(page, "Copy activity", 130, action("activity")), page, 0, -180)
-  if ns.util and ns.util.gameEdition() == "retail" then
-    at(newButton(page, "Share my key", 130, action("keys on")), page, 138, -180)
-    at(newButton(page, "Hide my key", 130, action("keys off")), page, 276, -180)
-  end
   local heading = at(newLabel(page, "Local activity observations", "GameFontNormal"), page, 0, -218)
   tip(heading, "Only opt-in reports observed on this character. UTC hours, last 28 days. Grey means unknown; zero is a real observed sample.")
   ui.presenceCells = {}
@@ -1163,12 +1159,6 @@ local function buildAvailabilityPage(page)
   at(newButton(page, "Blizzard group finder", 230, function()
     if ns.clientTools then ns.clientTools.openFinder() end
   end), page, 220, -466)
-  if ns.util and ns.util.gameEdition() == "retail" then
-    at(newLabel(page, "Minimum shared key (blank = any)", "GameFontNormalSmall"), page, 0, -506)
-    local minimum = at(newEdit(page, 60), page, 340, -500)
-    minimum:SetNumeric(true); minimum:SetMaxLetters(4)
-    minimum:SetScript("OnTextChanged", function(self) filter.minKey = tonumber(self:GetText()); update() end)
-  end
   ui.presenceText = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -540)
   ui.presenceText:SetWidth(PAGE_WIDTH)
   ui.refreshPresence = function()

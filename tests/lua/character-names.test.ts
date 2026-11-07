@@ -48,7 +48,7 @@ describe("Forever characters are keyed by their full name (8.5)", () => {
     s.run('GuildedDB.displayNames = { Halidor = "Halidor Galemorne" }');
     expect(s.run('return NS.displayName("Halidor")')).toBe("Halidor");
   });
-  it.each([[16001, "forever"], [11509, "classic-era"], [20506, "classic-tbc"], [50504, "classic-mists"], [120105, "retail"]] as const)("captures client provenance for interface %i", (build, edition) => {
+  it.each([[16001, "forever"], [11509, "unknown"], [120105, "unknown"]] as const)("captures client provenance for interface %i", (build, edition) => {
     const s = client(build);
     expect(s.run('return GuildedDB.character.gameEdition')).toBe(edition);
     expect(s.run('return GuildedDB.character.interface')).toBe(String(build));

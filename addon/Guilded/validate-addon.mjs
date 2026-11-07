@@ -7,13 +7,9 @@ import { validateCombatLog } from "../../scripts/validate-combat-log.mjs";
 const root = new URL(".", import.meta.url);
 const rootPath = fileURLToPath(root);
 const toc = readFileSync(new URL("Guilded.toc", root), "utf8");
-// Current clients as of 3 Nov 2026. Forever's live interface is still the beta
-// number 16001 until launch-day GetBuildInfo(); the others are Era, TBC, Mists, Retail.
-const interfaceLine = /^## Interface:\s*(.+)$/m.exec(toc)?.[1] ?? "";
-const listed = interfaceLine.split(",").map((value) => value.trim());
-for (const api of ["16001", "11509", "20506", "50504", "120105"]) {
-  if (!listed.includes(api)) throw new Error(`TOC interface list is missing ${api}`);
-}
+// Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md); its client is 16001.
+const interfaceLine = (/^## Interface:\s*(.+)$/m.exec(toc)?.[1] ?? "").trim();
+if (interfaceLine !== "16001") throw new Error(`TOC must list only WoW Forever's interface 16001, not "${interfaceLine}"`);
 if (!toc.includes("## SavedVariables:")) {
   throw new Error("TOC is missing SavedVariables metadata");
 }
@@ -51,7 +47,7 @@ if (!utilSource.includes("SendAddonMessage")) throw new Error("Util.lua must sen
 // available to the Blizzard UI" popup on load.
 for (const file of ["Core.lua", "Modules/LootRoll.lua"]) {
   const source = readFileSync(new URL(file, root), "utf8");
-  validateCombatLog(source.replaceAll("\r\n", "\n"), file === "Modules/Dungeon.lua");
+  validateCombatLog(source.replaceAll("\r\n", "\n"));
 }
 if (!core.includes("GuildedDB")) {
   throw new Error("Core.lua does not reference its SavedVariables database");
@@ -72,7 +68,7 @@ for (const file of addonFiles) {
   const source = readFileSync(new URL(file, root), "utf8");
   // Reject event-name literals too: registration through compat.registerEvent
   // or a table-driven loop is just as restricted as a direct RegisterEvent call.
-  validateCombatLog(source.replaceAll("\r\n", "\n"), file === "Modules/Dungeon.lua");
+  validateCombatLog(source.replaceAll("\r\n", "\n"));
 }
 for (const file of addonFiles) {
   if (file === "Util.lua") continue;

@@ -189,8 +189,6 @@ local function newRun(instance)
     name = instance.name,
     difficultyId = instance.difficultyId,
     difficultyName = instance.difficultyName,
-    challengeMode = compat.challengeActive(),
-    activeChallenge = compat.challengeInfo(),
     detectedAt = stamp,
     encounters = {},
     players = {},
@@ -353,7 +351,7 @@ local function finish(state, reason)
   if state == "COMPLETED" then run.completedBy = reason else run.endReason = reason end
   -- Kills were recorded but none was recognised as the final boss: leave a trace (game ids and
   -- boss names only) so an unknown Forever dungeon id or name can be added to Compat.lua.
-  if state == "ABANDONED" and ns.logDiagnostic and not run.challengeMode then
+  if state == "ABANDONED" and ns.logDiagnostic then
     local last
     for _, encounter in ipairs(run.encounters or {}) do if encounter.success and not encounter.kind then last = encounter end end
     if last then
@@ -449,18 +447,11 @@ serialize = function(run)
     "v=" .. PROTOCOL_VERSION, "av=" .. clean(run.addonVersion), "st=" .. run.state,
     "gb=" .. clean(run.gameBuild or ""), "tr=" .. clean(run.startTrigger or ""),
     "api=" .. tostring(run.interface or ""), "ed=" .. clean(run.gameEdition or ""),
-    "cm=" .. (run.challengeMode and "1" or "0"),
     "i=" .. tostring(run.instanceId or 0), "n=" .. clean(run.name), "d=" .. tostring(run.difficultyId or 0),
     "s=" .. tostring(run.startedAt or 0), "e=" .. tostring(run.endedAt or 0),
     "cb=" .. clean(run.completedBy or run.endReason or ""), "r=" .. clean(run.recorder),
     "enc=" .. table.concat(encounters, ","), "p=" .. table.concat(players, ",")
   }, ";")
-  if run.challenge then
-    local c = run.challenge
-    summary = summary .. ";ch=" .. table.concat({ c.mapId, c.level, c.durationMs, c.timeLimitSec,
-      c.onTime and "1" or "0", c.practiceRun and "1" or "0", c.eligibleForScore and "1" or "0",
-      table.concat(c.affixIds or {}, ",") }, ":")
-  end
   -- Optional fields keep older peers compatible and respect the 20-chunk limit.
   local specs, timeline = {}, {}
   for name, player in pairs(run.players) do
@@ -514,25 +505,11 @@ local function deserialize(id, text)
     id = id, protocolVersion = PROTOCOL_VERSION, addonVersion = fields.av, state = fields.st,
     gameBuild = fields.gb ~= "" and fields.gb or nil, startTrigger = fields.tr ~= "" and fields.tr or nil,
     interface = tonumber(fields.api), gameEdition = fields.ed ~= "" and fields.ed or nil,
-    challengeMode = fields.cm == "1",
     instanceId = tonumber(fields.i), name = fields.n, difficultyId = tonumber(fields.d),
     startedAt = tonumber(fields.s) ~= 0 and tonumber(fields.s) or nil,
     endedAt = tonumber(fields.e) ~= 0 and tonumber(fields.e) or nil,
     recorder = fields.r, encounters = {}, players = {}, reporters = {}
   }
-  if fields.ch and run.gameEdition == "retail" then
-    local map, level, duration, limit, onTime, practice, eligible, affixes = string.match(fields.ch,
-      "^(%d+):(%d+):(%d+):(%d+):([01]):([01]):([01]):([%d,]*)$")
-    if map then
-      run.challenge = { mapId = tonumber(map), level = tonumber(level), durationMs = tonumber(duration),
-        timeLimitSec = tonumber(limit), onTime = onTime == "1", practiceRun = practice == "1",
-        eligibleForScore = eligible == "1", affixIds = {} }
-      for value in string.gmatch(affixes, "%d+") do
-        if #run.challenge.affixIds >= 10 then run.challenge = nil; break end
-        table.insert(run.challenge.affixIds, tonumber(value))
-      end
-    end
-  end
   if fields.st == "COMPLETED" then run.completedBy = fields.cb else run.endReason = fields.cb end
   if run.startedAt and run.endedAt then run.durationSec = run.endedAt - run.startedAt end
   for encounterId in string.gmatch(fields.enc or "", "[^,]+") do
@@ -895,28 +872,6 @@ local function onEvent(_, event, ...)
     if run and run.state == "STARTING" and run.inside then activate() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     flush()
-  elseif event == "CHALLENGE_MODE_START" then
-    local instance = compat.instance()
-    if not instance or instance.type ~= "party" then return end
-    -- Inserting a new key starts a fresh attempt in the same instance.
-    if d.current and d.current.state == "ACTIVE" then finish("ABANDONED", "challenge restarted") end
-    d.current = nil
-    d.completedInstanceId = nil
-    evaluate()
-    if d.current then
-      d.current.challengeMode = true
-      d.current.activeChallenge = compat.challengeInfo()
-      activate(nil, "challenge start")
-    end
-  elseif event == "CHALLENGE_MODE_RESET" then
-    if d.current and d.current.challengeMode then finish("ABANDONED", "challenge reset") end
-  elseif event == "CHALLENGE_MODE_COMPLETED" then
-    local run, instance = d.current, compat.instance()
-    if run and run.challengeMode and run.state == "ACTIVE" and instance
-      and instance.type == "party" and instance.id == run.instanceId then
-      run.challenge = compat.challengeCompletion(run.activeChallenge)
-      finish("COMPLETED", "challenge objectives")
-    end
   elseif event == "ENCOUNTER_START" then
     local encounterId, name = ...
     local run, instance = d.current, compat.instance()
@@ -937,7 +892,7 @@ local function onEvent(_, event, ...)
     if run.state == "STARTING" then activate(nil, "encounter end") end
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), (not ns.isSecret(name)) and name or nil, success == 1)
-    if success == 1 and not run.challengeMode and not compat.challengeActive() and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
+    if success == 1 and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
       or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId)) then
       finish("COMPLETED", "final boss")
     end
@@ -951,23 +906,8 @@ local function onEvent(_, event, ...)
     if not instance or instance.type ~= "party" or instance.id ~= run.instanceId then return end
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), name, true)
-    if not run.challengeMode and not compat.challengeActive() and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
+    if ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
       or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId)) then
-      finish("COMPLETED", "final boss")
-    end
-  elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-    -- Never register or read combat logs on Retail or Forever (restricted APIs).
-    local edition = ns.util.gameEdition()
-    if edition ~= "classic-era" and edition ~= "classic-tbc" and edition ~= "classic-mists" then return end
-    local run, instance = d.current, compat.instance()
-    if not run or run.state ~= "ACTIVE" or not instance or instance.type ~= "party"
-      or instance.id ~= run.instanceId or not CombatLogGetCurrentEventInfo then return end
-    local _, subevent, _, _, _, _, _, guid, name = CombatLogGetCurrentEventInfo()
-    if subevent ~= "UNIT_DIED" or type(guid) ~= "string" then return end
-    local npcId = tonumber(string.match(guid, "^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)%-"))
-    if not npcId or not ns.dungeonRoutes.knownNpc(run.instanceId, run.difficultyId, npcId) then return end
-    recordEncounter(run, npcId, name, true, "npc")
-    if not run.challengeMode and ns.dungeonRoutes.sourceFinal(run.instanceId, run.difficultyId, nil, npcId) then
       finish("COMPLETED", "final boss")
     end
   elseif event == "PLAYER_DEAD" then
@@ -1060,7 +1000,7 @@ function dungeon.recoverRuns()
   if not d then return 0 end
   local recovered = 0
   for _, run in pairs(d.runs) do
-    if run.state == "ABANDONED" and not run.challengeMode and run.startedAt and run.endedAt
+    if run.state == "ABANDONED" and run.startedAt and run.endedAt
       and run.gameEdition == ns.util.gameEdition() then
       local final
       for _, encounter in ipairs(run.encounters or {}) do
@@ -1210,17 +1150,8 @@ for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_
   "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ENCOUNTER_END", "PLAYER_DEAD", "CHAT_MSG_ADDON" }) do
   compat.registerEvent(frame, event)
 end
-local clientEdition = ns.util.gameEdition()
-if clientEdition == "classic-era" or clientEdition == "classic-tbc" or clientEdition == "classic-mists" then
-  compat.registerEvent(frame, "COMBAT_LOG_EVENT_UNFILTERED", true)
-end
--- Do not probe restricted combat-log events on Retail/Forever: even pcall(RegisterEvent) can
--- raise Blizzard's blocked-action popup during addon loading.
 compat.registerEvent(frame, "BOSS_KILL", true)
 compat.registerEvent(frame, "ENCOUNTER_START", true)
-compat.registerEvent(frame, "CHALLENGE_MODE_START", true)
-compat.registerEvent(frame, "CHALLENGE_MODE_RESET", true)
-compat.registerEvent(frame, "CHALLENGE_MODE_COMPLETED", true)
 frame:SetScript("OnEvent", function(...)
   if ns.moduleActive and not ns.moduleActive("dungeon") then return end -- /guilded modules
   local ok, err = pcall(onEvent, ...)

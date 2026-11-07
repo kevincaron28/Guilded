@@ -8,11 +8,9 @@ import { check as copiesMatch, tocFiles } from "../../scripts/build-dungeons-add
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const toc = readFileSync(join(root, "GuildedDungeons.toc"), "utf8");
-const interfaceLine = /^## Interface:\s*(.+)$/m.exec(toc)?.[1] ?? "";
-const listed = interfaceLine.split(",").map((value) => value.trim());
-for (const api of ["16001", "11509", "20506", "50504", "120105"]) {
-  if (!listed.includes(api)) throw new Error(`GuildedDungeons.toc interface list is missing ${api}`);
-}
+// WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md); its client is 16001.
+const interfaceLine = (/^## Interface:\s*(.+)$/m.exec(toc)?.[1] ?? "").trim();
+if (interfaceLine !== "16001") throw new Error(`GuildedDungeons.toc must list only WoW Forever's interface 16001, not "${interfaceLine}"`);
 if (!toc.includes("## SavedVariables: GuildedDungeonsDB")) throw new Error("GuildedDungeons.toc is missing SavedVariables metadata");
 if (/## (?:RequiredDeps|Dependencies):/i.test(toc)) throw new Error("GuildedDungeons must work without Guilded (no required dependency)");
 if (!/## OptionalDeps: Guilded/.test(toc)) throw new Error("GuildedDungeons must load after Guilded (OptionalDeps) so it can stay quiet");
@@ -33,7 +31,7 @@ let luaparse = null;
 try { luaparse = (await import("luaparse")).default; } catch { console.warn("luaparse not installed; skipping the GuildedDungeons syntax check."); }
 for (const file of files) {
   const source = readFileSync(join(root, file), "utf8");
-  validateCombatLog(source.replaceAll("\r\n", "\n"), file === "Shared/Dungeon.lua");
+  validateCombatLog(source.replaceAll("\r\n", "\n"));
   if (file !== "Shared/Util.lua" && /SendAddonMessage\(/.test(source)) throw new Error(`GuildedDungeons/${file} calls SendAddonMessage directly; use ns.comm.send`);
   // Its own data only: never write Guilded's SavedVariables.
   if (file === "Shim.lua" || file === "Main.lua") { if (/GuildedDB\b/.test(source)) throw new Error(`GuildedDungeons/${file} touches GuildedDB`); }

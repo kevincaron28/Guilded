@@ -22,11 +22,10 @@ describe("reviewed provisional edition catalogs", () => {
     expect(agrees(summary,{...summary,encounters:[{id:592,success:true,at:1800002400}]})).toBe(true);
     expect(agrees(summary,{...summary,encounters:[{id:3654,success:true,at:1800002400}]})).toBe(false);
   });
-  it("keeps static validation strict when a client guard is removed", () => {
+  it("rejects any combat-log event in addon code (WoW Forever restricts it)", () => {
     const source=readFileSync("addon/Guilded/Modules/Dungeon.lua","utf8").replaceAll("\r\n","\n");
-    expect(()=>validateCombatLog(source,true)).not.toThrow();
-    expect(()=>validateCombatLog(source.replace('clientEdition == "classic-era"','clientEdition == "retail"'),true)).toThrow();
-    expect(()=>validateCombatLog(source,false)).toThrow();
+    expect(()=>validateCombatLog(source)).not.toThrow();
+    expect(()=>validateCombatLog(`${source}\ncompat.registerEvent(frame, "COMBAT_LOG_EVENT_UNFILTERED", true)`)).toThrow();
   });
   it.each(["classic-era", "classic-tbc", "classic-mists", "retail"] as const)("resolves and rates every %s route with its own evidence", edition => {
     const rules = editionDungeonRules(edition);

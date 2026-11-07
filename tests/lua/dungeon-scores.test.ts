@@ -23,11 +23,9 @@ function setup() {
 }
 
 describe("guild-only dungeon scores", () => {
-  it("does not invent Classic dungeon cards for Retail without a season catalog", () => {
+  it("lists Forever's known dungeons without a season catalog", () => {
     const s = setup();
-    s.run('NS.util.gameEdition=function() return "retail" end; DB.dungeonBoard=nil');
-    expect(s.run('return #NS.dungeonScorePanel.model("Tester").cards')).toBe("0");
-    s.run('NS.util.gameEdition=function() return "forever" end');
+    s.run('NS.util.gameEdition=function() return "forever" end; DB.dungeonBoard=nil');
     expect(Number(s.run('return #NS.dungeonScorePanel.model("Tester").cards'))).toBeGreaterThan(0);
   });
   it("validates model 4 totals from only the best eight routes while retaining coverage", () => {

@@ -585,6 +585,8 @@ export const FR_TEXT: Record<string, string> = {
   "Nothing was deleted: {reason}": "Rien n’a été supprimé : {reason}",
   "Nickname sync permission": "Permission de synchro des pseudos",
   "My role is below {count} member(s)' top role, so I can't rename them. Server Settings > Roles: drag my role above the member ranks.": "Mon rôle est sous le rôle principal de {count} membre(s): je ne peux pas les renommer. Paramètres du serveur > Rôles: glissez mon rôle au-dessus des rangs des membres.",
+  "Community honor roles": "Rôles d’honneur de la communauté",
+  "I can't give the honor roles because my role is below them. Server Settings > Roles: drag the Guilded role above the honor roles. I retry every 15 minutes.": "Je ne peux pas attribuer les rôles d’honneur, car mon rôle est en dessous. Paramètres du serveur > Rôles : glissez le rôle Guilded au-dessus des rôles d’honneur. Je réessaie toutes les 15 minutes.",
   "Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.": "Accordez à mon rôle la permission « Gérer les pseudos », au-dessus des membres à renommer.",
   // 9.1 in-game guild board (src/commands/poll.ts)
   "📌 Guild news": "📌 Nouvelles de la guilde",

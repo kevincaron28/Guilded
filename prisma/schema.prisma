@@ -216,6 +216,7 @@ model Guild {
   rookieMemberships CommunityRookieMembership[]
   page              GuildPage?
   recruitmentListings RecruitmentListing[]
+  ladderSnapshots   LadderSnapshot[]
   @@unique([discordId, scopeKey])
 }
 
@@ -3321,4 +3322,19 @@ model GuildHelpCall {
 
   @@unique([memberId, ref])
   @@index([guildId, calledAt])
+}
+
+// Daily rank snapshot of one leaderboard (race, dungeon season, duels, a battleground bracket), one row per board per UTC day,
+// rewritten on every refresh that day. `ranks` maps a character or member id to its rank. The ladder cards compare today's ranks
+// with the latest earlier day to draw "since yesterday" arrows. Rows older than 14 days are pruned on write.
+model LadderSnapshot {
+  id        String   @id @default(cuid())
+  guildId   String
+  board     String
+  day       String
+  ranks     Json
+  updatedAt DateTime @updatedAt
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, board, day])
 }

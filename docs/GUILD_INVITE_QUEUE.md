@@ -94,3 +94,9 @@ The welcome panel has a **WoW chat ↔ Discord** button (`onboard:chat`) that ex
 ## Tagging online officers (7 November 2026)
 
 When someone asks for an invite (button or typed name), `src/services/invite-notify.ts` replies under the request once, tagging up to 3 linked members in the guild's top ranks (guild master plus ranks 1-2) whose character the latest roster upload shows online (last online within 10 minutes; never Discord presence). Nobody known online: it pings the officer role once. `notifiedAt` on the request makes it once per request; `/mod invites settings notify:false` turns it off (on by default). Mentions are limited to exactly the tagged users or role.
+
+## Anyone online can invite, and the bot notices the invite (7 November)
+
+Owner decision: everyone in the guild can invite in game. The "online" tag now picks up to three **guild members** (any rank) whose linked character the roster shows online in the last 10 minutes, most recently online first; the officer-role fallback and the `/mod invites settings notify` off switch are unchanged.
+
+The bot already marks a request done when the character shows up in a roster upload or the stored roster (companion or addon sync, plus an hourly back-check). Now, when that happens, it also edits the tag message ("online?") into a plain "joined the guild, welcome" note (an edit never pings, so the tags stop), edits the bot's own request post, and thanks a member under their own typed post. The check-mark button stays as the manual fallback. `InviteRequest.notifyMessageId` (migration `20270120000200_invite_notify_message`) remembers the tag message.

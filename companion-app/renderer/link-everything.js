@@ -51,7 +51,7 @@
 
   // The first-run wizard (companion/link-wizard.mjs): 3 steps, the step's own help, and checks.
   function renderWizard() {
-    const wizard = window.guildedLinkWizard.linkWizard({ config, state, hub, me: me?.ok ? me : null, problems, savedFile });
+    const wizard = window.guildedLinkWizard.linkWizard({ config, state, hub, me: me?.ok ? me : null, problems, savedFile, autoTried: autoDone().wow });
     const list = $('wizardSteps'); list.replaceChildren();
     for (const step of wizard.steps) { const item = document.createElement('li'); item.className = step.state; item.textContent = T(step.label); list.append(item); }
     const who = wizard.identity;
@@ -74,7 +74,13 @@
       if (join.kind === 'invite') watchJoin(); else stopJoinWatch();
     } else stopJoinWatch();
     $('wizardSetup').hidden = !wizard.setupHelp;
-    if (wizard.setupHelp) $('wizardSetupText').textContent = T(wizard.setupHelp.text);
+    if (wizard.setupHelp) {
+      $('wizardSetupText').textContent = T(wizard.setupHelp.text);
+      $('btnWizardSetup').hidden = !wizard.setupHelp.button;
+      if (wizard.setupHelp.button) $('btnWizardSetup').textContent = T(wizard.setupHelp.button);
+      $('btnWizardFolder').hidden = !wizard.setupHelp.chooseFolder;
+    }
+    runAutoStep(wizard);
     $('wizardCharacters').hidden = !wizard.charactersHelp;
     if (wizard.charactersHelp) { $('wizardCharactersText').textContent = T(wizard.charactersHelp.text); $('btnDetectNow').hidden = !wizard.charactersHelp.canDetect; }
     const checks = $('wizardDiagnostics'); checks.replaceChildren();
@@ -96,6 +102,34 @@
       $('btnLinkSuccessDone').onclick = () => { try { storage?.setItem(key, '1'); } catch { /* shows again next time */ } $('linkSuccess').hidden = true; $('linkWizard').hidden = false; };
     }
   }
+
+  // Automatic setup (owner, 7 November 2026): step 1 sets up WoW and the addon by itself, and the
+  // Discord sign-in opens by itself, each once per run of the companion and only while this page
+  // is on screen. After that the member gets the button (Try again, Sign in with Discord).
+  const AUTO_KEY = 'guilded.companion.autoSetup';
+  function autoDone() { try { return JSON.parse(sessionStorage.getItem(AUTO_KEY) || '{}'); } catch { return {}; } }
+  function markAuto(step) { try { sessionStorage.setItem(AUTO_KEY, JSON.stringify({ ...autoDone(), [step]: true })); } catch { /* runs again next time */ } }
+  let autoRunning = false;
+  async function runAutoStep(wizard) {
+    if (autoRunning) return;
+    const visible = !$('page-link').hidden && document.visibilityState === 'visible';
+    const step = window.guildedLinkWizard.autoStep(wizard, { ...autoDone(), visible, signInBusy: !$('linkSignInWaiting').hidden });
+    if (!step) return;
+    autoRunning = true;
+    try {
+      if (step === 'setup-wow') {
+        markAuto('wow');
+        const answer = await api.repair().catch(() => null);
+        const summary = answer?.summary;
+        if (summary) say(summary.needsYou || summary.failed ? T('Set up what it could by itself. One thing still needs you: see below.') : T('WoW and the Guilded addon are set up.'), !(summary.needsYou || summary.failed));
+        await load();
+      } else if (step === 'sign-in') {
+        markAuto('signIn');
+        $('btnLinkSignIn').click();
+      }
+    } finally { autoRunning = false; }
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') render(); });
 
   // Joined the guild's server in Discord? Look every 10 seconds while the page is open.
   function watchJoin() {

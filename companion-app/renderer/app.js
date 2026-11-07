@@ -20,7 +20,7 @@ document.addEventListener('keydown',event => { if (event.key === 'Escape' && doc
 desktopNavigation.addEventListener('change',closeNavigation);
 const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
-const names = {status:'Home',link:'Link everything',characters:'My characters',reserves:'Reserves',server:'Server',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'World of Warcraft',poe:'PoE2 mapping',settings:'Sync & setup',activity:'Activity',help:'Help & privacy',problems:'Problems'};
+const names = {status:'Sync',link:'Link everything',characters:'Guild',reserves:'Reserves',server:'Server',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'Tools',poe:'PoE2 mapping',settings:'Settings',activity:'Activity',help:'Help & privacy',problems:'Problems'};
 let lastSnapshot;
 let storePackage = false; // Microsoft Store build: its update banner opens the Store (F5)
 let savedConfig = {};
@@ -68,7 +68,7 @@ function pill(id, text, level) { $(id).textContent = text; $(id).className = `pi
 let versionInfo = null, versionTimer = null;
 const when = (iso) => iso ? new Date(iso).toLocaleString(languageUI.language, { dateStyle: 'medium', timeStyle: 'short' }) : '';
 function versionTexts(info) {
-  const auto = info.autoUpdate ? T("New versions download by themselves and install when you quit or restart the companion.") : T("Automatic updates are off: choose Check now from time to time, or turn them back on in Sync & setup.");
+  const auto = info.autoUpdate ? T("New versions download by themselves and install when you quit or restart the companion.") : T("Automatic updates are off: choose Check now from time to time, or turn them back on in Settings.");
   const checked = info.checkedAt ? T("Latest release: {0} · checked {1}", info.latest || '?', when(info.checkedAt)) : '';
   switch (info.status) {
     case 'up-to-date': return { title: T("Guilded Companion {0} is up to date", info.installed), line: checked, help: auto };
@@ -329,7 +329,6 @@ function showUsedPages(hub) {
   const used = window.guildedPagesInUse(hub, rememberedPages());
   try { localStorage.setItem('guilded.companion.usedPages', JSON.stringify(used)); } catch { /* shown again after the next load */ }
   for (const button of document.querySelectorAll('.optional-page')) button.hidden = !used[button.dataset.page] && !button.classList.contains('active');
-  $('navExtras').hidden = ![...$('navExtras').querySelectorAll('.nav')].some(button => !button.hidden && getComputedStyle(button).display !== 'none');
 }
 document.addEventListener('companion-hub-data', event => showUsedPages(event.detail)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
 // Find it: every drive and Battle.net's own record; always says what it found or which drives it searched.
@@ -559,7 +558,11 @@ document.addEventListener('companion-language', () => { void renderProfiles().ca
 bind('btnAddProfile', async () => { await changeConnection({ name: $('newProfileName').value }); $('newProfileName').value = ''; });
 
 // The companion opens on Link everything (status, characters, big actions); Skip for now sends the user to Home and is remembered on this PC.
-function linkSkipped() { try { return localStorage.getItem('guilded.companion.linkSkipped') === '1'; } catch { return false; } }
+// Skip on Link everything lasts for this run only (sessionStorage), so the wizard is back next start.
+function linkSkipped() { try { return sessionStorage.getItem('guilded.companion.linkSkipped') === '1'; } catch { return false; } }
+// Setup is done once the member is signed in and syncing has what it needs: a leaderboards-only
+// sign-in, a WoW folder, or WoW turned off.
+function setupDone(config) { return Boolean(config.companionCredential) && (config.personal === true || Boolean(config.watchFile) || config.wowEnabled === false); }
 async function init() {
   if (!api) { toast(T("The companion interface could not load. Please reload or reinstall."),true); return; }
   const all = await api.getAll(); savedConfig = all.config;
@@ -575,7 +578,8 @@ async function init() {
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
   showUsedPages(null);
-  showPage(new URLSearchParams(location.search).get('tab') || (!linkSkipped() ? 'link' : 'status'));
+  // Owner's answer 4: Link everything opens on every start until setup is done (Skip lasts this run).
+  showPage(new URLSearchParams(location.search).get('tab') || (!setupDone(all.config) && !linkSkipped() ? 'link' : 'status'));
   api.onState(renderState); api.onLog(addLog);
   setInterval(() => { if (lastSnapshot) renderState(lastSnapshot); },1000);
 }

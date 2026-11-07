@@ -62,3 +62,6 @@ details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summ
 @keyframes status-pulse { 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .status-card[data-tone="busy"] .status-dot { animation: none; } }
 @media (max-width: 720px) { .status-card { flex-wrap: wrap; } .status-card .status-actions { flex-direction: row; align-items: center; } }
+
+/* Menu (redesign PR 2): PoE2 sits under Tools when it is shown. */
+.nav.nav-sub { padding-left: 34px; font-size: .95em; }

@@ -46,7 +46,7 @@
   // The one status line on Home: connected or not, last refresh, and what to do next.
   function nextStep() {
     if (personal) return T("Signed in, but you're not in a Discord server that uses Guilded yet. Join your guild's Discord, then press Link to my guild.");
-    if (!data) return T('Next: connect your Discord account in Sync & setup.');
+    if (!data) return T('Next: connect your Discord account in Settings.');
     const todo = (data.server?.checks || []).filter(c => !c.ok && !c.optional).length;
     if (todo) return T('Next: {0} setup item(s) need an officer. Open Server.', todo);
     if (!data.characters.length) return T('Next: save in WoW and sync, so your characters appear here.');

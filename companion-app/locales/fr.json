@@ -1253,7 +1253,6 @@
   "Checking your version…": "Vérification de votre version…",
   "Check now": "Vérifier maintenant",
   "New versions download by themselves and install when you quit or restart the companion.": "Les nouvelles versions se téléchargent toutes seules et s'installent quand vous quittez ou redémarrez le compagnon.",
-  "Automatic updates are off: choose Check now from time to time, or turn them back on in Sync & setup.": "Les mises à jour automatiques sont désactivées : choisissez Vérifier maintenant de temps en temps, ou réactivez-les dans Synchronisation.",
   "Latest release: {0} · checked {1}": "Dernière version : {0} · vérifiée le {1}",
   "Guilded Companion {0} is up to date": "Guilded Companion {0} est à jour",
   "Version {0} is ready to install": "La version {0} est prête à installer",
@@ -1313,5 +1312,11 @@
   "Synced {0}.": "Synchronisé {0}.",
   "After you play, /reload or log out: the companion syncs by itself.": "Après avoir joué, faites /reload ou déconnectez-vous : le compagnon synchronise tout seul.",
   "Ready. Waiting for your first /reload in WoW.": "Prêt. En attente de votre premier /reload dans WoW.",
-  "Log in to WoW and type /reload (or log out): the companion syncs by itself.": "Connectez-vous à WoW et tapez /reload (ou déconnectez-vous) : le compagnon synchronise tout seul."
+  "Log in to WoW and type /reload (or log out): the companion syncs by itself.": "Connectez-vous à WoW et tapez /reload (ou déconnectez-vous) : le compagnon synchronise tout seul.",
+  "Sync": "Synchronisation",
+  "Guild": "Guilde",
+  "Tools": "Outils",
+  "Run setup again": "Refaire la configuration",
+  "Automatic updates are off: choose Check now from time to time, or turn them back on in Settings.": "Les mises à jour automatiques sont désactivées : choisissez Vérifier maintenant de temps en temps, ou réactivez-les dans Paramètres.",
+  "Next: connect your Discord account in Settings.": "Prochaine étape : connectez votre compte Discord dans Paramètres."
 }

@@ -1024,6 +1024,8 @@ model GuildSettings {
   craftChannelId           String?
   // Crafter offers (sell a craft) are off until an officer turns them on with /craft offer-setting.
   craftOffersEnabled       Boolean @default(false)
+  // Crafting orders in game (docs/plans/CRAFTING_ORDERS.md): craft requests on the addon's Orders page. On by default; /craft orders-setting.
+  craftOrdersInGame        Boolean @default(true)
   // Private (officers and raid leaders) channel where gear/readiness checks are posted.
   readinessChannelId       String?
   // 9.1 readiness upgrade (docs/plans/READINESS_UPGRADE.md): the daily list and the raid night check card; on by default, officers switch both off.
@@ -1484,6 +1486,13 @@ model CraftRequest {
   threadId          String?
   // The offer this request answers ("I'd like this"), when it came from one.
   offerId           String?
+  // Crafting orders in game (docs/plans/CRAFTING_ORDERS.md): the recipe (item id, or minus an enchant's
+  // spell id, the addon's key) when known, the character it was asked of, the character that claimed it
+  // in game, and where the claim came from ("discord" or "game").
+  itemKey           Int?
+  askedCharacter    String?
+  crafterCharacter  String?
+  claimSource       String?
   status            CraftRequestStatus @default(OPEN)
   claimedAt         DateTime?
   doneAt            DateTime?

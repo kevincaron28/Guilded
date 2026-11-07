@@ -16,6 +16,9 @@ import { PROFESSIONS } from "../wow-data.js";
 import { PROFESSION_FR } from "../services/profession-style.js";
 import { lastSeenText } from "../services/last-seen.js";
 import { guildService } from "./context.js";
+import { markGuildChanged } from "../services/standings-feed.js";
+import { resolveItemKey, type OrderChange } from "../services/craft-orders.js";
+import type { Client } from "discord.js";
 
 // The craft board: a forum channel where every craft request is its own post
 // with tags (profession and Open / Claimed / Done) and buttons inside the post
@@ -47,6 +50,8 @@ type RequestRow = {
   id: string; item: string; quantity: number; profession: string | null; note: string | null; materialsProvided: boolean;
   status: CraftRequestStatus; createdAt: Date;
   requester: { discordUserId: string; displayName: string }; crafter: { discordUserId: string; displayName: string } | null;
+  // The character that claimed it in game (craft-orders.ts), when it was claimed there.
+  crafterCharacter?: string | null;
 };
 
 export function threadTitle(request: Pick<RequestRow, "status" | "quantity" | "item">): string {
@@ -61,7 +66,7 @@ export function craftEmbed(request: RequestRow, crafters: string[], lang: Lang =
     .addFields(
       { name: T("Status"), value: statusLabel(lang, request.status), inline: true },
       { name: T("Asked by"), value: `<@${request.requester.discordUserId}>`, inline: true },
-      { name: T("Crafter"), value: request.crafter ? `<@${request.crafter.discordUserId}>` : T("nobody yet"), inline: true }
+      { name: T("Crafter"), value: request.crafter ? (request.crafterCharacter ? T("{mention} ({character}, in game)", { mention: `<@${request.crafter.discordUserId}>`, character: cleanCharacterName(request.crafterCharacter) }) : `<@${request.crafter.discordUserId}>`) : T("nobody yet"), inline: true }
     )
     .setFooter({ text: T("Request {id}", { id: request.id }) });
   if (request.profession) embed.addFields({ name: T("Profession"), value: professionLabel(lang, request.profession), inline: true });
@@ -181,6 +186,8 @@ export async function postCraftRequest(discordGuild: DiscordGuild | null, reques
   if (!discordGuild) return { posted: false };
   try {
     const request = await loadRequest(requestId);
+    // Crafting orders in game: every addon's Orders page hears about the new request.
+    markGuildChanged(request.guildId);
     const forum = await boardForum(discordGuild, request.guildId);
     if (!forum) return { posted: false };
     const lang = await boardLang(request.guildId);
@@ -205,6 +212,7 @@ export async function syncCraftPost(discordGuild: DiscordGuild | null, requestId
   if (!discordGuild) return;
   try {
     const request = await loadRequest(requestId);
+    markGuildChanged(request.guildId);
     if (!request.threadId) return;
     const forum = await boardForum(discordGuild, request.guildId);
     if (!forum) return;
@@ -308,11 +316,13 @@ export async function handleCraftModal(interaction: ModalSubmitInteraction): Pro
     const spellings = (name: string) => [name.toLowerCase(), professionLabel("fr", name).toLowerCase()];
     const profession = PROFESSIONS.find((name) => spellings(name).includes(typed.toLowerCase())) ?? PROFESSIONS.find((name) => typed && spellings(name).some((spelling) => spelling.startsWith(typed.toLowerCase())));
     const quantity = Number(interaction.fields.getTextInputValue("quantity") || "1");
-    const request = await craftService.request({
-      guildId: guild.id, requesterId: member.id, item: interaction.fields.getTextInputValue("item"), profession,
-      quantity: Number.isInteger(quantity) ? quantity : 1, note: interaction.fields.getTextInputValue("note") || undefined, materialsProvided: false
-    });
+    const item = interaction.fields.getTextInputValue("item");
     const asked = interaction.customId.split(":")[2];
+    const request = await craftService.request({
+      guildId: guild.id, requesterId: member.id, item, profession,
+      quantity: Number.isInteger(quantity) ? quantity : 1, note: interaction.fields.getTextInputValue("note") || undefined, materialsProvided: false,
+      itemKey: await resolveItemKey(prisma, guild.id, item).catch(() => null), askedCharacter: asked
+    });
     const posted = await postCraftRequest(interaction.guild, request.id, asked);
     const lang = await boardLang(guild.id);
     await interaction.editReply({ content: posted.posted
@@ -354,4 +364,26 @@ export async function recipeForForm(guildId: string, itemKey: number, budgetMs =
   const slow = new Promise<"slow">(resolve => { timer = setTimeout(() => resolve("slow"), budgetMs); });
   const row = prisma.recipeKnown.findFirst({ where: { guildId, itemKey }, select: { itemName: true, profession: true } }).catch(() => "slow" as const);
   try { return await Promise.race([row, slow]); } finally { clearTimeout(timer); }
+}
+
+// Crafting orders in game (docs/plans/CRAFTING_ORDERS.md): after an upload applied claims, finishes or give-backs
+// made in game, the forum post follows and the requester gets the same DMs as for the Discord buttons.
+export async function announceOrderChanges(client: Client, discordGuildId: string, changes: readonly OrderChange[]): Promise<void> {
+  if (!changes.length) return;
+  const discordGuild = await client.guilds.fetch(discordGuildId).catch(() => null);
+  for (const change of changes) {
+    try {
+      await syncCraftPost(discordGuild, change.requestId);
+      const request = await loadRequest(change.requestId);
+      const lang = await boardLang(request.guildId);
+      const crafter = `${request.crafter?.displayName ?? tx(lang, "A guild crafter")} (${cleanCharacterName(change.character)})`;
+      const item = `${request.quantity}× **${request.item}**`;
+      const text = change.action === "claim" ? tx(lang, "🔨 {crafter} is crafting your {item}.", { crafter, item })
+        : change.action === "done" ? tx(lang, "✅ Your {item} is crafted by {crafter}. Check your mail or arrange a trade.", { item, crafter })
+        : null;
+      if (text) await client.users.send(request.requester.discordUserId, { content: text, allowedMentions: { parse: [] } }).catch(() => undefined);
+    } catch (error) {
+      console.warn("Craft order update from the game failed to reach Discord", error);
+    }
+  }
 }

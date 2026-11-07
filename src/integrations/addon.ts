@@ -296,6 +296,10 @@ export const addonSnapshotSchema = z.object({
   boardVotes: z.array(z.unknown()).max(50).default([]),
   boardRelayVotes: z.array(z.unknown()).max(200).default([]),
   boardPosts: z.array(z.unknown()).max(10).default([]),
+  // Crafting orders in game (Modules/CraftOrders.lua): the member's own claims, finishes and give-backs, and
+  // guildmates' heard on GUILD. Validated row by row on apply (services/craft-orders.ts).
+  craftOrderActions: z.array(z.unknown()).max(60).default([]),
+  craftOrderRelayActions: z.array(z.unknown()).max(200).default([]),
   // Track M phone map (services/guild-map.ts): the uploader's own last-seen positions and calls for help.
   // Validated row by row on apply, with their pairing only.
   mapSightings: z.array(z.unknown()).max(100).default([]),

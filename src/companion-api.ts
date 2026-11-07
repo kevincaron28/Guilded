@@ -49,6 +49,7 @@ import { applyGuildData } from "./services/guild-data.js";
 import { applyGuildBank } from "./services/guild-bank.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
+import { applyOrderActions, craftOrdersForAddon, parseAddonOrderActions } from "./services/craft-orders.js";
 import { applyBoardVotes, applyRelayedBoardVotes, boardEnabled, boardForAddon, createBoardService, myBoardVotes, parseAddonBoardPosts, parseAddonBoardVotes } from "./services/guild-board.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
@@ -470,7 +471,7 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
   // parallel, before the transaction. Inside it they ran the 15 s budget out under load (P2028,
   // 7 Nov, the same fix as #487 for loot rules). A failing one fails the answer as before
   // (items keep their empty fallback), so a transient error never writes empty data.
-  const [loot, dungeonBoard, nextRaid, items, botRaids, board, bank, officerInvites, pilotRaids] = await Promise.all([
+  const [loot, dungeonBoard, nextRaid, items, botRaids, board, bank, officerInvites, pilotRaids, craftOrders] = await Promise.all([
     lootRead,
     addonDungeonBoard(prisma, guild.id),
     nextRaidRoster(prisma, guild.id),
@@ -482,7 +483,9 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
     // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
     access.officer ? pendingInvites(prisma, guild.id).then(inviteListForAddon) : Promise.resolve(null),
-    publicRaids(prisma, hostedPilot.allows)
+    publicRaids(prisma, hostedPilot.allows),
+    // Crafting orders in game (craft-orders.ts): Discord craft requests for the addon's Orders page; the same for everyone.
+    craftOrdersForAddon(prisma, guild.id)
   ]);
   // 9.1 guild board: this member's own picks on the open polls.
   const boardVotes = board.enabled ? await myBoardVotes(prisma, guild.id, access.memberId) : null;
@@ -493,7 +496,7 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
   // Shared: the same for every member, so it sets the stamp. Discord events are filtered
   // per member and dungeon/ledger acknowledgements do not change what the addon shows.
   return {
-    shared: { accounts, baseGp, board, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
+    shared: { accounts, baseGp, board, craftOrders, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
     personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids, ...(promotion ? { promotion } : {}),
       ...(officerInvites ? { officerInvites } : {}),
       bank,
@@ -990,6 +993,23 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (bankRequests.length && pairedMemberId) {
         const created = await createBankService(prisma).fromAddon(guild.id, pairedMemberId, bankRequests).catch((error: unknown) => { console.warn("Bank requests from the addon failed", error); return []; });
         for (const request of created) if (client) await postRequestCard(client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error));
+      }
+      // Crafting orders in game (craft-orders.ts): claims, finishes and give-backs made on the addon's Orders page, the
+      // uploader's own and guildmates' heard in game. Already-reflected actions change nothing, so a resent upload is harmless.
+      if (pairedMemberId) {
+        const own = parseAddonOrderActions(preview.snapshot.craftOrderActions);
+        const relayed = parseAddonOrderActions(preview.snapshot.craftOrderRelayActions, true);
+        const orderChanges = own.length || relayed.length
+          ? await applyOrderActions(prisma, guild.id, pairedMemberId, own, relayed).catch((error: unknown) => { console.warn("Craft order actions from the addon failed", error); return []; })
+          : [];
+        if (orderChanges.length) {
+          markGuildChanged(guild.id);
+          if (client) {
+            // Loaded only when needed, like the poll command module above.
+            const { announceOrderChanges } = await import("./commands/craft-board.js");
+            void announceOrderChanges(client, guild.discordId, orderChanges).catch((error: unknown) => console.warn("Craft order Discord update failed", error));
+          }
+        }
       }
       // 9.1 guild board (guild-board.ts): votes made in game, the uploader's own and guildmates' heard in
       // game; officers' news written in game. Each is idempotent, so a resent upload changes nothing.

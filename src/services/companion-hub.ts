@@ -37,7 +37,8 @@ const serverAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("server.weeklyReport"), on: z.boolean() }),
   z.object({ action: z.literal("server.autoImport"), on: z.boolean() }),
   z.object({ action: z.literal("server.dungeonHighlights"), on: z.boolean() }),
-  z.object({ action: z.literal("server.dailyRecap"), on: z.boolean() })
+  z.object({ action: z.literal("server.dailyRecap"), on: z.boolean() }),
+  z.object({ action: z.literal("server.readinessPosts"), on: z.boolean() })
 ]);
 export type ServerAction = z.infer<typeof serverAction>;
 
@@ -126,6 +127,7 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
         autoImport: settings?.autoApplyImports ?? false,
         dungeonHighlights: settings?.dungeonHighlightsEnabled ?? true,
         dailyRecap: settings?.dailyRecapEnabled ?? true,
+        readinessPosts: settings?.readinessPostsEnabled ?? true,
         welcomeDelivery: settings?.welcomeDelivery ?? "CHANNEL",
         welcomeChannelSet: !!settings?.welcomeChannelId
       },
@@ -178,6 +180,9 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
         case "server.dailyRecap":
           await update({ dailyRecapEnabled: action.on });
           return { message: action.on ? "The daily recap is posted every day something happens." : "The daily recap is off.", audit: { setting: "dailyRecapEnabled", value: action.on } };
+        case "server.readinessPosts":
+          await update({ readinessPostsEnabled: action.on });
+          return { message: action.on ? "Readiness posts are on: the daily list and the raid night check before each raid." : "Readiness posts are off. /lead readiness-raid still works.", audit: { setting: "readinessPostsEnabled", value: action.on } };
         case "server.autoImport":
           await update({ autoApplyImports: action.on });
           return { message: action.on ? "Uploads are applied automatically." : "Officers apply uploads themselves with /import apply.", audit: { setting: "autoApplyImports", value: action.on } };

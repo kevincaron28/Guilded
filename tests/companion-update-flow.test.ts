@@ -86,14 +86,23 @@ describe("companion updater handoff", () => {
     await success;
     expect(nextChild.unref).toHaveBeenCalledOnce();
   });
-  it.each(["download-page", "installing"])("shows the actual %s outcome in the button", async action => {
+  // Update now lives in Home's version panel (#511); the old hidden banner button is gone (redesign PR 5).
+  it.each([["download-page", "The download page opened."], ["installing", "Installing Guilded Companion 9.1.0."]])("shows the actual %s outcome in the version panel", async (action, message) => {
     const source = readFileSync("companion-app/renderer/app.js", "utf8");
-    const block = source.slice(source.indexOf("bind('btnUpdate'"), source.indexOf("api.onUpdateProgress"));
-    const button = { textContent: "Update now" };
+    const block = source.slice(source.indexOf("bind('btnVersionAction'"), source.indexOf("bind('btnVersionCheck'"));
+    const nodes: Record<string, { textContent: string; className: string; dataset: Record<string, string> }> = {};
+    const node = (id: string) => (nodes[id] ??= { textContent: "", className: "", dataset: {} });
     let click: () => Promise<void> = async () => {};
-    runInNewContext(block, { T: (key: string, ...values: unknown[]) => i18n.translate('en', key, ...values), bind: (_id: string, fn: () => Promise<void>) => { click = fn; }, $: () => button, toast: vi.fn(), api: { installUpdate: async () => ({ ok: true, action }) } });
+    let seenWhileWaiting = "";
+    runInNewContext(block, {
+      T: (key: string, ...values: unknown[]) => i18n.translate('en', key, ...values), M: (value: string) => value,
+      bind: (_id: string, fn: () => Promise<void>) => { click = fn; }, $: node, versionInfo: { action: "update-now" }, refreshVersion: async () => {},
+      api: { installUpdate: async () => { seenWhileWaiting = node("btnVersionAction").textContent; return { ok: true, action, message }; } }
+    });
     await click();
-    expect(button.textContent).toBe(action === "installing" ? "Installing…" : "Update now");
+    expect(seenWhileWaiting).toBe("Checking update…");
+    expect(node("versionResult")).toMatchObject({ textContent: message, className: "result ok" });
+    expect(node("btnVersionAction").dataset["busy"]).toBeUndefined();
   });
 });
 

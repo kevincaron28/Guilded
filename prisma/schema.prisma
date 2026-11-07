@@ -1022,6 +1022,13 @@ model GuildSettings {
   lootChannelId            String?
   // Craft requests post here (crafters see them); falls back to the officer log.
   craftChannelId           String?
+  // 9.1 (owner, 7 November 2026): open craft requests one message each, and finished ones, in their
+  // own channels (/setup creates them). craftOrdersEnabled is the officer off switch for both.
+  craftOrdersChannelId     String?
+  craftArchiveChannelId    String?
+  craftOrdersEnabled       Boolean @default(true)
+  // Pings to opted-in crafters who know the recipe (/craft notify); officer off switch.
+  craftPingsEnabled        Boolean @default(true)
   // Crafter offers (sell a craft) are off until an officer turns them on with /craft offer-setting.
   craftOffersEnabled       Boolean @default(false)
   // Crafting orders in game (docs/plans/CRAFTING_ORDERS.md): craft requests on the addon's Orders page. On by default; /craft orders-setting.
@@ -1030,6 +1037,9 @@ model GuildSettings {
   readinessChannelId       String?
   // 9.1 readiness upgrade (docs/plans/READINESS_UPGRADE.md): the daily list and the raid night check card; on by default, officers switch both off.
   readinessPostsEnabled    Boolean   @default(true)
+  // 9.1 guild activity ladder (docs/plans/GUILD_ACTIVITY_LADDER.md): dungeons + duels + battlegrounds in one board; on by default.
+  activityBoardEnabled     Boolean   @default(true)
+  activityBoardMessageId   String?
   // Where each raid core's roster is shown (one live message per core).
   coreChannelId            String?
   // Private channel where new applications are posted; falls back to the officer log.
@@ -1493,6 +1503,9 @@ model CraftRequest {
   askedCharacter    String?
   crafterCharacter  String?
   claimSource       String?
+  // 9.1: its line in the craft orders channel and, once finished, in the archive.
+  orderMessageId    String?
+  archiveMessageId  String?
   status            CraftRequestStatus @default(OPEN)
   claimedAt         DateTime?
   doneAt            DateTime?
@@ -1505,6 +1518,20 @@ model CraftRequest {
   @@index([guildId, status, createdAt])
   @@index([requesterId])
   @@index([crafterId])
+}
+
+// 9.1 (owner, 7 November 2026): a member who wants a ping when someone asks for a craft of this
+// profession that one of their characters knows (/craft notify). Opt-in; lastPingAt rate-limits.
+model CraftNotify {
+  id         String    @id @default(cuid())
+  guildId    String
+  memberId   String
+  profession String
+  lastPingAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@unique([memberId, profession])
+  @@index([guildId, profession])
 }
 
 // ---------------------------------------------------------------------
@@ -2949,6 +2976,8 @@ model DuelResult {
   loserId        String
   winnerCharacter String
   loserCharacter String
+  winnerLevel    Int?
+  loserLevel     Int?
   reason         String   @default("knockout")
   endedAt        DateTime
   dayKey         String

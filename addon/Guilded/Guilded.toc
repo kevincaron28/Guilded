@@ -61,6 +61,7 @@ Modules\Ready.lua
 Modules\GuildMap.lua
 Modules\CallForHelp.lua
 Modules\LevelPartners.lua
+Modules\WorldPvP.lua
 Modules\GuildOverview.lua
 Modules\GuildBoard.lua
 Modules\CraftOrders.lua
@@ -77,6 +78,7 @@ Modules\Scores.lua
 Modules\Milestones.lua
 Modules\Duels.lua
 Modules\SeasonDetails.lua
+Modules\DungeonStats.lua
 Modules\DungeonScorePanel.lua
 Modules\Perf.lua
 Modules\GuildLog.lua

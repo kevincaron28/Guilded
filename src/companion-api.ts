@@ -105,11 +105,23 @@ import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
 import { inviteListForAddon, pendingInvites } from "./services/invite-queue.js";
 import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-channel.js";
+import { prelinkInvitedCharacters, tellPrelinked } from "./services/invite-prelink.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
+
+/** After an upload: link the characters people asked to be invited as (invite-prelink.ts), tell them, never fail the upload. */
+async function prelinkAfterUpload(client: Client, database: typeof prisma, guild: { id: string; discordId: string }, seen: Parameters<typeof prelinkInvitedCharacters>[2]): Promise<void> {
+  try {
+    const results = await prelinkInvitedCharacters(database, guild.id, seen);
+    if (!results.length) return;
+    markGuildChanged(guild.id);
+    const language = await database.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
+    await tellPrelinked(client, guild.discordId, language?.language, results);
+  } catch (error) { console.warn("Invite pre-link failed", error); }
+}
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
@@ -980,6 +992,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           void backCheckInvites(client, prisma, { id: guild.id, discordId: guild.discordId })
             .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite back-check failed", error));
         }
+      }
+      // 9.1: a member who asked for a guild invite naming a character gets it linked (provisionally) once it is seen in the guild.
+      if (client) {
+        const seen = [preview.snapshot.character, ...preview.snapshot.characters].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+        void prelinkAfterUpload(client, prisma, guild, seen);
       }
       // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
       if (preview.snapshot.guildBank !== undefined) {

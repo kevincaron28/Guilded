@@ -19,6 +19,7 @@ import { guildService } from "./context.js";
 import { markGuildChanged } from "../services/standings-feed.js";
 import { resolveItemKey, type OrderChange } from "../services/craft-orders.js";
 import type { Client } from "discord.js";
+import { craftNotifyList, pingCrafters, replaceCraftNotify, syncCraftChannels } from "../services/craft-channels.js";
 
 // The craft board: a forum channel where every craft request is its own post
 // with tags (profession and Open / Claimed / Done) and buttons inside the post
@@ -134,9 +135,15 @@ export const guideText = (lang: Lang = "en"): string => [
   tx(lang, "• Press **Request a craft** below (or use `/craft request`): fill in the item. It becomes its own post here."),
   tx(lang, "• Crafters: filter this forum by your profession tag, open a post and press **I'll craft it**. Press **Mark done** when it's made."),
   tx(lang, "• The post title and tag follow the status: 🟢 Open, 🟡 Claimed, ✅ Done. Finished posts lock."),
-  tx(lang, "• Anyone can cancel their own request; officers can cancel or finish any.")
+  tx(lang, "• Anyone can cancel their own request; officers can cancel or finish any."),
+  tx(lang, "• Crafters: press **Crafter pings** to be mentioned when someone asks for a recipe you know.")
 ].join("\n");
 export const GUIDE_TEXT = guideText("en");
+
+// The guide's buttons: Request a craft, and (9.1) Crafter pings.
+export const guideButtons = (lang: Lang) => [new ActionRowBuilder<ButtonBuilder>().addComponents(
+  new ButtonBuilder().setCustomId(`${CRAFT_PREFIX}new`).setLabel(tx(lang, "Request a craft")).setStyle(ButtonStyle.Primary),
+  new ButtonBuilder().setCustomId(`${CRAFT_PREFIX}notify`).setLabel(tx(lang, "Crafter pings")).setStyle(ButtonStyle.Secondary))];
 
 // Posts the pinned guide (with the "Request a craft" button) in a forum. Run once by /setup.
 export async function postBoardGuide(forum: ForumChannel, lang: Lang = "en"): Promise<void> {
@@ -145,7 +152,7 @@ export async function postBoardGuide(forum: ForumChannel, lang: Lang = "en"): Pr
     name: tx(lang, "📌 Start here: how the craft board works"),
     message: {
       content: guideText(lang),
-      components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${CRAFT_PREFIX}new`).setLabel(tx(lang, "Request a craft")).setStyle(ButtonStyle.Primary))]
+      components: guideButtons(lang)
     }
   });
   await thread.pin().catch(() => undefined);
@@ -159,7 +166,7 @@ async function openThread(forum: ForumChannel, threadId: string): Promise<Thread
   return thread;
 }
 
-async function loadRequest(requestId: string): Promise<RequestRow & { threadId: string | null; guildId: string }> {
+async function loadRequest(requestId: string): Promise<RequestRow & { threadId: string | null; guildId: string; requesterId: string }> {
   return prisma.craftRequest.findUniqueOrThrow({ where: { id: requestId }, include: { requester: true, crafter: true } });
 }
 
@@ -188,9 +195,14 @@ export async function postCraftRequest(discordGuild: DiscordGuild | null, reques
     const request = await loadRequest(requestId);
     // Crafting orders in game: every addon's Orders page hears about the new request.
     markGuildChanged(request.guildId);
-    const forum = await boardForum(discordGuild, request.guildId);
-    if (!forum) return { posted: false };
     const lang = await boardLang(request.guildId);
+    const orderMessageId = await syncCraftChannels(prisma, discordGuild, request as never, lang).catch((error: unknown) => { console.warn("Craft orders channel failed", error); return null; });
+    const forum = await boardForum(discordGuild, request.guildId);
+    if (!forum) {
+      // No forum: the pings go to #craft-orders, when there is one.
+      if (!askCrafter) await pingInOrders(discordGuild, request, lang);
+      return { posted: false };
+    }
     await ensureBoardTags(forum, lang);
     const crafters = await requestCrafters(request);
     const thread = await forum.threads.create({
@@ -200,11 +212,21 @@ export async function postCraftRequest(discordGuild: DiscordGuild | null, reques
     });
     await prisma.craftRequest.update({ where: { id: request.id }, data: { threadId: thread.id } });
     if (askCrafter) await pingAskedCrafter(thread, request, askCrafter, lang);
+    else await pingCrafters(prisma, request, (content, users) => thread.send({ content, allowedMentions: { users } }), lang).catch((error: unknown) => console.warn("Crafter pings failed", error));
+    // The order line now links the new post.
+    if (orderMessageId) await syncCraftChannels(prisma, discordGuild, { ...request, threadId: thread.id, orderMessageId } as never, lang).catch(() => undefined);
     return { posted: true, threadId: thread.id };
   } catch (error) {
     console.error("Failed to post the craft request to the board", error);
     return { posted: false };
   }
+}
+
+async function pingInOrders(discordGuild: DiscordGuild, request: RequestRow & { guildId: string; requesterId: string }, lang: Lang): Promise<void> {
+  const settings = await guildService.getSettings(request.guildId);
+  const channel = settings?.craftOrdersEnabled !== false && settings?.craftOrdersChannelId ? await discordGuild.channels.fetch(settings.craftOrdersChannelId).catch(() => null) : null;
+  if (!channel?.isTextBased() || !("send" in channel)) return;
+  await pingCrafters(prisma, request, (content, users) => channel.send({ content, allowedMentions: { users } }), lang).catch((error: unknown) => console.warn("Crafter pings failed", error));
 }
 
 // Brings the forum post in line with the request: title, tags, embed, buttons; locks it when finished.
@@ -213,6 +235,7 @@ export async function syncCraftPost(discordGuild: DiscordGuild | null, requestId
   try {
     const request = await loadRequest(requestId);
     markGuildChanged(request.guildId);
+    await syncCraftChannels(prisma, discordGuild, request as never, await boardLang(request.guildId)).catch((error: unknown) => console.warn("Craft orders channel failed", error));
     if (!request.threadId) return;
     const forum = await boardForum(discordGuild, request.guildId);
     if (!forum) return;
@@ -244,6 +267,14 @@ export async function handleCraftButton(interaction: ButtonInteraction): Promise
   if (rest === "new") {
     const settingsGuild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
     await interaction.showModal(requestModal(await boardLang(settingsGuild.id)));
+    return;
+  }
+  if (rest === "notify") {
+    const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
+    const member = await guildService.ensureMember(guild.id, interaction.user.id, (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
+    const lang = await boardLang(guild.id);
+    await interaction.reply({ content: tx(lang, "Pick the professions you want pings for. You are mentioned only when someone asks for a recipe one of your characters knows, at most once every 30 minutes."),
+      components: [notifyMenu(lang, await craftNotifyList(prisma, member.id))], flags: MessageFlags.Ephemeral });
     return;
   }
   if (rest.startsWith("ask:")) {
@@ -346,7 +377,27 @@ export function requestRows(lang: Lang, itemKey: number, crafters: { character: 
   return [who, buttons];
 }
 
+/** The crafting professions a member can get pings for (gathering ones have no recipes). */
+export const PING_PROFESSIONS: string[] = PROFESSIONS.filter((name) => !["Herbalism", "Mining", "Skinning", "Fishing", "Archaeology"].includes(name));
+
+export function notifyMenu(lang: Lang, chosen: readonly string[]) {
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${CRAFT_PREFIX}notifypick`)
+    .setPlaceholder(tx(lang, "Professions for crafter pings")).setMinValues(0).setMaxValues(PING_PROFESSIONS.length)
+    .addOptions(PING_PROFESSIONS.map((name) => ({ label: professionLabel(lang, name), value: name, default: chosen.includes(name) }))));
+}
+
+export const notifyListText = (lang: Lang, list: readonly string[]) => list.length
+  ? tx(lang, "Crafter pings on for: {list}.", { list: list.map((name) => professionLabel(lang, name)).join(", ") }) : tx(lang, "Crafter pings are off.");
+
 export async function handleCraftSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  if (interaction.guild && interaction.customId === `${CRAFT_PREFIX}notifypick`) {
+    const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
+    const member = await guildService.ensureMember(guild.id, interaction.user.id, (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
+    const lang = await boardLang(guild.id);
+    const now = await replaceCraftNotify(prisma, guild.id, member.id, interaction.values.filter((value) => PING_PROFESSIONS.includes(value)));
+    await interaction.update({ content: notifyListText(lang, now), components: [notifyMenu(lang, now)] });
+    return;
+  }
   if (!interaction.guild || !interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`)) return;
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const lang = await boardLang(guild.id);

@@ -4,13 +4,9 @@ local _, ns = ...
 local routes = { verified = {} }
 ns.dungeonRoutes = routes
 
--- BEGIN GENERATED SOURCE CATALOG
--- https://github.com/DeadlyBossMods/DBM-Dungeons/tree/d989f711bfb99eb002a51e32aebcdcebefc207f3
--- Source reviewed; client acceptance and benchmark calibration are pending.
-routes.sourced = {
-
-}
--- END GENERATED SOURCE CATALOG
+-- Source-reviewed WoW Forever endpoints (none yet; the earlier source catalog covered other WoW
+-- editions only). Rows use { edition, instanceId, participationBand, completion, requiredEncounters }.
+routes.sourced = {}
 
 -- Same endpoint shape as the frozen server routes. Only the server decides
 -- eligibility, required encounters, presence and points.

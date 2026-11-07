@@ -31,13 +31,15 @@ function setup() {
       isSecret = function() return false end,
       playerName = function() return "Kev" end,
       normalizeName = function(n) return n and (n:match("^[^-]+")) end,
-      isGuildMember = function(n) return n ~= "Stranger" end,
+      isGuildMember = function(n) return n ~= "Stranger" and n ~= "Thug" end,
       getSettings = function() return SETTINGS end,
       guildMap = { members = {}, myPosition = function() if MAP then return MAP[1], MAP[2], MAP[3] end end, refresh = function() end },
       comm = { register = function() end,
         accept = function(prefix, text, channel, sender, expected) return prefix == expected and type(text) == "string" and #text <= 255 end,
         send = function(prefix, text, channel, target) SENT_OUT[#SENT_OUT + 1] = prefix .. ":" .. channel .. ":" .. (target or "") .. ":" .. text; return true end } }
-    SETTINGS = {}`);
+    SETTINGS = {}
+    -- Two hits from an enemy player in combat who targets me: a real attack.
+    function ATTACK() ENEMY = { name = "Thug", level = 60 }; NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; NS.callForHelp.noteDamage(5) end`);
   s.load("Locale.lua");
   s.load("Modules/CallForHelp.lua");
   return s;
@@ -90,26 +92,27 @@ describe("call for help: trigger and cooldown", () => {
   it("offers the button on player damage and never sends by itself", () => {
     const lua = setup();
     lua.run(`ENEMY = { name = "Thug", level = 60 }`);
-    expect(lua.run(`fire_event("UNIT_COMBAT", "player", "WOUND"); return tostring(NS.callForHelp.noteDamage())`)).toBe("true");
+    expect(lua.run(`return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false"); // one hit is not an attack
+    expect(lua.run(`CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
     expect(sentCount()).toBe(0);
     expect(chat()).toBe("");
   });
   it("offers nothing without a hostile player or inside an instance", () => {
     const lua = setup();
-    expect(lua.run(`return tostring(NS.callForHelp.noteDamage())`)).toBe("false");
+    expect(lua.run(`return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
     lua.run(`ENEMY = { name = "Thug", level = 60 }; INST = true`);
-    expect(lua.run(`return tostring(NS.callForHelp.noteDamage())`)).toBe("false");
-    lua.run(`INST = false`);
-    expect(lua.run(`return tostring(NS.callForHelp.noteDamage())`)).toBe("true");
+    expect(lua.run(`NS.callForHelp.noteDamage(5); return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    lua.run(`INST = false; CLOCK = CLOCK + 20`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
   });
   it("sends the call with attackers and posts one guild chat line", () => {
     const lua = setup();
-    lua.run(`ENEMY = { name = "Thug", level = 60 }; NS.callForHelp.noteDamage()`);
+    lua.run(`ATTACK()`);
     expect(lua.run(`return tostring(NS.callForHelp.open())`)).toBe("true");
     expect(sentCount()).toBe(1);
     expect(sent()).toContain("GuildedSOS:GUILD::S|");
     expect(sent()).toContain("|60|47|5000|5000|Duskwood|Raven Hill|Thug~ROGUE~60~H|");
-    expect(chat()).toBe("GUILD:[Guilded] Help! Kev is under attack in Duskwood (1 Horde, 60)");
+    expect(chat()).toBe("GUILD:[Guilded] Help! Kev is under attack in Duskwood, Raven Hill (50, 50) (1 Horde, 60)");
   });
   it("skips the guild chat line when turned off", () => {
     const lua = setup();
@@ -159,14 +162,14 @@ describe("call for help: confirm and all clear", () => {
     const lua = setup();
     lua.run(`NS.commandHandlers.sos({ "status" })`);
     expect(sentCount()).toBe(0);
-    lua.run(`NS.commandHandlers.sos({ "now" })`);
+    lua.run(`ATTACK(); NS.commandHandlers.sos({ "now" })`);
     expect(sentCount()).toBe(1);
     expect(chat()).toContain("[Guilded] Help! Kev");
   });
   it("posts an all clear line in guild chat when the call did", () => {
     const lua = setup();
-    lua.run(`NS.callForHelp.open(); NS.callForHelp.allClear()`);
-    expect(chat().split("\n")).toEqual(["GUILD:[Guilded] Help! Kev is under attack in Duskwood", "GUILD:[Guilded] All clear: Kev is safe."]);
+    lua.run(`ATTACK(); NS.callForHelp.open(); NS.callForHelp.allClear()`);
+    expect(chat().split("\n")).toEqual(["GUILD:[Guilded] Help! Kev is under attack in Duskwood, Raven Hill (50, 50) (1 Horde, 60)", "GUILD:[Guilded] All clear: Kev is safe."]);
   });
   it("posts no all clear line when the call stayed on Guilded", () => {
     const lua = setup();
@@ -299,5 +302,70 @@ describe("call for help: guildmates in the zone and party invites", () => {
     const lua = setup();
     lua.run(`NS.locale = "frFR"`);
     expect(lua.run(`return NS.L("Invite caller")`)).toBeTruthy();
+  });
+});
+
+describe("call for help: only a real attack counts, and the chat line is limited", () => {
+  it("ignores a hit while no enemy player is targeting me (an NPC, a trap, a fall)", () => {
+    const lua = setup();
+    for (let i = 0; i < 4; i++) expect(lua.run(`CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    expect(lua.run(`return tostring(NS.callForHelp.attacked())`)).toBe("false");
+  });
+  it("ignores zero damage, a duel, a guildmate and a party member", () => {
+    const lua = setup();
+    lua.run(`ENEMY = { name = "Thug", level = 60 }`);
+    expect(lua.run(`NS.callForHelp.noteDamage(0); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(0))`)).toBe("false");
+    lua.run(`fire_event("DUEL_INBOUNDS")`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    lua.run(`fire_event("DUEL_FINISHED"); ENEMY = { name = "Ann", level = 60 }`); // a guildmate
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    lua.run(`ENEMY = { name = "Thug", level = 60 }; function UnitInParty() return true end`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    expect(lua.run(`return tostring(NS.callForHelp.attacked())`)).toBe("false");
+  });
+  it("ignores an enemy that is not in combat, and hits too far apart", () => {
+    const lua = setup();
+    lua.run(`ENEMY = { name = "Thug", level = 60 }; function UnitAffectingCombat() return false end`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    lua.run(`function UnitAffectingCombat() return true end`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 11; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+  });
+  it("offers the button once per attack, not on every hit", () => {
+    const lua = setup();
+    lua.run(`ATTACK()`);
+    expect(lua.run(`CLOCK = CLOCK + 5; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    expect(lua.run(`CLOCK = CLOCK + 5; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    lua.run(`CLOCK = CLOCK + 40`); // a new attack
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
+  });
+  it("posts no guild chat line without a confirmed attack, but still calls Guilded users", () => {
+    const lua = setup();
+    expect(lua.run(`return tostring(NS.callForHelp.open())`)).toBe("true");
+    expect(sentCount()).toBe(1);
+    expect(chat()).toBe("");
+    expect(msgs()).toContain("No attack was seen");
+    lua.run(`NS.callForHelp.allClear()`);
+    expect(chat()).toBe(""); // no all clear line either
+  });
+  it("posts no line when the attack was more than a minute ago", () => {
+    const lua = setup();
+    lua.run(`ATTACK(); CLOCK = CLOCK + 70`);
+    lua.run(`NS.callForHelp.open()`);
+    expect(chat()).toBe("");
+  });
+  it("posts one line per zone every five minutes and per attack window", () => {
+    const lua = setup();
+    lua.run(`ATTACK(); NS.callForHelp.open(); NS.callForHelp.allClear()`);
+    expect(chat().split("\n")).toHaveLength(2); // call line + all clear
+    lua.run(`CLOCK = CLOCK + 130; ATTACK(); NS.callForHelp.open()`); // new call, same zone, 2 minutes later
+    expect(chat().split("\n")).toHaveLength(2);
+    expect(msgs()).toContain("posted a moment ago");
+    lua.run(`NS.callForHelp.allClear(); CLOCK = CLOCK + 400; ATTACK(); NS.callForHelp.open()`);
+    expect(chat().split("\n")).toHaveLength(3);
+  });
+  it("puts the zone, subzone and coordinates in the line", () => {
+    const lua = setup();
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Lebowski Holyroller", zone = "Silverpine Forest", subzone = "The Sepulcher", x = 0.4312, y = 0.3871, attackers = {} })`))
+      .toBe("[Guilded] Help! Lebowski Holyroller is under attack in Silverpine Forest, The Sepulcher (43, 39)");
   });
 });

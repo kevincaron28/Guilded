@@ -39,75 +39,64 @@ desktop control and is coordinated by you. Keep testing in the kevmister28 test 
 
 - Bug sweep 11:30 UTC: no member reports. The fresh /setup test (item 24) found 4 bugs, fixed in #504 (uninstall leftovers, stale FAQ line, dangling channel ids, expired-wizard reply). New error C5K975QR: community honors cannot give its podium role in the reinstalled test server (50013) because the Guilded role sits at the bottom there; by design it retries every 15 min, and moving the role up fixes it (owner, test server only). Other errors were P2028 timeouts during deploys (calendar sync, public raids, game events, dungeon rating, invite queue).
 
-### Status of every owner request (audit 7 Nov, 10:30 UTC)
+### Status of every owner request (audit 7 Nov, 14:00 UTC)
 
-The live view of this table is the owner's **Control Board**: https://claude.ai/artifact/XWXbyp3yjpoWEjJt9Ch33N.
-It has the same rows, grouped by when he asked, plus "Needs you" with answer buttons; the owner pastes his answers into
-the coordinator session. Coordinators update its database with the ArtifactData tool at every check-in (memory note
-`control-board-artifact`). Checked against `origin/main` after 9.0.1 (a7924d3) and the open PRs.
+Live view: the owner's **Control Board** (https://claude.ai/artifact/XWXbyp3yjpoWEjJt9Ch33N). The owner answers questions there and
+pastes "Decisions for the coordinator:"; ideas wait in its "Your ideas" box (memory `control-board-artifact`).
+"Next addon/companion release" means merged on main but shipped to members only with the next release (9.0.2, owner's yes).
 
-**9.0.1 is released (7 Nov, ~10:00 UTC):** GitHub latest, bot, CurseForge (files 9489318/9489319 in review). Store: the
-owner chose to skip 9.0.1; the next Store package goes with a later version. "Addon release" below means it shipped in 9.0.1.
+**Released 9.0.1 (7 Nov ~10:00 UTC):** GitHub, bot, CurseForge (in review). Store: the owner chose to skip 9.0.1.
 
 | Item | Status | Evidence |
 | --- | --- | --- |
-| 1 Battle.net message | Done, 9.0.1 | #464 |
-| 2 Companion link in game | Done, 9.0.1 | #464 |
-| 3 Professions in public notes | Done, 9.0.1 (officer client); real-client check owed | #474 |
-| 4 Initiate to Member | Done, 9.0.1 (officer client); real-client check owed | #474 |
-| 5 Linked-characters DM and button | Done, live | #473 |
-| 6 Monetization plan | Plan done; stays a plan (owner, 7 Nov) | `docs/plans/MONETIZATION.md` |
-| 7 EPGP in officer notes | Done, 9.0.1 | #474 |
-| 8 Addon-message sync gaps | Done | #479 |
-| 9 In-game greeting | Done, 9.0.1 | #474 |
-| 10 Guild bank | Ledger in 9.0.0; plan additions being built (owner picked, 7 Nov) | bank-additions session |
-| 11 Roster admin window | Done, 9.0.1 | #478 |
-| 12 Race to 60 redesign | Done, live; no real level 60 seen yet | #471 |
-| 13 Dungeon cards, heat map | Done, live; **redesign in progress** (role icons, original lore backgrounds, member scores) | #461, #483; card-redesign session |
-| 14 Availability module | Hidden, not deleted | #477 |
-| 15 One name standard | Done, live | #476 |
-| 16 One `#invitation-guilde`, WoW category | Done: only one channel left (checked 7 Nov); Drakka Whitefang, Aslash Labash, Saimon Izerr still await an in-game invite | #477 |
-| 17 Guild overview panel | Variant A being built (owner picked) | overview-panel session |
-| 18 Map pins hidden in instances | Done, 9.0.1 | #464 |
-| 19 Native WoW fit | Done, 9.0.1 | #478, #480 |
-| 20 Screenshots and guides | Owner: Claude drives the game for screenshots when he's at the PC | — |
-| 21 Website, Québec Gold pages | First pass done, guild page added; fresh screenshots owed | #470, #485 |
-| 22 Phone app | Leaderboards and guild view live (#489); TCG option 1 badge album in #496; map, heat map, help pins, notifications not started | #489, #496 |
-| 23 Feature homes in Discord | Done, live | #477 |
-| 24 Discord audit and fresh setup | Owner: today at the PC | — |
-| Season 1 less strict | Done, live | #455 |
-| Nickname sync | Done; the bot can't rename the server owner; members who typed a character in `()` get our format | #468, #499 |
-| Error 50035, duplicate run posts | Fixed | #466, #469, #461 |
-| Final bosses for the 3 new Forever dungeons | Done, 9.0.1 (English names; French when a French client reports them) | #491 |
-| Item data for Discord item matching | Blizzard Forever item API confirmed; lookup in review | #497 |
-| Remove public-sharing and nickname off switches | Owner: remove both; in review | #498 |
-| Website leaderboard duplicates | Fixed, deploys with the next bot deploy | #495 |
-| Second-PC test fixes (minimap spot, chat tab, French line, linked line) | Done, 9.0.1 | #493 |
-| Installer closes a running companion | Done, 9.0.1; real upgrade over a running app not tested | #494 |
-| Standings feed timeouts | Fixed (loot rules read outside the transaction) | #487 |
-| Names repair (`names:forever`) | Applied 7 Nov: 2 renamed; 6 shared first names wait for their own uploads (owner) | server run |
-| Pre-launch cleanup (#419) | Nothing left to delete | server run |
-| Housekeeping | #430, #458 closed; test pre-releases deleted; preview-list env line removed | — |
-| Season 2 | After two weeks of Season 1 data (about 18 Nov), then dates and targets | `docs/DUNGEON_SEASON_2_PLAN.md` |
-| Kinfolk ideas (Track H) | Owner picks | Track H |
-| Android / Google Play | #345 open: EXPO_TOKEN, Firebase, 12 testers × 14 days, USD 25 | #345 |
-| `[Item]` previews in the Blizzard-linked channel | Off; needs #497 and a live non-echo test | `docs/ITEM_PREVIEWS.md` |
-| Crafter offers | Off; real-server test owed | `docs/CRAFT_OFFERS.md` |
+| 1, 2, 18 Battle.net message, companion link in game, map pins hidden in instances | Done, 9.0.1 | #464 |
+| 3, 4, 7, 9 Officer client: professions in notes, Initiate→Member, EP/GP in notes, greeting | Done, 9.0.1; real-client check owed | #474 |
+| 5 Linked-characters DM + button | Live | #473 |
+| 6 Monetization | Plan only (owner: stays a plan) | `docs/plans/MONETIZATION.md` |
+| 8 Addon-message sync | Done | #479 |
+| 10 Guild bank | Live: ledger (9.0.0) + member search, links, requests, minimum stock | #502 |
+| 11, 19 Roster admin window, native fit | Done, 9.0.1 | #478, #480 |
+| 12 Race to 60 redesign | Live; top 50 ranking card | #471, #518 |
+| 13 Dungeon cards | Live: one card per run, death heat map, redesign (painted scenes, role glyphs, scores, guild rank) | #461, #483, #503 |
+| 14 Availability module | Hidden | #477 |
+| 15 One name standard | Live; El/El Pirata party fix | #476, #495, #513 |
+| 16 One #invitation-guilde in the WoW category | Done (checked 7 Nov) | #477 |
+| 17 Guild overview panel (variant A) | Merged, next addon release | #501 |
+| 20 Screenshots and guides | Guides live; 14 screenshots to capture (`docs/SCREENSHOT_SHOTLIST.md`) | #506 |
+| 21 Website | Live: QG pages, guild pages, ranking-site leaderboards with guild counts; reserves/wishlist pages landing | #470, #485, #522, #534 |
+| 22 Phone app | Live on the bot: leaderboards, guild view, badge album, guildmate map/heat map/help pins; redesign + News tab landing; next APK owed | #489, #496, #507, #519 |
+| 23 Feature homes in Discord | Live | #477 |
+| 24 Discord audit + fresh setup | Done 7 Nov; 4 bugs fixed | #504 |
+| Final bosses for 3 new dungeons | Done, 9.0.1; French names when a French client reports them | #491 |
+| Item data + previews in #chat-guilde | Live (owner turned previews on) | #497, test 7 Nov |
+| Profession link → recipe card | Live | #521 |
+| Item links in profession posts | Live | #516 |
+| Sharing and nickname off switches removed | Live | #498 |
+| Nickname "()" typed by members → our format | Live | #499 |
+| Second-PC fixes; window won't close (P0) | Merged, next addon release | #493, #514 |
+| Dungeon season window clearer | Merged, next addon release | #520 |
+| In-game guild board (Kinfolk) | Live (bot); addon part next release | #508 |
+| Records, challenges, daily recap card | Live | #523 |
+| Test servers apart; Who's who post removed | Live | #517 |
+| Leaderboard cards like ranking sites; 24h movement arrows | #518 live; arrows #532 landing | #518, #532 |
+| Companion: version panel + Update now | Merged, next companion release | #511 |
+| Companion redesign (owner's 4 answers) | Parts 1-4 landing (#525, #529, #530, #533); part 5 being built | #512 plan |
+| Raid readiness upgrade | Landing | #531 |
+| Armory (Blizzard profile API) | Blocked: Forever character API closed (probe 7 Nov); re-check script | #524 |
+| Standings feed timeouts; honors error noise; slow craft click | Fixes landing | #527, #526, #528 |
+| Season 2 | After two weeks of Season 1 data (~18 Nov) | owner decision |
 
 ### Waiting for owner
 
-- **Discord server audit and fresh-setup check (item 24):** today, at the PC.
-- **Screenshots (item 20):** Claude drives WoW when he's at the PC and gives the OK for desktop control.
-- **Real-client checks:** officer client tools (items 3, 4, 7, 9), minimap spot (315°), chat tab, French client,
-  a real dungeon score and a level 60 card, death positions, two-PC duel and Defender banner, relink a second
-  character, a real installer upgrade over a running companion, Store self-update.
-- **Kinfolk picks (Track H)**, **Android Play setup (#345)**, **Season 2 dates** (around 18 Nov).
+- **Release 9.0.2** (addon + companion): window-close fix, dungeon window, overview panel, guild board addon part, companion Update now and redesign. Needs his yes.
+- **Screenshots in game (item 20):** Claude drives WoW when he's at the PC.
+- **Real-client checks:** officer tools, minimap spot, chat tab, French client, first real profession-link and item previews, raid night check card, guild board votes from two clients, companion update over a running app.
+- **Android / Google Play (#345)**, **Season 2 dates (~18 Nov)**.
 
-### Not started (free to dispatch)
+### Not started
 
-- **Phone app, rest of Track M:** guildmate map, last-seen heat map, help pins (`mobile/`, plus read-only routes).
-  Start after #496 merges, since it shares `mobile/`. Dungeon notifications wait for #345 and Firebase.
-- **French names of the three new final bosses:** from the first French client log.
+- French names of the three new final bosses (needs a French client log).
+- Nothing else: every other request is live, merged or in a session.
 
 **First priorities (owner, 7 Nov 01:45 UTC):**
 1. **Dungeon cards (item 13) now, not later.** One `#donjons-terminés` post bundled three runs (two Wailing

@@ -8,7 +8,7 @@ import { novemberRulesFixture, novemberFixtures } from "./fixtures/november-rout
 interface StoredPlayer { character: string; memberId: string | null; deaths: number | null }
 interface StoredRun {
   id: string; runRef: string; instanceId: number; difficultyId: number; state: string; valid: boolean;
-  invalidReason: string | null; startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: StoredPlayer[];
+  invalidReason: string | null; startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: StoredPlayer[]; competitionData?: Record<string, unknown>;
 }
 
 function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: string; ratingRules?: unknown } = { id: "season-1", startsAt: new Date(0), ratingRules: ratingService.createDungeonRatingRules({}, 3, { "36": { min: 15, max: 25, difficultyId: 1 } }) }) {

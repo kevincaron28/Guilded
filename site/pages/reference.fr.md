@@ -69,7 +69,7 @@ suivent sont ses sous-commandes.
 | Commande | Ce qu’elle fait | Qui |
 | --- | --- | --- |
 | `/dungeon` `leaderboard` `season` `records` `player` `history` | Cote de saison, meilleurs temps, parcours d’un joueur | Tout le monde |
-| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Saisons passées, règles de pointage, liste des donjons, clés Retail, objectif d’équipe de la semaine | Tout le monde |
+| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Saisons passées, règles de pointage, liste des donjons, objectif d’équipe de la semaine | Tout le monde |
 | `/dungeon` `group` `alerts` `watch` | Former un groupe avec un canal vocal ; être prévenu des groupes qui vous conviennent | Tout le monde |
 | `/officer dungeon` `invalidate` `award` `audit` `config` | Corriger une partie, ajuster les points de guilde, lire l’historique | Officiers |
 | `/organize dungeon-seasons preview` | Voir les saisons de donjon en cours et à venir | Organisateurs |
@@ -194,7 +194,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 ## Compagnon Windows
 
 Une petite application Windows gratuite. Facultative pour l’addon, requise pour les fonctions
-Discord et le site. Toutes les étapes : [Application compagnon](/companion/).
+Discord et le site. Toutes les étapes : [Application compagnon](https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe).
 
 | Quoi | Détail |
 | --- | --- |

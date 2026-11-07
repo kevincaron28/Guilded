@@ -60,7 +60,7 @@ permet aux officiers de consulter les prix modifiables par emplacement et
 d’activer explicitement le préréglage de décembre pour un core. Les réserves
 existantes conservent leurs règles tant qu’un officier ne les modifie pas.
 **Classements** affiche la priorité de raid et les scores de donjon. Utilisez
-l’addon et le compagnon 8.4.0 correspondants pour le nouveau flux de prix en jeu.
+l’addon et le compagnon actuels pour le nouveau flux de prix en jeu.
 
 ## Vous utilisez déjà Raid-Helper ?
 

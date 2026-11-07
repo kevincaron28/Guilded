@@ -1,5 +1,5 @@
 <section class="community-hero" aria-labelledby="features-title">
-<p class="eyebrow">THE GUILDED TOOLKIT · FOREVER · CLASSIC · RETAIL</p>
+<p class="eyebrow">THE GUILDED TOOLKIT · WOW FOREVER</p>
 <h1 id="features-title">Your guild tools.<br>Closer to the <em>game.</em></h1>
 <p>Start with the addon. Add the companion and Discord only if your guild wants them.</p>
 <div class="actions"><a class="button" href="https://www.curseforge.com/wow/addons/guilded">Get the free addon <span aria-hidden="true">↗</span></a><a class="button secondary" href="../docs/MEMBER_INSTALL.html">Install guide <span aria-hidden="true">→</span></a></div>
@@ -12,6 +12,13 @@
 Recipes, the guild map, attendance, loot and EP/GP standings, shared with your guild in game. Standings and crafting live in the guild window.
 
 [Get Guilded on CurseForge](https://www.curseforge.com/wow/addons/guilded) · [Install guide](../docs/MEMBER_INSTALL.html)
+
+## New in 9.0
+
+- **Duels and battlegrounds:** ladders for both, with a live duel board.
+- **Race to 60:** a Hall of Fame for the first to get there.
+- **Call for help:** a PvP finder and levelling partners.
+- **For guilds:** a guild bank view, in-game raid sign-up, a recruiting kit and Discord nickname sync.
 
 ## Dungeon runs and seasons
 

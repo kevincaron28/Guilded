@@ -104,7 +104,7 @@ describe("reading it back", () => {
     } as never, (en) => en);
     expect(html).toContain("&lt;Mats&gt;");
     expect(html).toContain("<svg");
-    expect(html).toContain("Dude Lebowski</td><td>deposited Major Mana Potion ×5 (tab 1)");
+    expect(html).toContain(`Dude Lebowski</td><td>deposited <a class="bank-item" href="https://www.wowhead.com/classic/item=13444" rel="noopener" target="_blank">Major Mana Potion</a> ×5 (tab 1)`);
     expect(guildBankBody({ contents: null, gold: [], ledger: [] }, (en) => en)).toContain("Nothing yet");
   });
 

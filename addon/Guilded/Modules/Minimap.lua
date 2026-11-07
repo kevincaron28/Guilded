@@ -1558,6 +1558,8 @@ local INFO_TOOLS = {
   { "Daily digest off", "digest", { "off" }, "Stop the login digest." },
   { "Main names in chat on", "chattags", { "on" }, "Show an alt's main name in guild and officer chat." },
   { "Main names in chat off", "chattags", { "off" }, "Stop showing main names in chat." },
+  { "My bank requests", "gbank", { "requests" }, "Your guild bank requests and what officers did with them. Ask with /guilded gbank request <item>." },
+  { "Guild bank low stock", "gbank", { "low" }, "Guild bank items below the minimum officers set." },
 }
 local INFO_OFFICER_TOOLS = {
   { "Invite queue", "invites", {}, "Players waiting for a guild invite, one click each." },

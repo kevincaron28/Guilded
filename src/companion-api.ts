@@ -44,6 +44,8 @@ import { linkVerifiedCharacters, tellVerified } from "./services/character-verif
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { applyGuildData } from "./services/guild-data.js";
 import { applyGuildBank } from "./services/guild-bank.js";
+import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
+import { createBankService } from "./services/bank.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
@@ -307,7 +309,7 @@ export function createSiteApp(client?: Client) {
     status: discordUserId => memberLinkStatus(prisma, discordUserId)
   };
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, gallery.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
@@ -468,6 +470,8 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
       personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids, ...(promotion ? { promotion } : {}),
         // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
         ...(access.officer ? { officerInvites: inviteListForAddon(await pendingInvites(database, guild.id)) } : {}),
+        // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
+        bank: await bankForAddon(database, guild.id, access.memberId, !!access.officer),
         publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
       stampOnly: { botRaids }
     };
@@ -881,8 +885,16 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
       if (preview.snapshot.guildBank !== undefined) {
-        await prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
-          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild bank upload failed", error); });
+        const bankResult = await prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
+          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild bank upload failed", error); return null; });
+        // 9.1: one alert in the log channel for items that just went below their minimum (/bank stock).
+        if (bankResult?.contents && client) void alertLowStock(client, prisma, guild.id).catch((error: unknown) => console.warn("Bank stock alert failed", error));
+      }
+      // 9.1: guild bank requests made in game, only the uploader's own (their pairing), each once.
+      const bankRequests = pairedMemberId ? parseAddonBankRequests(preview.snapshot.bankRequests) : [];
+      if (bankRequests.length && pairedMemberId) {
+        const created = await createBankService(prisma).fromAddon(guild.id, pairedMemberId, bankRequests).catch((error: unknown) => { console.warn("Bank requests from the addon failed", error); return []; });
+        for (const request of created) if (client) await postRequestCard(client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error));
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

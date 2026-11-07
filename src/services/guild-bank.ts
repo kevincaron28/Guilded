@@ -2,6 +2,7 @@ import { z } from "zod";
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
+import { bankItems, lowStock, lowStockLines, type LowItem } from "./guild-bank-member.js";
 
 // 9.0 guild bank ledger (docs/GUILD_BANK_LEDGER.md). Whenever anyone with access opens the guild
 // bank with Guilded on, the addon keeps the contents, the gold and the game's item and money logs;
@@ -21,7 +22,9 @@ const word = z.string().regex(/^[A-Za-z]{1,20}$/);
 const copper = z.number().int().nonnegative().max(1e13);
 const bankSchema = z.object({
   contents: z.object({ at: epoch, money: copper.optional(), tabs: z.array(z.object({ tab: z.number().int().min(1).max(8), name: z.string().max(40),
-    items: z.array(z.object({ id: z.number().int().positive(), name: z.string().max(100), count: z.number().int().positive() })).max(200) })).max(8) }).optional(),
+    items: z.array(z.object({ id: z.number().int().positive(), name: z.string().max(100), count: z.number().int().positive(),
+      // 9.1: the item's quality (0 poor … 5 legendary), from its link colour.
+      q: z.number().int().min(0).max(7).optional() })).max(200) })).max(8) }).optional(),
   gold: z.array(z.unknown()).max(400).default([]),
   itemLog: z.array(z.unknown()).max(1000).default([]),
   moneyLog: z.array(z.unknown()).max(1000).default([])
@@ -131,7 +134,8 @@ export async function loadGuildBank(db: Db, guildId: string, days = 30, now = ne
 }
 
 /** The weekly officer post: who put in or took out what. Nothing when the bank did not move. */
-export function weeklyBankText(rows: Parameters<typeof summarizeLedger>[0], goldBefore: bigint | null, goldNow: bigint | null, lang: "en" | "fr"): string | null {
+export function weeklyBankText(rows: Parameters<typeof summarizeLedger>[0], goldBefore: bigint | null, goldNow: bigint | null, lang: "en" | "fr",
+  extra: { low?: readonly LowItem[]; openRequests?: number } = {}): string | null {
   if (!rows.length) return null;
   const t = (en: string, fr: string) => lang === "fr" ? fr : en;
   const people = summarizeLedger(rows).slice(0, 15).map((p) => {
@@ -140,12 +144,20 @@ export function weeklyBankText(rows: Parameters<typeof summarizeLedger>[0], gold
     return `• **${p.actor}**: ${parts.join(" · ")}`;
   });
   const goldLine = goldNow !== null ? `${t("Gold now", "Or actuel")}: **${goldText(goldNow)}**${goldBefore !== null ? ` (${goldNow >= goldBefore ? "+" : "−"}${goldText(goldNow >= goldBefore ? goldNow - goldBefore : goldBefore - goldNow)} ${t("this week", "cette semaine")})` : ""}` : "";
-  return [goldLine, `${rows.length} ${t("log line(s) this week", "ligne(s) de journal cette semaine")}`, "", ...people,
+  // 9.1: top depositors, what is below its minimum and how many requests wait.
+  const givers = summarizeLedger(rows).filter((p) => p.deposited > 0n || p.itemsIn > 0)
+    .sort((a, b) => Number(b.deposited - a.deposited) || b.itemsIn - a.itemsIn).slice(0, 3);
+  const extraLines = [
+    ...(givers.length ? [`${t("Top depositors", "Meilleurs donateurs")}: ${givers.map((p) => `**${p.actor}**`).join(", ")}`] : []),
+    ...(extra.low?.length ? [`${t("Below minimum", "Sous le minimum")}:`, ...lowStockLines(extra.low, lang, 8)] : []),
+    ...(extra.openRequests ? [`${t("Open bank requests", "Demandes ouvertes")}: **${extra.openRequests}** (\`/bank list\`)`] : [])
+  ];
+  return [goldLine, `${rows.length} ${t("log line(s) this week", "ligne(s) de journal cette semaine")}`, ...(extraLines.length ? ["", ...extraLines] : []), "", ...people,
     "", t("Full ledger: the Guild bank page on the guild tools site.", "Registre complet : la page Banque de guilde du site d'outils.")].filter((line, i) => line || i > 0).join("\n").slice(0, 3900);
 }
 
 const DAY = 86_400_000;
-type WeeklyDb = Db & Pick<PrismaClient, "guild" | "guildSettings">;
+type WeeklyDb = Db & Pick<PrismaClient, "guild" | "guildSettings" | "guildBankTarget" | "bankRequest">;
 
 /** Weekly summary in the officer log channel. On by default, at most once every 7 days, never when nothing moved. */
 export async function postWeeklyGuildBank(db: WeeklyDb, discordGuild: DiscordGuild, now = new Date()): Promise<boolean> {
@@ -158,7 +170,10 @@ export async function postWeeklyGuildBank(db: WeeklyDb, discordGuild: DiscordGui
   const before = await db.guildBankGold.findFirst({ where: { guildId: guild.id, at: { lte: since } }, orderBy: { at: "desc" } });
   const latest = await db.guildBankGold.findFirst({ where: { guildId: guild.id }, orderBy: { at: "desc" } });
   const lang = settings.language === "fr" ? "fr" : "en";
-  const text = weeklyBankText(rows, before?.money ?? null, latest?.money ?? null, lang);
+  const [contents, targets, openRequests] = await Promise.all([db.guildBankContents.findUnique({ where: { guildId: guild.id }, select: { tabs: true } }),
+    db.guildBankTarget.findMany({ where: { guildId: guild.id } }), db.bankRequest.count({ where: { guildId: guild.id, status: { in: ["PENDING", "APPROVED"] } } })]);
+  const low = contents ? lowStock(bankItems(contents.tabs), targets) : [];
+  const text = weeklyBankText(rows, before?.money ?? null, latest?.money ?? null, lang, { low, openRequests });
   if (!text) return false;
   const channel = await discordGuild.channels.fetch(settings.logChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) return false;

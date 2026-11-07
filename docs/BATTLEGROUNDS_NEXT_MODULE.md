@@ -141,3 +141,6 @@ full, an optional private voice channel, the `LFG PvP` role ping, group alerts, 
 `DungeonGroup` of kind `PVP` (`src/services/pvp-group.ts`, `src/commands/pvp-group.ts`). **Who's looking** lists the open groups
 with who is in and waiting; **My groups** and **Upcoming** list finder groups first, then planned sessions. Planned,
 scheduled sessions stay on `/bg create` (activity core). Needs a real Discord check (post, buttons, expiry).
+
+### Post redesign (9.1)
+The finder post is now a picture (the shared card: party with role icons, size, bracket, open-until time) plus an embed with the roster by role, the queue in order, the leader and the expiry. Built in `src/services/pvp-group-post.ts`; the dungeon finder keeps its plain embed. Same `dgrp:` buttons, waitlist and 24 h expiry.

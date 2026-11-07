@@ -1,6 +1,6 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle,
+  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Client, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction,
   type GuildTextBasedChannel, type OverwriteResolvable, type StringSelectMenuInteraction,
   MessageFlags,
@@ -11,6 +11,7 @@ import { serializeDungeonGroup } from "../services/dungeon-group-queue.js";
 import { hasPermission, isPermissionRole } from "../permissions.js";
 import { asGroupKind, createDungeonGroupService, GROUP_CAPS, GROUP_KINDS, groupSize, shouldDeleteVoice, shouldDeleteClosedPost, shouldExpireOpenGroup, type GroupKind } from "../services/dungeon-group.js";
 import { DUNGEON_GUIDE_CREATE_ID, DUNGEON_GUIDE_KIND_ID, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
+import { pvpPostPayload } from "../services/pvp-group-post.js";
 import { alertRecipients, dungeonLevelsFromTitle, parseLevelRange, rolesFromTitle, type AlertGroup } from "../services/group-alerts.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
@@ -92,7 +93,7 @@ export async function postGroup(
   const mentions = [...(ping ? [`<@&${ping}>`] : []), ...users.map((id) => `<@${id}>`)];
   const message = await channel.send({
     ...(mentions.length ? { content: mentions.join(" ") } : {}),
-    embeds: [await groupEmbed(group.id)],
+    ...await groupBody(group.id, kind, lang),
     components: buttons(group.id, group.status, lang),
     allowedMentions: { roles: ping ? [ping] : [], users }
   });
@@ -166,6 +167,12 @@ async function groupLang(guildId: string): Promise<Lang> {
   return asLang((await guildService.getSettings(guildId))?.language);
 }
 
+/** The post's picture and embed: the PvP finder has its own card layout (services/pvp-group-post.ts), the others a plain embed. */
+async function groupBody(groupId: string, kind: GroupKind, lang: Lang): Promise<{ embeds: EmbedBuilder[]; files: AttachmentBuilder[] }> {
+  if (kind === "PVP") return pvpPostPayload(prisma, groupId, lang);
+  return { embeds: [await groupEmbed(groupId)], files: [] };
+}
+
 async function groupEmbed(groupId: string): Promise<EmbedBuilder> {
   const group = await prisma.dungeonGroup.findUniqueOrThrow({ where: { id: groupId } });
   const lang = await groupLang(group.guildId);
@@ -224,7 +231,9 @@ export async function syncGroupPost(guild: DiscordGuild, groupId: string): Promi
     const channel = await guild.channels.fetch(group.signupChannelId).catch(() => null);
     if (!channel?.isTextBased()) return;
     const message = await channel.messages.fetch(group.signupMessageId).catch(() => null);
-    await message?.edit({ embeds: [await groupEmbed(groupId)], components: buttons(groupId, group.status, await groupLang(group.guildId)), allowedMentions: { parse: [] } });
+    const lang = await groupLang(group.guildId);
+    const body = await groupBody(groupId, asGroupKind(group.kind), lang);
+    await message?.edit({ ...body, ...(body.files.length ? { attachments: [] } : {}), components: buttons(groupId, group.status, lang), allowedMentions: { parse: [] } });
   } catch (error) {
     console.error("Failed to sync dungeon group post", error);
   }

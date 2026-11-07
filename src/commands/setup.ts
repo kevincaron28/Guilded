@@ -31,6 +31,7 @@ import { inviteChannelCandidates, pickInviteChannel } from "../services/invite-e
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { blockedMemberCount, botCanRename } from "../services/nickname-sync.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { openBoardChannels } from "../services/board-permissions.js";
 import { honorRolesBlocked } from "../services/community-honors.js";
 import { deleteWhosWhoPost, hasWhosWhoPost } from "../services/whos-who-board.js";
 import { archiveForRetire, deleteRetiredChannel, forgetRetirePlan, isManagedChannel, retirePlan } from "../services/channel-retire.js";
@@ -51,7 +52,7 @@ import { hostedPilot } from "../hosted-pilot.js";
 import { LITE_SETUP_STEPS, LITE_SUMMARY } from "./lite.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
 import { ensureRaceBoard } from "../services/race-board.js";
-import { repairBoardPermissions } from "../services/board-permissions.js";
+import { boardChannelIds, repairBoardPermissions } from "../services/board-permissions.js";
 import { ensureBattlegroundSetup, ensurePvpModule, BG_SETUP_PARTS, BG_SETUP_FIELDS } from "../services/battleground-setup.js";
 import { communitySetupState, ensureCommunitySetup } from "../services/community-setup.js";
 import { channelIsGone, clearDanglingChannels } from "../services/dangling-channels.js";
@@ -181,6 +182,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     dungeonLeaderboardChannel: await channelFact(guild, settings.dungeonLeaderboardChannelId),
     welcomeChannel: welcomeDelivery(settings) === "DM" ? null : await channelFact(guild, settings.welcomeChannelId),
     autoRoles,
+    ...(await openBoardChannels(guild, prisma, guildId).then((open) => ({ openBoardChannels: open })).catch(() => ({}))),
     ...(honorRolesBlocked(guildId) ? { honorRolesBlocked: true } : {}),
     ...(settings.nicknameSyncEnabled !== false ? { nicknameSyncReady: botCanRename(guild), nicknameBlockedMembers: blockedMemberCount(guild) } : {}),
     epgpConfigured: settings.baseGp > 0,
@@ -509,7 +511,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     // (bot-created names) — to link an existing channel instead, use /config.
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("create-all-channels", missingChannels ? T("Create missing channels ({count})", { count: missingChannels }) : T("All channels exist"), ButtonStyle.Success, missingChannels === 0),
-      button("create-roles", missingRoles ? T("Create missing roles ({count})", { count: missingRoles }) : T("All roles exist"), ButtonStyle.Success, missingRoles === 0)
+      button("create-roles", missingRoles ? T("Create missing roles ({count})", { count: missingRoles }) : T("All roles exist"), ButtonStyle.Success, missingRoles === 0),
+      button("lock-boards", T("Lock board channels"), ButtonStyle.Secondary)
     ));
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("update-messages", T("Update bot messages"), ButtonStyle.Success),
@@ -1072,6 +1075,8 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         } else if (action === "retire-cancel") {
           retiring.delete(guildId); forgetRetirePlan(guildId);
           note = T("Kept the channel. The archive file stays where it was posted.");
+        } else if (action === "lock-boards") {
+          note = (await repairBoardPermissions(guild, prisma, guildId, lang).catch(() => "")) || T("Board channels are already read-only for members.");
         } else if (action === "whos-ask") {
           whosAsk.add(guildId);
           note = T("The Who's who post was retired: mains and alts now show on the roster card, in /character and on the guild page. Press the red button to delete the old message, or Keep it. Nothing is deleted until you confirm.");
@@ -1091,6 +1096,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           const channelId = i.values[0];
           if (field && channelId) {
             await guildService.updateSettings(guildId, { [field]: channelId });
+            if (boardChannelIds({ [field]: channelId }).length) await repairBoardPermissions(guild, prisma, guildId, lang).catch(() => "");
             if (field === "answerChannelId") forgetAnswerSettings(guild.id);
             pendingField.delete(guildId);
             note = T("Saved <#{id}>.", { id: channelId });

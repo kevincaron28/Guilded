@@ -45,6 +45,8 @@ export interface SetupFacts {
   nicknameBlockedMembers?: number;
   // True when the last community honors role sync was refused by Discord (the bot role is below the honor roles).
   honorRolesBlocked?: boolean;
+  // Board channels (standings, ladders, leaderboards, recaps) where members can still write or start threads.
+  openBoardChannels?: string[];
   // The pinned group finder message is the pre-4.6 button, not the current menu.
   dungeonSignupGuideOutdated?: boolean;
   // Every other channel setup can create (field name -> state), shown as optional rows.
@@ -131,6 +133,12 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       fix: facts.nicknameSyncReady
         ? T("My role is below {count} member(s)' top role, so I can't rename them. Server Settings > Roles: drag my role above the member ranks.", { count: facts.nicknameBlockedMembers ?? 0 })
         : T("Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.")
+    }]),
+    ...(facts.openBoardChannels === undefined ? [] : [{
+      label: T("Board channels read-only"),
+      ok: facts.openBoardChannels.length === 0,
+      optional: true,
+      fix: T("Members can still write in {channels}. Press \"Lock board channels\" on this checklist: they can still react, only the bot posts.", { channels: facts.openBoardChannels.map((id) => `<#${id}>`).join(", ") })
     }]),
     ...(facts.honorRolesBlocked ? [{
       label: T("Community honor roles"),

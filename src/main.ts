@@ -9,8 +9,6 @@ import { withEdition } from "./services/edition-context.js";
 import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, withGuildScope, forEachGuildScope } from "./services/guild-scope.js";
 import { executeWow } from "./commands/wow.js";
 import type { Interaction } from "discord.js";
-import { executeGameEvents, executeOwnerEvents, OWNER_EVENTS_COMMAND, ownerEventsCommand } from "./commands/game-events.js";
-import { reconcileGameEventBoards } from "./services/game-events.js";
 import { hostedPilot, pilotGuildScope, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
 import { runRaidNightChecks } from "./services/raid-night-check.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
@@ -219,7 +217,6 @@ process.on("uncaughtException", (error) => {
 process.on("unhandledRejection", (error) => { void errorReportService.report(client, error, { source: "unhandledRejection" }); });
 const handlers = new Collection<string, (interaction: ChatInputCommandInteraction) => Promise<void>>();
 handlers.set("wow", executeWow);
-handlers.set("events", executeGameEvents);
 handlers.set("profile", executeProfile);
 handlers.set("config", executeConfig);
 handlers.set("loot", executeLoot);
@@ -311,25 +308,6 @@ client.once(Events.ClientReady, (readyClient) => {
   void refreshCommunityBoards();
   setInterval(() => void refreshCommunityBoards(), 5 * 60_000);
   void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue"));
-  let eventsRunning = false;
-  const reconcileGameEvents = async () => {
-    if (eventsRunning) return;
-    eventsRunning = true;
-    try {
-      // One lock for every board. A failed pass is repeated per guild so the
-      // report names that server and its board channel.
-      const guilds = [...readyClient.guilds.cache.filter(guild => hostedPilot.allows(guild.id)).values()].map(guild => ({ id: guild.id, name: guild.name }));
-      await reconcileGameEventBoards(prisma, guilds, (error, guild, channelId) => {
-        reportJobError("Upcoming game events", { guildId: guild.id, guildName: guild.name, channelId, operation: "game-events.reconcile" })(error);
-      });
-    } catch (error) { reportJobError("Upcoming game events", { operation: "game-events.reconcile" })(error); }
-    finally { eventsRunning = false; }
-  };
-  // Not at the same instant as the per-guild startup repair below: that burst
-  // filled the pool on 19 October 2026, and these reconciles failed the same way
-  // on 25 October. The minute interval still runs.
-  setTimeout(() => void reconcileGameEvents(), 15_000);
-  setInterval(() => void reconcileGameEvents(), 60_000);
   setInterval(() => void runDiscordJobs(readyClient).catch(reportJobError("Discord delivery queue")), 60_000);
   // Opt-in achievement celebrations: hourly evaluation of guilds that turned them on (no-op otherwise).
   setInterval(() => void sweepAchievementAnnouncements(prisma, new Date(), reportJobError("Achievement announcements")).catch(reportJobError("Achievement announcements")), 60 * 60_000);
@@ -1008,10 +986,6 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     return;
   }
   if (!interaction.isChatInputCommand()) return;
-  if (interaction.commandName === OWNER_EVENTS_COMMAND) {
-    await executeOwnerEvents(interaction).catch((error: unknown) => replyWithCommandError(interaction, error));
-    return;
-  }
   if (interaction.commandName === OWNER_CONSOLE_COMMAND) {
     await executeOwnerConsole(interaction, ownerConsole, () => botOwnerId(client)).catch((error: unknown) => replyWithCommandError(interaction, error));
     return;
@@ -1041,7 +1015,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
 // The bot owner's /guilded-season exists only in the home server (DISCORD_GUILD_ID).
 async function registerCommands(guildId: string, body: unknown[] = commands.map((command) => command.toJSON())): Promise<void> {
   const rest = new REST({ version: "10" }).setToken(config.DISCORD_TOKEN);
-  const full = [...body, ...(guildId === config.DISCORD_GUILD_ID ? [ownerSeasonCommand.toJSON(), ownerEventsCommand.toJSON(), ownerPreviewsCommand.toJSON()] : []), ...(guildId === config.OWNER_CONSOLE_GUILD_ID ? [ownerConsoleCommand.toJSON()] : [])];
+  const full = [...body, ...(guildId === config.DISCORD_GUILD_ID ? [ownerSeasonCommand.toJSON(), ownerPreviewsCommand.toJSON()] : []), ...(guildId === config.OWNER_CONSOLE_GUILD_ID ? [ownerConsoleCommand.toJSON()] : [])];
   await rest.put(Routes.applicationGuildCommands(config.DISCORD_CLIENT_ID, guildId), { body: full });
 }
 

@@ -5,7 +5,6 @@ import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 import { editionsToBuild } from "../scripts/build-addon-editions.mjs";
 import { visibleLines } from "../src/commands/help.js";
 import { commands } from "../src/commands/index.js";
-import { activeEventGames, isEventGameActive } from "../src/services/game-events.js";
 import { defaultFaqEntries, looksLikePoe2Question } from "../src/services/faq-extras.js";
 import { offeredCommunityGames } from "../src/services/community-rules.js";
 import { ACHIEVEMENTS, achievementById } from "../src/services/achievements-catalogue.js";
@@ -25,9 +24,7 @@ describe("Forever-only focus switches", () => {
   it("Discord: /poe is not registered, the PoE2 community stays, other editions are not offered", () => {
     const names = commands.map(command => command.name);
     expect(names).not.toContain("poe");
-    expect(names).toContain("events");
-    expect(activeEventGames()).toEqual(["WOW_FOREVER", "POE2"]);
-    expect(isEventGameActive("WOW_RETAIL")).toBe(false);
+    expect(names).not.toContain("events");
     expect(offeredCommunityGames()).toContain("POE2");
   });
 

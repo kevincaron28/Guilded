@@ -304,6 +304,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
   }
 
   if (step === 2) {
+    // Rows of the removed countdown boards stay in the database; their channels can be retired from here.
+    const oldCountdownChannels = (await (async () => prisma.gameEventBoard.findMany({ where: { guildId }, select: { channelId: true }, take: 5 }))().catch(() => [])).map((row) => row.channelId).filter((id) => guild.channels.cache.has(id));
     embed.setDescription([
       T("Already have channels for these? **Pick them from the menus below** — nothing gets created or moved. Don't have them yet? Skip the menus and press **\"Create the missing ones for me\"**: I'll make only the ones you haven't picked (the log channel will be private to officers), sorted into tidy categories."),
       "",
@@ -312,6 +314,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("📜 **Raid reports and loot logs** — each raid core has its own, in the core's category (`/core setup` makes them). There is no server-wide one."),
       T("🔒 **Officer log** (WoW guild officers) — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
       T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) }),
+      ...(oldCountdownChannels.length ? [T("⏳ **Countdowns** were removed from Guilded. To remove the old {channels}, press **Retire an old channel** below and pick it: its messages are saved to a file first and nothing is deleted until you confirm.", { channels: oldCountdownChannels.map((id) => `<#${id}>`).join(", ") })] : []),
       ...(settings.answerChannelId ? [T("💬 **Bot FAQ** is retired and no longer created. To remove the old {channel}, press **Retire an old channel** below and pick it: its messages are saved to a file first and nothing is deleted until you confirm.", { channel: channelLabel(lang, settings.answerChannelId) })] : []),
       T("🎉 **Community** — activities, leaderboard and chat, with a first season and participation rewards already on, plus a private **Discord admin** channel for community reviews (separate from the WoW officer channels). (\"Create the missing ones for me\" makes these too.)")
     ].join("\n"));

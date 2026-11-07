@@ -93,7 +93,6 @@ sub-commands.
 | `/report` `inactive` `guild` | Inactive members; guild health | Officers |
 | `/organize` | Community seasons, quizzes, honors, lotteries, gaming nights, challenges | Organizers |
 | `/poll` `create` `close` `weekly` `news` `board` | Polls, the weekly question, and news and polls on the in-game guild board | Officers |
-| `/events` `board` `reminders` `disable` `status` `refresh` | Upcoming Events board and opt-in reminders | Officers |
 | `/participation` `settings` `channels` `claims` `review` `reverse` | Participation settings, nominations and awards | Officers |
 | `/wow` `add` `channel` `roles` | Add an in-game guild; bind a channel; set its roles | Officers |
 | `/poe setup` | Turn PoE2 tracking on or off | Officers |

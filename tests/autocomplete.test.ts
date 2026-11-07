@@ -20,15 +20,15 @@ describe("autocomplete", () => {
   });
 
   it("only offers raids a subcommand can act on", () => {
-    expect(raidStatusesFor("signup")).toEqual(["PLANNED"]);
+    expect(raidStatusesFor("cancel-signup")).toEqual(["PLANNED"]);
     expect(raidStatusesFor("end")).toEqual(["ACTIVE"]);
     expect(raidStatusesFor("report")).toEqual(["PLANNED", "ACTIVE", "COMPLETED"]);
   });
 
-  it("offers crafters only other people's open requests to claim", async () => {
+  it("offers crafters the requests they claimed, to finish or give back", async () => {
     const findMany = vi.fn().mockResolvedValue([]);
-    await craftChoices({ craftRequest: { findMany } } as never, "g", "", "claim", "me");
-    expect(findMany.mock.calls[0]?.[0].where).toEqual({ guildId: "g", status: "OPEN", requesterId: { not: "me" } });
+    await craftChoices({ craftRequest: { findMany } } as never, "g", "", "done", "me");
+    expect(findMany.mock.calls[0]?.[0].where).toEqual({ guildId: "g", status: "CLAIMED", crafterId: "me" });
   });
 
   it("keeps choice names within Discord's 100-character limit", async () => {

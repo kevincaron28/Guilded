@@ -1,3 +1,4 @@
+import { displayCharacterName } from "./character-display.js";
 import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
 import { z } from "zod";
 import { createWishlistService } from "./wishlist.js";
@@ -189,10 +190,10 @@ export function createCompanionManage(database: PrismaClient) {
         const character = await ownCharacter(access, action.characterId);
         if (action.action === "wishlist.remove") {
           await wishlist.remove(character.id, action.item);
-          return { message: `Removed ${action.item.trim()} from ${character.name}'s wishlist.` };
+          return { message: `Removed ${action.item.trim()} from ${displayCharacterName(character)}'s wishlist.` };
         }
         const entry = await wishlist.add(character.id, action.item, action.priority);
-        return { message: `${entry.itemName} is on ${character.name}'s wishlist.` };
+        return { message: `${entry.itemName} is on ${displayCharacterName(character)}'s wishlist.` };
       }
 
       requireLeader(access);
@@ -287,14 +288,14 @@ export function createCompanionManage(database: PrismaClient) {
       }
       if (action.action === "core.character") {
         const { character } = await cores.setCharacter(guildId, core.id, member.id, action.character);
-        return done(character ? `${member.displayName} brings ${character.name} to ${core.name}.` : `Cleared the character of ${member.displayName} in ${core.name}.`, `character ${character?.name ?? "cleared"}`);
+        return done(character ? `${member.displayName} brings ${displayCharacterName(character)} to ${core.name}.` : `Cleared the character of ${member.displayName} in ${core.name}.`, `character ${character?.name ?? "cleared"}`);
       }
       if (action.action === "core.backup.set") {
         const { character } = await cores.addBackup(guildId, core.id, member.id, action.character, action.role as RaidRole);
-        return done(`${member.displayName} can also bring ${character.name} (${action.role}) to ${core.name}.`, `backup ${character.name} ${action.role}`);
+        return done(`${member.displayName} can also bring ${displayCharacterName(character)} (${action.role}) to ${core.name}.`, `backup ${character.name} ${action.role}`);
       }
       const { character } = await cores.removeBackup(guildId, core.id, member.id, action.character);
-      return done(`${character.name} is no longer a backup of ${member.displayName} in ${core.name}.`, `backup removed ${character.name}`);
+      return done(`${displayCharacterName(character)} is no longer a backup of ${member.displayName} in ${core.name}.`, `backup removed ${character.name}`);
     }
   };
 }

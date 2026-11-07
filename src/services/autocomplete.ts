@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import type { PrismaClient, RaidStatus } from "../generated/prisma/client.js";
 import { formatRaidTime } from "./raid-time.js";
 
@@ -110,7 +111,7 @@ export async function applicationChoices(database: Pick<PrismaClient, "applicati
     take: 50
   });
   return applications.filter((a) => matches(query, a.character, a.className, a.id)).slice(0, MAX)
-    .map((a) => ({ name: clip(`${a.character} — ${a.className} ${a.spec} (${a.status.toLowerCase()})`), value: a.id }));
+    .map((a) => ({ name: clip(`${cleanCharacterName(a.character)} — ${a.className} ${a.spec} (${a.status.toLowerCase()})`), value: a.id }));
 }
 
 export async function importChoices(database: Pick<PrismaClient, "addonImport">, guildId: string, query: string): Promise<Choice[]> {

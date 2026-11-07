@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { createAuditService } from "../services/audit.js";
 import { prisma } from "../database.js";
@@ -54,10 +55,10 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
     });
     await interaction.reply({
       content: dismiss
-        ? (fr ? `Entrée retirée : **${row.character}** ${row.detail}. Elle ne sera jamais importée (\`/import held restore:${wanted}\` pour revenir en arrière).`
-          : `Dismissed: **${row.character}** ${row.detail}. It will never be imported (\`/import held restore:${wanted}\` to undo).`)
-        : (fr ? `Entrée rétablie : **${row.character}** ${row.detail}. La prochaine synchronisation la réessaie.`
-          : `Restored: **${row.character}** ${row.detail}. The next sync tries it again.`),
+        ? (fr ? `Entrée retirée : **${cleanCharacterName(row.character)}** ${row.detail}. Elle ne sera jamais importée (\`/import held restore:${wanted}\` pour revenir en arrière).`
+          : `Dismissed: **${cleanCharacterName(row.character)}** ${row.detail}. It will never be imported (\`/import held restore:${wanted}\` to undo).`)
+        : (fr ? `Entrée rétablie : **${cleanCharacterName(row.character)}** ${row.detail}. La prochaine synchronisation la réessaie.`
+          : `Restored: **${cleanCharacterName(row.character)}** ${row.detail}. The next sync tries it again.`),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -74,7 +75,7 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
     return;
   }
   const lines = waiting.slice(0, MAX_SHOWN).map((row) =>
-    `\`${codeOf(row.id)}\` **${row.character}** ${row.detail.slice(0, 80)} — ${(WHY[row.reason] ?? { en: row.reason, fr: row.reason })[fr ? "fr" : "en"]}`);
+    `\`${codeOf(row.id)}\` **${cleanCharacterName(row.character)}** ${row.detail.slice(0, 80)} — ${(WHY[row.reason] ?? { en: row.reason, fr: row.reason })[fr ? "fr" : "en"]}`);
   const head = fr
     ? `**${waiting.length} entrée(s) de l'addon en attente.** Elles s'importent seules dès que la cause est réglée; \`/import held dismiss:<code>\` en retire une pour de bon.`
     : `**${waiting.length} addon entr${waiting.length === 1 ? "y is" : "ies are"} on hold.** Each imports by itself once its cause is fixed; \`/import held dismiss:<code>\` drops one for good.`;

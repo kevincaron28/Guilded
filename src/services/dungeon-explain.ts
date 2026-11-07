@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { bracketedVerdict, presentEnough } from "./dungeon-rating.js";
 import { leniencyOf, validBracketedRules } from "./dungeon-november-rules.js";
@@ -57,7 +58,7 @@ export async function explainDungeonRuns(database: Db, guildId: string, filter: 
       bits.push(p.memberId ? "linked" : "NOT linked to a member: not on the time board, no points");
       bits.push(`present ${percent}%${run.durationSec && !presentEnough(p.presentSec, run.durationSec, rules ? leniencyOf(rules).presence : undefined) ? ` (time board needs ${Math.round((rules ? leniencyOf(rules).presence : 0.8) * 100)}%)` : ""}`);
       if (rules && p.memberId) bits.push(PARTICIPATION[participationMode(evidence, p.character, rules.levelBands[bracketedVerdict({ ...evidence, players: evidence.players.map(q => ({ ...q, member: null })) }, rules).key], rules)] ?? "?");
-      lines.push(`• **${p.character}** — ${bits.join(" · ")}`);
+      lines.push(`• **${cleanCharacterName(p.character)}** — ${bits.join(" · ")}`);
     }
     out.push(lines.join("\n"));
   }

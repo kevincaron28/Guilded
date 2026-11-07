@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
 import { createItemValueService } from "./item-values.js";
@@ -77,14 +78,14 @@ export function describePriority(itemName: string, coreName: string | null, resu
     return `${head}\nNobody eligible wants it yet. Players add it with \`/character wishlist add\`.${result.outsideCore ? ` (${result.outsideCore} wisher(s) are not in this core.)` : ""}`;
   }
   const lines = result.ranking.slice(0, 10).map((row, index) =>
-    `${index + 1}. **${row.character}** (${row.displayName}) — PR ${row.pr.toFixed(2)} (EP ${row.ep} / GP ${row.gp})`);
+    `${index + 1}. **${cleanCharacterName(row.character)}** (${row.displayName}) — PR ${row.pr.toFixed(2)} (EP ${row.ep} / GP ${row.gp})`);
   const winner = result.ranking[0]!;
   const tied = result.ranking.filter(row => row.pr === winner.pr && (row.ep < (result.minEp ?? 0)) === (winner.ep < (result.minEp ?? 0)));
   return [
     head, ...lines,
     result.ranking.length > 10 ? `…and ${result.ranking.length - 10} more.` : "",
-    result.visibleTies ? (tied.length > 1 ? `Priority tie: ${tied.map(row => `**${row.character}**`).join(", ")}. Resolve with a visible /roll 100 in game; wishlist order does not break the tie.` : `Highest wishlist priority by PR: **${winner.character}**. Confirm main/off-spec interest and usability in game before awarding.`)
-      : `Goes to **${winner.character}**${result.price === null ? "" : ` for ${result.price} GP`}: \`/officer loot award\` with that player${result.price === null ? " and a gp" : " charges the set price"}.`,
+    result.visibleTies ? (tied.length > 1 ? `Priority tie: ${tied.map(row => `**${cleanCharacterName(row.character)}**`).join(", ")}. Resolve with a visible /roll 100 in game; wishlist order does not break the tie.` : `Highest wishlist priority by PR: **${cleanCharacterName(winner.character)}**. Confirm main/off-spec interest and usability in game before awarding.`)
+      : `Goes to **${cleanCharacterName(winner.character)}**${result.price === null ? "" : ` for ${result.price} GP`}: \`/officer loot award\` with that player${result.price === null ? " and a gp" : " charges the set price"}.`,
     result.outsideCore ? `(${result.outsideCore} wisher(s) are not in this core and were left out.)` : ""
   ].filter(Boolean).join("\n");
 }

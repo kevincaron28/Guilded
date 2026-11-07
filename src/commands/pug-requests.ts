@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "../services/character-display.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember, type ModalSubmitInteraction
@@ -215,7 +216,7 @@ async function handle(interaction: ButtonInteraction | ModalSubmitInteraction): 
   if (interaction.isButton() && action === "rv") {
     const pending = await prisma.pugSignup.findMany({ where: { requestId: request.id, status: "PENDING" }, orderBy: { createdAt: "asc" }, take: 5 });
     if (!pending.length) { await reply(interaction, pt(hostLang, "No guests are waiting.", "Aucun invité en attente.")); return; }
-    await reply(interaction, { content: pending.map((s, index) => `${index + 1}. ${pugRoleLabel(s.role, hostLang)} — **${s.characterName}**${s.characterClass ? ` (${s.characterClass})` : ""} · ${s.displayName}${s.note ? ` — ${s.note}` : ""}`).join("\n"),
+    await reply(interaction, { content: pending.map((s, index) => `${index + 1}. ${pugRoleLabel(s.role, hostLang)} — **${cleanCharacterName(s.characterName)}**${s.characterClass ? ` (${s.characterClass})` : ""} · ${s.displayName}${s.note ? ` — ${s.note}` : ""}`).join("\n"),
       components: pending.map((s, index) => new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder().setCustomId(`${PUG_PREFIX}ok:${s.id}`).setStyle(ButtonStyle.Success).setLabel(`${index + 1} ${pt(hostLang, "Accept", "Accepter")}`),
         new ButtonBuilder().setCustomId(`${PUG_PREFIX}no:${s.id}`).setStyle(ButtonStyle.Danger).setLabel(`${index + 1} ${pt(hostLang, "Decline", "Refuser")}`))) });

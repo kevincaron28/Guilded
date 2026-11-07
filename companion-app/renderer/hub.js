@@ -11,7 +11,6 @@
     clearTimeout(retryTimer); clearInterval(retryTick);
     const seconds = window.guildedSignIn.retryDelaySeconds(retryAttempt++);
     retryAt = Date.now() + seconds * 1000;
-    retryTick = setInterval(renderStatus, 1000);
     retryTimer = setTimeout(() => { clearInterval(retryTick); retryAt = 0; void load(); }, seconds * 1000);
   }
   function clearRetry() { clearTimeout(retryTimer); clearInterval(retryTick); retryAt = 0; retryAttempt = 0; }
@@ -43,27 +42,6 @@
     finally { if (request === generation) { loading = false; render(); } }
   }
 
-  // The one status line on Home: connected or not, last refresh, and what to do next.
-  function nextStep() {
-    if (personal) return T("Signed in, but you're not in a Discord server that uses Guilded yet. Join your guild's Discord, then press Link to my guild.");
-    if (!data) return T('Next: connect your Discord account in Settings.');
-    const todo = (data.server?.checks || []).filter(c => !c.ok && !c.optional).length;
-    if (todo) return T('Next: {0} setup item(s) need an officer. Open Server.', todo);
-    if (!data.characters.length) return T('Next: save in WoW and sync, so your characters appear here.');
-    return T('You are all set.');
-  }
-  function renderStatus() {
-    const node = $('hubStatus'); if (!node) return;
-    let line;
-    const retrying = retryAt ? T(window.guildedSignIn.SERVER_RESTARTING, Math.max(0, Math.ceil((retryAt - Date.now()) / 1000))) : '';
-    if (personal) line = T('Signed in for public dungeon rankings only');
-    else if (data && !offline) line = T('Connected to {0} · updated {1}', data.guild.name, when(data.updatedAt));
-    else if (data) line = T('Not connected: showing the data saved on {0}', when(savedAt)) + (retrying ? ` · ${retrying}` : '');
-    else if (retrying) line = retrying;
-    else line = error ? T('Not connected: {0}', M(error)) : T('Not connected yet.');
-    node.textContent = `${line} · ${nextStep()}`;
-    node.hidden = false;
-  }
 
   function renderCharacters() {
     const host = $('charactersContent'); host.replaceChildren();
@@ -88,21 +66,6 @@
     }
   }
 
-  function renderReserves() {
-    const host = $('reservesContent'); host.replaceChildren();
-    if (!data) { host.append(text(error ? M(error) : T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
-    const r = data.reserves;
-    const modes = r.cores.filter(c => c.lootMode === 'RESERVE');
-    host.append(el('article', { class: 'panel' }, el('h2', { text: T('Where to reserve') }),
-      text(T('Soft reserves are kept in the game addon by your raid leader (/guilded reserve) and reach Discord when the companion uploads. To keep your reserves from being overwritten, reserve in game; this page shows the list.')),
-      modes.length ? text(T('Cores using soft reserves: {0}', modes.map(c => `${c.name} (${T('{0} per player', c.reservesPerPlayer)})`).join(', '))) : text(T('No raid core uses soft reserves right now.'))));
-    if (!r.list || !r.list.active) { host.append(text(T('No soft-reserve list is open. An officer starts one in game with /guilded reserve open.'))); return; }
-    host.append(el('article', { class: 'panel' },
-      el('div', { class: 'section-title' }, el('h2', { text: r.list.title || T('Soft reserves') }), el('span', { class: 'pill', text: r.list.open ? T('Open') : T('Locked') })),
-      text(T('{0} per player · synced {1}', r.list.perPlayer, when(r.list.syncedAt))),
-      text(T('Your reserves: {0}', r.mineCount)),
-      r.items.length ? el('ul', { class: 'edit-list' }, ...r.items.map(i => el('li', { class: 'edit-row' }, el('strong', { text: i.itemName + (i.mine ? ' ★' : '') }), el('span', { text: i.characters.join(', ') })))) : text(T('Nobody has reserved yet.'))));
-  }
 
   async function change(payload) {
     if (saving) return; saving = true; $('serverContent').inert = true;
@@ -154,10 +117,10 @@
         text(x.welcomeChannelSet || x.welcomeDelivery === 'DM' ? T('The welcome message is set up. Change it in Discord with /setup start, step 5.') : T('Not set up. Run /setup start in Discord, step 5.'))));
   }
 
-  function render() { renderStatus(); renderCharacters(); renderReserves(); renderServer(); }
+  function render() { renderCharacters(); renderServer(); }
 
-  for (const id of ['charactersReload', 'reservesReload', 'serverReload']) $(id).addEventListener('click', () => { loading = false; void load(); });
-  document.querySelectorAll('[data-page="characters"],[data-page="reserves"],[data-page="server"]').forEach(b => b.addEventListener('click', () => void load()));
+  for (const id of ['charactersReload', 'serverReload']) $(id).addEventListener('click', () => { loading = false; void load(); });
+  document.querySelectorAll('[data-page="characters"],[data-page="server"]').forEach(b => b.addEventListener('click', () => void load()));
   document.addEventListener('companion-language', () => { if (!saving) render(); });
   document.addEventListener('companion-connection-changing', () => { generation++; loading = false; saving = false; data = null; error = ''; render(); });
   document.addEventListener('companion-connection-changed', () => { loading = false; void load(); });

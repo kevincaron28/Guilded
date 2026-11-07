@@ -1,17 +1,23 @@
 import { ChannelType, PermissionFlagsBits } from "discord.js";
 import { describe, expect, it, vi } from "vitest";
-import { BOARD_LOCK, boardChannelIds, planBoardLock, repairBoardPermissions } from "../src/services/board-permissions.js";
+import { BOARD_LOCK, boardChannelIds, openBoardChannels, planBoardLock, repairBoardPermissions } from "../src/services/board-permissions.js";
 
 const EVERYONE = "g1", MEMBER = "r-member", OFFICER = "r-officer", BOT = "bot1";
 const SEND = PermissionFlagsBits.SendMessages;
 
 describe("planBoardLock", () => {
-  it("denies write, reactions and threads for @everyone and the member role, and gives the bot what it needs", () => {
+  it("denies write and threads (not reactions) for @everyone and the member role, and gives the bot what it needs", () => {
     const edits = planBoardLock([], EVERYONE, MEMBER, BOT);
     for (const id of [EVERYONE, MEMBER]) expect(edits.find(e => e.id === id)!.deny & BOARD_LOCK).toBe(BOARD_LOCK);
     const bot = edits.find(e => e.id === BOT)!;
     expect(bot.allow & SEND).toBe(SEND);
     expect(bot.allow & PermissionFlagsBits.ViewChannel).toBe(PermissionFlagsBits.ViewChannel);
+  });
+
+  it("lifts an older reaction deny so members can react", () => {
+    const edits = planBoardLock([{ id: EVERYONE, allow: 0n, deny: BOARD_LOCK | PermissionFlagsBits.AddReactions }], EVERYONE, null, BOT);
+    expect(edits.find(e => e.id === EVERYONE)!.deny & PermissionFlagsBits.AddReactions).toBe(0n);
+    expect(BOARD_LOCK & PermissionFlagsBits.AddReactions).toBe(0n);
   });
 
   it("removes a role-level Send Messages allow, which is how a read-only channel stayed writable", () => {
@@ -61,7 +67,8 @@ describe("repairBoardPermissions", () => {
     const channel = { type: ChannelType.GuildText, permissionOverwrites: { cache: new Map(overwrites.map(o => [o.id, o])), set } };
     const fetch = vi.fn(async (id: string) => id === "race" || id === "duel" ? channel : null);
     const guild = { id: EVERYONE, members: { me: { id: BOT } }, channels: { fetch }, roles: { cache: new Map() } };
-    const db = { guildSettings: { findUnique: vi.fn(async () => ({ memberRoleId: MEMBER, ...settings })) } };
+    const db = { guildSettings: { findUnique: vi.fn(async () => ({ memberRoleId: MEMBER, ...settings })) },
+      communityHonors: { findUnique: vi.fn(async () => (settings["honorsChannel"] ? { channelId: settings["honorsChannel"] } : null)) }, communitySeason: { findMany: vi.fn(async () => []) } };
     return { guild: guild as never, db: db as never, set, fetch };
   }
 
@@ -73,6 +80,13 @@ describe("repairBoardPermissions", () => {
     const sent = (f.set.mock.calls[0] as unknown as [Array<{ id: string; allow: bigint; deny: bigint }>])[0];
     expect(sent.find(o => o.id === MEMBER)!.allow & SEND).toBe(0n);
     expect(sent.find(o => o.id === EVERYONE)!.deny & SEND).toBe(SEND);
+  });
+
+  it("also covers the hall of fame and the dungeon leaderboard, and lists channels that still allow chat without changing them", async () => {
+    const f = fixture([overwrite(MEMBER, SEND, 0n)], { honorsChannel: "race", dungeonLeaderboardChannelId: "duel" });
+    expect(await openBoardChannels(f.guild, f.db, "g")).toEqual(["duel", "race"]);
+    expect(f.set).not.toHaveBeenCalled();
+    expect(boardChannelIds({ dungeonLeaderboardChannelId: "d", weeklyReportChannelId: "w" })).toEqual(["d", "w"]);
   });
 
   it("does nothing for a server with no board channels, and never touches another channel", async () => {

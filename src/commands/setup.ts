@@ -31,6 +31,7 @@ import { inviteChannelCandidates, pickInviteChannel } from "../services/invite-e
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { blockedMemberCount, botCanRename } from "../services/nickname-sync.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { openBoardChannels } from "../services/board-permissions.js";
 import { honorRolesBlocked } from "../services/community-honors.js";
 import { deleteWhosWhoPost, hasWhosWhoPost } from "../services/whos-who-board.js";
 import { archiveForRetire, deleteRetiredChannel, forgetRetirePlan, isManagedChannel, retirePlan } from "../services/channel-retire.js";
@@ -42,7 +43,7 @@ import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { ensureAllCoresDiscord } from "../services/raid-core.js";
 import { botMessageFacts, ensureBotGuide, gettingStartedPost, updateBotMessages } from "../services/bot-messages.js";
 import { dungeonGuideState, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
-import { guideText as craftGuideText } from "./craft-board.js";
+import { guideButtons as craftGuideButtons, guideText as craftGuideText } from "./craft-board.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { CATEGORY_NAMES, isSetupLeftover, categoryNames, channelNames, channelSpec, type Access, type CategoryKey, type ChannelField } from "../setup-names.js";
 import { forgetAnswerSettings } from "./faq.js";
@@ -51,7 +52,7 @@ import { hostedPilot } from "../hosted-pilot.js";
 import { LITE_SETUP_STEPS, LITE_SUMMARY } from "./lite.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
 import { ensureRaceBoard } from "../services/race-board.js";
-import { repairBoardPermissions } from "../services/board-permissions.js";
+import { boardChannelIds, repairBoardPermissions } from "../services/board-permissions.js";
 import { ensureBattlegroundSetup, ensurePvpModule, BG_SETUP_PARTS, BG_SETUP_FIELDS } from "../services/battleground-setup.js";
 import { communitySetupState, ensureCommunitySetup } from "../services/community-setup.js";
 import { channelIsGone, clearDanglingChannels } from "../services/dangling-channels.js";
@@ -181,6 +182,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     dungeonLeaderboardChannel: await channelFact(guild, settings.dungeonLeaderboardChannelId),
     welcomeChannel: welcomeDelivery(settings) === "DM" ? null : await channelFact(guild, settings.welcomeChannelId),
     autoRoles,
+    ...(await openBoardChannels(guild, prisma, guildId).then((open) => ({ openBoardChannels: open })).catch(() => ({}))),
     ...(honorRolesBlocked(guildId) ? { honorRolesBlocked: true } : {}),
     ...(settings.nicknameSyncEnabled !== false ? { nicknameSyncReady: botCanRename(guild), nicknameBlockedMembers: blockedMemberCount(guild) } : {}),
     epgpConfigured: settings.baseGp > 0,
@@ -190,7 +192,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     officerSyncAt: (await prisma.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }))?.officerSyncAt ?? null,
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "dungeonChannelId", "weeklyReportChannelId", "inviteChannelId"] as const)
+    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "dungeonChannelId", "weeklyReportChannelId", "inviteChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
@@ -509,7 +511,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     // (bot-created names) — to link an existing channel instead, use /config.
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("create-all-channels", missingChannels ? T("Create missing channels ({count})", { count: missingChannels }) : T("All channels exist"), ButtonStyle.Success, missingChannels === 0),
-      button("create-roles", missingRoles ? T("Create missing roles ({count})", { count: missingRoles }) : T("All roles exist"), ButtonStyle.Success, missingRoles === 0)
+      button("create-roles", missingRoles ? T("Create missing roles ({count})", { count: missingRoles }) : T("All roles exist"), ButtonStyle.Success, missingRoles === 0),
+      button("lock-boards", T("Lock board channels"), ButtonStyle.Secondary)
     ));
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("update-messages", T("Update bot messages"), ButtonStyle.Success),
@@ -618,7 +621,7 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
 }
 
 export const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId"];
-const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId", "inviteChannelId"];
+const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId", "inviteChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
 export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];
@@ -1029,7 +1032,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
                 if (forum?.type !== ChannelType.GuildForum) return;
                 const pinned = (await forum.threads.fetchActive().catch(() => null))?.threads.find((thread) => thread.flags.has("Pinned"));
                 const starter = pinned ? await pinned.fetchStarterMessage().catch(() => null) : null;
-                if (starter?.editable) { if (starter.content !== craftGuideText(lang)) await starter.edit({ content: craftGuideText(lang) }); }
+                if (starter?.editable) { if (starter.content !== craftGuideText(lang)) await starter.edit({ content: craftGuideText(lang), components: craftGuideButtons(lang) }); }
                 else if (!pinned) await postBoardGuide(forum, lang);
               },
               leaderboard: () => updateDungeonLeaderboard(guild),
@@ -1072,6 +1075,8 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         } else if (action === "retire-cancel") {
           retiring.delete(guildId); forgetRetirePlan(guildId);
           note = T("Kept the channel. The archive file stays where it was posted.");
+        } else if (action === "lock-boards") {
+          note = (await repairBoardPermissions(guild, prisma, guildId, lang).catch(() => "")) || T("Board channels are already read-only for members.");
         } else if (action === "whos-ask") {
           whosAsk.add(guildId);
           note = T("The Who's who post was retired: mains and alts now show on the roster card, in /character and on the guild page. Press the red button to delete the old message, or Keep it. Nothing is deleted until you confirm.");
@@ -1091,6 +1096,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           const channelId = i.values[0];
           if (field && channelId) {
             await guildService.updateSettings(guildId, { [field]: channelId });
+            if (boardChannelIds({ [field]: channelId }).length) await repairBoardPermissions(guild, prisma, guildId, lang).catch(() => "");
             if (field === "answerChannelId") forgetAnswerSettings(guild.id);
             pendingField.delete(guildId);
             note = T("Saved <#{id}>.", { id: channelId });

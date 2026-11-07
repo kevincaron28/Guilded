@@ -2,7 +2,8 @@
 <p class="eyebrow">COMPAGNON · WINDOWS</p>
 <h1 id="companion-title">Obtenir le compagnon <em>Guilded.</em></h1>
 <p>Une petite application Windows gratuite qui envoie les données enregistrées de votre addon à Discord et au site, et rapporte les classements dans le jeu.</p>
-<div class="actions"><a class="button" href="https://apps.microsoft.com/detail/9N680XX3QFL9">Microsoft Store (recommandé, signé) <span aria-hidden="true">↗</span></a><a class="button secondary" href="{{COMPANION_DIRECT_URL}}">Téléchargement direct (mise à jour automatique) <span aria-hidden="true">↓</span></a></div>
+<div class="actions"><a class="button" href="{{COMPANION_DIRECT_URL}}">Télécharger pour Windows <span aria-hidden="true">↓</span></a><a class="button secondary" href="https://apps.microsoft.com/detail/9N680XX3QFL9">Microsoft Store <span aria-hidden="true">↗</span></a></div>
+<p class="micro">Gratuit · Windows 10 et 11 · environ 120 Mo · se met à jour tout seul</p>
 </section>
 
 ## Application Android (préversion)
@@ -20,13 +21,16 @@ SHA-256 du fichier : `{{ANDROID_SHA256}}`. Vous pouvez le comparer à la somme d
 
 Le compagnon fonctionne **sous Windows seulement**. Il n’existe pas de version Mac ou Linux, ni de version dans le navigateur.
 
-## Installer
+## Installer en trois étapes
 
-1. **Microsoft Store (recommandé, signé).** Ouvrez la [fiche Guilded Companion](https://apps.microsoft.com/detail/9N680XX3QFL9). Elle est signée par le Store, qui la met à jour tout seul. Pour mettre à jour tout de suite, choisissez **Ouvrir Microsoft Store** dans l’Accueil du compagnon : la fiche s’ouvre et le Store y propose **Mettre à jour**.
-2. **Téléchargement direct (mise à jour automatique).** Pour celles et ceux qui préfèrent éviter le Store : [téléchargez l’installateur]({{COMPANION_DIRECT_URL}}). Ce lien donne toujours la version la plus récente. Installez-le une fois et oubliez-le : le compagnon cherche une nouvelle version toutes les quelques heures, vérifie chaque téléchargement avec son empreinte publiée et l’installe discrètement à la fermeture ou au prochain démarrage. Pour mettre à jour tout de suite, choisissez **Mettre à jour** dans l’Accueil du compagnon : il montre votre version et la plus récente. Vous pouvez désactiver les mises à jour automatiques dans les paramètres du compagnon.
+1. **Téléchargez.** [Télécharger pour Windows]({{COMPANION_DIRECT_URL}}). Le lien donne toujours la version la plus récente.
+2. **Lancez-le.** Ouvrez le fichier téléchargé. Windows peut indiquer qu’il « a protégé votre PC » : choisissez **Informations complémentaires → Exécuter quand même** (l’installateur est gratuit et n’est pas signé). Il n’y a rien à choisir : il s’installe et ouvre le compagnon tout seul.
+3. **Laissez la configuration faire le reste.** Le compagnon trouve World of Warcraft sur n’importe quel disque, installe ou met à jour l’addon Guilded et ouvre Discord dans votre navigateur : choisissez le serveur de votre guilde et appuyez sur **Relier**. Après votre prochain `/reload` dans WoW (ou à la déconnexion), il synchronise tout seul et continue depuis la zone de notification.
 
-**À propos de l’avertissement Windows.** L’installateur direct n’est pas signé : Windows SmartScreen peut indiquer qu’il « a protégé votre PC ». Choisissez **Informations complémentaires → Exécuter quand même**. Pour vérifier le fichier, son SHA-256 (version {{COMPANION_DIRECT_VERSION}}) est `{{COMPANION_DIRECT_SHA256}}`, et chaque version publie ses empreintes dans `SHA256SUMS` sur la [page de la version](https://github.com/kevincaron28/Guilded/releases/latest). La version du Store ne se met jamais à jour ainsi, car le Store s’en charge.
+C’est tout. Le compagnon **se met à jour tout seul** : les nouvelles versions se téléchargent en arrière-plan et s’installent quand vous le quittez ou le redémarrez, ou tout de suite avec **Mettre à jour** dans son Accueil.
 
-Ouvrez ensuite le compagnon, choisissez **Connexion avec Discord**, sélectionnez votre serveur (ou les classements publics seulement) puis vos données enregistrées. Après avoir joué, faites `/reload` dans WoW et le compagnon synchronise. Consultez le [guide d’installation](../docs/MEMBER_INSTALL.html#fr) pour chaque étape.
+**Vous avez déjà Guilded Companion du Microsoft Store ?** Cet installateur le remplace en gardant vos réglages et votre liaison Discord, pour n’en avoir qu’un. Vous préférez le Store ? [Obtenez-le sur Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) : il est signé par le Store, qui le met à jour (pour mettre à jour tout de suite, choisissez **Ouvrir Microsoft Store** dans l’Accueil du compagnon).
 
-Vous veniez de l’ancien compagnon en ligne ? Votre lien Discord se trouve dans l’application Windows : connectez-vous une fois et c’est réglé.
+**Un problème ?** Ouvrez le compagnon et appuyez sur **Réparer** : il vérifie le dossier WoW, l’addon, votre connexion et la synchronisation, corrige ce qu’il peut et dit clairement ce qui reste. Le [guide d’installation](../docs/MEMBER_INSTALL.html) montre chaque étape en images.
+
+**Vérifier le fichier vous-même.** L’empreinte SHA-256 de l’installateur (version {{COMPANION_DIRECT_VERSION}}) est `{{COMPANION_DIRECT_SHA256}}`, et chaque version liste ses empreintes dans `SHA256SUMS` sur la [page de la version](https://github.com/kevincaron28/Guilded/releases/latest).

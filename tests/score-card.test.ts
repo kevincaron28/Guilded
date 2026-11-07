@@ -80,6 +80,9 @@ describe("symbols the card font cannot draw", () => {
     expect(drawable("a\u200Db")).toBe("ab");
     expect(drawable("Gold \u00B7 Saison 1 \u2013 +3 \u00A9 \u00B0 50% \u2026")).toBe("Gold \u00B7 Saison 1 \u2013 +3 \u00A9 \u00B0 50% \u2026");
     expect(drawable("\u269C\u269C")).toBe("");
+    // Styled Discord names: the mathematical script letters read as Latin, the trademark sign as TM, the emoji is dropped.
+    expect(drawable("\u{1D4D5}\u{1D4FB}\u{1D4FE}\u{1D4F6}\u{1D4F9}\u{1D502}\u2122\u{1F3B2}")).toBe("FrumpyTM");
+    expect(drawable("\uFF26\uFF52\uFF55 \uFB01n")).toBe("Fru fin");
   });
   it("draws a guild title with symbols exactly like the same title without them, on every layout", async () => {
     const base = { eyebrow: "Roster", subtitle: "12 members", stats: [{ label: "Members", value: "12" }], footer: "Guilded" };

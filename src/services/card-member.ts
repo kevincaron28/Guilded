@@ -1,5 +1,5 @@
 import type { Guild } from "discord.js";
-import type { ScoreCard } from "./score-card.js";
+import { drawable, type ScoreCard } from "./score-card.js";
 
 const MAX_AVATAR_BYTES = 1_000_000;
 
@@ -15,7 +15,7 @@ export async function withDiscordMember(guild: Guild, card: ScoreCard, userId: s
     const image = await fetchImage(url).catch(() => null);
     const role = member.roles.highest;
     const rank = role && role.id !== guild.id ? { label: role.name, color: role.color ? role.hexColor : "#b9a77f" } : undefined;
-    return { ...card, title: member.displayName || card.title, ...(image ? { portrait: image.toString("base64") } : {}), ...(rank ? { rank } : {}) };
+    return { ...card, title: drawable(member.displayName) ? member.displayName : member.user?.username || card.title, ...(image ? { portrait: image.toString("base64") } : {}), ...(rank ? { rank } : {}) };
   } catch { return card; }
 }
 

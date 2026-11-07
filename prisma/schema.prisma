@@ -980,6 +980,13 @@ model GuildSettings {
   // 9.0 guild bank ledger: weekly summary in the officer log channel (on by default; /officer stats bank).
   guildBankWeeklyEnabled   Boolean @default(true)
   guildBankLastPostAt      DateTime?
+  // 9.1 (docs/plans/GUILD_BANK.md), on by default with officer off switches (/bank settings):
+  // members can search the bank contents (never the ledger); bank requests get a card with
+  // buttons in the request channel (else the log channel); low-stock alerts in the log channel.
+  guildBankMemberSearch    Boolean @default(true)
+  guildBankRequestPosts    Boolean @default(true)
+  guildBankStockAlerts     Boolean @default(true)
+  bankRequestChannelId     String?
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -1382,11 +1389,20 @@ model BankRequest {
   handledBy String?
   handledAt DateTime?
   reply     String?
+  // 9.1 (docs/plans/GUILD_BANK.md): the bank item when the request matched the contents; where it
+  // was made ("discord" or "addon"); the addon's own id for it, so a re-upload is the same request;
+  // and the officer queue card (channel and message) the bot posted for it.
+  itemId    Int?
+  source    String            @default("discord")
+  clientRef String?
+  channelId String?
+  messageId String?
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
   guild     Guild             @relation(fields: [guildId], references: [id], onDelete: Cascade)
   member    Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
+  @@unique([guildId, clientRef])
   @@index([guildId, status, createdAt])
   @@index([memberId, createdAt])
 }
@@ -3152,6 +3168,21 @@ model GuildBankTransaction {
   createdAt    DateTime @default(now())
 
   @@index([guildId, at])
+}
+
+// 9.1 minimum stock (docs/plans/GUILD_BANK.md): officers keep at least `minCount` of an item in
+// the bank. `lowSince` is set when an upload shows less (one alert), cleared when it is back.
+model GuildBankTarget {
+  id        String    @id @default(cuid())
+  guildId   String
+  itemId    Int
+  itemName  String
+  minCount  Int
+  lowSince  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([guildId, itemId])
 }
 
 // 9.0: which linked characters the "you're linked" DM already told a member about (companion-link-dm.ts).

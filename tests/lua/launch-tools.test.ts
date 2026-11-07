@@ -283,6 +283,50 @@ describe("guild bank snapshot (GuildBank.lua)", () => {
     expect(s.run("return COPIED.text")).toBe("Tab\tItem ID\tItem\tCount\nMats\t12360\tArcanite Bar\t2\nMats\t13444\tMajor Mana Potion\t8");
   });
 
+  it("reads each item's quality from its link colour", () => {
+    const s = bare({ lua: BANK + `SLOTS[1][3] = { "|cff1eff00|Hitem:12360::::|h[Arcanite Bar]|h|r", 2 }` });
+    s.load("Modules/GuildBank.lua");
+    s.run("NS.guildBank.scan()");
+    expect(s.run("return DB.guildBank.tabs[1].items[12360].q .. ':' .. DB.guildBank.tabs[1].items[13444].q")).toBe("2:1");
+  });
+
+  // 9.1: members who never opened the bank search the guild's contents from Discord, and ask for items.
+  const SYNCED = String.raw`
+    function GetServerTime() return 1800000000 end
+    GuildedBank = { at = 1799990000, money = 50000, items = {
+      { id = 13444, name = "Major Mana Potion", count = 12, tab = "Consumables", q = 1 },
+      { id = 13446, name = "Major Healing Potion", count = 3, tab = "Consumables" } },
+      low = { { itemId = 13446, itemName = "Major Healing Potion", have = 3, min = 10 } },
+      requests = { { ref = "1700000000-111111", item = "Arcanite Bar", count = 2, status = "FULFILLED", at = 1 } } }
+  `;
+
+  it("searches the guild's contents from Discord when this PC never opened the bank", () => {
+    const s = bare({ lua: SYNCED });
+    s.load("Modules/GuildBank.lua");
+    run(s, "gbank", "healing");
+    expect(s.chat().join("\n")).toContain("(by Discord): 2 different item(s), 5g 0s 0c.");
+    expect(lastChat(s)).toBe("  Major Healing Potion x3 (Consumables)");
+    run(s, "gbank", "low");
+    expect(lastChat(s)).toBe("  Major Healing Potion: 3 / 10");
+  });
+
+  it("saves a request with the bank's item id, lists it, and drops it once Discord has it", () => {
+    const s = bare({ lua: SYNCED });
+    s.load("Modules/GuildBank.lua");
+    run(s, "gbank", "request 4 major mana potion");
+    expect(lastChat(s)).toContain("Request saved: 4 x Major Mana Potion.");
+    const ref = s.run("local ref = next(DB.bankRequests) return ref");
+    expect(s.run(`local r = DB.bankRequests["${ref}"] return r.item .. ':' .. r.itemId .. ':' .. r.count`)).toBe("Major Mana Potion:13444:4");
+    run(s, "gbank", "requests");
+    expect(s.chat().join("\n")).toContain("4 x Major Mana Potion - waiting for the companion");
+    expect(s.chat().join("\n")).toContain("2 x Arcanite Bar - fulfilled");
+    s.run(`table.insert(GuildedBank.requests, { ref = "${ref}", item = "Major Mana Potion", count = 4, status = "PENDING", at = 1800000000 })`);
+    run(s, "gbank", "requests");
+    expect(s.run("return tostring(next(DB.bankRequests))")).toBe("nil");
+    run(s, "gbank", "request x");
+    expect(lastChat(s)).toBe("Name the item you need.");
+  });
+
   it("keeps the last snapshot while the server has not sent the items yet", () => {
     const s = bare({ lua: BANK });
     s.load("Modules/GuildBank.lua");

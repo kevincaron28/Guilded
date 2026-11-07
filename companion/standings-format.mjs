@@ -206,6 +206,10 @@ export function standingsToLua(data) {
       "} }"
     ] : ["GuildedNextRaid = nil"]),
     "",
+    "-- 9.1 guild bank: the guild's last contents (from any member who opened it), items below their",
+    "-- minimum, and this member's own requests (Modules/GuildBank.lua).",
+    ...guildBankToLua(data.bank),
+    "",
     "-- Officers only: names waiting for a guild invite (full Forever names), for the addon's To invite panel.",
     ...(Array.isArray(data.officerInvites) ? [
       `GuildedInvites = { fetchedAt = ${luaString(data.updatedAt ?? "")}, names = {`,
@@ -214,6 +218,22 @@ export function standingsToLua(data) {
     ] : ["GuildedInvites = nil"]),
     ""
   ].join("\n");
+}
+
+// The guild bank for the addon: at most 400 items, 30 low rows and 15 requests; nothing when absent.
+export function guildBankToLua(bank) {
+  if (!bank || typeof bank !== "object") return ["GuildedBank = nil"];
+  const int = (v) => Math.trunc(Number(v) || 0);
+  const items = (Array.isArray(bank.items) ? bank.items : []).slice(0, 400).filter((i) => i && Number.isInteger(i.id) && i.id > 0)
+    .map((i) => `  { id = ${i.id}, name = ${luaString(i.name ?? "")}, count = ${int(i.count)}, tab = ${luaString(i.tab ?? "")}${Number.isInteger(i.q) ? `, q = ${i.q}` : ""} },`);
+  const low = (Array.isArray(bank.low) ? bank.low : []).slice(0, 30).filter((r) => r && Number.isInteger(r.itemId))
+    .map((r) => `  { itemId = ${r.itemId}, itemName = ${luaString(r.itemName ?? "")}, have = ${int(r.have)}, min = ${int(r.min)} },`);
+  const requests = (Array.isArray(bank.requests) ? bank.requests : []).slice(0, 15).filter((r) => r && typeof r.item === "string")
+    .map((r) => `  { ref = ${luaString(r.ref ?? "")}, item = ${luaString(r.item)}, count = ${int(r.count)}, status = ${luaString(String(r.status ?? "PENDING").replace(/[^A-Z]/g, ""))}, at = ${int(r.at)} },`);
+  return [
+    `GuildedBank = { at = ${Number.isInteger(bank.at) ? bank.at : "nil"}, money = ${Number.isSafeInteger(bank.money) ? bank.money : "nil"}, open = ${Number.isInteger(bank.open) ? bank.open : "nil"}, items = {`,
+    ...items, "}, low = {", ...low, "}, requests = {", ...requests, "} }"
+  ];
 }
 
 // Who is down for a raid (bot raids only): { name, role T/H/D, class, status S/M/W, unix time }, at most 40.

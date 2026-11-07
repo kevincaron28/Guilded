@@ -27,6 +27,7 @@ import { config } from "../config.js";
 import { classLeaderRoleName, hasPermission, isPermissionRole, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
 import { CLASSES } from "../wow-data.js";
 import { commandVisibility } from "../services/command-visibility.js";
+import { inviteChannelCandidates, pickInviteChannel } from "../services/invite-extras.js";
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { blockedMemberCount, botCanRename } from "../services/nickname-sync.js";
 import { guildService, requireGuildContext } from "./context.js";
@@ -772,7 +773,8 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
   const update: Partial<Record<ChannelField, string>> = {};
   for (const field of missing) {
     const spec = channelSpec(field, lang);
-    let overwrites = overwritesFor(guild, spec.access, spec.category === "guild");
+    // The invite channel is in the WoW category but stays open to everyone who wants in (no game-role gate).
+    let overwrites = overwritesFor(guild, spec.access, spec.category === "guild" || field === "inviteChannelId");
     if (field === "weeklyReportChannelId" && settings?.raidSignupChannelId) {
       const source = await guild.channels.fetch(settings.raidSignupChannelId);
       if (!source || !("permissionOverwrites" in source)) throw new Error("Raid signup permissions unavailable; WoW report access was not broadened.");
@@ -783,7 +785,7 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
     // Follow the server's own layout: next to the group's other channels, behind its game role.
     const layout = spec.category === "guild" ? null : serverLayout(guild, { ...settings, ...update }, spec.category, field);
     const gateRoles = currentGuildScope()?.memberRoleId ? [currentGuildScope()!.memberRoleId!] : layout?.gateRoleIds ?? [];
-    if (gateRoles.length && overwrites && spec.access !== "officers" && spec.access !== "leaders") {
+    if (gateRoles.length && overwrites && spec.access !== "officers" && spec.access !== "leaders" && field !== "inviteChannelId") {
       overwrites = withGameGate(overwrites, guild.roles.everyone.id, gateRoles);
     }
     const ownCategory = layout?.categoryId ? guild.channels.cache.get(layout.categoryId) : undefined;
@@ -791,7 +793,7 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
       && isSetupLeftover(field, candidate.name, candidate.parentId ? guild.channels.cache.get(candidate.parentId)?.name : undefined));
     // The guild-invite channel is adopted whatever its category, and its permissions stay the server's own.
     const adopted = field === "inviteChannelId" && !currentGuildScope()?.permissionRoles
-      ? guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText && channelNames(field).includes(candidate.name)) : undefined;
+      ? (() => { const kept = pickInviteChannel(inviteChannelCandidates(guild)); return kept ? guild.channels.cache.get(kept.id) : undefined; })() : undefined;
     const category = adopted || (existing && spec.category !== "guild") ? null
       : ownCategory?.type === ChannelType.GuildCategory ? ownCategory : await ensureCategory(guild, spec.category, lang);
     const channel = existing || adopted || (spec.forum
@@ -805,6 +807,14 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
         ...(overwrites ? { permissionOverwrites: overwrites } : {})
       }));
     if (adopted?.type === ChannelType.GuildText && adopted.topic !== spec.topic) await adopted.setTopic(spec.topic, `${BRAND.name} /setup`).catch((error: unknown) => guidedFor(`<#${adopted.id}>`, error));
+    // An existing invite channel is MOVED into the WoW category (never duplicated), unless the admin keeps it in a category of their own.
+    if (adopted?.type === ChannelType.GuildText) {
+      const parent = adopted.parentId ? guild.channels.cache.get(adopted.parentId) : undefined;
+      if (!parent || SETUP_CATEGORY_NAMES.has(parent.name)) {
+        const target = ownCategory?.type === ChannelType.GuildCategory ? ownCategory : await ensureCategory(guild, spec.category, lang);
+        if (adopted.parentId !== target.id) await adopted.setParent(target.id, { lockPermissions: false, reason: `${BRAND.name} /setup` }).catch((error: unknown) => guidedFor(`<#${adopted.id}>`, error));
+      }
+    }
     // Recovered guide/FAQ/signup channels belong to setup too; reapply their
     // documented access so a reused guide cannot keep stale write permissions.
     if (existing && overwrites && "permissionOverwrites" in existing) {

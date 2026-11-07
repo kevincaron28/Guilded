@@ -275,7 +275,7 @@ async function signInGuildCredential(client: Client | undefined, account: { disc
 export function createSiteApp(client?: Client) {
   const rosterStore = prismaRosterDashboardStore(prisma, client, id => hostedPilot.allows(id));
   const roster = createRosterDashboard(rosterStore);
-  const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
+  const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), config.WEB_AVAILABILITY_ENABLED);
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const gallery = createArtisansGallery({ db: prisma, access: guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"),
     post: async (guildId, requestId, askCrafter) => {

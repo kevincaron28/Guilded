@@ -69,3 +69,26 @@ The numbers 0.05 and 3 are defaults in `SCORING_V2` (`dungeon-season2.ts`). Afte
    `DUNGEON_SEASON_2_PLAN.md` (around 2 December; v2 seasons cannot gain routes later).
 
 Not done here: backfilling stored runs, changing awarded participation points, or touching Season 1.
+
+## 7 November snapshot (too thin to use)
+
+First production read (owner-approved, run on the server, 7 November 2026): **8 accepted final-boss clears**,
+all 5-player parties, no outliers. No target, `timePerLevel` or `minParty` was changed from it; Season 2 waits for
+the next read around 18 November.
+
+| Route | Runs | Crews | p10 | Median | p90 | Target (estimate) | Median / target |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Wailing Caverns | 4 | 4 | 70:52 | 91:33 | 96:49 | 40:00 | 2.29 |
+| Ragefire Chasm | 3 | 3 | 27:17 | 28:18 | 28:18 | 20:00 | 1.42 |
+| Ruins of Lordaeron | 1 | 1 | 26:09 | 26:09 | 26:09 | 35:00 | 0.75 |
+
+- Every route is below the measured threshold (20 runs, 5 crews), so no suggested target is produced.
+- **Wailing Caverns and Ragefire Chasm look far slower than their estimates** (2.3x and 1.4x). If this holds with more
+  runs, their 40:00 and 20:00 estimates are too tight and most scores there sit near the floor of 50. Ruins of
+  Lordaeron is faster than its estimate, but is a single run. Early runs may also include first-time or
+  partly-geared parties, so do not retarget from these.
+- Level effect: 8 runs, too few to fit a slope (the fit needs 30). The bucket ratios (0.91-2.04) are noise at
+  this size. The default 0.05 per level stands.
+- Party size: all 8 runs had 5 players, so the party-size rule (`minParty` 3) has no data yet and stands.
+- No 45-59 or 60 map ids were seen, so those routes cannot be added yet (see `DUNGEON_SEASON_2_PLAN.md`).
+- Re-run `npx tsx scripts/analyze-dungeon-runs.ts` around 18 November and replace this section with that report.

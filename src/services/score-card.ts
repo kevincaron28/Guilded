@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import type { WebResponse } from "./web-app.js";
 import type { RosterVisual } from "./roster-visual.js";
+import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
 
 /**
  * A 1200x630 share card, two columns. Left: what it is (eyebrow, title, subtitle), one big headline
@@ -37,13 +38,18 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   dungeon?: DungeonVisual }
 
 export type DungeonMotif = "cave" | "fire" | "sea" | "keep" | "mine" | "thorn";
-/** One party member on a dungeon card. `guild` false marks an outsider; `color` is the class colour. */
-export interface DungeonCardMember { name: string; color: string; role?: "TANK" | "HEALER" | "DPS" | undefined; roleLabel?: string | undefined; sub?: string | undefined; guild: boolean }
 /**
- * Dungeon art is generated from `theme` (two colours, a silhouette motif and a seed), never copied from the game.
- * `deathPoints` are 0..1 positions on a flat map (x right, y down) and switch the death map on.
+ * One party member on a dungeon card. `guild` false marks an outsider; `color` is the class colour. `score` is the
+ * right-hand number when the card has a score column (`scoreLabel`), with an optional `scoreNote` under it (+35).
  */
-export interface DungeonVisual { theme: { a: string; b: string; motif: DungeonMotif; seed: number }; party: DungeonCardMember[];
+export interface DungeonCardMember { name: string; color: string; role?: "TANK" | "HEALER" | "DPS" | undefined; roleLabel?: string | undefined; sub?: string | undefined; guild: boolean;
+  score?: string | undefined; scoreNote?: string | undefined }
+/**
+ * Dungeon art is painted from `theme` (a scene for the dungeon, or a motif on cards queued before scenes existed, and a
+ * seed), never copied from the game: see dungeon-art.ts. `deathPoints` are 0..1 positions on a flat map (x right, y down)
+ * and switch the death map on.
+ */
+export interface DungeonVisual { theme: DungeonArtTheme; party: DungeonCardMember[]; scoreLabel?: string | undefined;
   guildLabel: string; outsiderLabel: string; moreLabel: string; /** Slug of the dungeon; `site/dungeon-maps/<mapKey>.png` is the map the deaths are drawn on, when that file exists. */ mapKey?: string; deathPoints?: { x: number; y: number }[]; deathMapLabel?: string }
 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
@@ -201,103 +207,107 @@ async function render(card: ScoreCard): Promise<Buffer> {
   return sharp(base).composite(layers).png().toBuffer();
 }
 
-const rng = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-
-/** Generated dungeon backdrop: a two-colour wash plus a simple silhouette motif. Original shapes, no game art. */
-export function dungeonArt(theme: DungeonVisual["theme"]): string {
-  const rand = rng(theme.seed), out: string[] = [];
-  out.push(`<defs><linearGradient id="wash" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${theme.a}"/><stop offset="1" stop-color="${theme.b}"/></linearGradient></defs>`, `<rect width="1200" height="630" fill="url(#wash)"/>`);
-  const tone = `fill="#000" fill-opacity=".38"`, light = `fill="${theme.b}" fill-opacity=".3"`;
-  if (theme.motif === "cave") {
-    for (let i = 0; i < 16; i++) { const x = i * 80 + rand() * 40, w = 30 + rand() * 50, h = 50 + rand() * 120; out.push(`<path d="M${x} 0L${x + w} 0L${x + w / 2} ${h}Z" ${tone}/>`); }
-    for (let i = 0; i < 14; i++) { const x = i * 90 + rand() * 50, w = 40 + rand() * 60, h = 40 + rand() * 100; out.push(`<path d="M${x} 630L${x + w} 630L${x + w / 2} ${630 - h}Z" ${tone}/>`); }
-    out.push(`<ellipse cx="${300 + rand() * 200}" cy="520" rx="260" ry="40" ${light}/>`);
-  } else if (theme.motif === "fire") {
-    out.push(`<defs><radialGradient id="lava" cx="50%" cy="100%" r="70%"><stop offset="0" stop-color="#ffb347" stop-opacity=".75"/><stop offset="1" stop-color="#ff5a1a" stop-opacity="0"/></radialGradient></defs>`, `<rect width="1200" height="630" fill="url(#lava)"/>`);
-    let d = "M0 630L0 560"; for (let x = 0; x <= 1200; x += 60) d += `L${x} ${540 + rand() * 70}`; out.push(`<path d="${d}L1200 630Z" ${tone}/>`);
-    for (let i = 0; i < 46; i++) out.push(`<circle cx="${rand() * 1200}" cy="${200 + rand() * 400}" r="${1 + rand() * 3.5}" fill="#ffb347" fill-opacity="${0.25 + rand() * 0.5}"/>`);
-  } else if (theme.motif === "sea") {
-    for (let row = 0; row < 6; row++) { let d = `M0 ${300 + row * 55}`; for (let x = 0; x <= 1200; x += 60) d += `Q${x + 30} ${300 + row * 55 + (row % 2 ? 22 : -22)} ${x + 60} ${300 + row * 55}`; out.push(`<path d="${d}" fill="none" stroke="${theme.b}" stroke-opacity="${0.18 + row * 0.04}" stroke-width="3"/>`); }
-    for (let i = 0; i < 24; i++) out.push(`<circle cx="${rand() * 1200}" cy="${rand() * 630}" r="${2 + rand() * 7}" fill="none" stroke="#fff" stroke-opacity=".18"/>`);
-  } else if (theme.motif === "keep") {
-    out.push(`<circle cx="${880 + rand() * 200}" cy="${110 + rand() * 40}" r="54" fill="#fff" fill-opacity=".12"/>`);
-    let x = 0; while (x < 1200) { const w = 70 + rand() * 90, h = 120 + rand() * 170; out.push(`<rect x="${x}" y="${630 - h}" width="${w}" height="${h}" ${tone}/>`); for (let c = 0; c < w - 10; c += 24) out.push(`<rect x="${x + c}" y="${630 - h - 14}" width="14" height="14" ${tone}/>`); x += w + 6; }
-  } else if (theme.motif === "mine") {
-    for (let i = 0; i < 6; i++) { const x = 70 + i * 210; out.push(`<rect x="${x}" y="0" width="22" height="630" ${tone}/>`, `<rect x="${x - 10}" y="${70 + rand() * 40}" width="230" height="20" ${tone}/>`); }
-    out.push(`<circle cx="${300 + rand() * 600}" cy="${180 + rand() * 120}" r="150" fill="#ffd27a" fill-opacity=".1"/>`);
-  } else {
-    for (let i = 0; i < 26; i++) { const x = rand() * 1200, y = 630, h = 120 + rand() * 330, bend = (rand() - 0.5) * 220; out.push(`<path d="M${x} ${y}Q${x + bend} ${y - h / 2} ${x + bend * 1.6} ${y - h}" fill="none" stroke="#000" stroke-opacity=".34" stroke-width="${3 + rand() * 6}"/>`); }
-  }
-  return out.join("");
+/** Role colours on the dark card: steel blue, leaf green and ember red, all at about the same brightness. */
+export const ROLE_COLOR = { TANK: "#6aa8ff", HEALER: "#58d68d", DPS: "#ff7a5c" } as const;
+const r2 = (v: number) => Math.round(v * 100) / 100;
+/**
+ * A role mark: a tinted disc with a ring, and one solid glyph in the role colour (a heater shield, a cross, crossed
+ * swords). Every glyph fits the same 21 px box and shares one dark 1 px outline, so the three read as one set.
+ */
+export function roleGlyph(role: DungeonCardMember["role"], cx: number, cy: number, r = 17): string {
+  const color = role ? ROLE_COLOR[role] : th.muted;
+  const disc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" fill-opacity=".13" stroke="${color}" stroke-opacity=".75" stroke-width="1.5"/>`;
+  const ink = `fill="${color}" stroke="#120d08" stroke-width="1" stroke-linejoin="round"`;
+  const sword = (turn: number) => `<g transform="rotate(${turn})"><path d="M0-11.4L2.6-8V3.6H-2.6V-8Z" ${ink}/><rect x="-6" y="3.4" width="12" height="3" rx="1.5" ${ink}/><rect x="-1.5" y="6.2" width="3" height="5" rx="1.2" ${ink}/></g>`;
+  const glyph = role === "TANK" ? `<path d="M0-10.2L8.6-7V-.6C8.6 5 4.8 8.6 0 10.6C-4.8 8.6-8.6 5-8.6-.6V-7Z" ${ink}/><path d="M0-7.4V7.8" stroke="#120d08" stroke-opacity=".55" stroke-width="1.6"/>`
+    : role === "HEALER" ? `<path d="M-2.8-9.4H2.8V-2.8H9.4V2.8H2.8V9.4H-2.8V2.8H-9.4V-2.8H-2.8Z" ${ink}/>`
+    : role === "DPS" ? `${sword(-45)}${sword(45)}`
+    : `<circle r="3.2" fill="${color}"/>`;
+  return `${disc}<g transform="translate(${cx} ${cy}) scale(${r2(r / 17)})">${glyph}</g>`;
 }
 
-const roleIcon = (role: DungeonCardMember["role"], cx: number, cy: number): string => {
-  if (role === "TANK") return `<path transform="translate(${cx} ${cy}) scale(1.05)" d="M0-11L10-7V2C10 8 4 11 0 13C-4 11-10 8-10 2V-7Z" fill="#5aa0e0" stroke="#cfe6ff" stroke-width="1.5"/>`;
-  if (role === "HEALER") return `<path transform="translate(${cx} ${cy}) scale(.95)" d="M-3-11h6v8h8v6h-8v8h-6v-8h-8v-6h8z" fill="#6fdc4f" stroke="#d6ffc8" stroke-width="1.2"/>`;
-  if (role === "DPS") return `<g transform="translate(${cx} ${cy})" stroke="#ffb09f" stroke-width="1"><rect x="-2.5" y="-13" width="5" height="22" rx="1.5" transform="rotate(40)" fill="#ff6a52"/><rect x="-2.5" y="-13" width="5" height="22" rx="1.5" transform="rotate(-40)" fill="#ff6a52"/></g>`;
-  return `<circle cx="${cx}" cy="${cy}" r="5" fill="${th.muted}"/>`;
-};
-
 /**
- * The dungeon completion card: generated dungeon art behind a left column (time, final boss, deaths) and a party panel
- * (role icon, full name in class colour, class/spec/deaths, an "outside guild" mark for outsiders). With death positions
- * a small map under the party shows where the group fell; without them the card is the same, minus the map.
+ * The dungeon completion card: a painted backdrop for the dungeon (dungeon-art.ts) behind a left column (time, final boss,
+ * deaths, record or guild rank) and a frosted party panel: role mark, full name in class colour, class/spec/deaths, the
+ * member's score when the run carries one, the role and a Guild / Outside guild tag. With death positions a small map
+ * under the party shows where the group fell; without them the card is the same, minus the map.
  */
 async function renderDungeon(card: ScoreCard): Promise<Buffer> {
-  const visual = card.dungeon!, accent = { gold: th.gold, green: th.green, red: th.red } as const;
-  const shapes: string[] = [dungeonArt(visual.theme)], layers: Layer[] = [];
-  shapes.push(`<defs><linearGradient id="shade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".72"/><stop offset=".55" stop-color="#000" stop-opacity=".5"/><stop offset="1" stop-color="#000" stop-opacity=".62"/></linearGradient></defs>`,
-    `<rect width="1200" height="630" fill="url(#shade)"/>`, `<rect width="12" height="630" fill="${th.bar}"/>`,
-    `<rect x="26" y="14" width="1160" height="602" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`);
-  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
-    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
+  const visual = card.dungeon!, accent = { gold: th.gold, green: th.green, red: th.red } as const, layers: Layer[] = [];
+  const px = 600, pw = 540, top = 60, ph = 450;
+  const art = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${dungeonArt(visual.theme)}</svg>`)).png().toBuffer();
+  // Frosted glass: the art behind the panel, blurred and darkened, so the panel carries the dungeon's colours without noise.
+  const frost = await sharp(art).extract({ left: px, top, width: pw, height: ph }).blur(14).modulate({ brightness: 0.5, saturation: 0.95 })
+    .composite([{ input: Buffer.from(`<svg width="${pw}" height="${ph}"><rect width="${pw}" height="${ph}" rx="14"/></svg>`), blend: "dest-in" }]).png().toBuffer();
+  const shapes: string[] = [`<defs><linearGradient id="shade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".62"/><stop offset=".3" stop-color="#000" stop-opacity=".46"/><stop offset=".48" stop-color="#000" stop-opacity=".2"/><stop offset=".56" stop-color="#000" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient>`
+    + `<linearGradient id="foot" x1="0" y1="0" x2="0" y2="1"><stop offset=".88" stop-color="#000" stop-opacity="0"/><stop offset=".95" stop-color="#000" stop-opacity=".4"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient></defs>`,
+    `<rect width="1200" height="630" fill="url(#shade)"/>`, `<rect width="1200" height="630" fill="url(#foot)"/>`, `<rect width="12" height="630" fill="${th.bar}"/>`,
+    `<rect x="26" y="14" width="1160" height="602" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`,
+    `<image x="${px}" y="${top}" width="${pw}" height="${ph}" href="data:image/png;base64,${frost.toString("base64")}"/>`,
+    `<rect x="${px}" y="${top}" width="${pw}" height="${ph}" rx="14" fill="${th.bg}" fill-opacity=".3" stroke="${th.edge}" stroke-width="1.5"/>`,
+    `<rect x="${px + 14}" y="${top + 1.5}" width="${pw - 28}" height="1" fill="${th.gold}" fill-opacity=".25"/>`];
+  // Text over the painted art (the left column and footer) gets a soft dark shadow, so it stays readable on any scene.
+  const shadowed = async (t: { input: Buffer; width: number; height: number }, left: number, y: number) => {
+    const pad = 8, shadow = await sharp(t.input).extend({ top: pad, bottom: pad, left: pad, right: pad, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .linear([0, 0, 0, 0.85], [0, 0, 0, 0]).blur(3.5).png().toBuffer();
+    layers.push({ input: shadow, left: Math.round(left) - pad + 1, top: Math.round(y) - pad + 2 }, { input: t.input, left: Math.round(left), top: Math.round(y) });
   };
-  const putRight = async (markup: string, size: number, right: number, top: number) => {
-    const t = await text(markup, size, 300); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(top) }); return t;
+  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080, shade = false) => {
+    const t = await text(markup, size, maxWidth);
+    if (shade) await shadowed(t, left, y); else layers.push({ input: t.input, left: Math.round(left), top: Math.round(y) });
+    return t;
+  };
+  const putRight = async (markup: string, size: number, right: number, y: number) => {
+    const t = await text(markup, size, 300); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(y) }); return t;
   };
   const leftW = 500, titleLen = [...drawable(card.title)].length, titleSize = titleLen <= 12 ? 62 : titleLen <= 17 ? 50 : 40;
-  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40, leftW);
-  await put(span(th.ink, clip(card.title, 26)), titleSize, 58, 68 + (62 - titleSize) / 2, leftW);
-  await put(span(th.muted, clip(card.subtitle, 40)), 25, 60, 146, leftW);
+  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40, leftW, true);
+  await put(span(th.ink, clip(card.title, 26)), titleSize, 58, 68 + (62 - titleSize) / 2, leftW, true);
+  await put(span(th.muted, clip(card.subtitle, 40)), 25, 60, 146, leftW, true);
 
   const [time, boss, deaths] = card.stats;
   if (time) {
     shapes.push(`<rect x="60" y="218" width="4" height="24" rx="2" fill="${accent[time.accent ?? "gold"]}"/>`);
-    await put(caps(th.muted, clip(time.label, 30)), 17, 76, 220, leftW);
-    await put(span(accent[time.accent ?? "gold"], clip(time.value, 8)), 104, 56, 244, leftW);
-    if (time.note) await put(span(th.ink, clip(time.note, 38)), 20, 60, 366, leftW);
+    await put(caps(th.muted, clip(time.label, 30)), 17, 76, 220, leftW, true);
+    await put(span(accent[time.accent ?? "gold"], clip(time.value, 8)), 104, 56, 244, leftW, true);
+    if (time.note) await put(span(th.ink, clip(time.note, 38)), 20, 60, 366, leftW, true);
   }
   const small = async (stat: CardStat | undefined, x: number, w: number, chars: number) => {
     if (!stat) return;
     shapes.push(`<rect x="${x}" y="420" width="4" height="20" rx="2" fill="${accent[stat.accent ?? "gold"]}"/>`);
-    await put(caps(th.muted, clip(stat.label, 16)), 15, x + 14, 420, w);
-    await put(span(accent[stat.accent ?? "gold"], clip(stat.value, chars)), stat.value.length > 16 ? 24 : 32, x - 1, 444, w);
-    if (stat.note) await put(span(th.ink, clip(stat.note, 24)), 16, x + 1, 488, w);
+    await put(caps(th.muted, clip(stat.label, 16)), 15, x + 14, 420, w, true);
+    await put(span(accent[stat.accent ?? "gold"], clip(stat.value, chars)), stat.value.length > 16 ? 24 : 32, x - 1, 444, w, true);
+    if (stat.note) await put(span(th.ink, clip(stat.note, 24)), 16, x + 1, 488, w, true);
   };
   await small(boss, 60, 310, 28);
   await small(deaths, 390, 150, 6);
 
-  // Party panel.
-  const px = 600, pw = 540, top = 60, hasMap = Boolean(visual.deathPoints?.length), maxRows = hasMap ? 5 : 6, rowH = hasMap ? 52 : 60;
-  shapes.push(`<rect x="${px}" y="${top}" width="${pw}" height="450" rx="14" fill="${th.panel}" fill-opacity=".9" stroke="${th.edge}" stroke-width="1.5"/>`);
-  await put(caps(th.muted, clip(card.rowsLabel ?? "", 40)), 17, px + 28, top + 22, pw - 56);
+  // Party panel. The score column appears only when the card carries scores.
+  const hasMap = Boolean(visual.deathPoints?.length), maxRows = hasMap ? 5 : 6, rowH = hasMap ? 52 : 60;
+  const hasScore = Boolean(visual.scoreLabel), scoreX = px + pw - 128, nameW = hasScore ? scoreX - 84 - (px + 72) : 300;
+  await put(caps(th.muted, clip(card.rowsLabel ?? "", hasScore ? 28 : 40)), 17, px + 28, top + 22, hasScore ? 330 : pw - 56);
+  if (hasScore) await putRight(caps(th.muted, clip(visual.scoreLabel!, 16)), 13, scoreX, top + 26);
   shapes.push(`<rect x="${px + 28}" y="${top + 54}" width="${pw - 56}" height="1" fill="${th.edge}"/>`);
   const shown = visual.party.slice(0, visual.party.length > maxRows ? maxRows - 1 : maxRows);
   for (const [i, member] of shown.entries()) {
     const ry = top + 64 + i * rowH;
     if (!member.guild) shapes.push(`<rect x="${px + 16}" y="${ry - 2}" width="${pw - 32}" height="${rowH - 6}" rx="8" fill="none" stroke="${th.edge}" stroke-dasharray="5 4"/>`);
-    shapes.push(roleIcon(member.role, px + 42, ry + 22));
-    await put(span(member.color, clip(member.name, 24)), 24, px + 72, ry, 300);
-    if (member.sub) await put(span(th.muted, clip(member.sub, 38)), 16, px + 72, ry + 29, 330);
-    if (member.roleLabel) await putRight(span(th.ink, clip(member.roleLabel, 12)), 19, px + pw - 30, ry + 2);
+    shapes.push(roleGlyph(member.role, px + 44, ry + 23, hasMap ? 16 : 17));
+    await put(span(member.color, clip(member.name, hasScore ? 21 : 24)), 24, px + 72, ry, nameW);
+    if (member.sub) await put(span(th.muted, clip(member.sub, hasScore ? 36 : 38)), 16, px + 72, ry + 29, hasScore ? nameW + 46 : 330);
+    if (hasScore && member.score) {
+      await putRight(span(th.gold, clip(member.score, 8)), 22, scoreX, ry + 1);
+      if (member.scoreNote) await putRight(span(th.green, clip(member.scoreNote, 10)), 14, scoreX, ry + 30);
+    }
+    if (member.roleLabel) await putRight(span(member.role ? ROLE_COLOR[member.role] : th.ink, clip(member.roleLabel, 12)), 19, px + pw - 30, ry + 2);
     await putRight(member.guild ? span(th.gold, visual.guildLabel) : span(th.muted, visual.outsiderLabel), 14, px + pw - 30, ry + 30);
   }
   const hidden = visual.party.length - shown.length;
   if (hidden > 0) await put(span(th.muted, `+${hidden} ${visual.moreLabel}`), 18, px + 72, top + 64 + shown.length * rowH + 4, 300);
 
   if (hasMap) {
-    const mx = px + 28, my = top + 64 + maxRows * rowH + 6, mw = pw - 56, mh = 450 - (my - top) - 14;
-    shapes.push(`<rect x="${mx}" y="${my}" width="${mw}" height="${mh}" rx="8" fill="#140e08" stroke="${th.edge}"/>`);
+    const mx = px + 28, my = top + 64 + maxRows * rowH + 6, mw = pw - 56, mh = ph - (my - top) - 14;
+    shapes.push(`<rect x="${mx}" y="${my}" width="${mw}" height="${mh}" rx="8" fill="#140e08" fill-opacity=".85" stroke="${th.edge}"/>`);
     // The dungeon's own map, when one was added to site/dungeon-maps/; otherwise the plain grid below.
     const mapFile = visual.mapKey && /^[a-z0-9-]{1,60}$/.test(visual.mapKey) ? fileURLToPath(new URL(`../../site/dungeon-maps/${visual.mapKey}.png`, import.meta.url)) : null;
     if (mapFile) {
@@ -326,9 +336,9 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
     bx += w + 12;
   }
   shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590);
-  const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
-  return sharp(base).composite(layers).png().toBuffer();
+  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590, 1080, true);
+  const overlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
+  return sharp(art).composite([{ input: overlay, left: 0, top: 0 }, ...layers]).png().toBuffer();
 }
 
 /** Words wrapped to at most `maxLines` lines of about `chars` characters; the last line ends in an ellipsis if text is left over. */

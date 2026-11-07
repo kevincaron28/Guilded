@@ -27,7 +27,6 @@ import { pickSignupCharacter } from "./signup-character-picker.js";
 import { SIGNUP_CHARACTER_SELECT, loadClassEmojis, cleanCharacterName, displayCharacterName } from "../services/character-display.js";
 import { signupLayout } from "../services/signup-layout.js";
 import { dpsKind, signupSpec, specsForRole } from "../services/dps-kind.js";
-import { currentEdition } from "../services/edition-context.js";
 import { signupDpsKind } from "../services/raid.js";
 import { officerEntryButton } from "../services/officer-buttons.js";
 import { voiceAttendancePlan, voiceAttendanceSummary } from "../services/voice-attendance.js";
@@ -156,12 +155,12 @@ async function specMenu(raidId: string, memberId: string, lang: Lang): Promise<A
     select: { role: true, status: true, spec: true, character: { select: { className: true, spec: true } }, member: { select: { characters: { where: { isMain: true }, take: 1, select: { className: true, spec: true } } } } } });
   const character = signup?.character ?? signup?.member.characters[0] ?? null;
   if (!signup || signup.status === "CANCELLED" || !character) return [];
-  const specs = specsForRole(character.className, signup.role, currentEdition());
+  const specs = specsForRole(character.className, signup.role);
   if (specs.length < 2) return [];
   const name = (spec: { name: string; french: string }) => lang === "fr" ? spec.french : spec.name;
   const own = specs.find(spec => spec.name === character.spec);
   const kindWord = (spec: (typeof specs)[number]) => {
-    const kind = dpsKind(character.className, spec.name, currentEdition());
+    const kind = dpsKind(character.className, spec.name);
     return signup.role === "DPS" && kind ? t(lang, `role.${kind}` as const) : t(lang, `role.${signup.role}` as const);
   };
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
@@ -198,7 +197,6 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     const coreLabel = new Map(core?.members.map((m) => [m.memberId, coreSpotLabel(m)]) ?? []);
     const label = (signup: { memberId: string; characterName: string | null; member: { displayName: string } }) =>
       signup.characterName ? `${cleanCharacterName(signup.characterName)} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName;
-    const edition = currentEdition();
     const input = {
       lang, raid, classEmojis: await loadClassEmojis(discordGuild),
       signups: everyone.map((signup) => {
@@ -206,12 +204,12 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
         // A spec picked for this raid replaces the character's own spec (icon and melee/ranged).
         const character = owned ? { ...owned, spec: signupSpec(signup, owned) } : null;
         return { memberId: signup.memberId, characterId: signup.characterId, character, displayName: label(signup), role: signup.role, status: signup.status, late: signup.late,
-          kind: signup.role === "DPS" ? signupDpsKind({ spec: signup.spec, character, member: signup.member }, edition) : null };
+          kind: signup.role === "DPS" ? signupDpsKind({ spec: signup.spec, character, member: signup.member }) : null };
       }),
       core: core ? { name: core.name, members: core.members.map((m) => {
         const character = m.character?.memberId === m.memberId ? m.character : null;
         return { memberId: m.memberId, characterId: m.characterId, character, backupCharacterIds: m.backups.map(backup => backup.characterId), displayName: coreSpotLabel(m), role: m.role, bench: m.bench,
-          kind: m.role === "DPS" && character ? dpsKind(character.className, character.spec, edition) : null };
+          kind: m.role === "DPS" && character ? dpsKind(character.className, character.spec) : null };
       }) } : undefined
     };
     const embed = buildSignupEmbed(input);

@@ -90,15 +90,15 @@ describe("edition identities and companion connections", () => {
     expect(switchProfile(back,retail.activeProfile).companionCredential).toBe("retail-secret");
     expect(()=>switchProfile(back,"__proto__")).toThrow();
   });
-  it.each(GAME_EDITIONS)("uses the raid level for %s even outside a request", edition => {
-    const level=edition==="retail"||edition==="classic-mists"?90:edition==="classic-tbc"?70:60;
+  it.each(GAME_EDITIONS)("uses WoW Forever's raid level 60 for a %s character too", edition => {
+    const level=60;
     const now=new Date();
     expect(assessRaidReadiness({status:"READY",inspectedAt:now,character:{level:level-1,gameEdition:edition},findings:[]},now).status).toBe("LEVELLING");
     expect(assessRaidReadiness({status:"READY",inspectedAt:now,character:{level,gameEdition:edition},findings:[]},now).status).toBe("READY");
   });
-  it("supports Retail flexible raid sizes without changing Classic raid formats", () => {
-    expect(withEdition("retail",()=>coreComposition("17","2","4","11")).raidSize).toBe(17);
-    expect(()=>withEdition("classic-era",()=>coreComposition("17","2","4","11"))).toThrow();
+  it("keeps the fixed raid sizes (no Retail flexible size)", () => {
+    expect(()=>withEdition("retail",()=>coreComposition("17","2","4","11"))).toThrow();
+    expect(withEdition("forever",()=>coreComposition("20","2","4","14")).raidSize).toBe(20);
   });
 });
 

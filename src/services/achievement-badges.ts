@@ -67,7 +67,7 @@ const SINGLE_GLYPH: Record<string, GlyphName> = {
   "active-days-7": "speech", "active-days-30": "calendar", "active-days-100": "heart"
 };
 /** One glyph per achievement id. The test suite requires every catalogue id to appear here. */
-const EDITION_LEVEL_GLYPH: Record<WowEdition, GlyphName> = { forever: "flame", "classic-era": "shield", "classic-tbc": "gem", "classic-mists": "tower", retail: "crown" };
+const EDITION_LEVEL_GLYPH: Record<WowEdition, GlyphName> = { forever: "flame" };
 const editionGlyph = (def: AchievementDef): GlyphName => def.metric === "wowEditionCap" ? "stars" : def.metric === "professionsMastered" ? "crown" : def.metric === "professionFirsts" ? "trophy" : def.metric === "rareRecipes" ? "gem" : def.metric === "wowEditionProfession" ? (def.threshold >= 300 ? "anvil" : "hammer") : EDITION_LEVEL_GLYPH[def.edition!];
 const ladderGlyph = (def: AchievementDef): GlyphName => {
   const glyph = (LADDER_GLYPH as Partial<Record<AchievementMetric, GlyphName>>)[def.metric];
@@ -103,11 +103,9 @@ const METAL: Record<AchievementTier, [string, string, string, string]> = {
 const GAME: Record<AchievementGame, { plate: [string, string]; glyph: string }> = {
   wow: { plate: ["#24518a", "#0c1c36"], glyph: "#ffd45c" }, guild: { plate: ["#1f5a34", "#0b2214"], glyph: "#8ff0a0" }, poe2: { plate: ["#661616", "#240606"], glyph: "#ff8a4a" }
 };
-// Each WoW edition has its own centre-plate colour and glyph colour, so a Forever badge never reads as a Retail one.
+// WoW Forever's centre-plate colour and glyph colour.
 const EDITION_ACCENT: Record<WowEdition, { plate: [string, string]; glyph: string }> = {
-  forever: { plate: ["#4a2f9a", "#150b36"], glyph: "#d2c4ff" }, "classic-era": { plate: ["#7a5420", "#2e1c07"], glyph: "#ffd990" },
-  "classic-tbc": { plate: ["#1f7a2e", "#082a0f"], glyph: "#b4ff8a" }, "classic-mists": { plate: ["#0f7364", "#05302a"], glyph: "#8ff5df" },
-  retail: { plate: ["#24518a", "#0c1c36"], glyph: "#ffd45c" }
+  forever: { plate: ["#4a2f9a", "#150b36"], glyph: "#d2c4ff" }
 };
 const LOCKED = { metal: ["#4a4f58", "#33373e", "#24272c", "#181a1e"], plate: ["#16181c", "#0b0c0e"], glyph: "#5e6268" };
 

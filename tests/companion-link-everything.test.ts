@@ -118,7 +118,7 @@ describe("Link everything wiring", () => {
       expect(html, id).toContain(`id="${id}"`);
       if (id !== "page-link") expect(script, id).toContain(id);
     }
-    expect(html).toContain('data-page="link"');
+    expect(html).toContain('data-go="link"'); // Settings > Run setup again (the menu entry left in redesign PR 2)
   });
   it("re-running a linked step is a harmless no-op", () => {
     const app = read("companion-app/renderer/app.js"), link = read("companion-app/renderer/link-everything.js");

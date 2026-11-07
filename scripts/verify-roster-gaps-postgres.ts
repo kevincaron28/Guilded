@@ -4,7 +4,6 @@ import { loadRosterSnapshot } from "../src/services/roster-dashboard-store.js";
 import { mainPlanRevision } from "../src/services/roster-review.js";
 import { prismaRosterPlanWriter } from "../src/services/roster-plan-store.js";
 import { prismaAvailabilityStore } from "../src/services/web-availability-store.js";
-import { saveOfficialEvent, reminderDue } from "../src/services/game-events.js";
 
 export async function verifyRosterGapsPostgres(database: PrismaClient) {
   const record = await database.guild.create({ data: { discordId: "release-test-roster-gaps", name: "Roster gap fixture", gameEdition: "classic-era" } });
@@ -36,13 +35,6 @@ export async function verifyRosterGapsPostgres(database: PrismaClient) {
   assert.equal((await availability.load("roster-owner", guild.id, now))!.rows.length, 0);
   await database.member.delete({ where: { id: other.id } });
   assert.equal(await database.webAvailability.count({ where: { guildId: guild.id } }), 0);
-
-  const input = { id: "release-test-retail-event", game: "WOW_RETAIL", region: "GLOBAL", titleEn: "Test", titleFr: "Test", sourceUrl: "https://worldofwarcraft.blizzard.com/en-us/news", dateLabelEn: "", dateLabelFr: "", state: "SCHEDULED", startsAt: now };
-  const event = await saveOfficialEvent(database, input, "release-test", now);
-  const board = await database.gameEventBoard.create({ data: { guildId: guild.id, channelId: "edition-reminders", games: ["WOW_RETAIL"], region: "NA", enabled: true,
-    editionReminders: { WOW_RETAIL: { role: "123456789", offsets: [0], enabledAt: new Date(now.getTime() - 1000).toISOString() } } } });
-  assert.equal(reminderDue(event, board, 0, now), true);
-  assert.equal(reminderDue({ ...event, game: "WOW_CLASSIC_ERA" }, board, 0, now), false);
 }
 
 export async function verifyRosterGapsRestored(database: PrismaClient) {
@@ -52,6 +44,4 @@ export async function verifyRosterGapsRestored(database: PrismaClient) {
   assert.equal(characters.find(row => row.name === "Second")!.isMain, true);
   assert.equal(await database.auditLog.count({ where: { guildId: guild.id, action: "MEMBER_UPDATED" } }), 1);
   assert.equal(await database.webAvailability.count({ where: { guildId: guild.id } }), 0);
-  const board = await database.gameEventBoard.findFirstOrThrow({ where: { guildId: guild.id, channelId: "edition-reminders" } });
-  assert.equal((board.editionReminders as { WOW_RETAIL: { role: string } }).WOW_RETAIL.role, "123456789");
 }

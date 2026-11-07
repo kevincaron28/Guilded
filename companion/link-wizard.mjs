@@ -4,9 +4,9 @@
 // stays authoritative. Every text is an English key (with {0} slots) the window translates.
 
 /**
- * @param {{ config?: any, state?: any, hub?: any, me?: any, problems?: { id: string }[], savedFile?: any }} input
+ * @param {{ config?: any, state?: any, hub?: any, me?: any, problems?: { id: string }[], savedFile?: any, autoTried?: boolean }} input
  */
-export function linkWizard({ config = {}, state = {}, hub = null, me = null, problems = [], savedFile = null } = {}) {
+export function linkWizard({ config = {}, state = {}, hub = null, me = null, problems = [], savedFile = null, autoTried = false } = {}) {
   const signedIn = Boolean(config.companionCredential);
   const personal = signedIn && config.personal === true;
   const characters = Array.isArray(hub?.characters) ? hub.characters : [];
@@ -41,10 +41,12 @@ export function linkWizard({ config = {}, state = {}, hub = null, me = null, pro
     else join = { kind: "unknown", server: null, text: ["Signed in, but you're not in a Discord server that uses Guilded yet. Join your guild's Discord, then press Link to my guild."] };
   }
 
-  // Step 1: Repair finds WoW and installs the addon; this says what is missing.
-  const setupHelp = current === "wow" ? {
-    text: !addonFine ? "The companion puts the Guilded addon in your WoW folder and keeps it up to date. Press Set up WoW and the addon." : "Choose your WoW folder, or press Set up WoW and the addon to find it on any drive."
-  } : null;
+  // Step 1 runs by itself (autoStep below): the companion looks for WoW on every drive and installs
+  // the addon. Only when that could not finish does it ask, and only then shows Choose WoW folder.
+  const setupHelp = current === "wow" ? (autoTried ? {
+    text: !addonFine ? "The companion could not install the Guilded addon by itself. Exit World of Warcraft, then press Try again." : "The companion could not find your WoW account by itself. Choose your WoW folder, or press Try again.",
+    button: "Try again", chooseFolder: addonFine
+  } : { text: "Setting up WoW and the Guilded addon: looking on every drive…", button: null, chooseFolder: false }) : null;
 
   // Step 4: where characters come from, and why they may not be there yet.
   const charactersHelp = current === "characters" ? {
@@ -57,8 +59,8 @@ export function linkWizard({ config = {}, state = {}, hub = null, me = null, pro
   const reachable = !has("bot-unreachable");
   let diagnostics = [];
   if (current === "wow") diagnostics = [
-    check(watched || addonStatus === "ok" || addonStatus === "not-installed", "World of Warcraft is found on this PC", "Press Set up WoW and the addon, or Choose WoW folder in Connection & setup."),
-    check(addonFine, "The Guilded addon is installed", "Exit World of Warcraft, then press Set up WoW and the addon.")
+    check(watched || addonStatus === "ok" || addonStatus === "not-installed", "World of Warcraft is found on this PC", "Press Try again, or choose your WoW folder in Settings."),
+    check(addonFine, "The Guilded addon is installed", "Exit World of Warcraft, then press Try again.")
   ];
   else if (current === "discord") diagnostics = [
     check(reachable, "Guilded's server answers", "Guilded's server is restarting or unreachable. Wait a minute and try again."),
@@ -72,7 +74,7 @@ export function linkWizard({ config = {}, state = {}, hub = null, me = null, pro
   ];
   else if (current === "characters") diagnostics = [
     check(reachable, "Guilded's server answers", "Guilded's server is restarting or unreachable. Wait a minute and try again."),
-    check(watched, "Your WoW folder is chosen", "Open Connection & setup and press Choose WoW folder."),
+    check(watched, "Your WoW folder is chosen", "Open Settings and press Choose WoW folder."),
     check(!has("addon-missing") && !has("addon-wrong-edition"), "The Guilded addon is installed", "Open Problems and press Install addon."),
     check(!has("saved-file-missing") && !has("saved-file-not-updated") && savedFile?.changedAt !== null, "WoW saved your Guilded data", "In WoW, tick Guilded in AddOns, log in and type /reload."),
     check(Boolean(state.lastUpload), "The companion sent your data", "Press Detect now, then type /reload in WoW.")
@@ -97,4 +99,19 @@ export function savedSince(savedFile, since) {
   const at = savedFile && typeof savedFile.changedAt === "string" ? Date.parse(savedFile.changedAt) : NaN;
   const from = typeof since === "string" ? Date.parse(since) : NaN;
   return Number.isFinite(at) && Number.isFinite(from) && at > from ? savedFile.changedAt : null;
+}
+
+/**
+ * What the wizard does by itself next (owner, 7 November 2026: automatic setup). Each automatic step
+ * runs once per run of the companion; after that the member gets the button.
+ * @param {{ current?: string | null } | null} wizard  linkWizard's answer
+ * @param {{ wow?: boolean, signIn?: boolean, visible?: boolean, signInBusy?: boolean }} [done]
+ * @returns {"setup-wow" | "sign-in" | null}
+ */
+export function autoStep(wizard, { wow = false, signIn = false, visible = true, signInBusy = false } = {}) {
+  if (!wizard || !visible) return null;
+  if (wizard.current === "wow" && !wow) return "setup-wow";
+  // The browser opens by itself once; never while a sign-in is already waiting.
+  if (wizard.current === "discord" && !signIn && !signInBusy) return "sign-in";
+  return null;
 }

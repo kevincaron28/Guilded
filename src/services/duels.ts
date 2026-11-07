@@ -28,7 +28,7 @@ export type DuelResultInput = z.infer<typeof duelResultSchema>;
 export const milestoneSchema = z.object({
   character: z.string().trim().min(1).max(80),
   realm: z.string().trim().max(100).default(""),
-  kind: z.enum(["level", "dungeon", "hk", "duel"]),
+  kind: z.enum(["level", "dungeon", "hk", "duel", "prof"]),
   ref: z.string().regex(/^[a-z]{2,10}:[A-Za-z0-9_-]{1,30}$/),
   value: z.number().int().min(0).max(1_000_000),
   at: z.number().int().positive().max(4102444800)

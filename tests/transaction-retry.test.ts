@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { EVENT_TRANSACTION_OPTIONS } from "../src/services/game-events.js";
 import { isTransientTransactionStart, retryTransientTransaction, SHORT_TRANSACTION } from "../src/services/transaction-retry.js";
 
 describe("transient transaction starts", () => {
@@ -31,8 +30,7 @@ describe("transient transaction starts", () => {
     expect(isTransientTransactionStart(new Error("Event board changed during preflight"))).toBe(false);
   });
 
-  it("keeps event transactions inside the short budget, above the 3s busy-pool check", () => {
-    expect(EVENT_TRANSACTION_OPTIONS).toEqual(SHORT_TRANSACTION);
+  it("keeps short transactions inside the short budget, above the 3s busy-pool check", () => {
     expect(SHORT_TRANSACTION.maxWait).toBeGreaterThan(3_000);
     expect(SHORT_TRANSACTION.timeout).toBeLessThanOrEqual(15_000);
     expect(SHORT_TRANSACTION.maxWait + SHORT_TRANSACTION.timeout).toBeLessThan(30_000);

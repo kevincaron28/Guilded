@@ -891,7 +891,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             .catch((error: unknown) => { console.error("Guildmate relay failed", error); return null; });
         }
         const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
-        preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned), createdBy);
+        // 9.1: guildmates' recipes, cooldowns and attunements, for characters already linked in this guild.
+        const linkedInGuild = pairedMemberId ? await prisma.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true, gameEdition: true } }) : [];
+        preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned, pairedMemberId ? { uploaderMemberId: pairedMemberId, linked: linkedInGuild } : undefined), createdBy);
       }
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
       const professionRelay = access.officer && !settings?.autoApplyImports

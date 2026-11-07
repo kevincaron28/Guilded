@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyGuildmateRelay, relayableDungeonRuns, RELAYED_RUNS_PER_UPLOAD } from "../src/services/guildmate-relay.js";
+import { applyGuildmateRelay, relayableCraftData, relayableDungeonRuns, RELAYED_RECIPE_SETS_PER_UPLOAD, RELAYED_RUNS_PER_UPLOAD } from "../src/services/guildmate-relay.js";
 import { personalSnapshot } from "../src/services/companion-access.js";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 import { parseAddonExportText } from "../companion/lua-export-content.mjs";
@@ -159,5 +159,67 @@ describe("companion export provenance", () => {
     const lebowski = exported.characters.find((c) => c.name === "Lebowski");
     expect(lebowski).toMatchObject({ level: 24, observedAt: new Date(1797001000 * 1000).toISOString() });
     expect(snapshot([lebowski!]).characters[0]!.observedAt).toEqual(new Date(1797001000 * 1000));
+  });
+});
+
+// 9.1: guildmates' recipes, cooldowns and attunements in a member's upload (relayableCraftData).
+describe("guildmate relay: crafting data", () => {
+  const rows = [
+    { name: "Walter", realm: "Realm", memberId: "m-walter", gameEdition: "forever" },
+    { name: "Donny", realm: "Realm", memberId: "m-donny", gameEdition: "forever" },
+    { name: "Maude", realm: "Realm", memberId: "m-maude", gameEdition: "forever" }
+  ];
+  const ago = (hours: number) => new Date(NOW.getTime() - hours * 3600_000).toISOString();
+  const upload = (extra: Record<string, unknown>) => parseAddonSnapshot({ source: "Guilded", exportedAt: NOW, gameEdition: "forever", ...extra });
+  const set = (character: string, over: Record<string, unknown> = {}) => ({ character, realm: "Realm", profession: "Alchemy", at: ago(2), keys: [13446, -17187], ...over });
+  const relay = (snap: ReturnType<typeof upload>) => relayableCraftData(snap, "m-walter", rows, NOW);
+
+  it("keeps linked guildmates' lists, drops the uploader's own, strangers, empty and ancient ones", () => {
+    const out = relay(upload({
+      recipes: [set("Donny"), set("Walter"), set("Stranger"), set("Maude", { keys: [] }), set("Maude", { profession: "Mining", at: new Date(NOW.getTime() - 200 * 86400_000).toISOString() }), set("Maude", { profession: "Cooking", keys: [6888] })],
+      recipeNames: { "13446": "Elixir", "-17187": "Enchant", "6888": "Stew", "999": "Unused" }
+    }));
+    expect(out.recipes.map((r) => `${r.character}:${r.profession}`)).toEqual(["Donny:Alchemy", "Maude:Cooking"]);
+    expect(Object.keys(out.recipeNames).sort()).toEqual(["-17187", "13446", "6888"]);
+  });
+
+  it("never believes a stamp from the future: it is clamped to the upload time", () => {
+    const out = relay(upload({ recipes: [set("Donny", { at: new Date(NOW.getTime() + 3 * 86400_000).toISOString() })] }));
+    expect(out.recipes[0]!.at.getTime()).toBe(NOW.getTime());
+  });
+
+  it("relays cooldowns and completed attunements of other linked members only", () => {
+    const out = relay(upload({
+      cooldowns: [{ character: "Donny", realm: "Realm", at: ago(1), entries: [{ profession: "Alchemy", name: "Transmute", readyAt: ago(-20) }] },
+        { character: "Walter", realm: "Realm", at: ago(1), entries: [{ profession: "Alchemy", name: "Transmute", readyAt: ago(-20) }] }],
+      attunements: [{ character: "Donny", realm: "Realm", name: "Onyxia", completed: true }, { character: "Donny", realm: "Realm", name: "Karazhan", completed: false },
+        { character: "Walter", realm: "Realm", name: "Onyxia", completed: true }, { character: "Nobody", realm: "Realm", name: "Onyxia", completed: true }]
+    }));
+    expect(out.cooldowns.map((c) => c.character)).toEqual(["Donny"]);
+    expect(out.attunements.map((a) => `${a.character}:${a.name}`)).toEqual(["Donny:Onyxia"]);
+  });
+
+  it("is capped per upload", () => {
+    const many = Array.from({ length: RELAYED_RECIPE_SETS_PER_UPLOAD + 20 }, (_, i) => set("Donny", { profession: `P${i}` }));
+    expect(relay(upload({ recipes: many })).recipes).toHaveLength(RELAYED_RECIPE_SETS_PER_UPLOAD);
+  });
+
+  it("personalSnapshot adds them only when told who is linked; without that nothing of the guild's leaks", () => {
+    const snap = upload({ recipes: [set("Donny"), set("Walter")], attunements: [{ character: "Donny", realm: "Realm", name: "Onyxia", completed: true }] });
+    const withoutLink = personalSnapshot(snap, [{ name: "Walter", realm: "Realm" }]);
+    expect(withoutLink.recipes.map((r) => r.character)).toEqual(["Walter"]);
+    expect(withoutLink.attunements).toEqual([]);
+    const withLink = personalSnapshot(snap, [{ name: "Walter", realm: "Realm" }], { uploaderMemberId: "m-walter", linked: rows, now: NOW });
+    expect(withLink.recipes.map((r) => r.character).sort()).toEqual(["Donny", "Walter"]);
+    expect(withLink.attunements.map((a) => a.character)).toEqual(["Donny"]);
+  });
+
+  it("the companion export carries every guildmate's recipes and attunements for the bot to filter", () => {
+    const lua = `GuildedDB = { character = { name = "Walter", realm = "Realm", class = "WARRIOR", gameEdition = "forever" },
+      recipeBook = { people = { Donny = { Alchemy = { v = 1797000000, keys = { 13446, -17187 } } } }, names = {}, cooldowns = {}, cooldownAt = {} },
+      attunements = { Donny = { Onyxia = { completed = true, at = "2026-12-20T10:00:00Z", by = "Donny" } } } }`;
+    const exported = parseAddonExportText(lua, "Realm") as { recipes: { character: string }[]; attunements: { character: string; name: string }[] };
+    expect(exported.recipes.map((r) => r.character)).toEqual(["Donny"]);
+    expect(exported.attunements).toMatchObject([{ character: "Donny", name: "Onyxia" }]);
   });
 });

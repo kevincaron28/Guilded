@@ -57,6 +57,50 @@ export function relayableDungeonRuns(runs: readonly unknown[], ownedNames: Reado
   return kept.sort((a, b) => b.endedAt - a.endedAt).slice(0, RELAYED_RUNS_PER_UPLOAD).map((entry) => entry.run);
 }
 
+/** Crafting data a member's upload may relay (9.1): at most this many recipe lists and attunements. */
+export const RELAYED_RECIPE_SETS_PER_UPLOAD = 150;
+export const RELAYED_COOLDOWN_SETS_PER_UPLOAD = 100;
+export const RELAYED_ATTUNEMENTS_PER_UPLOAD = 300;
+/** A recipe list is a slow-changing fact: its author's stamp may be this old (the addon keeps lists 45 days when forwarding). */
+export const RELAYED_RECIPE_MAX_AGE_MS = 180 * 24 * 3600 * 1000;
+
+export interface RelayLinkedCharacter { name: string; realm: string; memberId: string; gameEdition?: string }
+type CraftSnapshot = Pick<AddonSnapshot, "recipes" | "recipeNames" | "cooldowns" | "attunements" | "gameEdition" | "interface">;
+
+/**
+ * Guildmates' recipe lists, profession cooldowns and attunements that reached the uploader's addon
+ * (their own broadcasts, or a catch-up forward) and are in the uploader's companion upload (9.1).
+ * Only what the guild already sees, and only for characters that are already linked in this guild:
+ *   * never the uploader's own characters (their own upload is first-hand and handled separately);
+ *   * a stamp is believed only up to "now": a list from the future is clamped to the upload time, so
+ *     a relayer can never out-date its owner's next real scan by more than the time of this upload;
+ *   * recipe lists older than 180 days are ignored; applyRecipeData still keeps only the NEWEST list
+ *     per character and profession, so a relay never replaces newer data and never counts twice;
+ *   * attunements only ever say "completed" (a relay cannot take an attunement away);
+ *   * capped per upload; names only for recipes that are kept.
+ */
+export function relayableCraftData(snapshot: CraftSnapshot, uploaderMemberId: string, linked: readonly RelayLinkedCharacter[],
+  now = new Date()): Pick<AddonSnapshot, "recipes" | "recipeNames" | "cooldowns" | "attunements"> {
+  const edition = gameEditionOf(snapshot);
+  const others = linked.filter((row) => row.memberId !== uploaderMemberId);
+  const isOther = (name: string, realm: string) => {
+    const hit = findCharacter(linked, name, realm, edition);
+    return !!hit && hit.memberId !== uploaderMemberId && others.includes(hit);
+  };
+  const clamp = (at: Date) => at.getTime() > now.getTime() ? now : at;
+  const recipes = snapshot.recipes
+    .filter((set) => set.keys.length > 0 && now.getTime() - set.at.getTime() <= RELAYED_RECIPE_MAX_AGE_MS && isOther(set.character, set.realm))
+    .slice(0, RELAYED_RECIPE_SETS_PER_UPLOAD).map((set) => ({ ...set, at: clamp(set.at) }));
+  const used = new Set(recipes.flatMap((set) => set.keys.map(String)));
+  const recipeNames = Object.fromEntries(Object.entries(snapshot.recipeNames).filter(([key]) => used.has(key)));
+  const cooldowns = snapshot.cooldowns
+    .filter((set) => set.entries.length > 0 && now.getTime() - set.at.getTime() <= RELAY_MAX_AGE_MS && isOther(set.character, set.realm))
+    .slice(0, RELAYED_COOLDOWN_SETS_PER_UPLOAD).map((set) => ({ ...set, at: clamp(set.at) }));
+  const attunements = snapshot.attunements
+    .filter((row) => row.completed && isOther(row.character, row.realm)).slice(0, RELAYED_ATTUNEMENTS_PER_UPLOAD);
+  return { recipes, recipeNames, cooldowns, attunements };
+}
+
 export interface GuildmateRelayResult {
   /** Characters whose level, class or race changed. */
   updated: number;

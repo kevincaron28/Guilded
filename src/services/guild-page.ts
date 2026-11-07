@@ -158,6 +158,18 @@ export function renderGuildPage(view: GuildPageView): string {
     view.dungeonPage ? `<a class="button ghost" href="${escapeHtml(`${view.dungeonPage}?lang=${view.language}`)}">${t("Dungeon scores", "Scores de donjon")}</a>` : ""
   ].filter(Boolean);
   if (actions.length) parts.push(`<p class="actions">${actions.join("")}</p>`);
+  // Public boards: only what the guild already publishes (its opt-in dungeon runs page and the duel board under it).
+  if (view.dungeonPage) {
+    const board = (path: string) => escapeHtml(`${view.dungeonPage}${path}?lang=${view.language}`);
+    parts.push(`<h2>${t("Public boards", "Tableaux publics")}</h2><div class="cards">`
+      + `<div class="card"><h3>${t("Dungeon season", "Saison de donjons")}</h3><p class="muted">${t("Members' best runs, season and weekly scores.", "Meilleurs runs des membres, scores de saison et de la semaine.")}</p><p><a href="${board("")}">${t("Open the dungeon board →", "Ouvrir le tableau de donjons →")}</a></p></div>`
+      + `<div class="card"><h3>${t("Duels", "Duels")}</h3><p class="muted">${t("Counted guild duels, wins and streaks.", "Duels de guilde comptés, victoires et séries.")}</p><p><a href="${board("/duels")}">${t("Open the duel board →", "Ouvrir le tableau de duels →")}</a></p></div></div>`);
+  }
+  if (view.recruitment?.inviteUrl) {
+    parts.push(`<h2>${t("How to join", "Comment nous rejoindre")}</h2><ol><li>${t("Join the guild's Discord with the button above.", "Rejoignez le Discord de la guilde avec le bouton ci-dessus.")}</li>`
+      + `<li>${t("Post your full character name (first and last name) in the guild invite channel.", "Publiez le nom complet de votre personnage (prénom et nom) dans le salon d'invitation de la guilde.")}</li>`
+      + `<li>${t("An officer invites you in game.", "Un officier vous invite en jeu.")}</li></ol>`);
+  }
   if (on("cores") && view.cores.length) {
     parts.push(`<h2>${t("Raid cores and times", "Cores de raid et horaires")}</h2><div class="cards">${view.cores.map((core) => `<div class="card"><h3>${escapeHtml(core.name)}</h3>`
       + (core.schedule ? `<p>${escapeHtml(core.schedule)} <span class="tag">(${escapeHtml(core.timezone)})</span></p>` : `<p class="muted">${t("Schedule to be announced", "Horaire à venir")}</p>`)
@@ -210,6 +222,12 @@ ${SITE_HEADER_STYLE}</style></head><body>${siteHeader(view.language, `/g/${view.
 
 const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found · Guilded</title><style>${PAGE_STYLE}</style></head><body><main><h1>Page not found</h1><p class="muted">This guild page does not exist or is not published. / Cette page de guilde n'existe pas ou n'est pas publiée.</p><p><a href="/recruitment/guilds/">Guilds / Guildes</a> · <a href="https://guilded.kcaron.top/">Guilded</a></p></main></body></html>`;
 
+/** The public page as data for the phone app: only what renderGuildPage shows (no Discord ids, no invite unless published). */
+export function guildPageJson(view: GuildPageView) {
+  return { slug: view.slug, name: view.name, language: view.language, intro: view.intro, edition: view.edition ?? null, sections: view.sections,
+    recruitment: view.recruitment, dungeonPage: view.dungeonPage ?? null, cores: view.cores };
+}
+
 export interface PageResponse { status: number; headers: Record<string, string>; body: string }
 
 // Every page server in this process, so an officer's change (/guildpage) shows at once here.
@@ -222,7 +240,7 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
   const ttlMs = options.ttlMs ?? 5 * 60_000;
   const maxEntries = options.maxEntries ?? 200;
   const now = options.now ?? Date.now;
-  const cache = new Map<string, { at: number; html: string | null }>();
+  const cache = new Map<string, { at: number; html: string | null; json: string | null }>();
   const security = { "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "referrer-policy": "strict-origin-when-cross-origin", "x-content-type-options": "nosniff" };
   const server = { forget(slug?: string) { if (slug) cache.delete(slug); else cache.clear(); } };
   pageServers.add(server);
@@ -231,19 +249,22 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
     async respond(method: string, pathname: string): Promise<PageResponse | null> {
       if (pathname !== "/g" && !pathname.startsWith("/g/")) return null;
       if (method !== "GET" && method !== "HEAD") return { status: 405, headers: { ...security, allow: "GET, HEAD" }, body: "" };
-      const match = /^\/g\/([^/]+)(\/?)$/.exec(pathname);
+      // The phone app's read of the same public page: JSON of what the page already shows (cores, rosters, rankings).
+      const asJson = /^\/g\/([^/]+)\/guild\.json$/.exec(pathname);
+      const match = asJson ? [asJson[0], asJson[1]!, "/"] : /^\/g\/([^/]+)(\/?)$/.exec(pathname);
       if (!match || !isPageSlug(match[1]!)) return html(404, NOT_FOUND, 60);
       if (!match[2]) return { status: 301, headers: { ...security, location: `/g/${match[1]}/`, "cache-control": "public, max-age=3600" }, body: "" };
       const slug = match[1]!;
       let entry = cache.get(slug);
       if (!entry || now() - entry.at >= ttlMs) {
         const view = await load(slug);
-        entry = { at: now(), html: view ? renderGuildPage(view) : null };
+        entry = { at: now(), html: view ? renderGuildPage(view) : null, json: view ? JSON.stringify(guildPageJson(view)) : null };
         cache.delete(slug);
         cache.set(slug, entry);
         while (cache.size > maxEntries) cache.delete(cache.keys().next().value!);
       }
-      return entry.html ? html(200, entry.html, 300) : html(404, NOT_FOUND, 60);
+      if (asJson) return entry.json ? { status: 200, headers: { ...security, "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" }, body: entry.json } : { status: 404, headers: { ...security, "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=60" }, body: '{"error":"Not found"}' };
+            return entry.html ? html(200, entry.html, 300) : html(404, NOT_FOUND, 60);
     },
     forget: server.forget
   };

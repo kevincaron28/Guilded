@@ -32,7 +32,78 @@ desktop control and is coordinated by you. Keep testing in the kevmister28 test 
   chat-tab regression tests (#465), and the officer tools' addon side (#474).
 - The owner's own nickname can't be set by the bot (his Chaman role is above the bot's); everyone below is renamed.
 - Bug sweep 05:45 UTC: 3 Profession details error refs resolved (fixed by #466). One P2028 transaction timeout in the standings feed (epgp lookup inside its transaction) during the 02:43 deploy; the feed is otherwise healthy (1,211 polls in 2 h, median 12.6 s, p95 14.5 s). Watch it; if P2028 repeats, move the EPGP standings reads out of the interactive transaction. The other inbox errors are from 8.x versions and have not recurred in 9.0.
+- Bug sweep 07:15 UTC: no member reports. The standings P2028 repeated 4 times (05:33-05:42), always in the loot-rules export inside the transaction; fixed by reading loot rules outside it (#487). Two voice-checkpoint P2028s (02:43, 05:18) and one pg error in High Guard's scheduled-events reconcile (05:32) came from the deploy restarts; each costs at most a minute of voice credit or one retry, so they are only being watched.
+- Check-in 07:45 UTC: merged and deployed #486 (dropped `/raid signup` and `/craft claim`) and #485 (per-guild public page: boards and how to join); bot live at 293a1f1, disk 38%. Each restart still logs one P2028 from the startup burst (this time `public-runs.ts:275`); watched. Track M phone app (leaderboards, guild view) handed to the research-plans session.
+- Bug sweep 09:45 UTC: no member reports; quiet since 07:46. The only errors were 4 P2028 timeouts (pairing, upload linking, public runs) between 07:41 and 07:44, while `deploy/update.sh` was building on the live server and the old process still served. Pattern: every deploy costs a few timeouts. The build already runs in a stage folder before the restart, so the likely cause is CPU contention from `npm ci` and the compile; running the build with `nice` is the next thing to try. Final bosses for the three new Forever dungeons merged (#491, addon-only, ships with 9.0.1). Owner status page: the Control Board artifact.
 - Merged (addon, ship with 9.0.1): roster admin window and native look (#478), in-game "Info and data" tab (#480). In the merge queue: full names everywhere (#476), invite channel to the WoW category + availability switch + feature homes (#477), addon relay for sync gaps (#479).
+
+### Status of every owner request (audit 7 Nov, 06:00 UTC)
+
+Checked against `origin/main` (f074c97), open PRs (#482, #458, #430, #345) and the code. "Addon-only" means merged but members get it with the 9.0.1 addon release (#482, owner's yes needed).
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| 1 Battle.net message in addon | Done, addon-only | #464 |
+| 2 Companion download link in game | Done, addon-only | #464 |
+| 3 Professions in public notes | Done, officer client, addon-only; real-client check owed | #474 |
+| 4 Initiate to Member promotion | Done, officer client, addon-only; real-client check owed | #474 |
+| 5 Linked-characters DM and button | Done, live | #473 |
+| 6 Monetization plan | Done (plan); owner picks | #462, `docs/plans/MONETIZATION.md` |
+| 7 EPGP in officer notes | Done, officer client, addon-only | #474 |
+| 8 Addon-message sync gaps | Done, bot live; addon relay ships in 9.0.1 | #479 |
+| 9 In-game guild greeting | Done, officer client, addon-only | #474 |
+| 10 Guild bank analysis | Done (plan); owner picks; the ledger itself shipped in 9.0.0 | #462, `docs/plans/GUILD_BANK.md`, ca09015e |
+| 11 Roster admin window | Done, addon-only | #478 |
+| 12 Race to 60 redesign and reach-60 card | Done, live; Hall of Fame edits done; not yet seen with a real level 60 | #471 |
+| 13 Dungeon cards, one per run, heat map | Done, live. Card text: outsiders' roles are localized (never raw HEALER/TANK) and "lié(s)" shows only when some members are linked (`src/services/dungeon-announce.ts` lines 84 and 94). The unranked reason "Target not calibrated" is now per run card, so it cannot repeat across a bundled post; confirm on the next real run | #461, #469, #483 |
+| 14 Remove availability module | Done (hidden, not deleted) | #477 |
+| 15 One name standard | Done, live; guard test added | #476 |
+| 16 `#invitation-guilde` in WoW category, only one | Code done; deleting the extra Québec Gold channel waits for owner | #477 |
+| 17 Guild overview panel | Plan only; owner picks a variant, then build | #462, `docs/plans/GUILD_OVERVIEW_PANEL.md` |
+| 18 Map pins hidden in instances | Done, addon-only | #464 |
+| 19 Native WoW fit for every feature | Done, addon-only (ships with 9.0.1): roster admin in sections with native look, officer switches in the window, "Info and data" tab with buttons for formerly slash-only commands; commands that stay slash-only are listed in `docs/ADDON_SLASH_ONLY_COMMANDS.md` | #478, #480 |
+| 20 Screenshots and install/link guides | Not started; needs game and Discord captures | Final phase 1 |
+| 21 Website refresh, Québec Gold pages | First pass done (EN/FR); fresh screenshots owed | #470, #456 |
+| 22 Phone app TCG plan | Plan done; owner picks option; build not started | #462, `docs/plans/APP_TCG.md` |
+| 23 Every feature has a home in Discord | Done, live (feature homes and help gaps) | #477 |
+| 24 Discord audit and fresh-setup check | Waiting for owner (needs his Discord account) | none |
+| First priority 2: nickname sync renames nobody | Fixed and deployed; the bot cannot set the server owner's own nickname | #468, #457 |
+| First priority 3: error 50035 | Fixed | #466 |
+| Season 1 less strict | Done, live | #455 |
+| Hall of Fame officer edits | Done | #471 |
+| Delete my data (companion, /me) | Done | #472 |
+| Remove "Turn public sharing off" in `/setup` and `/character nickname off` | Not done: button still in `src/commands/setup.ts` (lines 242, 526); needs owner decision | code grep |
+| PoE2 leftovers | Done: PoE2 badges and the companion PoE2 pages follow the tracking switch (`poe-off` class, `achievementGameVisible`); data is kept on purpose | #472 |
+| Officers see why a run was not counted | Built (`dungeon-explain.ts`, `/dungeon-admin audit`); real-data check owed | #456 |
+| 9.0.0 tracks A-L, owner batches 1-3, Kinfolk picks (bank ledger, recruiting kit, sign-up, levelling partners) | Done in 9.0.0 | #453 and the candidate merges |
+| Track M phone app (leaderboards, guild view, map and heat map, help pins, notifications) | Not started beyond preview APK 0.2.0 | `mobile/`, PR #345 open |
+| Track H other Kinfolk ideas | Waiting for owner picks | Track H |
+| Season 2 (9 December) | Plan and inactive rules exist; start date and targets after Season 1 data | `docs/DUNGEON_SEASON_2_PLAN.md` |
+| CurseForge and Store 9.0.0 | Waiting for review and certification; check live | release notes |
+
+### Waiting for owner
+
+- **9.0.1 release (#482, draft):** merge, GitHub release, CurseForge upload, Store package. Addon-only fixes (#460, #464, #465, #474 officer side, #478, #480, #479 relay) reach members only after this.
+- **CurseForge 9.0.0 review and Microsoft Store Submission 12:** check live; Partner Center sign-in is his.
+- **Discord server audit with his account (item 24)**, then the fresh-setup check on a test server.
+- **Screenshots in game (item 20)** for website, CurseForge, social media and the install/link guides.
+- **Delete the extra `#invitation-guilde` channel in Québec Gold (item 16):** list names without a check mark and repost them first; the owner confirms the deletion.
+- **Public-sharing switch decision:** remove "Turn public sharing off" and `/character nickname off`, or keep them.
+- **Pick from `docs/plans/`:** monetization (open questions), guild bank additions, overview panel variant (A recommended), TCG option (1 then 2).
+- **Close or merge:** #430 (superseded by the call-for-help work already on main, a25f93e5), #458 (Dependabot), #345 (Android server parts; also `EXPO_TOKEN`, Firebase, then Google Play with 12 testers for 14 days, USD 25).
+- **Real-client verifications:** companion settings survive an upgrade (second PC), French client in-game checks, officer client tools (items 3, 4, 7, 9), call for help and duel on two PCs, guild bank link, welcome DM invite request, relink of a second character, dungeon board real scores, a real level-60 Hall of Fame entry.
+- Delete the unused `FEATURE_PREVIEW_GUILD_IDS` line in `/opt/guilded/.env.local`; delete pre-releases v9.0.0-test.1..4; Season 2 start date and rules.
+
+### Not started (free to dispatch)
+
+- **Item 17 build, overview panel (after the owner picks a variant):** new page in the `addon/Guilded/` window plus `Locale.lua`; reads existing roster, professions and cores data; plan in `docs/plans/GUILD_OVERVIEW_PANEL.md`.
+- **Item 22 and Track M phone app:** leaderboards, guild view, guildmate map and last-seen heat map, help pins, notifications; `mobile/src`, `mobile/README.md`, web API routes (alerts need #345 first).
+- **Public-sharing and nickname switch removal (after owner decision):** `src/commands/setup.ts`, `src/commands/character.ts`, `src/services/setup-status.ts`, `src/i18n-fr.ts`.
+- ~~Standings feed P2028 hardening~~: loot rules now read outside the transaction (#487).
+- **Guild bank plan items (after the owner picks):** `docs/plans/GUILD_BANK.md`, addon bank module in `addon/Guilded/Modules/`, bank-ledger service and Discord posts.
+- **Track H Kinfolk picks (after the owner picks):** design notes only so far.
+- ~~Carried over~~: `/raid signup` and `/craft claim` dropped (`/community lottery join` was already gone); per-guild public page (#485). Final-boss ids still missing for Ruins of Lordaeron (2999), Excavation Site: Wetlands (2998) and City of Dalaran (2959): need a player diagnostic log line (#486).
+- **Season 2 build (after the start date decision):** `docs/DUNGEON_SEASON_2_PLAN.md`, dungeon rules service, targets from Season 1 times.
 
 **First priorities (owner, 7 Nov 01:45 UTC):**
 1. **Dungeon cards (item 13) now, not later.** One `#donjons-terminés` post bundled three runs (two Wailing
@@ -967,8 +1038,9 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
   ([backlog](docs/archive/UI_FIX_BACKLOG_2026-11-05.md)); Forever live acceptance; dungeon G6-G8 and
   French client G10 ([6.2 game acceptance](docs/V6_2_GAME_ACCEPTANCE.md)).
 - **Microsoft Store:** confirm which version has certified before claiming status.
-- **Commands:** drop slash commands that only repeat a button (`/raid signup`,
-  `/community lottery join`, `/craft claim`) once each button is confirmed in Discord.
+- **Commands:** done 7 November: `/raid signup` and `/craft claim` removed (the raid post's role buttons and the craft post's
+  **I'll craft it** button do the same work); `/community lottery join` was already gone (lottery tickets use the post's buttons).
+  A craft request made while no craft board is set up has no post and so no claim button: set the board up first.
 - **Public page per guild** ([design](docs/GUILD_PAGES_DESIGN.md)): officers choose what is public.
 - **Android app** (`mobile/`): the Expo/EAS project is linked (`ddda073f-f6bb-4e04-8a78-7ac343e03864`,
   account kevincaron28) and preview APK 0.2.0 is published (GitHub pre-release `mobile-v0.2.0-preview`,

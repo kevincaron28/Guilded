@@ -11,7 +11,7 @@ export const LITE_COMMANDS: Record<string, null | Record<string, string[]>> = {
   mod: { faq: [] },
   dungeon: { group: [] },
   // Basic signups: no raid cores, weekly repeats, EP, attendance or seasons.
-  raid: { signup: [], "cancel-signup": [], status: [], roster: [] },
+  raid: { "cancel-signup": [], status: [], roster: [] },
   lead: { create: ["core", "weekly"], edit: [], cancel: [] }
 };
 
@@ -42,8 +42,8 @@ export const LITE_SETUP_STEPS = [0, 1, 2, 3, 4, 8];
 
 /** What Lite includes, for the welcome post (both languages: the server language is not chosen yet). */
 export const LITE_SUMMARY = {
-  en: "Until the Guilded owner approves this server: `/setup start` (roles and channels), `/help`, `/mod faq`, `/report bug`, `/dungeon group` and basic raid signups (`/lead create`, `/raid signup`). Approval unlocks everything else (addon sync, EPGP, seasons, guild page).",
-  fr: "En attendant l'approbation du propriétaire de Guilded : `/setup start` (rôles et salons), `/help`, `/mod faq`, `/report bug`, `/dungeon group` et les inscriptions de raid simples (`/lead create`, `/raid signup`). L'approbation débloque tout le reste (synchronisation de l'addon, EPGP, saisons, page de guilde)."
+  en: "Until the Guilded owner approves this server: `/setup start` (roles and channels), `/help`, `/mod faq`, `/report bug`, `/dungeon group` and basic raid signups (`/lead create`; members sign up with the buttons on the post). Approval unlocks everything else (addon sync, EPGP, seasons, guild page).",
+  fr: "En attendant l'approbation du propriétaire de Guilded : `/setup start` (rôles et salons), `/help`, `/mod faq`, `/report bug`, `/dungeon group` et les inscriptions de raid simples (`/lead create`; les membres s'inscrivent avec les boutons de l'annonce). L'approbation débloque tout le reste (synchronisation de l'addon, EPGP, saisons, page de guilde)."
 };
 
 /** The command list to register for a server's pilot tier (null: none, the server has no access). */

@@ -60,12 +60,13 @@ function module.linkedLine(name)
   return string.format(L("Linked to Discord as %s"), name) .. " |cff40ff40\226\156\147|r"
 end
 
--- Says the linked line in chat the first time this name appears. Returns true when it spoke.
+-- Says the linked line in chat once per session for this name. Returns true when it spoke.
+-- Once per game session (every login while linked), and again if the linked name changes.
+local announcedName
 function module.announceLinked()
-  local d = ns.getDb and ns.getDb()
   local name = module.linkedAs()
-  if not d or not name or d.linkedAnnouncedAs == name then return false end
-  d.linkedAnnouncedAs = name
+  if not name or announcedName == name then return false end
+  announcedName = name
   ns.message(module.linkedLine(name))
   return true
 end

@@ -83,7 +83,7 @@ describe("the real command list", () => {
     expect(find("organize", null, "start-season")).toMatchObject({ legacy: "community", sub: "start-season" });
     expect(find("organize", "lottery", "create")).toMatchObject({ legacy: "lottery", sub: "create" });
     expect(find("epgp", null, "balance")).toMatchObject({ legacy: "epgp", sub: "balance", merged: true });
-    expect(find("raid", null, "signup")).toMatchObject({ legacy: "raid", sub: "signup" });
+    expect(find("raid", null, "status")).toMatchObject({ legacy: "raid", sub: "status" });
     expect(find("loot", null, "bid")).toMatchObject({ legacy: "loot", sub: "bid", merged: true });
   });
 });

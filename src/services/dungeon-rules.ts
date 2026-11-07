@@ -43,6 +43,10 @@ export const dungeonRunSchema = z.object({
     at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional(),
     source: z.enum(["native", "combat-log"]).optional()
   })).max(100).optional().catch(undefined),
+  // 9.1: where group members died, as fractions of a dungeon map (uiMapID). Optional presentation data: never invalidates a run.
+  deathPoints: z.array(z.object({
+    x: z.number().min(0).max(1), y: z.number().min(0).max(1), map: z.number().int().positive().max(100000), character: z.string().max(40).optional()
+  })).max(60).optional().catch(undefined),
   players: z.array(z.object({
     character: z.string().min(1).max(40),
     displayName: z.string().trim().min(1).max(80).optional().catch(undefined),

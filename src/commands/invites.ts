@@ -2,6 +2,7 @@ import { MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction, ty
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { formatInviteList, markInvitedByName, pendingInvites } from "../services/invite-queue.js";
+import { formatOpenInvitePosts, inviteChannelCandidates, openInvitePosts, scanInviteChannel } from "../services/invite-extras.js";
 import { markPostsDone } from "../services/invite-channel.js";
 import {
   cooldownState, DEFAULT_TEMPLATE, ensureInviteGuide, markRecruitPosted, MAX_COOLDOWN_HOURS, MIN_COOLDOWN_HOURS, parseQuestions,
@@ -17,6 +18,7 @@ export const invitesCommand = new SlashCommandBuilder()
   .setName("invites")
   .setDescription("Invite queue.")
   .addSubcommand((sub) => sub.setName("list").setDescription("Waiting."))
+  .addSubcommand((sub) => sub.setName("extra").setDescription("Extra channel."))
   .addSubcommand((sub) => sub.setName("record").setDescription("Stage, note.")
     .addStringOption((o) => o.setName("name").setDescription("First Last").setRequired(true).setMaxLength(60))
     .addStringOption((o) => o.setName("stage").setDescription("Stage").addChoices(...STAGES.map((value) => ({ name: STAGE_LABEL[value], value }))))
@@ -48,6 +50,15 @@ export async function executeInvites(interaction: ChatInputCommandInteraction): 
     const rows = await pendingInvites(prisma, guildId);
     const where = settings?.inviteChannelId ? `\nPosts go in <#${settings.inviteChannelId}>. In game: \`/guilded invites\`.` : "\nNo invite channel yet: press Create missing channels in `/setup`.";
     await reply(formatInviteList(rows, interaction.guild.id) + where);
+    return;
+  }
+  if (sub === "extra") {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const extras = inviteChannelCandidates(interaction.guild).filter((candidate) => candidate.id !== settings?.inviteChannelId);
+    if (!extras.length) { await interaction.editReply("There is no extra invite channel: only one exists."); return; }
+    const parts: string[] = [];
+    for (const extra of extras) parts.push(formatOpenInvitePosts(openInvitePosts(await scanInviteChannel(interaction.guild, extra.id)), extra.id, settings?.inviteChannelId ?? null));
+    await interaction.editReply({ content: parts.join("\n\n").slice(0, 1990), allowedMentions: { parse: [] } });
     return;
   }
   if (sub === "record") {

@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { GuildScreen } from "./src/GuildScreen";
+import { PublicBoards } from "./src/PublicBoards";
+import { readLang } from "./src/storage";
+import type { Lang } from "./src/i18n";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_GUILDED_WEB_URL ?? "https://guilded.kcaron.top";
 type Summary = { season: string; ratedRunsThisWeek: number; guilds: number; topRuns: { dungeon: string; levels: string; time: string; score: number }[] };
@@ -19,6 +22,8 @@ export default function App() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [lang, setLang] = useState<Lang>("en");
+  useEffect(() => { readLang().then(setLang).catch(() => undefined); }, []);
 
   useEffect(() => {
     let active = true;
@@ -35,7 +40,7 @@ export default function App() {
     <View style={styles.root}>
     <StatusBar style="light" />
     <View style={styles.header}><View><Text style={styles.brand}>GUILDED</Text><Text style={styles.edition}>WORLD OF WARCRAFT · COMMUNITY</Text></View><View style={styles.status}><View style={styles.dot}/><Text style={styles.statusText}>LIVE</Text></View></View>
-    {tab === "Guild" ? <GuildScreen defaultOrigin={WEB_ORIGIN} /> : <ScrollView contentContainerStyle={styles.content}>
+    {tab === "Guild" ? <GuildScreen defaultOrigin={WEB_ORIGIN} /> : tab === "Ranks" ? <PublicBoards origin={WEB_ORIGIN} lang={lang} /> : <ScrollView contentContainerStyle={styles.content}>
       {tab === "Home" && <>
         <Text style={styles.kicker}>YOUR COMMUNITY, IN REACH</Text>
         <Text style={styles.title}>The guild never stops.</Text>

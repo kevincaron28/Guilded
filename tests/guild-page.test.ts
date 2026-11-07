@@ -64,6 +64,16 @@ describe("guild page rendering", () => {
     expect(renderGuildPage(view())).not.toContain("Dungeon scores");
   });
 
+  it("lists only the boards the guild already publishes, and the join steps when it has an invite", () => {
+    const fr = renderGuildPage(view({ language: "fr", dungeonPage: "/leaderboards/guild/g1", recruitment: { text: null, inviteUrl: "https://discord.gg/abc" } }));
+    expect(fr).toContain("Tableaux publics");
+    expect(fr).toContain('href="/leaderboards/guild/g1/duels?lang=fr"');
+    expect(fr).toContain("Comment nous rejoindre");
+    const closed = renderGuildPage(view({ recruitment: null }));
+    expect(closed).not.toContain("Public boards");
+    expect(closed).not.toContain("How to join");
+  });
+
   // Quebec Gold's cores use EPGP priority; the page once called it an officer-made list (27 Oct 2026).
   const lootCore = (lootMode: string, over: object = {}) => [{ ...view().cores[0]!, lootMode, roster: [], ranking: [], ...over }];
 
@@ -102,6 +112,19 @@ describe("guild page server", () => {
     expect((await pages.respond("POST", "/g/quebec-gold/"))!.status).toBe(405);
     expect((await pages.respond("GET", "/g/Quebec_Gold/"))!.status).toBe(404);
     expect((await pages.respond("GET", "/g/quebec-gold/admin"))!.status).toBe(404);
+  });
+
+  it("serves the published page as JSON for the phone app and 404s an unknown slug", async () => {
+    const pages = createGuildPageServer(async (slug) => (slug === "quebec-gold" ? view() : null));
+    const ok = (await pages.respond("GET", "/g/quebec-gold/guild.json"))!;
+    expect(ok.status).toBe(200);
+    expect(ok.headers["content-type"]).toContain("application/json");
+    const data = JSON.parse(ok.body) as { slug: string; cores: unknown[] };
+    expect(data.slug).toBe("quebec-gold");
+    expect(Array.isArray(data.cores)).toBe(true);
+    expect(ok.body).not.toContain("discordId");
+    expect((await pages.respond("GET", "/g/nobody/guild.json"))!.status).toBe(404);
+    expect((await pages.respond("POST", "/g/quebec-gold/guild.json"))!.status).toBe(405);
   });
 
   it("keeps a rendered copy so repeat visits do not reach the database", async () => {

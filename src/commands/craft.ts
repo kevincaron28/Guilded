@@ -37,7 +37,6 @@ export const craftCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("who").setDescription("Who in the guild can craft an item (from the addon's profession scan).")
     .addStringOption((o) => o.setName("item").setDescription("Item or enchant (pick from the list, or type part of the name)").setAutocomplete(true).setMaxLength(100).setRequired(true)))
   .addSubcommand((sub) => sub.setName("mine").setDescription("Your open requests and the ones you're crafting."))
-  .addSubcommand((sub) => sub.setName("claim").setDescription("Take a request (you'll craft it).").addStringOption(idOption("from /craft list")))
   .addSubcommand((sub) => sub.setName("done").setDescription("Mark a request you claimed as crafted.").addStringOption(idOption("from /craft mine")))
   .addSubcommand((sub) => sub.setName("release").setDescription("Give a claimed request back to the list.").addStringOption(idOption("from /craft mine")))
   .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel your request.").addStringOption(idOption("from /craft mine")))
@@ -156,7 +155,7 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
         + (crafters.length ? `\nGuild ${profession} crafters: ${crafters.map((c) => `${cleanCharacterName(c.character)} (${c.skillLevel})`).join(", ")}` : "")
     });
     if (interaction.guild && !board.posted) {
-      await postToLogChannel(interaction.guild, `🔨 Craft request from ${interaction.user.username}: ${describe(request)} — /craft claim id:${request.id}`, "craft");
+      await postToLogChannel(interaction.guild, `🔨 Craft request from ${interaction.user.username}: ${describe(request)} — see /craft list`, "craft");
     }
     return;
   }
@@ -176,13 +175,6 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
   }
 
   const id = interaction.options.getString("id", true).replace(/`/g, "").trim();
-  if (subcommand === "claim") {
-    const request = await craftService.claim(context.guildId, id, context.memberId);
-    await syncCraftPost(interaction.guild, request.id);
-    await interaction.reply({ content: `You claimed ${describe(request)} for ${request.requester.displayName}. \`/craft done id:${request.id}\` when it's made.`, flags: MessageFlags.Ephemeral });
-    await dm(request.requester.discordUserId, `🔨 ${request.crafter?.displayName ?? "A guild crafter"} is crafting your ${describe(request)}.`);
-    return;
-  }
   if (subcommand === "done") {
     const request = await craftService.complete(context.guildId, id, context.memberId, isOfficer);
     await syncCraftPost(interaction.guild, request.id);

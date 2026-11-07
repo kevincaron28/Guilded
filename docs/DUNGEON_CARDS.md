@@ -19,3 +19,7 @@ The card draws a map under the party when its definition carries `dungeon.deathP
 ## Real dungeon maps
 
 The death map draws on `site/dungeon-maps/<slug>.png` (slug of the dungeon name, e.g. `wailing-caverns`) when the file exists, else on a plain grid. No map art is bundled: the game's own maps are Blizzard's, so the owner must decide where they come from (own screenshots/exports, or a licensed source) and drop the files in. Positions are 0..1 across that image, so crop each map to the area the addon's `C_Map.GetPlayerMapPosition` coordinates cover.
+
+## Death positions (9.1, shipped)
+
+Addon (`Modules/Dungeon.lua`, copied to GuildedDungeons by `npm run dungeons:sync`): on `PLAYER_DEAD` inside the run each client records its own position (`C_Map.GetBestMapForUnit` + `C_Map.GetPlayerMapPosition`, rounded to 3 decimals, with the uiMapID) in `run.deathPoints` (at most 60 per run; nothing is recorded when the position is unknown, 0,0, restricted or the API is missing) and tells the group with a separate `DPOS|run|name|x‰|y‰|map` message, which older clients ignore. Receivers keep only a player's own DPOS, for a player in that run, with valid ranges. Companion export (`lua-export-content.mjs`) sends `deathPoints` (validated, capped); the bot schema accepts them as optional and never invalidates a run over them; they are stored in `competitionData.deathPoints` and drawn on the card. A dungeon with several floors draws the floor with the most deaths. Run summaries shared with officers (`SUM`) do not carry positions; only the recorder's own export does.

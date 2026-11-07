@@ -57,7 +57,7 @@ describe("the Request a guild invite button and form", () => {
   it("posts the name without pinging, queues it with eyes, and confirms", async () => {
     const deps = setup(); const { interaction, editReply } = submit("Lebowski Holyroller", deps);
     await handleInviteRequestInteraction(interaction as never, deps.database as never);
-    expect(deps.send).toHaveBeenCalledWith({ content: "<@u1> → **Lebowski Holyroller**", allowedMentions: { parse: [] } });
+    expect(deps.send).toHaveBeenCalledWith({ content: "<@u1> → **Lebowski Holyroller**", components: [expect.anything()], allowedMentions: { parse: [] } });
     expect(deps.requests[0]).toMatchObject({ guildId: "g1", displayName: "Lebowski Holyroller", discordUserId: "u1", messageId: "posted-1", channelId: "chan" });
     expect(deps.react).toHaveBeenCalledWith("👀");
     expect(editReply.mock.calls[0]![0]).toMatchObject({ content: expect.stringContaining("<#chan>") });

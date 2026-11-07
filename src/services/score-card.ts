@@ -78,6 +78,9 @@ const pending = new Map<string, Promise<Buffer>>();
  * punctuation stay. When something was dropped the leftover gaps are tidied.
  */
 export const drawable = (text: string) => {
+  // Styled names ("𝓕𝓻𝓾𝓶𝓹𝔂™") are read as plain letters first: NFKC turns the mathematical alphabets into Latin and ™ into TM.
+  // Latin text and ordinary punctuation (U+0020-024F, U+2010-2027) stay as written (NFKC would turn "…" into "...").
+  text = text.replace(/[^\u0020-\u024F\u2010-\u2027]/gu, c => c.normalize("NFKC"));
   const kept = text.replace(/[\p{So}\p{Sk}\p{Cf}\p{Co}\p{Cn}\uFE00-\uFE0F]/gu, c => (c.codePointAt(0)! <= 0xff ? c : ""));
   return kept === text ? text : kept.replace(/\s{2,}/g, " ").trim();
 };

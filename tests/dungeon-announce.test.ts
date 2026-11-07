@@ -1,156 +1,132 @@
 import { describe, expect, it } from "vitest";
-import { dungeonAnnouncement } from "../src/services/dungeon-announce.js";
+import { dungeonPosts, DUNGEON_TIMELINE_PREFIX } from "../src/services/dungeon-announce.js";
+import { dungeonRunCard, dungeonTheme, finalBoss } from "../src/services/dungeon-card.js";
 import type { DungeonImportResult } from "../src/services/dungeon-import.js";
+import { scoreCardPng } from "../src/services/score-card.js";
 
 const result = (overrides: Partial<DungeonImportResult>): DungeonImportResult => ({
   runRef: "QG-1", dungeonName: "Deadmines", difficultyId: 1, state: "COMPLETED", valid: true, durationSec: 1300, points: 0,
   guildRecord: false, previousGuildBest: null, personalRecords: [], players: ["Kev", "Bob"], deaths: 0, unlinked: [], achievements: [], ...overrides
 });
+const summary = (...results: DungeonImportResult[]) => ({ results, duplicates: 0, malformed: 0 });
+const text = (run: DungeonImportResult, lang: "en" | "fr" = "en") => dungeonPosts(summary(run), lang)[0]!.embed.toJSON().description!;
 
-describe("dungeonAnnouncement", () => {
-  it("explains an unranked run and helper award without displaying the prior rating as this run's result", () => {
-    const run = result({ ratingEnabled: true, ratingVersion: 3, points: 50, players: ["Kev"], playerDetails: [
-      { character: "Kev", deaths: 0, presentSec: 1300, points: 50, ratingGain: 0, ratingTotal: 400,
-        unrankedReason: "Overlevel carry", participationMode: "helper" }
-    ] });
-    const summary = { results: [run], duplicates: 0, malformed: 0 };
-    const en = dungeonAnnouncement(summary, "en")!.toJSON().description!;
-    expect(en).toContain("Unranked: Overlevel carry");
-    expect(en).toContain("Helper: completion points only");
-    expect(en).not.toContain("**400**");
-    expect(dungeonAnnouncement(summary, "fr")!.toJSON().description).toContain("Non classé: Aide au-dessus du niveau maximal");
+describe("dungeonPosts", () => {
+  it("sends one post, with its own card, per completed run", () => {
+    const posts = dungeonPosts(summary(
+      result({ runRef: "A", dungeonName: "Wailing Caverns" }), result({ runRef: "B", dungeonName: "Wailing Caverns" }),
+      result({ runRef: "C", dungeonName: "Ragefire Chasm" }), result({ runRef: "D", state: "ABANDONED" }), result({ runRef: "E", valid: false })), "fr");
+    expect(posts.map((post) => post.runRef)).toEqual(["A", "B", "C"]);
+    expect(posts.map((post) => post.card.title)).toEqual(["Wailing Caverns", "Wailing Caverns", "Ragefire Chasm"]);
+    for (const post of posts) expect(post.embed.toJSON().description!.length).toBeLessThan(1500);
   });
-  it("separates exploration gains from participation and shows zero for a repeat", () => {
-    const run = result({ ratingEnabled: true, points: 75, players: ["Kev"], playerDetails: [
-      { character: "Kev", deaths: 0, presentSec: 1300, points: 75, ratingGain: 0, ratingTotal: 200 }
-    ] });
-    const embed = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON();
-    expect(embed.description).toContain("75 participation points");
-    expect(embed.description).toContain("Exploration rating: **200** (+0)");
-    expect(embed.description).toContain("do not stack");
+  it("keeps the embed short: no repeated speed-rating line, no per-player blocks", () => {
+    const run = result({ ratingEnabled: true, ratingVersion: 5, points: 0, playerDetails: [
+      { character: "Kev", deaths: 0, presentSec: 1300, points: 0, ratingTotal: 400, ratingGain: 0 }, { character: "Bob", deaths: 1, presentSec: 1300, points: 0 }] });
+    const en = text(run), fr = text(run, "fr");
+    for (const body of [en, fr]) {
+      expect(body).not.toMatch(/calibrat/i);
+      expect(body).not.toContain("Score de vitesse");
+      expect(body).not.toContain("0 pts");
+      expect(body).not.toContain("participation points");
+    }
+    expect(en.split("\n").length).toBeLessThanOrEqual(3);
   });
-  it("shows only guild members, including zero-point members, and their death coverage", () => {
-    const players = ["Kev", "Guest", "A", "B", "C", "Replacement"];
-    const run = result({ players, unlinked: ["Guest", "A", "B", "Replacement"], endedAt: 1791901866, completedBy: "final boss", points: 58,
-      playerDetails: players.map((character, i) => ({ character, class: "PRIEST", role: "HEALER", deaths: i === 0 ? 0 : i === 1 ? 9 : null, presentSec: 1000, points: i === 0 ? 58 : 0 })) });
-    const en = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON();
-    expect(en.description).toContain("guild deaths: 0 (1/2 tracked)");
-    expect(en.description).not.toContain("no deaths");
-    expect(en.description).toContain("<t:1791901866:f>");
-    expect(en.description).toContain("2 guild member(s)");
-    expect(en.description).toContain("Priest / Healer");
-    expect(en.description).toContain("deaths untracked");
-    expect(en.description).toContain("58 total points awarded");
-    expect(en.description).toContain("**C**");
-    expect(en.description).toContain("deaths: 0");
-    // Outsiders are listed too, after the guild, and marked.
-    expect(en.description).toContain("From outside the guild (4)");
-    for (const outsider of run.unlinked) expect(en.description).toContain(`🌐 **${outsider}**`);
-    expect(en.description!.indexOf("**C**")).toBeLessThan(en.description!.indexOf("From outside the guild"));
-    const fr = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "fr")!.toJSON();
-    expect(fr.description).toContain("Soigneur");
-    expect(fr.description).toContain("morts non suivies");
+  it("shows the points line only above zero", () => {
+    expect(text(result({ ratingEnabled: true, points: 75 }))).toContain("75 participation points");
+    expect(text(result({ ratingEnabled: true, points: 75 }), "fr")).toContain("75 points de participation");
+    expect(text(result({ points: 58 }))).toContain("58 total points awarded");
   });
-
-  it("counts guildmates the addon flagged even when only one is linked", () => {
-    const players = ["Crashin", "Ann", "Bo", "Cy", "Di"];
-    const run = result({ players, unlinked: ["Ann", "Bo", "Cy", "Di"], inGuildPlayers: players, deaths: 2,
-      playerDetails: players.map((character) => ({ character, role: "DPS", deaths: 0, presentSec: 1000, points: 0 })) });
-    const en = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON().description!;
-    expect(en).toContain("5 guild member(s) (1 linked)");
-    expect(en).toContain("guild deaths: 0");
-    expect(en).not.toContain("tracked)");
-    expect(dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "fr")!.toJSON().description).toContain("5 membre(s) de guilde (1 lié(s))");
+  it("sums unranked members into ONE line with the distinct reasons", () => {
+    const player = (character: string, unrankedReason: string) => ({ character, deaths: 0, presentSec: 1000, points: 0, unrankedReason });
+    const run = result({ players: ["A B", "C D", "E F"], playerDetails: [player("A B", "Target not calibrated"), player("C D", "Target not calibrated"), player("E F", "Overlevel carry")] });
+    expect(text(run).match(/Unranked/g)).toHaveLength(1);
+    expect(text(run)).toContain("Unranked ×3: Target not calibrated · Overlevel carry");
+    expect(text(run, "fr")).toContain("Non classé ×3: Cible non calibrée · Aide au-dessus du niveau maximal");
   });
-  it("posts a run whose guildmates are all unlinked but flagged, and keeps skipping one with no guildmates", () => {
-    const flagged = result({ players: ["A", "B"], unlinked: ["A", "B"], inGuildPlayers: ["A", "B"] });
-    expect(dungeonAnnouncement({ results: [flagged], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("2 guild member(s) (0 linked)");
-    const strangers = result({ players: ["A", "B"], unlinked: ["A", "B"], inGuildPlayers: [] });
-    expect(dungeonAnnouncement({ results: [strangers], duplicates: 0, malformed: 0 }, "en")).toBeNull();
+  it("tags linked guildmates and never prints '(0 lié(s))' when members are tagged", () => {
+    const run = result({ players: ["Kev", "Ann"], unlinked: ["Ann"], inGuildPlayers: ["Kev", "Ann"], mentions: { Kev: "1234", Ann: "5678" } });
+    const fr = text(run, "fr");
+    expect(fr).toContain("<@1234>");
+    expect(fr).toContain("<@5678>");
+    expect(fr).not.toContain("lié(s)");
+    // Flagged but nobody linked: no confusing "(0 linked)" either.
+    const none = result({ players: ["A", "B"], unlinked: ["A", "B"], inGuildPlayers: ["A", "B"] });
+    expect(text(none)).toContain("2 guild member(s):");
+    expect(text(none)).not.toContain("linked");
+    // Partly linked keeps the useful note.
+    const some = result({ players: ["Kev", "Ann", "Bo"], unlinked: ["Ann", "Bo"], inGuildPlayers: ["Kev", "Ann", "Bo"], mentions: { Kev: "1234" } });
+    expect(text(some, "fr")).toContain("3 membre(s) de guilde (1 lié(s))");
   });
-  it("keeps today's count for an old run without the flag", () => {
-    const old = result({ players: ["Kev", "Guest"], unlinked: ["Guest"] });
-    expect(dungeonAnnouncement({ results: [old], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("1 guild member(s) ·");
+  it("localizes roles for outsiders (no raw HEALER/TANK) and uses full names", () => {
+    const run = result({ players: ["Kev", "Pug One", "Pug Two"], unlinked: ["Pug One", "Pug Two"], inGuildPlayers: ["Kev"], fullNames: { "Pug One": "Pug One Healerson" },
+      playerDetails: [{ character: "Kev", class: "MAGE", role: "DAMAGER", deaths: 0, presentSec: 1, points: 0 }, { character: "Pug One", class: "PRIEST", role: "HEALER", deaths: 0, presentSec: 1, points: 0 },
+        { character: "Pug Two", class: "WARRIOR", role: "TANK", deaths: 0, presentSec: 1, points: 0 }] });
+    const fr = text(run, "fr");
+    expect(fr).toContain("Hors guilde (2)");
+    expect(fr).toContain("Pug One Healerson (Prêtre, Soigneur)");
+    expect(fr).toContain("(Guerrier, Tank)");
+    expect(fr).not.toMatch(/HEALER|TANK/);
+    expect(text(run)).toContain("(Priest, Healer)");
+    const card = dungeonPosts(summary(run), "fr")[0]!.card.dungeon!;
+    expect(card.party.map((member) => [member.name, member.guild, member.roleLabel])).toEqual([["Kev", true, "DPS"], ["Pug One Healerson", false, "Soigneur"], ["Pug Two", false, "Tank"]]);
   });
-  it("matches Forever full names (first and last)", () => {
-    const players = ["Lebowski Holyroller", "Walter Sobchak"];
-    const run = result({ players, unlinked: ["Walter Sobchak"], inGuildPlayers: ["Walter Sobchak"] });
-    expect(dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("2 guild member(s) (1 linked)");
+  it("posts nothing for abandoned runs, rejected runs or runs without guildmates", () => {
+    expect(dungeonPosts(summary(result({ state: "ABANDONED" }), result({ valid: false, invalidReason: "too short" })), "en")).toEqual([]);
+    expect(dungeonPosts(summary(result({ unlinked: ["Kev", "Bob"] })), "en")).toEqual([]);
+    expect(dungeonPosts(summary(result({ players: ["A", "B"], unlinked: ["A", "B"], inGuildPlayers: [] })), "en")).toEqual([]);
   });
-  it("posts a solo completion and stays within Discord's embed budget for large imports", () => {
-    const single = result({ players: ["Kev"] });
-    expect(dungeonAnnouncement({ results: [single], duplicates: 0, malformed: 0 }, "en")!.toJSON().description).toContain("1 guild member(s)");
-    const many = Array.from({ length: 20 }, (_, i) => result({ runRef: `QG-${i}`, dungeonName: "D".repeat(100),
-      playerDetails: Array.from({ length: 40 }, (_, j) => ({ character: `Player${j}`, role: "DPS", deaths: null, points: 0, presentSec: 1000 })) }));
-    const embed = dungeonAnnouncement({ results: many, duplicates: 0, malformed: 0 }, "en")!;
-    expect(embed.length).toBeLessThanOrEqual(6000);
-    expect(embed.toJSON().description!.length).toBeLessThanOrEqual(4096);
+  it("puts the boss chronology behind a button, not in the post", () => {
+    const run = result({ runId: "run123", startedAt: 1000, endedAt: 1600, encounters: [{ id: 1, name: "Boss", startedAt: 1500, at: 1600, success: true }] });
+    const [post] = dungeonPosts(summary(run), "fr");
+    expect(JSON.stringify(post!.embed.toJSON())).not.toContain("Chronologie");
+    const button = post!.components[0]!.toJSON().components[0] as { custom_id: string; label: string };
+    expect(button).toMatchObject({ custom_id: `${DUNGEON_TIMELINE_PREFIX}run123`, label: "Chronologie" });
+    expect(dungeonPosts(summary(result({ startedAt: 1000, endedAt: 1600, encounters: run.encounters })), "en")[0]!.components).toEqual([]);
+    expect(dungeonPosts(summary(result({})), "en")[0]!.components).toEqual([]);
   });
-  it("filters legacy rosters, records and achievements and omits runs without guild members", () => {
-    const run = result({ unlinked: ["Bob"], deaths: 9,
-      personalRecords: [{ character: "Bob", previous: 1500, now: 1300 }],
-      achievements: [{ character: "Bob", key: "firstBlood" }] });
-    const embed = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON();
-    // Bob is listed as an outsider, but gets no record or achievement credit.
-    expect(embed.description).toContain("🌐 **Bob**");
-    expect(JSON.stringify(embed.fields ?? [])).not.toContain("Bob");
-    expect(embed.description).not.toContain("guild deaths: 9");
-    expect(dungeonAnnouncement({ results: [result({ unlinked: ["Kev", "Bob"] })], duplicates: 0, malformed: 0 }, "en")).toBeNull();
-  });
-
-  it("posts nothing when no run was completed and valid", () => {
-    const summary = { results: [result({ state: "ABANDONED" }), result({ valid: false, invalidReason: "too short" })], duplicates: 3, malformed: 0 };
-    expect(dungeonAnnouncement(summary, "en")).toBeNull();
-  });
-
-  it("lists completed runs and the records they set, in the guild language", () => {
-    const summary = {
-      results: [
-        result({ guildRecord: true, previousGuildBest: 1500, personalRecords: [{ character: "Kev", previous: 1500, now: 1300 }] }),
-        result({ runRef: "QG-2", dungeonName: "Shadowfang Keep", difficultyId: 0, deaths: null }),
-        result({ runRef: "QG-3", state: "ABANDONED" })
-      ],
-      duplicates: 0, malformed: 0
-    };
-    const embed = dungeonAnnouncement(summary, "fr")?.toJSON();
-    expect(embed?.description).toContain("✅ **Deadmines (Normal)** 21:40 · morts de guilde: 0");
-    expect(embed?.description).toContain("✅ **Shadowfang Keep** 21:40\n");
-    expect(embed?.description?.match(/✅/g)).toHaveLength(2);
-    expect(embed?.fields?.[0]?.value).toContain("Nouveau record de guilde dans **Deadmines (Normal)** : 25:00 → **21:40**");
-    expect(embed?.fields?.[0]?.value).toContain("Record personnel dans Deadmines (Normal) : Kev");
+  it("lists the records a run set and marks test runs", () => {
+    const run = result({ runRef: "SIM-1790000000-abcde", guildRecord: true, previousGuildBest: 1500, personalRecords: [{ character: "Kev", previous: 1500, now: 1300 }, { character: "Bob", previous: 1, now: 0 }], unlinked: ["Bob"] });
+    const embed = dungeonPosts(summary(run), "fr")[0]!.embed.toJSON();
+    expect(embed.title).toBe("✅ [TEST] Deadmines (Normal)");
+    expect(embed.description).toContain("Nouveau record de guilde dans **[TEST] Deadmines (Normal)** : 25:00 → **21:40**");
+    expect(embed.description).toContain("Record personnel dans [TEST] Deadmines (Normal) : Kev");
+    expect(embed.description).not.toContain("Record personnel dans [TEST] Deadmines (Normal) : Kev, Bob");
   });
 });
 
-describe("test dungeon runs", () => {
-  it("uses the existing class/spec catalog and custom role emoji with safe fallbacks", () => {
-    const run=result({players:["Kev"],playerDetails:[{character:"Kev",class:"PRIEST",spec:"Discipline",specSource:"run",role:"HEALER",deaths:0,presentSec:1000,points:59}],
-      startedAt:1000,endedAt:1600,encounters:[{id:1,name:"Boss",startedAt:1500,at:1600,success:true}]});
-    const emojis={Priest:"<:wow_pretre:1550000000000000001>","Priest:Discipline":"<:wow_spec_priest_disc:1550000000000000002>","ROLE:HEALER":"<:wow_role_healer:1550000000000000003>"};
-    const embed=dungeonAnnouncement({results:[run],duplicates:0,malformed:0},"fr",emojis)!.toJSON();
-    for(const emoji of Object.values(emojis)) expect(embed.description).toContain(emoji);
-    expect(embed.description).toContain("Discipline / Soigneur");
-    expect(embed.fields?.some(field=>field.name.includes("Chronologie")&&field.value.includes("1:40"))).toBe(true);
-    expect(dungeonAnnouncement({results:[run],duplicates:0,malformed:0},"en")!.toJSON().description).toContain("💚");
-  });
-  it("are marked [TEST] in the channel", () => {
-    const embed = dungeonAnnouncement({ results: [result({ runRef: "SIM-1790000000-abcde", dungeonName: "Test Dungeon" })], duplicates: 0, malformed: 0 }, "en");
-    expect(embed?.toJSON().description).toContain("**[TEST] Test Dungeon (Normal)**");
-  });
+describe("dungeonRunCard", () => {
+  const run = result({ dungeonName: "Wailing Caverns", durationSec: 1105, completedBy: "final boss", endedAt: 1791901866, players: ["Kev Mage", "Ann Heal", "Pug Tank"],
+    unlinked: ["Pug Tank"], inGuildPlayers: ["Kev Mage", "Ann Heal"], deaths: 3, startedAt: 1791900000,
+    encounters: [{ id: 1, name: "Lady Anacondra", success: true, at: 1791900400 }, { id: 2, name: "Mutanus the Devourer", success: true, at: 1791901800 }],
+    playerDetails: [{ character: "Pug Tank", class: "WARRIOR", role: "TANK", deaths: 1, presentSec: 1, points: 0 },
+      { character: "Kev Mage", class: "MAGE", role: "DAMAGER", deaths: 2, presentSec: 1, points: 0 }, { character: "Ann Heal", class: "PRIEST", role: "HEALER", deaths: 0, presentSec: 1, points: 0 }] });
 
-  it("lists the whole party: guildmates first with a tag and a mention, others marked as from outside the guild", () => {
-    const players = ["Kev", "Pug One", "Pug Two"];
-    const run = result({ players, unlinked: ["Pug One", "Pug Two"], inGuildPlayers: ["Kev"], mentions: { Kev: "1234" }, points: 50,
-      playerDetails: players.map((character, i) => ({ character, class: "MAGE", role: i === 0 ? "DPS" : "TANK", deaths: 1, presentSec: 1000, points: i === 0 ? 50 : 0 })) });
-    const en = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON().description!;
-    expect(en).toContain("🏰 **Kev** <@1234>");
-    expect(en).toContain("🌐 **Pug One**");
-    expect(en).toContain("🌐 **Pug Two**");
-    expect(en).toContain("1 guild member(s)");
-    expect(dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "fr")!.toJSON().description).toContain("Hors guilde (2)");
+  it("shows time, final boss, deaths and the whole party with guild first", () => {
+    const card = dungeonRunCard(run, "fr");
+    expect(finalBoss(run)).toBe("Mutanus the Devourer");
+    expect(card.stats.map((stat) => [stat.label, stat.value])).toEqual([["Temps", "18:25"], ["Boss final", "Mutanus the Devourer"], ["Morts", "3"]]);
+    expect(card.dungeon!.party.map((member) => [member.name, member.guild])).toEqual([["Kev Mage", true], ["Ann Heal", true], ["Pug Tank", false]]);
+    expect(card.dungeon!.party[0]).toMatchObject({ role: "DPS", color: "#69ccf0" });
+    expect(card.dungeon!.deathPoints).toBeUndefined();
+    expect(card.dungeon!.outsiderLabel).toBe("Hors guilde");
   });
-  it("still lists outsiders when the run has no per-player details", () => {
-    const run = result({ players: ["Kev", "Pug"], unlinked: ["Pug"], inGuildPlayers: ["Kev"] });
-    const en = dungeonAnnouncement({ results: [run], duplicates: 0, malformed: 0 }, "en")!.toJSON().description!;
-    expect(en).toContain("🌐 **Pug**");
+  it("is plain data that survives being queued as JSON", () => {
+    const card = dungeonRunCard(run, "en", { deathPoints: [{ x: 0.2, y: 0.5 }] });
+    expect(JSON.parse(JSON.stringify(card))).toEqual(card);
+  });
+  it("gives each dungeon its own stable generated theme", () => {
+    expect(dungeonTheme("Ragefire Chasm")).toMatchObject({ motif: "fire" });
+    expect(dungeonTheme("Wailing Caverns")).toMatchObject({ motif: "cave" });
+    expect(dungeonTheme("Some New Place")).toEqual(dungeonTheme("Some New Place"));
+    expect(dungeonTheme("Some New Place").a).not.toEqual(dungeonTheme("Another Place").a);
+  });
+  it("renders a PNG with and without the death map", async () => {
+    for (const card of [dungeonRunCard(run, "fr"), dungeonRunCard(run, "en", { deathPoints: [{ x: 0.1, y: 0.2 }, { x: 0.8, y: 0.7 }] }),
+      dungeonRunCard(result({ dungeonName: "Ragefire Chasm", players: Array.from({ length: 10 }, (_, i) => `Player ${i}`), inGuildPlayers: ["Player 0"], unlinked: [] }), "en")]) {
+      const png = await scoreCardPng(card);
+      expect(png?.subarray(0, 4).toString("hex")).toBe("89504e47");
+      expect(png!.length).toBeGreaterThan(5000);
+    }
   });
 });

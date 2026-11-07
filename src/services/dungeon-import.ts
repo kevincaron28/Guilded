@@ -33,6 +33,8 @@ interface LinkedCharacter { name: string; realm: string; memberId: string; spec?
 
 export interface DungeonImportResult {
   runRef: string;
+  // Database id of the stored run (9.1: the dungeon post's Chronologie button looks the run up by it).
+  runId?: string;
   dungeonName: string;
   difficultyId: number;
   state: string;
@@ -438,6 +440,7 @@ export async function importDungeonRuns(
       && ratingCharacterKey(row.memberId, row.character) === ratingCharacterKey(memberId, name) && (!brackets || row.bracket === runBracket(name)))?.points ?? 0;
     summary.results.push({
       runRef: run.id,
+      runId: stored.id,
       dungeonName: run.name,
       difficultyId: run.difficultyId,
       state: run.state,

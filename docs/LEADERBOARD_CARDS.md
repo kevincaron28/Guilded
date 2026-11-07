@@ -18,7 +18,7 @@ Every ranking card is drawn by one layout in `src/services/score-card.ts` (`Scor
 
 - Class colours for boards that only store a name come from `ladder-classes.ts`: it matches the full name, then the first name. An ambiguous first name gets no colour.
 - With a card attached, the duel embed keeps only the top 3, and the battleground embed keeps only its summary. The dungeon board's embeds are unchanged, with the picture on the first one. When drawing fails or is busy, every board falls back to its old embed.
-- Race to 60 now shows the top 50 by default. Migration `20270104000000_race_board_top_50` sets the column default to 50. It also moves every guild still at the old default of 25 to 50; an officer who picked 25 on purpose can set it again with `/race`.
+- Race to 60 now shows the top 50 by default. Migration `20270108000000_race_board_top_50` sets the column default to 50. It also moves every guild still at the old default of 25 to 50; an officer who picked 25 on purpose can set it again with `/race`.
 - There are no "since yesterday" rank arrows yet: no board stores yesterday's ranks. The race card's arrow shows the levels gained this week, which the data does have.
 - The Hall of Fame cards are unchanged.
 - To regenerate the samples in `docs/cards/ladder-*.png`, run `npx tsx scripts/render-ladder-cards.ts [outDir]` (it needs the placeholder environment from CLAUDE.md).

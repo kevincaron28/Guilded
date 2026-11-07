@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Collection } from "discord.js";
-import { completeInvitesFromRoster, findWowRoleId, handleInviteMessage, handleInviteReaction, handleWowRoleGiven, markPostsDone } from "../src/services/invite-channel.js";
+import { backCheckInvites, completeInvitesFromRoster, findWowRoleId, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven, markPostsDone } from "../src/services/invite-channel.js";
 
 vi.mock("../src/permissions.js", () => ({ hasPermission: (member: { officer?: boolean }) => Boolean(member.officer) }));
 afterEach(() => { vi.useRealTimers(); });
@@ -12,12 +12,12 @@ function database() {
   const dms: string[] = [];
   return {
     requests, dms,
-    guildSettings: { findFirst: vi.fn(async ({ where }: { where: { inviteChannelId?: string } }) => where.inviteChannelId === "chan" ? settings : null), findMany: vi.fn(async () => [settings]) },
+    guildSettings: { findFirst: vi.fn(async ({ where }: { where: { inviteChannelId?: string; guild?: unknown } }) => where.inviteChannelId === "chan" || where.guild ? settings : null), findMany: vi.fn(async () => [settings]) },
     inviteRequest: {
       upsert: vi.fn(async ({ create }: { create: Record<string, unknown> }) => { requests.push(create); return create; }),
       count: vi.fn(async () => 0),
       findUnique: vi.fn(async () => requests[0] ? { nameKey: requests[0]["nameKey"], status: "PENDING" } : null),
-      findMany: vi.fn(async () => requests.map((r, i) => ({ id: `i${i}`, channelId: "chan", messageId: r["messageId"], displayName: r["displayName"] }))),
+      findMany: vi.fn(async () => requests.map((r, i) => ({ id: `i${i}`, channelId: "chan", messageId: r["messageId"], displayName: r["displayName"], nameKey: r["nameKey"] }))),
       updateMany: vi.fn(async () => ({ count: 1 }))
     },
     inviteDm: { findUnique: vi.fn(async (): Promise<unknown> => null), create: vi.fn(async ({ data }: { data: { discordUserId: string } }) => { dms.push(data.discordUserId); }) },
@@ -83,6 +83,66 @@ describe("check marks", () => {
     const db = database(); await handleInviteMessage(post("Amy Archer") as never, db as never);
     const p = { react: vi.fn(async () => undefined), reactions: { cache: new Map() } };
     expect(await completeInvitesFromRoster(client(p) as never, db as never, { id: "g1", discordId: "guild" }, ["Amy Archer"])).toBe(1);
+  });
+});
+
+describe("finishing a name from the guild roster", () => {
+  const client = () => {
+    const p = { react: vi.fn(async () => undefined), reactions: { cache: new Map() }, author: { id: "bot" }, components: [{}], edit: vi.fn(async () => undefined) };
+    return { p, c: { user: { id: "bot" }, channels: { fetch: vi.fn(async () => ({ isTextBased: () => true, messages: { fetch: vi.fn(async () => p) } })) } } };
+  };
+  it("ignores case, accents and a realm suffix, and matches a first-name-only roster row when only one waiting name fits", async () => {
+    for (const roster of ["DRAKKA WHITEFANG", "Drakka-Doomhowl Whitefang".replace("-Doomhowl", ""), "drakka whitefang-Realm", "Drakka"]) {
+      const db = database(); await handleInviteMessage(post("Drakka Whitefang") as never, db as never);
+      const { c } = client();
+      expect(await completeInvitesFromRoster(c as never, db as never, { id: "g1", discordId: "guild" }, [roster]), roster).toBe(1);
+    }
+    const accents = database(); await handleInviteMessage(post("Éloïse Brûlé") as never, accents as never);
+    expect(await completeInvitesFromRoster(client().c as never, accents as never, { id: "g1", discordId: "guild" }, ["eloise brule"])).toBe(1);
+  });
+  it("leaves a different character, or an ambiguous first name, waiting", async () => {
+    const db = database(); await handleInviteMessage(post("Drakka Whitefang") as never, db as never); await handleInviteMessage(post("Drakka Blackmane", { id: "m2" }) as never, db as never);
+    expect(await completeInvitesFromRoster(client().c as never, db as never, { id: "g1", discordId: "guild" }, ["Drakka", "Other Person"])).toBe(0);
+    expect(db.inviteRequest.updateMany).not.toHaveBeenCalled();
+  });
+  it("back-checks the stored roster and linked characters, and takes the officer button off the bot's post", async () => {
+    const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => [{ name: "Drakka Whitefang" }]) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) } });
+    db.inviteRequest.count = vi.fn(async () => 1);
+    await handleInviteMessage(post("Drakka Whitefang") as never, db as never);
+    const { c, p } = client();
+    expect(await backCheckInvites(c as never, db as never, { id: "g1", discordId: "guild" })).toBe(1);
+    expect(p.react).toHaveBeenCalledWith("✅");
+    expect(p.edit).toHaveBeenCalledWith({ components: [] });
+  });
+  it("does nothing when nobody is waiting", async () => {
+    const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => []) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) } });
+    expect(await backCheckInvites(client().c as never, db as never, { id: "g1", discordId: "guild" })).toBe(0);
+    expect(db.guildRosterEntry.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("the officer's Invited / joined button", () => {
+  const button = (officer: boolean) => {
+    const p = { react: vi.fn(async () => undefined), reactions: { cache: new Map() }, author: { id: "bot" }, components: [], edit: vi.fn(async () => undefined) };
+    const update = vi.fn(async () => undefined); const reply = vi.fn(async () => undefined);
+    const client = { user: { id: "bot" }, channels: { fetch: vi.fn(async () => ({ isTextBased: () => true, messages: { fetch: vi.fn(async () => p) } })) } };
+    return { p, update, reply, interaction: { customId: "invite:done:guild", member: { roles: {}, permissions: {}, officer }, user: { id: "officer" }, message: { id: "m1" }, client, update, reply } };
+  };
+  it("lets an officer finish the name and removes the button", async () => {
+    const db = database(); await handleInviteMessage(post("Amy Archer") as never, db as never);
+    const { interaction, update, p } = button(true);
+    await handleInviteDoneButton(interaction as never, db as never);
+    expect(db.inviteRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "INVITED", invitedBy: "officer" }) }));
+    expect(update).toHaveBeenCalledWith({ components: [] });
+    expect(p.react).toHaveBeenCalledWith("✅");
+  });
+  it("tells a member that only officers can", async () => {
+    const db = database(); await handleInviteMessage(post("Amy Archer") as never, db as never);
+    const { interaction, reply, update } = button(false);
+    await handleInviteDoneButton(interaction as never, db as never);
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining("officers") }));
+    expect(update).not.toHaveBeenCalled();
+    expect(db.inviteRequest.updateMany).not.toHaveBeenCalled();
   });
 });
 

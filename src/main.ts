@@ -68,7 +68,7 @@ import { postAllWeeklyPromotions } from "./services/promotion.js";
 import { sendRecruitReminders } from "./services/recruiting-kit.js";
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
-import { handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
+import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { updateWhosWhoBoard } from "./services/whos-who-board.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
@@ -329,6 +329,9 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void syncAllRankRoles(prisma, readyClient.guilds.cache.values(), reportJobError("Rank roles")), 60 * 60_000);
   // Opt-in (off until an officer turns it on): member nicknames follow "Name (Main)".
   // On by default: at most one weekly "Ready to promote" list per server, only when someone is ready.
+  // Waiting guild-invite requests whose character is already in the stored roster get their check mark (start-up, then hourly).
+  void backCheckAllInvites(readyClient, prisma).catch(reportJobError("Guild invite back-check"));
+  setInterval(() => void backCheckAllInvites(readyClient, prisma).catch(reportJobError("Guild invite back-check")), 60 * 60_000);
   setInterval(() => void sendRecruitReminders(readyClient, prisma).catch(reportJobError("Recruiting cooldown reminders")), 60 * 60_000);
   setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
   // 9.0, on by default: at most one weekly guild bank summary per server, only when the bank moved.
@@ -769,7 +772,8 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     return;
   }
   if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(INVITE_REQUEST_PREFIX)) {
-    await handleInviteRequestInteraction(interaction, prisma).catch(async (error: unknown) => {
+    const handler = interaction.isButton() && interaction.customId.startsWith(`${INVITE_REQUEST_PREFIX}done:`) ? handleInviteDoneButton(interaction, prisma) : handleInviteRequestInteraction(interaction, prisma);
+    await handler.catch(async (error: unknown) => {
       reportInteractionError("Guild invite request", interaction, error);
       const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);

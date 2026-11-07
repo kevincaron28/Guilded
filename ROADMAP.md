@@ -78,6 +78,14 @@ member's companion. The FEATURE_PREVIEW_GUILD_IDS line in the server's .env.loca
       alone ("Simon"). Where a Discord member is shown, use "Full Name (@member)". Audit all of src/services and
       src/commands for raw `character`/`displayName`/`username` output, fix them, and add a test that fails on
       new raw-name output. The dungeon board (best runs, participation points) is being fixed tonight first.
+  16. **#invitation-guilde in the WoW category, and only one of it (Québec Gold has two):** in
+      `src/setup-names.ts` move the invite channel to the WoW category (not the Guilded category), so `/setup`
+      keeps it there. In Québec Gold, keep one channel. Before deleting the other, list every name in it that
+      still needs an invite (no ✅ yet) and repost those names in the kept channel through the invite queue.
+      Then delete the extra channel, with the owner confirming the deletion in that session.
+  17. **Guild overview panel in the in-game Guilded tab:** a visual page showing the guild's classes, roster,
+      professions, cores (raid teams) and more at a glance. Research how other guild addons show this before
+      building (roster/class charts, profession directories, core rosters) and propose a layout first.
 - (add more ideas here)
 
 ## How to work from this file (any AI session)

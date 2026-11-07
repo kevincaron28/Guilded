@@ -51,7 +51,28 @@ member's companion. The FEATURE_PREVIEW_GUILD_IDS line in the server's .env.loca
   database of timed runs now: record every valid completed guild run's time and party, ranked or not; loosen
   the level band, the presence rule, the uncalibrated targets and the evidence gates; keep the SIM, season-window
   and final-boss checks. Dispatched to the "dungeon scoring + Season 2" session (PR into main, coordinator deploys).
-- (add tonight's ideas here)
+- (6 Nov, late, owner list for 7 Nov; none were quick enough to ship tonight)
+  1. **Battle.net link message in the addon:** verify what it says now that the Battle.net link button/option
+     was removed; it must not point to a step that no longer exists.
+  2. **Companion download link in game:** a copyable link (or popup with the URL) in the addon panel.
+  3. **Professions in guild public notes:** write each member's professions into their public note (officer
+     permission needed; respect the note length and any existing note text, e.g. the main/alt marker).
+  4. **Promote Initiate → Member in the game guild when the player is in the Discord** (officer client does
+     it with the promotion queue; never demote).
+  5. **First-link and "what's linked" DM:** list the linked characters in the Guilded DM when someone links or
+     asks, and add a button on the original welcome DM to show them.
+  6. **Monetization plan only (no build):** website, companion and app options; write the plan, change nothing.
+  7. **EPGP in officer notes:** write EP/GP (or the standing) into guild officer notes, officer client only.
+  8. **More addon-message sharing for sync:** use addon messages between guildmates to fill gaps (Track K follow-up).
+  9. **In-game guild greeting** from an officer client (or relayed from the bot) when someone joins the guild;
+     on by default with an officer off switch.
+  10. **Guild bank + Discord:** analyse what other guild-bank addons offer and recommend what to add.
+  11. **Roster admin window in game:** fix its bugs and regroup the options; remove the useless ones.
+  12. **Race to 60 leaderboard redesign:** more like a public leaderboard, with a card when someone hits 60.
+  13. **Dungeon completion cards (analysis + recommendation):** a card instead of the post, with the dungeon
+      image as background and a death heat map of the dungeon.
+  14. **Remove the "availability" module** (owner thinks it is useless; confirm what it is and who uses it first).
+- (add more ideas here)
 
 ## How to work from this file (any AI session)
 

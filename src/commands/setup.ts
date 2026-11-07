@@ -238,8 +238,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         button("next", T("Start ▶"), ButtonStyle.Primary),
-        button("jump-summary", T("Just show me the checklist")),
-        button("public-sharing-off", T("Turn public sharing off"), ButtonStyle.Secondary, !settings.publicDungeonRuns)
+        button("jump-summary", T("Just show me the checklist"))
       )
     );
   }
@@ -523,7 +522,6 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       button("restart", T("Go through setup again")),
       button("bg-open", lang === "fr" ? "JcJ (facultatif)" : "Battlegrounds (optional)"),
       button("close", T("Close"), ButtonStyle.Primary),
-      button("public-sharing-off", T("Turn public sharing off"), ButtonStyle.Secondary, !settings.publicDungeonRuns),
       button("retire", T("Retire an old channel"), ButtonStyle.Secondary, Boolean(plan) || retiring.has(guildId))
     ));
   }
@@ -1147,9 +1145,6 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           const on = (settings?.raidReminderMinutes ?? 0) > 0;
           await guildService.updateSettings(guildId, { raidReminderMinutes: on ? 0 : 60 });
           note = on ? T("Raid reminders off.") : T("Raid reminders on: signed-up players get pinged 60 minutes before start.");
-        } else if (action === "public-sharing-off") {
-          await guildService.updateSettings(guildId, { publicDungeonRuns: false });
-          note = T("Public sharing is off. New runs will not be published; runs already public stay public.");
         } else if (action === "auto-import") {
           const current = await guildService.getSettings(guildId);
           await guildService.updateSettings(guildId, { autoApplyImports: !current?.autoApplyImports });

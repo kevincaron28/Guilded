@@ -921,6 +921,9 @@ local FR = {
   ["Whether whispering a phrase invites players."] = "Indique si chuchoter une phrase invite les joueurs.",
   ["Soft-reserve rolls waiting to be awarded."] = "Jets de r\195\169serve souple en attente d'attribution.",
   ["Who in your group is missing a flask, elixir or food."] = "Qui, dans votre groupe, n'a pas de flacon, d'\195\169lixir ou de nourriture.",
+  -- Guilded Dungeons lines (9.0.1)
+  ["Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."] = "Guilded est install\195\169 et enregistre vos donjons : utilisez /guilded dungeon. Guilded Dungeons reste silencieux.",
+  ["Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"] = "Commandes : /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto",
 }
 
 -- German and Spanish: all catalogued French-reference strings translated; unknown runtime text stays unchanged.
@@ -2421,6 +2424,9 @@ local DE = {
   ["Whether whispering a phrase invites players."] = "Ob ein gefl\195\188sterter Satz Spieler einl\195\164dt.",
   ["Soft-reserve rolls waiting to be awarded."] = "Soft-Reserve-W\195\188rfe, die auf Vergabe warten.",
   ["Who in your group is missing a flask, elixir or food."] = "Wem in deiner Gruppe ein Fl\195\164schchen, Elixier oder Essen fehlt.",
+  -- Guilded Dungeons lines (9.0.1)
+  ["Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."] = "Guilded ist installiert und zeichnet deine Dungeon-Durchl\195\164ufe auf: nutze /guilded dungeon. Guilded Dungeons bleibt still.",
+  ["Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"] = "Befehle: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3918,6 +3924,9 @@ local ES = {
   ["Whether whispering a phrase invites players."] = "Indica si susurrar una frase invita a los jugadores.",
   ["Soft-reserve rolls waiting to be awarded."] = "Tiradas de reserva suave a la espera de asignaci\195\179n.",
   ["Who in your group is missing a flask, elixir or food."] = "A qui\195\169n de tu grupo le falta un frasco, elixir o comida.",
+  -- Guilded Dungeons lines (9.0.1)
+  ["Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."] = "Guilded est\195\161 instalado y registra tus mazmorras: usa /guilded dungeon. Guilded Dungeons permanece en silencio.",
+  ["Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"] = "Comandos: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto",
 }
 -- END ES
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 9.0.1 — 7 November 2026
+
+Fixes and polish after 9.0.0. Details: docs/V9_0_1_RELEASE_NOTES.md.
+
+- Addon: guild snapshot error fixed, companion download window, roster admin window, Info and data tab, officer notes with professions and EP,GP, join greeting, recipe/cooldown/attunement relay, one name standard.
+- Bot: one dungeon card per run, Profession Details hang fixed, nickname sync, race to 60 cards and Hall of Fame edits, linked-characters message, Delete my data, Season 1 leniency.
+- New Forever final bosses, minimap button spot, chat tab retry, death heat map positions.
+- Companion installer closes a running companion by itself.
+- Website pages, a public page per guild, and deploy cleanup.
+
 ## 9.0.0 — 6 November 2026
 
 The 8.5 work ships as 9.0, tracked in ROADMAP.md as tracks A-K plus the owner batches. Every new

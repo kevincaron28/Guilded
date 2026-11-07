@@ -21,7 +21,7 @@ export const rosterCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("ignore").setDescription("Leave a role out of the gap lists.")
     .addRoleOption((o) => o.setName("role").setDescription("The role"))
     .addBooleanOption((o) => o.setName("ignore").setDescription("Ignore it (default) or count it again")))
-  .addSubcommand((sub) => sub.setName("nicknames").setDescription("Nickname sync: Name (Main). Members can opt out.")
+  .addSubcommand((sub) => sub.setName("nicknames").setDescription("Nickname sync: Name (Main).")
     .addBooleanOption((o) => o.setName("on").setDescription("On or off (off restores nicknames)"))
     .addStringOption((o) => o.setName("format").setDescription("{name} ({full}); {main} = first name").setMaxLength(60))
     .addBooleanOption((o) => o.setName("apply").setDescription("Run now (default: preview)")))
@@ -88,7 +88,7 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
       await interaction.editReply(t(`Nickname sync is off. ${restored} nickname(s) restored.`, `Synchro des pseudos désactivée. ${restored} pseudo(s) restauré(s).`));
       return;
     }
-    if (!enabled) { await reply(t("Nickname sync is **off**. Turn it on with `on:true`. It is on by default; members can opt out with /character nickname.", "La synchro des pseudos est **désactivée**. Active-la avec `on:true`; les membres peuvent s'exclure avec /character nickname.")); return; }
+    if (!enabled) { await reply(t("Nickname sync is **off**. Turn it on with `on:true`. It is on by default.", "La synchro des pseudos est **désactivée**. Active-la avec `on:true`. Elle est activée par défaut.")); return; }
     if (!botCanRename(interaction.guild)) { await reply(t("Saved, but I need the **Manage Nicknames** permission (and my role above the members) to rename anyone.", "Enregistré, mais il me faut la permission **Gérer les pseudos** (et mon rôle au-dessus des membres).")); return; }
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const result = await syncNicknames(prisma, interaction.guild, { dryRun: !apply });

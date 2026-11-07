@@ -20,7 +20,10 @@ local addonName, ns = ...
 ns = ns or {}
 
 local ICON = "Interface\\AddOns\\Guilded\\Media\\GuildedLogo"
-local DEFAULT_ANGLE = math.rad(220)
+-- Lower-right of the minimap (9.0.1): the old default, 220 degrees, sat under the game's own round
+-- buttons (mail, group finder) at the lower left on the Forever client.
+local DEFAULT_ANGLE = math.rad(315)
+local OLD_DEFAULT_ANGLE = math.rad(220)
 local RADIUS_PAD = 5
 local PANEL_WIDTH = 790
 -- 600 (5.0, was 540): room for the Scores page and officer controls.
@@ -2825,6 +2828,11 @@ local function applySettings()
   if not button then return end
   local s = settings()
   if not s then return end
+  -- A position saved at the old default was never a choice: move it once. A dragged spot stays.
+  if not s.minimapAngleMoved then
+    s.minimapAngleMoved = true
+    if type(s.minimapAngle) == "number" and math.abs(s.minimapAngle - OLD_DEFAULT_ANGLE) < 0.02 then s.minimapAngle = nil end
+  end
   pcall(place, s.minimapAngle or DEFAULT_ANGLE)
   if s.minimapHidden then button:Hide() else button:Show() end
 end

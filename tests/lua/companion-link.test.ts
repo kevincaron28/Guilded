@@ -71,6 +71,17 @@ describe("linked to Discord line", () => {
     expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("true");
   });
 
+  it("says it again at every login, not only the first (9.0.1)", () => {
+    // An older version saved "already told" in the database and then never spoke again.
+    const s = withLink(`GuildedLinkedAs = "Kev"; DB.linkedAnnouncedAs = "Kev"`);
+    expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("true");
+    expect(s.run(`return MSGS[1]`)).toContain("Linked to Discord as Kev");
+    expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("false");
+    s.close();
+    const next = withLink(`GuildedLinkedAs = "Kev"`);
+    expect(next.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("true");
+  });
+
   it("stays quiet without a linked name, and a linked PC is never reminded to get the companion", () => {
     const s = withLink(`GuildedLinkedAs = nil`);
     expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("false");

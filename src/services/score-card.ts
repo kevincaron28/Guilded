@@ -65,7 +65,9 @@ export interface DungeonCardMember { name: string; color: string; role?: "TANK" 
  * and switch the death map on.
  */
 export interface DungeonVisual { theme: DungeonArtTheme; party: DungeonCardMember[]; scoreLabel?: string | undefined;
-  guildLabel: string; outsiderLabel: string; moreLabel: string; /** Slug of the dungeon; `site/dungeon-maps/<mapKey>.png` is the map the deaths are drawn on, when that file exists. */ mapKey?: string; deathPoints?: { x: number; y: number }[]; deathMapLabel?: string }
+  guildLabel: string; outsiderLabel: string; moreLabel: string; /** Slug of the dungeon; `site/dungeon-maps/<mapKey>.png` is the map the deaths are drawn on, when that file exists. */ mapKey?: string; deathPoints?: { x: number; y: number }[]; deathMapLabel?: string;
+  /** The traced outline of the death map's floor: walked cells of a 200 x 200 grid (key = column * 200 + row), see dungeon-map-grid.ts. */
+  mapOutline?: { map: number; cells: number[] } }
 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
 const images = new Map<string, Buffer>();
@@ -326,6 +328,28 @@ export function roleGlyph(role: DungeonCardMember["role"], cx: number, cy: numbe
   return `${disc}<g transform="translate(${cx} ${cy}) scale(${r2(r / 17)})">${glyph}</g>`;
 }
 
+/** The traced map grid (dungeon-map-grid.ts): 200 x 200 cells over the floor's map. WoW map frames are 3:2, so a unit of x is 1.5 units of y. */
+export const MAP_GRID = 200, MAP_ASPECT = 1.5;
+/**
+ * Pure: where a traced floor sits in a box. The view frames the walked cells and the death points (with a margin), keeps the
+ * map's 3:2 proportions and centres the result; `at` turns map fractions (0..1) into card pixels, `radius` is a cell's draw radius.
+ */
+export function mapView(cells: readonly number[], points: readonly { x: number; y: number }[], left: number, top: number, width: number, height: number) {
+  let x0 = 1, y0 = 1, x1 = 0, y1 = 0;
+  const grow = (x: number, y: number) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
+  for (const key of cells) { const cx = Math.floor(key / MAP_GRID), cy = key % MAP_GRID; grow(cx / MAP_GRID, cy / MAP_GRID); grow((cx + 1) / MAP_GRID, (cy + 1) / MAP_GRID); }
+  for (const point of points) grow(Math.min(1, Math.max(0, point.x)), Math.min(1, Math.max(0, point.y)));
+  const margin = 3 / MAP_GRID;
+  x0 = Math.max(0, x0 - margin); y0 = Math.max(0, y0 - margin); x1 = Math.min(1, x1 + margin); y1 = Math.min(1, y1 + margin);
+  const spanX = Math.max(1 / MAP_GRID, x1 - x0) * MAP_ASPECT, spanY = Math.max(1 / MAP_GRID, y1 - y0);
+  const scale = Math.min(width / spanX, height / spanY);
+  const ox = left + (width - spanX * scale) / 2, oy = top + (height - spanY * scale) / 2;
+  return {
+    scale, radius: Math.max(1.2, (scale * MAP_ASPECT) / MAP_GRID * 0.95),
+    at: (x: number, y: number) => ({ x: ox + (x - x0) * MAP_ASPECT * scale, y: oy + (y - y0) * scale })
+  };
+}
+
 /**
  * The dungeon completion card: a painted backdrop for the dungeon (dungeon-art.ts) behind a left column (time, final boss,
  * deaths, record or guild rank) and a frosted party panel: role mark, full name in class colour, class/spec/deaths, the
@@ -383,7 +407,9 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
   await small(deaths, 390, 150, 6);
 
   // Party panel. The score column appears only when the card carries scores.
-  const hasMap = Boolean(visual.deathPoints?.length), maxRows = hasMap ? 5 : 6, rowH = hasMap ? 52 : 60;
+  // A traced map gets a taller box: the party rows are set tighter (z scales the row text).
+  const hasMap = Boolean(visual.deathPoints?.length), traced = hasMap && Boolean(visual.mapOutline?.cells.length);
+  const maxRows = hasMap ? 5 : 6, rowH = traced ? 44 : hasMap ? 52 : 60, z = traced ? 0.86 : 1;
   const hasScore = Boolean(visual.scoreLabel), scoreX = px + pw - 128, nameW = hasScore ? scoreX - 84 - (px + 72) : 300;
   await put(caps(th.muted, clip(card.rowsLabel ?? "", hasScore ? 28 : 40)), 17, px + 28, top + 22, hasScore ? 330 : pw - 56);
   if (hasScore) await putRight(caps(th.muted, clip(visual.scoreLabel!, 16)), 13, scoreX, top + 26);
@@ -392,36 +418,54 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
   for (const [i, member] of shown.entries()) {
     const ry = top + 64 + i * rowH;
     if (!member.guild) shapes.push(`<rect x="${px + 16}" y="${ry - 2}" width="${pw - 32}" height="${rowH - 6}" rx="8" fill="none" stroke="${th.edge}" stroke-dasharray="5 4"/>`);
-    shapes.push(roleGlyph(member.role, px + 44, ry + 23, hasMap ? 16 : 17));
-    await put(span(member.color, clip(member.name, hasScore ? 21 : 24)), 24, px + 72, ry, nameW);
-    if (member.sub) await put(span(th.muted, clip(member.sub, hasScore ? 36 : 38)), 16, px + 72, ry + 29, hasScore ? nameW + 46 : 330);
+    shapes.push(roleGlyph(member.role, px + 44, ry + Math.round(23 * z), traced ? 14 : hasMap ? 16 : 17));
+    await put(span(member.color, clip(member.name, hasScore ? 21 : 24)), Math.round(24 * z), px + 72, ry, nameW);
+    if (member.sub) await put(span(th.muted, clip(member.sub, hasScore ? 36 : 38)), Math.round(16 * z), px + 72, ry + Math.round(29 * z), hasScore ? nameW + 46 : 330);
     if (hasScore && member.score) {
-      await putRight(span(th.gold, clip(member.score, 8)), 22, scoreX, ry + 1);
-      if (member.scoreNote) await putRight(span(th.green, clip(member.scoreNote, 10)), 14, scoreX, ry + 30);
+      await putRight(span(th.gold, clip(member.score, 8)), Math.round(22 * z), scoreX, ry + 1);
+      if (member.scoreNote) await putRight(span(th.green, clip(member.scoreNote, 10)), Math.round(14 * z), scoreX, ry + Math.round(30 * z));
     }
-    if (member.roleLabel) await putRight(span(member.role ? ROLE_COLOR[member.role] : th.ink, clip(member.roleLabel, 12)), 19, px + pw - 30, ry + 2);
-    await putRight(member.guild ? span(th.gold, visual.guildLabel) : span(th.muted, visual.outsiderLabel), 14, px + pw - 30, ry + 30);
+    if (member.roleLabel) await putRight(span(member.role ? ROLE_COLOR[member.role] : th.ink, clip(member.roleLabel, 12)), Math.round(19 * z), px + pw - 30, ry + 2);
+    await putRight(member.guild ? span(th.gold, visual.guildLabel) : span(th.muted, visual.outsiderLabel), Math.round(14 * z), px + pw - 30, ry + Math.round(30 * z));
   }
   const hidden = visual.party.length - shown.length;
   if (hidden > 0) await put(span(th.muted, `+${hidden} ${visual.moreLabel}`), 18, px + 72, top + 64 + shown.length * rowH + 4, 300);
 
   if (hasMap) {
     const mx = px + 28, my = top + 64 + maxRows * rowH + 6, mw = pw - 56, mh = ph - (my - top) - 14;
-    shapes.push(`<rect x="${mx}" y="${my}" width="${mw}" height="${mh}" rx="8" fill="#140e08" fill-opacity=".85" stroke="${th.edge}"/>`);
-    // The dungeon's own map, when one was added to site/dungeon-maps/; otherwise the plain grid below.
-    const mapFile = visual.mapKey && /^[a-z0-9-]{1,60}$/.test(visual.mapKey) ? fileURLToPath(new URL(`../../site/dungeon-maps/${visual.mapKey}.png`, import.meta.url)) : null;
-    if (mapFile) {
-      try {
-        const map = await sharp(mapFile).resize(mw - 2, mh - 2, { fit: "contain", background: "#140e08" }).png().toBuffer();
-        shapes.push(`<image x="${mx + 1}" y="${my + 1}" width="${mw - 2}" height="${mh - 2}" opacity=".85" href="data:image/png;base64,${map.toString("base64")}"/>`);
-      } catch { /* no map file: grid only */ }
-    }
-    for (let g = 1; g < 8; g++) shapes.push(`<line x1="${mx + (mw * g) / 8}" y1="${my}" x2="${mx + (mw * g) / 8}" y2="${my + mh}" stroke="${th.edge}" stroke-opacity=".35"/>`);
-    for (let g = 1; g < 3; g++) shapes.push(`<line x1="${mx}" y1="${my + (mh * g) / 3}" x2="${mx + mw}" y2="${my + (mh * g) / 3}" stroke="${th.edge}" stroke-opacity=".35"/>`);
+    shapes.push(`<rect x="${mx}" y="${my}" width="${mw}" height="${mh}" rx="8" fill="#140e08" fill-opacity="${visual.mapOutline?.cells.length ? 0.85 : 0.45}" stroke="${th.edge}"/>`);
+    const outline = visual.mapOutline?.cells.length ? visual.mapOutline : null;
     shapes.push(`<defs><radialGradient id="heat"><stop offset="0" stop-color="#ff3b1f" stop-opacity=".75"/><stop offset="1" stop-color="#ff3b1f" stop-opacity="0"/></radialGradient></defs>`);
-    for (const point of visual.deathPoints!.slice(0, 200)) {
-      const x = mx + Math.min(1, Math.max(0, point.x)) * mw, y = my + Math.min(1, Math.max(0, point.y)) * mh;
-      shapes.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="22" fill="url(#heat)"/>`, `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#ffd0c8"/>`);
+    if (outline) {
+      // The traced map: the floor's walked cells, framed on what was walked (and where the deaths are), at the map's 3:2 shape.
+      const view = mapView(outline.cells, visual.deathPoints!, mx + 6, my + 18, mw - 12, mh - 24);
+      const ink: string[] = [], floor: string[] = [];
+      for (const key of outline.cells) {
+        const { x, y } = view.at((Math.floor(key / MAP_GRID) + 0.5) / MAP_GRID, (key % MAP_GRID + 0.5) / MAP_GRID);
+        ink.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(view.radius + 1.4).toFixed(2)}"/>`);
+        floor.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${view.radius.toFixed(2)}"/>`);
+      }
+      shapes.push(`<g fill="${th.gold}" fill-opacity=".55">${ink.join("")}</g>`, `<g fill="#2b2115">${floor.join("")}</g>`);
+      for (const point of visual.deathPoints!.slice(0, 200)) {
+        const { x, y } = view.at(point.x, point.y);
+        shapes.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="16" fill="url(#heat)"/>`, `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.6" fill="#ffd0c8"/>`);
+      }
+    } else {
+      // No traced outline yet: the dungeon's own map file when one was added to site/dungeon-maps/, else the painted scene
+      // shows through a light grid.
+      const mapFile = visual.mapKey && /^[a-z0-9-]{1,60}$/.test(visual.mapKey) ? fileURLToPath(new URL(`../../site/dungeon-maps/${visual.mapKey}.png`, import.meta.url)) : null;
+      if (mapFile) {
+        try {
+          const map = await sharp(mapFile).resize(mw - 2, mh - 2, { fit: "contain", background: "#140e08" }).png().toBuffer();
+          shapes.push(`<image x="${mx + 1}" y="${my + 1}" width="${mw - 2}" height="${mh - 2}" opacity=".85" href="data:image/png;base64,${map.toString("base64")}"/>`);
+        } catch { /* no map file: grid only */ }
+      }
+      for (let g = 1; g < 8; g++) shapes.push(`<line x1="${mx + (mw * g) / 8}" y1="${my}" x2="${mx + (mw * g) / 8}" y2="${my + mh}" stroke="${th.edge}" stroke-opacity=".35"/>`);
+      for (let g = 1; g < 3; g++) shapes.push(`<line x1="${mx}" y1="${my + (mh * g) / 3}" x2="${mx + mw}" y2="${my + (mh * g) / 3}" stroke="${th.edge}" stroke-opacity=".35"/>`);
+      for (const point of visual.deathPoints!.slice(0, 200)) {
+        const x = mx + Math.min(1, Math.max(0, point.x)) * mw, y = my + Math.min(1, Math.max(0, point.y)) * mh;
+        shapes.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="22" fill="url(#heat)"/>`, `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#ffd0c8"/>`);
+      }
     }
     await put(caps(th.muted, clip(visual.deathMapLabel ?? "", 34)), 13, mx + 8, my + 4, mw - 16);
   }

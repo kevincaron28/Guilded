@@ -11,7 +11,7 @@ import { characterKey, realmKey } from "../companion/character-identity.mjs";
 import { relayProfessions } from "./services/profession-relay.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
-import { linkedCharacterCount, tellFirstCompanionLink } from "./services/companion-link-dm.js";
+import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
 import { companionMe } from "./services/companion-me.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -842,10 +842,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const pairedCharacterStatus = pairedMemberId
         ? await linkUploaderCharacters(prisma, guild.id, pairedMemberId, preview.snapshot)
         : "unpaired";
-      // First companion link: one DM listing the linked characters (owner decision, 8.5 track F).
-      if (pairedMemberId && linkedBefore === 0 && client) {
+      // First link, and later new characters: one batched DM listing the linked characters (owner decision, 8.5 track F).
+      if (pairedMemberId && client) {
         const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
-        void tellFirstCompanionLink(client, prisma, { guildDiscordId: guild.discordId, memberId: pairedMemberId, lang: asLang(language?.language), before: linkedBefore });
+        scheduleLinkedCharacters(client, prisma, { guildDiscordId: guild.discordId, memberId: pairedMemberId, lang: asLang(language?.language), before: linkedBefore });
       }
       // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
       // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).

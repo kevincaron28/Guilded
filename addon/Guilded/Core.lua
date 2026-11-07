@@ -1526,6 +1526,7 @@ local function officerCommand(args)
     message("You are " .. (isOfficer() and "" or "NOT ") .. "an officer for this addon.")
     return
   end
+  if action == "auto" and ns.officerNotes then ns.officerNotes.command(args); return end
   if not isGuildMaster() then message("Only the guild master can change officer settings."); return end
   if action == "add" or action == "remove" then
     local name = normalizeName(args[3])
@@ -1539,7 +1540,7 @@ local function officerCommand(args)
     db.settings.officerRanks[rank] = on == "on" or nil
     message("Guild rank index " .. rank .. " is " .. (on == "on" and "now" or "no longer") .. " an officer rank.")
   else
-    message("Usage: /guilded officer list | add <name> | remove <name> | rank <index> on|off")
+    message("Usage: /guilded officer list | add <name> | remove <name> | rank <index> on|off | auto status|professions|epgp|promote|greet|all on|off")
   end
 end
 

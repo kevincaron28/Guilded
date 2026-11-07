@@ -2292,6 +2292,13 @@ local DE = {
   ["Get the Windows companion"] = "Windows-Begleiter holen",
   ["The game cannot open web pages. Press Ctrl+C to copy the link, then paste it (Ctrl+V) in your browser."] = "Das Spiel kann keine Webseiten \195\182ffnen. Dr\195\188cke Strg+C, um den Link zu kopieren, und f\195\188ge ihn (Strg+V) in deinem Browser ein.",
   ["Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."] = "\195\150ffnet ein Feld mit dem Download-Link zum Kopieren (Strg+C). Das Spiel kann keine Webseiten \195\182ffnen.",
+  ["Professions in public notes"] = "Berufe in \195\182ffentlichen Notizen",
+  ["EP/GP in officer notes"] = "EP/GP in Offiziersnotizen",
+  ["Promote linked Initiates to Member"] = "Verkn\195\188pfte Neulinge zum Mitglied bef\195\182rdern",
+  ["Greet new guild members"] = "Neue Gildenmitglieder begr\195\188\195\159en",
+  ["Promoted %s: %s"] = "%s bef\195\182rdert: %s",
+  ["rank %s to the next rank up (linked to Discord)"] = "Rang %s zum n\195\164chsth\195\182heren Rang (mit Discord verkn\195\188pft)",
+  ["The welcome message language is set."] = "Die Sprache der Willkommensnachricht ist festgelegt.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3724,6 +3731,13 @@ local ES = {
   ["Get the Windows companion"] = "Obtener el acompa\195\177ante de Windows",
   ["The game cannot open web pages. Press Ctrl+C to copy the link, then paste it (Ctrl+V) in your browser."] = "El juego no puede abrir p\195\161ginas web. Pulsa Ctrl+C para copiar el enlace y p\195\169galo (Ctrl+V) en tu navegador.",
   ["Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."] = "Abre un cuadro con el enlace de descarga para copiar (Ctrl+C). El juego no puede abrir p\195\161ginas web.",
+  ["Professions in public notes"] = "Profesiones en las notas p\195\186blicas",
+  ["EP/GP in officer notes"] = "EP/GP en las notas de oficial",
+  ["Promote linked Initiates to Member"] = "Ascender a Miembro a los Iniciados vinculados",
+  ["Greet new guild members"] = "Dar la bienvenida a los nuevos miembros de la hermandad",
+  ["Promoted %s: %s"] = "%s ascendido: %s",
+  ["rank %s to the next rank up (linked to Discord)"] = "del rango %s al siguiente rango (vinculado a Discord)",
+  ["The welcome message language is set."] = "El idioma del mensaje de bienvenida est\195\161 definido.",
 }
 -- END ES
 
@@ -4394,3 +4408,11 @@ FR["Invite sent to %s."] = "Invitation envoy\195\169e \195\160 %s."
 FR["The game would not send the invite. Invite them by hand."] = "Le jeu n'a pas envoy\195\169 l'invitation. Invite le joueur \195\160 la main."
 FR["Your rank cannot invite to the guild."] = "Ton rang ne peut pas inviter dans la guilde."
 FR["Promotion requested. Wait for the roster to confirm it before the next one."] = "Promotion demand\195\169e. Attendez que la liste la confirme avant la suivante."
+-- 9.1 officer notes, promotions and greeting (Modules/OfficerNotes.lua).
+FR["Professions in public notes"] = "M\195\169tiers dans les notes publiques"
+FR["EP/GP in officer notes"] = "EP/GP dans les notes d'officier"
+FR["Promote linked Initiates to Member"] = "Promouvoir les Initi\195\169s li\195\169s au rang de Membre"
+FR["Greet new guild members"] = "Accueillir les nouveaux membres de la guilde"
+FR["Promoted %s: %s"] = "%s promu : %s"
+FR["rank %s to the next rank up (linked to Discord)"] = "du rang %s au rang suivant (li\195\169 \195\160 Discord)"
+FR["The welcome message language is set."] = "La langue du message de bienvenue est d\195\169finie."

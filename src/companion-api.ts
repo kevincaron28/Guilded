@@ -428,12 +428,18 @@ async function officerPromotionFeed(client: Client, guild: { id: string; discord
 async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string; officer?: boolean }, client?: Client): Promise<FeedParts> {
   // Officers only: who the promotion rule says is ready (never in the shared part, never for members).
   const promotion = access.officer && client ? await officerPromotionFeed(client, guild).catch(() => null) : null;
+  // How each raid core decides loot, with its item prices and own-pool standings. Configuration,
+  // read outside the transaction below: its per-core queries ran the 15 s budget out (P2028, 7 Nov).
+  const lootRead = lootRulesForAddon(prisma, guild.id, async (coreId, coreBaseGp) =>
+    (await createEpgpService(prisma).getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: addonName(row.character, row.realm), ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
+  lootRead.catch(() => undefined);
   // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts).
   const scheduledEvents = await calendarEventsWithin(() => discordCalendarEvents(client, guild.discordId, access.actorId),
     `${guild.discordId}:${access.actorId}`).catch(() => {
     console.warn("Discord calendar events could not be fetched; exporting bot raids only.");
     return [];
   });
+  const loot = await lootRead;
   return prisma.$transaction(async (transaction) => {
     const database = transaction as unknown as PrismaClient;
     const epgp = createEpgpService(database);
@@ -449,9 +455,6 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     const dungeonBoard = await addonDungeonBoard(database, guild.id);
     const nextRaid = await nextRaidRoster(database, guild.id);
     const items = await itemInsights(database, guild.id).catch(() => []);
-    // How each raid core decides loot, with its item prices and own-pool standings.
-    const loot = await lootRulesForAddon(database, guild.id, async (coreId, coreBaseGp) =>
-      (await epgp.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: addonName(row.character, row.realm), ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
     const botRaids = await upcomingRaidsForAddon(database, guild.id);
     const raids = mergeCalendarEvents(botRaids, scheduledEvents);
     const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));

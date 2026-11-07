@@ -6,7 +6,7 @@ import { handleCraftButton } from "../src/commands/craft-board.js";
 import { commands } from "../src/commands/index.js";
 
 // 9.0 cleanup: commands that only repeated a button are gone; the buttons stay.
-const subs = (command: { toJSON(): { options?: { name: string }[] } }) => (command.toJSON().options ?? []).map((option) => option.name);
+const subs = (command: { toJSON(): unknown }) => ((command.toJSON() as { options?: { name: string }[] }).options ?? []).map((option) => option.name);
 
 describe("commands that only repeated a button", () => {
   it("/raid signup, /craft claim and /community lottery join are not registered", () => {

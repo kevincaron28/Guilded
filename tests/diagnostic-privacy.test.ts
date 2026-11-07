@@ -44,3 +44,15 @@ describe("diagnostic privacy", () => {
     restore();expect(target.error).toBe(error);
   });
 });
+
+describe("Discord invalid form body diagnostics", () => {
+  it("keeps the refused field paths and codes, never content or ids", () => {
+    const error = Object.assign(new Error("Invalid Form Body\ndata.embeds[0].fields[1].value[BASE_TYPE_MAX_LENGTH]: secret chat text"), {
+      code: 50035, method: "PATCH", url: "https://discord.com/api/v10/webhooks/123456789012345678/tokenSECRET/messages/@original",
+      rawError: { errors: { data: { embeds: { 0: { fields: { 1: { value: { _errors: [{ code: "BASE_TYPE_MAX_LENGTH", message: "secret chat text" }] } } } } } } } }
+    });
+    const message = automaticDiagnostic(error).message;
+    expect(message).toMatch(/^Error code=50035 \[error:[a-f0-9]{12}\] \[PATCH .*data\.embeds\.0\.fields\.1\.value:BASE_TYPE_MAX_LENGTH\]$/);
+    expect(message).not.toMatch(/secret|SECRET|123456789012345678/);
+  });
+});

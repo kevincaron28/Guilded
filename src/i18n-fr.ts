@@ -585,5 +585,6 @@ export const FR_TEXT: Record<string, string> = {
   "Deleted #{name}. Its {count} messages are in the archive file.": "#{name} supprimé. Ses {count} messages sont dans le fichier d’archive.",
   "Nothing was deleted: {reason}": "Rien n’a été supprimé : {reason}",
   "Nickname sync permission": "Permission de synchro des pseudos",
+  "My role is below {count} member(s)' top role, so I can't rename them. Server Settings > Roles: drag my role above the member ranks.": "Mon rôle est sous le rôle principal de {count} membre(s): je ne peux pas les renommer. Paramètres du serveur > Rôles: glissez mon rôle au-dessus des rangs des membres.",
   "Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.": "Accordez à mon rôle la permission « Gérer les pseudos », au-dessus des membres à renommer."
 };

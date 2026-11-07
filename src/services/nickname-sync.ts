@@ -113,10 +113,35 @@ export function mainCharacterName(characters: readonly { name: string; displayNa
 export const botCanRename = (guild: Guild) => Boolean(guild.members.me?.permissions.has(PermissionFlagsBits.ManageNicknames));
 const canRename = (guild: Guild, member: GuildMember) => member.id !== guild.ownerId && !member.user.bot && member.manageable;
 
-export interface NicknameSyncResult { changes: NicknameChange[]; applied: number; failed: number; skipped: string | null }
+/** Cached members the bot could rename but cannot because their top role is at or above the bot's (for the /setup checklist). */
+export const blockedMemberCount = (guild: Guild): number => guild.members.cache?.filter((member) => member.id !== guild.ownerId && !member.user.bot && !member.manageable).size ?? 0;
+
+/** Why a sync did what it did: every member counted exactly once, so a quiet run can be explained from the log line. */
+export interface NicknameSyncStats {
+  /** Active, non-test members with a character in the server's edition. */
+  eligible: number;
+  /** Eligible members who are no longer in the Discord server. */
+  notInServer: number;
+  /** Not renamable: the owner, a bot, or a role at or above the bot's. */
+  notManageable: number;
+  /** Opted out, or no usable nickname (too long). */
+  optedOutOrNoFit: number;
+  /** Already carrying the right nickname. */
+  upToDate: number;
+}
+const emptyStats = (): NicknameSyncStats => ({ eligible: 0, notInServer: 0, notManageable: 0, optedOutOrNoFit: 0, upToDate: 0 });
+
+export interface NicknameSyncResult { changes: NicknameChange[]; applied: number; failed: number; skipped: string | null; stats: NicknameSyncStats }
+
+export function describeNicknameSync(guildId: string, result: NicknameSyncResult | undefined): string {
+  if (!result) return `Nickname sync ${guildId}: did not run (error reported)`;
+  const { stats } = result;
+  const reason = result.skipped ? `reason: ${result.skipped}` : result.changes.length ? "reason: changes made" : stats.eligible === 0 ? "reason: no eligible members" : "reason: nothing to change";
+  return `Nickname sync ${guildId}: eligible ${stats.eligible}, planned ${result.changes.length}, renamed ${result.applied}, failed ${result.failed}, skipped (not manageable) ${stats.notManageable}, not in server ${stats.notInServer}, opted out/no fit ${stats.optedOutOrNoFit}, up to date ${stats.upToDate}; ${reason}`;
+}
 
 export async function syncNicknames(prisma: PrismaClient, guild: Guild, options: { dryRun?: boolean } = {}): Promise<NicknameSyncResult> {
-  const none = (skipped: string | null): NicknameSyncResult => ({ changes: [], applied: 0, failed: 0, skipped });
+  const none = (skipped: string | null): NicknameSyncResult => ({ changes: [], applied: 0, failed: 0, skipped, stats: emptyStats() });
   const row = await prisma.guild.findUnique({ where: guildWhere(guild.id), select: { id: true, gameEdition: true, settings: { select: { nicknameSyncEnabled: true, nicknameFormat: true } } } });
   if (!row) return none("This server is not set up yet.");
   if (row.settings?.nicknameSyncEnabled === false) return none("Nickname sync is off.");
@@ -131,14 +156,21 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   ]);
   const byUser = new Map(records.map((record) => [record.discordUserId, record]));
   const people: NicknamePerson[] = [];
+  const stats = emptyStats();
+  stats.eligible = members.length;
   for (const member of members) {
     const discordMember = guild.members.cache.get(member.discordUserId) ?? await guild.members.fetch(member.discordUserId).catch(() => null);
-    if (!discordMember) continue;
+    if (!discordMember) { stats.notInServer++; continue; }
     people.push({ discordUserId: member.discordUserId, accountName: discordMember.user.globalName ?? discordMember.user.username, nickname: discordMember.nickname,
       mainName: mainCharacterName(member.characters), skip: !canRename(guild, discordMember), record: byUser.get(member.discordUserId) ?? null });
   }
   const changes = planNicknames(people, format);
-  if (options.dryRun) return { changes, applied: 0, failed: 0, skipped: null };
+  stats.notManageable = people.filter((person) => person.skip).length;
+  const planned = new Set(changes.map((change) => change.discordUserId));
+  const rest = people.filter((person) => !person.skip && !planned.has(person.discordUserId));
+  stats.optedOutOrNoFit = rest.filter((person) => person.record?.optedOut || !person.mainName || !nicknameFor(person.nickname ?? person.accountName, person.mainName, format)).length;
+  stats.upToDate = rest.length - stats.optedOutOrNoFit;
+  if (options.dryRun) return { changes, applied: 0, failed: 0, skipped: null, stats };
   let applied = 0, failed = 0;
   for (const change of changes) {
     const member = guild.members.cache.get(change.discordUserId);
@@ -153,7 +185,7 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
       applied++;
     } catch { failed++; }
   }
-  return { changes, applied, failed, skipped: null };
+  return { changes, applied, failed, skipped: null, stats };
 }
 
 /** Puts one member's nickname back (only if it is still the one we set) and records the choice. Returns whether it was restored. */
@@ -183,13 +215,19 @@ export async function restoreAllNicknames(prisma: PrismaClient, guild: Guild, gu
   return restored;
 }
 
-// The scheduled run, next to the hourly rank roles.
-export async function syncAllNicknames(prisma: PrismaClient, guilds: Iterable<Guild>, report: (error: unknown) => void): Promise<void> {
+// The scheduled run, next to the hourly rank roles. A server with several in-game guilds is synced once per guild; the log line
+// adds them up (the last guild alone used to be reported, so an empty one hid the rest).
+export async function syncAllNicknames(prisma: PrismaClient, guilds: Iterable<Guild>, report: (error: unknown) => void, log: (line: string) => void = console.log): Promise<void> {
   for (const guild of guilds) {
-    let result: NicknameSyncResult | undefined;
-    await forEachGuildScope(prisma, guild.id, async () => { result = await syncNicknames(prisma, guild); }).catch(report);
-    // One line per server when something happened or could not happen, so a quiet sync is visible in the logs.
-    const done = result as NicknameSyncResult | undefined;
-    if (done && (done.applied || done.failed || done.skipped)) console.log(`Nickname sync ${guild.id}: ${done.applied} renamed, ${done.failed} failed${done.skipped ? `, ${done.skipped}` : ""}`);
+    const total: NicknameSyncResult = { changes: [], applied: 0, failed: 0, skipped: null, stats: emptyStats() };
+    let ran = false;
+    await forEachGuildScope(prisma, guild.id, async () => {
+      const result = await syncNicknames(prisma, guild);
+      ran = true;
+      total.changes.push(...result.changes); total.applied += result.applied; total.failed += result.failed; total.skipped ??= result.skipped;
+      for (const key of Object.keys(total.stats) as (keyof NicknameSyncStats)[]) total.stats[key] += result.stats[key];
+    }).catch(report);
+    // One line per server, always, so a quiet sync is explained in the logs.
+    log(describeNicknameSync(guild.id, ran ? total : undefined));
   }
 }

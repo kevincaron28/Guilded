@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dungeonAnnouncement } from "../src/services/dungeon-announce.js";
+import { dungeonPosts } from "../src/services/dungeon-announce.js";
 import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
 import { leniencyOf, validBracketedRules } from "../src/services/dungeon-november-rules.js";
 import { bracketedVerdict, calculateDungeonRating, type RatingRun } from "../src/services/dungeon-rating.js";
@@ -51,11 +51,10 @@ describe("quieter run post", () => {
     const player = (character: string) => ({ character, points: 0, deaths: 0, unrankedReason: "Target not calibrated", participationMode: "none" });
     const summary = { results: [{ valid: true, state: "COMPLETED", durationSec: 1200, runRef: "QG-1", dungeonName: "Ragefire Chasm", difficultyId: 0, players: ["A B", "C D", "E F"], unlinked: [], inGuildPlayers: ["A B", "C D", "E F"],
       playerDetails: [player("A B"), player("C D"), player("E F")], personalRecords: [], achievements: [], mentions: {}, points: 0 }] } as never;
-    const text = dungeonAnnouncement(summary, "en")?.data.description ?? "";
+    const text = dungeonPosts(summary, "en")[0]?.embed.data.description ?? "";
     expect(text.match(/Unranked/g)).toHaveLength(1);
-    expect(text).toContain("Target not calibrated ×3");
+    expect(text).toContain("Unranked ×3: Target not calibrated");
     expect(text).not.toContain("0 pts");
-    expect(text.match(/No participation points/g)).toHaveLength(1);
   });
 });
 

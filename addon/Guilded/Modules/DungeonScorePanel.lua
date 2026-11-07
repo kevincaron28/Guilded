@@ -158,45 +158,101 @@ function view.runModel()
   return { current = dungeon.current, recent = recent }
 end
 
+-- Layout (9.1): three tabs under the title, each with 2-3 actions in view; rarer actions sit in
+-- the More menu (pane.more). Tab row y, and where each page's content starts.
+local TAB_Y, PAGE_Y = -38, -66
+local RUN_HINT = "Recording starts and ends by itself in a dungeon. Use these only to fix a run."
+
+local function tip(widget, text)
+  if not (widget and text) then return widget end
+  widget:SetScript("OnEnter", function(self)
+    if not GameTooltip then return end
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:AddLine(L(type(text) == "function" and text() or text), 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  widget:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+  return widget
+end
+
+-- The More menu: a small list of plain buttons under the More button. Never a dropdown API
+-- (those taint Blizzard UI). Each item is a real button kept in a pane field.
+local MENU_WIDTH = 190
+local function buildMenu(pane, anchor)
+  local menu = CreateFrame("Frame", nil, pane, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  menu:SetPoint("TOPRIGHT", anchor, "BOTTOMRIGHT", 0, -2)
+  menu:SetWidth(MENU_WIDTH + 16)
+  menu:SetFrameLevel(pane:GetFrameLevel() + 60)
+  menu:EnableMouse(true)
+  if menu.SetBackdrop then
+    menu:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 16, insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+    if menu.SetBackdropColor then menu:SetBackdropColor(0.05, 0.05, 0.07, 0.95) end
+  end
+  menu.items = {}
+  function menu:Add(text, action, hint)
+    local b = CreateFrame("Button", nil, self, "UIPanelButtonTemplate")
+    b:SetSize(MENU_WIDTH, 22)
+    b:SetText(L(text))
+    b:SetScript("OnClick", function()
+      -- An action returns true to keep the menu open (a "Click again" confirmation).
+      if not action(b) then self:Hide() end
+      pane:Refresh()
+    end)
+    tip(b, hint)
+    b.wanted = false
+    self.items[#self.items + 1] = b
+    return b
+  end
+  -- Shows the wanted items, stacked; returns how many.
+  function menu:Layout()
+    local shown = 0
+    for _, b in ipairs(self.items) do
+      if b.wanted then
+        b:ClearAllPoints()
+        b:SetPoint("TOPLEFT", self, "TOPLEFT", 8, -8 - shown * 24)
+        b:Show()
+        shown = shown + 1
+      else b:Hide() end
+    end
+    self:SetHeight(16 + math.max(1, shown) * 24)
+    return shown
+  end
+  menu:Hide()
+  return menu
+end
+
 local function buildRun(pane, width)
   local run = CreateFrame("Frame", nil, pane)
-  run:SetPoint("TOPLEFT", pane, "TOPLEFT", 0, -34)
+  run:SetPoint("TOPLEFT", pane, "TOPLEFT", 0, PAGE_Y)
   run:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT")
   run:SetFrameLevel(pane:GetFrameLevel() + 40)
   run:EnableMouse(true)
   local bg = run:CreateTexture(nil, "BACKGROUND"); bg:SetAllPoints()
   bg:SetTexture("Interface\\FrameGeneral\\UI-Background-Marble", "REPEAT", "REPEAT"); bg:SetHorizTile(true); bg:SetVertTile(true)
-  run.status = label(run, 16, -10, width - 32)
-  run.boss = label(run, 16, -82, width - 32)
-  run.recent = label(run, 16, -230, width - 32)
-  label(run, 16, -204, width - 32, "GameFontNormal"):SetText(L("Recent runs"))
+  -- Current run: what is being recorded now.
+  label(run, 16, -6, width - 32, "GameFontNormal"):SetText(L("Current run"))
+  run.status = label(run, 16, -26, width - 32)
+  run.boss = label(run, 16, -78, width - 32)
   local function action(key)
     if not active("dungeon") then return end
     local handler = ns.commandHandlers and ns.commandHandlers.dungeon
     if handler then handler({ key }) end
     pane.pendingAction = nil
-    pane:Refresh()
   end
-  button(run, "Start now", 16, -125, 116, function() action("start") end)
-  run.complete = button(run, "Complete", 140, -125, 116, function(self)
-    if not active("dungeon") then return end
-    if pane.pendingAction ~= "complete" then pane.pendingAction = "complete"; run.abandon:SetText(L("Abandon")); self:SetText(L("Click again")); return end
-    self:SetText(L("Complete")); action("complete")
-  end)
-  run.abandon = button(run, "Abandon", 264, -125, 116, function(self)
-    if not active("dungeon") then return end
-    if pane.pendingAction ~= "abandon" then pane.pendingAction = "abandon"; run.complete:SetText(L("Complete")); self:SetText(L("Click again")); return end
-    self:SetText(L("Abandon")); action("abandon")
-  end)
-  button(run, "Last result", 16, -163, 116, function() action("results") end)
-  run.timer = button(run, "Live timer", 140, -163, 240, function()
+  run.action = action
+  run.last = tip(button(run, "Last result", 16, -146, 150, function() action("results") end), "Shows the result card of your last run.")
+  run.timer = tip(button(run, "Live timer", 174, -146, 200, function()
     if not active("dungeon") then return end
     if ns.runResults then ns.runResults.setTimerEnabled(not ns.runResults.timerEnabled()) end
     pane:Refresh()
-  end)
+  end), "Shows the run clock and boss splits on screen while you are in a dungeon.")
+  -- History: your latest saved runs, with the season each one counts in.
+  label(run, 16, -186, width - 32, "GameFontNormal"):SetText(L("Recent runs"))
+  run.recent = label(run, 16, -206, width - 32)
   run:SetScript("OnHide", function()
     pane.pendingAction = nil
-    run.complete:SetText(L("Complete")); run.abandon:SetText(L("Abandon"))
+    if pane.completeButton then pane.completeButton:SetText(L("Complete")); pane.abandonButton:SetText(L("Abandon")) end
   end)
   function run:Refresh()
     local model = view.runModel()
@@ -229,12 +285,19 @@ local function buildRun(pane, width)
   return run
 end
 
+-- Which tab is open: "season" (my score), "board" (guild board) or "run" (current run and history).
+function view.tabOf(pane)
+  if pane.mode == "run" then return "run" end
+  return (pane.guildRanking or pane.period == "week") and "board" or "season"
+end
+
 function view.build(parent, compact)
   local width, columns = compact and 440 or 620, compact and 1 or 2
   local perPage = columns * 4
   local cardWidth = (width - 32 - (columns - 1) * 12) / columns
   local pane = CreateFrame("Frame", nil, parent, BackdropTemplateMixin and "BackdropTemplate" or nil)
   pane:SetSize(width, 492); pane:EnableMouse(true)
+  pane.width = width
   if not compact then pane:SetFrameStrata("DIALOG") end
   pane:SetClampedToScreen(true)
   local background = pane:CreateTexture(nil, "BACKGROUND")
@@ -242,14 +305,17 @@ function view.build(parent, compact)
   background:SetHorizTile(true); background:SetVertTile(true)
   -- Inside the game's finder the emblem ring covers the pane's top-left corner: the heading
   -- starts to the right of it.
-  pane.title = label(pane, compact and 64 or 16, -12, 112, "GameFontNormalLarge")
+  pane.title = label(pane, compact and 64 or 16, -12, 200, "GameFontNormalLarge")
   pane.title:SetText(L("Dungeons"))
-  pane.summary = label(pane, 16, -42, width - 32)
-  pane.note = label(pane, 16, -64, width - 32)
+  -- My season: your score, then the one thing worth doing next, then the rules line.
+  pane.summary = label(pane, 16, PAGE_Y - 6, width - 32, "GameFontNormal")
+  pane.nextLine = label(pane, 16, PAGE_Y - 26, width - 32)
+  pane.note = label(pane, 16, PAGE_Y - 44, width - 32, "GameFontDisableSmall")
   pane.note:SetText(L("100 per dungeon + up to 20 speed. Only your best run counts."))
   pane.cards = {}
+  local cardsY = PAGE_Y - 68
   for i = 1, perPage do
-    local x, y = 16 + ((i - 1) % columns) * (cardWidth + 12), -94 - math.floor((i - 1) / columns) * 51
+    local x, y = 16 + ((i - 1) % columns) * (cardWidth + 12), cardsY - math.floor((i - 1) / columns) * 51
     local card = CreateFrame("Frame", nil, pane)
     card:SetPoint("TOPLEFT", pane, "TOPLEFT", x, y); card:SetSize(cardWidth, 45)
     local bg = card:CreateTexture(nil, "BACKGROUND", nil, -2); bg:SetAllPoints(); bg:SetColorTexture(0.08, 0.1, 0.14, 1)
@@ -284,37 +350,78 @@ function view.build(parent, compact)
   end
   pane.page, pane.seasonIndex, pane.elapsed, pane.role = 1, 1, 0, false
   pane.mode, pane.guildRanking = active("scores") and "season" or "run", false
-  pane.rankings = label(pane, 16, -94, width - 32)
+  -- Guild board: the ranking replaces the cards.
+  pane.rankings = label(pane, 16, PAGE_Y - 30, width - 32)
   pane.rankings:Hide()
-  pane.pageLabel = label(pane, 126, -305, width - 252)
-  pane.seasonTitle = label(pane, 16, -334, width - 160, "GameFontNormal")
-  pane.seasonRows = label(pane, 16, -368, width - 32)
-  pane.footer = label(pane, 16, -458, width - 32)
+  local pagerY = cardsY - 4 * 51 - 4
+  pane.pageLabel = label(pane, 126, pagerY - 6, width - 252)
+  pane.pageLabel:SetJustifyH("CENTER")
+  -- Season footer: which season, how fresh, whose copy.
+  pane.seasonTitle = label(pane, 16, pagerY - 38, width - 32, "GameFontNormal")
+  pane.seasonRows = label(pane, 16, pagerY - 58, width - 32)
+  pane.footer = label(pane, 16, -458, width - 32, "GameFontDisableSmall")
   pane.footer:SetText(L(ns.standalone and "Public personal scores. Sync the companion, then reload. Guild scores may differ."
     or "Guild members only. Best time / fixed target. Past seasons keep their original rules."))
+
+  local function setTab(tab)
+    pane.more:Hide()
+    if tab == "run" then pane.mode = "run"
+    else
+      pane.mode = "season"
+      pane.guildRanking = tab == "board"
+      if tab == "season" then pane.period = "month" end
+    end
+    pane.page = 1
+    pane:Refresh()
+  end
+  pane.setTab = setTab
+
   function pane:Refresh()
     if not enabled() then self.summary:SetText(L("Dungeon scores are off (Tools).")); self:Hide(); return end
-    if self.mode == "run" then self.runView:Show(); self.runView:Refresh(); return end
+    if not active("scores") and self.mode ~= "run" then self.mode = "run" end
+    local tab = view.tabOf(self)
+    -- Tabs: the open one stays lit; Guild board needs the scores module and a guild.
+    local scoresOn = active("scores")
+    for key, b in pairs(self.tabs) do
+      if key ~= "run" and not scoresOn then b:Hide() elseif key == "board" and ns.standalone then b:Hide() else b:Show() end
+      if key == tab then b:LockHighlight() else b:UnlockHighlight() end
+    end
+    -- More menu items for this tab (each a real button, laid out when wanted).
+    for _, b in ipairs(self.more.items) do b.wanted = false end
+    if tab == "run" then
+      self.runView:Show(); self.runView:Refresh()
+      for _, part in ipairs(self.seasonParts) do part:Hide() end
+      for _, card in ipairs(self.cards) do card:Hide() end
+      self.rankings:Hide()
+      local on = active("dungeon")
+      self.startButton.wanted, self.completeButton.wanted, self.abandonButton.wanted = on, on, on
+      if self.more:Layout() > 0 then self.moreButton:Show() else self.moreButton:Hide(); self.more:Hide() end
+      return
+    end
     self.runView:Hide()
-    if not active("scores") then self.mode = "run"; self.runView:Show(); self.runView:Refresh(); return end
+    for _, part in ipairs(self.seasonParts) do part:Show() end
     local name = ns.playerName()
     local chosenRole = self.role
     if self.guildRanking or self.period == "week" then chosenRole = nil end
     local model = view.model(name, self.seasonIndex, self.bracket, self.period, chosenRole)
     self.role = model.role or false
-    self.roleButton:SetText(L(self.role or "Overall"))
-    if model.roles and model.period ~= "week" then self.roleButton:Show() else self.roleButton:Hide() end
+    self.roleButton:SetText(L("Show role") .. ": " .. L(self.role or "Overall"))
+    self.roleButton.wanted = tab == "season" and type(model.roles) == "table" and #model.roles > 0 and model.period ~= "week"
     self.seasonIndex, self.period = model.seasonIndex, model.period
-    local ranking = self.guildRanking or model.period == "week"
-    -- The current season: one button switches between this month (the season) and this week.
-    if model.hasWeek then
+    local ranking = tab == "board"
+    -- Guild board: one primary button switches between this month (the season) and this week.
+    if model.hasWeek and ranking then
       self.periodButton:SetText(L(model.period == "week" and "This week" or "This month")); self.periodButton:Show()
-    else self.periodButton:Hide() end
+    else
+      self.periodButton:SetText(L(model.period == "week" and "This week" or "This month")); self.periodButton:Hide()
+    end
     self.bracket = model.bracket and model.bracket.key or nil
-    -- All-level seasons: one button cycles through the level brackets.
-    if model.bracket then
-      self.bracketButton:SetText(ns.scores.bracketLabel(model.bracket)); self.bracketButton:Show()
-    else self.bracketButton:Hide() end
+    -- All-level seasons: one menu item cycles through the level brackets.
+    if model.bracket then self.bracketButton:SetText(ns.scores.bracketLabel(model.bracket)) end
+    self.bracketButton.wanted = model.bracket ~= nil and #(model.brackets or {}) > 1
+    self.newerButton.wanted = model.seasonIndex > 1
+    self.olderButton.wanted = model.seasonIndex < #model.seasons
+    if self.more:Layout() > 0 then self.moreButton:Show() else self.moreButton:Hide(); self.more:Hide() end
     local pages = math.max(1, math.ceil(ranking and #model.rows / 12 or #model.cards / perPage))
     self.page = math.min(self.page, pages)
     self.summary:SetText(ns.displayName(name) .. (self.role and (" (" .. L(self.role) .. ")") or "") .. " - " .. (model.period == "week" and (L("Your score this week") .. ": " .. model.weekOwn)
@@ -330,6 +437,7 @@ function view.build(parent, compact)
     elseif model.provisional and model.version ~= 4 and model.version ~= 5 and model.version ~= 6 then self.note:SetText(L("Provisional targets, fixed for this season. Hover for boss records.")) end
     if ns.standalone and model.available then self.note:SetText(L("Public season rules. Legacy results may lack full evidence. Role totals are separate.")) end
     if not model.available and ns.seasonDetails then ns.seasonDetails.request(model.seasonIndex) end
+    if ranking then self.note:Hide() else self.note:Show() end
     for i, card in ipairs(self.cards) do
       local row = model.cards[(self.page - 1) * perPage + i]
       if row and not ranking then
@@ -357,8 +465,9 @@ function view.build(parent, compact)
       self.rankings:SetText(#ranked > 0 and table.concat(ranked, "\n") or L(model.period == "week" and "No scores this week yet." or "No points recorded for this season."))
       self.rankings:Show()
     else self.rankings:Hide() end
-    self.rankingToggle:SetText(L(self.guildRanking and "My progress" or "Guild rankings"))
     self.pageLabel:SetText(string.format(L("Page %d / %d"), self.page, pages))
+    if pages > 1 then self.prevButton:Show(); self.nextButton:Show(); self.pageLabel:Show()
+    else self.prevButton:Hide(); self.nextButton:Hide(); self.pageLabel:Hide() end
     local season = model.season
     self.seasonTitle:SetText(season and ((season.status == "ENDED" and L("Past season") or L("Current season")) .. ": " .. season.season)
       or L("No season snapshot yet"))
@@ -374,6 +483,8 @@ function view.build(parent, compact)
         lines[1] = string.format(L("Updated %s%s."), when, board.from and string.format(L(", shared by %s"), board.from) or "")
       end
     end
+    self.seasonRows:SetText(table.concat(lines, "\n"))
+    -- The one suggestion, right under the score (My season only).
     local easiest
     for _, card in ipairs(model.cards) do
       local g = card.guidance
@@ -383,35 +494,65 @@ function view.build(parent, compact)
       end
     end
     if easiest and not ranking then
-      lines[#lines + 1] = L("Best next improvement") .. ": " .. easiest.name .. " (+" .. easiest.next.gain .. "). " .. L("Hover for the scenario.")
+      self.nextLine:SetText("|cffffd100" .. L("Best next improvement") .. ":|r " .. easiest.name .. " (+" .. easiest.next.gain .. "). " .. L("Hover for the scenario."))
+    else
+      self.nextLine:SetText("")
     end
-    self.seasonRows:SetText(table.concat(lines, "\n"))
   end
-  pane.roleButton = button(pane, "Overall", 16, -394, 110, function()
+
+  -- Tabs under the title: My season, Guild board, Runs.
+  pane.tabs = {
+    season = tip(button(pane, "My season", 16, TAB_Y, 104, function() setTab("season") end), "Your season score, the best next improvement and your best run per dungeon."),
+    board = tip(button(pane, "Guild board", 124, TAB_Y, 104, function() setTab("board") end), "The guild's season ranking, this month or this week."),
+    run = tip(button(pane, "Runs", 232, TAB_Y, 88, function() setTab("run") end), "The run being recorded now and your recent runs."),
+  }
+  pane.seasonTab = pane.tabs.season
+  pane.rankingToggle = pane.tabs.board
+  pane.runTab = pane.tabs.run
+  if ns.standalone then pane.rankingToggle:Hide() end
+  pane.moreButton = tip(button(pane, "More", width - 86, TAB_Y, 70, function()
+    if pane.more:IsShown() then pane.more:Hide() else pane.more:Layout(); pane.more:Show() end
+  end), "Less common options: role, level bracket, older seasons, run corrections.")
+  pane.more = buildMenu(pane, pane.moreButton)
+  pane.more:SetScript("OnHide", function()
+    if pane.completeButton then pane.completeButton:SetText(L("Complete")); pane.abandonButton:SetText(L("Abandon")) end
+    pane.pendingAction = nil
+  end)
+  -- Season tabs' menu items.
+  pane.roleButton = pane.more:Add("Show role", function()
     local nextRole = { TANK = "HEALER", HEALER = "DAMAGER", DAMAGER = false }
     if pane.role then pane.role = nextRole[pane.role] else pane.role = "TANK" end
-    pane.page = 1; pane:Refresh()
-  end)
-  pane.roleButton:Hide()
-  button(pane, "Previous", 16, -299, 100, function() pane.page = math.max(1, pane.page - 1); pane:Refresh() end)
-  button(pane, "Next", width - 116, -299, 100, function() pane.page = pane.page + 1; pane:Refresh() end)
-  pane.rankingToggle = button(pane, "Guild rankings", 16, -423, 110, function() pane.guildRanking = not pane.guildRanking; pane.page = 1; pane:Refresh() end)
-  if ns.standalone then pane.rankingToggle:Hide() end
-  button(pane, "Newer season", width - 306, -423, 138, function() pane.seasonIndex = math.max(1, pane.seasonIndex - 1); pane.bracket = nil; pane.page = 1; pane:Refresh() end)
-  button(pane, "Older season", width - 158, -423, 138, function() pane.seasonIndex = pane.seasonIndex + 1; pane.bracket = nil; pane.page = 1; pane:Refresh() end)
-  pane.bracketButton = button(pane, "Bracket", width - 136, -330, 120, function()
+    pane.page = 1
+    return true
+  end, "Your score as tank, healer or damage, or overall.")
+  pane.bracketButton = pane.more:Add("Bracket", function()
     local season = view.model(ns.playerName(), pane.seasonIndex, pane.bracket).season
     local list = season and season.brackets or {}
     for i, b in ipairs(list) do
       if b.key == pane.bracket then pane.bracket = (list[i % #list + 1] or b).key; break end
     end
-    pane.page = 1; pane:Refresh()
-  end)
-  pane.bracketButton:Hide()
+    pane.page = 1
+    return true
+  end, "Level bracket. Click to see the next one.")
+  pane.newerButton = pane.more:Add("Newer season", function() pane.seasonIndex = math.max(1, pane.seasonIndex - 1); pane.bracket = nil; pane.page = 1 end)
+  pane.olderButton = pane.more:Add("Older season", function() pane.seasonIndex = pane.seasonIndex + 1; pane.bracket = nil; pane.page = 1 end)
+  -- Runs tab's menu items: corrections only; Complete and Abandon ask for a second click.
+  pane.startButton = pane.more:Add("Start now", function() pane.runView.action("start") end, RUN_HINT)
+  pane.completeButton = pane.more:Add("Complete", function(self)
+    if pane.pendingAction ~= "complete" then pane.pendingAction = "complete"; pane.abandonButton:SetText(L("Abandon")); self:SetText(L("Click again")); return true end
+    self:SetText(L("Complete")); pane.runView.action("complete")
+  end, RUN_HINT)
+  pane.abandonButton = pane.more:Add("Abandon", function(self)
+    if pane.pendingAction ~= "abandon" then pane.pendingAction = "abandon"; pane.completeButton:SetText(L("Complete")); self:SetText(L("Click again")); return true end
+    self:SetText(L("Abandon")); pane.runView.action("abandon")
+  end, RUN_HINT)
+
+  pane.prevButton = button(pane, "Previous", 16, pagerY, 100, function() pane.page = math.max(1, pane.page - 1); pane:Refresh() end)
+  pane.nextButton = button(pane, "Next", width - 116, pagerY, 100, function() pane.page = pane.page + 1; pane:Refresh() end)
   pane.period = "month"
-  pane.periodButton = button(pane, "This month", width - 262, -330, 120, function()
-    pane.period = pane.period == "week" and "month" or "week"; pane.page = 1; pane:Refresh()
-  end)
+  pane.periodButton = tip(button(pane, "This month", width - 136, pagerY - 34, 120, function()
+    pane.period = pane.period == "week" and "month" or "week"; pane.guildRanking = true; pane.page = 1; pane:Refresh()
+  end), "Switch the guild board between this month (the season) and this week.")
   pane.periodButton:Hide()
   -- Inside the game's dungeon finder, Close closes the finder (not just this page).
   button(pane, "Close", width - 78, -8, 62, function()
@@ -425,15 +566,16 @@ function view.build(parent, compact)
       if finder and finder.IsShown and finder:IsShown() and not (InCombatLockdown and InCombatLockdown()) then finder:Hide() end
     else pane:Hide() end
   end)
+  -- Shown on the season tabs only; the Runs tab has its own page.
+  pane.seasonParts = { pane.summary, pane.nextLine, pane.seasonTitle, pane.seasonRows }
   pane.runView = buildRun(pane, width)
-  button(pane, "Run", width - 270, -8, 86, function() pane.mode = "run"; pane:Refresh() end)
-  button(pane, "Season", width - 178, -8, 92, function() pane.mode = "season"; pane:Refresh() end)
   pane:SetScript("OnUpdate", function(self, elapsed)
     if self.mode ~= "run" then return end
     self.elapsed = (self.elapsed or 0) + elapsed
     if self.elapsed >= 1 then self.elapsed = 0; self.runView:Refresh() end
   end)
   pane:SetScript("OnShow", function() pane:Refresh() end)
+  pane:HookScript("OnHide", function() pane.more:Hide() end)
   pane:Hide()
   return pane
 end

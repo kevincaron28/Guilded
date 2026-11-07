@@ -251,13 +251,36 @@ function logLowDisk(result, action) {
   pushLog({ time: new Date().toISOString(), level: "warn", message: E("{0} was not started.", action) + " " + lowDiskMessage(result, E) });
 }
 
+// When the release service was last asked, and whether it answered (the version panel shows it).
+let lastUpdateCheck = { at: null, ok: null };
+async function fetchLatest() {
+  const found = await updates.fetchLatestRelease();
+  lastUpdateCheck = { at: new Date().toISOString(), ok: Boolean(found) };
+  latestRelease = found ?? latestRelease;
+  return found;
+}
 async function checkForUpdate() {
   checkDisk();
   if (STORE_PACKAGE) return;
-  latestRelease = await updates.fetchLatestRelease() ?? latestRelease;
+  await fetchLatest();
   if (engine) onState(engine.state());
   void stageUpdate();
 }
+
+// The version panel on Home (owner request, 7 November): installed, latest out, and the one thing
+// to do (update-check.cjs versionStatus). The Store build also asks GitHub which version is out,
+// at most once an hour, so the member sees whether the Store has something to install.
+registerIpc("version-info", async () => {
+  if (STORE_INSTALL && (!lastUpdateCheck.at || Date.now() - Date.parse(lastUpdateCheck.at) > 60 * 60 * 1000)) await fetchLatest().catch(() => null);
+  const pending = config.pendingUpdate ?? null;
+  const pendingReady = !STORE_INSTALL && app.isPackaged && updates.inspectPending({ pending, current: app.getVersion(), directory: updateDirectory() }).action === "install";
+  return updates.versionStatus({
+    current: app.getVersion(), latest: latestRelease, pending, pendingReady, store: STORE_INSTALL, storeUpdate: storePageUpdate,
+    checkedAt: lastUpdateCheck.at, checkFailed: lastUpdateCheck.ok === false, autoUpdate: config.autoUpdate !== false, installing
+  });
+});
+// Store installs: the Guilded Companion listing itself, where the Store shows Update.
+registerIpc("open-store-listing", () => shell.openExternal(updates.STORE_LISTING));
 
 // Silent updates for the direct-download build (8.5). The decision lives in update-check.cjs.
 const updateDirectory = () => path.join(app.getPath("userData"), "updates");
@@ -850,7 +873,7 @@ registerIpc("check-disk-space", () => {
   if (result.ok) lowDiskLogged = false;
   return { ok: result.ok, message: result.ok ? T("There is enough free disk space now. Try again.") : lowDiskMessage(result) };
 });
-registerIpc("open-update", () => shell.openExternal(STORE_PACKAGE ? STORE_UPDATES : update?.url || updates.RELEASES_PAGE));
+registerIpc("open-update", () => shell.openExternal(STORE_PACKAGE ? updates.STORE_LISTING : update?.url || updates.RELEASES_PAGE));
 registerIpc("open-startup-settings", () => shell.openExternal("ms-settings:startupapps"));
 
 // "Update now" (7.2): download the checked installer, run it silently and quit; the installer
@@ -876,13 +899,28 @@ registerIpc("set-auto-update", async (_event, on) => {
 });
 registerIpc("install-update", async () => {
   if (STORE_PACKAGE) {
-    await shell.openExternal(STORE_UPDATES);
-    return { ok: true, action: "store", message: T("Use Microsoft Store to update this installation.") };
+    await shell.openExternal(updates.STORE_LISTING);
+    return { ok: true, action: "store", message: T("Microsoft Store opened at Guilded Companion. Choose Update there (or Get updates in the Library).") };
   }
   if (installing) return { ok: false, message: T("The update is already downloading.") };
   installing = true;
   let handedOff = false;
   try {
+    // Already downloaded and checked in the background: install it now, no second download.
+    const staged = app.isPackaged ? updates.inspectPending({ pending: config.pendingUpdate, current: app.getVersion(), directory: updateDirectory() }) : { action: "none" };
+    if (staged.action === "install") {
+      const disk = checkDisk();
+      if (!disk.ok) return { ok: false, message: lowDiskMessage(disk) };
+      config.pendingUpdate = { ...config.pendingUpdate, attempts: (config.pendingUpdate.attempts ?? 0) + 1 };
+      await saveConfig();
+      await updates.launchInstaller(staged.file, spawn);
+      pushLog({ time: new Date().toISOString(), level: "info", message: E("Installer started for Guilded Companion {0}; restarting the companion.", staged.version) });
+      handedOff = true;
+      installerHandedOff = true;
+      quitting = true;
+      setTimeout(() => app.quit(), 500);
+      return { ok: true, action: "installing", message: T("Installing Guilded Companion {0}. It restarts by itself in a moment.", staged.version) };
+    }
     // Retry metadata on click, including when the startup GitHub request failed.
     await checkForUpdate();
     if (!latestRelease) return { ok: false, message: T("Could not verify available updates. Try again when the release service is reachable.") };

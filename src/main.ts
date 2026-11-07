@@ -113,6 +113,7 @@ import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
 import { executeOwnerPreviews, handleItemPreviewButton, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
 import { ITEM_PREVIEW_PREFIX } from "./services/item-preview-step0.js";
 import { handlePreviewMessage } from "./services/item-preview.js";
+import { professionCardFor } from "./services/profession-link-card-live.js";
 import { PreviewGate } from "./services/item-preview-data.js";
 import { itemData } from "./item-data.js";
 import { botOwnerId, executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
@@ -639,8 +640,10 @@ if (config.MESSAGE_CONTENT_INTENT) {
       loadConfig: (discordGuildId) => prisma.itemPreviewConfig.findUnique({ where: { discordGuildId } }),
       disable: async (discordGuildId, reason) => { await prisma.itemPreviewConfig.updateMany({ where: { discordGuildId }, data: { enabled: false, disabledReason: reason } }); },
       secret: config.ITEM_PREVIEW_SECRET, botUserId: client.user?.id,
-      fetch: (url, init) => fetch(url, init), provider: previewProvider, gate: previewGate, backoff: previewBackoff
-    }, { guildId: message.guildId, channelId: message.channelId, content: message.content, authorId: message.author.id, webhookId: message.webhookId }).catch((error: unknown) => {
+      fetch: (url, init) => fetch(url, init), provider: previewProvider, gate: previewGate, backoff: previewBackoff,
+      professionCard: (discordGuildId, profession, names, discordUserId) => professionCardFor(prisma, previewProvider, discordGuildId, profession, names, discordUserId)
+    }, { guildId: message.guildId, channelId: message.channelId, content: message.content, authorId: message.author.id, webhookId: message.webhookId,
+      authorName: message.webhookId ? message.author.username : message.member?.displayName ?? message.author.displayName }).catch((error: unknown) => {
       console.warn("Item preview failed", error instanceof Error ? error.name : "error");
     });
   });

@@ -1,6 +1,4 @@
 import { provisionalSeasonRules } from "./dungeon-bracket-season.js";
-import { editionDungeonRules } from "./dungeon-edition-catalog.js";
-import type { GameEdition } from "./game-edition.js";
 import { reviewedTimingRules, type TimingReview } from "./dungeon-timing-policy.js";
 
 export const LAUNCH_TIMING_REVIEW = "launch-timings-2026-10-30-v1";
@@ -24,9 +22,7 @@ const forever: TimingReview["routes"] = [
   rangeSec: { min: Number(low) * 60, max: Number(high) * 60 }
 }));
 
-/** Explicit prospective export/install only. Do not use for historical fallback. */
-export function launchTimingRules(edition: GameEdition) {
-  const base = edition === "forever" ? provisionalSeasonRules().rules : editionDungeonRules(edition);
-  return reviewedTimingRules(base, { id: LAUNCH_TIMING_REVIEW, reviewedAt, edition,
-    routes: edition === "forever" ? forever : [] });
+/** WoW Forever's reviewed launch timings. Explicit prospective export only; never a historical fallback. */
+export function launchTimingRules() {
+  return reviewedTimingRules(provisionalSeasonRules().rules, { id: LAUNCH_TIMING_REVIEW, reviewedAt, edition: "forever", routes: forever });
 }

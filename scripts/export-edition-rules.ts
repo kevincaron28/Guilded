@@ -5,8 +5,9 @@ import { launchTimingRules, LAUNCH_TIMING_REVIEW } from "../src/services/dungeon
 import { validBracketedRules } from "../src/services/dungeon-november-rules.js";
 mkdirSync("dist/edition-rules", { recursive: true });
 const artifacts: {edition:string;bytes:number;sha256:string}[] = [];
-for (const edition of ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"] as const) {
-  const { rules } = launchTimingRules(edition);
+// Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md).
+for (const edition of ["forever"] as const) {
+  const { rules } = launchTimingRules();
   if (!validBracketedRules(rules)) throw new Error(`Invalid ${edition} rules`);
   const json = JSON.stringify(rules, null, 2) + "\n";
   if (Buffer.byteLength(json) > 200_000) throw new Error("Rules exceed Discord attachment limit");

@@ -10,7 +10,6 @@ import { publicRouteKey, readRuleSnapshot } from "./public-score.js";
 import { gameEditionOf } from "./game-edition.js";
 import { characterKey, characterReference } from "../../companion/character-identity.mjs";
 import { challengesAgree, readChallenge, type ChallengeEvidence } from "./challenge-evidence.js";
-import { encounterKey } from "./dungeon-encounter-identity.js";
 import { observationReport, reconcileParticipation } from "./dungeon-observations.js";
 
 // Public dungeon runs (7.0, roadmap request 6). Personal companions and opted-in guilds send
@@ -96,7 +95,9 @@ export type RunEvidence = Pick<RunSummary, "instanceId" | "difficultyId" | "rout
   players: (Omit<RunSummary["players"][number], "presentSec"> & { presentSec: number | null })[];
 };
 const playerKey = (player: { character: string; realm: string }) => `${key(player.character)}@${key(player.realm)}`;
-const containsKills = (a: RunEvidence, b: RunEvidence, edition: string) => b.encounters.every(kill => a.encounters.some(other => encounterKey(other,a,edition) === encounterKey(kill,b,edition)));
+// One boss per id; old Classic NPC-death kills (kind "npc") keep their own namespace.
+const encounterKey = (e: { id: number; kind?: "npc" }) => `${e.kind ?? "encounter"}:${e.id}`;
+const containsKills = (a: RunEvidence, b: RunEvidence) => b.encounters.every(kill => a.encounters.some(other => encounterKey(other) === encounterKey(kill)));
 function observationOf(summary: RunEvidence, edition: string) {
   const data = summary.integrity as { run?: unknown; players?: { character:string;realm:string;observation?:unknown }[] } | null;
   return observationReport(data?.run, summary.players.map(p=>({...p,integrity:data?.players?.find(q=>playerKey(q)===playerKey(p))?.observation})),
@@ -171,9 +172,9 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
     if (!oldObservation && !newObservation && old.presentSec !== null && (Math.abs(old.presentSec - player.presentSec) > PUBLIC_LIMITS.agreeDurationSec
       || (old.presentSec >= 0.8 * stored.durationSec) !== (player.presentSec >= 0.8 * incoming.durationSec))) return false;
   }
-  if (!observed && !containsKills(stored, incoming, incoming.gameEdition) && !containsKills(incoming, stored, incoming.gameEdition)) return false;
+  if (!observed && !containsKills(stored, incoming) && !containsKills(incoming, stored)) return false;
   for (const kill of incoming.encounters) {
-    const old = stored.encounters.find(e => encounterKey(e,stored,incoming.gameEdition) === encounterKey(kill,incoming,incoming.gameEdition));
+    const old = stored.encounters.find(e => encounterKey(e) === encounterKey(kill));
     if (old?.at !== undefined && kill.at !== undefined && Math.abs(old.at - kill.at) > PUBLIC_LIMITS.agreeDurationSec) return false;
   }
   if (stored.completedBy && incoming.completedBy && stored.completedBy !== incoming.completedBy
@@ -185,7 +186,7 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
 export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): boolean {
   if (!agrees(stored, incoming) || stored.durationSec !== incoming.durationSec
     || stored.startedAt.getTime() !== incoming.startedAt.getTime() || stored.endedAt.getTime() !== incoming.endedAt.getTime()
-    || stored.players.length !== incoming.players.length || !containsKills(incoming, stored,incoming.gameEdition)) return false;
+    || stored.players.length !== incoming.players.length || !containsKills(incoming, stored)) return false;
   if (stored.players.some(old => !incoming.players.some(p => playerKey(p) === playerKey(old)
     && (old.level === null || p.level === old.level) && (old.minLevel === null || p.minLevel === old.minLevel)
     && (!dungeonRole(old.role) || dungeonRole(p.role) === dungeonRole(old.role)) && (old.presentSec === null || p.presentSec === old.presentSec)))) return false;

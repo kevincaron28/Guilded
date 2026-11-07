@@ -4,7 +4,6 @@ import { runRecurringDeliveries } from "./services/recurring-discord.js";
 import { dispatchGroupWatches } from "./services/group-watch-discord.js";
 import { BG_PREFIX, executeBattleground, handleBattlegroundComponent } from "./commands/battleground.js";
 import "./services/diagnostic-console.js";
-import { GAME_EDITIONS } from "../companion/game-edition.mjs";
 import { withEdition } from "./services/edition-context.js";
 import { guildWhere, interactionGuildScope, entityGuildScope, runInGuildScope, withGuildScope, forEachGuildScope } from "./services/guild-scope.js";
 import { executeWow } from "./commands/wow.js";
@@ -107,7 +106,7 @@ import { updateRaceBoard } from "./services/race-board.js";
 import { updateBgLadder } from "./services/bg-ladder.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
-import { ensureQuarterlyCalendar, freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
+import { freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
 import { executeOwnerPreviews, handleItemPreviewButton, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
 import { ITEM_PREVIEW_PREFIX } from "./services/item-preview-step0.js";
@@ -426,8 +425,8 @@ client.once(Events.ClientReady, (readyClient) => {
     if (rotating) return;
     rotating = true;
     // The public leaderboards' rules freeze when a season starts, then only gain new routes.
-    (async () => { for (const edition of GAME_EDITIONS) await withEdition(edition, () => ensureQuarterlyCalendar(prisma, new Date())
-      .then(() => freezeSeasonRules(prisma, new Date()))
+    // WoW Forever only (the Classic Era quarterly calendar job is retired; stored seasons stay as they are).
+    (async () => { await withEdition("forever", () => freezeSeasonRules(prisma, new Date())
       .then((change) => {
         if (change?.frozen) console.info(`Public dungeon rules frozen for ${change.season}.`);
         else if (change) console.info(`Public dungeon rules for ${change.season} gained routes ${change.routes.join(", ") || "-"}, brackets ${change.brackets.join(", ") || "-"}.`);

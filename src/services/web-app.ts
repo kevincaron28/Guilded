@@ -366,7 +366,7 @@ export function createWebApp(deps: WebAppDeps) {
       + `<section class="me-sec" id="sec-looking"><h3 id="looking-for-a-guild">${t("Looking for a guild", "Je cherche une guilde")}</h3><details class="me-fold"${error ? " open" : ""}><summary>${card ? t("Edit my card", "Modifier ma fiche") : t("Create my card", "Créer ma fiche")}</summary>${cardForm}</details></section>`;
     const overviewOwn = `<p id="my-week">${t("My week: use", "Ma semaine : utilisez")} <code>/report stats personal:true</code> ${t("in your guild’s Discord for a private recap of the last complete week.", "dans le Discord de votre guilde pour un récapitulatif privé de la dernière semaine complète.")}</p>`;
     const quick = [
-      { href: "/me/battlenet", en: "Link a character", fr: "Lier un personnage" },
+      { href: "#characters", en: "Link a character", fr: "Lier un personnage" },
       { href: "#achievements", en: "My achievements", fr: "Mes succès" },
       { href: "/me/availability", en: "Set availability", fr: "Ma disponibilité" },
       { href: "/me/calendar", en: "My next raid", fr: "Mon prochain raid" },

@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
-import { editionDungeonRules } from "../src/services/dungeon-edition-catalog.js";
 import { reviewedTimingRules, type TimingReview } from "../src/services/dungeon-timing-policy.js";
 import { validBracketedRules } from "../src/services/dungeon-november-rules.js";
 import { readRuleSnapshot, snapshotRules, scoreRun, type ScoreRun } from "../src/services/public-score.js";
 import { launchTimingRules, LAUNCH_TIMING_REVIEW } from "../src/services/dungeon-launch-timings.js";
 
 describe("prospective timing reviews", () => {
-  it("versions the launch adjustments without importing them into other editions or historical defaults", () => {
+  it("versions the launch adjustments without changing historical defaults", () => {
     const old = provisionalSeasonRules().rules;
-    const result = launchTimingRules("forever");
+    const result = launchTimingRules();
     expect(result.changedRoutes.sort()).toEqual(["2959", "36", "48"]);
     expect(result.rules.targets).toEqual({ ...old.targets, "36": 1800, "48": 2100, "2959": 2400 });
     expect(result.rules.provisional?.plan).toBe(LAUNCH_TIMING_REVIEW);
@@ -23,13 +22,6 @@ describe("prospective timing reviews", () => {
     expect(scoreRun(run, archived.rules)?.points).toBe(200);
     expect(scoreRun(run, result.rules)?.points).toBe(150);
     expect(scoreRun(run, archived.rules)?.points).toBe(200);
-    for (const edition of ["classic-era", "classic-tbc", "classic-mists", "retail"] as const) {
-      const reviewed = launchTimingRules(edition);
-      expect(reviewed.rules.targets).toEqual(editionDungeonRules(edition).targets);
-      expect(reviewed.rules.routes.every(r => r.timing?.basis === "legacy-design-unverified")).toBe(true);
-      expect(reviewed.rules.keystoneRating).toEqual(editionDungeonRules(edition).keystoneRating);
-      expect(validBracketedRules(reviewed.rules)).toBe(true);
-    }
   });
   const base = provisionalSeasonRules().rules;
   const route = base.routes.find(r => r.dungeonKey === "36")!;
@@ -59,12 +51,5 @@ describe("prospective timing reviews", () => {
     }
     expect(() => reviewedTimingRules(base, { ...review, routes: [{ ...review.routes[0]!, sources: [] }] })).toThrow(/sources/);
     expect(() => reviewedTimingRules(base, { ...review, routes: [{ ...review.routes[0]!, targetSec: 1900 }] })).toThrow(/range/);
-  });
-  it("keeps native Mythic+ timers separate from normal-mode estimates", () => {
-    const retail = editionDungeonRules("retail");
-    const result = reviewedTimingRules(retail, { ...review, edition: "retail", routes: [] });
-    expect(result.rules.keystoneRating).toEqual(retail.keystoneRating);
-    expect(result.rules.targets).toEqual(retail.targets);
-    expect(result.unverifiedRoutes.length).toBe(retail.routes.length);
   });
 });

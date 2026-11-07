@@ -3,11 +3,8 @@ import { createBracketedDungeonRules, leniencyOf, routeTargetAt, validBracketedR
 import { SCARLET_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, type RatingRun } from "./dungeon-rating.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import { weekWindow } from "./dungeon-periods.js";
-import { currentEdition } from "./edition-context.js";
-import type { GameEdition } from "./game-edition.js";
 import { integrityPresence, withIntegrityWindow } from "./dungeon-integrity.js";
 import type { ChallengeEvidence } from "./challenge-evidence.js";
-import { editionDungeonRules } from "./dungeon-edition-catalog.js";
 
 // Public dungeon score (website, 7.1). The same time rating as guild seasons, with the release
 // season's provisional all-level rules: 200 x target / time per route (50-400), the over-level
@@ -40,12 +37,8 @@ export interface RunScore { key: string; bracket: string; points: number; penalt
 export interface RunVerdict { score: RunScore | null; reason?: string }
 
 let cachedRules: BracketedRules | null = null;
-const editionRules = new Map<GameEdition, BracketedRules>();
-export const publicRules = (edition: GameEdition = currentEdition()): BracketedRules => {
-  if (edition === "forever") return (cachedRules ??= provisionalSeasonRules().rules);
-  if (!editionRules.has(edition)) editionRules.set(edition, editionDungeonRules(edition));
-  return editionRules.get(edition)!;
-};
+// Guilded supports WoW Forever only: one rule set. rateRun refuses runs of other editions.
+export const publicRules = (): BracketedRules => (cachedRules ??= provisionalSeasonRules().rules);
 
 // A season's frozen public rules (OfficialSeason.rules).
 export interface PublicRuleSnapshot { format: 1; frozenAt: string; rules: BracketedRules; additions: { at: string; routes: string[]; brackets: string[] }[];
@@ -93,7 +86,7 @@ function ratingRun(run: ScoreRun, evidence: RunEvidence): RatingRun {
 /** A run's score under `rules`; with `player`, whether that character earned it (80% presence). */
 export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), player?: ScorePlayer): RunVerdict {
   if ((run.gameEdition ?? "forever") !== (rules.gameEdition ?? "forever")) return { score: null, reason: "Different WoW edition" };
-  if (run.challenge || run.gameEdition === "retail" && run.difficultyId === 8) return { score: null, reason: "Mythic+ uses the keystone leaderboard" };
+  if (run.challenge) return { score: null, reason: "Mythic+ keystone runs are not scored" };
   if (rules.evidencePolicy && !run.evidence) return { score: null, reason: "Current evidence required by this season" };
   if (!rules.routes.some(r => r.instanceId === run.instanceId)) return { score: null, reason: "Route not rated yet" };
   if (run.evidence) {

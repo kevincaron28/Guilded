@@ -106,7 +106,7 @@ describe("guild-only dungeon scores", () => {
     expect(s.run('return tostring(PANE.runView:IsShown() and PANE==NS.dungeonScorePanel.pane)')).toBe("true");
     s.run('NS.dungeonScorePanel.open("season"); PANE.rankingToggle:GetScript("OnClick")()');
     expect(s.run('return tostring(PANE.guildRanking and PANE.rankings:IsShown() and not PANE.runView:IsShown())')).toBe("true");
-    expect(s.run('return PANE.rankings.text')).toContain("Tester - 100");
+    expect(s.run('return NS.dungeonScorePanel.boardText(PANE)')).toContain("Tester - 100");
     s.run('LFGBrowseFrame:Show()');
     expect(s.run('return tostring(not PANE:IsShown() and not TAB.checked and not LFGListingFrame:IsShown() and LFGBrowseFrame:IsShown())')).toBe("true");
     expect(s.run('return NATIVE_SHOWS')).toBe("1");

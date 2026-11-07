@@ -829,7 +829,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     await handleOfferButton(interaction).catch((error: unknown) => reportInteractionError("Craft offer button", interaction, error));
     return;
   }
-  if (interaction.isStringSelectMenu() && interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`)) {
+  if (interaction.isStringSelectMenu() && (interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`) || interaction.customId === `${CRAFT_PREFIX}notifypick`)) {
     await handleCraftSelect(interaction).catch((error: unknown) => reportInteractionError("Craft menu", interaction, error));
     return;
   }

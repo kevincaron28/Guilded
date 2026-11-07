@@ -81,6 +81,12 @@ function view.model(name, seasonIndex, bracketKey, period, role)
   for _, dungeon in ipairs((retail or snapshot and (snapshot.provisional or snapshot.version == 5 or snapshot.version == 6)) and {} or score.DUNGEONS) do
     if not known[dungeon.key] then cards[#cards + 1] = { name = dungeon.name, minLevel = dungeon.minLevel, maxLevel = dungeon.maxLevel, points = available and 0 or nil } end
   end
+  -- No catalog yet (no season snapshot): still list the dungeons this client saved runs of.
+  if #cards == 0 and ns.dungeonStats then
+    for _, d in ipairs(ns.dungeonStats.compute(name).list) do
+      if d.runs > 0 then cards[#cards + 1] = { name = d.name, instanceId = d.instanceId, points = available and 0 or nil } end
+    end
+  end
   table.sort(cards, function(a, b)
     if (a.minLevel or math.huge) ~= (b.minLevel or math.huge) then return (a.minLevel or math.huge) < (b.minLevel or math.huge) end
     if (a.maxLevel or math.huge) ~= (b.maxLevel or math.huge) then return (a.maxLevel or math.huge) < (b.maxLevel or math.huge) end
@@ -161,6 +167,8 @@ end
 -- Layout (9.1): three tabs under the title, each with 2-3 actions in view; rarer actions sit in
 -- the More menu (pane.more). Tab row y, and where each page's content starts.
 local TAB_Y, PAGE_Y = -38, -66
+-- Guild board rows (9.1): 12 per page under the comparison line, each with a points bar.
+local BOARD_ROWS, BOARD_ROW, BOARD_Y, BOARD_BAR_X = 12, 18, PAGE_Y - 48, 200
 local RUN_HINT = "Recording starts and ends by itself in a dungeon. Use these only to fix a run."
 
 local function tip(widget, text)
@@ -196,6 +204,8 @@ local function buildMenu(pane, anchor)
     b:SetText(L(text))
     b:SetScript("OnClick", function()
       -- An action returns true to keep the menu open (a "Click again" confirmation).
+      -- Season options change what the cards show: close a dungeon's detail page first.
+      pane.detailCard = false
       if not action(b) then self:Hide() end
       pane:Refresh()
     end)
@@ -275,7 +285,10 @@ local function buildRun(pane, width)
       -- The date shows which runs are older than the current season (they still count in theirs).
       local when = ns.util and ns.util.whenText and ns.util.whenText(saved.endedAt or saved.startedAt)
       local season = view.seasonFor(saved.endedAt or saved.startedAt)
-      lines[#lines + 1] = (saved.name or "?") .. " - " .. duration(saved.durationSec or 0) .. " - " .. L(saved.state or "") .. (when and (" - " .. when) or "")
+      local mine
+      for n, player in pairs(saved.players or {}) do if ns.normalizeName(n) == ns.normalizeName(ns.playerName()) then mine = player end end
+      local deaths = mine and mine.deaths ~= nil and (" - " .. string.format(L("%d deaths"), tonumber(mine.deaths) or 0)) or ""
+      lines[#lines + 1] = (saved.name or "?") .. " - " .. duration(saved.durationSec or 0) .. " - " .. L(saved.state or "") .. deaths .. (when and (" - " .. when) or "")
         .. (season and (" - " .. string.format(L("Season: %s"), season)) or "")
     end
     self.recent:SetText(#lines > 0 and table.concat(lines, "\n\n") or L("No saved dungeon result yet."))
@@ -329,6 +342,8 @@ function view.build(parent, compact)
     shade:SetAllPoints(); shade:SetColorTexture(0.02, 0.03, 0.05, 0.25)
     card.name = label(card, 9, -5, cardWidth - 18)
     card.value = label(card, 9, -24, cardWidth - 18)
+    card.extra = label(card, 9, -5, cardWidth - 18, "GameFontDisableSmall")
+    card.extra:SetJustifyH("RIGHT")
     card.bar = card:CreateTexture(nil, "ARTWORK")
     card.bar:SetPoint("BOTTOMLEFT", card, "BOTTOMLEFT", 0, 0); card.bar:SetHeight(2)
     card.bar:SetColorTexture(0.83, 0.69, 0.22, 1)
@@ -343,15 +358,44 @@ function view.build(parent, compact)
       GameTooltip:AddLine(L("Competitive boss records"), 0.83, 0.69, 0.22)
       if #(self.row.bosses or {}) == 0 then GameTooltip:AddLine(L("No eligible timed boss kills recorded.")) end
       for _, b in ipairs(self.row.bosses or {}) do GameTooltip:AddDoubleLine(b.name, duration(b.durationSec)) end
+      -- Your record and the guild's, from runs saved on this client (Modules/DungeonStats.lua).
+      if ns.dungeonStats then
+        GameTooltip:AddLine(L("Your runs and the guild"), 0.83, 0.69, 0.22)
+        for _, line in ipairs(ns.dungeonStats.tooltipLines(self.stats)) do
+          if line[2] then GameTooltip:AddDoubleLine(line[1], line[2], 0.8, 0.8, 0.8, 1, 1, 1) else GameTooltip:AddLine(line[1], 0.6, 0.6, 0.6) end
+        end
+        GameTooltip:AddLine(L("Click for details."), 0.5, 0.8, 1)
+      end
       GameTooltip:Show()
     end)
     card:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
+    card:SetScript("OnMouseUp", function(self, mouseButton)
+      if mouseButton == "LeftButton" and self.row and pane.openDetail then pane.openDetail(self.row) end
+    end)
     pane.cards[i] = card
   end
   pane.page, pane.seasonIndex, pane.elapsed, pane.role = 1, 1, 0, false
+  pane.detail, pane.detailCard, pane.statsData = false, false, false
   pane.mode, pane.guildRanking = active("scores") and "season" or "run", false
-  -- Guild board: the ranking replaces the cards.
-  pane.rankings = label(pane, 16, PAGE_Y - 30, width - 32)
+  -- Guild board: the ranking replaces the cards. One row per member with a bar against the top
+  -- score (coloured by share of it); your own row is lit. The comparison line sits above.
+  pane.rankings = CreateFrame("Frame", nil, pane)
+  pane.rankings:SetPoint("TOPLEFT", pane, "TOPLEFT", 16, BOARD_Y); pane.rankings:SetSize(width - 32, BOARD_ROWS * BOARD_ROW)
+  pane.rankings.rows = {}
+  for i = 1, BOARD_ROWS do
+    local row = CreateFrame("Frame", nil, pane.rankings)
+    row:SetPoint("TOPLEFT", pane.rankings, "TOPLEFT", 0, -(i - 1) * BOARD_ROW); row:SetSize(width - 32, BOARD_ROW - 2)
+    row.lit = row:CreateTexture(nil, "BACKGROUND"); row.lit:SetAllPoints(); row.lit:SetColorTexture(0.83, 0.69, 0.22, 0.16)
+    row.track = row:CreateTexture(nil, "BORDER"); row.track:SetColorTexture(0.1, 0.11, 0.14, 0.9)
+    row.track:SetPoint("TOPLEFT", row, "TOPLEFT", BOARD_BAR_X, -3); row.track:SetSize(width - 32 - BOARD_BAR_X, BOARD_ROW - 8)
+    row.fill = row:CreateTexture(nil, "ARTWORK"); row.fill:SetPoint("TOPLEFT", row, "TOPLEFT", BOARD_BAR_X, -3); row.fill:SetSize(1, BOARD_ROW - 8)
+    row.fill:SetColorTexture(0.83, 0.69, 0.22, 1)
+    row.label = label(row, 4, -3, BOARD_BAR_X - 8)
+    row.points = label(row, BOARD_BAR_X + 6, -3, 80)
+    row.barWidth = width - 32 - BOARD_BAR_X
+    pane.rankings.rows[i] = row
+  end
+  pane.rankings.empty = label(pane.rankings, 0, 0, width - 32)
   pane.rankings:Hide()
   local pagerY = cardsY - 4 * 51 - 4
   pane.pageLabel = label(pane, 126, pagerY - 6, width - 252)
@@ -365,6 +409,7 @@ function view.build(parent, compact)
 
   local function setTab(tab)
     pane.more:Hide()
+    pane.detailCard = false
     if tab == "run" then pane.mode = "run"
     else
       pane.mode = "season"
@@ -390,6 +435,7 @@ function view.build(parent, compact)
     for _, b in ipairs(self.more.items) do b.wanted = false end
     if tab == "run" then
       self.runView:Show(); self.runView:Refresh()
+      if self.detail then self.detail:Hide() end
       for _, part in ipairs(self.seasonParts) do part:Hide() end
       for _, card in ipairs(self.cards) do card:Hide() end
       self.rankings:Hide()
@@ -404,6 +450,7 @@ function view.build(parent, compact)
     local chosenRole = self.role
     if self.guildRanking or self.period == "week" then chosenRole = nil end
     local model = view.model(name, self.seasonIndex, self.bracket, self.period, chosenRole)
+    self.statsData = ns.dungeonStats and ns.dungeonStats.compute(name) or false
     self.role = model.role or false
     self.roleButton:SetText(L("Show role") .. ": " .. L(self.role or "Overall"))
     self.roleButton.wanted = tab == "season" and type(model.roles) == "table" and #model.roles > 0 and model.period ~= "week"
@@ -424,8 +471,14 @@ function view.build(parent, compact)
     if self.more:Layout() > 0 then self.moreButton:Show() else self.moreButton:Hide(); self.more:Hide() end
     local pages = math.max(1, math.ceil(ranking and #model.rows / 12 or #model.cards / perPage))
     self.page = math.min(self.page, pages)
-    self.summary:SetText(ns.displayName(name) .. (self.role and (" (" .. L(self.role) .. ")") or "") .. " - " .. (model.period == "week" and (L("Your score this week") .. ": " .. model.weekOwn)
+    local summaryText = (ns.displayName(name) .. (self.role and (" (" .. L(self.role) .. ")") or "") .. " - " .. (model.period == "week" and (L("Your score this week") .. ": " .. model.weekOwn)
       or (L("Your season score") .. ": " .. (model.total and tostring(model.total) or L("Not in this snapshot")))))
+    -- Where that score stands in the guild (My season; the board shows it above the rows).
+    local standing = ns.dungeonStats and model.period ~= "week" and not ranking and ns.dungeonStats.boardSummary(model.rows, name)
+    if standing and standing.rank and standing.count > 1 then
+      summaryText = summaryText .. "  |cffa0a0a0" .. string.format(L("(#%d of %d, top %d%%)"), standing.rank, standing.count, standing.topPercent) .. "|r"
+    end
+    self.summary:SetText(summaryText)
     self.note:SetText(model.available and (model.version == 6 and model.bracket and string.format(L("%s: best %d distinct routes. Verified route evidence required."), ns.scores.bracketLabel(model.bracket), model.bracket.bestCount)
       or model.version == 5 and L("Level 60: best 8 distinct routes. Maximum 3200. Verified route evidence required.") or model.version == 4 and L("Beta: best 8 distinct routes. Level 30. Maximum 3200. Provisional targets.") or model.version == 3 and L("200 at target. Best run per dungeon. Hover for boss records.") or model.version == 2 and L("100 per dungeon + up to 20 speed. Only your best run counts.")
       or L("Historical rules: 100 per distinct dungeon, no speed bonus."))
@@ -447,22 +500,49 @@ function view.build(parent, compact)
         -- One level shows as "(30)", not "(30-30)".
         local levels = row.minLevel and ((row.maxLevel and row.maxLevel ~= row.minLevel) and (row.minLevel .. "-" .. row.maxLevel) or tostring(row.minLevel))
         card:Show(); card.name:SetText(row.name .. (levels and (" (" .. levels .. ")") or ""))
-        card.value:SetText(row.sec and ("|cffefca68" .. (row.reason and L("Unranked") or tostring(row.points)) .. (row.penalty and (" (-" .. row.penalty .. "%)") or "") .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
+        local tierColor = ns.dungeonStats and ("|cff" .. ns.dungeonStats.tier(math.min(1, (row.points or 0) / ((model.version or 0) >= 3 and 400 or 120))).hex) or "|cffefca68"
+        card.value:SetText(row.sec and (tierColor .. (row.reason and L("Unranked") or tostring(row.points)) .. (row.penalty and (" (-" .. row.penalty .. "%)") or "") .. (model.version == 2 and " (+" .. row.speedBonus .. ")" or "") .. ((model.version == 4 or model.version == 5) and row.counted == false and not row.reason and (" - " .. L("Not counted in best 8")) or "")
           .. (model.version == 6 and model.bracket and row.counted == false and not row.reason and (" - " .. string.format(L("Not counted in best %d"), model.bracket.bestCount)) or "") .. "|r  " .. duration(row.sec)
           .. " / " .. (row.targetSec and (duration(row.targetSec) .. (row.provisional and "*" or "")) or L("No target")))
           or ("|cff8993a4" .. (model.available and L("Not completed this season") or L("Breakdown unavailable")) .. "|r"
             .. (row.targetSec and (" / " .. duration(row.targetSec) .. (row.provisional and "*" or "")) or "")))
-        card.bar:SetWidth(math.max(1, cardWidth * math.min(1, (row.points or 0) / ((model.version or 0) >= 3 and 400 or 120))))
+        row.maxPoints = (model.version or 0) >= 3 and 400 or 120
+        local share = math.min(1, (row.points or 0) / row.maxPoints)
+        card.bar:SetWidth(math.max(1, cardWidth * share))
+        if ns.dungeonStats then
+          local rgb = ns.dungeonStats.tier(share).rgb
+          card.bar:SetColorTexture(rgb[1], rgb[2], rgb[3], 1)
+          card.stats = ns.dungeonStats.forCard(self.statsData, row)
+          -- Runs and your best time on the card itself; the rest is in the tooltip and detail page.
+          local s = card.stats
+          card.extra:SetText(s and s.runs > 0 and (string.format(L("%d runs"), s.runs) .. (s.rank and s.members > 1 and string.format("  #%d/%d", s.rank, s.members) or "")) or "")
+        else card.stats = false; card.extra:SetText("") end
         if (row.points or 0) > 0 then card.bar:Show() else card.bar:Hide() end
-      else card.row = nil; card.art:SetTexture(nil); card.art:Hide(); card:Hide() end
+      else card.row = nil; card.stats = false; card.art:SetTexture(nil); card.art:Hide(); card:Hide() end
     end
     if ranking then
-      local ranked = {}
-      for i = (self.page - 1) * 12 + 1, math.min(#model.rows, self.page * 12) do
-        local row = model.rows[i]
-        ranked[#ranked + 1] = string.format("%d. %s - %d", i, ns.displayName(row.name), row.points)
+      local top = 0
+      for _, row in ipairs(model.rows) do top = math.max(top, tonumber(row.points) or 0) end
+      local me = ns.normalizeName(name)
+      local shown = 0
+      for i, line in ipairs(self.rankings.rows) do
+        local index = (self.page - 1) * BOARD_ROWS + i
+        local row = model.rows[index]
+        if row then
+          shown = shown + 1
+          local points = tonumber(row.points) or 0
+          line.text = string.format("%d. %s - %d", index, ns.displayName(row.name), points)
+          line.label:SetText(string.format("%d. %s", index, ns.displayName(row.name)))
+          line.points:SetText(tostring(points))
+          local share = top > 0 and points / top or 0
+          local rgb = ns.dungeonStats and ns.dungeonStats.tier(share).rgb or { 0.83, 0.69, 0.22 }
+          line.fill:SetColorTexture(rgb[1], rgb[2], rgb[3], 0.85)
+          line.fill:SetWidth(math.max(1, line.barWidth * share))
+          if ns.normalizeName(row.name) == me then line.lit:Show() else line.lit:Hide() end
+          line:Show()
+        else line.text = false; line:Hide() end
       end
-      self.rankings:SetText(#ranked > 0 and table.concat(ranked, "\n") or L(model.period == "week" and "No scores this week yet." or "No points recorded for this season."))
+      self.rankings.empty:SetText(shown > 0 and "" or L(model.period == "week" and "No scores this week yet." or "No points recorded for this season."))
       self.rankings:Show()
     else self.rankings:Hide() end
     self.pageLabel:SetText(string.format(L("Page %d / %d"), self.page, pages))
@@ -483,6 +563,10 @@ function view.build(parent, compact)
         lines[1] = string.format(L("Updated %s%s."), when, board.from and string.format(L(", shared by %s"), board.from) or "")
       end
     end
+    local totals = self.statsData and self.statsData.totals
+    if totals and totals.runs > 0 and not ranking then
+      lines[#lines + 1] = string.format(L("This character: %d runs, %d completed, %d dungeons. Click a dungeon for details."), totals.runs, totals.completed, totals.dungeons)
+    end
     self.seasonRows:SetText(table.concat(lines, "\n"))
     -- The one suggestion, right under the score (My season only).
     local easiest
@@ -493,11 +577,30 @@ function view.build(parent, compact)
         if not easiest or ease > easiest.ease then easiest = { name = card.name, ease = ease, next = g.next } end
       end
     end
-    if easiest and not ranking then
+    if ranking then
+      -- Guild board: where you stand, the top score and the average.
+      self.nextLine:SetText(ns.dungeonStats and ns.dungeonStats.boardLine(ns.dungeonStats.boardSummary(model.rows, name)) or "")
+    elseif easiest then
       self.nextLine:SetText("|cffffd100" .. L("Best next improvement") .. ":|r " .. easiest.name .. " (+" .. easiest.next.gain .. "). " .. L("Hover for the scenario."))
     else
       self.nextLine:SetText("")
     end
+    -- One dungeon's detail page covers the cards (My season only).
+    if self.detail then
+      if self.detailCard and not ranking then
+        self.detail:Fill(self.detailCard, self.statsData); self.detail:Show()
+        for _, card in ipairs(self.cards) do card:Hide() end
+        self.prevButton:Hide(); self.nextButton:Hide(); self.pageLabel:Hide()
+      else self.detailCard = false; self.detail:Hide() end
+    end
+  end
+
+  -- Opens one dungeon's detail page (from a card click).
+  function pane.openDetail(row)
+    if not pane.detail then return end
+    pane.more:Hide()
+    pane.detailCard = row
+    pane:Refresh()
   end
 
   -- Tabs under the title: My season, Guild board, Runs.
@@ -569,6 +672,13 @@ function view.build(parent, compact)
   -- Shown on the season tabs only; the Runs tab has its own page.
   pane.seasonParts = { pane.summary, pane.nextLine, pane.seasonTitle, pane.seasonRows }
   pane.runView = buildRun(pane, width)
+  -- One dungeon's detail page (Modules/DungeonStats.lua), under the tabs like the Runs page.
+  if ns.dungeonStats then
+    pane.detail = ns.dungeonStats.buildDetail(pane, width, function() pane.detailCard = false; pane:Refresh() end)
+    pane.detail:SetPoint("TOPLEFT", pane, "TOPLEFT", 0, PAGE_Y)
+    pane.detail:SetPoint("BOTTOMRIGHT", pane, "BOTTOMRIGHT")
+    pane.detail:SetFrameLevel(pane:GetFrameLevel() + 40)
+  else pane.detail = false end
   pane:SetScript("OnUpdate", function(self, elapsed)
     if self.mode ~= "run" then return end
     self.elapsed = (self.elapsed or 0) + elapsed
@@ -690,6 +800,16 @@ function view.attach()
   -- entry inside its footer, between Back and List Self, not above the frame.
   view.tab:ClearAllPoints()
   view.tab:SetPoint("BOTTOM", finder, "BOTTOM", 0, 8)
+end
+
+-- The guild board's visible rows as text ("1. Name - 900", one per line), for tests and logs.
+function view.boardText(pane)
+  local lines = {}
+  for _, row in ipairs(pane and pane.rankings and pane.rankings.rows or {}) do
+    if row.text and row:IsShown() then lines[#lines + 1] = row.text end
+  end
+  if #lines == 0 and pane and pane.rankings and pane.rankings.empty then return pane.rankings.empty:GetText() or "" end
+  return table.concat(lines, string.char(10))
 end
 
 function view.refreshVisible()

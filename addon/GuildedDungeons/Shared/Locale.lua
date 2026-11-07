@@ -2539,6 +2539,21 @@ local DE = {
   ["Your officers turned the guild board off (in Discord: /poll board)."] = "Deine Offiziere haben das Gildenbrett ausgeschaltet (in Discord: /poll board).",
   ["Your officers turned the guild board off."] = "Deine Offiziere haben das Gildenbrett ausgeschaltet.",
   ["Your vote goes to Discord with your next sync (/reload or logging out), or through a guildmate's companion."] = "Deine Stimme geht bei der n\195\164chsten Synchronisierung (/reload oder Ausloggen) an Discord, oder \195\188ber den Begleiter eines Gildenmitglieds.",
+  ["My season"] = "Meine Saison",
+  ["Runs"] = "L\195\164ufe",
+  ["More"] = "Mehr",
+  ["Current run"] = "Aktueller Lauf",
+  ["Show role"] = "Rolle anzeigen",
+  ["Recording starts and ends by itself in a dungeon. Use these only to fix a run."] = "Die Aufzeichnung startet und endet im Dungeon von selbst. Nutze diese nur, um einen Lauf zu korrigieren.",
+  ["Shows the result card of your last run."] = "Zeigt die Ergebniskarte deines letzten Laufs.",
+  ["Shows the run clock and boss splits on screen while you are in a dungeon."] = "Zeigt im Dungeon die Laufzeit und die Bosszeiten auf dem Bildschirm.",
+  ["Your season score, the best next improvement and your best run per dungeon."] = "Deine Saisonwertung, die beste n\195\164chste Verbesserung und dein bester Lauf pro Dungeon.",
+  ["The guild's season ranking, this month or this week."] = "Die Saisonrangliste der Gilde, diesen Monat oder diese Woche.",
+  ["The run being recorded now and your recent runs."] = "Der gerade aufgezeichnete Lauf und deine letzten L\195\164ufe.",
+  ["Less common options: role, level bracket, older seasons, run corrections."] = "Seltenere Optionen: Rolle, Stufenbereich, \195\164ltere Saisons, Laufkorrekturen.",
+  ["Your score as tank, healer or damage, or overall."] = "Deine Wertung als Tank, Heiler oder Schaden, oder gesamt.",
+  ["Level bracket. Click to see the next one."] = "Stufenbereich. Klicke f\195\188r den n\195\164chsten.",
+  ["Switch the guild board between this month (the season) and this week."] = "Wechselt die Gildentafel zwischen diesem Monat (der Saison) und dieser Woche.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4112,6 +4127,21 @@ local ES = {
   ["Your officers turned the guild board off (in Discord: /poll board)."] = "Tus oficiales desactivaron el tabl\195\179n de la hermandad (en Discord: /poll board).",
   ["Your officers turned the guild board off."] = "Tus oficiales desactivaron el tabl\195\179n de la hermandad.",
   ["Your vote goes to Discord with your next sync (/reload or logging out), or through a guildmate's companion."] = "Tu voto llega a Discord en la pr\195\179xima sincronizaci\195\179n (/reload o al desconectarte), o a trav\195\169s del compa\195\177ero de un miembro.",
+  ["My season"] = "Mi temporada",
+  ["Runs"] = "Recorridos",
+  ["More"] = "M\195\161s",
+  ["Current run"] = "Recorrido actual",
+  ["Show role"] = "Mostrar rol",
+  ["Recording starts and ends by itself in a dungeon. Use these only to fix a run."] = "La grabaci\195\179n empieza y termina sola en una mazmorra. \195\154salos solo para corregir un recorrido.",
+  ["Shows the result card of your last run."] = "Muestra la tarjeta de resultado de tu \195\186ltimo recorrido.",
+  ["Shows the run clock and boss splits on screen while you are in a dungeon."] = "Muestra el reloj y los tiempos por jefe en pantalla durante una mazmorra.",
+  ["Your season score, the best next improvement and your best run per dungeon."] = "Tu puntuaci\195\179n de temporada, la mejor mejora siguiente y tu mejor recorrido por mazmorra.",
+  ["The guild's season ranking, this month or this week."] = "La clasificaci\195\179n de temporada de la hermandad, este mes o esta semana.",
+  ["The run being recorded now and your recent runs."] = "El recorrido que se graba ahora y tus recorridos recientes.",
+  ["Less common options: role, level bracket, older seasons, run corrections."] = "Opciones menos comunes: rol, rango de nivel, temporadas anteriores, correcciones de recorrido.",
+  ["Your score as tank, healer or damage, or overall."] = "Tu puntuaci\195\179n como tanque, sanador o da\195\177o, o general.",
+  ["Level bracket. Click to see the next one."] = "Rango de nivel. Haz clic para ver el siguiente.",
+  ["Switch the guild board between this month (the season) and this week."] = "Cambia la tabla de la hermandad entre este mes (la temporada) y esta semana.",
 }
 -- END ES
 
@@ -4828,3 +4858,19 @@ FR["From the game's guild roster, so every member counts. Guilded = members runn
 FR["The guild window hides offline members (Show offline members is off), so totals cover online members only."] = "La fen\195\170tre de guilde masque les membres hors ligne (Afficher les membres hors ligne est d\195\169coch\195\169) : les totaux ne comptent que les membres en ligne."
 FR["Classes (online / total)"] = "Classes (en ligne / total)"
 FR["Levels"] = "Niveaux"
+-- Dungeon season page tabs and More menu (Modules/DungeonScorePanel.lua).
+FR["My season"] = "Ma saison"
+FR["Runs"] = "Donjons"
+FR["More"] = "Plus"
+FR["Current run"] = "Donjon en cours"
+FR["Show role"] = "R\195\180le affich\195\169"
+FR["Recording starts and ends by itself in a dungeon. Use these only to fix a run."] = "L'enregistrement d\195\169marre et s'arr\195\170te tout seul en donjon. Utilisez ces boutons seulement pour corriger un donjon."
+FR["Shows the result card of your last run."] = "Affiche la carte de r\195\169sultat de votre dernier donjon."
+FR["Shows the run clock and boss splits on screen while you are in a dungeon."] = "Affiche le chrono et les temps par boss \195\160 l'\195\169cran pendant un donjon."
+FR["Your season score, the best next improvement and your best run per dungeon."] = "Votre score de saison, la meilleure am\195\169lioration suivante et votre meilleur passage par donjon."
+FR["The guild's season ranking, this month or this week."] = "Le classement de saison de la guilde, ce mois-ci ou cette semaine."
+FR["The run being recorded now and your recent runs."] = "Le donjon enregistr\195\169 en ce moment et vos donjons r\195\169cents."
+FR["Less common options: role, level bracket, older seasons, run corrections."] = "Options moins courantes : r\195\180le, tranche de niveau, anciennes saisons, corrections de donjon."
+FR["Your score as tank, healer or damage, or overall."] = "Votre score en tank, soigneur ou DPS, ou global."
+FR["Level bracket. Click to see the next one."] = "Tranche de niveau. Cliquez pour voir la suivante."
+FR["Switch the guild board between this month (the season) and this week."] = "Bascule le tableau de guilde entre ce mois-ci (la saison) et cette semaine."

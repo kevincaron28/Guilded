@@ -39,64 +39,122 @@ desktop control and is coordinated by you. Keep testing in the kevmister28 test 
 
 - Bug sweep 11:30 UTC: no member reports. The fresh /setup test (item 24) found 4 bugs, fixed in #504 (uninstall leftovers, stale FAQ line, dangling channel ids, expired-wizard reply). New error C5K975QR: community honors cannot give its podium role in the reinstalled test server (50013) because the Guilded role sits at the bottom there; by design it retries every 15 min, and moving the role up fixes it (owner, test server only). Other errors were P2028 timeouts during deploys (calendar sync, public raids, game events, dungeon rating, invite queue).
 
-### Status of every owner request (audit 7 Nov, 14:00 UTC)
+### Status of every owner request (completeness audit, 7 Nov 2026, ~18:30 UTC)
 
+Checked against `git log origin/main` (head `b21434d7`, #565), `docs/plans/`, the open PRs and the Control Board's roadmap rows.
 Live view: the owner's **Control Board** (https://claude.ai/artifact/XWXbyp3yjpoWEjJt9Ch33N). The owner answers questions there and
 pastes "Decisions for the coordinator:"; ideas wait in its "Your ideas" box (memory `control-board-artifact`).
-"Next addon/companion release" means merged on main but shipped to members only with the next release (9.0.2, owner's yes).
 
-**Released 9.0.1 (7 Nov ~10:00 UTC):** GitHub, bot, CurseForge (in review). Store: the owner chose to skip 9.0.1.
+**Where things are:** 9.0.1 (~10:00 UTC) and **9.0.2 (~17:50 UTC, #564)** are released: GitHub latest, bot `c886d746`, CurseForge in review
+(Store skipped for 9.0.1 and 9.0.2). PRs #495-#565 are merged (#557 was replaced by #561 and #515 is superseded; both are still
+open and should be closed). After 9.0.2 only #565 (world PvP board) is merged; its addon/companion parts and any deploy of it are the **9.0.3** candidate.
+State words: **Released** = in a published client (members have it); **Live** = bot/site, running; **Merged** = on main, not yet in a client release;
+**Plan** = written, owner has not picked; **Blocked** = waiting on a third party.
 
-| Item | Status | Evidence |
+#### Owner requests 1-24 (7 Nov)
+
+| # | Request | Status | PR / evidence |
+| --- | --- | --- | --- |
+| 1, 2, 18 | Battle.net message, companion link in game, map pins hidden in instances | Released 9.0.1 | #464 |
+| 3, 4, 7, 9 | Officer client: professions in notes, Initiate to Member, EP/GP in notes, greeting | Released 9.0.1; real-client check owed | #474 |
+| 5 | Linked-characters DM + button | Live | #473 |
+| 6 | Monetization (plan only) | Plan: Lite and Plus tiers added | `docs/plans/MONETIZATION.md`, #462, #539 |
+| 8 | Addon-message sync gaps | Released 9.0.1 (bot live) | #479 |
+| 10 | Guild bank + Discord | Live: ledger, search, links, requests, minimum stock | #502 |
+| 11, 19 | Roster admin window, native WoW fit | Released 9.0.1 | #478, #480 |
+| 12 | Race to 60 redesign + reach-60 card | Live; top 50; no real level 60 seen yet | #471, #518 |
+| 13 | Dungeon cards (one per run, heat map) | Live; traced maps under the heat map released 9.0.2 | #461, #483, #503, #559 |
+| 14 | Remove availability module | Hidden, code kept | #477 |
+| 15 | One name standard | Live (guard test) | #476, #495, #513 |
+| 16 | One #invitation-guilde, in the WoW category | Done | #477 |
+| 17 | Guild overview panel | Released 9.0.2 | #501 |
+| 20 | Screenshots + guides | Guides live; 14 screenshots owed (owner at the PC) | #506, `docs/SCREENSHOT_SHOTLIST.md` |
+| 21 | Website refresh, Québec Gold pages | Live: QG pages, guild pages, ranking-site boards, reserves/wishlist | #470, #485, #522, #534 |
+| 22 | Phone app + TCG | Bot side live: boards, guild, album, map, News feed; plan + first News slice merged; new APK owed | #489, #496, #507, #519, `docs/plans/APP_REDESIGN.md`, `APP_TCG.md` |
+| 23 | Every feature has a home in Discord | Live | #477 |
+| 24 | Discord audit + fresh setup | Done, 4 bugs fixed; Québec Gold tidy-up needs the owner's OK | #504 |
+
+#### Idea list 2 (7 Nov, prioritised)
+
+| Pri | Idea | Status | PR |
+| --- | --- | --- | --- |
+| P0 | Window can't be closed | Released 9.0.2 | #514 |
+| P1 | Companion version + Update now | Released 9.0.2 | #511 |
+| P1 | Race to 60 top 50, ranking-site cards | Live; 24h arrows live | #518, #532 |
+| P1 | Dungeon season window, fewer buttons | Released 9.0.2 | #520 |
+| P1 | Remove "Qui est qui"; test servers apart | Live | #517 |
+| P2 | Records, challenges, recap cards | Live | #523 |
+| P2 | Item links in profession posts; item previews | Live | #516, #497 |
+| P2 | Armory data | **Blocked**: Forever character API closed; re-check script | #524 |
+| P2 | Companion audit + redesign (sync first) | Done 5/5, released 9.0.2 | #512, #525, #529, #530 |
+| P2 | Phone app redesign + Wowhead news | Plan + News tab merged; restructure not started | #519 |
+| P2 | Profession link shows a recipe card | Live | #521 |
+| P3 | Raid readiness upgrade | Live (raid night check card) | #531 |
+| - | In-game guild board, rankings site, install guides | Live (board addon part released 9.0.2) | #508, #522, #506 |
+
+#### Idea list 3 (7 Nov)
+
+| Idea | Status | PR |
 | --- | --- | --- |
-| 1, 2, 18 Battle.net message, companion link in game, map pins hidden in instances | Done, 9.0.1 | #464 |
-| 3, 4, 7, 9 Officer client: professions in notes, Initiate→Member, EP/GP in notes, greeting | Done, 9.0.1; real-client check owed | #474 |
-| 5 Linked-characters DM + button | Live | #473 |
-| 6 Monetization | Plan only (owner: stays a plan) | `docs/plans/MONETIZATION.md` |
-| 8 Addon-message sync | Done | #479 |
-| 10 Guild bank | Live: ledger (9.0.0) + member search, links, requests, minimum stock | #502 |
-| 11, 19 Roster admin window, native fit | Done, 9.0.1 | #478, #480 |
-| 12 Race to 60 redesign | Live; top 50 ranking card | #471, #518 |
-| 13 Dungeon cards | Live: one card per run, death heat map, redesign (painted scenes, role glyphs, scores, guild rank) | #461, #483, #503 |
-| 14 Availability module | Hidden | #477 |
-| 15 One name standard | Live; El/El Pirata party fix | #476, #495, #513 |
-| 16 One #invitation-guilde in the WoW category | Done (checked 7 Nov) | #477 |
-| 17 Guild overview panel (variant A) | Merged, next addon release | #501 |
-| 20 Screenshots and guides | Guides live; 14 screenshots to capture (`docs/SCREENSHOT_SHOTLIST.md`) | #506 |
-| 21 Website | Live: QG pages, guild pages, ranking-site leaderboards with guild counts; reserves/wishlist pages landing | #470, #485, #522, #534 |
-| 22 Phone app | Live on the bot: leaderboards, guild view, badge album, guildmate map/heat map/help pins; redesign + News tab landing; next APK owed | #489, #496, #507, #519 |
-| 23 Feature homes in Discord | Live | #477 |
-| 24 Discord audit + fresh setup | Done 7 Nov; 4 bugs fixed | #504 |
-| Final bosses for 3 new dungeons | Done, 9.0.1; French names when a French client reports them | #491 |
-| Item data + previews in #chat-guilde | Live (owner turned previews on) | #497, test 7 Nov |
-| Profession link → recipe card | Live | #521 |
-| Item links in profession posts | Live | #516 |
-| Sharing and nickname off switches removed | Live | #498 |
-| Nickname "()" typed by members → our format | Live | #499 |
-| Second-PC fixes; window won't close (P0) | Merged, next addon release | #493, #514 |
-| Dungeon season window clearer | Merged, next addon release | #520 |
-| In-game guild board (Kinfolk) | Live (bot); addon part next release | #508 |
-| Records, challenges, daily recap card | Live | #523 |
-| Test servers apart; Who's who post removed | Live | #517 |
-| Leaderboard cards like ranking sites; 24h movement arrows | #518 live; arrows #532 landing | #518, #532 |
-| Companion: version panel + Update now | Merged, next companion release | #511 |
-| Companion redesign (owner's 4 answers) | Parts 1-4 landing (#525, #529, #530, #533); part 5 being built | #512 plan |
-| Raid readiness upgrade | Landing | #531 |
-| Armory (Blizzard profile API) | Blocked: Forever character API closed (probe 7 Nov); re-check script | #524 |
-| Standings feed timeouts; honors error noise; slow craft click | Fixes landing | #527, #526, #528 |
-| Season 2 | After two weeks of Season 1 data (~18 Nov) | owner decision |
+| P0 Call for help firing without an attack; P1 location + real-attack check | Released 9.0.2 | #541 |
+| P1 Installer removes Store/old versions, plug-and-play download page, automatic setup | Released 9.0.2 | #546, #560 |
+| P1 Board channels read-only, reactions allowed; rookie of the week | Live; Québec Gold permission change needs the owner's OK | #550, #556 |
+| P1 #invitation-guilde pre-links characters; WoW chat to Discord guide | Live | #544 |
+| P1 Artisan channels split (orders, archive), crafter roles, opt-in pings | Live | #548 |
+| P1 Dungeon UI: stats, guild comparison | Released 9.0.2 | #553 |
+| P1 Duel scoring by level difference; PvP finder redesign | Live / released 9.0.2 | #545, #552 |
+| P2 In-game crafting orders linked to Discord | Released 9.0.2 | #554 |
+| P2 Better dungeon scoring from run analysis | Tool + inactive Season 2 model merged; activation after ~18 Nov (owner) | #542 |
+| P2 World PvP: research, leaderboard, stats | Addon stats released 9.0.2; board merged, client parts 9.0.3 | #549, #565 |
+| P2 Plan: character pictures on cards and website | Plan only | #539, `docs/plans/CHARACTER_VISUALS.md` |
+| P2 Plan: Lite and paid bot versions | Plan only | #539, `docs/plans/MONETIZATION.md` |
+| P2 Plan: several game accounts for one member | Plan only | #547, `docs/plans/MULTI_ACCOUNT.md` |
+| P3 Remove other WoW editions from the code | Plan only (stage 1 docs); one owner decision pending | #540, `docs/plans/FOREVER_ONLY_REMOVAL.md` |
+
+#### Idea list 4 (7 Nov)
+
+| Idea | Status | PR |
+| --- | --- | --- |
+| Craft history + crafter points | Live (Top crafters ladder); #557 superseded | #561 |
+| Dungeon map + heat map | Released 9.0.2 | #559 |
+| Profession achievements | Live / released 9.0.2 | #555 |
+| Forever achievements analysis | Research done; in-game API probe not done | #555, `docs/plans/FOREVER_ACHIEVEMENTS.md` |
+| Combined participation ladder | Live | #543 |
+| Remove countdowns; Québec Gold channel audit | Countdowns removed (#558); audit done, tidy-up waits for the owner | #558 |
+
+#### Also done since the last audit
+
+Standings, craft board and public-runs timeouts (#527, #528, #563); deploys at low priority (#562); community honors refusal warning (#526);
+dungeon board one row per player (#538); public rankings guild table, runs and guild pages (#522); records (#523).
 
 ### Waiting for owner
 
-- **Release 9.0.2** (addon + companion): window-close fix, dungeon window, overview panel, guild board addon part, companion Update now and redesign. Needs his yes.
-- **Screenshots in game (item 20):** Claude drives WoW when he's at the PC.
-- **Real-client checks:** officer tools, minimap spot, chat tab, French client, first real profession-link and item previews, raid night check card, guild board votes from two clients, companion update over a running app.
-- **Android / Google Play (#345)**, **Season 2 dates (~18 Nov)**.
+- **Release 9.0.3** (world PvP client parts) and **CurseForge review** of 9.0.2; Store submission (skipped for 9.0.1 and 9.0.2, his call).
+- **Real-client checks:** officer tools (3, 4, 7, 9), minimap spot, chat tab, French client, first profession-link/item previews, raid night check card,
+  guild board votes from two clients, companion update over a running app, Defender banner and call for help on two PCs, a real level 60 for Race to 60.
+- **Screenshots in game (item 20):** Claude drives WoW when he is at the PC.
+- **Québec Gold tidy-up confirmation:** read-only board channels (#550) and the channel audit; rookie role placement.
+- **Season 2 data read** (~18 Nov, two weeks of Season 1) before `/guilded-season season2-activate`.
+- **World PvP default answers** (`docs/WORLD_PVP.md`).
+- **Plans waiting for a pick:** character pictures, Lite/Plus (payout route: Canada is not on Discord's list), several game accounts (4 questions), Forever-only removal (Battle.net option A or B), phone app restructure, TCG design.
+- **Android / Google Play** (#345 draft, `EXPO_TOKEN`, Firebase, 12 testers) and a new phone APK.
+- His own nickname in Québec Gold (Discord never lets a bot rename the server owner).
 
 ### Not started
 
-- French names of the three new final bosses (needs a French client log).
-- Nothing else: every other request is live, merged or in a session.
+Each line: what, then the files it would touch.
+
+1. **French names of the three new final bosses** (needs a French client log): `src/services/dungeon-november-catalog.ts`, `src/services/dungeon-beta-preset.ts`, addon dungeon data.
+2. **Character pictures** (4 slices, after the owner picks): `prisma/schema.prisma` + migration, new `src/services/character-picture.ts`, `src/services/card-member.ts`, `src/services/score-card.ts`, `src/companion-api.ts`, `worker/index.mjs`, `site/` profile pages, then addon photo mode and the companion.
+3. **Lite/Plus stage 1** (plan flag, terms and privacy pages; payout route is a prerequisite for launch only): new `src/services/plans.ts`, `prisma/schema.prisma` + migration, `src/commands/lite.ts`, `docs/PRIVACY.md`, new site terms page.
+4. **Several game accounts** (4 steps): `companion/engine.mjs`, `companion/` config and watch-files code, `companion-app/`, then Battle.net identities in `prisma/schema.prisma`, `src/services/battlenet*.ts`, site pages.
+5. **Forever-only removal, stages 1-8** (after the Battle.net A/B answer): `addon/Guilded`, `addon/GuildedDungeons`, `scripts/`, `companion/`, `src/`, `site/`, `worker/`, `wrangler.jsonc`.
+6. **Phone app restructure, slices 2-4**: new `mobile/src/ui/`, `mobile/App.tsx`, `mobile/src/AlbumScreen.tsx`, map and wishlist screens, then the TCG tab and Alerts rows (need #345/Firebase).
+7. **Season 2 activation and the missing 45-59/60 routes**: `src/services/official-seasons.ts`, `src/services/public-score.ts`, `src/services/dungeon-november-catalog.ts` (activation is the owner's command).
+8. **Forever achievements beyond professions** (needs an in-game API probe): `addon/Guilded` achievements module, `src/services/achievement-badges.ts`, `docs/plans/FOREVER_ACHIEVEMENTS.md`.
+9. **PoE2 leftovers in code** (`src/services/achievement-badges.ts`, companion hidden markup), unverified since #456, and **availability module deletion** (hidden, not deleted): `src/commands/application.ts`, `autocomplete.ts`, `community.ts`, `craft.ts`, `team.ts`.
+10. **Armory enrichment**: blocked on Blizzard; re-run `scripts/forever-armory-probe.mjs` after Forever patches.
+11. Housekeeping: close superseded PRs #515 and #557.
 
 **First priorities (owner, 7 Nov 01:45 UTC):**
 1. **Dungeon cards (item 13) now, not later.** One `#donjons-terminés` post bundled three runs (two Wailing

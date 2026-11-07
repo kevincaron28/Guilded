@@ -170,9 +170,18 @@ export function bracketedVerdict(run: RatingRun, rules: BracketedRules): ReturnT
     ? !run.startedAt || !run.endedAt || !Array.isArray(data?.players) || !Array.isArray(data?.encounters)
       ? "Current evidence required by this season" : completionReason(run.completedBy)
     : undefined;
-  const reason = strictReason ?? currentEvidenceReason ?? route.reason ?? (!rules.targets[route.key] ? "Participation-only route" : competitionReason(run, band, leniencyOf(rules).overLevels, leniencyOf(rules).belowLevels));
-  return { ...route, ...(reason ? { reason } : {}), penaltyPercent: !reason && band ? overlevelBy(run, band) * rules.overlevelPenalty.percentPerLevel : 0,
-    targetSec: routeTargetAt(rules, route.key, run.endedAt) ?? null };
+  const base = strictReason ?? currentEvidenceReason ?? route.reason ?? (!rules.targets[route.key] ? "Participation-only route" : competitionReason(run, band, leniencyOf(rules).overLevels, leniencyOf(rules).belowLevels));
+  // Scoring model 2 (inactive unless the season's rules carry it): a minimum party, and level differences priced into the target.
+  const scoring = rules.scoring;
+  const partySize = Array.isArray(data?.players) ? (data.players as unknown[]).length : run.players.length;
+  const reason = base ?? (scoring && partySize < scoring.minParty ? "Party too small" : undefined);
+  const target = routeTargetAt(rules, route.key, run.endedAt) ?? null;
+  if (scoring && !reason && band && target) {
+    const below = Math.max(0, ...knownLevels(run).map(p => band.min - p.minLevel));
+    const factor = Math.max(0.5, 1 - scoring.timePerLevel * overlevelBy(run, band) + scoring.timePerLevel * below);
+    return { ...route, penaltyPercent: 0, targetSec: Math.round(target * factor) };
+  }
+  return { ...route, ...(reason ? { reason } : {}), penaltyPercent: !reason && band ? overlevelBy(run, band) * rules.overlevelPenalty.percentPerLevel : 0, targetSec: target };
 }
 function bossRecords(run: RatingRun): BossRecord[] {
   const data = run.competitionData as { encounters?: unknown[] } | null;

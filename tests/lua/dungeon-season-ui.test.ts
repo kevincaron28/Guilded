@@ -77,9 +77,9 @@ describe("dungeon season page layout", () => {
     const s = panel();
     s.run("CLICK(P.rankingToggle)");
     expect(s.run("return NS.dungeonScorePanel.tabOf(P) .. ' ' .. tostring(P.rankings.shown) .. ' ' .. tostring(P.periodButton.shown)")).toBe("board true true");
-    expect(s.run("return P.rankings.text")).toBe("1. Tester - 900\n2. Officer - 700");
+    expect(s.run("return NS.dungeonScorePanel.boardText(P)")).toBe("1. Tester - 900\n2. Officer - 700");
     s.run("CLICK(P.periodButton)");
-    expect(s.run("return P.periodButton.text .. ' | ' .. P.rankings.text")).toBe("This week | 1. Officer - 300\n2. Tester - 200");
+    expect(s.run("return P.periodButton.text .. ' | ' .. NS.dungeonScorePanel.boardText(P)")).toBe("This week | 1. Officer - 300\n2. Tester - 200");
     // Back on My season: the month view and the cards again.
     s.run("CLICK(P.seasonTab)");
     expect(s.run("return P.period .. ' ' .. tostring(P.rankings.shown) .. ' ' .. NS.dungeonScorePanel.tabOf(P)")).toBe("month false season");

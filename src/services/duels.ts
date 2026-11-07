@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { foreverNameMatches } from "../../companion/character-identity.mjs";
 
-// Guild duels (8.4.5). The addon records "X has defeated Y in a duel" when both players are in the guild and each
+// Guild duels (8.4.5; level-difference score 9.1). The addon records "X has defeated Y in a duel" when both players are in the guild and each
 // paired participant's companion uploads it. Nothing here posts anything or awards points.
 //
 // Trust: the upload is authenticated as ONE paired member, who must be the winner or the loser (a bystander's
@@ -36,7 +36,7 @@ export const milestoneSchema = z.object({
 export type MilestoneInput = z.infer<typeof milestoneSchema>;
 
 type Tx = Prisma.TransactionClient;
-type Row = { id: string; name: string; realm: string; memberId: string };
+type Row = { id: string; name: string; realm: string; memberId: string; level?: number | null };
 
 const dayKey = (at: Date) => at.toISOString().slice(0, 10);
 /** Order-free key of two members. */
@@ -45,11 +45,11 @@ const reportKey = (winnerId: string, loserId: string, at: number) =>
   createHash("sha256").update(`${winnerId}|${loserId}|${at}`).digest("hex").slice(0, 32);
 
 /** A character name to the single member that owns it, or null when unknown or ambiguous. */
-function memberOf(characters: readonly Row[], name: string): { memberId: string; name: string } | null {
+function memberOf(characters: readonly Row[], name: string): { memberId: string; name: string; level: number | null } | null {
   // Exact name, or (WoW Forever, 8.5) the single row still stored under the first name.
   const matches: Row[] = foreverNameMatches(characters, name);
   const owners = new Set(matches.map(character => character.memberId));
-  return owners.size === 1 ? { memberId: matches[0]!.memberId, name: matches[0]!.name } : null;
+  return owners.size === 1 ? { memberId: matches[0]!.memberId, name: matches[0]!.name, level: matches[0]!.level ?? null } : null;
 }
 
 export interface DuelImportResult { recorded: number; counted: number; capped: number; duplicates: number; rejected: number }
@@ -85,7 +85,7 @@ export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: str
     ]);
     const counted = pairCount < PAIR_DAILY_CAP && reporterCount < REPORTER_DAILY_CAP;
     const created = await tx.duelResult.createMany({ skipDuplicates: true, data: [{
-      guildId, gameEdition: edition, winnerId: winner.memberId, loserId: loser.memberId, winnerCharacter: winner.name, loserCharacter: loser.name,
+      guildId, gameEdition: edition, winnerId: winner.memberId, loserId: loser.memberId, winnerCharacter: winner.name, loserCharacter: loser.name, winnerLevel: winner.level, loserLevel: loser.level,
       reason: duel.reason, endedAt, dayKey: day, pairKey: pair, counted, reportKey: reportKey(winner.memberId, loser.memberId, duel.at), reporterId
     }] });
     if (!created.count) { result.duplicates++; continue; }
@@ -113,30 +113,43 @@ export async function importMilestones(tx: Pick<Tx, "memberMilestone">, guildId:
   return result;
 }
 
-export interface DuelStanding { memberId: string; name: string; wins: number; losses: number; games: number; winRate: number; streak: number; bestStreak: number }
+export interface DuelStanding { memberId: string; name: string; score: number; wins: number; losses: number; games: number; winRate: number; streak: number; bestStreak: number }
+
+/** Points for one win. */
+export const DUEL_BASE_POINTS = 10, DUEL_POINTS_PER_LEVEL = 2, DUEL_MAX_POINTS = 20;
+
+/**
+ * Pure: what a win is worth, by level difference (opponent level minus winner level). Base 10; each level the loser was above the
+ * winner adds 2 (up to 20 at +5 or more); each level below takes 2 off (nothing at -5 or more). Losses cost nothing. When either
+ * level was not known (older duels, characters without a level) the win is worth the base 10, so history is not rewritten.
+ */
+export function duelPoints(winnerLevel: number | null | undefined, loserLevel: number | null | undefined): number {
+  if (!winnerLevel || !loserLevel) return DUEL_BASE_POINTS;
+  return Math.max(0, Math.min(DUEL_MAX_POINTS, DUEL_BASE_POINTS + DUEL_POINTS_PER_LEVEL * (loserLevel - winnerLevel)));
+}
 
 /** Pure: standings from counted duels, oldest first. `streak` is the current run (negative = losses in a row). */
-export function standingsFromDuels(rows: readonly { winnerId: string; loserId: string; winnerCharacter: string; loserCharacter: string }[], limit = 50): DuelStanding[] {
+export function standingsFromDuels(rows: readonly { winnerId: string; loserId: string; winnerCharacter: string; loserCharacter: string; winnerLevel?: number | null; loserLevel?: number | null }[], limit = 50): DuelStanding[] {
   const by = new Map<string, DuelStanding & { run: number }>();
   const entry = (id: string, name: string) => {
     let row = by.get(id);
-    if (!row) { row = { memberId: id, name, wins: 0, losses: 0, games: 0, winRate: 0, streak: 0, bestStreak: 0, run: 0 }; by.set(id, row); }
+    if (!row) { row = { memberId: id, name, score: 0, wins: 0, losses: 0, games: 0, winRate: 0, streak: 0, bestStreak: 0, run: 0 }; by.set(id, row); }
     row.name = name;
     return row;
   };
   for (const duel of rows) {
     const w = entry(duel.winnerId, duel.winnerCharacter), l = entry(duel.loserId, duel.loserCharacter);
-    w.wins++; w.games++; w.run = w.run > 0 ? w.run + 1 : 1; w.bestStreak = Math.max(w.bestStreak, w.run);
+    w.wins++; w.games++; w.score += duelPoints(duel.winnerLevel, duel.loserLevel); w.run = w.run > 0 ? w.run + 1 : 1; w.bestStreak = Math.max(w.bestStreak, w.run);
     l.losses++; l.games++; l.run = l.run < 0 ? l.run - 1 : -1;
   }
   return [...by.values()].map(({ run, ...row }) => ({ ...row, streak: run, winRate: row.games ? row.wins / row.games : 0 }))
-    .sort((a, b) => b.wins - a.wins || b.winRate - a.winRate || a.losses - b.losses || a.name.localeCompare(b.name)).slice(0, limit);
+    .sort((a, b) => b.score - a.score || b.wins - a.wins || b.winRate - a.winRate || a.losses - b.losses || a.name.localeCompare(b.name)).slice(0, limit);
 }
 
 /** The guild's duel board for one edition (Forever unless told otherwise). Counted duels only. */
 export async function duelLeaderboard(db: Pick<PrismaClient, "duelResult">, guildId: string, edition = "forever", opts: { since?: Date; limit?: number } = {}): Promise<{ standings: DuelStanding[]; duels: number }> {
   const rows = await db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, ...(opts.since ? { endedAt: { gte: opts.since } } : {}) },
-    orderBy: { endedAt: "asc" }, take: 20_000, select: { winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true } });
+    orderBy: { endedAt: "asc" }, take: 20_000, select: { winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true, winnerLevel: true, loserLevel: true } });
   return { standings: standingsFromDuels(rows, opts.limit ?? 50), duels: rows.length };
 }
 

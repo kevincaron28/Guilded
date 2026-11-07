@@ -651,7 +651,7 @@ export async function createRaceChannel(discordGuild: DiscordGuild, memberRoleId
   // With no member role the channel is visible to everyone and read-only; `open` tells the caller to say so.
   const gated = Boolean(memberRoleId && memberRoleId !== discordGuild.id && discordGuild.roles.cache.has(memberRoleId));
   const me = discordGuild.members.me.id;
-  const lockBits = [PermissionFlagsBits.SendMessages, PermissionFlagsBits.AddReactions, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads, PermissionFlagsBits.SendMessagesInThreads];
+  const lockBits = [PermissionFlagsBits.SendMessages, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads, PermissionFlagsBits.SendMessagesInThreads];
   const channel = await discordGuild.channels.create({ name: lang === "fr" ? "course-au-60" : "race-to-60", type: ChannelType.GuildText,
     topic: lang === "fr" ? "Course au niveau 60 de la guilde et temple de la renommée, tenus à jour par Guilded." : "The guild's race to level 60 and its Hall of Fame, kept up to date by Guilded.",
     permissionOverwrites: [

@@ -967,8 +967,9 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
   ([backlog](docs/archive/UI_FIX_BACKLOG_2026-11-05.md)); Forever live acceptance; dungeon G6-G8 and
   French client G10 ([6.2 game acceptance](docs/V6_2_GAME_ACCEPTANCE.md)).
 - **Microsoft Store:** confirm which version has certified before claiming status.
-- **Commands:** drop slash commands that only repeat a button (`/raid signup`,
-  `/community lottery join`, `/craft claim`) once each button is confirmed in Discord.
+- **Commands:** done 7 November: `/raid signup` and `/craft claim` removed (the raid post's role buttons and the craft post's
+  **I'll craft it** button do the same work); `/community lottery join` was already gone (lottery tickets use the post's buttons).
+  A craft request made while no craft board is set up has no post and so no claim button: set the board up first.
 - **Public page per guild** ([design](docs/GUILD_PAGES_DESIGN.md)): officers choose what is public.
 - **Android app** (`mobile/`): the Expo/EAS project is linked (`ddda073f-f6bb-4e04-8a78-7ac343e03864`,
   account kevincaron28) and preview APK 0.2.0 is published (GitHub pre-release `mobile-v0.2.0-preview`,

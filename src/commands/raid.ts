@@ -17,7 +17,7 @@ import { executeRaidHistory, executeRaidSeason } from "./raid-season.js";
 import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { asLang, t, type Lang } from "../i18n.js";
-import { createRaidService, DpsKindFullError, SignupsClosedError, type SignupAvailability } from "../services/raid.js";
+import { createRaidService, DpsKindFullError, SignupsClosedError } from "../services/raid.js";
 import { coreSpotLabel, createRaidCoreService } from "../services/raid-core.js";
 import { buildSignupEmbed, openKindSpots, openSpots } from "../services/signup-embed.js";
 import { hasPermission } from "../permissions.js";
@@ -85,19 +85,6 @@ export const raidCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("message").setDescription("Optional extra text").setMaxLength(300)))
   .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel a raid.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true)))
-  .addSubcommand((sub) => sub.setName("signup").setDescription("Sign up for a raid.")
-    .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true))
-    .addStringOption((o) => o.setName("role").setDescription("Your role for this raid").setRequired(true)
-      .addChoices(
-        { name: "Tank", value: "TANK" },
-        { name: "Healer", value: "HEALER" },
-        { name: "DPS", value: "DPS" }
-      ))
-    .addStringOption((o) => o.setName("availability").setDescription("Available (default) or Maybe")
-      .addChoices(
-        { name: "Available", value: "AVAILABLE" },
-        { name: "Maybe", value: "MAYBE" }
-      )))
   .addSubcommand((sub) => sub.setName("cancel-signup").setDescription("Cancel your raid signup.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("status").setDescription("View raid status.")
@@ -386,31 +373,6 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   }
 
   const raidId = interaction.options.getString("raid", true);
-  if (subcommand === "signup") {
-    const role = interaction.options.getString("role", true) as RaidRole;
-    const availability = (interaction.options.getString("availability") ?? "AVAILABLE") as SignupAvailability;
-    const settings = await guildService.getSettings(context.guildId);
-    const character = settings?.characterSignups ? await pickSignupCharacter(interaction, context.guildId, context.memberId) : null;
-    if (settings?.characterSignups && !character) return;
-    if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const signup = await raidService.signup(raidId, context.guildId, context.memberId, role, availability, character?.id, true).catch(async (error: unknown) => {
-      if (!(error instanceof SignupsClosedError)) throw error;
-      await interaction.editReply({ content: closedText(asLang(settings?.language), error), components: [] });
-      return null;
-    });
-    if (!signup) return;
-    await tellBumped(interaction.client, signup.bumped);
-    await tellPromoted(interaction, signup.promoted);
-    if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
-    const replies: Record<string, string> = {
-      SIGNED_UP: `You are signed up as ${roleLabel[role]}.`,
-      MAYBE: `You are marked as **maybe** (${roleLabel[role]}). Sign up again as Available to take a slot.`,
-      WAITLISTED: `${roleLabel[role]} slots are full, so you're on the **waitlist**. You'll get a DM if a slot opens.`
-    };
-    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
-    await interaction.editReply({ content: (character ? `**${displayCharacterName(character)} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup recorded.") + await clashNote(raidId, context.guildId, context.memberId, lang), components: await specMenu(raidId, context.memberId, lang) });
-    return;
-  }
   if (subcommand === "fill") {
     await postFillCall(interaction, context.guildId, raidId);
     return;

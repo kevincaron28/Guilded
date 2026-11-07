@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.0.3 — 7 November 2026
+
+Guilded is now WoW Forever only, plus fixes from the day after 9.0.2. Details: docs/V9_0_3_RELEASE_NOTES.md.
+
+- Addon: loads on WoW Forever only (other versions' code removed; saved data still read), world PvP stats feed the new board.
+- Companion: syncs WoW Forever only, with a clear message for other game folders.
+- Bot (already live): world PvP board on the PvP ladder, any online guild member tagged for invite requests and joins detected from the roster, correct roles on dungeon cards, plain-letter names on cards, Forever-only commands and website, steadier deploys.
+
 ## 9.0.2 — 7 November 2026
 
 New addon and companion features, plus a day of bot updates. Details: docs/V9_0_2_RELEASE_NOTES.md.

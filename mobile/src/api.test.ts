@@ -78,3 +78,25 @@ describe("mobile companion client", () => {
     await expect(new GuildedClient("https://guilded.kcaron.top", "credential-value-0123456789").hub("123")).rejects.toThrow(/guild hub/);
   });
 });
+
+import { classMix, parseBoards, parsePublicGuild } from "./publicApi";
+
+describe("public boards and guild page", () => {
+  it("reads the boards and drops malformed rows", () => {
+    const boards = parseBoards({ season: "Season 1", brackets: [{ key: "60", name: "Level 60", characters: [{ rank: 1, name: "Aelira", realm: null, className: "Priest", role: "HEALER", points: 300 }, { rank: 2 }], guilds: [{ rank: 1, id: "g1", name: "Northwind", slug: "northwind", points: 900, rated: 5 }] }, { name: "no key" }] });
+    expect(boards.brackets).toHaveLength(1);
+    expect(boards.brackets[0]!.characters).toHaveLength(1);
+    expect(boards.brackets[0]!.guilds[0]).toMatchObject({ slug: "northwind", points: 900 });
+    expect(() => parseBoards(null)).toThrow();
+  });
+
+  it("reads a public guild and counts each character once in the class mix", () => {
+    const guild = parsePublicGuild({ slug: "northwind", name: "Northwind", cores: [
+      { name: "A", lootMode: "EPGP", roster: [{ name: "Aelira", className: "Priest", role: "HEALER" }, { name: "Borin", className: "Warrior", role: "TANK" }], ranking: [{ name: "Borin", ep: 10, gp: 5, pr: 2, belowMin: true }] },
+      { name: "B", roster: [{ name: "aelira", className: "Priest", role: "HEALER" }, { name: "Cindra", className: "Mage", role: "bogus" }] }
+    ] });
+    expect(guild.cores[1]!.roster[1]!.role).toBe("DPS");
+    expect(classMix(guild)).toEqual([{ className: "Mage", count: 1 }, { className: "Priest", count: 1 }, { className: "Warrior", count: 1 }]);
+    expect(() => parsePublicGuild({})).toThrow();
+  });
+});

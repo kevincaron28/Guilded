@@ -222,6 +222,12 @@ ${SITE_HEADER_STYLE}</style></head><body>${siteHeader(view.language, `/g/${view.
 
 const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found · Guilded</title><style>${PAGE_STYLE}</style></head><body><main><h1>Page not found</h1><p class="muted">This guild page does not exist or is not published. / Cette page de guilde n'existe pas ou n'est pas publiée.</p><p><a href="/recruitment/guilds/">Guilds / Guildes</a> · <a href="https://guilded.kcaron.top/">Guilded</a></p></main></body></html>`;
 
+/** The public page as data for the phone app: only what renderGuildPage shows (no Discord ids, no invite unless published). */
+export function guildPageJson(view: GuildPageView) {
+  return { slug: view.slug, name: view.name, language: view.language, intro: view.intro, edition: view.edition ?? null, sections: view.sections,
+    recruitment: view.recruitment, dungeonPage: view.dungeonPage ?? null, cores: view.cores };
+}
+
 export interface PageResponse { status: number; headers: Record<string, string>; body: string }
 
 // Every page server in this process, so an officer's change (/guildpage) shows at once here.
@@ -234,7 +240,7 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
   const ttlMs = options.ttlMs ?? 5 * 60_000;
   const maxEntries = options.maxEntries ?? 200;
   const now = options.now ?? Date.now;
-  const cache = new Map<string, { at: number; html: string | null }>();
+  const cache = new Map<string, { at: number; html: string | null; json: string | null }>();
   const security = { "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "referrer-policy": "strict-origin-when-cross-origin", "x-content-type-options": "nosniff" };
   const server = { forget(slug?: string) { if (slug) cache.delete(slug); else cache.clear(); } };
   pageServers.add(server);
@@ -243,19 +249,22 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
     async respond(method: string, pathname: string): Promise<PageResponse | null> {
       if (pathname !== "/g" && !pathname.startsWith("/g/")) return null;
       if (method !== "GET" && method !== "HEAD") return { status: 405, headers: { ...security, allow: "GET, HEAD" }, body: "" };
-      const match = /^\/g\/([^/]+)(\/?)$/.exec(pathname);
+      // The phone app's read of the same public page: JSON of what the page already shows (cores, rosters, rankings).
+      const asJson = /^\/g\/([^/]+)\/guild\.json$/.exec(pathname);
+      const match = asJson ? [asJson[0], asJson[1]!, "/"] : /^\/g\/([^/]+)(\/?)$/.exec(pathname);
       if (!match || !isPageSlug(match[1]!)) return html(404, NOT_FOUND, 60);
       if (!match[2]) return { status: 301, headers: { ...security, location: `/g/${match[1]}/`, "cache-control": "public, max-age=3600" }, body: "" };
       const slug = match[1]!;
       let entry = cache.get(slug);
       if (!entry || now() - entry.at >= ttlMs) {
         const view = await load(slug);
-        entry = { at: now(), html: view ? renderGuildPage(view) : null };
+        entry = { at: now(), html: view ? renderGuildPage(view) : null, json: view ? JSON.stringify(guildPageJson(view)) : null };
         cache.delete(slug);
         cache.set(slug, entry);
         while (cache.size > maxEntries) cache.delete(cache.keys().next().value!);
       }
-      return entry.html ? html(200, entry.html, 300) : html(404, NOT_FOUND, 60);
+      if (asJson) return entry.json ? { status: 200, headers: { ...security, "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" }, body: entry.json } : { status: 404, headers: { ...security, "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=60" }, body: '{"error":"Not found"}' };
+            return entry.html ? html(200, entry.html, 300) : html(404, NOT_FOUND, 60);
     },
     forget: server.forget
   };

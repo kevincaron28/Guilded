@@ -186,6 +186,10 @@ export async function restoreAllNicknames(prisma: PrismaClient, guild: Guild, gu
 // The scheduled run, next to the hourly rank roles.
 export async function syncAllNicknames(prisma: PrismaClient, guilds: Iterable<Guild>, report: (error: unknown) => void): Promise<void> {
   for (const guild of guilds) {
-    await forEachGuildScope(prisma, guild.id, () => syncNicknames(prisma, guild)).catch(report);
+    let result: NicknameSyncResult | undefined;
+    await forEachGuildScope(prisma, guild.id, async () => { result = await syncNicknames(prisma, guild); }).catch(report);
+    // One line per server when something happened or could not happen, so a quiet sync is visible in the logs.
+    const done = result as NicknameSyncResult | undefined;
+    if (done && (done.applied || done.failed || done.skipped)) console.log(`Nickname sync ${guild.id}: ${done.applied} renamed, ${done.failed} failed${done.skipped ? `, ${done.skipped}` : ""}`);
   }
 }

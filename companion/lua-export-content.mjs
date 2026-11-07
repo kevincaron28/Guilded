@@ -265,6 +265,7 @@ export function parseAddonExportText(text, realm) {
   const milestones = exportMilestones(database);
   const guildData = exportGuildData(database);
   const guildBank = exportGuildBank(database);
+  const guildBoard = exportGuildBoard(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -363,7 +364,8 @@ export function parseAddonExportText(text, realm) {
     ...(duelResults.length ? { duelResults } : {}),
     ...(milestones.length ? { milestones } : {}),
     ...guildData,
-    ...guildBank
+    ...guildBank,
+    ...guildBoard
   }, edition.gameEdition, realm);
   return syncStats ? { ...identities, syncStats } : identities;
 }
@@ -463,6 +465,28 @@ export function exportGuildBank(database) {
     .map((r) => ({ ref: r.ref, item: label(r.item, 100), ...(Number.isSafeInteger(r.itemId) && r.itemId > 0 ? { itemId: r.itemId } : {}),
       count: Math.max(1, Math.min(1000, Math.trunc(Number(r.count)) || 1)) })).slice(0, 10);
   return { ...(Object.keys(bank).length ? { guildBank: bank } : {}), ...(requests.length ? { bankRequests: requests } : {}) };
+}
+
+// The in-game guild board (addon Modules/GuildBoard.lua, 9.1): this member's votes waiting for the bot,
+// guildmates' votes heard in game (members without the companion) and officers' news written in game.
+// The addon numbers options from 1; the bot from 0. Whitelisted field by field.
+export function exportGuildBoard(database) {
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const pollId = (v) => typeof v === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(v);
+  const name = (v) => typeof v === "string" && v.length > 0 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
+  const picksOf = (v) => {
+    const list = Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v) : [];
+    const picks = list.map((p) => Math.trunc(Number(p))).filter((p) => p >= 1 && p <= 25).map((p) => p - 1);
+    return [...new Set(picks)].sort((a, b) => a - b);
+  };
+  const board = database?.board && typeof database.board === "object" ? database.board : {};
+  const votes = Object.entries(board.votes ?? {}).filter(([id, v]) => pollId(id) && v && epoch(v.at))
+    .map(([id, v]) => ({ poll: id, picks: picksOf(v.picks), at: v.at })).slice(0, 50);
+  const heard = Object.values(board.heard ?? {}).filter((v) => v && pollId(v.poll) && epoch(v.at) && name(v.name))
+    .sort((a, b) => b.at - a.at).slice(0, 200).map((v) => ({ poll: v.poll, picks: picksOf(v.picks), at: v.at, name: v.name }));
+  const posts = Object.values(board.posts ?? {}).filter((p) => p && typeof p.ref === "string" && /^[A-Za-z0-9-]{6,40}$/.test(p.ref) && typeof p.text === "string" && epoch(p.at))
+    .slice(0, 5).map((p) => ({ ref: p.ref, text: p.text.replace(/[|\p{Cc}]/gu, " ").trim().slice(0, 500), at: p.at }));
+  return { ...(votes.length ? { boardVotes: votes } : {}), ...(heard.length ? { boardRelayVotes: heard } : {}), ...(posts.length ? { boardPosts: posts } : {}) };
 }
 
 // What the game shows every member about the whole guild (addon Modules/GuildSnapshot.lua and

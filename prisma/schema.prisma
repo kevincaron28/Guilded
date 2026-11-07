@@ -196,6 +196,7 @@ model Guild {
   groupAlerts         GroupAlert[]
   faqEntries          FaqEntry[]
   polls               Poll[]
+  boardPosts          BoardPost[]
   unclaimedCharacters UnclaimedCharacter[]
   inviteRequests InviteRequest[]
   characterPairings   CharacterPairing[]
@@ -987,6 +988,9 @@ model GuildSettings {
   guildBankRequestPosts    Boolean @default(true)
   guildBankStockAlerts     Boolean @default(true)
   bankRequestChannelId     String?
+  // 9.1 in-game guild board (docs/GUILD_BOARD.md): officers' news and open polls in the addon,
+  // voting from the game. On by default; officers turn it off with /poll board.
+  guildBoardEnabled        Boolean @default(true)
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -2009,6 +2013,30 @@ model PollVote {
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([pollId, memberId, option])
+}
+
+// 9.1 in-game guild board (docs/GUILD_BOARD.md): an officer's news post, from Discord (/poll news)
+// or from the game (the addon's Board page, uploaded by the officer's companion). Shown on the
+// addon's Board page; a post from the game is also posted in the announcements channel.
+model BoardPost {
+  id        String    @id @default(cuid())
+  guildId   String
+  body      String
+  // The name shown in game: the officer's Discord display name or character name.
+  author    String
+  authorId  String?
+  memberId  String?
+  source    String    @default("discord")
+  // The addon's own reference for a post from the game, so a resent upload posts it once.
+  clientRef String?
+  channelId String?
+  messageId String?
+  removedAt DateTime?
+  createdAt DateTime  @default(now())
+  guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, clientRef])
+  @@index([guildId, createdAt])
 }
 
 // A character the addons revealed (through the guild digest) that no Discord

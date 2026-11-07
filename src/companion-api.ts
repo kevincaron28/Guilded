@@ -15,6 +15,7 @@ import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/compa
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
 import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
+import { liveNewsFeed } from "./services/news-feed.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
@@ -330,7 +331,7 @@ export function createSiteApp(client?: Client) {
     status: discordUserId => memberLinkStatus(prisma, discordUserId)
   };
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),

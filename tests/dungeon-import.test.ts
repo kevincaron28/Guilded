@@ -8,7 +8,7 @@ import { novemberRulesFixture, novemberFixtures } from "./fixtures/november-rout
 interface StoredPlayer { character: string; memberId: string | null; deaths: number | null }
 interface StoredRun {
   id: string; runRef: string; instanceId: number; difficultyId: number; state: string; valid: boolean;
-  invalidReason: string | null; startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: StoredPlayer[];
+  invalidReason: string | null; startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: StoredPlayer[]; competitionData?: Record<string, unknown>;
 }
 
 function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: string; ratingRules?: unknown } = { id: "season-1", startsAt: new Date(0), ratingRules: ratingService.createDungeonRatingRules({}, 3, { "36": { min: 15, max: 25, difficultyId: 1 } }) }) {
@@ -431,5 +431,19 @@ describe("observer copies of one run", () => {
     const { tx, runs } = fakeTx();
     await importDungeonRuns(tx, "g1", [copies()[0]!, reported("QG-other", ["Hulke Hogan", "Zed", "Liz", "Amy", "Bob"], 60, 5000)], known, "officer", null, now);
     expect(runs).toHaveLength(2);
+  });
+});
+
+describe("death positions", () => {
+  it("are stored with the run and returned for the card; runs without them are unchanged", async () => {
+    const { tx, runs } = fakeTx();
+    const points = [{ x: 0.2, y: 0.4, map: 9, character: "Kev" }];
+    const summary = await importDungeonRuns(tx, "g1", [run("with-points", { deathPoints: points })], characters, "officer", null, now);
+    expect(summary.results[0]?.deathPoints).toEqual(points);
+    expect(runs[0]).toMatchObject({ competitionData: { deathPoints: points } });
+    const plain = fakeTx();
+    const result = await importDungeonRuns(plain.tx, "g1", [run("no-points")], characters, "officer", null, now);
+    expect(result.results[0]).not.toHaveProperty("deathPoints");
+    expect(plain.runs[0]!.competitionData).not.toHaveProperty("deathPoints");
   });
 });

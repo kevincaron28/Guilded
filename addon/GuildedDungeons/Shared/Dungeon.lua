@@ -210,6 +210,33 @@ local function newRun(instance)
   return run
 end
 
+-- Death positions (9.1): where in the dungeon the group fell, for the death map on the run card.
+-- Each client records its OWN death (position of the player unit) and tells the group with a separate
+-- DPOS message, so older clients that do not know it simply ignore it. Positions are thousandths (0..1000)
+-- of the map, per uiMapID; at most MAX_DEATH_POINTS per run. Unknown positions (indoor maps that return
+-- nothing or 0,0) are never recorded.
+local MAX_DEATH_POINTS = 60
+local function playerPosition()
+  if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then return nil end
+  local okMap, mapId = pcall(C_Map.GetBestMapForUnit, "player")
+  if not okMap or type(mapId) ~= "number" or ns.isSecret(mapId) or mapId <= 0 then return nil end
+  local okPos, position = pcall(C_Map.GetPlayerMapPosition, mapId, "player")
+  if not okPos or type(position) ~= "table" or not position.GetXY then return nil end
+  local okXY, x, y = pcall(position.GetXY, position)
+  if not okXY or type(x) ~= "number" or type(y) ~= "number" or ns.isSecret(x) or ns.isSecret(y) then return nil end
+  if x < 0 or x > 1 or y < 0 or y > 1 or (x == 0 and y == 0) then return nil end
+  return math.floor(x * 1000 + 0.5), math.floor(y * 1000 + 0.5), mapId
+end
+local function addDeathPoint(run, name, x, y, mapId)
+  if type(run) ~= "table" or type(name) ~= "string" then return false end
+  x, y, mapId = tonumber(x), tonumber(y), tonumber(mapId)
+  if not x or not y or not mapId or x < 0 or x > 1000 or y < 0 or y > 1000 or mapId <= 0 or mapId > 100000 then return false end
+  run.deathPoints = run.deathPoints or {}
+  if #run.deathPoints >= MAX_DEATH_POINTS then return false end
+  table.insert(run.deathPoints, { name = name, x = math.floor(x) / 1000, y = math.floor(y) / 1000, map = math.floor(mapId) })
+  return true
+end
+
 local function save(run)
   local d = db()
   if d then d.current = run end
@@ -643,6 +670,12 @@ local function onAddonMessage(text, sender)
       player.addon = true
       player.deaths = math.max(player.deaths or 0, tonumber(count) or 0)
     end
+  elseif kind == "DPOS" then
+    local id, name, x, y, mapId = string.match(text, "^DPOS|([^|]+)|([^|]+)|(%d+)|(%d+)|(%d+)$")
+    name = name and ns.normalizeName(name)
+    local target = (run and run.id == id) and run or (d and d.runs[id or ""])
+    -- Only the player's own death position, only for a player already in that run.
+    if target and name == sender and target.players[name] then addDeathPoint(target, name, x, y, mapId) end
   elseif kind == "END" then
     local id, state, endedAt, reason = string.match(text, "^END|([^|]+)|(%u+)|(%d+)|(.*)$")
     -- Only the run's recorder or the group leader can end the run for everyone, and only
@@ -878,6 +911,10 @@ local function onEvent(_, event, ...)
       run.players[me()] = mine
       mine.addon = true
       mine.deaths = (mine.deaths or 0) + 1
+      local x, y, mapId = playerPosition()
+      if x and addDeathPoint(run, me(), x, y, mapId) then
+        send(string.format("DPOS|%s|%s|%d|%d|%d", run.id, me(), x, y, mapId))
+      end
       save(run)
       send(string.format("DEATH|%s|%s|%d", run.id, me(), mine.deaths))
     end

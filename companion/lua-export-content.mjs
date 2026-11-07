@@ -644,6 +644,13 @@ export function exportDungeonRuns(database, realm, options = {}) {
           ...(Number.isInteger(encounter.at) && encounter.at > 0 ? { at: encounter.at } : {}),
           ...(Number.isInteger(encounter.startedAt) && encounter.startedAt > 0 ? { startedAt: encounter.startedAt } : {}) }];
       }),
+      // Death positions (9.1): fractions of a map, per uiMapID, at most 60 per run; anything out of range is dropped.
+      ...(run.deathPoints ? { deathPoints: Object.values(run.deathPoints).slice(0, 60).flatMap(point => {
+        if (!point || typeof point !== "object") return [];
+        const x = Number(point.x), y = Number(point.y), map = Number(point.map);
+        if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1) || !Number.isInteger(map) || map <= 0 || map > 100000) return [];
+        return [{ x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000, map, ...(typeof point.name === "string" && point.name ? { character: point.name.slice(0, 40) } : {}) }];
+      }) } : {}),
       reporters: Object.keys(run.reporters ?? {}).length || 1,
       // Who reported it, so the bot can check at least one of them was in the run.
       ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dungeonPosts, DUNGEON_TIMELINE_PREFIX } from "../src/services/dungeon-announce.js";
-import { dungeonRunCard, dungeonTheme, finalBoss } from "../src/services/dungeon-card.js";
+import { deathPointsOf, dungeonRunCard, dungeonTheme, finalBoss } from "../src/services/dungeon-card.js";
 import type { DungeonImportResult } from "../src/services/dungeon-import.js";
 import { scoreCardPng } from "../src/services/score-card.js";
 
@@ -128,5 +128,20 @@ describe("dungeonRunCard", () => {
       expect(png?.subarray(0, 4).toString("hex")).toBe("89504e47");
       expect(png!.length).toBeGreaterThan(5000);
     }
+  }, 60_000);
+});
+
+describe("death positions on the card", () => {
+  const base = result({ dungeonName: "Wailing Caverns" });
+  it("draws the map with the most deaths, and none when the run recorded none", () => {
+    expect(dungeonRunCard(base, "en").dungeon!.deathPoints).toBeUndefined();
+    const run = { ...base, deathPoints: [{ x: 0.1, y: 0.2, map: 1 }, { x: 0.3, y: 0.4, map: 2 }, { x: 0.5, y: 0.6, map: 2 }] };
+    expect(deathPointsOf(run)).toEqual([{ x: 0.3, y: 0.4 }, { x: 0.5, y: 0.6 }]);
+    expect(dungeonRunCard(run, "fr").dungeon!.deathPoints).toEqual([{ x: 0.3, y: 0.4 }, { x: 0.5, y: 0.6 }]);
+    expect(dungeonRunCard(run, "fr").dungeon!.deathMapLabel).toBe("Où le groupe est tombé");
+  });
+  it("renders a PNG with recorded positions", async () => {
+    const png = await scoreCardPng(dungeonRunCard({ ...base, deathPoints: Array.from({ length: 12 }, (_, i) => ({ x: (i % 6) / 6 + 0.05, y: 0.2 + (i % 3) * 0.25, map: 9 })) }, "en"));
+    expect(png?.subarray(0, 4).toString("hex")).toBe("89504e47");
   }, 60_000);
 });

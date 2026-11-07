@@ -76,6 +76,18 @@ export function dungeonTheme(name: string): DungeonVisual["theme"] {
   return { a: `hsl(${hue} 55% 12%)`, b: `hsl(${(hue + 25) % 360} 50% 36%)`, motif: motifs[seed % motifs.length]!, seed };
 }
 
+/**
+ * The death positions worth drawing: a dungeon has several floors (uiMapIDs) and points on different maps cannot share one
+ * grid, so only the map with the most deaths is drawn. Empty when the run recorded none.
+ */
+export function deathPointsOf(run: Run): { x: number; y: number }[] {
+  const points = run.deathPoints ?? [];
+  const counts = new Map<number, number>();
+  for (const point of points) counts.set(point.map, (counts.get(point.map) ?? 0) + 1);
+  const best = [...counts].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0];
+  return points.filter((point) => point.map === best).map(({ x, y }) => ({ x, y }));
+}
+
 export interface DungeonCardOptions {
   /** Death positions as 0..1 map coordinates, when the addon recorded them (see docs/DUNGEON_CARDS.md). */
   deathPoints?: { x: number; y: number }[];
@@ -89,6 +101,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
   const fr = lang === "fr";
   const t = (en: string, french: string) => fr ? french : en;
   const party = partyOf(run);
+  const deathPoints = options.deathPoints?.length ? options.deathPoints : deathPointsOf(run);
   const tracked = party.filter((row) => row.detail.deaths !== null && row.detail.deaths !== undefined).length;
   const totalDeaths = party.reduce((sum, row) => sum + (row.detail.deaths ?? 0), 0);
   const boss = finalBoss(run);
@@ -126,7 +139,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
       }),
       mapKey: run.dungeonName.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
       guildLabel: t("Guild", "Guilde"), outsiderLabel: t("Outside guild", "Hors guilde"), moreLabel: t("more", "autres"),
-      ...(options.deathPoints?.length ? { deathPoints: options.deathPoints.slice(0, 200), deathMapLabel: t("Where the party fell", "Où le groupe est tombé") } : {})
+      ...(deathPoints.length ? { deathPoints: deathPoints.slice(0, 200), deathMapLabel: t("Where the party fell", "Où le groupe est tombé") } : {})
     }
   };
 }

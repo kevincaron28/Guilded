@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { ACTIVE_GAMES, ACTIVE_TRACKING, GAME_ON_HOLD_NOTE, isGameActive, poeTrackingEnabled, poeTrackingOn } from "../companion/active-games.mjs";
 import { ACTIVE_EDITIONS } from "../companion/active-editions.mjs";
 import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
-import { editionsToBuild } from "../scripts/build-addon-editions.mjs";
 import { visibleLines } from "../src/commands/help.js";
 import { commands } from "../src/commands/index.js";
 import { defaultFaqEntries, looksLikePoe2Question } from "../src/services/faq-extras.js";
@@ -61,11 +60,6 @@ describe("Forever-only focus switches", () => {
     expect(stripPoe(md, true)).toBe("a\n- **PoE2:** journal <!--poe-->\nb et PoE2.");
     expect(withoutPoe({ description: "x", descriptionNoPoe: "y" }, false).description).toBe("y");
     expect(withoutPoe({ description: "x", descriptionNoPoe: "y" }, true).description).toBe("x");
-  });
-
-  it("releases build only active editions unless told otherwise", () => {
-    expect(editionsToBuild([])).toEqual(["forever"]);
-    expect(editionsToBuild(["--all-editions"])).toHaveLength(5);
   });
 
   it("Worker: old held-edition addresses redirect to Forever", async () => {

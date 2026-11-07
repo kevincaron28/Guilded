@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { displayCharacterName } from "../src/services/character-display.js";
 import { calculateDungeonRating, competitionReason, dungeonRating, type RatingRun } from "../src/services/dungeon-rating.js";
 import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
-import { dungeonAnnouncement } from "../src/services/dungeon-announce.js";
+import { dungeonPosts } from "../src/services/dungeon-announce.js";
 import { withFullDisplayNames, type LeaderRun } from "../src/services/public-leaderboard.js";
 
 // Credit people even without the addon; an unknown level drops one player, never the run; full names everywhere.
@@ -87,9 +87,11 @@ describe("full character names", () => {
   it("shows the full name in the run post", () => {
     const summary = { results: [{ valid: true, state: "COMPLETED", durationSec: 1200, runRef: "QG-1", dungeonName: "Ragefire Chasm", difficultyId: 0, players: ["El"], unlinked: [], inGuildPlayers: ["El"],
       fullNames: { El: "El Pirata" }, playerDetails: [{ character: "El", points: 100, deaths: 0 }], personalRecords: [], achievements: [], mentions: {} }] } as never;
-    const text = dungeonAnnouncement(summary, "en")?.data.description ?? "";
+    const post = dungeonPosts(summary, "en")[0];
+    const text = post?.embed.data.description ?? "";
     expect(text).toContain("**El Pirata**");
     expect(text).not.toContain("**El**");
+    expect(post?.card.dungeon?.party[0]?.name).toBe("El Pirata");
   });
   it("shows the full name on public pages when the same runs know it", () => {
     const player = (character: string, displayName: string | null) => ({ character, displayName, realm: "", className: null, role: null, level: 16, minLevel: 16 });

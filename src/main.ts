@@ -62,6 +62,8 @@ import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js"
 import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
 import { executeCore } from "./commands/core.js";
 import { ACHIEVEMENT_SHARE_PREFIX, handleAchievementShare } from "./commands/achievements.js";
+import { handleDungeonTimeline } from "./commands/dungeon-post.js";
+import { DUNGEON_TIMELINE_PREFIX } from "./services/dungeon-announce.js";
 import { syncAllRankRoles } from "./services/rank-roles.js";
 import { syncAllNicknames } from "./services/nickname-sync.js";
 import { postAllWeeklyPromotions } from "./services/promotion.js";
@@ -826,6 +828,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isButton() && interaction.customId.startsWith(CRAFT_PREFIX)) {
     await handleCraftButton(interaction).catch((error: unknown) => reportInteractionError("Craft button", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(DUNGEON_TIMELINE_PREFIX)) {
+    await handleDungeonTimeline(interaction).catch((error: unknown) => reportInteractionError("Dungeon timeline", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(ACHIEVEMENT_SHARE_PREFIX)) {

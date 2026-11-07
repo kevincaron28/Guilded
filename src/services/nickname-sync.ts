@@ -6,7 +6,7 @@ import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 // 8.5 track C2: nickname sync. Each member's server nickname becomes "Name (Main First Last)", where Name is the member's
 // OWN server nickname when they set one (9.0, owner decision), else their global display name, else their username
 // (the officer can pick another format), capped at 32
-// characters. A member can opt out any time (/character nickname off) and gets the nickname they had back.
+// characters. Turning the sync off restores everyone's previous nickname.
 // The bot never renames the server owner, bots or anyone it cannot manage (a role above the bot's), and it
 // remembers the original nickname (MemberNickname) so turning the feature off restores everyone.
 
@@ -83,7 +83,7 @@ export interface NicknameChange { discordUserId: string; nickname: string; origi
 export function planNicknames(people: readonly NicknamePerson[], format = DEFAULT_NICKNAME_FORMAT): NicknameChange[] {
   const changes: NicknameChange[] = [];
   for (const person of people) {
-    if (person.skip || person.record?.optedOut || !person.mainName) continue;
+    if (person.skip || !person.mainName) continue; // an old opt-out flag is ignored: everyone is renamed
     // Our own earlier rename is not the member's nickname: their own one is the stored original. A different current
     // nickname is theirs (they changed it), so it becomes the new base and the new original. Either way a trailing "(main)"
     // is dropped before reuse, so the suffix can never double.
@@ -168,7 +168,7 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   stats.notManageable = people.filter((person) => person.skip).length;
   const planned = new Set(changes.map((change) => change.discordUserId));
   const rest = people.filter((person) => !person.skip && !planned.has(person.discordUserId));
-  stats.optedOutOrNoFit = rest.filter((person) => person.record?.optedOut || !person.mainName || !nicknameFor(person.nickname ?? person.accountName, person.mainName, format)).length;
+  stats.optedOutOrNoFit = rest.filter((person) => !person.mainName || !nicknameFor(person.nickname ?? person.accountName, person.mainName, format)).length;
   stats.upToDate = rest.length - stats.optedOutOrNoFit;
   if (options.dryRun) return { changes, applied: 0, failed: 0, skipped: null, stats };
   let applied = 0, failed = 0;

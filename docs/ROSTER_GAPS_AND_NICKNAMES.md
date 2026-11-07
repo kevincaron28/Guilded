@@ -13,7 +13,7 @@ Bots and members holding an ignored role are left out (`/officer roster ignore r
 ## Nickname sync (C2), on by default
 `/officer roster nicknames on:true [format:...] [apply:true]`. Default format `{name} ({full})` = `kevmister28 (Lebowski Holyroller)`: the Discord username or global name (never the current nickname, so re-syncs do not nest) plus the main's full Forever name. Over 32 characters it falls back to `Name(First Last)`, then `Name(First L.)`, then `Name(First)`, then a shortened Discord name with … keeping `(First)`; the Discord name is never dropped, and a member whose name still does not fit is skipped. `{main}` = first name only is available in a custom format. Runs hourly next to rank roles (`nickname-sync.ts`), previews unless `apply:true`.
 - Skips the server owner, bots, anyone whose role is above the bot's, and members without a linked character.
-- The nickname a member had is stored (`MemberNickname`). A member runs `/character nickname on:false` to opt out and gets it back; turning the sync off restores everyone. A nickname the member changed themselves is never overwritten on restore.
+- The nickname a member had is stored (`MemberNickname`). There is no member opt-out (7 November 2026: `/character nickname` was removed and old opt-out flags are ignored); turning the sync off restores everyone. A nickname the member changed themselves is never overwritten on restore.
 - If the bot lacks Manage Nicknames the sync quietly does nothing and `/setup` warns. `/setup` adds an optional "Nickname sync permission" check (Manage Nicknames) while the sync is on.
 - Needs Manage Nicknames. It is deliberately not in `REQUIRED_BOT_PERMISSIONS`, so servers that never use the feature are not asked for it.
 

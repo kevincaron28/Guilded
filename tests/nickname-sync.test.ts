@@ -44,8 +44,8 @@ describe("nickname plan", () => {
     expect(planNicknames([person({ nickname: null })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Halidor Galemorne)", originalNickname: null }]);
     expect(planNicknames([person({ nickname: null, accountName: "kevin_username" })])[0]).toMatchObject({ nickname: "kevin_username(Halidor G.)" }); // the usual 32-character fallback
   });
-  it("skips opted-out members, the owner/unmanageable (skip), and members with no main", () => {
-    expect(planNicknames([person({ record: { originalNickname: null, appliedNickname: null, optedOut: true } }), person({ discordUserId: "u2", skip: true }), person({ discordUserId: "u3", mainName: null })])).toEqual([]);
+  it("ignores an old opt-out flag, and skips the owner/unmanageable (skip) and members with no main", () => {
+    expect(planNicknames([person({ discordUserId: "u0", record: { originalNickname: null, appliedNickname: null, optedOut: true } }), person({ discordUserId: "u2", skip: true }), person({ discordUserId: "u3", mainName: null })]).map((c) => c.discordUserId)).toEqual(["u0"]);
   });
   it("is idempotent, and follows a main change from the stored original without nesting", () => {
     const applied = { originalNickname: "Kev", appliedNickname: "Kev (Halidor Galemorne)", optedOut: false };

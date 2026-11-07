@@ -79,6 +79,8 @@ for (const name of ["logo-88.webp", "favicon.png", "apple-touch-icon.png"]) copy
 cpSync("site/images/social", `${out}/images/social`, { recursive: true });
 cpSync("site/images/cards", `${out}/images/cards`, { recursive: true });
 cpSync("site/creator", `${out}/creator`, { recursive: true });
+// Guide screenshots (docs/SCREENSHOT_SHOTLIST.md): captured later; until a file exists the page shows a marked placeholder.
+if (existsSync("site/assets")) cpSync("site/assets", `${out}/assets`, { recursive: true });
 writeFileSync(`${out}/creator/index.html`, renderVersions(readFileSync("site/creator/index.html", "utf8")));
 mkdirSync(`${out}/images/showcase`, { recursive: true });
 for (const name of readdirSync("site/images/showcase")) {

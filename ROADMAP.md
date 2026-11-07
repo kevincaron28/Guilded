@@ -127,6 +127,11 @@ State words: **Released** = in a published client (members have it); **Live** = 
 Standings, craft board and public-runs timeouts (#527, #528, #563); deploys at low priority (#562); community honors refusal warning (#526);
 dungeon board one row per player (#538); public rankings guild table, runs and guild pages (#522); records (#523).
 
+Bug sweep 7 Nov 19:15 UTC: no member reports. Every bot error in the last two hours (about 30, P2028 and pg timeouts) fell inside
+deploy windows: the build starved the 1 GB server. Fixed by #562 (low priority) and #572 (reuse node_modules when the lock is
+unchanged, capped build heap); the 19:05 deploy logged no errors. 25 saved reports resolved. Also live since 9.0.2: correct roles on
+dungeon cards (#569), online officers tagged for invite requests (#570), world PvP board (#565), Forever-only bot part 1 (#573).
+
 ### Waiting for owner
 
 - **Release 9.0.3** (world PvP client parts) and **CurseForge review** of 9.0.2; Store submission (skipped for 9.0.1 and 9.0.2, his call).

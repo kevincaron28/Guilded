@@ -19,6 +19,8 @@ export function createCraftService(database: Db) {
     async request(input: {
       guildId: string; requesterId: string; item: string; profession?: string | undefined;
       quantity: number; note?: string | undefined; materialsProvided: boolean; offerId?: string | undefined;
+      // Crafting orders in game (craft-orders.ts): the recipe's addon key and the character it was asked of.
+      itemKey?: number | null | undefined; askedCharacter?: string | undefined;
     }) {
       const item = input.item.trim();
       if (item.length < 2) throw new Error("Name the item you want crafted.");
@@ -36,7 +38,9 @@ export function createCraftService(database: Db) {
           quantity: input.quantity,
           note: input.note?.trim().slice(0, 300) || null,
           materialsProvided: input.materialsProvided,
-          offerId: input.offerId ?? null
+          offerId: input.offerId ?? null,
+          itemKey: input.itemKey ?? null,
+          askedCharacter: input.askedCharacter?.trim().slice(0, 60) || null
         }
       });
     },
@@ -70,7 +74,7 @@ export function createCraftService(database: Db) {
       // Conditional update so two crafters clicking at once can't both win.
       const updated = await database.craftRequest.updateMany({
         where: { id: request.id, status: "OPEN" },
-        data: { status: "CLAIMED", crafterId, claimedAt: new Date() }
+        data: { status: "CLAIMED", crafterId, claimedAt: new Date(), crafterCharacter: null, claimSource: "discord" }
       });
       if (updated.count !== 1) throw new Error("Someone else just claimed it.");
       return find(guildId, requestId);
@@ -80,7 +84,7 @@ export function createCraftService(database: Db) {
       const request = await find(guildId, requestId);
       if (request.status !== "CLAIMED") throw new Error("Only claimed requests can be released.");
       if (request.crafterId !== memberId && !isOfficer) throw new Error("Only the crafter or an officer can release it.");
-      await database.craftRequest.update({ where: { id: request.id }, data: { status: "OPEN", crafterId: null, claimedAt: null } });
+      await database.craftRequest.update({ where: { id: request.id }, data: { status: "OPEN", crafterId: null, claimedAt: null, crafterCharacter: null, claimSource: null } });
       return find(guildId, requestId);
     },
 

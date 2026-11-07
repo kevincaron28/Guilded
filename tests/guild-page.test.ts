@@ -104,6 +104,19 @@ describe("guild page server", () => {
     expect((await pages.respond("GET", "/g/quebec-gold/admin"))!.status).toBe(404);
   });
 
+  it("serves the published page as JSON for the phone app and 404s an unknown slug", async () => {
+    const pages = createGuildPageServer(async (slug) => (slug === "quebec-gold" ? view() : null));
+    const ok = (await pages.respond("GET", "/g/quebec-gold/guild.json"))!;
+    expect(ok.status).toBe(200);
+    expect(ok.headers["content-type"]).toContain("application/json");
+    const data = JSON.parse(ok.body) as { slug: string; cores: unknown[] };
+    expect(data.slug).toBe("quebec-gold");
+    expect(Array.isArray(data.cores)).toBe(true);
+    expect(ok.body).not.toContain("discordId");
+    expect((await pages.respond("GET", "/g/nobody/guild.json"))!.status).toBe(404);
+    expect((await pages.respond("POST", "/g/quebec-gold/guild.json"))!.status).toBe(405);
+  });
+
   it("keeps a rendered copy so repeat visits do not reach the database", async () => {
     let now = 0;
     const load = vi.fn(async (slug: string) => (slug === "quebec-gold" ? view() : null));

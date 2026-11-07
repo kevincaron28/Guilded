@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { ACTIVE_GAMES, ACTIVE_TRACKING, GAME_ON_HOLD_NOTE, isGameActive, poeTrackingEnabled, poeTrackingOn } from "../companion/active-games.mjs";
-import { ACTIVE_EDITIONS } from "../companion/active-editions.mjs";
 import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 import { visibleLines } from "../src/commands/help.js";
 import { commands } from "../src/commands/index.js";
@@ -9,11 +8,10 @@ import { offeredCommunityGames } from "../src/services/community-rules.js";
 import { ACHIEVEMENTS, achievementById } from "../src/services/achievements-catalogue.js";
 import worker from "../worker/index.mjs";
 
-// The Forever-only focus: switches in companion/active-editions.mjs and companion/active-games.mjs.
-// Hidden is not deleted, and flipping a switch brings every surface back.
+// The PoE2 switches in companion/active-games.mjs (hidden is not deleted, flipping brings it back). The other WoW
+// editions are removed, not switched off (docs/plans/FOREVER_ONLY_REMOVAL.md).
 describe("Forever-only focus switches", () => {
-  it("ships with Forever, the PoE2 Discord community, and PoE2 tracking off", () => {
-    expect([...ACTIVE_EDITIONS]).toEqual(["forever"]);
+  it("ships with the PoE2 Discord community and PoE2 tracking off", () => {
     expect([...ACTIVE_GAMES]).toEqual(["wow", "poe2"]);
     expect([...ACTIVE_TRACKING]).toEqual([]);
     expect(isGameActive("poe2")).toBe(true);

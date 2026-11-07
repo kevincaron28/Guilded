@@ -1,13 +1,15 @@
-import { gameEditionOf, type GameEdition } from "../../companion/game-edition.mjs";
+import { assertForeverEdition, FOREVER_ONLY_MESSAGE, gameEditionOf, SUPPORTED_EDITION, type GameEdition } from "../../companion/game-edition.mjs";
 import type { AddonSnapshot } from "../integrations/addon.js";
 
-export { gameEditionOf, type GameEdition };
+export { assertForeverEdition, FOREVER_ONLY_MESSAGE, gameEditionOf, SUPPORTED_EDITION, type GameEdition };
 
 export class GameEditionError extends Error {}
 
 /** Validate the complete envelope before any linking, relay or ledger writes. */
 export function assertSnapshotEdition(snapshot: AddonSnapshot, expected: GameEdition): void {
   try {
+    // WoW Forever only: an upload from another WoW version is refused, even for an old guild of that version.
+    assertForeverEdition(gameEditionOf(snapshot));
     if (gameEditionOf(snapshot) !== expected) throw new Error(`This guild uses ${expected}; select a saved file from that WoW edition.`);
     for (const character of [snapshot.character, ...snapshot.alts, ...snapshot.characters]) {
       if (!character) continue;

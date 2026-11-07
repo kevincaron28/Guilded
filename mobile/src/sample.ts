@@ -4,25 +4,25 @@
 export const sampleHubBody = {
   me: { officer: false, raidLeader: false },
   updatedAt: "2026-11-03T18:00:00.000Z",
-  guild: { name: "Northwind", edition: "retail" },
+  guild: { name: "Northwind", edition: "forever" },
   link: { battleNet: true, characters: true, battleTag: "Northwind#1234" },
   characters: [
     {
       id: "char-aelira", name: "Aelira", displayName: null, realm: "Silvermoon", className: "Shaman", spec: "Restoration", level: 80,
-      isMain: true, edition: "retail", rank: "Raider",
-      guild: { name: "Northwind", edition: "retail", current: true, discordId: "100", serverName: "Northwind" },
+      isMain: true, edition: "forever", rank: "Raider",
+      guild: { name: "Northwind", edition: "forever", current: true, discordId: "100", serverName: "Northwind" },
       cores: [{ id: "core-thu", name: "Thursday", role: "HEALER", bench: false, trial: false, backup: false, lootMode: "RESERVE" }]
     },
     {
       id: "char-borin", name: "Borin", displayName: null, realm: "Silvermoon", className: "Warrior", spec: "Protection", level: 80,
-      isMain: false, edition: "retail", rank: "Raider",
-      guild: { name: "Northwind", edition: "retail", current: true, discordId: "100", serverName: "Northwind" },
+      isMain: false, edition: "forever", rank: "Raider",
+      guild: { name: "Northwind", edition: "forever", current: true, discordId: "100", serverName: "Northwind" },
       cores: [{ id: "core-thu", name: "Thursday", role: "TANK", bench: true, trial: false, backup: false, lootMode: "RESERVE" }]
     },
     {
       id: "char-cindra", name: "Cindra", displayName: null, realm: "Silvermoon", className: "Mage", spec: "Frost", level: 78,
-      isMain: false, edition: "retail", rank: null,
-      guild: { name: "Northwind", edition: "retail", current: true, discordId: "100", serverName: "Northwind" },
+      isMain: false, edition: "forever", rank: null,
+      guild: { name: "Northwind", edition: "forever", current: true, discordId: "100", serverName: "Northwind" },
       cores: []
     }
   ],
@@ -44,7 +44,7 @@ export const sampleHubBody = {
 export const sampleManageBody = {
   me: { officer: false, raidLeader: false },
   updatedAt: "2026-11-03T18:00:00.000Z",
-  edition: "retail",
+  edition: "forever",
   guildName: "Northwind",
   characters: [
     {
@@ -73,7 +73,7 @@ const soon = new Date(Date.now() + 30 * 60_000).toISOString();
 const later = new Date(Date.now() + 2 * day).toISOString();
 
 export const sampleStandingsBody = {
-  gameEdition: "retail",
+  gameEdition: "forever",
   wowGuildName: "Northwind",
   updatedAt: "2026-11-03T18:00:00.000Z",
   nextRaid: {

@@ -1,6 +1,19 @@
-// Shared by the browser/native companion and bot. Edition identity is separate
-// from release support: recognizing a client does not certify its APIs.
+// Shared by the companion and the bot. Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md).
+// GAME_EDITIONS still names the removed editions because stored rows (guilds, characters, runs, seasons)
+// carry their ids and must stay readable: this file PARSES any of them. New data is refused at the upload
+// entry points with assertForeverEdition().
 export const GAME_EDITIONS = /** @type {const} */ (["forever", "classic-era", "classic-tbc", "classic-mists", "retail"]);
+
+/** The only edition Guilded accepts new data for. */
+export const SUPPORTED_EDITION = "forever";
+
+/** The one plain answer to data from another WoW version. */
+export const FOREVER_ONLY_MESSAGE = "Guilded supports WoW Forever only. This data comes from another WoW version; nothing was saved.";
+
+/** Throws FOREVER_ONLY_MESSAGE unless the edition is WoW Forever. @param {string} edition */
+export function assertForeverEdition(edition) {
+  if (edition !== SUPPORTED_EDITION) throw new Error(FOREVER_ONLY_MESSAGE);
+}
 
 /** @typedef {typeof GAME_EDITIONS[number]} GameEdition */
 

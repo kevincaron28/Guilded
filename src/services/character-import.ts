@@ -3,7 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { findCharacter } from "./character-match.js";
 import { createGuildService } from "./guild.js";
 import { BRAND } from "../brand.js";
-import { gameEditionOf, type GameEdition } from "./game-edition.js";
+import { assertForeverEdition, gameEditionOf, type GameEdition } from "./game-edition.js";
 
 // Turns what the addon captured about a character into a linked Character,
 // so members paste one line instead of typing name, realm, class, race, ...
@@ -94,6 +94,7 @@ export async function importCharacter(
   const owner = await database.member.findUnique({ where: { id: memberId }, select: { guildId: true, guild: { select: { gameEdition: true } } } });
   if (!owner) throw new Error("Your member profile was not found.");
   const gameEdition = gameEditionOf(parsed);
+  assertForeverEdition(gameEdition);
   if (gameEdition !== gameEditionOf(owner.guild ?? {})) throw new Error("Select the matching WoW guild with /wow use before importing this character.");
   // Same name in this guild, tolerating a different realm spelling (Forever has no real realms).
   const sameName = await database.character.findMany({

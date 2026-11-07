@@ -14,7 +14,7 @@ describe("mobile companion client", () => {
   });
 
   it("reads a guild grant and a personal grant", () => {
-    expect(parseGrant({ companionCredential: "a".repeat(43), guildDiscordId: "123456789", wowGuildName: "Northwind", gameEdition: "retail" })).toMatchObject({
+    expect(parseGrant({ companionCredential: "a".repeat(43), guildDiscordId: "123456789", wowGuildName: "Northwind", gameEdition: "forever" })).toMatchObject({
       personal: false, guildDiscordId: "123456789", guildName: "Northwind"
     });
     expect(parseGrant({ companionCredential: "b".repeat(43), personal: true })?.personal).toBe(true);

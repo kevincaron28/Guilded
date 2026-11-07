@@ -15,6 +15,7 @@ import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/compa
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
 import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
+import { liveNewsFeed } from "./services/news-feed.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
@@ -93,7 +94,7 @@ import { postCraftRequest } from "./commands/craft-board.js";
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
-import { createLeaderboardPages, prismaLeaderboardStore } from "./services/public-leaderboard.js";
+import { createLeaderboardPages, guildDungeonSummary, prismaLeaderboardStore } from "./services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
@@ -213,7 +214,17 @@ const auditService = createAuditService(prisma);
 const manage = createCompanionManage(prisma);
 const hub = createCompanionHub(prisma, { baselineAchievements: (guildId) => baselineAchievements(prisma, guildId) });
 // Public guild pages (/g/<slug>/): read-only HTML, no pairing needed.
-const guildPages = createGuildPageServer((slug) => loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id)));
+// A guild that publishes its runs also shows its members' top scores, recent runs and records there.
+const guildPageRuns = prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id));
+const guildPages = createGuildPageServer(async (slug) => {
+  const view = await loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id));
+  if (view?.dungeonPage && view.guildId) {
+    const guildId = view.guildId;
+    view.dungeons = await withEdition(gameEditionOf({ gameEdition: view.edition ?? "forever" }), async () => guildDungeonSummary(guildPageRuns, guildId, await loadOfficialWindows(prisma)))
+      .catch((error: unknown) => { console.warn("Guild page dungeon section failed:", error); return null; });
+  }
+  return view;
+});
 
 // The website's signed-in pages (/auth/, /recruitment/, /me/, /leaderboards/), served through the Worker.
 async function readForm(request: IncomingMessage, path: string): Promise<string> {
@@ -320,7 +331,7 @@ export function createSiteApp(client?: Client) {
     status: discordUserId => memberLinkStatus(prisma, discordUserId)
   };
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),

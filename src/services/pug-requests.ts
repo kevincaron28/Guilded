@@ -300,7 +300,7 @@ export interface PublicPugRequest {
 /** Open requests for one edition. Internal ids (guild, creator, raid) and sign-up details never leave. */
 export async function publicPugRequests(db: Db, edition: string, allows: Allows, now = new Date()): Promise<PublicPugRequest[]> {
   const rows = await db.pugRequest.findMany({
-    where: { status: "OPEN", edition, expiresAt: { gt: now }, scheduledAt: { gt: now }, guild: { pugBoard: { isNot: null } } },
+    where: { status: "OPEN", edition, expiresAt: { gt: now }, scheduledAt: { gt: now }, guild: { isTestServer: false, pugBoard: { isNot: null } } },
     include: { guild: { select: { name: true, discordId: true } }, signups: { select: { role: true, status: true } } },
     orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 100
   });

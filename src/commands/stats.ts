@@ -14,6 +14,8 @@ import { guildService, requireGuildContext } from "./context.js";
 import { runDiscordJobs } from "../services/discord-jobs.js";
 import { queueWeeklyWowReport } from "../services/weekly-report-delivery.js";
 import { personalWeeklyRecap, personalWeeklyRecapEmbed } from "../services/personal-weekly-recap.js";
+import { dailyRecap, dailyRecapCard, dailyRecapEmbed, queueDailyRecaps, recapDay, recapIsEmpty } from "../services/daily-recap.js";
+import { hasPermission } from "../permissions.js";
 
 export const statsCommand = new SlashCommandBuilder()
   .setName("stats")
@@ -21,6 +23,8 @@ export const statsCommand = new SlashCommandBuilder()
   .addBooleanOption(o => o.setName("personal").setDescription("Private weekly recap; excludes guild days/core filters")
     .setDescriptionLocalizations({ fr: "Bilan hebdomadaire privé; sans filtres jours/core" }))
   .addBooleanOption(o => o.setName("server").setDescription("Server statistics: members, activity and a class chart").setDescriptionLocalizations({ fr: "Statistiques du serveur : membres, activité, graphique des classes" }))
+  .addBooleanOption(o => o.setName("recap").setDescription("Yesterday's daily recap card, privately").setDescriptionLocalizations({ fr: "Le bilan d'hier, en privé" }))
+  .addBooleanOption(o => o.setName("recap-posts").setDescription("Officers: post the daily recap (default on)").setDescriptionLocalizations({ fr: "Officiers : publier le bilan quotidien (actif par défaut)" }))
   .addIntegerOption((o) => o.setName("days").setDescription("How far back (default 7)").setMinValue(1).setMaxValue(365))
   .addStringOption(o => o.setName("core").setDescription("Raid core (defaults to this channel)").setAutocomplete(true));
 
@@ -63,6 +67,33 @@ export async function executeStats(interaction: ChatInputCommandInteraction): Pr
       return;
     }
     await interaction.editReply({ embeds: [personalWeeklyRecapEmbed(await personalWeeklyRecap(prisma, context.guildId, interaction.user.id), lang)], allowedMentions: { parse: [] } });
+    return;
+  }
+  const recapPosts = interaction.options.getBoolean("recap-posts");
+  if (recapPosts !== null) {
+    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
+    if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) throw new Error(lang === "fr" ? "Réservé aux officiers." : "Officers only.");
+    // Turning it back on resumes from today: the days in between are not posted late.
+    await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { dailyRecapEnabled: recapPosts, ...(recapPosts ? { dailyRecapLastDay: recapDay(new Date(), (await guildService.getSettings(context.guildId))?.timezone ?? "America/Toronto") } : {}) } });
+    await interaction.reply({ content: recapPosts
+      ? lang === "fr" ? "🗓️ Le bilan quotidien est publié chaque jour où il se passe quelque chose (salon du rapport hebdomadaire, sinon des annonces)." : "🗓️ The daily recap is posted every day something happens (weekly-report channel, else announcements)."
+      : lang === "fr" ? "Le bilan quotidien n'est plus publié. /stats recap:true le montre toujours en privé." : "The daily recap is no longer posted. /stats recap:true still shows it privately.",
+      flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
+  }
+  if (interaction.options.getBoolean("recap")) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const settings = await guildService.getSettings(context.guildId);
+    const lang = asLang(settings?.language), timezone = settings?.timezone ?? "America/Toronto";
+    const recap = await dailyRecap(prisma, context.guildId, recapDay(new Date(), timezone), timezone, { race: settings?.raceBoardEnabled ?? true });
+    if (recapIsEmpty(recap)) {
+      await interaction.editReply({ content: lang === "fr" ? "Rien à raconter pour hier : aucun niveau, donjon ni duel enregistré." : "Nothing to recap for yesterday: no levels, dungeons or duels were recorded.", allowedMentions: { parse: [] } });
+      return;
+    }
+    const embed = dailyRecapEmbed(recap, lang);
+    const png = await scoreCardPng(dailyRecapCard(recap, lang, interaction.guild?.name ?? "Guilded")).catch(() => null);
+    if (png) embed.setImage("attachment://recap.png");
+    await interaction.editReply({ embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "recap.png" })] } : {}), allowedMentions: { parse: [] } });
     return;
   }
   if (interaction.options.getBoolean("server")) {
@@ -121,6 +152,7 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", lead
       .setDescription(t(lang, "weekly.dungeonRuns", { completed: d.completed, runs: d.runs }));
     if (d.fastest.length) dungeons.addFields({ name: t(lang, "weekly.fastest"), value: d.fastest.slice(0, 10).map((row) => `${row.dungeon}: ${formatDuration(row.durationSec)} (${row.players.join(", ")})`).join("\n").slice(0, 1024) });
     if (d.topPoints.length) dungeons.addFields({ name: t(lang, "weekly.topPoints"), value: d.topPoints.map((row, i) => `${["🥇", "🥈", "🥉"][i]} ${row.name}: ${row.points}`).join("\n") });
+    if (d.marathon) dungeons.addFields({ name: lang === "fr" ? "🔁 Marathon de donjons" : "🔁 Dungeon marathon", value: lang === "fr" ? `${d.marathon.name} : ${d.marathon.runs} donjons terminés` : `${d.marathon.name}: ${d.marathon.runs} completed runs` });
     if (d.records.length) dungeons.addFields({ name: t(lang, "weekly.records"), value: d.records.slice(0, 15).join("\n").slice(0, 1024) });
     if (d.firsts.length) dungeons.addFields({ name: t(lang, "weekly.firsts"), value: d.firsts.slice(0, 15).join("\n").slice(0, 1024) });
     if (leaderboardUrl) dungeons.setURL(leaderboardUrl).addFields({ name: "​", value: t(lang, "weekly.leaderboard", { url: leaderboardUrl }) });
@@ -128,6 +160,13 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", lead
   }
   if (report.guild.raids === 0 && d.runs === 0 && report.guild.lootCount === 0) main.addFields({ name: "\u200b", value: t(lang, "weekly.nothing") });
   return embeds;
+}
+
+// Called hourly: the daily recap of every server whose day rolled over (one post per day, quiet days post nothing).
+export async function runDailyRecaps(client: Client, now = new Date()): Promise<number> {
+  const queued = await queueDailyRecaps(prisma, now, { scope: pilotGuildScope, onError: error => console.error("Daily recap failed", error) });
+  if (queued) await runDiscordJobs(client);
+  return queued;
 }
 
 // Called hourly: the WoW report and its retryable delivery commit together. The guild lock

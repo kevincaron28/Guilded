@@ -103,12 +103,10 @@ describe("recovering runs that ended ABANDONED after the final boss died", () =>
     expect(s.run("return tostring(GuildedDB.dungeon.runs.R1.synced)")).toBe("true");
   });
 
-  it("leaves other editions' and challenge runs alone", () => {
+  it("leaves runs saved by another WoW edition alone", () => {
     const s = foreverRun();
     s.run(stored('{id=2735,name="Bazzalan",success=true,at=2000,source="native"}'));
     s.run('GuildedDB.dungeon.runs.R1.gameEdition="classic-era"');
-    expect(s.run("return NS.dungeon.recoverRuns()")).toBe("0");
-    s.run('GuildedDB.dungeon.runs.R1.gameEdition="forever"; GuildedDB.dungeon.runs.R1.challengeMode=true');
     expect(s.run("return NS.dungeon.recoverRuns()")).toBe("0");
   });
 

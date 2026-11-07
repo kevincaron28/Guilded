@@ -1151,23 +1151,11 @@ local READINESS_SLOTS = {
 -- Equipment slots where a missing enchant is worth flagging. Officers can
 -- turn the check off or set the level it starts at with /guilded enchants.
 local ENCHANTABLE = { Chest = true, Legs = true, Feet = true, Wrist = true, Hands = true, MainHand = true }
-local edition = ns.util.gameEdition()
-local DEFAULT_ENCHANT_MIN_LEVEL = (edition == "retail" or edition == "classic-mists") and 90 or edition == "classic-tbc" and 70 or 60
-if edition == "retail" then
-  ENCHANTABLE = { Head = true, Shoulder = true, Chest = true, Legs = true, Feet = true, Finger0 = true, Finger1 = true, MainHand = true }
-elseif edition == "classic-mists" then
-  ENCHANTABLE.Back, ENCHANTABLE.Shoulder = true, true
-elseif edition == "classic-tbc" then
-  ENCHANTABLE.Back, ENCHANTABLE.Head, ENCHANTABLE.Shoulder = true, true, true
-end
+-- WoW Forever's level cap is 60.
+local DEFAULT_ENCHANT_MIN_LEVEL = 60
 -- Below this level an empty head or shoulder slot is normal (levelling gear), so empty slots are
 -- only a note there, not "Not ready". /guilded slots level <n> changes it (1 = always count).
 local DEFAULT_SLOT_MIN_LEVEL = DEFAULT_ENCHANT_MIN_LEVEL
-if edition ~= "forever" then
-  table.insert(READINESS_SLOTS, { 15, "Back" })
-  table.insert(READINESS_SLOTS, { 11, "Finger0" })
-  table.insert(READINESS_SLOTS, { 12, "Finger1" })
-end
 -- Read-only for other modules (Modules/PugCheck.lua checks other players with the same rules).
 ns.gearSlots, ns.enchantableSlots = READINESS_SLOTS, ENCHANTABLE
 

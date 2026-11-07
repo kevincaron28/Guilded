@@ -54,15 +54,10 @@ function util.clientInterface()
   if ok and not isSecret(api) and type(api) == "number" then return api end
 end
 
+-- Guilded supports WoW Forever only. Any other client is "unknown": nothing edition-specific runs,
+-- and the bot refuses its uploads. Old saved data may still carry other edition names.
 function util.gameEdition()
-  local api = util.clientInterface()
-  if not api then return "unknown" end
-  if api == 16001 then return "forever" end
-  if api >= 11500 and api < 11600 then return "classic-era" end
-  if api >= 20500 and api < 20600 then return "classic-tbc" end
-  if api >= 50500 and api < 50600 then return "classic-mists" end
-  if api >= 120000 and api < 130000 then return "retail" end
-  return "unknown"
+  return util.clientInterface() == 16001 and "forever" or "unknown"
 end
 
 -- Blizzard characters are identified by name AND realm; Forever characters by "First Last"

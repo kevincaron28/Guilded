@@ -4,7 +4,8 @@ import { dungeonCatalog } from "../companion/dungeon-catalog.mjs";
 // A single reviewed manifest drives bot rules, addon endpoints and NPC checkpoints.
 const quote = value => JSON.stringify(value);
 const identity = b => `{ids={${b.ids.join(",")}},npcIds={${(b.npcIds ?? []).join(",")}},names={}}`;
-const generated = dungeonCatalog.routes.map(r => `  {edition=${quote(r.edition)},instanceId=${r.instanceId},participationBand={difficultyId=${r.difficultyId}},completion=${identity(r.completion)},requiredEncounters={${r.requiredEncounters.map(identity).join(",")}}},`).join("\n");
+// The addon ships WoW Forever endpoints only (docs/plans/FOREVER_ONLY_REMOVAL.md).
+const generated = dungeonCatalog.routes.filter(r => r.edition === "forever").map(r => `  {edition=${quote(r.edition)},instanceId=${r.instanceId},participationBand={difficultyId=${r.difficultyId}},completion=${identity(r.completion)},requiredEncounters={${r.requiredEncounters.map(identity).join(",")}}},`).join("\n");
 const path = "addon/Guilded/DungeonRoutes.lua";
 const before = readFileSync(path, "utf8");
 const block = `-- BEGIN GENERATED SOURCE CATALOG\n-- ${dungeonCatalog.source}\n-- Source reviewed; client acceptance and benchmark calibration are pending.\nroutes.sourced = {\n${generated}\n}\n-- END GENERATED SOURCE CATALOG`;

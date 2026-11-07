@@ -395,21 +395,6 @@ function module.assess(name, unit, inRaid, entry, live, connected, extra)
     need("weapon", "no weapon enchant", "weapon enchant ends in %d min")
     need("augment", "no augment rune")
     need("vantus", "no vantus rune")
-    -- Raid buffs: only the ones somebody in the group can actually give.
-    local held = (liveFacts and liveFacts.buffs) or (consumableFacts and consumableFacts.buffs)
-    local data = ns.consumableData
-    local buffs = data and data.activeRaidBuffs and data.activeRaidBuffs()
-    if held and buffs and extra.providers and ns.util and ns.util.gameEdition() == "retail" then
-      local lacking = {}
-      for _, buff in ipairs(buffs) do
-        local provider = buff.class and extra.providers[buff.class]
-        for _, class in ipairs(buff.classes or {}) do if extra.providers[class] then provider = true end end
-        if not buff.optional and provider and not held[buff.key] then table.insert(lacking, L(buff.label)) end
-      end
-      learned = true
-      cells.buffs = cellFor(#lacking == 0, module.setting("buffs") == true)
-      if #lacking > 0 and module.setting("buffs") == true then add(L("no raid buff") .. ": " .. table.concat(lacking, ", ")) end
-    end
   end
 
   if liveKnown then row.source = entry and "addon+live" or "live"

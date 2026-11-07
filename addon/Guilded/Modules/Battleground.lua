@@ -25,19 +25,16 @@ local function identity()
   if type(name) ~= "string" or type(realm) ~= "string" or name == "" or realm == "" then return nil end
   return name .. "-" .. realm, name, realm
 end
--- Hardcore realms exist on these clients only; elsewhere the check does not apply.
-local HARDCORE_EDITIONS = { forever = true, ["classic-era"] = true }
-local EDITIONS = { forever = true, ["classic-era"] = true, ["classic-tbc"] = true, ["classic-mists"] = true, retail = true }
+-- WoW Forever only; any other client records nothing.
 local function edition()
   local value = ns.util and ns.util.gameEdition()
-  return EDITIONS[value] and value or nil
+  return value == "forever" and value or nil
 end
 local function supported()
-  local current = edition()
-  if not current then return false end
+  if not edition() then return false end
   local hardcore = safe(C_GameRules and C_GameRules.IsHardcoreActive)
-  -- Missing/secret Hardcore information is unknown, never assumed normal, where Hardcore exists.
-  if hardcore == true or (HARDCORE_EDITIONS[current] and hardcore ~= false) then return false end
+  -- Forever has Hardcore realms: missing/secret Hardcore information is unknown, never assumed normal.
+  if hardcore ~= false then return false end
   return C_PvP and type(C_PvP.IsMatchComplete) == "function"
     and type(C_PvP.IsMatchActive) == "function"
     and type(C_PvP.GetActiveMatchBracket) == "function"

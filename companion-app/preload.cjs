@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld("companion", {
   searchWow: () => ipcRenderer.invoke("search-wow"),
   switchLiveFolder: () => ipcRenderer.invoke("switch-live-folder"),
   dismissLiveFolder: () => ipcRenderer.invoke("dismiss-live-folder"),
+  accountYes: () => ipcRenderer.invoke("account-yes"),
+  accountNo: () => ipcRenderer.invoke("account-no"),
   uploadNow: () => ipcRenderer.invoke("upload-now"),
   refreshStandings: () => ipcRenderer.invoke("refresh-standings"),
   exportSheets: (table) => ipcRenderer.invoke("export-sheets", table),

@@ -1,8 +1,16 @@
 # Several game accounts, one member (plan)
 
 Owner request, 7 November 2026 (list 3, item 3, P2): "multiple account setup, so people with the
-companion and several Battle.net accounts can link them all". This is a plan only; nothing is built.
-The owner picks before any code changes.
+companion and several Battle.net accounts can link them all".
+
+**Owner decisions (7 November 2026):** 1) sync every account folder found; 2) the first time a
+second account folder appears, ask once whether it belongs to the same person, and remember the
+answer; 3) up to 5 Battle.net accounts per member; 4) companion part first.
+
+**Built:** step 1 (`companion/wow-accounts.mjs`: one engine per account, the "Is WOW2 yours too?"
+question under the Sync status card, Repair and setup start with the newest account instead of
+stopping). Standings stay in the install's `Interface\AddOns` folder, which every account of that
+install shares, so only the first account's engine writes them.
 
 ## 1. Who this is for
 

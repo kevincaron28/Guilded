@@ -141,8 +141,9 @@ describe("Link everything wiring", () => {
     const main = read("companion-app/main.cjs");
     const block = main.slice(main.indexOf('registerIpc("link-find-saved-data"'), main.indexOf('registerIpc("browse-poe-log"'));
     expect(block).toContain("if (!config.companionCredential)");
-    // The only file, or the only WoW Forever file; otherwise the member chooses.
-    expect(block).toContain("pickSavedVariables(found)");
+    // The only file, the only WoW Forever file, or (several accounts, docs/plans/MULTI_ACCOUNT.md)
+    // the newest one, with the others asked about.
+    expect(block).toContain("pickPrimaryAccount(found)");
     expect(block).toContain("if (!chosen)");
     // A missing, beta or stale watched file is looked for again instead of "already linked".
     expect(block).toContain("!current.candidate");

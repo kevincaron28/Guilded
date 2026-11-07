@@ -139,11 +139,27 @@ async function statusAction() {
   }
 }
 bind('btnStatusAction', statusAction);
+// Several WoW accounts (docs/plans/MULTI_ACCOUNT.md): another account folder with Guilded's data.
+// Asked once; main.cjs keeps which file it is and remembers the answer.
+function renderAccountAsk(snapshot) {
+  const other = snapshot.otherAccount;
+  $('accountAsk').hidden = !other;
+  if (other) $('accountAskText').textContent = T('Another WoW account on this PC has Guilded data: {0}. Is it yours too?', other.account);
+}
+async function answerAccount(yes) {
+  const answer = yes ? await api.accountYes() : await api.accountNo();
+  const result = $('accountAskResult');
+  result.textContent = !answer?.account ? '' : yes ? (answer.ok ? T('{0} syncs too from now on.', answer.account) : T('{0} was added, but the sync did not start. Open Problems to see why.', answer.account)) : T('{0} will not sync. You will not be asked again.', answer.account);
+  result.className = answer?.ok === false ? 'result bad' : 'result ok';
+}
+bind('btnAccountYes', () => answerAccount(true));
+bind('btnAccountNo', () => answerAccount(false));
 bind('btnStatusDetails', async () => showPage('activity'));
 function renderState(snapshot) {
   updateProfileLinks();
   lastSnapshot = snapshot;
   try { renderStatusCard(snapshot); } catch { /* the rest of the page still renders */ }
+  try { renderAccountAsk(snapshot); } catch { /* the rest of the page still renders */ }
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
   const {state,health} = snapshot;
   const sync = window.guildedSyncStatus(savedConfig, state, state.syncEvidence);

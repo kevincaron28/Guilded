@@ -7,7 +7,7 @@ import type { Lang } from "./i18n.js";
 
 export type ChannelField = "pugChannelId" | "notifyChannelId" | "raidSignupChannelId" | "raidLogChannelId" | "logChannelId"
   | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "dungeonChannelId"
-  | "lootChannelId" | "craftChannelId" | "craftOrdersChannelId" | "craftArchiveChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "attendanceChannelId" | "guideChannelId" | "answerChannelId" | "weeklyReportChannelId" | "inviteChannelId";
+  | "lootChannelId" | "craftChannelId" | "craftOrdersChannelId" | "craftArchiveChannelId" | "craftLadderChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "attendanceChannelId" | "guideChannelId" | "answerChannelId" | "weeklyReportChannelId" | "inviteChannelId";
 
 // Access: "open" everyone talks; "readonly" everyone reads, only the bot and
 // leadership post (signup channels are read-only too: people use the buttons);
@@ -64,6 +64,7 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
   // 9.1 (owner, 7 November 2026): the open requests at a glance, and the finished ones.
   craftOrdersChannelId: { access: "readonly", category: "craft" },
   craftArchiveChannelId: { access: "readonly", category: "craft" },
+  craftLadderChannelId: { access: "readonly", category: "craft" },
   logChannelId: { access: "officers", category: "officers" },
   readinessChannelId: { access: "leaders", category: "officers" },
   applicationChannelId: { access: "officers", category: "officers" },
@@ -90,6 +91,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     craftChannelId: { name: "craft-board", topic: "Craft requests: press Request a craft in the pinned post. Crafters filter by profession tag and press I'll craft it." },
     craftOrdersChannelId: { name: "craft-orders", topic: "Open craft requests at a glance, one line each, updated when a crafter takes or finishes one. Ask on the craft board." },
     craftArchiveChannelId: { name: "craft-archive", topic: "Finished and cancelled craft requests." },
+    craftLadderChannelId: { name: "top-crafters", topic: "The guild's top crafters: one point per finished craft, updated after each one." },
     logChannelId: { name: "officer-log", topic: "WoW officer log: joins, moderation, bank and craft requests (Discord community reviews go to the Discord admin channel)" },
     readinessChannelId: { name: "raid-readiness", topic: "Who is ready for raid night: gear and consumable checks (officers and raid leaders only)" },
     attendanceChannelId: { name: "raid-attendance", topic: "Who was present, late, benched or absent at each raid (officers only), posted with the raid report" },
@@ -112,6 +114,7 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     craftChannelId: { name: "tableau-artisanat", topic: "Demandes d'artisanat : appuyez sur Demander un craft dans le message épinglé. Les artisans filtrent par métier et appuient sur Je le fabrique." },
     craftOrdersChannelId: { name: "commandes-artisanat", topic: "Les demandes d'artisanat ouvertes d'un coup d'œil, une ligne chacune, mises à jour quand un artisan en prend ou en termine une. Demandez sur le tableau d'artisanat." },
     craftArchiveChannelId: { name: "archive-artisanat", topic: "Demandes d'artisanat terminées et annulées." },
+    craftLadderChannelId: { name: "meilleurs-artisans", topic: "Les meilleurs artisans de la guilde : un point par commande terminée, mis à jour après chacune." },
     logChannelId: { name: "journal-officiers", topic: "Journal des officiers WoW : arrivées, modération, banque et demandes d'artisanat (les validations de la communauté Discord vont au salon admin Discord)" },
     readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" },
     attendanceChannelId: { name: "presences-raid", topic: "Présents, retards, banc et absents de chaque raid (officiers seulement), publié avec le rapport de raid" },

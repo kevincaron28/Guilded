@@ -17,6 +17,7 @@ import { OFFER_LIMITS } from "../services/craft-offers.js";
 import { tx } from "../i18n.js";
 import { PING_PROFESSIONS, notifyListText } from "./craft-board.js";
 import { craftNotifyList, setCraftNotify } from "../services/craft-channels.js";
+import { craftHistoryLines, loadCrafterStandings, updateCraftLadder } from "../services/craft-ladder.js";
 
 const craftService = createCraftService(prisma);
 
@@ -61,9 +62,13 @@ export const craftCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("notify").setDescription("Get pinged when someone asks for a recipe you know.")
     .addStringOption((o) => o.setName("profession").setDescription("Profession").addChoices(...PING_PROFESSIONS.map((name) => ({ name, value: name }))))
     .addBooleanOption((o) => o.setName("on").setDescription("On or off (default on)")))
-  .addSubcommand((sub) => sub.setName("notify-setting").setDescription("Officers: craft orders/archive channels and crafter pings.")
+  .addSubcommand((sub) => sub.setName("notify-setting").setDescription("Officers: craft orders/archive channels, crafter pings, top crafters.")
     .addBooleanOption((o) => o.setName("orders").setDescription("Orders and archive channels"))
-    .addBooleanOption((o) => o.setName("pings").setDescription("Crafter pings")));
+    .addBooleanOption((o) => o.setName("pings").setDescription("Crafter pings"))
+    .addBooleanOption((o) => o.setName("ladder").setDescription("Top crafters card")))
+  .addSubcommand((sub) => sub.setName("top").setDescription("The guild's top crafters (1 point per finished craft)."))
+  .addSubcommand((sub) => sub.setName("history").setDescription("Crafts someone finished.")
+    .addUserOption((o) => o.setName("member").setDescription("Default: you")));
 
 function describe(request: { item: string; quantity: number; profession: string | null; materialsProvided: boolean; note: string | null }): string {
   return `${request.quantity} × **${request.item}**${request.profession ? ` (${request.profession})` : ""}`
@@ -102,11 +107,28 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
     const lang = await boardLang(context.guildId);
     const orders = interaction.options.getBoolean("orders");
     const pings = interaction.options.getBoolean("pings");
-    const data = { ...(orders !== null ? { craftOrdersEnabled: orders } : {}), ...(pings !== null ? { craftPingsEnabled: pings } : {}) };
+    const ladder = interaction.options.getBoolean("ladder");
+    const data = { ...(orders !== null ? { craftOrdersEnabled: orders } : {}), ...(pings !== null ? { craftPingsEnabled: pings } : {}), ...(ladder !== null ? { craftLadderEnabled: ladder } : {}) };
     if (Object.keys(data).length) await prisma.guildSettings.updateMany({ where: { guildId: context.guildId }, data });
-    const settings = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { craftOrdersEnabled: true, craftPingsEnabled: true } });
+    const settings = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { craftOrdersEnabled: true, craftPingsEnabled: true, craftLadderEnabled: true } });
     const on = (value: boolean | undefined) => value === false ? tx(lang, "off") : tx(lang, "on");
-    await interaction.reply({ content: tx(lang, "Craft orders and archive channels: {orders}. Crafter pings: {pings}.", { orders: on(settings?.craftOrdersEnabled), pings: on(settings?.craftPingsEnabled) }), flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `${tx(lang, "Craft orders and archive channels: {orders}. Crafter pings: {pings}.", { orders: on(settings?.craftOrdersEnabled), pings: on(settings?.craftPingsEnabled) })} ${tx(lang, "Top crafters card: {ladder}.", { ladder: on(settings?.craftLadderEnabled) })}`, flags: MessageFlags.Ephemeral });
+    if (ladder) await updateCraftLadder(prisma, interaction.guild).catch(() => undefined);
+    return;
+  }
+  if (subcommand === "top") {
+    const lang = await boardLang(context.guildId);
+    const { standings, total } = await loadCrafterStandings(prisma, context.guildId);
+    const lines = standings.slice(0, 15).map((row, index) => `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${row.name} — ${row.points} pt · ${row.month} ${tx(lang, "in 30 days")}`);
+    await interaction.reply({ content: lines.length ? `${lines.join("\n")}\n-# ${tx(lang, "{total} finished crafts · 1 point each", { total })}` : tx(lang, "No finished crafts yet."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
+  }
+  if (subcommand === "history") {
+    const lang = await boardLang(context.guildId);
+    const user = interaction.options.getUser("member") ?? interaction.user;
+    const member = await prisma.member.findFirst({ where: { guildId: context.guildId, discordUserId: user.id }, select: { id: true } });
+    const lines = member ? await craftHistoryLines(prisma, context.guildId, member.id, lang) : [];
+    await interaction.reply({ content: lines.length ? lines.join("\n").slice(0, 1900) : tx(lang, "No finished crafts yet."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
   }
   if (subcommand === "posts-setting") {

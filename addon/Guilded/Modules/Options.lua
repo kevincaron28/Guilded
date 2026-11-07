@@ -187,6 +187,11 @@ function module.switches()
       get = function() return ns.milestones and ns.milestones.enabled("duel") or false end,
       set = function(on) run("milestones duel " .. (on and "on" or "off")) end
     },
+    {
+      label = L("Milestones: profession skill"),
+      get = function() return ns.milestones and ns.milestones.enabled("prof") or false end,
+      set = function(on) run("milestones prof " .. (on and "on" or "off")) end
+    },
   }
   -- Officer clients: the jobs they do on their own (Modules/OfficerNotes.lua), each with its own off switch.
   if ns.isOfficer and ns.isOfficer() and ns.officerNotes then

@@ -1,6 +1,7 @@
 > **28 October current procedure:** the owner's publication authorization remains
-> in force. Use exact-source CI and verified packages, upload each of the five
-> edition ZIPs to each addon project with its matching game tag, then verify
+> in force. Use exact-source CI and verified packages, upload the WoW Forever ZIP to each addon
+> project with the Forever game tag (Guilded supports WoW Forever only since 7 November 2026; never
+> touch files already published for other editions), then verify
 > approval and anonymous download SHA-256 before updating `site/releases.json`.
 > Preserve old files. Current listing copy lives in [docs/curseforge](curseforge/GUILDED_DESCRIPTION.md).
 > The candidate/hold instructions below are historical.

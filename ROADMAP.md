@@ -4,7 +4,7 @@
 
 Guilded **9.0.2** (the second update on 9.0.0, which was the 8.5 work shipped as 9.0) (tracks A-K and the owner batches below). The previous release is 9.0.1. Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
-Forever is the only active edition and PoE2 is hidden ([Forever-only focus](docs/FOREVER_ONLY_FOCUS.md)).
+Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
@@ -109,7 +109,7 @@ State words: **Released** = in a published client (members have it); **Live** = 
 | P2 Plan: character pictures on cards and website | Plan only | #539, `docs/plans/CHARACTER_VISUALS.md` |
 | P2 Plan: Lite and paid bot versions | Plan only | #539, `docs/plans/MONETIZATION.md` |
 | P2 Plan: several game accounts for one member | Plan only | #547, `docs/plans/MULTI_ACCOUNT.md` |
-| P3 Remove other WoW editions from the code | Plan only (stage 1 docs); one owner decision pending | #540, `docs/plans/FOREVER_ONLY_REMOVAL.md` |
+| P3 Remove other WoW editions from the code | Done: stages 1–6 merged (#567, #568, #571, #573, #577, #578, #580, #581) and docs (stage 8); stage 7 (delete other editions' stored rows) is an optional owner decision, recommended: leave them | #540, `docs/plans/FOREVER_ONLY_REMOVAL.md` |
 
 #### Idea list 4 (7 Nov)
 

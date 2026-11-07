@@ -421,7 +421,7 @@ After each import, completed runs and new records are posted once in the dungeon
 
 | Command | What it does |
 | --- | --- |
-| `/lead create <title> <time> [description] [bosses] [core] [preset] [weekly] [tanks] [healers] [dps] [close_hours]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `preset` lists the raids of the selected guild's WoW edition plus generic sizes ([list](docs/raid-loot/RAID_PRESETS_BY_EDITION.md)); it suggests role seats, and explicit seat counts override them. `weekly:true` repeats after ending. `close_hours` closes signups that many hours before the start (Can't come and Late still work). Posts Tank / Healer / DPS / Maybe / Can't come / Late buttons |
+| `/lead create <title> <time> [description] [bosses] [core] [preset] [weekly] [tanks] [healers] [dps] [close_hours]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `preset` lists WoW Forever's raids (Barrow Deeps, Hyjal Summit, Onyxia's Lair) plus generic sizes ([raid loot](docs/raid-loot/FOREVER_RAID_LOOT_2026-10-25.md)); it suggests role seats, and explicit seat counts override them. `weekly:true` repeats after ending. `close_hours` closes signups that many hours before the start (Can't come and Late still work). Posts Tank / Healer / DPS / Maybe / Can't come / Late buttons |
 | `/lead edit` / `cancel` / `start` | Manage the raid (raising a cap moves waitlisted players in; `close_hours` sets or, with 0, removes the signup deadline) |
 | `/lead end <raid>` | End the raid and see the **proposed EP** with Approve / Cancel buttons |
 | `/lead award-ep <raid>` | Show the proposed EP again (e.g. after `/import apply` added attendance) |

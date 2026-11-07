@@ -13,7 +13,7 @@ Local source dates keep their original precision and an unknown timezone. Explic
 
 ## Desktop companion
 
-1. Open World of Warcraft → Import loot history. Choose RCLootCouncil or Gargul, the destination guild and realm, and the correct WoW edition.
+1. Open World of Warcraft → Import loot history. Choose RCLootCouncil or Gargul, the destination guild and realm. The edition is WoW Forever.
 2. Choose the exported CSV/JSON file. Review the source records and every character mapping. Destination characters must use Name-Realm; short source names require an explicit realm. Guild and edition cannot be inferred from the source export.
 3. If awards lack stable IDs, review the warning and explicitly acknowledge that different exports may overlap. Genuine repeated awards are retained.
 4. Select Review and save archive, approve the local save summary, and choose a new text filename. Existing files are never overwritten.
@@ -42,10 +42,10 @@ Without stable IDs, repeating the exact file deduplicates by source hash and row
 Create a mapping file:
 
 ```json
-{"source":"rclootcouncil","guild":"Example Guild","realm":"Example Realm","edition":"classic-era","characterMap":{"Raider-ExampleRealm":"Raider-ExampleRealm"}}
+{"source":"rclootcouncil","guild":"Example Guild","realm":"Example Realm","edition":"forever","characterMap":{"Raider-ExampleRealm":"Raider-ExampleRealm"}}
 ```
 
-Use source `gargul` for Gargul. Editions: `forever`, `classic-era`, `classic-tbc`, `classic-mists`, `retail`. An empty characterMap creates a preview listing unresolved names; an archive requires every mapping.
+Use source `gargul` for Gargul. Edition: `forever` (Guilded supports WoW Forever only). An empty characterMap creates a preview listing unresolved names; an archive requires every mapping.
 
 ```sh
 node companion/loot-history-import.mjs loot-export.csv loot-mapping.json loot-preview.json

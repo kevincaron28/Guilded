@@ -3,21 +3,18 @@
 For guildmates using **WoW Forever**. You do not need
 Node.js, a database, or a Discord bot token.
 
-> **Forever first.** Guilded is focused on WoW Forever for now. The Classic Era/Hardcore,
-> Burning Crusade Classic, Mists of Pandaria Classic and Retail builds are on hold: not offered
-> in the companion, the website downloads or the bot's setup text, and coming back later.
-> Nothing was deleted. (Maintainers: one switch, `ACTIVE_EDITIONS` in `companion/active-editions.mjs`.)
+> **WoW Forever only.** Guilded supports WoW Forever. The Classic Era/Hardcore, Burning Crusade Classic,
+> Mists of Pandaria Classic and Retail versions were removed on 7 November 2026; uploads from them are refused.
+> Data already saved stays as it was.
 
 In [the latest published release](https://github.com/kevincaron28/Guilded/releases/latest),
-choose the addon ZIP ending in `forever` (ZIPs without an edition suffix are
-Forever builds). The Windows companion looks only for the WoW Forever saved file
+choose the addon ZIP ending in `forever`. The Windows companion looks only for the WoW Forever saved file
 (`_forever_`); connect your guild in its own profile. Enable **Load out of date AddOns** if the
 client requests it. Real-client and two-PC checks remain pending follow-up.
 
-**Français :** choisissez le ZIP de votre édition (`forever`, `classic-era`,
-`classic-tbc`, `classic-mists` ou `retail`). Les ZIP sans suffixe sont pour Forever.
-Le même compagnon Windows prend en charge toutes les éditions, avec un profil
-par guilde/édition. Les vérifications en jeu restent à effectuer.
+**Français :** Guilded prend en charge WoW Forever uniquement. Choisissez le ZIP qui se termine par
+`forever`. Le compagnon Windows cherche seulement le fichier enregistré de WoW Forever, avec un profil
+par guilde. Les vérifications en jeu restent à effectuer.
 
 [Français](#fr) · [Quick setup](QUICK_START.md) · [EPGP workflow](EPGP_GUIDE.md) · [Optional hosted bot](HOSTED_PILOT.md)
 

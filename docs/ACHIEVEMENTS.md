@@ -21,7 +21,7 @@ awards points, and nothing is posted to Discord automatically.
 | Metric | Source |
 | --- | --- |
 | WoW level (Forever) | highest `Character.level` among the member's synced characters of that `gameEdition` |
-| Maximum level / alts (Forever) | characters of that edition at its cap (`WOW_LEVEL_CAP`: forever 60 (fixed, per Blizzard), era 60, TBC 70, Mists 90, retail 90) |
+| Maximum level / alts (Forever) | Forever characters at the cap (`WOW_LEVEL_CAP`: forever 60, fixed per Blizzard) |
 | Dungeon variety | first completion of each distinct dungeon (`DungeonRun.instanceId`) |
 | Profession skill (Forever) | highest `ProfessionSkill.skillLevel` on a Forever character (steps 150 and 300) |
 | Dungeon runs | `DungeonRunPlayer` rows of valid, completed `DungeonRun`s |
@@ -54,8 +54,8 @@ Catalogue version 7 (8.5.0) holds **only WoW Forever rows and guild rows**. The 
 `wow-forever-level-10` to `-60` (every 10 levels up to the cap of 60, fixed per Blizzard: growth is horizontal;
 `docs/archive/PRE_RELEASE_AUDIT_2026-10-22.md`), `wow-forever-alts-3` and `wow-forever-profession-150/300`: 9 rows. They read
 only characters whose `gameEdition` is `forever`, name themselves "Forever: Level 40" / "Forever : niveau 40" and have
-their own badge colour. The generator (`EDITION_ACHIEVEMENTS`) works for any edition listed in
-`CATALOGUE_EDITIONS`; the other editions' level caps and labels stay in the catalogue file.
+their own badge colour. Guilded supports WoW Forever only (7 November 2026): the generator (`EDITION_ACHIEVEMENTS`)
+builds the `CATALOGUE_EDITIONS` rows, which is Forever only; the other editions' caps and labels were removed.
 
 Dungeon runs, raids, Discord activity and the other guild rows stay common: runs and raid attendance do not
 record an edition, and they describe the guild, not a character.
@@ -67,7 +67,7 @@ PoE2 rows (`poe2-level-75/90/99/100`, `poe2-maps-100/500`) and every Classic Era
 `MemberAchievement` rows stay in the database untouched, but a retired id is not in `ACHIEVEMENTS`, so nothing
 evaluates, announces, counts or shows it: not `/achievements`, the website (including the stored-rows read, which
 excludes the retired keys), the share and unlock cards, the unlock announcements and the anniversary card's total.
-This holds whatever `ACTIVE_EDITIONS`, `ACTIVE_GAMES` or `ACTIVE_TRACKING` say. `ACHIEVEMENT_CATALOGUE_VERSION` is 7, so
+This holds whatever `ACTIVE_GAMES` or `ACTIVE_TRACKING` say. `ACHIEVEMENT_CATALOGUE_VERSION` is 7, so
 the first hourly pass after deploy re-baselines every guild that announces, silently.
 
 **Bringing a retired row back.** Re-adding an edition: put it in `CATALOGUE_EDITIONS` and delete its ids from

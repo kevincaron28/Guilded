@@ -27,6 +27,16 @@ describe("promotionForAddon", () => {
   });
 });
 
+describe("linked characters for the officer client", () => {
+  it("lists every linked character at the starting rank, ready or not, but not people who left Discord", async () => {
+    const feed = await promotionForAddon(db([person("a", [row("Amy Smith", days(8))]), person("c", [row("Cy Fresh", days(1))]), person("gone", [row("Dee Gone", days(40))])]),
+      discord("d1", ["a", "c"]), "g1", "forever", NOW);
+    expect(feed?.ready).toEqual(["Amy Smith"]);
+    expect([...(feed?.linked ?? [])].sort()).toEqual(["Amy Smith", "Cy Fresh"]);
+    expect(promotionToLua(feed).join(" ")).toContain('"Cy Fresh"');
+  });
+});
+
 describe("the companion's GuildedPromotion", () => {
   it("writes a plain Lua table, escapes names and drops anything that could break a row", () => {
     const text = promotionToLua({ updatedAt: NOW.toISOString(), fromRank: 'Init"iate', minDays: 7, ready: ['Amy "A"', "Bad\nName", "Tab\tName", "Bob\\", 7] }).join("\n");

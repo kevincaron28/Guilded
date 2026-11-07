@@ -188,6 +188,16 @@ function module.switches()
       set = function(on) run("milestones duel " .. (on and "on" or "off")) end
     },
   }
+  -- Officer clients: the jobs they do on their own (Modules/OfficerNotes.lua), each with its own off switch.
+  if ns.isOfficer and ns.isOfficer() and ns.officerNotes then
+    for _, key in ipairs(ns.officerNotes.KEYS) do
+      table.insert(list, {
+        label = L(ns.officerNotes.LABELS[key]),
+        get = function() return ns.officerNotes.enabled(key) end,
+        set = function(on) ns.officerNotes.set(key, on) end
+      })
+    end
+  end
   -- One switch per optional module, just for you (officers still use /guilded modules guild).
   for _, entry in ipairs(ns.MODULES or {}) do
     local key = entry.key

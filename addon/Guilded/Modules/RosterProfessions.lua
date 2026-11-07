@@ -43,13 +43,14 @@ local function sorted(skills)
 end
 
 -- "Alch300 Herb300": highest skill first, as many as fit in 31 bytes; "" when there are none.
-function module.tag(skills)
+function module.tag(skills, max)
+  max = math.min(max or module.NOTE_MAX, module.NOTE_MAX)
   local parts = {}
   for _, s in ipairs(sorted(skills)) do
     local key = s.name:lower()
     local short = ABBREVIATIONS[key] or s.name:gsub("[^A-Za-z]", ""):sub(1, 4)
     local item = short .. math.min(999, s.skill)
-    if #table.concat(parts, " ") + (#parts > 0 and 1 or 0) + #item > module.NOTE_MAX then break end
+    if #table.concat(parts, " ") + (#parts > 0 and 1 or 0) + #item > max then break end
     parts[#parts + 1] = item
   end
   return table.concat(parts, " ")

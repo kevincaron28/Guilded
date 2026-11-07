@@ -74,6 +74,8 @@ item 22), Google Play, Discord audit and fresh-setup check (item 24).
 
 ### Owner requests, 7 November 2026
 
+- **Items 3, 4, 7, 9 built** (officer client, `addon/Guilded/Modules/OfficerNotes.lua`, one PR): professions in public notes, EP,GP in officer notes, linked lowest-rank members promoted one rank (once per player, never demoted; list from `GuildedPromotion.linked`), and a one-time guild-chat greeting. All ON by default; `/guilded officer auto status|professions|epgp|promote|greet|all on|off|lang en|fr` and the officer switches in Settings. One change per 12 s through the RosterTools engine. Needs real-client checks.
+
 - (6 Nov, late) Make the dungeon season **a lot less strict** and start the timed-runs database: **DONE** in #455 (deployed debbad1). Follow-up: check the board shows real scores; routes without a speed target still cannot rank.
 - (6 Nov, late, owner list for 7 Nov; none were quick enough to ship tonight)
   1. **Battle.net link message in the addon:** verify what it says now that the Battle.net link button/option

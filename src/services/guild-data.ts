@@ -125,9 +125,11 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         if (Object.keys(update).length) { await tx.unclaimedCharacter.update({ where: { id: existing.id }, data: update }); result.unclaimed++; }
       } else if (member.class && !result.skippedOlder) {
         // A guild member nobody linked yet: listed as unlinked (never linked to anyone here).
-        await tx.unclaimedCharacter.create({ data: { guildId, gameEdition: edition, nameKey: key, name: member.name, realm: "",
+        // createMany + skipDuplicates is INSERT .. ON CONFLICT DO NOTHING: a parallel upload that created the row first
+        // (P2002) neither errors nor aborts this transaction, and the row it made is kept.
+        await tx.unclaimedCharacter.createMany({ skipDuplicates: true, data: [{ guildId, gameEdition: edition, nameKey: key, name: member.name, realm: "",
           className: titleClass(member.class), ...(member.level ? { level: member.level } : {}), lastSeenAt: lastOnlineOk ?? observedAt,
-          ...(uploader.officer && member.rankName !== undefined ? { guildRankName: member.rankName, guildRankAt: observedAt } : {}) } });
+          ...(uploader.officer && member.rankName !== undefined ? { guildRankName: member.rankName, guildRankAt: observedAt } : {}) }] });
         unclaimedByKey.set(key, { id: "", nameKey: key, level: member.level ?? null, lastSeenAt: lastOnlineOk ?? observedAt });
         result.unclaimed++;
       }

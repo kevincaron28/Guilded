@@ -9,6 +9,18 @@ import {
 } from "../src/services/character-pairing.js";
 
 describe("character pairing", () => {
+  it("treats a unique-constraint race (P2002) as already linked, so the upload carries on", async () => {
+    const tx = {
+      character: { findMany: vi.fn(async () => []), count: vi.fn(async () => 0), create: vi.fn(async () => { throw Object.assign(new Error("Unique constraint failed"), { code: "P2002" }); }) },
+      characterVerifyClaim: { findFirst: vi.fn(async () => null) }
+    };
+    const database = { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) };
+    const self = { name: "Dude Lebowski", realm: "Forever", class: "WARRIOR", race: "Human", level: 20, spec: "", professions: [], gameEdition: "forever" };
+    expect(await linkPairedCharacter(database as never, "g1", "member", self as never)).toBe("already-linked");
+    // Anything else still fails loudly.
+    tx.character.create.mockImplementationOnce(async () => { throw new Error("boom"); });
+    await expect(linkPairedCharacter(database as never, "g1", "member", self as never)).rejects.toThrow("boom");
+  });
   it("stores only a hash of a short-lived one-time code", async () => {
     const upsert = vi.fn(async () => ({}));
     const issuedAt = new Date("2026-09-28T12:00:00Z");

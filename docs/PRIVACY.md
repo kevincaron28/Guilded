@@ -59,6 +59,13 @@ before then are kept privately, unused: Battle.net account ID/BattleTag, charact
 names, region, edition, account main choice and verification time. They never published alts or
 changed guild permissions. **Delete my data** removes them; retained backups follow their normal rules.
 
+Character pictures are optional. A picture you pick for a character on My page is shrunk by
+your browser; Guilded keeps only a re-encoded 512 px copy and a small thumbnail, without the
+file's metadata (camera, location). It is shown on that character's cards and pages to your
+guild only, or also on public pages if you choose Public. You can change or remove it at any
+time; officers can remove it or turn pictures off for their server. Cards already posted in
+Discord keep the picture they were drawn with. **Delete my data** removes your pictures.
+
 Companion connections have separate credentials and device names. Manage or
 revoke them under your account's Connections page. Enabled Windows profiles keep
 syncing in the background until paused or the companion exits. Pausing one profile
@@ -203,6 +210,14 @@ l'identifiant Battle.net et le BattleTag, les noms et identifiants des personnag
 région, l'édition, le choix du principal du compte et la date de vérification. Elles n'ont jamais
 publié les alts ni modifié les permissions de guilde. **Supprimer mes données** les efface; les
 sauvegardes conservées suivent leurs règles habituelles.
+
+Les images de personnage sont facultatives. Une image choisie pour un personnage dans Ma page
+est réduite par votre navigateur; Guilded ne garde qu'une copie réencodée de 512 px et une
+vignette, sans les métadonnées du fichier (appareil, lieu). Elle apparaît sur les cartes et
+pages de ce personnage pour votre guilde seulement, ou aussi sur les pages publiques si vous
+choisissez Public. Vous pouvez la changer ou la retirer en tout temps; les officiers peuvent la
+retirer ou désactiver les images pour leur serveur. Les cartes déjà publiées dans Discord gardent
+l'image avec laquelle elles ont été dessinées. **Supprimer mes données** efface vos images.
 
 Chaque connexion compagnon possède son propre identifiant d'accès et nom d'appareil.
 La page Connexions de votre compte permet de les gérer ou révoquer. Les profils

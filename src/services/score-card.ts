@@ -58,7 +58,11 @@ export type DungeonMotif = "cave" | "fire" | "sea" | "keep" | "mine" | "thorn";
  * right-hand number when the card has a score column (`scoreLabel`), with an optional `scoreNote` under it (+35).
  */
 export interface DungeonCardMember { name: string; color: string; role?: "TANK" | "HEALER" | "DPS" | undefined; roleLabel?: string | undefined; sub?: string | undefined; guild: boolean;
-  score?: string | undefined; scoreNote?: string | undefined }
+  score?: string | undefined; scoreNote?: string | undefined;
+  /** 9.1: the addon's name for this player, so delivery can find the guild character's picture (card-pictures.ts). */
+  character?: string | undefined;
+  /** Added at delivery, never stored: the character's picture thumb (base64 WebP), drawn in place of the role disc. */
+  portrait?: string | undefined }
 /**
  * Dungeon art is painted from `theme` (a scene for the dungeon, or a motif on cards queued before scenes existed, and a
  * seed), never copied from the game: see dungeon-art.ts. `deathPoints` are 0..1 positions on a flat map (x right, y down)
@@ -331,6 +335,14 @@ export function roleGlyph(role: DungeonCardMember["role"], cx: number, cy: numbe
   return `${disc}<g transform="translate(${cx} ${cy}) scale(${r2(r / 17)})">${glyph}</g>`;
 }
 
+/** A base64 image cut to a circle of `size` px, or null when it cannot be read (the caller draws its fallback). */
+export async function circleImage(base64: string, size: number): Promise<Buffer | null> {
+  try {
+    return await sharp(Buffer.from(base64, "base64"), { limitInputPixels: 4096 * 4096 }).resize(size, size, { fit: "cover" })
+      .composite([{ input: Buffer.from(`<svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}"/></svg>`), blend: "dest-in" }]).png().toBuffer();
+  } catch { return null; }
+}
+
 /** The traced map grid (dungeon-map-grid.ts): 200 x 200 cells over the floor's map. WoW map frames are 3:2, so a unit of x is 1.5 units of y. */
 export const MAP_GRID = 200, MAP_ASPECT = 1.5;
 /**
@@ -421,7 +433,15 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
   for (const [i, member] of shown.entries()) {
     const ry = top + 64 + i * rowH;
     if (!member.guild) shapes.push(`<rect x="${px + 16}" y="${ry - 2}" width="${pw - 32}" height="${rowH - 6}" rx="8" fill="none" stroke="${th.edge}" stroke-dasharray="5 4"/>`);
-    shapes.push(roleGlyph(member.role, px + 44, ry + Math.round(23 * z), traced ? 14 : hasMap ? 16 : 17));
+    // A character picture takes the role disc's place, ringed in the role colour, with a small role badge on its corner.
+    const cy = ry + Math.round(23 * z), radius = traced ? 14 : hasMap ? 16 : 17;
+    const face = member.portrait ? await circleImage(member.portrait, radius * 2 + 4) : null;
+    if (face) {
+      const ring = member.role ? ROLE_COLOR[member.role] : th.gold, badge = Math.round(radius * 0.55), bx = px + 44 + radius - 2, by = cy + radius - 3;
+      shapes.push(`<circle cx="${px + 44}" cy="${cy}" r="${radius + 3}" fill="${th.panel}" stroke="${ring}" stroke-width="2"/>`);
+      layers.push({ input: face, left: px + 44 - radius - 2, top: cy - radius - 2 });
+      if (member.role) layers.push({ input: Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${badge * 2 + 4}" height="${badge * 2 + 4}"><circle cx="${badge + 2}" cy="${badge + 2}" r="${badge + 1.5}" fill="#120d08"/>${roleGlyph(member.role, badge + 2, badge + 2, badge)}</svg>`), left: bx - badge - 2, top: by - badge - 2 });
+    } else shapes.push(roleGlyph(member.role, px + 44, cy, radius));
     await put(span(member.color, clip(member.name, hasScore ? 21 : 24)), Math.round(24 * z), px + 72, ry, nameW);
     if (member.sub) await put(span(th.muted, clip(member.sub, hasScore ? 36 : 38)), Math.round(16 * z), px + 72, ry + Math.round(29 * z), hasScore ? nameW + 46 : 330);
     if (hasScore && member.score) {

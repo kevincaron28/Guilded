@@ -2,6 +2,7 @@ import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { integrityRole, readDungeonIntegrity, readPlayerIntegrity } from "./dungeon-integrity.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { displayCharacterName } from "./character-display.js";
+import { normalizeLeaderRuns } from "./public-run-merge.js";
 import { readChallenge } from "./challenge-evidence.js";
 import { rankChallenges, challengeClock } from "./challenge-leaderboard.js";
 import { challengeScores, challengePolicyText } from "./challenge-rating.js";
@@ -34,10 +35,17 @@ import { duelLeaderboard, percent, streakText, type DuelStanding } from "./duels
 // cut off by a row limit. Character pages add the best next improvement and role scores
 // (public-guidance.ts).
 
-export interface LeaderPlayer { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel?: number | null; presentSec?: number | null; integrity?: unknown }
+export interface LeaderPlayer { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel?: number | null; presentSec?: number | null; integrity?: unknown;
+  /** Other stored names of this same character (lowercase), e.g. the first name an older upload used. */
+  aliases?: string[] }
 export interface LeaderRun extends ScoreRun {
   deaths: number | null; bracket: string | null; season: string; players: LeaderPlayer[];
+  /** Set when several uploads of one clear were read as this run (public-run-merge.ts). */
+  mergedIds?: string[];
 }
+/** Whether the guild roster (lowercase character keys) lists this player under its name or an older name of it. */
+export const onRoster = (roster: ReadonlySet<string>, player: LeaderPlayer, edition: string) =>
+  [player.character, ...(player.aliases ?? [])].some((name) => roster.has(characterKey(name, player.realm, edition)));
 export interface DungeonSummary { instanceId: number; dungeonName: string; bestSec: number; runs: number }
 export interface RunQuery { from: Date | null; to: Date | null; instanceId?: number | null }
 
@@ -64,7 +72,7 @@ export function rankGuilds(entries: { guild: PublicGuild; runs: LeaderRun[]; ros
   const ranks: GuildRank[] = [];
   for (const { guild, runs, roster } of entries) {
     const members = new Set(roster.map((name) => name.toLowerCase()));
-    const scores = characterScores(runs, rules).filter((row) => members.has(characterKey(row.player.character, row.player.realm, rules.gameEdition ?? "forever")));
+    const scores = characterScores(runs, rules).filter((row) => onRoster(members, row.player, rules.gameEdition ?? "forever"));
     for (const bracket of rules.brackets) {
       const rows = scores.filter((row) => row.bracket === bracket.key).sort((a, b) => b.points - a.points);
       if (!rows.length) continue;
@@ -211,20 +219,29 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
     for (let cursor: string | null = null; ;) {
       const page: PublicRunRow[] = await database.publicRun.findMany({ where: { ...where, gameEdition: currentEdition() }, orderBy: { id: "asc" }, take: 5_000, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), select: PUBLIC_RUN_SELECT });
       runs.push(...page.map(leaderRun));
-      if (page.length < 5_000) return withFullDisplayNames(runs);
+      if (page.length < 5_000) return normalizeLeaderRuns(runs);
       cursor = page[page.length - 1]!.id;
     }
   }
   return {
     async run(id) {
       const row = await database.publicRun.findFirst({ where: { id, status: "ACCEPTED", gameEdition: currentEdition() }, select: PUBLIC_RUN_SELECT });
-      return row ? leaderRun(row) : null;
+      if (!row) return null;
+      // Read it with the copies of the same clear around it, so every link to any copy shows the one merged run.
+      const near = 600_000;
+      const around = await every({ status: "ACCEPTED", instanceId: row.instanceId, difficultyId: row.difficultyId,
+        endedAt: { gte: new Date(row.endedAt.getTime() - near), lte: new Date(row.endedAt.getTime() + near) } });
+      return around.find((run) => run.runId === id || run.mergedIds?.includes(id)) ?? leaderRun(row);
     },
     async runs(query) {
       return (await every(range(query))).sort((a, b) => a.durationSec - b.durationSec || a.endedAt.getTime() - b.endedAt.getTime());
     },
     async characterRuns(character, realm) {
-      return (await every({ status: "ACCEPTED", players: { some: { character: { equals: character, mode: "insensitive" }, ...(realm !== null ? { realm: { equals: realm, mode: "insensitive" } } : {}) } } })).sort(newestFirst);
+      // Older uploads store the first name only: "Hulke Hogan" is also found under "Hulke", and "Hulke" under "Hulke Hogan".
+      const first = character.split(" ")[0]!;
+      const names: Prisma.PublicRunPlayerWhereInput[] = [{ character: { equals: character, mode: "insensitive" } }, { character: { equals: first, mode: "insensitive" } },
+        { character: { startsWith: `${character} `, mode: "insensitive" } }];
+      return (await every({ status: "ACCEPTED", players: { some: { OR: names, ...(realm !== null ? { realm: { equals: realm, mode: "insensitive" } } : {}) } } })).sort(newestFirst);
     },
     async guilds() {
       const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition() } }, select: { guildId: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
@@ -526,7 +543,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const realm = dash > 0 ? decoded.slice(dash + 1).slice(0, 60) : null;
     if (!name) return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Character not found", "Personnage introuvable")}</h1>`, { noindex: true });
     const runs = await cached(`c:${name.toLowerCase()}:${realm?.toLowerCase() ?? ""}`, () => deps.store.characterRuns(name, realm));
-    const isMe = (player: LeaderPlayer) => player.character.toLowerCase() === name.toLowerCase() && (realm === null || player.realm.toLowerCase() === realm.toLowerCase());
+    const isMe = (player: LeaderPlayer) => [player.character, ...(player.aliases ?? [])].some((n) => n.toLowerCase() === name.toLowerCase())
+      && (realm === null || player.realm.toLowerCase() === realm.toLowerCase());
     const me = runs.flatMap((run) => run.players.filter(isMe))[0];
     const title = `${me?.displayName || me?.character || name}${realm ? `-${realm}` : ""}`;
     const seasons = await seasonsNow();
@@ -668,7 +686,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const runs = await guildRuns(id, period);
     const roster = new Set((await cached(`roster:${id}`, () => deps.store.guildRoster(id))).map((name) => name.toLowerCase()));
     // Members only: pickup players in the guild's runs keep their own character pages.
-    const scores = characterScores(runs, periodRules(period)).filter((row) => roster.has(characterKey(row.player.character, row.player.realm, currentEdition())));
+    const scores = characterScores(runs, periodRules(period)).filter((row) => onRoster(roster, row.player, currentEdition()));
     const ranks = await guildRanks(period);
     const standing = periodRules(period).brackets.flatMap((b) => {
       const inBracket = ranks.filter((r) => r.bracket === b.key);

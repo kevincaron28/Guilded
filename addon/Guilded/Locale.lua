@@ -2424,9 +2424,44 @@ local DE = {
   ["Whether whispering a phrase invites players."] = "Ob ein gefl\195\188sterter Satz Spieler einl\195\164dt.",
   ["Soft-reserve rolls waiting to be awarded."] = "Soft-Reserve-W\195\188rfe, die auf Vergabe warten.",
   ["Who in your group is missing a flask, elixir or food."] = "Wem in deiner Gruppe ein Fl\195\164schchen, Elixier oder Essen fehlt.",
+  ["Discord"] = "Discord",
+  ["Guilded is not ready yet."] = "Guilded ist noch nicht bereit.",
+  ["You already have 10 requests waiting for the companion."] = "Du hast bereits 10 Anfragen, die auf den Begleiter warten.",
+  ["Name the item you need."] = "Nenne den Gegenstand, den du brauchst.",
+  ["waiting for the companion"] = "wartet auf den Begleiter",
+  ["pending"] = "offen",
+  ["approved"] = "genehmigt",
+  ["fulfilled"] = "erf\195\188llt",
+  ["denied"] = "abgelehnt",
+  ["cancelled"] = "storniert",
+  ["Could not save the request."] = "Die Anfrage konnte nicht gespeichert werden.",
+  ["Request saved: %d x %s. Your companion sends it to the officers with the next sync; /guilded gbank requests shows what they did."] = "Anfrage gespeichert: %d x %s. Dein Begleiter schickt sie beim n\195\164chsten Abgleich an die Offiziere; /guilded gbank requests zeigt, was daraus wurde.",
+  ["You have no bank requests."] = "Du hast keine Bankanfragen.",
+  ["Your guild bank requests:"] = "Deine Anfragen an die Gildenbank:",
+  ["Nothing is below its minimum (or officers set none)."] = "Nichts liegt unter seinem Minimum (oder die Offiziere haben keines festgelegt).",
+  ["Below minimum (have / target):"] = "Unter dem Minimum (vorhanden / Ziel):",
+  ["My bank requests"] = "Meine Bankanfragen",
+  ["Your guild bank requests and what officers did with them. Ask with /guilded gbank request <item>."] = "Deine Gildenbank-Anfragen und was die Offiziere damit gemacht haben. Frage mit /guilded gbank request <Gegenstand>.",
+  ["Guild bank low stock"] = "Gildenbank: knapper Bestand",
+  ["Guild bank items below the minimum officers set."] = "Gildenbank-Gegenst\195\164nde unter dem von Offizieren festgelegten Minimum.",
   -- Guilded Dungeons lines (9.0.1)
   ["Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."] = "Guilded ist installiert und zeichnet deine Dungeon-Durchl\195\164ufe auf: nutze /guilded dungeon. Guilded Dungeons bleibt still.",
   ["Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"] = "Befehle: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto",
+  ["Guild overview"] = "Gilden\195\188bersicht",
+  ["classes and levels of the whole guild at a glance"] = "Klassen und Stufen der ganzen Gilde auf einen Blick",
+  ["%d members"] = "%d Mitglieder",
+  ["%d online"] = "%d online",
+  ["Active this week: %d"] = "Diese Woche aktiv: %d",
+  ["Guilded: %d / %d"] = "Guilded: %d / %d",
+  ["Your guild"] = "Deine Gilde",
+  ["Nobody of this class is online."] = "Niemand dieser Klasse ist online.",
+  ["Online now:"] = "Jetzt online:",
+  ["The guild roster is still loading. It fills in by itself in a moment."] = "Die Gildenliste l\195\164dt noch. Sie f\195\188llt sich gleich von selbst.",
+  ["Join a guild to see the guild overview."] = "Tritt einer Gilde bei, um die Gilden\195\188bersicht zu sehen.",
+  ["From the game's guild roster, so every member counts. Guilded = members running the addon."] = "Aus der Gildenliste des Spiels, also z\195\164hlt jedes Mitglied. Guilded = Mitglieder mit dem Addon.",
+  ["The guild window hides offline members (Show offline members is off), so totals cover online members only."] = "Das Gildenfenster blendet Offline-Mitglieder aus (Offline-Mitglieder anzeigen ist aus), daher z\195\164hlen nur Online-Mitglieder.",
+  ["Classes (online / total)"] = "Klassen (online / gesamt)",
+  ["Levels"] = "Stufen",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3924,9 +3959,44 @@ local ES = {
   ["Whether whispering a phrase invites players."] = "Indica si susurrar una frase invita a los jugadores.",
   ["Soft-reserve rolls waiting to be awarded."] = "Tiradas de reserva suave a la espera de asignaci\195\179n.",
   ["Who in your group is missing a flask, elixir or food."] = "A qui\195\169n de tu grupo le falta un frasco, elixir o comida.",
+  ["Discord"] = "Discord",
+  ["Guilded is not ready yet."] = "Guilded a\195\186n no est\195\161 listo.",
+  ["You already have 10 requests waiting for the companion."] = "Ya tienes 10 solicitudes esperando al acompa\195\177ante.",
+  ["Name the item you need."] = "Indica el objeto que necesitas.",
+  ["waiting for the companion"] = "esperando al acompa\195\177ante",
+  ["pending"] = "pendiente",
+  ["approved"] = "aprobada",
+  ["fulfilled"] = "entregada",
+  ["denied"] = "rechazada",
+  ["cancelled"] = "cancelada",
+  ["Could not save the request."] = "No se pudo guardar la solicitud.",
+  ["Request saved: %d x %s. Your companion sends it to the officers with the next sync; /guilded gbank requests shows what they did."] = "Solicitud guardada: %d x %s. Tu acompa\195\177ante la env\195\173a a los oficiales en la pr\195\179xima sincronizaci\195\179n; /guilded gbank requests muestra qu\195\169 hicieron.",
+  ["You have no bank requests."] = "No tienes solicitudes al banco.",
+  ["Your guild bank requests:"] = "Tus solicitudes al banco de hermandad:",
+  ["Nothing is below its minimum (or officers set none)."] = "Nada est\195\161 por debajo de su m\195\173nimo (o los oficiales no fijaron ninguno).",
+  ["Below minimum (have / target):"] = "Por debajo del m\195\173nimo (hay / objetivo):",
+  ["My bank requests"] = "Mis solicitudes al banco",
+  ["Your guild bank requests and what officers did with them. Ask with /guilded gbank request <item>."] = "Tus solicitudes al banco de hermandad y qu\195\169 hicieron los oficiales. Pide con /guilded gbank request <objeto>.",
+  ["Guild bank low stock"] = "Banco de hermandad: existencias bajas",
+  ["Guild bank items below the minimum officers set."] = "Objetos del banco de hermandad por debajo del m\195\173nimo fijado por los oficiales.",
   -- Guilded Dungeons lines (9.0.1)
   ["Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."] = "Guilded est\195\161 instalado y registra tus mazmorras: usa /guilded dungeon. Guilded Dungeons permanece en silencio.",
   ["Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"] = "Comandos: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto",
+  ["Guild overview"] = "Resumen de la hermandad",
+  ["classes and levels of the whole guild at a glance"] = "clases y niveles de toda la hermandad de un vistazo",
+  ["%d members"] = "%d miembros",
+  ["%d online"] = "%d conectados",
+  ["Active this week: %d"] = "Activos esta semana: %d",
+  ["Guilded: %d / %d"] = "Guilded: %d / %d",
+  ["Your guild"] = "Tu hermandad",
+  ["Nobody of this class is online."] = "Nadie de esta clase est\195\161 conectado.",
+  ["Online now:"] = "Conectados ahora:",
+  ["The guild roster is still loading. It fills in by itself in a moment."] = "La lista de la hermandad a\195\186n se est\195\161 cargando. Se completar\195\161 sola en un momento.",
+  ["Join a guild to see the guild overview."] = "\195\154nete a una hermandad para ver el resumen de la hermandad.",
+  ["From the game's guild roster, so every member counts. Guilded = members running the addon."] = "Seg\195\186n la lista de la hermandad del juego, as\195\173 que cuenta cada miembro. Guilded = miembros que usan el addon.",
+  ["The guild window hides offline members (Show offline members is off), so totals cover online members only."] = "La ventana de hermandad oculta a los miembros desconectados (Mostrar miembros desconectados est\195\161 desactivado), as\195\173 que los totales solo cuentan a los conectados.",
+  ["Classes (online / total)"] = "Clases (conectados / total)",
+  ["Levels"] = "Niveles",
 }
 -- END ES
 
@@ -4605,3 +4675,41 @@ FR["Greet new guild members"] = "Accueillir les nouveaux membres de la guilde"
 FR["Promoted %s: %s"] = "%s promu : %s"
 FR["rank %s to the next rank up (linked to Discord)"] = "du rang %s au rang suivant (li\195\169 \195\160 Discord)"
 FR["The welcome message language is set."] = "La langue du message de bienvenue est d\195\169finie."
+
+-- 9.1 guild bank requests and low stock (Modules/GuildBank.lua).
+FR["Discord"] = "Discord"
+FR["Guilded is not ready yet."] = "Guilded n'est pas encore pr\195\170t."
+FR["You already have 10 requests waiting for the companion."] = "Vous avez d\195\169j\195\160 10 demandes en attente du compagnon."
+FR["Name the item you need."] = "Nommez l'objet dont vous avez besoin."
+FR["waiting for the companion"] = "en attente du compagnon"
+FR["pending"] = "en attente"
+FR["approved"] = "approuv\195\169e"
+FR["fulfilled"] = "remise"
+FR["denied"] = "refus\195\169e"
+FR["cancelled"] = "annul\195\169e"
+FR["Could not save the request."] = "Impossible d'enregistrer la demande."
+FR["Request saved: %d x %s. Your companion sends it to the officers with the next sync; /guilded gbank requests shows what they did."] = "Demande enregistr\195\169e : %d x %s. Votre compagnon l'envoie aux officiers \195\160 la prochaine synchronisation; /guilded gbank requests montre la suite."
+FR["You have no bank requests."] = "Vous n'avez aucune demande \195\160 la banque."
+FR["Your guild bank requests:"] = "Vos demandes \195\160 la banque de guilde :"
+FR["Nothing is below its minimum (or officers set none)."] = "Rien n'est sous son minimum (ou les officiers n'en ont fix\195\169 aucun)."
+FR["Below minimum (have / target):"] = "Sous le minimum (disponible / cible) :"
+FR["My bank requests"] = "Mes demandes \195\160 la banque"
+FR["Your guild bank requests and what officers did with them. Ask with /guilded gbank request <item>."] = "Vos demandes \195\160 la banque de guilde et leur suite. Demandez avec /guilded gbank request <objet>."
+FR["Guild bank low stock"] = "Stock bas de la banque"
+FR["Guild bank items below the minimum officers set."] = "Objets de la banque de guilde sous le minimum fix\195\169 par les officiers."
+-- Guild overview page (ROADMAP item 17, Modules/GuildOverview.lua).
+FR["Guild overview"] = "Vue de la guilde"
+FR["classes and levels of the whole guild at a glance"] = "classes et niveaux de toute la guilde en un coup d'\197\147il"
+FR["%d members"] = "%d membres"
+FR["%d online"] = "%d en ligne"
+FR["Active this week: %d"] = "Actifs cette semaine : %d"
+FR["Guilded: %d / %d"] = "Guilded : %d / %d"
+FR["Your guild"] = "Votre guilde"
+FR["Nobody of this class is online."] = "Personne de cette classe n'est en ligne."
+FR["Online now:"] = "En ligne maintenant :"
+FR["The guild roster is still loading. It fills in by itself in a moment."] = "La liste de guilde se charge encore. Elle se remplit d'elle-m\195\170me dans un instant."
+FR["Join a guild to see the guild overview."] = "Rejoignez une guilde pour voir la vue de la guilde."
+FR["From the game's guild roster, so every member counts. Guilded = members running the addon."] = "D'apr\195\168s la liste de guilde du jeu : chaque membre compte. Guilded = membres qui utilisent l'addon."
+FR["The guild window hides offline members (Show offline members is off), so totals cover online members only."] = "La fen\195\170tre de guilde masque les membres hors ligne (Afficher les membres hors ligne est d\195\169coch\195\169) : les totaux ne comptent que les membres en ligne."
+FR["Classes (online / total)"] = "Classes (en ligne / total)"
+FR["Levels"] = "Niveaux"

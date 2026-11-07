@@ -1,7 +1,7 @@
 import type { ParsedItem } from "./item-links.js";
 
-// Item data provider seam. No item database exists in this repository and none may be scraped, so the
-// default provider knows nothing; previews then show only what the link itself said, labelled unverified.
+// Item data provider seam. The default provider knows nothing (tests, local dev, no Battle.net app); the live
+// one is Blizzard's Game Data API (`blizzard-items.ts`, docs/ITEM_PREVIEWS.md). Nothing is scraped.
 export interface ItemDetails {
   name: string;
   quality?: number;
@@ -9,6 +9,14 @@ export interface ItemDetails {
   /** Verified one-line summary (slot/type/level), only from an authoritative source. */
   summary?: string;
   url?: string;
+  /** The item id the source answered for (the only id for a name-only match). */
+  itemId?: number;
+  /** "forever" = WoW Forever data; "classic1x" = Classic Era fallback, not confirmed for Forever. */
+  source?: "forever" | "classic1x";
+  /** "name" when the item was found by its exact name (exactly one item has it), not by a linked id. */
+  matchedBy?: "id" | "name";
+  /** French name and summary, when the source has them. */
+  fr?: { name: string; summary?: string };
 }
 export interface ItemDataProvider {
   lookup(item: ParsedItem): Promise<ItemDetails | null>;

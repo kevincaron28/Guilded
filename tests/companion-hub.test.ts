@@ -85,10 +85,9 @@ describe("hub: server page permissions", () => {
     expect(db.guildSettings.update).toHaveBeenCalledTimes(1);
   });
 
-  it("can turn public sharing off but has no way to turn it on", async () => {
-    await hub.applyServer("g1", officer, { action: "server.publicSharing.off" });
-    expect(db.guildSettings.update).toHaveBeenCalledWith({ where: { guildId: "g1" }, data: { publicDungeonRuns: false } });
-    await expect(hub.applyServer("g1", officer, { action: "server.publicSharing.on" })).rejects.toThrow();
+  it("has no way to turn public sharing off", async () => {
+    await expect(hub.applyServer("g1", officer, { action: "server.publicSharing.off" } as never)).rejects.toThrow();
+    expect(db.guildSettings.update).not.toHaveBeenCalled();
   });
 
   it("needs a channel before achievement announcements, then marks earned ones as announced", async () => {

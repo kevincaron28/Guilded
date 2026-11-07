@@ -50,3 +50,42 @@ Nothing here can change the bank, EP/GP or anyone's rank.
 2. After a companion sync, the Guild bank page shows the contents, the chart and the ledger.
 3. Two members open the bank the same hour: every line appears once.
 4. After a week with activity, the summary appears once in the log channel.
+
+## 9.1 additions (docs/plans/GUILD_BANK.md, owner approved 7 November 2026)
+
+Built in the plan's order: member search with item links, then requests, then minimum stock. All on
+by default; officers turn each off with `/bank settings`.
+
+- **Member search.** `/bank search item:` (autocomplete from the last contents) answers privately with
+  the count, the tabs and how old the contents are. Members also see the contents and a search box on
+  the Guild bank page (`/me/guild-bank`); the gold chart, the ledger and who moved what stay officers
+  only. In game, `/guilded gbank <item>` searches the newer of this PC's own snapshot and the guild's
+  contents the companion writes next to the standings (`GuildedBank`), so members who never open the
+  bank can search it too. Off switch: `/bank settings member_search:False` (officers still see it).
+- **Item links and quality.** Item names on the page, in Discord answers and on request cards link to
+  their Wowhead page; the addon reads each item's quality from its link colour (`q`), and the page
+  shows uncommon and better in their colour. No icons: Guilded has no item database to take them from.
+- **Requests.** `/bank request` now matches the bank's item when it can. In game:
+  `/guilded gbank request [count] <item>` saves the request in `db.bankRequests`; the member's own
+  companion uploads it (only with their pairing) and the bot keeps each `ref` once. Every new request
+  gets a card with Approve / Fulfilled / Deny buttons in the request channel
+  (`/bank settings request_channel:`, else the log channel); the card updates when handled and the
+  member gets a DM (closed DMs are skipped). `/guilded gbank requests` and the Info and data page's
+  "My bank requests" button show the status in game. Off switch for the cards:
+  `/bank settings request_posts:False` (`/bank list` and `/bank handle` keep working).
+- **Minimum stock.** Officers set `/bank stock item: min:` (0 removes); `/bank stock` lists what is
+  below target. After an upload shows an item below its minimum, the log channel gets one alert; it
+  can alert again only after the item was back at target. The weekly summary adds top depositors,
+  items below minimum and the open request count. In game: `/guilded gbank low`. Off switch for
+  alerts: `/bank settings stock_alerts:False`.
+
+Not built (the plan holds them): withdrawal watch, bank alts and mailbox, donation recognition, gold
+goals, item assignment, mail-draft helper. The plan's dedicated "Bank requests" channel created by
+`/setup` is replaced by an optional officer-chosen channel, to stay clear of `/setup`'s size limit.
+
+### Needs a real client (9.1)
+
+5. `/guilded gbank request 2 <item>`, sync: a card appears for officers; Fulfilled sends the DM and
+   `/guilded gbank requests` shows "fulfilled" after the next standings download.
+6. On a PC that never opened the bank, `/guilded gbank <item>` answers from Discord's contents.
+7. Set `/bank stock` above what the bank holds, open the bank, sync: one alert in the log channel.

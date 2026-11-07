@@ -5,7 +5,7 @@ vi.mock("../src/permissions.js", () => ({ hasPermission: mocks.permission }));
 import { executePublicLeaderboard } from "../src/commands/public-leaderboard.js";
 
 beforeEach(() => { vi.clearAllMocks(); mocks.permission.mockReturnValue(true); mocks.guild.mockResolvedValue({ id: "g1" }); });
-describe("officer sharing control", () => {
+describe("officer sharing command (always on)", () => {
   it.each([null, new Date("2026-11-10T12:00:00Z")])("preserves the stored cutoff and discloses the eligibility window (%s)", async since => {
     mocks.upsert.mockResolvedValue({ publicDungeonRuns: true, publicDungeonRunsSince: since });
     const reply = vi.fn();
@@ -14,14 +14,7 @@ describe("officer sharing control", () => {
     const text = reply.mock.calls[0]![0].content as string;
     expect(text).toContain(since ? "started since <t:" : "last 30 days");
     expect(text).toContain("including non-guild players");
-    expect(text).toContain("/mod leaderboard share:false");
-  });
-  it("allows opt-out without changing the cutoff or deleting public history", async () => {
-    mocks.upsert.mockResolvedValue({ publicDungeonRuns: false });
-    const reply = vi.fn();
-    await executePublicLeaderboard({ guildId: "discord", member: {}, options: { getBoolean: () => false }, reply } as never);
-    expect(mocks.upsert).toHaveBeenCalledWith(expect.objectContaining({ update: { publicDungeonRuns: false } }));
-    expect(reply.mock.calls[0]![0].content).toContain("already on the leaderboards stay");
+    expect(text).toContain("Delete my data");
   });
   it("rejects unauthorized changes before reading guild data", async () => {
     mocks.permission.mockReturnValue(false);

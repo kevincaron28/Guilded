@@ -88,10 +88,11 @@ import { answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.
 import { GROUP_ALERT_OPEN_ID, GROUP_ALERT_PREFIX, handleGroupAlertComponent, openGroupAlerts } from "./commands/group-alerts.js";
 import { runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
-import { executeBank } from "./commands/bank.js";
+import { executeBank, handleBankRequestButton } from "./commands/bank.js";
+import { BANK_REQUEST_PREFIX } from "./services/guild-bank-member.js";
 import { executeCraft } from "./commands/craft.js";
 import { OFFER_PREFIX, handleOfferButton, sweepCraftOffers } from "./commands/craft-offers.js";
-import { greetNewGuild, logSetupStatus } from "./commands/setup.js";
+import { greetNewGuild, isLiveSetupMessage, logSetupStatus } from "./commands/setup.js";
 import { announceVersionUpdates } from "./services/version-announce.js";
 import { announceAvailableUpdate } from "./services/update-check.js";
 import { executeUninstall } from "./commands/uninstall.js";
@@ -112,7 +113,8 @@ import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
 import { executeOwnerPreviews, handleItemPreviewButton, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
 import { ITEM_PREVIEW_PREFIX } from "./services/item-preview-step0.js";
 import { handlePreviewMessage } from "./services/item-preview.js";
-import { CachedItemProvider, nullItemDataProvider, PreviewGate } from "./services/item-preview-data.js";
+import { PreviewGate } from "./services/item-preview-data.js";
+import { itemData } from "./item-data.js";
 import { botOwnerId, executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
 import { executeOwnerConsole, OWNER_CONSOLE_COMMAND, ownerConsoleCommand } from "./commands/owner-console.js";
 import { createOwnerConsole } from "./services/owner-console.js";
@@ -629,7 +631,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
   client.on(Events.MessageCreate, (message) => { if (message.guildId && hostedPilot.allows(message.guildId)) void handleInviteMessage(message, prisma).catch(reportJobError("Guild invite post", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });
   // Discord-only item previews (docs/ITEM_PREVIEWS.md): inert until an owner enables a server.
   const previewGate = new PreviewGate();
-  const previewProvider = new CachedItemProvider(nullItemDataProvider);
+  const previewProvider = itemData; // cached, rate-limited; the null provider without a Battle.net app
   const previewBackoff = new Map<string, number>();
   client.on(Events.MessageCreate, (message) => {
     if (!message.guildId || !hostedPilot.allows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket
@@ -684,6 +686,11 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   // The owner's private console: every id is owner-checked inside, in the home server only.
   if ("customId" in interaction && interaction.customId.startsWith(CONSOLE_PREFIX)) {
     await ownerConsole.handle(interaction).catch((error: unknown) => reportInteractionError("Owner console", interaction, error));
+    return;
+  }
+  // A setup wizard screen whose collector is gone (bot restarted, or the wizard timed out): say so instead of "This interaction failed".
+  if (interaction.isMessageComponent() && interaction.customId.startsWith("setup:") && !isLiveSetupMessage(interaction.message.id)) {
+    await interaction.reply({ content: "This setup screen has expired. Run `/setup start` again; your choices are saved. / Cet écran de configuration a expiré. Relancez `/setup start`; vos choix sont enregistrés.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(ITEM_PREVIEW_PREFIX)) {
@@ -822,6 +829,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
         void interaction.reply({ content: error instanceof Error ? error.message : "Could not post the dungeon group.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     });
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(BANK_REQUEST_PREFIX)) {
+    await handleBankRequestButton(interaction).catch((error: unknown) => reportInteractionError("Bank request button", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(OFFER_PREFIX)) {

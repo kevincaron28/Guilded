@@ -27,6 +27,7 @@ import { communityChoices } from "../services/community-choices.js";
 import { worldBuffDropChoices } from "./world-buffs.js";
 import { dniChoices } from "./do-not-invite.js";
 import { raidPresetChoices } from "../services/raid-presets.js";
+import { bankItemChoices } from "./bank.js";
 
 // Routes every autocomplete request (see setAutocomplete(true) on ID
 // options) to the right list. Must answer within 3 seconds, so any error
@@ -122,6 +123,8 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       });
     } else if (focused.name === "auction") {
       choices = await auctionChoices(prisma, guild.id, query);
+    } else if (command === "bank" && focused.name === "item") {
+      choices = await bankItemChoices(guild.id, query, !!interaction.member && hasPermission(interaction.member as GuildMember, "officer"));
     } else if (command === "bank" && focused.name === "id") {
       // Officers handling requests see everyone's; members see their own.
       const officer = subcommand === "handle" && !!interaction.member && hasPermission(interaction.member as GuildMember, "officer");

@@ -36,7 +36,7 @@ points and rosters and does not stop an already-running companion.
 
 ## Want the bot for your guild?
 
-**[Add Guilded to your server](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
+**[Add Guilded to your server](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718837849168)**
 
 The hosted bot is free. Adding it puts your server on **Guilded Lite** right away
 (setup, help, bug reports, dungeon groups, basic signups); KCaron's approval unlocks

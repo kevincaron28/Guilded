@@ -31,7 +31,7 @@ import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { runDiscordJobs } from "./services/discord-jobs.js";
 import { queueGuildScheduledEvents } from "./services/scheduled-events.js";
 import { commandRegistration } from "./services/command-registration.js";
-import { interactionReportOrigin, withReportContext, type InteractionReportInput, type ReportScope } from "./services/report-context.js";
+import { interactionLabel, interactionReportOrigin, withReportContext, type InteractionReportInput, type ReportScope } from "./services/report-context.js";
 import { queueCharacterDisplayRefresh } from "./services/character-display-refresh.js";
 import { executeSystem } from "./commands/system.js";
 import { executeConfig } from "./commands/settings.js";
@@ -62,6 +62,8 @@ import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js"
 import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
 import { executeCore } from "./commands/core.js";
 import { ACHIEVEMENT_SHARE_PREFIX, handleAchievementShare } from "./commands/achievements.js";
+import { handleDungeonTimeline } from "./commands/dungeon-post.js";
+import { DUNGEON_TIMELINE_PREFIX } from "./services/dungeon-announce.js";
 import { syncAllRankRoles } from "./services/rank-roles.js";
 import { syncAllNicknames } from "./services/nickname-sync.js";
 import { postAllWeeklyPromotions } from "./services/promotion.js";
@@ -178,7 +180,7 @@ const reportJobError = (source: string, origin: ReportScope = {}) => (error: unk
 const reportInteractionError = (source: string, interaction: InteractionReportInput & { guildId: string | null; guild: { name: string } | null; user: { id: string } }, error: unknown): void => {
   if (isMemberAnswer(error)) { console.warn(`${source}: ${(error as Error).message}`); return; }
   console.error(`${source} failed`, error);
-  void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id, ...interactionReportOrigin(interaction), operation: source });
+  void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id, ...interactionReportOrigin(interaction), operation: `${source} ${interactionLabel(interaction)}`.trim() });
 };
 
 // Stops cleanly: no new companion requests, Discord and the database closed. systemd sends
@@ -836,6 +838,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isButton() && interaction.customId.startsWith(CRAFT_PREFIX)) {
     await handleCraftButton(interaction).catch((error: unknown) => reportInteractionError("Craft button", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(DUNGEON_TIMELINE_PREFIX)) {
+    await handleDungeonTimeline(interaction).catch((error: unknown) => reportInteractionError("Dungeon timeline", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(ACHIEVEMENT_SHARE_PREFIX)) {

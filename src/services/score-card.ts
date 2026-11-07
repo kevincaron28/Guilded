@@ -30,7 +30,19 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   /** 8.5: the roster picture (class counts by level band + profession grid, roster-visual.ts); switches to its own layout. */
   roster?: RosterVisual; rosterProfessionsLabel?: string;
   /** Race layout (8.5): class-coloured level bars in two columns, up to 14. */
-  race?: CardRaceBar[] }
+  race?: CardRaceBar[];
+  /** 9.1: the dungeon completion layout (themed art, party with role icons, optional death map). */
+  dungeon?: DungeonVisual }
+
+export type DungeonMotif = "cave" | "fire" | "sea" | "keep" | "mine" | "thorn";
+/** One party member on a dungeon card. `guild` false marks an outsider; `color` is the class colour. */
+export interface DungeonCardMember { name: string; color: string; role?: "TANK" | "HEALER" | "DPS" | undefined; roleLabel?: string | undefined; sub?: string | undefined; guild: boolean }
+/**
+ * Dungeon art is generated from `theme` (two colours, a silhouette motif and a seed), never copied from the game.
+ * `deathPoints` are 0..1 positions on a flat map (x right, y down) and switch the death map on.
+ */
+export interface DungeonVisual { theme: { a: string; b: string; motif: DungeonMotif; seed: number }; party: DungeonCardMember[];
+  guildLabel: string; outsiderLabel: string; moreLabel: string; /** Slug of the dungeon; `site/dungeon-maps/<mapKey>.png` is the map the deaths are drawn on, when that file exists. */ mapKey?: string; deathPoints?: { x: number; y: number }[]; deathMapLabel?: string }
 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
 const images = new Map<string, Buffer>();
@@ -101,6 +113,7 @@ async function renderRace(card: ScoreCard): Promise<Buffer> {
 }
 
 async function render(card: ScoreCard): Promise<Buffer> {
+  if (card.dungeon) return renderDungeon(card);
   if (card.roster) return renderRoster(card);
   if (card.unlocks?.length) return renderUnlock(card);
   if (card.race?.length) return renderRace(card);
@@ -176,6 +189,136 @@ async function render(card: ScoreCard): Promise<Buffer> {
   shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
   await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590);
 
+  const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
+  return sharp(base).composite(layers).png().toBuffer();
+}
+
+const rng = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+
+/** Generated dungeon backdrop: a two-colour wash plus a simple silhouette motif. Original shapes, no game art. */
+export function dungeonArt(theme: DungeonVisual["theme"]): string {
+  const rand = rng(theme.seed), out: string[] = [];
+  out.push(`<defs><linearGradient id="wash" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${theme.a}"/><stop offset="1" stop-color="${theme.b}"/></linearGradient></defs>`, `<rect width="1200" height="630" fill="url(#wash)"/>`);
+  const tone = `fill="#000" fill-opacity=".38"`, light = `fill="${theme.b}" fill-opacity=".3"`;
+  if (theme.motif === "cave") {
+    for (let i = 0; i < 16; i++) { const x = i * 80 + rand() * 40, w = 30 + rand() * 50, h = 50 + rand() * 120; out.push(`<path d="M${x} 0L${x + w} 0L${x + w / 2} ${h}Z" ${tone}/>`); }
+    for (let i = 0; i < 14; i++) { const x = i * 90 + rand() * 50, w = 40 + rand() * 60, h = 40 + rand() * 100; out.push(`<path d="M${x} 630L${x + w} 630L${x + w / 2} ${630 - h}Z" ${tone}/>`); }
+    out.push(`<ellipse cx="${300 + rand() * 200}" cy="520" rx="260" ry="40" ${light}/>`);
+  } else if (theme.motif === "fire") {
+    out.push(`<defs><radialGradient id="lava" cx="50%" cy="100%" r="70%"><stop offset="0" stop-color="#ffb347" stop-opacity=".75"/><stop offset="1" stop-color="#ff5a1a" stop-opacity="0"/></radialGradient></defs>`, `<rect width="1200" height="630" fill="url(#lava)"/>`);
+    let d = "M0 630L0 560"; for (let x = 0; x <= 1200; x += 60) d += `L${x} ${540 + rand() * 70}`; out.push(`<path d="${d}L1200 630Z" ${tone}/>`);
+    for (let i = 0; i < 46; i++) out.push(`<circle cx="${rand() * 1200}" cy="${200 + rand() * 400}" r="${1 + rand() * 3.5}" fill="#ffb347" fill-opacity="${0.25 + rand() * 0.5}"/>`);
+  } else if (theme.motif === "sea") {
+    for (let row = 0; row < 6; row++) { let d = `M0 ${300 + row * 55}`; for (let x = 0; x <= 1200; x += 60) d += `Q${x + 30} ${300 + row * 55 + (row % 2 ? 22 : -22)} ${x + 60} ${300 + row * 55}`; out.push(`<path d="${d}" fill="none" stroke="${theme.b}" stroke-opacity="${0.18 + row * 0.04}" stroke-width="3"/>`); }
+    for (let i = 0; i < 24; i++) out.push(`<circle cx="${rand() * 1200}" cy="${rand() * 630}" r="${2 + rand() * 7}" fill="none" stroke="#fff" stroke-opacity=".18"/>`);
+  } else if (theme.motif === "keep") {
+    out.push(`<circle cx="${880 + rand() * 200}" cy="${110 + rand() * 40}" r="54" fill="#fff" fill-opacity=".12"/>`);
+    let x = 0; while (x < 1200) { const w = 70 + rand() * 90, h = 120 + rand() * 170; out.push(`<rect x="${x}" y="${630 - h}" width="${w}" height="${h}" ${tone}/>`); for (let c = 0; c < w - 10; c += 24) out.push(`<rect x="${x + c}" y="${630 - h - 14}" width="14" height="14" ${tone}/>`); x += w + 6; }
+  } else if (theme.motif === "mine") {
+    for (let i = 0; i < 6; i++) { const x = 70 + i * 210; out.push(`<rect x="${x}" y="0" width="22" height="630" ${tone}/>`, `<rect x="${x - 10}" y="${70 + rand() * 40}" width="230" height="20" ${tone}/>`); }
+    out.push(`<circle cx="${300 + rand() * 600}" cy="${180 + rand() * 120}" r="150" fill="#ffd27a" fill-opacity=".1"/>`);
+  } else {
+    for (let i = 0; i < 26; i++) { const x = rand() * 1200, y = 630, h = 120 + rand() * 330, bend = (rand() - 0.5) * 220; out.push(`<path d="M${x} ${y}Q${x + bend} ${y - h / 2} ${x + bend * 1.6} ${y - h}" fill="none" stroke="#000" stroke-opacity=".34" stroke-width="${3 + rand() * 6}"/>`); }
+  }
+  return out.join("");
+}
+
+const roleIcon = (role: DungeonCardMember["role"], cx: number, cy: number): string => {
+  if (role === "TANK") return `<path transform="translate(${cx} ${cy}) scale(1.05)" d="M0-11L10-7V2C10 8 4 11 0 13C-4 11-10 8-10 2V-7Z" fill="#5aa0e0" stroke="#cfe6ff" stroke-width="1.5"/>`;
+  if (role === "HEALER") return `<path transform="translate(${cx} ${cy}) scale(.95)" d="M-3-11h6v8h8v6h-8v8h-6v-8h-8v-6h8z" fill="#6fdc4f" stroke="#d6ffc8" stroke-width="1.2"/>`;
+  if (role === "DPS") return `<g transform="translate(${cx} ${cy})" stroke="#ffb09f" stroke-width="1"><rect x="-2.5" y="-13" width="5" height="22" rx="1.5" transform="rotate(40)" fill="#ff6a52"/><rect x="-2.5" y="-13" width="5" height="22" rx="1.5" transform="rotate(-40)" fill="#ff6a52"/></g>`;
+  return `<circle cx="${cx}" cy="${cy}" r="5" fill="${th.muted}"/>`;
+};
+
+/**
+ * The dungeon completion card: generated dungeon art behind a left column (time, final boss, deaths) and a party panel
+ * (role icon, full name in class colour, class/spec/deaths, an "outside guild" mark for outsiders). With death positions
+ * a small map under the party shows where the group fell; without them the card is the same, minus the map.
+ */
+async function renderDungeon(card: ScoreCard): Promise<Buffer> {
+  const visual = card.dungeon!, accent = { gold: th.gold, green: th.green, red: th.red } as const;
+  const shapes: string[] = [dungeonArt(visual.theme)], layers: Layer[] = [];
+  shapes.push(`<defs><linearGradient id="shade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".72"/><stop offset=".55" stop-color="#000" stop-opacity=".5"/><stop offset="1" stop-color="#000" stop-opacity=".62"/></linearGradient></defs>`,
+    `<rect width="1200" height="630" fill="url(#shade)"/>`, `<rect width="12" height="630" fill="${th.bar}"/>`,
+    `<rect x="26" y="14" width="1160" height="602" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`);
+  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
+    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
+  };
+  const putRight = async (markup: string, size: number, right: number, top: number) => {
+    const t = await text(markup, size, 300); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(top) }); return t;
+  };
+  const leftW = 500, titleLen = [...drawable(card.title)].length, titleSize = titleLen <= 12 ? 62 : titleLen <= 17 ? 50 : 40;
+  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40, leftW);
+  await put(span(th.ink, clip(card.title, 26)), titleSize, 58, 68 + (62 - titleSize) / 2, leftW);
+  await put(span(th.muted, clip(card.subtitle, 40)), 25, 60, 146, leftW);
+
+  const [time, boss, deaths] = card.stats;
+  if (time) {
+    shapes.push(`<rect x="60" y="218" width="4" height="24" rx="2" fill="${accent[time.accent ?? "gold"]}"/>`);
+    await put(caps(th.muted, clip(time.label, 30)), 17, 76, 220, leftW);
+    await put(span(accent[time.accent ?? "gold"], clip(time.value, 8)), 104, 56, 244, leftW);
+    if (time.note) await put(span(th.ink, clip(time.note, 38)), 20, 60, 366, leftW);
+  }
+  const small = async (stat: CardStat | undefined, x: number, w: number, chars: number) => {
+    if (!stat) return;
+    shapes.push(`<rect x="${x}" y="420" width="4" height="20" rx="2" fill="${accent[stat.accent ?? "gold"]}"/>`);
+    await put(caps(th.muted, clip(stat.label, 16)), 15, x + 14, 420, w);
+    await put(span(accent[stat.accent ?? "gold"], clip(stat.value, chars)), stat.value.length > 16 ? 24 : 32, x - 1, 444, w);
+    if (stat.note) await put(span(th.ink, clip(stat.note, 24)), 16, x + 1, 488, w);
+  };
+  await small(boss, 60, 310, 28);
+  await small(deaths, 390, 150, 6);
+
+  // Party panel.
+  const px = 600, pw = 540, top = 60, hasMap = Boolean(visual.deathPoints?.length), maxRows = hasMap ? 5 : 6, rowH = hasMap ? 52 : 60;
+  shapes.push(`<rect x="${px}" y="${top}" width="${pw}" height="450" rx="14" fill="${th.panel}" fill-opacity=".9" stroke="${th.edge}" stroke-width="1.5"/>`);
+  await put(caps(th.muted, clip(card.rowsLabel ?? "", 40)), 17, px + 28, top + 22, pw - 56);
+  shapes.push(`<rect x="${px + 28}" y="${top + 54}" width="${pw - 56}" height="1" fill="${th.edge}"/>`);
+  const shown = visual.party.slice(0, visual.party.length > maxRows ? maxRows - 1 : maxRows);
+  for (const [i, member] of shown.entries()) {
+    const ry = top + 64 + i * rowH;
+    if (!member.guild) shapes.push(`<rect x="${px + 16}" y="${ry - 2}" width="${pw - 32}" height="${rowH - 6}" rx="8" fill="none" stroke="${th.edge}" stroke-dasharray="5 4"/>`);
+    shapes.push(roleIcon(member.role, px + 42, ry + 22));
+    await put(span(member.color, clip(member.name, 24)), 24, px + 72, ry, 300);
+    if (member.sub) await put(span(th.muted, clip(member.sub, 38)), 16, px + 72, ry + 29, 330);
+    if (member.roleLabel) await putRight(span(th.ink, clip(member.roleLabel, 12)), 19, px + pw - 30, ry + 2);
+    await putRight(member.guild ? span(th.gold, visual.guildLabel) : span(th.muted, visual.outsiderLabel), 14, px + pw - 30, ry + 30);
+  }
+  const hidden = visual.party.length - shown.length;
+  if (hidden > 0) await put(span(th.muted, `+${hidden} ${visual.moreLabel}`), 18, px + 72, top + 64 + shown.length * rowH + 4, 300);
+
+  if (hasMap) {
+    const mx = px + 28, my = top + 64 + maxRows * rowH + 6, mw = pw - 56, mh = 450 - (my - top) - 14;
+    shapes.push(`<rect x="${mx}" y="${my}" width="${mw}" height="${mh}" rx="8" fill="#140e08" stroke="${th.edge}"/>`);
+    // The dungeon's own map, when one was added to site/dungeon-maps/; otherwise the plain grid below.
+    const mapFile = visual.mapKey && /^[a-z0-9-]{1,60}$/.test(visual.mapKey) ? fileURLToPath(new URL(`../../site/dungeon-maps/${visual.mapKey}.png`, import.meta.url)) : null;
+    if (mapFile) {
+      try {
+        const map = await sharp(mapFile).resize(mw - 2, mh - 2, { fit: "contain", background: "#140e08" }).png().toBuffer();
+        shapes.push(`<image x="${mx + 1}" y="${my + 1}" width="${mw - 2}" height="${mh - 2}" opacity=".85" href="data:image/png;base64,${map.toString("base64")}"/>`);
+      } catch { /* no map file: grid only */ }
+    }
+    for (let g = 1; g < 8; g++) shapes.push(`<line x1="${mx + (mw * g) / 8}" y1="${my}" x2="${mx + (mw * g) / 8}" y2="${my + mh}" stroke="${th.edge}" stroke-opacity=".35"/>`);
+    for (let g = 1; g < 3; g++) shapes.push(`<line x1="${mx}" y1="${my + (mh * g) / 3}" x2="${mx + mw}" y2="${my + (mh * g) / 3}" stroke="${th.edge}" stroke-opacity=".35"/>`);
+    shapes.push(`<defs><radialGradient id="heat"><stop offset="0" stop-color="#ff3b1f" stop-opacity=".75"/><stop offset="1" stop-color="#ff3b1f" stop-opacity="0"/></radialGradient></defs>`);
+    for (const point of visual.deathPoints!.slice(0, 200)) {
+      const x = mx + Math.min(1, Math.max(0, point.x)) * mw, y = my + Math.min(1, Math.max(0, point.y)) * mh;
+      shapes.push(`<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="22" fill="url(#heat)"/>`, `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#ffd0c8"/>`);
+    }
+    await put(caps(th.muted, clip(visual.deathMapLabel ?? "", 34)), 13, mx + 8, my + 4, mw - 16);
+  }
+
+  let bx = 60;
+  for (const badge of card.badges ?? []) {
+    const tone = badge.tone === "ok" ? th.ok : badge.tone === "warn" ? th.warn : th.quiet, ink = badge.tone === "ok" ? th.green : badge.tone === "warn" ? th.gold : th.muted;
+    const t = await text(span(ink, clip(badge.text, 44)), 19, 600), w = t.width + 42;
+    if (bx + w > 580) break;
+    shapes.push(rect(bx, 526, w, 36, tone.fill, tone.edge, 18), `<circle cx="${bx + 19}" cy="544" r="5" fill="${ink}"/>`);
+    layers.push({ input: t.input, left: bx + 32, top: 544 - Math.round(t.height / 2) });
+    bx += w + 12;
+  }
+  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
+  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590);
   const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
   return sharp(base).composite(layers).png().toBuffer();
 }

@@ -1326,5 +1326,13 @@
   "The companion reads the data of the addon you choose and proves from it that your WoW characters belong to your Discord account: no code to type. Other players' characters are never claimed.": "Le compagnon lit les données de l’addon que vous choisissez et en déduit que vos personnages WoW appartiennent à votre compte Discord : aucun code à saisir. Les personnages des autres joueurs ne sont jamais réclamés.",
   "In Tools, Export to spreadsheet turns your Guilded addon data into CSV files: standings (EP, GP, PR), loot history, attendance, raids and dungeon scores. The companion saves them in a folder you choose. Nothing is sent anywhere.": "Dans Outils, Exporter vers un tableur transforme les données de votre addon Guilded en fichiers CSV : classements (EP, GP, PR), butin, présence, raids et scores de donjon. Le compagnon les enregistre dans le dossier choisi. Rien n’est envoyé.",
   "You don't need to connect. The addon already shares EP/GP, loot and standings with your guild in game, and Export to spreadsheet in Tools still works.": "Vous n’avez pas besoin de vous connecter. L’addon partage déjà l’EP/GP, le butin et les classements avec votre guilde en jeu. L’export vers un tableur reste disponible dans Outils.",
-  "Press Find my addon data, then log in to WoW once and we will find your characters.": "Appuyez sur Trouver les données de mon addon, puis connectez-vous une fois à WoW et nous trouverons vos personnages."
+  "Press Find my addon data, then log in to WoW once and we will find your characters.": "Appuyez sur Trouver les données de mon addon, puis connectez-vous une fois à WoW et nous trouverons vos personnages.",
+  "Setting up WoW and the Guilded addon: looking on every drive…": "Configuration de WoW et de l’addon Guilded : recherche sur tous les disques…",
+  "The companion could not install the Guilded addon by itself. Exit World of Warcraft, then press Try again.": "Le compagnon n’a pas pu installer l’addon Guilded tout seul. Quittez World of Warcraft, puis appuyez sur Réessayer.",
+  "The companion could not find your WoW account by itself. Choose your WoW folder, or press Try again.": "Le compagnon n’a pas trouvé votre compte WoW tout seul. Choisissez votre dossier WoW, ou appuyez sur Réessayer.",
+  "Set up what it could by itself. One thing still needs you: see below.": "Il a configuré tout ce qu’il pouvait. Une chose vous attend encore : voyez ci-dessous.",
+  "WoW and the Guilded addon are set up.": "WoW et l’addon Guilded sont configurés.",
+  "Press Try again, or choose your WoW folder in Settings.": "Appuyez sur Réessayer, ou choisissez votre dossier WoW dans Paramètres.",
+  "Exit World of Warcraft, then press Try again.": "Quittez World of Warcraft, puis appuyez sur Réessayer.",
+  "Open Settings and press Choose WoW folder.": "Ouvrez Paramètres et appuyez sur Choisir le dossier WoW."
 }

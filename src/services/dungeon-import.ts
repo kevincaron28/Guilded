@@ -225,9 +225,9 @@ export async function importDungeonRuns(
   // Oldest first, using event-time ownership for the new integrity policy.
   for (let run of runs) {
     // Traced map cells are merged into the shared per-floor grid below and never stored with the run (observer reports keep
-    // the uploaded run, so they are taken off it first).
-    const { mapCells, ...withoutCells } = run;
-    run = withoutCells;
+    // the uploaded run, so they are taken off it first). Removed in place: the rest of the pipeline keeps the same run object.
+    const mapCells = run.mapCells;
+    delete run.mapCells;
     const season = await seasonForRun(tx, guildId, currentSeason, run.endedAt);
     const rated = hasDungeonRating(season.ratingRules);
     const timed = rated && (season.ratingRules as { version: number }).version >= 3;

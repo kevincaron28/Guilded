@@ -302,7 +302,7 @@ The gold casino (wagers, house games, the debt ledger) was removed on purpose: g
 
 Tips: wherever a command asks for a raid, auction, request, or entry, **start
 typing its name and pick it from the list** (no IDs to copy). Raid signup
-posts have buttons, so members rarely need `/raid signup`. Member-facing
+posts have buttons (Tank, Healer, DPS, Maybe, Can't come, Late); there is no `/raid signup` command. Member-facing
 messages follow the language chosen in `/setup start` (English or French).
 
 ### Where things live
@@ -359,7 +359,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/raid wcl check [raid] [url]` | Officers: the private check of a raid's log: who is in the log but not credited (or the reverse), characters not linked to anyone, EP not yet awarded, who came to boss pulls without a flask or food, and deaths. No damage or parse numbers |
 | `/raid wcl list` | The latest Warcraft Logs reports the officers pulled in |
 | `/apply <core> <character> <class> <spec> <experience> <availability> <role> [notes]` | Apply to a raid core, with your raid role (Tank, Healer or DPS). Or press **Apply to `<core>`** on that core's own roster message (raid roster channel): pick your role, then a short form. Officers decide on the card: **Trial** adds you to the core as a trial member (shown apart on the roster) and keeps **Approve** and **Reject** on the card to settle it later; **Approve** makes you a full core member |
-| `/raid signup <raid> <role> [availability]` | Sign up (Tank, Healer, DPS). `availability:Maybe` doesn't take a slot. If your role is full you go on the **waitlist** and get a DM when a slot opens |
+| Raid post **Tank / Healer / DPS / Maybe** buttons | Sign up. **Maybe** doesn't take a slot. If your role is full you go on the **waitlist** (you get a DM if a slot opens) |
 | `/raid cancel-signup <raid>` | Drop out (the next waitlisted player moves up) |
 | Raid post **⏰ Late** button | Mark yourself late (click again to undo); the post shows ⏰ next to your name. Works after the signup deadline too, like Can't come |
 | `/raid worldbuff <buff> <time> [where] [note]` | Classic Era and Forever: announce a world-buff drop (Rallying Cry of the Dragonslayer from Onyxia or Nefarian, Spirit of Zandalar, Warchief's Blessing). Posted in the channel without pings |
@@ -382,7 +382,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/bank request <item> [quantity] [note]` | Ask the guild bank for something; you get a DM when it's handled |
 | `/bank mine` / `/bank cancel <id>` | Your requests / cancel an open one |
 | `/craft request <item> [profession] [quantity] [materials] [note]` | Ask a guild crafter to make something; shows who has that profession |
-| `/craft list [profession]` / `/craft claim <id>` | Crafters: see open requests and take one |
+| `/craft list [profession]` / **I'll craft it** button | Crafters: see open requests, and take one with the button on its craft board post |
 | `/craft permissions` | Officers: put the craft board permissions right (members talk in a request post and press its buttons; only the bot and leadership start posts) |
 | `/craft done <id>` / `release <id>` / `mine` / `cancel <id>` | Finish, give back, see yours, or cancel. The requester gets DMs |
 

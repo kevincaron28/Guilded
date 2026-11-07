@@ -33,6 +33,7 @@ desktop control and is coordinated by you. Keep testing in the kevmister28 test 
 - The owner's own nickname can't be set by the bot (his Chaman role is above the bot's); everyone below is renamed.
 - Bug sweep 05:45 UTC: 3 Profession details error refs resolved (fixed by #466). One P2028 transaction timeout in the standings feed (epgp lookup inside its transaction) during the 02:43 deploy; the feed is otherwise healthy (1,211 polls in 2 h, median 12.6 s, p95 14.5 s). Watch it; if P2028 repeats, move the EPGP standings reads out of the interactive transaction. The other inbox errors are from 8.x versions and have not recurred in 9.0.
 - Bug sweep 07:15 UTC: no member reports. The standings P2028 repeated 4 times (05:33-05:42), always in the loot-rules export inside the transaction; fixed by reading loot rules outside it (#487). Two voice-checkpoint P2028s (02:43, 05:18) and one pg error in High Guard's scheduled-events reconcile (05:32) came from the deploy restarts; each costs at most a minute of voice credit or one retry, so they are only being watched.
+- Check-in 07:45 UTC: merged and deployed #486 (dropped `/raid signup` and `/craft claim`) and #485 (per-guild public page: boards and how to join); bot live at 293a1f1, disk 38%. Each restart still logs one P2028 from the startup burst (this time `public-runs.ts:275`); watched. Track M phone app (leaderboards, guild view) handed to the research-plans session.
 - Merged (addon, ship with 9.0.1): roster admin window and native look (#478), in-game "Info and data" tab (#480). In the merge queue: full names everywhere (#476), invite channel to the WoW category + availability switch + feature homes (#477), addon relay for sync gaps (#479).
 
 ### Status of every owner request (audit 7 Nov, 06:00 UTC)
@@ -97,10 +98,10 @@ Checked against `origin/main` (f074c97), open PRs (#482, #458, #430, #345) and t
 - **Item 17 build, overview panel (after the owner picks a variant):** new page in the `addon/Guilded/` window plus `Locale.lua`; reads existing roster, professions and cores data; plan in `docs/plans/GUILD_OVERVIEW_PANEL.md`.
 - **Item 22 and Track M phone app:** leaderboards, guild view, guildmate map and last-seen heat map, help pins, notifications; `mobile/src`, `mobile/README.md`, web API routes (alerts need #345 first).
 - **Public-sharing and nickname switch removal (after owner decision):** `src/commands/setup.ts`, `src/commands/character.ts`, `src/services/setup-status.ts`, `src/i18n-fr.ts`.
-- **Standings feed P2028 hardening:** move EPGP reads out of the interactive transaction in the standings feed service under `src/services/` (watch first).
+- ~~Standings feed P2028 hardening~~: loot rules now read outside the transaction (#487).
 - **Guild bank plan items (after the owner picks):** `docs/plans/GUILD_BANK.md`, addon bank module in `addon/Guilded/Modules/`, bank-ledger service and Discord posts.
 - **Track H Kinfolk picks (after the owner picks):** design notes only so far.
-- **Carried over:** drop slash commands that repeat buttons (`/raid signup`, `/community lottery join`, `/craft claim`); per-guild public page (`docs/GUILD_PAGES_DESIGN.md`); unknown Forever final-boss ids (`DUNGEON_FINAL_UNMATCHED`).
+- ~~Carried over~~: `/raid signup` and `/craft claim` dropped (`/community lottery join` was already gone); per-guild public page (#485). Final-boss ids still missing for Ruins of Lordaeron (2999), Excavation Site: Wetlands (2998) and City of Dalaran (2959): need a player diagnostic log line (#486).
 - **Season 2 build (after the start date decision):** `docs/DUNGEON_SEASON_2_PLAN.md`, dungeon rules service, targets from Season 1 times.
 
 **First priorities (owner, 7 Nov 01:45 UTC):**
@@ -1036,8 +1037,9 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
   ([backlog](docs/archive/UI_FIX_BACKLOG_2026-11-05.md)); Forever live acceptance; dungeon G6-G8 and
   French client G10 ([6.2 game acceptance](docs/V6_2_GAME_ACCEPTANCE.md)).
 - **Microsoft Store:** confirm which version has certified before claiming status.
-- **Commands:** drop slash commands that only repeat a button (`/raid signup`,
-  `/community lottery join`, `/craft claim`) once each button is confirmed in Discord.
+- **Commands:** done 7 November: `/raid signup` and `/craft claim` removed (the raid post's role buttons and the craft post's
+  **I'll craft it** button do the same work); `/community lottery join` was already gone (lottery tickets use the post's buttons).
+  A craft request made while no craft board is set up has no post and so no claim button: set the board up first.
 - **Public page per guild** ([design](docs/GUILD_PAGES_DESIGN.md)): officers choose what is public.
 - **Android app** (`mobile/`): the Expo/EAS project is linked (`ddda073f-f6bb-4e04-8a78-7ac343e03864`,
   account kevincaron28) and preview APK 0.2.0 is published (GitHub pre-release `mobile-v0.2.0-preview`,

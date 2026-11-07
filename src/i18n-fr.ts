@@ -513,7 +513,7 @@ export const FR_TEXT: Record<string, string> = {
   "claimed by a crafter": "prise en charge par un artisan",
   "done": "terminée",
   "Use /help to see every command you can use, grouped by what it's for.": "Utilisez /help pour voir toutes les commandes disponibles, classées par usage.",
-  "A few common ones: /raid signup, /epgp balance, /character pair.": "Quelques commandes courantes : /raid signup, /epgp balance, /character pair.",
+  "A few common ones: /epgp balance, /character pair, /raid status.": "Quelques commandes courantes : /epgp balance, /character pair, /raid status.",
   "Officers: /setup start walks through setting up (or checking) everything, and /mod faq manages this answer channel.": "Officiers : /setup start guide toute la configuration (ou une vérification), et /mod faq gère ce salon de réponses.",
   "Everything looks current: no outdated or missing bot messages found.": "Tout est à jour : aucun message du bot manquant ou dépassé.",
   "These bot messages need attention:": "Ces messages du bot ont besoin d'attention :",

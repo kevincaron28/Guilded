@@ -158,6 +158,18 @@ export function renderGuildPage(view: GuildPageView): string {
     view.dungeonPage ? `<a class="button ghost" href="${escapeHtml(`${view.dungeonPage}?lang=${view.language}`)}">${t("Dungeon scores", "Scores de donjon")}</a>` : ""
   ].filter(Boolean);
   if (actions.length) parts.push(`<p class="actions">${actions.join("")}</p>`);
+  // Public boards: only what the guild already publishes (its opt-in dungeon runs page and the duel board under it).
+  if (view.dungeonPage) {
+    const board = (path: string) => escapeHtml(`${view.dungeonPage}${path}?lang=${view.language}`);
+    parts.push(`<h2>${t("Public boards", "Tableaux publics")}</h2><div class="cards">`
+      + `<div class="card"><h3>${t("Dungeon season", "Saison de donjons")}</h3><p class="muted">${t("Members' best runs, season and weekly scores.", "Meilleurs runs des membres, scores de saison et de la semaine.")}</p><p><a href="${board("")}">${t("Open the dungeon board →", "Ouvrir le tableau de donjons →")}</a></p></div>`
+      + `<div class="card"><h3>${t("Duels", "Duels")}</h3><p class="muted">${t("Counted guild duels, wins and streaks.", "Duels de guilde comptés, victoires et séries.")}</p><p><a href="${board("/duels")}">${t("Open the duel board →", "Ouvrir le tableau de duels →")}</a></p></div></div>`);
+  }
+  if (view.recruitment?.inviteUrl) {
+    parts.push(`<h2>${t("How to join", "Comment nous rejoindre")}</h2><ol><li>${t("Join the guild's Discord with the button above.", "Rejoignez le Discord de la guilde avec le bouton ci-dessus.")}</li>`
+      + `<li>${t("Post your full character name (first and last name) in the guild invite channel.", "Publiez le nom complet de votre personnage (prénom et nom) dans le salon d'invitation de la guilde.")}</li>`
+      + `<li>${t("An officer invites you in game.", "Un officier vous invite en jeu.")}</li></ol>`);
+  }
   if (on("cores") && view.cores.length) {
     parts.push(`<h2>${t("Raid cores and times", "Cores de raid et horaires")}</h2><div class="cards">${view.cores.map((core) => `<div class="card"><h3>${escapeHtml(core.name)}</h3>`
       + (core.schedule ? `<p>${escapeHtml(core.schedule)} <span class="tag">(${escapeHtml(core.timezone)})</span></p>` : `<p class="muted">${t("Schedule to be announced", "Horaire à venir")}</p>`)

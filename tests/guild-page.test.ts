@@ -64,6 +64,16 @@ describe("guild page rendering", () => {
     expect(renderGuildPage(view())).not.toContain("Dungeon scores");
   });
 
+  it("lists only the boards the guild already publishes, and the join steps when it has an invite", () => {
+    const fr = renderGuildPage(view({ language: "fr", dungeonPage: "/leaderboards/guild/g1", recruitment: { text: null, inviteUrl: "https://discord.gg/abc" } }));
+    expect(fr).toContain("Tableaux publics");
+    expect(fr).toContain('href="/leaderboards/guild/g1/duels?lang=fr"');
+    expect(fr).toContain("Comment nous rejoindre");
+    const closed = renderGuildPage(view({ recruitment: null }));
+    expect(closed).not.toContain("Public boards");
+    expect(closed).not.toContain("How to join");
+  });
+
   // Quebec Gold's cores use EPGP priority; the page once called it an officer-made list (27 Oct 2026).
   const lootCore = (lootMode: string, over: object = {}) => [{ ...view().cores[0]!, lootMode, roster: [], ranking: [], ...over }];
 

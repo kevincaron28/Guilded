@@ -100,7 +100,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
       content: [
         `Created **${result.raid.title}** \`${result.raid.id}\` with ${result.members} fake raiders (realm ${realm}):`,
         `${result.counts.SIGNED_UP} signed up, ${result.counts.MAYBE} maybe, ${result.counts.WAITLISTED} waitlisted.`,
-        "Try it: `/raid signup` yourself, `/raid cancel-signup`, `/lead edit` caps (waitlist moves up), `/raid roster`, `/lead note`.",
+        "Try it: press a role button on the raid post yourself, `/raid cancel-signup`, `/lead edit` caps (waitlist moves up), `/raid roster`, `/lead note`.",
         "The raid reminder fires 60 minutes before start (if a signup channel is set).",
         `When ready: \`/setup testraid finish raid:${result.raid.id}\` (add \`via_addon:true\` to test the import path). Clean up with \`/setup testraid cleanup\`.`,
         `In game, \`/guilded sim\` uses the same fake names (${SIM_CHARACTERS.slice(0, 3).join(", ")}...) so an addon export matches.`

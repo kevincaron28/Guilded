@@ -333,7 +333,7 @@ export function looksLikeCommandHelpQuestion(text: string): boolean {
 export function commandHelpAnswer(canOfficer: boolean, lang: Lang): string {
   const lines = [
     tx(lang, "Use /help to see every command you can use, grouped by what it's for."),
-    tx(lang, "A few common ones: /raid signup, /epgp balance, /character pair.")
+    tx(lang, "A few common ones: /epgp balance, /character pair, /raid status.")
   ];
   if (canOfficer) {
     lines.push(tx(lang, "Officers: /setup start walks through setting up (or checking) everything, and /mod faq manages this answer channel."));

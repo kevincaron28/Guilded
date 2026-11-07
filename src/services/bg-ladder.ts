@@ -8,6 +8,7 @@ import { percent } from "./duels.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { loadWorldPvpData, worldPvpCard, worldPvpEmbed, WORLD_PVP_CARD_FILE } from "./world-pvp.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 
 /** The snapshot board id of one mode and bracket. */
@@ -129,7 +130,17 @@ export async function updateBgLadder(discordGuild: DiscordGuild | null, delivery
     }
     const png = data.brackets.length ? await scoreCardPng(bgLadderCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
     const embed = bgLadderEmbed(data, lang, guild.id, png ? BG_CARD_FILE : undefined).setTimestamp(new Date());
-    const payload = { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: BG_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
+    const embeds = [embed], files = png ? [new AttachmentBuilder(png, { name: BG_CARD_FILE })] : [];
+    // World PvP (9.1): a second panel on the same message; officers turn it off with /battleground world-pvp.
+    if (settings.worldPvpEnabled !== false) {
+      const world = await loadWorldPvpData(prisma, guild.id, guild.gameEdition ?? "forever").catch(() => null);
+      if (world) {
+        const worldPng = world.standings.length ? await scoreCardPng(worldPvpCard(world, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()))).catch(() => null) : null;
+        embeds.push(worldPvpEmbed(world, lang, guild.id, worldPng ? WORLD_PVP_CARD_FILE : undefined));
+        if (worldPng) files.push(new AttachmentBuilder(worldPng, { name: WORLD_PVP_CARD_FILE }));
+      }
+    }
+    const payload = { embeds, files, allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";
     let existing: Message | null = settings.bgLadderMessageId ? await channel.messages.fetch(settings.bgLadderMessageId).catch(() => null) : null;
     if (existing && existing.author.id !== botId) existing = null;

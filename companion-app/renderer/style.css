@@ -48,6 +48,8 @@ details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summ
 .version-panel .actions { flex-shrink: 0; }
 
 /* Home: the Sync status card (redesign PR 1). One state, one button. */
+.account-ask { margin: 6px 0; }
+.account-ask .status-actions { display: flex; gap: 8px; }
 .status-card { display: flex; align-items: flex-start; gap: 16px; padding: 20px 22px; border-radius: 14px; border: 1px solid var(--line, rgba(255,255,255,.12)); background: var(--panel, rgba(255,255,255,.04)); margin: 4px 0 6px; }
 .status-card .status-dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; background: #8a8170; }
 .status-card[data-tone="ok"] .status-dot { background: #5fbf7a; }

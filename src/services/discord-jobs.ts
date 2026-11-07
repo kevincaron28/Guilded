@@ -53,8 +53,7 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const { deliverRaidReminder } = await import("./reminders.js");
     await deliverRaidReminder(guild, prisma, job);
   } else if (job.kind === "GAME_EVENT_BOARD" || job.kind === "GAME_EVENT_REMINDER") {
-    const { deliverGameEvent } = await import("./game-events-discord.js");
-    await deliverGameEvent(guild, prisma, job);
+    // Countdowns were removed (9.0.2). A job queued before the update finishes without posting anything.
   } else if (["TEAM_ROSTER", "TEAM_SESSION", "TEAM_REMINDER"].includes(job.kind)) {
     const { deliverTeamPost } = await import("./activity-core-discord.js");
     await deliverTeamPost(guild, prisma, job.guildId, job.kind, String(payload[job.kind === "TEAM_ROSTER" ? "coreId" : "sessionId"] ?? ""));
@@ -210,7 +209,6 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
 
 let running = false;
 const DELIVERY_BATCH_SIZE = 25;
-const COUNTDOWN_BATCH_SIZE = 5;
 const DELIVERY_BATCH_BUDGET_MS = 20_000;
 export async function runDiscordJobs(client: Client): Promise<void> {
   if (running) return;
@@ -218,12 +216,7 @@ export async function runDiscordJobs(client: Client): Promise<void> {
   try {
     const now = new Date();
     const query = { orderBy: { nextAttemptAt: "asc" as const }, include: { guild: { select: { discordId: true as const } } } };
-    // Countdown cosmetics must never displace reminders, roster changes or loot
-    // announcements. Serve those first; at most five countdowns use spare slots.
-    // GAME_EVENT_BOARD edits one pinned message. Milestone hype rides that edit.
-    const jobs = await prisma.discordJob.findMany({ ...query, where: { ...available(now), ...pilotGuildScope, kind: { not: "GAME_EVENT_BOARD" } }, take: DELIVERY_BATCH_SIZE });
-    if (jobs.length < DELIVERY_BATCH_SIZE) jobs.push(...await prisma.discordJob.findMany({ ...query,
-      where: { ...available(now), ...pilotGuildScope, kind: "GAME_EVENT_BOARD" }, take: Math.min(COUNTDOWN_BATCH_SIZE, DELIVERY_BATCH_SIZE - jobs.length) }));
+    const jobs = await prisma.discordJob.findMany({ ...query, where: { ...available(now), ...pilotGuildScope }, take: DELIVERY_BATCH_SIZE });
     for (const job of jobs) {
       // Finish an in-flight delivery normally; do not start another after the
       // budget is spent. The next tick resumes pending jobs, with fresh content.

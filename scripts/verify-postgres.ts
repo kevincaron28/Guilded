@@ -3,7 +3,6 @@ import { verifySeasonCalendarPostgres } from "./verify-season-calendar-postgres.
 import { verifyDungeonContractPostgres } from "./verify-dungeon-contract-postgres.js";
 import { verifyDungeonObservedPostgres } from "./verify-dungeon-observed-postgres.js";
 import { guildWhere } from "../src/services/guild-scope.js";
-import { verifyGameEventsPostgres, verifyGameEventsRestored } from "./verify-game-events-postgres.js";
 import { verifyRosterGapsPostgres, verifyRosterGapsRestored } from "./verify-roster-gaps-postgres.js";
 import { verifyGameEditionsPostgres, verifyGameEditionsRestored } from "./verify-game-editions-postgres.js";
 import { verifyAiBudgetPostgres } from "./verify-ai-budget-postgres.js";
@@ -47,7 +46,6 @@ try {
   if (process.argv.includes("--restored")) {
     await verifyCommunityBadgesRestored(database);
     await verifyGameEditionsRestored(database);
-    await verifyGameEventsRestored(database);
     await verifyRosterGapsRestored(database);
     await verifyDungeonRatingRestored(database);
     await verifyActivityCoresRestored(database);
@@ -107,7 +105,6 @@ try {
     await verifyRaidPricingPostgres(database);
     await verifyPlayerDirectoryPostgres(database);
     await verifyActivityCoresPostgres(database, guild.id);
-    await verifyGameEventsPostgres(database, guild.id);
     await verifyRosterGapsPostgres(database);
     await verifyScheduledEventsPostgres(database, guild.id);
     await verifyCommunityBadgesPostgres(database);

@@ -92,7 +92,7 @@ import { postCraftRequest } from "./commands/craft-board.js";
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
-import { createLeaderboardPages, prismaLeaderboardStore } from "./services/public-leaderboard.js";
+import { createLeaderboardPages, guildDungeonSummary, prismaLeaderboardStore } from "./services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
@@ -212,7 +212,17 @@ const auditService = createAuditService(prisma);
 const manage = createCompanionManage(prisma);
 const hub = createCompanionHub(prisma, { baselineAchievements: (guildId) => baselineAchievements(prisma, guildId) });
 // Public guild pages (/g/<slug>/): read-only HTML, no pairing needed.
-const guildPages = createGuildPageServer((slug) => loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id)));
+// A guild that publishes its runs also shows its members' top scores, recent runs and records there.
+const guildPageRuns = prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id));
+const guildPages = createGuildPageServer(async (slug) => {
+  const view = await loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id));
+  if (view?.dungeonPage && view.guildId) {
+    const guildId = view.guildId;
+    view.dungeons = await withEdition(gameEditionOf({ gameEdition: view.edition ?? "forever" }), async () => guildDungeonSummary(guildPageRuns, guildId, await loadOfficialWindows(prisma)))
+      .catch((error: unknown) => { console.warn("Guild page dungeon section failed:", error); return null; });
+  }
+  return view;
+});
 
 // The website's signed-in pages (/auth/, /recruitment/, /me/, /leaderboards/), served through the Worker.
 async function readForm(request: IncomingMessage, path: string): Promise<string> {

@@ -1,6 +1,7 @@
 // The phone talks to the same companion routes as the Windows app.
 // Permissions stay on the bot: this file only reads and sends what those routes already allow.
 
+import { parseGuildMap, type GuildMap } from "./guildMap";
 import { parseAlbum, type Album } from "./album";
 
 export class ApiError extends Error {
@@ -478,6 +479,21 @@ export class GuildedClient {
     if (status === 404) throw new ApiError("This Guilded address does not publish the badge album yet.", 404);
     if (status !== 200) throw new ApiError(messageOf(body, "The album could not be loaded."), status);
     return parseAlbum(body);
+  }
+
+  /** The guildmate map: signed-in members of this guild only (Track M). */
+  async guildMap(guildDiscordId: string): Promise<GuildMap> {
+    const { status, body } = await this.call(`/api/v1/companion/guild-map?guild=${encodeURIComponent(guildDiscordId)}`);
+    if (status === 404) throw new ApiError("This Guilded address does not publish the guild map yet.", 404);
+    if (status !== 200) throw new ApiError(messageOf(body, "The guild map could not be loaded."), status);
+    return parseGuildMap(body);
+  }
+
+  /** The member's own switch. Off deletes every stored position of theirs on the bot. Returns the refreshed map. */
+  async setMapSharing(guildDiscordId: string, share: boolean): Promise<GuildMap> {
+    const { status, body } = await this.call("/api/v1/companion/guild-map", { method: "POST", body: { guildDiscordId, share } });
+    if (status !== 200) throw new ApiError(messageOf(body, "That change was not saved."), status);
+    return parseGuildMap(record(body)?.map);
   }
 
   async setWishlist(guildDiscordId: string, characterId: string, item: string, priority: number): Promise<string> {

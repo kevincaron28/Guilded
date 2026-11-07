@@ -27,7 +27,9 @@ export const rosterCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("apply").setDescription("Run now (default: preview)")))
   .addSubcommand((sub) => sub.setName("whoswho").setDescription("One message listing mains and alts.")
     .addBooleanOption((o) => o.setName("on").setDescription("On or off"))
-    .addChannelOption((o) => o.setName("channel").setDescription("Channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)));
+    .addChannelOption((o) => o.setName("channel").setDescription("Channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)))
+  .addSubcommand((sub) => sub.setName("map").setDescription("Phone guildmate map.")
+    .addBooleanOption((o) => o.setName("on").setDescription("On or off")));
 
 export const ROSTER_BUTTON_PREFIX = "rostergap:";
 const LINK_BATCH = 25;
@@ -98,6 +100,20 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
       content: result.skipped ?? `${t("Format", "Format")}: \`${shown}\`\n${apply ? t(`Renamed ${result.applied} member(s), ${result.failed} failed.`, `${result.applied} membre(s) renommé(s), ${result.failed} échec(s).`) : t(`${result.changes.length} change(s) would be made. Add \`apply:true\` to run them now (it also runs every hour).`, `${result.changes.length} changement(s) prévu(s). Ajoute \`apply:true\` pour les faire maintenant (aussi chaque heure).`)}\n${sample}`,
       allowedMentions: { parse: [] }
     });
+    return;
+  }
+
+  if (sub === "map") {
+    // Track M: the phone's guildmate map, heat map and help pins (services/guild-map.ts). On by default (rule 5).
+    // Off hides it for everyone and stops storing positions; members keep their own switch on the phone.
+    const on = interaction.options.getBoolean("on");
+    if (on !== null) await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, guildMapEnabled: on }, update: { guildMapEnabled: on } });
+    const enabled = on ?? settings?.guildMapEnabled ?? true;
+    await reply(enabled
+      ? t("Guildmate map is **on**: signed-in members of this guild see last-seen positions, a heat map and calls for help in the phone app. Never public; each member can turn their own sharing off there, which deletes their positions.",
+        "La carte des membres est **activée** : les membres connectés de cette guilde voient les dernières positions, une carte de chaleur et les appels à l'aide dans l'appli mobile. Jamais publique ; chaque membre peut y couper son partage, ce qui efface ses positions.")
+      : t("Guildmate map is **off**: nobody sees it and new positions are not stored. Turn it on with `on:true`.",
+        "La carte des membres est **désactivée** : personne ne la voit et les nouvelles positions ne sont pas gardées. Active-la avec `on:true`."));
     return;
   }
 

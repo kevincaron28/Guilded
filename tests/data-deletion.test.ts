@@ -10,7 +10,7 @@ function fixture() {
     webAccount: del("webAccount", 1), communityBadgeSharing: del("communityBadgeSharing"),
     battlegroundReport: del("battlegroundReport"), battlegroundConsent: del("battlegroundConsent"), memberAchievement: del("memberAchievement"),
     memberMilestone: del("memberMilestone"), recurringRecap: del("recurringRecap"), groupAlert: del("groupAlert"), webAvailability: del("webAvailability"),
-    poeLevelReached: del("poeLevelReached"), poeMapVisit: del("poeMapVisit"), characterPairing: del("characterPairing"),
+    poeLevelReached: del("poeLevelReached"), poeMapVisit: del("poeMapVisit"), guildMapSighting: del("guildMapSighting"), guildHelpCall: del("guildHelpCall"), characterPairing: del("characterPairing"),
     characterVerifyCode: del("characterVerifyCode"), characterVerifyClaim: del("characterVerifyClaim"), companionCredential: del("companionCredential"),
     character: del("character", 3)
   };
@@ -23,7 +23,7 @@ describe("Delete my data", () => {
     const f = fixture();
     const summary = await deleteMyData(f.db, "123456789012345678");
     expect(summary).toEqual({ members: 2, characters: 3, account: true });
-    expect(f.calls).toEqual(expect.arrayContaining(["webAccount", "battlegroundReport", "memberAchievement", "companionCredential", "character", "communityBadgeSharing"]));
+    expect(f.calls).toEqual(expect.arrayContaining(["webAccount", "battlegroundReport", "memberAchievement", "companionCredential", "character", "communityBadgeSharing", "guildMapSighting", "guildHelpCall"]));
     expect(f.tx.webAccount.deleteMany).toHaveBeenCalledWith({ where: { discordUserId: "123456789012345678" } });
     expect(f.tx.battlegroundReport.deleteMany).toHaveBeenCalledWith({ where: { memberId: { in: ["m1", "m2"] } } });
     expect(f.tx.member.update).toHaveBeenCalledWith({ where: { id: "m1" }, data: { discordUserId: "deleted-m1", displayName: DELETED_MEMBER_NAME, status: "LEFT" } });

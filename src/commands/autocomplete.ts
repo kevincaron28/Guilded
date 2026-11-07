@@ -68,6 +68,12 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         ? await prisma.poll.findMany({ where: { guildId: guild.id, closed: false, question: { contains: query, mode: "insensitive" } }, orderBy: { createdAt: "desc" }, take: 25 })
         : [];
       choices = polls.map(poll => ({ name: `${poll.question} (${poll.options.length})`.slice(0, 100), value: poll.id }));
+    } else if (command === "poll" && focused.name === "remove") {
+      // 9.1 guild board: officers pick the news post to take down.
+      const posts = interaction.member && hasPermission(interaction.member as GuildMember, "officer")
+        ? await prisma.boardPost.findMany({ where: { guildId: guild.id, removedAt: null, body: { contains: query, mode: "insensitive" } }, orderBy: { createdAt: "desc" }, take: 25 })
+        : [];
+      choices = posts.map(post => ({ name: `${post.createdAt.toISOString().slice(0, 10)} · ${post.body}`.slice(0, 100), value: post.id }));
     } else if (command === "faq" && focused.name === "entry") {
       choices = await faqChoices(guild.id, query);
     } else if (focused.name === "race") {

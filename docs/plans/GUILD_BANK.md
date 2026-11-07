@@ -1,6 +1,6 @@
 # Guild bank plan (ROADMAP item 10)
 
-Status: **plan only, 7 November 2026.** Nothing here is built.
+Status: **7 November 2026: ranks 1, 5, 2 and 3 built (see docs/GUILD_BANK_LEDGER.md, "9.1 additions"); the rest is still a plan.**
 
 ## What Guilded has now (9.0)
 

@@ -438,7 +438,8 @@ export function exportGuildBank(database) {
       if (!Number.isInteger(index) || index < 1 || index > 8 || !info || typeof info !== "object") return [];
       const items = Object.entries(info.items ?? {}).flatMap(([id, item]) => {
         const itemId = Math.trunc(Number(id)), count = Math.trunc(Number(item?.count));
-        return itemId > 0 && count > 0 ? [{ id: itemId, name: label(item?.name, 100) ?? `Item ${itemId}`, count: Math.min(count, 1_000_000) }] : [];
+        const quality = Number.isInteger(item?.q) && item.q >= 0 && item.q <= 7 ? { q: item.q } : {};
+        return itemId > 0 && count > 0 ? [{ id: itemId, name: label(item?.name, 100) ?? `Item ${itemId}`, count: Math.min(count, 1_000_000), ...quality }] : [];
       }).slice(0, 200);
       return [{ tab: index, name: label(info.name, 40) ?? `Tab ${index}`, items }];
     });
@@ -457,7 +458,11 @@ export function exportGuildBank(database) {
   const money = list(log?.money).filter((l) => l && kind(l.type) && name(l.name) && copper(l.amount) && epoch(Math.trunc(Number(l.at))))
     .map((l) => ({ type: l.type, name: l.name, amount: l.amount, at: Math.trunc(Number(l.at)) })).sort((a, b) => b.at - a.at).slice(0, 1000);
   if (money.length) bank.moneyLog = money;
-  return Object.keys(bank).length ? { guildBank: bank } : {};
+  // 9.1: requests made in game (/guilded gbank request), this member's own; the bot keeps each ref once.
+  const requests = list(database?.bankRequests).filter((r) => r && typeof r.ref === "string" && /^[A-Za-z0-9-]{6,40}$/.test(r.ref) && label(r.item, 100))
+    .map((r) => ({ ref: r.ref, item: label(r.item, 100), ...(Number.isSafeInteger(r.itemId) && r.itemId > 0 ? { itemId: r.itemId } : {}),
+      count: Math.max(1, Math.min(1000, Math.trunc(Number(r.count)) || 1)) })).slice(0, 10);
+  return { ...(Object.keys(bank).length ? { guildBank: bank } : {}), ...(requests.length ? { bankRequests: requests } : {}) };
 }
 
 // What the game shows every member about the whole guild (addon Modules/GuildSnapshot.lua and

@@ -88,7 +88,8 @@ import { answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.
 import { GROUP_ALERT_OPEN_ID, GROUP_ALERT_PREFIX, handleGroupAlertComponent, openGroupAlerts } from "./commands/group-alerts.js";
 import { runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
-import { executeBank } from "./commands/bank.js";
+import { executeBank, handleBankRequestButton } from "./commands/bank.js";
+import { BANK_REQUEST_PREFIX } from "./services/guild-bank-member.js";
 import { executeCraft } from "./commands/craft.js";
 import { OFFER_PREFIX, handleOfferButton, sweepCraftOffers } from "./commands/craft-offers.js";
 import { greetNewGuild, isLiveSetupMessage, logSetupStatus } from "./commands/setup.js";
@@ -828,6 +829,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
         void interaction.reply({ content: error instanceof Error ? error.message : "Could not post the dungeon group.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
       }
     });
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(BANK_REQUEST_PREFIX)) {
+    await handleBankRequestButton(interaction).catch((error: unknown) => reportInteractionError("Bank request button", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(OFFER_PREFIX)) {

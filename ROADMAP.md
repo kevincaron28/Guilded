@@ -37,6 +37,8 @@ desktop control and is coordinated by you. Keep testing in the kevmister28 test 
 - Bug sweep 09:45 UTC: no member reports; quiet since 07:46. The only errors were 4 P2028 timeouts (pairing, upload linking, public runs) between 07:41 and 07:44, while `deploy/update.sh` was building on the live server and the old process still served. Pattern: every deploy costs a few timeouts. The build already runs in a stage folder before the restart, so the likely cause is CPU contention from `npm ci` and the compile; running the build with `nice` is the next thing to try. Final bosses for the three new Forever dungeons merged (#491, addon-only, ships with 9.0.1). Owner status page: the Control Board artifact.
 - Merged (addon, ship with 9.0.1): roster admin window and native look (#478), in-game "Info and data" tab (#480). In the merge queue: full names everywhere (#476), invite channel to the WoW category + availability switch + feature homes (#477), addon relay for sync gaps (#479).
 
+- Bug sweep 11:30 UTC: no member reports. The fresh /setup test (item 24) found 4 bugs, fixed in #504 (uninstall leftovers, stale FAQ line, dangling channel ids, expired-wizard reply). New error C5K975QR: community honors cannot give its podium role in the reinstalled test server (50013) because the Guilded role sits at the bottom there; by design it retries every 15 min, and moving the role up fixes it (owner, test server only). Other errors were P2028 timeouts during deploys (calendar sync, public raids, game events, dungeon rating, invite queue).
+
 ### Status of every owner request (audit 7 Nov, 10:30 UTC)
 
 The live view of this table is the owner's **Control Board**: https://claude.ai/artifact/XWXbyp3yjpoWEjJt9Ch33N.

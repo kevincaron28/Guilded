@@ -78,6 +78,7 @@ function module.openCopyWindow()
     popup:SetSize(500, 150)
     popup:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
     popup:SetFrameStrata("DIALOG")
+    if UISpecialFrames then table.insert(UISpecialFrames, "GuildedCompanionCopy") end
     popup:SetMovable(true)
     popup:EnableMouse(true)
     popup:RegisterForDrag("LeftButton")

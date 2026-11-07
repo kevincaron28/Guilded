@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import { publicRules } from "./public-score.js";
 import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
@@ -190,7 +191,7 @@ export async function runChoices(database: Pick<PrismaClient, "dungeonRun">, gui
     .map((run) => {
       const time = run.durationSec !== null && run.state === "COMPLETED" ? formatDuration(run.durationSec) : run.state.toLowerCase();
       const date = run.endedAt ? run.endedAt.toISOString().slice(0, 10) : "";
-      const text = `${run.valid ? "" : "✗ "}${run.dungeonName} ${time} · ${run.players.map((player) => player.character).join(", ")} · ${date}`;
+      const text = `${run.valid ? "" : "✗ "}${run.dungeonName} ${time} · ${run.players.map((player) => cleanCharacterName(player.character)).join(", ")} · ${date}`;
       return { name: text.length > 100 ? `${text.slice(0, 99)}…` : text, value: run.runRef };
     });
 }

@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "../services/character-display.js";
 import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { config } from "../config.js";
@@ -97,7 +98,7 @@ export function runLine(run: RunRow, lang: Lang): string {
   const tracked = run.players.filter((player) => player.deaths !== null);
   const deaths = tracked.length ? ` · ${t(lang, "dungeon.deaths", { count: tracked.reduce((sum, player) => sum + (player.deaths ?? 0), 0) })}` : "";
   const invalid = run.valid ? "" : ` · ❌ ${t(lang, "dungeon.notCounted")}${run.invalidReason ? ` (${run.invalidReason})` : ""}`;
-  return `• **${label(run)}** — ${state ?? run.state}${time}${deaths}${invalid}${when(run.endedAt)}\n  ${run.players.map((player) => player.character).join(", ")}`;
+  return `• **${label(run)}** — ${state ?? run.state}${time}${deaths}${invalid}${when(run.endedAt)}\n  ${run.players.map((player) => cleanCharacterName(player.character)).join(", ")}`;
 }
 
 async function resolveMember(interaction: ChatInputCommandInteraction, guildId: string, fallbackMemberId: string | null) {

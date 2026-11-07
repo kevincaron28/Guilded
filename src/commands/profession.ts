@@ -1,3 +1,4 @@
+import { cleanCharacterName, displayCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { findProfessionHolders, professionCoverage } from "../services/profession-search.js";
@@ -64,7 +65,7 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
     const query = interaction.options.getString("profession", true);
     const holders = await findProfessionHolders(prisma, context.guildId, query);
     const lines = holders.map((holder) =>
-      `**${holder.character}**${holder.isMain ? "" : " (alt)"} - ${holder.profession} ${holder.skillLevel} (${holder.member})`);
+      `**${cleanCharacterName(holder.character)}**${holder.isMain ? "" : " (alt)"} - ${holder.profession} ${holder.skillLevel} (${holder.member})`);
     await interaction.reply({
       content: holders.length ? fit(lines, `Characters with **${query}**:`) : `Nobody has ${query} recorded yet.`,
       flags: MessageFlags.Ephemeral
@@ -95,7 +96,7 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
   const characters = await guildService.listCharacters(context.memberId);
   if (subcommand === "list") {
     const lines = characters.flatMap((character) =>
-      character.professions.map((skill) => `${character.name}: ${skill.profession} ${skill.skillLevel}`)
+      character.professions.map((skill) => `${displayCharacterName(character)}: ${skill.profession} ${skill.skillLevel}`)
     );
     await interaction.reply({ content: lines.length ? lines.join("\n") : "No professions recorded.", flags: MessageFlags.Ephemeral });
     return;
@@ -107,5 +108,5 @@ export async function executeProfession(interaction: ChatInputCommandInteraction
   const profession = interaction.options.getString("profession", true).trim();
   const skill = interaction.options.getInteger("skill", true);
   await guildService.setProfession(character.id, profession, skill);
-  await interaction.reply({ content: `Recorded ${profession} ${skill} for ${character.name}.`, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: `Recorded ${profession} ${skill} for ${displayCharacterName(character)}.`, flags: MessageFlags.Ephemeral });
 }

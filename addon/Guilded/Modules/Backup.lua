@@ -322,16 +322,19 @@ local previewed
 
 local function ensureFrame()
   if frame then return frame end
-  frame = CreateFrame("Frame", "GuildedBackupFrame", UIParent)
+  frame = CreateFrame("Frame", "GuildedBackupFrame", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
   frame:SetSize(600, 190)
   frame:SetPoint("CENTER")
   -- Above the Guilded window (DIALOG), or its buttons draw through this box.
   frame:SetFrameStrata("FULLSCREEN_DIALOG")
   frame:SetToplevel(true)
   frame:EnableMouse(true)
+  if frame.SetBackdrop then frame:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32, insets = { left = 8, right = 8, top = 8, bottom = 8 } }) end
   local background = frame:CreateTexture(nil, "BACKGROUND")
-  background:SetAllPoints()
+  background:SetPoint("TOPLEFT", frame, "TOPLEFT", 8, -8)
+  background:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -8, 8)
   background:SetColorTexture(0, 0, 0, 0.9)
+  if UISpecialFrames then table.insert(UISpecialFrames, "GuildedBackupFrame") end
   frame.title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   frame.title:SetPoint("TOP", 0, -10)
   local box = CreateFrame("EditBox", nil, frame)

@@ -1,6 +1,6 @@
 import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { characterName, displayCharacterName, fullNameBook } from "./character-display.js";
+import { characterName, displayCharacterName, fullNameBook, cleanCharacterName } from "./character-display.js";
 import { cacheAllMembers } from "./member-cache.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 import { RANK_MAX_AGE_MS } from "./rank-roles.js";
@@ -100,10 +100,10 @@ export function formatPromotionPlan(plan: PromotionPlan, rule: PromotionRule, la
   const list = (items: string[], empty = "—") => items.length ? items.slice(0, 20).join("\n") + (items.length > 20 ? `\n+${items.length - 20}` : "") : empty;
   const rule1 = t(`Rule: rank **${rule.fromRank}** for ${rule.minDays}+ days${rule.minLevel ? `, level ${rule.minLevel}+` : ""}, in Discord with a linked character.`, `Règle : rang **${rule.fromRank}** depuis ${rule.minDays}+ jours${rule.minLevel ? `, niveau ${rule.minLevel}+` : ""}, dans Discord avec un personnage lié.`);
   return [rule1, "",
-    `**${t("Ready to promote", "Prêts à être promus")}** (${plan.ready.length})`, list(plan.ready.map((r) => `• ${r.displayName} — ${r.character}${r.level ? ` ${r.level}` : ""} · ${r.days} ${t("days", "jours")}`)), "",
+    `**${t("Ready to promote", "Prêts à être promus")}** (${plan.ready.length})`, list(plan.ready.map((r) => `• ${r.displayName} — ${cleanCharacterName(r.character)}${r.level ? ` ${r.level}` : ""} · ${r.days} ${t("days", "jours")}`)), "",
     `**${t("Not in Discord yet", "Pas encore dans Discord")}** (${plan.left.length + plan.unclaimed.length})`,
-    list([...plan.left.map((r) => `• ${r.character} (${t("left the server", "a quitté le serveur")}: ${r.displayName})`), ...plan.unclaimed.map((r) => `• ${r.name}${r.level ? ` ${r.level}` : ""} (${t("no Discord link", "aucun lien Discord")})`)]), "",
-    `**${t("Not yet", "Pas encore")}** (${plan.waiting.length})`, list(plan.waiting.slice(0, 10).map((r) => `• ${r.displayName} — ${r.character} · ${t(`${r.daysLeft} day(s) left`, `${r.daysLeft} jour(s) restant(s)`)}`))
+    list([...plan.left.map((r) => `• ${cleanCharacterName(r.character)} (${t("left the server", "a quitté le serveur")}: ${r.displayName})`), ...plan.unclaimed.map((r) => `• ${r.name}${r.level ? ` ${r.level}` : ""} (${t("no Discord link", "aucun lien Discord")})`)]), "",
+    `**${t("Not yet", "Pas encore")}** (${plan.waiting.length})`, list(plan.waiting.slice(0, 10).map((r) => `• ${r.displayName} — ${cleanCharacterName(r.character)} · ${t(`${r.daysLeft} day(s) left`, `${r.daysLeft} jour(s) restant(s)`)}`))
   ].join("\n").slice(0, 3900);
 }
 

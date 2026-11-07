@@ -1,3 +1,4 @@
+import { displayCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import type { RaidRole } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
@@ -180,7 +181,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     await interaction.reply({
       content: subcommand === "add"
         ? `Added ${user.username} to **${core.name}**${character ? ` with ${character}` : ""}${interaction.options.getBoolean("bench") ? " (bench)" : ""}.`
-          + (others.length ? ` Also in: ${others.map((spot) => `${spot.core.name}${spot.character ? ` (${spot.character.name})` : ""}`).join(", ")}.` : "")
+          + (others.length ? ` Also in: ${others.map((spot) => `${spot.core.name}${spot.character ? ` (${displayCharacterName(spot.character)})` : ""}`).join(", ")}.` : "")
         : `Removed ${user.username} from **${core.name}**.`,
       flags: MessageFlags.Ephemeral
     });
@@ -198,18 +199,18 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       if (!name) throw new Error("Pick the backup character.");
       if (interaction.options.getBoolean("remove")) {
         const { core, character } = await coreService.removeBackup(guildId, coreValue, target.id, name);
-        content = `${character.name} is no longer a backup of ${user.username} in **${core.name}**.`;
+        content = `${displayCharacterName(character)} is no longer a backup of ${user.username} in **${core.name}**.`;
         coreId = core.id;
       } else {
         const role = (interaction.options.getString("role") ?? "DPS") as RaidRole;
         const { core, character } = await coreService.addBackup(guildId, coreValue, target.id, name, role);
-        content = `${user.username} can also bring **${character.name}** (${role}) to **${core.name}**.`;
+        content = `${user.username} can also bring **${displayCharacterName(character)}** (${role}) to **${core.name}**.`;
         coreId = core.id;
       }
     } else {
       // No character clears it: the roster then shows only their name.
       const { core, character } = await coreService.setCharacter(guildId, coreValue, target.id, name);
-      content = character ? `${user.username} brings **${character.name}** to **${core.name}**.` : `Cleared the character for ${user.username} in **${core.name}**.`;
+      content = character ? `${user.username} brings **${displayCharacterName(character)}** to **${core.name}**.` : `Cleared the character for ${user.username} in **${core.name}**.`;
       coreId = core.id;
     }
     await syncCoreRoster(interaction.guild, prisma, guildId, coreId);
@@ -274,7 +275,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
     const core = await coreService.byIdOrName(guildId, interaction.options.getString("core", true));
     const byRole = (role: RaidRole) => core.members.filter((entry) => entry.role === role && !entry.bench).map(coreSpotLabel).join(", ") || "—";
     const benchNames = core.members.filter((entry) => entry.bench).map((entry) => `${coreSpotLabel(entry)} (${entry.role})`).join(", ");
-    const backupNames = core.members.flatMap((entry) => entry.backups.map((backup) => `${entry.member.displayName} · ${backup.character.name} (${backup.role})`)).join(", ");
+    const backupNames = core.members.flatMap((entry) => entry.backups.map((backup) => `${entry.member.displayName} · ${displayCharacterName(backup.character)} (${backup.role})`)).join(", ");
     const rules = describeRules(effectiveRules(await guildService.getSettings(guildId), core), core.name);
     await interaction.reply({
       content: `${core.description ? `${core.description}\n` : ""}${rules}\n🛡️ Tanks: ${byRole("TANK")}\n💚 Healers: ${byRole("HEALER")}\n⚔️ DPS: ${byRole("DPS")}${benchNames ? `
@@ -293,7 +294,7 @@ export async function executeCore(interaction: ChatInputCommandInteraction): Pro
       const spot = me ? core.members.find((entry) => entry.memberId === me.id) : undefined;
       if (!spot) return "";
       const state = spot.trial ? ", trial" : spot.bench ? ", bench" : "";
-      return ` · you: ${spot.role}${spot.character ? ` (${spot.character.name})` : ""}${state}`;
+      return ` · you: ${spot.role}${spot.character ? ` (${displayCharacterName(spot.character)})` : ""}${state}`;
     };
     await interaction.reply({
       content: cores.length

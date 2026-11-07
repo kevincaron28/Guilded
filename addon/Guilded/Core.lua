@@ -937,14 +937,22 @@ local function showCharacterExport(text, title)
   exportTitle = title or exportTitle
   if exportFrame and exportFrame.titleText then exportFrame.titleText:SetText(exportTitle) end
   if not exportFrame then
-    exportFrame = CreateFrame("Frame", "GuildedCharacterExport", UIParent)
+    exportFrame = CreateFrame("Frame", "GuildedCharacterExport", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     exportFrame:SetSize(520, 110)
     exportFrame:SetPoint("CENTER")
     exportFrame:SetFrameStrata("DIALOG")
     exportFrame:EnableMouse(true)
+    exportFrame:SetMovable(true)
+    exportFrame:RegisterForDrag("LeftButton")
+    exportFrame:SetScript("OnDragStart", exportFrame.StartMoving)
+    exportFrame:SetScript("OnDragStop", exportFrame.StopMovingOrSizing)
+    if exportFrame.SetClampedToScreen then exportFrame:SetClampedToScreen(true) end
+    if exportFrame.SetBackdrop then exportFrame:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32, insets = { left = 8, right = 8, top = 8, bottom = 8 } }) end
     local background = exportFrame:CreateTexture(nil, "BACKGROUND")
-    background:SetAllPoints()
+    background:SetPoint("TOPLEFT", exportFrame, "TOPLEFT", 8, -8)
+    background:SetPoint("BOTTOMRIGHT", exportFrame, "BOTTOMRIGHT", -8, 8)
     background:SetColorTexture(0, 0, 0, 0.85)
+    if UISpecialFrames then table.insert(UISpecialFrames, "GuildedCharacterExport") end
     local title = exportFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOP", 0, -10)
     title:SetText(exportTitle)
@@ -962,7 +970,7 @@ local function showCharacterExport(text, title)
     local close = CreateFrame("Button", nil, exportFrame, "UIPanelButtonTemplate")
     close:SetSize(80, 22)
     close:SetPoint("BOTTOM", 0, 10)
-    close:SetText("Close")
+    close:SetText(ns.L and ns.L("Close") or "Close")
     close:SetScript("OnClick", function() exportFrame:Hide() end)
     exportFrame.box = box
     exportFrame.scroll = scroll

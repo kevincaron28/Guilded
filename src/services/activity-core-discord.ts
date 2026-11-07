@@ -1,3 +1,4 @@
+import { displayCharacterName } from "./character-display.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, PermissionFlagsBits, type Guild, type GuildMember, type Message, type MessageCreateOptions } from "discord.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { sessionInclude, teamInclude } from "./activity-core.js";
@@ -32,11 +33,11 @@ export function teamRosterEmbed(core: Team, fr: boolean) {
       `${core.durationMinutes} min · ${core.tanks} 🛡️ / ${core.healers} 💚 / ${core.dps} ⚔️`,
       t("Manage: /team member · /team schedule · /team sessions", "Gérer : /team member · /team schedule · /team sessions")].join("\n"));
   for (const [role, label] of [["TANK", "🛡️ Tank"], ["HEALER", t("💚 Healer", "💚 Soigneur")], ["DPS", "⚔️ DPS"]] as const) {
-    const names = core.members.filter(m => m.role === role && !m.bench).map(m => `${clean(m.member.displayName)} · ${clean(m.character?.name ?? "?")}`);
+    const names = core.members.filter(m => m.role === role && !m.bench).map(m => `${clean(m.member.displayName)} · ${clean(m.character ? displayCharacterName(m.character) : "?")}`);
     embed.addFields({ name: label, value: names.join("\n").slice(0, 850) || "—", inline: true });
   }
   embed.addFields({ name: t("Substitutes", "Remplaçants"), value: core.members.filter(m => m.bench)
-    .map(m => `${clean(m.member.displayName)} · ${clean(m.character?.name ?? "?")} (${m.role})`).join("\n").slice(0, 850) || "—" });
+    .map(m => `${clean(m.member.displayName)} · ${clean(m.character ? displayCharacterName(m.character) : "?")} (${m.role})`).join("\n").slice(0, 850) || "—" });
   return embed.setFooter({ text: `Guilded team ${core.id}` });
 }
 
@@ -54,7 +55,7 @@ export function teamSessionEmbed(session: Session, fr: boolean) {
       + `\n${["TANK", "HEALER", "DPS"].map((role, i) => `${["🛡️", "💚", "⚔️"][i]} ${session.responses.filter(r => r.role === role && r.status === "CONFIRMED").length}/${[core.tanks, core.healers, core.dps][i]}`).join(" · ")}`);
   for (const state of ["CONFIRMED", "WAITLISTED", "TENTATIVE", "ABSENT"]) {
     embed.addFields({ name: labels[state]!, value: session.responses.filter(r => r.status === state)
-      .map(r => `${clean(r.member.displayName)} · ${clean(r.character?.name ?? "?")} (${r.role})`).join("\n").slice(0, 800) || "—", inline: true });
+      .map(r => `${clean(r.member.displayName)} · ${clean(r.character ? displayCharacterName(r.character) : "?")} (${r.role})`).join("\n").slice(0, 800) || "—", inline: true });
   }
   const unanswered = core.members.filter(m => !session.responses.some(r => r.memberId === m.memberId && r.status !== "UNANSWERED")).map(m => clean(m.member.displayName));
   embed.addFields({ name: t("No response", "Sans réponse"), value: unanswered.join(", ").slice(0, 550) || "—" });

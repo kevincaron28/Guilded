@@ -17,6 +17,21 @@ features; Opus: design-heavy or risky changes). Workers open PRs into `main` and
 merge, back up, deploy (`deploy/update.sh`), then publish. Real-client testing uses the owner's two PCs by
 desktop control and is coordinated by you. Keep testing in the kevmister28 test server, never spam Québec Gold.
 
+**Overnight progress, 7 Nov (coordinator; bot live at 8cde683, every deploy backed up first):**
+- Done and deployed: dungeon cards, one per run (#461); observer copies of one run merged, so no more triple
+  posts (#469); profession Details no longer hangs, the 50035 error (#466); invite ✅ when the player joins,
+  plus an officer button (#463); nickname sync summed over scopes, with a per-server log, Manage Nicknames in the
+  invite and a `/setup` hierarchy warning (#468); race to 60 card, reach-60 card and officer Hall of Fame edits
+  (#471); linked-characters DM and button (#473, item 5); officer tools: professions in public notes, EPGP in
+  officer notes, Initiate → Member and guild greeting (#474, items 3/4/7/9); Delete my data in the companion and
+  on /me, plus PoE2 follows its switch (#472); website and Québec Gold pages (#470, item 21); plans for
+  monetization, guild bank, overview panel and app TCG (#462, items 6/10/17/22); deploy prunes old copies and
+  checks disk (#467); quick wins (#456).
+- Addon-only, merged and waiting for the **9.0.1 addon release (owner's yes needed)**: guild snapshot Lua error
+  fix (#460), companion link in game, map pins hidden in instances and the Battle.net check (#464, items 1/2/18),
+  chat-tab regression tests (#465), and the officer tools' addon side (#474).
+- The owner's own nickname can't be set by the bot (his Chaman role is above the bot's); everyone below is renamed.
+
 **First priorities (owner, 7 Nov 01:45 UTC):**
 1. **Dungeon cards (item 13) now, not later.** One `#donjons-terminés` post bundled three runs (two Wailing
    Caverns and one Ragefire Chasm) into one long embed. Post **one card per run** (rendered like the share cards in

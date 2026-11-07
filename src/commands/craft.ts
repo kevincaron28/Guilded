@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -152,7 +153,7 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
     await interaction.editReply({
       content: (board.posted ? `Request posted on the craft board: <#${board.threadId}>.` : `Request posted: ${describe(request)}. ID \`${request.id}\`.`)
         + " You'll get a DM when someone claims it."
-        + (crafters.length ? `\nGuild ${profession} crafters: ${crafters.map((c) => `${c.character} (${c.skillLevel})`).join(", ")}` : "")
+        + (crafters.length ? `\nGuild ${profession} crafters: ${crafters.map((c) => `${cleanCharacterName(c.character)} (${c.skillLevel})`).join(", ")}` : "")
     });
     if (interaction.guild && !board.posted) {
       await postToLogChannel(interaction.guild, `🔨 Craft request from ${interaction.user.username}: ${describe(request)} — /craft claim id:${request.id}`, "craft");

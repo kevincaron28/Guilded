@@ -11,6 +11,7 @@ local window, input, status, helpText, handler, importButton
 local function build()
   local f = CreateFrame("Frame", "GuildedPasteBox", UIParent, "BasicFrameTemplateWithInset")
   f:SetSize(560, 360); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true); f:SetFrameStrata("DIALOG")
+  if UISpecialFrames then table.insert(UISpecialFrames, "GuildedPasteBox") end
   f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
   helpText = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   helpText:SetPoint("TOPLEFT", 16, -32); helpText:SetWidth(525); helpText:SetJustifyH("LEFT")

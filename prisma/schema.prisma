@@ -963,7 +963,7 @@ model GuildSettings {
   raceBoardChannelId       String?
   raceBoardMessageId       String?
   pvpModuleEnabled         Boolean @default(true)
-  raceBoardTop             Int     @default(25)
+  raceBoardTop             Int     @default(50)
   raceEnded                Boolean @default(false)
   raceHallBackfilledAt     DateTime?
   // Separate battleground ladder message in the ladder channel (the duel board keeps its own message and points).

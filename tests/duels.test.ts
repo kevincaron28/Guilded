@@ -180,7 +180,7 @@ describe("duel and milestone achievements", () => {
       communityParticipationDay: { findMany: async () => [] }, poeLevelReached: { findMany: async () => [] }, poeMapVisit: { findMany: async () => [] },
       memberActivityTotal: { findUnique: async () => null }, communityPoint: { aggregate: async () => ({ _sum: { amount: 0 } }), count: async () => 0 },
       epgpTransaction: { aggregate: async () => ({ _sum: { epAmount: 0 } }) }, communityHonorAward: { findMany: async () => [] },
-      memberMilestone: { aggregate: async () => ({ _max: { value: 100 } }) },
+      memberMilestone: { aggregate: async () => ({ _max: { value: 100 } }), findMany: async () => [] }, craftRequest: { findMany: async () => [] }, recipeKnown: { findMany: async () => [] },
       duelResult: { findMany: async () => rows, groupBy: async () => [{ winnerId: "top", _count: { _all: 5 } }] }
     };
     const facts = await gatherAchievementFacts(db as never, "g", "m");

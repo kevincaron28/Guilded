@@ -22,6 +22,12 @@ fi
 exec 9>"${APP}.update.lock"
 flock -n 9 || { echo "Another update or recovery is in progress."; exit 1; }
 
+# The install and build share a small server with the running bot. At normal priority they starved it
+# (database queries timed out mid-deploy, 7 November 2026), so this run and everything it starts yield
+# CPU and disk to the bot. The restarted bot is started by systemd, at its own normal priority.
+renice -n 19 -p $$ >/dev/null 2>&1 || true
+ionice -c 3 -p $$ >/dev/null 2>&1 || true
+
 say "Checking the server checkout"
 git config --global --add safe.directory "$SRC" >/dev/null 2>&1 || true
 BRANCH="$(sudo -u "$WHO" git -C "$SRC" branch --show-current)"

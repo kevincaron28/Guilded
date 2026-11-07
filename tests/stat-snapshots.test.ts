@@ -97,6 +97,6 @@ describe("charts", () => {
   it("makes a card from the latest snapshot", () => {
     expect(serverStatsCard([], "G", "en")).toBeNull();
     const card = serverStatsCard([row("2026-12-24"), row("2026-12-25")], "Guild", "en")!;
-    expect(card.race![0]).toMatchObject({ name: "Warrior", level: 6, max: 6 });
+    expect(card.ladder!.boards[0]!.rows[0]).toMatchObject({ rank: 1, name: "Warrior", values: ["", "6"], bar: { value: 6, max: 6 } });
   });
 });

@@ -78,7 +78,7 @@ describe("race board embed and card", () => {
     expect(json.description!.length).toBeLessThanOrEqual(4096);
   });
   it("clamps the officer setting to 10-30", () => {
-    expect([clampTop(5), clampTop(25), clampTop(99), clampTop(undefined)]).toEqual([10, 25, 30, 25]);
+    expect([clampTop(5), clampTop(25), clampTop(99), clampTop(undefined)]).toEqual([10, 25, 50, 50]);
   });
   it("switches to Hall of Fame mode when the race ends or everyone is at 60", () => {
     const done = data([row("A", 60), row("B", 60), row("C", 60)]);
@@ -90,14 +90,18 @@ describe("race board embed and card", () => {
     expect(json.description!.indexOf("Early")).toBeLessThan(json.description!.indexOf("Late"));
     expect(json.description).not.toContain("Racer");
   });
-  it("draws the top N class-coloured bars with the class, race and Discord member under each full name", () => {
-    const rows = Array.from({ length: 40 }, (_, i) => row(`Player Number${i}`, 59 - i, { weekGain: i === 0 ? 3 : 0, ...(i === 0 ? { discordId: "42" } : {}) }));
-    const card = raceCard(data(rows), "fr", 25, new Map([["42", "Kev"]]));
-    expect(card.race).toHaveLength(25);
-    expect(card.race?.[0]).toMatchObject({ name: "Player Number0", color: "#69ccf0", level: 59, max: 60, note: "+3 sem.", sub: "Mage · Human · @Kev" });
-    expect(raceCard(data(rows), "en", 12).race).toHaveLength(12);
-    expect(raceCard(data(rows), "en", 99).race).toHaveLength(30);
-    expect(raceCard(data(rows), "en").race?.[0]?.note).toBe("+3 wk");
+  it("draws the top N (50 by default) in the ladder layout: class colour, class, race and Discord member, level bar and week gain", () => {
+    const rows = Array.from({ length: 64 }, (_, i) => row(`Player Number${i}`, 59 - Math.floor(i / 2), { weekGain: i === 0 ? 3 : 0, ...(i === 0 ? { discordId: "42" } : {}) }));
+    const card = raceCard(data(rows), "fr", 25, new Map([["42", "Kev"]]), new Date("2026-11-07T14:05:00Z"));
+    const ladderRows = card.ladder!.boards[0]!.rows;
+    expect(ladderRows).toHaveLength(25);
+    expect(ladderRows[0]).toMatchObject({ rank: 1, name: "Player Number0", color: "#69ccf0", values: ["", "59", ""], bar: { value: 59, max: 60 }, move: 3, moveLabel: "+3", sub: "Mage · Human · @Kev" });
+    expect(ladderRows[1]).not.toHaveProperty("move");
+    expect(card.ladder!.columns.map(column => column.label)).toEqual(["Progression", "Niv.", "Semaine"]);
+    expect(card.ladder!.meta).toBe("Mis à jour 2026-11-07 14:05 UTC");
+    expect(raceCard(data(rows), "en", 12).ladder!.boards[0]!.rows).toHaveLength(12);
+    expect(raceCard(data(rows), "en").ladder!.boards[0]!.rows).toHaveLength(50);
+    expect(raceCard(data(rows), "en", 99).ladder!.boards[0]!.rows).toHaveLength(50);
     expect(card.title).toBe("Course au niveau 60");
   });
 });

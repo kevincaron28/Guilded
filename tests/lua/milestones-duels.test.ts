@@ -249,3 +249,22 @@ describe("guild duels", () => {
     expect(outCount()).toBe(0);
   });
 });
+
+describe("profession milestones", () => {
+  const skills = (lua: LuaSession, skill: number) => lua.run(`SKILL = ${skill}
+    function GetProfessions() return 1 end
+    function GetProfessionInfo() return "Alchimie", nil, SKILL, 300, 0, 0, 171 end`);
+  it("announces 150 and 300 only, records 75 and 225 silently, and flags a live 300", () => {
+    const lua = setup();
+    skills(lua, 80); lua.run(`fire_event("SKILL_LINES_CHANGED")`);
+    expect(outCount()).toBe(0);
+    lua.run(`CLOCK = CLOCK + 100`); skills(lua, 150); lua.run(`fire_event("SKILL_LINES_CHANGED")`);
+    expect(out()).toBe("GUILD:Kev reached skill 150 in Alchimie!");
+    lua.run(`CLOCK = CLOCK + 100`); skills(lua, 300); lua.run(`fire_event("SKILL_LINES_CHANGED")`);
+    expect(lua.run(`return DB.milestones.chars["Kev-Realm"].log[#DB.milestones.chars["Kev-Realm"].log].ref`)).toMatch(/^(prof:alchemy-300|profnew:alchemy)$/);
+    const refs = lua.run(`local t = {} for _, r in ipairs(DB.milestones.chars["Kev-Realm"].log) do t[#t + 1] = r.ref end return table.concat(t, ",")`);
+    expect(refs).toContain("prof:alchemy-75");
+    expect(refs).toContain("prof:alchemy-225");
+    expect(refs).toContain("profnew:alchemy");
+  });
+});

@@ -11,7 +11,7 @@ export type AchievementGame = "wow" | "poe2" | "guild";
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
 
 /** Bumped whenever rows are added that older data can already satisfy; guilds that announce re-baseline quietly once. */
-export const ACHIEVEMENT_CATALOGUE_VERSION = 7;
+export const ACHIEVEMENT_CATALOGUE_VERSION = 8;
 
 /**
  * What is measured:
@@ -25,6 +25,10 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 7;
  * - raidClears: those raids where every boss was marked defeated.
  * - activeDays: distinct days with recorded Discord participation (messages, reactions or voice).
  * - dungeonVariety: distinct dungeons completed (the first completion of each).
+ * - professionsMastered: distinct professions at skill 300 on characters of that edition (def.edition).
+ * - professionFirsts: professions in which the member was the first of the guild to reach skill 300 while their addon was watching.
+ * - rareRecipes: recipes only this member's characters know in the guild (needs recipe data from at least three crafters).
+ * - craftsDone: craft-board requests the member completed for another member.
  * - professionSkill: the highest profession skill among the member's synced characters.
  * - poeLevel: the highest PoE2 character level the member's own client log reported.
  * - poeMaps: distinct PoE2 map instances the member's companion recorded.
@@ -41,7 +45,7 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 7;
  * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
  *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist";
+export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -80,7 +84,7 @@ export const EDITION_LABEL: Record<WowEdition, { en: string; fr: string; short: 
  */
 export const CATALOGUE_EDITIONS: readonly WowEdition[] = ["forever"];
 // Highest profession skill per edition (Forever and Era 300, TBC 375, Mists 600). Retail's skill is per expansion, so it has no profession rows.
-const PROFESSION_STEPS: Partial<Record<WowEdition, number[]>> = { forever: [150, 300], "classic-era": [150, 300], "classic-tbc": [150, 300, 375], "classic-mists": [150, 300, 450, 600] };
+const PROFESSION_STEPS: Partial<Record<WowEdition, number[]>> = { forever: [75, 150, 225, 300], "classic-era": [150, 300], "classic-tbc": [150, 300, 375], "classic-mists": [150, 300, 450, 600] };
 /** Two rows share a progression (and a "next" slot) only if they share this key. */
 export const ladderKey = (def: AchievementDef) => `${def.metric}:${def.edition ?? ""}`;
 
@@ -173,6 +177,34 @@ const EDITION_ACHIEVEMENTS: AchievementDef[] = CATALOGUE_EDITIONS.flatMap(editio
   return rows;
 });
 
+/**
+ * Professions in WoW Forever beyond the skill steps: mastering several, being first in the guild, rare recipes and crafting
+ * for guildmates (docs/plans/FOREVER_ACHIEVEMENTS.md). Skill steps themselves are the `wow-forever-profession-N` rows above.
+ */
+const PROFESSION_ACHIEVEMENTS: AchievementDef[] = [
+  ...[[2, "gold", "Master of Two Trades", "Maître de deux métiers", "two"], [4, "epic", "Master of Many Trades", "Maître de nombreux métiers", "four"]].map(([n, tier, en, fr, word], i): AchievementDef => ({
+    id: `wow-forever-masters-${n}`, game: "wow", edition: "forever", tier: tier as AchievementTier, metric: "professionsMastered", threshold: n as number, rank: i + 1,
+    en: { name: `Forever: ${en}`, description: `Reach skill 300 in ${word} different professions on WoW Forever characters.` },
+    fr: { name: `Forever : ${fr}`, description: `Atteindre la compétence 300 dans ${n === 2 ? "deux" : "quatre"} métiers différents avec des personnages WoW Forever.` }
+  })),
+  ...[[1, "epic", "First to Three Hundred", "Premier à trois cents"], [3, "legendary", "Guild Pioneer of the Trades", "Pionnier des métiers de la guilde"]].map(([n, tier, en, fr], i): AchievementDef => ({
+    id: `wow-forever-first-300-${n}`, game: "wow", edition: "forever", tier: tier as AchievementTier, metric: "professionFirsts", threshold: n as number, rank: i + 1,
+    en: { name: `Forever: ${en}`, description: n === 1 ? "Be the first in the guild to reach skill 300 in a profession." : `Be the first in the guild to reach skill 300 in ${n} professions.` },
+    fr: { name: `Forever : ${fr}`, description: n === 1 ? "Être le premier de la guilde à atteindre la compétence 300 dans un métier." : `Être le premier de la guilde à atteindre la compétence 300 dans ${n} métiers.` }
+  })),
+  ...[[1, "silver", "Rare Pattern", "Patron rare"], [5, "gold", "Pattern Hoarder", "Collectionneur de patrons"], [15, "epic", "Keeper of Lost Recipes", "Gardien des recettes perdues"]].map(([n, tier, en, fr], i): AchievementDef => ({
+    id: `wow-forever-rare-recipes-${n}`, game: "wow", edition: "forever", tier: tier as AchievementTier, metric: "rareRecipes", threshold: n as number, rank: i + 1,
+    en: { name: `Forever: ${en}`, description: `Know ${n === 1 ? "a recipe" : `${n} recipes`} that no other guild crafter has learned.` },
+    fr: { name: `Forever : ${fr}`, description: `Connaître ${n === 1 ? "une recette" : `${n} recettes`} qu'aucun autre artisan de la guilde n'a apprise${n === 1 ? "" : "s"}.` }
+  }))
+];
+
+const CRAFT_LADDER: AchievementDef[] = ladder("crafts-done", "craftsDone", [
+  [1, "bronze", "First Commission", "Première commande"], [5, "bronze", "Helping Hands", "Mains serviables"], [10, "silver", "Guild Artisan", "Artisan de la guilde"],
+  [25, "silver", "Trusted Crafter", "Artisan de confiance"], [50, "gold", "Master Provider", "Fournisseur émérite"], [100, "platinum", "Workshop of the Guild", "Atelier de la guilde"],
+  [250, "epic", "Legend of the Forge", "Légende de la forge"]
+], (n, fr) => fr ? `Réaliser ${grouped(n, true)} ${plural(n, "commande", "commandes")} pour des membres de la guilde au tableau d'artisanat.` : `Complete ${grouped(n, false)} ${plural(n, "craft", "crafts")} for guildmates on the craft board.`);
+
 const BASE_ACHIEVEMENTS: AchievementDef[] = [
   // Guild dungeon runs.
   def("dungeon-runs-1", "guild", "bronze", "dungeonRuns", 1, ["First Descent", "Complete a guild dungeon run."], ["Première descente", "Terminer un donjon de guilde."]),
@@ -206,7 +238,11 @@ const BASE_ACHIEVEMENTS: AchievementDef[] = [
   ...ACTIVITY_LADDERS,
 
   // WoW per edition (levels, level cap, profession skill).
-  ...EDITION_ACHIEVEMENTS
+  ...EDITION_ACHIEVEMENTS,
+
+  // Professions: mastery, guild firsts, rare recipes and crafting for guildmates.
+  ...PROFESSION_ACHIEVEMENTS,
+  ...CRAFT_LADDER
 ];
 
 /**

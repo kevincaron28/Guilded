@@ -27,7 +27,8 @@ describe("link wizard steps", () => {
   it("step 1 waits for the addon, found from the install folder alone on a fresh PC", () => {
     const fresh = linkWizard({ savedFile: { addon: { status: "not-installed", expected: "forever", folder: "D:/WoW/_forever_/Interface/AddOns/Guilded" } }, problems: [{ id: "addon-missing" }] });
     expect(fresh.current).toBe("wow");
-    expect(fresh.setupHelp?.text).toMatch(/puts the Guilded addon in your WoW folder/);
+    // Automatic setup (owner, 7 November): it says what it is doing, with no button, until it has tried.
+    expect(fresh.setupHelp).toEqual({ text: "Setting up WoW and the Guilded addon: looking on every drive…", button: null, chooseFolder: false });
     expect(fresh.diagnostics.map((check) => `${check.ok ? "ok" : "no"}:${check.text}`)).toEqual(["ok:World of Warcraft is found on this PC", "no:The Guilded addon is installed"]);
     expect(linkWizard({ savedFile: { addon: { status: "ok" } } }).current).toBe("discord");
     expect(linkWizard({ config: wow, problems: [{ id: "addon-wrong-edition" }] }).current).toBe("wow");

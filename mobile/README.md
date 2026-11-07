@@ -40,6 +40,15 @@ bot, addon and Windows companion version). Store identifiers are
   already downloaded. There is no push server and no Discord DM. A raid that
   starts inside the hour is shown and not scheduled. Open the app now and then
   so the list stays current.
+- **Map** (Track M) uses `GET` and `POST /api/v1/companion/guild-map`: where
+  guildmates were last seen outdoors (dots on a plain grid with zone names, no
+  game map art), a 28-day heat map of where the guild plays, and calls for help
+  from the last six hours with time and attackers. Signed-in members of the
+  same guild only, never public. Positions arrive with companion uploads, so
+  they are last seen, not live. **Share my position** is on by default; turning
+  it off deletes the member's stored positions. Officers: `/officer roster map`.
+  Defender push alerts wait for PR #345 (hook: `onHelpCallStored` in
+  `src/services/guild-map.ts`).
 - **Look at a sample guild** fills those screens with fictional names. It does
   not sign in and does not call the bot.
 

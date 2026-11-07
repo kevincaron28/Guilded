@@ -7,7 +7,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 //   - the website account (profile, recruitment card, linked web characters, Battle.net selection, device sign-ins);
 //   - every guild character of theirs and what hangs off it (professions, wishlist, gear snapshots, sign-ups);
 //   - their personal rows: battleground reports, achievements, milestones, recap schedule, alerts, availability,
-//     pairings, verify codes and companion credentials, community badge shelves;
+//     pairings, verify codes and companion credentials, community badge shelves, guild map positions and help calls;
 //   - the Discord id and display name on their member rows, which become "Deleted member" (status LEFT).
 // Backups and Discord messages already posted are outside the live database; docs/PRIVACY.md says so.
 
@@ -34,6 +34,8 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
     await tx.webAvailability.deleteMany({ where: own });
     await tx.poeLevelReached.deleteMany({ where: own });
     await tx.poeMapVisit.deleteMany({ where: own });
+    await tx.guildMapSighting.deleteMany({ where: own });
+    await tx.guildHelpCall.deleteMany({ where: own });
     await tx.characterPairing.deleteMany({ where: own });
     await tx.characterVerifyCode.deleteMany({ where: own });
     await tx.characterVerifyClaim.deleteMany({ where: own });

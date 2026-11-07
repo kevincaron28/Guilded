@@ -164,6 +164,27 @@ fixes, 9.1.0 for features).
 **Later phases:** screenshots, install/link guides and website (items 20-21), phone app and TCG plan (Track M,
 item 22), Google Play, Discord audit and fresh-setup check (item 24).
 
+### Owner ideas, 7 November 2026 (list 2, prioritised)
+
+| Pri | Idea | Plan | Who |
+| --- | --- | --- | --- |
+| P0 | Guilded window can't be closed after opening from the minimap or the guild tab | Fix: close button, Escape and minimap toggle all close it | addon-ux |
+| P1 | Companion: clear version, click-to-update; Store updates are tedious | Version panel and an Update now button; a direct Store link for Store installs | track-f-companion |
+| P1 | Race to 60 top 50; leaderboard cards like a ranking site (D2 ladder, Raider.IO) | One ranking look for every leaderboard card | card-redesign |
+| P1 | Dungeon season window in game: too many buttons | Regroup into sections, primary actions only, the rest in More | overview-panel |
+| P1 | "Qui est qui" post not useful | Remove the post; mains and alts stay on the roster card and the profile | server-hygiene |
+| P1 | Separate test servers from real guild servers | Test-server flag, kept out of public and cross-server features, grouped in the owner console | server-hygiene |
+| P2 | Guild records and challenges (fastest boss and dungeon times) with notifications | Records board and record/challenge posts | records-recaps |
+| P2 | Recaps: daily level gains, most levels, cards | One recap card per period; recommendation in `docs/plans/RECORDS_AND_RECAPS.md` | records-recaps |
+| P2 | Item links in profession posts (study how Wowhead's bot does it) | Analysis, then richer item rows from Blizzard data | item-lookup |
+| P2 | Armory: more character data from the API | Spike on Forever profile API, then read-only linking | item-lookup |
+| P2 | Companion full audit and redesign (primary goal: sync) | Audit and proposal first (`docs/plans/COMPANION_REDESIGN.md`) | track-f-companion |
+| P2 | Phone app redesign: roster + map, stats, profile, TCG and badges, notifications, Blue posts / Wowhead news | Plan, then a first slice (`docs/plans/APP_REDESIGN.md`) | research-plans |
+| P2 | A profession link posted in #chat-guilde shows a small Discord card with that member's recipes | Extend item previews (now on in Québec Gold) to tradeskill links; synced recipes, gallery link | item-lookup (after item links, armory) |
+| P3 | Raid readiness check upgrade | Next free session | — |
+
+The owner also adds ideas on the Control Board ("Your ideas"); read them when he says "look at the board's ideas".
+
 ### Owner requests, 7 November 2026
 
 - **Items 3, 4, 7, 9 built** (officer client, `addon/Guilded/Modules/OfficerNotes.lua`, one PR): professions in public notes, EP,GP in officer notes, linked lowest-rank members promoted one rank (once per player, never demoted; list from `GuildedPromotion.linked`), and a one-time guild-chat greeting. All ON by default; `/guilded officer auto status|professions|epgp|promote|greet|all on|off|lang en|fr` and the officer switches in Settings. One change per 12 s through the RosterTools engine. Needs real-client checks.

@@ -81,7 +81,7 @@ document.addEventListener('keydown', event => {
 });
 
 // The header's version switcher outside an edition's pages: show the visitor's remembered WoW
-// version (the guilded_edition cookie the website sets in /forever/, /retail/...).
+// version (the guilded_edition cookie the website sets in /forever/).
 const remembered = /(?:^|;\s*)guilded_edition=([a-z-]{1,20})/.exec(document.cookie)?.[1];
 for (const menu of document.querySelectorAll('.edition-menu')) {
   const choice = remembered && menu.querySelector(`a[data-edition="${remembered}"]`);

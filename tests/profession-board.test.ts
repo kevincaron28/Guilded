@@ -118,7 +118,7 @@ describe("item links in profession posts (docs/plans/ITEM_LINKS.md)", () => {
     expect(lookup).toHaveBeenCalledTimes(1); // the enchant is a spell, never looked up
     const text = professionPostEmbed(post, "en", "g1", NOW).toJSON().description ?? "";
     expect(text).toContain("🟧 **[Thunder x fury](https://www.wowhead.com/classic/item=19019)**");
-    expect(text).toContain("• **Enchant Bracer \- Minor Health**");
+    expect(text).toContain("• **Enchant Bracer - Minor Health**");
     expect(QUALITY_SQUARES).toHaveLength(6);
   });
   it("keeps the bullet when the item data source knows nothing or fails", async () => {

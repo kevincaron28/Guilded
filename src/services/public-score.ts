@@ -42,7 +42,8 @@ export const publicRules = (): BracketedRules => (cachedRules ??= provisionalSea
 
 // A season's frozen public rules (OfficialSeason.rules).
 export interface PublicRuleSnapshot { format: 1; frozenAt: string; rules: BracketedRules; additions: { at: string; routes: string[]; brackets: string[] }[];
-  calendar?: import("./official-periods.js").OfficialPeriodMetadata }
+  /** Calendar metadata of the removed editions' official periods (stored, read as opaque data). */
+  calendar?: unknown }
 // New official snapshots require the current stored evidence contract. Reading an
 // older snapshot never adds this policy or silently changes archived results.
 // Freezing never activates current-v2 by itself: every snapshot is current-v1 unless the caller is the owner's

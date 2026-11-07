@@ -2,8 +2,14 @@
 
 Status: **7 November 2026: phase 2 under way.** Merged: stage 1 (addons, #567), stage 2 (packaging,
 #568), stage 3 (companion, #571), stage 4a (bot: Retail keystones, Battle.net discovery, other editions' dungeon
-rules and calendars, #573), stage 4b (bot commands, labels and rules, #577). Stage 5 (website, Worker and the
-bot's web filters) is the next PR; then stages 6, 7 and 8. The staged
+rules and calendars, #573), stage 4b (bot commands, labels and rules, #577), stage 5 (website, Worker and
+the bot's web filters, #578, with the two-host Worker test #580). Stage 6 (the edition model) is the next PR; then
+stages 7 and 8.
+
+Stage 6 as built: `companion/game-edition.mjs` still PARSES the removed editions' ids (stored rows carry them and
+must stay readable); new data is refused at the upload entry points with `assertForeverEdition` (addon snapshots,
+dungeon runs, personal companion uploads, character import). `companion/active-editions.mjs` and
+`src/services/official-periods.ts` are deleted. The staged
 PRs run one at a time, each from `origin/main` with the four checks in CLAUDE.md passing. No version bump in any of them.
 
 Change while building (7 November): the shared data sources `companion/dungeon-catalog.mjs` and

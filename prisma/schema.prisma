@@ -500,6 +500,7 @@ model Member {
   companionCredentials CompanionCredential[]
   pairedImports       AddonImport[]
   poeMapVisits        PoeMapVisit[]
+  linkNotice          MemberLinkNotice?
 
   @@unique([guildId, discordUserId])
   @@index([guildId, status])
@@ -3151,4 +3152,12 @@ model GuildBankTransaction {
   createdAt    DateTime @default(now())
 
   @@index([guildId, at])
+}
+
+// 9.0: which linked characters the "you're linked" DM already told a member about (companion-link-dm.ts).
+model MemberLinkNotice {
+  memberId    String   @id
+  characterIds String  @default("")
+  notifiedAt  DateTime @default(now())
+  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 }

@@ -7,6 +7,7 @@ import { createGuildService } from "./guild.js";
 import { isPermissionRole, type Permission } from "../permissions.js";
 import { currentGuildScope } from "./guild-scope.js";
 import { asLang, t } from "../i18n.js";
+import { linkedCharactersRow } from "./companion-link-dm.js";
 import { onboardingButtons, rulesGateActive, rulesPending, rulesPrompt } from "./onboarding.js";
 
 const guildService = createGuildService(prisma);
@@ -132,7 +133,7 @@ export async function sendWelcome(discordGuild: DiscordGuild, member: GuildMembe
   const delivery = welcomeDelivery(settings);
   const message = buildWelcomeMessage(settings, discordGuild, { id: member.id, username: member.user.username });
   if (delivery !== "CHANNEL") {
-    result.dm = await member.send(message).then(() => true).catch(() => false);
+    result.dm = await member.send({ ...message, components: [...message.components, linkedCharactersRow(asLang(settings.language))] }).then(() => true).catch(() => false);
   }
   if ((delivery !== "DM" || !result.dm) && settings.welcomeChannelId) {
     const channel = await discordGuild.channels.fetch(settings.welcomeChannelId).catch(() => null);

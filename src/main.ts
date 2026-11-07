@@ -31,7 +31,7 @@ import { pendingSignupRaidIds, syncSignupEmbed } from "./commands/raid.js";
 import { runDiscordJobs } from "./services/discord-jobs.js";
 import { queueGuildScheduledEvents } from "./services/scheduled-events.js";
 import { commandRegistration } from "./services/command-registration.js";
-import { interactionReportOrigin, withReportContext, type InteractionReportInput, type ReportScope } from "./services/report-context.js";
+import { interactionLabel, interactionReportOrigin, withReportContext, type InteractionReportInput, type ReportScope } from "./services/report-context.js";
 import { queueCharacterDisplayRefresh } from "./services/character-display-refresh.js";
 import { executeSystem } from "./commands/system.js";
 import { executeConfig } from "./commands/settings.js";
@@ -62,13 +62,16 @@ import { handleSelfRoleButton, SELF_ROLE_PREFIX } from "./commands/selfroles.js"
 import { EP_AWARD_PREFIX, handleEpAwardButton } from "./commands/ep-award.js";
 import { executeCore } from "./commands/core.js";
 import { ACHIEVEMENT_SHARE_PREFIX, handleAchievementShare } from "./commands/achievements.js";
+import { handleDungeonTimeline } from "./commands/dungeon-post.js";
+import { DUNGEON_TIMELINE_PREFIX } from "./services/dungeon-announce.js";
 import { syncAllRankRoles } from "./services/rank-roles.js";
 import { syncAllNicknames } from "./services/nickname-sync.js";
 import { postAllWeeklyPromotions } from "./services/promotion.js";
 import { sendRecruitReminders } from "./services/recruiting-kit.js";
+import { handleLinkedButton, LINKED_PREFIX } from "./services/companion-link-dm.js";
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
-import { handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
+import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { updateWhosWhoBoard } from "./services/whos-who-board.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
@@ -177,7 +180,7 @@ const reportJobError = (source: string, origin: ReportScope = {}) => (error: unk
 const reportInteractionError = (source: string, interaction: InteractionReportInput & { guildId: string | null; guild: { name: string } | null; user: { id: string } }, error: unknown): void => {
   if (isMemberAnswer(error)) { console.warn(`${source}: ${(error as Error).message}`); return; }
   console.error(`${source} failed`, error);
-  void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id, ...interactionReportOrigin(interaction), operation: source });
+  void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id, ...interactionReportOrigin(interaction), operation: `${source} ${interactionLabel(interaction)}`.trim() });
 };
 
 // Stops cleanly: no new companion requests, Discord and the database closed. systemd sends
@@ -329,6 +332,9 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void syncAllRankRoles(prisma, readyClient.guilds.cache.values(), reportJobError("Rank roles")), 60 * 60_000);
   // Opt-in (off until an officer turns it on): member nicknames follow "Name (Main)".
   // On by default: at most one weekly "Ready to promote" list per server, only when someone is ready.
+  // Waiting guild-invite requests whose character is already in the stored roster get their check mark (start-up, then hourly).
+  void backCheckAllInvites(readyClient, prisma).catch(reportJobError("Guild invite back-check"));
+  setInterval(() => void backCheckAllInvites(readyClient, prisma).catch(reportJobError("Guild invite back-check")), 60 * 60_000);
   setInterval(() => void sendRecruitReminders(readyClient, prisma).catch(reportJobError("Recruiting cooldown reminders")), 60 * 60_000);
   setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
   // 9.0, on by default: at most one weekly guild bank summary per server, only when the bank moved.
@@ -652,7 +658,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
 client.on(Events.InteractionCreate, async interaction => {
   try {
     const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_PREVIEWS_COMMAND, OWNER_CONSOLE_COMMAND];
-    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, INVITE_REQUEST_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
     const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
@@ -768,8 +774,18 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     });
     return;
   }
+  if (interaction.isButton() && interaction.customId.startsWith(LINKED_PREFIX)) {
+    await handleLinkedButton(interaction, prisma).catch(async (error: unknown) => {
+      reportInteractionError("Linked characters button", interaction, error);
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    });
+    return;
+  }
   if ((interaction.isButton() || interaction.isModalSubmit()) && interaction.customId.startsWith(INVITE_REQUEST_PREFIX)) {
-    await handleInviteRequestInteraction(interaction, prisma).catch(async (error: unknown) => {
+    const handler = interaction.isButton() && interaction.customId.startsWith(`${INVITE_REQUEST_PREFIX}done:`) ? handleInviteDoneButton(interaction, prisma) : handleInviteRequestInteraction(interaction, prisma);
+    await handler.catch(async (error: unknown) => {
       reportInteractionError("Guild invite request", interaction, error);
       const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
@@ -822,6 +838,10 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   }
   if (interaction.isButton() && interaction.customId.startsWith(CRAFT_PREFIX)) {
     await handleCraftButton(interaction).catch((error: unknown) => reportInteractionError("Craft button", interaction, error));
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(DUNGEON_TIMELINE_PREFIX)) {
+    await handleDungeonTimeline(interaction).catch((error: unknown) => reportInteractionError("Dungeon timeline", interaction, error));
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(ACHIEVEMENT_SHARE_PREFIX)) {

@@ -238,10 +238,26 @@ const STRINGS = {
     en: "✅ **{name}** is now linked to your Discord account on **{server}** as {kind} (your `/guilded verify` code). Not your character? Use `/character unlink` there.",
     fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (ton code `/guilded verify`). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
   },
-  // 8.5 track F: the DM after a member's first companion link (companion-link-dm.ts).
-  "companion.firstLink": {
-    en: "✅ You're linked on **{server}**: {names}. Your Guilded companion proved these characters are yours, so there is nothing more to do. Not yours? Use `/character unlink` there.",
-    fr: "✅ Tu es lié sur **{server}** : {names}. Ton compagnon Guilded a prouvé que ces personnages sont à toi, il n'y a donc plus rien à faire. Pas à toi ? Utilise `/character unlink` là-bas."
+  // 8.5 track F / ROADMAP 5: the linked-characters DM and its button (companion-link-dm.ts).
+  "linked.first": {
+    en: "✅ You're linked on **{server}**. Your Guilded companion proved these characters are yours, so there is nothing more to do:",
+    fr: "✅ Tu es lié sur **{server}**. Ton compagnon Guilded a prouvé que ces personnages sont à toi, il n'y a donc plus rien à faire :"
+  },
+  "linked.added": {
+    en: "✅ New on **{server}**: {names} now linked to you. All your linked characters:",
+    fr: "✅ Nouveau sur **{server}** : {names} maintenant lié(s) à toi. Tous tes personnages liés :"
+  },
+  "linked.hint": {
+    en: "Not yours? Use `/character unlink` on the server. `/character list` shows this list any time.",
+    fr: "Pas à toi ? Utilise `/character unlink` sur le serveur. `/character list` affiche cette liste en tout temps."
+  },
+  "linked.button": { en: "My linked characters", fr: "Mes personnages liés" },
+  "linked.level": { en: "level {level}", fr: "niveau {level}" },
+  "linked.main": { en: "main", fr: "principal" },
+  "linked.more": { en: "… and {count} more", fr: "… et {count} de plus" },
+  "linked.none": {
+    en: "You have no linked characters yet. Open the Guilded companion, or use `/character pair` on the server.",
+    fr: "Tu n'as pas encore de personnage lié. Ouvre le compagnon Guilded, ou utilise `/character pair` sur le serveur."
   },
   // 8.5 batch 3 (#13/#14): the guild-invite channel (invite-channel.ts).
   "invite.hint": {
@@ -264,8 +280,9 @@ const STRINGS = {
     fr: "✅ Ta demande est dans <#{channel}>. Un officier t'invitera en jeu, et un ✅ apparaîtra dessus quand ce sera fait."
   },
   "invite.duplicate": { en: "You already asked for this character, so nothing was added. An officer will get to it.", fr: "Tu as déjà demandé pour ce personnage, rien n'a été ajouté. Un officier s'en occupera." },
+  "invite.doneButton": { en: "✅ Invited / joined", fr: "✅ Invité / a joint la guilde" },
+  "invite.doneOfficers": { en: "Only officers can mark an invite as done.", fr: "Seuls les officiers peuvent marquer une invitation comme faite." },
   "invite.unavailable": { en: "Guild invites are not open on this server right now. Ask an officer.", fr: "Les invitations de guilde ne sont pas ouvertes sur ce serveur pour le moment. Demande à un officier." },
-  "companion.firstLinkMore": { en: " and {count} more", fr: " et {count} de plus" },
   "verify.moved": {
     en: "**{name}** was unlinked from your Discord account on **{server}**: an officer's Guilded heard another member's `/guilded verify` code from that character. If it is yours, ask an officer.",
     fr: "**{name}** a été délié de ton compte Discord sur **{server}** : le Guilded d'un officier a reçu le code `/guilded verify` d'un autre membre depuis ce personnage. S'il est à toi, demande à un officier."

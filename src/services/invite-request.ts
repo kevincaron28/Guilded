@@ -17,6 +17,7 @@ export const INVITE_REQUEST_PREFIX = "invite:";
 const BUTTON = "ask";
 const MODAL = "name";
 const INPUT = "name";
+export const DONE_BUTTON = "done";
 
 type Database = Pick<PrismaClient, "guildSettings" | "inviteRequest" | "inviteDm">;
 
@@ -26,6 +27,12 @@ const customId = (action: string, discordGuildId: string) => `${INVITE_REQUEST_P
 export function requestInviteRow(lang: Lang, discordGuildId: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(customId(BUTTON, discordGuildId)).setLabel(t(lang, "invite.button")).setStyle(ButtonStyle.Primary));
+}
+
+/** Officer button on a post the bot made itself (player-typed posts keep the officer's ✅ reaction). */
+export function inviteDoneRow(lang: Lang, discordGuildId: string): ActionRowBuilder<ButtonBuilder> {
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(customId(DONE_BUTTON, discordGuildId)).setLabel(t(lang, "invite.doneButton")).setStyle(ButtonStyle.Success));
 }
 
 export function requestInviteModal(lang: Lang, discordGuildId: string): ModalBuilder {
@@ -52,7 +59,7 @@ export async function submitInviteRequest(client: Pick<Client, "guilds" | "chann
   if (already) return { status: "duplicate", lang };
   const channel = await client.channels.fetch(settings.inviteChannelId).catch(() => null);
   if (!channel?.isTextBased() || !("send" in channel)) return { status: "unavailable", lang };
-  const posted = await channel.send({ content: `<@${input.discordUserId}> → **${input.parsed.displayName}**`, allowedMentions: { parse: [] } }).catch(() => null);
+  const posted = await channel.send({ content: `<@${input.discordUserId}> → **${input.parsed.displayName}**`, components: [inviteDoneRow(lang, input.discordGuildId)], allowedMentions: { parse: [] } }).catch(() => null);
   if (!posted) return { status: "unavailable", lang };
   await recordInviteRequest(database, { guildId: settings.guildId, parsed: input.parsed, discordUserId: input.discordUserId, channelId: channel.id, messageId: posted.id });
   await posted.react(SEEN).catch(() => undefined);
@@ -69,6 +76,7 @@ export async function handleInviteRequestInteraction(interaction: ButtonInteract
   if (!discordGuildId) return;
   const settings = await database.guildSettings.findFirst({ where: { guild: { discordId: discordGuildId } }, select: { language: true } });
   const lang = asLang(settings?.language);
+  if (action === DONE_BUTTON) return; // handled by handleInviteDoneButton (invite-channel.ts)
   if (interaction.isButton() && action === BUTTON) { await interaction.showModal(requestInviteModal(lang, discordGuildId)); return; }
   if (!interaction.isModalSubmit() || action !== MODAL) return;
   const parsed = parseInviteName(interaction.fields.getTextInputValue(INPUT));

@@ -1,8 +1,9 @@
-import { type Client, type GuildMember, type Message, type MessageReaction, type PartialGuildMember, type PartialMessageReaction, type PartialUser, type User } from "discord.js";
+import { MessageFlags, type ButtonInteraction, type Client, type GuildMember, type Message, type MessageReaction, type PartialGuildMember, type PartialMessageReaction, type PartialUser, type User } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
-import { requestInviteRow } from "./invite-request.js";
+import { DONE_BUTTON, requestInviteRow } from "./invite-request.js";
+import { INVITE_REQUEST_PREFIX } from "./invite-request.js";
 import { parseInviteAnswers, questionsBlock, storedQuestions } from "./recruiting-kit.js";
 import { markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, SEEN, type InvitedRow } from "./invite-queue.js";
 
@@ -55,6 +56,8 @@ export async function markPostsDone(client: Pick<Client, "channels" | "user">, r
       if (!channel?.isTextBased() || !("messages" in channel)) continue;
       const post = await channel.messages.fetch(row.messageId);
       await post.react(DONE);
+      // The bot's own post carries the officer button; it is not needed once the name is done.
+      if (post.author?.id === client.user?.id && post.components?.length) await post.edit({ components: [] }).catch(() => undefined);
       const eyes = post.reactions.cache.get(SEEN);
       if (eyes && client.user) await eyes.users.remove(client.user.id).catch(() => undefined);
       done++;
@@ -78,10 +81,46 @@ export async function handleInviteReaction(client: Client, database: Database, r
 }
 
 /** A roster upload showed these characters in the guild: their waiting posts are done. Automatic, so preview-gated. */
-export async function completeInvitesFromRoster(client: Pick<Client, "channels" | "user">, database: Database, guild: { id: string; discordId: string }, names: readonly string[]): Promise<number> {
+export async function completeInvitesFromRoster(client: Pick<Client, "channels" | "user">, database: Pick<PrismaClient, "inviteRequest">, guild: { id: string; discordId: string }, names: readonly string[]): Promise<number> {
   if (!names.length) return 0;
   const rows = await markInvitedByName(database, guild.id, names, "roster");
   return rows.length ? markPostsDone(client, rows) : 0;
+}
+
+/** Every waiting post whose character is in the stored guild roster (or is a linked character) is done. Safe to repeat. */
+export async function backCheckInvites(client: Pick<Client, "channels" | "user">, database: Pick<PrismaClient, "inviteRequest" | "guildRosterEntry" | "character">, guild: { id: string; discordId: string }): Promise<number> {
+  if (!await database.inviteRequest.count({ where: { guildId: guild.id, status: "PENDING" } })) return 0;
+  const [roster, linked] = await Promise.all([
+    database.guildRosterEntry.findMany({ where: { guildId: guild.id, inGuild: true }, select: { name: true } }),
+    database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, displayName: true } })
+  ]);
+  const names = [...roster.map((row) => row.name), ...linked.flatMap((row) => [row.name, ...(row.displayName ? [row.displayName] : [])])];
+  return completeInvitesFromRoster(client, database, guild, names);
+}
+
+/** Start-up and hourly: back-check the waiting requests of every server that runs the queue. */
+export async function backCheckAllInvites(client: Pick<Client, "channels" | "user">, database: Pick<PrismaClient, "guildSettings" | "inviteRequest" | "guildRosterEntry" | "character">): Promise<number> {
+  const rows = await database.guildSettings.findMany({ where: { inviteQueueEnabled: true, inviteChannelId: { not: null } }, select: { guild: { select: { id: true, discordId: true } } } });
+  let done = 0;
+  for (const row of rows) {
+    done += await backCheckInvites(client, database, row.guild).catch(() => 0);
+  }
+  return done;
+}
+
+/** An officer clicks "Invited / joined" on a post the bot made: that name is done. */
+export async function handleInviteDoneButton(interaction: ButtonInteraction, database: Database): Promise<void> {
+  const [, action, discordGuildId] = interaction.customId.split(":");
+  if (!interaction.customId.startsWith(INVITE_REQUEST_PREFIX) || action !== DONE_BUTTON || !discordGuildId) return;
+  const settings = await database.guildSettings.findFirst({ where: { guild: { discordId: discordGuildId } }, select: { guildId: true, language: true } });
+  const member = interaction.member && "roles" in interaction.member && "permissions" in interaction.member ? interaction.member as GuildMember : null;
+  if (!settings || !isOfficer(member)) {
+    await interaction.reply({ content: t(asLang(settings?.language), "invite.doneOfficers"), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const rows = await markInvitedByMessage(database, settings.guildId, interaction.message.id, interaction.user.id);
+  await interaction.update({ components: [] }).catch(() => undefined);
+  await markPostsDone(interaction.client, rows.filter((row) => row.messageId !== interaction.message.id).concat(rows.filter((row) => row.messageId === interaction.message.id)));
 }
 
 /** Someone got the World of Warcraft role: one DM asking for their full character name in the invite channel. */

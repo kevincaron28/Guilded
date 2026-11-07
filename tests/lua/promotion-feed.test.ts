@@ -45,7 +45,7 @@ describe("promotion feed, end to end", () => {
     const db = fixtureDb([member("amy", [character("Amy-Realm", days(9))]), member("bob", [character("Bob-Realm", days(20))]),
       member("cy", [character("Cy-Realm", days(2))]), member("dee", [character("Dee-Realm", days(30))])]);
     const feed = await promotionForAddon(db, discord(["amy", "bob", "cy"]), "g1", "forever", NOW);
-    expect(feed).toEqual({ updatedAt: NOW.toISOString(), fromRank: "Initiate", minDays: 7, ready: ["Bob-Realm", "Amy-Realm"] });
+    expect(feed).toEqual({ updatedAt: NOW.toISOString(), fromRank: "Initiate", minDays: 7, ready: ["Bob-Realm", "Amy-Realm"], linked: ["Bob-Realm", "Amy-Realm", "Cy-Realm"] });
 
     const file = standingsToLua({ updatedAt: NOW.toISOString(), standings: [], promotion: feed });
     panelSession(file);

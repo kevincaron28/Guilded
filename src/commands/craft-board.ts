@@ -331,7 +331,8 @@ export function requestRows(lang: Lang, itemKey: number, crafters: { character: 
   const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${CRAFT_PREFIX}ask:${itemKey}`).setLabel(T("Request")).setStyle(ButtonStyle.Primary));
   if (!crafters.length) return [buttons];
   const who = new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${CRAFT_PREFIX}askwho:${itemKey}`).setPlaceholder(T("Or request it from one crafter"))
-    .addOptions(crafters.slice(0, 25).map(crafter => ({ label: crafter.character.slice(0, 100), value: crafter.character.slice(0, 40), description: `${crafter.skill ?? "—"} · ${lastSeenText(crafter.lastSeen, lang, now)}`.slice(0, 100) }))));
+    .addOptions(crafters.filter((crafter, index, all) => all.findIndex(other => other.character.slice(0, 40).toLowerCase() === crafter.character.slice(0, 40).toLowerCase()) === index)
+      .slice(0, 25).map(crafter => ({ label: crafter.character.slice(0, 100), value: crafter.character.slice(0, 40), description: `${crafter.skill ?? "—"} · ${lastSeenText(crafter.lastSeen, lang, now)}`.slice(0, 100) }))));
   return [who, buttons];
 }
 

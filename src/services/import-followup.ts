@@ -2,7 +2,7 @@ import { updateProfessionDirectory } from "./profession-directory.js";
 import type { Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
 import { autoLinkUnclaimed } from "./character-autolink.js";
-import { dungeonAnnouncement } from "./dungeon-announce.js";
+import { dungeonPosts } from "./dungeon-announce.js";
 import { updateDungeonLeaderboard } from "./dungeon-leaderboard.js";
 import { notifications, notify, notifyDungeon } from "./notify.js";
 import { postReadinessBoard } from "./readiness-board.js";
@@ -10,7 +10,6 @@ import type { createAddonImportService } from "./addon-import.js";
 import { describeCalendar, runCalendarPlan, type CalendarSummary } from "./calendar-sync.js";
 import type { HeldRow } from "./addon-import.js";
 import type { Lang } from "../i18n.js";
-import { loadClassEmojis } from "./character-display.js";
 import { currentGuildScope, withGuildScope } from "./guild-scope.js";
 
 type ImportResult = Awaited<ReturnType<ReturnType<typeof createAddonImportService>["apply"]>>;
@@ -39,6 +38,18 @@ export function heldNotice(rows: HeldRow[], lang: Lang): string {
   return `${fr ? "⚠️ **Entrées de l'addon en attente**" : "⚠️ **Addon entries on hold**"} (${rows.length})\n${lines.join("\n")}\n${fr ? "Le reste a été importé. Liste et retrait : `/import held`." : "Everything else was imported. List or dismiss them: `/import held`."}`;
 }
 
+// One post (card + short embed) per completed run, oldest first. True when there was at least one run to announce.
+export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dungeons: ImportResult["dungeons"]): Promise<boolean> {
+  const runs = dungeonPosts(dungeons, "en");
+  for (const index of runs.keys()) {
+    await notifyDungeon(discordGuild, (lang) => {
+      const post = dungeonPosts(dungeons, lang)[index] ?? runs[index]!;
+      return { embed: post.embed, card: post.card, components: post.components };
+    });
+  }
+  return runs.length > 0;
+}
+
 // Everything that follows an applied import, whoever applied it (an officer
 // with /import apply, or the bot itself when auto-apply is on): link newly
 // discovered characters by Discord name, announce the import, dungeon runs
@@ -64,12 +75,7 @@ export async function followUpImport(discordGuild: DiscordGuild | null, guildId:
     const coreByRaid = new Map(raids.map(raid => [raid.id, raid.coreId]));
     for (const award of awards) await notify(discordGuild, notifications.lootAwarded(award.itemName, award.member.displayName, award.amount), "loot", award.raidId ? coreByRaid.get(award.raidId) ?? null : null);
   }
-  const dungeonPost = dungeonAnnouncement(result.dungeons, "en");
-  if (dungeonPost) {
-    const emojis = discordGuild ? await loadClassEmojis(discordGuild).catch(() => ({})) : {};
-    await notifyDungeon(discordGuild, (lang) => dungeonAnnouncement(result.dungeons, lang, emojis) ?? dungeonPost);
-    await updateDungeonLeaderboard(discordGuild);
-  }
+  if (await announceDungeonRuns(discordGuild, result.dungeons)) await updateDungeonLeaderboard(discordGuild);
   if (result.readinessSnapshots.length > 0 || result.consumables > 0) await postReadinessBoard(discordGuild, guildId);
   // In-game calendar answers fill in the signups of the matching Discord raids.
   let calendar: CalendarSummary | null = null;

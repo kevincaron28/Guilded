@@ -272,21 +272,32 @@ end
 
 -- First login with no saved choice: open the Guilded tab and turn it on. Tried at most three logins
 -- (a client that cannot open a window from here is left alone, with the manual steps on /guilded chat tab).
+local sessionRetries = 0
 function module.firstRun()
   local s = settings()
   if not s or s.chatTab ~= nil then return false end
   s.chatTabTries = (s.chatTabTries or 0) + 1
   if s.chatTabTries > 3 then s.chatTab = false return false end
   local ok = false
-  afterCombat("guilded-chat-tab-first", function()
+  local function attempt()
     local current = settings()
     if not current or current.chatTab ~= nil then return end
     local frame = module.frame(true)
-    if not frame then return end
+    if not frame then
+      -- The chat windows are sometimes not ready 6 seconds after login (a fresh install on the
+      -- Forever client): try again a few times in this session before counting the login as failed.
+      if sessionRetries < 3 and C_Timer and C_Timer.After then
+        sessionRetries = sessionRetries + 1
+        C_Timer.After(20, function() afterCombat("guilded-chat-tab-retry", function() pcall(attempt) end) end)
+      end
+      return
+    end
     current.chatTab = true
+    current.chatTabTries = nil
     ok = true
     if frame.AddMessage then frame:AddMessage("|cffd4af37[Guilded]|r " .. (ns.L and ns.L("This tab shows Guilded's messages and guild events (joins, leaves, online, offline). /guilded chat off turns it off.") or "This tab shows Guilded's messages and guild events (joins, leaves, online, offline). /guilded chat off turns it off.")) end
-  end)
+  end
+  afterCombat("guilded-chat-tab-first", attempt)
   return ok
 end
 

@@ -53,6 +53,8 @@ contextBridge.exposeInMainWorld("companion", {
   openStartupSettings: () => ipcRenderer.invoke("open-startup-settings"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   checkUpdate: () => ipcRenderer.invoke("check-update"),
+  versionInfo: () => ipcRenderer.invoke("version-info"),
+  openStoreListing: () => ipcRenderer.invoke("open-store-listing"),
   setAutoUpdate: (on) => ipcRenderer.invoke("set-auto-update", on),
   onUpdateProgress: (callback) => ipcRenderer.on("update-progress", (_event, percent) => callback(percent)),
   hubView: (lang) => ipcRenderer.invoke("hub-view", lang),

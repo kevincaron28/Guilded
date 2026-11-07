@@ -266,6 +266,7 @@ export function parseAddonExportText(text, realm) {
   const guildData = exportGuildData(database);
   const guildBank = exportGuildBank(database);
   const guildBoard = exportGuildBoard(database);
+  const craftOrders = exportCraftOrders(database);
   const guildMap = exportGuildMap(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
@@ -367,6 +368,7 @@ export function parseAddonExportText(text, realm) {
     ...guildData,
     ...guildBank,
     ...guildBoard,
+    ...craftOrders,
     ...guildMap
   }, edition.gameEdition, realm);
   return syncStats ? { ...identities, syncStats } : identities;
@@ -489,6 +491,23 @@ export function exportGuildBoard(database) {
   const posts = Object.values(board.posts ?? {}).filter((p) => p && typeof p.ref === "string" && /^[A-Za-z0-9-]{6,40}$/.test(p.ref) && typeof p.text === "string" && epoch(p.at))
     .slice(0, 5).map((p) => ({ ref: p.ref, text: p.text.replace(/[|\p{Cc}]/gu, " ").trim().slice(0, 500), at: p.at }));
   return { ...(votes.length ? { boardVotes: votes } : {}), ...(heard.length ? { boardRelayVotes: heard } : {}), ...(posts.length ? { boardPosts: posts } : {}) };
+}
+
+// Crafting orders in game (addon Modules/CraftOrders.lua, docs/plans/CRAFTING_ORDERS.md): this player's own
+// claims, finishes and give-backs (db.craftOrders.actions, one per order) and guildmates' heard on GUILD
+// (db.craftOrders.heard, with the sender as the game reported it). Whitelisted field by field.
+export function exportCraftOrders(database) {
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const orderId = (v) => typeof v === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(v);
+  const name = (v) => typeof v === "string" && v.trim().length > 1 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
+  const action = (v) => v === "claim" || v === "done" || v === "release";
+  const state = database?.craftOrders && typeof database.craftOrders === "object" ? database.craftOrders : {};
+  const row = (v) => v && orderId(v.order) && action(v.action) && name(v.character) && epoch(v.at);
+  const own = Object.values(state.actions ?? {}).filter(row).sort((a, b) => a.at - b.at).slice(-30)
+    .map((v) => ({ order: v.order, action: v.action, character: v.character, at: v.at }));
+  const heard = Object.values(state.heard ?? {}).filter((v) => row(v) && name(v.name)).sort((a, b) => b.at - a.at).slice(0, 100)
+    .map((v) => ({ order: v.order, action: v.action, character: v.character, at: v.at, name: v.name }));
+  return { ...(own.length ? { craftOrderActions: own } : {}), ...(heard.length ? { craftOrderRelayActions: heard } : {}) };
 }
 
 // Track M phone map (addon Modules/GuildMap.lua and Modules/CallForHelp.lua): this player's own

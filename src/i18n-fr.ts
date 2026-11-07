@@ -305,6 +305,7 @@ export const FR_TEXT: Record<string, string> = {
   "Asked by": "Demandé par",
   "Crafter": "Artisan",
   "nobody yet": "personne pour l'instant",
+  "{mention} ({character}, in game)": "{mention} ({character}, en jeu)",
   "That recipe is no longer listed.": "Cette recette n'est plus listée.",
   "<@{id}>, {requester} would like {item} from you ({character}). Press **I'll craft it** if you can.": "<@{id}>, {requester} aimerait obtenir {item} de votre part ({character}). Appuyez sur **Je le fabrique** si vous le pouvez.",
   "Request": "Demander",

@@ -63,6 +63,7 @@ Modules\CallForHelp.lua
 Modules\LevelPartners.lua
 Modules\GuildOverview.lua
 Modules\GuildBoard.lua
+Modules\CraftOrders.lua
 Modules\Presence.lua
 Modules\ClientTools.lua
 Modules\RosterTools.lua

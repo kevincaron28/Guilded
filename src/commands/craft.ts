@@ -15,6 +15,8 @@ import { boardLang } from "./craft-board.js";
 import { updateProfessionDirectory } from "../services/profession-directory.js";
 import { OFFER_LIMITS } from "../services/craft-offers.js";
 import { tx } from "../i18n.js";
+import { markGuildChanged } from "../services/standings-feed.js";
+import { resolveItemKey } from "../services/craft-orders.js";
 
 const craftService = createCraftService(prisma);
 
@@ -55,6 +57,8 @@ export const craftCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
   .addSubcommand((sub) => sub.setName("posts-setting").setDescription("Officers: turn the per-profession posts in the craft forum on or off.")
     .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("orders-setting").setDescription("Officers: show craft requests on the addon's in-game Orders page.")
+    .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
   .addSubcommand((sub) => sub.setName("permissions").setDescription("Officers: put the craft board's permissions right (members talk in posts, only the bot starts them)."));
 
 function describe(request: { item: string; quantity: number; profession: string | null; materialsProvided: boolean; note: string | null }): string {
@@ -88,6 +92,14 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
     await prisma.guildSettings.updateMany({ where: { guildId: context.guildId }, data: { professionPostsEnabled: enabled } });
     await interaction.reply({ content: enabled ? "The per-profession posts are on: each profession gets one post in the craft forum, edited in place as recipes are scanned." : "The per-profession posts are off. Existing posts stay but are no longer updated.", flags: MessageFlags.Ephemeral });
     if (enabled) await updateProfessionDirectory(interaction.guild).catch(() => undefined);
+    return;
+  }
+  if (subcommand === "orders-setting") {
+    if (!isOfficer) throw new Error("Only Officers or Guild Masters can turn in-game crafting orders on or off.");
+    const enabled = interaction.options.getBoolean("enabled", true);
+    await prisma.guildSettings.updateMany({ where: { guildId: context.guildId }, data: { craftOrdersInGame: enabled } });
+    markGuildChanged(context.guildId);
+    await interaction.reply({ content: enabled ? "In-game crafting orders are on: crafters with the addon see craft requests on the Orders page of the Guilded window, filtered to their recipes, and can claim and finish them there." : "In-game crafting orders are off. Requests stay on the craft board in Discord only.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "offer") {
@@ -144,7 +156,8 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
       profession,
       quantity: interaction.options.getInteger("quantity") ?? 1,
       note: interaction.options.getString("note") ?? undefined,
-      materialsProvided: interaction.options.getBoolean("materials") ?? false
+      materialsProvided: interaction.options.getBoolean("materials") ?? false,
+      itemKey: await resolveItemKey(prisma, context.guildId, interaction.options.getString("item", true)).catch(() => null)
     });
     const crafters = profession ? (await findProfessionHolders(prisma, context.guildId, profession)).slice(0, 5) : [];
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });

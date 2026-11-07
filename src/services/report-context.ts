@@ -59,3 +59,14 @@ export function reportSourceLink(guildId: string | null | undefined, origin: Rep
   const guild = snowflake(guildId), channel = snowflake(origin.channelId), message = snowflake(origin.messageId);
   return guild && channel ? `https://discord.com/channels/${guild}/${channel}${message ? `/${message}` : ""}` : null;
 }
+
+/** "/command sub" or the component's custom id with ids removed ("button bgui:grp:…"), so a failure names its handler. */
+export function interactionLabel(interaction: object): string {
+  const value = interaction as { commandName?: string; customId?: string; options?: { getSubcommandGroup?: (required: boolean) => string | null; getSubcommand?: (required: boolean) => string | null } };
+  if (typeof value.commandName === "string") {
+    const parts = [value.commandName, value.options?.getSubcommandGroup?.(false), value.options?.getSubcommand?.(false)].filter(Boolean);
+    return `/${parts.join(" ")}`;
+  }
+  if (typeof value.customId === "string") return `component ${value.customId.split(":").slice(0, 3).map((part) => (/^[\w-]{1,24}$/.test(part) && !/^\d{6,}$/.test(part) && !/^c[a-z0-9]{20,}$/.test(part) ? part : "…")).join(":")}`;
+  return "";
+}

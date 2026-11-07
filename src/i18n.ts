@@ -171,6 +171,16 @@ const STRINGS = {
   "onboard.button.pair": { en: "🔗 Link my WoW character", fr: "🔗 Lier mon personnage WoW" },
   "onboard.button.steps": { en: "✅ First steps", fr: "✅ Premiers pas" },
   "onboard.button.accept": { en: "I have read and accept the rules", fr: "J'ai lu et j'accepte les règles" },
+  "onboard.button.chat": { en: "💬 WoW chat ↔ Discord", fr: "💬 Chat WoW ↔ Discord" },
+  "onboard.panel.chat": { en: "💬 **WoW chat ↔ Discord** — how guild chat reaches Discord, and how to link your character.", fr: "💬 **Chat WoW ↔ Discord** — comment le chat de guilde arrive sur Discord, et comment lier ton personnage." },
+  "onboard.chat.guide": {
+    en: "**Guild chat and Discord**\n1) **Blizzard's own link:** if your guild's leader connected the guild to this Discord with Blizzard's guild Discord integration, guild chat can show up in a Discord channel. Ask an officer where it is. Blizzard's link does not know which Discord member you are.\n2) **Tell Guilded who you are** so your name, gear and stats show up with you here. Easiest: ask for your guild invite with the **Request a guild invite** button (or type your full character name in <#{channel}>). When your character joins the guild and a guildmate's addon or companion sees it, I link it to you and send you one message. Already in the guild? Use `/character pair` and paste the `/guilded verify` line in WoW chat once.\nNot your character? `/character unlink`.",
+    fr: "**Chat de guilde et Discord**\n1) **Le lien de Blizzard :** si le chef de ta guilde a relié la guilde à ce Discord avec l'intégration Discord de guilde de Blizzard, le chat de guilde peut apparaître dans un salon Discord. Demande à un officier où il se trouve. Le lien de Blizzard ne sait pas qui tu es sur Discord.\n2) **Dis à Guilded qui tu es** pour que ton nom, ton équipement et tes stats apparaissent avec toi ici. Le plus simple : demande ton invitation de guilde avec le bouton **Demander une invitation de guilde** (ou écris le nom complet de ton personnage dans <#{channel}>). Quand ton personnage rejoint la guilde et qu'un addon ou un compagnon de guildien le voit, je le lie à toi et je t'envoie un message. Déjà dans la guilde ? Utilise `/character pair` et colle la ligne `/guilded verify` dans le chat WoW une fois.\nCe n'est pas ton personnage ? `/character unlink`."
+  },
+  "onboard.chat.guideNoChannel": {
+    en: "**Guild chat and Discord**\n1) **Blizzard's own link:** if your guild's leader connected the guild to this Discord with Blizzard's guild Discord integration, guild chat can show up in a Discord channel. Ask an officer where it is. Blizzard's link does not know which Discord member you are.\n2) **Tell Guilded who you are** so your name, gear and stats show up with you here: use `/character pair` and paste the `/guilded verify` line in WoW chat once.\nNot your character? `/character unlink`.",
+    fr: "**Chat de guilde et Discord**\n1) **Le lien de Blizzard :** si le chef de ta guilde a relié la guilde à ce Discord avec l'intégration Discord de guilde de Blizzard, le chat de guilde peut apparaître dans un salon Discord. Demande à un officier où il se trouve. Le lien de Blizzard ne sait pas qui tu es sur Discord.\n2) **Dis à Guilded qui tu es** pour que ton nom, ton équipement et tes stats apparaissent avec toi ici : utilise `/character pair` et colle la ligne `/guilded verify` dans le chat WoW une fois.\nCe n'est pas ton personnage ? `/character unlink`."
+  },
   "onboard.panel.title": { en: "👋 Start here", fr: "👋 Commence ici" },
   "onboard.panel.intro": {
     en: "Welcome to **{guild}**! These buttons answer privately: only you see the replies.",
@@ -239,6 +249,10 @@ const STRINGS = {
     fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (ton code `/guilded verify`). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
   },
   // 8.5 track F / ROADMAP 5: the linked-characters DM and its button (companion-link-dm.ts).
+  "invite.prelinked": {
+    en: "✅ **{name}** joined **{server}** and is now linked to your Discord account as {kind}, because you asked for that invite. Not your character? Use `/character unlink` there.",
+    fr: "✅ **{name}** a rejoint **{server}** et est maintenant lié à ton compte Discord comme {kind}, parce que tu as demandé cette invitation. Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
+  },
   "linked.first": {
     en: "✅ You're linked on **{server}**. Your Guilded companion proved these characters are yours, so there is nothing more to do:",
     fr: "✅ Tu es lié sur **{server}**. Ton compagnon Guilded a prouvé que ces personnages sont à toi, il n'y a donc plus rien à faire :"

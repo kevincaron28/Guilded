@@ -122,8 +122,9 @@ describe("direct-download page and release process", () => {
     expect(page.match(/\{\{COMPANION_DIRECT_URL\}\}/g)!.length).toBeGreaterThanOrEqual(2);
     expect(page).toContain("{{COMPANION_DIRECT_SHA256}}");
     expect(page).toContain(index === 0 ? "More info → Run anyway" : "Exécuter quand même");
-    expect(page).toContain(index === 0 ? "Microsoft Store (recommended, signed)" : "Microsoft Store (recommandé, signé)");
-    expect(page).toContain(index === 0 ? "Direct download (auto-updating)" : "Téléchargement direct (mise à jour automatique)");
+    // The plug-and-play download leads (owner, 7 November); the Store stays one click away.
+    expect(page).toContain(index === 0 ? "Download for Windows" : "Télécharger pour Windows");
+    expect(page).toContain(index === 0 ? "Already have Guilded Companion from the Microsoft Store?" : "Vous avez déjà Guilded Companion du Microsoft Store ?");
   });
 
   it("makes every release carry a fixed-name copy of the installer", () => {

@@ -78,7 +78,7 @@ describe("PoE2 surfaces follow the active-games switch", () => {
     const html = read("companion-app/renderer/index.html"), app = read("companion-app/renderer/app.js"), css = read("companion-app/renderer/style.css");
     expect(html).toContain('<body class="poe-off">');
     expect(css).toContain("body.poe-off .poe-only{display:none!important}");
-    for (const marker of ['data-page="poe"', 'id="page-poe"', 'id="poeSettings"', 'id="poeEnabled"', 'class="game-card poe-card']) {
+    for (const marker of ['data-page="poe"', 'id="page-poe"', 'id="poeSettings"', 'id="poeEnabled"']) { // the Home game card left with redesign PR 5
       const at = html.indexOf(marker);
       expect(at, marker).toBeGreaterThan(-1);
       const open = html.lastIndexOf("<", at), tag = html.slice(open, html.indexOf(">", at));

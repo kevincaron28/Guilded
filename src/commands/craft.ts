@@ -15,6 +15,8 @@ import { boardLang } from "./craft-board.js";
 import { updateProfessionDirectory } from "../services/profession-directory.js";
 import { OFFER_LIMITS } from "../services/craft-offers.js";
 import { tx } from "../i18n.js";
+import { PING_PROFESSIONS, notifyListText } from "./craft-board.js";
+import { craftNotifyList, setCraftNotify } from "../services/craft-channels.js";
 
 const craftService = createCraftService(prisma);
 
@@ -55,7 +57,13 @@ export const craftCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
   .addSubcommand((sub) => sub.setName("posts-setting").setDescription("Officers: turn the per-profession posts in the craft forum on or off.")
     .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
-  .addSubcommand((sub) => sub.setName("permissions").setDescription("Officers: put the craft board's permissions right (members talk in posts, only the bot starts them)."));
+  .addSubcommand((sub) => sub.setName("permissions").setDescription("Officers: put the craft board's permissions right (members talk in posts, only the bot starts them)."))
+  .addSubcommand((sub) => sub.setName("notify").setDescription("Get pinged when someone asks for a recipe you know.")
+    .addStringOption((o) => o.setName("profession").setDescription("Profession").addChoices(...PING_PROFESSIONS.map((name) => ({ name, value: name }))))
+    .addBooleanOption((o) => o.setName("on").setDescription("On or off (default on)")))
+  .addSubcommand((sub) => sub.setName("notify-setting").setDescription("Officers: craft orders/archive channels and crafter pings.")
+    .addBooleanOption((o) => o.setName("orders").setDescription("Orders and archive channels"))
+    .addBooleanOption((o) => o.setName("pings").setDescription("Crafter pings")));
 
 function describe(request: { item: string; quantity: number; profession: string | null; materialsProvided: boolean; note: string | null }): string {
   return `${request.quantity} × **${request.item}**${request.profession ? ` (${request.profession})` : ""}`
@@ -80,6 +88,25 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
     const enabled = interaction.options.getBoolean("enabled", true);
     await offerService.setEnabled(context.guildId, enabled);
     await interaction.reply({ content: enabled ? "Crafter offers are on. Crafters use /craft offer; members answer with the button in the post. Trades happen in game: Guilded never handles gold." : "Crafter offers are off. Existing offers stay readable until they end; nobody can post or answer new ones.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (subcommand === "notify") {
+    const lang = await boardLang(context.guildId);
+    const profession = interaction.options.getString("profession");
+    const list = profession ? await setCraftNotify(prisma, context.guildId, context.memberId, profession, interaction.options.getBoolean("on") ?? true) : await craftNotifyList(prisma, context.memberId);
+    await interaction.reply({ content: `${notifyListText(lang, list)}\n${tx(lang, "You are mentioned only when someone asks for a recipe one of your characters knows, at most once every 30 minutes.")}`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (subcommand === "notify-setting") {
+    if (!isOfficer) throw new Error("Only Officers or Guild Masters can change these.");
+    const lang = await boardLang(context.guildId);
+    const orders = interaction.options.getBoolean("orders");
+    const pings = interaction.options.getBoolean("pings");
+    const data = { ...(orders !== null ? { craftOrdersEnabled: orders } : {}), ...(pings !== null ? { craftPingsEnabled: pings } : {}) };
+    if (Object.keys(data).length) await prisma.guildSettings.updateMany({ where: { guildId: context.guildId }, data });
+    const settings = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { craftOrdersEnabled: true, craftPingsEnabled: true } });
+    const on = (value: boolean | undefined) => value === false ? tx(lang, "off") : tx(lang, "on");
+    await interaction.reply({ content: tx(lang, "Craft orders and archive channels: {orders}. Crafter pings: {pings}.", { orders: on(settings?.craftOrdersEnabled), pings: on(settings?.craftPingsEnabled) }), flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "posts-setting") {

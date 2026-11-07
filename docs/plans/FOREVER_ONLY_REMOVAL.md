@@ -1,7 +1,9 @@
 # Forever-only removal plan
 
-Status: **7 November 2026: phase 2 under way.** Stage 1 (addons) merged in #567; stage 2 (packaging)
-is the next PR. The staged PRs run one at a time, each from `origin/main` with the four checks in
+Status: **7 November 2026: phase 2 under way.** Merged: stage 1 (addons, #567), stage 2 (packaging,
+#568), stage 3 (companion, #571). Stage 4 is split: 4a (Retail keystone rating, Battle.net discovery, the
+non-Forever dungeon catalog and edition rules, the Era quarterly calendar job) is the next PR; 4b (commands,
+labels and per-edition tables in services) follows. The staged PRs run one at a time, each from `origin/main` with the four checks in
 CLAUDE.md passing. No version bump in any of them.
 
 Change while building (7 November): the shared data sources `companion/dungeon-catalog.mjs` and

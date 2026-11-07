@@ -4,9 +4,7 @@ import { t, type Lang } from "../i18n.js";
 import { formatVerifyCode, verifyCodeFor } from "./character-verify.js";
 import { companionWebUrl } from "./companion-links.js";
 import { officerSyncRecent } from "./officer-sync.js";
-import { battleNetConfig } from "./battlenet.js";
-import { battleNetUseful, linkStatusLines, memberLinkStatus } from "./link-status.js";
-import { config } from "../config.js";
+import { linkStatusLines, memberLinkStatus } from "./link-status.js";
 
 // Shared by the welcome button and /character pair so the two entry points never drift.
 export async function characterLinkPrompt(database: PrismaClient, guildId: string, memberId: string, discordGuildId: string, lang: Lang, mode: "addon" | "companion" = "addon") {
@@ -51,10 +49,6 @@ export async function characterLinkPrompt(database: PrismaClient, guildId: strin
   })().catch(() => null);
   if (status) embed.addFields({ name: t(lang, "pair.statusTitle"), value: linkStatusLines(status, lang).join("\n") });
   const row = new ActionRowBuilder<ButtonBuilder>();
-  // One click to Blizzard and back: characters are linked for them. Only when the bot has Battle.net set up.
-  const bnet = battleNetConfig(config);
-  // Hidden while only WoW Forever is offered: Blizzard's API knows none of its characters.
-  if (bnet && battleNetUseful()) row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(t(lang, "pair.bnetButton")).setURL(`${bnet.siteUrl}/me/battlenet/connect`));
   if (url) row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(t(lang, "pair.online")).setURL(url));
   if (mode === "companion") row.addComponents(new ButtonBuilder().setStyle(ButtonStyle.Secondary)
     .setCustomId(`onboard:paircode:${discordGuildId}`).setLabel(t(lang, "pair.codeButton")));

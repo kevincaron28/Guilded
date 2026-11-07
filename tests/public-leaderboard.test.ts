@@ -146,7 +146,7 @@ describe("leaderboard and personal pages", () => {
     return { request, personal };
   }
 
-  it("renders native Retail keys and respects player filters without mixing fastest clears", async () => {
+  it("keeps a stored Retail keystone run readable, with no keystone board or rating (WoW Forever only)", async () => {
     const challenge = { mapId: 249, level: 10, affixIds: [3, 9], durationMs: 645123, timeLimitSec: 1980,
       onTime: true, practiceRun: false, eligibleForScore: true };
     const native = leaderRun("native-run", 600, [{ ...player("Native", "Warrior", "TANK"), presentSec: 600 }], {
@@ -154,15 +154,11 @@ describe("leaderboard and personal pages", () => {
       evidence: { startedAt: new Date(NOW.getTime() - 1200000), completedBy: "challenge objectives", encounters: [] } });
     const { request } = setup([native]);
     const page = await request("GET", "/leaderboards/?edition=retail");
-    expect(page.body).toContain("10:45.123");
-    expect(page.body).toContain("Highest key finished in time");
-    expect(page.body).toContain("affixes");
-    expect(page.body).toContain("345.0");
-    expect(page.body).toContain("Contributing runs");
+    expect(page.status).toBe(200);
+    expect(page.body).not.toContain("Highest key finished in time");
+    expect(page.body).not.toContain("Guilded Mythic+ rating");
     const character=await request("GET","/leaderboards/character/Native-Doomhowl?edition=retail");
-    expect(character.body).toContain("345.0");
-    expect(character.body).toContain("Provisional Guilded Mythic+ rating");
-    expect((await request("GET", "/leaderboards/?edition=retail&class=Priest")).body).not.toContain("10:45.123");
+    expect(character.body).not.toContain("Provisional Guilded Mythic+ rating");
     expect(rankCharacters([native], { className: null, role: null, confirmed: false })).toEqual([]);
     const detail = await request("GET", "/leaderboards/run/native-run?edition=retail");
     expect(detail.status).toBe(200);

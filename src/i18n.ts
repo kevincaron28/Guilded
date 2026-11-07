@@ -222,7 +222,6 @@ const STRINGS = {
     fr: "Je n'ai pas pu modifier {roles} : un officier doit placer mon rôle au-dessus (Paramètres du serveur > Rôles)."
   },
   "onboard.gone": { en: "That isn't offered here anymore. Ask an officer.", fr: "Ce n'est plus offert ici. Demande à un officier." },
-  "pair.bnetButton": { en: "Connect Battle.net", fr: "Connecter Battle.net" },
   "pair.statusTitle": { en: "Where you stand", fr: "Où tu en es" },
   "pair.title": { en: "🔗 Your WoW characters", fr: "🔗 Tes personnages WoW" },
   "pair.linked": { en: "✅ **Already linked to your Discord account on this server:**", fr: "✅ **Déjà liés à ton compte Discord sur ce serveur :**" },

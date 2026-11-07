@@ -1,5 +1,4 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { ACTIVE_EDITIONS } from "../../companion/active-editions.mjs";
 
 // The plain status a member sees on /me/, in the Discord welcome message and (later) in the app:
 // Connected / Last synced / What to do next. No jargon, one next step.
@@ -48,24 +47,15 @@ const ago = (date: Date, now: Date, fr: boolean) => {
   return fr ? `il y a ${days} jours` : `${days} days ago`;
 };
 
-/**
- * Battle.net only helps for editions Blizzard's API can answer for. While WoW Forever is the only
- * edition offered (companion/active-editions.mjs) it knows none of their characters, so "Press
- * Connect Battle.net" would send a new member down a dead end: the app is the way in.
- */
-export const battleNetUseful = (active: readonly string[] = ACTIVE_EDITIONS) => active.some((edition) => edition !== "forever");
-
 /** Three short lines, English or French. */
-export function linkStatusLines(status: LinkStatus, lang: "en" | "fr", now = new Date(), useBattleNet = battleNetUseful()): string[] {
+export function linkStatusLines(status: LinkStatus, lang: "en" | "fr", now = new Date()): string[] {
   const fr = lang === "fr";
   const parts = [status.battleNet ? "Battle.net" : "", status.companion ? (fr ? "application Guilded" : "Guilded app") : ""].filter(Boolean);
   const connected = parts.length ? parts.join(" + ") : (fr ? "Pas encore" : "Not yet");
   const synced = status.lastSynced ? ago(status.lastSynced, now, fr) : (fr ? "Pas encore" : "Not yet");
   const step = nextStep(status);
   const next = {
-    connect: !useBattleNet
-      ? (fr ? "Installe l'application Windows Guilded et connecte-toi avec Discord : tes personnages se lient tout seuls." : "Get the Guilded Windows app and sign in with Discord: your characters link themselves.")
-      : fr ? "Appuie sur « Connecter Battle.net »." : "Press “Connect Battle.net”.",
+    connect: fr ? "Installe l'application Windows Guilded et connecte-toi avec Discord : tes personnages se lient tout seuls." : "Get the Guilded Windows app and sign in with Discord: your characters link themselves.",
     characters: fr
       ? "Ton application est connectée. Rejoins le serveur Discord de ta guilde qui utilise Guilded, puis appuie sur Relier dans l'application ; sinon connecte-toi à WoW et tape /reload."
       : "Your app is connected. Join your guild's Discord server that uses Guilded, then press Link in the app; otherwise log in to WoW and type /reload.",

@@ -92,7 +92,7 @@ import { executeBank, handleBankRequestButton } from "./commands/bank.js";
 import { BANK_REQUEST_PREFIX } from "./services/guild-bank-member.js";
 import { executeCraft } from "./commands/craft.js";
 import { OFFER_PREFIX, handleOfferButton, sweepCraftOffers } from "./commands/craft-offers.js";
-import { greetNewGuild, logSetupStatus } from "./commands/setup.js";
+import { greetNewGuild, isLiveSetupMessage, logSetupStatus } from "./commands/setup.js";
 import { announceVersionUpdates } from "./services/version-announce.js";
 import { announceAvailableUpdate } from "./services/update-check.js";
 import { executeUninstall } from "./commands/uninstall.js";
@@ -686,6 +686,11 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
   // The owner's private console: every id is owner-checked inside, in the home server only.
   if ("customId" in interaction && interaction.customId.startsWith(CONSOLE_PREFIX)) {
     await ownerConsole.handle(interaction).catch((error: unknown) => reportInteractionError("Owner console", interaction, error));
+    return;
+  }
+  // A setup wizard screen whose collector is gone (bot restarted, or the wizard timed out): say so instead of "This interaction failed".
+  if (interaction.isMessageComponent() && interaction.customId.startsWith("setup:") && !isLiveSetupMessage(interaction.message.id)) {
+    await interaction.reply({ content: "This setup screen has expired. Run `/setup start` again; your choices are saved. / Cet écran de configuration a expiré. Relancez `/setup start`; vos choix sont enregistrés.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(ITEM_PREVIEW_PREFIX)) {

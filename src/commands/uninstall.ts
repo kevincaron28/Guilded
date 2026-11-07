@@ -23,10 +23,18 @@ import { guildService } from "./context.js";
 import { BRAND } from "../brand.js";
 import { isPermissionRole, type Permission } from "../permissions.js";
 import { currentGuildScope } from "../services/guild-scope.js";
-import { RESET_REQUIRED_CHANNELS, isSetupLeftover, categoryNames, channelNames, type CategoryKey } from "../setup-names.js";
+import { BG_SETUP_NAMES, COMMUNITY_CATEGORY_NAMES, PVP_SETUP_NAMES, RESET_REQUIRED_CHANNELS, communityChannelNames, isSetupLeftover, categoryNames, channelNames, type CategoryKey } from "../setup-names.js";
 import { forgetAnswerSettings } from "./faq.js";
 import { ALL_CHANNELS, OPTIONAL_CHANNELS, RETIRED_CHANNELS } from "./setup.js";
-import { ARCHIVE_CATEGORY, coreChannelNames } from "../services/core-channels.js";
+import { ARCHIVE_CATEGORY, coreApplicationChannelName, coreChannelNames } from "../services/core-channels.js";
+import { BG_SETUP_PARTS, pvpChannelNames } from "../services/battleground-setup.js";
+import { COMMUNITY_BOARD_NAMES } from "../services/community-leaderboard.js";
+
+// Channels Guilded creates outside ALL_CHANNELS (9.0): found by stored id first, by these names otherwise.
+const RACE_CHANNEL_NAMES = ["race-to-60", "course-au-60"];
+const PUG_BOARD_NAMES = ["pug-board", "tableau-pug"];
+const COMMUNITY_VOICE_NAMES = ["Community voice", "Vocal communauté"];
+const PVP_CATEGORY_NAMES: string[] = [PVP_SETUP_NAMES.en.category, PVP_SETUP_NAMES.fr.category, BG_SETUP_NAMES.en.category, BG_SETUP_NAMES.fr.category];
 
 // Permanently removes Guilded from a server: deletes the channels and (empty) categories it
 // made, wipes every database row for this guild (cascades from the Guild row: raids, EPGP,
@@ -85,6 +93,60 @@ export async function gatherImpact(guild: DiscordGuild, guildId: string, setting
 
   const coreCategories: string[] = [];
   await guild.channels.fetch();
+  // Newer channel types Guilded creates outside ALL_CHANNELS: the stored id first, then (below) the conservative name check.
+  const addStored = async (id: string | null | undefined, names: string[]) => {
+    if (!id || removableChannels.some(row => row.id === id)) return;
+    const channel = await guild.channels.fetch(id).catch(() => null);
+    if (!channel) return;
+    if (names.includes(channel.name)) removableChannels.push({ id: channel.id, name: channel.name });
+    else if (!keptChannels.includes(`<#${channel.id}>`)) keptChannels.push(`<#${channel.id}>`);
+  };
+  await addStored(settings.bgGroupsChannelId, pvpChannelNames("groups"));
+  await addStored(settings.bgResultsChannelId, pvpChannelNames("results"));
+  await addStored(settings.bgStatsChannelId, pvpChannelNames("stats"));
+  await addStored(settings.duelBoardChannelId, pvpChannelNames("duels"));
+  await addStored(settings.raceBoardChannelId, RACE_CHANNEL_NAMES);
+  await addStored(settings.adminChannelId, communityChannelNames("admin"));
+  await addStored((await prisma.pugBoardGuild?.findUnique({ where: { guildId }, select: { channelId: true } }))?.channelId, PUG_BOARD_NAMES);
+  await addStored((await prisma.communityHonors?.findUnique({ where: { guildId }, select: { channelId: true } }))?.channelId, communityChannelNames("honors"));
+  for (const season of (await prisma.communitySeason?.findMany({ where: { guildId }, select: { channelId: true, announcementChannelId: true } })) ?? []) {
+    await addStored(season.channelId, COMMUNITY_BOARD_NAMES);
+    await addStored(season.announcementChannelId, communityChannelNames("activities"));
+  }
+  // The PvP category is stored; it goes too once it is empty (and only if it still carries Guilded's name).
+  if (settings.bgCategoryId) {
+    const category = await guild.channels.fetch(settings.bgCategoryId).catch(() => null);
+    if (category?.type === ChannelType.GuildCategory && PVP_CATEGORY_NAMES.some(name => category.name === name || category.name.startsWith(`${name} · `))) coreCategories.push(category.id);
+  }
+  for (const channel of guild.channels.cache.values()) {
+    if (scoped) break;
+    // Community and PvP categories hold only Guilded's own channels by name: anything else in them is left alone.
+    const parent = channel.parentId ? guild.channels.cache.get(channel.parentId) : undefined;
+    if (parent?.type !== ChannelType.GuildCategory || channel.type === ChannelType.GuildCategory) continue;
+    const inCommunity = Object.values(COMMUNITY_CATEGORY_NAMES).includes(parent.name);
+    const inPvp = PVP_CATEGORY_NAMES.some(name => parent.name === name || parent.name.startsWith(`${name} · `));
+    const known = inCommunity
+      ? (channel.type === ChannelType.GuildText && [...communityChannelNames("activities"), ...communityChannelNames("chat"), ...communityChannelNames("admin"),
+        ...communityChannelNames("honors"), ...communityChannelNames("standings"), ...COMMUNITY_BOARD_NAMES].includes(channel.name))
+        || (channel.type === ChannelType.GuildVoice && COMMUNITY_VOICE_NAMES.includes(channel.name))
+      : inPvp && channel.type === ChannelType.GuildText && BG_SETUP_PARTS.some(part => pvpChannelNames(part).includes(channel.name));
+    if (known && !removableChannels.some(row => row.id === channel.id)) removableChannels.push({ id: channel.id, name: channel.name });
+    if (inCommunity && !coreCategories.includes(parent.id)) coreCategories.push(parent.id);
+    if (inPvp && !coreCategories.includes(parent.id)) coreCategories.push(parent.id);
+  }
+  for (const category of guild.channels.cache.values()) {
+    if (scoped) break;
+    if (category.type === ChannelType.GuildCategory && Object.values(COMMUNITY_CATEGORY_NAMES).includes(category.name) && !coreCategories.includes(category.id)) coreCategories.push(category.id);
+  }
+  // Race board and PUG board channels made by name when no id was stored.
+  for (const channel of guild.channels.cache.values()) {
+    if (scoped) break;
+    if (channel.type !== ChannelType.GuildText || removableChannels.some(row => row.id === channel.id)) continue;
+    if (RACE_CHANNEL_NAMES.includes(channel.name) || PUG_BOARD_NAMES.includes(channel.name)) {
+      const parentName = channel.parentId ? guild.channels.cache.get(channel.parentId)?.name : undefined;
+      if (parentName !== undefined && ([...CATEGORY_KEYS.flatMap(key => categoryNames(key)), "⚜️ Guilded"].includes(parentName) || Object.values(COMMUNITY_CATEGORY_NAMES).includes(parentName))) removableChannels.push({ id: channel.id, name: channel.name });
+    }
+  }
   for (const channel of guild.channels.cache.values()) {
     if (scoped) break;
     if (channel.type !== ChannelType.GuildText) continue;
@@ -105,17 +167,18 @@ export async function gatherImpact(guild: DiscordGuild, guildId: string, setting
   for (const core of cores) {
     // A core's channels carry French or English suffixes, depending on the language when they were made.
     const names = coreChannelNames(core.name), english = coreChannelNames(core.name, "en");
-    const fields = { rosterChannelId: [names.roster], signupChannelId: [names.signups], lootChannelId: [names.loot, english.loot], raidLogChannelId: [names.reports, english.reports], chatChannelId: [names.chat], voiceChannelId: [names.voice] };
+    const fields = { rosterChannelId: [names.roster], signupChannelId: [names.signups], lootChannelId: [names.loot, english.loot], raidLogChannelId: [names.reports, english.reports], chatChannelId: [names.chat], voiceChannelId: [names.voice],
+      attendanceChannelId: [names.attendance, english.attendance], applicationChannelId: [coreApplicationChannelName(core.name), coreApplicationChannelName(core.name, "en")] };
     for (const [field, expected] of Object.entries(fields)) {
       const id = core[field as keyof typeof fields];
       if (!id) continue;
-      const channel = await guild.channels.fetch(id);
+      const channel = await guild.channels.fetch(id).catch(() => null);
       if (!channel) continue;
       if (expected.includes(channel.name) && !removableChannels.some(row => row.id === id)) removableChannels.push({ id, name: channel.name });
       else if (!expected.includes(channel.name)) keptChannels.push(`<#${id}>`);
     }
     if (core.categoryId) {
-      const category = await guild.channels.fetch(core.categoryId);
+      const category = await guild.channels.fetch(core.categoryId).catch(() => null);
       if (category?.name === names.category) coreCategories.push(category.id);
     }
   }
@@ -141,7 +204,7 @@ export async function gatherImpact(guild: DiscordGuild, guildId: string, setting
     prisma.addonImport.count({ where: { guildId } }),
     prisma.dungeonRun.count({ where: { guildId } })
   ]);
-  return { removableChannels: [...new Map(removableChannels.map(row => [row.id, row])).values()], keptChannels: keptChannels.filter(mention => !removableChannels.some(row => mention === `<#${row.id}>`)), coreCategories, roleNames: [...roleNames], counts: { members, characters, raids, epgp, loot, imports, dungeonRuns } };
+  return { removableChannels: [...new Map(removableChannels.map(row => [row.id, row])).values()], keptChannels: [...new Set(keptChannels)].filter(mention => !removableChannels.some(row => mention === `<#${row.id}>`)), coreCategories: [...new Set(coreCategories)], roleNames: [...roleNames], counts: { members, characters, raids, epgp, loot, imports, dungeonRuns } };
 }
 
 function confirmEmbed(guild: DiscordGuild, impact: Impact, reset = false): EmbedBuilder {

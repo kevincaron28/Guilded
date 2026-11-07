@@ -11,7 +11,7 @@ const at = new Date("2026-11-07T14:05:00Z");
 const race = (n: number): RaceRow[] => Array.from({ length: n }, (_, i) => ({ key: `k${i}`, name: `Racer Number${i}`, className: ["Mage", "Warrior", "Priest"][i % 3]!, race: "Human",
   level: 60 - Math.floor(i / 2), reachedMaxAt: null, firstSeenAt: at, weekGain: i % 2, memberId: null, discordId: null, professions: [], lastSeenAt: at }));
 const duelData = (n: number) => ({ duels: 40, edition: "forever", recent: [], standings: Array.from({ length: n }, (_, i) => ({ memberId: `m${i}`, name: i === 0 ? "Kev Caron" : `Duelist ${i}`,
-  wins: 20 - i, losses: i, games: 20, winRate: (20 - i) / 20, streak: i === 0 ? 4 : -2, bestStreak: 5 })) });
+  score: (20 - i) * 10, wins: 20 - i, losses: i, games: 20, winRate: (20 - i) / 20, streak: i === 0 ? 4 : -2, bestStreak: 5 })) });
 
 /** Mean RGB of a rectangle. */
 async function mean(png: Buffer, left: number, top: number, width: number, height: number): Promise<[number, number, number]> {
@@ -44,9 +44,9 @@ describe("leaderboard cards share the ladder layout", () => {
     const card = duelBoardCard(duelData(30), "fr", buildClassBook([{ name: "Kev Caron", className: "Mage" }]), at);
     const rows = card.ladder!.boards[0]!.rows;
     expect(rows).toHaveLength(25);
-    expect(rows[0]).toMatchObject({ rank: 1, name: "Kev Caron", color: "#69ccf0", values: ["20", "0", "100%", "5", "W4", ""] });
+    expect(rows[0]).toMatchObject({ rank: 1, name: "Kev Caron", color: "#69ccf0", values: ["200", "20", "0", "100%", "5", "W4", ""] });
     expect(rows[0]).not.toHaveProperty("move");
-    expect(card.ladder!.columns.map(column => column.label)).toEqual(["V", "D", "% vict.", "Record", "Série"]);
+    expect(card.ladder!.columns.map(column => column.label)).toEqual(["Score", "V", "D", "% vict.", "Record", "Série"]);
     expect(card.ladder!.meta).toBe(ladderMeta("fr", at));
     // With the card attached, the embed only names the top 3 and points at the image.
     const embed = duelBoardEmbed(duelData(30), "en", "g1", "duels.png").toJSON();

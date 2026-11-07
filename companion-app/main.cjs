@@ -1125,7 +1125,7 @@ registerIpc("browse-file", async () => {
       ? T("Pick GuildedDungeons.lua or Guilded.lua (inside WTF > Account > your account > SavedVariables)")
       : T("Pick Guilded.lua (inside WTF > Account > your account > SavedVariables)"),
     ...(start ? { defaultPath: start } : {}),
-    properties: ["openFile"], filters: [{ name: T("Addon saved data"), extensions: ["lua"] }]
+    properties: ["openFile"], filters: [{ name: T("Your addon data file"), extensions: ["lua"] }]
   });
   // A file inside a character folder never holds GuildedDB: use the account's SavedVariables instead.
   return result.canceled ? null : engineModules.normalizeSavedPath(result.filePaths[0]);
@@ -1179,7 +1179,7 @@ registerIpc("link-find-saved-data", async () => {
   const switched = Boolean(config.watchFile);
   config = { ...config, watchFile: chosen.path, wowEnabled: true };
   await saveConfig();
-  if (switched) pushLog({ time: new Date().toISOString(), level: "info", message: E("Saved-data file switched to {0} ({1}).", chosen.path, E("found by Find my saved data")) });
+  if (switched) pushLog({ time: new Date().toISOString(), level: "info", message: E("Saved-data file switched to {0} ({1}).", chosen.path, E("found by Find my addon data")) });
   const started = await engine.configure(config);
   if (started && chosen.exists) engine.uploadNow();
   await refreshSavedFile();

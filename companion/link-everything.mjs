@@ -40,7 +40,7 @@ export function linkSteps(config = {}, state = {}, hub = null) {
   // sign-in page picks it when there is none). Say so, and never "everything is linked" (8.5 fresh-PC test).
   else if (personal) proof = { state: 'todo', label: 'No guild server yet', next: NOT_IN_A_GUILD_SERVER };
   else if (characters) proof = { state: 'done', label: '{0} character(s) linked', args: [characters], next: null };
-  else if (!wowFile) proof = { state: 'todo', label: 'Characters not found yet', next: 'Press Find my saved data, then log in to WoW once and we will find your characters.' };
+  else if (!wowFile) proof = { state: 'todo', label: 'Characters not found yet', next: 'Press Find my addon data, then log in to WoW once and we will find your characters.' };
   else if (!state.lastUpload) proof = { state: 'todo', label: 'Characters not found yet', next: 'Log in to WoW once and we will find your characters. Type /reload or log out so your data is saved.' };
   else proof = { state: 'todo', label: 'Characters not found yet', next: 'Sent, but no character matched yet. Press Check my characters in a minute; if it stays empty, open Discord, type /character claim and pick yours.' };
   steps.push({ id: 'characters', required: !personal, args: [], ...proof });

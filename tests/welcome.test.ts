@@ -16,13 +16,13 @@ describe("welcome message", () => {
 
   it("always offers pairing and the checklist, with the server id so the buttons work in a DM", () => {
     const message = buildWelcomeMessage(base, guild as never, { id: "u1", username: "Kev" });
-    expect(ids(message)).toEqual(["onboard:pair:g1", "onboard:steps:g1"]);
+    expect(ids(message)).toEqual(["onboard:pair:g1", "onboard:chat:g1", "onboard:steps:g1"]);
     expect(message.content).toContain("<@u1>");
   });
 
   it("adds the rules and game buttons only when the server uses them", () => {
     const message = buildWelcomeMessage({ ...base, welcomeRoleIds: ["wow"], rulesChannelId: "rules" }, guild as never, { id: "u1", username: "Kev" });
-    expect(ids(message)).toEqual(["onboard:rules:g1", "onboard:games:g1", "onboard:pair:g1", "onboard:steps:g1"]);
+    expect(ids(message)).toEqual(["onboard:rules:g1", "onboard:games:g1", "onboard:pair:g1", "onboard:chat:g1", "onboard:steps:g1"]);
   });
 
   it("keeps a custom template", () => {

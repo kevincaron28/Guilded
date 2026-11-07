@@ -1,6 +1,6 @@
 import { MessageFlags, type ButtonInteraction, type Client, type GuildMember, type Message, type MessageReaction, type PartialGuildMember, type PartialMessageReaction, type PartialUser, type User } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { asLang, t } from "../i18n.js";
+import { asLang, t, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { notifyInviters } from "./invite-notify.js";
 import { DONE_BUTTON, requestInviteRow } from "./invite-request.js";
@@ -51,8 +51,11 @@ export async function handleInviteMessage(message: Message, database: Database):
   return "recorded";
 }
 
-/** ✅ on each original post, and the 👀 taken off. */
-export async function markPostsDone(client: Pick<Client, "channels" | "user">, rows: readonly InvitedRow[]): Promise<number> {
+/**
+ * Check mark on each original post, the eyes taken off, the bot's own post and the tag message edited to say
+ * it is done (an edit never pings), and a short thank-you under a member's own post. `lang` is the server's language.
+ */
+export async function markPostsDone(client: Pick<Client, "channels" | "user">, rows: readonly InvitedRow[], lang: Lang = "en"): Promise<number> {
   let done = 0;
   for (const row of rows) {
     try {
@@ -60,11 +63,19 @@ export async function markPostsDone(client: Pick<Client, "channels" | "user">, r
       if (!channel?.isTextBased() || !("messages" in channel)) continue;
       const post = await channel.messages.fetch(row.messageId);
       await post.react(DONE);
+      done++;
+      const own = post.author?.id === client.user?.id;
       // The bot's own post carries the officer button; it is not needed once the name is done.
-      if (post.author?.id === client.user?.id && post.components?.length) await post.edit({ components: [] }).catch(() => undefined);
+      if (own && post.components?.length) await post.edit({ content: `${post.content ?? ""} ${DONE}`.trim(), components: [], allowedMentions: { parse: [] } }).catch(() => undefined);
       const eyes = post.reactions.cache.get(SEEN);
       if (eyes && client.user) await eyes.users.remove(client.user.id).catch(() => undefined);
-      done++;
+      // Tags stop: the message that asked people to invite becomes a plain done note.
+      let noted = false;
+      if (row.notifyMessageId) {
+        const note = await channel.messages.fetch(row.notifyMessageId).catch(() => null);
+        if (note && note.author?.id === client.user?.id) { await note.edit({ content: t(lang, "invite.done.note", { name: row.displayName }), allowedMentions: { parse: [] } }).catch(() => undefined); noted = true; }
+      }
+      if (!own && !noted) await post.reply({ content: t(lang, "invite.done.note", { name: row.displayName }), allowedMentions: { parse: [], repliedUser: false } }).catch(() => undefined);
     } catch { /* message deleted or no access: the queue row is still done */ }
   }
   return done;
@@ -85,14 +96,16 @@ export async function handleInviteReaction(client: Client, database: Database, r
 }
 
 /** A roster upload showed these characters in the guild: their waiting posts are done. Automatic, so preview-gated. */
-export async function completeInvitesFromRoster(client: Pick<Client, "channels" | "user">, database: Pick<PrismaClient, "inviteRequest">, guild: { id: string; discordId: string }, names: readonly string[]): Promise<number> {
+export async function completeInvitesFromRoster(client: Pick<Client, "channels" | "user">, database: Pick<PrismaClient, "inviteRequest"> & Partial<Pick<PrismaClient, "guildSettings">>, guild: { id: string; discordId: string }, names: readonly string[]): Promise<number> {
   if (!names.length) return 0;
   const rows = await markInvitedByName(database, guild.id, names, "roster");
-  return rows.length ? markPostsDone(client, rows) : 0;
+  if (!rows.length) return 0;
+  const settings = await Promise.resolve().then(() => database.guildSettings?.findUnique({ where: { guildId: guild.id }, select: { language: true } })).catch(() => null);
+  return markPostsDone(client, rows, asLang(settings?.language));
 }
 
 /** Every waiting post whose character is in the stored guild roster (or is a linked character) is done. Safe to repeat. */
-export async function backCheckInvites(client: Pick<Client, "channels" | "user">, database: Pick<PrismaClient, "inviteRequest" | "guildRosterEntry" | "character">, guild: { id: string; discordId: string }): Promise<number> {
+export async function backCheckInvites(client: Pick<Client, "channels" | "user">, database: Pick<PrismaClient, "inviteRequest" | "guildRosterEntry" | "character"> & Partial<Pick<PrismaClient, "guildSettings">>, guild: { id: string; discordId: string }): Promise<number> {
   if (!await database.inviteRequest.count({ where: { guildId: guild.id, status: "PENDING" } })) return 0;
   const [roster, linked] = await Promise.all([
     database.guildRosterEntry.findMany({ where: { guildId: guild.id, inGuild: true }, select: { name: true } }),

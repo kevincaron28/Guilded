@@ -11,6 +11,7 @@ import { guildBossRecords } from "./dungeon-records.js";
 import { dungeonRating, hasDungeonRating, ratingEmbed } from "./dungeon-rating.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 
 export const DUNGEON_BOARD_CARD_FILE = "dungeon-season.png";
 const CARD_TOP = 25;
@@ -19,8 +20,8 @@ const CARD_TOP = 25;
  * Pure: the season ladder picture (shared ladder layout): top 25 by points, medals for the top 3, class colours where the guild
  * knows the character, and the number of dungeons counted when the season is rated.
  */
-export function dungeonSeasonCard(rows: readonly { name: string; points: number; dungeons?: number | undefined }[], season: string, lang: "en" | "fr", rated: boolean,
-  classes: ClassBook = new Map(), updatedAt = new Date()): ScoreCard {
+export function dungeonSeasonCard(rows: readonly { name: string; points: number; dungeons?: number | undefined; key?: string | undefined }[], season: string, lang: "en" | "fr", rated: boolean,
+  classes: ClassBook = new Map(), updatedAt = new Date(), moves: Movements | null = null): ScoreCard {
   const fr = lang === "fr";
   const ranked = [...rows].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, CARD_TOP);
   return {
@@ -29,9 +30,10 @@ export function dungeonSeasonCard(rows: readonly { name: string; points: number;
     stats: [], footer: fr ? "Toutes les saisons : /dungeon archive · Champions : /dungeon hall-of-fame" : "All seasons: /dungeon archive · Champions: /dungeon hall-of-fame",
     ladder: {
       meta: ladderMeta(lang, updatedAt, season), empty: fr ? "Aucun parcours classé cette saison." : "No ranked run this season.",
-      columns: rated ? [{ label: fr ? "Donjons" : "Dungeons", width: 70 }, { label: "Score", width: 70, primary: true }] : [{ label: "Points", width: 70, primary: true }],
+      columns: [...(rated ? [{ label: fr ? "Donjons" : "Dungeons", width: 70 }, { label: "Score", width: 70, primary: true }] : [{ label: "Points", width: 70, primary: true }]),
+        ...(moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: ranked.map((row, index) => ({ rank: index + 1, name: row.name, color: classColor(classOf(classes, row.name)),
-        values: rated ? [String(row.dungeons ?? 0), String(Math.round(row.points))] : [String(row.points)] })) }]
+        values: [...(rated ? [String(row.dungeons ?? 0), String(Math.round(row.points))] : [String(row.points)]), ""], ...moveFields(moves, row.key ?? row.name, lang) })) }]
     }
   };
 }
@@ -121,8 +123,12 @@ ${rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty")}`.slice
     if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setFields([]);
     if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setDescription("/dungeon leaderboard metric:participation");
     // The ladder picture rides on the first embed; without it (drawing busy or failed) the embeds are unchanged.
-    const ladderRows = ratingRows ? ratingRows.map((row) => ({ name: row.name, points: row.points, dungeons: row.dungeons })) : cardRows;
-    const png = ladderRows.length ? await scoreCardPng(dungeonSeasonCard(ladderRows, season.name, lang === "fr" ? "fr" : "en", Boolean(ratingRows), await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()))).catch(() => null) : null;
+    const ladderRows = (ratingRows ? ratingRows.map((row) => ({ name: row.name, points: row.points, dungeons: row.dungeons, key: `${row.memberId}:${row.character ?? ""}` }))
+      : cardRows.map((row) => ({ name: row.name, points: row.points, key: row.memberId })))
+      .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name));
+    // A new season starts a new snapshot board, so arrows never compare two seasons.
+    const moves = ladderRows.length ? await trackRanks(prisma, guild.id, `dungeon:${season.id}`, ladderRows.map((row) => row.key)) : null;
+    const png = ladderRows.length ? await scoreCardPng(dungeonSeasonCard(ladderRows, season.name, lang === "fr" ? "fr" : "en", Boolean(ratingRows), await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
     if (png) (rating ?? embed).setImage(`attachment://${DUNGEON_BOARD_CARD_FILE}`);
     const payload = { embeds: rating ? [rating, best, embed] : [embed, best], components, files: png ? [new AttachmentBuilder(png, { name: DUNGEON_BOARD_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
 

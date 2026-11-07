@@ -8,6 +8,10 @@ import { percent } from "./duels.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
+
+/** The snapshot board id of one mode and bracket. */
+export const bgBoardKey = (ladder: { mode: string; bracket: string }) => `bg:${ladder.mode}:${ladder.bracket}`.slice(0, 120);
 
 // The battleground LADDER (8.5, track B2): its own message in the ladder channel (`pvp-ladder`, the statistics channel),
 // edited in place, next to the duel ladder. The two never share points: this one counts consented battleground reports only
@@ -49,7 +53,7 @@ export function bgLadders(groups: readonly BgGroup[], names: ReadonlyMap<string,
  * Pure: the battleground ladder picture (shared ladder layout): one panel per mode and bracket (up to 6, busiest first), top 10
  * each by wins then win rate, with class colours where the guild knows the character.
  */
-export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date()): ScoreCard {
+export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date(), moves: ReadonlyMap<string, Movements> = new Map()): ScoreCard {
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Champs de bataille" : "Battleground ladder",
@@ -57,10 +61,11 @@ export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook 
     stats: [], footer: fr ? "Rapports de joueurs, pas des matchs vérifiés · distinct des duels · aucun point ni récompense" : "Player reports, not verified matches · separate from duels · no points or awards",
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun rapport de champ de bataille." : "No battleground report yet.",
-      columns: [{ label: fr ? "V" : "W", width: 40, primary: true }, { label: fr ? "D" : "L", width: 40 }, { label: "%", width: 52 }, { label: fr ? "Parties" : "Games", width: 56 }],
+      columns: [{ label: fr ? "V" : "W", width: 40, primary: true }, { label: fr ? "D" : "L", width: 40 }, { label: "%", width: 52 }, { label: fr ? "Parties" : "Games", width: 56 },
+        ...(moves.size ? [moveColumn(lang)] : [])],
       boards: data.brackets.slice(0, BRACKETS).map(ladder => ({ title: `${ladder.mode} · ${ladder.bracket}`, rows: ladder.standings.slice(0, CARD_TOP).map((player, index) => ({
         rank: index + 1, name: player.name, color: classColor(classOf(classes, player.name)),
-        values: [String(player.wins), String(player.losses), percent(player.winRate), String(player.games)] })) }))
+        values: [String(player.wins), String(player.losses), percent(player.winRate), String(player.games), ""], ...moveFields(moves.get(bgBoardKey(ladder)), player.memberId, lang) })) }))
     }
   };
 }
@@ -117,7 +122,12 @@ export async function updateBgLadder(discordGuild: DiscordGuild | null, delivery
     const channel = await discordGuild.channels.fetch(settings.bgStatsChannelId).catch(() => null);
     if (!channel?.isTextBased() || !("send" in channel)) return false;
     const data = await loadBgLadderData(prisma, guild.id, guild.gameEdition ?? "forever"), lang = asLang(settings.language);
-    const png = data.brackets.length ? await scoreCardPng(bgLadderCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()))).catch(() => null) : null;
+    const moves = new Map<string, Movements>();
+    for (const ladder of data.brackets.slice(0, 6)) {
+      const tracked = await trackRanks(prisma, guild.id, bgBoardKey(ladder), ladder.standings.map(player => player.memberId));
+      if (tracked) moves.set(bgBoardKey(ladder), tracked);
+    }
+    const png = data.brackets.length ? await scoreCardPng(bgLadderCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
     const embed = bgLadderEmbed(data, lang, guild.id, png ? BG_CARD_FILE : undefined).setTimestamp(new Date());
     const payload = { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: BG_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";

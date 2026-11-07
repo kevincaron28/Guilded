@@ -129,4 +129,63 @@ describe("ChatTab.lua", () => {
     s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
     expect(s.run("return CLOSED_N")).toBe("1");
   });
+
+  it("first-run auto-open at login in combat makes no chat-frame call until combat ends", () => {
+    const s = withChatTab();
+    s.run(String.raw`
+      COMBAT = true; OPENED = 0; PROTECTED = 0;
+      function InCombatLockdown() return COMBAT end
+      NS.message = function() end
+      -- Any direct Show/Hide/HideBase/SetPoint on General or the new tab counts as a protected call.
+      for _, f in ipairs({ ChatFrame1, ChatFrame3 }) do
+        for _, m in ipairs({ "Show", "Hide", "HideBase", "SetPoint", "ClearAllPoints" }) do
+          f[m] = function() if COMBAT then PROTECTED = PROTECTED + 1 end end
+        end
+      end
+      FCF_OpenNewWindow = function(name)
+        if COMBAT then PROTECTED = PROTECTED + 1 end
+        OPENED = OPENED + 1; WINDOW_NAMES[3] = name; return ChatFrame3
+      end
+      FCF_DockFrame = function() if COMBAT then PROTECTED = PROTECTED + 1 end end
+    `);
+    s.run(`NS.chatTab.firstRun()`);
+    expect(s.run("return OPENED")).toBe("0");
+    expect(s.run("return PROTECTED")).toBe("0");
+    expect(s.run("return tostring(SETTINGS.chatTab)")).toBe("nil");
+    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(s.run("return OPENED")).toBe("1");
+    expect(s.run("return PROTECTED")).toBe("0");
+    expect(s.run("return tostring(SETTINGS.chatTab)")).toBe("true");
+  });
+
+  it("a saved-on tab that is closed is reopened at login only out of combat", () => {
+    const s = withChatTab();
+    s.load("Util.lua");
+    s.run(String.raw`
+      COMBAT = true; OPENED = 0; SETTINGS.chatTab = true
+      function InCombatLockdown() return COMBAT end
+      NS.message = function() end
+      FCF_OpenNewWindow = function(name) OPENED = OPENED + 1; WINDOW_NAMES[3] = name; return ChatFrame3 end
+    `);
+    s.run(`fire_event("PLAYER_LOGIN")`);
+    expect(s.run("return OPENED")).toBe("0");
+    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(s.run("return OPENED")).toBe("1");
+  });
+
+  it("never calls Show/Hide/HideBase on ChatFrame1 itself, whatever the path", () => {
+    const s = withChatTab();
+    s.run(String.raw`
+      DIRECT = 0
+      for _, m in ipairs({ "Show", "Hide", "HideBase", "SetPoint" }) do
+        ChatFrame1[m] = function() DIRECT = DIRECT + 1 end
+      end
+      FCF_Close = function() WINDOW_NAMES[3] = nil end
+    `);
+    chat(s, "tab");
+    chat(s, "off");
+    chat(s, "tab");
+    s.run(`NS.chatTab.firstRun()`);
+    expect(s.run("return DIRECT")).toBe("0");
+  });
 });

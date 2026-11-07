@@ -252,8 +252,12 @@ const STRINGS = {
     fr: "✅ **{name}** a rejoint **{server}** et est maintenant lié à ton compte Discord comme {kind}, parce que tu as demandé cette invitation. Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
   },
   "invite.notify.people": {
-    en: "{mentions} — **{name}** is asking for a guild invite and you look online in game.",
-    fr: "{mentions} — **{name}** demande une invitation de guilde et tu sembles en ligne dans le jeu."
+    en: "{mentions} — **{name}** is asking for a guild invite and you look online in game (any guild member can invite).",
+    fr: "{mentions} — **{name}** demande une invitation de guilde et tu sembles en ligne dans le jeu (tout membre de la guilde peut inviter)."
+  },
+  "invite.done.note": {
+    en: "✅ **{name}** joined the guild. Welcome!",
+    fr: "✅ **{name}** a rejoint la guilde. Bienvenue!"
   },
   "invite.notify.role": {
     en: "{role} — **{name}** is asking for a guild invite. Nobody who can invite is known to be online in game right now.",

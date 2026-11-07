@@ -48,7 +48,7 @@ export async function pendingInvites(database: Database, guildId: string, limit 
   return rows.filter((row) => !seen.has(row.nameKey) && seen.add(row.nameKey)).slice(0, limit);
 }
 
-export interface InvitedRow { id: string; channelId: string; messageId: string; displayName: string }
+export interface InvitedRow { id: string; channelId: string; messageId: string; displayName: string; notifyMessageId?: string | null }
 
 /** Case, accents and surrounding spaces ignored: "Drakka  Whitefang" and "drakka whitefang" are the same character. */
 export const foldKey = (name: string): string => nameKeyOf(name).normalize("NFD").replace(/\p{M}/gu, "");
@@ -61,7 +61,7 @@ export const foldKey = (name: string): string => nameKeyOf(name).normalize("NFD"
 export async function markInvitedByName(database: Database, guildId: string, names: readonly string[], by: string): Promise<InvitedRow[]> {
   const wanted = [...new Set(names.map(foldKey).filter(Boolean))];
   if (!wanted.length) return [];
-  const waiting = await database.inviteRequest.findMany({ where: { guildId, status: "PENDING" }, select: { id: true, nameKey: true, channelId: true, messageId: true, displayName: true }, take: 1000 });
+  const waiting = await database.inviteRequest.findMany({ where: { guildId, status: "PENDING" }, select: { id: true, nameKey: true, channelId: true, messageId: true, displayName: true, notifyMessageId: true }, take: 1000 });
   if (!waiting.length) return [];
   const byFold = new Map<string, typeof waiting>();
   for (const row of waiting) { const key = foldKey(row.nameKey); byFold.set(key, [...(byFold.get(key) ?? []), row]); }
@@ -74,7 +74,7 @@ export async function markInvitedByName(database: Database, guildId: string, nam
     const loose = [...byFold.keys()].filter((key) => key.startsWith(`${bare} `));
     if (loose.length === 1) byFold.get(loose[0]!)!.forEach((row) => hit.add(row.id));
   }
-  const rows = waiting.filter((row) => hit.has(row.id)).map(({ id, channelId, messageId, displayName }) => ({ id, channelId, messageId, displayName }));
+  const rows = waiting.filter((row) => hit.has(row.id)).map(({ id, channelId, messageId, displayName, notifyMessageId }) => ({ id, channelId, messageId, displayName, notifyMessageId }));
   if (!rows.length) return [];
   await database.inviteRequest.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data: { status: "INVITED", invitedBy: by, invitedAt: new Date() } });
   return rows;

@@ -137,6 +137,7 @@ function module.open()
   window = f; f:SetSize(420, 120 + MAX_ROWS * 26); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true)
   f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
   if f.TitleText then f.TitleText:SetText(L("Ready to promote")) end
+  if UISpecialFrames then table.insert(UISpecialFrames, "GuildedPromotionPanel") end
   local function text(y, template)
     local t = f:CreateFontString(nil, "OVERLAY", template or "GameFontHighlightSmall")
     t:SetPoint("TOPLEFT", 18, y); t:SetWidth(380); t:SetJustifyH("LEFT"); return t

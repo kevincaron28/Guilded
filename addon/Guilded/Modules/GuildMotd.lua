@@ -298,6 +298,7 @@ local function showPopup(text)
     popup:SetSize(480, 190)
     popup:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
     popup:SetFrameStrata("DIALOG")
+    if UISpecialFrames then table.insert(UISpecialFrames, "GuildedMotdCopy") end
     popup:SetMovable(true)
     popup:EnableMouse(true)
     popup:RegisterForDrag("LeftButton")

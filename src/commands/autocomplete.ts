@@ -157,7 +157,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     } else if (command === "character" && focused.name === "name" && (subcommand === "claim" || subcommand === "link")) {
       const rows = await prisma.unclaimedCharacter.findMany({ where: { guildId: guild.id, name: { contains: query, mode: "insensitive" } }, orderBy: { name: "asc" }, take: 25 });
       choices = rows.map((row) => ({ name: `${characterName(row)} — ${row.realm} - ${row.className}${row.level ? ` ${row.level}` : ""}`.slice(0, 100), value: currentEdition() === "forever" ? row.name : row.id }));
-    } else if (command === "character" && focused.name === "name" && subcommand === "unlink") {
+    } else if (command === "character" && focused.name === "name" && (subcommand === "unlink" || subcommand === "picture")) {
       const rows = await prisma.character.findMany({
         where: { member: { guildId: guild.id }, name: { contains: query, mode: "insensitive" } },
         include: { member: true }, orderBy: { name: "asc" }, take: 25

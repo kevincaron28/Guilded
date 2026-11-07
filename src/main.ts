@@ -333,6 +333,8 @@ client.once(Events.ClientReady, (readyClient) => {
   setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
   // 9.0, on by default: at most one weekly guild bank summary per server, only when the bank moved.
   setInterval(() => void postAllWeeklyGuildBanks(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly guild bank")), 60 * 60_000);
+  // First run a few minutes after start-up (a deploy restarts the hourly clock), then hourly.
+  setTimeout(() => void syncAllNicknames(prisma, readyClient.guilds.cache.values(), reportJobError("Nickname sync")), 3 * 60_000);
   setInterval(() => void syncAllNicknames(prisma, readyClient.guilds.cache.values(), reportJobError("Nickname sync")), 60 * 60_000);
   // Crafter offers past their time are closed (a no-op for servers that never turned them on).
   setInterval(() => void sweepCraftOffers(readyClient).catch(reportJobError("Craft offer expiry")), 10 * 60_000);

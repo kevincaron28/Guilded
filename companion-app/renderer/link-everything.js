@@ -34,9 +34,6 @@
     }
     $('linkCharCount').textContent = rows.length ? T('{0} character(s) linked', rows.length) : '';
     $('linkChars').hidden = !rows.length; $('linkCharsEmpty').hidden = rows.length > 0 || !config.companionCredential || config.personal === true;
-    const summary = $('linkSummary');
-    summary.textContent = T('Links') + ': ' + window.guildedLinkSummary(view).replace('Characters', T('Characters'));
-    summary.hidden = false;
     const signedIn = Boolean(config.companionCredential);
     // Leaderboards only (often: not in a server that uses Guilded yet): sign in again to reach the guild.
     const personal = signedIn && config.personal === true;

@@ -39,7 +39,7 @@ describe("displayCharacterName", () => {
 
 describe("surfaces", () => {
   it("duel ladder: standings and recent duels use full names", () => {
-    const data: DuelBoardData = { duels: 1, edition: "forever", standings: [{ memberId: "m1", name: "Halidor", wins: 1, losses: 0, games: 1, winRate: 1, streak: 1, bestStreak: 1 }],
+    const data: DuelBoardData = { duels: 1, edition: "forever", standings: [{ memberId: "m1", name: "Halidor", score: 10, wins: 1, losses: 0, games: 1, winRate: 1, streak: 1, bestStreak: 1 }],
       recent: [{ winner: "Halidor", loser: "Mira", endedAt: new Date(), reason: "win" }] };
     const text = JSON.stringify(duelBoardEmbed(withFullNames(data, book), "en").toJSON());
     expect(text).toContain("Halidor Galemorne");

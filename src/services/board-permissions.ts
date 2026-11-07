@@ -2,9 +2,11 @@ import { ChannelType, PermissionFlagsBits, type Guild as DiscordGuild, type Guil
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 
-/** What members must not do in a board channel: write, react, or start threads. The bot keeps full posting rights. */
-export const BOARD_LOCK = PermissionFlagsBits.SendMessages | PermissionFlagsBits.AddReactions | PermissionFlagsBits.CreatePublicThreads
+/** What members must not do in a board channel: write or start threads. Reactions stay allowed (owner decision, 7 November 2026). The bot keeps full posting rights. */
+export const BOARD_LOCK = PermissionFlagsBits.SendMessages | PermissionFlagsBits.CreatePublicThreads
   | PermissionFlagsBits.CreatePrivateThreads | PermissionFlagsBits.SendMessagesInThreads;
+/** Earlier versions also denied reactions on board channels; the lock now lifts that deny. */
+const REACT = PermissionFlagsBits.AddReactions;
 const BOT_NEEDS = PermissionFlagsBits.ViewChannel | PermissionFlagsBits.ReadMessageHistory | PermissionFlagsBits.SendMessages
   | PermissionFlagsBits.EmbedLinks | PermissionFlagsBits.AttachFiles;
 
@@ -26,7 +28,7 @@ export function planBoardLock(overwrites: readonly OverwriteBits[], everyoneId: 
     const have = byId.get(id) ?? { id, allow: 0n, deny: 0n };
     const mustDeny = locked.has(id);
     const allow = have.allow & ~BOARD_LOCK;
-    const deny = mustDeny ? have.deny | BOARD_LOCK : have.deny;
+    const deny = mustDeny ? (have.deny | BOARD_LOCK) & ~REACT : have.deny;
     if (allow !== have.allow || deny !== have.deny) edits.push({ id, allow, deny });
   }
   const bot = byId.get(botId) ?? { id: botId, allow: 0n, deny: 0n };
@@ -36,40 +38,64 @@ export function planBoardLock(overwrites: readonly OverwriteBits[], everyoneId: 
 }
 
 /** The board channels a server has saved, never including the member-facing groups channel or the shared bot-guide channel. */
-export function boardChannelIds(settings: Record<string, unknown> | null): string[] {
+export function boardChannelIds(settings: Record<string, unknown> | null, extra: readonly (string | null | undefined)[] = []): string[] {
   if (!settings) return [];
   const id = (key: string) => typeof settings[key] === "string" ? settings[key] as string : null;
   const never = new Set([id("bgGroupsChannelId"), id("guideChannelId"), id("dungeonSignupChannelId")].filter((v): v is string => Boolean(v)));
-  const ids = [id("raceBoardChannelId"), id("duelBoardChannelId"), id("bgStatsChannelId"), id("bgResultsChannelId")];
+  const ids = [id("raceBoardChannelId"), id("duelBoardChannelId"), id("bgStatsChannelId"), id("bgResultsChannelId"), id("dungeonLeaderboardChannelId"), id("weeklyReportChannelId"), ...extra];
   return [...new Set(ids.filter((v): v is string => Boolean(v) && !never.has(v!)))];
 }
 
-/**
- * `/setup` repair: makes every saved board channel (race to 60, duel ladder, battleground ladder and results) read-only for members. Touches only those channels' own overwrites, never another channel or a category.
- * Returns "" when nothing needed fixing; otherwise a short note (what was fixed, or what I could not).
- */
-export async function repairBoardPermissions(guild: DiscordGuild, db: PrismaClient, guildId: string, lang: Lang): Promise<string> {
+/** Community boards live outside GuildSettings: the hall-of-fame channel and the channels of the latest seasons (standings, activities). */
+async function communityBoardIds(db: PrismaClient, guildId: string): Promise<string[]> {
+  const [honors, seasons] = await Promise.all([
+    db.communityHonors.findUnique({ where: { guildId }, select: { channelId: true } }).catch(() => null),
+    db.communitySeason.findMany({ where: { guildId }, orderBy: { createdAt: "desc" }, take: 3, select: { channelId: true } }).catch(() => [])
+  ]);
+  return [honors?.channelId, ...seasons.map(season => season.channelId)].filter((id): id is string => Boolean(id));
+}
+
+async function lockPlans(guild: DiscordGuild, db: PrismaClient, guildId: string) {
   const settings = await db.guildSettings.findUnique({ where: { guildId } });
-  const ids = boardChannelIds(settings as unknown as Record<string, unknown> | null);
+  const ids = boardChannelIds(settings as unknown as Record<string, unknown> | null, await communityBoardIds(db, guildId));
   const me = guild.members.me;
-  if (!ids.length || !me) return "";
-  const fixed: string[] = [], failed: string[] = [];
+  const plans: { id: string; channel: GuildTextBasedLock; edits: OverwriteEdit[] }[] = [];
+  if (!me) return { me, settings, plans };
   for (const id of ids) {
     const channel = await guild.channels.fetch(id).catch(() => null) as GuildBasedChannel | null;
     if (!channel || channel.type !== ChannelType.GuildText) continue;
     const edits = planBoardLock([...channel.permissionOverwrites.cache.values()].map(o => ({ id: o.id, allow: o.allow.bitfield, deny: o.deny.bitfield })), guild.id, settings?.memberRoleId ?? null, me.id);
-    if (!edits.length) continue;
+    if (edits.length) plans.push({ id, channel, edits });
+  }
+  return { me, settings, plans };
+}
+type GuildTextBasedLock = Extract<GuildBasedChannel, { type: ChannelType.GuildText }>;
+
+/** Board channels where members can still write or start threads (for the /setup checklist). Changes nothing. */
+export async function openBoardChannels(guild: DiscordGuild, db: PrismaClient, guildId: string): Promise<string[]> {
+  return (await lockPlans(guild, db, guildId)).plans.filter(plan => plan.edits.some(edit => edit.id !== guild.members.me?.id)).map(plan => plan.id);
+}
+
+/**
+ * `/setup` repair: makes every saved board channel (race to 60, ladders, dungeon leaderboard, weekly report, hall of fame, standings) read-only for members, reactions still allowed. Touches only those channels' own overwrites, never another channel or a category.
+ * Returns "" when nothing needed fixing; otherwise a short note (what was fixed, or what I could not).
+ */
+export async function repairBoardPermissions(guild: DiscordGuild, db: PrismaClient, guildId: string, lang: Lang): Promise<string> {
+  const { me, plans } = await lockPlans(guild, db, guildId);
+  if (!me) return "";
+  const fixed: string[] = [], failed: string[] = [];
+  for (const { id, channel, edits } of plans) {
     try {
       const changed = new Map(edits.map(e => [e.id, e]));
       const current = [...channel.permissionOverwrites.cache.values()].map(o => ({ id: o.id, type: o.type, allow: changed.get(o.id)?.allow ?? o.allow.bitfield, deny: changed.get(o.id)?.deny ?? o.deny.bitfield }));
       const added = edits.filter(e => !current.some(o => o.id === e.id)).map(e => ({ id: e.id, type: e.id === me.id ? 1 : 0, allow: e.allow, deny: e.deny }));
-      await channel.permissionOverwrites.set([...current, ...added], "Guilded board channel read-only for members");
+      await channel.permissionOverwrites.set([...current, ...added], "Guilded board channel read-only for members (reactions allowed)");
       fixed.push(`<#${id}>`);
     } catch { failed.push(`<#${id}>`); }
   }
   const fr = lang === "fr";
   return [
-    fixed.length ? (fr ? `Salons de tableaux en lecture seule pour les membres : ${fixed.join(", ")}.` : `Board channels made read-only for members: ${fixed.join(", ")}.`) : "",
+    fixed.length ? (fr ? `Salons de tableaux en lecture seule pour les membres (réactions permises) : ${fixed.join(", ")}.` : `Board channels made read-only for members (reactions allowed): ${fixed.join(", ")}.`) : "",
     failed.length ? `⚠️ ${fr ? `Je n'ai pas pu verrouiller ${failed.join(", ")} (il me faut Gérer les rôles / permissions dans ces salons).` : `I could not lock ${failed.join(", ")} (I need Manage Roles / Manage Permissions there).`}` : ""
   ].filter(Boolean).join("\n");
 }

@@ -84,3 +84,9 @@ uploads) matches when exactly one waiting name starts with it. `backCheckInvites
 `GuildRosterEntry` rows (`inGuild`) plus linked characters; it runs after any upload that brings a guild roster, at bot start-up,
 and hourly. Posts the bot made itself (the **Request a guild invite** flow) carry an officer button **✅ Invited / joined**
 (`invite:done:<server>`); player-typed posts keep the officer's ✅ reaction, `/mod invites record` and the in-game list.
+
+## Pre-linking from the invite channel (7 November 2026)
+
+Asking for an invite (button or a typed name) records the name as a request and makes sure the asker has a member row. When any upload then shows that full name in the guild (the uploader's own or guildmates' characters with a class, or the stored guild roster), `src/services/invite-prelink.ts` links the character to the asker, writes a `PROVISIONAL` verify claim (an officer upload or `/guilded verify` still confirms or moves it) and sends one DM (`invite.prelinked`) plus a log-channel line. It never links a name already linked to anyone, a name two people asked for, a first-name-only request, or a character that member unlinked (`BLOCKED`/`REMOVED`).
+
+The welcome panel has a **WoW chat ↔ Discord** button (`onboard:chat`) that explains Blizzard's guild Discord integration and how to link a character. The bot has no guild-chat relay of its own, so the text does not describe one.

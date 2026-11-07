@@ -32,7 +32,7 @@ describe("companion Link everything status", () => {
   });
   it("tells each missing step its next action", () => {
     const signedIn = { companionCredential: "personal" };
-    expect(byId(linkSteps(signedIn, {}, hubWith({ battleNet: false })), "characters").next).toMatch(/Find my saved data/);
+    expect(byId(linkSteps(signedIn, {}, hubWith({ battleNet: false })), "characters").next).toMatch(/Find my addon data/);
     expect(byId(linkSteps({ ...signedIn, watchFile: "g.lua" }, {}, hubWith({ battleNet: false })), "characters").next).toMatch(/\/reload/);
     expect(byId(linkSteps({ ...signedIn, watchFile: "g.lua" }, { lastUpload: {} }, hubWith({ battleNet: false })), "characters").next).toMatch(/\/character claim/);
   });
@@ -114,7 +114,7 @@ describe("Link everything wiring", () => {
   it("every id the page script uses exists in the page", () => {
     const html = read("companion-app/renderer/index.html");
     const script = read("companion-app/renderer/link-everything.js") + read("companion-app/renderer/app.js");
-    for (const id of ["page-link", "linkList", "linkAllDone", "linkSummary", "linkResult", "btnLinkSignIn", "btnLinkFind", "btnLinkCheck", "btnLinkBattleNet", "btnLinkDevices", "btnLinkSkip", "linkSignInWaiting", "linkSignInCode", "linkSignInCodeLine", "linkSignInTimeLeft", "btnLinkSignInReopen", "btnLinkSignInCancel", "linkChars", "linkCharCount", "linkCharsEmpty", "btnLinkSync", "btnLinkUnlink", "btnLinkDiscord", "linkCharsPanel", "linkActionsPanel"]) {
+    for (const id of ["page-link", "linkList", "linkAllDone", "linkResult", "btnLinkSignIn", "btnLinkFind", "btnLinkCheck", "btnLinkBattleNet", "btnLinkDevices", "btnLinkSkip", "linkSignInWaiting", "linkSignInCode", "linkSignInCodeLine", "linkSignInTimeLeft", "btnLinkSignInReopen", "btnLinkSignInCancel", "linkChars", "linkCharCount", "linkCharsEmpty", "btnLinkSync", "btnLinkUnlink", "btnLinkDiscord", "linkCharsPanel", "linkActionsPanel"]) {
       expect(html, id).toContain(`id="${id}"`);
       if (id !== "page-link") expect(script, id).toContain(id);
     }

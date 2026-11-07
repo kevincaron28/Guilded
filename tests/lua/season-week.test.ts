@@ -52,7 +52,7 @@ describe("weekly board in the addon", () => {
     s.run('P.periodButton:GetScript("OnClick")()');
     expect(s.run("return P.periodButton.text")).toBe("This week");
     expect(s.run("return P.summary.text")).toContain("Your score this week: 200");
-    expect(s.run("return P.rankings.text")).toBe("1. Officer - 300\n2. Tester - 200");
+    expect(s.run("return NS.dungeonScorePanel.boardText(P)")).toBe("1. Officer - 300\n2. Tester - 200");
     s.run('P.periodButton:GetScript("OnClick")()');
     expect(s.run("return P.period")).toBe("month");
   });

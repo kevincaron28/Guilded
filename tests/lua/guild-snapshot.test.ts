@@ -15,7 +15,7 @@ function setup() {
       { "Walter Sobchak", "Officer", 1, 30, "Paladin", "Stormwind", "", "", true, 0, "PALADIN" },
       { "Bad|Name", "Member", 3, 5, "Rogue", "", "", "", false, 0, "ROGUE" }
     }
-    function GetNumGuildMembers() return #ROSTER end
+    function GetNumGuildMembers() return #ROSTER, 1, 1 end
     function GetGuildRosterInfo(i) return unpack(ROSTER[i]) end
     function GetGuildRosterLastOnline(i) if i == 1 then return 0, 0, 2, 5 end return nil end
     function GetGuildRosterShowOffline() return SHOW_OFFLINE end
@@ -35,7 +35,7 @@ describe("GuildSnapshot.lua", () => {
     s.run(`function GetServerTime() return 1800000000 end
       ROSTER = { { "lebowski holyroller-OtherSegment", "Member", 3, 20, "Priest", "", "", "", false, 0, "PRIEST" },
         { "Lebowski Greenleaf", "Member", 3, 15, "Druid", "", "", "", false, 0, "DRUID" } }
-      function GetNumGuildMembers() return #ROSTER end
+      function GetNumGuildMembers() return #ROSTER, 1, 1 end
       function GetGuildRosterInfo(i) return unpack(ROSTER[i]) end
       GuildedDB = {} NS = {}`);
     s.load("Core.lua");

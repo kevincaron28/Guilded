@@ -370,6 +370,7 @@ export function createWebApp(deps: WebAppDeps) {
       { href: "#achievements", en: "My achievements", fr: "Mes succès" },
       { href: "/me/availability", en: "Set availability", fr: "Ma disponibilité" },
       { href: "/me/calendar", en: "My next raid", fr: "Mon prochain raid" },
+      { href: "/me/reserves", en: "Reserves and wishlist", fr: "Réserves et souhaits" },
       { href: "/companion/", en: "My sync", fr: "Ma synchronisation" }
     ];
     const body = [

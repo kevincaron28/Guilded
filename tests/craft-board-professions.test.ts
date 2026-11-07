@@ -4,7 +4,7 @@ const NOW = Date.now();
 const day = 86_400_000;
 const mocks = vi.hoisted(() => ({
   prisma: {
-    professionSkill: { findMany: vi.fn() }, recipeKnown: { findMany: vi.fn() }, character: { findFirst: vi.fn(), findMany: vi.fn(async () => []) },
+    professionSkill: { findMany: vi.fn() }, recipeKnown: { findMany: vi.fn(), findFirst: vi.fn() }, character: { findFirst: vi.fn(), findMany: vi.fn(async () => []) },
     craftRequest: { findUniqueOrThrow: vi.fn(), update: vi.fn() }
   },
   settings: { language: "en", craftChannelId: "forum1" }
@@ -14,13 +14,14 @@ vi.mock("../src/commands/context.js", () => ({
   guildService: { ensureGuild: async () => ({ id: "g1" }), getSettings: async () => mocks.settings, ensureMember: async () => ({ id: "m1" }) }
 }));
 
-import { handleCraftButton, handleCraftSelect, postCraftRequest, requestRows } from "../src/commands/craft-board.js";
+import { handleCraftButton, handleCraftSelect, postCraftRequest, recipeForForm, requestRows } from "../src/commands/craft-board.js";
 
 beforeEach(() => {
   mocks.prisma.professionSkill.findMany.mockResolvedValue([
     { profession: "Alchemy", skillLevel: 300, character: { name: "Ann", lastSeenAt: new Date(NOW - 0.1 * day) } },
     { profession: "Alchemy", skillLevel: 150, character: { name: "Bob", lastSeenAt: new Date(NOW - 40 * day) } }
   ]);
+  mocks.prisma.recipeKnown.findFirst.mockResolvedValue({ itemName: "Elixir", profession: "Alchemy" });
   mocks.prisma.recipeKnown.findMany.mockResolvedValue([
     { character: "Ann", profession: "Alchemy", itemKey: 7, itemName: "Elixir", scannedAt: new Date(NOW - day) },
     { character: "Bob", profession: "Alchemy", itemKey: 7, itemName: "Elixir", scannedAt: new Date(NOW - 41 * day) }
@@ -49,6 +50,34 @@ describe("profession post picker (Request and Details)", () => {
     const button = interaction({ customId: "craft:ask:7" });
     await handleCraftButton(button as never);
     expect(button.showModal.mock.calls[0]![0].toJSON().custom_id).toBe("craft:new-modal");
+  });
+});
+
+describe("answering inside Discord's 3-second window (10062)", () => {
+  it("opens the Request form from one indexed row, never by loading every profession post", async () => {
+    mocks.prisma.recipeKnown.findMany.mockClear();
+    const button = interaction({ customId: "craft:ask:7" });
+    await handleCraftButton(button as never);
+    expect(mocks.prisma.recipeKnown.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId: "g1", itemKey: 7 } }));
+    expect(mocks.prisma.recipeKnown.findMany).not.toHaveBeenCalled();
+    expect(button.showModal).toHaveBeenCalledTimes(1);
+  });
+  it("opens the form empty instead of late when the database is slow, and says when a recipe is gone", async () => {
+    mocks.prisma.recipeKnown.findFirst.mockImplementationOnce(() => new Promise(resolve => setTimeout(() => resolve({ itemName: "Elixir", profession: "Alchemy" }), 200)));
+    expect(await recipeForForm("g1", 7, 10)).toBe("slow");
+    mocks.prisma.recipeKnown.findFirst.mockResolvedValueOnce(null);
+    const button = interaction({ customId: "craft:ask:8" });
+    await handleCraftButton(button as never);
+    expect(button.showModal).not.toHaveBeenCalled();
+    expect(button.reply).toHaveBeenCalledTimes(1);
+  });
+  it("defers a request action before any database work", async () => {
+    const order: string[] = [];
+    const button = interaction({ customId: "craft:r1:claim", deferReply: vi.fn(async () => { order.push("defer"); }) });
+    mocks.prisma.craftRequest.findUniqueOrThrow.mockImplementationOnce(async () => { order.push("db"); throw new Error("stop"); });
+    await handleCraftButton(button as never).catch(() => undefined);
+    mocks.prisma.craftRequest.findUniqueOrThrow.mockReset();
+    expect(order[0]).toBe("defer");
   });
 });
 

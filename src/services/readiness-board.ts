@@ -130,7 +130,7 @@ export async function postReadinessBoard(discordGuild: DiscordGuild | null, guil
   if (!discordGuild) return false;
   try {
     const settings = await guildService.getSettings(guildId);
-    if (!settings?.readinessChannelId) return false;
+    if (!settings?.readinessChannelId || settings.readinessPostsEnabled === false) return false;
     const timezone = settings.timezone ?? "America/Toronto";
     const now = new Date();
     const key = `readiness:${participationDay(now, timezone)}`;

@@ -31,6 +31,7 @@ import { inviteChannelCandidates, pickInviteChannel } from "../services/invite-e
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { blockedMemberCount, botCanRename } from "../services/nickname-sync.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { honorRolesBlocked } from "../services/community-honors.js";
 import { deleteWhosWhoPost, hasWhosWhoPost } from "../services/whos-who-board.js";
 import { archiveForRetire, deleteRetiredChannel, forgetRetirePlan, isManagedChannel, retirePlan } from "../services/channel-retire.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
@@ -180,6 +181,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     dungeonLeaderboardChannel: await channelFact(guild, settings.dungeonLeaderboardChannelId),
     welcomeChannel: welcomeDelivery(settings) === "DM" ? null : await channelFact(guild, settings.welcomeChannelId),
     autoRoles,
+    ...(honorRolesBlocked(guildId) ? { honorRolesBlocked: true } : {}),
     ...(settings.nicknameSyncEnabled !== false ? { nicknameSyncReady: botCanRename(guild), nicknameBlockedMembers: blockedMemberCount(guild) } : {}),
     epgpConfigured: settings.baseGp > 0,
     remindersOn: settings.raidReminderMinutes > 0,

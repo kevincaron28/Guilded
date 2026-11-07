@@ -461,6 +461,31 @@ export async function runCommunityHonors(guild: Guild, database: PrismaClient, g
   const honors = await database.communityHonors.findUnique({ where: { guildId } });
   if (!honors?.rolesPending || now.getTime() - (lastSyncAttempt.get(guildId) ?? 0) < 15 * 60_000) return;
   lastSyncAttempt.set(guildId, now.getTime());
-  await syncCommunityHonorRoles(guild, database, honors);
-  lastSyncAttempt.delete(guildId);
+  if (await trySyncHonorRoles(guild, database, honors, now)) lastSyncAttempt.delete(guildId);
 }
+
+/** Runs the role sync; a Discord permission refusal is warned once a day and retried, anything else is thrown. True when it worked. */
+export async function trySyncHonorRoles(guild: Guild, database: PrismaClient, honors: CommunityHonors, now = new Date()): Promise<boolean> {
+  const guildId = honors.guildId;
+  try {
+    await syncCommunityHonorRoles(guild, database, honors);
+    honorRolesBlockedAt.delete(guildId);
+    return true;
+  } catch (error) {
+    // Missing Permissions / Access: the Guilded role sits below the honor roles. rolesPending stays set so it retries.
+    if (!isPermissionError(error)) throw error;
+    const lastWarned = honorRolesWarnedAt.get(guildId) ?? 0;
+    honorRolesBlockedAt.set(guildId, now.getTime());
+    if (!lastWarned || now.getTime() - lastWarned >= 24 * 60 * 60_000) {
+      honorRolesWarnedAt.set(guildId, now.getTime());
+      console.warn(`Community honors: cannot update roles in guild ${guildId} (Discord ${(error as { code: number }).code}); move the Guilded role above the honor roles. Retrying every 15 minutes.`);
+    }
+    return false;
+  }
+}
+
+const isPermissionError = (error: unknown): boolean => typeof error === "object" && error !== null && "code" in error && [50013, 50001].includes((error as { code: number }).code);
+const honorRolesBlockedAt = new Map<string, number>();
+const honorRolesWarnedAt = new Map<string, number>();
+/** True while the last honor role sync in this guild was refused by Discord (the /setup checklist shows the fix). */
+export const honorRolesBlocked = (guildId: string): boolean => honorRolesBlockedAt.has(guildId);

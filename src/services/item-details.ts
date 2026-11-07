@@ -47,6 +47,7 @@ export function itemDetailLines(view: ItemDetailView, lang: Lang = "en"): string
   lines.push(fr ? `Objet n° ${view.itemKey}` : `Item ID ${view.itemKey}`);
   if (view.classicFallback) lines.push(fr ? "Données de Classic Era : WoW Forever ne connaît pas cet objet, il peut y être différent." : "Classic Era data: WoW Forever does not list this item, so it may differ there.");
   if (!view.hasStats) lines.push(fr ? "Les statistiques ne sont pas encore disponibles ici; voyez le lien." : "Stats are not available here yet; see the link.");
+  else lines.push(fr ? "Données d'objet : Blizzard" : "Item data: Blizzard");
   return lines;
 }
 

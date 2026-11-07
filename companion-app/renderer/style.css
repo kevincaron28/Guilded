@@ -41,3 +41,8 @@ details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summ
 .repair-dialog { min-width: min(560px, 92vw); }
 .repair-dialog .diagnostics li { padding: 6px 0; }
 .nav-web-label { margin-top: 10px; }
+
+/* Home: the companion version panel (installed, latest, the one thing to do). */
+.version-panel { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.version-panel h2 { margin: 2px 0 4px; }
+.version-panel .actions { flex-shrink: 0; }

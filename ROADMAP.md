@@ -109,7 +109,7 @@ State words: **Released** = in a published client (members have it); **Live** = 
 | P2 Plan: character pictures on cards and website | Plan only | #539, `docs/plans/CHARACTER_VISUALS.md` |
 | P2 Plan: Lite and paid bot versions | Plan only | #539, `docs/plans/MONETIZATION.md` |
 | P2 Plan: several game accounts for one member | Plan only | #547, `docs/plans/MULTI_ACCOUNT.md` |
-| P3 Remove other WoW editions from the code | Done: stages 1–6 merged (#567, #568, #571, #573, #577, #578, #580, #581) and docs (stage 8); stage 7 (delete other editions' stored rows) is an optional owner decision, recommended: leave them | #540, `docs/plans/FOREVER_ONLY_REMOVAL.md` |
+| P3 Remove other WoW editions from the code | Done: stages 1–6 merged (#567, #568, #571, #573, #577, #578, #580, #581) and docs (stage 8); stage 7 (delete other editions' stored rows) declined by the owner: the rows stay | #540, `docs/plans/FOREVER_ONLY_REMOVAL.md` |
 
 #### Idea list 4 (7 Nov)
 

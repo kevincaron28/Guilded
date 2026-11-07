@@ -83,11 +83,9 @@ describe("Home", () => {
   const html = readFileSync("companion-app/renderer/index.html", "utf8");
   const home = html.slice(html.indexOf('<section id="page-status"'), html.indexOf("</section>", html.indexOf('<section id="page-status"')));
 
-  it("leads with the status card and the version panel; the old banners and tiles are tucked away", () => {
+  it("leads with the status card and the version panel; the old banners and tiles are gone", () => {
     expect(home.indexOf('id="statusCard"')).toBeLessThan(home.indexOf('id="versionPanel"'));
-    const legacy = home.slice(home.indexOf('<div id="homeLegacy" hidden>'));
-    for (const id of ["banner", "liveBanner", "addonBanner", "updateBanner", "overviewConnection", "tileUpload"]) expect(legacy, id).toContain(`id="${id}"`);
-    expect(home.slice(0, home.indexOf('<div id="homeLegacy" hidden>'))).not.toContain('id="banner"');
+    for (const id of ["homeLegacy", "banner", "liveBanner", "updateBanner", "overviewConnection", "tileUpload"]) expect(home, id).not.toContain(`id="${id}"`);
   });
 
   it("wires each button to what it says", () => {

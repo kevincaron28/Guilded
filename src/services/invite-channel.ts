@@ -44,6 +44,8 @@ export async function handleInviteMessage(message: Message, database: Database):
   }
   await recordInviteRequest(database, { guildId: settings.guildId, parsed, discordUserId: message.author.id, channelId: message.channelId, messageId: message.id, answers: parseInviteAnswers(message.content) });
   await message.react(SEEN).catch(() => undefined);
+  // The member row lets the character link to them when it joins (invite-prelink.ts). Best effort.
+  try { await database.member.upsert({ where: { guildId_discordUserId: { guildId: settings.guildId, discordUserId: message.author.id } }, create: { guildId: settings.guildId, discordUserId: message.author.id, displayName: message.member?.displayName ?? message.author.username }, update: {} }); } catch { /* optional */ }
   return "recorded";
 }
 

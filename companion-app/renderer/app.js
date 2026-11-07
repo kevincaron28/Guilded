@@ -20,7 +20,7 @@ document.addEventListener('keydown',event => { if (event.key === 'Escape' && doc
 desktopNavigation.addEventListener('change',closeNavigation);
 const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes','poeLogFile','poeCharacter','poeLeague','poeMode'];
-const names = {status:'Sync',link:'Link everything',characters:'Guild',reserves:'Reserves',server:'Server',wishlist:'Wishlist',cores:'Roster & loot settings',pricing:'Raid prices',leaderboards:'Leaderboards',wow:'Tools',poe:'PoE2 mapping',settings:'Settings',activity:'Activity',help:'Help & privacy',problems:'Problems'};
+const names = {status:'Sync',link:'Link everything',characters:'Guild',server:'Server',wow:'Tools',poe:'PoE2 mapping',settings:'Settings',activity:'Activity',help:'Help & privacy',problems:'Problems'};
 let lastSnapshot;
 let storePackage = false; // Microsoft Store build: its update banner opens the Store (F5)
 let savedConfig = {};
@@ -98,46 +98,8 @@ async function refreshVersion() {
   try { versionInfo = await api.versionInfo(); paintVersion(); } catch { /* older main process */ }
 }
 function scheduleVersion() { clearTimeout(versionTimer); versionTimer = setTimeout(() => void refreshVersion(), 300); }
-function renderUpdate(update) {
-  scheduleVersion();
-  // The version panel says it now; the old banner stays hidden.
-  $('updateBanner').hidden = true;
-  if (!update) return;
-  $('updateTitle').textContent = T("Guilded Companion {0} is available", update.version);
-  $('updateText').textContent = T("You have {0}. {1}: your settings and Discord link are kept.", $('version').textContent.replace(/^Version /, ''), storePackage ? T("Update now opens Microsoft Store to install it") : update.installer ? T("Update now installs it and restarts the companion") : T("Download the new installer and run it"));
-}
-// Launch day (companion/live-folder.mjs, installed app only): the watched folder with its last
-// upload and file change (amber after 3 days without a change), and the live game's folder to
-// switch to when WoW saves somewhere else. In French when Windows is.
-function liveText() { return {
-  status: (running, folder, upload, changed) => running
-    ? T("Watching {0} · last upload {1} · file changed {2}", folder, upload, changed)
-    : T("Selected folder: {0} · last upload {1} · file changed {2}", folder, upload, changed),
-  stale: T(" · over 3 days without a change: is WoW saving somewhere else?"),
-  missing: T("never (not saved yet)"),
-  wrongEdition: (installed, expected) => T(" · the Guilded addon in this game folder is the {0} build but this folder needs {1}: reinstall the {1} build", installed, expected),
-  onHold: T(" · this WoW version is on hold while Guilded focuses on WoW Forever; your data is untouched"),
-  betaTitle: T("Your companion is still watching the beta folder"),
-  staleTitle: days => T("Your saved file has not changed in {0} days", days),
-  text: (file, folder, account, changed) => T("{0} in {1} (account {2}) changed {3}. Switch so your uploads keep going.", file, folder, account, changed),
-  switchButton: T("Switch to the live game folder"),
-  keepButton: T("Keep this folder"),
-  switched: path => T("Switched. Now watching {0}", path),
-  notStarted: T("Switched, but the companion could not start. See the Activity page."),
-  kept: T("Kept. You will not be asked about this file again.")
-}; }
-function since(iso) { return ago(iso).toLowerCase(); }
-function renderSavedFile(snapshot) {
-  const file = snapshot.savedFile, candidate = file?.candidate, watched = snapshot.state.watching || savedConfig.watchFile;
-  const show = savedConfig.wowEnabled !== false && !!file && !!watched;
-  $('watchStatus').hidden = !show; $('liveBanner').hidden = !show || !candidate;
-  if (!show) return;
-  $('watchStatus').textContent = liveText().status(snapshot.state.running, watched.replace(/[\\/][^\\/]*$/, ''), since(snapshot.state.lastUpload?.at), file.changedAt ? since(file.changedAt) : liveText().missing) + (file.stale ? liveText().stale : '') + (file.addon?.status === 'wrong-edition' ? liveText().wrongEdition(file.addon.installed.join(', '), file.addon.expected) : file.addon?.status === 'on-hold' ? liveText().onHold : '');
-  $('watchStatus').classList.toggle('stale', file.stale || file.addon?.status === 'wrong-edition');
-  if (!candidate) return;
-  $('liveTitle').textContent = candidate.reason === 'beta' ? liveText().betaTitle : liveText().staleTitle(Math.floor((Date.now() - Date.parse(file.changedAt)) / 86400000));
-  $('liveText').textContent = liveText().text(candidate.path.split(/[\\/]/).pop(), candidate.gameFolder, candidate.account, since(candidate.changedAt));
-}
+// The version panel on Home says what is new; it refreshes with every state update.
+function renderUpdate() { scheduleVersion(); }
 // The Sync status card (redesign PR 1): one state, most urgent first, one button
 // (companion/status-card.mjs decides; this only words and wires it).
 let shownCard = null;
@@ -194,47 +156,26 @@ function renderState(snapshot) {
     'wait-for-acceptance': 'Check Activity for the bot receipt before retrying.',
     'reload-in-game': 'After saving standings to the addon, use /reload in WoW.',
     'officer-review': 'Your upload needs officer review in Discord.',
-    'review-application-error': 'Your upload was received but could not be applied. Ask an officer to review it.',
+    'review-application-error': 'Your sync was received but could not be applied. Ask an officer to review it.',
     'wait-for-retry': 'Keep the companion open while it retries.',
     'check-connection': 'Check your connection and the Activity messages.'
   };
   evidencePanel.textContent += ' · ' + T('Edition: {0} · Character: {1} · Saved-data source: {2}', sync.edition === 'unknown' ? T('Unknown') : sync.edition, sync.character || T('Unknown'), sync.folder || sync.watchedFile || state.watching || T('Unknown')) + ' · ' + T(syncActions[sync.action]);
   renderUpdate(snapshot.update);
-  renderSavedFile(snapshot);
   const overview = window.guildedOverview(savedConfig,state);
-  $('overviewConnection').textContent = M(overview.connection);
-  $('overviewTracking').textContent = M(overview.tracking);
-  $('overviewFiles').textContent = overview.selectedFiles ? (overview.selectedFiles === 1 ? T('1 selected source') : T('{0} selected sources', overview.selectedFiles)) : T('Choose your game files');
-  $('overviewStandings').textContent = M(overview.standings);
-  $('overviewStandingsTime').textContent = state.lastStandings ? ago(state.lastStandings.at) : T("A connection is not a completed sync.");
-  $('overviewNext').firstChild.textContent = M(overview.nextAction) + ' →';
-  $('overviewNext').dataset.go = overview.nextPage;
   $('btnUpload').hidden = !overview.linked;
   $('btnUpload').disabled = !overview.canSync || $('btnUpload').dataset.busy === 'true';
   const linked = !!savedConfig.companionCredential;
   const paused = linked && !state.running && health.text === 'Not running';
   const setup = health.level === 'setup' && health.text === 'Setup needed';
-  $('banner').className = `banner ${paused ? 'setup' : health.level}`;
-  $('bannerTitle').textContent = paused ? T("Tracking paused") : setup ? T("Let's get you connected") : health.level === 'ok' ? T("Connected and ready for adventure") : health.level === 'error' ? T("Your sync needs attention") : T("Waiting to sync");
-  $('bannerText').textContent = paused ? T("Resume tracking in Connection & setup when you are ready.") : setup ? T("Addon-only guild? You do not need to connect. With the Guilded bot or for public leaderboards, connect your account and choose your games.") : M(health.text);
   $('setupBadge').hidden = !setup;
   pill('connectionPill', setup ? T("Setup needed") : paused ? T("Paused") : health.level === 'ok' ? T("Connected") : T("Needs attention"),health.level === 'ok' ? 'ok' : health.level === 'error' ? 'error' : 'gold');
   pill('pairBadge', linked ? T("Discord linked") : T("Discord not linked"),linked ? 'ok' : '');
   $('removePanel').hidden = false;
-  $('versions').textContent = `Bot ${state.botVersion || T("not connected")}${savedConfig.wowEnabled !== false && state.addonVersion ? ` · Addon ${state.addonVersion}` : ''}`;
-  $('tileUpload').textContent = state.lastUpload ? ago(state.lastUpload.at) : T("Awaiting your first sync");
-  $('tileUploadNote').textContent = M(state.lastUpload?.message) || T("Save fresh addon data with /reload.");
-  $('tileStandings').textContent = state.lastStandings ? ago(state.lastStandings.at) : T("Awaiting first refresh");
-  $('tileStandingsNote').textContent = M(state.lastStandings?.message) || T("Synced from the Discord bot");
-  $('tileCount').textContent = String(state.uploads || 0);
   $('tileWatch').textContent = state.watching || savedConfig.watchFile || T("No saved-data file selected");
   pill('wowFileState',state.watching || savedConfig.watchFile ? T("File selected") : T("Choose a file"),state.watching ? 'ok' : '');
-  pill('wowBadge',savedConfig.wowEnabled === false ? T("Sync off") : state.uploadError || sync.phase === 'apply-error' ? T("Needs attention") : sync.phase === 'officer-review' ? T('Awaiting officer review') : sync.phase === 'synced' ? T("Synced") : state.watching ? T("Watching") : T("Not configured"),state.uploadError || sync.phase === 'apply-error' ? 'error' : sync.phase === 'officer-review' ? 'gold' : sync.phase === 'synced' || state.watching ? 'ok' : '');
   const poe = state.poe;
-  pill('poeBadge',!savedConfig.poeEnabled ? T("Tracking off") : poe?.error ? T("Needs attention") : poe?.pending ? T("Ready to sync") : poe?.running ? T("Watching") : T("Set up tracking"),poe?.error ? 'error' : poe?.running ? 'ok' : poe?.pending ? 'gold' : '');
   const areaName = poe?.currentArea?.replace(/^Map/, '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/([A-Za-z])(\d)/g, '$1 $2');
-  $('poeCurrent').textContent = areaName || T("Waiting for your next map");
-  $('poeStatus').textContent = M(poe?.error) || M(poe?.warning) || (poe ? T("{0} observations waiting{1}", poe.pending || 0, poe.lastSync ? T(" · synced {0}", ago(poe.lastSync).toLowerCase()) : '') + (poe.pendingLevels ? T(" · {0} level-up(s) waiting", poe.pendingLevels) : '') : T("Enable map sharing in setup when you are ready."));
   $('poeLiveArea').textContent = areaName || T("Waiting for your next map");
   const elapsed = poe?.running && poe.currentStartedAt ? Math.floor((Date.now() - Date.parse(poe.currentStartedAt)) / 1000) : null;
   $('poeElapsed').textContent = elapsed === null ? T("No open map visit") : elapsed < 0 || elapsed > 21600 ? T("Elapsed time unknown — check game activity and clock") : T("{0}m {1}s elapsed since generation", Math.floor(elapsed / 60), elapsed % 60);
@@ -333,8 +274,6 @@ function showUsedPages(hub) {
 document.addEventListener('companion-hub-data', event => showUsedPages(event.detail)); ['btnPoeBrowse','btnPoeSelect'].forEach(id => bind(id,choosePoe));
 // Find it: every drive and Battle.net's own record; always says what it found or which drives it searched.
 bind('btnDetect',async () => { $('detectNote').textContent = T("Looking for your addon data…"); const answer = window.guildedWowSearchMessage(await api.searchWow(), { personal: savedConfig.personal === true }); if (answer.path) $('watchFile').value = answer.path; $('detectNote').textContent = T(...answer.text); });
-bind('btnLiveSwitch',async () => { const result = await api.switchLiveFolder(); if (!result.path) return; savedConfig = (await api.getAll()).config; $('watchFile').value = savedConfig.watchFile || ''; toast(result.ok ? liveText().switched(result.path) : liveText().notStarted,!result.ok); });
-bind('btnLiveKeep',async () => { await api.dismissLiveFolder(); toast(liveText().kept); });
 bind('btnTest',async () => { say(T("Checking your connection…"),true); const result = await api.testConnection(readForm()); say(result.message,result.ok); });
 bind('btnPair',async () => { if (!$('pairingCode').value.trim()) { say(T("Paste the code from /character pair (or from guilded.kcaron.top/me/) first, or use Sign in with Discord."),false); $('pairingCode').focus(); return; } say(T("Connecting your Discord account…"),true); const result = await api.pairAccount(readForm()); say(result.message,result.ok); if (result.ok) { $('pairingCode').value = ''; savedConfig = (await api.getAll()).config; $('guildDiscordId').value = savedConfig.guildDiscordId || ''; renderState(lastSnapshot); toast(T("Discord account connected.")); } else if (/server ID/i.test(result.message)) { $('advanced').open = true; $('guildDiscordId').focus(); } });
 // Sign in with Discord (7.2): the browser opens the website; the companion waits for the approval.
@@ -448,15 +387,7 @@ bind('btnDeleteMyData',() => api.deleteMyData()); // native confirm dialog in ma
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
 bind('btnStoreUpdates', () => api.openUpdate());
 bind('btnStoreStartup', () => api.openStartupSettings());
-bind('btnUpdate',async () => {
-  if (!api.installUpdate) return api.openUpdate();
-  $('btnUpdate').textContent = T("Checking update…");
-  let result;
-  try { result = await api.installUpdate(); toast(result.message,!result.ok); }
-  finally { $('btnUpdate').textContent = result?.ok && result.action === 'installing' ? T("Installing…") : T("Update now"); }
-});
 api.onUpdateProgress?.(percent => {
-  $('btnUpdate').textContent = T("Downloading {0}%", percent);
   $('versionResult').textContent = T("Downloading and checking the update: {0}%", percent); $('versionResult').className = 'result';
 });
 bind('btnVersionAction', async () => {
@@ -511,8 +442,6 @@ function configurePresentation() {
   for (const key of MODE_TEXT) { const [id, attribute] = key.split(':'); const value = T(languageUI.original(id, attribute)); if (attribute) $(id)[attribute] = value; else $(id).textContent = value; }
   modeDefaults = null;
   $('appMode').textContent = T('Desktop companion'); $('sideNote').textContent = T('Keeps working in your tray.'); $('watchFile').removeAttribute('readonly'); $('poeLogFile').removeAttribute('readonly');
-  $('btnLiveSwitch').textContent = liveText().switchButton;
-  $('btnLiveKeep').textContent = liveText().keepButton;
 }
 $('language').addEventListener('change', async event => {
   const chosen = event.target.value;

@@ -194,6 +194,7 @@ describe("importDungeonRuns", () => {
     const carry = await importDungeonRuns(tx, "g1", [run("carry", { players: carryPlayers, endedAt: start + 600 })], characters, "officer", null, now);
     expect(carry.results[0]?.playerDetails?.[0]).toMatchObject({ participationMode: "helper", points: 50 });
     expect(carry.results[0]?.guildRecord).toBe(false);
+    expect(carry.results[0]?.guildRank).toBeUndefined();
     expect(points.every(p => p.source === "rule:completion")).toBe(true);
     expect(points.find(p => p.memberId === "m-kev")).toMatchObject({ amount: 50 });
     const later = start + 3600;
@@ -332,6 +333,18 @@ describe("importDungeonRuns", () => {
       expect(lines.some(line => line.includes("malformed") && line.includes("instance 389"))).toBe(true);
       expect(lines.join(" ")).not.toMatch(/Kev|Bob|left-early|broken/);
     } finally { info.mockRestore(); }
+  });
+
+  it("ranks a clear among the guild's earlier record-eligible clears of the route", async () => {
+    const { tx } = fakeTx();
+    const first = await importDungeonRuns(tx, "g1", [run("rank-a")], characters, "officer", null, now);
+    expect(first.results[0]?.guildRank).toEqual({ rank: 1, of: 1 });
+    const later = start + 3600;
+    const faster = await importDungeonRuns(tx, "g1", [run("rank-b", { startedAt: later, endedAt: later + 1200 })], characters, "officer", null, now);
+    expect(faster.results[0]).toMatchObject({ guildRecord: true, guildRank: { rank: 1, of: 2 } });
+    const last = start + 7200;
+    const slower = await importDungeonRuns(tx, "g1", [run("rank-c", { startedAt: last, endedAt: last + 1800 })], characters, "officer", null, now);
+    expect(slower.results[0]).toMatchObject({ guildRecord: false, guildRank: { rank: 3, of: 3 } });
   });
 
   it("gives no points for abandoned runs", async () => {

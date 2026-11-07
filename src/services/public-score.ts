@@ -1,5 +1,5 @@
 import { provisionalSeasonRules } from "./dungeon-bracket-season.js";
-import { createBracketedDungeonRules, routeTargetAt, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
+import { createBracketedDungeonRules, leniencyOf, routeTargetAt, validBracketedRules, type BracketedRules } from "./dungeon-november-rules.js";
 import { SCARLET_WINGS, bracketedVerdict, completionReason, penalized, presentEnough, timeRating, type RatingRun } from "./dungeon-rating.js";
 import type { OfficialWindow } from "./official-seasons.js";
 import { weekWindow } from "./dungeon-periods.js";
@@ -66,13 +66,16 @@ export function readRuleSnapshot(value: unknown): PublicRuleSnapshot | null {
  */
 export function addedRules(frozen: BracketedRules, current: BracketedRules): { rules: BracketedRules; routes: string[]; brackets: string[] } | null {
   if (frozen.evidencePolicy === "current-v2") return null;
+  // Leniency 1 reaches a running season from the next tick; scoring values are never touched.
+  const lenient = frozen.leniency !== 1 && current.leniency === 1;
   const routes = current.routes.filter(r => !frozen.routes.some(f => f.dungeonKey === r.dungeonKey));
   const brackets = current.brackets.filter(b => !frozen.brackets.some(f => f.key === b.key));
-  if (!routes.length && !brackets.length) return null;
+  if (!routes.length && !brackets.length && !lenient) return null;
   try {
     const rules = createBracketedDungeonRules({ ...(frozen.gameEdition ? { gameEdition: frozen.gameEdition } : {}), routes: [...frozen.routes, ...routes], brackets: [...frozen.brackets, ...brackets], overlevelPenalty: frozen.overlevelPenalty,
       ...(frozen.keystoneRating ? { keystoneRating: frozen.keystoneRating } : {}),
       ...(frozen.evidencePolicy ? { evidencePolicy: frozen.evidencePolicy } : {}),
+      ...(lenient || frozen.leniency === 1 ? { leniency: 1 } : {}),
       ...(!frozen.provisional && current.provisional && routes.length ? { provisional: current.provisional } : {}),
       ...(frozen.provisional ? { provisional: { plan: frozen.provisional.plan, waiting: current.provisional?.waiting ?? frozen.provisional.waiting } } : {}),
       ...(frozen.recalibrations ? { recalibrations: frozen.recalibrations } : {}) });
@@ -98,7 +101,7 @@ export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), pl
     if (reason) return { score: null, reason };
     const verdict = bracketedVerdict(ratingRun(run, run.evidence), rules);
     if (verdict.reason || !verdict.targetSec) return { score: null, reason: verdict.reason ?? "Target not calibrated" };
-    if (player && !presentEnough(player.presentSec ?? 0, run.durationSec)) return { score: null, reason: "Presence under 80%" };
+    if (player && !presentEnough(player.presentSec ?? 0, run.durationSec, leniencyOf(rules).presence)) return { score: null, reason: `Presence under ${Math.round(leniencyOf(rules).presence * 100)}%` };
     if (player && rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec, run.evidence.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined)) return { score: null, reason: "Known in-instance presence under 80%" };
     if (!player && rules.evidencePolicy === "current-v2" && !run.players.some(p=>presentEnough(p.presentSec??0,run.durationSec)
       && integrityPresence(p.integrity,run.durationSec,run.evidence?.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined))) return {score:null,reason:"Known in-instance presence under 80%"};
@@ -114,8 +117,8 @@ export function rateRun(run: ScoreRun, rules: BracketedRules = publicRules(), pl
   const levels = run.players.map(p => p.level);
   if (!levels.length || levels.some(l => l === null)) return { score: null, reason: "Party levels unknown" };
   const over = Math.max(0, ...(levels as number[]).map(l => l - band.max));
-  if (over > rules.overlevelPenalty.maxLevels) return { score: null, reason: "Overlevel carry" };
-  if (Math.min(...(levels as number[])) < band.min) return { score: null, reason: "Below level range" };
+  if (over > leniencyOf(rules).overLevels) return { score: null, reason: "Overlevel carry" };
+  if (Math.min(...(levels as number[])) < band.min - leniencyOf(rules).belowLevels) return { score: null, reason: "Below level range" };
   const penaltyPercent = over * rules.overlevelPenalty.percentPerLevel;
   return { score: { key, bracket: rules.routeBracket[key]!, points: penalized(timeRating(run.durationSec, target), penaltyPercent), penaltyPercent } };
 }
@@ -145,7 +148,7 @@ export function characterScores(runs: ScoreRun[], rules: BracketedRules = public
     const score = scoreRun(run, rules);
     if (!score) continue;
     for (const player of run.players) {
-      if (!keep(player, run) || run.evidence && !presentEnough(player.presentSec ?? 0, run.durationSec)
+      if (!keep(player, run) || run.evidence && !presentEnough(player.presentSec ?? 0, run.durationSec, leniencyOf(rules).presence)
         || rules.evidencePolicy === "current-v2" && !integrityPresence(player.integrity, run.durationSec, run.evidence?.startedAt ? run.evidence.startedAt.getTime()/1000 : undefined)) continue;
       const id = `${characterId(player)}\0${score.bracket}`;
       const row = rows.get(id) ?? { player, bracket: score.bracket, points: 0, routes: [] };

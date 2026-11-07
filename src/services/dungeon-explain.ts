@@ -1,6 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { bracketedVerdict, presentEnough } from "./dungeon-rating.js";
-import { validBracketedRules } from "./dungeon-november-rules.js";
+import { leniencyOf, validBracketedRules } from "./dungeon-november-rules.js";
 import { participationMode, unmappedMap } from "./dungeon-participation.js";
 import { withIntegrityWindow } from "./dungeon-integrity.js";
 import { formatDuration } from "./dungeon-rules.js";
@@ -55,7 +55,7 @@ export async function explainDungeonRuns(database: Db, guildId: string, filter: 
       const percent = run.durationSec ? Math.round(100 * p.presentSec / run.durationSec) : 0;
       bits.push(p.inGuild ? "in guild" : "outside the guild");
       bits.push(p.memberId ? "linked" : "NOT linked to a member: not on the time board, no points");
-      bits.push(`present ${percent}%${run.durationSec && !presentEnough(p.presentSec, run.durationSec) ? " (time board needs 80%)" : ""}`);
+      bits.push(`present ${percent}%${run.durationSec && !presentEnough(p.presentSec, run.durationSec, rules ? leniencyOf(rules).presence : undefined) ? ` (time board needs ${Math.round((rules ? leniencyOf(rules).presence : 0.8) * 100)}%)` : ""}`);
       if (rules && p.memberId) bits.push(PARTICIPATION[participationMode(evidence, p.character, rules.levelBands[bracketedVerdict({ ...evidence, players: evidence.players.map(q => ({ ...q, member: null })) }, rules).key], rules)] ?? "?");
       lines.push(`• **${p.character}** — ${bits.join(" · ")}`);
     }

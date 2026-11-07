@@ -7,7 +7,7 @@ import { currentIntegrityPolicy, integrityWindowReason, withIntegrityWindow } fr
 import { gameEditionOf } from "./game-edition.js";
 import { addonName } from "./addon-name.js";
 import { currentEdition } from "./edition-context.js";
-import { bracketForLevel, resolveNovemberRoute, validBracketedRules, validRouteRules } from "./dungeon-november-rules.js";
+import { bracketForLevel, leniencyOf, resolveNovemberRoute, validBracketedRules, validRouteRules } from "./dungeon-november-rules.js";
 import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
@@ -178,7 +178,8 @@ export async function importDungeonRuns(
     const november = validBracketedRules(season.ratingRules) ? withIntegrityWindow(season.ratingRules, season.startsAt, season.endsAt)
       : validRouteRules(season.ratingRules) ? season.ratingRules : undefined;
     const brackets = validBracketedRules(season.ratingRules) ? season.ratingRules.brackets : undefined;
-    const overlevelAllowance = validBracketedRules(season.ratingRules) ? season.ratingRules.overlevelPenalty.maxLevels : 0;
+    const overlevelAllowance = validBracketedRules(season.ratingRules) ? leniencyOf(season.ratingRules).overLevels : 0;
+    const belowAllowance = validBracketedRules(season.ratingRules) ? leniencyOf(season.ratingRules).belowLevels : 0;
     const ruleVersion = (season.ratingRules as { version?: number } | null)?.version;
     if ((ruleVersion === 5 || ruleVersion === 6) && !november) throw new Error("Invalid November rules; import refused without awards");
     const bestEight = rated && ((season.ratingRules as { version: number }).version === 4 || november !== undefined);
@@ -459,7 +460,7 @@ export async function importDungeonRuns(
           : novemberReason ? novemberReason
           : november && !ratingRules.targets[dungeonKey] ? "Participation-only route"
           : !november && dungeonKey === "189" ? "Dungeon route unknown"
-          : competitionReason({ ...evidence, players: evidence.players.map(p => ({ ...p, member: null })) }, ratingRules.levelBands[dungeonKey], overlevelAllowance)
+          : competitionReason({ ...evidence, players: evidence.players.map(p => ({ ...p, member: null })) }, ratingRules.levelBands[dungeonKey], overlevelAllowance, belowAllowance)
             ?? (!ratingRules.targets[dungeonKey] ? "Target not calibrated"
               : player.presentSec < (durationSec ?? 0) * 0.8 ? `Presence ${Math.floor(100 * player.presentSec / (durationSec || 1))}% / 80% required` : undefined) : undefined;
         return {

@@ -6,6 +6,7 @@ import { validBracketedRules } from "./dungeon-november-rules.js";
 import { weekSeason, weekWindow } from "./dungeon-periods.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import { snapshotGuidance } from "./dungeon-snapshot-guidance.js";
+import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 
 // Read-only views of the dungeon challenge (roadmap D5): leaderboards,
 // records, a player's page, recent runs and the season. Invalidated runs
@@ -47,14 +48,23 @@ export async function pointsFilter(database: Pick<PrismaClient, "dungeonSeason">
   return where;
 }
 
-export async function leaderboard(database: Db, guildId: string, period: Period, instanceId: number | null, limit = 10, now = new Date(), seasonId?: string): Promise<LeaderRow[]> {
+export async function leaderboard(database: Db & Partial<Pick<PrismaClient, "character" | "unclaimedCharacter" | "guildRosterEntry">>, guildId: string, period: Period, instanceId: number | null, limit = 10, now = new Date(), seasonId?: string): Promise<LeaderRow[]> {
   const where = await pointsFilter(database, guildId, period, now, seasonId);
   if (instanceId !== null) where.run = { ...(where.run as object | undefined), instanceId };
   const grouped = await database.dungeonPointTransaction.groupBy({
     by: ["memberId"], where, _sum: { amount: true }, orderBy: { _sum: { amount: "desc" } }, take: limit + 5
   });
   const members = await database.member.findMany({ where: { id: { in: grouped.map((row) => row.memberId) } }, select: { id: true, displayName: true } });
-  const names = new Map(members.map((member) => [member.id, member.displayName]));
+  // Owner rule: people are shown by their character's full name; the Discord name follows in parentheses.
+  const mains = database.character ? await database.character.findMany({ where: { memberId: { in: grouped.map(row => row.memberId) } },
+    orderBy: [{ isMain: "desc" }, { createdAt: "asc" }], select: { memberId: true, name: true, displayName: true } }) : [];
+  const book = await loadFullNameBook(database, guildId);
+  const mainOf = new Map<string, string>();
+  for (const character of mains) if (!mainOf.has(character.memberId)) mainOf.set(character.memberId, displayCharacterName(character, book));
+  const names = new Map(members.map((member) => {
+    const character = mainOf.get(member.id);
+    return [member.id, !character ? member.displayName : character.toLowerCase() === member.displayName.toLowerCase() ? character : `${character} (${member.displayName})`] as const;
+  }));
   return grouped
     .map((row) => ({ memberId: row.memberId, name: names.get(row.memberId) ?? "?", points: row._sum.amount ?? 0 }))
     .filter((row) => row.points > 0)

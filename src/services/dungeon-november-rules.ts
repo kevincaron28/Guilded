@@ -142,6 +142,7 @@ export function createBracketedDungeonRules(input: unknown) {
   const parsed = z.object({ gameEdition: z.enum(GAME_EDITIONS).optional(), routes: z.array(bracketRouteSchema).max(100), brackets: z.array(bracketSchema).max(10),
     overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }),
     evidencePolicy: z.enum(["current-v1", "current-v2"]).optional(),
+    leniency: z.literal(1).optional(),
     seasonWindow: z.object({ from: z.string().datetime(), to: z.string().datetime().nullable() }).optional(),
     provisional: provisionalSchema.optional(), keystoneRating: challengeRatingSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).refine(value => value.routes.length > 0 && value.brackets.length > 0
       || !!value.gameEdition && value.gameEdition !== "forever" && value.routes.length === 0 && value.brackets.length === 0, "A rated season needs routes and brackets").parse(input);
@@ -178,6 +179,7 @@ export function createBracketedDungeonRules(input: unknown) {
     ...(parsed.gameEdition ? { gameEdition: parsed.gameEdition } : {}),
     ...(parsed.keystoneRating ? { keystoneRating: parsed.keystoneRating } : {}),
     ...(parsed.evidencePolicy ? { evidencePolicy: parsed.evidencePolicy } : {}),
+    ...(parsed.leniency ? { leniency: parsed.leniency } : {}),
     ...(parsed.seasonWindow ? { seasonWindow: parsed.seasonWindow } : {}),
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
     participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
@@ -192,6 +194,16 @@ export function createBracketedDungeonRules(input: unknown) {
   };
 }
 export type BracketedRules = ReturnType<typeof createBracketedDungeonRules>;
+
+/**
+ * Season 1 "leniency 1" (9.0.1, owner decision 6 November 2026): fewer valid runs are hidden. It applies from the moment
+ * a season's stored rules carry it (see addedRules); targets, brackets, best-N and the over-level percentage never change.
+ * Kept anti-cheat: the detected final boss, the season window, no SIM runs and the evidence policy. Never applies to current-v2.
+ */
+export function leniencyOf(rules: { leniency?: number; evidencePolicy?: string; overlevelPenalty: { maxLevels: number } }) {
+  const on = rules.leniency === 1 && rules.evidencePolicy !== "current-v2";
+  return { on, presence: on ? 0.5 : 0.8, overLevels: on ? Math.max(rules.overlevelPenalty.maxLevels, 6) : rules.overlevelPenalty.maxLevels, belowLevels: on ? 3 : 0 };
+}
 
 /** The target a run is rated against: the one in force when it ended (the starting target when unknown). */
 export function routeTargetAt(rules: BracketedRules, key: string, endedAt: Date | null | undefined): number | undefined {
@@ -210,6 +222,7 @@ export function validBracketedRules(value: unknown): value is BracketedRules {
     return sameJson(r, createBracketedDungeonRules({ ...(r.gameEdition ? { gameEdition: r.gameEdition } : {}), routes: r.routes, brackets: r.brackets, overlevelPenalty: r.overlevelPenalty ?? null,
       ...(r.keystoneRating !== undefined ? { keystoneRating: r.keystoneRating } : {}),
       ...(r.evidencePolicy !== undefined ? { evidencePolicy: r.evidencePolicy } : {}),
+      ...(r.leniency !== undefined ? { leniency: r.leniency } : {}),
       ...(r.seasonWindow !== undefined ? { seasonWindow: r.seasonWindow } : {}),
       ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) }));
   } catch { return false; }
@@ -233,13 +246,16 @@ function matches(b: EncounterIdentity, e: Encounter): boolean {
   return (typeof e.id === "number" && b.ids.includes(e.id)) || (typeof e.name === "string" && b.names.some(n => normalize(n) === normalize(e.name!)));
 }
 /** Only timestamped successful encounters inside this run can establish a route. */
-export function resolveNovemberRoute(run: EvidenceRun, rules: { routes: NovemberRoute[] }): { key: string; route?: NovemberRoute; reason?: string } {
+export function resolveNovemberRoute(run: EvidenceRun, rules: { routes: NovemberRoute[]; leniency?: number; evidencePolicy?: string }): { key: string; route?: NovemberRoute; reason?: string } {
   const unknown = { key: String(run.instanceId), reason: "Dungeon route unknown" };
   const all = (run.competitionData as { encounters?: Encounter[] } | null)?.encounters;
   if (!run.startedAt || !run.endedAt || !Array.isArray(all)) return unknown;
   const encounters = all.filter(e => e && e.success === true && Number.isInteger(e.at)
     && e.at! >= run.startedAt!.getTime() / 1000 && e.at! <= run.endedAt!.getTime() / 1000);
-  const finalBoss = (r: NovemberRoute) => (r as { completionModel?: string }).completionModel === "addon-final-boss";
+  // Leniency: the addon's detected final boss is enough proof when the map has only one route.
+  const lenientBoss = rules.leniency === 1 && rules.evidencePolicy !== "current-v2" && run.completedBy === "final boss"
+    && rules.routes.filter(r => r.instanceId === run.instanceId && (run.difficultyId === undefined || r.participationBand.difficultyId === run.difficultyId)).length === 1;
+  const finalBoss = (r: NovemberRoute) => lenientBoss || (r as { completionModel?: string }).completionModel === "addon-final-boss";
   const candidates = rules.routes.filter(r => r.instanceId === run.instanceId
     && (run.difficultyId === undefined || r.participationBand.difficultyId === run.difficultyId)
     && (finalBoss(r) || [r.completion, ...r.requiredEncounters].some(b => encounters.some(e => matches(b, e)))));

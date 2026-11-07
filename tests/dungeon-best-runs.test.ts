@@ -9,7 +9,7 @@ describe("best clear per dungeon board", () => {
     const rows=await seasonBestRuns({dungeonRun:{groupBy,findFirst}} as unknown as Parameters<typeof seasonBestRuns>[0],"guild","season");
     expect(rows.map(r=>r.durationSec)).toEqual([300,500]);
     expect(groupBy.mock.calls[0]![0].where).toMatchObject({guildId:"guild",seasonId:"season",valid:true,state:"COMPLETED",NOT:{runRef:{startsWith:"SIM-"}}});
-    expect(findFirst.mock.calls[0]![0].select.players.where).toEqual({memberId:{not:null}});
+    expect(findFirst.mock.calls[0]![0].select.players.where).toEqual({OR:[{memberId:{not:null}},{inGuild:true}]});
     expect(findFirst.mock.calls[0]![0].orderBy).toEqual([{endedAt:"asc"},{id:"asc"}]);
     const embed=bestRunsEmbed(rows,"en").toJSON();
     expect(embed.description).toContain("Normal"); expect(embed.description).toContain("Heroic");

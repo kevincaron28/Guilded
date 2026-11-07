@@ -42,7 +42,7 @@ describe("dungeonAnnouncement", () => {
     expect(en.description).toContain("deaths untracked");
     expect(en.description).toContain("58 total points awarded");
     expect(en.description).toContain("**C**");
-    expect(en.description).toContain("0 pts");
+    expect(en.description).toContain("deaths: 0");
     // Outsiders are listed too, after the guild, and marked.
     expect(en.description).toContain("From outside the guild (4)");
     for (const outsider of run.unlinked) expect(en.description).toContain(`🌐 **${outsider}**`);

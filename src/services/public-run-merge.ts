@@ -48,8 +48,20 @@ export function canonicalPlayers(runs: LeaderRun[]): LeaderRun[] {
   const book = fullNameBook(names);
   return runs.map((run) => {
     if (!forever(run)) return { ...run, players: dedupePlayers(run.players) };
+    // A first name the guild-wide book cannot resolve (two guildmates share it, e.g. "El Pirata" and
+    // "El Veneking") still names one person when exactly one full name in this same party starts with
+    // it and the class agrees: the party itself disambiguates (owner report, 7 Nov).
+    const partyFull = run.players.map((p) => ({ name: displayCharacterName({ name: p.character, displayName: p.displayName ?? null, realm: p.realm }, book), className: p.className }))
+      .filter((entry) => entry.name.includes(" "));
+    const inParty = (first: string, className: string | null | undefined): string | null => {
+      const key = first.toLowerCase();
+      const hits = [...new Set(partyFull.filter((entry) => entry.name.split(" ")[0]!.toLowerCase() === key
+        && (!className || !entry.className || entry.className === className)).map((entry) => entry.name))];
+      return hits.length === 1 ? hits[0]! : null;
+    };
     const players = run.players.map((player): LeaderPlayer => {
-      const full = displayCharacterName({ name: player.character, displayName: player.displayName ?? null, realm: player.realm }, book);
+      const resolved = displayCharacterName({ name: player.character, displayName: player.displayName ?? null, realm: player.realm }, book);
+      const full = resolved.includes(" ") ? resolved : inParty(resolved, player.className) ?? resolved;
       const aliases = [...new Set([...(player.aliases ?? []), ...(player.character.toLowerCase() === full.toLowerCase() ? [] : [player.character.toLowerCase()])])];
       return { ...player, character: full, displayName: full, ...(aliases.length ? { aliases } : {}) };
     });

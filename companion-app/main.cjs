@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn, execFile } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const { detectSavedVariables, detectOtherEditionSavedVariables, pickSavedVariables, pickerStart, accountsUnder, searchWow } = require("./detect-wow.cjs");
+const { detectSavedVariables, detectOtherEditionSavedVariables, pickSavedVariables, pickPrimaryAccount, pickerStart, accountsUnder, searchWow } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 // Loaded on first use (Store build only): companion-app/store-update.cjs.
 const storeUpdatesModule = () => require("./store-update.cjs");
@@ -180,7 +180,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, wowFolderModule, activeGamesModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("wow-folder.mjs")), import(url("active-games.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")) };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")), ...await import(url("wow-accounts.mjs")) };
 }
 
 // Start-up diagnostics (9.0 release blocker): every line logged before the window is ready also
@@ -427,6 +427,14 @@ async function maybeStoreUpdate() {
 // Checked at start, after each upload or setup change, and every hour.
 let savedFile = null;
 let savedFileCheck = 0;
+// Several WoW accounts (docs/plans/MULTI_ACCOUNT.md): another account folder of the same install
+// with Guilded's data, waiting for the member's "Is it yours too?" (companion/wow-accounts.mjs).
+let otherAccount = null;
+function otherAccounts() {
+  if (config.wowEnabled === false || !config.watchFile || typeof engineModules?.newAccounts !== "function") return [];
+  try { return engineModules.newAccounts(config, accountsUnder(path.dirname(path.dirname(path.dirname(config.watchFile))), savedNames(), engineModules.isOtherEditionFolder)); }
+  catch { return []; }
+}
 let lastUploadAt = null;
 const french = () => language() === "fr";
 
@@ -454,8 +462,10 @@ async function refreshSavedFile() {
     } catch { /* checked again later */ }
   }
   void maybeAutoUpdateAddon(result?.addon);
+  const another = otherAccounts();
   if (ticket !== savedFileCheck) return;
   savedFile = result;
+  otherAccount = another[0] ?? null;
   const candidate = savedFile?.candidate;
   // The app mostly lives in the tray: say it once per folder outside the window too.
   if (candidate && config.liveFolderNotified !== candidate.path) {
@@ -506,7 +516,7 @@ function onState(state) {
   refreshUpdate(state);
   const status = health(state);
   const found = problems(state);
-  win?.webContents.send("state", { state, health: status, update, savedFile, problems: found, addonAction: addonAction() });
+  win?.webContents.send("state", { state, health: status, update, savedFile, problems: found, addonAction: addonAction(), otherAccount: otherAccount ? { account: otherAccount.account } : null });
   if (tray) {
     // Only problems the member can fix turn the tray red; Guilded's outages stay amber.
     const own = linkIdentity.memberProblems(found);
@@ -857,6 +867,22 @@ registerIpc("switch-live-folder", async () => {
   await refreshSavedFile();
   return { ok: started, path: candidate.path };
 });
+// "Is WOW2 yours too?" Yes: it syncs from now on; no: never asked again. The file is the one this
+// process found, never a path from the window.
+async function answerOtherAccount(yes) {
+  const asked = otherAccount;
+  if (!asked) return { ok: false, account: null };
+  config = engineModules.answerAccount(config, asked.path, yes);
+  await saveConfig();
+  pushLog({ time: new Date().toISOString(), level: "info", message: yes ? E("WoW account {0} syncs too, from {1}.", asked.account, asked.path) : E("WoW account {0} is not synced (not this member's).", asked.account) });
+  otherAccount = null;
+  const started = yes ? await engine.configure(config) : true;
+  if (yes && started) engine.uploadNow();
+  await refreshSavedFile();
+  return { ok: started, account: asked.account };
+}
+registerIpc("account-yes", () => answerOtherAccount(true));
+registerIpc("account-no", () => answerOtherAccount(false));
 registerIpc("dismiss-live-folder", async () => {
   const candidate = savedFile?.candidate;
   if (candidate) {
@@ -1171,7 +1197,7 @@ registerIpc("link-find-saved-data", async () => {
   // Addon just installed and not saved yet (no /reload so far): the file does not exist, but its account
   // folder does. With exactly one live account folder, watch that path now; the upload starts at the first save.
   const pending = found.length === 0 ? pickSavedVariables(detected.filter((entry) => !/beta/i.test(entry.game))) : null;
-  const chosen = pickSavedVariables(found) || pending;
+  const chosen = pickPrimaryAccount(found) || pending;
   if (!chosen) return { ok: false, found: found.length, ...(otherCount && !found.length ? { otherEdition: otherCount } : {}), message: otherCount && !found.length ? T("Guilded supports WoW Forever only. The saved files found are from another WoW version; nothing was changed.") : found.length ? T("Found several WoW accounts ({0}). Choose Browse and pick Guilded.lua of the account you play.", found.map((entry) => entry.account).filter(Boolean).join(", ") || found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
   if (config.watchFile && config.watchFile.toLowerCase() === chosen.path.toLowerCase()) return { ok: true, found: 1, already: true };
   const switched = Boolean(config.watchFile);
@@ -1377,7 +1403,7 @@ registerIpc("repair", async () => {
     watchFile: () => config.watchFile || null,
     watchedFileExists: async () => { try { await fs.promises.access(path.dirname(config.watchFile)); return true; } catch { return fs.existsSync(path.dirname(path.dirname(config.watchFile))); } },
     searchWow: () => searchWow(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions()),
-    pick: (entries) => pickSavedVariables(entries.filter((entry) => entry.exists)) || pickSavedVariables(entries.filter((entry) => !/beta/i.test(entry.game))),
+    pick: (entries) => pickPrimaryAccount(entries.filter((entry) => entry.exists)) || pickSavedVariables(entries.filter((entry) => !/beta/i.test(entry.game))),
     setWatchFile: async (file) => { config = { ...config, watchFile: file, wowEnabled: true }; await saveConfig(); await engine?.configure(config); },
     addonDecision: async () => { await refreshSavedFile(); return { ...addonInstallerModule().decideAddonInstall({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: process.platform === "win32" ? await wowIsRunning() : false, wowEnabled: config.wowEnabled !== false }), installed: savedFile?.addon?.version ?? null, companion: app.getVersion() }; },
     settingsSave: () => storeConfig.status(),

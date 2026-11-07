@@ -152,6 +152,13 @@ function pickSavedVariables(existing) {
   return null;
 }
 
+// Several accounts with Guilded's data and none clearly the one (docs/plans/MULTI_ACCOUNT.md): start
+// with the most recently saved live account; the companion then asks about the others one by one
+// ("Is WOW2 yours too?") instead of stopping.
+function pickPrimaryAccount(existing) {
+  return pickSavedVariables(existing) || rankSavedVariables(existing).find((entry) => entry.exists && entry.hasDatabase === true && !/beta/i.test(entry.game)) || null;
+}
+
 // Folder picker (8.5, track F3). The install folder of a saved file (…\World of Warcraft for
 // …\World of Warcraft\_forever_\WTF\Account\X\SavedVariables\Guilded.lua), or null.
 function installRootOf(file) {
@@ -203,4 +210,4 @@ function accountsUnder(folder, names = ["Guilded.lua"], isOtherEdition = () => f
   return rankSavedVariables(playable.length ? playable : unique.filter((item) => !isOtherEdition(item.game)));
 }
 
-module.exports = { hasDatabase, wowInstalls, battleNetInstallPaths, searchWow, detectSavedVariables, detectOtherEditionSavedVariables, rankSavedVariables, pickSavedVariables, installRootOf, pickerStart, accountsUnder };
+module.exports = { hasDatabase, wowInstalls, battleNetInstallPaths, searchWow, detectSavedVariables, detectOtherEditionSavedVariables, rankSavedVariables, pickSavedVariables, pickPrimaryAccount, installRootOf, pickerStart, accountsUnder };

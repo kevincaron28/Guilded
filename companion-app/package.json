@@ -70,6 +70,7 @@
           "dungeon-role.mjs",
           "profiles.mjs",
           "profile-engine.mjs",
+          "wow-accounts.mjs",
           "standings-format.mjs",
           "poe-events.mjs",
           "delta.mjs",

@@ -88,7 +88,7 @@ describe("store and forward between two online addons", () => {
 
     carrier.run(`NS.catchUp.sendDigest(true)`);
     const dig = deliver(carrier, "Lebowski", member);
-    expect(dig).toEqual(["GuildedCatch>DIG|1|1|R:0:0|P:0:0"]);
+    expect(dig).toEqual(["GuildedCatch>DIG|1|1|R:0:0|P:0:0|C:0:0|A:0:0"]);
     timers(member);
     const have = deliver(member, "Walter", carrier);
     expect(have).toHaveLength(2);

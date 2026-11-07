@@ -17,6 +17,11 @@
 --   WANT|<kind>|<holder>|<key>,...           the asker requests what it lacks from that holder
 --   RUN|<id>|<reporter>|<part>|<parts>|<chunk>   a run, in Dungeon.lua's summary format
 --   PEER|<name>|<seenAt>|<class>,<race>,<level>,<spec>|<professionsAt>|<professions>
+--   (9.1) two more kinds, summed up as C:<count>:<hash> and A:<count>:<hash> after P in the DIG:
+--   C  guildmates' recipe lists, one item per player, profession and the author's stamp (45 days)
+--   A  guildmates' attunements, one item per player, attunement and date (45 days)
+--   RCP|<name>|<profession>|<stamp>|<part>|<parts>|<keys>   a recipe list (item ids, minus a spell id for enchants)
+--   ATT|<name>|<key>|<0/1>|<date>                           an attunement the player reported about themselves
 --
 -- Bounded: one answer per DIG (a companion user answers a member first and the other way
 -- round, everyone else stays quiet once someone answered), at most 8 HAVE parts, 40 wanted keys,
@@ -34,6 +39,14 @@ local START_DELAY_SECONDS = 40
 local DIGEST_EVERY_SECONDS = 5 * 60
 local ANSWER_EVERY_SECONDS = 10 * 60
 local MAX_PARTS, MAX_WANT, MAX_SEND, MAX_PUSH = 8, 40, 8, 8
+-- (9.1) Recipes and attunements keep for 45 days (they change slowly); a recipe list is big, so
+-- only a few travel per round, and none with more than 400 recipes.
+local LONG_WINDOW_SECONDS = 45 * 86400
+local KIND_SEND = { R = 8, P = 8, C = 2, A = 8 }
+local MAX_RECIPE_KEYS, MAX_RECIPE_PARTS = 400, 20
+local KINDS = { "R", "P", "C", "A" }
+local ISO_PATTERN = "^%d%d%d%d%-%d%d%-%d%dT%d%d:%d%d:%d%dZ$"
+local function isoAt(epoch) return date("!%Y-%m-%dT%H:%M:%SZ", epoch) end
 local MODULUS = 16777213 -- 24 bits: hashes and sums stay exact in the 32-bit test harness
 local ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_"
 
@@ -117,6 +130,45 @@ function catchUp.collect(kind)
         end
       end
     end
+  elseif kind == "C" then
+    local b = ns.recipes and ns.recipes.book and ns.recipes.book()
+    local mine, floor = me(), now() - LONG_WINDOW_SECONDS
+    for name, professions in pairs(b and b.people or {}) do
+      if name ~= mine and type(professions) == "table" then
+        for profession, entry in pairs(professions) do
+          if type(profession) == "string" and #profession <= 40 and not string.find(profession, "[|,%c]")
+            and type(entry) == "table" and tonumber(entry.v) and entry.v >= floor and type(entry.keys) == "table"
+            and #entry.keys > 0 and #entry.keys <= MAX_RECIPE_KEYS then
+            local h = hashText(name .. "|" .. profession .. "|" .. tostring(math.floor(entry.v)))
+            local key = keyOf(h)
+            if not items[key] then
+              items[key] = { kind = "C", id = name, profession = profession, item = entry }
+              count = count + 1
+              sum = (sum + h) % MODULUS
+            end
+          end
+        end
+      end
+    end
+  elseif kind == "A" then
+    local d = ns.getDb and ns.getDb()
+    local mine, floor = me(), isoAt(now() - LONG_WINDOW_SECONDS)
+    for name, list in pairs(d and d.attunements or {}) do
+      if name ~= mine and type(list) == "table" then
+        for attKey, entry in pairs(list) do
+          if type(attKey) == "string" and #attKey <= 60 and not string.find(attKey, "[|%c]") and type(entry) == "table"
+            and type(entry.at) == "string" and string.match(entry.at, ISO_PATTERN) and entry.at >= floor then
+            local h = hashText(name .. "|" .. attKey .. "|" .. (entry.completed and "1" or "0") .. "|" .. entry.at)
+            local key = keyOf(h)
+            if not items[key] then
+              items[key] = { kind = "A", id = name, attunement = attKey, item = entry }
+              count = count + 1
+              sum = (sum + h) % MODULUS
+            end
+          end
+        end
+      end
+    end
   end
   return items, count, sum
 end
@@ -140,8 +192,8 @@ end
 function catchUp.sendDigest(force)
   if not force and catchUp.lastDigestAt and now() - catchUp.lastDigestAt < DIGEST_EVERY_SECONDS then return false end
   catchUp.lastDigestAt = now()
-  local runs, peers = digestOf("R"), digestOf("P")
-  return send(string.format("DIG|%d|%d|R:%s|P:%s", PROTOCOL, isCarrier() and 1 or 0, runs, peers))
+  local runs, peers, recipes, attunements = digestOf("R"), digestOf("P"), digestOf("C"), digestOf("A")
+  return send(string.format("DIG|%d|%d|R:%s|P:%s|C:%s|A:%s", PROTOCOL, isCarrier() and 1 or 0, runs, peers, recipes, attunements))
 end
 
 local function sendHave(kind, asker)
@@ -198,9 +250,34 @@ local function forwardPeer(name, entry)
   return send(line .. professions)
 end
 
+local function forwardRecipes(name, profession, entry)
+  local keys = {}
+  for _, key in ipairs(entry.keys) do
+    if math.type and math.type(key) == "float" then key = math.floor(key) end
+    table.insert(keys, tostring(key))
+  end
+  local list = table.concat(keys, ",")
+  local header = string.format("RCP|%s|%s|%d|", name, profession, math.floor(tonumber(entry.v) or 0))
+  local size = 255 - #header - 6
+  if size < 40 then return false end
+  local total = math.max(1, math.ceil(#list / size))
+  if total > MAX_RECIPE_PARTS then return false end
+  for part = 1, total do
+    send(header .. part .. "|" .. total .. "|" .. string.sub(list, (part - 1) * size + 1, part * size))
+  end
+  return true
+end
+
+local function forwardAttunement(name, attKey, entry)
+  return send(string.format("ATT|%s|%s|%d|%s", name, attKey, entry.completed and 1 or 0, entry.at))
+end
+
 local function forward(entry)
   local done
-  if entry.kind == "R" then done = forwardRun(entry.id, entry.item) else done = forwardPeer(entry.id, entry.item) end
+  if entry.kind == "R" then done = forwardRun(entry.id, entry.item)
+  elseif entry.kind == "C" then done = forwardRecipes(entry.id, entry.profession, entry.item)
+  elseif entry.kind == "A" then done = forwardAttunement(entry.id, entry.attunement, entry.item)
+  else done = forwardPeer(entry.id, entry.item) end
   if done then catchUp.stats.relayedOut = catchUp.stats.relayedOut + 1 end
   return done
 end
@@ -216,11 +293,12 @@ end
 local function onDigest(text, sender)
   local protocol, carrier, runs, peers = string.match(text, "^DIG|(%d+)|([01])|R:(%d+:%d+)|P:(%d+:%d+)")
   if not protocol then return end
-  local theirs = { R = runs, P = peers }
-  for _, kind in ipairs({ "R", "P" }) do
+  -- (9.1) C and A are optional: an older addon's DIG simply lacks them and is not asked about them.
+  local theirs = { R = runs, P = peers, C = string.match(text, "|C:(%d+:%d+)"), A = string.match(text, "|A:(%d+:%d+)") }
+  for _, kind in ipairs(KINDS) do
     local mine, count = digestOf(kind)
     local slot = kind .. "|" .. sender
-    if count > 0 and mine ~= theirs[kind] and not catchUp.pending[slot]
+    if theirs[kind] and count > 0 and mine ~= theirs[kind] and not catchUp.pending[slot]
       and (not catchUp.answered[slot] or now() - catchUp.answered[slot] >= ANSWER_EVERY_SECONDS) then
       catchUp.pending[slot] = true
       catchUp.quiet[slot] = nil
@@ -265,10 +343,15 @@ local function reconcile(kind, holder, list)
   if #wanted > 0 then send(header .. table.concat(wanted, ",")) end
   -- Push what they lack, newest first: everyone online stores it, their companion carries it.
   table.sort(extra, function(a, b)
-    local at = function(e) return tonumber(e.kind == "R" and e.item.endedAt or e.item.seenAt) or 0 end
+    local at = function(e)
+      if e.kind == "R" then return tonumber(e.item.endedAt) or 0 end
+      if e.kind == "C" then return tonumber(e.item.v) or 0 end
+      if e.kind == "A" then return tonumber(string.gsub(tostring(e.item.at or ""), "%D", "")) or 0 end
+      return tonumber(e.item.seenAt) or 0
+    end
     return at(a) > at(b)
   end)
-  for index = 1, math.min(MAX_PUSH, #extra) do forward(extra[index]) end
+  for index = 1, math.min(math.min(MAX_PUSH, KIND_SEND[kind] or MAX_PUSH), #extra) do forward(extra[index]) end
   catchUp.stats.rounds = catchUp.stats.rounds + 1
   local saved = catchUp.saved()
   if saved then
@@ -278,7 +361,7 @@ local function reconcile(kind, holder, list)
 end
 
 local function onHave(text, sender)
-  local kind, asker, digest, part, total, list = string.match(text, "^HAVE|([RP])|([^|]+)|(%d+:%d+)|(%d+)|(%d+)|(.*)$")
+  local kind, asker, digest, part, total, list = string.match(text, "^HAVE|([RPCA])|([^|]+)|(%d+:%d+)|(%d+)|(%d+)|(.*)$")
   part, total = tonumber(part), tonumber(total)
   if not kind or not part or not total or total < 1 or total > MAX_PARTS or part < 1 or part > total then return end
   asker = ns.normalizeName(asker)
@@ -305,7 +388,7 @@ local function onHave(text, sender)
 end
 
 local function onWant(text, sender)
-  local kind, holder, list = string.match(text, "^WANT|([RP])|([^|]+)|(.+)$")
+  local kind, holder, list = string.match(text, "^WANT|([RPCA])|([^|]+)|(.+)$")
   if not kind or ns.normalizeName(holder) ~= me() then return end
   local slot = kind .. "|" .. sender
   if catchUp.served[slot] and now() - catchUp.served[slot] < 30 then return end
@@ -313,7 +396,7 @@ local function onWant(text, sender)
   local mine = catchUp.collect(kind)
   local sent = 0
   for key in string.gmatch(list, "[^,]+") do
-    if sent >= MAX_SEND then break end
+    if sent >= (KIND_SEND[kind] or MAX_SEND) then break end
     local entry = mine[key]
     if entry and forward(entry) then sent = sent + 1 end
   end
@@ -395,13 +478,81 @@ local function onPeer(text, sender)
   if ns.onPeerReadiness then pcall(ns.onPeerReadiness, name) end
 end
 
+-- (9.1) A guildmate's recipe list, forwarded: kept like the author's own broadcast (Recipes.lua)
+-- would be, marked forwarded, never over a newer or equal list the author reported themselves.
+local function onRecipes(text, sender)
+  local name, profession, stamp, part, total, chunk = string.match(text, "^RCP|([^|]+)|([^|]+)|(%d+)|(%d+)|(%d+)|(.*)$")
+  part, total, stamp = tonumber(part), tonumber(total), tonumber(stamp)
+  if not name or not stamp or not part or not total or total < 1 or total > MAX_RECIPE_PARTS or part < 1 or part > total then return end
+  if #profession > 40 or string.find(profession, "[,%c]") or not string.match(chunk, "^[%-%d,]*$") then return end
+  name = ns.normalizeName(name)
+  if not name or name == me() or not (ns.isGuildMember and ns.isGuildMember(name)) then return end
+  if stamp < now() - LONG_WINDOW_SECONDS or ns.util.tooFarAhead(stamp) then return end
+  local count, fromSender = 0, 0
+  for key, buffer in pairs(catchUp.incoming) do
+    if buffer.rcp then
+      if now() - buffer.at > 60 then catchUp.incoming[key] = nil
+      else
+        count = count + 1
+        if buffer.sender == sender then fromSender = fromSender + 1 end
+      end
+    end
+  end
+  local key = "RCP|" .. sender .. "|" .. name .. "|" .. profession .. "|" .. stamp
+  local buffer = catchUp.incoming[key]
+  if buffer and buffer.total ~= total then catchUp.incoming[key] = nil; return end
+  if not buffer and (count >= 16 or fromSender >= 4) then return end
+  buffer = buffer or { rcp = true, sender = sender, total = total, parts = {}, count = 0, at = now() }
+  catchUp.incoming[key] = buffer
+  if not buffer.parts[part] then buffer.parts[part] = chunk; buffer.count = buffer.count + 1 end
+  if buffer.count < buffer.total then return end
+  catchUp.incoming[key] = nil
+  local keys = {}
+  for item in string.gmatch(table.concat(buffer.parts, ""), "-?%d+") do
+    local number = tonumber(item)
+    if number and number ~= 0 then table.insert(keys, number) end
+    if #keys > MAX_RECIPE_KEYS then return end
+  end
+  if #keys == 0 then return end
+  local b = ns.recipes and ns.recipes.book and ns.recipes.book()
+  if not b then return end
+  b.people[name] = b.people[name] or {}
+  local current = b.people[name][profession]
+  -- Their own report (or any list at least as new) wins; a list someone saved by looking is replaced by a newer one.
+  if current and current.v >= stamp then return end
+  b.people[name][profession] = { v = stamp, keys = keys, forwarded = true, via = sender }
+  if ns.recipes.nameFor then for _, itemKey in ipairs(keys) do pcall(ns.recipes.nameFor, itemKey) end end
+  if ns.onRecipesChange then pcall(ns.onRecipesChange) end
+  stored()
+end
+
+-- (9.1) An attunement a guildmate reported about themselves, forwarded.
+local function onAttunement(text, sender)
+  local name, attKey, flag, at = string.match(text, "^ATT|([^|]+)|([^|]+)|([01])|(%S+)$")
+  if not name or #attKey > 60 or not string.match(at, ISO_PATTERN) then return end
+  name = ns.normalizeName(name)
+  if not name or name == me() or not (ns.isGuildMember and ns.isGuildMember(name)) then return end
+  if at < isoAt(now() - LONG_WINDOW_SECONDS) or at > isoAt(now() + 600) then return end
+  local d = ns.getDb and ns.getDb()
+  if not d then return end
+  attKey = ns.canonicalKey and ns.canonicalKey(attKey) or attKey
+  d.attunements = d.attunements or {}
+  d.attunements[name] = d.attunements[name] or {}
+  local current = d.attunements[name][attKey]
+  if type(current) == "table" and type(current.at) == "string" and current.at >= at then return end
+  d.attunements[name][attKey] = { completed = flag == "1", at = at, by = name, forwarded = true, via = sender }
+  stored()
+end
+
 function catchUp.handle(text, sender)
   local kind = string.match(text, "^(%u+)|")
   if kind == "DIG" then onDigest(text, sender)
   elseif kind == "HAVE" then onHave(text, sender)
   elseif kind == "WANT" then onWant(text, sender)
   elseif kind == "RUN" then onRun(text, sender)
-  elseif kind == "PEER" then onPeer(text, sender) end
+  elseif kind == "PEER" then onPeer(text, sender)
+  elseif kind == "RCP" then onRecipes(text, sender)
+  elseif kind == "ATT" then onAttunement(text, sender) end
 end
 
 -- ---------------------------------------------------------------------

@@ -235,3 +235,54 @@ Dungeons-only player with no companion replayed the same runs at every login for
 3. `/guilded sync stats` on B and C shows relayed items and "Last catch-up: ... with ..."; the
    companion's support summary shows `gameSync`.
 4. Inside a dungeon, no `GuildedCatch` traffic leaves until the group exits.
+
+---
+
+# 9.1: recipes, cooldowns and attunements reach the bot through any companion
+
+Owner request (ROADMAP item 8): share addon data by addon message to help sync.
+
+## Gap map (what each module shares, and what only a member's own companion could upload)
+
+| Data | Between addons today | Bot kept it from a member's upload? | After 9.1 |
+| --- | --- | --- | --- |
+| Level, class, race, professions, spec | `READINESS` digest, `GuildedCatch` PEER | Yes (guildmate-relay.ts, linked characters only) | unchanged |
+| Dungeon runs | `GuildedDgn` SUM, `GuildedCatch` RUN | Yes (witnessed runs) | unchanged |
+| EP/GP ledger | `GuildedLedger` (officers only) | No (officer authority) | unchanged, by design |
+| **Recipes** | `GuildedRcp` broadcast by the author at login; **never forwarded** | **Own only** | forwarded in catch-up (kind C); relayed by member uploads |
+| **Profession cooldowns** | `GuildedRcp` CD, author only | **Own only** | member uploads relay them (not forwarded between addons: short-lived) |
+| **Attunements** | `ATTUNEMENT|` self-report on GUILD; **never forwarded** | **Own only** | forwarded in catch-up (kind A); relayed by member uploads |
+| Duels | `GuildedDuel` D| on GUILD | Participants' companions only | left: needs two witnesses per duel |
+| Milestones | guild chat text only | Own only | left: needs a bot rule |
+| Roster, MOTD, info, event log, guild bank | read from the game by every client | any member's upload | unchanged |
+
+## What changed
+
+- **Addon (`Modules/CatchUp.lua`)**: two more kinds in the existing digest, `C` (recipe lists, one item per
+  player, profession and the author's stamp) and `A` (attunements, one item per player, attunement and date),
+  kept 45 days. Same exchange as runs and digests (DIG, HAVE, WANT, items), same paced, hold-in-instance
+  sending, 24-bit hash sums, one answer per DIG. Items are `RCP|name|profession|stamp|part|parts|keys` and
+  `ATT|name|key|0/1|date`. A recipe list over 400 recipes is not forwarded, and only two travel per request.
+  An older addon's DIG has no `C`/`A` and is never asked about them; older addons ignore the new messages.
+  A forwarded item is only about a guild member who is not you, never from the future or older than 45 days,
+  and never replaces a list at least as new (recipes) or a report at least as new (attunements). It is stored
+  marked `forwarded` with `via`, so the companion's upload is the same shape as a first-hand one.
+- **Bot (`relayableCraftData` in `src/services/guildmate-relay.ts`, used by `personalSnapshot`)**: a paired
+  member's upload may now carry other guildmates' recipe lists, cooldowns and attunements, but only for
+  characters already linked in this guild, never the uploader's own (first-hand), recipe stamps clamped to the
+  upload time and no older than 180 days, attunements only as "completed", and per-upload caps. The usual
+  import rules still decide: `applyRecipeData` keeps only the newest list per character and profession, so a
+  relay never doubles anything and never replaces newer data.
+
+Residual risk, stated plainly: a relayer who edits their own saved file could claim a recipe list for a
+linked guildmate. Clamping the stamp to the upload time bounds the damage: the owner's next profession-window
+scan (stamped later) replaces it. There is no per-row provenance column; the upload's import record names the
+uploader.
+
+## Left for later
+
+1. Duels between two addon-only members (two witnesses per duel, as with dungeon reporters).
+2. Cooldowns between addons (they expire within days; the bot lane already takes them from any upload).
+3. Milestones of other players (needs a bot rule).
+4. Real-client check: three clients as in "Needs a real client" above, with `/guilded recipes` opened on one
+   of them; the carrier's next upload shows the author's recipes on the website's craft board.

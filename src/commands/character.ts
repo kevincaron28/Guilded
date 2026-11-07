@@ -13,6 +13,7 @@ import { CLASSES } from "../wow-data.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { blockVerifiedCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
+import { removePictureByOfficer } from "../services/character-picture.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
 
 export const characterCommand = new SlashCommandBuilder()
@@ -56,6 +57,12 @@ export const characterCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) => subcommand
     .setName("autolink")
     .setDescription("Link reported characters named like a Discord member."))
+  .addSubcommand((subcommand) => subcommand
+    .setName("picture")
+    .setDescription("Remove a picture; pictures on/off")
+    .addStringOption((option) => option.setName("action").setDescription("Action").setRequired(true)
+      .addChoices({ name: "remove", value: "remove" }, { name: "off", value: "off" }, { name: "on", value: "on" }))
+    .addStringOption((option) => option.setName("name").setDescription("Character").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("list")
     .setDescription("List your linked characters."))
@@ -125,7 +132,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     });
     return;
   }
-  if (["unclaimed", "link", "autolink"].includes(subcommand)) {
+  if (["unclaimed", "link", "autolink", "picture"].includes(subcommand)) {
     if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
       await interaction.reply({ content: "Only Officers and Guild Masters can do that.", flags: MessageFlags.Ephemeral });
       return;
@@ -139,6 +146,27 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
           : "Every character the addons reported is linked.",
         flags: MessageFlags.Ephemeral
       });
+      return;
+    }
+    if (subcommand === "picture") {
+      const action = interaction.options.getString("action", true);
+      if (action === "on" || action === "off") {
+        await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { characterPicturesEnabled: action === "on" } });
+        if (interaction.guild) await postToLogChannel(interaction.guild, `${interaction.user.username} turned character pictures ${action}.`);
+        await interaction.reply({ content: action === "on"
+          ? "Character pictures are on: members pick one on their Guilded page (My page > Character pictures), and cards show it."
+          : "Character pictures are off for this server: cards and pages stop showing them. Stored pictures are kept; turn them on again to show them.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const wanted = interaction.options.getString("name")?.trim();
+      if (!wanted) throw new Error("Pick the character whose picture to remove.");
+      const character = selectedCharacter(await prisma.character.findMany({ where: { member: { guildId: context.guildId } }, include: { member: true } }), wanted);
+      if (!character) throw new Error(`No linked character called "${wanted}".`);
+      const removed = await removePictureByOfficer(prisma, context.guildId, character.id, context.memberId);
+      if (removed && interaction.guild) await postToLogChannel(interaction.guild, `${interaction.user.username} removed the picture of ${characterName(character)} (${character.member.displayName}).`);
+      await interaction.reply({ content: removed
+        ? `Removed the picture of **${characterName(character)}**. New cards no longer show it; cards already posted keep it. ${character.member.displayName} can pick another one.`
+        : `${characterName(character)} has no picture.`, flags: MessageFlags.Ephemeral });
       return;
     }
     if (subcommand === "autolink") {

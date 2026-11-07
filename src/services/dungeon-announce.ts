@@ -1,6 +1,7 @@
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from "discord.js";
 import { t, type Lang } from "../i18n.js";
 import { achievementName } from "./dungeon-achievements.js";
+import { highlightHeadline, highlightText } from "./dungeon-records.js";
 import type { DungeonImportResult, DungeonImportSummary } from "./dungeon-import.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { challengeClock } from "./challenge-leaderboard.js";
@@ -31,6 +32,8 @@ export interface DungeonPost {
   embed: EmbedBuilder;
   /** The completion card, drawn on delivery; null only for a run with nothing to draw. */
   card: ScoreCard;
+  /** 9.1: the lead line when the run set a guild record or completed a challenge (the post is the notification). */
+  content?: string | undefined;
   /** Chronologie button, present only when the run holds a boss chronology and a stored id. */
   components: ActionRowBuilder<ButtonBuilder>[];
 }
@@ -50,6 +53,7 @@ function announced(summary: DungeonImportSummary): DungeonImportResult[] {
 export function dungeonPosts(summary: DungeonImportSummary, lang: Lang, options: { deathPoints?: Record<string, { x: number; y: number }[]> } = {}): DungeonPost[] {
   return announced(summary).slice(0, MAX_POSTS).map((run) => ({
     runRef: run.runRef,
+    ...(run.highlights?.length ? { content: highlightHeadline(run.highlights, runLabel(run), lang) } : {}),
     embed: dungeonEmbed(run, lang),
     card: dungeonRunCard(run, lang, options.deathPoints?.[run.runRef] ? { deathPoints: options.deathPoints[run.runRef]! } : {}),
     components: timelineRow(run, lang)
@@ -100,6 +104,8 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
     });
     lines.push(`🌐 ${fr ? "Hors guilde" : "Outside the guild"} (${outsiders.length}): ${shown.join(", ")}${outsiders.length > 8 ? ` ${t(lang, "dungeon.post.more", { count: outsiders.length - 8 })}` : ""}`);
   }
+  // 9.1 records and challenges: the clear record keeps its own line below; boss records and challenges are listed here.
+  for (const item of (run.highlights ?? []).filter(item => item.kind !== "clear").slice(0, 6)) lines.push(highlightText(item, lang));
   if (run.guildRecord && run.previousGuildBest !== null) {
     lines.push(t(lang, "dungeon.post.guildRecord", { dungeon: runLabel(run), before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
   }

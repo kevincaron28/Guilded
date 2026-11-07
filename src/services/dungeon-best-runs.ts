@@ -4,6 +4,7 @@ import type { Lang } from "../i18n.js";
 import { difficultyName, type RecordRow } from "./dungeon-stats.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
+import { bossRecordLines, type BossRecordRow } from "./dungeon-records.js";
 
 export async function seasonBestRuns(database: Pick<PrismaClient, "dungeonRun"> & Partial<Pick<PrismaClient, "character" | "unclaimedCharacter" | "guildRosterEntry">>, guildId: string, seasonId: string): Promise<RecordRow[]> {
   const where = { guildId, seasonId, valid: true, state: "COMPLETED", durationSec: { not: null },
@@ -22,7 +23,7 @@ export async function seasonBestRuns(database: Pick<PrismaClient, "dungeonRun"> 
     .sort((a, b) => a.dungeonName.localeCompare(b.dungeonName) || a.difficultyId - b.difficultyId);
 }
 
-export function bestRunsEmbed(rows: RecordRow[], lang: Lang): EmbedBuilder {
+export function bestRunsEmbed(rows: RecordRow[], lang: Lang, bosses: readonly BossRecordRow[] = []): EmbedBuilder {
   const fr = lang === "fr";
   const intro = fr ? "**Un meilleur temps par donjon et difficulté · saison actuelle**\nRejouer n’ajoute pas d’entrées : il faut battre le chrono. Les noms affichés sont ceux de la guilde."
     : "**One fastest clear per dungeon and difficulty · current season**\nRepeats add no entries: beat the clock to improve. Only guild members are listed.";
@@ -36,6 +37,10 @@ export function bestRunsEmbed(rows: RecordRow[], lang: Lang): EmbedBuilder {
   }
   if (!rows.length) lines.push(fr ? "Le premier donjon terminé ouvrira le tableau." : "The first completed dungeon will open the board.");
   if (shown < rows.length) lines.push(fr ? `… ${rows.length - shown} autres records : /dungeon records` : `… ${rows.length - shown} more records: /dungeon records`);
-  return new EmbedBuilder().setColor(0x38bdf8).setTitle(fr ? "⏱️ Les meilleurs parcours" : "⏱️ Fastest dungeon clears")
-    .setDescription(lines.join("\n")).setFooter({ text: fr ? "Les points de saison restent un classement distinct. Chronos depuis le premier combat." : "Season points remain a separate ranking. Times start at the first pull." });
+  const embed = new EmbedBuilder().setColor(0x38bdf8).setTitle(fr ? "⏱️ Les meilleurs parcours" : "⏱️ Fastest dungeon clears")
+    .setDescription(lines.join("\n"));
+  // 9.1: the guild's fastest kill of each boss, all time, newest records first (the run's pull → kill time).
+  const bossLines = bossRecordLines(bosses, 900);
+  if (bossLines.length) embed.addFields({ name: fr ? "⚔️ Boss tués le plus vite · depuis toujours" : "⚔️ Fastest boss kills · all time", value: bossLines.join("\n") });
+  return embed.setFooter({ text: fr ? "Les points de saison restent un classement distinct. Chronos depuis le premier combat." : "Season points remain a separate ranking. Times start at the first pull." });
 }

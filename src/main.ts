@@ -86,7 +86,7 @@ import {
 import { DUNGEON_GUIDE_PREFIX } from "./services/dungeon-guide.js";
 import { answerMessage, FAQ_MODAL_PREFIX, handleFaqModal } from "./commands/faq.js";
 import { GROUP_ALERT_OPEN_ID, GROUP_ALERT_PREFIX, handleGroupAlertComponent, openGroupAlerts } from "./commands/group-alerts.js";
-import { runWeeklyReports } from "./commands/stats.js";
+import { runDailyRecaps, runWeeklyReports } from "./commands/stats.js";
 import { runAutoDecay } from "./services/auto-decay.js";
 import { executeBank, handleBankRequestButton } from "./commands/bank.js";
 import { BANK_REQUEST_PREFIX } from "./services/guild-bank-member.js";
@@ -529,6 +529,8 @@ client.once(Events.ClientReady, (readyClient) => {
       }
     })().catch(reportJobError("Character display refresh"));
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
+    // 9.1: the daily recap card, once per server day (on by default, officers switch it off with /stats recap-posts:false).
+    runDailyRecaps(readyClient).catch(reportJobError("Daily recap check"));
     // Automatic EPGP decay after each weekly reset (guilds that turned it on).
     runAutoDecay(prisma).catch(reportJobError("Automatic decay"));
     // One private reminder to new members who have not finished onboarding (guilds that turned it on).

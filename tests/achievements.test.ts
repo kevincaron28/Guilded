@@ -34,8 +34,8 @@ describe("achievement catalogue", () => {
     expect(RETIRED_ACHIEVEMENT_IDS).toEqual(expect.arrayContaining(["poe2-level-100", "poe2-maps-500", "wow-level-60", "wow-max-level-3", "profession-300", "wow-classic-era-level-60", "wow-classic-tbc-profession-375", "wow-classic-mists-level-90", "wow-retail-level-90", "wow-retail-alts-3"]));
     expect(RETIRED_ACHIEVEMENT_IDS).toHaveLength(8 + 6 + 9 + 11 + 14 + 10);
     expect(ACHIEVEMENTS.filter(row => row.metric === "poeLevel" || row.metric === "poeMaps")).toEqual([]);
-    expect(wowLevelCap("classic-tbc")).toBe(70);
-    expect(wowLevelCap("retail")).toBe(90);
+    // WoW Forever only: every edition (stored or unknown) uses Forever's cap.
+    expect(wowLevelCap("retail")).toBe(60);
     expect(wowLevelCap("unknown-edition")).toBe(60);
   });
 });
@@ -53,8 +53,8 @@ describe("evaluateAchievements", () => {
     const ids = earnedIds({ editions: { retail: { highestLevel: 90, atCap: 3, profession: 0 }, "classic-tbc": { highestLevel: 70, atCap: 1, profession: 375 } } });
     expect(ids).toEqual([]);
   });
-  it("has no unreachable edition achievement: Forever levels stop at its cap of 60, with the real caps named", () => {
-    expect(WOW_EDITIONS.map(edition => wowLevelCap(edition))).toEqual([60, 60, 70, 90, 90]);
+  it("has no unreachable edition achievement: Forever levels stop at its cap of 60", () => {
+    expect(WOW_EDITIONS.map(edition => wowLevelCap(edition))).toEqual([60]);
     for (const edition of CATALOGUE_EDITIONS) {
       const levels = ACHIEVEMENTS.filter(row => row.edition === edition && row.metric === "wowEditionLevel").map(row => row.threshold);
       expect(Math.max(...levels), edition).toBe(wowLevelCap(edition));

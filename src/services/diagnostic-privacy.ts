@@ -82,7 +82,7 @@ export function approvedDiagnosticFields(value: unknown): Record<string,string|n
   const input=value as Record<string,unknown>, result:Record<string,string|number>={};
   for(const name of ["addonVersion","companionVersion"] as const) if(typeof input[name]==="string" && /^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(input[name])) result[name]=input[name];
   for(const name of ["build","interface","routeId","encounterId"] as const) if(Number.isInteger(input[name]) && Number(input[name])>0 && Number(input[name])<10_000_000) result[name]=Number(input[name]);
-  if(["forever","classic-era","classic-tbc","classic-mists","retail"].includes(String(input["edition"]))) result["edition"]=String(input["edition"]);
+  if(input["edition"]==="forever") result["edition"]="forever";
   if(["ENCOUNTER_START","ENCOUNTER_END","BOSS_KILL","PLAYER_ENTERING_WORLD","RELOAD_GAP","RESET_REQUESTED","RESET_OBSERVED","UNKNOWN"].includes(String(input["event"]))) result["event"]=String(input["event"]);
   if(["native","unavailable","restricted","unknown"].includes(String(input["capability"]))) result["capability"]=String(input["capability"]);
   if(["NATIVE_EVENT_UNAVAILABLE","PARTIAL_RUN","UNKNOWN_PRESENCE","RELOAD_GAP","ROLE_MIXED","UPLOAD_REJECTED","UNKNOWN"].includes(String(input["reason"]))) result["reason"]=String(input["reason"]);

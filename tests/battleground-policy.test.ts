@@ -7,15 +7,10 @@ const plan = { version: 1 as const, edition: "retail" as const, realmType: "norm
   map: "Random", minLevel: 90, maxLevel: 90, faction: "Alliance" as const };
 
 describe("Battleground queue and identity boundaries", () => {
-  it("does not confuse Blitz's eight-player match with a legal premade", () => {
-    expect(battlegroundQueuePolicy(plan)?.partyLimit).toBe(2);
-    expect(() => validateBattlegroundSlots(plan, { tanks: 0, healers: 2, dps: 6 })).toThrow();
-    expect(() => validateBattlegroundSlots(plan, { tanks: 0, healers: 0, dps: 2 })).toThrow();
+  it("has no queue-party rule left: Retail's Blitz duo rule went with Retail (WoW Forever only)", () => {
+    expect(battlegroundQueuePolicy(plan)).toBeNull();
     expect(() => validateBattlegroundSlots(plan, { tanks: 0, healers: 1, dps: 1 })).not.toThrow();
-    expect(() => assertBattlegroundStart(plan, [{ role: "DPS" }, { role: "DPS" }])).toThrow();
-    expect(() => assertBattlegroundStart(plan, [{ role: "DPS" }])).not.toThrow();
-    expect(() => assertBattlegroundStart(plan, [{ role: "HEALER" }, { role: "DPS" }])).not.toThrow();
-    expect(() => assertBattlegroundStart(plan, [])).toThrow();
+    expect(() => assertBattlegroundStart(plan, [{ role: "HEALER" }, { role: "DPS" }])).toThrow(/Planning only/);
   });
   it("keeps unknown formats planning-only and rejects malformed or Hardcore metadata", () => {
     for (const edition of ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"] as const) {

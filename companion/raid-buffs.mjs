@@ -1,10 +1,9 @@
 // Shared planning/observation catalog; generate the addon's Lua copy with
 // node scripts/build-raid-buff-catalog.mjs. These are aura families, not promises
 // that a class has learned a spell or that a party aura covers a whole raid.
+// WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md): Forever uses the Classic Era aura ids, provisionally.
 export const BUFF_SOURCES = {
-  era: "https://github.com/rgd87/LibClassicDurations/blob/master/classAbilities.lua",
-  tbc: "https://github.com/WeakAuras/WeakAuras2/blob/main/WeakAurasTemplates/TriggerTemplatesDataTBC.lua",
-  mists: "https://github.com/WeakAuras/WeakAuras2/blob/main/WeakAurasTemplates/TriggerTemplatesDataMists.lua"
+  era: "https://github.com/rgd87/LibClassicDurations/blob/master/classAbilities.lua"
 };
 const buff = (key, label, french, classes, spells, scope = "target") => ({ key, label, french, classes, spells, scope });
 const classic = [
@@ -38,30 +37,8 @@ const classicWorld = [
   optional("zandalar", "Spirit of Zandalar", "Esprit des Zandalar", [], [24425], "world"),
   optional("warchief", "Warchief's Blessing", "Bénédiction du chef de guerre", [], [16609], "world")
 ];
-const mists = [
-  buff("sta", "Stamina", "Endurance", ["PRIEST", "WARRIOR"], [21562, 469], "group"),
-  buff("int", "Arcane Brilliance", "Illumination des arcanes", ["MAGE"], [1459], "group"),
-  buff("stats", "Primary stats", "Caractéristiques principales", ["DRUID", "PALADIN", "MONK"], [1126, 20217, 117666], "group"),
-  buff("ap", "Attack power", "Puissance d'attaque", ["WARRIOR", "HUNTER", "DEATHKNIGHT"], [6673, 19506, 57330], "group"),
-  buff("might", "Blessing of Might", "Bénédiction de puissance", ["PALADIN"], [19740], "group"),
-  buff("tiger", "Legacy of the White Tiger", "Héritage du Tigre blanc", ["MONK"], [116781], "group")
-];
-const retail = [
-  buff("ap", "Attack power", "Puissance d'attaque", ["WARRIOR"], [6673], "group"),
-  buff("sta", "Stamina", "Endurance", ["PRIEST"], [21562], "group"),
-  buff("int", "Intellect", "Intelligence", ["MAGE"], [1459], "group"),
-  buff("vers", "Versatility", "Polyvalence", ["DRUID"], [1126], "group"),
-  buff("mast", "Mastery", "Maîtrise", ["SHAMAN"], [462854], "group"),
-  buff("move", "Movement", "Déplacement", ["EVOKER"], [381748,381758,381732,381741,381746,381750,381749,381751,381752,381753,381754,381756,381757], "group")
-];
 export const BUFF_CATALOGS = {
-  forever: { provisional: true, source: BUFF_SOURCES.era, buffs: [...classic, ...classicUtility, ...classicWorld] },
-  "classic-era": { provisional: false, source: BUFF_SOURCES.era, buffs: [...classic, ...classicUtility, ...classicWorld] },
-  // Shared base/rank ids plus client-resolved spell names recognize later TBC
-  // ranks. Unresolved or hidden names remain unknown, never assumed equivalent.
-  "classic-tbc": { provisional: false, source: BUFF_SOURCES.tbc, buffs: [...classic, ...classicUtility] },
-  "classic-mists": { provisional: false, source: BUFF_SOURCES.mists, buffs: mists },
-  retail: { provisional: false, source: "addon/Guilded/Modules/ConsumableData.lua", buffs: retail }
+  forever: { provisional: true, source: BUFF_SOURCES.era, buffs: [...classic, ...classicUtility, ...classicWorld] }
 };
 export function raidBuffCatalog(edition) {
   return Object.hasOwn(BUFF_CATALOGS, edition) ? BUFF_CATALOGS[edition] : null;

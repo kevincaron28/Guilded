@@ -7,7 +7,6 @@ import { assessRaidReadiness, type RaidReadinessStatus } from "./readiness.js";
 import { dpsKind, signupSpec } from "./dps-kind.js";
 import { classColor, type CardRow, type ScoreCard } from "./score-card.js";
 import { enqueueDiscordJob, runDiscordJobs } from "./discord-jobs.js";
-import type { GameEdition } from "./game-edition.js";
 
 // 9.1 raid night check (docs/plans/READINESS_UPGRADE.md): before a planned raid, who signed up, how ready their gear and
 // consumables are, which roles are short against the raid's limits and who has not been seen in game. One card per raid,
@@ -74,7 +73,7 @@ export async function raidNightCheck(db: CheckDb, guildId: string, raidId: strin
     const { status, issues } = checkIssues(snapshot, scan, now);
     const seen = character?.lastSeenAt ?? snapshot?.character.lastSeenAt ?? null;
     if (signup.role === "DPS") {
-      const kind = dpsKind(character?.className ?? snapshot?.character.className, signupSpec(signup, character), (character?.gameEdition ?? "forever") as GameEdition);
+      const kind = dpsKind(character?.className ?? snapshot?.character.className, signupSpec(signup, character));
       if (kind) kinds[kind]++;
     }
     rows.push({ name, className: character?.className ?? snapshot?.character.className ?? "", role: signup.role, status, issues, late: signup.late,

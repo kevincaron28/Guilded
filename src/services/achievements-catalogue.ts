@@ -66,16 +66,15 @@ export interface AchievementDef {
 
 // Level caps per WoW edition (checked 2 Nov 2026): WoW Forever is fixed at 60 (growth is horizontal), Era 60,
 // TBC 70, Mists Classic and Retail (Midnight) 90. Anything not listed counts as 60. PoE2 caps at 100.
-export const WOW_LEVEL_CAP: Record<string, number> = { forever: 60, "classic-era": 60, "classic-tbc": 70, "classic-mists": 90, retail: 90 };
+// WoW Forever's level cap. Earned rows of other editions stay in the database, retired (RETIRED_ACHIEVEMENT_IDS).
+export const WOW_LEVEL_CAP: Record<string, number> = { forever: 60 };
 export const wowLevelCap = (edition: string | null | undefined) => WOW_LEVEL_CAP[edition ?? "forever"] ?? 60;
 
-export type WowEdition = "forever" | "classic-era" | "classic-tbc" | "classic-mists" | "retail";
-export const WOW_EDITIONS: readonly WowEdition[] = ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"];
+export type WowEdition = "forever";
+export const WOW_EDITIONS: readonly WowEdition[] = ["forever"];
 /** `label` heads the website section; `short` prefixes the achievement names. */
 export const EDITION_LABEL: Record<WowEdition, { en: string; fr: string; short: string }> = {
-  forever: { en: "WoW Forever", fr: "WoW Forever", short: "Forever" }, "classic-era": { en: "Classic Era", fr: "Classic Era", short: "Era" },
-  "classic-tbc": { en: "TBC Classic", fr: "TBC Classic", short: "TBC" }, "classic-mists": { en: "Mists Classic", fr: "Mists Classic", short: "Mists" },
-  retail: { en: "Retail", fr: "Retail", short: "Retail" }
+  forever: { en: "WoW Forever", fr: "WoW Forever", short: "Forever" }
 };
 /**
  * Editions whose achievements are in the catalogue (version 7: WoW Forever only). The other editions keep their level
@@ -84,7 +83,7 @@ export const EDITION_LABEL: Record<WowEdition, { en: string; fr: string; short: 
  */
 export const CATALOGUE_EDITIONS: readonly WowEdition[] = ["forever"];
 // Highest profession skill per edition (Forever and Era 300, TBC 375, Mists 600). Retail's skill is per expansion, so it has no profession rows.
-const PROFESSION_STEPS: Partial<Record<WowEdition, number[]>> = { forever: [75, 150, 225, 300], "classic-era": [150, 300], "classic-tbc": [150, 300, 375], "classic-mists": [150, 300, 450, 600] };
+const PROFESSION_STEPS: Partial<Record<WowEdition, number[]>> = { forever: [75, 150, 225, 300] };
 /** Two rows share a progression (and a "next" slot) only if they share this key. */
 export const ladderKey = (def: AchievementDef) => `${def.metric}:${def.edition ?? ""}`;
 

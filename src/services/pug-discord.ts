@@ -10,7 +10,7 @@ type Lang = "en" | "fr";
 const pt = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 
 export const PUG_EDITION_LABEL: Record<string, string> = {
-  forever: "WoW Forever", "classic-era": "Classic Era", "classic-tbc": "TBC Classic", "classic-mists": "Mists of Pandaria Classic", retail: "Retail"
+  forever: "WoW Forever"
 };
 const ROLE_ICON: Record<PugRole, string> = { TANK: "🛡️", HEALER: "💚", DPS: "⚔️" };
 export const pugRoleLabel = (role: string, lang: Lang) => ({ TANK: pt(lang, "Tank", "Tank"), HEALER: pt(lang, "Healer", "Soigneur"), DPS: "DPS" } as Record<string, string>)[role] ?? role;

@@ -12,7 +12,7 @@ export interface TeamMember { characterId: string | null; name: string; realm: s
 export interface TeamView { id: string; name: string; schedule: string | null; timezone: string | null; tankLimit: number | null; healerLimit: number | null; dpsLimit: number | null; members: TeamMember[]; truncated: boolean }
 export interface HistoryEvent { at: Date; kind: "attendance" | "loot" | "points"; title: string; detail: string; team: string | null }
 export interface CharacterHistory { name: string; characters: { id: string; name: string; realm: string; main: boolean }[]; events: HistoryEvent[]; truncated: boolean }
-export interface GroupView { title: string; kind: string; minLevel: number | null; maxLevel: number | null; keyLevel?: number | null; createdAt: Date; size: number; signedUp: number; missing: { TANK: number; HEALER: number; DPS: number } | null; url: string | null }
+export interface GroupView { title: string; kind: string; minLevel: number | null; maxLevel: number | null; createdAt: Date; size: number; signedUp: number; missing: { TANK: number; HEALER: number; DPS: number } | null; url: string | null }
 export interface ToolResult<T> { guild: RosterGuild; data: T; truncated: boolean }
 export interface GuildToolsStore {
   guilds: GuildDashboardAccess["guilds"];
@@ -31,13 +31,6 @@ export function teamAttendance(raids: { attendance: { memberId: string; status: 
   if (!recent.length) return null;
   const statuses = recent.map(raid => raid.attendance.find(row => row.memberId === memberId)?.status);
   return { raids: recent.length, attended: statuses.filter(status => status === "PRESENT" || status === "LATE" || status === "BENCHED").length, late: statuses.filter(status => status === "LATE").length };
-}
-
-// A Retail keystone level written in a group title: "+12", "M+ 12", "key 12" / "clé 12". Null when absent.
-export function keyLevelFromTitle(title: string): number | null {
-  const match = /(?:^|[^\w+])\+\s?(\d{1,2})(?!\d)/.exec(title) ?? /\b(?:m\+|mythic\+?|key|cl[ée])\s?(\d{1,2})(?!\d)/i.exec(title);
-  const level = match ? Number(match[1]) : NaN;
-  return level >= 2 && level <= 40 ? level : null;
 }
 
 export function recipeQuery(text: string): { itemKey: number } | { itemName: { contains: string; mode: "insensitive" } } {
@@ -135,7 +128,7 @@ export function prismaGuildToolsStore(db: PrismaClient, access: GuildDashboardAc
         const counts = { TANK: 0, HEALER: 0, DPS: 0 };
         for (const signup of row.signups) counts[signup.role]++;
         const ids = [row.guild.discordId, row.signupChannelId, row.signupMessageId];
-        return { title: row.title, kind, minLevel: row.minLevel, maxLevel: row.maxLevel, keyLevel: guild.edition === "retail" ? keyLevelFromTitle(row.title) : null, createdAt: row.createdAt, size: groupSize(kind, row.maxSize), signedUp: row.signups.length,
+        return { title: row.title, kind, minLevel: row.minLevel, maxLevel: row.maxLevel, createdAt: row.createdAt, size: groupSize(kind, row.maxSize), signedUp: row.signups.length,
           missing: kind === "DUNGEON" ? { TANK: Math.max(0, GROUP_CAPS.TANK - counts.TANK), HEALER: Math.max(0, GROUP_CAPS.HEALER - counts.HEALER), DPS: Math.max(0, GROUP_CAPS.DPS - counts.DPS) } : null,
           url: ids.every(id => typeof id === "string" && /^\d{15,22}$/.test(id)) ? `https://discord.com/channels/${ids.join("/")}` : null };
       });

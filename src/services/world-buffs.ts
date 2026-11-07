@@ -3,8 +3,8 @@ import type { GameEdition } from "./game-edition.js";
 import type { Lang } from "../i18n.js";
 
 // Member-announced world-buff drops ("Onyxia head in Stormwind at 20:15"). Players enter
-// every drop; nothing here is scheduled or inferred. Classic Era has these turn-in buffs;
-// Forever uses a Classic baseline, so it gets them too until its own list is confirmed.
+// every drop; nothing here is scheduled or inferred. WoW Forever uses the Classic turn-in buffs
+// until its own list is confirmed.
 export const WORLD_BUFFS = {
   ONYXIA: { en: "Rallying Cry of the Dragonslayer (Onyxia)", fr: "Cri de ralliement du tueur de dragons (Onyxia)" },
   NEFARIAN: { en: "Rallying Cry of the Dragonslayer (Nefarian)", fr: "Cri de ralliement du tueur de dragons (Nefarian)" },
@@ -12,7 +12,7 @@ export const WORLD_BUFFS = {
   WARCHIEF: { en: "Warchief's Blessing", fr: "Bénédiction du chef de guerre" }
 } as const;
 export type WorldBuff = keyof typeof WORLD_BUFFS;
-export const WORLD_BUFF_EDITIONS: readonly GameEdition[] = ["classic-era", "forever"];
+export const WORLD_BUFF_EDITIONS: readonly GameEdition[] = ["forever"];
 export const MAX_AHEAD_MS = 7 * 24 * 3_600_000;
 // A drop stays listed a little after its time (late turn-ins); older ones are deleted.
 export const LISTED_AFTER_MS = 30 * 60_000;

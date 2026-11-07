@@ -10,39 +10,34 @@ import { withEdition } from "../src/services/edition-context.js";
 const createRaidService = (database: Parameters<typeof createService>[0]) => createService(withTransactionMock(database));
 
 describe("melee and ranged DPS", () => {
-  it("sorts every damage spec, with Survival melee on Retail only", () => {
-    expect(dpsKind("Rogue", "Combat", "forever")).toBe("MELEE");
-    expect(dpsKind("Mage", "Fire", "forever")).toBe("RANGED");
-    expect(dpsKind("Druid", "Feral Combat", "classic-era")).toBe("MELEE");
-    expect(dpsKind("Druid", "Balance", "retail")).toBe("RANGED");
-    expect(dpsKind("Shaman", "Enhancement", "retail")).toBe("MELEE");
-    expect(dpsKind("Shaman", "Élémentaire", "forever")).toBe("RANGED");
-    expect(dpsKind("Priest", "Shadow", "classic-tbc")).toBe("RANGED");
-    expect(dpsKind("Demon Hunter", "Devourer", "retail")).toBe("RANGED");
-    expect(dpsKind("Hunter", "Survival", "retail")).toBe("MELEE");
-    expect(dpsKind("Hunter", "Survival", "forever")).toBe("RANGED");
-    expect(dpsKind("Hunter", "Survival", "classic-mists")).toBe("RANGED");
+  it("sorts every WoW Forever damage spec; Survival hunters are ranged", () => {
+    expect(dpsKind("Rogue", "Combat")).toBe("MELEE");
+    expect(dpsKind("Mage", "Fire")).toBe("RANGED");
+    expect(dpsKind("Druid", "Feral Combat")).toBe("MELEE");
+    expect(dpsKind("Druid", "Balance")).toBe("RANGED");
+    expect(dpsKind("Shaman", "Enhancement")).toBe("MELEE");
+    expect(dpsKind("Shaman", "Élémentaire")).toBe("RANGED");
+    expect(dpsKind("Priest", "Shadow")).toBe("RANGED");
+    expect(dpsKind("Hunter", "Survival")).toBe("RANGED");
   });
 
   it("falls back to the class when the spec is unknown or not a damage spec", () => {
-    expect(dpsKind("Warrior", null, "forever")).toBe("MELEE");
-    expect(dpsKind("Warrior", "Protection", "forever")).toBe("MELEE");
-    expect(dpsKind("Priest", "Holy", "forever")).toBe("RANGED");
-    expect(dpsKind("Guerrier", "", "forever")).toBe("MELEE");
+    expect(dpsKind("Warrior", null)).toBe("MELEE");
+    expect(dpsKind("Warrior", "Protection")).toBe("MELEE");
+    expect(dpsKind("Priest", "Holy")).toBe("RANGED");
+    expect(dpsKind("Guerrier", "")).toBe("MELEE");
     // Druids and Shamans play both: without a damage spec it cannot be told.
-    expect(dpsKind("Druid", null, "forever")).toBeNull();
-    expect(dpsKind("Shaman", "Restoration", "forever")).toBeNull();
-    expect(dpsKind(null, "Fire", "forever")).toBeNull();
+    expect(dpsKind("Druid", null)).toBeNull();
+    expect(dpsKind("Shaman", "Restoration")).toBeNull();
+    expect(dpsKind(null, "Fire")).toBeNull();
   });
 
-  it("offers the specs that fit the signup's role in that WoW edition", () => {
-    expect(specsForRole("Rogue", "DPS", "forever").map(spec => spec.name)).toEqual(["Assassination", "Combat", "Subtlety"]);
-    expect(specsForRole("Rogue", "DPS", "retail").map(spec => spec.name)).toEqual(["Assassination", "Outlaw", "Subtlety"]);
-    expect(specsForRole("Druid", "DPS", "forever").map(spec => spec.name)).toEqual(["Balance", "Feral"]);
-    expect(specsForRole("Druid", "TANK", "retail").map(spec => spec.name)).toEqual(["Guardian"]);
-    expect(specsForRole("Priest", "HEALER", "forever").map(spec => spec.name)).toEqual(["Discipline", "Holy"]);
-    expect(specsForRole("Demon Hunter", "DPS", "retail").map(spec => spec.name)).toEqual(["Havoc", "Devourer"]);
-    expect(specsForRole(null, "DPS", "forever")).toEqual([]);
+  it("offers the WoW Forever specs that fit the signup's role", () => {
+    expect(specsForRole("Rogue", "DPS").map(spec => spec.name)).toEqual(["Assassination", "Combat", "Subtlety"]);
+    expect(specsForRole("Druid", "DPS").map(spec => spec.name)).toEqual(["Balance", "Feral"]);
+    expect(specsForRole("Druid", "TANK").map(spec => spec.name)).toEqual([]);
+    expect(specsForRole("Priest", "HEALER").map(spec => spec.name)).toEqual(["Discipline", "Holy"]);
+    expect(specsForRole(null, "DPS")).toEqual([]);
   });
 
   it("uses the spec picked for the raid before the character's own", () => {

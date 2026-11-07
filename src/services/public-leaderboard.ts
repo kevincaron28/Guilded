@@ -22,6 +22,9 @@ import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
 import { duelLeaderboard, percent, streakText, type DuelStanding } from "./duels.js";
 
+// WoW Forever's classes (no Death Knight, Monk, Demon Hunter or Evoker).
+const FOREVER_CLASSES = CLASSES.filter(name => !["Death Knight", "Monk", "Demon Hunter", "Evoker"].includes(name));
+
 // Public dungeon leaderboards (7.0, roadmap request 6; 7.1 season pages). Layout inspired by
 // Raider.IO, built from our own data and words: /leaderboards/ (this week's top runs and top
 // characters per bracket, with season, week, bracket, dungeon, class, role and realm filters),
@@ -121,7 +124,7 @@ export const averageLevel = (stats: GuildStats | null) => stats && stats.levelle
 export function guildOverview(entries: { guild: PublicGuild; runs: LeaderRun[]; roster: string[] }[], ranks: GuildRank[], stats: GuildStats[], allRuns: LeaderRun[], edition = "forever"): GuildOverviewRow[] {
   const fastest = new Map<number, LeaderRun>();
   for (const run of allRuns) {
-    if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
+    if (run.challenge) continue;
     const best = fastest.get(run.instanceId);
     if (!best || run.durationSec < best.durationSec || (run.durationSec === best.durationSec && run.endedAt < best.endedAt)) fastest.set(run.instanceId, run);
   }
@@ -178,7 +181,7 @@ export interface GuildDungeonSummary {
 export async function guildDungeonSummary(store: LeaderboardStore, guildId: string, windows: OfficialWindow[] = DEFAULT_OFFICIAL, now = new Date(), limit = 10): Promise<GuildDungeonSummary> {
   const season = publicSeasons(now, windows)[0]!;
   const rules = periodRules(season);
-  const runs = (await store.guildRuns(guildId, { from: season.from, to: season.to })).filter((run) => !(run.gameEdition === "retail" && run.difficultyId === 8));
+  const runs = (await store.guildRuns(guildId, { from: season.from, to: season.to })).filter((run) => !run.challenge);
   const roster = new Set((await store.guildRoster(guildId)).map((name) => name.toLowerCase()));
   const top = characterScores(runs, rules).filter((row) => onRoster(roster, row.player as LeaderPlayer, currentEdition()))
     .sort((a, b) => b.points - a.points).slice(0, limit)
@@ -266,7 +269,7 @@ export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit 
   const best = new Map<string, RankedEntry>();
   const keep = keepPlayer(filters, rules);
   for (const run of runs) {
-    if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
+    if (run.challenge) continue;
     for (const player of run.players) {
       if (!keep(player, run) || rules?.evidencePolicy && !rateRun(run, rules, player).score) continue;
       const id = characterId(player);
@@ -280,7 +283,7 @@ export function rankCharacters(runs: LeaderRun[], filters: PlayerFilters, limit 
 export function dungeonSummaries(runs: LeaderRun[]): DungeonSummary[] {
   const map = new Map<number, DungeonSummary>();
   for (const run of runs) {
-    if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
+    if (run.challenge) continue;
     const row = map.get(run.instanceId) ?? { instanceId: run.instanceId, dungeonName: run.dungeonName, bestSec: run.durationSec, runs: 0 };
     row.runs += 1; row.bestSec = Math.min(row.bestSec, run.durationSec);
     map.set(run.instanceId, row);
@@ -458,10 +461,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { t, lang } = ctx;
     const any = { value: "", label: t("Any", "Tous") };
     const seasons = periods.map((p) => ({ value: p.id, label: periodName(ctx, p) }));
-    const edition = currentEdition();
-    const classes = CLASSES.filter(name => edition === "retail" ||
-      (edition === "classic-mists" ? !["Demon Hunter", "Evoker"].includes(name)
-        : !["Death Knight", "Monk", "Demon Hunter", "Evoker"].includes(name)));
+    const classes = FOREVER_CLASSES;
     const advanced = Boolean(filters.instanceId || filters.className || filters.role || filters.realm || filters.confirmed);
     return `<form class="filters" method="get" action="/leaderboards/"><input type="hidden" name="lang" value="${lang}">`
       + `<input type="hidden" name="edition" value="${escapeHtml(currentEdition())}">`
@@ -659,16 +659,15 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const rules = periodRules(period);
     const bracketKeys = rules.brackets.map((b) => b.key as string);
     const bracket = filters.bracket && bracketKeys.includes(filters.bracket) ? filters.bracket : bracketKeys[0] ?? null;
-    const all = (await periodRuns(period)).filter((run) => !(run.gameEdition === "retail" && run.difficultyId === 8));
+    const all = (await periodRuns(period)).filter((run) => !run.challenge);
     const rows = bracket ? characterScores(all, rules, keepPlayer(filters, rules)).filter((row) => row.bracket === bracket) : [];
     const pageAsked = Math.trunc(Number(ctx.request.query.get("page")));
     const pages = Math.max(1, Math.ceil(rows.length / CHARACTERS_PER_PAGE));
     const page = Math.min(Number.isFinite(pageAsked) && pageAsked > 1 ? pageAsked : 1, pages);
     const keep = { season: filters.season, period: filters.week ? "week" : null, bracket, class: filters.className, role: filters.role, realm: filters.realm, confirmed: filters.confirmed ? "1" : null };
-    const edition = currentEdition();
-    const classes = CLASSES.filter(name => edition === "retail" || (edition === "classic-mists" ? !["Demon Hunter", "Evoker"].includes(name) : !["Death Knight", "Monk", "Demon Hunter", "Evoker"].includes(name)));
+    const classes = FOREVER_CLASSES;
     const any = { value: "", label: t("Any", "Tous") };
-    const form = `<form class="filters" method="get" action="/leaderboards/characters/"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="edition" value="${escapeHtml(edition)}">`
+    const form = `<form class="filters" method="get" action="/leaderboards/characters/"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="edition" value="${escapeHtml(currentEdition())}">`
       + `<div><label for="season">${t("Season", "Saison")}</label><select id="season" name="season">${options([...periods.map((p) => ({ value: p.id, label: periodName(ctx, p) })), { value: "all", label: t("All time", "Depuis le début") }], filters.season)}</select></div>`
       + `<div><label for="period">${t("Period", "Période")}</label><select id="period" name="period">${options([{ value: "", label: t("Whole season", "Toute la saison") }, { value: "week", label: t("This week", "Cette semaine") }], filters.week ? "week" : "")}</select></div>`
       + `<div><label for="bracket">${t("Levels", "Niveaux")}</label><select id="bracket" name="bracket">${options(bracketKeys.map((value) => ({ value, label: bracketName(ctx, value) })), bracket)}</select></div>`
@@ -716,7 +715,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { t, lang } = ctx;
     const { periods, filters, period } = await pageFilters(ctx);
     const periodResults = await periodRuns(period);
-    const all = periodResults.filter(run => !(run.gameEdition === "retail" && run.difficultyId === 8));
+    const all = periodResults.filter(run => !run.challenge);
     const activeRules = periodRules(period);
     const dungeons = dungeonSummaries(activeRules.evidencePolicy ? all.filter(run => rateRun(run, activeRules).score) : all);
     const filterDungeons = [...dungeons];
@@ -814,7 +813,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const cell = (run: LeaderRun) => scoreCell(ctx, run, rulesAt(seasons, run.endedAt), run.players.find(isMe));
     const best = new Map<number, LeaderRun>();
     for (const run of runs) {
-      if (run.gameEdition === "retail" && run.difficultyId === 8) continue;
+      if (run.challenge) continue;
       const b = best.get(run.instanceId); if (!b || run.durationSec < b.durationSec) best.set(run.instanceId, run);
     }
     const history = seasons.map((p) => ({ p, rows: mine(characterScores(inPeriod(p), periodRules(p))) })).filter((h) => h.rows.length);
@@ -979,7 +978,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const weekPeriod = filterPeriod({ season: filters.season, week: true }, now(), periods);
     const rules = periodRules(weekPeriod);
     const keep = keepPlayer(filters, rules);
-    const rated = (await periodRuns(weekPeriod)).filter((run) => !(run.gameEdition === "retail" && run.difficultyId === 8)).flatMap((run) => {
+    const rated = (await periodRuns(weekPeriod)).filter((run) => !run.challenge).flatMap((run) => {
       const s = rateRun(run, rules).score;
       return s && run.players.some((p) => keep(p, run) && (rules.evidencePolicy !== "current-v2" || rateRun(run, rules, p).score)) ? [{ run, s }] : [];
     }).sort((a, b) => b.s.points - a.s.points || a.run.durationSec - b.run.durationSec);
@@ -996,7 +995,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   async function boardsJson(ctx: WebContext): Promise<WebResponse> {
     const { filters, period } = await pageFilters(ctx);
     const rules = periodRules(period);
-    const all = (await periodRuns(period)).filter((run) => !(run.gameEdition === "retail" && run.difficultyId === 8));
+    const all = (await periodRuns(period)).filter((run) => !run.challenge);
     const scores = characterScores(all, rules, keepPlayer(filters, rules));
     const ranks = await guildRanks(period);
     const body = JSON.stringify({

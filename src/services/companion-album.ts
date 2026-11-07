@@ -5,7 +5,6 @@
 // existing companion credential.
 
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { isEditionActive } from "../../companion/active-editions.mjs";
 import { ACHIEVEMENTS, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, achievementGameVisible, type AchievementDef } from "./achievements-catalogue.js";
 import { storedAchievements } from "./achievements.js";
 
@@ -21,7 +20,7 @@ export interface Album { cards: AlbumCard[]; earned: number; total: number }
 /** Cards the app lists: PoE2 and inactive editions follow the same switches as the website, and a legacy row only shows once earned. */
 export function albumCards(earned: Map<string, Date>, lang: AlbumLang): AlbumCard[] {
   return ACHIEVEMENTS
-    .filter(def => achievementGameVisible(def) && (def.edition ? isEditionActive(def.edition) : def.game === "guild") && (!def.legacy || earned.has(def.id)))
+    .filter(def => achievementGameVisible(def) && (def.edition ? def.edition === "forever" : def.game === "guild") && (!def.legacy || earned.has(def.id)))
     .map(def => ({
       id: def.id, name: def[lang].name, description: def[lang].description, tier: def.tier, tierLabel: TIER_LABEL[def.tier][lang], tierColor: TIER_COLOR[def.tier],
       set: def.edition ? `${GAME_LABEL.wow[lang]} · ${EDITION_LABEL[def.edition][lang]}` : GAME_LABEL[def.game][lang],

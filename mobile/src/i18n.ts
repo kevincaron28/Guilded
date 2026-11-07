@@ -25,6 +25,7 @@ const copy = {
   raids: { en: "Raids", fr: "Raids" },
   alerts: { en: "Alerts", fr: "Alertes" },
   album: { en: "Album", fr: "Album" },
+  map: { en: "Map", fr: "Carte" },
   signOut: { en: "Sign out", fr: "Déconnexion" },
   closeSample: { en: "Close sample", fr: "Fermer l'exemple" },
   refresh: { en: "Refresh", fr: "Actualiser" },

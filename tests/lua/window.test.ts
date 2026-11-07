@@ -302,9 +302,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Announcements,Info,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Announcements,Info,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Me,Open raids,Reserves,Signups,Duels,Announcements,Info,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Me,Open raids,Reserves,Signups,Duels,Announcements,Info,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {

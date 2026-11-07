@@ -9,6 +9,7 @@ import { fullNameOf } from "./forever-names.js";
 import { dayStart, participationDay } from "./participation-rules.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 
 // The live "Race to 60" leaderboard and Hall of Fame (8.5, track B1). The channel's FIRST message is the live board: the
 // top N guild characters (default 50, officers pick 10-50) with class, race, level bar, professions, last seen and the
@@ -111,9 +112,10 @@ const shortProfessions = (professions: string[], limit = 2) => professions.slice
 /**
  * Pure: the leaderboard picture, in the shared ladder layout. Top N (10-50, the officer's setting, 50 by default) in leaderboard
  * order: rank (medals for the top 3), full name in the class colour, class, race and the linked Discord member under it, a level bar,
- * the level, and the levels gained this week as a green arrow. `memberNames` maps Discord ids to display names.
+ * the level, the levels gained this week, and (with `moves`) the rank change since yesterday as an arrow. `memberNames` maps Discord
+ * ids to display names; `moves` is keyed by the row key (see ladder-snapshots.ts).
  */
-export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, memberNames: ReadonlyMap<string, string> = new Map(), updatedAt = new Date()): ScoreCard {
+export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, memberNames: ReadonlyMap<string, string> = new Map(), updatedAt = new Date(), moves: Movements | null = null): ScoreCard {
   const fr = lang === "fr";
   const ranked = leaderboardOrder(data.rows).slice(0, Math.min(clampTop(top), CARD_ROWS));
   return {
@@ -122,13 +124,12 @@ export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, mem
     stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · mis à jour à chaque synchronisation · /character race near trouve des partenaires` : `Top ${ranked.length} of ${data.total} · updated after every sync · /character race near finds partners`,
     ladder: {
       meta: ladderMeta(lang, updatedAt),
-      columns: [{ label: fr ? "Progression" : "Progress", width: 120, kind: "bar" }, { label: fr ? "Niv." : "Lvl", width: 40, primary: true },
-        { label: fr ? "Semaine" : "Week", width: 56, kind: "move" }],
+      columns: [{ label: fr ? "Progression" : "Progress", width: 84, kind: "bar" }, { label: fr ? "Niv." : "Lvl", width: 40, primary: true },
+        { label: fr ? "Sem." : "Week", width: 40 }, ...(moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: ranked.map((row, index) => {
         const member = row.discordId ? memberNames.get(row.discordId) : undefined;
-        return { rank: index + 1, name: row.name, color: classColor(row.className), values: ["", String(row.level), ""], bar: { value: row.level, max: LEVEL_CAP },
-          sub: [row.className, row.race, member ? `@${member}` : ""].filter(Boolean).join(" · "),
-          ...(row.weekGain > 0 ? { move: row.weekGain, moveLabel: `+${row.weekGain}` } : {}) };
+        return { rank: index + 1, name: row.name, color: classColor(row.className), values: ["", String(row.level), row.weekGain > 0 ? `+${row.weekGain}` : "", ""],
+          bar: { value: row.level, max: LEVEL_CAP }, sub: [row.className, row.race, member ? `@${member}` : ""].filter(Boolean).join(" · "), ...moveFields(moves, row.key, lang) };
       }) }]
     }
   };
@@ -715,7 +716,9 @@ export async function updateRaceBoard(discordGuild: DiscordGuild | null, deliver
     const data = await loadRaceBoardData(prisma, guild.id, guild.gameEdition ?? "forever", new Date(), settings.timezone);
     const hall = hallMode(data, settings.raceEnded);
     const names = await memberNames(discordGuild, [...new Set(data.rows.flatMap(row => row.discordId ? [row.discordId] : []))]);
-    const png = data.total && !hall ? await scoreCardPng(raceCard(data, lang, top, names)).catch(() => null) : null;
+    // Today's ranks are stored on every refresh; the card shows the change since the latest earlier day.
+    const moves = data.total && !hall ? await trackRanks(prisma, guild.id, "race", leaderboardOrder(data.rows).map(row => row.key)) : null;
+    const png = data.total && !hall ? await scoreCardPng(raceCard(data, lang, top, names, new Date(), moves)).catch(() => null) : null;
     const embed = raceBoardEmbed(data, lang, guild.id, { image: png ? RACE_CARD_FILE : undefined, top, hall }).setTimestamp(new Date());
     const payload = { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: RACE_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";

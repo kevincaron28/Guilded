@@ -44,7 +44,8 @@ describe("leaderboard cards share the ladder layout", () => {
     const card = duelBoardCard(duelData(30), "fr", buildClassBook([{ name: "Kev Caron", className: "Mage" }]), at);
     const rows = card.ladder!.boards[0]!.rows;
     expect(rows).toHaveLength(25);
-    expect(rows[0]).toMatchObject({ rank: 1, name: "Kev Caron", color: "#69ccf0", values: ["20", "0", "100%", "5", "W4"] });
+    expect(rows[0]).toMatchObject({ rank: 1, name: "Kev Caron", color: "#69ccf0", values: ["20", "0", "100%", "5", "W4", ""] });
+    expect(rows[0]).not.toHaveProperty("move");
     expect(card.ladder!.columns.map(column => column.label)).toEqual(["V", "D", "% vict.", "Record", "Série"]);
     expect(card.ladder!.meta).toBe(ladderMeta("fr", at));
     // With the card attached, the embed only names the top 3 and points at the image.
@@ -59,14 +60,14 @@ describe("leaderboard cards share the ladder layout", () => {
       { mode: "Arathi Basin", bracket: "30-39", games: 10, standings: [standing("C", 3)] }] };
     const card = bgLadderCard(data, "en", new Map(), at);
     expect(card.ladder!.boards.map(board => board.title)).toEqual(["Warsong Gulch · 20-29", "Arathi Basin · 30-39"]);
-    expect(card.ladder!.boards[0]!.rows[0]).toMatchObject({ rank: 1, name: "A", values: ["8", "2", "80%", "10"] });
+    expect(card.ladder!.boards[0]!.rows[0]).toMatchObject({ rank: 1, name: "A", values: ["8", "2", "80%", "10", ""] });
     const embed = bgLadderEmbed(data, "en", "g1", "battlegrounds.png").toJSON();
     expect(embed.image?.url).toBe("attachment://battlegrounds.png");
     expect(embed.fields ?? []).toHaveLength(0);
   });
   it("dungeon season: ranked by points with the season and updated time; dungeons counted when rated", () => {
     const rated = dungeonSeasonCard([{ name: "B", points: 900, dungeons: 5 }, { name: "A", points: 1200.4, dungeons: 7 }], "Season 1", "en", true, new Map(), at);
-    expect(rated.ladder!.boards[0]!.rows.map(row => [row.rank, row.name, row.values])).toEqual([[1, "A", ["7", "1200"]], [2, "B", ["5", "900"]]]);
+    expect(rated.ladder!.boards[0]!.rows.map(row => [row.rank, row.name, row.values])).toEqual([[1, "A", ["7", "1200", ""]], [2, "B", ["5", "900", ""]]]);
     expect(rated.ladder!.meta).toBe("Season 1 · Updated 2026-11-07 14:05 UTC");
     const points = dungeonSeasonCard([{ name: "A", points: 75 }], "Saison 1", "fr", false, new Map(), at);
     expect(points.ladder!.columns.map(column => column.label)).toEqual(["Points"]);
@@ -87,7 +88,7 @@ describe("rendered ladder", () => {
     expect(Math.abs(silver[0] - silver[2])).toBeLessThan(40); expect(silver[1]).toBeGreaterThan(170);
     expect(bronze[0]).toBeGreaterThan(bronze[2] + 60);
     // The first-place row is tinted gold compared with the fourth row's background.
-    const first = await mean(png, 452, 220, 10, 4), fourth = await mean(png, 452, 364, 10, 4);
+    const first = await mean(png, 368, 220, 8, 4), fourth = await mean(png, 368, 364, 8, 4);
     expect(first[0] - first[2]).toBeGreaterThan(fourth[0] - fourth[2] + 8);
     // The second column of the split board exists (rank 26 starts the right panel).
     const right = await mean(png, 640, 300, 400, 200);

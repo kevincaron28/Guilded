@@ -8,6 +8,7 @@ import { duelLeaderboard, percent, streakText, type DuelStanding } from "./duels
 import { displayCharacterName, loadFullNameBook, type FullNameBook } from "./character-display.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 
 // The live "Duels de la guilde" board (8.4.6): ONE bot message in the PvP statistics channel, edited in place after
 // every duel upload and on a schedule. On by default (GuildSettings.duelBoardEnabled), it posts once the ladder channel
@@ -26,7 +27,7 @@ export interface DuelBoardData { standings: DuelStanding[]; duels: number; recen
  * Pure: the duel ladder picture (shared ladder layout): top 25 by the duel ranking, medals for the top 3, class colours where the
  * guild knows the character, wins, losses, win rate, best streak and the current streak.
  */
-export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date()): ScoreCard {
+export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBook = new Map(), updatedAt = new Date(), moves: Movements | null = null): ScoreCard {
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Duels de la guilde" : "Guild duels",
@@ -35,9 +36,9 @@ export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBoo
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun duel enregistré." : "No duel recorded yet.",
       columns: [{ label: fr ? "V" : "W", width: 44, primary: true }, { label: fr ? "D" : "L", width: 44 }, { label: fr ? "% vict." : "Win %", width: 64 },
-        { label: fr ? "Record" : "Best", width: 56 }, { label: fr ? "Série" : "Streak", width: 56 }],
+        { label: fr ? "Record" : "Best", width: 56 }, { label: fr ? "Série" : "Streak", width: 56 }, ...(moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: data.standings.slice(0, CARD_TOP).map((row, index) => ({ rank: index + 1, name: row.name, color: classColor(classOf(classes, row.name)),
-        values: [String(row.wins), String(row.losses), percent(row.winRate), String(row.bestStreak), streakText(row.streak)] })) }]
+        values: [String(row.wins), String(row.losses), percent(row.winRate), String(row.bestStreak), streakText(row.streak), ""], ...moveFields(moves, row.memberId, lang) })) }]
     }
   };
 }
@@ -105,7 +106,8 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
     const lang = asLang(settings.language);
     const edition = guild.gameEdition ?? "forever";
     const data = withFullNames(await loadDuelBoardData(prisma, guild.id, edition), await loadFullNameBook(prisma, guild.id));
-    const png = data.standings.length ? await scoreCardPng(duelBoardCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()))).catch(() => null) : null;
+    const moves = data.standings.length ? await trackRanks(prisma, guild.id, "duel", data.standings.map(row => row.memberId)) : null;
+    const png = data.standings.length ? await scoreCardPng(duelBoardCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
     const embed = duelBoardEmbed(data, lang, guild.id, png ? DUEL_CARD_FILE : undefined).setTimestamp(new Date());
     const payload = { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: DUEL_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";

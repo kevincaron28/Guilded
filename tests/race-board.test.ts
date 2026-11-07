@@ -95,9 +95,15 @@ describe("race board embed and card", () => {
     const card = raceCard(data(rows), "fr", 25, new Map([["42", "Kev"]]), new Date("2026-11-07T14:05:00Z"));
     const ladderRows = card.ladder!.boards[0]!.rows;
     expect(ladderRows).toHaveLength(25);
-    expect(ladderRows[0]).toMatchObject({ rank: 1, name: "Player Number0", color: "#69ccf0", values: ["", "59", ""], bar: { value: 59, max: 60 }, move: 3, moveLabel: "+3", sub: "Mage · Human · @Kev" });
-    expect(ladderRows[1]).not.toHaveProperty("move");
-    expect(card.ladder!.columns.map(column => column.label)).toEqual(["Progression", "Niv.", "Semaine"]);
+    expect(ladderRows[0]).toMatchObject({ rank: 1, name: "Player Number0", color: "#69ccf0", values: ["", "59", "+3", ""], bar: { value: 59, max: 60 }, sub: "Mage · Human · @Kev" });
+    expect(ladderRows[1]!.values[2]).toBe("");
+    expect(ladderRows[0]).not.toHaveProperty("move");
+    expect(card.ladder!.columns.map(column => column.label)).toEqual(["Progression", "Niv.", "Sem."]);
+    // With yesterday's ranks, a "24 h" arrow column appears: up, down, unchanged or new.
+    const moves = new Map<string, number | "new">([["player number0", 2], ["player number1", -1], ["player number2", 0], ["player number3", "new"]]);
+    const moved = raceCard(data(rows), "fr", 25, new Map(), new Date("2026-11-07T14:05:00Z"), moves);
+    expect(moved.ladder!.columns.map(column => column.label)).toEqual(["Progression", "Niv.", "Sem.", "24 h"]);
+    expect(moved.ladder!.boards[0]!.rows.slice(0, 4).map(r => [r.move, r.moveLabel])).toEqual([[2, "2"], [-1, "1"], [0, "0"], ["new", "nouv."]]);
     expect(card.ladder!.meta).toBe("Mis à jour 2026-11-07 14:05 UTC");
     expect(raceCard(data(rows), "en", 12).ladder!.boards[0]!.rows).toHaveLength(12);
     expect(raceCard(data(rows), "en").ladder!.boards[0]!.rows).toHaveLength(50);

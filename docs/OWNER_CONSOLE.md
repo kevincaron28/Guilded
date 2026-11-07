@@ -53,3 +53,7 @@ digest and servers with 10 or more errors in 24 hours. Turning it on sets the ba
 - One hand-written migration: `20261211000000_owner_console` (two new tables, no changes to existing ones).
 - Redeploy the bot; the command registers on start. Then run `/guilded-console setup` in K Caron Projects.
 - No version bump, no new intents, no automatic messages to other servers.
+
+## Test servers (9.0.2)
+
+The owner marks a server as a test server with the **Toggle test server** button or `/guilded-console test on:true [server:<id>]` (Guild.isTestServer; the migration seeds Kevmister28 and K Caron Projects). A test server is kept out of the guild directory and its sitemap, the public guild list and dungeon sharing feed, public player profiles and the shared PUG board, and gets no version-update notice. Its own data is never hidden from it. The console lists live servers first, then test servers (marked with a test-tube emoji).

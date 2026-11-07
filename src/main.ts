@@ -72,7 +72,6 @@ import { handleLinkedButton, LINKED_PREFIX } from "./services/companion-link-dm.
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
 import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
-import { updateWhosWhoBoard } from "./services/whos-who-board.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
@@ -393,7 +392,6 @@ client.once(Events.ClientReady, (readyClient) => {
         await forEachGuildScope(prisma, guild.id, async () => {
           await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard refresh", origin));
           await updateDuelBoard(guild).catch(reportJobError("Duel board refresh", origin));
-          await updateWhosWhoBoard(guild).catch(reportJobError("Who's who board refresh", origin));
           await updateRaceBoard(guild).catch(reportJobError("Race board refresh", origin));
           await updateBgLadder(guild).catch(reportJobError("Battleground ladder refresh", origin));
         });

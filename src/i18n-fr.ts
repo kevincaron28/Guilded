@@ -566,6 +566,11 @@ export const FR_TEXT: Record<string, string> = {
   // 8.5 track C
   // 8.5 batch 3: the guild-invite channel and retiring an old channel.
   "Guild invites channel": "Salon d’invitations de guilde",
+  "Delete the old Who's who post": "Supprimer l’ancien message Qui est qui",
+  "Old Who's who post": "Ancien message Qui est qui",
+  "The Who's who post was retired: mains and alts now show on the roster card, in /character and on the guild page. Press the red button to delete the old message, or Keep it. Nothing is deleted until you confirm.": "Le message Qui est qui est retiré : principaux et secondaires s’affichent maintenant sur la carte du roster, dans /character et sur la page de guilde. Appuyez sur le bouton rouge pour supprimer l’ancien message, ou sur Le garder. Rien n’est supprimé avant votre confirmation.",
+  "Kept the old Who's who post. It is no longer updated.": "L’ancien message Qui est qui est conservé. Il n’est plus mis à jour.",
+  "Deleted the old Who's who post.": "L’ancien message Qui est qui a été supprimé.",
   "Retire an old channel": "Retirer un ancien salon",
   "Delete #{name} for good": "Supprimer #{name} pour de bon",
   "Keep it": "Le garder",

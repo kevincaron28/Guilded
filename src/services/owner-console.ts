@@ -71,12 +71,15 @@ export function createOwnerConsole(deps: ConsoleDeps) {
     interaction.reply({ content: "Only the Guilded bot's owner can use the owner console.", flags: MessageFlags.Ephemeral });
 
   // ------------------------------------------------------------------ data
+  // Live servers first, then the owner's test servers; the home server leads its group.
+  let testIds = new Set<string>();
+  const loadTestIds = async () => { testIds = new Set((await db.guild.findMany({ where: { isTestServer: true }, select: { discordId: true } })).map(record => record.discordId)); };
   const sortedGuilds = (): DiscordGuild[] => [...client.guilds.cache.values()].sort((a, b) =>
-    (a.id === deps.homeGuildId ? -1 : b.id === deps.homeGuildId ? 1 : 0) || a.name.localeCompare(b.name));
+    Number(testIds.has(a.id)) - Number(testIds.has(b.id)) || (a.id === deps.homeGuildId ? -1 : b.id === deps.homeGuildId ? 1 : 0) || a.name.localeCompare(b.name));
 
   async function rowFor(guild: DiscordGuild): Promise<FleetRow> {
     const now = new Date(clock());
-    const records = await db.guild.findMany({ where: { discordId: guild.id }, select: { id: true, scopeKey: true, gameEdition: true, officerSyncAt: true, settings: true } });
+    const records = await db.guild.findMany({ where: { discordId: guild.id }, select: { id: true, scopeKey: true, gameEdition: true, officerSyncAt: true, isTestServer: true, settings: true } });
     const ids = records.map(record => record.id);
     const main = records.find(record => record.scopeKey === "default") ?? records[0];
     const settings = main?.settings ?? null;
@@ -98,12 +101,13 @@ export function createOwnerConsole(deps: ConsoleDeps) {
       achievements: settings?.achievementsEnabled ?? true, announcements: settings?.achievementAnnounceEnabled ?? false, publicSharing: settings?.publicDungeonRuns ?? false,
       weeklyReport: settings?.weeklyReportEnabled ?? false, honors: honors ? honors.weeklyEnabled : null, errors24h,
       lastSync: latest(main?.officerSyncAt, imported?.createdAt), version: settings?.lastAnnouncedVersion ?? null, characters, cores, upcomingRaids,
-      hasAdminChannel: Boolean(settings?.adminChannelId), untracked: !main
+      hasAdminChannel: Boolean(settings?.adminChannelId), untracked: !main, isTest: records.some(record => record.isTestServer)
     };
   }
 
   // ----------------------------------------------------------------- board
   async function renderBoard(pageNumber: number) {
+    await loadTestIds();
     const guilds = sortedGuilds(), index = clampPage(pageNumber, guilds.length);
     const rows = await Promise.all(pageSlice(guilds, index).map(rowFor));
     const row = await state();
@@ -179,6 +183,18 @@ export function createOwnerConsole(deps: ConsoleDeps) {
     sharing: { field: "publicDungeonRuns", name: "public dungeon sharing" }, weekly: { field: "weeklyReportEnabled", name: "the weekly report" }
   };
 
+  /** Marks (on) or unmarks (off) a server as a test server; with `on` omitted it flips the mark. Owner-checked by the callers. */
+  async function setTestServer(discordId: string, on: boolean | undefined, actorId: string): Promise<string> {
+    const records = await db.guild.findMany({ where: { discordId }, select: { id: true, isTestServer: true } });
+    if (!records.length) return "That server has no Guilded record yet (nobody has run a command there). Mark it after the first command.";
+    const next = on ?? !records.some(record => record.isTestServer);
+    await db.guild.updateMany({ where: { discordId }, data: { isTestServer: next } });
+    const name = client.guilds.cache.get(discordId)?.name.replace(/[*_`~|>]/g, "") ?? discordId;
+    await audit(actorId, next ? "mark test server" : "mark live server", discordId, name.slice(0, 80));
+    void refresh(true).catch(() => undefined);
+    return next ? `**${name}** is now a 🧪 test server: kept out of public leaderboards, the guild directory and shared boards.` : `**${name}** is now a live server and appears in public surfaces again.`;
+  }
+
   /** Runs one confirmed action; returns the line to show the owner. Throws nothing the owner should not see. */
   async function perform(action: ActionId, discordId: string, actorId: string, text?: string): Promise<string> {
     const guild = client.guilds.cache.get(discordId);
@@ -186,6 +202,9 @@ export function createOwnerConsole(deps: ConsoleDeps) {
     const home = discordId === deps.homeGuildId;
     const dbId = await dbIdOf(discordId);
     let result: string;
+    if (action === "testmark") {
+      return setTestServer(discordId, undefined, actorId);
+    }
     if (action === "tier") {
       if (home) return "The home server is always approved.";
       result = await deps.setTier(discordId, deps.tier(discordId) === "approved" ? "lite" : "approved");
@@ -303,6 +322,7 @@ export function createOwnerConsole(deps: ConsoleDeps) {
     if (!row?.digestEnabled || !row.channelId || (row.digestLastAt && clock() - row.digestLastAt.getTime() < DAY)) return;
     const channel = await client.channels.fetch(row.channelId).catch(() => null);
     if (!channel?.isTextBased() || !("send" in channel)) return;
+    await loadTestIds();
     const guilds = sortedGuilds();
     const current = await Promise.all(guilds.map(async guild => ({ id: guild.id, name: guild.name, errors24h: await db.errorReport.count({ where: { guildId: guild.id, createdAt: { gte: new Date(clock() - DAY) } } }) })));
     const digest = buildDigest({ known: (row.knownGuilds as Record<string, string> | null) ?? null, current });
@@ -310,7 +330,7 @@ export function createOwnerConsole(deps: ConsoleDeps) {
     await saveState({ digestLastAt: new Date(clock()), knownGuilds: Object.fromEntries(current.map(guild => [guild.id, guild.name])) });
   }
 
-  return { setupChannel, refresh, handle, digestTick, authorized, rowFor, perform, state };
+  return { setupChannel, refresh, handle, digestTick, authorized, rowFor, perform, state, setTestServer };
 }
 
 export type OwnerConsole = ReturnType<typeof createOwnerConsole>;

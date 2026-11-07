@@ -46,9 +46,9 @@ describe("planBoardLock", () => {
 
 describe("boardChannelIds", () => {
   it("lists the board channels and never the groups, guide or dungeon signup channels", () => {
-    expect(boardChannelIds({ raceBoardChannelId: "a", duelBoardChannelId: "b", bgStatsChannelId: "c", bgResultsChannelId: "d", whosWhoChannelId: "e", bgGroupsChannelId: "g", guideChannelId: "h" }))
-      .toEqual(["a", "b", "c", "d", "e"]);
-    expect(boardChannelIds({ raceBoardChannelId: "x", whosWhoChannelId: "x" })).toEqual(["x"]);
+    expect(boardChannelIds({ raceBoardChannelId: "a", duelBoardChannelId: "b", bgStatsChannelId: "c", bgResultsChannelId: "d", bgGroupsChannelId: "g", guideChannelId: "h" }))
+      .toEqual(["a", "b", "c", "d"]);
+    expect(boardChannelIds({ raceBoardChannelId: "x", duelBoardChannelId: "x" })).toEqual(["x"]);
     expect(boardChannelIds({ raceBoardChannelId: "guide", guideChannelId: "guide" })).toEqual([]);
     expect(boardChannelIds(null)).toEqual([]);
   });

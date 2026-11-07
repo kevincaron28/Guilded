@@ -32,7 +32,7 @@ export function prismaGuildDirectoryStore(database: PrismaClient, allows: (disco
   return {
     async guilds(edition) {
       const rows = await database.guild.findMany({
-        where: { gameEdition: edition, OR: [{ page: { published: true } }, { recruitmentListings: { some: { open: true } } }, { settings: { publicDungeonRuns: true } }] },
+        where: { gameEdition: edition, isTestServer: false, OR: [{ page: { published: true } }, { recruitmentListings: { some: { open: true } } }, { settings: { publicDungeonRuns: true } }] },
         select: {
           id: true, name: true, discordId: true, gameEdition: true,
           settings: { select: { language: true, publicDungeonRuns: true } },

@@ -72,6 +72,12 @@ member's companion. The FEATURE_PREVIEW_GUILD_IDS line in the server's .env.loca
   13. **Dungeon completion cards (analysis + recommendation):** a card instead of the post, with the dungeon
       image as background and a death heat map of the dungeon.
   14. **Remove the "availability" module** (owner thinks it is useless; confirm what it is and who uses it first).
+  15. **One name standard everywhere (owner, 6 Nov late: "the names are not standard everywhere"):** every
+      bot post, board, card, DM and addon line shows the character's full name ("First Last", from
+      `displayCharacterName`/`fullNameBook`), never a first name alone ("El", "Crashing") or a Discord name
+      alone ("Simon"). Where a Discord member is shown, use "Full Name (@member)". Audit all of src/services and
+      src/commands for raw `character`/`displayName`/`username` output, fix them, and add a test that fails on
+      new raw-name output. The dungeon board (best runs, participation points) is being fixed tonight first.
 - (add more ideas here)
 
 ## How to work from this file (any AI session)

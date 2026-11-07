@@ -30,7 +30,10 @@ Forever character `lebowski-holyroller`.
 | Realm by guessed slug (`forever`, `us`, `forever-us`, `azeroth`, ...) | `dynamic-forever-us` | 404 |
 | Character profile `/profile/wow/character/{realm}/lebowski-holyroller` (and first name only) for every guessed realm | `profile-forever-us` | 404 |
 | Same with versioned (`profile-1.60.1_70399-forever-us`, `dynamic-1.60.1_70399-forever-us`) or invented namespaces | - | 403 (namespace not served) |
-| Realm index | `dynamic-classic1x-us` | 200 (Classic Era realms; no Forever realm among them) |
+| Realm index | `dynamic-classic1x-us` | 200 (66 Classic Era realms; no Forever realm among them) |
+| Realm index, second check from the coordinator session | `dynamic-1.60.1_70399-forever-us`, `dynamic-1.60.1_70790-forever-us` | 403 |
+
+**Status, 7 November 2026: the Forever profile API is closed. Recheck later** (after Forever patches).
 
 Reading: the Forever **dynamic and profile namespaces exist** (they answer 404/200 where unknown namespaces answer 403),
 but **no realm is published**, and every Profile API route needs a realm slug. So character profile, equipment,

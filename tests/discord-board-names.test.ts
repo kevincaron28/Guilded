@@ -47,3 +47,13 @@ describe("the Discord dungeon board names one player once", () => {
     expect(displayCharacterName("El", await loadFullNameBook(db, "guild"))).toBe("El Pirata");
   });
 });
+
+describe("the run card keeps a real doubled last name", () => {
+  it("shows Xaldin Xaldin when the guild's own tables hold it, Xaldin otherwise", async () => {
+    const { runFullName } = await import("../src/services/dungeon-import.js");
+    expect(runFullName("Xaldin", [{ name: "Xaldin", displayName: "Xaldin Xaldin" }])).toBe("Xaldin Xaldin");
+    expect(runFullName("Xaldin", [{ name: "Xaldin" }])).toBe("Xaldin");
+    expect(runFullName("Crashing", [{ name: "Crashing", displayName: "Crashing Pally" }])).toBe("Crashing Pally");
+    expect(runFullName("Shawir", [{ name: "Shawir", displayName: "Shawir Forever" }])).toBe("Shawir");
+  });
+});

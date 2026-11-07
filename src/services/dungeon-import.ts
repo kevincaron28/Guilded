@@ -14,6 +14,15 @@ import { grantRunAchievements, type AchievementKey } from "./dungeon-achievement
 import { findCharacter } from "./character-match.js";
 import { cleanCharacterName, displayCharacterName } from "./character-display.js";
 export { cleanCharacterName };
+
+/** The name a run card shows: the guild's full name, keeping a real doubled last name ("Xaldin Xaldin") its own tables hold. */
+export function runFullName(character: string, known: readonly { name: string; displayName?: string | null }[], party: readonly string[] = []): string {
+  const names = known.flatMap(c => [c.displayName, c.name]);
+  const first = character.trim().toLowerCase();
+  const doubled = names.find(n => n && n.trim().replace(/\s+/g, " ").toLowerCase() === `${first} ${first}`);
+  return doubled ? doubled.trim().replace(/\s+/g, " ") : cleanCharacterName(displayCharacterName(character, names, party));
+}
+
 import { competitionReason, completionReason, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import {
@@ -546,7 +555,7 @@ export async function importDungeonRuns(
       inGuildPlayers: run.players.filter((player) => player.inGuild).map((player) => player.character),
       mentions: Object.fromEntries(linked.flatMap(({ player, character }) => character?.discordId ? [[player.character, character.discordId] as const] : [])),
       fullNames: Object.fromEntries(run.players.flatMap(player => {
-        const full = cleanCharacterName(displayCharacterName(player.character, characters.flatMap(c => [c.displayName, c.name]), run.players.map(p => p.character)));
+        const full = runFullName(player.character, characters, run.players.map(p => p.character));
         return full !== player.character ? [[player.character, full] as const] : [];
       })),
       achievements

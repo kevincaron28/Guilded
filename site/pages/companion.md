@@ -22,8 +22,8 @@ The companion works on **Windows only**. There is no Mac or Linux version and no
 
 ## Install
 
-1. **Microsoft Store (recommended, signed).** Open the [Guilded Companion listing](https://apps.microsoft.com/detail/9N680XX3QFL9). It is Store-signed and the Store updates it by itself.
-2. **Direct download (auto-updating).** For people who would rather not use the Store: [download the installer]({{COMPANION_DIRECT_URL}}). This link always gives the newest version. Install it once and forget it: the companion checks for new releases every few hours, verifies each download against its published checksum and installs it quietly when you close it or start it next. You can turn this off or check by hand in the companion's settings.
+1. **Microsoft Store (recommended, signed).** Open the [Guilded Companion listing](https://apps.microsoft.com/detail/9N680XX3QFL9). It is Store-signed and the Store updates it by itself. To update right away, choose **Open Microsoft Store** on the companion's Home: it opens this listing, where the Store shows **Update**.
+2. **Direct download (auto-updating).** For people who would rather not use the Store: [download the installer]({{COMPANION_DIRECT_URL}}). This link always gives the newest version. Install it once and forget it: the companion checks for new releases every few hours, verifies each download against its published checksum and installs it quietly when you close it or start it next. To update right away, choose **Update now** on the companion's Home; it shows the version you have and the newest one. You can turn automatic updates off in the companion's settings.
 
 **About the Windows warning.** The direct installer is not code-signed, so Windows SmartScreen may say it "protected your PC". Choose **More info → Run anyway**. To check the file yourself, its SHA-256 (version {{COMPANION_DIRECT_VERSION}}) is `{{COMPANION_DIRECT_SHA256}}`, and every release lists its checksums in `SHA256SUMS` on the [release page](https://github.com/kevincaron28/Guilded/releases/latest). The Store version never updates itself this way, because the Store does it.
 

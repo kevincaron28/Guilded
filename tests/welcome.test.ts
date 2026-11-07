@@ -33,10 +33,11 @@ describe("welcome message", () => {
   it("refuses roles that are no longer offered", async () => {
     vi.resetModules();
     const reply = vi.fn();
+    const editReply = vi.fn();
     const interaction = {
       customId: "welcomerole:g1:admin",
       user: { id: "u1" },
-      reply,
+      reply, deferReply: vi.fn(), editReply,
       client: { guilds: { fetch: vi.fn().mockResolvedValue({ id: "g1", name: "QG", roles: { fetch: vi.fn().mockResolvedValue({ id: "admin", name: "Admin" }) } }) } }
     };
     const housekeeping = await import("../src/services/housekeeping.js");
@@ -44,7 +45,42 @@ describe("welcome message", () => {
     vi.spyOn(housekeeping.welcomeGuildService, "ensureGuild").mockResolvedValue({ id: "db-g1" } as never);
     vi.spyOn(housekeeping.welcomeGuildService, "getSettings").mockResolvedValue({ welcomeRoleIds: ["wow"] } as never);
     await housekeeping.handleWelcomeRoleButton(interaction as never);
-    expect(reply.mock.calls[0]?.[0].content).toContain("isn't offered anymore");
+    expect(editReply.mock.calls[0]?.[0].content).toContain("isn't offered anymore");
+    expect(reply).not.toHaveBeenCalled();
     void handleWelcomeRoleButton;
+  });
+
+  // Owner report, 7 November 2026: members who picked World of Warcraft did not see the WoW channels. The button
+  // answered only after several Discord and database calls, so slow clicks expired (10062, "This interaction failed")
+  // after the role was given; a second click then toggled the role back off.
+  it("acknowledges the click before any slow call, then gives the game role once", async () => {
+    vi.resetModules();
+    const order: string[] = [];
+    const add = vi.fn(async () => { order.push("add"); });
+    const member = { id: "u1", roles: { cache: new Map<string, unknown>(), add, remove: vi.fn() } };
+    const discordGuild = {
+      id: "g1", name: "QG",
+      roles: { fetch: vi.fn(async () => { order.push("roles.fetch"); return { id: "wow", name: "World of Warcraft" }; }) },
+      members: { fetch: vi.fn(async () => { order.push("members.fetch"); return member; }) }
+    };
+    const editReply = vi.fn();
+    const interaction = {
+      customId: "welcomerole:g1:wow",
+      user: { id: "u1" },
+      reply: vi.fn(),
+      deferReply: vi.fn(async () => { order.push("defer"); }),
+      editReply,
+      client: { guilds: { fetch: vi.fn(async () => { order.push("guilds.fetch"); return discordGuild; }) } }
+    };
+    const housekeeping = await import("../src/services/housekeeping.js");
+    vi.spyOn(housekeeping.welcomeGuildService, "ensureGuild").mockImplementation(async () => { order.push("db"); return { id: "db-g1" } as never; });
+    vi.spyOn(housekeeping.welcomeGuildService, "getSettings").mockResolvedValue({ welcomeRoleIds: ["wow"], rulesGate: false, rulesChannelId: null, language: "en" } as never);
+    await housekeeping.handleWelcomeRoleButton(interaction as never);
+    expect(order[0]).toBe("defer");
+    expect(interaction.deferReply).toHaveBeenCalledWith(expect.objectContaining({ flags: expect.anything() }));
+    expect(add).toHaveBeenCalledTimes(1);
+    expect(member.roles.remove).not.toHaveBeenCalled();
+    expect(interaction.reply).not.toHaveBeenCalled();
+    expect(editReply.mock.calls.at(-1)?.[0].content).toContain("World of Warcraft");
   });
 });

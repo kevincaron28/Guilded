@@ -149,29 +149,33 @@ export async function sendWelcome(discordGuild: DiscordGuild, member: GuildMembe
 // Clicks on the role buttons of a welcome message sent before the game menu existed: toggles that role for
 // whoever clicked. Only roles still listed in the welcome settings are
 // honoured, so an old message can't hand out a role that was removed.
+// The click is acknowledged before any Discord or database call: answering after them could miss Discord's
+// 3-second window ("This interaction failed", error 10062) even though the role was given, and members then
+// clicked again, which toggled the game role straight back off (owner report, 7 November 2026).
 export async function handleWelcomeRoleButton(interaction: ButtonInteraction): Promise<void> {
   const [discordGuildId, roleId] = interaction.customId.slice(WELCOME_ROLE_PREFIX.length).split(":");
   if (!discordGuildId || !roleId) return;
   if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, flags: MessageFlags.Ephemeral }); return; }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const discordGuild = await interaction.client.guilds.fetch(discordGuildId).catch(() => null);
   if (!discordGuild) {
-    await interaction.reply({ content: "I'm no longer in that server.", flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: "I'm no longer in that server." });
     return;
   }
   const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
   const settings = await guildService.getSettings(guild.id);
   const role = await discordGuild.roles.fetch(roleId).catch(() => null);
   if (!settings?.welcomeRoleIds.includes(roleId) || !role) {
-    await interaction.reply({ content: "That choice isn't offered anymore. Ask an officer.", flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: "That choice isn't offered anymore. Ask an officer." });
     return;
   }
   const member = await discordGuild.members.fetch(interaction.user.id).catch(() => null);
   if (!member) {
-    await interaction.reply({ content: `You're not in ${discordGuild.name} anymore.`, flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: `You're not in ${discordGuild.name} anymore.` });
     return;
   }
   if (await rulesPending(guild.id, settings, member.id)) {
-    await interaction.reply({ ...rulesPrompt(settings, discordGuild.id, asLang(settings.language), true), flags: MessageFlags.Ephemeral });
+    await interaction.editReply(rulesPrompt(settings, discordGuild.id, asLang(settings.language), true));
     return;
   }
   const had = member.roles.cache.has(role.id);
@@ -179,11 +183,11 @@ export async function handleWelcomeRoleButton(interaction: ButtonInteraction): P
     if (had) await member.roles.remove(role, "Welcome role button");
     else await member.roles.add(role, "Welcome role button");
   } catch {
-    await interaction.reply({ content: `I couldn't change "${role.name}". An officer needs to move my role above it (Server Settings > Roles).`, flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: `I couldn't change "${role.name}". An officer needs to move my role above it (Server Settings > Roles).` });
     return;
   }
   const lang = asLang(settings.language);
-  await interaction.reply({ content: t(lang, had ? "welcome.removed" : "welcome.added", { role: role.name }), flags: MessageFlags.Ephemeral });
+  await interaction.editReply({ content: t(lang, had ? "welcome.removed" : "welcome.added", { role: role.name }) });
 }
 
 export async function handleMemberLeave(discordGuild: DiscordGuild, member: GuildMember | PartialGuildMember): Promise<void> {

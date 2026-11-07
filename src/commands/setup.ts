@@ -305,7 +305,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
 
   if (step === 2) {
     // Rows of the removed countdown boards stay in the database; their channels can be retired from here.
-    const oldCountdownChannels = (await prisma.gameEventBoard.findMany({ where: { guildId }, select: { channelId: true }, take: 5 }).catch(() => [])).map((row) => row.channelId).filter((id) => guild.channels.cache.has(id));
+    const oldCountdownChannels = (await (async () => prisma.gameEventBoard.findMany({ where: { guildId }, select: { channelId: true }, take: 5 }))().catch(() => [])).map((row) => row.channelId).filter((id) => guild.channels.cache.has(id));
     embed.setDescription([
       T("Already have channels for these? **Pick them from the menus below** — nothing gets created or moved. Don't have them yet? Skip the menus and press **\"Create the missing ones for me\"**: I'll make only the ones you haven't picked (the log channel will be private to officers), sorted into tidy categories."),
       "",

@@ -47,8 +47,9 @@ describe("Tools", () => {
     expect(tools).toContain("<h1>Tools</h1>");
     for (const id of ["sheetTable", "grmPanel", "lootImportPanel"]) expect(tools, id).toContain(`id="${id}"`);
     expect(tools).not.toContain('id="btnWowSelect"');
-    // The old status tiles stay in the page, hidden, for the code that still fills them.
-    expect(tools).toMatch(/<div id="toolsLegacy" hidden><div class="tiles">[\s\S]*id="tileCount"/);
+    // The old status tiles are gone (redesign PR 5); the Sync card says it.
+    expect(tools).not.toContain('id="toolsLegacy"');
+    expect(tools).not.toContain('id="tileCount"');
     expect(tools).toContain('<button class="secondary" data-go="settings">WoW settings</button>');
   });
 });

@@ -2943,6 +2943,8 @@ model DuelResult {
   loserId        String
   winnerCharacter String
   loserCharacter String
+  winnerLevel    Int?
+  loserLevel     Int?
   reason         String   @default("knockout")
   endedAt        DateTime
   dayKey         String

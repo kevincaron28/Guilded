@@ -289,10 +289,22 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.chat().join("\n")).not.toContain("failed");
   });
 
+  it("Info and data runs the formerly slash-only commands from buttons", () => {
+    const s = openWindow(1);
+    s.run(`CALLED = {}
+      for _, name in ipairs({ "peers", "relay", "professions", "names", "bgcapture", "ledgersync", "bridge", "options", "digest", "chattags", "invites", "promote", "autoinvite", "lootroll", "consumes" }) do
+        NS.commandHandlers[name] = function(args) CALLED[#CALLED + 1] = name .. ":" .. table.concat(args or {}, ",") end
+      end
+      NS.windowState().selectTabByName("Info")`);
+    const labels = ["Who runs which version", "Data relay status", "Sync EP/GP history now", "Interface options", "Daily digest off", "Invite queue", "Pending loot rolls"];
+    for (const label of labels) s.run(`for _, f in ipairs(FRAMES) do if f.text == "${label}" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
+    expect(s.run(`return table.concat(CALLED, ";")`)).toBe("peers:;relay:;ledgersync:now;options:;digest:off;invites:;lootroll:");
+  });
+
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Announcements,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Announcements,Info,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Open raids,Reserves,Signups,Duels,Announcements,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Open raids,Reserves,Signups,Duels,Announcements,Info,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {

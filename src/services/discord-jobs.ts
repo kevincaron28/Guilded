@@ -7,7 +7,7 @@ import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "WHOS_WHO_BOARD" | "RACE_BOARD" | "BG_LADDER" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "SIGNUP_ANSWERS" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE";
+export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "ACTIVITY_BOARD" | "WHOS_WHO_BOARD" | "RACE_BOARD" | "BG_LADDER" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "SIGNUP_ANSWERS" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -70,6 +70,9 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
   } else if (job.kind === "DUEL_BOARD") {
     const { updateDuelBoard } = await import("./duel-board.js");
     if (!await updateDuelBoard(guild, true)) throw new Error("Duel board unavailable");
+  } else if (job.kind === "ACTIVITY_BOARD") {
+    const { updateActivityBoard } = await import("./guild-activity.js");
+    if (!await updateActivityBoard(guild, true)) throw new Error("Activity board unavailable");
   } else if (job.kind === "WHOS_WHO_BOARD") {
     // Retired in 9.0.2: a job queued before the update finishes quietly and posts nothing.
   } else if (job.kind === "BG_LADDER") {

@@ -14,6 +14,45 @@ parse the armory, and do not call any Blizzard API for Forever until Blizzard do
 
 The addon and companion stay the source of truth; the link is a convenience that fails gracefully if Blizzard moves it.
 
+## API probe (7 November 2026)
+
+Run on the server with the bot's Battle.net app (client-credentials token, read-only, nothing stored; re-check with
+`scripts/forever-armory-probe.mjs`, which prints statuses and field names only, never secrets). Subject: the public
+Forever character `lebowski-holyroller`.
+
+| Call | Namespace | Result |
+| --- | --- | --- |
+| Token (`oauth.battle.net/token`, client credentials) | - | 200 |
+| Static game data (items, playable classes, item search) | `static-forever-us` (links point at `static-1.60.1_70399-forever-us`) | **200: works** (used by item previews, PR #497) |
+| Region index | `dynamic-forever-us` | 200, one region (id 91) |
+| Realm index, connected-realm index | `dynamic-forever-us` | **404** |
+| Realm search, connected-realm search | `dynamic-forever-us`, `profile-forever-us` | 200 with **0 results** |
+| Realm by guessed slug (`forever`, `us`, `forever-us`, `azeroth`, ...) | `dynamic-forever-us` | 404 |
+| Character profile `/profile/wow/character/{realm}/lebowski-holyroller` (and first name only) for every guessed realm | `profile-forever-us` | 404 |
+| Same with versioned (`profile-1.60.1_70399-forever-us`, `dynamic-1.60.1_70399-forever-us`) or invented namespaces | - | 403 (namespace not served) |
+| Realm index | `dynamic-classic1x-us` | 200 (Classic Era realms; no Forever realm among them) |
+
+Reading: the Forever **dynamic and profile namespaces exist** (they answer 404/200 where unknown namespaces answer 403),
+but **no realm is published**, and every Profile API route needs a realm slug. So character profile, equipment,
+achievements, media and guild roster cannot be addressed today. Forever's armory URLs have no realm segment either,
+which suggests Blizzard serves Forever profiles differently from the documented Profile API.
+
+### Recommendation (unchanged for profiles, extended for data)
+
+- **Keep links only** for characters and guilds (the URL patterns below). Do not read the armory HTML (Developer API
+  Terms forbid scraping).
+- **Static data is the part that works**, and it is already used for item previews, profession posts and Details.
+- **Linking ideas, for when a Forever realm appears in the realm index** (re-run the probe script after Forever
+  patches; it lists the realm and checks the profile routes):
+  1. *Existence check while linking:* when a member links a character, confirm the profile answers 200 and compare
+     level and class with what the addon reported. Show "seen on the armory" only; never treat it as proof of ownership
+     (client credentials read public data, not the member's account).
+  2. *Gear on `/character`:* equipped items (ids, item level) from the equipment route, through the item data provider
+     for names, quality and icons; cached, refreshed at most daily, off by default with an officer switch.
+  3. *Account linking with Battle.net sign-in* (`/me/battlenet`) would list a member's own Forever characters, but the
+     `wow.profile` account route has the same realm problem and was not probed here.
+- Nothing was built for profiles: nothing is safe to build until a realm is published.
+
 ## What exists
 
 | Item | Finding |
@@ -68,6 +107,8 @@ search:    https://worldofwarcraft.blizzard.com/en-us/forever/{region}/armory?q=
 - Label it "Armory", open in a new tab, never show it as verification of ownership.
 
 ## Re-check when
+
+Run `scripts/forever-armory-probe.mjs` (see "API probe" above).
 
 Blizzard publishes a Forever API namespace or a developer-portal entry; then reopen option (a) as optional enrichment
 (cached, off-by-default, with an officer switch), keeping links as the fallback.

@@ -187,13 +187,13 @@
     await load();
     if (!config.personal) {
       const found = await api.linkFindSavedData().catch(() => null);
-      if (found?.ok) say(T('Signed in. Your saved data was found; the companion is checking your characters.'), true);
+      if (found?.ok) say(T('Signed in. Your addon data was found; the companion is checking your characters.'), true);
     }
     await load(); setTimeout(() => void load(), 10000);
   });
   document.querySelectorAll('[data-page="link"],[data-page="status"]').forEach(button => button.addEventListener('click', () => void load()));
   // No saved-data file yet (addon just installed, game closed, or Guilded.lua not saved once): look again
-  // by itself every 20 seconds while this window is open, so nobody has to press Find my saved data.
+  // by itself every 20 seconds while this window is open, so nobody has to press Find my addon data.
   // Stops by itself once a file is watched. Local read only; signed-in, guild (not leaderboards-only) mode.
   setInterval(async () => {
     if (loading || document.hidden || !config.companionCredential || config.personal || state.watching || config.watchFile) return;

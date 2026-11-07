@@ -157,8 +157,8 @@ export function validateRun(run: DungeonRunInput, now = new Date()): Validation 
   if (duration > MAX_DURATION_SEC) return { ok: false, reason: `too long (${Math.round(duration / 60)} min)` };
   let edition;
   try { edition = gameEditionOf(run); } catch { return { ok: false, reason: "Invalid WoW edition" }; }
-  if (run.challenge && (edition !== "retail" || run.difficultyId !== 8 || run.completedBy !== "challenge objectives"
-    || run.challengeMode !== true)) return { ok: false, reason: "challenge evidence does not match this run" };
+  // WoW Forever has no Mythic+ keystones: keystone evidence (old Retail clients) is never accepted.
+  if (run.challenge) return { ok: false, reason: "Mythic+ keystone runs are not supported" };
   const names = new Set(run.players.map((player) => characterKey(player.character, player.realm, edition)));
   if (names.size !== run.players.length) return { ok: false, reason: "same player listed twice" };
   // A run is only believed from someone who was in it: the recorder, and at least one of

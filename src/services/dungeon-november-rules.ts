@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
-import { challengeRatingSchema } from "./challenge-rating-rules.js";
 
 // Version 5 is opt-in. No default preset, database access or season activation.
 export const novemberDungeonKey = (key: string): boolean => /^[1-9]\d{0,5}(?::[a-z][a-z0-9-]{0,39})?$/.test(key);
@@ -152,10 +151,11 @@ export function createBracketedDungeonRules(input: unknown) {
     leniency: z.literal(1).optional(),
     scoring: scoringSchema.optional(),
     seasonWindow: z.object({ from: z.string().datetime(), to: z.string().datetime().nullable() }).optional(),
-    provisional: provisionalSchema.optional(), keystoneRating: challengeRatingSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).refine(value => value.routes.length > 0 && value.brackets.length > 0
+    provisional: provisionalSchema.optional(),
+    // Retail Mythic+ rating rules from before WoW Forever only: kept opaque so stored rule sets still validate.
+    keystoneRating: z.unknown().optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).refine(value => value.routes.length > 0 && value.brackets.length > 0
       || !!value.gameEdition && value.gameEdition !== "forever" && value.routes.length === 0 && value.brackets.length === 0, "A rated season needs routes and brackets").parse(input);
   const routes = checkedRoutes(parsed.routes);
-  if (parsed.keystoneRating && parsed.gameEdition !== "retail") throw new Error("Keystone rating requires Retail");
   if (!parsed.provisional && routes.some(r => r.verification.method === "source-reviewed")) throw new Error("Source-reviewed routes require provisional benchmarks");
   for (const r of routes) if (r.completionModel && routes.some(o => o !== r && o.instanceId === r.instanceId)) throw new Error("A shared map needs encounter evidence for each route");
   const brackets = [...parsed.brackets].sort((a, b) => a.min - b.min);

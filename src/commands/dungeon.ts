@@ -22,7 +22,6 @@ import { guildService, requireGuildContext } from "./context.js";
 import { seasonArchive, seasonRows } from "../services/season-archive.js";
 import { weekSeason, weekWindow } from "../services/dungeon-periods.js";
 import { defaultBracket, dungeonRating, hasDungeonRating, ratingEmbed, type RatingRow } from "../services/dungeon-rating.js";
-import { guildChallengeBoard } from "../services/challenge-guild.js";
 import { executeCooperativeGoal } from "./cooperative-goal.js";
 import { executeGroupWatch, groupWatchSubcommand } from "./group-watch.js";
 import { bossRecordLines, guildBossRecords } from "../services/dungeon-records.js";
@@ -39,8 +38,6 @@ export const dungeonCommand = new SlashCommandBuilder()
     .addStringOption(o => o.setName("season").setDescription("Required with goal").setAutocomplete(true))
     .addStringOption(o => o.setName("goal-kind").setDescription("What counts").addChoices({ name: "Different dungeons", value: "dungeons" }, { name: "Runs", value: "runs" }))
     .addBooleanOption(o => o.setName("pause").setDescription("Officers: pause/resume the goal")))
-  .addSubcommand(sub => sub.setName("keystones").setDescription("Retail: highest timed keys by dungeon and affixes")
-    .setDescriptionLocalizations({ fr: "Retail : plus hautes clés à temps par donjon et affixes" }))
   .addSubcommand(sub => sub.setName("catalog").setDescription("November dungeon plan; separate from active season rules")
     .setDescriptionLocalizations({ fr: "Catalogue prévu pour novembre; distinct des règles actives" }))
   .addSubcommand(sub => sub.setName("rules").setDescription("How dungeon rating and participation points are calculated")
@@ -132,11 +129,6 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
   }
   if (subcommand === "together") {
     await executeCooperativeGoal(interaction, context.guildId, lang);
-    return;
-  }
-  if (subcommand === "keystones") {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    await interaction.editReply({ embeds: [await guildChallengeBoard(prisma, context.guildId, lang)], allowedMentions: { parse: [] } });
     return;
   }
   if (subcommand === "catalog") {

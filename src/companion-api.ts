@@ -24,10 +24,7 @@ import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
 import { createDevicePages, prismaDeviceStore } from "./services/companion-devices.js";
 import { memberLinkStatus } from "./services/link-status.js";
-import { battleNetMeSection, createBattleNetPage, type BattleNetLinking } from "./services/battlenet-page.js";
-import { autoLinkBattleNet, recentBattleNetLinks, undoBattleNetLinks } from "./services/battlenet-autolink.js";
-import { battleNetConfig, discoverAllBattleNet, discoverBattleNet } from "./services/battlenet.js";
-import { prismaBattleNetStore } from "./services/battlenet-store.js";
+import { charactersMeSection, legacyBattleNetRedirect } from "./services/me-characters.js";
 import { prisma } from "./database.js";
 import { createAddonImportService } from "./services/addon-import.js";
 import { createEpgpService } from "./services/epgp.js";
@@ -339,19 +336,11 @@ export function createSiteApp(client?: Client) {
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const lootLists = createWebLootLists(prismaLootListStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
-  const battleNetLinking: BattleNetLinking = {
-    discoverAll: discoverAllBattleNet,
-    autoLink: (discordUserId, characters) => autoLinkBattleNet(prisma, discordUserId, characters),
-    recent: discordUserId => recentBattleNetLinks(prisma, discordUserId),
-    undo: discordUserId => undoBattleNetLinks(prisma, discordUserId),
-    status: discordUserId => memberLinkStatus(prisma, discordUserId)
-  };
-  const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
   const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
-    meSection({ id: "characters", group: "overview", render: battleNetMeSection(battleNetLinking, battleNetConfig(config)) }),
+    meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId)) }),
     meSection({ id: "achievements", group: "play", render: achievementsWeb.meSection }),
     meSection({ id: "badges", group: "play", render: badges.meSection }),
     meSection({ id: "availability", group: "play", render: availability.meSection }),
@@ -366,7 +355,7 @@ export function createSiteApp(client?: Client) {
     meSection({ id: "connections", group: "account", render: devices.meSection }),
     meSection({ id: "your-data", group: "account", render: memberData.meSection })
   ];
-  routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route, lootLists.route);
+  routes.unshift(devices.route, legacyBattleNetRedirect, memberData.route, personalCalendar.route, handover.route, raidPlanning.route, lootLists.route);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,

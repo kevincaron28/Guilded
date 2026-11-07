@@ -4,7 +4,6 @@ import { achievementName } from "./dungeon-achievements.js";
 import { highlightHeadline, highlightText } from "./dungeon-records.js";
 import type { DungeonImportResult, DungeonImportSummary } from "./dungeon-import.js";
 import { formatDuration } from "./dungeon-rules.js";
-import { challengeClock } from "./challenge-leaderboard.js";
 import { dungeonTimeline } from "./dungeon-timeline.js";
 import { dungeonRunCard, finalBoss, guildPlayers, partyOf, roleName, className, runLabel } from "./dungeon-card.js";
 import type { ScoreCard } from "./score-card.js";
@@ -78,8 +77,6 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
   const tracked = party.filter((row) => row.guild && row.detail.deaths !== null && row.detail.deaths !== undefined).length;
   lines.push([`⏱️ **${formatDuration(run.durationSec as number)}**`, boss ? `${fr ? "boss final" : "final boss"} **${escapeMarkdown(boss)}**` : undefined,
     tracked ? `${fr ? "morts de guilde" : "guild deaths"} ${memberDeaths}` : undefined].filter(Boolean).join(" · "));
-  if (run.challenge) lines.push(`Mythic+ **+${run.challenge.level}** · ${challengeClock(run.challenge.durationMs)} · ${run.challenge.onTime
-    ? fr ? "à temps" : "in time" : fr ? "hors délai" : "overtime"} · affixes ${run.challenge.affixIds.join(", ") || "—"}`);
 
   // Guildmates: tagged when linked (no ping, the delivery allows no mentions), otherwise their full name.
   const guildRows = party.filter((row) => row.guild);

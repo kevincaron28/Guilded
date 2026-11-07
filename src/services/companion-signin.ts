@@ -241,7 +241,7 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       + `<h2>${t("Link it to", "Le relier à")}</h2>${choices}`
       + `<details><summary>${t("Other choices", "Autres choix")}</summary>${servers.length === 1 ? `<p class="muted">${t("Pick this instead of your server to send only your own dungeon runs:", "Choisissez ceci au lieu de votre serveur pour n'envoyer que vos propres donjons :")}</p>${personal.replace('type="radio"', 'type="checkbox"').replace('name="choice"', 'name="personalOnly"')}` : ""}`
       + `<p><label>${t("Device name", "Nom de l'appareil")}<input name="deviceName" maxlength="80" value="${escapeHtml(device)}"></label></p></details>`
-      + `<p class="muted">${t("Your other devices stay connected. Manage devices and optional Battle.net linking in", "Vos autres appareils restent connectés. Gérez les appareils et la connexion Battle.net facultative dans")} <a href="/me/connections">${t("Connections", "Connexions")}</a>.</p>`
+      + `<p class="muted">${t("Your other devices stay connected. Manage devices in", "Vos autres appareils restent connectés. Gérez les appareils dans")} <a href="/me/connections">${t("Connections", "Connexions")}</a>.</p>`
       + (servers.length ? "" : `<p class="muted">${t("No Discord server with the Guilded bot lists you as a member. Addon-only guilds don't need one: the addon syncs in game.", "Aucun serveur Discord avec le bot Guilded ne vous compte comme membre. Les guildes sans Discord n'en ont pas besoin : l'addon se synchronise en jeu.")}</p>`)
       + `<p><button class="button" type="submit">${t("Connect", "Relier")}</button></p></form>`;
     return kit.page(200, title, body, { noindex: true });

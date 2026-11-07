@@ -116,7 +116,7 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
 export function profileDescription(profile: PlayerProfile, t: (en: string, fr: string) => string): string {
   let best: { points: number; dungeon: string } | null = null;
   for (const run of profile.runs) {
-    const score = scoreRun(run, publicRules(gameEditionOf(run)));
+    const score = scoreRun(run, publicRules());
     if (score && (!best || score.points > best.points)) best = { points: score.points, dungeon: run.dungeonName };
   }
   const chars = profile.characters.length;
@@ -134,7 +134,7 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
     const { t, lang } = ctx;
     const characters = profile.characters.map(char => `<li><a href="${link(characterPath({ character: char.name, realm: char.realm }), lang, { edition: char.gameEdition ?? "forever" })}">${escapeHtml(char.displayName || char.name)}</a>${armoryAnchor(char, t)} · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
     const runs = profile.runs.map(run => {
-      const score = scoreRun(run, publicRules(gameEditionOf(run)));
+      const score = scoreRun(run, publicRules());
       return `<tr><td><a href="${link(runPath(run.runId), lang, { edition: run.gameEdition ?? "forever" })}">${escapeHtml(run.dungeonName)}</a></td><td>${run.endedAt.toISOString().slice(0, 10)}</td><td>${formatDuration(run.durationSec)}</td><td>${score ? `${score.points}` : "—"}</td><td>${run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi")}</td></tr>`;
     }).join("");
     return `<h2>${t("Characters", "Personnages")}</h2>${characters ? `<ul>${characters}</ul>` : `<p>${t("No linked characters yet. Link a character in your guild's Discord, or upload a completed run with your personal companion.", "Aucun personnage lié. Liez un personnage dans le Discord de votre guilde ou envoyez un donjon terminé avec votre compagnon personnel.")}</p>`}`

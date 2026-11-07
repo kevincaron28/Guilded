@@ -180,6 +180,7 @@ item 22), Google Play, Discord audit and fresh-setup check (item 24).
 | P2 | Armory: more character data from the API | Spike on Forever profile API, then read-only linking | item-lookup |
 | P2 | Companion full audit and redesign (primary goal: sync) | Audit and proposal first (`docs/plans/COMPANION_REDESIGN.md`) | track-f-companion |
 | P2 | Phone app redesign: roster + map, stats, profile, TCG and badges, notifications, Blue posts / Wowhead news | Plan, then a first slice (`docs/plans/APP_REDESIGN.md`) | research-plans |
+| P2 | A profession link posted in #chat-guilde shows a small Discord card with that member's recipes | Extend item previews (now on in Québec Gold) to tradeskill links; synced recipes, gallery link | item-lookup (after item links, armory) |
 | P3 | Raid readiness check upgrade | Next free session | — |
 
 The owner also adds ideas on the Control Board ("Your ideas"); read them when he says "look at the board's ideas".

@@ -17,10 +17,20 @@ export interface CardBadge { text: string; tone?: "ok" | "warn" | "muted" }
 export interface CardUnlock { name: string; group: string; detail: string; tier: string; color: string; icon: string }
 export interface CardProgress { label: string; value: number; max: number; note?: string | undefined }
 export interface CardTierCount { label: string; color: string; count: number }
-/** One bar on the race-to-60 card: `color` is the class colour, `note` a short right-hand text (for example +3 this week). */
-export interface CardRaceBar { name: string; color: string; level: number; max: number; note?: string | undefined; done?: boolean | undefined;
-  /** Second line under the name: class, race and the linked Discord member. */
-  sub?: string | undefined }
+/**
+ * The shared leaderboard ("ladder") layout, used by every ranking card (race to 60, dungeon season, duels, battlegrounds).
+ * Columns are listed left to right after the rank and name; `kind: "bar"` draws the row's `bar` instead of a value and
+ * `kind: "move"` draws the row's `move` as an up/down arrow. The first `primary` column is drawn in gold.
+ */
+export interface LadderColumn { label: string; width: number; kind?: "text" | "bar" | "move" | undefined; primary?: boolean | undefined }
+export interface LadderRow { rank: number; name: string; color: string; sub?: string | undefined; values: string[];
+  bar?: { value: number; max: number } | undefined;
+  /** Movement shown in a "move" column: a positive number is up (green), negative down (red), "new" a new entry. */
+  move?: number | "new" | undefined; moveLabel?: string | undefined }
+export interface LadderBoard { title?: string | undefined; rows: LadderRow[] }
+export interface LadderVisual { columns: LadderColumn[]; boards: LadderBoard[];
+  /** Under the title, right-aligned: the season and the updated-at time (already formatted). */
+  meta?: string | undefined; empty?: string | undefined }
 /**
  * The optional `unlocks` list switches a card to the achievement-unlocked layout (a hero badge for one,
  * a list or grid for several). Every field after `footer` is optional so card definitions queued before
@@ -32,8 +42,8 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   unlocks?: CardUnlock[]; unlocksMore?: number; moreLabel?: string; progress?: CardProgress; tierCounts?: CardTierCount[];
   /** 8.5: the roster picture (class counts by level band + profession grid, roster-visual.ts); switches to its own layout. */
   roster?: RosterVisual; rosterProfessionsLabel?: string;
-  /** Race layout: class-coloured level bars in two columns, up to 30; the image grows with the row count. */
-  race?: CardRaceBar[];
+  /** Leaderboard layout (every ranking card): medals, class colours, aligned columns; the image grows with the row count. */
+  ladder?: LadderVisual;
   /** 9.1: the dungeon completion layout (themed art, party with role icons, optional death map). */
   dungeon?: DungeonVisual;
   /** 9.1: the daily recap layout (painted scene, a stats strip, up to three section panels of rows). */
@@ -100,32 +110,116 @@ const chrome = (height = 630): string[] => {
   return shapes;
 };
 
-// The race-to-60 layout: a header, then up to 30 rows in two columns. Each row is the rank and full name in the class colour, a
-// line under it (class, race, Discord member), a level bar filled to level/max, the level and a short note (+3 wk). The image
-// is as tall as its rows need (at least the standard 630).
-export const RACE_ROW_HEIGHT = 54;
-async function renderRace(card: ScoreCard): Promise<Buffer> {
-  const bars = card.race!.slice(0, 30), perColumn = Math.ceil(bars.length / 2), top = 176;
-  const height = Math.max(630, top + perColumn * RACE_ROW_HEIGHT + 66);
-  const shapes = chrome(height);
-  const layers: Layer[] = [];
-  const put = async (markup: string, size: number, left: number, topY: number, maxWidth = 1080) => {
-    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(topY) }); return t;
+// The leaderboard layout, shared by every ranking card. A header (eyebrow, title, subtitle, and the season / updated-at line on
+// the right), then one or more panels laid out like a ranking site: a column header, a rank column with gold, silver and bronze
+// medals for the top 3, the name in its class colour with a quiet second line, right-aligned numeric columns, an optional level
+// bar and movement arrow, zebra rows and a highlighted first place. One board longer than LADDER_SPLIT rows is split into two
+// side-by-side panels when the names still fit (ranks continue); several boards sit two per row. The image is as tall as its rows need (at least 630).
+export const LADDER_SPLIT = 14, LADDER_MAX_ROWS = 50;
+/** The ladder's top-right line: the season (when there is one) and when the board was drawn, in UTC. */
+export function ladderMeta(lang: "en" | "fr", updatedAt: Date, season?: string | null): string {
+  const when = updatedAt.toISOString().slice(0, 16).replace("T", " ");
+  return [season, lang === "fr" ? `Mis à jour ${when} UTC` : `Updated ${when} UTC`].filter(Boolean).join(" · ");
+}
+const MEDAL = ["#ffd100", "#c9d1d9", "#d08a4a"] as const;
+async function renderLadder(card: ScoreCard): Promise<Buffer> {
+  const visual = card.ladder!, layers: Layer[] = [], body: string[] = [];
+  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080) => {
+    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(y) }); return t;
   };
-  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 36, 1080);
-  await put(span(th.ink, clip(card.title, 30)), 54, 60, 62, 1080);
-  await put(span(th.muted, clip(card.subtitle, 90)), 23, 60, 132, 1080);
-  const colW = 520;
-  for (const [i, bar] of bars.entries()) {
-    const col = i < perColumn ? 0 : 1, x = 60 + col * (colW + 40), y = top + (i % perColumn) * RACE_ROW_HEIGHT;
-    const fraction = Math.max(0, Math.min(1, bar.level / Math.max(1, bar.max))), bx = x + 290, bw = 150;
-    shapes.push(rect(bx, y + 6, bw, 20, "#1a120a", th.edge, 8), `<rect x="${bx}" y="${y + 6}" width="${Math.max(6, Math.round(bw * fraction))}" height="20" rx="8" fill="${bar.color}" fill-opacity="${bar.done ? 1 : 0.85}"/>`);
-    await put(span(bar.color, clip(`${i + 1}. ${bar.name}`, 24)), 21, x, y, 285);
-    if (bar.sub) await put(span(th.muted, clip(bar.sub, 34)), 15, x + 22, y + 27, 270);
-    await put(span(bar.done ? th.gold : th.ink, String(bar.level)), 21, bx + bw + 10, y + 2, 50);
-    if (bar.note) await put(span(th.muted, clip(bar.note, 14)), 14, bx, y + 29, 150);
+  const putRight = async (markup: string, size: number, right: number, y: number, maxWidth = 400) => {
+    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(y) }); return t;
+  };
+  const putCentre = async (markup: string, size: number, centre: number, middle: number) => {
+    const t = await text(markup, size, 120); layers.push({ input: t.input, left: Math.round(centre - t.width / 2), top: Math.round(middle - t.height / 2) }); return t;
+  };
+
+  // Panels: a long single board is split in two columns; several boards each get a panel (15 rows at most).
+  type Panel = { title?: string | undefined; rows: LadderRow[] };
+  const boards = visual.boards.filter(board => board.rows.length);
+  const panels: Panel[] = [];
+  if (boards.length === 1) {
+    const rows = boards[0]!.rows.slice(0, LADDER_MAX_ROWS);
+    // Split only when a half-width panel still leaves the names room (at least 170 px after the value columns).
+    const halfNameW = 530 - 80 - visual.columns.reduce((sum, column) => sum + column.width + 14, 0);
+    if (rows.length > LADDER_SPLIT && halfNameW >= 170) { const half = Math.ceil(rows.length / 2); panels.push({ title: boards[0]!.title, rows: rows.slice(0, half) }, { rows: rows.slice(half) }); }
+    else panels.push({ title: boards[0]!.title, rows });
+  } else for (const board of boards.slice(0, 6)) panels.push({ title: board.title, rows: board.rows.slice(0, 15) });
+  const twoUp = panels.length > 1, pw = twoUp ? 530 : 1080, withSub = panels.some(panel => panel.rows.some(row => row.sub));
+  const rowH = withSub ? 48 : 38, titled = panels.some(panel => panel.title), headH = (titled ? 34 : 0) + 30;
+  const panelH = (panel: Panel) => headH + panel.rows.length * rowH + 10;
+
+  // Header.
+  const top = 176;
+  let y = top;
+  const placed: { panel: Panel; x: number; y: number }[] = [];
+  for (let i = 0; i < panels.length; i += twoUp ? 2 : 1) {
+    const pair = panels.slice(i, i + (twoUp ? 2 : 1));
+    pair.forEach((panel, k) => placed.push({ panel, x: 60 + k * (pw + 20), y }));
+    y += Math.max(...pair.map(panelH)) + 18;
   }
-  shapes.push(`<rect x="60" y="${height - 52}" width="1080" height="1" fill="${th.edge}"/>`);
+  const height = Math.max(630, y + (panels.length ? 52 : 120));
+  const shapes = chrome(height);
+  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 36, 700);
+  await put(span(th.ink, clip(card.title, 34)), 52, 58, 62, 760);
+  await put(span(th.muted, clip(card.subtitle, 70)), 22, 60, 130, 760);
+  if (visual.meta) await putRight(span(th.muted, clip(visual.meta, 46)), 17, 1140, 44, 420);
+  if (!panels.length) await put(span(th.muted, clip(visual.empty ?? "—", 90)), 24, 60, top + 20);
+
+  for (const { panel, x, y: py } of placed) {
+    body.push(rect(x, py, pw, panelH(panel), th.panel, th.edge, 12));
+    let hy = py + 10;
+    if (panel.title) { await put(caps(th.gold, clip(panel.title, twoUp ? 34 : 70)), 15, x + 18, hy + 2, pw - 36); hy += 34; }
+    // Columns, placed right to left from the panel's right edge.
+    const right = x + pw - 18, colX: number[] = [];
+    let edge = right;
+    for (let c = visual.columns.length - 1; c >= 0; c--) { colX[c] = edge; edge -= visual.columns[c]!.width + 14; }
+    const nameX = x + 62, nameW = Math.max(120, edge - nameX);
+    await put(caps(th.muted, "#"), 12, x + 24, hy + 4, 30);
+    for (const [c, column] of visual.columns.entries()) {
+      if (column.kind === "bar") await put(caps(th.muted, clip(column.label, 14)), 12, colX[c]! - column.width, hy + 4, column.width);
+      else await putRight(caps(th.muted, clip(column.label, 14)), 12, colX[c]!, hy + 4, column.width + 40);
+    }
+    body.push(`<rect x="${x + 12}" y="${hy + 24}" width="${pw - 24}" height="1" fill="${th.edge}"/>`);
+    const firstRow = hy + 30;
+    for (const [i, row] of panel.rows.entries()) {
+      const ry = firstRow + i * rowH, mid = ry + rowH / 2;
+      if (row.rank === 1) body.push(`<rect x="${x + 6}" y="${ry + 1}" width="${pw - 12}" height="${rowH - 2}" rx="6" fill="${th.gold}" fill-opacity=".1"/>`, `<rect x="${x + 6}" y="${ry + 1}" width="3" height="${rowH - 2}" rx="1.5" fill="${th.gold}"/>`);
+      else if (i % 2) body.push(`<rect x="${x + 6}" y="${ry + 1}" width="${pw - 12}" height="${rowH - 2}" rx="6" fill="#ffffff" fill-opacity=".035"/>`);
+      // Rank: a medal for the top 3, a plain number after.
+      const medal = MEDAL[row.rank - 1];
+      if (medal) {
+        body.push(`<circle cx="${x + 32}" cy="${mid}" r="14" fill="${medal}"/><circle cx="${x + 32}" cy="${mid}" r="10.5" fill="none" stroke="#120d08" stroke-opacity=".35" stroke-width="1.5"/>`);
+        await putCentre(span("#1a1206", String(row.rank)), 15, x + 32, mid);
+      } else await putCentre(span(th.muted, String(row.rank)), 17, x + 32, mid);
+      // Name in the class colour, the second line muted.
+      const chars = Math.max(8, Math.floor(nameW / 11));
+      await put(span(row.color, clip(row.name, chars)), 20, nameX, row.sub ? ry + 4 : mid - 13, nameW);
+      if (row.sub) await put(span(th.muted, clip(row.sub, Math.floor(nameW / 7.2))), 13, nameX, ry + 28, nameW);
+      // Value columns.
+      for (const [c, column] of visual.columns.entries()) {
+        const cx = colX[c]!;
+        if (column.kind === "bar") {
+          if (!row.bar) continue;
+          const fraction = Math.max(0, Math.min(1, row.bar.value / Math.max(1, row.bar.max))), bx = cx - column.width;
+          body.push(`<rect x="${bx}" y="${mid - 5}" width="${column.width}" height="10" rx="5" fill="#1a120a" stroke="${th.edge}"/>`,
+            `<rect x="${bx}" y="${mid - 5}" width="${Math.max(10, Math.round(column.width * fraction))}" height="10" rx="5" fill="${fraction >= 1 ? th.gold : row.color}" fill-opacity=".9"/>`);
+        } else if (column.kind === "move") {
+          if (row.move === undefined || row.move === 0) { await putRight(span(th.muted, "–"), 16, cx, mid - 11); continue; }
+          if (row.move === "new") { await putRight(caps(th.gold, row.moveLabel ?? "new"), 11, cx, mid - 8, column.width + 20); continue; }
+          const up = row.move > 0, tone = up ? th.green : th.red;
+          const t = await putRight(span(tone, row.moveLabel ?? String(Math.abs(row.move))), 16, cx, mid - 11, column.width);
+          const ax = cx - t.width - 12;
+          body.push(up ? `<path d="M${ax - 5} ${mid + 4}L${ax + 5} ${mid + 4}L${ax} ${mid - 5}Z" fill="${tone}"/>` : `<path d="M${ax - 5} ${mid - 4}L${ax + 5} ${mid - 4}L${ax} ${mid + 5}Z" fill="${tone}"/>`);
+        } else {
+          const value = row.values[c] ?? "";
+          if (!value) continue;
+          await putRight(span(column.primary ? th.gold : th.ink, clip(value, 12)), column.primary ? 21 : 18, cx, mid - (column.primary ? 14 : 12), column.width + 40);
+        }
+      }
+    }
+  }
+  shapes.push(...body, `<rect x="60" y="${height - 52}" width="1080" height="1" fill="${th.edge}"/>`);
   await put(span(th.muted, clip(card.footer, 150)), 17, 60, height - 40);
   const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="${height}">${shapes.join("")}</svg>`);
   return sharp(base).composite(layers).png().toBuffer();
@@ -136,7 +230,7 @@ async function render(card: ScoreCard): Promise<Buffer> {
   if (card.recap) return renderRecap(card);
   if (card.roster) return renderRoster(card);
   if (card.unlocks?.length) return renderUnlock(card);
-  if (card.race?.length) return renderRace(card);
+  if (card.ladder) return renderLadder(card);
   const accent = { gold: th.gold, green: th.green, red: th.red } as const;
   const shapes = chrome();
   const layers: Layer[] = [];

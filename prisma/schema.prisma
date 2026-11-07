@@ -974,7 +974,7 @@ model GuildSettings {
   raceBoardChannelId       String?
   raceBoardMessageId       String?
   pvpModuleEnabled         Boolean @default(true)
-  raceBoardTop             Int     @default(25)
+  raceBoardTop             Int     @default(50)
   raceEnded                Boolean @default(false)
   raceHallBackfilledAt     DateTime?
   // 9.1 records and recaps (docs/plans/RECORDS_AND_RECAPS.md): record/challenge callouts on run posts and the daily recap card, both on by default.

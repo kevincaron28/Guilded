@@ -3,8 +3,8 @@ import type { ScoreCard } from "./score-card.js";
 import { classColor } from "./score-card.js";
 import type { StatSnapshot } from "./stat-snapshots.js";
 
-// /stats server: the latest snapshot as an embed, with the class counts drawn by the race card layout
-// (class-coloured bars) as the small chart image.
+// /stats server: the latest snapshot as an embed, with the class counts drawn in the shared ladder layout
+// (classes ranked by count, class-coloured bars) as the chart image.
 export function serverStatsCard(rows: StatSnapshot[], guildName: string, lang: "en" | "fr"): ScoreCard | null {
   const last = rows[rows.length - 1];
   if (!last) return null;
@@ -17,7 +17,8 @@ export function serverStatsCard(rows: StatSnapshot[], guildName: string, lang: "
     eyebrow: t("Server statistics", "Statistiques du serveur"), title: guildName.slice(0, 30),
     subtitle: `${last.discordMembers} ${t("members", "membres")} · ${last.rosterSize} ${t("characters", "personnages")} · ${last.level60} ${t("at 60", "au 60")}`,
     stats: [],
-    race: classes.map(([name, n]) => ({ name, color: classColor(name), level: n, max })),
+    ladder: { columns: [{ label: "", width: 420, kind: "bar" }, { label: t("Characters", "Personnages"), width: 90, primary: true }],
+      boards: [{ rows: classes.map(([name, n], index) => ({ rank: index + 1, name, color: classColor(name), values: ["", String(n)], bar: { value: n, max } })) }] },
     footer: `${last.day} UTC · ${rows.length > 1 ? `${delta >= 0 ? "+" : ""}${delta} ${t("members over", "membres sur")} ${rows.length} ${t("days", "jours")}` : t("first snapshot", "premier relevé")}`
   };
 }

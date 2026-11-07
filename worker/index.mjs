@@ -62,6 +62,8 @@ const apiMethods = new Map([
   ["/api/v1/companion/sign-in/poll", ["POST"]],
   // 8.5 Track L: who is signed in and the join invite for the member's in-game guild.
   ["/api/v1/companion/me", ["GET"]],
+  // Phone badge album: the signed-in member's own achievements (read-only).
+  ["/api/v1/companion/achievements", ["GET"]],
   ["/api/v1/manage", ["GET", "POST"]],
   // The Windows companion and the phone app both call this on the public site.
   // Characters, guild rank and reserves live here; the other companion routes were already forwarded.

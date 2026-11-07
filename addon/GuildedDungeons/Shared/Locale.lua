@@ -922,6 +922,9 @@ local FR = {
   ["Whether whispering a phrase invites players."] = "Indique si chuchoter une phrase invite les joueurs.",
   ["Soft-reserve rolls waiting to be awarded."] = "Jets de r\195\169serve souple en attente d'attribution.",
   ["Who in your group is missing a flask, elixir or food."] = "Qui, dans votre groupe, n'a pas de flacon, d'\195\169lixir ou de nourriture.",
+  -- Guilded Dungeons lines (9.0.1)
+  ["Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."] = "Guilded est install\195\169 et enregistre vos donjons : utilisez /guilded dungeon. Guilded Dungeons reste silencieux.",
+  ["Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"] = "Commandes : /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto",
 }
 
 -- German and Spanish: all catalogued French-reference strings translated; unknown runtime text stays unchanged.
@@ -2442,6 +2445,24 @@ local DE = {
   ["Your guild bank requests and what officers did with them. Ask with /guilded gbank request <item>."] = "Deine Gildenbank-Anfragen und was die Offiziere damit gemacht haben. Frage mit /guilded gbank request <Gegenstand>.",
   ["Guild bank low stock"] = "Gildenbank: knapper Bestand",
   ["Guild bank items below the minimum officers set."] = "Gildenbank-Gegenst\195\164nde unter dem von Offizieren festgelegten Minimum.",
+  -- Guilded Dungeons lines (9.0.1)
+  ["Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."] = "Guilded ist installiert und zeichnet deine Dungeon-Durchl\195\164ufe auf: nutze /guilded dungeon. Guilded Dungeons bleibt still.",
+  ["Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"] = "Befehle: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto",
+  ["Guild overview"] = "Gilden\195\188bersicht",
+  ["classes and levels of the whole guild at a glance"] = "Klassen und Stufen der ganzen Gilde auf einen Blick",
+  ["%d members"] = "%d Mitglieder",
+  ["%d online"] = "%d online",
+  ["Active this week: %d"] = "Diese Woche aktiv: %d",
+  ["Guilded: %d / %d"] = "Guilded: %d / %d",
+  ["Your guild"] = "Deine Gilde",
+  ["Nobody of this class is online."] = "Niemand dieser Klasse ist online.",
+  ["Online now:"] = "Jetzt online:",
+  ["The guild roster is still loading. It fills in by itself in a moment."] = "Die Gildenliste l\195\164dt noch. Sie f\195\188llt sich gleich von selbst.",
+  ["Join a guild to see the guild overview."] = "Tritt einer Gilde bei, um die Gilden\195\188bersicht zu sehen.",
+  ["From the game's guild roster, so every member counts. Guilded = members running the addon."] = "Aus der Gildenliste des Spiels, also z\195\164hlt jedes Mitglied. Guilded = Mitglieder mit dem Addon.",
+  ["The guild window hides offline members (Show offline members is off), so totals cover online members only."] = "Das Gildenfenster blendet Offline-Mitglieder aus (Offline-Mitglieder anzeigen ist aus), daher z\195\164hlen nur Online-Mitglieder.",
+  ["Classes (online / total)"] = "Klassen (online / gesamt)",
+  ["Levels"] = "Stufen",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3959,6 +3980,24 @@ local ES = {
   ["Your guild bank requests and what officers did with them. Ask with /guilded gbank request <item>."] = "Tus solicitudes al banco de hermandad y qu\195\169 hicieron los oficiales. Pide con /guilded gbank request <objeto>.",
   ["Guild bank low stock"] = "Banco de hermandad: existencias bajas",
   ["Guild bank items below the minimum officers set."] = "Objetos del banco de hermandad por debajo del m\195\173nimo fijado por los oficiales.",
+  -- Guilded Dungeons lines (9.0.1)
+  ["Guilded is installed, so it records your dungeon runs: use /guilded dungeon. Guilded Dungeons stays quiet."] = "Guilded est\195\161 instalado y registra tus mazmorras: usa /guilded dungeon. Guilded Dungeons permanece en silencio.",
+  ["Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"] = "Comandos: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto",
+  ["Guild overview"] = "Resumen de la hermandad",
+  ["classes and levels of the whole guild at a glance"] = "clases y niveles de toda la hermandad de un vistazo",
+  ["%d members"] = "%d miembros",
+  ["%d online"] = "%d conectados",
+  ["Active this week: %d"] = "Activos esta semana: %d",
+  ["Guilded: %d / %d"] = "Guilded: %d / %d",
+  ["Your guild"] = "Tu hermandad",
+  ["Nobody of this class is online."] = "Nadie de esta clase est\195\161 conectado.",
+  ["Online now:"] = "Conectados ahora:",
+  ["The guild roster is still loading. It fills in by itself in a moment."] = "La lista de la hermandad a\195\186n se est\195\161 cargando. Se completar\195\161 sola en un momento.",
+  ["Join a guild to see the guild overview."] = "\195\154nete a una hermandad para ver el resumen de la hermandad.",
+  ["From the game's guild roster, so every member counts. Guilded = members running the addon."] = "Seg\195\186n la lista de la hermandad del juego, as\195\173 que cuenta cada miembro. Guilded = miembros que usan el addon.",
+  ["The guild window hides offline members (Show offline members is off), so totals cover online members only."] = "La ventana de hermandad oculta a los miembros desconectados (Mostrar miembros desconectados est\195\161 desactivado), as\195\173 que los totales solo cuentan a los conectados.",
+  ["Classes (online / total)"] = "Clases (conectados / total)",
+  ["Levels"] = "Niveles",
 }
 -- END ES
 
@@ -4659,3 +4698,19 @@ FR["My bank requests"] = "Mes demandes \195\160 la banque"
 FR["Your guild bank requests and what officers did with them. Ask with /guilded gbank request <item>."] = "Vos demandes \195\160 la banque de guilde et leur suite. Demandez avec /guilded gbank request <objet>."
 FR["Guild bank low stock"] = "Stock bas de la banque"
 FR["Guild bank items below the minimum officers set."] = "Objets de la banque de guilde sous le minimum fix\195\169 par les officiers."
+-- Guild overview page (ROADMAP item 17, Modules/GuildOverview.lua).
+FR["Guild overview"] = "Vue de la guilde"
+FR["classes and levels of the whole guild at a glance"] = "classes et niveaux de toute la guilde en un coup d'\197\147il"
+FR["%d members"] = "%d membres"
+FR["%d online"] = "%d en ligne"
+FR["Active this week: %d"] = "Actifs cette semaine : %d"
+FR["Guilded: %d / %d"] = "Guilded : %d / %d"
+FR["Your guild"] = "Votre guilde"
+FR["Nobody of this class is online."] = "Personne de cette classe n'est en ligne."
+FR["Online now:"] = "En ligne maintenant :"
+FR["The guild roster is still loading. It fills in by itself in a moment."] = "La liste de guilde se charge encore. Elle se remplit d'elle-m\195\170me dans un instant."
+FR["Join a guild to see the guild overview."] = "Rejoignez une guilde pour voir la vue de la guilde."
+FR["From the game's guild roster, so every member counts. Guilded = members running the addon."] = "D'apr\195\168s la liste de guilde du jeu : chaque membre compte. Guilded = membres qui utilisent l'addon."
+FR["The guild window hides offline members (Show offline members is off), so totals cover online members only."] = "La fen\195\170tre de guilde masque les membres hors ligne (Afficher les membres hors ligne est d\195\169coch\195\169) : les totaux ne comptent que les membres en ligne."
+FR["Classes (online / total)"] = "Classes (en ligne / total)"
+FR["Levels"] = "Niveaux"

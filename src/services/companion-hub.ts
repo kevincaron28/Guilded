@@ -32,7 +32,6 @@ export function plainChecks(checks: SetupCheck[]): SetupCheck[] {
 
 const serverAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("server.language"), value: z.enum(["en", "fr"]) }),
-  z.object({ action: z.literal("server.publicSharing.off") }),
   z.object({ action: z.literal("server.achievements"), on: z.boolean() }),
   z.object({ action: z.literal("server.reminders"), on: z.boolean() }),
   z.object({ action: z.literal("server.weeklyReport"), on: z.boolean() }),
@@ -117,7 +116,7 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
       checks: checks ? plainChecks(checks) : null,
       settings: {
         language: settings?.language === "fr" ? "fr" : "en",
-        publicSharing: settings?.publicDungeonRuns ?? false,
+        publicSharing: true,
         achievementAnnounce: settings?.achievementAnnounceEnabled ?? false,
         achievementChannelSet: !!settings?.achievementChannelId,
         reminders: (settings?.raidReminderMinutes ?? 0) > 0,
@@ -156,10 +155,6 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
         case "server.language":
           await update({ language: action.value });
           return { message: action.value === "fr" ? "Bot messages are now in French." : "Bot messages are now in English.", audit: { setting: "language", value: action.value } };
-        case "server.publicSharing.off":
-          // Turning sharing on needs the typed consent in Discord (/mod leaderboard); only off is one click.
-          await update({ publicDungeonRuns: false });
-          return { message: "Public sharing is off. New runs will not be published; runs already public stay public.", audit: { setting: "publicDungeonRuns", value: false } };
         case "server.achievements":
           if (action.on) {
             if (!settings.achievementChannelId) throw new ManageError("Pick the channel to post in first: /config achievements announce:true channel:#... in Discord.", 409);

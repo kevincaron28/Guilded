@@ -20,7 +20,10 @@ local addonName, ns = ...
 ns = ns or {}
 
 local ICON = "Interface\\AddOns\\Guilded\\Media\\GuildedLogo"
-local DEFAULT_ANGLE = math.rad(220)
+-- Lower-right of the minimap (9.0.1): the old default, 220 degrees, sat under the game's own round
+-- buttons (mail, group finder) at the lower left on the Forever client.
+local DEFAULT_ANGLE = math.rad(315)
+local OLD_DEFAULT_ANGLE = math.rad(220)
 local RADIUS_PAD = 5
 local PANEL_WIDTH = 790
 -- 600 (5.0, was 540): room for the Scores page and officer controls.
@@ -1627,6 +1630,7 @@ end
 
 local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Overview", build = buildHomePage },
+  { name = "Guild overview", hint = "classes and levels of the whole guild at a glance", group = "Overview", build = function(page) if ns.guildOverview and ns.guildOverview.buildPage then ns.guildOverview.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Overview", usesPlayer = true, build = buildMePage },
   { name = "Open raids", hint = "find a raid with room for you", group = "Overview", build = buildPublicRaidsPage },
   { name = "Standings", scope = "guild", group = "Guild", usesPlayer = true, build = buildStandingsPage },
@@ -2827,6 +2831,11 @@ local function applySettings()
   if not button then return end
   local s = settings()
   if not s then return end
+  -- A position saved at the old default was never a choice: move it once. A dragged spot stays.
+  if not s.minimapAngleMoved then
+    s.minimapAngleMoved = true
+    if type(s.minimapAngle) == "number" and math.abs(s.minimapAngle - OLD_DEFAULT_ANGLE) < 0.02 then s.minimapAngle = nil end
+  end
   pcall(place, s.minimapAngle or DEFAULT_ANGLE)
   if s.minimapHidden then button:Hide() else button:Show() end
 end

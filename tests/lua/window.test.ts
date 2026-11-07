@@ -302,9 +302,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Announcements,Info,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Announcements,Info,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Open raids,Reserves,Signups,Duels,Announcements,Info,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Me,Open raids,Reserves,Signups,Duels,Announcements,Info,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {
@@ -775,6 +775,22 @@ describe("the minimap button", () => {
     expect(s.run(`return tostring(MINIMAP_BUTTON.shown) .. ":" .. tostring(GuildedDB.settings.minimapHidden)`)).toBe("true:false");
     minimap(s, "reset");
     expect(s.chat().filter((line) => line.includes("Minimap button shown")).length).toBe(2);
+  });
+
+  it("defaults to the lower right, away from the game's own round buttons (9.0.1)", () => {
+    const s = openWindow(1, STRICT_CLIENT);
+    // Button x/y offset from the minimap centre: lower right is positive x, negative y.
+    expect(s.run(`local p = MINIMAP_BUTTON.points[#MINIMAP_BUTTON.points]; return (p[4] > 0 and p[5] < 0) and "lower-right" or (p[4] .. "," .. p[5])`)).toBe("lower-right");
+  });
+
+  it("moves a position saved at the old default once, and keeps a dragged one", () => {
+    const moved = openWindow(1, STRICT_CLIENT + `
+      GuildedDB = { settings = { minimapAngle = math.rad(220) } }`);
+    expect(moved.run(`return tostring(GuildedDB.settings.minimapAngle)`)).toBe("nil");
+    expect(moved.run(`return tostring(GuildedDB.settings.minimapAngleMoved)`)).toBe("true");
+    const custom = openWindow(1, STRICT_CLIENT + `
+      GuildedDB = { settings = { minimapAngle = math.rad(100) } }`);
+    expect(custom.run(`return string.format("%.2f", GuildedDB.settings.minimapAngle)`)).toBe("1.75");
   });
 
   it("moves the button onto the screen when the minimap itself is hidden", () => {

@@ -48,50 +48,88 @@
   ${endIf}
 !macroend
 
-; Before any file is replaced (9.0 release blocker): the old companion must be fully closed, or the
-; installer replaces files under a running app and the new version may start while the old one
-; still holds them. electron-builder's own check only finds processes whose path starts with
-; $INSTDIR; this one finds every Guilded Companion of this user by name, and waits until none is left.
-!define GUILDED_FIND_RUNNING `"$SYSDIR\cmd.exe" /C tasklist /FI "USERNAME eq %USERNAME%" /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO CSV /NH | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\""`
-!macro customCheckAppRunning
-  nsExec::Exec `${GUILDED_FIND_RUNNING}`
+
+; Before any file is replaced: the running companion must be fully closed, or the installer replaces
+; files under a running app (9.0 release blocker), and must close it by itself: an upgrade while the
+; companion runs showed "Guilded Companion cannot be closed" and stopped, and the old way of asking
+; it to quit (starting the exe a second time) made an older companion flash its window.
+;
+; 1. Ask: write quit-for-update in the companion's data folder. A 9.0+ companion watches for it,
+;    saves its settings and quits (main.cjs QUIT_REQUEST_FILE). Nothing is started, so nothing flashes.
+; 2. Wait up to 15 s for it to go.
+; 3. Close what is left: every Guilded Companion of this Windows session, whatever folder it runs
+;    from, retried every half second for about 30 s.
+; 4. Only then ask the member (Retry starts the 30 s again). A silent update (/S, the companion's
+;    own auto-update) cancels instead: the companion stays as it was and tries again later.
+;
+; Processes are found through PowerShell by name and Windows session (no user-name matching, which
+; failed on some PCs), with tasklist as the fallback when PowerShell cannot run.
+!searchreplace GUILDED_PROCESS "${APP_EXECUTABLE_FILENAME}" ".exe" ""
+!define GUILDED_POWERSHELL `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command`
+!define GUILDED_MINE `$$s = (Get-Process -Id $$PID).SessionId; $$p = Get-Process -Name '${GUILDED_PROCESS}' -ErrorAction SilentlyContinue | Where-Object { $$_.SessionId -eq $$s }`
+!define GUILDED_TASKLIST `"$SYSDIR\cmd.exe" /C tasklist /FI "IMAGENAME eq ${APP_EXECUTABLE_FILENAME}" /FO CSV /NH | "$SYSDIR\findstr.exe" /B /I /C:"\"${APP_EXECUTABLE_FILENAME}\""`
+
+; Sets $R0 to 0 while a companion of this session runs, anything else when none does.
+!macro GUILDED_FIND
+  nsExec::Exec `${GUILDED_POWERSHELL} "${GUILDED_MINE}; if ($$p) { exit 0 } else { exit 3 }"`
   Pop $R0
+  ${if} $R0 != 0
+  ${andIf} $R0 != 3
+    ; PowerShell did not run (blocked or missing): ask tasklist instead.
+    nsExec::Exec `${GUILDED_TASKLIST}`
+    Pop $R0
+  ${endIf}
+!macroend
+
+!macro GUILDED_KILL
+  nsExec::Exec `${GUILDED_POWERSHELL} "${GUILDED_MINE}; $$p | Stop-Process -Force -ErrorAction SilentlyContinue"`
+  Pop $R2
+  nsExec::Exec `"$SYSDIR\cmd.exe" /C taskkill /F /T /IM "${APP_EXECUTABLE_FILENAME}"`
+  Pop $R2
+!macroend
+
+!macro customCheckAppRunning
+  !insertmacro GUILDED_FIND
   ${if} $R0 == 0
     DetailPrint "$(appClosing)"
-    ; 1. A 9.0+ companion quits cleanly when asked (it saves its settings first). An older one only
-    ;    shows its window; step 2 closes it. Run only while one is running: this second launch
-    ;    hands the request to it and exits at once.
-    ${if} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
-      ExecWait '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --quit-for-update'
+    ; 1. The quit request (per-user data folder, the same one the companion uses).
+    CreateDirectory "$APPDATA\${PRODUCT_NAME}"
+    ClearErrors
+    FileOpen $R3 "$APPDATA\${PRODUCT_NAME}\quit-for-update" w
+    ${ifNot} ${Errors}
+      FileWrite $R3 "installer"
+      FileClose $R3
     ${endIf}
+    ; 2. Up to 15 s for it to save and quit.
     StrCpy $R1 0
     guilded_wait_graceful:
-      nsExec::Exec `${GUILDED_FIND_RUNNING}`
-      Pop $R0
+      !insertmacro GUILDED_FIND
       ${if} $R0 == 0
       ${andIf} $R1 < 30
         IntOp $R1 $R1 + 1
         Sleep 500
         Goto guilded_wait_graceful
       ${endIf}
-    ; 2. Close whatever is left, in any folder, and wait until nothing is running.
+    ; 3. Close what is left, about 30 s of tries.
     StrCpy $R1 0
     guilded_kill:
-      nsExec::Exec `${GUILDED_FIND_RUNNING}`
-      Pop $R0
+      !insertmacro GUILDED_FIND
       ${if} $R0 == 0
         IntOp $R1 $R1 + 1
-        ${if} $R1 > 20
+        ${if} $R1 > 60
+          ; 4. Still running: the member decides (Retry tries again); a silent update cancels.
           MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(appCannotBeClosed)" /SD IDCANCEL IDRETRY guilded_retry
+          Delete "$APPDATA\${PRODUCT_NAME}\quit-for-update"
           Quit
           guilded_retry:
           StrCpy $R1 0
         ${endIf}
-        nsExec::Exec `"$SYSDIR\cmd.exe" /C taskkill /F /T /IM "${APP_EXECUTABLE_FILENAME}" /FI "USERNAME eq %USERNAME%"`
-        Pop $R0
+        !insertmacro GUILDED_KILL
         Sleep 500
         Goto guilded_kill
       ${endIf}
+    ; The request is no longer needed (an older companion never reads it).
+    Delete "$APPDATA\${PRODUCT_NAME}\quit-for-update"
     ; Give Windows a moment to release the files.
     Sleep 1000
   ${endIf}

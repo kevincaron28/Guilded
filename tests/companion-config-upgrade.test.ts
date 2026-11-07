@@ -189,20 +189,44 @@ describe("the installer closes the old companion before replacing files", () => 
   const nsis = readFileSync("companion-app/installer.nsh", "utf8");
   const check = nsis.slice(nsis.indexOf("!macro customCheckAppRunning"));
 
-  it("asks a running companion to save and quit, then closes any left by name and waits", () => {
-    expect(check).toContain("--quit-for-update");
-    expect(nsis).toMatch(/IMAGENAME eq \$\{APP_EXECUTABLE_FILENAME\}/);
-    expect(check).toMatch(/taskkill \/F \/T \/IM "\$\{APP_EXECUTABLE_FILENAME\}" \/FI "USERNAME eq %USERNAME%"/);
-    // It loops until nothing is running, and asks the member only after ten seconds of trying.
-    expect(check).toMatch(/Goto guilded_kill/);
-    expect(check).toMatch(/\$R1 > 20/);
-    // The quit request is sent only while a companion runs, so it never starts one.
-    expect(check.indexOf("${GUILDED_FIND_RUNNING}")).toBeLessThan(check.indexOf("--quit-for-update"));
+  it("asks a running companion to quit with a request file, never by starting it a second time", () => {
+    // Starting the exe again made an older companion flash its window.
+    expect(check).not.toMatch(/ExecWait|Exec '"\$INSTDIR/);
+    expect(check).toMatch(/FileOpen \$R3 "\$APPDATA\\\$\{PRODUCT_NAME\}\\quit-for-update" w/);
+    // Only while a companion runs: the request is written after the first find.
+    expect(check.indexOf("!insertmacro GUILDED_FIND")).toBeLessThan(check.indexOf("quit-for-update"));
+    // And removed afterwards, also when the install is cancelled.
+    expect(check.match(/Delete "\$APPDATA\\\$\{PRODUCT_NAME\}\\quit-for-update"/g)).toHaveLength(2);
   });
 
-  it("is the companion's answer to that request: save and quit, or exit at once when alone", () => {
+  it("closes what is left by itself for about 30 s before asking, and a silent update cancels", () => {
+    // 15 s for a clean quit, then a kill every half second, 60 times, before the message box.
+    expect(check).toMatch(/\$\{andIf\} \$R1 < 30[\s\S]*Sleep 500[\s\S]*Goto guilded_wait_graceful/);
+    expect(check).toMatch(/\$\{if\} \$R1 > 60[\s\S]*MessageBox MB_RETRYCANCEL\|MB_ICONEXCLAMATION "\$\(appCannotBeClosed\)" \/SD IDCANCEL IDRETRY guilded_retry/);
+    expect(check).toMatch(/!insertmacro GUILDED_KILL\s+Sleep 500\s+Goto guilded_kill/);
+    // Found and closed by name and Windows session, not by matching the user name; tasklist is the fallback.
+    expect(nsis).toContain("Where-Object { $$_.SessionId -eq $$s }");
+    expect(nsis).toContain("Stop-Process -Force");
+    expect(nsis).not.toContain("USERNAME eq");
+    expect(nsis).toMatch(/\$\{if\} \$R0 != 0\s+\$\{andIf\} \$R0 != 3[\s\S]*GUILDED_TASKLIST/);
+  });
+
+  it("is the companion's answer: save and quit on the request file or a second launch, never start one", () => {
     const main = readFileSync("companion-app/main.cjs", "utf8");
     expect(main).toMatch(/if \(args\.includes\(QUIT_FOR_UPDATE\)\) \{ app\.exit\(0\);/);
-    expect(main).toMatch(/second-instance", \(event, argv\) => \{[\s\S]{0,200}QUIT_FOR_UPDATE[\s\S]{0,300}installerHandedOff = true[\s\S]{0,120}app\.quit\(\)/);
+    expect(main).toContain('const QUIT_REQUEST_FILE = "quit-for-update";');
+    expect(main).toMatch(/function quitForUpdate\(source\) \{[\s\S]{0,700}installerHandedOff = true[\s\S]{0,200}app\.quit\(\);/);
+    expect(main).toMatch(/function checkQuitRequest\(\) \{[\s\S]{0,200}fs\.rmSync\(quitRequestPath\(\)[\s\S]{0,80}quitForUpdate\("installer request"\)/);
+    expect(main).toMatch(/second-instance", \(event, argv\) => \{\s*if \(Array\.isArray\(argv\) && argv\.includes\(QUIT_FOR_UPDATE\)\) \{ quitForUpdate\("second launch"\); return; \}/);
+    // A stale request is dropped at start, then the file is checked every second.
+    const ready = main.slice(main.indexOf("app.whenReady()"));
+    expect(ready.indexOf("fs.rmSync(quitRequestPath()")).toBeLessThan(ready.indexOf("setInterval(checkQuitRequest, 1000)"));
+  });
+
+  it("keeps startup.log across starts", () => {
+    const main = readFileSync("companion-app/main.cjs", "utf8");
+    expect(main).not.toMatch(/writeFileSync\(path\.join\(app\.getPath\("userData"\), "startup\.log"\), ""\)/);
+    expect(main).toMatch(/size > 256 \* 1024\) fs\.renameSync\(log, log \+ "\.1"\)/);
+    expect(main).toMatch(/fs\.appendFileSync\(log, `----- \$\{new Date\(\)\.toISOString\(\)\} start, pid/);
   });
 });

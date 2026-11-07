@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { GuildScreen } from "./src/GuildScreen";
+import { PublicBoards } from "./src/PublicBoards";
+import { readLang } from "./src/storage";
+import type { Lang } from "./src/i18n";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_GUILDED_WEB_URL ?? "https://guilded.kcaron.top";
 type Summary = { season: string; ratedRunsThisWeek: number; guilds: number; topRuns: { dungeon: string; levels: string; time: string; score: number }[] };
@@ -19,6 +22,8 @@ export default function App() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
+  const [lang, setLang] = useState<Lang>("en");
+  useEffect(() => { readLang().then(setLang).catch(() => undefined); }, []);
 
   useEffect(() => {
     let active = true;
@@ -35,7 +40,7 @@ export default function App() {
     <View style={styles.root}>
     <StatusBar style="light" />
     <View style={styles.header}><View><Text style={styles.brand}>GUILDED</Text><Text style={styles.edition}>WORLD OF WARCRAFT · COMMUNITY</Text></View><View style={styles.status}><View style={styles.dot}/><Text style={styles.statusText}>LIVE</Text></View></View>
-    {tab === "Guild" ? <GuildScreen defaultOrigin={WEB_ORIGIN} /> : <ScrollView contentContainerStyle={styles.content}>
+    {tab === "Guild" ? <GuildScreen defaultOrigin={WEB_ORIGIN} /> : tab === "Ranks" ? <PublicBoards origin={WEB_ORIGIN} lang={lang} /> : <ScrollView contentContainerStyle={styles.content}>
       {tab === "Home" && <>
         <Text style={styles.kicker}>YOUR COMMUNITY, IN REACH</Text>
         <Text style={styles.title}>The guild never stops.</Text>
@@ -46,7 +51,6 @@ export default function App() {
         </View>
         <Label>EXPLORE</Label><Action title="Browse leaderboards" onPress={() => setTab("Ranks")} /><Action title="Find your player profile" onPress={() => open("/players/")} />
       </>}
-      {tab === "Ranks" && <><Text style={styles.kicker}>THE COMMUNITY</Text><Text style={styles.title}>Leaderboards</Text><Text style={styles.intro}>See the runs and guilds making their mark this season.</Text><View style={styles.hero}><Label>{summary?.season ?? "Current season"}</Label><Text style={styles.heroTitle}>Dungeon standings</Text><Text style={styles.muted}>{loading ? "Loading this week’s activity…" : failed ? "Live summary is temporarily unavailable." : `${summary?.ratedRunsThisWeek} rated runs across ${summary?.guilds} guilds this week.`}</Text></View><Action title="Open dungeon leaderboards" onPress={() => open("/leaderboards/")} /><Action title="See guild rankings" onPress={() => open("/leaderboards/guilds/")} /></>}
       {tab === "Profile" && <><Text style={styles.kicker}>YOUR GUILDED IDENTITY</Text><Text style={styles.title}>Player profile</Text><Text style={styles.intro}>Your characters and public runs come together in one shareable profile.</Text><View style={styles.hero}><Text style={styles.heroTitle}>Your Guilded account</Text><Text style={styles.muted}>Discord sign-in for characters, reserves, wishlists and raids is on the Guild tab. It uses the companion sign-in, not a browser cookie. Private account settings still open on the website.</Text></View><Action title="Open your profile on the web" onPress={() => open("/auth/login?return=%2Fme%2F")} /><Action title="Browse public player profiles" onPress={() => open("/players/")} /></>}
       <Text style={styles.footer}>GUILDED · CONNECTED TO YOUR EXISTING COMMUNITY</Text>
     </ScrollView>}

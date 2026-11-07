@@ -4,6 +4,7 @@ import {
   ApiError, GuildedClient, apiOrigin, discordEventLink, parseHub, parseManage, parseStandings, withMine,
   type CoreBoard, type HubView, type ManageView, type StandingsView, type WishCharacter
 } from "./api";
+import { AlbumScreen } from "./AlbumScreen";
 import { formatPr, formatWhen, lootModeLabel, roleLabel, t, type Lang } from "./i18n";
 import { syncRaidReminders, type ReminderSync } from "./notify";
 import { planReminders, soonRaids } from "./reminders";
@@ -12,8 +13,8 @@ import { clearSession, readLang, readOrigin, readReminders, readSession, saveLan
 
 const colors = { bg: "#0b0c0b", panel: "#151714", line: "#282b25", text: "#f3f0e7", muted: "#aaa99f", gold: "#d5ad57", green: "#9fbd83", ink: "#1b160c" };
 
-type Section = "characters" | "reserves" | "wishlist" | "raids" | "alerts";
-const sections: Section[] = ["characters", "reserves", "wishlist", "raids", "alerts"];
+type Section = "characters" | "reserves" | "wishlist" | "raids" | "album" | "alerts";
+const sections: Section[] = ["characters", "reserves", "wishlist", "raids", "album", "alerts"];
 
 interface Snapshot {
   hub: HubView | null;
@@ -127,6 +128,7 @@ export function GuildScreen({ defaultOrigin }: { defaultOrigin: string }) {
       <Text style={styles.kicker}>{t(lang, "guildKicker")}</Text>
       <Text style={styles.title}>{t(lang, "personalTitle")}</Text>
       <Text style={styles.intro}>{t(lang, "personalBody")}</Text>
+      <AlbumScreen lang={lang} session={session} />
       <Pressable onPress={() => void leave()} style={styles.secondary}><Text style={styles.secondaryText}>{t(lang, "signOut")}</Text></Pressable>
     </ScrollView>;
   }
@@ -157,6 +159,7 @@ export function GuildScreen({ defaultOrigin }: { defaultOrigin: string }) {
       {section === "reserves" ? <Reserves lang={lang} hub={hub} error={snapshot?.errors.hub} /> : null}
       {section === "wishlist" ? <Wishlist lang={lang} preview={preview} session={session} manage={manage} error={snapshot?.errors.manage} onChange={(next) => setSnapshot((current) => current ? { ...current, manage: next } : current)} /> : null}
       {section === "raids" ? <Raids lang={lang} hub={hub} manage={manage} standings={standings} error={snapshot?.errors.standings} /> : null}
+      {section === "album" ? <AlbumScreen lang={lang} session={preview ? null : session} /> : null}
       {section === "alerts" ? <Alerts lang={lang} preview={preview} remindersOn={remindersOn} setRemindersOn={(on) => { setRemindersOn(on); if (!preview) void saveReminders(on); }} planned={planned} imminent={imminent} sync={reminderSync} /> : null}
       {(manage?.raidLeader || hub?.raidLeader) ? <Text style={styles.note}>{t(lang, "leaderNote")}</Text> : null}
       <Pressable onPress={() => void leave()} style={styles.secondary}><Text style={styles.secondaryText}>{preview ? t(lang, "closeSample") : t(lang, "signOut")}</Text></Pressable>

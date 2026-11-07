@@ -160,6 +160,22 @@ describe("leaderboard and personal pages", () => {
     expect(board.body).toContain("<summary>Comment les scores sont calculés</summary>");
   });
 
+  // The phone app's boards: public display names and scores only, same ratings as the site.
+  it("serves the phone boards as JSON with the public ratings", async () => {
+    const { request } = setup();
+    const boards = await request("GET", "/leaderboards/boards.json?lang=en");
+    expect(boards.status).toBe(200);
+    expect(boards.headers["content-type"]).toContain("application/json");
+    const data = JSON.parse(boards.body) as { season: string; brackets: { key: string; characters: { rank: number; points: number }[]; guilds: { rank: number; id: string }[] }[] };
+    expect(typeof data.season).toBe("string");
+    expect(data.brackets.length).toBeGreaterThan(0);
+    for (const bracket of data.brackets) {
+      expect(bracket.characters.length).toBeLessThanOrEqual(10);
+      expect(bracket.characters.map((c) => c.rank)).toEqual(bracket.characters.map((_, i) => i + 1));
+    }
+    expect((await request("POST", "/leaderboards/boards.json")).status).not.toBe(200);
+  });
+
   it("lists dungeons, ranks a dungeon and shows a character page", async () => {
     const { request } = setup();
     const home = await request("GET", "/leaderboards/");

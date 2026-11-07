@@ -45,9 +45,9 @@ describe("new-guild sharing default", () => {
     expect(rows.get("new")?.settings?.publicDungeonRunsSince).toEqual(now);
   });
 
-  it("treats missing flags as private and describes the unchanged legacy opt-in window accurately", () => {
-    expect(publicSharingNotice({})).toContain("sharing: OFF");
-    expect(publicSharingNotice({ publicDungeonRuns: false })).not.toContain("sharing: ON");
+  it("always says sharing is on, ignoring an old off flag, and describes the legacy window accurately", () => {
+    expect(publicSharingNotice({})).toContain("sharing: ON");
+    expect(publicSharingNotice({ publicDungeonRuns: false })).not.toContain("sharing: OFF");
     expect(publicSharingNotice({ publicDungeonRuns: true, publicDungeonRunsSince: null })).toContain("last 30 days");
   });
 });

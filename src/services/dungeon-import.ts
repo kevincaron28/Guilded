@@ -12,6 +12,7 @@ import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
+import { deathMapOf, mergeRunCells, outlineFor } from "./dungeon-map-grid.js";
 import { cleanCharacterName, displayCharacterName } from "./character-display.js";
 export { cleanCharacterName };
 
@@ -37,7 +38,7 @@ import {
 // + start within 2 minutes when two members reported it separately).
 
 type Tx = Pick<Prisma.TransactionClient, "officialSeason" | "dungeonRun" | "dungeonSeason" | "dungeonPointTransaction" | "guildSettings" | "dungeonAchievement" | "auditLog">
-  & Partial<Pick<Prisma.TransactionClient, "$executeRaw">>;
+  & Partial<Pick<Prisma.TransactionClient, "$executeRaw" | "dungeonMapGrid">>;
 
 interface LinkedCharacter { name: string; realm: string; memberId: string; spec?: string | null; discordId?: string | null; displayName?: string | null }
 
@@ -67,6 +68,8 @@ export interface DungeonImportResult {
   encounters?: DungeonRunInput["encounters"];
   // Where the party died (fractions of a map, per uiMapID); absent when the addons recorded none.
   deathPoints?: DungeonRunInput["deathPoints"];
+  // The traced outline of the floor the card's death map draws (dungeon-map-grid.ts); absent until that floor has enough cells.
+  mapOutline?: { map: number; cells: number[] };
   completedBy?: string;
   challenge?: DungeonRunInput["challenge"];
   ratingEnabled?: boolean;
@@ -221,6 +224,10 @@ export async function importDungeonRuns(
 
   // Oldest first, using event-time ownership for the new integrity policy.
   for (let run of runs) {
+    // Traced map cells are merged into the shared per-floor grid below and never stored with the run (observer reports keep
+    // the uploaded run, so they are taken off it first). Removed in place: the rest of the pipeline keeps the same run object.
+    const mapCells = run.mapCells;
+    delete run.mapCells;
     const season = await seasonForRun(tx, guildId, currentSeason, run.endedAt);
     const rated = hasDungeonRating(season.ratingRules);
     const timed = rated && (season.ratingRules as { version: number }).version >= 3;
@@ -236,6 +243,8 @@ export async function importDungeonRuns(
     const participationRules = bestEight ? { targets: {}, levelBands: ratingRules.participationLevelBands } : timed ? season.ratingRules as unknown as { targets: Record<string, number>; levelBands: Record<string, LevelBand> } : config;
 
     const check = validateRun(run, now);
+    // Valid, real runs only (never a simulation): a failed merge must not fail the import.
+    if (check.ok && !run.id.startsWith("SIM-")) await mergeRunCells(tx, run.name, mapCells).catch((error: unknown) => console.error("Dungeon map merge failed", error));
     if (gameEditionOf(run) !== "forever") {
       for (const player of run.players) player.character = addonName(player.character, player.realm, gameEditionOf(run));
     }
@@ -498,9 +507,11 @@ export async function importDungeonRuns(
     const runBracket = (name: string) => routeBracket ?? bracketForLevel(brackets ?? [], run.players.find(p => p.character === name)?.level)?.key;
     const ratingFor = (rows: typeof currentRating, memberId: string, name: string) => rows.find(row => row.character
       && ratingCharacterKey(row.memberId, row.character) === ratingCharacterKey(memberId, name) && (!brackets || row.bracket === runBracket(name)))?.points ?? 0;
+    const mapOutline = run.deathPoints?.length ? await outlineFor(tx, deathMapOf(run.deathPoints)).catch(() => null) : null;
     summary.results.push({
       runRef: run.id,
       runId: stored.id,
+      ...(mapOutline ? { mapOutline } : {}),
       dungeonName: run.name,
       instanceId: run.instanceId,
       difficultyId: run.difficultyId,

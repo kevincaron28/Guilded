@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.0.2 — 7 November 2026
+
+New addon and companion features, plus a day of bot updates. Details: docs/V9_0_2_RELEASE_NOTES.md.
+
+- Addon: dungeon stats screens (per-dungeon detail, guild comparison, boss splits), in-game crafting orders page, world PvP stats (`/guilded worldpvp`), traced dungeon maps (`/guilded maptrace`), profession milestones, guild overview panel and board, clearer dungeon window, window-close fix, and no more false "Under attack?" offers.
+- Companion: redesigned (Settings page, plain words, officer Server page), sets itself up on first start, Update now button, and the installer replaces a Microsoft Store install while keeping its settings.
+- Bot: guild activity ladder, Top crafters ladder and craft history, craft order channels with opt-in crafter pings, duel scoring by level difference, PvP finder card, 24h rank arrows on ladder cards, read-only board channels, rookie of the week, profession badges, invite-channel pre-linking, and the countdowns feature removed.
+- Server: deploys run at low priority so the bot keeps answering during an update.
+
 ## 9.0.1 — 7 November 2026
 
 Fixes and polish after 9.0.0. Details: docs/V9_0_1_RELEASE_NOTES.md.

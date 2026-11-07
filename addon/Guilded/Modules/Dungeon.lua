@@ -236,6 +236,73 @@ local function addDeathPoint(run, name, x, y, mapId)
   return true
 end
 
+-- Traced dungeon maps (9.2): while a run is active inside an instance, a light breadcrumb of where the player walked, so the
+-- bot can draw an accurate outline of each dungeon floor in the same coordinates as the death positions. Positions are snapped
+-- to a TRACE_GRID x TRACE_GRID grid of the floor's map (uiMapID) and kept only as a set of cells per floor: no timestamps, no
+-- order. Short steps between two samples are filled in a straight line (a long jump, a teleport or a floor change never draws a
+-- corridor). At most MAX_TRACE_CELLS per run. Stored as run.trace = { { map = id, cells = "key,key,..." } } (key = cx * grid + cy)
+-- so SavedVariables and the companion read it simply. Only the recorder's own export uploads it; nothing is sent to the group.
+-- On by default; members turn it off with /guilded maptrace off.
+local TRACE_GRID, MAX_TRACE_CELLS, TRACE_SECONDS, TRACE_MAX_STEP = 200, 600, 1.5, 12
+local traceSets, lastTrace = {}, nil
+local function traceOn()
+  local s = ns.getSettings and ns.getSettings()
+  return not (s and (s.dungeonTrace == false or s.mapShare == false))
+end
+local function traceEntry(run, mapId)
+  run.trace = run.trace or {}
+  for _, entry in ipairs(run.trace) do if entry.map == mapId then return entry end end
+  local entry = { map = mapId, cells = "" }
+  table.insert(run.trace, entry)
+  return entry
+end
+local function traceCount(run)
+  local count = 0
+  for _, entry in ipairs(run.trace or {}) do for _ in string.gmatch(entry.cells or "", "%d+") do count = count + 1 end end
+  return count
+end
+local function addTraceCell(run, mapId, cx, cy)
+  if cx < 0 or cy < 0 or cx >= TRACE_GRID or cy >= TRACE_GRID then return false end
+  local id = tostring(run.id) .. ":" .. mapId
+  local set = traceSets[id]
+  local entry = traceEntry(run, mapId)
+  if not set then
+    set = {}
+    for key in string.gmatch(entry.cells or "", "%d+") do set[tonumber(key)] = true end
+    traceSets[id] = set
+  end
+  local key = cx * TRACE_GRID + cy
+  if set[key] then return true end
+  run.traceCount = run.traceCount or traceCount(run)
+  if run.traceCount >= MAX_TRACE_CELLS then return false end
+  set[key] = true
+  entry.cells = entry.cells == "" and tostring(key) or (entry.cells .. "," .. key)
+  run.traceCount = run.traceCount + 1
+  return true
+end
+-- One breadcrumb sample (called by a ticker every TRACE_SECONDS; tests call it directly).
+local function traceSample()
+  local d = db()
+  local run = d and d.current
+  if not run or run.state == "INVALID" or not traceOn() or not (ns.util and ns.util.inInstance and ns.util.inInstance()) then lastTrace = nil; return false end
+  local x, y, mapId = playerPosition()
+  if not x then return false end
+  local cx = math.min(TRACE_GRID - 1, math.floor(x * TRACE_GRID / 1000))
+  local cy = math.min(TRACE_GRID - 1, math.floor(y * TRACE_GRID / 1000))
+  local last = lastTrace
+  if last and last.run == run.id and last.map == mapId then
+    local dx, dy = cx - last.cx, cy - last.cy
+    local steps = math.max(math.abs(dx), math.abs(dy))
+    if steps > 1 and steps <= TRACE_MAX_STEP then
+      for i = 1, steps - 1 do addTraceCell(run, mapId, last.cx + math.floor(dx * i / steps + 0.5), last.cy + math.floor(dy * i / steps + 0.5)) end
+    end
+  end
+  addTraceCell(run, mapId, cx, cy)
+  lastTrace = { run = run.id, map = mapId, cx = cx, cy = cy }
+  return true
+end
+ns.dungeonTrace = { sample = traceSample, grid = TRACE_GRID, maxCells = MAX_TRACE_CELLS, enabled = traceOn }
+
 local function save(run)
   local d = db()
   if d then d.current = run end
@@ -1167,4 +1234,23 @@ if C_Timer and C_Timer.NewTicker then
     local d = db()
     if d and d.current then pcall(evaluate) end
   end)
+  -- Traced dungeon maps: one breadcrumb sample every TRACE_SECONDS while a run is active.
+  C_Timer.NewTicker(TRACE_SECONDS, function()
+    if ns.moduleActive and not ns.moduleActive("dungeon") then return end
+    local d = db()
+    if d and d.current then pcall(traceSample) end
+  end)
 end
+
+-- /guilded maptrace on | off: the member's own switch for traced dungeon maps (on by default).
+local function L(text) return ns.L and ns.L(text) or text end
+ns.commandHandlers = ns.commandHandlers or {}
+ns.commandHandlers["maptrace"] = function(args)
+  local s = ns.getSettings and ns.getSettings()
+  local word = string.lower(type(args) == "table" and tostring(args[1] or "") or "")
+  if s and (word == "on" or word == "off") then s.dungeonTrace = word == "on" end
+  ns.message(traceOn() and L("Dungeon map tracing is on: in dungeons, Guilded notes the map squares you walk through (no times) to draw the dungeon's map. /guilded maptrace off stops it.")
+    or L("Dungeon map tracing is off. /guilded maptrace on turns it back on."))
+end
+ns.commandHelp = ns.commandHelp or {}
+table.insert(ns.commandHelp, "/guilded maptrace on | off - help draw accurate dungeon maps from the squares you walk through in dungeons (no times); ON by default")

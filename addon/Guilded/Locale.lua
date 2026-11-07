@@ -2604,6 +2604,8 @@ local DE = {
   ["Your score as tank, healer or damage, or overall."] = "Deine Wertung als Tank, Heiler oder Schaden, oder gesamt.",
   ["Level bracket. Click to see the next one."] = "Stufenbereich. Klicke f\195\188r den n\195\164chsten.",
   ["Switch the guild board between this month (the season) and this week."] = "Wechselt die Gildentafel zwischen diesem Monat (der Saison) und dieser Woche.",
+  ["Dungeon map tracing is on: in dungeons, Guilded notes the map squares you walk through (no times) to draw the dungeon's map. /guilded maptrace off stops it."] = "Dungeonkarten-Aufzeichnung ist an: In Dungeons merkt sich Guilded die Kartenfelder, durch die du l\195\164ufst (ohne Uhrzeit), um die Karte des Dungeons zu zeichnen. /guilded maptrace off stoppt sie.",
+  ["Dungeon map tracing is off. /guilded maptrace on turns it back on."] = "Dungeonkarten-Aufzeichnung ist aus. /guilded maptrace on schaltet sie wieder ein.",
   ["Crafting orders"] = "Handwerksauftr\195\164ge",
   ["craft requests from Discord you can make"] = "Handwerksanfragen aus Discord, die du herstellen kannst",
   ["%d craft order(s) from Discord you can make: the Orders page of the Guilded window (/guilded orders)."] = "%d Handwerksauftrag/-auftr\195\164ge aus Discord, die du herstellen kannst: Seite Auftr\195\164ge im Guilded-Fenster (/guilded orders).",
@@ -4270,6 +4272,8 @@ local ES = {
   ["Your score as tank, healer or damage, or overall."] = "Tu puntuaci\195\179n como tanque, sanador o da\195\177o, o general.",
   ["Level bracket. Click to see the next one."] = "Rango de nivel. Haz clic para ver el siguiente.",
   ["Switch the guild board between this month (the season) and this week."] = "Cambia la tabla de la hermandad entre este mes (la temporada) y esta semana.",
+  ["Dungeon map tracing is on: in dungeons, Guilded notes the map squares you walk through (no times) to draw the dungeon's map. /guilded maptrace off stops it."] = "El trazado de mapas de mazmorra est\195\161 activado: en mazmorras, Guilded anota las casillas del mapa por las que pasas (sin horas) para dibujar el mapa de la mazmorra. /guilded maptrace off lo detiene.",
+  ["Dungeon map tracing is off. /guilded maptrace on turns it back on."] = "El trazado de mapas de mazmorra est\195\161 desactivado. /guilded maptrace on lo vuelve a activar.",
   ["Crafting orders"] = "Pedidos de artesan\195\173a",
   ["craft requests from Discord you can make"] = "peticiones de artesan\195\173a de Discord que puedes fabricar",
   ["%d craft order(s) from Discord you can make: the Orders page of the Guilded window (/guilded orders)."] = "%d pedido(s) de artesan\195\173a de Discord que puedes fabricar: p\195\161gina Pedidos de la ventana de Guilded (/guilded orders).",
@@ -5075,6 +5079,8 @@ FR["Less common options: role, level bracket, older seasons, run corrections."] 
 FR["Your score as tank, healer or damage, or overall."] = "Votre score en tank, soigneur ou DPS, ou global."
 FR["Level bracket. Click to see the next one."] = "Tranche de niveau. Cliquez pour voir la suivante."
 FR["Switch the guild board between this month (the season) and this week."] = "Bascule le tableau de guilde entre ce mois-ci (la saison) et cette semaine."
+FR["Dungeon map tracing is on: in dungeons, Guilded notes the map squares you walk through (no times) to draw the dungeon's map. /guilded maptrace off stops it."] = "Trac\195\169 des cartes de donjon actif : en donjon, Guilded note les cases de la carte o\195\185 vous passez (sans heure) pour dessiner la carte du donjon. /guilded maptrace off l'arr\195\170te."
+FR["Dungeon map tracing is off. /guilded maptrace on turns it back on."] = "Trac\195\169 des cartes de donjon d\195\169sactiv\195\169. /guilded maptrace on le r\195\169active."
 -- Dungeon stats: detail page, card tooltips and guild board comparison (Modules/DungeonStats.lua).
 FR["You: #%d of %d (top %d%%)"] = "Vous : n\194\176%d sur %d (top %d%%)"
 FR["Guild best: %s %d"] = "Meilleur de la guilde : %s %d"

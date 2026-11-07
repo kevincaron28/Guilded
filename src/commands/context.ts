@@ -35,12 +35,15 @@ export async function requireGuildContext(
   return { guildId: guild.id, memberId: member.id };
 }
 
+/** Discord error 10062 "Unknown interaction": the 3-second window had passed, so no answer can be sent. */
+export const isExpiredInteraction = (error: unknown): boolean => typeof error === "object" && error !== null && (error as { code?: number }).code === 10062;
+
 export async function replyWithCommandError(
   interaction: ChatInputCommandInteraction,
   error: unknown
 ): Promise<void> {
   // Discord gave up on the interaction (took over 3 s): nothing can be sent back.
-  if (typeof error === "object" && error !== null && (error as { code?: number }).code === 10062) {
+  if (isExpiredInteraction(error)) {
     console.warn("Command answered too late; Discord already dropped it. Try again.");
     return;
   }

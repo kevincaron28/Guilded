@@ -147,10 +147,6 @@
         ? T('Opt-in. When on, the bot posts one public message in your achievements channel when a member unlocks something. Members who hide their profile are skipped. Nothing is posted while this is off, and what members already earned is not announced.')
         : T('Opt-in. First pick the channel in Discord with /config achievements announce:true channel:#..., then turn it on here.'),
         x.achievementAnnounce, x.achievementChannelSet ? { action: 'server.achievements', on: true } : null, { action: 'server.achievements', on: false }),
-      toggle(T('Public dungeon sharing'), x.publicSharing
-        ? T('On: eligible dungeon runs, including non-guild party members, can be seen on the public leaderboards. Turning it off stops new publication; runs already public stay public.')
-        : T('Off. To turn it on, an officer confirms it in Discord with /mod leaderboard share:true, where the details are shown first.'),
-        x.publicSharing, null, { action: 'server.publicSharing.off' }),
       toggle(T('Raid reminders'), T('Signed-up players are pinged 60 minutes before a raid starts.'), x.reminders, { action: 'server.reminders', on: true }, { action: 'server.reminders', on: false }),
       toggle(T('Weekly guild report'), T('Posts a weekly summary in the announcements channel.'), x.weeklyReport, { action: 'server.weeklyReport', on: true }, { action: 'server.weeklyReport', on: false }),
       toggle(T('Apply uploads automatically'), T('When on, what a companion uploads is applied and announced right away. When off, officers apply uploads with /import apply.'), x.autoImport, { action: 'server.autoImport', on: true }, { action: 'server.autoImport', on: false }),

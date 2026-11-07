@@ -229,8 +229,12 @@ describe("leaderboard and personal pages", () => {
     const guilds = await request("GET", "/leaderboards/guilds/?lang=fr");
     expect(guilds.status).toBe(200);
     expect(guilds.body).toContain("Classement des guildes");
-    expect(guilds.body).toMatch(/<td>1<\/td><td><a href="\/forever\/leaderboards\/guild\/g1\?lang=fr">Quebec Gold<\/a>/);
-    expect(guilds.body).toContain('href="/g/quebec-gold/"');
+    expect(guilds.body).toMatch(/<td>🥇<\/td><td><a href="\/forever\/leaderboards\/guild\/g1\?lang=fr">Quebec Gold<\/a>/);
+    expect(guilds.body).toContain('href="/g/quebec-gold/?lang=fr"');
+    expect(guilds.body).toContain('id="all-guilds"');
+    expect(guilds.body).toContain("Personnages liés");
+    expect((await request("GET", "/leaderboards/guilds/?q=zzz")).body).toContain("No guild matches.");
+    expect((await request("GET", "/leaderboards/guilds/?q=quebec")).body).toContain("Best score");
     expect(guilds.body).toContain('class="crumbs"');
     const season = await request("GET", "/leaderboards/guild/g1/");
     expect(season.body).toContain("#1 / 1");

@@ -448,7 +448,36 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { t } = ctx;
     if (!ranks.length) return `<p class="muted">${t("No rated guild yet.", "Aucune guilde classée pour l'instant.")}</p>`;
     return table(["#", t("Guild", "Guilde"), t("Score", "Score"), t("Rated", "Classés"), t("Best character", "Meilleur personnage")],
-      ranks.slice(0, limit).map((rank, i) => `<tr><td>${i + 1}</td><td>${guildLink(ctx, rank.guild)}</td><td class="num score">${rank.points}</td><td class="num">${rank.rated}</td><td>${who(ctx, rank.best.player)} <span class="tag">${rank.best.points}</span></td></tr>`), [2, 3]);
+      ranks.slice(0, limit).map((rank, i) => `<tr><td>${["🥇", "🥈", "🥉"][i] ?? i + 1}</td><td>${guildLink(ctx, rank.guild)}</td><td class="num score">${rank.points}</td><td class="num">${rank.rated}</td><td>${who(ctx, rank.best.player)} <span class="tag">${rank.best.points}</span></td></tr>`), [2, 3]);
+  }
+
+  // The directory under the brackets: every public guild in one dense, searchable and sortable table. Only counts and
+  // links that are already public (linked characters, rated players and the best score come from the same rankings above).
+  async function guildDirectory(ctx: WebContext, guilds: PublicGuild[], ranks: GuildRank[], base: string, filters: LeaderFilters): Promise<string> {
+    const { t, lang } = ctx;
+    if (!guilds.length) return "";
+    const q = (ctx.request.query.get("q") ?? "").trim().slice(0, 60);
+    const sort = ["score", "members", "name"].includes(ctx.request.query.get("sort") ?? "") ? ctx.request.query.get("sort")! : "score";
+    const rows = await Promise.all(guilds.map(async (guild) => {
+      const own = ranks.filter((r) => r.guild.id === guild.id).sort((a, b) => b.points - a.points);
+      return { guild, linked: (await cached(`roster:${guild.id}`, () => deps.store.guildRoster(guild.id))).length, rated: Math.max(0, ...own.map((r) => r.rated)), top: own[0] ?? null };
+    }));
+    const shown = rows.filter((row) => !q || row.guild.name.toLowerCase().includes(q.toLowerCase()))
+      .sort((a, b) => sort === "name" ? a.guild.name.localeCompare(b.guild.name) : sort === "members" ? b.linked - a.linked || a.guild.name.localeCompare(b.guild.name)
+        : (b.top?.points ?? -1) - (a.top?.points ?? -1) || a.guild.name.localeCompare(b.guild.name));
+    const keep = { season: filters.season, period: filters.week ? "week" : null, q: q || null };
+    const sortLink = (key: string, label: string) => `<a class="${sort === key ? "on" : ""}" href="${link(base, lang, { ...keep, sort: key })}#all-guilds">${label}</a>`;
+    return `<h2 id="all-guilds">${t("All guilds", "Toutes les guildes")}</h2>`
+      + `<form class="filters" method="get" action="${base}" role="search"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="sort" value="${sort}">`
+      + (filters.season ? `<input type="hidden" name="season" value="${escapeHtml(filters.season)}">` : "") + (filters.week ? `<input type="hidden" name="period" value="week">` : "")
+      + `<label>${t("Search guilds", "Chercher une guilde")} <input type="search" name="q" value="${escapeHtml(q)}" maxlength="60"></label> <button type="submit">${t("Search", "Chercher")}</button></form>`
+      + `<nav class="tabs" aria-label="${t("Sort guilds", "Trier les guildes")}">${sortLink("score", t("By score", "Par score"))}${sortLink("members", t("By linked characters", "Par personnages liés"))}${sortLink("name", t("By name", "Par nom"))}</nav>`
+      + (shown.length ? table(["#", t("Guild", "Guilde"), t("Best score", "Meilleur score"), t("Rated players", "Joueurs classés"), t("Linked characters", "Personnages liés"), t("Best character", "Meilleur personnage"), t("More", "Plus")],
+        shown.map(({ guild, linked, rated, top }, i) => `<tr><td>${["🥇", "🥈", "🥉"][i] && sort === "score" && top ? ["🥇", "🥈", "🥉"][i] : i + 1}</td><td>${guildLink(ctx, guild)}</td><td class="num score">${top ? top.points : "–"}</td><td class="num">${rated || "–"}</td><td class="num">${linked}</td>`
+          + `<td>${top ? `${who(ctx, top.best.player)} <span class="tag">${top.best.points}</span>` : "–"}</td>`
+          + `<td>${guild.slug ? `<a class="tag" href="/g/${encodeURIComponent(guild.slug)}/?lang=${lang}">${t("guild page", "page de guilde")}</a> ` : ""}<a class="tag" href="${link(`/leaderboards/guild/${encodeURIComponent(guild.id)}/duels`, lang)}">${t("duels", "duels")}</a></td></tr>`), [2, 3, 4])
+        : `<p class="muted">${t("No guild matches.", "Aucune guilde ne correspond.")}</p>`)
+      + `<p class="muted">${t("Gear score is not shown: Guilded has no gear data yet.", "Le score d'équipement n'est pas affiché : Guilded n'a pas encore de données d'équipement.")}</p>`;
   }
 
   async function guildsBoard(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
@@ -463,7 +492,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + periodDates(ctx, period) + views(ctx, "guilds", filters)
       + `<nav class="tabs"><a class="${filters.week ? "" : "on"}" href="${link(base, lang, { season: filters.season })}">${t("Season", "Saison")}</a><a class="${filters.week ? "on" : ""}" href="${link(base, lang, { period: "week" })}">${t("This week", "Cette semaine")}</a></nav>`
       + `<div class="grid2">` + periodRules(period).brackets.map((b) => `<section><h2>${escapeHtml(bracketName(ctx, b.key))}</h2>${guildTable(ctx, ranks.filter((r) => r.bracket === b.key), 50)}</section>`).join("") + `</div>`
-      + (guilds.length ? `<h2>${t("All guilds", "Toutes les guildes")}</h2><ul class="guild-list">${guilds.map((g) => `<li>${guildLink(ctx, g)}${g.slug ? ` · <a class="tag" href="/g/${encodeURIComponent(g.slug)}/">${t("guild page", "page de guilde")}</a>` : ""}</li>`).join("")}</ul>` : "")
+      + await guildDirectory(ctx, guilds, ranks, base, filters)
       + `<p class="muted">${t("Officers publish their guild's runs with /mod leaderboard in Discord.", "Les officiers publient les essais de leur guilde avec /mod leaderboard dans Discord.")}</p>`;
     return kit.page(200, t("Guild rankings", "Classement des guildes"), body, { description: t("WoW Forever guild rankings by dungeon score: each guild's five best members per level bracket.", "Classement des guildes WoW Forever par score de donjon : les cinq meilleurs membres de chaque guilde par tranche de niveaux.") });
   }

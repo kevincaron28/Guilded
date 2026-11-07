@@ -52,17 +52,17 @@ Checked against `origin/main` (f074c97), open PRs (#482, #458, #430, #345) and t
 | 10 Guild bank analysis | Done (plan); owner picks; the ledger itself shipped in 9.0.0 | #462, `docs/plans/GUILD_BANK.md`, ca09015e |
 | 11 Roster admin window | Done, addon-only | #478 |
 | 12 Race to 60 redesign and reach-60 card | Done, live; Hall of Fame edits done; not yet seen with a real level 60 | #471 |
-| 13 Dungeon cards, one per run, heat map | Done, live | #461, #469, #483; card text checks (English HEALER/TANK, "0 lié(s)", repeated calibration line) to verify on the next real run |
+| 13 Dungeon cards, one per run, heat map | Done, live. Card text: outsiders' roles are localized (never raw HEALER/TANK) and "lié(s)" shows only when some members are linked (`src/services/dungeon-announce.ts` lines 84 and 94). The unranked reason "Target not calibrated" is now per run card, so it cannot repeat across a bundled post; confirm on the next real run | #461, #469, #483 |
 | 14 Remove availability module | Done (hidden, not deleted) | #477 |
 | 15 One name standard | Done, live; guard test added | #476 |
 | 16 `#invitation-guilde` in WoW category, only one | Code done; deleting the extra Québec Gold channel waits for owner | #477 |
 | 17 Guild overview panel | Plan only; owner picks a variant, then build | #462, `docs/plans/GUILD_OVERVIEW_PANEL.md` |
 | 18 Map pins hidden in instances | Done, addon-only | #464 |
-| 19 Native WoW fit for every feature | Partly: roster admin, officer switches, Info and data page; no full sweep yet | #478, #480 |
+| 19 Native WoW fit for every feature | Done, addon-only (ships with 9.0.1): roster admin in sections with native look, officer switches in the window, "Info and data" tab with buttons for formerly slash-only commands; commands that stay slash-only are listed in `docs/ADDON_SLASH_ONLY_COMMANDS.md` | #478, #480 |
 | 20 Screenshots and install/link guides | Not started; needs game and Discord captures | Final phase 1 |
 | 21 Website refresh, Québec Gold pages | First pass done (EN/FR); fresh screenshots owed | #470, #456 |
 | 22 Phone app TCG plan | Plan done; owner picks option; build not started | #462, `docs/plans/APP_TCG.md` |
-| 23 Every feature has a home in Discord | Partly: help gaps closed; no full feature-by-feature check | #477 |
+| 23 Every feature has a home in Discord | Done, live (feature homes and help gaps) | #477 |
 | 24 Discord audit and fresh-setup check | Waiting for owner (needs his Discord account) | none |
 | First priority 2: nickname sync renames nobody | Fixed and deployed; the bot cannot set the server owner's own nickname | #468, #457 |
 | First priority 3: error 50035 | Fixed | #466 |
@@ -70,7 +70,7 @@ Checked against `origin/main` (f074c97), open PRs (#482, #458, #430, #345) and t
 | Hall of Fame officer edits | Done | #471 |
 | Delete my data (companion, /me) | Done | #472 |
 | Remove "Turn public sharing off" in `/setup` and `/character nickname off` | Not done: button still in `src/commands/setup.ts` (lines 242, 526); needs owner decision | code grep |
-| PoE2 leftovers | Not done: `src/services/achievement-badges.ts`, hidden PoE2 markup in `companion-app/renderer/index.html` | code grep |
+| PoE2 leftovers | Done: PoE2 badges and the companion PoE2 pages follow the tracking switch (`poe-off` class, `achievementGameVisible`); data is kept on purpose | #472 |
 | Officers see why a run was not counted | Built (`dungeon-explain.ts`, `/dungeon-admin audit`); real-data check owed | #456 |
 | 9.0.0 tracks A-L, owner batches 1-3, Kinfolk picks (bank ledger, recruiting kit, sign-up, levelling partners) | Done in 9.0.0 | #453 and the candidate merges |
 | Track M phone app (leaderboards, guild view, map and heat map, help pins, notifications) | Not started beyond preview APK 0.2.0 | `mobile/`, PR #345 open |
@@ -94,12 +94,8 @@ Checked against `origin/main` (f074c97), open PRs (#482, #458, #430, #345) and t
 ### Not started (free to dispatch)
 
 - **Item 17 build, overview panel (after the owner picks a variant):** new page in the `addon/Guilded/` window plus `Locale.lua`; reads existing roster, professions and cores data; plan in `docs/plans/GUILD_OVERVIEW_PANEL.md`.
-- **Item 19 native-fit sweep:** every addon feature reachable from the Guilded window without slash commands; `addon/Guilded/UI*.lua`, `addon/Guilded/Modules/*.lua`, `Locale.lua`, `validate-addon.mjs`.
-- **Item 23 feature-to-Discord map:** inventory of every command and feature against channels, `/help`, FAQ and bot-guide posts; `src/commands/help.ts`, `src/commands/faq.ts`, `src/setup-names.ts`, bot-guide services, `docs/`.
 - **Item 22 and Track M phone app:** leaderboards, guild view, guildmate map and last-seen heat map, help pins, notifications; `mobile/src`, `mobile/README.md`, web API routes (alerts need #345 first).
 - **Public-sharing and nickname switch removal (after owner decision):** `src/commands/setup.ts`, `src/commands/character.ts`, `src/services/setup-status.ts`, `src/i18n-fr.ts`.
-- **PoE2 leftovers:** `src/services/achievement-badges.ts`, `companion-app/renderer/index.html`.
-- **Dungeon card text checks (item 13 follow-ups):** localized HEALER/TANK for outsiders, "0 lié(s)" with tagged members, calibration line once per post; `src/services/end-cards.ts`, dungeon services.
 - **Standings feed P2028 hardening:** move EPGP reads out of the interactive transaction in the standings feed service under `src/services/` (watch first).
 - **Guild bank plan items (after the owner picks):** `docs/plans/GUILD_BANK.md`, addon bank module in `addon/Guilded/Modules/`, bank-ledger service and Discord posts.
 - **Track H Kinfolk picks (after the owner picks):** design notes only so far.

@@ -86,6 +86,23 @@ member's companion. The FEATURE_PREVIEW_GUILD_IDS line in the server's .env.loca
   17. **Guild overview panel in the in-game Guilded tab:** a visual page showing the guild's classes, roster,
       professions, cores (raid teams) and more at a glance. Research how other guild addons show this before
       building (roster/class charts, profession directories, core rosters) and propose a layout first.
+  18. **Guildmate map pins hidden in instances:** world-map and minimap icons for guild members must not appear
+      inside dungeons or raids (check `IsInInstance()` before drawing).
+  19. **Native WoW fit for every addon feature:** each feature has a sensible page, tab or button in the Guilded
+      window and looks like the default UI (Blizzard frame templates, fonts, spacing); nothing reachable only by
+      a slash command.
+  20. **Screenshots and guides:** screenshots of the main features for the website, CurseForge and social media;
+      step-by-step "install" and "link" guides with screenshots that a non-technical member can follow
+      (final phase 1, with guides added).
+  21. **Website refresh, especially the Québec Gold pages:** more information and more visuals.
+  22. **Phone app, heavy work (Track M):** much more visual. Plan a trading-card game built on Guilded's Discord
+      badges and achievements, with dailies that earn packs to open. Research popular TCGs (mechanics, pack
+      economy, collection UI) first; plan only until the owner picks a design.
+  23. **Every feature has a home in Discord:** each bot, addon and companion feature and command has a channel,
+      board or guide entry, so members find it from the server itself.
+  24. **Discord server audit, then a fresh-setup check:** bring Québec Gold's permissions, channels and permanent
+      or pinned messages up to date, then run `/setup` on a fresh test server and confirm it matches the Québec
+      Gold layout (channels, categories, permissions, posts).
 - (add more ideas here)
 
 ## How to work from this file (any AI session)

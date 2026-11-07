@@ -114,7 +114,7 @@ export const botCanRename = (guild: Guild) => Boolean(guild.members.me?.permissi
 const canRename = (guild: Guild, member: GuildMember) => member.id !== guild.ownerId && !member.user.bot && member.manageable;
 
 /** Cached members the bot could rename but cannot because their top role is at or above the bot's (for the /setup checklist). */
-export const blockedMemberCount = (guild: Guild): number => guild.members.cache.filter((member) => member.id !== guild.ownerId && !member.user.bot && !member.manageable).size;
+export const blockedMemberCount = (guild: Guild): number => guild.members.cache?.filter((member) => member.id !== guild.ownerId && !member.user.bot && !member.manageable).size ?? 0;
 
 /** Why a sync did what it did: every member counted exactly once, so a quiet run can be explained from the log line. */
 export interface NicknameSyncStats {

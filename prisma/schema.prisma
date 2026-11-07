@@ -3264,6 +3264,8 @@ model DungeonHighlight {
   @@unique([guildId, key])
   @@index([guildId, createdAt])
   @@index([runId])
+}
+
 // Track M (phone guildmate map): where a member's own character was last seen outdoors, from their
 // companion upload (addon GuildMap.lua). Guild-only, never public; deleted when the member turns
 // sharing off and pruned after 28 days. zone x/y are 0..1 on the zone map; cx/cy on its continent.

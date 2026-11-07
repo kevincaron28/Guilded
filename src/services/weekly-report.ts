@@ -26,6 +26,8 @@ export interface DungeonWeek {
   firsts: string[];
   records: string[];
   topPoints: { name: string; points: number }[];
+  // 9.1 "Dungeon marathon": the member with the most completed runs this week (2 or more), simulations left out.
+  marathon?: { name: string; runs: number } | null;
 }
 
 export interface WeeklyReport {
@@ -145,13 +147,19 @@ export async function weeklyReport(database: Db, guildId: string, now = new Date
     if (row.source === "rule:guildRecord") records.push(`🏅 ${row.member.displayName} (${dungeonOf(row.reason)}, guild record)`);
   }
   const topPoints = [...points.values()].filter((row) => row.points > 0).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, 3);
+  const runCounts = new Map<string, number>();
+  for (const run of completed.filter((row) => !row.runRef?.startsWith("SIM-"))) for (const id of new Set(run.players.flatMap((p) => p.memberId ? [p.memberId] : []))) runCounts.set(id, (runCounts.get(id) ?? 0) + 1);
+  const [marathonId, marathonRuns] = [...runCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0] ?? [null, 0];
+  let marathonName: string | undefined;
+  try { marathonName = marathonId ? (await database.member.findFirst({ where: { id: marathonId, guildId }, select: { displayName: true } }))?.displayName : undefined; } catch { marathonName = undefined; }
+  const marathon = marathonName && marathonRuns >= 2 ? { name: marathonName, runs: marathonRuns } : null;
 
   return {
     weekStart: start, weekEnd: end, guild, previous, cores: coreWeeks,
     dungeons: {
       runs: runs.length, completed: completed.length,
       fastest: [...fastest.values()].sort((a, b) => a.dungeon.localeCompare(b.dungeon)),
-      firsts: [...new Set(firsts)], records: [...new Set(records)], topPoints
+      firsts: [...new Set(firsts)], records: [...new Set(records)], topPoints, marathon
     },
     raiderOfWeek: bestEp,
     dungeonHero: topPoints[0] ?? null

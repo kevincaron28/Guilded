@@ -37,6 +37,8 @@ export interface DungeonImportResult {
   // Database id of the stored run (9.1: the dungeon post's Chronologie button looks the run up by it).
   runId?: string;
   dungeonName: string;
+  // The dungeon's instance id (records and challenges are judged per dungeon and difficulty).
+  instanceId?: number;
   difficultyId: number;
   state: string;
   valid: boolean;
@@ -70,6 +72,8 @@ export interface DungeonImportResult {
   // Party character -> full "First Last" name where the stored name is only a first name.
   fullNames?: Record<string, string>;
   achievements: { character: string; key: AchievementKey }[];
+  // 9.1: guild records and challenges this run set (dungeon-records.ts), attached after the import when callouts are on.
+  highlights?: import("./dungeon-records.js").DungeonHighlightItem[];
 }
 
 export interface DungeonImportSummary {
@@ -489,6 +493,7 @@ export async function importDungeonRuns(
       runRef: run.id,
       runId: stored.id,
       dungeonName: run.name,
+      instanceId: run.instanceId,
       difficultyId: run.difficultyId,
       state: run.state,
       valid: check.ok,

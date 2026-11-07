@@ -45,7 +45,12 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   /** Leaderboard layout (every ranking card): medals, class colours, aligned columns; the image grows with the row count. */
   ladder?: LadderVisual;
   /** 9.1: the dungeon completion layout (themed art, party with role icons, optional death map). */
-  dungeon?: DungeonVisual }
+  dungeon?: DungeonVisual;
+  /** 9.1: the daily recap layout (painted scene, a stats strip, up to three section panels of rows). */
+  recap?: RecapVisual }
+
+/** A recap: up to three panels, each a title and up to five rows (name in its colour, a line under it, a value on the right). */
+export interface RecapVisual { theme: DungeonArtTheme; sections: { title: string; rows: CardRow[] }[] }
 
 export type DungeonMotif = "cave" | "fire" | "sea" | "keep" | "mine" | "thorn";
 /**
@@ -222,6 +227,7 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
 
 async function render(card: ScoreCard): Promise<Buffer> {
   if (card.dungeon) return renderDungeon(card);
+  if (card.recap) return renderRecap(card);
   if (card.roster) return renderRoster(card);
   if (card.unlocks?.length) return renderUnlock(card);
   if (card.ladder) return renderLadder(card);
@@ -428,6 +434,68 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
     shapes.push(rect(bx, 526, w, 36, tone.fill, tone.edge, 18), `<circle cx="${bx + 19}" cy="544" r="5" fill="${ink}"/>`);
     layers.push({ input: t.input, left: bx + 32, top: 544 - Math.round(t.height / 2) });
     bx += w + 12;
+  }
+  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
+  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590, 1080, true);
+  const overlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
+  return sharp(art).composite([{ input: overlay, left: 0, top: 0 }, ...layers]).png().toBuffer();
+}
+
+// The daily recap: the painted scene behind everything, the header top left, a strip of up to four stats, then one frosted
+// panel per section side by side (one to three), each with up to five rows.
+async function renderRecap(card: ScoreCard): Promise<Buffer> {
+  const visual = card.recap!, accent = { gold: th.gold, green: th.green, red: th.red } as const, layers: Layer[] = [];
+  const art = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${dungeonArt(visual.theme)}</svg>`)).png().toBuffer();
+  const shapes: string[] = [`<defs><linearGradient id="rshade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset=".45" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></linearGradient></defs>`,
+    `<rect width="1200" height="630" fill="url(#rshade)"/>`, `<rect width="12" height="630" fill="${th.bar}"/>`,
+    `<rect x="26" y="14" width="1160" height="602" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`];
+  const shadowed = async (t: { input: Buffer; width: number; height: number }, left: number, y: number) => {
+    const pad = 8, shadow = await sharp(t.input).extend({ top: pad, bottom: pad, left: pad, right: pad, background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .linear([0, 0, 0, 0.85], [0, 0, 0, 0]).blur(3.5).png().toBuffer();
+    layers.push({ input: shadow, left: Math.round(left) - pad + 1, top: Math.round(y) - pad + 2 }, { input: t.input, left: Math.round(left), top: Math.round(y) });
+  };
+  const put = async (markup: string, size: number, left: number, y: number, maxWidth = 1080, shade = false) => {
+    const t = await text(markup, size, maxWidth);
+    if (shade) await shadowed(t, left, y); else layers.push({ input: t.input, left: Math.round(left), top: Math.round(y) });
+    return t;
+  };
+  const putRight = async (markup: string, size: number, right: number, y: number) => {
+    const t = await text(markup, size, 200); layers.push({ input: t.input, left: Math.round(right - t.width), top: Math.round(y) }); return t;
+  };
+  await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 38, 700, true);
+  const titleLen = [...drawable(card.title)].length;
+  await put(span(th.ink, clip(card.title, 34)), titleLen <= 20 ? 52 : 40, 58, 64, 1080, true);
+  await put(span(th.muted, clip(card.subtitle, 60)), 24, 60, 132, 1080, true);
+
+  // Stats strip.
+  const stats = card.stats.slice(0, 4);
+  const sw = stats.length ? Math.floor((1080 - (stats.length - 1) * 16) / stats.length) : 0;
+  for (const [i, stat] of stats.entries()) {
+    const x = 60 + i * (sw + 16), color = accent[stat.accent ?? "gold"];
+    shapes.push(rect(x, 178, sw, 92, th.bg, th.edge, 12).replace("/>", ' fill-opacity=".62"/>'), `<rect x="${x + 16}" y="196" width="4" height="20" rx="2" fill="${color}"/>`);
+    await put(caps(th.muted, clip(stat.label, 26)), 14, x + 28, 196, sw - 40);
+    await put(span(color, clip(stat.value, 10)), 38, x + 16, 218, sw - 32);
+  }
+
+  // Section panels: frosted art behind each.
+  const sections = visual.sections.slice(0, 3), top = 290, ph = 276;
+  const pw = sections.length ? Math.floor((1080 - (sections.length - 1) * 20) / sections.length) : 0;
+  for (const [i, section] of sections.entries()) {
+    const px = 60 + i * (pw + 20);
+    const frost = await sharp(art).extract({ left: px, top, width: pw, height: ph }).blur(14).modulate({ brightness: 0.5, saturation: 0.95 })
+      .composite([{ input: Buffer.from(`<svg width="${pw}" height="${ph}"><rect width="${pw}" height="${ph}" rx="14"/></svg>`), blend: "dest-in" }]).png().toBuffer();
+    shapes.push(`<image x="${px}" y="${top}" width="${pw}" height="${ph}" href="data:image/png;base64,${frost.toString("base64")}"/>`,
+      `<rect x="${px}" y="${top}" width="${pw}" height="${ph}" rx="14" fill="${th.bg}" fill-opacity=".35" stroke="${th.edge}" stroke-width="1.5"/>`,
+      `<rect x="${px + 20}" y="${top + 44}" width="${pw - 40}" height="1" fill="${th.edge}"/>`);
+    const chars = Math.max(12, Math.floor(pw / 12.5)), subChars = Math.max(16, Math.floor((pw - 40) / 7.5));
+    await put(caps(th.gold, clip(section.title, Math.floor(pw / 12))), 15, px + 20, top + 16, pw - 40);
+    const hasRight = section.rows.some(row => row.right);
+    for (const [r, row] of section.rows.slice(0, 5).entries()) {
+      const ry = top + 56 + r * 44;
+      await put(span(row.color ?? th.ink, clip(row.name, hasRight ? chars - 6 : chars)), 20, px + 20, ry, pw - (hasRight ? 110 : 40));
+      if (row.sub) await put(span(th.muted, clip(row.sub, subChars)), 14, px + 20, ry + 24, pw - 40);
+      if (row.right) await putRight(span(accent[row.rightTone ?? "gold"], clip(row.right, 8)), 22, px + pw - 20, ry + 2);
+    }
   }
   shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
   await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590, 1080, true);

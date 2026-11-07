@@ -101,7 +101,8 @@ describe("companion updater handoff", () => {
 it("keeps MSIX updates in Microsoft Store even when GitHub advertises an EXE", async () => {
   const h = harness({ version: "7.3.0", installer }, "en", true);
   expect(await h.handlers.get("install-update")!()).toMatchObject({ ok: true, action: "store" });
-  expect(h.openExternal).toHaveBeenCalledWith("ms-windows-store://downloadsandupdates");
+  // (9.0.x) Straight to the Guilded Companion listing, not the Store's general Downloads page.
+  expect(h.openExternal).toHaveBeenCalledWith("ms-windows-store://pdp/?ProductId=9N680XX3QFL9");
   expect(h.updates.fetchLatestRelease).not.toHaveBeenCalled();
   expect(h.updates.downloadInstaller).not.toHaveBeenCalled();
   expect(h.updates.launchInstaller).not.toHaveBeenCalled();

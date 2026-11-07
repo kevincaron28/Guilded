@@ -6,6 +6,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { fullNameOf } from "./forever-names.js";
+import { dayStart, participationDay } from "./participation-rules.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 
@@ -32,7 +33,9 @@ export const KNOWN_CLASSES = ["Warrior", "Paladin", "Hunter", "Rogue", "Priest",
 export const normalizeClass = (value: string | null | undefined) => KNOWN_CLASSES.find(name => name.toLowerCase() === (value ?? "").trim().replace(/\s+/g, " ").toLowerCase()) ?? null;
 
 export interface RaceChar { aliasKeys?: string[]; key: string; name: string; className: string; race: string | null; level: number; memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
-export interface RaceEntryState { level: number; reachedMaxAt: Date | null; weekStartLevel: number; weekStartedAt: Date }
+export interface RaceEntryState { level: number; reachedMaxAt: Date | null; weekStartLevel: number; weekStartedAt: Date;
+  /** 9.1 daily recap: the level at the start of the server's day, and the last finished day's gain (kept across the rollover). */
+  dayStartLevel?: number | null; dayStartedAt?: Date | null; lastDayGain?: number; lastDayStartedAt?: Date | null }
 export interface RaceRow { aliasKeys?: string[]; key: string; name: string; className: string; race: string | null; level: number; reachedMaxAt: Date | null; firstSeenAt: Date; weekGain: number;
   memberId: string | null; discordId: string | null; professions: string[]; lastSeenAt: Date | null }
 export interface RaceBoardData { rows: RaceRow[]; total: number; finished: number; edition: string }
@@ -48,16 +51,35 @@ export function weekStart(now: Date): Date {
  * Pure: the stored state after seeing a character at `level`. A level that went down means the name was
  * re-rolled, so its history restarts. First seen at the cap counts as reaching it now (the real date is unknowable).
  */
-export function nextEntry(previous: RaceEntryState | null, level: number, now: Date): RaceEntryState {
+export function nextEntry(previous: RaceEntryState | null, level: number, now: Date, dayFrom?: Date): RaceEntryState {
   const monday = weekStart(now);
-  if (!previous || level < previous.level) return { level, reachedMaxAt: level >= LEVEL_CAP ? now : null, weekStartLevel: level, weekStartedAt: monday };
+  if (!previous || level < previous.level) return { level, reachedMaxAt: level >= LEVEL_CAP ? now : null, weekStartLevel: level, weekStartedAt: monday,
+    ...(dayFrom ? { dayStartLevel: level, dayStartedAt: dayFrom, lastDayGain: 0, lastDayStartedAt: null } : {}) };
   const rolled = previous.weekStartedAt < monday;
+  // A new day: the finished day's gain is kept (measured with the last level seen that day), and today starts from it.
+  // Without the server's day (a read-only caller), the day fields are kept as they are.
+  const known = Boolean(previous.dayStartedAt && typeof previous.dayStartLevel === "number");
+  if (!dayFrom) return { level, reachedMaxAt: previous.reachedMaxAt ?? (level >= LEVEL_CAP ? now : null),
+    weekStartLevel: rolled ? previous.level : previous.weekStartLevel, weekStartedAt: rolled ? monday : previous.weekStartedAt,
+    dayStartLevel: previous.dayStartLevel ?? null, dayStartedAt: previous.dayStartedAt ?? null, lastDayGain: previous.lastDayGain ?? 0, lastDayStartedAt: previous.lastDayStartedAt ?? null };
+  const newDay = !known || previous.dayStartedAt! < dayFrom;
   return {
     level,
     reachedMaxAt: previous.reachedMaxAt ?? (level >= LEVEL_CAP ? now : null),
     weekStartLevel: rolled ? previous.level : previous.weekStartLevel,
-    weekStartedAt: rolled ? monday : previous.weekStartedAt
+    weekStartedAt: rolled ? monday : previous.weekStartedAt,
+    dayStartLevel: newDay ? previous.level : previous.dayStartLevel!,
+    dayStartedAt: newDay ? dayFrom : previous.dayStartedAt!,
+    lastDayGain: newDay ? known ? Math.max(0, previous.level - previous.dayStartLevel!) : 0 : previous.lastDayGain ?? 0,
+    lastDayStartedAt: newDay ? known ? previous.dayStartedAt! : null : previous.lastDayStartedAt ?? null
   };
+}
+
+/** Levels gained during the day that started at `dayFrom`, from a stored entry (0 when that day is unknown). */
+export function dayGain(entry: Pick<RaceEntryState, "level" | "dayStartLevel" | "dayStartedAt" | "lastDayGain" | "lastDayStartedAt">, dayFrom: Date): number {
+  if (entry.dayStartedAt?.getTime() === dayFrom.getTime() && typeof entry.dayStartLevel === "number") return Math.max(0, entry.level - entry.dayStartLevel);
+  if (entry.lastDayStartedAt?.getTime() === dayFrom.getTime()) return Math.max(0, entry.lastDayGain ?? 0);
+  return 0;
 }
 
 /** Pure: finishers first in the order they got there, then everyone else by level (ties by name). */
@@ -309,7 +331,8 @@ export function mergeStored<T extends { level: number; reachedMaxAt: Date | null
 }
 
 /** Records every guild character's level, then returns the board's data. */
-export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry">, guildId: string, edition: string, now = new Date()): Promise<RaceBoardData> {
+export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "unclaimedCharacter" | "levelRaceEntry">, guildId: string, edition: string, now = new Date(), timezone?: string): Promise<RaceBoardData> {
+  const dayFrom = timezone ? dayStart(participationDay(now, timezone), timezone) : undefined;
   const linked = await db.character.findMany({ where: { guildId, gameEdition: edition, level: { not: null }, member: { guildId, status: "ACTIVE" } },
     select: { name: true, displayName: true, realm: true, className: true, race: true, level: true, memberId: true, lastSeenAt: true, member: { select: { discordUserId: true } },
       professions: { select: { profession: true, skillLevel: true }, orderBy: { skillLevel: "desc" } } } });
@@ -332,9 +355,10 @@ export async function loadRaceBoardData(db: Pick<PrismaClient, "character" | "un
     const own = stored.get(char.key);
     const primary = own ?? legacy[0];
     const before = primary ? mergeStored(primary, own ? legacy : legacy.slice(1)) : null;
-    const next = nextEntry(before, char.level, now);
+    const next = nextEntry(before, char.level, now, dayFrom);
     const changed = !before || legacy.length > 0 || before.level !== next.level || before.name !== char.name || before.className !== char.className
-      || before.weekStartLevel !== next.weekStartLevel || before.weekStartedAt.getTime() !== next.weekStartedAt.getTime() || before.reachedMaxAt?.getTime() !== next.reachedMaxAt?.getTime();
+      || before.weekStartLevel !== next.weekStartLevel || before.weekStartedAt.getTime() !== next.weekStartedAt.getTime() || before.reachedMaxAt?.getTime() !== next.reachedMaxAt?.getTime()
+      || before.dayStartLevel !== next.dayStartLevel || before.dayStartedAt?.getTime() !== next.dayStartedAt?.getTime();
     if (changed) await db.levelRaceEntry.upsert({ where: { guildId_nameKey: { guildId, nameKey: char.key } },
       create: { guildId, nameKey: char.key, name: char.name, className: char.className, ...next, firstSeenAt: before?.firstSeenAt ?? now }, update: { name: char.name, className: char.className, ...next, ...(before ? { firstSeenAt: before.firstSeenAt } : {}) } });
     if (legacy.length) await db.levelRaceEntry.deleteMany({ where: { guildId, nameKey: { in: char.aliasKeys ?? [] } } });
@@ -688,7 +712,7 @@ export async function updateRaceBoard(discordGuild: DiscordGuild | null, deliver
     if (!channel?.isTextBased() || !("send" in channel)) return false;
     const lang = asLang(settings.language);
     const top = clampTop(settings.raceBoardTop);
-    const data = await loadRaceBoardData(prisma, guild.id, guild.gameEdition ?? "forever");
+    const data = await loadRaceBoardData(prisma, guild.id, guild.gameEdition ?? "forever", new Date(), settings.timezone);
     const hall = hallMode(data, settings.raceEnded);
     const names = await memberNames(discordGuild, [...new Set(data.rows.flatMap(row => row.discordId ? [row.discordId] : []))]);
     const png = data.total && !hall ? await scoreCardPng(raceCard(data, lang, top, names)).catch(() => null) : null;

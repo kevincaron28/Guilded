@@ -35,7 +35,9 @@ const serverAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("server.achievements"), on: z.boolean() }),
   z.object({ action: z.literal("server.reminders"), on: z.boolean() }),
   z.object({ action: z.literal("server.weeklyReport"), on: z.boolean() }),
-  z.object({ action: z.literal("server.autoImport"), on: z.boolean() })
+  z.object({ action: z.literal("server.autoImport"), on: z.boolean() }),
+  z.object({ action: z.literal("server.dungeonHighlights"), on: z.boolean() }),
+  z.object({ action: z.literal("server.dailyRecap"), on: z.boolean() })
 ]);
 export type ServerAction = z.infer<typeof serverAction>;
 
@@ -122,6 +124,8 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
         reminders: (settings?.raidReminderMinutes ?? 0) > 0,
         weeklyReport: settings?.weeklyReportEnabled ?? false,
         autoImport: settings?.autoApplyImports ?? false,
+        dungeonHighlights: settings?.dungeonHighlightsEnabled ?? true,
+        dailyRecap: settings?.dailyRecapEnabled ?? true,
         welcomeDelivery: settings?.welcomeDelivery ?? "CHANNEL",
         welcomeChannelSet: !!settings?.welcomeChannelId
       },
@@ -168,6 +172,12 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
         case "server.weeklyReport":
           await update({ weeklyReportEnabled: action.on });
           return { message: action.on ? "The weekly report is on." : "The weekly report is off.", audit: { setting: "weeklyReportEnabled", value: action.on } };
+        case "server.dungeonHighlights":
+          await update({ dungeonHighlightsEnabled: action.on });
+          return { message: action.on ? "Records and challenges are called out on dungeon run posts." : "Records and challenges are no longer called out (still recorded).", audit: { setting: "dungeonHighlightsEnabled", value: action.on } };
+        case "server.dailyRecap":
+          await update({ dailyRecapEnabled: action.on });
+          return { message: action.on ? "The daily recap is posted every day something happens." : "The daily recap is off.", audit: { setting: "dailyRecapEnabled", value: action.on } };
         case "server.autoImport":
           await update({ autoApplyImports: action.on });
           return { message: action.on ? "Uploads are applied automatically." : "Officers apply uploads themselves with /import apply.", audit: { setting: "autoApplyImports", value: action.on } };

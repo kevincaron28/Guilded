@@ -46,3 +46,17 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
     return { members: members.length, characters: characters.count, account: account.count > 0 };
   });
 }
+
+/**
+ * The companion's "Delete my data" (9.0.1): the member proves who they are with their companion credential
+ * (guild or personal) and types the confirm word. Returns null when the credential is unknown or revoked,
+ * "confirm" when the word is wrong, else the same summary as the web flow.
+ */
+export async function deleteMyDataByCredential(database: PrismaClient, tokenHash: string, confirm: unknown): Promise<DeletionSummary | null | "confirm"> {
+  const guildCredential = await database.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } });
+  const personal = guildCredential ? null : await database.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
+  const discordUserId = guildCredential?.member.discordUserId ?? personal?.account.discordUserId;
+  if (!discordUserId) return null;
+  if (typeof confirm !== "string" || confirm.trim() !== DELETE_CONFIRM_WORD) return "confirm";
+  return deleteMyData(database, discordUserId);
+}

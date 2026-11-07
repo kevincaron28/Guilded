@@ -6,6 +6,7 @@
 // Adding one: add a row, keep the id stable forever (it is stored), and add the threshold to the metric's
 // facts if it is a new metric. French text is part of the row, so no separate i18n entry is needed.
 
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 export type AchievementGame = "wow" | "poe2" | "guild";
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
 
@@ -245,3 +246,9 @@ export const GAME_LABEL: Record<AchievementGame, { en: string; fr: string }> = {
 };
 /** Where a row is listed: its WoW edition if it has one, else its game. */
 export const groupLabel = (def: AchievementDef, lang: "en" | "fr") => def.edition ? EDITION_LABEL[def.edition][lang] : GAME_LABEL[def.game][lang];
+
+/**
+ * Forever-only focus (companion/active-games.mjs): a PoE2 row is shown only while PoE2 tracking is on. The data
+ * is never deleted; turning ACTIVE_TRACKING back on makes rows that are still in the catalogue show again.
+ */
+export const achievementGameVisible = (def: Pick<AchievementDef, "game">, tracking = POE_TRACKING_ENABLED) => def.game !== "poe2" || tracking;

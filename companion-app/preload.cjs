@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld("companion", {
   setAutostart: (on) => ipcRenderer.invoke("set-autostart", on),
   openAddonFolder: () => ipcRenderer.invoke("open-addon-folder"),
   removeData: () => ipcRenderer.invoke("remove-data"),
+  deleteMyData: () => ipcRenderer.invoke("delete-my-data"),
   toggleTracking: () => ipcRenderer.invoke("toggle-tracking"),
   getPoeRuns: () => ipcRenderer.invoke("get-poe-runs"),
   openConnections: () => ipcRenderer.invoke("open-connections"),

@@ -1,6 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { isEditionActive } from "../../companion/active-editions.mjs";
-import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, WOW_EDITIONS, ladderKey } from "./achievements-catalogue.js";
+import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, achievementGameVisible, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, WOW_EDITIONS, ladderKey } from "./achievements-catalogue.js";
 import { badgeLabel, badgeSvg } from "./achievement-badges.js";
 import { storedAchievements, syncMemberAchievements } from "./achievements.js";
 import { achievementsCard } from "./end-cards.js";
@@ -92,7 +92,7 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
       return `<h4 style="margin:0 0 4px">${escapeHtml(def[lang].name)}</h4><p><strong>${t("How to earn", "Comment l'obtenir")}:</strong> ${escapeHtml(def[lang].description)}</p><p><strong>${t("Tier", "Niveau")}:</strong> ${TIER_LABEL[def.tier][lang]}</p>${edition}${state}`;
     };
     const section = (title: string, defs: readonly (typeof ACHIEVEMENTS)[number][]) => {
-      const visible = defs.filter(def => listed.includes(def));
+      const visible = defs.filter(def => listed.includes(def) && achievementGameVisible(def));
       if (!visible.length) return "";
       const done = visible.filter(def => row(def.id).earnedAt).length;
       const ordered = [...visible.filter(def => row(def.id).earnedAt), ...visible.filter(def => !row(def.id).earnedAt)];

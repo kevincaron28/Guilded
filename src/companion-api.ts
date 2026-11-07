@@ -50,7 +50,7 @@ import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.
 import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
-import { deleteMyData } from "./services/data-deletion.js";
+import { deleteMyData, deleteMyDataByCredential } from "./services/data-deletion.js";
 import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
 import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
 import { promotionForAddon } from "./services/promotion-feed.js";
@@ -528,6 +528,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
+      const isDeleteData = request.method === "POST" && url.pathname === "/api/v1/companion/delete-my-data";
       const isSignInStart = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in";
       const isSignInPoll = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in/poll";
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
@@ -536,7 +537,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -553,6 +554,18 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const ok = await revokeCompanionCredential(prisma, secret);
         if (!ok) recordFailure(address);
         json(response, ok ? 200 : 400, ok ? { ok: true } : { error: "A valid companion credential is required." });
+        return;
+      }
+      if (isDeleteData) {
+        // "Delete my data" from the companion: same erasure as the website, confirmed with the word DELETE.
+        if (!allowCompanionRevocation(address)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const payload = await readBody(request).catch(() => null) as { confirm?: unknown } | null;
+        const done = await deleteMyDataByCredential(prisma, hashCompanionSecret(secret), payload?.confirm);
+        if (done === null) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        if (done === "confirm") { json(response, 400, { error: "Type DELETE to confirm." }); return; }
+        json(response, 200, { ok: true, ...done });
         return;
       }
       if (isSignInStart) {

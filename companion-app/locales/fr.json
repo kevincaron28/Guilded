@@ -1241,5 +1241,12 @@
   "Launch: working folder {0}, APPDATA {1}, user {2}, started by the installer: {3}.": "Lancement : dossier de travail {0}, APPDATA {1}, utilisateur {2}, lancé par le programme d'installation : {3}.",
   "No older companion is running; reading the settings.": "Aucun ancien compagnon n'est en cours d'exécution; lecture des paramètres.",
   "Waiting for the older companion to close ({0} process(es))...": "Attente de la fermeture de l'ancien compagnon ({0} processus)...",
-  "The older companion is still running after 20 s; reading the settings anyway.": "L'ancien compagnon tourne encore après 20 s; lecture des paramètres quand même."
+  "The older companion is still running after 20 s; reading the settings anyway.": "L'ancien compagnon tourne encore après 20 s; lecture des paramètres quand même.",
+  "Delete my data": "Supprimer mes données",
+  "Delete all your Guilded data?": "Supprimer toutes vos données Guilded ?",
+  "Your data was not deleted.": "Vos données n’ont pas été supprimées.",
+  "There is nothing stored online for you yet. Use Remove data & quit to clear this PC.": "Rien n’est encore enregistré en ligne pour vous. Utilisez Supprimer les données et quitter pour vider ce PC.",
+  "This erases your website account, your guild characters and your personal records on the bot (battleground reports, achievements, recap schedule, devices), then clears this PC. Points, loot and raid history stay in each guild as \"Deleted member\". It cannot be undone.": "Cela supprime votre compte du site, vos personnages de guilde et vos données personnelles sur le bot (rapports JcJ, succès, bilans, appareils), puis vide ce PC. Les points, le butin et l’historique de raid restent dans chaque guilde sous « Deleted member ». Action irréversible.",
+  "This bot does not support deleting from the companion yet. Use your Guilded page on the website (Your data), or ask the owner.": "Ce bot ne permet pas encore la suppression depuis le companion. Utilisez votre page Guilded sur le site (Vos données), ou demandez au propriétaire.",
+  "Erases your Guilded account, your guild characters and your personal records on the bot, then clears this PC. Points, loot and raid history stay as \"Deleted member\". This cannot be undone.": "Supprime votre compte Guilded, vos personnages de guilde et vos données personnelles sur le bot, puis vide ce PC. Les points, le butin et l’historique de raid restent sous « Deleted member ». Action irréversible."
 }

@@ -37,7 +37,7 @@ describe("Lite command set", () => {
     expect(subs("report")).toEqual(["bug", "ping"]);
     expect(subs("mod")).toEqual(["faq"]);
     expect(subs("dungeon")).toEqual(["group"]);
-    expect(subs("raid")).toEqual(["cancel-signup", "roster", "signup", "status"]);
+    expect(subs("raid")).toEqual(["cancel-signup", "roster", "status"]);
     expect(subs("lead")).toEqual(["cancel", "create", "edit"]);
     const create = byName.get("lead")!.options!.find((option) => option.name === "create")!;
     expect(create.options!.map((option) => option.name)).not.toContain("core");
@@ -58,7 +58,8 @@ describe("Lite command set", () => {
     expect(allowsLite("mod", null, "kick")).toBe(false);
     expect(allowsLite("dungeon", null, "group")).toBe(true);
     expect(allowsLite("dungeon", null, "leaderboard")).toBe(false);
-    expect(allowsLite("raid", null, "signup")).toBe(true);
+    expect(allowsLite("raid", null, "signup")).toBe(false); // members sign up with the post's buttons
+    expect(allowsLite("raid", null, "status")).toBe(true);
     expect(allowsLite("lead", null, "create")).toBe(true);
     expect(allowsLite("lead", null, "award-ep")).toBe(false);
     expect(allowsLite("raid", null, "award-ep")).toBe(false);

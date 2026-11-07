@@ -70,6 +70,52 @@ function module.announceLinked()
   return true
 end
 
+-- A small window with the download link in a box that is already selected: press Ctrl+C.
+local popup
+function module.openCopyWindow()
+  if not popup then
+    popup = CreateFrame("Frame", "GuildedCompanionCopy", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    popup:SetSize(500, 150)
+    popup:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+    popup:SetFrameStrata("DIALOG")
+    popup:SetMovable(true)
+    popup:EnableMouse(true)
+    popup:RegisterForDrag("LeftButton")
+    popup:SetScript("OnDragStart", popup.StartMoving)
+    popup:SetScript("OnDragStop", popup.StopMovingOrSizing)
+    if popup.SetBackdrop then
+      popup:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 32, edgeSize = 32, insets = { left = 8, right = 8, top = 8, bottom = 8 } })
+    end
+    local title = popup:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    title:SetPoint("TOPLEFT", popup, "TOPLEFT", 20, -18)
+    title:SetText(L("Get the Windows companion"))
+    local hint = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    hint:SetPoint("TOPLEFT", popup, "TOPLEFT", 20, -46)
+    hint:SetWidth(460)
+    hint:SetJustifyH("LEFT")
+    hint:SetText(L("The game cannot open web pages. Press Ctrl+C to copy the link, then paste it (Ctrl+V) in your browser."))
+    popup.box = CreateFrame("EditBox", nil, popup, "InputBoxTemplate")
+    popup.box:SetSize(450, 20)
+    popup.box:SetPoint("TOPLEFT", popup, "TOPLEFT", 26, -86)
+    popup.box:SetAutoFocus(false)
+    popup.box:SetScript("OnTextChanged", function(self, user)
+      if user and self:GetText() ~= module.DIRECT then self:SetText(module.DIRECT); self:HighlightText() end
+    end)
+    popup.box:SetScript("OnEscapePressed", function() popup:Hide() end)
+    local close = CreateFrame("Button", nil, popup, "UIPanelButtonTemplate")
+    close:SetSize(90, 22)
+    close:SetPoint("BOTTOMRIGHT", popup, "BOTTOMRIGHT", -20, 16)
+    close:SetText(L("Close"))
+    close:SetScript("OnClick", function() popup:Hide() end)
+  end
+  popup.box:SetText(module.DIRECT)
+  popup:Show()
+  popup.box:SetFocus()
+  popup.box:HighlightText()
+  return popup
+end
+
 function module.text()
   return L("Guilded companion (Windows): sends your data to Discord and brings standings, raids and signups into the game.")
 end

@@ -852,6 +852,11 @@ local FR = {
   ["%d saved entries use a first name shared by several characters. /guilded names lists them."] = "%d entr\195\169es enregistr\195\169es utilisent un pr\195\169nom partag\195\169 par plusieurs personnages. /guilded names les liste.",
   ["Every saved character uses its full name."] = "Chaque personnage enregistr\195\169 utilise son nom complet.",
   ["%d saved entries still use a first name only:"] = "%d entr\195\169es enregistr\195\169es n'utilisent encore qu'un pr\195\169nom :",
+  -- Companion download window (9.0.1)
+  ["Get the companion"] = "Obtenir le compagnon",
+  ["Get the Windows companion"] = "Obtenir le compagnon Windows",
+  ["The game cannot open web pages. Press Ctrl+C to copy the link, then paste it (Ctrl+V) in your browser."] = "Le jeu ne peut pas ouvrir de pages web. Appuie sur Ctrl+C pour copier le lien, puis colle-le (Ctrl+V) dans ton navigateur.",
+  ["Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."] = "Ouvre une bo\195\174te avec le lien de t\195\169l\195\169chargement \195\160 copier (Ctrl+C). Le jeu ne peut pas ouvrir de pages web.",
 }
 
 -- German and Spanish: all catalogued French-reference strings translated; unknown runtime text stays unchanged.

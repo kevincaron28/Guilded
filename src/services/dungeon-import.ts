@@ -12,7 +12,8 @@ import { dungeonResetCutoff, predatesDungeonReset } from "./dungeon-reset.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import { grantRunAchievements, type AchievementKey } from "./dungeon-achievements.js";
 import { findCharacter } from "./character-match.js";
-import { displayCharacterName } from "./character-display.js";
+import { cleanCharacterName, displayCharacterName } from "./character-display.js";
+export { cleanCharacterName };
 import { competitionReason, completionReason, dungeonRating, hasDungeonRating, ratingCharacterKey, type LevelBand } from "./dungeon-rating.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import {
@@ -98,17 +99,6 @@ export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSe
 const plain = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 /** The first word of a character name, lowercased and without accents: "Hulke Hogan" and "Hulke" share the key "hulke". */
 export function firstNameKey(name: string): string { return plain(name).split(" ")[0] ?? ""; }
-/**
- * "First Last" as the party sees it: a last name equal to the first ("Xaldin Xaldin") or the realm word
- * ("Shawir Forever") is not a last name, so it is dropped. Other names are kept as the addon sent them.
- */
-export function cleanCharacterName(name: string, realm?: string): string {
-  const words = name.trim().split(/\s+/);
-  if (words.length < 2) return name.trim();
-  const last = plain(words[words.length - 1]!);
-  return last === plain(words[0]!) || last === "forever" || (!!realm && realm !== "-" && last === plain(realm)) ? words.slice(0, -1).join(" ") : words.join(" ");
-}
-
 // One row per character (case- and accent-insensitive). Observers can disagree on the realm ("-" vs a name),
 // repeat a player, or know only a first name ("Hulke") where another knows the full one ("Hulke Hogan"): merge
 // them, keeping the full name, the longest presence and any known details. A first-name-only entry merges into a

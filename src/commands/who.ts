@@ -4,7 +4,7 @@ import { createEpgpService } from "../services/epgp.js";
 import { createMeritService } from "../services/merit.js";
 import { findPlayer } from "../services/player-search.js";
 import { guildService, requireGuildContext } from "./context.js";
-import { canonicalClass } from "../services/character-display.js";
+import { canonicalClass, displayCharacterName } from "../services/character-display.js";
 import { canonicalSpecialization } from "../wow-specializations.js";
 import { specRole } from "../services/dps-kind.js";
 import { currentEdition } from "../services/edition-context.js";
@@ -40,7 +40,7 @@ export async function executeWho(interaction: ChatInputCommandInteraction): Prom
     const role = spec ? specRole(spec, currentEdition()) : null;
     const kind = role === "MELEE" ? "(melee)" : role === "RANGED" ? "(ranged)" : null;
     const details = [character.level ? `${character.level}` : null, character.race, character.className, character.spec, kind].filter(Boolean).join(" ");
-    return `${character.isMain ? "⭐" : "•"} **${character.name}** — ${details}${professions ? ` — ${professions}` : ""}${seen}`;
+    return `${character.isMain ? "⭐" : "•"} **${displayCharacterName(character)}** — ${details}${professions ? ` — ${professions}` : ""}${seen}`;
   });
   const rate = rates.get(found.member.id);
   await interaction.reply({

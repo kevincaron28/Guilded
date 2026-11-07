@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "../services/character-display.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle,
   StringSelectMenuBuilder, type StringSelectMenuInteraction,
@@ -162,9 +163,9 @@ async function requestCrafters(request: { guildId: string; item: string; profess
   const matches = await findCrafters(prisma, request.guildId, request.item);
   const exact = matches.filter((match) => match.itemName.toLowerCase() === request.item.trim().toLowerCase() || String(match.itemKey) === request.item.trim());
   const known = exact.flatMap((match) => match.crafters).filter((crafter) => !request.profession || crafter.profession.toLowerCase() === request.profession.toLowerCase());
-  if (known.length) return [...new Set(known.map((crafter) => `${crafter.character} (${crafter.profession}; recipe recorded)`))].slice(0, 10);
+  if (known.length) return [...new Set(known.map((crafter) => `${cleanCharacterName(crafter.character)} (${crafter.profession}; recipe recorded)`))].slice(0, 10);
   if (!request.profession) return [];
-  return (await findProfessionHolders(prisma, request.guildId, request.profession)).slice(0, 5).map((crafter) => `${crafter.character} (${crafter.skillLevel}; recipe unverified)`);
+  return (await findProfessionHolders(prisma, request.guildId, request.profession)).slice(0, 5).map((crafter) => `${cleanCharacterName(crafter.character)} (${crafter.skillLevel}; recipe unverified)`);
 }
 
 // Track D (request 9): a request made for one crafter pings that crafter once, in the new post. The mention is only

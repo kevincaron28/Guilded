@@ -1,3 +1,4 @@
+import { cleanCharacterName, displayCharacterName } from "../services/character-display.js";
 import { ApplicationStatus, type RaidRole } from "../generated/prisma/client.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, SlashCommandBuilder, TextInputBuilder, TextInputStyle,
@@ -74,7 +75,7 @@ const DECISION_LABEL: Record<ApplicationStatus, string> = {
 
 function applicationEmbed(app: ApplicationCard, applicantId: string, decision?: { status: ApplicationStatus; by: string }): EmbedBuilder {
   const embed = new EmbedBuilder().setColor(decision ? DECISION_COLOR[decision.status] : DECISION_COLOR.PENDING)
-    .setTitle(`📋 Application — ${app.character}`)
+    .setTitle(`📋 Application — ${cleanCharacterName(app.character)}`)
     .setDescription(`From <@${applicantId}>`)
     .addFields(
       { name: "Class / Spec", value: `${app.className} / ${app.spec}`, inline: true },
@@ -120,7 +121,7 @@ export async function announceApplication(guild: DiscordGuild | null, applicantI
     components: applicationDecisionRows(application.id)
   }), "application", application.coreId ?? null);
   if (message) await applicationService.setCardMessage(application.id, message.id);
-  await warnDoNotInvite(guild, { discordUserId: applicantId, names: [application.character] }, `<@${applicantId}> (${application.character})`, "application");
+  await warnDoNotInvite(guild, { discordUserId: applicantId, names: [application.character] }, `<@${applicantId}> (${cleanCharacterName(application.character)})`, "application");
 }
 
 // After a decision made with /application approve|reject|trial (rather than
@@ -185,7 +186,7 @@ export async function executeApplication(interaction: ChatInputCommandInteractio
     const rawStatus = interaction.options.getString("status") as ApplicationStatus | null;
     const applications = await applicationService.list(context.guildId, rawStatus ?? undefined);
     await interaction.reply(applications.length
-      ? applications.map((app) => `\`${app.id}\` — **${app.character}** (<@${app.member.discordUserId}>)${app.core ? ` — ${app.core.name}` : ""} — ${app.status}`).join("\n")
+      ? applications.map((app) => `\`${app.id}\` — **${cleanCharacterName(app.character)}** (<@${app.member.discordUserId}>)${app.core ? ` — ${app.core.name}` : ""} — ${app.status}`).join("\n")
       : "No applications found.");
     return;
   }
@@ -193,7 +194,7 @@ export async function executeApplication(interaction: ChatInputCommandInteractio
   if (subcommand === "view") {
     const app = await applicationService.get(context.guildId, id);
     if (!app) throw new Error("Application not found");
-    await interaction.reply(`\`${app.id}\` **${app.character}** — ${app.status}${app.core ? `\nCore: ${app.core.name}` : ""}\nClass/spec: ${app.className} / ${app.spec}${app.role ? ` (${ROLE_TEXT[app.role]})` : ""}\nExperience: ${app.experience}\nAvailability: ${app.availability}${app.notes ? `\nNotes: ${app.notes}` : ""}`);
+    await interaction.reply(`\`${app.id}\` **${cleanCharacterName(app.character)}** — ${app.status}${app.core ? `\nCore: ${app.core.name}` : ""}\nClass/spec: ${app.className} / ${app.spec}${app.role ? ` (${ROLE_TEXT[app.role]})` : ""}\nExperience: ${app.experience}\nAvailability: ${app.availability}${app.notes ? `\nNotes: ${app.notes}` : ""}`);
     return;
   }
   const application = await applicationService.get(context.guildId, id);
@@ -309,7 +310,7 @@ export async function handleApplyButton(interaction: ButtonInteraction): Promise
       const member = await guildService.ensureMember(guild.id, interaction.user.id, interaction.user.username);
       const character = await pickSignupCharacter(interaction, guild.id, member.id);
       if (!character) return;
-      const payload = { content: `**${character.name} — ${character.realm}** : continue ta candidature pour **${core.name}**.`,
+      const payload = { content: `**${displayCharacterName(character)} — ${character.realm}** : continue ta candidature pour **${core.name}**.`,
         components: [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`${APPLY_PREFIX}character:${core.id}:${rawRole}:${character.id}`).setLabel("Continuer ma candidature").setStyle(ButtonStyle.Primary))] };
       if (interaction.replied || interaction.deferred) await interaction.editReply(payload);
       else await interaction.reply({ ...payload, flags: MessageFlags.Ephemeral });

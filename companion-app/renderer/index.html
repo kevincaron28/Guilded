@@ -15,23 +15,20 @@
     <div class="brand"><img src="logo.png" alt="Guilded"><div><strong>GUILDED</strong><span>YOUR GUILD, CONNECTED</span></div></div>
     <div class="nav-label">COMPANION</div>
     <nav id="companion-navigation" aria-label="Main navigation">
-      <button class="nav active" data-page="status"><span aria-hidden="true">▦</span>Home</button>
-      <button class="nav" data-page="link"><span aria-hidden="true">⛓</span>Link everything</button>
-      <button class="nav" data-page="settings"><span aria-hidden="true">⇄</span>Sync &amp; setup <span id="setupBadge" class="badge" hidden>!</span></button>
-      <button class="nav" data-page="characters"><span aria-hidden="true">☻</span>My characters</button>
+      <button class="nav active" data-page="status"><span aria-hidden="true">⇄</span>Sync</button>
+      <button class="nav" data-page="characters"><span aria-hidden="true">☻</span>Guild</button>
       <button class="nav" data-page="server" id="serverNav" hidden><span aria-hidden="true">⚙</span>Server</button>
-      <a class="nav nav-external" href="https://guilded.kcaron.top/me/" target="_blank" rel="noopener"><span aria-hidden="true">↗</span>My Guilded</a>
-      <button class="nav" data-page="wow"><span aria-hidden="true">◇</span>World of Warcraft</button>
-      <details class="nav-extras" id="navExtras"><summary>More tools</summary>
-      <button class="nav poe-only" data-page="poe"><span aria-hidden="true">⌁</span>PoE2 mapping</button>
-      </details>
+      <button class="nav" data-page="wow"><span aria-hidden="true">◇</span>Tools</button>
+      <button class="nav nav-sub poe-only" data-page="poe"><span aria-hidden="true">⌁</span>PoE2 mapping</button>
+      <button class="nav" data-page="settings"><span aria-hidden="true">⚙</span>Settings <span id="setupBadge" class="badge" hidden>!</span></button>
       <div class="nav-label nav-web-label">ON THE WEBSITE</div>
+      <a class="nav nav-external" href="https://guilded.kcaron.top/me/" target="_blank" rel="noopener"><span aria-hidden="true">↗</span>My Guilded</a>
       <a class="nav nav-external web-link" data-web-path="/leaderboards/" href="https://guilded.kcaron.top/leaderboards/" target="_blank" rel="noopener"><span aria-hidden="true">🏆</span>Leaderboards</a>
       <a class="nav nav-external web-link" data-web-path="/me/raid-plans" href="https://guilded.kcaron.top/me/raid-plans" target="_blank" rel="noopener"><span aria-hidden="true">⚑</span>Raids, cores and prices</a>
       <a class="nav nav-external web-link" data-web-path="/me/reserves" href="https://guilded.kcaron.top/me/reserves" target="_blank" rel="noopener"><span aria-hidden="true">★</span>Reserves and wishlist</a>
       <div class="nav-divider"></div>
-      <button class="nav" data-page="activity"><span aria-hidden="true">≡</span>Activity <span id="activityCount" class="nav-count">0</span></button>
       <button class="nav" data-page="help"><span aria-hidden="true">?</span>Help & privacy</button>
+      <button class="nav" data-page="activity"><span aria-hidden="true">≡</span>Activity <span id="activityCount" class="nav-count">0</span></button>
     </nav>
     <div class="side-bottom"><div class="mode-chip"><span class="status-dot"></span><span id="appMode">Guilded Companion</span></div><p id="sideNote">Loading sync options…</p><span id="version">Version</span><a class="publisher-signature" href="https://kcaron.top/" target="_blank" rel="noopener"><img src="kc-emblem.webp" alt="">By K Caron ↗</a></div>
   </aside>
@@ -153,7 +150,7 @@
         <p id="boardsNotice" role="status"></p><div id="boardsContent"></div>
       </section>
       <section id="page-settings" class="page" hidden>
-        <div class="page-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h1>Connection & setup</h1><p class="subtitle">Connect once. Choose the games you want to share.</p></div><span id="pairBadge" class="pill">Discord not linked</span></div>
+        <div class="page-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h1>Connection & setup</h1><p class="subtitle">Connect once. Choose the games you want to share.</p></div><div class="actions"><span id="pairBadge" class="pill">Discord not linked</span><button id="btnRunSetup" type="button" data-go="link">Run setup again</button></div></div>
           <form id="form" autocomplete="off">
           <article class="panel"><div class="section-title"><h2><span class="step-number">1</span> Do you need to connect?</h2></div><p class="muted"><strong>Addon only, no Discord server?</strong> You don't need to connect. The addon already shares EP/GP, loot and standings with your guild in game, and Export to spreadsheet on the World of Warcraft page still works.</p><p class="muted"><strong>Guild with the Guilded bot?</strong> Sign in with Discord and choose your server. The companion sends your Guilded.lua (EP/GP, loot, attendance, dungeon runs) to your guild's Discord and brings the standings back to the addon. Your own characters link on your first sync.</p><p class="muted"><strong>Public dungeon leaderboards, no guild needed?</strong> Sign in with Discord and choose <em>Public dungeon leaderboards only</em>. The companion sends your finished dungeon runs from Guilded Dungeons (GuildedDungeons.lua) or Guilded (Guilded.lua), whichever you play with; having both is fine.</p><p class="muted">Your browser opens: choose your server there and press Connect. Then choose your saved data in step 2.</p><div class="actions"><button type="button" id="btnSignIn" class="primary">Sign in with Discord</button></div><p id="connectedAs" class="micro" hidden></p><div id="signInWaiting" class="note-panel" hidden><strong>Finish in your browser (it may be behind this window)</strong><p><span id="signInCodeLine">Type this code on the sign-in page: <code id="signInCode"></code></span> Then choose your server or the leaderboards, press Connect, and come back here.</p><p id="signInTimeLeft" class="micro" role="timer"></p><p class="micro login-location">Discord may email you to confirm a new login location: open that email, choose Yes, it's me, then come back. You can also log in with the QR code using the Discord app on your phone.</p><div class="actions"><button type="button" id="btnSignInReopen" class="primary">Reopen the page</button><button type="button" id="btnSignInCancel" class="quiet">Cancel</button></div></div><p id="setupHint" class="micro">Link your own account. Officers keep their normal guild permissions.</p></article>
           <article class="panel"><h2><span class="step-number">2</span> Choose your games</h2><div class="form-grid game-switches"><label class="switch-card"><div><strong>World of Warcraft</strong><small>Sync addon data and standings</small></div><input id="wowEnabled" type="checkbox" checked aria-label="Enable World of Warcraft sync"></label><label class="switch-card poe-only"><div><strong>Path of Exile 2</strong><small>Share my mapping observations</small></div><input id="poeEnabled" type="checkbox" aria-label="Read my PoE2 log and share map observations"></label></div>

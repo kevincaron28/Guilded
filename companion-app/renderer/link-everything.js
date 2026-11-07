@@ -178,7 +178,8 @@
     }, 3000);
   });
   $('btnLinkSkip').addEventListener('click', () => {
-    try { localStorage.setItem('guilded.companion.linkSkipped', '1'); } catch { /* the page simply shows again */ }
+    // For this run only: until setup is done, the next start opens Link everything again (owner, 7 November).
+    try { sessionStorage.setItem('guilded.companion.linkSkipped', '1'); } catch { /* the page simply shows again */ }
     document.querySelector('.nav[data-page="status"]')?.click();
   });
   // After a sign-in, find the saved data on its own when only one account has it, then re-read the links.

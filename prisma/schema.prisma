@@ -974,7 +974,7 @@ model GuildSettings {
   raceBoardChannelId       String?
   raceBoardMessageId       String?
   pvpModuleEnabled         Boolean @default(true)
-  raceBoardTop             Int     @default(25)
+  raceBoardTop             Int     @default(50)
   raceEnded                Boolean @default(false)
   raceHallBackfilledAt     DateTime?
   // 9.1 records and recaps (docs/plans/RECORDS_AND_RECAPS.md): record/challenge callouts on run posts and the daily recap card, both on by default.
@@ -1025,6 +1025,8 @@ model GuildSettings {
   craftOffersEnabled       Boolean @default(false)
   // Private (officers and raid leaders) channel where gear/readiness checks are posted.
   readinessChannelId       String?
+  // 9.1 readiness upgrade (docs/plans/READINESS_UPGRADE.md): the daily list and the raid night check card; on by default, officers switch both off.
+  readinessPostsEnabled    Boolean   @default(true)
   // Where each raid core's roster is shown (one live message per core).
   coreChannelId            String?
   // Private channel where new applications are posted; falls back to the officer log.

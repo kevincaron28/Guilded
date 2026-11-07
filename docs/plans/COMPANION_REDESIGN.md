@@ -145,3 +145,16 @@ Real-PC checks: a fresh install, an upgrade over a running companion (#494), and
 2. **Officers:** Server under Guild (proposed), or its own entry for officers only?
 3. **The "This week" line:** is a count of uploads useful to members, or should it show the guild name and the last /reload only?
 4. **Wizard:** should Link everything open by itself on every start until setup is complete (proposed), or only on the first start?
+
+### Owner's answers (7 November 2026)
+
+1. **PoE2:** under Tools.
+2. **Server:** its own entry, officers only (not under Guild). The navigation becomes Sync, Guild,
+   Server (officers), Tools, Settings, then Help.
+3. **The line under the status card:** the guild's name and the last /reload only (no upload count).
+4. **Wizard:** Link everything opens by itself on every start until setup is complete.
+
+### Progress
+
+- PR 1, the status card on Home, is built (`companion/status-card.mjs`). The old banners, tiles and
+  cards are hidden in `#homeLegacy` until the later PRs remove what still writes to them.

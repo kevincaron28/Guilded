@@ -103,9 +103,14 @@ describe("owner console model", () => {
     expect(setupProgress(null)).toEqual({ done: 0, total: 8 });
     expect(setupProgress({ notifyChannelId: "1", adminChannelId: "2", logChannelId: null })).toMatchObject({ done: 2 });
   });
+  it("marks test servers in the board rows and groups them in the summary", () => {
+    expect(fleetField(row(1, { isTest: true }), 1).name).toContain("🧪");
+    expect(fleetField(row(2), 2).name).not.toContain("🧪");
+    expect(boardEmbed([row(1), row(2, { isTest: true })], 2, 0, "9.0.1", new Date(0)).toJSON().description).toContain("1** test");
+  });
   it("registers /guilded-console with setup and refresh, admin-only", () => {
     const json = ownerConsoleCommand.toJSON();
-    expect(json.options?.map(o => o.name)).toEqual(["setup", "refresh"]);
+    expect(json.options?.map(o => o.name)).toEqual(["setup", "refresh", "test"]);
     expect(json.default_member_permissions).toBe("8");
   });
 });
@@ -126,7 +131,7 @@ function fixture(options: { stored?: Record<string, unknown> | null; channelFetc
       upsert: vi.fn(async ({ create, update }: { create: Record<string, unknown>; update: Record<string, unknown> }) => { stored = stored ? { ...stored, ...update } : { ...create }; return stored; })
     },
     ownerConsoleAudit: { create: vi.fn(async () => undefined) },
-    guild: { findMany: vi.fn(async () => []), findFirst: vi.fn(async () => ({ id: "db-1" })) },
+    guild: { findMany: vi.fn(async () => []), updateMany: vi.fn(async () => ({ count: 1 })), findFirst: vi.fn(async () => ({ id: "db-1" })) },
     guildSettings: { findUnique: vi.fn(async () => ({ adminChannelId: "admin-1", achievementsEnabled: true })), update: vi.fn(async () => undefined) },
     errorReport: { count: vi.fn(async () => 0) }
   };
@@ -147,6 +152,16 @@ const modalSubmit = (customId: string, text: string) => ({ customId, user: { id:
   fields: { getTextInputValue: () => text }, reply: vi.fn(async () => undefined), deferReply: vi.fn(async () => undefined), editReply: vi.fn(async () => undefined) });
 
 describe("owner console interactions", () => {
+  it("marks and unmarks a test server, audits it, and reports a server with no record", async () => {
+    const f = fixture();
+    expect(await f.console_.setTestServer(OTHER, true, OWNER)).toContain("no Guilded record");
+    f.db.guild.findMany.mockResolvedValueOnce([{ id: "db-2", isTestServer: false }] as never);
+    expect(await f.console_.setTestServer(OTHER, true, OWNER)).toContain("test server");
+    expect(f.db.guild.updateMany).toHaveBeenCalledWith({ where: { discordId: OTHER }, data: { isTestServer: true } });
+    f.db.guild.findMany.mockResolvedValueOnce([{ id: "db-2", isTestServer: true }] as never);
+    expect(await f.console_.setTestServer(OTHER, undefined, OWNER)).toContain("live server");
+    expect(f.db.ownerConsoleAudit.create).toHaveBeenCalledWith({ data: expect.objectContaining({ action: "mark test server", targetGuildId: OTHER }) });
+  });
   it("refuses anyone but the owner, outside the home server, or outside the console channel", async () => {
     const f = fixture();
     for (const i of [button(`oc:act:tier:${OTHER}`, "intruder"), button(`oc:act:tier:${OTHER}`, OWNER, { guildId: "999" }), button(`oc:act:tier:${OTHER}`, OWNER, { channelId: "elsewhere" })]) {

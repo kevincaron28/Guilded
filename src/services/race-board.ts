@@ -8,10 +8,10 @@ import { createGuildService } from "./guild.js";
 import { fullNameOf } from "./forever-names.js";
 import { dayStart, participationDay } from "./participation-rules.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
-import { classColor, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 
 // The live "Race to 60" leaderboard and Hall of Fame (8.5, track B1). The channel's FIRST message is the live board: the
-// top N guild characters (default 25, officers pick 10-30) with class, race, level bar, professions, last seen and the
+// top N guild characters (default 50, officers pick 10-50) with class, race, level bar, professions, last seen and the
 // linked Discord member, edited in place after every sync. Every character that reaches 60 then gets its own permanent
 // Hall of Fame message, never edited or deleted, backed by a database row so history survives channel resets.
 // Same pattern as the duel board: footer marker, pure builders, refresh through discord-jobs. On by default; officers
@@ -21,10 +21,10 @@ const guildService = createGuildService(prisma);
 export const RACE_BOARD_MARKER = "Guilded race board";
 export const HALL_MARKER = "Guilded hall of fame";
 export const LEVEL_CAP = 60;
-export const DEFAULT_TOP = 25, MIN_TOP = 10, MAX_TOP = 30;
+export const DEFAULT_TOP = 50, MIN_TOP = 10, MAX_TOP = 50;
 /** With at least this many tracked characters, everyone reaching 60 switches the board to Hall of Fame mode by itself. */
 const AUTO_END_MINIMUM = 3;
-const CARD_ROWS = 30, SHORT_LEADERS = 3, GAINERS = 5, DESCRIPTION_BUDGET = 3800;
+const CARD_ROWS = 50, SHORT_LEADERS = 3, GAINERS = 5, DESCRIPTION_BUDGET = 3800;
 /** WoW Forever launched on 4 November 2026 (Season 1 opens at 23:00 UTC that day); "time to 60" counts from here. */
 export const LAUNCH_AT = new Date("2026-11-04T23:00:00Z");
 export const RACE_CARD_FILE = "race.png", HALL_CARD_FILE = "hall-60.png";
@@ -109,22 +109,28 @@ const stamp = (date: Date, style: "d" | "R") => `<t:${Math.floor(date.getTime() 
 const shortProfessions = (professions: string[], limit = 2) => professions.slice(0, limit).join(", ");
 
 /**
- * Pure: the leaderboard picture. Top N (10-30, the officer's setting) in leaderboard order: full name and rank in the class colour,
- * class, race and the linked Discord member under it, a level bar and the week's gain. `memberNames` maps Discord ids to display names.
+ * Pure: the leaderboard picture, in the shared ladder layout. Top N (10-50, the officer's setting, 50 by default) in leaderboard
+ * order: rank (medals for the top 3), full name in the class colour, class, race and the linked Discord member under it, a level bar,
+ * the level, and the levels gained this week as a green arrow. `memberNames` maps Discord ids to display names.
  */
-export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, memberNames: ReadonlyMap<string, string> = new Map()): ScoreCard {
+export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, memberNames: ReadonlyMap<string, string> = new Map(), updatedAt = new Date()): ScoreCard {
   const fr = lang === "fr";
   const ranked = leaderboardOrder(data.rows).slice(0, Math.min(clampTop(top), CARD_ROWS));
   return {
     eyebrow: "Guilded · WoW Forever", title: fr ? "Course au niveau 60" : "Race to 60",
     subtitle: fr ? `${data.finished} sur ${data.total} personnages au niveau ${LEVEL_CAP}` : `${data.finished} of ${data.total} characters at level ${LEVEL_CAP}`,
     stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · mis à jour à chaque synchronisation · /character race near trouve des partenaires` : `Top ${ranked.length} of ${data.total} · updated after every sync · /character race near finds partners`,
-    race: ranked.map(row => {
-      const member = row.discordId ? memberNames.get(row.discordId) : undefined;
-      return { name: row.name, color: classColor(row.className), level: row.level, max: LEVEL_CAP, done: row.level >= LEVEL_CAP,
-        sub: [row.className, row.race, member ? `@${member}` : ""].filter(Boolean).join(" · "),
-        ...(row.weekGain > 0 ? { note: fr ? `+${row.weekGain} sem.` : `+${row.weekGain} wk` } : {}) };
-    })
+    ladder: {
+      meta: ladderMeta(lang, updatedAt),
+      columns: [{ label: fr ? "Progression" : "Progress", width: 120, kind: "bar" }, { label: fr ? "Niv." : "Lvl", width: 40, primary: true },
+        { label: fr ? "Semaine" : "Week", width: 56, kind: "move" }],
+      boards: [{ rows: ranked.map((row, index) => {
+        const member = row.discordId ? memberNames.get(row.discordId) : undefined;
+        return { rank: index + 1, name: row.name, color: classColor(row.className), values: ["", String(row.level), ""], bar: { value: row.level, max: LEVEL_CAP },
+          sub: [row.className, row.race, member ? `@${member}` : ""].filter(Boolean).join(" · "),
+          ...(row.weekGain > 0 ? { move: row.weekGain, moveLabel: `+${row.weekGain}` } : {}) };
+      }) }]
+    }
   };
 }
 

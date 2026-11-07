@@ -13,7 +13,6 @@ import { createCraftService } from "../services/craft.js";
 import { findProfessionHolders } from "../services/profession-search.js";
 import { findCrafters } from "../services/recipes.js";
 import { PROFESSIONS } from "../wow-data.js";
-import { recipeCrafters } from "../services/profession-board.js";
 import { PROFESSION_FR } from "../services/profession-style.js";
 import { lastSeenText } from "../services/last-seen.js";
 import { guildService } from "./context.js";
@@ -242,9 +241,9 @@ export async function handleCraftButton(interaction: ButtonInteraction): Promise
   if (rest.startsWith("ask:")) {
     const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
     const lang = await boardLang(guild.id);
-    const found = await recipeCrafters(prisma, guild.id, Number(rest.slice(4)));
-    if (!found) { await interaction.reply({ content: tx(lang, "That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
-    await interaction.showModal(requestModal(lang, { item: found.itemName, profession: found.profession }));
+    const found = await recipeForForm(guild.id, Number(rest.slice(4)));
+    if (found === null) { await interaction.reply({ content: tx(lang, "That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
+    await interaction.showModal(requestModal(lang, found === "slow" ? {} : { item: found.itemName, profession: found.profession }));
     return;
   }
   const [requestId, action] = rest.split(":");
@@ -341,7 +340,18 @@ export async function handleCraftSelect(interaction: StringSelectMenuInteraction
   if (!interaction.guild || !interaction.customId.startsWith(`${CRAFT_PREFIX}askwho:`)) return;
   const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
   const lang = await boardLang(guild.id);
-  const found = await recipeCrafters(prisma, guild.id, Number(interaction.customId.split(":")[2]));
-  if (!found) { await interaction.reply({ content: tx(lang, "That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
-  await interaction.showModal(requestModal(lang, { item: found.itemName, profession: found.profession, crafter: interaction.values[0] }));
+  const found = await recipeForForm(guild.id, Number(interaction.customId.split(":")[2]));
+  if (found === null) { await interaction.reply({ content: tx(lang, "That recipe is no longer listed."), flags: MessageFlags.Ephemeral }); return; }
+  await interaction.showModal(requestModal(lang, found === "slow" ? { crafter: interaction.values[0] } : { item: found.itemName, profession: found.profession, crafter: interaction.values[0] }));
+}
+
+// A modal must be Discord's FIRST answer, within 3 seconds, and cannot be deferred. So the Request form reads only the
+// one recipe row it pre-fills (an indexed lookup, not every profession post), and opens empty rather than late.
+export const FORM_LOOKUP_BUDGET_MS = 1_500;
+export async function recipeForForm(guildId: string, itemKey: number, budgetMs = FORM_LOOKUP_BUDGET_MS): Promise<{ itemName: string; profession: string } | null | "slow"> {
+  if (!Number.isInteger(itemKey)) return null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const slow = new Promise<"slow">(resolve => { timer = setTimeout(() => resolve("slow"), budgetMs); });
+  const row = prisma.recipeKnown.findFirst({ where: { guildId, itemKey }, select: { itemName: true, profession: true } }).catch(() => "slow" as const);
+  try { return await Promise.race([row, slow]); } finally { clearTimeout(timer); }
 }

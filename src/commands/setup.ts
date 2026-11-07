@@ -31,6 +31,7 @@ import { inviteChannelCandidates, pickInviteChannel } from "../services/invite-e
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
 import { blockedMemberCount, botCanRename } from "../services/nickname-sync.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { deleteWhosWhoPost, hasWhosWhoPost } from "../services/whos-who-board.js";
 import { archiveForRetire, deleteRetiredChannel, forgetRetirePlan, isManagedChannel, retirePlan } from "../services/channel-retire.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
 import { ensureWelcomePanel, MAX_ONBOARDING_ROLES, rulesGateActive } from "../services/onboarding.js";
@@ -91,6 +92,8 @@ const LAST_STEP = 7;
 const pendingField = new Map<string, ChannelField>();
 // "Retire an old channel": picking (true) until a channel is chosen and archived; then confirming (retirePlan).
 const retiring = new Set<string>();
+// 9.0.2: the retired Who's who post. An officer presses the offer button, then confirms or keeps it (per guild).
+const whosAsk = new Set<string>();
 const SUMMARY_STEP = 8;
 const BG_SETUP_STEP = 9;
 // Wizard messages that still have a live collector. A click on any other `setup:` message (the bot restarted,
@@ -535,12 +538,17 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
         .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement, ...(pending === "craftChannelId" ? [ChannelType.GuildForum] : []))
         .setMinValues(1).setMaxValues(1)));
     }
-    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
-      button("restart", T("Go through setup again")),
-      button("bg-open", lang === "fr" ? "JcJ (facultatif)" : "Battlegrounds (optional)"),
-      button("close", T("Close"), ButtonStyle.Primary),
-      button("retire", T("Retire an old channel"), ButtonStyle.Secondary, Boolean(plan) || retiring.has(guildId))
-    ));
+    components.push(whosAsk.has(guildId) && hasWhosWhoPost(settings)
+      ? new ActionRowBuilder<ButtonBuilder>().addComponents(
+        button("whos-confirm", T("Delete the old Who's who post"), ButtonStyle.Danger),
+        button("whos-keep", T("Keep it"), ButtonStyle.Secondary))
+      : new ActionRowBuilder<ButtonBuilder>().addComponents(
+        button("restart", T("Go through setup again")),
+        button("bg-open", lang === "fr" ? "JcJ (facultatif)" : "Battlegrounds (optional)"),
+        button("close", T("Close"), ButtonStyle.Primary),
+        button("retire", T("Retire an old channel"), ButtonStyle.Secondary, Boolean(plan) || retiring.has(guildId)),
+        ...(hasWhosWhoPost(settings) ? [button("whos-ask", T("Old Who's who post"), ButtonStyle.Secondary)] : [])
+      ));
   }
 
   if (note) embed.addFields({ name: T("Last action"), value: note.slice(0, 1000) });
@@ -1062,6 +1070,16 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         } else if (action === "retire-cancel") {
           retiring.delete(guildId); forgetRetirePlan(guildId);
           note = T("Kept the channel. The archive file stays where it was posted.");
+        } else if (action === "whos-ask") {
+          whosAsk.add(guildId);
+          note = T("The Who's who post was retired: mains and alts now show on the roster card, in /character and on the guild page. Press the red button to delete the old message, or Keep it. Nothing is deleted until you confirm.");
+        } else if (action === "whos-keep") {
+          whosAsk.delete(guildId);
+          note = T("Kept the old Who's who post. It is no longer updated.");
+        } else if (action === "whos-confirm") {
+          whosAsk.delete(guildId);
+          const outcome = await deleteWhosWhoPost(guild);
+          note = outcome.ok ? T("Deleted the old Who's who post.") : T("Nothing was deleted: {reason}", { reason: outcome.message });
         } else if (action === "retire-confirm") {
           retiring.delete(guildId);
           const outcome = await deleteRetiredChannel(guild, await guildService.getSettings(guildId) as Record<string, unknown> | null, `${BRAND.name} /setup retire, confirmed by ${i.user.tag}`);

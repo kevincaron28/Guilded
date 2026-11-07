@@ -51,7 +51,7 @@ import {
 import { commands } from "./commands/index.js";
 import { legacyView, resolveCommand } from "./commands/router.js";
 import { executeProfile } from "./commands/profile.js";
-import { replyWithCommandError } from "./commands/context.js";
+import { isExpiredInteraction, replyWithCommandError } from "./commands/context.js";
 import { handleRaidSignupButton, handleRaidSpecSelect, RAID_SIGNUP_PREFIX, RAID_SPEC_PREFIX } from "./commands/raid.js";
 import { handleOfficerButton, handleOfficerModal } from "./commands/officer-tools.js";
 import { OFFICER_PREFIX } from "./services/officer-buttons.js";
@@ -73,7 +73,6 @@ import { handleLinkedButton, LINKED_PREFIX } from "./services/companion-link-dm.
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
 import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
-import { updateWhosWhoBoard } from "./services/whos-who-board.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
@@ -183,6 +182,9 @@ const reportJobError = (source: string, origin: ReportScope = {}) => (error: unk
 // An answer to the member's own mistake (see isMemberAnswer) is logged, not reported.
 const reportInteractionError = (source: string, interaction: InteractionReportInput & { guildId: string | null; guild: { name: string } | null; user: { id: string } }, error: unknown): void => {
   if (isMemberAnswer(error)) { console.warn(`${source}: ${(error as Error).message}`); return; }
+  // 10062: Discord dropped the interaction before the bot could answer (more than 3 s after the click, usually event
+  // loop or gateway lag). Nothing can be sent back and it is not a code bug, so it is logged, not filed as a report.
+  if (isExpiredInteraction(error)) { console.warn(`${source}: answered too late, Discord already dropped the interaction (10062)`); return; }
   console.error(`${source} failed`, error);
   void errorReportService.report(client, error, { source, guildId: interaction.guildId, guildName: interaction.guild?.name, userId: interaction.user.id, ...interactionReportOrigin(interaction), operation: `${source} ${interactionLabel(interaction)}`.trim() });
 };
@@ -395,7 +397,6 @@ client.once(Events.ClientReady, (readyClient) => {
         await forEachGuildScope(prisma, guild.id, async () => {
           await updateDungeonLeaderboard(guild).catch(reportJobError("Dungeon leaderboard refresh", origin));
           await updateDuelBoard(guild).catch(reportJobError("Duel board refresh", origin));
-          await updateWhosWhoBoard(guild).catch(reportJobError("Who's who board refresh", origin));
           await updateRaceBoard(guild).catch(reportJobError("Race board refresh", origin));
           await updateBgLadder(guild).catch(reportJobError("Battleground ladder refresh", origin));
         });

@@ -3,12 +3,13 @@ import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, Vi
 import { StatusBar } from "expo-status-bar";
 import { GuildScreen } from "./src/GuildScreen";
 import { PublicBoards } from "./src/PublicBoards";
+import { NewsScreen } from "./src/NewsScreen";
 import { readLang } from "./src/storage";
 import type { Lang } from "./src/i18n";
 
 const WEB_ORIGIN = process.env.EXPO_PUBLIC_GUILDED_WEB_URL ?? "https://guilded.kcaron.top";
 type Summary = { season: string; ratedRunsThisWeek: number; guilds: number; topRuns: { dungeon: string; levels: string; time: string; score: number }[] };
-type Tab = "Home" | "Ranks" | "Guild" | "Profile";
+type Tab = "Home" | "Ranks" | "Guild" | "Profile" | "News";
 
 const colors = { bg: "#0b0c0b", panel: "#151714", line: "#282b25", text: "#f3f0e7", muted: "#aaa99f", gold: "#d5ad57", green: "#9fbd83" };
 
@@ -40,7 +41,7 @@ export default function App() {
     <View style={styles.root}>
     <StatusBar style="light" />
     <View style={styles.header}><View><Text style={styles.brand}>GUILDED</Text><Text style={styles.edition}>WORLD OF WARCRAFT · COMMUNITY</Text></View><View style={styles.status}><View style={styles.dot}/><Text style={styles.statusText}>LIVE</Text></View></View>
-    {tab === "Guild" ? <GuildScreen defaultOrigin={WEB_ORIGIN} /> : tab === "Ranks" ? <PublicBoards origin={WEB_ORIGIN} lang={lang} /> : <ScrollView contentContainerStyle={styles.content}>
+    {tab === "Guild" ? <GuildScreen defaultOrigin={WEB_ORIGIN} /> : tab === "Ranks" ? <PublicBoards origin={WEB_ORIGIN} lang={lang} /> : tab === "News" ? <NewsScreen origin={WEB_ORIGIN} lang={lang} /> : <ScrollView contentContainerStyle={styles.content}>
       {tab === "Home" && <>
         <Text style={styles.kicker}>YOUR COMMUNITY, IN REACH</Text>
         <Text style={styles.title}>The guild never stops.</Text>
@@ -54,7 +55,7 @@ export default function App() {
       {tab === "Profile" && <><Text style={styles.kicker}>YOUR GUILDED IDENTITY</Text><Text style={styles.title}>Player profile</Text><Text style={styles.intro}>Your characters and public runs come together in one shareable profile.</Text><View style={styles.hero}><Text style={styles.heroTitle}>Your Guilded account</Text><Text style={styles.muted}>Discord sign-in for characters, reserves, wishlists and raids is on the Guild tab. It uses the companion sign-in, not a browser cookie. Private account settings still open on the website.</Text></View><Action title="Open your profile on the web" onPress={() => open("/auth/login?return=%2Fme%2F")} /><Action title="Browse public player profiles" onPress={() => open("/players/")} /></>}
       <Text style={styles.footer}>GUILDED · CONNECTED TO YOUR EXISTING COMMUNITY</Text>
     </ScrollView>}
-    <View style={styles.nav}>{(["Home", "Ranks", "Guild", "Profile"] as Tab[]).map((name) => <Pressable key={name} onPress={() => setTab(name)} style={styles.navItem}><Text style={[styles.navText, tab === name && styles.navActive]}>{name}</Text></Pressable>)}</View>
+    <View style={styles.nav}>{(["Home", "Ranks", "Guild", "Profile", "News"] as Tab[]).map((name) => <Pressable key={name} onPress={() => setTab(name)} style={styles.navItem}><Text style={[styles.navText, tab === name && styles.navActive]}>{name}</Text></Pressable>)}</View>
     </View>
   </View>;
 }

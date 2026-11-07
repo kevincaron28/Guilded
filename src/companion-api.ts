@@ -351,7 +351,6 @@ export function createSiteApp(client?: Client) {
   const lootLists = createWebLootLists(prismaLootListStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
   const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
-  const pictures = createPicturePages(prismaPictureStore(prisma), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"));
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),

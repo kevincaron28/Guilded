@@ -1,6 +1,7 @@
 import { cleanCharacterName } from "../services/character-display.js";
 import { EmbedBuilder, SlashCommandBuilder, escapeMarkdown, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
+import { hasPermission } from "../permissions.js";
 import { config } from "../config.js";
 import { asLang, t, tx, type Lang } from "../i18n.js";
 import { v2Reply, type V2Link } from "../services/components-v2.js";
@@ -24,6 +25,7 @@ import { defaultBracket, dungeonRating, hasDungeonRating, ratingEmbed, type Rati
 import { guildChallengeBoard } from "../services/challenge-guild.js";
 import { executeCooperativeGoal } from "./cooperative-goal.js";
 import { executeGroupWatch, groupWatchSubcommand } from "./group-watch.js";
+import { bossRecordLines, guildBossRecords } from "../services/dungeon-records.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
 // recorded and an officer imported (/import apply).
@@ -50,8 +52,10 @@ export const dungeonCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("season").setDescription("Browse a past season (overrides period)").setAutocomplete(true))
     .addStringOption((o) => o.setName("dungeon").setDescription("Only one dungeon (pick from the list)").setAutocomplete(true))
     .addStringOption((o) => o.setName("bracket").setDescription("Level bracket, for all-level seasons (default: yours)").setAutocomplete(true)))
-  .addSubcommand((sub) => sub.setName("records").setDescription("Fastest clears: every dungeon, or the top times of one")
-    .addStringOption((o) => o.setName("dungeon").setDescription("One dungeon (pick from the list)").setAutocomplete(true)))
+  .addSubcommand((sub) => sub.setName("records").setDescription("Fastest clears and boss kills: every dungeon, or the top times of one")
+    .addStringOption((o) => o.setName("dungeon").setDescription("One dungeon (pick from the list)").setAutocomplete(true))
+    .addBooleanOption((o) => o.setName("announce").setDescription("Officers: record and challenge callouts on run posts (default on)")
+      .setDescriptionLocalizations({ fr: "Officiers : annonces des records et défis sur les parcours (actives par défaut)" })))
   .addSubcommand((sub) => sub.setName("player").setDescription("A player's points, best times and recent runs (default: you)")
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
     .addStringOption((o) => o.setName("character").setDescription("Or a character name")))
@@ -212,12 +216,26 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     embed.setDescription(rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty"));
     if (season && hasDungeonRating(season.ratingRules)) embed.setTitle(lang === "fr" ? "Points de participation" : "Participation points");
   } else if (subcommand === "records") {
+    const announce = interaction.options.getBoolean("announce");
+    if (announce !== null) {
+      if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) throw new Error(lang === "fr" ? "Réservé aux officiers." : "Officers only.");
+      await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { dungeonHighlightsEnabled: announce } });
+      await interaction.reply({ content: announce
+        ? lang === "fr" ? "🏆 Les records et défis sont annoncés sur les parcours." : "🏆 Records and challenges are called out on run posts."
+        : lang === "fr" ? "Les records et défis ne sont plus annoncés. Ils restent enregistrés (tableau et bilans)." : "Records and challenges are no longer called out. They are still recorded (board and recaps).",
+        flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      return;
+    }
     const instanceId = dungeonOption(interaction);
     const rows = await records(prisma, context.guildId, instanceId);
     embed.setTitle(instanceId !== null && rows[0] ? t(lang, "dungeon.records.one", { dungeon: rows[0].dungeonName }) : t(lang, "dungeon.records.title"));
     embed.setDescription(rows.length
       ? rows.map((row, index) => recordLine(row, instanceId !== null ? index : undefined)).join("\n").slice(0, 4000)
       : t(lang, "dungeon.records.empty"));
+    // 9.1: the fastest boss kills, all time (only on the every-dungeon view, or the chosen dungeon's bosses).
+    const bosses = (await guildBossRecords(prisma, context.guildId)).filter(row => instanceId === null || rows.some(record => record.dungeonName === row.dungeonName));
+    const bossLines = bossRecordLines(bosses, 1000);
+    if (bossLines.length) embed.addFields({ name: lang === "fr" ? "⚔️ Boss tués le plus vite" : "⚔️ Fastest boss kills", value: bossLines.join("\n") });
   } else if (subcommand === "player") {
     const member = await resolveMember(interaction, context.guildId, context.memberId);
     if (!member) throw new Error("Player not found.");

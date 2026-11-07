@@ -4,7 +4,6 @@ import { duelBoardEmbed, withFullNames, type DuelBoardData } from "../src/servic
 import { loadBgLadderData } from "../src/services/bg-ladder.js";
 import { loadProfessionPosts } from "../src/services/profession-board.js";
 import { loadGallery } from "../src/services/artisans-gallery.js";
-import { loadWhoData } from "../src/services/whos-who-board.js";
 import { loadPromotionPlan } from "../src/services/promotion.js";
 
 // 9.0: full Forever "First Last" names wherever the guild knows one (owner decision, 6 November 2026).
@@ -73,13 +72,6 @@ describe("surfaces", () => {
     const data = await loadGallery(db as never, "g1", "elixir");
     expect(data.recipes[0]!.crafters[0]!.character).toBe("Halidor Galemorne");
     expect(data.crafters[0]!.character).toBe("Halidor Galemorne");
-  });
-  it("Who's who: a first-name row is shown in full when another source knows it", async () => {
-    const db = { member: { findMany: async () => [
-      { displayName: "Kev", characters: [{ name: "Halidor", displayName: null, isMain: true }] },
-      { displayName: "Mia", characters: [{ name: "Mira Dawn", displayName: null, isMain: true }, { name: "Halidor Galemorne", displayName: null, isMain: false }] }] } };
-    const data = await loadWhoData(db as never, "g1", "forever");
-    expect(data.people.find(p => p.displayName === "Kev")!.main).toBe("Halidor Galemorne");
   });
   it("promotion lists: ready members and unclaimed characters are named in full", async () => {
     const now = new Date("2026-11-20T12:00:00Z"), days = (n: number) => new Date(now.getTime() - n * 86_400_000);

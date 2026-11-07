@@ -24,7 +24,7 @@ export function addRaceSubcommand(sub: SlashCommandSubcommandBuilder): SlashComm
       .addChoices(...RACE_ACTIONS.map(value => ({ name: value, value }))))
     .addChannelOption(o => o.setName("channel").setDescription("Officers: board channel").setDescriptionLocalizations({ fr: "Officiers : salon du tableau (défaut : course-au-60)" })
       .addChannelTypes(ChannelType.GuildText))
-    .addIntegerOption(o => o.setName("count").setDescription("Officers: board size (10-30)").setDescriptionLocalizations({ fr: "Officiers : personnages listés (10-30)" }).setMinValue(MIN_TOP).setMaxValue(MAX_TOP))
+    .addIntegerOption(o => o.setName("count").setDescription("Officers: board size (10-50)").setDescriptionLocalizations({ fr: "Officiers : personnages listés (10-50)" }).setMinValue(MIN_TOP).setMaxValue(MAX_TOP))
     .addStringOption(o => o.setName("name").setDescription("Hall: name or #").setDescriptionLocalizations({ fr: "Temple : nom ou numéro" }).setMaxLength(60))
     .addStringOption(o => o.setName("new_name").setDescription("Hall: new name").setDescriptionLocalizations({ fr: "Temple : nom complet corrigé" }).setMaxLength(60))
     .addStringOption(o => o.setName("class").setDescription("Hall: class").setDescriptionLocalizations({ fr: "Temple : classe" }).setMaxLength(20))

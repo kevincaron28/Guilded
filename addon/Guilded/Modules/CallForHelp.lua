@@ -26,6 +26,13 @@ local SEEN_SECONDS = 60
 local BANNER_SECONDS = 20
 local MAX_ATTACKERS = 3
 local POSITION_MAX_AGE = 600
+-- A real attack: an enemy player in combat who targets me, and at least MIN_HITS hits on me within
+-- ATTACK_CONFIRM_SECONDS. One stray hit (a mob, a trap, fall damage) never counts.
+local MIN_HITS = 2
+local ATTACK_CONFIRM_SECONDS = 10
+local ATTACK_QUIET_SECONDS = 30     -- hits closer than this belong to the same attack: no second offer
+local ATTACK_WINDOW_SECONDS = 60    -- a guild chat line may follow an attack seen this recently
+local ZONE_LINE_COOLDOWN = 300      -- at most one guild chat line per zone in this time
 local MAX_MATES = 5
 local MATE_REFRESH_SECONDS = 5
 -- Phone map (Track M): the member's own calls, saved for their companion to upload as map pins.
@@ -42,6 +49,12 @@ local lastCallAt         -- when I last called (cooldown counts from here)
 local offerUntil         -- the Call for help button shows until this time
 local incoming = {}      -- callers: name -> { at, id, zone, mapId, x, y, level, attackers }
 local lastPosition       -- { mapId, x, y, at }: the last position known before combat
+local hits = {}          -- recent hits on me from an enemy player (times)
+local lastHitAt          -- the last confirmed hit
+local attackedAt         -- the last time an attack by an enemy player was confirmed
+local dueling = false    -- a duel is in progress: those hits are friendly
+local lineAt             -- when the last guild chat line was posted
+local zoneLineAt = {}    -- zone -> when a guild chat line about it was last posted
 
 local function L(text) return ns.L and ns.L(text) or text end
 local function secret(value) return ns.isSecret and ns.isSecret(value) end
@@ -169,6 +182,17 @@ local function unitLabel(unit)
   return name, class, tonumber(UnitLevel and UnitLevel(unit)) or 0, faction
 end
 
+-- An enemy player counts as an attacker only when not a guildmate, a party or raid member or a friend,
+-- and in combat. (Unavailable checks are skipped, never guessed.)
+function module.attackerOk(unit, name)
+  if ns.isGuildMember and ns.isGuildMember(name) then return false end
+  if UnitInParty and UnitInParty(unit) then return false end
+  if UnitInRaid and UnitInRaid(unit) then return false end
+  if UnitIsFriend and UnitIsFriend("player", unit) then return false end
+  if UnitAffectingCombat and not UnitAffectingCombat(unit) then return false end
+  return true
+end
+
 -- Looks at the units an addon may read for enemy players who target me. Returns true when one is new or seen.
 function module.scan()
   local units = { "target", "focus", "mouseover" }
@@ -178,7 +202,7 @@ function module.scan()
     if UnitExists and UnitExists(unit) and UnitIsPlayer and UnitIsPlayer(unit) and UnitCanAttack and UnitCanAttack("player", unit)
       and UnitIsUnit and UnitIsUnit(unit .. "target", "player") then
       local name, class, level, faction = unitLabel(unit)
-      if name then
+      if name and module.attackerOk(unit, name) then
         seen[name] = { class = class, level = level, faction = faction, at = now() }
         found = true
       end
@@ -426,6 +450,8 @@ end
 
 local function guildChatLine(call)
   local line = string.format("[Guilded] Help! %s is under attack in %s", clean(call.name, 24), clean(call.zone ~= "" and call.zone or "the open world", 28))
+  if call.subzone and call.subzone ~= "" then line = line .. ", " .. clean(call.subzone, 28) end
+  if call.x and call.y then line = line .. string.format(" (%d, %d)", math.floor(call.x * 100 + 0.5), math.floor(call.y * 100 + 0.5)) end
   local summary = module.summary(call.attackers)
   if summary ~= "" then line = line .. " (" .. summary .. ")" end
   return line
@@ -496,7 +522,15 @@ function module.open()
   mine.saved = okSave and savedKey or nil
   lastCallAt = now()
   if module.guildChat() and SendChatMessage then
-    mine.posted = pcall(SendChatMessage, guildChatLine(call), "GUILD")
+    local t, key = now(), zone ~= "" and zone or "?"
+    if not module.attacked() then
+      say(L("No attack was seen, so no line was posted in guild chat."))
+    elseif (lineAt and t - lineAt < ATTACK_WINDOW_SECONDS) or (zoneLineAt[key] and t - zoneLineAt[key] < ZONE_LINE_COOLDOWN) then
+      say(L("A line about this zone was posted a moment ago, so none was posted now."))
+    else
+      mine.posted = pcall(SendChatMessage, guildChatLine(call), "GUILD")
+      if mine.posted then lineAt, zoneLineAt[key] = t, t end
+    end
     mine.name = call.name
   end
   say(L("Call for help sent to the guild."))
@@ -521,11 +555,28 @@ function module.allClear()
   return true
 end
 
--- Damage from an enemy player: show the button for 20 s. Never sends.
-function module.noteDamage()
-  if inInstance() or active() then return false end
+-- True while an attack by an enemy player was confirmed in the last minute.
+function module.attacked()
+  return attackedAt ~= nil and now() - attackedAt <= ATTACK_WINDOW_SECONDS
+end
+
+-- A hit on me. Counts only when an enemy player in combat targets me and it is the second such hit
+-- within 10 s (not a duel, not in an instance); then the button shows for 20 s, once per attack
+-- (hits less than 30 s apart are the same attack). Never sends.
+function module.noteDamage(amount)
+  if inInstance() or dueling then return false end
+  if type(amount) == "number" and not secret(amount) and amount <= 0 then return false end
   if not module.scan() then return false end
-  offerUntil = now() + OFFER_SECONDS
+  local t = now()
+  local kept = {}
+  for _, at in ipairs(hits) do if t - at <= ATTACK_CONFIRM_SECONDS then kept[#kept + 1] = at end end
+  kept[#kept + 1] = t
+  hits = kept
+  if #hits < MIN_HITS then return false end
+  local fresh = not lastHitAt or t - lastHitAt > ATTACK_QUIET_SECONDS
+  lastHitAt, attackedAt = t, t
+  if active() or not fresh then return false end
+  offerUntil = t + OFFER_SECONDS
   showOffer()
   return true
 end
@@ -701,6 +752,9 @@ end
 register("PLAYER_LOGIN")
 register("CHAT_MSG_ADDON")
 register("UNIT_COMBAT")
+register("DUEL_INBOUNDS")
+register("DUEL_FINISHED")
+register("PLAYER_ENTERING_WORLD")
 
 local sinceTick = 0
 local matesAt = 0
@@ -729,7 +783,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
       ns.comm.register(PREFIX)
       frame:SetScript("OnUpdate", onUpdate)
     elseif event == "UNIT_COMBAT" then
-      if args[1] == "player" and args[2] == "WOUND" then module.noteDamage() end
+      if args[1] == "player" and args[2] == "WOUND" then module.noteDamage(args[4]) end
+    elseif event == "DUEL_INBOUNDS" then
+      dueling, hits = true, {}
+    elseif event == "DUEL_FINISHED" or event == "PLAYER_ENTERING_WORLD" then
+      dueling, hits = false, {}
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]
       if secret(prefix) or prefix ~= PREFIX then return end

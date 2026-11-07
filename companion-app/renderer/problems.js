@@ -39,7 +39,7 @@
       };
       case 'sign-in-expired': return {
         title: T('Your Discord sign-in has expired or was removed.'),
-        steps: [T('Choose Sign in with Discord.'), T('Approve in your browser, then come back here.'), T('Your settings and saved data stay as they are.')],
+        steps: [T('Choose Sign in with Discord.'), T('Approve in your browser, then come back here.'), T('Your settings and addon data stay as they are.')],
         fix: { label: T('Sign in with Discord'), run: async () => { go('settings'); $('btnSignIn').click(); } }
       };
       case 'bot-unreachable': return {
@@ -70,25 +70,25 @@
         alt: downloadYourself
       };
       case 'saved-file-missing': return d.chosen === false ? {
-        title: T('Your WoW saved data is not chosen yet.'),
+        title: T('Your WoW folder is not chosen yet.'),
         steps: [T('Choose WoW folder and pick your World of Warcraft folder: the companion finds your account.'), T('Then choose Save & start syncing.')],
         fix: { label: T('Choose WoW folder'), run: async () => { go('settings'); $('btnPickFolder').click(); } }
       } : {
         title: d.othersSaved ? T('WoW saved your other addons, but not Guilded.') : T('Guilded has not saved its data yet.'),
         steps: [T('At the WoW character screen, open AddOns and tick Guilded.'), T('Log in and type /reload (or log out once).'), T('Still nothing? Choose WoW folder and pick the folder you play from.')],
-        fix: { label: T('Find my saved data'), run: async () => { const found = await api.linkFindSavedData(); return found.ok ? T('Found your addon data.') : found.message; } }
+        fix: { label: T('Find my addon data'), run: async () => { const found = await api.linkFindSavedData(); return found.ok ? T('Found your addon data.') : found.message; } }
       };
       case 'saved-file-not-updated': return d.moved ? {
-        title: T('Your WoW saved data seems to be in another folder now.'),
+        title: T('Your addon data seems to be in another WoW folder now.'),
         steps: [T('Choose Switch folders: the companion watches the newer file.'), T('Nothing is deleted; you can switch back in Connection & setup.')],
         fix: { label: T('Switch folders'), run: async () => { const result = await api.switchLiveFolder(); return result.path ? T('Switched. Now watching {0}', result.path) : null; } }
       } : {
-        title: T('Guilded.lua was not updated by your last /reload.'),
+        title: T("Your last /reload did not save the Guilded addon's data."),
         steps: [T('WoW saved your other addons but not Guilded: it may be turned off or out of date.'), T('At the character screen, open AddOns, tick Guilded and tick Load out of date AddOns.'), T('Log in, type /reload and wait a few seconds. A Lua error from Guilded? Copy the report for the developer.')],
         fix: null
       };
       case 'upload-rejected': return {
-        title: d.applyError ? T('Your upload was received but could not be applied.') : T('The bot refused your last upload.'),
+        title: d.applyError ? T('Your sync was received but could not be applied.') : T('Guilded refused your last sync.'),
         detail: d.reason ? T('The bot said: {0}', window.companionLanguage.message(d.reason)) : null,
         steps: [T('Read the reason above.'), T('If it mentions permissions, a character or your guild, ask an officer.'), T('Otherwise copy the report and send it to the developer.')],
         fix: d.applyError ? null : { label: T('Try again'), run: async () => { await api.uploadNow(); return T('Trying again. Follow the result in Activity.'); } }

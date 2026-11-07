@@ -138,11 +138,19 @@ const recalibrationSchema = z.object({ dungeonKey: z.string().refine(novemberDun
   from: z.string().datetime(), runs: z.number().int().min(1).max(10000) });
 export type TargetRecalibration = z.infer<typeof recalibrationSchema>;
 
+/**
+ * Scoring model 2 (Season 2 proposal, docs/plans/DUNGEON_SCORING_V2.md): inactive unless a rule set carries it, and only the
+ * owner's reviewed Season 2 path writes it. `timePerLevel` replaces the flat over-level percentage with a fairer target:
+ * each level above the route's band shortens the target by that fraction of its time (such groups finish faster), each level
+ * below lengthens it. `minParty` leaves a run with fewer observed players unranked.
+ */
+const scoringSchema = z.object({ version: z.literal(2), timePerLevel: z.number().min(0).max(0.15), minParty: z.number().int().min(1).max(5) });
 export function createBracketedDungeonRules(input: unknown) {
   const parsed = z.object({ gameEdition: z.enum(GAME_EDITIONS).optional(), routes: z.array(bracketRouteSchema).max(100), brackets: z.array(bracketSchema).max(10),
     overlevelPenalty: penaltySchema.default({ ...DEFAULT_OVERLEVEL_PENALTY }),
     evidencePolicy: z.enum(["current-v1", "current-v2"]).optional(),
     leniency: z.literal(1).optional(),
+    scoring: scoringSchema.optional(),
     seasonWindow: z.object({ from: z.string().datetime(), to: z.string().datetime().nullable() }).optional(),
     provisional: provisionalSchema.optional(), keystoneRating: challengeRatingSchema.optional(), recalibrations: z.array(recalibrationSchema).max(200).optional() }).refine(value => value.routes.length > 0 && value.brackets.length > 0
       || !!value.gameEdition && value.gameEdition !== "forever" && value.routes.length === 0 && value.brackets.length === 0, "A rated season needs routes and brackets").parse(input);
@@ -180,6 +188,7 @@ export function createBracketedDungeonRules(input: unknown) {
     ...(parsed.keystoneRating ? { keystoneRating: parsed.keystoneRating } : {}),
     ...(parsed.evidencePolicy ? { evidencePolicy: parsed.evidencePolicy } : {}),
     ...(parsed.leniency ? { leniency: parsed.leniency } : {}),
+    ...(parsed.scoring ? { scoring: parsed.scoring } : {}),
     ...(parsed.seasonWindow ? { seasonWindow: parsed.seasonWindow } : {}),
     minimumPresence: 0.8, automaticCompletionOnly: true, minimumScore: 50, maximumScore: 400,
     participationModel: "weekly-variety-v1", routeEvidenceVersion: 1, routes, brackets, routeBracket, overlevelPenalty: { ...parsed.overlevelPenalty },
@@ -200,8 +209,10 @@ export type BracketedRules = ReturnType<typeof createBracketedDungeonRules>;
  * a season's stored rules carry it (see addedRules); targets, brackets, best-N and the over-level percentage never change.
  * Kept anti-cheat: the detected final boss, the season window, no SIM runs and the evidence policy. Never applies to current-v2.
  */
-export function leniencyOf(rules: { leniency?: number; evidencePolicy?: string; overlevelPenalty: { maxLevels: number } }) {
+export function leniencyOf(rules: { leniency?: number; evidencePolicy?: string; scoring?: { version: 2 }; overlevelPenalty: { maxLevels: number } }) {
   const on = rules.leniency === 1 && rules.evidencePolicy !== "current-v2";
+  // Scoring model 2 prices level differences into the target, so it can accept a wider band (6 over, 2 under) fairly.
+  if (rules.scoring?.version === 2) return { on, presence: on ? 0.5 : 0.8, overLevels: Math.max(rules.overlevelPenalty.maxLevels, 6), belowLevels: 2 };
   return { on, presence: on ? 0.5 : 0.8, overLevels: on ? Math.max(rules.overlevelPenalty.maxLevels, 6) : rules.overlevelPenalty.maxLevels, belowLevels: on ? 3 : 0 };
 }
 
@@ -223,6 +234,7 @@ export function validBracketedRules(value: unknown): value is BracketedRules {
       ...(r.keystoneRating !== undefined ? { keystoneRating: r.keystoneRating } : {}),
       ...(r.evidencePolicy !== undefined ? { evidencePolicy: r.evidencePolicy } : {}),
       ...(r.leniency !== undefined ? { leniency: r.leniency } : {}),
+      ...(r.scoring !== undefined ? { scoring: r.scoring } : {}),
       ...(r.seasonWindow !== undefined ? { seasonWindow: r.seasonWindow } : {}),
       ...(r.provisional !== undefined ? { provisional: r.provisional } : {}), ...(r.recalibrations !== undefined ? { recalibrations: r.recalibrations } : {}) }));
   } catch { return false; }

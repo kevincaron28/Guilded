@@ -11,15 +11,15 @@ server audit. A feature is "discoverable" when a member can find it from the Dis
 | Raid signups | #raid-signups buttons, `/help` |
 | Raid cores, rosters, Apply | #raid-roster posts (Apply button), `/help` (`/apply`, `/team`) |
 | Raid logs, loot awards, EPGP | #raid-logs, #loot-log, `/help` (`/epgp`, `/loot`) |
-| Open raids in other guilds (PUG) | #open-raids, `/raid pug browse` (one line in `/help` "More") |
+| Open raids in other guilds (PUG) | #open-raids, `/raid pug browse` |
 | World buffs | `/raid worldbuffs` only (gap, below) |
 | Dungeon groups | #group-finder pinned button, `/help` |
-| Dungeon seasons, records, hall of fame | #dungeon-leaderboard, #dungeon-runs, `/help` ("More": `/dungeon season`) |
-| Battleground groups, ladders, duels | PvP category boards, `/help` (`/bg history`, `/bg duels`; `/bg panel` under "More") |
-| Crafting | #craft-board pinned post, `/help` (`/craft request`; `/craft who` under "More") |
+| Dungeon seasons, records, hall of fame | #dungeon-leaderboard, #dungeon-runs, `/help` |
+| Battleground groups, ladders, duels | PvP category boards, `/help` (`/bg history`, `/bg duels`) |
+| Crafting | #craft-board pinned post, `/help` (`/craft request`) |
 | Guild bank | `/help` (`/bank request`), bank sync is officer-side |
-| Achievements, Race to 60, Hall of Fame | `/help` (`/character achievements`; `/character race` under "More"), #hall-of-fame |
-| Nickname sync | `/help` "More" (`/character nickname`), the sync itself needs no action |
+| Achievements, Race to 60, Hall of Fame | `/help` (`/character achievements`), #hall-of-fame |
+| Nickname sync | the sync itself needs no action; `/character nickname` is slash-picker only, the sync itself needs no action |
 | Community seasons, dice, badges | #activities pinned panel, #leaderboard, `/help` |
 | Guild invites | #invitation-guilde (WoW category), role DM, `/help` |
 | Bug reports | `/help` (`/report bug`) |
@@ -27,9 +27,7 @@ server audit. A feature is "discoverable" when a member can find it from the Dis
 
 ## Gaps filled in this change
 
-`/help` is at Discord's 6000-character embed limit for administrators, so the missing member commands went in as one
-compact line in each language ("More: ..."): `/character nickname`, `/character race`, `/dungeon season`, `/craft who`,
-`/raid pug browse`, `/bg panel`, `/tag list`.
+`/help` is at Discord's 6000-character embed limit for administrators, so no help line was added for the commands below; they need the second help page proposed under "Gaps still open".
 
 ## Gaps still open (need a design choice, not just a line)
 

@@ -1542,6 +1542,47 @@ local function buildOfficerToolsPage(page)
     b:SetPoint("TOPLEFT", ((i - 1) % 2) * 230, -12 - math.floor((i - 1) / 2) * 38)
   end
 end
+-- Info and data (9.1): the status and switch commands that used to be slash-only, one button each.
+-- Each button runs the same handler as its /guilded command. Commands that need an argument
+-- (drop <item>, price <item> <GP>, bid, debug) stay slash-only: docs/ADDON_SLASH_ONLY_COMMANDS.md.
+local INFO_TOOLS = {
+  { "Who runs which version", "peers", {}, "Which guildmates run which Guilded version (this session)." },
+  { "Data relay status", "relay", {}, "Which guildmate's companion carries your data to Discord, and how old it is." },
+  { "Guildmate professions", "professions", {}, "What guildmates have shared about their professions." },
+  { "Saved names check", "names", {}, "Saved entries still filed under a first name shared by several characters." },
+  { "Postmatch capture status", "bgcapture", {}, "Status of your own battleground postmatch capture." },
+  { "Sync EP/GP history now", "ledgersync", { "now" }, "Asks guild officers and guildmates for EP/GP history." },
+  { "Ask an officer for data", "bridge", { "refresh" }, "Requests core and raid data from an online officer." },
+  { "Interface options", "options", {}, "Opens Guilded's page in the game's options." },
+  { "Daily digest on", "digest", { "on" }, "Show what changed since your last login, once at login." },
+  { "Daily digest off", "digest", { "off" }, "Stop the login digest." },
+  { "Main names in chat on", "chattags", { "on" }, "Show an alt's main name in guild and officer chat." },
+  { "Main names in chat off", "chattags", { "off" }, "Stop showing main names in chat." },
+}
+local INFO_OFFICER_TOOLS = {
+  { "Invite queue", "invites", {}, "Players waiting for a guild invite, one click each." },
+  { "Ready to promote", "promote", {}, "Who is ready to promote, one click each." },
+  { "Auto-invite status", "autoinvite", { "status" }, "Whether whispering a phrase invites players." },
+  { "Pending loot rolls", "lootroll", {}, "Soft-reserve rolls waiting to be awarded." },
+  { "Consumables check", "consumes", { "scan" }, "Who in your group is missing a flask, elixir or food." },
+}
+local function buildInfoPage(page)
+  local function place(list, startY, officer)
+    for i, def in ipairs(list) do
+      local b = newButton(page, def[1], 220, function()
+        local handler = ns.commandHandlers and ns.commandHandlers[def[2]]
+        if handler then handler(def[3]) end
+      end)
+      b:SetPoint("TOPLEFT", page, "TOPLEFT", ((i - 1) % 2) * 230, startY - math.floor((i - 1) / 2) * 34)
+      tip(b, def[4])
+      if officer then officerOnly(b) end
+    end
+    return startY - math.ceil(#list / 2) * 34
+  end
+  local y = place(INFO_TOOLS, -4, false)
+  officerOnly(at(newLabel(page, "Officer", "GameFontNormalSmall"), page, 0, y - 6))
+  place(INFO_OFFICER_TOOLS, y - 26, true)
+end
 -- Milestone announcements in guild chat (Modules/Milestones.lua): your master switch, one per
 -- kind, and (officers) the guild-wide off switch. The same switches exist in Interface Options.
 local function buildAnnouncementsPage(page)
@@ -1604,6 +1645,7 @@ local TAB_DEFS = {
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Duels", hint = "guild duel leaderboard", group = "Fun and runs", module = "duels", build = function(page) if ns.duels and ns.duels.buildPage then ns.duels.buildPage(page, { newLabel = newLabel, at = at, width = PAGE_WIDTH }) end end },
   { name = "Announcements", hint = "milestones in guild chat", group = "System", build = buildAnnouncementsPage },
+  { name = "Info", label = "Info and data", hint = "status of data sync, relay, versions and more", group = "System", build = buildInfoPage },
   { name = "Tools", label = "Settings", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }
 }
 

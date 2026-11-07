@@ -138,9 +138,50 @@ function renderSavedFile(snapshot) {
   $('liveTitle').textContent = candidate.reason === 'beta' ? liveText().betaTitle : liveText().staleTitle(Math.floor((Date.now() - Date.parse(file.changedAt)) / 86400000));
   $('liveText').textContent = liveText().text(candidate.path.split(/[\\/]/).pop(), candidate.gameFolder, candidate.account, since(candidate.changedAt));
 }
+// The Sync status card (redesign PR 1): one state, most urgent first, one button
+// (companion/status-card.mjs decides; this only words and wires it).
+let shownCard = null;
+function renderStatusCard(snapshot) {
+  const card = window.guildedStatusCard.statusCard({ problems: snapshot.problems || [], config: savedConfig, state: snapshot.state || {} });
+  shownCard = card;
+  const words = (parts) => parts ? T(parts[0], ...parts.slice(1).map((value) => value && typeof value === 'object' && value.ago ? ago(value.ago).toLowerCase() : value)) : '';
+  $('statusCard').dataset.tone = card.tone;
+  $('statusCard').dataset.state = card.id;
+  $('statusTitle').textContent = words(card.title);
+  $('statusDetail').textContent = words(card.detail);
+  $('statusDetail').hidden = !card.detail;
+  const button = $('btnStatusAction');
+  button.hidden = !card.button;
+  if (card.button && !button.dataset.busy) button.textContent = T(card.button.label);
+  const line = window.guildedStatusCard.guildLine({ config: savedConfig, savedFile: snapshot.savedFile });
+  const parts = [line.guild, line.lastReload ? T("last /reload {0}", ago(line.lastReload).toLowerCase()) : null].filter(Boolean);
+  $('statusGuildLine').textContent = parts.join(' · ');
+  $('statusGuildLine').hidden = !parts.length;
+}
+async function statusAction() {
+  const action = shownCard?.button?.action;
+  const result = $('statusResult');
+  const say = (message, ok = true) => { result.textContent = message ? M(message) : ''; result.className = ok ? 'result ok' : 'result bad'; };
+  say('');
+  switch (action) {
+    case 'sign-in': showPage('link'); return;
+    case 'problems': showPage('problems'); return;
+    case 'settings': showPage('settings'); return;
+    case 'storage': await api.openStorageSettings(); return;
+    case 'find-wow': { const answer = await api.repair(); say(answer?.summary ? T("Repair: {0} fixed, {1} need you, {2} failed.", answer.summary.fixed, answer.summary.needsYou, answer.summary.failed) : '', !answer?.summary?.failed); return; }
+    case 'install-addon': { const answer = await api.installAddon(); say(answer.message, answer.ok); return; }
+    case 'switch-folder': { const answer = await api.switchLiveFolder(); say(answer?.path ? T('Switched. Now watching {0}', answer.path) : '', true); return; }
+    case 'retry': await api.recoverSync(); await api.uploadNow(); say(T('Trying again. Follow the result in Activity.')); return;
+    case 'sync-now': await api.uploadNow(); say(T('Syncing now. Follow the result in Activity.')); return;
+    default: return;
+  }
+}
+bind('btnStatusAction', statusAction);
+bind('btnStatusDetails', async () => showPage('activity'));
 function renderState(snapshot) {
   updateProfileLinks();
   lastSnapshot = snapshot;
+  try { renderStatusCard(snapshot); } catch { /* the rest of the page still renders */ }
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
   const {state,health} = snapshot;
   const sync = window.guildedSyncStatus(savedConfig, state, state.syncEvidence);

@@ -5,6 +5,7 @@ import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import { crafterLine, professionLegend, professionTitle, seenDot } from "./profession-style.js";
 import { professionDetailsRow } from "./profession-details.js";
 import { displayCharacterName, emptyNameBook, loadFullNameBook, type FullNameBook } from "./character-display.js";
+import { nullItemDataProvider, type ItemDataProvider } from "./item-preview-data.js";
 
 // 8.5 track D2: ONE post per profession in the craft forum, edited in place (the duel-board pattern), listing every
 // recipe and the crafters who know it with their last seen. It replaces the old "top 3 per profession" directory
@@ -15,7 +16,25 @@ export const PROFESSION_POST_MARKER = "Guilded profession board";
 const THREAD_PREFIX = "📚 ";
 const DESCRIPTION_LIMIT = 3900, MAX_CRAFTERS_SHOWN = 3, MAX_CRAFTER_LINES = 8;
 
-export interface ProfessionRecipe { itemKey: number; itemName: string; crafters: { character: string; lastSeen: Date | null }[] }
+export interface ProfessionRecipe {
+  itemKey: number; itemName: string; crafters: { character: string; lastSeen: Date | null }[];
+  /** Quality 0-5 of the crafted item, from the item data source (docs/plans/ITEM_LINKS.md); absent when unknown. */
+  quality?: number;
+}
+/** One square per item quality, so a long list stays one line per recipe (Poor … Legendary). */
+export const QUALITY_SQUARES = ["⬛", "⬜", "🟩", "🟦", "🟪", "🟧"];
+export const wowheadItemUrl = (itemId: number) => `https://www.wowhead.com/classic/item=${itemId}`;
+
+/** Fills each crafted item's quality from the item data source, one lookup per item (cached and rate-limited there). */
+export async function addItemQuality(posts: ProfessionPost[], items: ItemDataProvider): Promise<void> {
+  const seen = new Map<number, number | undefined>();
+  for (const recipe of posts.flatMap(post => post.recipes)) {
+    if (recipe.itemKey <= 0) continue; // enchants are spells, not items
+    if (!seen.has(recipe.itemKey)) seen.set(recipe.itemKey, (await items.lookup({ itemId: recipe.itemKey, name: recipe.itemName, verified: true }).catch(() => null))?.quality);
+    const quality = seen.get(recipe.itemKey);
+    if (quality !== undefined) recipe.quality = quality;
+  }
+}
 export interface ProfessionPost {
   profession: string;
   /** Crafters with a recorded skill, recently seen first. */
@@ -83,7 +102,10 @@ export function professionPostEmbed(post: ProfessionPost, lang: Lang, guildId = 
   for (const recipe of post.recipes) {
     const who = recipe.crafters.slice(0, MAX_CRAFTERS_SHOWN).map(crafter => `${seenDot(crafter.lastSeen, now)} ${name(crafter.character)}`).join(", ")
       + (recipe.crafters.length > MAX_CRAFTERS_SHOWN ? ` +${recipe.crafters.length - MAX_CRAFTERS_SHOWN}` : "");
-    const line = `• **${escapeMarkdown(recipe.itemName).slice(0, 80)}** — ${who}`;
+    // A crafted item links to its Wowhead classic page (name only, so the line stays short); enchants have no item page.
+    const label = escapeMarkdown(recipe.itemName.replace(/[[\]]/g, "")).slice(0, 80);
+    const mark = recipe.quality !== undefined ? QUALITY_SQUARES[recipe.quality] ?? "•" : "•";
+    const line = recipe.itemKey > 0 ? `${mark} **[${label}](${wowheadItemUrl(recipe.itemKey)})** — ${who}` : `• **${label}** — ${who}`;
     if (used + line.length + 1 > DESCRIPTION_LIMIT - 160) { omitted++; continue; }
     rows.push(line); used += line.length + 1;
   }
@@ -134,7 +156,7 @@ export async function professionPostLinks(forum: ForumChannel): Promise<Map<stri
  * Edits each profession's post in place; creates a missing one only when the profession has people and (during the
  * 8.5 preview) the server is allowed. Never throws. Returns how many posts were written.
  */
-export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: ForumChannel, db: PrismaClient, guildId: string, lang: Lang, now = new Date()): Promise<number> {
+export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: ForumChannel, db: PrismaClient, guildId: string, lang: Lang, now = new Date(), items: ItemDataProvider = nullItemDataProvider): Promise<number> {
   const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { professionPostsEnabled: true } });
   if (!settings?.professionPostsEnabled) return 0;
   const siteUrl = process.env["PUBLIC_SITE_URL"]?.trim() || undefined;
@@ -142,7 +164,9 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
   try {
     const existing = await existingPosts(forum);
     const names = await loadFullNameBook(db, guildId);
-    for (const post of await loadProfessionPosts(db, guildId, names)) {
+    const posts = await loadProfessionPosts(db, guildId, names);
+    await addItemQuality(posts, items);
+    for (const post of posts) {
       if (!post.skilled.length && !post.recipes.length) continue;
       const details = professionDetailsRow(post, lang);
       const payload = { embeds: [professionPostEmbed(post, lang, guildId, now, siteUrl)], components: details ? [details] : [], allowedMentions: { parse: [] as never[] } };

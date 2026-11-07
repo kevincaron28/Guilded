@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { loadProfessionPosts, professionPostEmbed, recipeCrafters, updateProfessionPosts } from "../src/services/profession-board.js";
+import { addItemQuality, loadProfessionPosts, professionPostEmbed, QUALITY_SQUARES, recipeCrafters, updateProfessionPosts } from "../src/services/profession-board.js";
 import { professionDetailsRow } from "../src/services/profession-details.js";
 import { professionDirectoryText, professionNavRows } from "../src/services/profession-directory.js";
 import { findProfessionHolders } from "../src/services/profession-search.js";
@@ -37,7 +37,7 @@ describe("profession posts and last seen", () => {
     expect(en.title).toBe("🧪 Alchemy");
     expect(en.description).toContain("skill (out of 300)");
     expect(en.description).toContain("🟢 **Fresh** ▰▰▰▰▱▱▱▱ 150 · today");
-    expect(en.description).toContain("**Elixir** — 🟢 Fresh, ⚪ Old");
+    expect(en.description).toContain("• **[Elixir](https://www.wowhead.com/classic/item=1)** — 🟢 Fresh, ⚪ Old");
     expect(en.footer?.text).toContain("Guilded profession board");
     expect(professionPostEmbed(alchemy!, "fr", "g1", NOW).toJSON().description).toContain("aujourd'hui");
   });
@@ -104,5 +104,26 @@ describe("one crafter entry per shown name", () => {
     ]);
     const options = (rows[0]!.toJSON() as { components: { options: { value: string }[] }[] }).components[0]!.options;
     expect(options.map(option => option.value)).toEqual(["Chad Ho", "Mister"]);
+  });
+});
+
+describe("item links in profession posts (docs/plans/ITEM_LINKS.md)", () => {
+  it("marks quality with one square, links crafted items and leaves enchants plain", async () => {
+    const post = { profession: "Enchanting", skilled: [], recipes: [
+      { itemKey: 19019, itemName: "Thunder [x] fury", crafters: [{ character: "Ann", lastSeen: NOW }] },
+      { itemKey: -7418, itemName: "Enchant Bracer - Minor Health", crafters: [{ character: "Ann", lastSeen: NOW }] }
+    ] };
+    const lookup = vi.fn(async () => ({ name: "Thunderfury", quality: 5 }));
+    await addItemQuality([post], { lookup });
+    expect(lookup).toHaveBeenCalledTimes(1); // the enchant is a spell, never looked up
+    const text = professionPostEmbed(post, "en", "g1", NOW).toJSON().description ?? "";
+    expect(text).toContain("🟧 **[Thunder x fury](https://www.wowhead.com/classic/item=19019)**");
+    expect(text).toContain("• **Enchant Bracer \- Minor Health**");
+    expect(QUALITY_SQUARES).toHaveLength(6);
+  });
+  it("keeps the bullet when the item data source knows nothing or fails", async () => {
+    const post = { profession: "Cooking", skilled: [], recipes: [{ itemKey: 5, itemName: "Stew", crafters: [] }] };
+    await addItemQuality([post], { lookup: async () => { throw new Error("down"); } });
+    expect(professionPostEmbed(post, "en", "g1", NOW).toJSON().description).toContain("• **[Stew]");
   });
 });

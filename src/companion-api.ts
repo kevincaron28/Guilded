@@ -94,7 +94,7 @@ import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadErro
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
 import { inviteListForAddon, pendingInvites } from "./services/invite-queue.js";
-import { completeInvitesFromRoster } from "./services/invite-channel.js";
+import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-channel.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
@@ -857,6 +857,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
         await prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
           { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild data upload failed", error); });
+        // The whole guild roster (any member's upload) is now stored: waiting invite requests for those names are done.
+        if (client && preview.snapshot.guildRoster) {
+          void backCheckInvites(client, prisma, { id: guild.id, discordId: guild.discordId })
+            .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite back-check failed", error));
+        }
       }
       // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
       if (preview.snapshot.guildBank !== undefined) {

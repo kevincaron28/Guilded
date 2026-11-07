@@ -73,7 +73,6 @@ export interface DungeonImportSummary {
   malformed: number;
 }
 
-const NEAR_DUPLICATE_SECONDS = 120;
 
 // Why a run was dropped or earned nothing. Map ids, states and reasons only: no player names
 // and no run references (those contain the recorder's character name).
@@ -96,39 +95,80 @@ export async function activeSeason(tx: Pick<Prisma.TransactionClient, "dungeonSe
     ratingRules: (snapshot?.rules ?? publicRules()) as unknown as Prisma.InputJsonValue } });
 }
 
-// One row per character name (case-insensitive). Observers can disagree on the realm ("-" vs a
-// name) or repeat a player; merge them, keeping the longest presence and any known details.
+const plain = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+/** The first word of a character name, lowercased and without accents: "Hulke Hogan" and "Hulke" share the key "hulke". */
+export function firstNameKey(name: string): string { return plain(name).split(" ")[0] ?? ""; }
+/**
+ * "First Last" as the party sees it: a last name equal to the first ("Xaldin Xaldin") or the realm word
+ * ("Shawir Forever") is not a last name, so it is dropped. Other names are kept as the addon sent them.
+ */
+export function cleanCharacterName(name: string, realm?: string): string {
+  const words = name.trim().split(/\s+/);
+  if (words.length < 2) return name.trim();
+  const last = plain(words[words.length - 1]!);
+  return last === plain(words[0]!) || last === "forever" || (!!realm && realm !== "-" && last === plain(realm)) ? words.slice(0, -1).join(" ") : words.join(" ");
+}
+
+// One row per character (case- and accent-insensitive). Observers can disagree on the realm ("-" vs a name),
+// repeat a player, or know only a first name ("Hulke") where another knows the full one ("Hulke Hogan"): merge
+// them, keeping the full name, the longest presence and any known details. A first-name-only entry merges into a
+// full name only when exactly one full name with that first word is compatible (same class, or a class unknown);
+// two different full names sharing a first name are two different people and stay apart.
 export function dedupeRunPlayers<P extends DungeonRunInput["players"][number]>(players: P[]): P[] {
-  const byName = new Map<string, P>();
-  for (const player of players) {
-    const key = player.character.trim().toLowerCase();
-    const seen = byName.get(key);
-    if (!seen) { byName.set(key, player); continue; }
+  const combine = (seen: P, player: P): P => {
     const longer = (player.presentSec ?? 0) > (seen.presentSec ?? 0) ? player : seen;
     const other = longer === player ? seen : player;
     const merged = { ...other, ...Object.fromEntries(Object.entries(longer).filter(([, value]) => value !== undefined && value !== null)) } as P;
     if (seen.inGuild || player.inGuild) merged.inGuild = true;
     if (merged.deaths === undefined || merged.deaths === null) merged.deaths = seen.deaths ?? player.deaths;
-    byName.set(key, merged);
+    // Keep the fuller name.
+    merged.character = seen.character.trim().split(/\s+/).length >= player.character.trim().split(/\s+/).length ? seen.character : player.character;
+    return merged;
+  };
+  const byName = new Map<string, P>();
+  for (const raw of players) {
+    const player = { ...raw, character: cleanCharacterName(raw.character, raw.realm) } as P;
+    const key = plain(player.character);
+    const seen = byName.get(key);
+    byName.set(key, seen ? combine(seen, player) : player);
+  }
+  const wordsOf = (player: P) => player.character.trim().split(/\s+/).length;
+  const compatible = (a: P, b: P) => !a.class || !b.class || a.class.toUpperCase() === b.class.toUpperCase();
+  const rows = [...byName.values()];
+  const merged = new Set<P>();
+  for (const short of rows.filter((row) => wordsOf(row) === 1)) {
+    const candidates = rows.filter((row) => row !== short && !merged.has(row) && wordsOf(row) > 1 && firstNameKey(row.character) === firstNameKey(short.character) && compatible(row, short));
+    // Another short name or a second compatible full name makes it ambiguous: leave everyone as reported.
+    if (candidates.length !== 1) continue;
+    const full = candidates[0]!;
+    byName.set(plain(full.character), combine(full, short));
+    byName.delete(plain(short.character));
+    merged.add(short);
   }
   return [...byName.values()];
 }
 
-async function isNearDuplicate(tx: Tx, guildId: string, run: DungeonRunInput): Promise<boolean> {
-  if (!run.startedAt) return false;
-  const start = new Date(run.startedAt * 1000);
+// Observers each upload their own copy of a run, with their own id and slightly different start and end.
+// A copy is the SAME run when it is the same dungeon and difficulty, the time windows overlap (or the ends are
+// within two minutes of each other: a back-to-back repeat with the same crew starts after the first ends), and at least two players (one, for a solo run) match by first name.
+const SAME_RUN_SLACK_SECONDS = 120;
+async function sameRunAs(tx: Tx, guildId: string, run: DungeonRunInput) {
+  if (!run.startedAt || !run.endedAt) return null;
+  const start = run.startedAt, end = run.endedAt;
   const candidates = await tx.dungeonRun.findMany({
-    where: {
-      guildId, instanceId: run.instanceId,
-      startedAt: { gte: new Date(start.getTime() - NEAR_DUPLICATE_SECONDS * 1000), lte: new Date(start.getTime() + NEAR_DUPLICATE_SECONDS * 1000) }
-    },
+    where: { guildId, instanceId: run.instanceId, difficultyId: run.difficultyId,
+      startedAt: { gte: new Date((start - 4 * 3600 - SAME_RUN_SLACK_SECONDS) * 1000), lte: new Date((end + SAME_RUN_SLACK_SECONDS) * 1000) } },
     include: { players: true }
   });
-  const names = new Set(run.players.map((player) => player.character.toLowerCase()));
-  return candidates.some((candidate) => {
-    const shared = candidate.players.filter((player) => names.has(player.character.toLowerCase())).length;
-    return shared >= Math.ceil(Math.max(names.size, candidate.players.length) * 0.6);
-  });
+  const names = new Set(run.players.map((player) => firstNameKey(player.character)));
+  return candidates.find((candidate) => {
+    if (!candidate.startedAt || candidate.difficultyId !== run.difficultyId) return false;
+    if (candidate.state !== "COMPLETED" && run.state === "COMPLETED") return false;
+    const candidateEnd = candidate.endedAt ?? new Date(candidate.startedAt.getTime() + (candidate.durationSec ?? 0) * 1000);
+    if (candidate.startedAt.getTime() / 1000 > end + SAME_RUN_SLACK_SECONDS || candidateEnd.getTime() / 1000 < start - SAME_RUN_SLACK_SECONDS) return false;
+    const shared = new Set(candidate.players.map((player) => firstNameKey(player.character)).filter((key) => names.has(key))).size;
+    return shared >= Math.min(2, names.size, candidate.players.length);
+  }) ?? null;
 }
 
 export async function seasonForRun(tx: Pick<Tx, "dungeonSeason">, guildId: string, active: Awaited<ReturnType<typeof activeSeason>>, endedAt: number | undefined) {
@@ -258,8 +298,19 @@ export async function importDungeonRuns(
       summary.duplicates++;
       continue;
     }
-    if (!existing && await isNearDuplicate(tx, guildId, run)) {
-      logDungeonRun("same crew, dungeon and start time as a stored run", run);
+    const sameRun = existing ? null : await sameRunAs(tx, guildId, run);
+    if (sameRun) {
+      logDungeonRun("another observer's copy of a stored run", run);
+      // Keep the copy as evidence and add anyone the first report missed. Never a new run, never a new post.
+      const known = new Set(sameRun.players.map((player) => firstNameKey(player.character)));
+      const extra = run.players.filter((player) => !known.has(firstNameKey(player.character)));
+      const data = sameRun.competitionData as { observerReports?: unknown[]; [key: string]: unknown } | null;
+      await tx.dungeonRun.update({ where: { id: sameRun.id }, data: {
+        competitionData: { ...data, observerReports: [...(data?.observerReports ?? []).slice(-39), run] } as Prisma.InputJsonValue,
+        ...(extra.length ? { players: { create: extra.map((player) => ({ character: player.character,
+          memberId: findCharacter(characters, player.character, player.realm, gameEditionOf(run))?.memberId ?? null,
+          class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild })) } } : {})
+      } });
       summary.duplicates++;
       continue;
     }
@@ -492,7 +543,7 @@ export async function importDungeonRuns(
       inGuildPlayers: run.players.filter((player) => player.inGuild).map((player) => player.character),
       mentions: Object.fromEntries(linked.flatMap(({ player, character }) => character?.discordId ? [[player.character, character.discordId] as const] : [])),
       fullNames: Object.fromEntries(run.players.flatMap(player => {
-        const full = displayCharacterName(player.character, characters.flatMap(c => [c.displayName, c.name]), run.players.map(p => p.character));
+        const full = cleanCharacterName(displayCharacterName(player.character, characters.flatMap(c => [c.displayName, c.name]), run.players.map(p => p.character)));
         return full !== player.character ? [[player.character, full] as const] : [];
       })),
       achievements

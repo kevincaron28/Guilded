@@ -52,3 +52,63 @@ restore_application() {
   mv "$app" "$FAILED_APP" || return 1
   if ! mv "$previous" "$app"; then mv "$FAILED_APP" "$app" || return 1; return 1; fi
 }
+
+# Disk housekeeping. Every helper takes the application path (/opt/guilded) and touches only sibling
+# directories named exactly "<app>.previous.<8 random chars>" or "<app>.stage.<8 random chars>" (the
+# shape mktemp XXXXXXXX produces). The app itself and "<app>.update.lock" never match those patterns.
+application_siblings_base() { dirname -- "$1"; }
+
+# Keep the newest $2 saved applications; delete the rest. Newest by modification time.
+prune_previous_applications() {
+  local app="$1" keep="$2" base name line dir index=0
+  case "$keep" in ''|*[!0-9]*) return 1 ;; esac
+  [ -n "$app" ] || return 1
+  base="$(application_siblings_base "$app")"; name="$(basename -- "$app")"
+  while IFS= read -r -d '' line; do
+    dir="${line#*$'\t'}"
+    index=$((index + 1))
+    [ "$index" -le "$keep" ] && continue
+    case "$dir" in "$base/$name.previous."????????) ;; *) continue ;; esac
+    [ -d "$dir" ] && [ ! -L "$dir" ] || continue
+    if rm -rf -- "$dir"; then echo "Removed old saved application: $dir"; else echo "Could not remove $dir"; fi
+  done < <(find "$base" -mindepth 1 -maxdepth 1 -type d -name "$name.previous.????????" \
+    -printf '%T@\t%p\0' | sort -z -t $'\t' -k1,1 -rn)
+}
+
+# Remove staging directories a crashed or interrupted run left behind (older than one day).
+# Call only while holding the update lock, so no other run is still preparing one.
+remove_stale_staging() {
+  local app="$1" base name
+  [ -n "$app" ] || return 1
+  base="$(application_siblings_base "$app")"; name="$(basename -- "$app")"
+  find "$base" -mindepth 1 -maxdepth 1 -type d -name "$name.stage.????????" -mmin +1440 \
+    -exec rm -rf -- {} + || echo "Could not remove some old staging directories."
+}
+
+# Remove the staging directory of this run after a failed preparation. Refuses anything else.
+discard_own_staging() {
+  local dir="${1:-}"
+  [ -n "$dir" ] || return 0
+  case "$dir" in *.stage.????????) ;; *) return 1 ;; esac
+  [ -d "$dir" ] && [ ! -L "$dir" ] || return 0
+  rm -rf -- "$dir"
+}
+
+free_kb_under() { df -Pk -- "$1" 2>/dev/null | awk 'NR==2{print $4}'; }
+
+# Succeeds when at least $2 KB are free next to the application. Below that it prunes old saved
+# applications (keeping the newest 3) and checks again. Returns 1 without any further change if still low.
+ensure_free_disk() {
+  local app="$1" min_kb="$2" base avail
+  base="$(application_siblings_base "$app")"
+  avail="$(free_kb_under "$base" || true)"
+  case "$avail" in ''|*[!0-9]*) echo "Could not read free disk space under $base."; return 1 ;; esac
+  [ "$avail" -ge "$min_kb" ] && return 0
+  echo "Only $((avail / 1024)) MB free under $base: removing old saved applications first."
+  prune_previous_applications "$app" 3 || true
+  avail="$(free_kb_under "$base" || true)"
+  case "$avail" in ''|*[!0-9]*) echo "Could not read free disk space under $base."; return 1 ;; esac
+  [ "$avail" -ge "$min_kb" ] && return 0
+  echo "Still only $((avail / 1024)) MB free under $base (need $((min_kb / 1024 / 1024)) GB)."
+  return 1
+}

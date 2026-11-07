@@ -62,7 +62,7 @@ function pug.read(unit)
     end
   end
   local itemLevel
-  if C_PaperDollInfo and C_PaperDollInfo.GetInspectItemLevel then itemLevel = tonumber(C_PaperDollInfo.GetInspectItemLevel(unit)) end
+  if C_PaperDollInfo and C_PaperDollInfo.GetInspectItemLevel then itemLevel = tonumber((C_PaperDollInfo.GetInspectItemLevel(unit))) end
   if (not itemLevel or itemLevel <= 0) and #levels > 0 then
     local total = 0
     for _, level in ipairs(levels) do total = total + level end

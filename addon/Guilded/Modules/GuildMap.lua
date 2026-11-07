@@ -273,9 +273,16 @@ local function sortedNames()
   return names
 end
 
+-- Inside a dungeon, raid, battleground or arena the game hides positions: no dots at all there.
+function map.inInstance()
+  if not IsInInstance then return false end
+  local ok, inside = pcall(IsInInstance)
+  return ok and inside == true
+end
+
 local function showDots()
   local s = settings()
-  return active() and s and s.mapShow
+  return active() and s and s.mapShow and not map.inInstance()
 end
 
 -- World map: a dot for everyone on the map being viewed (a zone, or its continent).
@@ -477,6 +484,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "PLAYER_ENTERING_WORLD" then
       -- Zoning in or out of an instance: send (or clear) the position soon.
       lastSent.at = -1000
+      -- Pins vanish at once inside an instance and come back when you leave it.
+      map.refresh()
       map.requestPositions()
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]

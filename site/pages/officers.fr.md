@@ -6,7 +6,7 @@ Guilded réunit l'EP/GP, les règles de butin, les cores de raid, les inscriptio
 publique de votre guilde dans une seule boîte à outils gratuite. Commencez en jeu avec l'addon
 seul; ajoutez le bot Discord quand votre guilde le souhaite.
 
-<p class="actions"><a class="button" href="https://discord.com/oauth2/authorize?client_id=1552633893587394590&amp;scope=bot+applications.commands&amp;integration_type=0&amp;permissions=2269718703631440">Ajouter Guilded à votre Discord ↗</a><a class="text-link" href="/editions/?lang=fr">Addon seulement ? Téléchargez-le →</a></p>
+<p class="actions"><a class="button" href="https://discord.com/oauth2/authorize?client_id=1552633893587394590&amp;scope=bot+applications.commands&amp;integration_type=0&amp;permissions=2269718837849168">Ajouter Guilded à votre Discord ↗</a><a class="text-link" href="/editions/?lang=fr">Addon seulement ? Téléchargez-le →</a></p>
 
 ## Deux façons de l'utiliser
 
@@ -14,7 +14,7 @@ seul; ajoutez le bot Discord quand votre guilde le souhaite.
 | --- | --- |
 | EP/GP, butin, présences, recettes et donjons, partagés avec la guilde en jeu | Tout ce qui est en jeu, plus les inscriptions de raid, les classements et les sondages dans Discord |
 | Rien à configurer hors de WoW | Les membres se connectent une fois avec le compagnon Windows |
-| [Télécharger pour votre édition de WoW](/editions/?lang=fr) | [Ajouter le bot](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440), puis suivre les étapes ci-dessous |
+| [Télécharger pour votre édition de WoW](/editions/?lang=fr) | [Ajouter le bot](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718837849168), puis suivre les étapes ci-dessous |
 
 ## Lite tout de suite, Guilded complet après approbation
 
@@ -60,7 +60,7 @@ permet aux officiers de consulter les prix modifiables par emplacement et
 d’activer explicitement le préréglage de décembre pour un core. Les réserves
 existantes conservent leurs règles tant qu’un officier ne les modifie pas.
 **Classements** affiche la priorité de raid et les scores de donjon. Utilisez
-l’addon et le compagnon 8.4.0 correspondants pour le nouveau flux de prix en jeu.
+l’addon et le compagnon actuels pour le nouveau flux de prix en jeu.
 
 ## Vous utilisez déjà Raid-Helper ?
 

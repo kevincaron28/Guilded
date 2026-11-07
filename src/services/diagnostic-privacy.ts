@@ -28,6 +28,29 @@ export function redactDiagnosticText(input: unknown, limit=2000, secrets: readon
   return text.slice(0,Math.max(0,Math.min(limit,65536)));
 }
 
+/**
+ * For a Discord "invalid form body" (50035): which request and which fields were refused, with error codes only. Field
+ * paths and codes such as BASE_TYPE_MAX_LENGTH are structure, never content, so they are safe to keep. Ids are dropped.
+ */
+export function discordRequestShape(error: unknown): string {
+  if (!error || typeof error !== "object") return "";
+  const value = error as { code?: unknown; method?: unknown; url?: unknown; rawError?: { errors?: unknown } };
+  if (value.code !== 50035) return "";
+  const route = typeof value.url === "string" ? value.url.replace(/^https?:\/\/[^/]+/, "").replace(/\/api\/v\d+/, "").replace(/\d{17,20}/g, ":id").replace(/\/callback.*$/, "/callback").replace(/\/webhooks\/:id\/[^/?]+/, "/webhooks/:id/:token") : "";
+  const fields: string[] = [];
+  const walk = (node: unknown, path: string, depth: number): void => {
+    if (!node || typeof node !== "object" || fields.length >= 6 || depth > 8) return;
+    const record = node as Record<string, unknown>;
+    if (Array.isArray(record["_errors"]) && record["_errors"].length) {
+      const codes = record["_errors"].map((entry) => (entry && typeof entry === "object" && typeof (entry as { code?: unknown }).code === "string" ? (entry as { code: string }).code : "")).filter((code) => /^[A-Z_0-9]{3,60}$/.test(code));
+      fields.push(`${path || "body"}:${codes.join("|") || "invalid"}`);
+    }
+    for (const [key, child] of Object.entries(record)) if (key !== "_errors" && /^[A-Za-z0-9_]{1,40}$/.test(key)) walk(child, path ? `${path}.${key}` : key, depth + 1);
+  };
+  walk(value.rawError?.errors, "", 0);
+  return ` [${typeof value.method === "string" && /^[A-Z]{3,7}$/.test(value.method) ? value.method : "?"} ${route.slice(0, 80)}; ${fields.join(", ") || "no field detail"}]`;
+}
+
 /** Automatic failures never retain arbitrary exception messages, request bodies
  * or serialized objects. Class/code and basename+line frames identify the fault. */
 export function automaticDiagnostic(error: unknown): {message:string;stack:string|null} {
@@ -41,7 +64,7 @@ export function automaticDiagnostic(error: unknown): {message:string;stack:strin
   }).slice(0,12);
   const stack=frames.length ? redactDiagnosticText(frames.join("\n"),2000) : null;
   const fingerprint=createHash("sha256").update(`${name}${code}\n${stack??"no-frame"}`).digest("hex").slice(0,12);
-  return {message:`${name}${code} [error:${fingerprint}]`,stack};
+  return {message:`${name}${code} [error:${fingerprint}]${discordRequestShape(error)}`,stack};
 }
 
 /** A member's /report bug screenshot: a Discord-hosted attachment link, or null. Never downloaded or inspected. */

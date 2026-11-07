@@ -6,7 +6,7 @@ Every server starts on Guilded Lite right away; full Guilded needs the Guilded o
 approval for each Discord server, given by hand or automatically once a server is
 set up and active (see below). Hosting capacity is limited, so approval is not guaranteed.
 
-**[Add Guilded to your server](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440)**
+**[Add Guilded to your server](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718837849168)**
 
 Adding the bot puts your server on **Guilded Lite** straight away and sends KCaron a
 request. **Full Guilded unlocks with KCaron's approval.** When the host has turned on

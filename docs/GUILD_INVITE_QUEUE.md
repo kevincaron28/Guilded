@@ -71,3 +71,16 @@ validated with `parseInviteName`). On submit the bot posts `<@member> → **Firs
 A plain DM reply that looks like a full name works too, but only for members the bot already asked (`InviteDm`), so the bot
 does not react to random DMs (`DirectMessages` intent plus the channel partial). One request per member per character; a
 repeat is answered "already asked" and posts nothing. Follows `queue` and `previewAllows()` like the rest of the queue.
+
+## Why a joined player kept the 👀 (fix, 7 Nov 2026)
+
+Reported on a live post ("Drakka Whitefang"): the player joined in game, the post never got ✅. Cause: the roster check only
+looked at the **uploading officer's own characters** (`snapshot.character`/`characters`), never at the guild roster the upload
+carries, so a newcomer could only be matched if they happened to be one of that officer's alts. It also ran only on officer
+uploads and never at start-up.
+
+Now: `markInvitedByName` compares names folded for case, accents and a `-Realm` suffix, and a first-name-only roster row (older
+uploads) matches when exactly one waiting name starts with it. `backCheckInvites` checks every waiting request against the stored
+`GuildRosterEntry` rows (`inGuild`) plus linked characters; it runs after any upload that brings a guild roster, at bot start-up,
+and hourly. Posts the bot made itself (the **Request a guild invite** flow) carry an officer button **✅ Invited / joined**
+(`invite:done:<server>`); player-typed posts keep the officer's ✅ reaction, `/mod invites record` and the in-game list.

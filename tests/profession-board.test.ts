@@ -92,3 +92,17 @@ describe("profession posts and last seen", () => {
     expect(await recipeCrafters(db as never, "g1", 999)).toBeNull();
   });
 });
+
+describe("one crafter entry per shown name", () => {
+  it("merges repeated scans of the same crafter so the request menu has no duplicate options", async () => {
+    const { requestRows } = await import("../src/commands/craft-board.js");
+    const rows = requestRows("en", 4245, [
+      { character: "Chad Ho", skill: 150, lastSeen: null },
+      { character: "Chad Ho", skill: 150, lastSeen: null },
+      { character: "chad ho", skill: 150, lastSeen: null },
+      { character: "Mister", skill: 100, lastSeen: null }
+    ]);
+    const options = (rows[0]!.toJSON() as { components: { options: { value: string }[] }[] }).components[0]!.options;
+    expect(options.map(option => option.value)).toEqual(["Chad Ho", "Mister"]);
+  });
+});

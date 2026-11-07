@@ -5,7 +5,7 @@
 Guilded keeps EP/GP, loot rules, raid cores, signups and your guild's public page in one free
 toolkit. Start in game with the addon alone; add the Discord bot when your guild wants it.
 
-<p class="actions"><a class="button" href="https://discord.com/oauth2/authorize?client_id=1552633893587394590&amp;scope=bot+applications.commands&amp;integration_type=0&amp;permissions=2269718703631440">Add Guilded to your Discord ↗</a><a class="text-link" href="/editions/">Addon only? Download it →</a></p>
+<p class="actions"><a class="button" href="https://discord.com/oauth2/authorize?client_id=1552633893587394590&amp;scope=bot+applications.commands&amp;integration_type=0&amp;permissions=2269718837849168">Add Guilded to your Discord ↗</a><a class="text-link" href="/editions/">Addon only? Download it →</a></p>
 
 ## Two ways to use it
 
@@ -13,7 +13,7 @@ toolkit. Start in game with the addon alone; add the Discord bot when your guild
 | --- | --- |
 | EP/GP, loot, attendance, recipes and dungeon runs, shared with your guild in game | Everything in game, plus raid signups, standings and polls in Discord |
 | Nothing to set up outside WoW | Members connect once with the Windows companion |
-| [Download for your WoW edition](/editions/) | [Add the bot](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440), then follow the steps below |
+| [Download for your WoW edition](/editions/) | [Add the bot](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718837849168), then follow the steps below |
 
 ## Lite now, full Guilded after approval
 
@@ -54,7 +54,7 @@ walks through a full raid night.
 In the Windows companion, **Raid prices** lets officers
 review editable December slot prices and explicitly enable the preset for a core.
 Existing pools keep their rules until an officer chooses to change them.
-**Leaderboards** shows raid priority and dungeon scores. Use the matching 8.4.0 addon and companion for the in-game pricing flow.
+**Leaderboards** shows raid priority and dungeon scores. Use the current addon and companion for the in-game pricing flow.
 
 ## Already using Raid-Helper?
 

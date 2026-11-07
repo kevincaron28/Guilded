@@ -5,7 +5,7 @@ const { write, post, updateBoard } = vi.hoisted(() => ({ write: vi.fn(), post: v
 vi.mock("../src/database.js", () => ({ prisma: {
   guildSettings: { upsert: write, update: write }, dungeonSeason: { update: write }, auditLog: { create: write }
 } }));
-vi.mock("../src/commands/context.js", () => ({ requireGuildContext: async () => ({ guildId: "g" }) }));
+vi.mock("../src/commands/context.js", () => ({ requireGuildContext: async () => ({ guildId: "g" }), guildService: { getSettings: async () => null } }));
 vi.mock("../src/permissions.js", () => ({ hasPermission: () => true }));
 vi.mock("../src/services/housekeeping.js", () => ({ postToLogChannel: post }));
 vi.mock("../src/services/dungeon-leaderboard.js", () => ({ updateDungeonLeaderboard: updateBoard }));

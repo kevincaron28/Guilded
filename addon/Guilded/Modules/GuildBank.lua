@@ -94,7 +94,7 @@ function bank.readLogs()
   if not log then return 0 end
   local now, added = clock(), 0
   if bank.logsAvailable() then
-    local tabs = tonumber(GetNumGuildBankTabs and GetNumGuildBankTabs()) or 0
+    local tabs = tonumber((GetNumGuildBankTabs and GetNumGuildBankTabs())) or 0
     for tab = 1, math.min(tabs, 8) do
       local okCount, count = pcall(GetNumGuildBankTransactions, tab)
       for index = 1, math.min(okCount and tonumber(count) or 0, 100) do
@@ -141,7 +141,7 @@ end
 -- Asks the server for every tab's log and the money log (it answers with GUILDBANKLOG_UPDATE).
 function bank.queryLogs()
   if type(QueryGuildBankLog) ~= "function" then return end
-  local tabs = tonumber(GetNumGuildBankTabs and GetNumGuildBankTabs()) or 0
+  local tabs = tonumber((GetNumGuildBankTabs and GetNumGuildBankTabs())) or 0
   local queries = {}
   for tab = 1, math.min(tabs, 8) do queries[#queries + 1] = tab end
   queries[#queries + 1] = moneyTab()
@@ -155,10 +155,10 @@ end
 function bank.scan()
   local db = state()
   if not (db and available()) then return nil end
-  local tabs = tonumber(GetNumGuildBankTabs()) or 0
+  local tabs = tonumber((GetNumGuildBankTabs())) or 0
   if tabs < 1 then return nil end
   local snapshot = { at = ns.now and ns.now() or "", by = ns.playerName and ns.playerName() or "", tabs = {}, items = 0 }
-  if GetGuildBankMoney then snapshot.money = tonumber(GetGuildBankMoney()) end
+  if GetGuildBankMoney then snapshot.money = tonumber((GetGuildBankMoney())) end
   if snapshot.money then bank.noteGold(snapshot.money) end
   local slots = tonumber(MAX_GUILDBANK_SLOTS_PER_TAB) or SLOTS_PER_TAB
   for tab = 1, math.min(tabs, 8) do
@@ -204,7 +204,7 @@ end
 -- Opening the bank: ask the server for each tab, a little apart, then read them.
 function bank.onOpened()
   if not available() then return end
-  local tabs = tonumber(GetNumGuildBankTabs()) or 0
+  local tabs = tonumber((GetNumGuildBankTabs())) or 0
   for tab = 1, math.min(tabs, 8) do
     local function ask() if QueryGuildBankTab then pcall(QueryGuildBankTab, tab) end end
     if C_Timer and C_Timer.After then C_Timer.After((tab - 1) * QUERY_SPACING, ask) else ask() end

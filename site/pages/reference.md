@@ -68,7 +68,7 @@ sub-commands.
 | Command | What it does | Who |
 | --- | --- | --- |
 | `/dungeon` `leaderboard` `season` `records` `player` `history` | Season rating, fastest clears, a player's runs | Everyone |
-| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Past seasons, scoring rules, dungeon list, Retail keys, this week's team goal | Everyone |
+| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Past seasons, scoring rules, dungeon list, this week's team goal | Everyone |
 | `/dungeon` `group` `alerts` `watch` | Form a group with a voice channel; get pinged for groups that fit you | Everyone |
 | `/officer dungeon` `invalidate` `award` `audit` `config` | Correct a run, adjust guild points, read the point history | Officers |
 | `/organize dungeon-seasons preview` | See the current and next dungeon seasons | Organizers |
@@ -193,7 +193,7 @@ everything. Officer rows need the officer rank in your WoW guild.
 ## Windows companion
 
 A small free Windows app. It is optional for the addon and needed for Discord and website
-features. Full steps: [Companion app](/companion/).
+features. Full steps: [Companion app](https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe).
 
 | What | Detail |
 | --- | --- |

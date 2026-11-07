@@ -50,11 +50,31 @@ export async function pendingInvites(database: Database, guildId: string, limit 
 
 export interface InvitedRow { id: string; channelId: string; messageId: string; displayName: string }
 
-/** Marks every waiting post of these names as invited and returns them, so the bot can add the check marks. */
+/** Case, accents and surrounding spaces ignored: "Drakka  Whitefang" and "drakka whitefang" are the same character. */
+export const foldKey = (name: string): string => nameKeyOf(name).normalize("NFD").replace(/\p{M}/gu, "");
+
+/**
+ * Marks every waiting post of these names as invited and returns them, so the bot can add the check marks.
+ * A roster name matches a post when they are the same after folding case and accents, with a "-Realm" suffix
+ * dropped; a first-name-only roster entry (older uploads) matches only when exactly one waiting name starts with it.
+ */
 export async function markInvitedByName(database: Database, guildId: string, names: readonly string[], by: string): Promise<InvitedRow[]> {
-  const keys = [...new Set(names.map(nameKeyOf).filter(Boolean))];
-  if (!keys.length) return [];
-  const rows = await database.inviteRequest.findMany({ where: { guildId, status: "PENDING", nameKey: { in: keys } }, select: { id: true, channelId: true, messageId: true, displayName: true } });
+  const wanted = [...new Set(names.map(foldKey).filter(Boolean))];
+  if (!wanted.length) return [];
+  const waiting = await database.inviteRequest.findMany({ where: { guildId, status: "PENDING" }, select: { id: true, nameKey: true, channelId: true, messageId: true, displayName: true }, take: 1000 });
+  if (!waiting.length) return [];
+  const byFold = new Map<string, typeof waiting>();
+  for (const row of waiting) { const key = foldKey(row.nameKey); byFold.set(key, [...(byFold.get(key) ?? []), row]); }
+  const hit = new Set<string>();
+  for (const name of wanted) {
+    const bare = name.replace(/-[^\s-]+$/u, "");
+    const exact = byFold.get(name) ?? byFold.get(bare);
+    if (exact) { exact.forEach((row) => hit.add(row.id)); continue; }
+    if (bare.includes(" ")) continue;
+    const loose = [...byFold.keys()].filter((key) => key.startsWith(`${bare} `));
+    if (loose.length === 1) byFold.get(loose[0]!)!.forEach((row) => hit.add(row.id));
+  }
+  const rows = waiting.filter((row) => hit.has(row.id)).map(({ id, channelId, messageId, displayName }) => ({ id, channelId, messageId, displayName }));
   if (!rows.length) return [];
   await database.inviteRequest.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data: { status: "INVITED", invitedBy: by, invitedAt: new Date() } });
   return rows;

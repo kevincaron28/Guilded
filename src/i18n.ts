@@ -264,6 +264,8 @@ const STRINGS = {
     fr: "✅ Ta demande est dans <#{channel}>. Un officier t'invitera en jeu, et un ✅ apparaîtra dessus quand ce sera fait."
   },
   "invite.duplicate": { en: "You already asked for this character, so nothing was added. An officer will get to it.", fr: "Tu as déjà demandé pour ce personnage, rien n'a été ajouté. Un officier s'en occupera." },
+  "invite.doneButton": { en: "✅ Invited / joined", fr: "✅ Invité / a joint la guilde" },
+  "invite.doneOfficers": { en: "Only officers can mark an invite as done.", fr: "Seuls les officiers peuvent marquer une invitation comme faite." },
   "invite.unavailable": { en: "Guild invites are not open on this server right now. Ask an officer.", fr: "Les invitations de guilde ne sont pas ouvertes sur ce serveur pour le moment. Demande à un officier." },
   "companion.firstLinkMore": { en: " and {count} more", fr: " et {count} de plus" },
   "verify.moved": {

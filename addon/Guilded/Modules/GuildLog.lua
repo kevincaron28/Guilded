@@ -57,7 +57,7 @@ function guildLog.read()
   local s = state()
   if not (s and available()) then return 0 end
   local now = clock()
-  local count = tonumber(GetNumGuildEvents()) or 0
+  local count = tonumber((GetNumGuildEvents())) or 0
   local added = 0
   -- The game lists newest last in Classic and newest first elsewhere; ages sort it out.
   for i = 1, math.min(count, 500) do

@@ -52,7 +52,12 @@ export async function loadProfessionPosts(db: Db, guildId: string, names: FullNa
     const id = `${key(row.profession)}|${row.itemKey}`;
     let recipe = byItem.get(id);
     if (!recipe) { recipe = { itemKey: row.itemKey, itemName: row.itemName, crafters: [] }; byItem.set(id, recipe); target.recipes.push(recipe); }
-    recipe.crafters.push({ character: shown(row.character), lastSeen: lastSeenFor(row.character, row.scannedAt) });
+    // One entry per shown name: several scans or name keys of the same character (first name vs full name)
+    // must not list them twice, and Discord rejects a menu with duplicate options.
+    const character = shown(row.character), lastSeen = lastSeenFor(row.character, row.scannedAt);
+    const same = recipe.crafters.find(crafter => crafter.character.toLowerCase() === character.toLowerCase());
+    if (!same) recipe.crafters.push({ character, lastSeen });
+    else if (lastSeen && (!same.lastSeen || lastSeen > same.lastSeen)) same.lastSeen = lastSeen;
   }
   for (const entry of posts.values()) {
     entry.skilled.sort((a, b) => byLastSeen(a.lastSeen, b.lastSeen) || b.skillLevel - a.skillLevel || a.character.localeCompare(b.character));

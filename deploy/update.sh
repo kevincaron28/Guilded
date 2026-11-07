@@ -43,12 +43,32 @@ sudo -u "$WHO" git -C "$SRC" merge --ff-only origin/main
 AFTER="$(sudo -u "$WHO" git -C "$SRC" rev-parse --short HEAD)"
 if [ "$BEFORE" = "$AFTER" ]; then echo "Already on the newest code ($AFTER)."; else echo "Updated $BEFORE -> $AFTER"; sudo -u "$WHO" git -C "$SRC" log -10 --oneline "$BEFORE..$AFTER"; fi
 
+# Sourced only now, after the checkout was updated, so this run uses its own version of the helpers.
+source "$SRC/deploy/application-update.sh"
+
+# Holding the lock: no other run can be preparing a staging directory, so leftovers are safe to remove.
+remove_stale_staging "$APP" || true
+
+# Preparing needs room for a full copy of the application and its dependencies. Stop before any change
+# if there is not enough, after pruning old saved applications (see ensure_free_disk).
+MIN_FREE_KB=$((3 * 1024 * 1024))
+say "Checking free disk space"
+if ! ensure_free_disk "$APP" "$MIN_FREE_KB"; then
+  echo "Not enough free disk space to prepare the update. The running bot was not touched."
+  echo "Free space under $(dirname "$APP") (for example by removing old files), then run this again."
+  exit 1
+fi
+
 say "Preparing dependencies and the companion interface bundle outside the running application"
 command -v rsync >/dev/null || apt-get install -y rsync
-source "$SRC/deploy/application-update.sh"
 if ! prepare_application "$SRC" "$APP" guilded; then
+  if discard_own_staging "${STAGED_APP:-}"; then
+    STAGE_NOTE="This run's private staging directory was removed."
+  else
+    STAGE_NOTE="Could not remove this run's staging directory: ${STAGED_APP:-not created}."
+  fi
   echo "Preparation failed; the running application was not replaced or stopped."
-  echo "Inspect the private staging directory: ${STAGED_APP:-not created}"
+  echo "$STAGE_NOTE"
   exit 1
 fi
 say "Stopping the bot and activating the prepared application"
@@ -60,6 +80,9 @@ fi
 chmod 700 "$PREVIOUS_APP"
 cp -p /etc/systemd/system/guilded.service "$PREVIOUS_APP/.recovery-service"
 echo "Saved application for code recovery: $PREVIOUS_APP"
+
+# Keep the three newest saved applications. The service is already stopped, so a failure here must not stop the script.
+prune_previous_applications "$APP" 3 || echo "Could not prune old saved applications; free space manually if needed."
 
 # A changed service file needs systemd to reload it.
 

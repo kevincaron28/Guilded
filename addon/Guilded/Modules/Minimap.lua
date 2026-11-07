@@ -1480,6 +1480,9 @@ local function buildHomePage(page)
   ui.linkWidgets = {}
   local function linkWidget(widget) table.insert(ui.linkWidgets, widget) return widget end
   linkWidget(below(newLabel(page, "Link to Discord", "GameFontNormal"), 0, -138))
+  if ns.companionLink then
+    linkWidget(tip(below(newButton(page, "Get the companion", 170, function() ns.companionLink.openCopyWindow() end, 24), PAGE_WIDTH - 170, -134), "Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."))
+  end
   ui.linkStatus = linkWidget(below(newLabel(page, "", "GameFontHighlightSmall"), 0, -158))
   ui.linkStatus:SetWidth(PAGE_WIDTH)
   local howTo = linkWidget(below(newLabel(page,

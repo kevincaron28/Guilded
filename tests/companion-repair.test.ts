@@ -97,8 +97,8 @@ describe("a slimmer companion", () => {
     for (const page of ["reserves", "leaderboards", "wishlist", "pricing", "cores"]) expect(html, page).not.toContain(`class="nav optional-page" data-page="${page}"`);
     expect(html).not.toContain('<button class="nav" data-page="leaderboards">');
     for (const path of ["/leaderboards/", "/me/raid-plans", "/me/reserves"]) expect(html).toContain(`data-web-path="${path}"`);
-    // The pages stay in the file, so nothing the sync or a deep link needs is gone.
-    for (const page of ["page-reserves", "page-leaderboards", "page-wishlist", "page-pricing", "page-cores"]) expect(html).toContain(`id="${page}"`);
+    // Redesign PR 5: the website has these pages now (Track C, #534), so the old in-app pages are gone.
+    for (const page of ["page-reserves", "page-leaderboards", "page-wishlist", "page-pricing", "page-cores"]) expect(html).not.toContain(`id="${page}"`);
   });
   it("Repair is on Home, on Problems and in the setup wizard", () => {
     for (const id of ["btnRepair", "btnRepairProblems", "btnWizardRepair", "btnWizardSetup", "repairDialog", "repairResults"]) expect(html).toContain(`id="${id}"`);

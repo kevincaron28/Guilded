@@ -1028,6 +1028,9 @@ model GuildSettings {
   readinessChannelId       String?
   // 9.1 readiness upgrade (docs/plans/READINESS_UPGRADE.md): the daily list and the raid night check card; on by default, officers switch both off.
   readinessPostsEnabled    Boolean   @default(true)
+  // 9.1 guild activity ladder (docs/plans/GUILD_ACTIVITY_LADDER.md): dungeons + duels + battlegrounds in one board; on by default.
+  activityBoardEnabled     Boolean   @default(true)
+  activityBoardMessageId   String?
   // Where each raid core's roster is shown (one live message per core).
   coreChannelId            String?
   // Private channel where new applications are posted; falls back to the officer log.
@@ -2940,6 +2943,8 @@ model DuelResult {
   loserId        String
   winnerCharacter String
   loserCharacter String
+  winnerLevel    Int?
+  loserLevel     Int?
   reason         String   @default("knockout")
   endedAt        DateTime
   dayKey         String

@@ -41,7 +41,7 @@ const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
 const NUDGE_UNTIL_MS = 72 * 60 * 60 * 1000;
 const NUDGES_PER_RUN = 25;
 
-type Action = "rules" | "accept" | "games" | "pick" | "pair" | "companion" | "paircode" | "steps";
+type Action = "rules" | "accept" | "games" | "pick" | "pair" | "chat" | "companion" | "paircode" | "steps";
 const customId = (action: Action, discordGuildId: string) => `${ONBOARD_PREFIX}${action}:${discordGuildId}`;
 
 type StepSettings = Pick<GuildSettings, "welcomeRoleIds" | "rulesChannelId">;
@@ -66,6 +66,7 @@ export function onboardingButtons(settings: StepSettings, discordGuildId: string
   if (settings.rulesChannelId) add("rules", "onboard.button.rules", ButtonStyle.Primary);
   if (settings.welcomeRoleIds.length > 0) add("games", "onboard.button.games", ButtonStyle.Primary);
   add("pair", "onboard.button.pair", ButtonStyle.Secondary);
+  add("chat", "onboard.button.chat", ButtonStyle.Secondary);
   add("steps", "onboard.button.steps", ButtonStyle.Success);
   return row;
 }
@@ -87,7 +88,7 @@ export function welcomePanel(settings: StepSettings, discordGuild: Pick<DiscordG
   const lines = [t(lang, "onboard.panel.intro", { guild: discordGuild.name }), ""];
   if (settings.rulesChannelId) lines.push(t(lang, "onboard.panel.rules", { channel: `<#${settings.rulesChannelId}>` }));
   if (settings.welcomeRoleIds.length > 0) lines.push(t(lang, "onboard.panel.games"));
-  lines.push(t(lang, "onboard.panel.pair"), t(lang, "onboard.panel.steps"));
+  lines.push(t(lang, "onboard.panel.pair"), t(lang, "onboard.panel.chat"), t(lang, "onboard.panel.steps"));
   return {
     embeds: [new EmbedBuilder().setTitle(t(lang, "onboard.panel.title")).setColor(0xd4af37).setDescription(lines.join("\n"))],
     components: [onboardingButtons(settings, discordGuild.id, lang)]
@@ -289,6 +290,12 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
   if (action === "pair" || action === "companion") {
     const record = await guildService.ensureMember(guild.id, member.id, member.user.username);
     await interaction.editReply(await characterLinkPrompt(prisma, guild.id, record.id, discordGuild.id, lang, action === "companion" ? "companion" : "addon"));
+  }
+  if (action === "chat") {
+    const text = settings.inviteChannelId && settings.inviteQueueEnabled
+      ? t(lang, "onboard.chat.guide", { channel: settings.inviteChannelId })
+      : t(lang, "onboard.chat.guideNoChannel");
+    await interaction.editReply({ content: text, components: [buttons()], allowedMentions: { parse: [] } });
   }
   if (action === "paircode") {
     // Companions older than 7.2 only: one code, made on request so no other prompt replaces it.

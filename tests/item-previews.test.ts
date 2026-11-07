@@ -93,7 +93,9 @@ describe("secret box", () => {
     expect(sealed).not.toContain("abcdefghij");
     expect(openSecret(SECRET, sealed)).toBe(HOOK);
     expect(openSecret("y".repeat(40), sealed)).toBeNull();
-    expect(openSecret(SECRET, sealed.slice(0, -2) + "AA")).toBeNull();
+    // Always change the last characters (a fixed "AA" left the text unchanged whenever it already ended in "AA").
+    const tampered = sealed.slice(0, -2) + (sealed.endsWith("AA") ? "BB" : "AA");
+    expect(openSecret(SECRET, tampered)).toBeNull();
     expect(openSecret(SECRET, "garbage")).toBeNull();
   });
 });

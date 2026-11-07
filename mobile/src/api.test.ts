@@ -79,6 +79,7 @@ describe("mobile companion client", () => {
   });
 });
 
+import { ago, parseNews, safeNewsUrl } from "./news";
 import { groupSets, isNew, parseAlbum } from "./album";
 import { classMix, parseBoards, parsePublicGuild } from "./publicApi";
 
@@ -139,5 +140,26 @@ describe("badge album", () => {
     const call = fetchMock.mock.calls[0] as unknown as [URL, { headers: Record<string, string> }];
     expect(String(call[0])).toBe("https://guilded.kcaron.top/api/v1/companion/achievements?lang=fr");
     expect(call[1].headers["x-companion-credential"]).toBe("c".repeat(43));
+  });
+});
+
+describe("news headlines", () => {
+  it("keeps only https Wowhead links and drops malformed rows", () => {
+    const news = parseNews({ source: "Wowhead", enabled: true, items: [
+      { title: "Good", url: "https://www.wowhead.com/news=1/x", publishedAt: "2026-11-07T04:00:00.000Z" },
+      { title: "Offsite", url: "https://evil.example/x" }, { title: "Script", url: "javascript:alert(1)" }, { url: "https://www.wowhead.com/a" }
+    ] });
+    expect(news.items).toEqual([{ title: "Good", url: "https://www.wowhead.com/news=1/x", publishedAt: "2026-11-07T04:00:00.000Z" }]);
+    expect(safeNewsUrl("https://notwowhead.com/x")).toBeNull();
+    expect(() => parseNews({})).toThrow();
+  });
+
+  it("says how long ago, in both languages", () => {
+    const now = Date.parse("2026-11-07T12:00:00Z");
+    expect(ago("2026-11-07T11:59:30Z", now, "en")).toBe("1 min ago");
+    expect(ago("2026-11-07T09:00:00Z", now, "en")).toBe("3 h ago");
+    expect(ago("2026-11-05T12:00:00Z", now, "fr")).toBe("il y a 2 j");
+    expect(ago(null, now, "en")).toBe("");
+    expect(ago("2026-11-08T12:00:00Z", now, "en")).toBe("");
   });
 });

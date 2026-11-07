@@ -76,6 +76,7 @@ Modules\Scores.lua
 Modules\Milestones.lua
 Modules\Duels.lua
 Modules\SeasonDetails.lua
+Modules\DungeonStats.lua
 Modules\DungeonScorePanel.lua
 Modules\Perf.lua
 Modules\GuildLog.lua

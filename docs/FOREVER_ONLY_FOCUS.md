@@ -1,5 +1,9 @@
 # Forever-only focus (5 November 2026)
 
+> **7 November 2026:** the owner decided to remove the other WoW editions, not just hide them. That work
+> runs in staged PRs (docs/plans/FOREVER_ONLY_REMOVAL.md); the addons (stage 1) and release packaging
+> (stage 2) are already Forever-only. This page describes the switches until the last stage replaces it.
+
 While Guilded concentrates on WoW Forever, other WoW versions and Path of Exile 2 (PoE2) tracking are
 hidden from members. **Nothing is deleted**: code, addon builds, database rows, saved uploads, Discord
 channels and roles, and already-published downloads all stay. Two small switch files decide everything;
@@ -47,8 +51,8 @@ Discord (Server Settings), or archive them by hiding them from `@everyone`. No c
 
 ## Releases
 
-- `npm run addon:editions` now builds only the active editions (Forever); `-- --all-editions` builds every
-  edition (use it for checks, or after turning editions back on). `addon:verify-editions` checks whatever is in `dist/editions`.
+- `npm run addon:editions` builds the WoW Forever zips only; other editions are being removed, not held
+  (docs/plans/FOREVER_ONLY_REMOVAL.md). `addon:verify-editions` checks whatever is in `dist/editions`.
 - Publish only the Forever `Guilded` and `GuildedDungeons` zips on CurseForge and GitHub. **Leave every file already
   published for other editions untouched** (do not delete or replace them).
 - Bot deploy needed for: the Discord command list (`/poe` removed, choices narrowed), help/FAQ, the website data

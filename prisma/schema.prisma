@@ -303,6 +303,9 @@ model CommunityHonors {
   monthHolderIds  Json     @default("[[],[],[]]")
   rookieRoleId    String?
   rookieHolderId  String?
+  // 9.0.2: the weekly rookie (best new member of the week), a cosmetic role like the others.
+  weeklyRookieRoleId   String?
+  weeklyRookieHolderId String?
   // Set when holders change; cleared once Discord roles match them.
   rolesPending    Boolean  @default(false)
   // Officer settings (/community honors-settings). Off: no weekly MVP or post.

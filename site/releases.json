@@ -20,6 +20,22 @@
       "stage": "release",
       "url": "https://www.curseforge.com/wow/addons/guilded",
       "editions": {
+        "retail": {
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429254",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377303"
+        },
+        "classic-mists": {
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429245",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377282"
+        },
+        "classic-tbc": {
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429064",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377271"
+        },
+        "classic-era": {
+          "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429057",
+          "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377269"
+        },
         "forever": {
           "guilded": "https://www.curseforge.com/wow/addons/guilded/files/9429061",
           "dungeons": "https://www.curseforge.com/wow/addons/guilded-dungeons/files/9377265"

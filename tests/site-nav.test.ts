@@ -6,57 +6,59 @@ import { currentSection } from "../src/services/site-header.js";
 import { withEdition } from "../src/services/edition-context.js";
 import { safeReturnPath } from "../src/services/web-auth.js";
 import { renderGuildPage } from "../src/services/guild-page.js";
+import { GAME_EDITIONS } from "../companion/game-edition.mjs";
 
 // One menu for the whole website: the bot-served pages and the static build both read site/nav.mjs.
 describe("site menu", () => {
   const page = (path: string, lang: "en" | "fr") => layout({ lang, title: "T", path, body: "", account: null, csrf: null, signInOn: true });
 
-  it("keeps the WoW Forever section through navigation, player links and sign-in in both languages", () => {
-    for (const lang of ["en", "fr"] as const) withEdition("forever", () => {
+  it.each(GAME_EDITIONS)("keeps %s through navigation, player links and sign-in in both languages", edition => {
+    const { slug } = editionSection(edition)!;
+    for (const lang of ["en", "fr"] as const) withEdition(edition, () => {
       const html = page("/players/", lang);
-      for (const item of SITE_NAV.filter(item => item.bot && item.key !== "my-guilded")) expect(html).toContain(`href="/forever${item.href}?lang=${lang}"`);
-      expect(link("/players/", lang)).toBe(`/forever/players/?lang=${lang}`);
+      for (const item of SITE_NAV.filter(item => item.bot && item.key !== "my-guilded")) expect(html).toContain(`href="/${slug}${item.href}?lang=${lang}"`);
+      expect(link("/players/", lang)).toBe(`/${slug}/players/?lang=${lang}`);
       const login = /href="(\/auth\/login[^"]+)"/.exec(html)![1]!.replaceAll("&amp;", "&");
       const returned = new URL(new URL(login, "https://guilded.test").searchParams.get("return")!, "https://guilded.test");
-      expect(returned.pathname).toBe("/forever/players/");
+      expect(returned.pathname).toBe(`/${slug}/players/`);
       expect(returned.searchParams.get("lang")).toBe(lang);
       expect(safeReturnPath(returned.pathname + returned.search)).toBe(returned.pathname + returned.search);
-      expect(link("/me/", lang)).toBe(`/me/?lang=${lang}`);
+      // The signed-in page keeps ?edition= (it is not in a section).
+      expect(link("/me/", lang)).toBe(edition === "forever" ? `/me/?lang=${lang}` : `/me/?edition=${edition}&lang=${lang}`);
     });
-    // A removed edition's old section is not a sign-in return path any more.
-    expect(safeReturnPath("/retail/players/")).toBe("/me/");
   });
 
-  it("moves public data links into the WoW Forever section and recognizes the removed editions' old sections", () => {
-    expect(editionHref("/players/?class=Mage#results", "forever")).toBe("/forever/players/?class=Mage#results");
-    expect(editionHref("/leaderboards/?edition=forever&season=s1", null)).toBe("/forever/leaderboards/?season=s1");
+  it("moves public data links into the edition's section, an explicit ?edition= winning", () => {
+    expect(editionHref("/players/?class=Mage#results", "retail")).toBe("/retail/players/?class=Mage#results");
+    expect(editionHref("/leaderboards/?edition=classic-tbc&season=s1", "retail")).toBe("/tbc/leaderboards/?season=s1");
+    expect(editionHref("/leaderboards/", "forever")).toBe("/forever/leaderboards/");
     expect(editionHref("/leaderboards/", null)).toBe("/leaderboards/");
-    // Another edition name (an old guild's stored edition) is not a section: links stay unsectioned.
-    expect(editionHref("/leaderboards/", "retail")).toBe("/leaderboards/");
-    expect(editionSection("retail")).toBeNull();
-    expect(splitEditionPath("/forever/recruitment/guilds/")).toEqual({ edition: "forever", slug: "forever", rest: "/recruitment/guilds/", retired: false });
-    expect(splitEditionPath("/mists/recruitment/guilds/")).toEqual({ edition: "classic-mists", slug: "mists", rest: "/recruitment/guilds/", retired: true });
+    expect(editionHref("/retail/leaderboards/", "classic-era")).toBe("/retail/leaderboards/");
+    expect(splitEditionPath("/mists/recruitment/guilds/")).toEqual({ edition: "classic-mists", slug: "mists", rest: "/recruitment/guilds/" });
     expect(splitEditionPath("/mistsy/")).toBeNull();
-    for (const href of ["https://example.test/players/", "//example.test/players/", "/players-other/", "/features/", "/companion/", "#players"]) expect(editionHref(href, "forever")).toBe(href);
+    for (const href of ["https://example.test/players/", "//example.test/players/", "/players-other/", "/features/", "/companion/", "#players"]) expect(editionHref(href, "retail")).toBe(href);
   });
 
-  it("points the header's WoW Forever link at the same kind of page", () => {
-    expect(editionSwitchHref("/leaderboards/run/abc", "forever")).toBe("/forever/leaderboards/");
-    expect(editionSwitchHref("/tbc/leaderboards/guilds/", "forever")).toBe("/forever/leaderboards/guilds/");
+  it("switches version on the same kind of page", () => {
+    expect(editionSwitchHref("/leaderboards/run/abc", "retail")).toBe("/retail/leaderboards/");
+    expect(editionSwitchHref("/tbc/leaderboards/guilds/", "classic-era")).toBe("/classic-era/leaderboards/guilds/");
+    expect(editionSwitchHref("/recruitment/guilds/", "classic-mists")).toBe("/mists/recruitment/guilds/");
     expect(editionSwitchHref("/players/c1", "forever")).toBe("/forever/players/");
-    expect(editionSwitchHref("/me/", "forever")).toBe("/me/");
-    for (const path of ["/", "/features/", "/g/quebec-gold/"]) expect(editionSwitchHref(path, "forever")).toBe("/forever/");
-    expect(editionSwitchHref("/leaderboards/", "retail")).toBe("/editions/");
+    expect(editionSwitchHref("/me/", "retail")).toBe("/me/?edition=retail");
+    expect(editionSwitchHref("/editions/retail/", "classic-tbc")).toBe("/editions/classic-tbc/");
+    for (const path of ["/", "/features/", "/g/quebec-gold/", "/retail/"]) expect(editionSwitchHref(path, "classic-tbc")).toBe("/tbc/");
   });
 
-  it("shows WoW Forever in the header of bot pages, even for a removed edition's stored guild", () => {
-    const html = withEdition("forever", () => page("/leaderboards/guilds/", "fr"));
-    expect(html).toContain('<details class="nav-group edition-menu" data-nav-group="edition"><summary>Je joue à : <strong>WoW Forever</strong></summary>');
-    expect(html).toContain('href="/forever/leaderboards/guilds/?lang=fr" data-edition="forever" aria-current="true"');
-    for (const slug of ["retail", "tbc", "mists", "classic-era"]) expect(html).not.toContain(`data-edition="${slug}"`);
+  it("shows the version switcher on bot pages, with this page in every edition", () => {
+    const html = withEdition("classic-tbc", () => page("/leaderboards/guilds/", "fr"));
+    expect(html).toContain('<details class="nav-group edition-menu" data-nav-group="edition"><summary>Je joue à : <strong>Burning Crusade Classic</strong></summary>');
+    // Forever-first: the menu offers the active editions plus this page's own edition, never the rest.
+    expect(html).toContain('<a href="/forever/leaderboards/guilds/?lang=fr" data-edition="forever">WoW Forever</a>');
+    expect(html).not.toContain('data-edition="retail"');
+    expect(html).toContain('href="/tbc/leaderboards/guilds/?lang=fr" data-edition="tbc" aria-current="true"');
     const guild = renderGuildPage({ slug: "qg", name: "QG", language: "en", indexable: true, intro: null, sections: [], cores: [], recruitment: null, edition: "retail" });
-    expect(guild).toContain("Playing: <strong>WoW Forever</strong>");
-    expect(guild).not.toContain('href="/retail/');
+    expect(guild).toContain("Playing: <strong>Retail</strong>");
+    expect(guild).toContain('href="/retail/leaderboards/?lang=en"');
   });
 
   it("shows every menu link on bot-served pages, in the page language", () => {

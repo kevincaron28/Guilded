@@ -41,7 +41,7 @@ function setup(over: Partial<WebAppDeps> = {}) {
 }
 
 describe("sign-in flow", () => {
-  it("returns to the signed-in page and language after sign-in; an old edition choice is dropped (WoW Forever only)", async () => {
+  it("returns to the selected edition and language after sign-in from a protected page", async () => {
     const { request } = setup();
     const prompt = await request("GET", "/me/?edition=retail&lang=fr");
     expect(prompt.status).toBe(401);
@@ -50,7 +50,7 @@ describe("sign-in flow", () => {
     const state = new URL(String(login.headers["location"])).searchParams.get("state");
     const cookie = String((login.headers["set-cookie"] as string[])[0]).split(";")[0]!;
     const callback = await request("GET", `/auth/callback?code=abc&state=${state}`, { cookie });
-    expect(callback.headers["location"]).toBe("/me/?lang=fr");
+    expect(callback.headers["location"]).toBe("/me/?edition=retail&lang=fr");
   });
   it("sends the browser to Discord and back with a signed session cookie", async () => {
     const { request, signIn } = setup();

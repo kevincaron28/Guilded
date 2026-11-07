@@ -1,3 +1,4 @@
+import { ACTIVE_EDITIONS } from "../../companion/active-editions.mjs";
 import { editionHref, editionMenu, editionSection, editionSwitchHref, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../../site/nav.mjs";
 import { currentEdition } from "./edition-context.js";
 import { SITE_LOGO } from "./site-logo.js";
@@ -63,12 +64,13 @@ export function currentSection(path: string): string | null {
 export function siteHeader(lang: Lang, path: string, languages?: Record<Lang, string>, edition: string = currentEdition()): string {
   const t = (en: string, fr: string) => (lang === "fr" ? fr : en);
   const playing = editionSection(edition) ?? editionSection("forever")!;
-  // "Playing: WoW Forever ▾": a link to the WoW Forever section (Guilded supports WoW Forever only).
+  // "Playing: Retail ▾": the same page in another edition (a leaderboard stays a leaderboard).
   const versions = editionMenu({
     current: playing.id,
     title: `${t("Playing:", "Je joue à :")} <strong>${playing[lang]}</strong>`,
     label: (section) => section[lang],
-    href: (section) => localizedHref(editionSwitchHref(path, section.id), lang)
+    href: (section) => localizedHref(editionSwitchHref(path, section.id), lang),
+    only: ACTIVE_EDITIONS
   });
   const nav = versions + navLinks({
     current: currentSection(path),

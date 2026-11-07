@@ -48,12 +48,13 @@ describe("Forever-only focus switches", () => {
     expect(poeTrackingEnabled(["poe2"])).toBe(true);
   });
 
-  it("site: pages of other WoW editions are never built; PoE2 tracking lines are stripped and flip back", () => {
+  it("site: pages of held editions are not built, PoE2 tracking lines are stripped, both flip back", () => {
     const hub = { gameEdition: "retail" }, forever = { gameEdition: "forever" }, poePage = { requiresGame: "poe2" };
     expect(keepPage(hub)).toBe(false);
     expect(keepPage(forever)).toBe(true);
+    expect(keepPage(hub, ["forever", "retail"])).toBe(true);
     expect(keepPage(poePage)).toBe(true);
-    expect(keepPage(poePage, ["wow"])).toBe(false);
+    expect(keepPage(poePage, ACTIVE_EDITIONS, ["wow"])).toBe(false);
     const md = "a\n- **PoE2:** journal <!--poe-->\nb <!--poe:et PoE2-->.";
     expect(stripPoe(md, false)).toBe("a\nb .");
     expect(stripPoe(md, true)).toBe("a\n- **PoE2:** journal <!--poe-->\nb et PoE2.");
@@ -61,11 +62,11 @@ describe("Forever-only focus switches", () => {
     expect(withoutPoe({ description: "x", descriptionNoPoe: "y" }, true).description).toBe("x");
   });
 
-  it("Worker: the removed editions' old addresses redirect permanently to WoW Forever", async () => {
+  it("Worker: old held-edition addresses redirect to Forever", async () => {
     const env = { ASSETS: { fetch: async () => new Response("asset") } };
-    for (const [from, to] of [["/retail/leaderboards/?x=1", "/forever/leaderboards/?x=1"], ["/tbc/", "/forever/"], ["/editions/retail/", "/editions/forever/"]]) {
+    for (const [from, to] of [["/retail/leaderboards/?x=1", "/forever/leaderboards/?x=1"], ["/tbc/", "/forever/"], ["/editions/retail/", "/editions/"]]) {
       const response = await worker.fetch(new Request(`https://guilded.kcaron.top${from}`), env as never);
-      expect(response.status, from).toBe(301);
+      expect(response.status, from).toBe(302);
       expect(response.headers.get("location"), from).toBe(to);
     }
   });

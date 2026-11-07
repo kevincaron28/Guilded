@@ -7,6 +7,8 @@ import { formatDuration } from "./dungeon-rules.js";
 import { currentEdition } from "./edition-context.js";
 import { classLabel, roleLabel, ROLES } from "./recruitment.js";
 import { CLASSES } from "../wow-data.js";
+import { isEditionActive } from "../../companion/active-editions.mjs";
+import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 
@@ -158,6 +160,7 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
         + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
         + `<div><label for="realm">${t("Realm", "Royaume")}</label><input id="realm" name="realm" maxlength="${TEXT_MAX}" value="${escapeHtml(filters.realm ?? "")}"></div>`
         + `<div><label for="guild">${t("Guild", "Guilde")}</label><input id="guild" name="guild" maxlength="${TEXT_MAX}" value="${escapeHtml(filters.guild ?? "")}"></div>`
+        + `<div><label for="edition">WoW</label><select id="edition" name="edition">${options(GAME_EDITIONS.filter((value) => isEditionActive(value) || value === filters.edition).map((value) => ({ value, label: value })), filters.edition)}</select></div>`
         + `<div><button class="button" type="submit">${t("Search", "Rechercher")}</button></div></form>`;
       const card = (row: PlayerRow) => `<article class="card"><h2><a href="${link(path(row.id), lang)}">${escapeHtml(row.character)}</a></h2>`
         + `<p class="tag">${escapeHtml([row.className && classLabel(row.className, lang), row.role && roleLabel(row.role, lang), row.level ? `${t("level", "niveau")} ${row.level}` : null, row.realm, row.guild].filter(Boolean).join(" · "))}</p></article>`;

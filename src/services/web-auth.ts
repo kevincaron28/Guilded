@@ -74,8 +74,8 @@ export function sameOrigin(headers: { origin?: string | undefined; referer?: str
 }
 
 // Where to go after signing in: only this website's own pages, never another address.
-// Public data pages may sit in the WoW Forever section (/forever/leaderboards/: site/nav.mjs).
-const RETURN_PATH = /^\/(?:me|(?:forever\/)?(?:recruitment|leaderboards|players))(?:\/[A-Za-z0-9._~/-]*)?(?:\?[A-Za-z0-9._~=&%+-]*)?$/;
+// Public data pages may sit in an edition's section (/retail/leaderboards/: site/nav.mjs).
+const RETURN_PATH = /^\/(?:me|(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:recruitment|leaderboards|players))(?:\/[A-Za-z0-9._~/-]*)?(?:\?[A-Za-z0-9._~=&%+-]*)?$/;
 export function safeReturnPath(path: string | null | undefined): string {
   return path && path.length <= 300 && RETURN_PATH.test(path) && !path.includes("//") ? path : "/me/";
 }

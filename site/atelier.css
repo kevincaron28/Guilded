@@ -17,6 +17,7 @@ body{font-family:var(--kc-font)}h1{font-size:clamp(40px,4.8vw,68px)}.site-header
 .edition-card p{font-size:14px;line-height:1.7;margin-bottom:24px}
 .edition-card-action{margin-top:auto;color:var(--edition-color);font-size:14px;font-weight:600;min-height:30px;display:flex;align-items:center;gap:10px}
 .edition-family{font-size:10px;font-weight:650;letter-spacing:.1em;line-height:1.7;color:var(--edition-color)}
+.edition-classic-era{--edition-color:#e5bca5}.edition-classic-tbc{--edition-color:#b6d99a}.edition-classic-mists{--edition-color:#91d3c3}.edition-retail{--edition-color:#abc9f1}
 .edition-switcher{display:flex;flex-wrap:wrap;gap:6px 20px;padding-block:12px;margin-bottom:36px;border-block:1px solid var(--kc-border)}
 .edition-switcher a{display:inline-flex;align-items:center;min-height:44px;font-size:13px}
 .edition-switcher a[aria-current=page]{color:var(--kc-text);font-weight:700;text-decoration:none}

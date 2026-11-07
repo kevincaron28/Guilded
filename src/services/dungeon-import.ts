@@ -52,6 +52,8 @@ export interface DungeonImportResult {
   endedAt?: number;
   startedAt?: number;
   encounters?: DungeonRunInput["encounters"];
+  // Where the party died (fractions of a map, per uiMapID); absent when the addons recorded none.
+  deathPoints?: DungeonRunInput["deathPoints"];
   completedBy?: string;
   challenge?: DungeonRunInput["challenge"];
   ratingEnabled?: boolean;
@@ -404,7 +406,7 @@ export async function importDungeonRuns(
         completedBy: run.completedBy ?? run.endReason ?? null,
         recorder: run.recorder ?? null,
         reporterNames: run.reporterNames ?? [],
-        competitionData: { ...(run.integrity ? { integrity: run.integrity } : {}), players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null, ...(p.integrity ? { integrity: p.integrity } : {}) })), encounters: run.encounters ?? [],
+        competitionData: { ...(run.integrity ? { integrity: run.integrity } : {}), players: run.players.map(p => ({ name: p.character, level: p.level ?? null, minLevel: p.minLevel ?? null, ...(p.integrity ? { integrity: p.integrity } : {}) })), encounters: run.encounters ?? [], ...(run.deathPoints?.length ? { deathPoints: run.deathPoints } : {}),
           observerReports:[run],
           gameBuild: run.gameBuild ?? null, startTrigger: run.startTrigger ?? null,
           challengeMode: run.challengeMode ?? false, ...(run.challenge ? { challenge: run.challenge } : {}) },
@@ -493,6 +495,7 @@ export async function importDungeonRuns(
       ...(run.endedAt ? { endedAt: run.endedAt } : {}),
       ...(run.startedAt ? { startedAt: run.startedAt } : {}),
       ...(run.encounters ? { encounters: run.encounters } : {}),
+      ...(run.deathPoints?.length ? { deathPoints: run.deathPoints } : {}),
       ...(run.completedBy ? { completedBy: run.completedBy } : {}),
       ...(run.challenge ? { challenge: run.challenge } : {}),
       playerDetails: linked.map(({ player, character }) => {

@@ -81,3 +81,20 @@ describe("native challenge port", () => {
     await expect(withEdition("forever", () => guildChallengeBoard(database, "forever", "en"))).rejects.toThrow("Retail");
   });
 });
+
+describe("death positions in the run import", () => {
+  const withPoints = (deathPoints: unknown) => dungeonRunSchema.parse({ ...exportDungeonRuns({ dungeon: { runs: { fixture: { ...native, deathPoints } } } }, "Realm")[0] });
+  it("exports valid positions from SavedVariables, rounded, capped, and drops invalid ones", () => {
+    const run = withPoints({ 1: { x: 0.12345, y: 0.5, map: 1234, name: "Kev" }, 2: { x: 1.5, y: 0.2, map: 1 }, 3: { x: 0.2, y: 0.2, map: 0 }, 4: "junk" });
+    expect(run.deathPoints).toEqual([{ x: 0.123, y: 0.5, map: 1234, character: "Kev" }]);
+    expect(withPoints(Object.fromEntries(Array.from({ length: 90 }, (_, i) => [i + 1, { x: 0.1, y: 0.1, map: 5 }]))).deathPoints).toHaveLength(60);
+    expect(exportDungeonRuns({ dungeon: { runs: { fixture: native } } }, "Realm")[0]).not.toHaveProperty("deathPoints");
+  });
+  it("accepts runs with and without positions and never invalidates a run over malformed ones", () => {
+    const wire = exportDungeonRuns({ dungeon: { runs: { fixture: native } } }, "Realm")[0];
+    expect(dungeonRunSchema.parse(wire).deathPoints).toBeUndefined();
+    expect(dungeonRunSchema.parse({ ...wire, deathPoints: [{ x: 3, y: 0, map: 1 }] }).deathPoints).toBeUndefined();
+    expect(dungeonRunSchema.parse({ ...wire, deathPoints: "nope" }).deathPoints).toBeUndefined();
+    expect(dungeonRunSchema.parse({ ...wire, deathPoints: [{ x: 0.5, y: 0.5, map: 9 }] }).deathPoints).toEqual([{ x: 0.5, y: 0.5, map: 9 }]);
+  });
+});

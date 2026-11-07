@@ -433,3 +433,17 @@ describe("observer copies of one run", () => {
     expect(runs).toHaveLength(2);
   });
 });
+
+describe("death positions", () => {
+  it("are stored with the run and returned for the card; runs without them are unchanged", async () => {
+    const { tx, runs } = fakeTx();
+    const points = [{ x: 0.2, y: 0.4, map: 9, character: "Kev" }];
+    const summary = await importDungeonRuns(tx, "g1", [run("with-points", { deathPoints: points })], characters, "officer", null, now);
+    expect(summary.results[0]?.deathPoints).toEqual(points);
+    expect(runs[0]).toMatchObject({ competitionData: { deathPoints: points } });
+    const plain = fakeTx();
+    const result = await importDungeonRuns(plain.tx, "g1", [run("no-points")], characters, "officer", null, now);
+    expect(result.results[0]).not.toHaveProperty("deathPoints");
+    expect(plain.runs[0]!.competitionData).not.toHaveProperty("deathPoints");
+  });
+});

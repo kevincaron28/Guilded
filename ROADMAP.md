@@ -31,6 +31,8 @@ desktop control and is coordinated by you. Keep testing in the kevmister28 test 
   fix (#460), companion link in game, map pins hidden in instances and the Battle.net check (#464, items 1/2/18),
   chat-tab regression tests (#465), and the officer tools' addon side (#474).
 - The owner's own nickname can't be set by the bot (his Chaman role is above the bot's); everyone below is renamed.
+- Bug sweep 05:45 UTC: 3 Profession details error refs resolved (fixed by #466). One P2028 transaction timeout in the standings feed (epgp lookup inside its transaction) during the 02:43 deploy; the feed is otherwise healthy (1,211 polls in 2 h, median 12.6 s, p95 14.5 s). Watch it; if P2028 repeats, move the EPGP standings reads out of the interactive transaction. The other inbox errors are from 8.x versions and have not recurred in 9.0.
+- Merged (addon, ship with 9.0.1): roster admin window and native look (#478), in-game "Info and data" tab (#480). In the merge queue: full names everywhere (#476), invite channel to the WoW category + availability switch + feature homes (#477), addon relay for sync gaps (#479).
 
 **First priorities (owner, 7 Nov 01:45 UTC):**
 1. **Dungeon cards (item 13) now, not later.** One `#donjons-terminés` post bundled three runs (two Wailing

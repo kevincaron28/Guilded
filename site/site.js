@@ -150,3 +150,13 @@ if (live) {
     });
   }
 }
+
+// Guide screenshots that are not captured yet (docs/SCREENSHOT_SHOTLIST.md): show the marked placeholder, never a broken image.
+for (const image of document.querySelectorAll('img.guide-shot-img')) {
+  const figure = image.closest('figure.guide-shot');
+  const missing = () => figure?.classList.add('shot-missing');
+  const present = () => figure?.classList.remove('shot-missing');
+  image.addEventListener('error', missing);
+  image.addEventListener('load', present);
+  if (image.complete && image.naturalWidth === 0 && image.currentSrc) missing();
+}

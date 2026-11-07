@@ -461,3 +461,31 @@ form { margin: 22px 0 0; }
   .start-editions { grid-template-columns: 1fr; }
   .start-editions .button, .start-big { max-width: none; }
 }
+
+/* Québec Gold and Features visuals (site refresh, 9.0): stat tiles, join steps, feature cards, sample-card gallery. */
+.stat-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 30px 0; }
+.stat-tile { padding: 20px 22px; background: linear-gradient(140deg, #272b20, #191f19); border: 1px solid #4b4d38; border-radius: 8px; }
+.stat-tile strong { display: block; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; color: var(--gold); margin-bottom: 8px; overflow-wrap: anywhere; }
+.stat-tile span { font-size: 13px; color: #c2cab7; }
+.join-steps { list-style: none; margin: 25px 0; padding: 0; display: grid; gap: 14px; counter-reset: none; }
+.join-steps li { display: flex; gap: 18px; align-items: flex-start; padding: 18px 22px; border: 1px solid #3b4738; background: #1c251d; border-radius: 8px; }
+.join-steps h3 { margin: 0 0 6px; font-size: 19px; }
+.join-steps p { margin: 0; font-size: 14px; }
+.step-number { flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--gold); color: #111312; font-weight: 700; }
+.feature-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 25px 0 35px; }
+.feature-cards article { min-width: 0; padding: 22px; background: linear-gradient(140deg, #24282d, #191d20); border: 1px solid #414b4f; border-radius: 8px; }
+.feature-cards h3 { margin: 12px 0 8px; font-size: 19px; }
+.feature-cards p { margin: 0; font-size: 14px; }
+.feature-icon { display: inline-flex; width: 44px; height: 44px; align-items: center; justify-content: center; font-size: 22px; border: 1px solid #6e6240; border-radius: 50%; background: #1c1f18; }
+.card-gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 25px 0 35px; }
+.card-gallery figure { margin: 0; min-width: 0; }
+.card-gallery img { width: 100%; height: auto; display: block; border: 1px solid #4b4d38; border-radius: 8px; }
+.card-gallery figcaption { margin-top: 8px; font-size: 12px; color: #c2cab7; }
+@media (max-width: 900px) {
+  .stat-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .feature-cards, .card-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .stat-tiles, .feature-cards, .card-gallery { grid-template-columns: minmax(0, 1fr); }
+  .join-steps li { padding: 16px; }
+}

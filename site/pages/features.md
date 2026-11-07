@@ -15,10 +15,25 @@ Recipes, the guild map, attendance, loot and EP/GP standings, shared with your g
 
 ## New in 9.0
 
-- **Duels and battlegrounds:** ladders for both, with a live duel board.
-- **Race to 60:** a Hall of Fame for the first to get there.
-- **Call for help:** a PvP finder and levelling partners.
-- **For guilds:** a guild bank view, in-game raid sign-up, a recruiting kit and Discord nickname sync.
+What changed in 9.0, and why you would care.
+
+<div class="feature-cards">
+<article><span class="feature-icon" aria-hidden="true">🏆</span><h3>Achievements</h3><p>Earn medals for levels and first clears, and share them as a card.</p></article>
+<article><span class="feature-icon" aria-hidden="true">⚔️</span><h3>Duel ladder</h3><p>See who really wins duels, on a live board in Discord.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🛡️</span><h3>Battleground ladder</h3><p>Your battleground record counts: wins and ranks, without keeping score yourself.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🏁</span><h3>Race to 60</h3><p>Watch the whole guild level up, and see who gets there first.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🎖️</span><h3>Hall of Fame</h3><p>The first to reach 60 stay on the board for good.</p></article>
+<article><span class="feature-icon" aria-hidden="true">📣</span><h3>Call for help</h3><p>Ask for help from guildmates in one command instead of spamming chat.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🔎</span><h3>PvP finder and levelling partners</h3><p>Find a PvP group or someone at your level without leaving the game.</p></article>
+<article><span class="feature-icon" aria-hidden="true">📅</span><h3>In-game raid sign-up</h3><p>Sign up for the raid from the game window; Discord shows the same list.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🏦</span><h3>Guild bank and roster</h3><p>See the guild bank and roster in game, kept in sync with your guild.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🧰</span><h3>Recruiting kit</h3><p>Everything an officer needs to welcome and invite new members.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🪪</span><h3>Nickname sync</h3><p>Discord nicknames follow your character names, so everyone knows who is who.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🔧</span><h3>Companion setup and repair</h3><p>Fewer steps to link your characters, and a way to repair it when something breaks.</p></article>
+</div>
+
+<!-- screenshot: the in-game Achievements window (or the guild window's new 9.0 tab) with a few medals unlocked, alongside the matching Discord card. Landscape. -->
+<!-- screenshot: the race to 60 board posted in Discord with real class colours, and the duel ladder channel, side by side. Landscape. -->
 
 ## Dungeon runs and seasons
 

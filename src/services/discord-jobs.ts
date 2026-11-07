@@ -201,6 +201,11 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const { withDiscordMember } = await import("./card-member.js");
       cardDefinition = await withDiscordMember(guild, cardDefinition, payload["cardMember"]);
     }
+    // 9.1: members' character pictures (a database read, best effort): the dungeon party's thumbs, or the member's own picture.
+    if (cardDefinition) {
+      const { withCardPictures } = await import("./card-pictures.js");
+      cardDefinition = await withCardPictures(prisma, job.guildId, cardDefinition, typeof payload["cardMember"] === "string" ? payload["cardMember"] : undefined);
+    }
     const card = cardDefinition ? await scoreCardPng(cardDefinition).catch(() => null) : null;
     if (card) last.setImage("attachment://card.png");
     await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" })] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });

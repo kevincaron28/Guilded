@@ -268,6 +268,7 @@ export function parseAddonExportText(text, realm) {
   const guildBoard = exportGuildBoard(database);
   const craftOrders = exportCraftOrders(database);
   const guildMap = exportGuildMap(database);
+  const worldPvp = exportWorldPvp(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -369,7 +370,8 @@ export function parseAddonExportText(text, realm) {
     ...guildBank,
     ...guildBoard,
     ...craftOrders,
-    ...guildMap
+    ...guildMap,
+    ...worldPvp
   }, edition.gameEdition, realm);
   return syncStats ? { ...identities, syncStats } : identities;
 }
@@ -554,6 +556,23 @@ export function exportGuildMap(database) {
       attackers, at: when, ...(at(row.clr) ? { clearedAt: at(row.clr) } : {}) }];
   }).sort((a, b) => a.at - b.at).slice(-10);
   return { ...(mapSightings.length ? { mapSightings } : {}), ...(helpCalls.length ? { helpCalls } : {}) };
+}
+
+// World PvP counters (addon Modules/WorldPvP.lua, db.worldPvp): this week's kills, defends and calls answered, and the last
+// 30 kills (victim and time only, for the repeat-victim cap). Deaths stay on the player's PC. The bot caps and checks them
+// (src/services/world-pvp.ts).
+export function exportWorldPvp(database) {
+  const state = database?.worldPvp;
+  const week = state?.week;
+  const count = (v) => Number.isInteger(v) && v >= 0 && v <= 1_000_000 ? v : 0;
+  if (!state || typeof state !== "object" || !week || typeof week !== "object" || !Number.isInteger(state.weekKey) || state.weekKey < 0) return {};
+  const recent = Object.values(state.recent ?? {}).flatMap((row) => {
+    const n = row && typeof row.n === "string" ? row.n.replace(/[|\p{Cc}]/gu, " ").trim().slice(0, 40) : "";
+    return n && Number.isInteger(row.at) && row.at > 1_600_000_000 && row.at < 4_000_000_000 ? [{ n, at: row.at, ...(row.d === 1 ? { d: 1 } : {}) }] : [];
+  }).slice(-30);
+  const kills = count(week.kills), defends = count(week.defends), responded = count(week.responded);
+  if (!kills && !defends && !responded) return {};
+  return { worldPvp: [{ weekKey: state.weekKey, kills, defends, responded, recent }] };
 }
 
 // What the game shows every member about the whole guild (addon Modules/GuildSnapshot.lua and

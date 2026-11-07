@@ -27,6 +27,7 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
     const own = { memberId: { in: memberIds } };
     await tx.battlegroundReport.deleteMany({ where: own });
     await tx.battlegroundConsent.deleteMany({ where: own });
+    await tx.worldPvpWeek.deleteMany({ where: own });
     await tx.memberAchievement.deleteMany({ where: own });
     await tx.memberMilestone.deleteMany({ where: own });
     await tx.recurringRecap.deleteMany({ where: own });

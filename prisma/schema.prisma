@@ -139,6 +139,7 @@ model Guild {
   poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
   battlegroundConsents BattlegroundConsent[]
+  worldPvpWeeks WorldPvpWeek[]
   duelResults DuelResult[]
   memberMilestones MemberMilestone[]
   recurringRecaps RecurringRecap[]
@@ -468,6 +469,7 @@ model Member {
   poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
   battlegroundConsent BattlegroundConsent?
+  worldPvpWeeks WorldPvpWeek[]
   duelWins DuelResult[] @relation("DuelWinner")
   duelLosses DuelResult[] @relation("DuelLoser")
   milestones MemberMilestone[]
@@ -988,6 +990,7 @@ model GuildSettings {
   // Separate battleground ladder message in the ladder channel (the duel board keeps its own message and points).
   bgLadderEnabled          Boolean @default(true)
   bgLadderMessageId        String?
+  worldPvpEnabled          Boolean @default(true)
   // 8.5 track C5: promotion panel (Initiate -> Member). On by default; officers change the rule or switch it off.
   promotionEnabled         Boolean @default(true)
   promotionFromRank        String  @default("Initiate")
@@ -3402,4 +3405,21 @@ model LadderSnapshot {
   guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, board, day])
+}
+
+// World PvP (9.1): one row per member per week, set from the addon's own counters after the anti-farming caps
+// (src/services/world-pvp.ts). A re-upload can only raise a number. Weeks are the raid week (Tuesday reset).
+model WorldPvpWeek {
+  id String @id @default(cuid())
+  guildId String
+  memberId String
+  weekKey Int
+  kills Int @default(0)
+  defends Int @default(0)
+  helped Int @default(0)
+  updatedAt DateTime @updatedAt
+  guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  @@unique([guildId, memberId, weekKey])
+  @@index([guildId, weekKey])
 }

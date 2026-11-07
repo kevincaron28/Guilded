@@ -10,7 +10,7 @@ function fixture() {
     webAccount: del("webAccount", 1), communityBadgeSharing: del("communityBadgeSharing"),
     battlegroundReport: del("battlegroundReport"), battlegroundConsent: del("battlegroundConsent"), memberAchievement: del("memberAchievement"),
     memberMilestone: del("memberMilestone"), recurringRecap: del("recurringRecap"), groupAlert: del("groupAlert"), webAvailability: del("webAvailability"),
-    poeLevelReached: del("poeLevelReached"), poeMapVisit: del("poeMapVisit"), guildMapSighting: del("guildMapSighting"), guildHelpCall: del("guildHelpCall"), characterPairing: del("characterPairing"),
+    poeLevelReached: del("poeLevelReached"), poeMapVisit: del("poeMapVisit"), guildMapSighting: del("guildMapSighting"), guildHelpCall: del("guildHelpCall"), worldPvpWeek: del("worldPvpWeek"), characterPairing: del("characterPairing"),
     characterVerifyCode: del("characterVerifyCode"), characterVerifyClaim: del("characterVerifyClaim"), companionCredential: del("companionCredential"),
     character: del("character", 3)
   };

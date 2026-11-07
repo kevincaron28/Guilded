@@ -14,6 +14,7 @@ import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-li
 import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
+import { applyWorldPvpUpload, parseWorldPvpUpload } from "./services/world-pvp.js";
 import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
 import { liveNewsFeed } from "./services/news-feed.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
@@ -1039,6 +1040,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (pairedMemberId && (preview.snapshot.mapSightings.length || preview.snapshot.helpCalls.length)) {
         await applyGuildMapUpload(prisma, guild.id, pairedMemberId, parseGuildMapUpload(preview.snapshot.mapSightings, preview.snapshot.helpCalls))
           .catch((error: unknown) => { console.warn("Guild map upload failed", error); });
+      }
+      // World PvP: this week's counters, capped and checked against the guild's real calls (world-pvp.ts).
+      if (pairedMemberId && preview.snapshot.worldPvp.length) {
+        const worldChanged = await applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUpload(preview.snapshot.worldPvp))
+          .catch((error: unknown) => { console.warn("World PvP upload failed", error); return false; });
+        if (worldChanged) markGuildChanged(guild.id);
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

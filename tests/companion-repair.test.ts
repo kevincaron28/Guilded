@@ -96,7 +96,7 @@ describe("a slimmer companion", () => {
   it("raid planning and leaderboards open the website instead of companion pages", () => {
     for (const page of ["reserves", "leaderboards", "wishlist", "pricing", "cores"]) expect(html, page).not.toContain(`class="nav optional-page" data-page="${page}"`);
     expect(html).not.toContain('<button class="nav" data-page="leaderboards">');
-    for (const path of ["/leaderboards/", "/me/raid-plans", "/me/"]) expect(html).toContain(`data-web-path="${path}"`);
+    for (const path of ["/leaderboards/", "/me/raid-plans", "/me/reserves"]) expect(html).toContain(`data-web-path="${path}"`);
     // The pages stay in the file, so nothing the sync or a deep link needs is gone.
     for (const page of ["page-reserves", "page-leaderboards", "page-wishlist", "page-pricing", "page-cores"]) expect(html).toContain(`id="${page}"`);
   });

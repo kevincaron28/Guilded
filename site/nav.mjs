@@ -44,6 +44,8 @@ export const FOOTER_NAV = [
   { key: "discord", column: "community", href: "https://discord.gg/YjzFwtP64V", en: "Ask on Discord ↗", fr: "Demander sur Discord ↗" },
   { key: "guides", column: "help", href: "/docs/QUICK_START.html", en: "Quick start", fr: "Démarrage rapide" },
   { key: "reference", column: "help", href: "/reference/", en: "Quick reference", fr: "Référence rapide" },
+  { key: "install-steps", column: "help", href: "/guides/install/", en: "Install, step by step", fr: "Installer, pas à pas" },
+  { key: "link-steps", column: "help", href: "/guides/link/", en: "Link your character", fr: "Lier votre personnage" },
   { key: "install", column: "help", href: "/docs/MEMBER_INSTALL.html", en: "Install guide", fr: "Guide d’installation" },
   { key: "setup-help", column: "help", href: "/docs/AI_SETUP_HELP.html", en: "Setup help", fr: "Aide à la configuration" },
   { key: "status", column: "help", href: "/status/", en: "Service status", fr: "État du service" },

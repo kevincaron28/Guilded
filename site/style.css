@@ -489,3 +489,13 @@ form { margin: 22px 0 0; }
   .stat-tiles, .feature-cards, .card-gallery { grid-template-columns: minmax(0, 1fr); }
   .join-steps li { padding: 16px; }
 }
+
+/* Step-by-step guides (/guides/install/, /guides/link/): screenshots, or a marked placeholder until captured. */
+.guide-shot { margin: 16px 0 4px; }
+.guide-shot img { display: block; width: 100%; max-width: 760px; height: auto; border: 1px solid #353b32; border-radius: 8px; }
+.guide-shot figcaption { margin-top: 6px; font-size: 13px; color: var(--muted, #aab5ba); }
+.guide-shot.shot-missing img { display: none; }
+.guide-shot.shot-missing figcaption { padding: 28px 16px; border: 2px dashed #505447; border-radius: 8px; text-align: center; }
+.start-step details { margin-top: 12px; }
+.shot-soon { display: none; }
+.guide-shot.shot-missing .shot-soon { display: inline; font-weight: 700; }

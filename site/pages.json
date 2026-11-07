@@ -84,5 +84,27 @@
     "description": "Retrouvez Quebec Gold sur Path of Exile 2 à chaque nouvelle ligue : communauté francophone, heure de Montréal et contact Discord.",
     "lang": "fr",
     "draft": false
+  },
+  {
+    "source": "guide-install.md",
+    "sourceFr": "guide-install.fr.md",
+    "path": "guides/install/",
+    "title": "Install Guilded — step-by-step guide",
+    "titleFr": "Installer Guilded — guide pas à pas",
+    "description": "Step-by-step: install the Guilded addon from CurseForge and the free Windows companion from the Microsoft Store, then open it for the first time.",
+    "descriptionFr": "Pas à pas : installez l’addon Guilded depuis CurseForge et le compagnon Windows gratuit depuis le Microsoft Store, puis ouvrez-le une première fois.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-link.md",
+    "sourceFr": "guide-link.fr.md",
+    "path": "guides/link/",
+    "title": "Link your character — step-by-step guide",
+    "titleFr": "Lier votre personnage — guide pas à pas",
+    "description": "Step-by-step: sign in with Discord in the companion, type /reload, see that you are linked, use /guilded verify without the companion, and link a second character.",
+    "descriptionFr": "Pas à pas : connectez-vous avec Discord dans le compagnon, tapez /reload, vérifiez le lien, utilisez /guilded verify sans compagnon et liez un deuxième personnage.",
+    "lang": "en",
+    "draft": false
   }
 ]

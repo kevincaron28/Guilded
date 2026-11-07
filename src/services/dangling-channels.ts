@@ -7,7 +7,7 @@ import type { Guild as DiscordGuild } from "discord.js";
 /** Channel columns in the guild settings, each with the message-id columns that belong to it. */
 export const SETTINGS_CHANNEL_COLUMNS: Record<string, string[]> = {
   notifyChannelId: [], raidSignupChannelId: [], logChannelId: [], guideChannelId: [],
-  readinessChannelId: [], craftChannelId: [], applicationChannelId: [], attendanceChannelId: [], weeklyReportChannelId: [], inviteChannelId: [],
+  readinessChannelId: [], craftChannelId: [], craftOrdersChannelId: [], craftArchiveChannelId: [], craftLadderChannelId: ["craftLadderMessageId"], applicationChannelId: [], attendanceChannelId: [], weeklyReportChannelId: [], inviteChannelId: [],
   dungeonLeaderboardChannelId: ["dungeonLeaderboardMessageId"], dungeonSignupChannelId: [], dungeonChannelId: [],
   // Retired in 9.0 (#bot-faq) and optional channels.
   raidLogChannelId: [], lootChannelId: [], coreChannelId: [], answerChannelId: [], pugChannelId: ["pugMessageId"],

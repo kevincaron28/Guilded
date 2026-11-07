@@ -70,7 +70,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     // Match every ownership source used by interactionGuildScope, for channels AND parents.
     const [other, core, activity, binding] = await Promise.all([
       db.guildSettings.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, OR: [
-        "raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId", "duelBoardChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"
+        "raidSignupChannelId", "logChannelId", "notifyChannelId", "weeklyReportChannelId", "answerChannelId", "dungeonChannelId", "dungeonLeaderboardChannelId", "dungeonSignupChannelId", "bgCategoryId", "bgGroupsChannelId", "bgResultsChannelId", "bgStatsChannelId", "duelBoardChannelId", "raidLogChannelId", "lootChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "craftLadderChannelId", "readinessChannelId", "coreChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "pugChannelId"
       ].map(f => ({ [f]: id })) } }),
       db.raidCore.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, OR: ["categoryId", "rosterChannelId", "signupChannelId", "lootChannelId", "raidLogChannelId", "chatChannelId", "voiceChannelId", "attendanceChannelId"].map(f => ({ [f]: id })) } }),
       db.activityCore.findFirst({ where: { guildId: { not: guildId }, guild: { discordId: guild.id }, channelId: id } }),
@@ -168,7 +168,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
         if (!category.permissionsFor(me)?.has(PermissionFlagsBits.ManageChannels)) fail("Manage Channels is missing. Select an existing channel.", "Gérer les salons manque. Choisissez un salon existant.");
         const overwrites = category.permissionOverwrites.cache.map(o => ({ id: o.id, type: o.type, allow: o.allow.bitfield, deny: o.deny.bitfield }));
         if (part !== "groups") {
-          const noPosting = PermissionFlagsBits.SendMessages | PermissionFlagsBits.SendMessagesInThreads | PermissionFlagsBits.CreatePublicThreads | PermissionFlagsBits.CreatePrivateThreads | PermissionFlagsBits.AddReactions;
+          const noPosting = PermissionFlagsBits.SendMessages | PermissionFlagsBits.SendMessagesInThreads | PermissionFlagsBits.CreatePublicThreads | PermissionFlagsBits.CreatePrivateThreads;
           if (!overwrites.some(o => o.id === guild.id)) overwrites.push({ id: guild.id, type: 0, allow: 0n, deny: noPosting });
           for (const overwrite of overwrites) {
             if (overwrite.id === me.id) continue;

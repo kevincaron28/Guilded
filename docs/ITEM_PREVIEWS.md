@@ -79,6 +79,29 @@ until an owner enables it for a server.
   French name, quality and summary. Summary = slot, type, armour or damage, up to 6 stats, item level, required level.
 - The link stays Wowhead classic (`/classic/item=ID`); no Wowhead data is fetched.
 
+## Profession links: recipe cards (owner request, 7 November 2026)
+
+When someone links a profession in the preview channel, the same Discord-only path posts a small card:
+`src/services/profession-link-card.ts` (pure parts) and `profession-link-card-live.ts` (database), wired in
+`src/main.ts` as `professionCard`.
+
+- **Recognised:** raw trade links `|Htrade:...|h[Tailoring]|h` (English or French profession name; the fields after
+  `trade:` are ignored because they differ between game versions), and a name-only `[Tailoring]` / `[Couture]` only
+  when it is the message's one bracket. Profession brackets are never looked up as items.
+- **Who linked it:** the relay's author name (the webhook posts under the character's name), or a leading
+  `Name: ` / `[Name]: ` in the text, matched against the guild's active characters by stored name, display name or
+  full Forever name. A real Discord member (not the relay) is also matched through their own characters, when exactly
+  one of them knows recipes for that profession. No match, two matches or no recipes: **nothing is posted**.
+- **Card:** "🧵 Tailoring · First Last", skill bar and level, the number of known recipes, the 8 most notable (best
+  quality first, from the item data source, up to 60 lookups with a 3 s deadline), each linked to Wowhead classic,
+  "+N more", and a "Full list" link to the Artisans' Gallery searched for that character. French servers get French
+  names.
+- **Limits:** the same per-channel gate (6 per minute) and duplicate window (2 minutes, per character and profession)
+  as items, the same webhook (`allowed_mentions` empty), nothing sent into WoW.
+- **Not checked live:** what Forever's relay actually puts in Discord for a profession link (raw `|Htrade` link or
+  only `[Tailoring]`) and whether the relay's author name is the character's full name. Test in #chat-guilde: link a
+  profession from a character with synced recipes and from one without; expect a card only for the first.
+
 ## Owner-run live tests (do these before enabling for real)
 
 1. **Feasibility.** With `MESSAGE_CONTENT_INTENT=true`, post an item link in WoW guild chat and check

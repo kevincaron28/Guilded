@@ -3,6 +3,7 @@ import type { Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
 import { autoLinkUnclaimed } from "./character-autolink.js";
 import { dungeonPosts } from "./dungeon-announce.js";
+import { recordRunHighlights } from "./dungeon-records.js";
 import { updateDungeonLeaderboard } from "./dungeon-leaderboard.js";
 import { notifications, notify, notifyDungeon } from "./notify.js";
 import { postReadinessBoard } from "./readiness-board.js";
@@ -39,12 +40,18 @@ export function heldNotice(rows: HeldRow[], lang: Lang): string {
 }
 
 // One post (card + short embed) per completed run, oldest first. True when there was at least one run to announce.
-export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dungeons: ImportResult["dungeons"]): Promise<boolean> {
+// 9.1: records and challenges are stored first (always), and called out on the run's post unless an officer switched that off.
+export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dungeons: ImportResult["dungeons"], guildId?: string): Promise<boolean> {
+  if (guildId) {
+    await recordRunHighlights(prisma, guildId, dungeons.results);
+    const settings = await prisma.guildSettings.findUnique({ where: { guildId }, select: { dungeonHighlightsEnabled: true } }).catch(() => null);
+    if (settings && !settings.dungeonHighlightsEnabled) for (const run of dungeons.results) delete run.highlights;
+  }
   const runs = dungeonPosts(dungeons, "en");
   for (const index of runs.keys()) {
     await notifyDungeon(discordGuild, (lang) => {
       const post = dungeonPosts(dungeons, lang)[index] ?? runs[index]!;
-      return { embed: post.embed, card: post.card, components: post.components };
+      return { embed: post.embed, card: post.card, components: post.components, ...(post.content ? { content: post.content } : {}) };
     });
   }
   return runs.length > 0;
@@ -75,7 +82,7 @@ export async function followUpImport(discordGuild: DiscordGuild | null, guildId:
     const coreByRaid = new Map(raids.map(raid => [raid.id, raid.coreId]));
     for (const award of awards) await notify(discordGuild, notifications.lootAwarded(award.itemName, award.member.displayName, award.amount), "loot", award.raidId ? coreByRaid.get(award.raidId) ?? null : null);
   }
-  if (await announceDungeonRuns(discordGuild, result.dungeons)) await updateDungeonLeaderboard(discordGuild);
+  if (await announceDungeonRuns(discordGuild, result.dungeons, guildId)) await updateDungeonLeaderboard(discordGuild);
   if (result.readinessSnapshots.length > 0 || result.consumables > 0) await postReadinessBoard(discordGuild, guildId);
   // In-game calendar answers fill in the signups of the matching Discord raids.
   let calendar: CalendarSummary | null = null;

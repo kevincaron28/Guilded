@@ -57,8 +57,8 @@ export type GlyphName = keyof typeof GLYPHS;
 
 // Long progressions share one glyph per metric; the tier frame and the rank pips tell the steps apart.
 // Every ladder metric is listed here on purpose: a new ladder without a glyph fails to compile (and the test below).
-type LadderMetric = "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins";
-const LADDER_GLYPH: Record<LadderMetric, GlyphName> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "medal", duelWins: "duel" };
+type LadderMetric = "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "craftsDone";
+const LADDER_GLYPH: Record<LadderMetric, GlyphName> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "medal", duelWins: "duel", craftsDone: "hammer" };
 const SINGLE_GLYPH: Record<string, GlyphName> = {
   "dungeon-runs-1": "door", "dungeon-runs-10": "key", "dungeon-runs-25": "torch", "dungeon-runs-50": "swords", "dungeon-runs-100": "crown",
   "dungeon-variety-1": "map", "dungeon-variety-5": "compass", "dungeon-variety-10": "gem", "duel-streak-5": "ascend", "duel-beat-top": "orb",
@@ -68,7 +68,7 @@ const SINGLE_GLYPH: Record<string, GlyphName> = {
 };
 /** One glyph per achievement id. The test suite requires every catalogue id to appear here. */
 const EDITION_LEVEL_GLYPH: Record<WowEdition, GlyphName> = { forever: "flame", "classic-era": "shield", "classic-tbc": "gem", "classic-mists": "tower", retail: "crown" };
-const editionGlyph = (def: AchievementDef): GlyphName => def.metric === "wowEditionCap" ? "stars" : def.metric === "wowEditionProfession" ? (def.threshold >= 300 ? "anvil" : "hammer") : EDITION_LEVEL_GLYPH[def.edition!];
+const editionGlyph = (def: AchievementDef): GlyphName => def.metric === "wowEditionCap" ? "stars" : def.metric === "professionsMastered" ? "crown" : def.metric === "professionFirsts" ? "trophy" : def.metric === "rareRecipes" ? "gem" : def.metric === "wowEditionProfession" ? (def.threshold >= 300 ? "anvil" : "hammer") : EDITION_LEVEL_GLYPH[def.edition!];
 const ladderGlyph = (def: AchievementDef): GlyphName => {
   const glyph = (LADDER_GLYPH as Partial<Record<AchievementMetric, GlyphName>>)[def.metric];
   if (!glyph) throw new Error(`Achievement ${def.id} has no badge glyph: add its metric to LADDER_GLYPH or its id to SINGLE_GLYPH`);

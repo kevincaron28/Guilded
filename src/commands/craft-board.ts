@@ -20,6 +20,7 @@ import { markGuildChanged } from "../services/standings-feed.js";
 import { resolveItemKey, type OrderChange } from "../services/craft-orders.js";
 import type { Client } from "discord.js";
 import { craftNotifyList, pingCrafters, replaceCraftNotify, syncCraftChannels } from "../services/craft-channels.js";
+import { recordCraftCompletion, updateCraftLadder } from "../services/craft-ladder.js";
 
 // The craft board: a forum channel where every craft request is its own post
 // with tags (profession and Open / Claimed / Done) and buttons inside the post
@@ -166,7 +167,7 @@ async function openThread(forum: ForumChannel, threadId: string): Promise<Thread
   return thread;
 }
 
-async function loadRequest(requestId: string): Promise<RequestRow & { threadId: string | null; guildId: string; requesterId: string }> {
+async function loadRequest(requestId: string): Promise<RequestRow & { threadId: string | null; guildId: string; requesterId: string; crafterId: string | null; doneAt: Date | null }> {
   return prisma.craftRequest.findUniqueOrThrow({ where: { id: requestId }, include: { requester: true, crafter: true } });
 }
 
@@ -236,6 +237,12 @@ export async function syncCraftPost(discordGuild: DiscordGuild | null, requestId
     const request = await loadRequest(requestId);
     markGuildChanged(request.guildId);
     await syncCraftChannels(prisma, discordGuild, request as never, await boardLang(request.guildId)).catch((error: unknown) => console.warn("Craft orders channel failed", error));
+    // 9.1: a finished craft goes into the guild's craft history (once per request) and the Top crafters card.
+    if (request.status === "DONE" && request.crafterId) {
+      const added = await recordCraftCompletion(prisma, { guildId: request.guildId, crafterId: request.crafterId, item: request.item, quantity: request.quantity,
+        profession: request.profession, requestId: request.id, doneAt: request.doneAt ?? new Date() }).catch((error: unknown) => { console.warn("Craft history failed", error); return false; });
+      if (added) void updateCraftLadder(prisma, discordGuild);
+    }
     if (!request.threadId) return;
     const forum = await boardForum(discordGuild, request.guildId);
     if (!forum) return;

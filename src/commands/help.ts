@@ -112,19 +112,19 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
     ],
     fr: [
       "`/setup start` — configuration guidée et liste de vérification · `/config` — tous les réglages",
-      "Les membres ne voient pas `/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import` ni `/poll`. Un officier sans « Gérer le serveur » non plus : autorisez-y le rôle Officier dans Paramètres du serveur → Intégrations → Guilded",
+      "Les membres ne voient pas `/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import` ni `/poll`. Officier sans « Gérer le serveur » non plus : autorisez le rôle dans Paramètres → Intégrations → Guilded",
       "`/officer loot auction` · `/officer loot close` · `/import apply` · `/import held` (données de l'addon)",
-      "`/setup testraid start` — faux raid pour tout essayer, puis `/setup testraid cleanup` · `/setup system status` — état de la synchronisation et des publications",
+      "`/setup testraid start` — faux raid pour tout essayer, puis `/setup testraid cleanup` · `/setup system status` — état de la synchro",
       "`/officer dungeon` — annuler un donjon, ajuster les points, consulter les règles fixes",
       "Le réglage d'un officier pour couper les jalons l'emporte",
       "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — réponses · `/tag set` · `/setup selfroles`",
       "`/lead wcl-report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
       "`/report inactive` · `/report guild` · `/poll create` · `/officer loot award` (conseil de loot)",
-      "`/officer export table:` — fichier CSV pour Excel ou Google Sheets : classement, registre EPGP, butin, présences ou effectif (vous seul le voyez)",
+      "`/officer export table:` — CSV pour Excel ou Sheets : classement, registre EPGP, butin, présences ou effectif (vous seul)",
       "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organiser les activités",
-      "`/events board` · `/events reminders` · `/events status` — événements à venir ; Gérer le serveur requis, rappels volontaires",
-      "`/organize honors-preview` · `/organize honors-settings` — aperçu du MVP de la semaine; activation, début de semaine, notification",
-      "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — couverture des gains, réglages et entraide"
+      "`/events board` · `/events reminders` · `/events status` — événements à venir; Gérer le serveur requis",
+      "`/organize honors-preview` · `/organize honors-settings` — aperçu du MVP de la semaine et réglages",
+      "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — couverture des gains, réglages, entraide"
     ]
   }
 };

@@ -81,6 +81,7 @@ import { prismaRosterDashboardStore } from "./services/roster-dashboard-store.js
 import { guildDashboardAccess } from "./services/guild-dashboard-access.js";
 import { prismaAvailabilityStore } from "./services/web-availability-store.js";
 import { createWebAvailability } from "./services/web-availability.js";
+import { createWebLootLists, prismaLootListStore } from "./services/web-loot-lists.js";
 import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
 import { createGuildToolsPages } from "./services/guild-tools-pages.js";
 import { createStatsPage } from "./services/stats-page.js";
@@ -321,6 +322,7 @@ export function createSiteApp(client?: Client) {
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), discordUserId => deleteMyData(prisma, discordUserId));
   const raidPlanning = createRaidPlanning(raidPlanningStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), client));
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
+  const lootLists = createWebLootLists(prismaLootListStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
   const battleNetLinking: BattleNetLinking = {
     discoverAll: discoverAllBattleNet,
@@ -340,6 +342,7 @@ export function createSiteApp(client?: Client) {
     meSection({ id: "availability", group: "play", render: availability.meSection }),
     meSection({ id: "calendar", group: "play", render: personalCalendar.meSection }),
     meSection({ id: "raid-planning", group: "play", render: raidPlanning.meSection }),
+    meSection({ id: "raid-loot", group: "play", render: lootLists.meSection }),
     meSection({ id: "leaderboards", group: "play", render: leaderboards.meSection, fold: { en: "How to connect the companion", fr: "Comment connecter le compagnon" } }),
     meSection({ id: "guild-tools", group: "guild", render: guildTools.meSection }),
     meSection({ id: "artisans", group: "guild", render: gallery.meSection }),
@@ -348,7 +351,7 @@ export function createSiteApp(client?: Client) {
     meSection({ id: "connections", group: "account", render: devices.meSection }),
     meSection({ id: "your-data", group: "account", render: memberData.meSection })
   ];
-  routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route);
+  routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route, lootLists.route);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,

@@ -2287,6 +2287,11 @@ local DE = {
   ["days"] = "Tage",
   ["+%d more"] = "+%d weitere",
   ["Promotion requested. Wait for the roster to confirm it before the next one."] = "Bef\195\182rderung angefordert. Warte, bis die Liste sie best\195\164tigt, bevor du die n\195\164chste vergibst.",
+  -- Companion download window (9.0.1)
+  ["Get the companion"] = "Begleiter holen",
+  ["Get the Windows companion"] = "Windows-Begleiter holen",
+  ["The game cannot open web pages. Press Ctrl+C to copy the link, then paste it (Ctrl+V) in your browser."] = "Das Spiel kann keine Webseiten \195\182ffnen. Dr\195\188cke Strg+C, um den Link zu kopieren, und f\195\188ge ihn (Strg+V) in deinem Browser ein.",
+  ["Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."] = "\195\150ffnet ein Feld mit dem Download-Link zum Kopieren (Strg+C). Das Spiel kann keine Webseiten \195\182ffnen.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3714,6 +3719,11 @@ local ES = {
   ["days"] = "d\195\173as",
   ["+%d more"] = "+%d m\195\161s",
   ["Promotion requested. Wait for the roster to confirm it before the next one."] = "Ascenso solicitado. Espera a que la lista lo confirme antes del siguiente.",
+  -- Companion download window (9.0.1)
+  ["Get the companion"] = "Obtener el acompa\195\177ante",
+  ["Get the Windows companion"] = "Obtener el acompa\195\177ante de Windows",
+  ["The game cannot open web pages. Press Ctrl+C to copy the link, then paste it (Ctrl+V) in your browser."] = "El juego no puede abrir p\195\161ginas web. Pulsa Ctrl+C para copiar el enlace y p\195\169galo (Ctrl+V) en tu navegador.",
+  ["Opens a box with the download link to copy (Ctrl+C). The game cannot open web pages."] = "Abre un cuadro con el enlace de descarga para copiar (Ctrl+C). El juego no puede abrir p\195\161ginas web.",
 }
 -- END ES
 

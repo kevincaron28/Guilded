@@ -167,7 +167,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
   // Every other channel setup can create: optional, each with how to get it.
   const CHANNEL_LABELS: Record<string, string> = {
     coreChannelId: T("Raid roster channel"), readinessChannelId: T("Raid readiness channel"),
-    craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), attendanceChannelId: T("Raid attendance channel"), guideChannelId: T("Bot guide channel"), answerChannelId: T("Bot FAQ channel"),
+    craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), attendanceChannelId: T("Raid attendance channel"), guideChannelId: T("Bot guide channel"),
     dungeonChannelId: T("Dungeon runs channel"), weeklyReportChannelId: T("WoW weekly report channel"), inviteChannelId: T("Guild invites channel")
   };
   for (const entry of facts.extraChannels ?? []) {
@@ -198,13 +198,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
         : `${T("Hidden from: {list}.", { list: blocked.map((entry) => `${entry.role} → /${entry.command}`).join(", ") })} ${howTo}`
     });
   }
-  const answerFact = (facts.extraChannels ?? []).find((entry) => entry.field === "answerChannelId")?.fact;
-  if (answerFact && facts.messageContentIntent === false) {
-    checks.push({
-      label: T("Bot FAQ can read messages"), ok: false, optional: true, warn: true,
-      fix: T("Turn on MESSAGE_CONTENT_INTENT=true in the bot's .env and the Message Content switch in the Discord Developer Portal.")
-    });
-  }
+  // The #bot-faq answer channel was retired in 9.0: it is neither listed nor counted any more.
   // The bot's messages: missing (❌-style, optional) or out of date (⚠️), fixed by one button.
   const MESSAGE_LABELS: Record<string, string> = {
     botGuide: T("Pinned bot guide"), installPost: T("Pinned install post"), craftGuide: T("Pinned craft board guide"), welcomePanel: T("Pinned welcome panel"), leaderboard: T("Dungeon leaderboard message")

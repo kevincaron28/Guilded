@@ -52,6 +52,7 @@ import { ensureRaceBoard } from "../services/race-board.js";
 import { repairBoardPermissions } from "../services/board-permissions.js";
 import { ensureBattlegroundSetup, ensurePvpModule, BG_SETUP_PARTS, BG_SETUP_FIELDS } from "../services/battleground-setup.js";
 import { communitySetupState, ensureCommunitySetup } from "../services/community-setup.js";
+import { channelIsGone, clearDanglingChannels } from "../services/dangling-channels.js";
 
 // Guided first-time setup. One private message that walks an admin through
 // seven steps with buttons and dropdowns only (no IDs, no typing):
@@ -92,6 +93,19 @@ const pendingField = new Map<string, ChannelField>();
 const retiring = new Set<string>();
 const SUMMARY_STEP = 8;
 const BG_SETUP_STEP = 9;
+// Wizard messages that still have a live collector. A click on any other `setup:` message (the bot restarted,
+// or the wizard timed out) gets an "expired" reply from main.ts instead of Discord's "This interaction failed".
+const liveWizardMessages = new Set<string>();
+export const isLiveSetupMessage = (messageId: string): boolean => liveWizardMessages.has(messageId);
+
+/** Saved channel ids whose channel was deleted are cleared, so setup treats them as not set (retired #bot-faq included). */
+async function pruneDanglingChannels(guild: DiscordGuild, guildId: string): Promise<void> {
+  const settings = await guildService.getSettings(guildId);
+  if (!settings) return;
+  const cleared = await clearDanglingChannels(guild, settings as unknown as Record<string, unknown>,
+    (data) => guildService.updateSettings(guildId, data as Parameters<typeof guildService.updateSettings>[1]));
+  if (cleared.includes("answerChannelId")) forgetAnswerSettings(guild.id);
+}
 
 // Common choices; anything else can be set with /config timezone.
 const TIMEZONES: [string, string][] = [
@@ -111,6 +125,9 @@ const TIMEZONES: [string, string][] = [
 
 async function channelFact(guild: DiscordGuild, channelId: string | null | undefined): Promise<ChannelFact | null> {
   if (!channelId) return null;
+  // A channel Discord says is gone counts as not set; any other failure keeps the old "can't see it" fact.
+  const gone = await channelIsGone(guild, channelId);
+  if (gone) return null;
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel) return { name: "deleted-channel", exists: false, botCanPost: false };
   const me = guild.members.me;
@@ -168,7 +185,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     officerSyncAt: (await prisma.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }))?.officerSyncAt ?? null,
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId", "inviteChannelId"] as const)
+    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "dungeonChannelId", "weeklyReportChannelId", "inviteChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
@@ -903,8 +920,11 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
   // walking back through every step.
   let step = interaction.options.getBoolean("status") ? SUMMARY_STEP : 0;
   let note = "";
+  // Retired and deleted channels (#bot-faq) are forgotten before the first screen is drawn.
+  await pruneDanglingChannels(guild, guildId).catch((error: unknown) => console.warn("Setup: could not clear deleted channel ids", error));
   await interaction.editReply(await renderStep(step, guild, guildId, note));
   const message = await interaction.fetchReply();
+  liveWizardMessages.add(message.id);
   const collector = message.createMessageComponentCollector({
     time: 15 * 60_000,
     filter: (i) => i.user.id === interaction.user.id
@@ -929,6 +949,8 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
     }
     try {
       note = "";
+      // A channel deleted while the wizard was open must not stay "set" on the next screen.
+      await pruneDanglingChannels(guild, guildId).catch(() => undefined);
       const lang = await currentLang();
       const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
       // The community section comes with the channels by default; a failure there never hides
@@ -1178,12 +1200,14 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
     // Ack the click immediately (Discord allows 3 seconds) regardless of how
     // long this click's turn in the queue takes to come up; the visible
     // message update always goes through `interaction.editReply` below, once
-    // it's this click's turn.
-    void i.deferUpdate().catch((error: unknown) => console.warn(`Setup click ${i.customId} was not acknowledged`, error));
+    // it's this click's turn. Nothing runs before this line, and every button,
+    // menu and step change takes this path: slow work only ever happens in handleClick.
+    if (!i.deferred && !i.replied) void i.deferUpdate().catch((error: unknown) => console.warn(`Setup click ${i.customId} was not acknowledged`, error));
     queue = queue.then(() => handleClick(i, action)).catch((error: unknown) => console.error("Setup click failed", error));
   }));
 
   collector.on("end", bindGuildScope(async (_collected, reason) => {
+    liveWizardMessages.delete(message.id);
     if (reason === "closed") return;
     await interaction.editReply({ content: tx(await currentLang().catch(() => "en" as Lang), "Setup timed out after 15 minutes — your choices are saved. Run `/setup start` to continue."), embeds: [], components: [] }).catch(() => undefined);
   }));

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { Collection, type Guild } from "discord.js";
 import { cacheAllMembers } from "../src/services/member-cache.js";
 import type { CommunityHonors, PrismaClient } from "../src/generated/prisma/client.js";
-import { adoptCommunityHonors, advanceCommunityHonors, configureCommunityHonors, honorsHistoryMessage, honorsWeekDue, honorsWeekOf, honorsWindow, monthlyHonorsMessage, podiumPlaces, previewCommunityHonors, syncCommunityHonorRoles, weeklyHonorsMessage, weeklyMvps } from "../src/services/community-honors.js";
+import { adoptCommunityHonors, advanceCommunityHonors, configureCommunityHonors, honorsHistoryMessage, honorsWeekDue, honorsWeekOf, honorsWindow, monthlyHonorsMessage, podiumPlaces, previewCommunityHonors, syncCommunityHonorRoles, trySyncHonorRoles, honorRolesBlocked, weeklyHonorsMessage, weeklyMvps } from "../src/services/community-honors.js";
 
 type Row = Record<string, unknown>;
 const row = (userId: string, points: number) => ({ userId, points, balance: points });
@@ -224,6 +224,22 @@ describe("syncing the roles", () => {
     return { guild: guild as unknown as Guild, members, roles };
   }
 
+  it("a Missing Permissions refusal keeps the roles pending, warns once a day and flags the guild", async () => {
+    const { guild, members } = fakeGuild({ mvp: [] });
+    members.get("new")!.roles.add.mockRejectedValue(Object.assign(new Error("Missing Permissions"), { code: 50013 }));
+    const updateMany = vi.fn(async () => ({ count: 1 }));
+    const honors = { guildId: "blocked-guild", weeklyRoleId: "mvp", weeklyHolderIds: ["new"], rookieRoleId: null, rookieHolderId: null, monthRoleIds: [], monthHolderIds: [[], [], []], updatedAt: new Date(0) } as unknown as CommunityHonors;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const start = new Date("2026-11-07T12:00:00Z");
+    expect(await trySyncHonorRoles(guild, { communityHonors: { updateMany } } as unknown as PrismaClient, honors, start)).toBe(false);
+    expect(await trySyncHonorRoles(guild, { communityHonors: { updateMany } } as unknown as PrismaClient, honors, new Date(start.getTime() + 15 * 60_000))).toBe(false);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(honorRolesBlocked("blocked-guild")).toBe(true);
+    await trySyncHonorRoles(guild, { communityHonors: { updateMany } } as unknown as PrismaClient, honors, new Date(start.getTime() + 25 * 60 * 60_000));
+    expect(warn).toHaveBeenCalledTimes(2);
+    warn.mockRestore();
+  });
   it("takes the role from last week's MVP and gives it to the new one", async () => {
     const { guild, members, roles } = fakeGuild({ mvp: ["old"], gold: ["a"], rookie: ["a"] });
     const updateMany = vi.fn(async () => ({ count: 1 }));

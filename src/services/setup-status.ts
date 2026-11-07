@@ -43,6 +43,8 @@ export interface SetupFacts {
   nicknameSyncReady?: boolean;
   // How many members the bot cannot rename because their top role is at or above the bot's (cached members only).
   nicknameBlockedMembers?: number;
+  // True when the last community honors role sync was refused by Discord (the bot role is below the honor roles).
+  honorRolesBlocked?: boolean;
   // The pinned group finder message is the pre-4.6 button, not the current menu.
   dungeonSignupGuideOutdated?: boolean;
   // Every other channel setup can create (field name -> state), shown as optional rows.
@@ -130,6 +132,12 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
         ? T("My role is below {count} member(s)' top role, so I can't rename them. Server Settings > Roles: drag my role above the member ranks.", { count: facts.nicknameBlockedMembers ?? 0 })
         : T("Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.")
     }]),
+    ...(facts.honorRolesBlocked ? [{
+      label: T("Community honor roles"),
+      ok: false,
+      optional: true,
+      fix: T("I can't give the honor roles because my role is below them. Server Settings > Roles: drag the Guilded role above the honor roles. I retry every 15 minutes.")
+    }] : []),
     {
       label: T("EPGP point values (base GP set)"),
       ok: facts.epgpConfigured,

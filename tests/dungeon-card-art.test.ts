@@ -13,7 +13,7 @@ const run = (overrides: Partial<DungeonImportResult> = {}): DungeonImportResult 
     { character: "Tank", class: "WARRIOR", role: "TANK", deaths: 0, presentSec: 1100, points: 0, ratingTotal: 1240, ratingGain: 35 },
     { character: "Heal", class: "PRIEST", role: "HEALER", deaths: 1, presentSec: 1100, points: 0, ratingTotal: 1185, ratingGain: 0 },
     { character: "Mage", class: "MAGE", role: "DAMAGER", deaths: 0, presentSec: 1100, points: 0, ratingTotal: 1310, ratingGain: 41 },
-    { character: "Pug", class: "DRUID", role: "HEALER", deaths: 0, presentSec: 1100, points: 0 }
+    { character: "Pug", class: "DRUID", role: "DAMAGER", deaths: 0, presentSec: 1100, points: 0 }
   ],
   ...overrides
 });

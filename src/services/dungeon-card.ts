@@ -173,6 +173,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
         const deaths = detail.deaths === null || detail.deaths === undefined ? undefined : fr ? `${detail.deaths} mort(s)` : `${detail.deaths} death(s)`;
         return {
           name: run.fullNames?.[detail.character] ?? detail.character,
+          ...(guild ? { character: detail.character } : {}),
           color: classColor(cls ?? detail.class),
           role: roles[index],
           roleLabel: roleName(roles[index], lang),

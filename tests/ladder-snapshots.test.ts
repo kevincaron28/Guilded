@@ -62,7 +62,7 @@ describe("rank movement", () => {
 
 describe("arrows on the ladder card", () => {
   it("adds a 24h column and draws a green up arrow, a red down arrow and a gold 'new'", async () => {
-    const standings = Array.from({ length: 4 }, (_, i) => ({ memberId: `m${i}`, name: `Duelist ${i}`, wins: 10 - i, losses: i, games: 10, winRate: (10 - i) / 10, streak: 0, bestStreak: 2 }));
+    const standings = Array.from({ length: 4 }, (_, i) => ({ memberId: `m${i}`, name: `Duelist ${i}`, score: (10 - i) * 10, wins: 10 - i, losses: i, games: 10, winRate: (10 - i) / 10, streak: 0, bestStreak: 2 }));
     const card = duelBoardCard({ duels: 20, edition: "forever", recent: [], standings }, "en", new Map(), new Date("2026-11-08T09:00:00Z"),
       new Map<string, number | "new">([["m0", 2], ["m1", -3], ["m2", 0], ["m3", "new"]]));
     expect(card.ladder!.columns.at(-1)).toMatchObject({ label: "24h", kind: "move" });

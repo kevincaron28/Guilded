@@ -2,7 +2,7 @@
 
 Record raid attendance, manage EP/GP and loot, find guild crafters and review your dungeon history. Start with the addon alone. Discord and the companion are optional.
 
-**For WoW Forever, Classic Era / Hardcore, Burning Crusade Classic, Mists of Pandaria Classic and Retail. English, French, German and Spanish included in the addons. The companion, website and bot remain English/French.**
+**For WoW Forever. English, French, German and Spanish included in the addons. The companion, website and bot remain English/French.**
 
 ## 8.4.0 launch update
 
@@ -74,7 +74,7 @@ Guilded and approved pilot access are free. If the project helps your guild, [Bu
 
 La version 8.4.0 ajoute des rapports de champ de bataille privés et facultatifs pour votre propre personnage (provisoires, sans attribution automatique), des filtres de classement plus clairs et des vérifications de connexion du compagnon plus explicites. Elle inclut les correctifs 8.0.2 et toutes les fonctions 8.0. Conservez vos SavedVariables.
 
-Guilded réunit présence aux raids, EP/GP, butin, recettes de guilde et historique de donjons pour **WoW Forever, Classic Era / Hardcore, Burning Crusade Classic, Mists Classic et Retail**, avec interfaces française, anglaise, allemande et espagnole dans les addons. Le compagnon, le site et le bot restent en français et en anglais. Installez le dossier **Guilded** dans `Interface/AddOns`, ouvrez la pièce dorée et faites `/reload`. **L'addon seul ne nécessite ni Discord, ni compagnon.**
+Guilded réunit présence aux raids, EP/GP, butin, recettes de guilde et historique de donjons pour **WoW Forever**, avec interfaces française, anglaise, allemande et espagnole dans les addons. Le compagnon, le site et le bot restent en français et en anglais. Installez le dossier **Guilded** dans `Interface/AddOns`, ouvrez la pièce dorée et faites `/reload`. **L'addon seul ne nécessite ni Discord, ni compagnon.**
 
 Les officiers peuvent publier les classements locaux. Choisissez votre core, vos règles et votre méthode de butin avant les attributions. Le [guide EPGP en français](https://guilded.kcaron.top/docs/EPGP_GUIDE#fr) décrit les vérifications.
 

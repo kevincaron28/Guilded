@@ -50,17 +50,14 @@ using Discord's identify permission. Guilded does not ask for your Discord
 password. Guild membership and roles are checked for protected features.
 Authentication cookies maintain website sessions; the current session lifetime
 is up to 30 days. A `guilded_edition` cookie remembers the WoW version you last
-viewed on the website (for example `retail`) for up to a year; it holds nothing else. Technical requests and error records may contain connection
+viewed on the website (`forever`) for up to a year; it holds nothing else. Technical requests and error records may contain connection
 metadata and the context needed to operate, troubleshoot and protect the service.
 
-Where configured, optional Battle.net linking asks Blizzard for account identity
-and WoW character access. An unconfirmed character preview stays in server memory
-for up to ten minutes. Only confirmed character selections are retained, with
-Battle.net account ID/BattleTag, character and realm IDs, names, region, edition,
-account main choice and verification time. These selections are private and do
-not publish alts or change guild permissions. Blizzard access tokens are discarded
-after discovery. Disconnect Battle.net in your account to delete its private
-selection; existing guild records and retained backups follow their normal rules.
+Optional Battle.net linking was removed on 7 November 2026 (Guilded supports WoW Forever
+only, and Blizzard's profile API has no WoW Forever characters). Character selections confirmed
+before then are kept privately, unused: Battle.net account ID/BattleTag, character and realm IDs,
+names, region, edition, account main choice and verification time. They never published alts or
+changed guild permissions. **Delete my data** removes them; retained backups follow their normal rules.
 
 Companion connections have separate credentials and device names. Manage or
 revoke them under your account's Connections page. Enabled Windows profiles keep
@@ -195,19 +192,17 @@ d'affichage disponible, via la permission identify. Guilded ne demande pas votre
 mot de passe Discord. Les accès et rôles de guilde sont vérifiés. Des témoins
 d'authentification maintiennent les sessions web, actuellement jusqu'à 30 jours.
 Un témoin `guilded_edition` retient la version de WoW consultée en dernier sur le site
-(par exemple `retail`) pendant au plus un an; il ne contient rien d'autre.
+(`forever`) pendant au plus un an; il ne contient rien d'autre.
 Les requêtes techniques et erreurs peuvent contenir les métadonnées de connexion
 et le contexte nécessaires au fonctionnement, au dépannage et à la protection.
 
-Si elle est configurée, la connexion Battle.net facultative demande à Blizzard
-l'identité du compte et l'accès aux personnages WoW. Un aperçu non confirmé reste
-en mémoire sur le serveur pendant dix minutes au maximum. Seuls les personnages
-confirmés sont conservés, avec l'identifiant Battle.net et le BattleTag, les noms
-et identifiants des personnages et royaumes, la région, l'édition, le choix du
-principal du compte et la date de vérification. Cette sélection privée ne publie
-pas les alts et ne modifie pas les permissions de guilde. Les jetons Blizzard sont
-supprimés après la recherche. Déconnectez Battle.net dans votre compte pour effacer
-sa sélection privée; les données de guilde et sauvegardes suivent leurs règles habituelles.
+La connexion Battle.net facultative a été retirée le 7 novembre 2026 (Guilded prend en charge
+WoW Forever uniquement, et l'API de profils de Blizzard ne connaît pas les personnages WoW Forever).
+Les sélections confirmées avant cette date sont conservées en privé, sans être utilisées :
+l'identifiant Battle.net et le BattleTag, les noms et identifiants des personnages et royaumes, la
+région, l'édition, le choix du principal du compte et la date de vérification. Elles n'ont jamais
+publié les alts ni modifié les permissions de guilde. **Supprimer mes données** les efface; les
+sauvegardes conservées suivent leurs règles habituelles.
 
 Chaque connexion compagnon possède son propre identifiant d'accès et nom d'appareil.
 La page Connexions de votre compte permet de les gérer ou révoquer. Les profils

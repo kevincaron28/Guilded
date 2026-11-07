@@ -1,7 +1,6 @@
 # Guilded
 
-Raid and guild management for **WoW Forever, Classic Era/Hardcore, Burning Crusade Classic,
-Mists Classic and Retail**: an in-game addon, a Discord bot and a small
+Raid and guild management for **WoW Forever**: an in-game addon, a Discord bot and a small
 Windows companion app that connects the two (optional for the addon alone, needed for Discord and website features; Windows only).
 Free for noncommercial use ([license](LICENSE)).
 
@@ -34,10 +33,9 @@ Check each channel for its version: the Microsoft Store companion updates separa
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
 **Current version: 9.0.2** (7 November 2026, protocol 2). See the [changelog](CHANGELOG.md).
-Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
-across the addon, Discord bot and companion, including several guilds in one Discord.
-Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).
-The unsuffixed ZIP is the Forever build.
+Supports WoW Forever across the addon, Discord bot and companion, including several guilds in one Discord.
+Use the Forever ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).
+The other WoW editions were removed on 7 November 2026 ([details](docs/FOREVER_ONLY_FOCUS.md)); their stored data stays readable.
 
 The owner authorized release before the unavailable Forever two-PC tests.
 [Game checks remain pending follow-up](docs/archive/V7_5_0_GAME_CHECKLIST.md); benchmarks are provisional.

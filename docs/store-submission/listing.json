@@ -25,10 +25,10 @@
   },
   "locales": {
     "en-US": {
-      "shortDescription": "Connect your Guilded addon and Discord guild across WoW editions, and track Path of Exile 2 mapping sessions.",
+      "shortDescription": "Connect your Guilded addon for WoW Forever and your Discord guild, and track Path of Exile 2 mapping sessions.",
       "description": "Guilded Companion connects your Guilded World of Warcraft addons with your guild's Discord tools. Choose your edition and connection profile, select the addon's SavedVariables file, and keep supported guild records and standings synchronized.\n\nUse separate profiles for WoW Forever, Classic Era, Classic TBC, Classic Mists and Retail. Forever characters retain their first and last display names. You can also enable optional Path of Exile 2 map-session tracking from your selected Client.txt log.\n\nThe companion runs in the notification area. You can pause tracking, review connection status and remove locally saved settings. The Microsoft Store edition uses Store-managed updates and Windows startup settings.\n\nRequirements: Windows 10 version 2004 or later on an x64 PC. WoW synchronization requires the matching Guilded or Guilded Dungeons addon and a configured Guilded service connection. Guild functions require the relevant Discord guild access; hosted guild features may require approval. Optional PoE2 tracking requires Path of Exile 2 and access to its log. Games, game subscriptions and Discord are not included.\n\nGuilded is an independent community project, not affiliated with or endorsed by Blizzard Entertainment, Grinding Gear Games or Discord. Game-client compatibility and provisional benchmark limitations are documented in the project guides.\n\nEverything Guilded records about your characters is shared by design, with your guild and on the public leaderboards and profiles; there are no sharing switches. The one control is Delete my data, on the Guilded website (My data), described in the privacy policy.",
       "features": [
-        "Separate connection profiles for supported World of Warcraft editions",
+        "Separate connection profiles for each WoW Forever guild",
         "Discord sign-in or pairing with a configured Guilded service",
         "SavedVariables synchronization and in-game standings updates",
         "Optional Path of Exile 2 map-session journal",

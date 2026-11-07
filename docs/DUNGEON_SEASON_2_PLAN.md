@@ -71,7 +71,7 @@ Measured and blended routes are recorded as recalibrations from the season start
 "provisional" label in `/dungeon rules`.
 
 Season 2 starts **2026-12-09 15:00 America/Los_Angeles = 23:00 UTC**, the same instant of day as Season 1 and
-Forever's launch (`EDITION_CALENDARS_2026-10-30.md`: Forever 23:00 UTC). Other editions' calendars are not touched.
+Forever's launch (`archive/EDITION_CALENDARS_2026-10-30.md`: Forever 23:00 UTC). Other editions' calendars are not touched.
 The exact hour of the raid opening is the owner's to confirm; pass `date` or reschedule with `/guilded-season next`.
 
 ## 4. Owner steps

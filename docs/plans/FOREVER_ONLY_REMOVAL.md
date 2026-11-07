@@ -42,7 +42,7 @@ part of this work.
 4. **Published files are never touched.** Edition zips already on GitHub/CurseForge stay as they are
    (CLAUDE.md: never overwrite a published download).
 5. **Discord channels and roles are not deleted** (owner decision in FOREVER_ONLY_FOCUS.md stands).
-6. **Edition calendars** ([EDITION_CALENDARS_2026-10-30.md](../EDITION_CALENDARS_2026-10-30.md)): the
+6. **Edition calendars** ([EDITION_CALENDARS_2026-10-30.md](../archive/EDITION_CALENDARS_2026-10-30.md)): the
    `OfficialSeason` rows for other editions stay unchanged in the database; only the code that reads,
    initializes or edits them goes. That keeps the CLAUDE.md rule "keep selected edition calendars
    unchanged" true. The CLAUDE.md line itself is reworded in stage 8.

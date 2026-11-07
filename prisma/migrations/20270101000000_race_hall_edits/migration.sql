@@ -1,0 +1,2 @@
+ALTER TABLE "RaceHallEntry" ADD COLUMN "removed" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "sinceLaunchKnown" BOOLEAN NOT NULL DEFAULT false;

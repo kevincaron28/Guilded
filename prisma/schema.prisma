@@ -2966,6 +2966,9 @@ model RaceHallEntry {
   backfilled      Boolean  @default(false)
   posted          Boolean  @default(false)
   messageId       String?
+  // 9.1: an officer removed it (kept as a tombstone so the refresh does not add the character again); the time to 60 since launch is trustworthy.
+  removed          Boolean  @default(false)
+  sinceLaunchKnown Boolean  @default(false)
   createdAt       DateTime @default(now())
   guild           Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

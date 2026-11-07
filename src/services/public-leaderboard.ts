@@ -738,9 +738,29 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     return { status: 200, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=120", "x-content-type-options": "nosniff" }, body: ctx.request.method === "HEAD" ? "" : body };
   }
 
+  // The phone app's boards: the same public ratings as the website's top tables, as JSON (10 characters per level
+  // bracket, 10 guilds per bracket). Names are the public display names already on the page; nothing private.
+  async function boardsJson(ctx: WebContext): Promise<WebResponse> {
+    const { filters, period } = await pageFilters(ctx);
+    const rules = periodRules(period);
+    const all = (await periodRuns(period)).filter((run) => !(run.gameEdition === "retail" && run.difficultyId === 8));
+    const scores = characterScores(all, rules, keepPlayer(filters, rules));
+    const ranks = await guildRanks(period);
+    const body = JSON.stringify({
+      season: periodName(ctx, period),
+      brackets: rules.brackets.map((b) => ({
+        key: b.key, name: bracketName(ctx, b.key),
+        characters: scores.filter((row) => row.bracket === b.key).slice(0, 10).map((row, i) => ({ rank: i + 1, name: (row.player as LeaderPlayer).displayName || row.player.character, realm: row.player.realm || null, className: row.player.className ?? null, role: row.player.role ?? null, points: row.points })),
+        guilds: ranks.filter((r) => r.bracket === b.key).slice(0, 10).map((r, i) => ({ rank: i + 1, id: r.guild.id, name: r.guild.name, slug: r.guild.slug ?? null, points: r.points, rated: r.rated }))
+      }))
+    });
+    return { status: 200, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=120", "access-control-allow-origin": "*", "x-content-type-options": "nosniff" }, body: ctx.request.method === "HEAD" ? "" : body };
+  }
+
   const route: WebRoute = async (ctx, kit) => {
     const path = ctx.request.path;
     if (path === "/leaderboards/summary.json" && ["GET", "HEAD"].includes(ctx.request.method)) return summary(ctx);
+    if (path === "/leaderboards/boards.json" && ["GET", "HEAD"].includes(ctx.request.method)) return boardsJson(ctx);
     const card = /^\/leaderboards\/character\/([^/]{1,200})\/card\.png$/.exec(path);
     if (card && ["GET", "HEAD"].includes(ctx.request.method)) return character(ctx, kit, card[1]!, true);
     const run = /^\/leaderboards\/run\/([A-Za-z0-9_-]{1,40})(\/card\.png)?$/.exec(path);

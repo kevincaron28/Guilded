@@ -2,7 +2,7 @@
 
 ## Current stage — 7 November 2026
 
-Guilded **9.0.2** (the second update on 9.0.0, which was the 8.5 work shipped as 9.0) (tracks A-K and the owner batches below). The previous release is 9.0.1. Branch and doc names keep "8.5".
+Guilded **9.0.3** (the third update on 9.0.0, which was the 8.5 work shipped as 9.0) (tracks A-K and the owner batches below). The previous release is 9.0.2. Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
@@ -131,6 +131,12 @@ Bug sweep 7 Nov 19:15 UTC: no member reports. Every bot error in the last two ho
 deploy windows: the build starved the 1 GB server. Fixed by #562 (low priority) and #572 (reuse node_modules when the lock is
 unchanged, capped build heap); the 19:05 deploy logged no errors. 25 saved reports resolved. Also live since 9.0.2: correct roles on
 dungeon cards (#569), online officers tagged for invite requests (#570), world PvP board (#565), Forever-only bot part 1 (#573).
+
+**Owner decisions in chat, 7 Nov ~21:00-21:40 UTC:** Québec Gold tidy-up applied (📊 Classements, 🗄 Archives, nothing deleted);
+Season 2 analysis run (8 runs, too thin, re-run ~18 Nov, #583); Forever-only stage 7 declined (old rows stay); invites tag any online
+member and auto-detect joins (#586); release 9.0.3; **build character pictures** with the plan's recommended defaults (card-redesign
+session); **build several accounts per member** with the proposed answers (track-f session); **paid tier stays off** (Lite/Plus kept
+as a plan until Discord pays Canadian teams or costs grow).
 
 ### Waiting for owner
 

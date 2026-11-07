@@ -52,6 +52,17 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
 
 export async function linkPairedCharacter(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter) {
   if (!self.class) return "missing-class" as const;
+  try {
+    return await linkPairedCharacterOnce(database, guildId, memberId, self);
+  } catch (error) {
+    // A parallel request linked this character between our look and our create (unique constraint, P2002):
+    // it is linked, so say so and let the upload carry on.
+    if ((error as { code?: string } | null)?.code === "P2002") return "already-linked" as const;
+    throw error;
+  }
+}
+
+async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter) {
   return database.$transaction(async (tx) => {
     const characters = await tx.character.findMany({
       where: { member: { guildId } },

@@ -1333,5 +1333,14 @@
   "WoW and the Guilded addon are set up.": "WoW et l’addon Guilded sont configurés.",
   "Press Try again, or choose your WoW folder in Settings.": "Appuyez sur Réessayer, ou choisissez votre dossier WoW dans Paramètres.",
   "Exit World of Warcraft, then press Try again.": "Quittez World of Warcraft, puis appuyez sur Réessayer.",
-  "Open Settings and press Choose WoW folder.": "Ouvrez Paramètres et appuyez sur Choisir le dossier WoW."
+  "Open Settings and press Choose WoW folder.": "Ouvrez Paramètres et appuyez sur Choisir le dossier WoW.",
+  "Another WoW account on this PC has Guilded data: {0}. Is it yours too?": "Un autre compte WoW sur ce PC a des données Guilded : {0}. Est-il à vous aussi ?",
+  "Say no if someone else plays on this PC with their own Discord account. You are asked only once.": "Répondez non si quelqu’un d’autre joue sur ce PC avec son propre compte Discord. La question n’est posée qu’une fois.",
+  "Yes, sync it too": "Oui, le synchroniser aussi",
+  "No, not mine": "Non, pas le mien",
+  "{0} syncs too from now on.": "{0} est aussi synchronisé désormais.",
+  "{0} was added, but the sync did not start. Open Problems to see why.": "{0} a été ajouté, mais la synchronisation n’a pas démarré. Ouvrez Problèmes pour voir pourquoi.",
+  "{0} will not sync. You will not be asked again.": "{0} ne sera pas synchronisé. La question ne sera plus posée.",
+  "WoW account {0} syncs too, from {1}.": "Le compte WoW {0} est aussi synchronisé, depuis {1}.",
+  "WoW account {0} is not synced (not this member's).": "Le compte WoW {0} n’est pas synchronisé (pas celui de ce membre)."
 }

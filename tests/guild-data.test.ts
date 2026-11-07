@@ -49,7 +49,8 @@ function fakeDb(seed: { characters?: Row[]; unclaimed?: Row[] } = {}) {
     unclaimedCharacter: {
       findMany: async () => tables.unclaimed!,
       update: async ({ where, data }: { where: { id: string }; data: object }) => Object.assign(tables.unclaimed!.find((c) => c.id === where.id)!, data),
-      create: async ({ data }: { data: Row }) => { tables.unclaimed!.push({ ...data, id: id() }); }
+      // ON CONFLICT DO NOTHING: a row with the same key is kept, never doubled or thrown on
+      createMany: async ({ data }: { data: Row[] }) => { for (const row of data) if (!tables.unclaimed!.some((c) => c.nameKey === row.nameKey)) tables.unclaimed!.push({ ...row, id: id() }); return { count: data.length }; }
     },
     characterRankSeen: {
       upsert: async ({ where, create, update }: { where: { characterId: string }; create: Row; update: Row }) => {
@@ -67,6 +68,18 @@ const linked = (id: string, name: string, extra: Record<string, unknown> = {}): 
   ({ id, name, realm: "Forever", gameEdition: "forever", displayName: name, level: 10, className: "Warrior", lastSeenAt: null, guildRankName: null, ...extra });
 
 describe("guild roster from any member's upload", () => {
+  it("a parallel upload that created the unlinked row first neither errors nor doubles it", async () => {
+    const db = fakeDb();
+    const unclaimed = (db.tx as unknown as { unclaimedCharacter: { findMany: unknown } }).unclaimedCharacter;
+    // This upload read the table before the other upload's insert landed, so it sees nothing...
+    const real = unclaimed.findMany;
+    unclaimed.findMany = (async () => { const seen: Row[] = []; db.tables.unclaimed!.push({ id: "other", nameKey: "dude lebowski", name: "Dude Lebowski", level: 12 }); return seen; }) as never;
+    const result = await applyGuildData(db.tx, "g", { memberId: "m-donny", officer: false }, upload([{ name: "Dude Lebowski", level: 12, class: "WARRIOR", rankName: "Member", rankIndex: 3, online: true }]), NOW);
+    unclaimed.findMany = real;
+    // ...and its own insert is skipped by the unique key instead of aborting the transaction.
+    expect(db.tables.unclaimed!.filter((c) => c.nameKey === "dude lebowski")).toHaveLength(1);
+    expect(result.roster).toBe(1);
+  });
   it("reaches members without the addon: linked level and last seen, unlinked listed", async () => {
     const db = fakeDb({ characters: [linked("c1", "Walter Sobchak")] });
     const result = await applyGuildData(db.tx, "g", { memberId: "m-donny", officer: false }, upload([

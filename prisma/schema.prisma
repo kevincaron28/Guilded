@@ -3181,6 +3181,8 @@ model InviteRequest {
   invitedAt     DateTime?
   // 9.1: when the people who can invite were tagged for this request (once).
   notifiedAt    DateTime?
+  // The bot's tag message, edited to a done note when the character joins.
+  notifyMessageId String?
   guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, messageId])

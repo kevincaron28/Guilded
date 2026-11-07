@@ -69,6 +69,21 @@ describe("check marks", () => {
     expect(p.react).toHaveBeenCalledWith("✅");
     expect(remove).toHaveBeenCalledWith("bot");
   });
+  it("edits the tag message and the bot's own post, and thanks a member under their own post", async () => {
+    const edit = vi.fn(async () => undefined); const reply = vi.fn(async () => undefined);
+    const note = { author: { id: "bot" }, edit };
+    const own = { react: vi.fn(async () => undefined), reactions: { cache: new Map() }, author: { id: "bot" }, content: "<@u1> -> **A B**", components: [{}], edit: vi.fn(async () => undefined), reply };
+    const c = { user: { id: "bot" }, channels: { fetch: vi.fn(async () => ({ isTextBased: () => true, messages: { fetch: vi.fn(async (id: string) => (id === "n1" ? note : own)) } })) } };
+    expect(await markPostsDone(c as never, [{ id: "i", channelId: "chan", messageId: "m1", displayName: "A B", notifyMessageId: "n1" }], "fr")).toBe(1);
+    expect(own.edit).toHaveBeenCalledWith(expect.objectContaining({ content: "<@u1> -> **A B** ✅", components: [] }));
+    expect(edit).toHaveBeenCalledWith({ content: expect.stringContaining("a rejoint la guilde"), allowedMentions: { parse: [] } });
+    expect(reply).not.toHaveBeenCalled();
+    // a member's own typed post with no tag message: a short thank-you reply that pings nobody
+    const typed = { react: vi.fn(async () => undefined), reactions: { cache: new Map() }, author: { id: "member" }, reply };
+    const c2 = { user: { id: "bot" }, channels: { fetch: vi.fn(async () => ({ isTextBased: () => true, messages: { fetch: vi.fn(async () => typed) } })) } };
+    expect(await markPostsDone(c2 as never, [{ id: "j", channelId: "chan", messageId: "m2", displayName: "C D" }])).toBe(1);
+    expect(reply).toHaveBeenCalledWith(expect.objectContaining({ allowedMentions: { parse: [], repliedUser: false } }));
+  });
   it("an officer's check mark finishes the name; a member's, or another emoji, does not", async () => {
     const db = database(); await handleInviteMessage(post("Amy Archer") as never, db as never);
     const p = { react: vi.fn(async () => undefined), reactions: { cache: new Map() } };
@@ -112,7 +127,7 @@ describe("finishing a name from the guild roster", () => {
     const { c, p } = client();
     expect(await backCheckInvites(c as never, db as never, { id: "g1", discordId: "guild" })).toBe(1);
     expect(p.react).toHaveBeenCalledWith("✅");
-    expect(p.edit).toHaveBeenCalledWith({ components: [] });
+    expect(p.edit).toHaveBeenCalledWith(expect.objectContaining({ components: [] }));
   });
   it("does nothing when nobody is waiting", async () => {
     const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => []) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) } });

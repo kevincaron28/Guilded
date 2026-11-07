@@ -87,3 +87,13 @@ it("requires sign-in, CSRF, explicit consent and same-origin; then redirects wit
   expect((await request(url, form)).status).toBe(200);
   expect(store.revoke).toHaveBeenCalledWith("u", "g");
 });
+
+it("is hidden when the switch is off: no page, no link on /me, data and store untouched", async () => {
+  const store: AvailabilityStore = { guilds: vi.fn(async () => [guild]), load: vi.fn(async () => null), share: vi.fn(async () => {}), revoke: vi.fn(async () => {}) };
+  const feature = createWebAvailability(store, false);
+  const ctx = { account: { discordUserId: "u" }, request: { path: "/me/availability", method: "GET", query: new URLSearchParams(), headers: {} }, t: (en: string) => en, lang: "en" };
+  expect(await feature.route(ctx as never, {} as never)).toBeNull();
+  expect(await feature.meSection(ctx as never)).toBe("");
+  expect(store.load).not.toHaveBeenCalled();
+  expect(await createWebAvailability(store).meSection(ctx as never)).toContain("/me/availability");
+});

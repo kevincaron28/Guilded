@@ -4,10 +4,10 @@ import { escapeHtml as h, link, options, SECURITY_HEADERS } from "./web-layout.j
 import { AVAILABILITY_MINUTES, AVAILABILITY_ROLES, type AvailabilityStore } from "./web-availability-store.js";
 
 const PATH = "/me/availability";
-export function createWebAvailability(store: AvailabilityStore) {
-  const meSection = async (ctx: WebContext) => ctx.account ? `<h2>${ctx.t("Who's free?", "Qui est disponible ?")}</h2><p><a href="${h(link(PATH, ctx.lang))}">${ctx.t("Share availability with your guild", "Partager votre disponibilité avec la guilde")}</a></p>` : "";
+export function createWebAvailability(store: AvailabilityStore, enabled = true) {
+  const meSection = async (ctx: WebContext) => enabled && ctx.account ? `<h2>${ctx.t("Who's free?", "Qui est disponible ?")}</h2><p><a href="${h(link(PATH, ctx.lang))}">${ctx.t("Share availability with your guild", "Partager votre disponibilité avec la guilde")}</a></p>` : "";
   const route: WebRoute = async (ctx, kit) => {
-    if (ctx.request.path !== PATH) return null;
+    if (!enabled || ctx.request.path !== PATH) return null;
     if (!["GET", "HEAD", "POST"].includes(ctx.request.method)) return { status: 405, headers: { ...SECURITY_HEADERS, allow: "GET, HEAD, POST" }, body: "" };
     if (!ctx.account) return kit.signInPrompt();
     const { t, lang } = ctx, user = ctx.account.discordUserId, guildId = ctx.request.query.get("guild") ?? "";

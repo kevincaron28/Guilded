@@ -67,7 +67,8 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
   attendanceChannelId: { access: "officers", category: "officers" },
   answerChannelId: { access: "open", category: "guild" },
   guideChannelId: { access: "pinned", category: "guild" },
-  inviteChannelId: { access: "open", category: "guild" }
+  // WoW category (roadmap 16): members who want in the guild are WoW players.
+  inviteChannelId: { access: "open", category: "raid" }
 };
 
 const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> = {

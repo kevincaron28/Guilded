@@ -3,59 +3,48 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { WOW_EDITIONS, editionPages } from '../site/editions.mjs';
 import { editionSection } from '../site/nav.mjs';
-import { GAME_EDITIONS } from '../companion/game-edition.mjs';
-import { isEditionActive } from '../companion/active-editions.mjs';
 
-// Builds every edition page too (GUILDED_ALL_PAGES, site/focus.mjs): these tests cover the held editions' pages.
-beforeAll(() => execFileSync(process.execPath, ['scripts/build-site.mjs'], { stdio: 'pipe', env: { ...process.env, GUILDED_ALL_PAGES: '1' } }), 30000);
+// Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md): the build makes the WoW Forever pages only.
+beforeAll(() => execFileSync(process.execPath, ['scripts/build-site.mjs'], { stdio: 'pipe' }), 30000);
 const page = path => readFileSync(`dist/site/${path}`, 'utf8');
 const published = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.github.version;
 const curseforge = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.curseforge;
 
 describe('edition-specific downloads', () => {
-  it('offers every packaged client and makes the choice available before features', () => {
-    expect(WOW_EDITIONS.map(edition => edition.id)).toEqual([...GAME_EDITIONS]);
+  it('offers the WoW Forever download and section before features', () => {
+    expect(WOW_EDITIONS.map(edition => edition.id)).toEqual(['forever']);
     const home = page('index.html');
     expect(home.indexOf('id="wow-versions"')).toBeLessThan(home.indexOf('id="features"'));
     expect(home).toContain('href="#wow-versions"');
-    // The home page opens with "Which WoW do you play?": each card leads to that edition's hub.
     expect(home.indexOf('id="wow-versions"')).toBeLessThan(home.indexOf('id="paths"'));
-    // Forever-first (companion/active-editions.mjs): only active editions get a card; the others are kept but not offered.
-    for (const edition of WOW_EDITIONS) {
-      if (isEditionActive(edition.id)) expect(home).toContain(`href="/${editionSection(edition.id).slug}/"`);
-      else expect(home).not.toContain(`class="edition-card edition-${edition.id}`);
-    }
+    expect(home).toContain('href="/forever/"');
     expect(home).toContain('class="edition-card edition-forever featured"');
+    for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(home).not.toContain(`edition-card edition-${other}`);
     expect(home).toContain('<span data-edition-none><span data-en="Choose your WoW" data-fr="Choisir votre WoW">Choose your WoW</span></span>');
     expect(home).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
 
-  it.each(WOW_EDITIONS)('keeps $id downloads, metadata and language alternatives together', edition => {
-    const html = page(`editions/${edition.id}/index.html`);
-    expect(html).toContain(`<strong>${edition.name}</strong>`);
-    expect(html).toContain('aria-current="page"');
+  it('keeps the WoW Forever downloads, metadata and language alternatives together', () => {
+    const html = page('editions/forever/index.html');
     const downloads = [...html.matchAll(/href="(https:\/\/github\.com\/[^" ]+\.zip)"/g)].map(match => match[1]);
-    expect(downloads).toEqual(isEditionActive(edition.id) ? ['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`) : []);
-    expect(html.includes('Coming back later')).toBe(!isEditionActive(edition.id));
-    expect(html).toContain(`href="https://guilded.kcaron.top/editions/${edition.id}/?lang=fr"`);
+    expect(downloads).toEqual(['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-forever.zip`));
+    expect(html).toContain('href="https://guilded.kcaron.top/editions/forever/?lang=fr"');
     expect(html).toContain('data-fr="Installer dans le bon dossier de jeu"');
     expect(html).toContain('https://apps.microsoft.com/detail/9N680XX3QFL9');
-    const { slug } = editionSection(edition.id);
-    for (const path of ['/leaderboards/', '/recruitment/', '/players/']) expect(html).toContain(`href="/${slug}${path}"`);
-    expect(html).toContain(`href="/${slug}/"`);
-    if (curseforge.version === published && isEditionActive(edition.id)) {
-      for (const url of Object.values(curseforge.editions?.[edition.id] ?? {})) expect(html).toContain(`href="${url}"`);
-    }
+    for (const path of ['/leaderboards/', '/recruitment/', '/players/']) expect(html).toContain(`href="/forever${path}"`);
+    expect(html).toContain('href="/forever/"');
+    if (curseforge.version === published) for (const url of Object.values(curseforge.editions?.forever ?? {})) expect(html).toContain(`href="${url}"`);
     expect(html).not.toContain('undefined');
     const sitemap = page('sitemap.xml');
-    expect(sitemap).toContain(`https://guilded.kcaron.top/editions/${edition.id}/?lang=fr`);
-    expect(sitemap).toContain(`https://guilded.kcaron.top/editions/${edition.id}/</loc>`);
+    expect(sitemap).toContain('https://guilded.kcaron.top/editions/forever/?lang=fr');
+    expect(sitemap).toContain('https://guilded.kcaron.top/editions/forever/</loc>');
+    for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(sitemap).not.toContain(`/editions/${other}/`);
   });
 
   it('does not label an older CurseForge file as the current GitHub release', () => {
-    const older = { version: '0.0.1', editions: { retail: { guilded: 'https://example.invalid/old-file' } } };
-    const retail = editionPages(published, older).find(page => page.path === 'editions/retail/');
-    expect(retail.body).not.toContain('https://example.invalid/old-file');
+    const older = { version: '0.0.1', editions: { forever: { guilded: 'https://example.invalid/old-file' } } };
+    const forever = editionPages(published, older).find(page => page.path === 'editions/forever/');
+    expect(forever.body).not.toContain('https://example.invalid/old-file');
   });
 
   it('routes edition pages through the Worker for server-rendered French', () => {
@@ -81,7 +70,8 @@ describe('website refresh', () => {
 
   it('lists the public data pages and the guild-page sitemap for search engines', () => {
     const sitemap = page('sitemap.xml');
-    for (const path of ['/forever/leaderboards/', '/retail/recruitment/guilds/', '/tbc/players/', '/officers/', '/forever/', '/mists/']) expect(sitemap).toContain(`<loc>https://guilded.kcaron.top${path}</loc>`);
+    for (const path of ['/forever/leaderboards/', '/forever/recruitment/guilds/', '/forever/players/', '/officers/', '/forever/']) expect(sitemap).toContain(`<loc>https://guilded.kcaron.top${path}</loc>`);
+    for (const slug of ['retail', 'tbc', 'mists', 'classic-era']) expect(sitemap).not.toContain(`guilded.kcaron.top/${slug}/`);
     expect(page('robots.txt')).toContain('Sitemap: https://guilded.kcaron.top/recruitment/guilds/sitemap.xml');
   });
 
@@ -110,9 +100,9 @@ describe('website refresh', () => {
   });
 });
 
-// 29 October 2026: one section per WoW edition, its hub page first.
+// The WoW Forever section, its hub page first.
 describe('edition hubs', () => {
-  it.each(WOW_EDITIONS)('gives $id its own hub: leaderboard first, then download, guilds and first steps', edition => {
+  it.each(WOW_EDITIONS)('gives $id its hub: leaderboard first, then download, guilds and first steps', edition => {
     const { slug } = editionSection(edition.id);
     const html = page(`${slug}/index.html`);
     expect(html).toContain(`<link rel="canonical" href="https://guilded.kcaron.top/${slug}/">`);
@@ -124,17 +114,13 @@ describe('edition hubs', () => {
     expect(html.indexOf('id="download"')).toBeLessThan(html.indexOf('id="community-title"'));
     for (const path of ['leaderboards/', 'leaderboards/guilds/', 'recruitment/guilds/', 'recruitment/', 'players/']) expect(html).toContain(`href="/${slug}/${path}"`);
     const downloads = [...html.matchAll(/href="(https:\/\/github\.com\/[^" ]+\.zip)"/g)].map(match => match[1]);
-    expect(downloads).toEqual(isEditionActive(edition.id) ? ['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`) : []);
-    // Nothing from another edition: no other edition's downloads or data pages.
-    for (const other of WOW_EDITIONS.filter(other => other.id !== edition.id)) {
-      expect(html).not.toContain(`-${other.id}.zip`);
-      expect(html).not.toContain(`href="/${editionSection(other.id).slug}/leaderboards/`);
-    }
+    expect(downloads).toEqual(['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`));
+    for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(html).not.toContain(`-${other}.zip`);
     expect(html).toContain('<summary><span data-en="Playing:" data-fr="Je joue à :">Playing:</span> <strong>');
     expect(html).not.toContain('undefined');
     expect(html.includes('id="dates-title"')).toBe(edition.id === 'forever');
   });
-  it('routes every section through the Worker', () => {
+  it('routes the section and the removed editions\' old sections through the Worker (it redirects them)', () => {
     const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
     for (const slug of ['forever', 'classic-era', 'tbc', 'mists', 'retail']) expect(config.assets.run_worker_first).toEqual(expect.arrayContaining([`/${slug}`, `/${slug}/*`]));
   });

@@ -14,7 +14,7 @@ seul; ajoutez le bot Discord quand votre guilde le souhaite.
 | --- | --- |
 | EP/GP, butin, présences, recettes et donjons, partagés avec la guilde en jeu | Tout ce qui est en jeu, plus les inscriptions de raid, les classements et les sondages dans Discord |
 | Rien à configurer hors de WoW | Les membres se connectent une fois avec le compagnon Windows |
-| [Télécharger pour votre édition de WoW](/editions/?lang=fr) | [Ajouter le bot](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718837849168), puis suivre les étapes ci-dessous |
+| [Télécharger l’addon](/editions/forever/?lang=fr) | [Ajouter le bot](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718837849168), puis suivre les étapes ci-dessous |
 
 ## Lite tout de suite, Guilded complet après approbation
 
@@ -42,7 +42,7 @@ Détails : [guide du bot hébergé](/docs/HOSTED_PILOT.html#fr).
    horaire et les salons voulus. `/setup start status:true` montre ce qui manque encore. Placez le
    rôle de Guilded au-dessus des rôles qu'il doit attribuer.
 3. **Demandez aux membres d'installer l'addon** pour votre édition de WoW :
-   [page de téléchargement](/editions/?lang=fr) et [guide des membres](/docs/MEMBER_INSTALL.html#fr).
+   [page de téléchargement](/editions/forever/?lang=fr) et [guide des membres](/docs/MEMBER_INSTALL.html#fr).
 4. **Après l'approbation, reliez le compagnon.** Les membres installent le
    [compagnon Windows](/companion/?lang=fr) (Microsoft Store d’abord), choisissent *Connexion avec Discord*, puis votre
    serveur. Au moins un officier devrait l'utiliser : les membres qui n'ont que l'addon passent par

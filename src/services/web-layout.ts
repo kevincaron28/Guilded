@@ -1,6 +1,6 @@
 import { PAGE_STYLE } from "./guild-page.js";
 import { currentEdition } from "./edition-context.js";
-import { EDITION_SECTIONS, editionHref } from "../../site/nav.mjs";
+import { editionHref } from "../../site/nav.mjs";
 import { SHARE_CARD, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
 
 // Shared HTML for the bot-served website pages (/recruitment/, /me/, /leaderboards/). Plain
@@ -82,7 +82,3 @@ export function layout(input: LayoutInput): string {
 export const options = (values: readonly { value: string; label: string }[], selected: string | null | undefined) =>
   values.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === (selected ?? "") ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
 
-/** A filter form's WoW version choice, with readable names; the Worker moves the chosen
- * ?edition= into that edition's section (/retail/leaderboards/). */
-export const editionSelect = (lang: Lang) => `<div><label for="edition">${tr(lang)("WoW version", "Version de WoW")}</label><select id="edition" name="edition">`
-  + `${options(EDITION_SECTIONS.map((section) => ({ value: section.id, label: section[lang] })), currentEdition())}</select></div>`;

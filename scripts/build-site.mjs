@@ -5,9 +5,8 @@ import { createHash } from "node:crypto";
 import { marked } from "marked";
 import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwitchHref, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../site/nav.mjs";
 import { WOW_EDITIONS, editionCards, editionHubs, editionPages } from "../site/editions.mjs";
-import { ACTIVE_EDITIONS, editionList, isEditionActive } from "../companion/active-editions.mjs";
 import { POE_ENABLED } from "../companion/active-games.mjs";
-import { buildEverything, keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
+import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
 const origin = "https://guilded.kcaron.top";
@@ -19,7 +18,7 @@ const guideDescriptions = {
   SUPPORT_GUILDED: "Optional coffee support for Guilded. Downloads and hosted access stay free; support never buys approval. English and French information.",
   OWNER_WALKTHROUGH: "Illustrated independent-hosting walkthrough for Guilded owners, with setup prerequisites and checks.",
   QUICK_START: "Choose addon-only play, EPGP or optional Discord sync for Guilded on WoW Forever. English and French quick setup.",
-  MEMBER_INSTALL: `Install Guilded for ${editionList(0)} and connect the optional companion. English and French instructions.`,
+  MEMBER_INSTALL: `Install Guilded for WoW Forever and connect the optional companion. English and French instructions.`,
   EPGP_GUIDE: "Use Guilded EP/GP, core pools, loot methods and standings, with or without Discord. Practical English and French raid workflow.",
   GUILD_OWNER_SETUP: "Configure Guilded roles, permissions and optional Discord synchronization for your own guild.",
   DEPLOY_ORACLE: "Independent Guilded hosting on Ubuntu: prerequisites, installation, maintenance and service checks.",
@@ -42,13 +41,11 @@ writeFileSync(`${out}/_headers`, headersFile);
 // Published provider versions are independent of a local candidate/package bump.
 const { guilded: publishedGuilded, mobile: publishedMobile } = JSON.parse(readFileSync("site/releases.json", "utf8"));
 const version = publishedGuilded.github.version;
-// Forever-first (companion/active-editions.mjs): the chooser, header menu and downloads offer only the active editions.
-// The Start page's edition buttons come from the Forever-first switch, never from the markdown.
+// The Start page's download button (WoW Forever only), never from the markdown.
 const startEditions = french => {
   const query = french ? "?lang=fr" : "";
-  const buttons = WOW_EDITIONS.filter(edition => isEditionActive(edition.id)).map(edition => `<a class="button secondary" href="/editions/${edition.id}/${query}">${edition.name} <span aria-hidden="true">→</span></a>`).join("");
-  const hardcore = isEditionActive("classic-era") ? (french ? "Hardcore utilise le fichier Classic Era. " : "Hardcore uses the Classic Era file. ") : "";
-  return `<div class="start-editions">${buttons}</div><p class="small">${hardcore}${french ? "Fermez WoW avant d’installer." : "Close WoW before you install."}</p>`;
+  const buttons = WOW_EDITIONS.map(edition => `<a class="button secondary" href="/editions/${edition.id}/${query}">${edition.name} <span aria-hidden="true">→</span></a>`).join("");
+  return `<div class="start-editions">${buttons}</div><p class="small">${french ? "Fermez WoW avant d’installer." : "Close WoW before you install."}</p>`;
 };
 const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", version).replaceAll("{{GUILDED_CURSEFORGE_VERSION}}", publishedGuilded.curseforge.version)
   .replaceAll("{{COMPANION_DIRECT_URL}}", publishedGuilded.companionDirect.url).replaceAll("{{COMPANION_DIRECT_VERSION}}", publishedGuilded.companionDirect.version).replaceAll("{{COMPANION_DIRECT_SHA256}}", publishedGuilded.companionDirect.sha256)
@@ -64,7 +61,7 @@ const versionMenu = (path, edition, { french = false, bilingual = false } = {}) 
   const section = editionSection(edition);
   const title = section ? `${label("Playing:", "Je joue à :")} <strong>${label(section.en, section.fr)}</strong>`
     : `<span data-edition-none>${label("Choose your WoW", "Choisir votre WoW")}</span><span data-edition-playing hidden>${label("Playing:", "Je joue à :")} <strong></strong></span>`;
-  return editionMenu({ current: section?.id ?? null, title, label: other => label(other.en, other.fr), href: other => editionSwitchHref(path, other.id), only: ACTIVE_EDITIONS });
+  return editionMenu({ current: section?.id ?? null, title, label: other => label(other.en, other.fr), href: other => editionSwitchHref(path, other.id) });
 };
 const homeNav = versionMenu("/", null, { bilingual: true }) + navLinks({ href: staticHref(""), label: bilingualLabel });
 const homeFooter = footerLinks({ href: staticHref(""), label: bilingualLabel, columnLabel: key => bilingualLabel(FOOTER_COLUMNS[key]), ariaLabel: "Site map" }).replace("<nav ", '<nav data-label-en="Site map" data-label-fr="Plan du site" ');
@@ -133,12 +130,12 @@ for (const source of sources) {
 }
 // Public content is explicitly curated; never import guild/database data here.
 
-// Forever-only focus (companion/active-editions.mjs, companion/active-games.mjs): pages of a held edition or game
-// are not built; the Worker redirects their old addresses (worker/index.mjs). The sources stay in the repo.
+// Pages of another WoW edition or of a held game (companion/active-games.mjs) are not built; the Worker redirects
+// their old addresses (worker/index.mjs).
 const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge), ...editionHubs(version, publishedGuilded.curseforge)].filter(page => keepPage(page)).map(page => withoutPoe(page));
 // The bot-served public pages too, in each edition's section; published guild pages have their
 // own sitemap, served by the bot.
-const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.filter(({ id }) => buildEverything() || isEditionActive(id)).flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
+const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);
   const french = page.lang === "fr";

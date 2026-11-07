@@ -16,6 +16,24 @@ Start one worker session per track with the cheapest model that fits (Haiku: che
 features; Opus: design-heavy or risky changes). Workers open PRs into `main` and report back to you. You review,
 merge, back up, deploy (`deploy/update.sh`), then publish. Real-client testing uses the owner's two PCs by
 desktop control and is coordinated by you. Keep testing in the kevmister28 test server, never spam Québec Gold.
+
+**First priorities (owner, 7 Nov 01:45 UTC):**
+1. **Dungeon cards (item 13) now, not later.** One `#donjons-terminés` post bundled three runs (two Wailing
+   Caverns and one Ragefire Chasm) into one long embed. Post **one card per run** (rendered like the share cards in
+   `src/services/score-card.ts`), with the dungeon image as the background, the party with full names, the time,
+   and a death heat map when positions exist. Keep the boss chronology behind a button or in a thread. Also
+   check the same post for: "HEALER"/"TANK" shown in English capitals for outsiders; "0 lié(s)" while members are
+   tagged; and the "Score de vitesse … Sans cible : calibration" line repeated under every run.
+2. **Nickname sync in Québec Gold still renames nobody.** The owner moved "Guilded bot permissions" above the
+   member ranks (it is at position 44 now, and the bot also has Admin), but the 01:36 UTC run logged nothing for
+   Québec Gold (1323321076478119967). That means it planned no changes: check the member query in
+   `syncNicknames` (status ACTIVE, isTest false, characters with the guild row's `gameEdition`) and
+   `forEachGuildScope` for Québec Gold, add a skipped/eligible count to the log line, and test with
+   `/character nickname` preview if available. The other 3 servers report "I need the Manage Nicknames permission".
+   Also add Manage Nicknames to the bot's invite permissions, and have `/setup` warn when the bot role is below
+   member roles.
+3. A recurring `UnknownError code=50035` (Discord "invalid form body") comes from an interaction handler
+   (`main.ts` ~665). Find which command sends an invalid payload.
 Record every new owner request in this file before working on it. Only you bump the version (next: 9.0.1 for
 fixes, 9.1.0 for features).
 

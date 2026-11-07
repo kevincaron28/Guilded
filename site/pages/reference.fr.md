@@ -93,7 +93,7 @@ suivent sont ses sous-commandes.
 | `/mod` `page` `recruit` `leaderboard` `rankroles` | Page publique de la guilde, recrutement, classements publics, rôles de rang | Officiers |
 | `/report` `inactive` `guild` | Membres inactifs ; santé de la guilde | Officiers |
 | `/organize` | Saisons communautaires, quiz, palmarès, loteries, soirées de jeu, défis | Organisateurs |
-| `/poll` `create` `close` `weekly` | Sondages et question de la semaine | Officiers |
+| `/poll` `create` `close` `weekly` `news` `board` | Sondages, question de la semaine, nouvelles et sondages sur le tableau de guilde en jeu | Officiers |
 | `/events` `board` `reminders` `disable` `status` `refresh` | Tableau des événements à venir et rappels facultatifs | Officiers |
 | `/participation` `settings` `channels` `claims` `review` `reverse` | Réglages de participation, nominations et récompenses | Officiers |
 | `/wow` `add` `channel` `roles` | Ajouter une guilde en jeu ; lier un canal ; régler ses rôles | Officiers |

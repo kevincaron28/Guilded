@@ -11,6 +11,12 @@ in the addon, the race to 60 and the leaderboards, in your guild and on the publ
 profiles of guilded.kcaron.top. Do not install or connect Guilded if you do not want that. The one control left is
 **Delete my data** (below).
 
+One exception is the **guild map in the phone app** (owner decision, 6 November 2026): your companion uploads where
+your own characters were last seen outdoors (zone, map point and time, kept 28 days) and your own calls for help (kept
+7 days). Only signed-in members of your guild see them; they are never public. It is on by default; the **Share my
+position** switch on the phone's Map tab turns it off and deletes every stored position of yours, and officers can turn
+the map off for the server (`/officer roster map`). Delete my data removes them too.
+
 This notice describes Guilded Companion, the Guilded website and the project-hosted
 Guilded service operated by Kevin Caron (Guilded). A guild using its own server has
 its own operator; contact that operator about its hosting and retention choices.
@@ -147,6 +153,13 @@ statistiques, niveaux, équipement et métiers, succès et badges, donjons et sc
 résultats de duels, position sur la carte dans l'addon, la course au 60 et les classements, dans votre guilde et
 sur les classements et profils publics de guilded.kcaron.top. N'installez pas et ne reliez pas Guilded si vous ne
 le souhaitez pas. Le seul contrôle restant est **Supprimer mes données** (ci-dessous).
+
+Une exception : la **carte de la guilde dans l'appli mobile** (décision du propriétaire, 6 novembre 2026). Votre
+compagnon envoie où vos propres personnages ont été vus dehors pour la dernière fois (zone, point sur la carte et heure,
+gardés 28 jours) et vos propres appels à l'aide (gardés 7 jours). Seuls les membres connectés de votre guilde les voient ;
+ils ne sont jamais publics. C'est activé par défaut ; l'interrupteur **Partager ma position** de l'onglet Carte le coupe
+et efface toutes vos positions gardées, et les officiers peuvent couper la carte pour le serveur
+(`/officer roster map`). Supprimer mes données les efface aussi.
 
 Le bilan hebdomadaire facultatif conserve votre horaire, fuseau, heures de silence,
 choix actif/inactif et dernier résultat d'envoi. Un MP Discord est envoyé seulement

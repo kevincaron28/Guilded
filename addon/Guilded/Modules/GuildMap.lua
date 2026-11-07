@@ -11,11 +11,21 @@
 -- message then clears your dot for everyone. Dots fade after 90 s without news.
 --
 -- All map APIs are optional: a client without one of them just shows fewer dots.
+--
+-- Phone map (Track M): the player's own last outdoor position per character (db.mapSeen, every
+-- 30 s) and a short trail (db.mapTrail, one point per 10 minutes, 7 days, at most 40) are saved
+-- for this member's companion to upload. Only signed-in members of the same guild see them in the
+-- phone app; a member who turns sharing off there has them deleted on the bot.
 local addonName, ns = ...
 ns = ns or {}
 
 local PREFIX = "GuildedMap"
 local SEND_MOVING_SECONDS = 5
+local SAVE_SECONDS = 30
+local TRAIL_SECONDS = 600
+local TRAIL_MAX = 40
+local TRAIL_KEEP_SECONDS = 7 * 86400
+local CONTINENT_MAP_TYPE = 2 -- Enum.UIMapType.Continent
 local SEND_IDLE_SECONDS = 30
 local EXPIRE_SECONDS = 90
 -- Moving less than this share of the map is "standing still".
@@ -32,6 +42,7 @@ ns.guildMap = map
 -- Session-only counters: diagnose a one-way connection without saving chat or coordinates.
 local received = { messages = 0, positions = 0, ignored = 0, last = "none" }
 local lastTickAt, lastPositionQueuedAt
+local lastSavedAt, lastTrailAt = -1000, -1000
 
 local function active() return not ns.moduleActive or ns.moduleActive("guildmap") end
 local function secret(value) return ns.isSecret and ns.isSecret(value) end
@@ -163,6 +174,7 @@ function map.tick()
   if not s or not s.mapShare or (ns.compat and ns.compat.inCombat()) then return end
   local mapId, x, y = map.myPosition()
   if not mapId then sayGone(); return end
+  pcall(map.remember, mapId, x, y)
   local now = clock()
   local moved = lastSent.mapId ~= mapId or math.abs(x - (lastSent.x or 0)) > MOVE_THRESHOLD or math.abs(y - (lastSent.y or 0)) > MOVE_THRESHOLD
   local wait = moved and SEND_MOVING_SECONDS or SEND_IDLE_SECONDS
@@ -224,6 +236,61 @@ local function zoneName(mapId)
     if ok and info and type(info.name) == "string" and not secret(info.name) then return info.name end
   end
   return "?"
+end
+
+-- The continent a zone map sits on (walking up its parent maps), and its name; nil when unknown.
+function map.continentOf(mapId)
+  if not (C_Map and C_Map.GetMapInfo) then return nil end
+  local current, steps = mapId, 0
+  local continentType = (Enum and Enum.UIMapType and Enum.UIMapType.Continent) or CONTINENT_MAP_TYPE
+  while type(current) == "number" and current > 0 and steps < 8 do
+    local ok, info = pcall(C_Map.GetMapInfo, current)
+    if not ok or type(info) ~= "table" then return nil end
+    if info.mapType == continentType then
+      local name = type(info.name) == "string" and not secret(info.name) and info.name or nil
+      return current, name
+    end
+    current, steps = info.parentMapID, steps + 1
+  end
+  return nil
+end
+
+local function round4(value) return math.floor(value * 10000 + 0.5) / 10000 end
+local function serverTime()
+  if GetServerTime then
+    local ok, value = pcall(GetServerTime)
+    if ok and type(value) == "number" then return value end
+  end
+  return time()
+end
+
+-- Saves where this character is (at most every 30 s) for the companion to upload; returns the row.
+function map.remember(mapId, x, y, force)
+  local db = ns.getDb and ns.getDb()
+  local name = ns.playerName and ns.playerName()
+  if type(db) ~= "table" or type(name) ~= "string" or name == "" or type(mapId) ~= "number" then return nil end
+  local now = clock()
+  if not force and now - lastSavedAt < SAVE_SECONDS then return nil end
+  lastSavedAt = now
+  local row = { m = mapId, z = zoneName(mapId), x = round4(x), y = round4(y), at = serverTime() }
+  local continent, continentName = map.continentOf(mapId)
+  if continent then
+    local cx, cy = map.translate(mapId, x, y, continent)
+    if cx and cy then row.c, row.cn, row.cx, row.cy = continent, continentName, round4(cx), round4(cy) end
+  end
+  db.mapSeen = type(db.mapSeen) == "table" and db.mapSeen or {}
+  db.mapSeen[name] = row
+  if force or now - lastTrailAt >= TRAIL_SECONDS then
+    lastTrailAt = now
+    local kept, oldest = {}, row.at - TRAIL_KEEP_SECONDS
+    for _, point in ipairs(type(db.mapTrail) == "table" and db.mapTrail or {}) do
+      if type(point) == "table" and (tonumber(point.at) or 0) >= oldest then kept[#kept + 1] = point end
+    end
+    kept[#kept + 1] = { n = name, m = row.m, z = row.z, x = row.x, y = row.y, c = row.c, cn = row.cn, cx = row.cx, cy = row.cy, at = row.at }
+    while #kept > TRAIL_MAX do table.remove(kept, 1) end
+    db.mapTrail = kept
+  end
+  return row
 end
 
 local function classColor(class)

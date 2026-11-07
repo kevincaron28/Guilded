@@ -64,6 +64,8 @@ const apiMethods = new Map([
   ["/api/v1/companion/me", ["GET"]],
   // Phone badge album: the signed-in member's own achievements (read-only).
   ["/api/v1/companion/achievements", ["GET"]],
+  // Track M phone guildmate map (guild members only, never public) and the member's sharing switch.
+  ["/api/v1/companion/guild-map", ["GET", "POST"]],
   ["/api/v1/manage", ["GET", "POST"]],
   // The Windows companion and the phone app both call this on the public site.
   // Characters, guild rank and reserves live here; the other companion routes were already forwarded.

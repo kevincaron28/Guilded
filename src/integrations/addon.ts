@@ -291,6 +291,10 @@ export const addonSnapshotSchema = z.object({
   // 9.1 guild bank requests made in game (Modules/GuildBank.lua): the member's own, applied with
   // their pairing only. Validated row by row on apply (services/guild-bank-member.ts).
   bankRequests: z.array(z.unknown()).max(20).default([]),
+  // Track M phone map (services/guild-map.ts): the uploader's own last-seen positions and calls for help.
+  // Validated row by row on apply, with their pairing only.
+  mapSightings: z.array(z.unknown()).max(100).default([]),
+  helpCalls: z.array(z.unknown()).max(20).default([]),
   // Rows left out because they were malformed (see parseAddonSnapshot); the rest still imports.
   rejected: z.array(z.object({ section: z.string().max(40), label: z.string().max(120), reason: z.string().max(200) })).max(MAX_REJECTED).default([])
 });

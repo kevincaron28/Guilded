@@ -3,7 +3,7 @@ import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
 import { reconcileEvidenceAwards } from "./dungeon-evidence-awards.js";
 import { reconcileSummaries, summarize } from "./public-runs.js";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
-import { currentIntegrityPolicy, integrityWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
+import { currentIntegrityPolicy, integrityRole, integrityWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
 import { gameEditionOf } from "./game-edition.js";
 import { addonName } from "./addon-name.js";
 import { currentEdition } from "./edition-context.js";
@@ -124,6 +124,11 @@ export function firstNameKey(name: string): string { return plain(name).split(" 
 // them, keeping the full name, the longest presence and any known details. A first-name-only entry merges into a
 // full name only when exactly one full name with that first word is compatible (same class, or a class unknown);
 // two different full names sharing a first name are two different people and stay apart.
+/** The role a member held during the run: the one the addon locked while the run was active (the card must not show the role they swapped to afterwards), else the last group role it saw. */
+function cardRole(player: { role?: string | null | undefined; integrity?: unknown }): string | undefined {
+  return integrityRole(player.integrity) ?? dungeonRole(player.role) ?? undefined;
+}
+
 export function dedupeRunPlayers<P extends DungeonRunInput["players"][number]>(players: P[]): P[] {
   const combine = (seen: P, player: P): P => {
     const longer = (player.presentSec ?? 0) > (seen.presentSec ?? 0) ? player : seen;
@@ -540,7 +545,7 @@ export async function importDungeonRuns(
             ?? (!ratingRules.targets[dungeonKey] ? "Target not calibrated"
               : player.presentSec < (durationSec ?? 0) * 0.8 ? `Presence ${Math.floor(100 * player.presentSec / (durationSec || 1))}% / 80% required` : undefined) : undefined;
         return {
-        character: player.character, ...(player.class ? { class: player.class } : {}), ...(player.role ? { role: player.role } : {}),
+        character: player.character, ...(player.class ? { class: player.class } : {}), ...(cardRole(player) ? { role: cardRole(player)! } : {}),
         ...(player.spec ? { spec: player.spec, specSource: "run" as const }
           : character?.spec ? { spec: character.spec, specSource: "profile" as const } : {}),
         deaths: player.deaths ?? null, presentSec: player.presentSec,

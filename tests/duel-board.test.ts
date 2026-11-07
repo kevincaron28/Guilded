@@ -12,7 +12,7 @@ vi.mock("../src/services/guild.js", () => ({ createGuildService: () => ({
 import { DUEL_BOARD_MARKER, duelBoardEmbed, loadDuelBoardData, updateDuelBoard, type DuelBoardData } from "../src/services/duel-board.js";
 
 const row = (name: string, wins: number, losses: number, bestStreak = wins, streak = 1) =>
-  ({ memberId: name, name, wins, losses, games: wins + losses, winRate: wins / (wins + losses), streak, bestStreak });
+  ({ memberId: name, name, score: wins * 10, wins, losses, games: wins + losses, winRate: wins / (wins + losses), streak, bestStreak });
 const data = (over: Partial<DuelBoardData> = {}): DuelBoardData => ({ standings: [], duels: 0, recent: [], edition: "forever", ...over });
 
 describe("duel board embed", () => {
@@ -28,8 +28,8 @@ describe("duel board embed", () => {
   it("lists top duelists with wins, losses, win rate and best streak, and the latest duels", () => {
     const json = duelBoardEmbed(data({ duels: 9, standings: [row("Aria", 5, 1, 4, 3), row("Brom", 2, 4, 2, -2)],
       recent: [{ winner: "Aria", loser: "Brom", endedAt: new Date("2026-11-05T12:00:00Z"), reason: "knockout" }, { winner: "Brom", loser: "Cyd", endedAt: new Date("2026-11-05T11:00:00Z"), reason: "retreat" }] }), "fr", "g1").toJSON();
-    expect(json.description).toContain("🥇 Aria — 5V 1D · 83% · meilleure série 4 · W3");
-    expect(json.description).toContain("🥈 Brom — 2V 4D · 33% · meilleure série 2 · L2");
+    expect(json.description).toContain("🥇 Aria — 50 pts · 5V 1D · 83% · meilleure série 4 · W3");
+    expect(json.description).toContain("🥈 Brom — 20 pts · 2V 4D · 33% · meilleure série 2 · L2");
     expect(json.fields?.[0]?.name).toBe("Derniers duels");
     expect(json.fields?.[0]?.value).toContain("<t:1793880000:R> · **Aria** bat Brom");
     expect(json.fields?.[0]?.value).toContain("gagne (adversaire en fuite) contre Cyd");

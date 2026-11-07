@@ -15,6 +15,7 @@ Every ranking card is drawn by one layout in `src/services/score-card.ts` (`Scor
 | Battlegrounds | `bgLadderCard` (bg-ladder.ts) | one panel per mode and bracket (up to 6), top 10 each | wins, losses, win %, games |
 | Dungeon season | `dungeonSeasonCard` (dungeon-leaderboard.ts) | top 25 | score and dungeons when the season is rated, else points |
 | Guild activity | `activityCard` (guild-activity.ts) | top 25, season (week in `/stats activity`) | dungeons, duels, BGs, total |
+| Top crafters | `craftLadderCard` (craft-ladder.ts) | top 25 in #top-crafters | points (1 per finished craft), crafts in 30 days, main profession |
 | /stats server | `serverStatsCard` (stats-card.ts) | classes by count | bar, characters |
 
 - Class colours for boards that only store a name come from `ladder-classes.ts`: it matches the full name, then the first name. An ambiguous first name gets no colour.

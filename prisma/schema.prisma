@@ -1029,6 +1029,10 @@ model GuildSettings {
   craftOrdersEnabled       Boolean @default(true)
   // Pings to opted-in crafters who know the recipe (/craft notify); officer off switch.
   craftPingsEnabled        Boolean @default(true)
+  // 9.1 (owner, 7 November 2026): the "Top crafters" ladder card (craft-ladder.ts); officer off switch.
+  craftLadderEnabled       Boolean @default(true)
+  craftLadderChannelId     String?
+  craftLadderMessageId     String?
   // Crafter offers (sell a craft) are off until an officer turns them on with /craft offer-setting.
   craftOffersEnabled       Boolean @default(false)
   // Private (officers and raid leaders) channel where gear/readiness checks are posted.
@@ -1523,6 +1527,26 @@ model CraftNotify {
 
   @@unique([memberId, profession])
   @@index([guildId, profession])
+}
+
+// 9.1 (owner, 7 November 2026): the guild's craft history and crafter points. One row per finished
+// craft: from the craft board (requestId, once each) or, later, from in-game orders (source "game").
+// One point per completed craft; `points` is stored so a later weighting never rewrites history.
+model CraftCompletion {
+  id         String   @id @default(cuid())
+  guildId    String
+  crafterId  String
+  item       String
+  quantity   Int      @default(1)
+  profession String?
+  source     String   @default("board")
+  requestId  String?  @unique
+  points     Int      @default(1)
+  doneAt     DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([guildId, doneAt])
+  @@index([crafterId])
 }
 
 // ---------------------------------------------------------------------

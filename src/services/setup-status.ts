@@ -175,13 +175,21 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
   // Every other channel setup can create: optional, each with how to get it.
   const CHANNEL_LABELS: Record<string, string> = {
     coreChannelId: T("Raid roster channel"), readinessChannelId: T("Raid readiness channel"),
-    craftChannelId: T("Craft board channel"), craftOrdersChannelId: T("Craft orders channel"), craftArchiveChannelId: T("Craft archive channel"), applicationChannelId: T("Applications channel"), attendanceChannelId: T("Raid attendance channel"), guideChannelId: T("Bot guide channel"),
+    craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), attendanceChannelId: T("Raid attendance channel"), guideChannelId: T("Bot guide channel"),
     dungeonChannelId: T("Dungeon runs channel"), weeklyReportChannelId: T("WoW weekly report channel"), inviteChannelId: T("Guild invites channel")
   };
   for (const entry of facts.extraChannels ?? []) {
     const label = CHANNEL_LABELS[entry.field];
     if (!label) continue;
     checks.push(channelCheck(lang, label, entry.fact, true, T("Optional: press \"Create missing channels\", or pick an existing channel with the menu below.")));
+  }
+  // 9.1: the crafting extras (orders, archive, top crafters) share one row, so the checklist stays within Discord's limit.
+  const CRAFT_EXTRAS: Record<string, string> = { craftOrdersChannelId: T("Craft orders channel"), craftArchiveChannelId: T("Craft archive channel"), craftLadderChannelId: T("Top crafters channel") };
+  const extras = (facts.extraChannels ?? []).filter((entry) => CRAFT_EXTRAS[entry.field]);
+  if (extras.length) {
+    const missing = extras.filter((entry) => !entry.fact?.exists || !entry.fact.botCanPost).map((entry) => CRAFT_EXTRAS[entry.field]!);
+    checks.push({ label: T("Crafting orders, archive and top crafters channels"), ok: !missing.length, optional: true,
+      fix: missing.length ? `${missing.join(", ")}: ${T("Optional: press \"Create missing channels\", or pick an existing channel with the menu below.")}` : "" });
   }
   if (facts.community) {
     checks.push({

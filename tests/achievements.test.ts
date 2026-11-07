@@ -24,8 +24,8 @@ describe("achievement catalogue", () => {
     }
     expect([...new Set(ACHIEVEMENTS.map(row => row.game))].sort()).toEqual(["guild", "wow"]);
   });
-  it("is version 7: only WoW Forever and guild rows, and every retired id stays out of it for good", () => {
-    expect(ACHIEVEMENT_CATALOGUE_VERSION).toBe(7);
+  it("is version 8: only WoW Forever and guild rows, and every retired id stays out of it for good", () => {
+    expect(ACHIEVEMENT_CATALOGUE_VERSION).toBe(8);
     expect(CATALOGUE_EDITIONS).toEqual(["forever"]);
     for (const row of ACHIEVEMENTS) expect(row.game === "guild" || row.id.startsWith("wow-forever-"), row.id).toBe(true);
     expect(new Set(RETIRED_ACHIEVEMENT_IDS).size).toBe(RETIRED_ACHIEVEMENT_IDS.length);
@@ -118,7 +118,7 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     professionSkill: { findMany: vi.fn(async () => [{ skillLevel: 175 }]) },
     poeLevelReached: { findMany: vi.fn(async () => []) },
     poeMapVisit: { findMany: vi.fn(async () => []) },
-    memberMilestone: { aggregate: vi.fn(async () => ({ _max: { value: null } })) },
+    memberMilestone: { aggregate: vi.fn(async () => ({ _max: { value: null } })), findMany: vi.fn(async () => []) }, craftRequest: { findMany: vi.fn(async () => []) }, recipeKnown: { findMany: vi.fn(async () => []) },
     duelResult: { findMany: vi.fn(async () => [{ winnerId: "m", loserId: "x" }, { winnerId: "m", loserId: "y" }, { winnerId: "m", loserId: "top" }, { winnerId: "z", loserId: "m" }]), groupBy: vi.fn(async () => [{ winnerId: "top", _count: { _all: 9 } }]) },
     memberAchievement: {
       findMany: vi.fn(async () => stored.map(row => ({ ...row }))),

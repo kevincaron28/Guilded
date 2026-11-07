@@ -79,6 +79,7 @@ describe("mobile companion client", () => {
   });
 });
 
+import { groupSets, isNew, parseAlbum } from "./album";
 import { classMix, parseBoards, parsePublicGuild } from "./publicApi";
 
 describe("public boards and guild page", () => {
@@ -98,5 +99,45 @@ describe("public boards and guild page", () => {
     expect(guild.cores[1]!.roster[1]!.role).toBe("DPS");
     expect(classMix(guild)).toEqual([{ className: "Mage", count: 1 }, { className: "Priest", count: 1 }, { className: "Warrior", count: 1 }]);
     expect(() => parsePublicGuild({})).toThrow();
+  });
+});
+
+describe("badge album", () => {
+  const body = { cards: [
+    { id: "a", name: "First", description: "Do it.", tier: "bronze", tierLabel: "Bronze", tierColor: "#cd7f32", set: "Forever", rank: 1, threshold: 1, earnedAt: "2026-11-05T10:00:00.000Z" },
+    { id: "b", name: "Second", description: "Do more.", tier: "weird", tierLabel: "", tierColor: "red", set: "Forever", rank: null, threshold: 5, earnedAt: null },
+    { id: "c", name: "Guild one", description: "", tier: "gold", tierLabel: "Gold", tierColor: "#ffd100", set: "Guild", rank: null, threshold: 1, earnedAt: null },
+    { name: "no id" }
+  ] };
+
+  it("reads cards, drops malformed ones and repairs an unknown tier or colour", () => {
+    const album = parseAlbum(body);
+    expect(album).toMatchObject({ earned: 1, total: 3 });
+    expect(album.cards[1]).toMatchObject({ tier: "bronze", tierLabel: "bronze", tierColor: "#8a8a80" });
+    expect(() => parseAlbum({})).toThrow();
+  });
+
+  it("groups by set with earned cards first, and can show only the unlocked ones", () => {
+    const sets = groupSets(parseAlbum({ cards: [body.cards[1], body.cards[0], body.cards[2]] }).cards);
+    expect(sets.map((set) => [set.name, set.earned, set.cards.map((card) => card.id)])).toEqual([["Forever", 1, ["a", "b"]], ["Guild", 0, ["c"]]]);
+    expect(groupSets(parseAlbum(body).cards, true).map((set) => set.name)).toEqual(["Forever"]);
+  });
+
+  it("marks only cards earned in the last seven days as new", () => {
+    const [first, second] = parseAlbum(body).cards;
+    const day = 24 * 3600 * 1000, at = Date.parse(first!.earnedAt!);
+    expect(isNew(first!, at + day)).toBe(true);
+    expect(isNew(first!, at + 8 * day)).toBe(false);
+    expect(isNew(second!, at)).toBe(false);
+  });
+
+  it("asks the signed-in route for the album with the credential", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const album = await new GuildedClient("https://guilded.kcaron.top", "c".repeat(43)).album("fr");
+    expect(album.total).toBe(3);
+    const call = fetchMock.mock.calls[0] as unknown as [URL, { headers: Record<string, string> }];
+    expect(String(call[0])).toBe("https://guilded.kcaron.top/api/v1/companion/achievements?lang=fr");
+    expect(call[1].headers["x-companion-credential"]).toBe("c".repeat(43));
   });
 });

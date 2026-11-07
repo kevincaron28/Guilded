@@ -450,7 +450,7 @@ Later the same day:
 | Nickname sync uses the member's **server nickname** as the base (not the account name) when they set one, never doubling the `(First Last)` suffix, and follows later nickname changes | Track C | Owner, 6 November evening |
 | Companion checks free disk space before installing or updating (the second PC had 26 MB free) | Track F | From the fresh-PC test |
 | **Maximum sharing, optimal sync:** keep and upload everything guildmates' addons broadcast (Guilded and Guilded Dungeons); login catch-up (store-and-forward) for runs, professions and the roster, so data recorded with no companion online still arrives later; Dungeons-only players relayed; batching, instance queueing, delta uploads; `/guilded sync stats` | Track K | Owner, 6 November evening |
-| Not adopted from Kinfolk | — | Module switches (they contradict always-on), in-game polls/board, class guides |
+| Not adopted from Kinfolk | — | Module switches (they contradict always-on), class guides (the in-game board was built later: docs/GUILD_BOARD.md) |
 
 ### Phases after the features
 
@@ -797,7 +797,8 @@ Worth adopting, most useful first:
 2. **Recruiting kit:** recruit records, editable interview questions, recruiting posts with a shared
    guild cooldown, building on `/mod recruit` and the officer Prospects window.
 3. **Levelling partners:** "near your level and zone" list with a whisper button (folded into B1).
-4. **In-game guild board** for officer posts and polls, mirrored from Discord polls.
+4. **In-game guild board** for officer posts and polls, mirrored from Discord polls. Built 7 November
+   2026 (`docs/GUILD_BOARD.md`): Guild board page, `/poll news`, `/poll board`, votes from the game.
 5. **Per-guild module switches** set by officers (extend the announce off switch).
 6. **Short class notes** labelled confirmed or early advice (low priority, content upkeep).
 

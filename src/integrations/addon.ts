@@ -291,6 +291,11 @@ export const addonSnapshotSchema = z.object({
   // 9.1 guild bank requests made in game (Modules/GuildBank.lua): the member's own, applied with
   // their pairing only. Validated row by row on apply (services/guild-bank-member.ts).
   bankRequests: z.array(z.unknown()).max(20).default([]),
+  // 9.1 in-game guild board (Modules/GuildBoard.lua): the member's own votes, guildmates' votes their
+  // addon heard in game, and officers' news written in game. Validated row by row (services/guild-board.ts).
+  boardVotes: z.array(z.unknown()).max(50).default([]),
+  boardRelayVotes: z.array(z.unknown()).max(200).default([]),
+  boardPosts: z.array(z.unknown()).max(10).default([]),
   // Track M phone map (services/guild-map.ts): the uploader's own last-seen positions and calls for help.
   // Validated row by row on apply, with their pairing only.
   mapSightings: z.array(z.unknown()).max(100).default([]),

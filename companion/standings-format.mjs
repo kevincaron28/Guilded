@@ -210,6 +210,10 @@ export function standingsToLua(data) {
     "-- minimum, and this member's own requests (Modules/GuildBank.lua).",
     ...guildBankToLua(data.bank),
     "",
+    "-- 9.1 in-game guild board: officers' news and the open polls with counts, and this member's own",
+    "-- picks (Modules/GuildBoard.lua). Options and picks are numbered from 1 here, from 0 on the bot.",
+    ...guildBoardToLua(data.board, data.boardVotes, data.updatedAt),
+    "",
     "-- Officers only: names waiting for a guild invite (full Forever names), for the addon's To invite panel.",
     ...(Array.isArray(data.officerInvites) ? [
       `GuildedInvites = { fetchedAt = ${luaString(data.updatedAt ?? "")}, names = {`,
@@ -218,6 +222,25 @@ export function standingsToLua(data) {
     ] : ["GuildedInvites = nil"]),
     ""
   ].join("\n");
+}
+
+// The in-game guild board: at most 5 news posts and 5 polls of 25 options; off when officers turned it off.
+export function guildBoardToLua(board, mine, updatedAt) {
+  if (!board || typeof board !== "object") return ["GuildedBoard = nil"];
+  const at = luaString(typeof updatedAt === "string" ? updatedAt : "");
+  if (board.enabled === false) return [`GuildedBoard = { at = ${at}, off = true }`];
+  const int = (v) => Math.trunc(Number(v) || 0);
+  const epochOrNil = (v) => Number.isSafeInteger(v) && v > 0 ? String(v) : "nil";
+  const news = (Array.isArray(board.news) ? board.news : []).slice(0, 5).filter((n) => n && typeof n.id === "string" && typeof n.text === "string")
+    .map((n) => `  { id = ${luaString(n.id)}, at = ${epochOrNil(n.at)}, by = ${luaString(n.by ?? "")}, text = ${luaString(n.text)}${typeof n.ref === "string" ? `, ref = ${luaString(n.ref)}` : ""} },`);
+  const polls = (Array.isArray(board.polls) ? board.polls : []).slice(0, 5).filter((p) => p && typeof p.id === "string" && Array.isArray(p.opts) && p.opts.length >= 2)
+    .map((p) => {
+      const opts = p.opts.slice(0, 25);
+      const picks = (Array.isArray(mine?.[p.id]) ? mine[p.id] : []).filter((i) => Number.isInteger(i) && i >= 0 && i < opts.length).map((i) => i + 1);
+      return `  { id = ${luaString(p.id)}, q = ${luaString(p.q ?? "")}, max = ${Math.max(1, int(p.max))}, total = ${int(p.total)}, at = ${epochOrNil(p.at)}, closes = ${epochOrNil(p.closes)}, `
+        + `opts = { ${opts.map((o) => luaString(o)).join(", ")} }, counts = { ${opts.map((_, i) => int(p.counts?.[i])).join(", ")} }, mine = { ${picks.join(", ")} } },`;
+    });
+  return [`GuildedBoard = { at = ${at}, news = {`, ...news, "}, polls = {", ...polls, "} }"];
 }
 
 // The guild bank for the addon: at most 400 items, 30 low rows and 15 requests; nothing when absent.

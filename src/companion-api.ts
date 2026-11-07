@@ -48,6 +48,7 @@ import { applyGuildData } from "./services/guild-data.js";
 import { applyGuildBank } from "./services/guild-bank.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
+import { applyBoardVotes, applyRelayedBoardVotes, boardEnabled, boardForAddon, createBoardService, myBoardVotes, parseAddonBoardPosts, parseAddonBoardVotes } from "./services/guild-board.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
@@ -473,19 +474,43 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     const acceptedLedgerRefs = await ledgerRefsFor(database, guild.id, access.memberId);
     const acceptedLootRefs = await lootRefsFor(database, guild.id);
     const standings = (await epgp.getGuildStandings(guild.id, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
+    // 9.1 in-game guild board (guild-board.ts): news and open polls with counts; small and the same for everyone.
+    const board = await boardForAddon(database, guild.id);
     // Shared: the same for every member, so it sets the stamp. Discord events are filtered
     // per member and dungeon/ledger acknowledgements do not change what the addon shows.
     return {
-      shared: { accounts, baseGp, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
+      shared: { accounts, baseGp, board, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
       personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids, ...(promotion ? { promotion } : {}),
         // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
         ...(access.officer ? { officerInvites: inviteListForAddon(await pendingInvites(database, guild.id)) } : {}),
         // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
         bank: await bankForAddon(database, guild.id, access.memberId, !!access.officer),
+        // 9.1 guild board: this member's own picks on the open polls.
+        ...(board.enabled ? { boardVotes: await myBoardVotes(database, guild.id, access.memberId) } : {}),
         publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
       stampOnly: { botRaids }
     };
   }, { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
+}
+
+// The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.
+async function applyGuildBoardUpload(guildId: string, memberId: string, officer: boolean, snapshot: { boardVotes: unknown[]; boardRelayVotes: unknown[]; boardPosts: unknown[];
+  character?: { name: string; displayName?: string | null | undefined } | undefined }, client?: Client): Promise<boolean> {
+  const own = parseAddonBoardVotes(snapshot.boardVotes);
+  const relayed = parseAddonBoardVotes(snapshot.boardRelayVotes, true);
+  const posts = officer ? parseAddonBoardPosts(snapshot.boardPosts) : [];
+  if (!own.length && !relayed.length && !posts.length) return false;
+  if (!await boardEnabled(prisma, guildId)) return false;
+  const polls = new Set([...await applyBoardVotes(prisma, guildId, memberId, own), ...await applyRelayedBoardVotes(prisma, guildId, memberId, relayed)]);
+  const author = snapshot.character?.displayName || snapshot.character?.name || "Officer";
+  const created = posts.length ? await createBoardService(prisma).fromAddon(guildId, memberId, author, posts) : [];
+  if (client && (polls.size || created.length)) {
+    // Loaded only when needed: the poll command module is not part of the API's start-up.
+    const { postGameNews, syncPollById } = await import("./commands/poll.js");
+    for (const pollId of polls) await syncPollById(client, pollId).catch((error: unknown) => console.warn("Poll refresh after game votes failed", error));
+    for (const post of created) await postGameNews(client, guildId, post).catch((error: unknown) => console.warn("Game news post failed", error));
+  }
+  return polls.size > 0 || created.length > 0;
 }
 
 // `client` lets an upload be applied and announced by the bot itself (auto-apply).
@@ -934,6 +959,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (bankRequests.length && pairedMemberId) {
         const created = await createBankService(prisma).fromAddon(guild.id, pairedMemberId, bankRequests).catch((error: unknown) => { console.warn("Bank requests from the addon failed", error); return []; });
         for (const request of created) if (client) await postRequestCard(client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error));
+      }
+      // 9.1 guild board (guild-board.ts): votes made in game, the uploader's own and guildmates' heard in
+      // game; officers' news written in game. Each is idempotent, so a resent upload changes nothing.
+      if (pairedMemberId) {
+        const boardChanged = await applyGuildBoardUpload(guild.id, pairedMemberId, !!access.officer, preview.snapshot, client)
+          .catch((error: unknown) => { console.warn("Guild board upload failed", error); return false; });
+        if (boardChanged) markGuildChanged(guild.id);
       }
       // Track M: the uploader's own last-seen positions and calls for help, for the phone map (guild-map.ts).
       if (pairedMemberId && (preview.snapshot.mapSightings.length || preview.snapshot.helpCalls.length)) {

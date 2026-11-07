@@ -395,3 +395,41 @@ describe("dungeon achievements", () => {
   expect(result.results[0]?.points).toBe(0);
   expect(points).toHaveLength(0);
  });
+
+describe("observer copies of one run", () => {
+  const party = ["Hulke Hogan", "Maxle Druide", "Xaldin", "Shawir", "Crashing Pally"];
+  const known = party.map((name) => ({ name, realm: "Forever", memberId: `m-${name.split(" ")[0]!.toLowerCase()}` }));
+  const reported = (id: string, names: string[], shift: number, length: number) => run(id, { startedAt: start + shift, endedAt: start + shift + length,
+    players: names.map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: length, inGuild: true, level: 20, minLevel: 20 })) });
+  const copies = () => [
+    reported("QG-Hulke", ["Hulke Hogan", "Maxle Druide", "Xaldin Xaldin", "Shawir Forever", "Crashing"], 0, 5225),
+    reported("QG-Maxle", ["Hulke", "Maxle Druide", "Xaldin", "Shawir", "Crashing Pally"], 40, 5177),
+    reported("QG-Crashing", ["Hulke Hogan", "Maxle Druide", "Xaldin Xaldin", "Shawir Forever", "Crashing Pally"], 75, 5809)
+  ];
+  it("stores three observer copies uploaded separately as one run and posts it once", async () => {
+    const { tx, runs } = fakeTx();
+    const results = [];
+    for (const copy of copies()) results.push(...(await importDungeonRuns(tx, "g1", [copy], known, "officer", null, now)).results);
+    expect(runs).toHaveLength(1);
+    expect(results).toHaveLength(1);
+    expect(new Set(runs[0]!.players.map((player) => player.character)).size).toBe(5);
+    expect(results[0]!.players).toHaveLength(5);
+  });
+  it("does the same when all three copies arrive in one upload", async () => {
+    const { tx, runs } = fakeTx();
+    const summary = await importDungeonRuns(tx, "g1", copies(), known, "officer", null, now);
+    expect(runs).toHaveLength(1);
+    expect(summary.results).toHaveLength(1);
+    expect(summary.duplicates).toBe(2);
+  });
+  it("keeps genuinely separate runs apart: another dungeon, or the same one hours later", async () => {
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [copies()[0]!, { ...copies()[1]!, instanceId: 37 }, reported("QG-later", party, 3 * 3600, 5000)], known, "officer", null, now);
+    expect(runs).toHaveLength(3);
+  });
+  it("needs two matching players: a different crew in the same window is a different run", async () => {
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [copies()[0]!, reported("QG-other", ["Hulke Hogan", "Zed", "Liz", "Amy", "Bob"], 60, 5000)], known, "officer", null, now);
+    expect(runs).toHaveLength(2);
+  });
+});

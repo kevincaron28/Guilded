@@ -181,7 +181,7 @@ Each line: what, then the files it would touch.
 8. **Forever achievements beyond professions** (needs an in-game API probe): `addon/Guilded` achievements module, `src/services/achievement-badges.ts`, `docs/plans/FOREVER_ACHIEVEMENTS.md`.
 9. **PoE2 leftovers in code** (`src/services/achievement-badges.ts`, companion hidden markup), unverified since #456, and **availability module deletion** (hidden, not deleted): `src/commands/application.ts`, `autocomplete.ts`, `community.ts`, `craft.ts`, `team.ts`.
 10. **Armory enrichment**: blocked on Blizzard; re-run `scripts/forever-armory-probe.mjs` after Forever patches.
-11. **Jeeves bot research** (asked 5 Nov, never written up): a short comparison of how it now syncs characters and guilds versus Guilded; new `docs/JEEVES_COMPARISON.md`, then rows in this file.
+11. **Jeeves bot research** — written up in `docs/JEEVES_COMPARISON.md` (plan only). Ideas to adopt, plan only: a "reported, not verified" label on characters (`site/`, character-link views); a role-rules preview for officers (`src/commands/setup.ts`, role sync); a "last roster update" line in `/setup status` (`src/commands/setup.ts`, `src/services/guild-data.ts`).
 12. Housekeeping: close superseded PRs #515 and #557.
 
 **First priorities (owner, 7 Nov 01:45 UTC):**

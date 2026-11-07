@@ -241,7 +241,13 @@ local foreverFinalBossNames = {
   [90]  = { "Mekgineer Thermaplugg", "M\195\169kgin\195\169er Thermaplugg" },
   [47]  = { "Charlga Razorflank" },
   [70]  = { "Archaedas" },
-  [3065] = { "Durgen Dirgehammer" }
+  [3065] = { "Durgen Dirgehammer" },
+  -- Forever-only dungeons, from the community guides of 7 Nov 2026 (no saved run yet; English
+  -- names only until a French client reports them). Ruins of Lordaeron's secret boss Viktor
+  -- the Vile and Dalaran's Lyn the Ignored are optional, so they do not end the run.
+  [2999] = { "Rath'mael" },
+  [2998] = { "Relic Guardian" },
+  [2959] = { "Shade of the Archmage" }
 }
 
 local function lowerName(value)

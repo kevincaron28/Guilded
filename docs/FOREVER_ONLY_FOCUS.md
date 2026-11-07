@@ -21,8 +21,8 @@ What stays, on purpose:
 - **Discord channels and roles** created for other editions are not deleted by any command (owner decision); remove
   them by hand in Discord if wanted (`src/setup-names.ts` lists them).
 
-Whether to delete the other editions' stored rows is an open owner decision (stage 7 of the plan); the
-recommendation is to leave them.
+The owner decided to leave the other editions' stored rows in the database (stage 7 of the plan declined,
+7 November 2026).
 
 ## PoE2: the remaining switches
 

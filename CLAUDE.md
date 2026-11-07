@@ -26,7 +26,7 @@ feature).
 Store has 8.4.4.0 live with 8.4.6.0 in certification. Check each provider live before claiming
 status. WoW Forever launched 4 November 2026; its first raids open 9 December.
 Production uses Aiven PostgreSQL; retained Neon configuration is historical.
-Guilded supports WoW Forever only: the other WoW editions are being removed in staged PRs
+Guilded supports WoW Forever only: the other WoW editions were removed on 7 November 2026
 (`docs/plans/FOREVER_ONLY_REMOVAL.md`); stored rows of other editions stay readable and new uploads from them are
 refused (`assertForeverEdition` in `companion/game-edition.mjs`). Message earning covers accessible guild
 channels/threads; officers inspect coverage with `/participation channels`

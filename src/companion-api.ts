@@ -83,6 +83,8 @@ import { createStatsPage } from "./services/stats-page.js";
 import { createGuildBankPage } from "./services/guild-bank-page.js";
 import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
 import { createArtisansGallery } from "./services/artisans-gallery.js";
+import { withDeadline } from "./services/blizzard-items.js";
+import { itemData } from "./item-data.js";
 import { postCraftRequest } from "./commands/craft-board.js";
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
@@ -278,7 +280,7 @@ export function createSiteApp(client?: Client) {
   const roster = createRosterDashboard(rosterStore);
   const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), config.WEB_AVAILABILITY_ENABLED);
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
-  const gallery = createArtisansGallery({ db: prisma, access: guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"),
+  const gallery = createArtisansGallery({ db: prisma, access: guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), items: withDeadline(itemData, 1_500),
     post: async (guildId, requestId, askCrafter) => {
       const record = await prisma.guild.findUnique({ where: { id: guildId }, select: { discordId: true } });
       const discordGuild = record && client ? await client.guilds.fetch(record.discordId).catch(() => null) : null;

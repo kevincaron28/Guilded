@@ -140,7 +140,7 @@ describe("official seasons freeze their public rules", () => {
 describe("leaderboard store reads whole histories", () => {
   it("returns every run past 5,000 rows, newest first for a character", async () => {
     const rows = Array.from({ length: 12_003 }, (_, i) => ({ id: `run${String(i).padStart(6, "0")}`, instanceId: 389, routeKey: "389", difficultyId: 0, dungeonName: "Ragefire Chasm",
-      durationSec: 1000 + (i % 500), startedAt: new Date(START.getTime() - i * 60_000), endedAt: new Date(START.getTime() - i * 60_000 + 1_000_000), deaths: 0, bracket: "15-29",
+      durationSec: 1000 + (i % 500), startedAt: new Date(START.getTime() - i * 60_000), endedAt: new Date(START.getTime() - i * 400_000 + 1_000_000), deaths: 0, bracket: "15-29",
       season: "2026-Q4", confirmations: 1, evidenceVersion: i % 2, completedBy: "final boss", encounters: [],
       players: [{ character: "Kev", realm: "Doomhowl", className: null, role: null, level: 16, minLevel: 16, presentSec: 1000 }] }));
     const queries: { take: number; cursor?: { id: string } }[] = [];

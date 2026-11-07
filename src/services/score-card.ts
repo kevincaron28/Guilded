@@ -17,7 +17,9 @@ export interface CardUnlock { name: string; group: string; detail: string; tier:
 export interface CardProgress { label: string; value: number; max: number; note?: string | undefined }
 export interface CardTierCount { label: string; color: string; count: number }
 /** One bar on the race-to-60 card: `color` is the class colour, `note` a short right-hand text (for example +3 this week). */
-export interface CardRaceBar { name: string; color: string; level: number; max: number; note?: string | undefined; done?: boolean | undefined }
+export interface CardRaceBar { name: string; color: string; level: number; max: number; note?: string | undefined; done?: boolean | undefined;
+  /** Second line under the name: class, race and the linked Discord member. */
+  sub?: string | undefined }
 /**
  * The optional `unlocks` list switches a card to the achievement-unlocked layout (a hero badge for one,
  * a list or grid for several). Every field after `footer` is optional so card definitions queued before
@@ -29,7 +31,7 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   unlocks?: CardUnlock[]; unlocksMore?: number; moreLabel?: string; progress?: CardProgress; tierCounts?: CardTierCount[];
   /** 8.5: the roster picture (class counts by level band + profession grid, roster-visual.ts); switches to its own layout. */
   roster?: RosterVisual; rosterProfessionsLabel?: string;
-  /** Race layout (8.5): class-coloured level bars in two columns, up to 14. */
+  /** Race layout: class-coloured level bars in two columns, up to 30; the image grows with the row count. */
   race?: CardRaceBar[] }
 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
@@ -69,34 +71,40 @@ async function text(markup: string, size: number, maxWidth: number) {
 const span = (color: string, body: string, extra = "") => `<span foreground="${color}"${extra}>${escapeText(body || " ")}</span>`;
 const caps = (color: string, body: string) => span(color, body.toUpperCase(), ' letter_spacing="1800"');
 
-const chrome = (): string[] => {
-  const shapes = [`<rect width="1200" height="630" fill="${th.bg}"/>`, `<rect width="12" height="630" fill="${th.bar}"/>`];
-  if (th.frame) shapes.push(`<rect x="26" y="14" width="1160" height="602" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`, `<rect x="32" y="20" width="1148" height="590" rx="4" fill="none" stroke="${th.edge}" stroke-width="1"/>`);
+const chrome = (height = 630): string[] => {
+  const shapes = [`<rect width="1200" height="${height}" fill="${th.bg}"/>`, `<rect width="12" height="${height}" fill="${th.bar}"/>`];
+  if (th.frame) shapes.push(`<rect x="26" y="14" width="1160" height="${height - 28}" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`, `<rect x="32" y="20" width="1148" height="${height - 40}" rx="4" fill="none" stroke="${th.edge}" stroke-width="1"/>`);
   return shapes;
 };
 
-// The race-to-60 layout: a header, then up to 14 bars (two columns of seven), each filled to level/max in the class colour.
+// The race-to-60 layout: a header, then up to 30 rows in two columns. Each row is the rank and full name in the class colour, a
+// line under it (class, race, Discord member), a level bar filled to level/max, the level and a short note (+3 wk). The image
+// is as tall as its rows need (at least the standard 630).
+export const RACE_ROW_HEIGHT = 54;
 async function renderRace(card: ScoreCard): Promise<Buffer> {
-  const shapes = chrome();
+  const bars = card.race!.slice(0, 30), perColumn = Math.ceil(bars.length / 2), top = 176;
+  const height = Math.max(630, top + perColumn * RACE_ROW_HEIGHT + 66);
+  const shapes = chrome(height);
   const layers: Layer[] = [];
-  const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
-    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
+  const put = async (markup: string, size: number, left: number, topY: number, maxWidth = 1080) => {
+    const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(topY) }); return t;
   };
   await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 36, 1080);
   await put(span(th.ink, clip(card.title, 30)), 54, 60, 62, 1080);
   await put(span(th.muted, clip(card.subtitle, 90)), 23, 60, 132, 1080);
-  const bars = card.race!.slice(0, 14), colW = 520, rowH = 56, top = 180;
+  const colW = 520;
   for (const [i, bar] of bars.entries()) {
-    const col = i < 7 ? 0 : 1, x = 60 + col * (colW + 40), y = top + (i % 7) * rowH;
-    const fraction = Math.max(0, Math.min(1, bar.level / Math.max(1, bar.max))), bx = x + 200, bw = 210;
-    shapes.push(rect(bx, y + 12, bw, 22, "#1a120a", th.edge, 8), `<rect x="${bx}" y="${y + 12}" width="${Math.max(6, Math.round(bw * fraction))}" height="22" rx="8" fill="${bar.color}" fill-opacity="${bar.done ? 1 : 0.85}"/>`);
-    await put(span(bar.color, clip(`${i + 1}. ${bar.name}`, 18)), 22, x, y + 8, 190);
-    await put(span(bar.done ? th.gold : th.ink, String(bar.level)), 22, bx + bw + 12, y + 8, 60);
-    if (bar.note) await put(span(th.muted, clip(bar.note, 14)), 17, bx + bw + 58, y + 12, 130);
+    const col = i < perColumn ? 0 : 1, x = 60 + col * (colW + 40), y = top + (i % perColumn) * RACE_ROW_HEIGHT;
+    const fraction = Math.max(0, Math.min(1, bar.level / Math.max(1, bar.max))), bx = x + 290, bw = 150;
+    shapes.push(rect(bx, y + 6, bw, 20, "#1a120a", th.edge, 8), `<rect x="${bx}" y="${y + 6}" width="${Math.max(6, Math.round(bw * fraction))}" height="20" rx="8" fill="${bar.color}" fill-opacity="${bar.done ? 1 : 0.85}"/>`);
+    await put(span(bar.color, clip(`${i + 1}. ${bar.name}`, 24)), 21, x, y, 285);
+    if (bar.sub) await put(span(th.muted, clip(bar.sub, 34)), 15, x + 22, y + 27, 270);
+    await put(span(bar.done ? th.gold : th.ink, String(bar.level)), 21, bx + bw + 10, y + 2, 50);
+    if (bar.note) await put(span(th.muted, clip(bar.note, 14)), 14, bx, y + 29, 150);
   }
-  shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590);
-  const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
+  shapes.push(`<rect x="60" y="${height - 52}" width="1080" height="1" fill="${th.edge}"/>`);
+  await put(span(th.muted, clip(card.footer, 150)), 17, 60, height - 40);
+  const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="${height}">${shapes.join("")}</svg>`);
   return sharp(base).composite(layers).png().toBuffer();
 }
 

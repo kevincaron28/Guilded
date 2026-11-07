@@ -54,19 +54,26 @@ describe("race board embed and card", () => {
     const rows = [row("Aria", 60, { reachedMaxAt: new Date("2026-11-06T12:00:00Z"), weekGain: 4, discordId: "42" }),
       row("Brom", 41, { weekGain: 9, professions: ["Mining 300", "Herbalism 225", "Cooking 100"], lastSeenAt: new Date("2026-11-06T10:00:00Z") }), row("Cy", 20)];
     const json = raceBoardEmbed(data(rows), "en", "g1", { image: "race.png" }).toJSON();
-    expect(json.description).toContain("Top **3** of **3** characters");
+    expect(json.description).toContain("Top **3** of **3** characters on the card");
     expect(json.description).toContain("**1.** [Aria](<https://worldofwarcraft.blizzard.com/en-us/forever/us/armory?q=Aria>) · Mage Human · **60** ✅ <t:1793966400:d> · <@42>");
     expect(json.description).toContain("**2.** [Brom](<https://worldofwarcraft.blizzard.com/en-us/forever/us/armory?q=Brom>) · Mage Human · **41** ▰▰▰▰▰▱▱▱ 68% · Mining 300, Herbalism 225 · seen <t:1793959200:R>");
     expect(json.description).not.toContain("Cooking");
-    expect(json.fields?.map(f => f.name)).toEqual(["Most levels this week", "Level 60"]);
-    expect(json.fields?.[0]?.value).toBe("Brom +9\nAria +4");
+    expect(json.fields ?? []).toHaveLength(0); // the card carries the weekly gains
     expect(json.image?.url).toBe("attachment://race.png");
+    // without a card (drawing busy) the embed falls back to the full list, gains and count
+    const plain = raceBoardEmbed(data(rows), "en", "g1").toJSON();
+    expect(plain.fields?.map(f => f.name)).toEqual(["Most levels this week", "Level 60"]);
+    expect(plain.fields?.[0]?.value).toBe("Brom +9\nAria +4");
   });
   it("lists only the top N, escapes markdown and stays inside the embed limit", () => {
     const many = Array.from({ length: 40 }, (_, i) => row(i === 0 ? "**Bold**" : `Player${i}`, 59 - i, { professions: ["Alchemy 300", "Herbalism 300"], discordId: "123456789012345678", lastSeenAt: new Date("2026-11-06T10:00:00Z") }));
     const json = raceBoardEmbed(data(many), "en", "g1", { top: 25 }).toJSON();
     expect(json.description?.split("\n").filter(line => /^\*\*\d+\./.test(line))).toHaveLength(25);
     expect(json.description).toContain("Top **25** of **40**");
+    // with the card the embed stays short: the three leaders only
+    const short = raceBoardEmbed(data(many), "en", "g1", { top: 25, image: "race.png" }).toJSON();
+    expect(short.description?.split("\n").filter(line => /^\*\*\d+\./.test(line))).toHaveLength(3);
+    expect(short.description).toContain("Top **25** of **40**");
     expect(json.description).toContain("\\*\\*Bold\\*\\*");
     expect(json.description!.length).toBeLessThanOrEqual(4096);
   });
@@ -83,10 +90,14 @@ describe("race board embed and card", () => {
     expect(json.description!.indexOf("Early")).toBeLessThan(json.description!.indexOf("Late"));
     expect(json.description).not.toContain("Racer");
   });
-  it("draws at most 14 class-coloured bars", () => {
-    const card = raceCard(data(Array.from({ length: 20 }, (_, i) => row(`P${i}`, 50 - i, { weekGain: i === 0 ? 3 : 0 }))), "fr");
-    expect(card.race).toHaveLength(14);
-    expect(card.race?.[0]).toMatchObject({ color: "#69ccf0", level: 50, max: 60, note: "+3 sem." });
+  it("draws the top N class-coloured bars with the class, race and Discord member under each full name", () => {
+    const rows = Array.from({ length: 40 }, (_, i) => row(`Player Number${i}`, 59 - i, { weekGain: i === 0 ? 3 : 0, ...(i === 0 ? { discordId: "42" } : {}) }));
+    const card = raceCard(data(rows), "fr", 25, new Map([["42", "Kev"]]));
+    expect(card.race).toHaveLength(25);
+    expect(card.race?.[0]).toMatchObject({ name: "Player Number0", color: "#69ccf0", level: 59, max: 60, note: "+3 sem.", sub: "Mage · Human · @Kev" });
+    expect(raceCard(data(rows), "en", 12).race).toHaveLength(12);
+    expect(raceCard(data(rows), "en", 99).race).toHaveLength(30);
+    expect(raceCard(data(rows), "en").race?.[0]?.note).toBe("+3 wk");
     expect(card.title).toBe("Course au niveau 60");
   });
 });

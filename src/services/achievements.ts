@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { ACHIEVEMENTS, RETIRED_ACHIEVEMENT_IDS, wowLevelCap, type AchievementDef, type AchievementMetric } from "./achievements-catalogue.js";
+import { ACHIEVEMENTS, CRAFT_PROFESSIONS, RARE_MAX_KNOWN, RARE_MIN_CRAFTERS, RETIRED_ACHIEVEMENT_IDS, wowLevelCap, type AchievementDef, type AchievementMetric } from "./achievements-catalogue.js";
 import { anniversariesAttended, serverCreatedAt } from "./server-anniversary.js";
 
 // Evaluates the catalogue against recorded data and stores what a member newly earned. Viewing is the only
@@ -12,7 +12,11 @@ export interface AchievementFacts {
   /** Per synced character: the level and the cap of its edition. */
   charactersAtCap: number;
   /** Per WoW edition: from the characters of that edition only. */
-  editions: Record<string, { highestLevel: number; atCap: number; profession: number }>;
+  editions: Record<string, { highestLevel: number; atCap: number; profession: number; craftMastered?: number; classesMaxed?: number; firstMaster?: number }>;
+  /** Recipes the member's characters know that few guild characters know (see RARE_MAX_KNOWN). */
+  rareRecipes: number;
+  /** When the member completed craft-board requests for other members. */
+  craftsForGuildmates: Date[];
   dungeonRuns: Date[];
   /** First completion of each distinct dungeon. */
   dungeonVariety: Date[];
@@ -42,7 +46,7 @@ export interface AchievementFacts {
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0, honorableKills: 0, duelWins: 0, duelStreak: 0, beatTopDuelist: 0 });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, rareRecipes: 0, craftsForGuildmates: [], raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0, honorableKills: 0, duelWins: 0, duelStreak: 0, beatTopDuelist: 0 });
 
 function measure(def: AchievementDef, facts: AchievementFacts): { value: number; at: Date | null } {
   const { metric, threshold } = def;
@@ -55,6 +59,11 @@ function measure(def: AchievementDef, facts: AchievementFacts): { value: number;
     case "wowEditionLevel": return { value: edition?.highestLevel ?? 0, at: null };
     case "wowEditionCap": return { value: edition?.atCap ?? 0, at: null };
     case "wowEditionProfession": return { value: edition?.profession ?? 0, at: null };
+    case "craftMastery": return { value: edition?.craftMastered ?? 0, at: null };
+    case "classesMaxed": return { value: edition?.classesMaxed ?? 0, at: null };
+    case "guildFirstMastery": return { value: edition?.firstMaster ?? 0, at: null };
+    case "rareRecipes": return { value: facts.rareRecipes, at: null };
+    case "craftsForGuildmates": return counted(facts.craftsForGuildmates);
     case "dungeonRuns": return counted(facts.dungeonRuns);
     case "dungeonVariety": return counted(facts.dungeonVariety);
     case "professionSkill": return { value: facts.highestProfessionSkill, at: null };
@@ -94,7 +103,7 @@ export function evaluateAchievements(facts: AchievementFacts, now: Date): Achiev
   });
 }
 
-type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement" | "memberMilestone" | "duelResult">;
+type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement" | "memberMilestone" | "duelResult" | "recipeKnown" | "craftRequest">;
 
 const dedupe = <T>(rows: T[], key: (row: T) => string) => { const seen = new Set<string>(); return rows.filter(row => { const k = key(row); if (seen.has(k)) return false; seen.add(k); return true; }); };
 
@@ -105,8 +114,8 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   const founded = member.guild?.discordId ? serverCreatedAt(member.guild.discordId) : null;
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
   const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps, killMilestones, duels, topDuelist] = await Promise.all([
-    db.character.findMany({ where: { memberId, guildId }, select: { level: true, gameEdition: true } }),
-    db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true, character: { select: { gameEdition: true } } }, take: 500 }),
+    db.character.findMany({ where: { memberId, guildId }, select: { level: true, gameEdition: true, name: true, realm: true, className: true } }),
+    db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true, profession: true, character: { select: { gameEdition: true } } }, take: 500 }),
     db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { instanceId: true, endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
     db.raidAttendance.findMany({ where: { memberId, status: { in: ["PRESENT", "LATE", "BENCHED"] }, raid: { guildId, status: "COMPLETED", isTest: false } },
       select: { raidId: true, raid: { select: { endedAt: true, scheduledAt: true, bosses: { select: { status: true } } } } }, take: 1000 }),
@@ -140,6 +149,40 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     if (level >= wowLevelCap(row.gameEdition)) entry.atCap++;
   }
   for (const row of skills) { const entry = forEdition(row.character?.gameEdition); entry.profession = Math.max(entry.profession, row.skillLevel); }
+  // Crafting mastery and classes at the cap, per edition (WoW Forever's Legacy "Tradeskills" and "Classes" challenges).
+  const masteredCrafts = new Map<string, Set<string>>(), classesAtCap = new Map<string, Set<string>>();
+  for (const row of skills) {
+    const key = row.character?.gameEdition ?? "forever", name = (row.profession ?? "").trim().toLowerCase();
+    if (row.skillLevel >= 300 && CRAFT_PROFESSIONS.includes(name)) (masteredCrafts.get(key) ?? masteredCrafts.set(key, new Set()).get(key)!).add(name);
+  }
+  for (const row of characters) {
+    const key = row.gameEdition ?? "forever";
+    if ((row.level ?? 0) >= wowLevelCap(row.gameEdition) && row.className) (classesAtCap.get(key) ?? classesAtCap.set(key, new Set()).get(key)!).add(row.className.trim().toLowerCase());
+  }
+  for (const key of new Set([...masteredCrafts.keys(), ...classesAtCap.keys()])) {
+    const entry = forEdition(key); entry.craftMastered = masteredCrafts.get(key)?.size ?? 0; entry.classesMaxed = classesAtCap.get(key)?.size ?? 0;
+  }
+  // First to 300: the first member Guilded recorded at skill 300 (their stored Artisan 300 row is the earliest in the guild). Sticky once earned.
+  if ((editions["forever"]?.profession ?? 0) >= 300) {
+    const mine = await db.memberAchievement.findUnique({ where: { guildId_memberId_key: { guildId, memberId, key: "wow-forever-profession-300" } }, select: { recordedAt: true } });
+    const earlier = await db.memberAchievement.count({ where: { guildId, key: "wow-forever-profession-300", memberId: { not: memberId }, ...(mine ? { recordedAt: { lt: mine.recordedAt } } : {}) } });
+    forEdition("forever").firstMaster = earlier === 0 ? 1 : 0;
+  }
+  // Rare recipes: known by this member's characters and by at most RARE_MAX_KNOWN guild characters, in a guild with enough recorded crafters.
+  const foreverChars = characters.filter(row => (row.gameEdition ?? "forever") === "forever");
+  let rareRecipes = 0;
+  if (foreverChars.length) {
+    const mineKnown = await db.recipeKnown.findMany({ where: { guildId, OR: foreverChars.map(row => ({ character: { equals: row.name, mode: "insensitive" as const }, realm: { equals: row.realm, mode: "insensitive" as const } })) }, select: { itemKey: true }, take: 3000 });
+    const keys = [...new Set(mineKnown.map(row => row.itemKey))];
+    if (keys.length) {
+      const crafters = await db.recipeKnown.findMany({ where: { guildId }, distinct: ["character", "realm"], select: { character: true }, take: RARE_MIN_CRAFTERS });
+      if (crafters.length >= RARE_MIN_CRAFTERS) {
+        const known = await db.recipeKnown.groupBy({ by: ["itemKey"], where: { guildId, itemKey: { in: keys } }, _count: { _all: true } });
+        rareRecipes = known.filter(row => row._count._all <= RARE_MAX_KNOWN).length;
+      }
+    }
+  }
+  const crafted = await db.craftRequest.findMany({ where: { guildId, crafterId: memberId, requesterId: { not: memberId }, status: "DONE" }, select: { doneAt: true, updatedAt: true }, orderBy: { updatedAt: "asc" }, take: 500 });
   const duelStats = { wins: 0, best: 0, beaten: new Set<string>() };
   for (let run = 0, i = 0; i < duels.length; i++) {
     const won = duels[i]!.winnerId === memberId;
@@ -150,6 +193,8 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     charactersAtCap: characters.filter(row => (row.level ?? 0) >= wowLevelCap(row.gameEdition)).length,
     dungeonRuns: runDates,
     dungeonVariety: dedupe(runDated, row => String(row.run.instanceId)).map(row => row.at),
+    rareRecipes,
+    craftsForGuildmates: crafted.map(row => row.doneAt ?? row.updatedAt),
     highestProfessionSkill: skills.reduce((best, row) => Math.max(best, row.skillLevel), 0),
     editions,
     raidsAttended: raidRows.map(row => row.at).sort(byDate),

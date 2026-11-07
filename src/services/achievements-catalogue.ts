@@ -11,7 +11,7 @@ export type AchievementGame = "wow" | "poe2" | "guild";
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
 
 /** Bumped whenever rows are added that older data can already satisfy; guilds that announce re-baseline quietly once. */
-export const ACHIEVEMENT_CATALOGUE_VERSION = 7;
+export const ACHIEVEMENT_CATALOGUE_VERSION = 8;
 
 /**
  * What is measured:
@@ -37,11 +37,18 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 7;
  * - duelStreak: the longest run of counted duel wins in a row.
  * - beatTopDuelist: 1 once the member has a counted win over the guild's current #1 duelist (who needs 3+ wins).
  * - duelWins: duels the member won against another member of the guild (counted duels only, see services/duels.ts).
+ * - craftMastery / classesMaxed / guildFirstMastery: per edition (def.edition). craftMastery = distinct crafting professions (the six
+ *   non-gathering primaries, CRAFT_PROFESSIONS) at skill 300 across the member's characters; classesMaxed = distinct classes with a
+ *   character at the level cap; guildFirstMastery = 1 when the member was the first in the guild that Guilded recorded at skill 300.
+ * - rareRecipes: recipes the member's characters know that at most RARE_MAX_KNOWN characters in the guild know (needs RARE_MIN_CRAFTERS
+ *   recorded crafters, so a guild's first scans do not make everything rare).
+ * - craftsForGuildmates: craft-board requests the member completed as the crafter for another member.
  * - mvpWeeks: weeks the member was named MVP of the week (the community honors record).
  * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
  *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist";
+export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist"
+  | "craftMastery" | "classesMaxed" | "guildFirstMastery" | "rareRecipes" | "craftsForGuildmates";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -80,7 +87,7 @@ export const EDITION_LABEL: Record<WowEdition, { en: string; fr: string; short: 
  */
 export const CATALOGUE_EDITIONS: readonly WowEdition[] = ["forever"];
 // Highest profession skill per edition (Forever and Era 300, TBC 375, Mists 600). Retail's skill is per expansion, so it has no profession rows.
-const PROFESSION_STEPS: Partial<Record<WowEdition, number[]>> = { forever: [150, 300], "classic-era": [150, 300], "classic-tbc": [150, 300, 375], "classic-mists": [150, 300, 450, 600] };
+const PROFESSION_STEPS: Partial<Record<WowEdition, number[]>> = { forever: [75, 150, 225, 300], "classic-era": [150, 300], "classic-tbc": [150, 300, 375], "classic-mists": [150, 300, 450, 600] };
 /** Two rows share a progression (and a "next" slot) only if they share this key. */
 export const ladderKey = (def: AchievementDef) => `${def.metric}:${def.edition ?? ""}`;
 
@@ -147,6 +154,47 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
 
 const tierFor = (value: number, cap: number): AchievementTier => value >= cap ? "epic" : value / cap >= 0.7 ? "gold" : value / cap >= 0.4 ? "silver" : "bronze";
 
+type CraftStep = { n: number; tier: AchievementTier; en: [string, string]; fr: [string, string] };
+function craftLadder(base: { game: "wow"; edition: WowEdition }, idPrefix: string, metric: AchievementMetric, steps: CraftStep[]): AchievementDef[] {
+  return steps.map((step, i) => ({ ...base, id: `wow-${base.edition}-${idPrefix}-${step.n}`, tier: step.tier, metric, threshold: step.n, rank: i + 1,
+    en: { name: step.en[0], description: step.en[1] }, fr: { name: step.fr[0], description: step.fr[1] } }));
+}
+/** Profession and crafting achievements for WoW Forever (8.5): mastery, guild first, rare recipes, crafts for guildmates, classes. */
+function foreverCraftRows(base: { game: "wow"; edition: WowEdition }): AchievementDef[] {
+  return [
+    ...craftLadder(base, "craft-mastery", "craftMastery", [
+      { n: 1, tier: "silver", en: ["Forever: Master Crafter", "Reach skill 300 in a crafting profession (alchemy, blacksmithing, enchanting, engineering, leatherworking or tailoring)."], fr: ["Forever : maître artisan", "Atteindre la compétence 300 dans un métier d'artisanat (alchimie, forge, enchantement, ingénierie, travail du cuir ou couture)."] },
+      { n: 3, tier: "gold", en: ["Forever: Many Trades", "Reach skill 300 in three different crafting professions across your characters."], fr: ["Forever : touche-à-tout", "Atteindre la compétence 300 dans trois métiers d'artisanat différents avec vos personnages."] },
+      { n: 6, tier: "epic", en: ["Forever: Every Trade", "Reach skill 300 in all six crafting professions across your characters."], fr: ["Forever : tous les métiers", "Atteindre la compétence 300 dans les six métiers d'artisanat avec vos personnages."] }
+    ]),
+    ...craftLadder(base, "guild-first-mastery", "guildFirstMastery", [
+      { n: 1, tier: "legendary", en: ["Forever: First to 300", "Be the first in the guild that Guilded recorded at skill 300 in a profession."], fr: ["Forever : premier à 300", "Être le premier de la guilde, selon Guilded, à atteindre la compétence 300 dans un métier."] }
+    ]),
+    ...craftLadder(base, "rare-recipes", "rareRecipes", [
+      { n: 1, tier: "silver", en: ["Forever: Rare Find", "Know a recipe that at most two guild characters know."], fr: ["Forever : trouvaille rare", "Connaître une recette que deux personnages de la guilde au plus connaissent."] },
+      { n: 5, tier: "gold", en: ["Forever: Recipe Hunter", "Know five recipes that at most two guild characters know."], fr: ["Forever : chasseur de recettes", "Connaître cinq recettes que deux personnages de la guilde au plus connaissent."] },
+      { n: 15, tier: "epic", en: ["Forever: Keeper of Secrets", "Know fifteen recipes that at most two guild characters know."], fr: ["Forever : gardien des secrets", "Connaître quinze recettes que deux personnages de la guilde au plus connaissent."] }
+    ]),
+    ...craftLadder(base, "crafts-for-guildmates", "craftsForGuildmates", [
+      { n: 1, tier: "bronze", en: ["Forever: Helping Hands", "Complete a craft-board request for a guildmate."], fr: ["Forever : coup de main", "Terminer une demande du tableau d'artisanat pour un membre de la guilde."] },
+      { n: 10, tier: "silver", en: ["Forever: Guild Artisan", "Complete 10 craft-board requests for guildmates."], fr: ["Forever : artisan de la guilde", "Terminer 10 demandes du tableau d'artisanat pour des membres de la guilde."] },
+      { n: 50, tier: "epic", en: ["Forever: Workshop of the Guild", "Complete 50 craft-board requests for guildmates."], fr: ["Forever : l'atelier de la guilde", "Terminer 50 demandes du tableau d'artisanat pour des membres de la guilde."] }
+    ]),
+    // Mirrors the Legacy "Classes" challenge (a character of each class at the cap).
+    ...craftLadder(base, "classes-maxed", "classesMaxed", [
+      { n: 3, tier: "silver", en: ["Forever: Three Classes", "Have characters of three different classes at the level cap (60)."], fr: ["Forever : trois classes", "Avoir des personnages de trois classes différentes au niveau maximum (60)."] },
+      { n: 6, tier: "gold", en: ["Forever: Six Classes", "Have characters of six different classes at the level cap (60)."], fr: ["Forever : six classes", "Avoir des personnages de six classes différentes au niveau maximum (60)."] },
+      { n: 9, tier: "epic", en: ["Forever: Every Class", "Have characters of nine different classes at the level cap (60)."], fr: ["Forever : toutes les classes", "Avoir des personnages de neuf classes différentes au niveau maximum (60)."] }
+    ])
+  ];
+}
+
+/** The six non-gathering primary professions (WoW Forever's Legacy "Tradeskills" challenge uses the same six). Lower case. */
+export const CRAFT_PROFESSIONS: readonly string[] = ["alchemy", "blacksmithing", "enchanting", "engineering", "leatherworking", "tailoring"];
+/** A recipe is rare when at most this many guild characters know it, once at least RARE_MIN_CRAFTERS characters have recorded recipes. */
+export const RARE_MAX_KNOWN = 2;
+export const RARE_MIN_CRAFTERS = 5;
+
 /** Per edition: a level step every 10 levels up to that edition's cap (so none is unreachable), the cap, three characters at it, and profession steps. */
 const EDITION_ACHIEVEMENTS: AchievementDef[] = CATALOGUE_EDITIONS.flatMap(edition => {
   const cap = WOW_LEVEL_CAP[edition]!, { short } = EDITION_LABEL[edition], label = EDITION_LABEL[edition];
@@ -170,6 +218,7 @@ const EDITION_ACHIEVEMENTS: AchievementDef[] = CATALOGUE_EDITIONS.flatMap(editio
     en: { name: `${short}: Artisan ${skill}`, description: `Reach skill ${skill} in a profession on a ${label.en} character.` },
     fr: { name: `${short} : artisan ${skill}`, description: `Atteindre la compétence ${skill} dans un métier avec un personnage ${label.fr}.` }
   }));
+  if (edition === "forever") rows.push(...foreverCraftRows(base));
   return rows;
 });
 

@@ -78,7 +78,7 @@ describe("achievements on the website", () => {
     expect((await web.ownerRoute(ctx("/me/achievements.png"), kit))?.status).toBe(401);
     expect(await web.meSection(ctx("/me/"))).toBe("");
   });
-  it("catalogue is large enough to list by game", () => { expect(ACHIEVEMENTS.length).toBe(89); expect(ACTIVE_ACHIEVEMENTS.length).toBe(89); });
+  it("catalogue is large enough to list by game", () => { expect(ACHIEVEMENTS.length).toBe(104); expect(ACTIVE_ACHIEVEMENTS.length).toBe(104); });
   it("lists WoW Forever and guild achievements only, never a retired or other-edition row", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x"), "a".repeat(24));
     const heads = [...html.matchAll(/<h3>([^<]*?) <small>/g)].map(match => match[1]);

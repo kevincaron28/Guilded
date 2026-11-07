@@ -24,8 +24,8 @@ describe("achievement catalogue", () => {
     }
     expect([...new Set(ACHIEVEMENTS.map(row => row.game))].sort()).toEqual(["guild", "wow"]);
   });
-  it("is version 7: only WoW Forever and guild rows, and every retired id stays out of it for good", () => {
-    expect(ACHIEVEMENT_CATALOGUE_VERSION).toBe(7);
+  it("is version 8: only WoW Forever and guild rows, and every retired id stays out of it for good", () => {
+    expect(ACHIEVEMENT_CATALOGUE_VERSION).toBe(8);
     expect(CATALOGUE_EDITIONS).toEqual(["forever"]);
     for (const row of ACHIEVEMENTS) expect(row.game === "guild" || row.id.startsWith("wow-forever-"), row.id).toBe(true);
     expect(new Set(RETIRED_ACHIEVEMENT_IDS).size).toBe(RETIRED_ACHIEVEMENT_IDS.length);
@@ -107,7 +107,9 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
   const stored: Stored[] = [];
   const db = {
     member: { findFirst: vi.fn(async () => ({ discordUserId: "u1" })) },
-    character: { findMany: vi.fn(async () => [{ level: 60, gameEdition: "forever" }]) },
+    character: { findMany: vi.fn(async () => [{ level: 60, gameEdition: "forever", name: "Kev", realm: "Forever", className: "Mage" }]) },
+    recipeKnown: { findMany: vi.fn(async () => []), groupBy: vi.fn(async () => []) },
+    craftRequest: { findMany: vi.fn(async () => []) },
     dungeonRunPlayer: { findMany: vi.fn(async () => [{ runId: "r1", run: { endedAt: day(3), startedAt: null, createdAt: day(3) } }, { runId: "r1", run: { endedAt: day(3), startedAt: null, createdAt: day(3) } }]) },
     raidAttendance: { findMany: vi.fn(async () => [{ raidId: "a", raid: { endedAt: day(6), scheduledAt: day(6), bosses: [{ status: "KILLED" }, { status: "KILLED" }] } }, { raidId: "b", raid: { endedAt: null, scheduledAt: day(7), bosses: [{ status: "KILLED" }, { status: "PENDING" }] } }]) },
     communityParticipationDay: { findMany: vi.fn(async () => [{ day: "2026-10-01", messages: 60, reactions: 4, voiceMs: 7_200_000 }, { day: "2026-10-01", messages: 0, reactions: 0, voiceMs: 0 }, { day: "2026-10-02", messages: 50, reactions: 7, voiceMs: 3_600_000 }]) },
@@ -115,12 +117,13 @@ function fakeDb(overrides: Record<string, unknown> = {}) {
     communityPoint: { aggregate: vi.fn(async () => ({ _sum: { amount: 130 } })), count: vi.fn(async () => 40) },
     epgpTransaction: { aggregate: vi.fn(async () => ({ _sum: { epAmount: 250 } })) },
     communityHonorAward: { findMany: vi.fn(async () => [{ createdAt: day(2) }, { createdAt: day(5) }, { createdAt: day(9) }]) },
-    professionSkill: { findMany: vi.fn(async () => [{ skillLevel: 175 }]) },
+    professionSkill: { findMany: vi.fn(async () => [{ skillLevel: 175, profession: "Alchemy", character: { gameEdition: "forever" } }]) },
     poeLevelReached: { findMany: vi.fn(async () => []) },
     poeMapVisit: { findMany: vi.fn(async () => []) },
     memberMilestone: { aggregate: vi.fn(async () => ({ _max: { value: null } })) },
     duelResult: { findMany: vi.fn(async () => [{ winnerId: "m", loserId: "x" }, { winnerId: "m", loserId: "y" }, { winnerId: "m", loserId: "top" }, { winnerId: "z", loserId: "m" }]), groupBy: vi.fn(async () => [{ winnerId: "top", _count: { _all: 9 } }]) },
     memberAchievement: {
+      findUnique: vi.fn(async () => null), count: vi.fn(async () => 0),
       findMany: vi.fn(async () => stored.map(row => ({ ...row }))),
       createMany: vi.fn(async ({ data }: { data: Stored[] }) => { let count = 0; for (const row of data) if (!stored.some(s => s.key === row.key && s.memberId === row.memberId)) { stored.push(row); count += 1; } return { count }; })
     },
@@ -275,5 +278,52 @@ describe("MVP of the week achievements", () => {
     const earned = results.filter(r => r.def.metric === "mvpWeeks" && r.earned);
     expect(earned.map(r => r.def.id)).toEqual(["mvp-weeks-1", "mvp-weeks-3"]);
     expect(earned[1]!.earnedAt).toEqual(at(15));
+  });
+  describe("profession and crafting achievements (Forever)", () => {
+    it("steps 75/150/225/300 and the six crafting professions are measured", async () => {
+      const { db } = fakeDb({ professionSkill: { findMany: vi.fn(async () => [
+        { skillLevel: 300, profession: "Alchemy", character: { gameEdition: "forever" } },
+        { skillLevel: 300, profession: "Tailoring", character: { gameEdition: "forever" } },
+        { skillLevel: 300, profession: "Cooking", character: { gameEdition: "forever" } },
+        { skillLevel: 230, profession: "Mining", character: { gameEdition: "forever" } }]) } });
+      const view = await syncMemberAchievements(db, "g", "m", now);
+      const got = (id: string) => view.results.find(row => row.def.id === id);
+      for (const id of ["wow-forever-profession-75", "wow-forever-profession-150", "wow-forever-profession-225", "wow-forever-profession-300", "wow-forever-craft-mastery-1"]) expect(got(id)?.earned, id).toBe(true);
+      // Cooking is not a crafting profession in this ladder, so two of the six do not reach "Many Trades" (3).
+      expect(got("wow-forever-craft-mastery-1")?.value).toBe(2);
+      expect(got("wow-forever-craft-mastery-3")?.earned).toBe(false);
+      expect(got("wow-forever-guild-first-mastery-1")?.earned).toBe(true);
+    });
+    it("is not first to 300 when another member's 300 was recorded earlier", async () => {
+      const { db } = fakeDb({
+        professionSkill: { findMany: vi.fn(async () => [{ skillLevel: 300, profession: "Alchemy", character: { gameEdition: "forever" } }]) },
+        memberAchievement: { findUnique: vi.fn(async () => null), count: vi.fn(async () => 1), findMany: vi.fn(async () => []), createMany: vi.fn(async () => ({ count: 0 })) } });
+      const view = await syncMemberAchievements(db, "g", "m", now);
+      expect(view.results.find(row => row.def.id === "wow-forever-guild-first-mastery-1")?.earned).toBe(false);
+    });
+    it("counts only rare recipes, and only once the guild has enough recorded crafters", async () => {
+      const known = [{ itemKey: 1 }, { itemKey: 2 }, { itemKey: 3 }];
+      const recipeKnown = (crafters: number) => ({
+        findMany: vi.fn(async (arg: { distinct?: string[] }) => arg.distinct ? Array.from({ length: crafters }, (_, i) => ({ character: "C" + i })) : known),
+        groupBy: vi.fn(async () => [{ itemKey: 1, _count: { _all: 1 } }, { itemKey: 2, _count: { _all: 2 } }, { itemKey: 3, _count: { _all: 9 } }]) });
+      const rare = async (crafters: number) => (await syncMemberAchievements(fakeDb({ recipeKnown: recipeKnown(crafters) }).db, "g", "m", now)).results.find(row => row.def.id === "wow-forever-rare-recipes-1")!;
+      expect((await rare(8)).value).toBe(2);
+      expect((await rare(8)).earned).toBe(true);
+      expect((await rare(2)).value).toBe(0);
+    });
+    it("counts crafts done for other members, dated by when they were done", async () => {
+      const { db } = fakeDb({ craftRequest: { findMany: vi.fn(async () => Array.from({ length: 10 }, (_, i) => ({ doneAt: day(i + 1), updatedAt: day(i + 1) }))) } });
+      const view = await syncMemberAchievements(db, "g", "m", now);
+      const crafts = (n: number) => view.results.find(row => row.def.id === "wow-forever-crafts-for-guildmates-" + n)!;
+      expect(crafts(1).earned).toBe(true); expect(crafts(10).earned).toBe(true); expect(crafts(50).earned).toBe(false);
+      expect(crafts(10).earnedAt).toEqual(day(10));
+    });
+    it("counts distinct classes at the level cap", async () => {
+      const chars = [["Mage", 60], ["Priest", 60], ["Mage", 60], ["Rogue", 59], ["Druid", 60]].map(([className, level], i) => ({ level, gameEdition: "forever", name: "C" + i, realm: "Forever", className }));
+      const view = await syncMemberAchievements(fakeDb({ character: { findMany: vi.fn(async () => chars) } }).db, "g", "m", now);
+      expect(view.results.find(row => row.def.id === "wow-forever-classes-maxed-3")?.value).toBe(3);
+      expect(view.results.find(row => row.def.id === "wow-forever-classes-maxed-3")?.earned).toBe(true);
+      expect(view.results.find(row => row.def.id === "wow-forever-classes-maxed-6")?.earned).toBe(false);
+    });
   });
 });

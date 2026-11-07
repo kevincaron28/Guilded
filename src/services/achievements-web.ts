@@ -12,7 +12,7 @@ import type { WebContext, WebRoute } from "./web-app.js";
 // public player page. The public page shows what is already stored; only the signed-in owner's /me/
 // view evaluates (and records) newly earned ones. Guilds the site does not serve are never included.
 
-type Db = Pick<PrismaClient, "webAccount" | "guildSettings" | "member" | "memberAchievement" | "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "memberMilestone" | "duelResult">;
+type Db = Pick<PrismaClient, "webAccount" | "guildSettings" | "member" | "memberAchievement" | "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "memberMilestone" | "duelResult" | "recipeKnown" | "craftRequest">;
 export interface AchievementProgress { earnedAt: Date | null; value: number }
 
 export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) => boolean) {

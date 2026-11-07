@@ -68,7 +68,8 @@ const SINGLE_GLYPH: Record<string, GlyphName> = {
 };
 /** One glyph per achievement id. The test suite requires every catalogue id to appear here. */
 const EDITION_LEVEL_GLYPH: Record<WowEdition, GlyphName> = { forever: "flame", "classic-era": "shield", "classic-tbc": "gem", "classic-mists": "tower", retail: "crown" };
-const editionGlyph = (def: AchievementDef): GlyphName => def.metric === "wowEditionCap" ? "stars" : def.metric === "wowEditionProfession" ? (def.threshold >= 300 ? "anvil" : "hammer") : EDITION_LEVEL_GLYPH[def.edition!];
+const CRAFT_GLYPH: Partial<Record<AchievementMetric, GlyphName>> = { craftMastery: "medal", guildFirstMastery: "crown", rareRecipes: "gem", craftsForGuildmates: "heart", classesMaxed: "banner" };
+const editionGlyph = (def: AchievementDef): GlyphName => CRAFT_GLYPH[def.metric] ?? (def.metric === "wowEditionCap" ? "stars" : def.metric === "wowEditionProfession" ? (def.threshold >= 300 ? "anvil" : "hammer") : EDITION_LEVEL_GLYPH[def.edition!]);
 const ladderGlyph = (def: AchievementDef): GlyphName => {
   const glyph = (LADDER_GLYPH as Partial<Record<AchievementMetric, GlyphName>>)[def.metric];
   if (!glyph) throw new Error(`Achievement ${def.id} has no badge glyph: add its metric to LADDER_GLYPH or its id to SINGLE_GLYPH`);

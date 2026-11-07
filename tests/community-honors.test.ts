@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { Collection, type Guild } from "discord.js";
+import { weeklyRookie } from "../src/services/monthly-rookie.js";
 import { cacheAllMembers } from "../src/services/member-cache.js";
 import type { CommunityHonors, PrismaClient } from "../src/generated/prisma/client.js";
 import { adoptCommunityHonors, advanceCommunityHonors, configureCommunityHonors, honorsHistoryMessage, honorsWeekDue, honorsWeekOf, honorsWindow, monthlyHonorsMessage, podiumPlaces, previewCommunityHonors, syncCommunityHonorRoles, trySyncHonorRoles, honorRolesBlocked, weeklyHonorsMessage, weeklyMvps } from "../src/services/community-honors.js";
@@ -388,5 +389,32 @@ describe("honors member loading", () => {
     list.mockResolvedValueOnce(page(0, 1000)).mockResolvedValueOnce(page(1000, 200));
     await cacheAllMembers({ memberCount: 1200, members: { cache: new Collection(), list } } as never);
     expect(list.mock.calls.map(([options]) => options)).toEqual([{ limit: 1000, cache: true }, { limit: 1000, after: "m999", cache: true }]);
+  });
+});
+
+describe("weeklyRookie", () => {
+  const end = new Date("2026-11-09T00:00:00Z"), days = (n: number) => new Date(end.getTime() - n * 86_400_000);
+  function tx(won: string[] = [], tests: string[] = []) {
+    const memberships = new Map<string, Date>();
+    return {
+      communityHonorAward: { findMany: async () => won.map(userId => ({ userId })) },
+      member: { findMany: async () => tests.map(discordUserId => ({ discordUserId })) },
+      communityRookieMembership: {
+        upsert: async ({ where, create }: { where: { guildId_userId: { userId: string } }; create: { joinedAt: Date } }) => { if (!memberships.has(where.guildId_userId.userId)) memberships.set(where.guildId_userId.userId, create.joinedAt); },
+        updateMany: async () => ({ count: 0 }),
+        findUniqueOrThrow: async ({ where }: { where: { guildId_userId: { userId: string } } }) => ({ joinedAt: memberships.get(where.guildId_userId.userId)! })
+      }
+    } as never;
+  }
+  const board = [{ userId: "vet", points: 90 }, { userId: "new1", points: 40 }, { userId: "new2", points: 55 }, { userId: "past", points: 70 }, { userId: "tester", points: 80 }] as never;
+  const joined: Record<string, Date | null> = { vet: days(400), new1: days(3), new2: days(10), past: days(5), tester: days(2) };
+
+  it("picks the highest-scoring member who joined in the last 30 days, skipping past winners and test members", async () => {
+    const winner = await weeklyRookie(tx(["past"], ["tester"]), "g", end, board, async id => joined[id] ?? null);
+    expect(winner).toMatchObject({ userId: "new2", points: 55 });
+  });
+  it("returns null when nobody new earned points, or members are gone", async () => {
+    expect(await weeklyRookie(tx(), "g", end, [{ userId: "vet", points: 5 }] as never, async id => joined[id] ?? null)).toBeNull();
+    expect(await weeklyRookie(tx(), "g", end, board, async () => null)).toBeNull();
   });
 });

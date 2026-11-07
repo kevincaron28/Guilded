@@ -2339,14 +2339,26 @@ local function buildPanel()
     if ns.guildPanel and ns.guildPanel.tab then ns.guildPanel.tab:SetChecked(false) end
     ui.lastOfficer = nil
   end
+  -- The game also runs OnHide when the window the panel sits in (the guild window) is closed, and
+  -- then the panel's own "shown" flag is still set. Putting it back on UIParent in that state made
+  -- it appear again on its own, with the guild window gone (P0, 7 November: "can't close it").
+  -- So the panel is hidden for real first, then moved.
+  local function hiddenThenRestore()
+    if panel:IsShown() then panel:Hide() end
+    restoreUndocked()
+  end
   panel:HookScript("OnHide", function()
     if ui.scope == "main" then return end
     if ns.util.inCombat() then
       -- If the panel was shown again before combat ended, leave it where it is.
-      ns.util.afterCombat("guilded-panel-restore", function() if not panel:IsShown() then restoreUndocked() end end)
+      ns.util.afterCombat("guilded-panel-restore", function()
+        local host = ui.guildHost
+        local seen = panel:IsShown() and (not host or host:IsShown())
+        if not seen then hiddenThenRestore() end
+      end)
       return
     end
-    restoreUndocked()
+    hiddenThenRestore()
   end)
 
   -- Shift-clicking an item normally inserts its link into chat; also put it

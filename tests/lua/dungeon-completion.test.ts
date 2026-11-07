@@ -202,6 +202,13 @@ describe("dungeon final-boss completion without the Encounter Journal", () => {
     expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].state")).toBe("COMPLETED");
     expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].encounters[1].name")).toBe(boss);
   });
+  it.each([[2999, "Rath'mael"], [2998, "Relic Guardian"], [2959, "Shade of the Archmage"]])("completes Forever dungeon %s on its final boss %s by name", (instance, boss) => {
+    const s = activeRun();
+    s.run(`INSTANCE.id=${instance}; GuildedDB.dungeon.current.instanceId=${instance}
+      fire_event("BOSS_KILL",987,${JSON.stringify(boss)})`);
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].state")).toBe("COMPLETED");
+    expect(s.run("return GuildedDB.dungeon.runs[RUN_ID].completedBy")).toBe("final boss");
+  });
   it("times wipes and kills, deduplicates both kill events, and survives module reload", () => {
     const s = activeRun();
     s.run('fire_event("ENCOUNTER_START", 3493, "First boss"); STAMP = STAMP + 30; fire_event("ENCOUNTER_END", 3493, "First boss", 1, 5, 0)');

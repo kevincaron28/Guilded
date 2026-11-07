@@ -4,7 +4,7 @@
 // stays authoritative. Every text is an English key (with {0} slots) the window translates.
 
 /**
- * @param {{ config?: any, state?: any, hub?: any, me?: any, problems?: { id: string }[], savedFile?: any }} input
+ * @param {{ config?: any, state?: any, hub?: any, me?: any, problems?: { id: string }[], savedFile?: any, autoTried?: boolean }} input
  */
 export function linkWizard({ config = {}, state = {}, hub = null, me = null, problems = [], savedFile = null, autoTried = false } = {}) {
   const signedIn = Boolean(config.companionCredential);

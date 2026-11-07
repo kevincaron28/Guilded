@@ -1,5 +1,5 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, ChannelType, MessageFlags, SlashCommandBuilder,
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, SlashCommandBuilder,
   type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember
 } from "discord.js";
 import { prisma } from "../database.js";
@@ -7,16 +7,15 @@ import { hasPermission } from "../permissions.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { formatRosterGaps, inviteLines, loadRosterGaps } from "../services/roster-gaps.js";
 import { DEFAULT_NICKNAME_FORMAT, NICKNAME_FORMAT_HELP, botCanRename, restoreAllNicknames, syncNicknames, validNicknameFormat } from "../services/nickname-sync.js";
-import { updateWhosWhoBoard } from "../services/whos-who-board.js";
 import { asLang } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 
 // Mounted as /officer roster. Officer-only, every reply private. Nothing here messages anyone on its own:
-// the "ask them to link" button is an officer's click, nicknames and the Who's who board are off until switched on.
+// the "ask them to link" button is an officer's click. (The Who's who board was retired in 9.0.2.)
 
 export const rosterCommand = new SlashCommandBuilder()
   .setName("roster")
-  .setDescription("Who is missing, nicknames, Who's who.")
+  .setDescription("Who is missing and nicknames.")
   .addSubcommand((sub) => sub.setName("gaps").setDescription("Discord-only members, unlinked members, unclaimed characters."))
   .addSubcommand((sub) => sub.setName("ignore").setDescription("Leave a role out of the gap lists.")
     .addRoleOption((o) => o.setName("role").setDescription("The role"))
@@ -25,9 +24,6 @@ export const rosterCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("on").setDescription("On or off (off restores nicknames)"))
     .addStringOption((o) => o.setName("format").setDescription("{name} ({full}); {main} = first name").setMaxLength(60))
     .addBooleanOption((o) => o.setName("apply").setDescription("Run now (default: preview)")))
-  .addSubcommand((sub) => sub.setName("whoswho").setDescription("One message listing mains and alts.")
-    .addBooleanOption((o) => o.setName("on").setDescription("On or off"))
-    .addChannelOption((o) => o.setName("channel").setDescription("Channel").addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)))
   .addSubcommand((sub) => sub.setName("map").setDescription("Phone guildmate map.")
     .addBooleanOption((o) => o.setName("on").setDescription("On or off")));
 
@@ -116,21 +112,6 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
         "La carte des membres est **désactivée** : personne ne la voit et les nouvelles positions ne sont pas gardées. Active-la avec `on:true`."));
     return;
   }
-
-  // whoswho
-  const on = interaction.options.getBoolean("on");
-  const channel = interaction.options.getChannel("channel");
-  if (on !== null || channel) {
-    const data = { ...(on !== null ? { whosWhoEnabled: on } : {}), ...(channel ? { whosWhoChannelId: channel.id, whosWhoMessageId: null } : {}) };
-    await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, ...data }, update: data });
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const posted = on === false ? false : await updateWhosWhoBoard(interaction.guild);
-    await interaction.editReply(on === false ? t("Who's who board is off (the message stays where it is).", "Le tableau Qui est qui est désactivé (le message reste en place).")
-      : posted ? t("Who's who board is on and posted.", "Le tableau Qui est qui est actif et publié.") : t("Saved, but I could not post in that channel. Check my permissions there.", "Enregistré, mais je n'ai pas pu publier dans ce salon. Vérifie mes permissions."));
-    return;
-  }
-  const where = settings?.whosWhoChannelId ?? settings?.guideChannelId;
-  await reply(settings?.whosWhoEnabled === false ? t("Who's who board is off. Use `on:true`.", "Le tableau Qui est qui est désactivé. Utilise `on:true`.") : where ? t(`Who's who board is on in <#${where}>. Pick another channel with \`channel:\`.`, `Le tableau Qui est qui est actif dans <#${where}>. Choisis un autre salon avec \`channel:\`.`) : t("Who's who board is on but has no channel yet. Use `channel:#…`.", "Le tableau Qui est qui est actif mais sans salon. Utilise `channel:#…`."));
 }
 
 /** The buttons under /officer roster gaps. Each click re-checks the clicker's current officer role. */

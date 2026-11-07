@@ -21,9 +21,11 @@ export async function announceVersionUpdates(client: Client, currentVersion = CU
     where: { ...pilotGuildScope, guideChannelId: { not: null }, lastAnnouncedVersion: { not: currentVersion } },
     include: { guild: true }
   });
+  // Test servers are marked as seen but not told (they are the owner's; the console shows the version).
   let posted = 0;
   for (const settings of pending) {
     await prisma.guildSettings.update({ where: { id: settings.id }, data: { lastAnnouncedVersion: currentVersion } });
+    if (settings.guild.isTestServer) continue;
     try {
       const discordGuild = await client.guilds.fetch(settings.guild.discordId);
       const channel = await discordGuild.channels.fetch(settings.guideChannelId ?? "");

@@ -55,6 +55,15 @@ describe("nickname plan", () => {
     const none = { originalNickname: null, appliedNickname: "Kevin (Halidor Galemorne)", optedOut: false };
     expect(planNicknames([person({ nickname: "Kevin (Halidor Galemorne)", mainName: "Aria Stone", record: none })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Aria Stone)", originalNickname: null }]);
   });
+  it("replaces a character the member typed in parentheses with our format (owner, 7 Nov)", () => {
+    const chars = ["Halidor Galemorne", "Zélie Brightwater"];
+    // Their own "(alt)", or the main typed differently (case, accents, first name only): our "(Main)" replaces it.
+    expect(planNicknames([person({ nickname: "Kev (Zelie)", characterNames: chars })])).toEqual([{ discordUserId: "u1", nickname: "Kev (Halidor Galemorne)", originalNickname: "Kev" }]);
+    expect(planNicknames([person({ nickname: "Kev (zélie brightwater)", characterNames: chars })])[0]).toMatchObject({ nickname: "Kev (Halidor Galemorne)" });
+    expect(planNicknames([person({ nickname: "Kev(HALIDOR)", characterNames: chars })])[0]).toMatchObject({ nickname: "Kev (Halidor Galemorne)" });
+    // Anything else in parentheses is theirs and stays.
+    expect(planNicknames([person({ nickname: "Kev (he/him)", characterNames: chars })])[0]).toMatchObject({ nickname: "Kev (he/him) (Halidor Galemorne)" });
+  });
   it("treats a nickname the member changed to between syncs as their new base and original", () => {
     const applied = { originalNickname: "Kev", appliedNickname: "Kev (Halidor Galemorne)", optedOut: false };
     expect(planNicknames([person({ nickname: "Chief", record: applied })])).toEqual([{ discordUserId: "u1", nickname: "Chief (Halidor Galemorne)", originalNickname: "Chief" }]);

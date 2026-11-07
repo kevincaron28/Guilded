@@ -47,15 +47,18 @@ export function nicknameFor(baseName: string, mainName: string, format = DEFAULT
 }
 
 /**
- * Removes a trailing "(...)" that is the main character's name (full, first, or "First L." short form) so a nickname the
- * member kept from our rename can never double up. Anything else in parentheses is theirs and stays.
+ * Removes a trailing "(...)" that names one of the member's characters (full, first, or "First L." short form; case and
+ * accents ignored), so our "(Main)" replaces it and can never double up. That covers a nickname kept from our rename and a
+ * character the member typed in parentheses themselves (owner request, 7 Nov). Anything else in parentheses is theirs.
  */
+const fold = (value: string) => value.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().replace(/\s+/g, " ").toLowerCase();
+
 export function stripMainSuffix(nickname: string, mainName: string | null, earlier: readonly (string | null | undefined)[] = []): string {
   const clean = nickname.replace(/[\p{Cc}]/gu, " ").replace(/\s+/g, " ").trim();
   if (!mainName && !earlier.length) return clean;
   const forms = new Set<string>();
   for (const name of [mainName, ...earlier]) {
-    const main = (name ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+    const main = fold(name ?? "");
     if (!main) continue;
     const words = main.split(" ");
     forms.add(main); forms.add(words[0]!); forms.add(words.length > 1 ? `${words[0]} ${words[words.length - 1]!.charAt(0)}.` : main);
@@ -63,7 +66,7 @@ export function stripMainSuffix(nickname: string, mainName: string | null, earli
   let current = clean;
   for (;;) {
     const match = /^(.*?)\s*\(([^()]*)\)$/u.exec(current);
-    if (!match || !forms.has(match[2]!.trim().toLowerCase())) return current;
+    if (!match || !forms.has(fold(match[2]!))) return current;
     current = match[1]!.trim();
   }
 }
@@ -75,6 +78,8 @@ export interface NicknamePerson {
   /** Current server nickname (null: none). */
   nickname: string | null;
   mainName: string | null;
+  /** Every character of the member in this edition: a trailing "(...)" naming any of them gives way to our suffix. */
+  characterNames?: readonly string[];
   skip: boolean;
   record: { originalNickname: string | null; appliedNickname: string | null; optedOut: boolean } | null;
 }
@@ -89,7 +94,7 @@ export function planNicknames(people: readonly NicknamePerson[], format = DEFAUL
     // is dropped before reuse, so the suffix can never double.
     const ours = person.record?.appliedNickname != null && person.nickname === person.record.appliedNickname;
     // A main that changed since our last rename leaves the old "(Main)" behind: it is stripped too.
-    const earlier = [person.record?.appliedNickname?.match(/\(([^()]*)\)$/u)?.[1]];
+    const earlier = [person.record?.appliedNickname?.match(/\(([^()]*)\)$/u)?.[1], ...(person.characterNames ?? [])];
     const raw = (ours ? person.record!.originalNickname : person.nickname)?.trim();
     const own = raw ? stripMainSuffix(raw, person.mainName, earlier) : "";
     const original = own || null;
@@ -162,7 +167,7 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
     const discordMember = guild.members.cache.get(member.discordUserId) ?? await guild.members.fetch(member.discordUserId).catch(() => null);
     if (!discordMember) { stats.notInServer++; continue; }
     people.push({ discordUserId: member.discordUserId, accountName: discordMember.user.globalName ?? discordMember.user.username, nickname: discordMember.nickname,
-      mainName: mainCharacterName(member.characters), skip: !canRename(guild, discordMember), record: byUser.get(member.discordUserId) ?? null });
+      mainName: mainCharacterName(member.characters), characterNames: member.characters.map((character) => characterName(character)), skip: !canRename(guild, discordMember), record: byUser.get(member.discordUserId) ?? null });
   }
   const changes = planNicknames(people, format);
   stats.notManageable = people.filter((person) => person.skip).length;

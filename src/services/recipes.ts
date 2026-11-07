@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
@@ -136,7 +137,7 @@ export function describeCrafters(query: string, matches: CrafterMatch[], lang: L
     return `Nobody is known to craft "${query.trim()}". Only players with the addon who opened their profession window show up, and it reaches Discord when the companion uploads.`;
   }
   const lines = matches.slice(0, 8).map((match) => {
-    const who = match.crafters.map((crafter) => `${crafter.character}${crafter.member && crafter.member.toLowerCase() !== crafter.character.toLowerCase() ? ` (${crafter.member})` : ""} · ${crafter.profession} · ${lang === "fr" ? "vu" : "seen"} ${lastSeenText(crafter.lastSeen, lang, now)}`);
+    const who = match.crafters.map((crafter) => `${cleanCharacterName(crafter.character)}${crafter.member && crafter.member.toLowerCase() !== crafter.character.toLowerCase() ? ` (${crafter.member})` : ""} · ${crafter.profession} · ${lang === "fr" ? "vu" : "seen"} ${lastSeenText(crafter.lastSeen, lang, now)}`);
     return `• **${match.itemName}** — ${who.join(", ")}`;
   });
   if (matches.length > 8) lines.push(`…and ${matches.length - 8} more matches. Type more of the name.`);
@@ -173,7 +174,7 @@ export async function describeCooldowns(database: Db, guildId: string, options: 
   }
   const lines = shown.map((row) => {
     const when = row.readyAt <= now ? "**ready**" : `<t:${Math.floor(row.readyAt.getTime() / 1000)}:R>`;
-    return `• ${row.character} — ${row.name} (${row.profession}): ${when}`;
+    return `• ${cleanCharacterName(row.character)} — ${row.name} (${row.profession}): ${when}`;
   });
   const text = `**Profession cooldowns**\n${lines.join("\n")}`;
   return text.length > 1900 ? `${text.slice(0, 1890)}\n…` : text;
@@ -198,7 +199,7 @@ export async function runCooldownPings(client: Client, database: PrismaClient, n
     if (!owner) continue;
     marked.push(row.id);
     const lines = perUser.get(owner.member.discordUserId) ?? [];
-    lines.push(`• ${row.character} — ${row.name} (${row.profession}) is ready`);
+    lines.push(`• ${cleanCharacterName(row.character)} — ${row.name} (${row.profession}) is ready`);
     perUser.set(owner.member.discordUserId, lines);
   }
   // Mark first so a Discord hiccup can never cause repeated messages.

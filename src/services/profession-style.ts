@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import type { Lang } from "../i18n.js";
 
 // 8.5 track D (owner request 11): ONE way to show a profession everywhere (directory, per-profession posts, gallery,
@@ -53,5 +54,5 @@ export const professionLegend = (lang: Lang = "en"): string => lang === "fr"
 
 /** One crafter on one line: dot, name, bar, level and last seen. */
 export function crafterLine(entry: { character: string; skill: number | null; lastSeen: Date | null }, seenText: string, now: Date = new Date(), escape: (value: string) => string = value => value): string {
-  return `${seenDot(entry.lastSeen, now)} **${escape(entry.character)}** ${skillBar(entry.skill, 8)} ${entry.skill ?? "—"} · ${seenText}`;
+  return `${seenDot(entry.lastSeen, now)} **${escape(cleanCharacterName(entry.character))}** ${skillBar(entry.skill, 8)} ${entry.skill ?? "—"} · ${seenText}`;
 }

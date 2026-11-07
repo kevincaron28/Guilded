@@ -87,8 +87,8 @@ export async function loadFullNameBook(db: { character?: { findMany: (args: neve
  * full name that starts with it (the display name, then the book, then the first tier that has exactly one); two different
  * full names are ambiguous and the stored name stays. Names that are already full, or are not Forever names, are returned as stored.
  */
-export function displayCharacterName(character: string | { name: string; displayName?: string | null },
-  ...sources: (FullNameBook | null | undefined | readonly (string | null | undefined)[])[]): string {
+function resolveCharacterName(character: string | { name: string; displayName?: string | null },
+  sources: (FullNameBook | null | undefined | readonly (string | null | undefined)[])[]): string {
   const row = typeof character === "string" ? { name: character, displayName: null } : character;
   const name = squash(row.name);
   if (!name) return row.displayName?.trim() || row.name;
@@ -108,6 +108,34 @@ export function displayCharacterName(character: string | { name: string; display
     if (found.size > 1) return characterName(row);
   }
   return characterName(row);
+}
+const plainName = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+/**
+ * "First Last" as a player would write it: a last name equal to the first ("Xaldin Xaldin") or the realm word
+ * ("Shawir Forever", or the character's own realm) is not a last name and is dropped. Anything else is kept as sent.
+ */
+export function cleanCharacterName(name: string, realm?: string | null): string {
+  const words = squash(name).split(" ");
+  if (words.length < 2) return squash(name);
+  const last = plainName(words[words.length - 1]!);
+  return last === plainName(words[0]!) || last === "forever" || (!!realm && realm !== "-" && last === plainName(realm)) ? words.slice(0, -1).join(" ") : words.join(" ");
+}
+
+/** The one place that decides how a character is named in Discord output (see docs/NAME_STANDARD.md). */
+export function displayCharacterName(character: string | { name: string; displayName?: string | null; realm?: string | null },
+  ...sources: (FullNameBook | null | undefined | readonly (string | null | undefined)[])[]): string {
+  const realm = typeof character === "string" ? undefined : character.realm;
+  return cleanCharacterName(resolveCharacterName(character, sources), realm);
+}
+
+/**
+ * A character for a list line or embed: the full name from `displayCharacterName`, plus " (<@id>)" when a mention is wanted
+ * (the member's Discord id) or " (@name)" when only their Discord name is known. Never the Discord name on its own.
+ */
+export function characterLabel(character: string | { name: string; displayName?: string | null; realm?: string | null },
+  options: { sources?: (FullNameBook | null | undefined | readonly (string | null | undefined)[])[]; mention?: string | null; member?: string | null } = {}): string {
+  const name = displayCharacterName(character, ...(options.sources ?? []));
+  return options.mention ? `${name} (<@${options.mention}>)` : options.member ? `${name} (@${options.member})` : name;
 }
 const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z]/gi, "").toLowerCase();
 export function canonicalClass(value?: string | null): WowClass | undefined {

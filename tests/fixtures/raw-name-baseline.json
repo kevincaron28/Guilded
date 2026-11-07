@@ -1,0 +1,8 @@
+{
+  "src/commands/application.ts": 1,
+  "src/services/addon-import.ts": 2,
+  "src/services/application.ts": 1,
+  "src/services/companion-manage.ts": 2,
+  "src/services/public-leaderboard.ts": 1,
+  "src/services/raid-core.ts": 1
+}

@@ -11,7 +11,7 @@ import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-chan
 import { assertRealm, requiredRealm } from "./realm-check.js";
 import { weeklyScheduleData } from "./core-weekly-time.js";
 import { CHARACTER_REQUIRED, ownedSignupCharacter } from "./signup-character.js";
-import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
+import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter, displayCharacterName } from "./character-display.js";
 import { boundRosterEmbed, clipRosterLines } from "./roster-embed-limits.js";
 import { dpsKind } from "./dps-kind.js";
 import { gameEditionOf } from "./game-edition.js";
@@ -153,7 +153,7 @@ export function createRaidCoreService(database: Db) {
       const spot = core.members.find((entry) => entry.memberId === memberId);
       if (!spot) throw new Error(`That player is not in ${core.name}. Add them first.`);
       const character = await ownedSignupCharacter(database, guildId, memberId, characterName);
-      if (spot.characterId === character.id) throw new Error(`${character.name} is already their character in ${core.name}.`);
+      if (spot.characterId === character.id) throw new Error(`${displayCharacterName(character)} is already their character in ${core.name}.`);
       checkCoreRealm(core, memberId, character);
       await database.raidCoreBackup.upsert({
         where: { spotId_characterId: { spotId: spot.id, characterId: character.id } },
@@ -306,7 +306,7 @@ type CoreSpot = {
 
 // "Kevin · Thrall" when the spot names the character brought to this core, else just the name.
 export function coreSpotLabel(entry: CoreSpot): string {
-  return entry.character ? `${entry.member.displayName} · ${entry.character.name}` : entry.member.displayName;
+  return entry.character ? `${entry.member.displayName} · ${displayCharacterName(entry.character)}` : entry.member.displayName;
 }
 
 // `guildLootMode` is the guild's raw default (GuildSettings.lootMode); the core's own
@@ -347,7 +347,7 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     .sort((a, b) => a.localeCompare(b));
   if (bench.length) embed.addFields({ name: `🪑 ${tx(lang, "Bench")} (${bench.length})`, value: clipRosterLines(bench), inline: false });
   // Other characters players can bring to this core (a healer alt, a second tank...).
-  const backups = core.members.flatMap((entry) => (entry.backups ?? []).map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${backup.character.name}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`))
+  const backups = core.members.flatMap((entry) => (entry.backups ?? []).map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${displayCharacterName(backup.character)}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`))
     .sort((a, b) => a.localeCompare(b));
   if (backups.length) embed.addFields({ name: `🔁 ${tx(lang, "Backup characters")} (${backups.length})`, value: clipRosterLines(backups), inline: false });
   const mains = core.members.length - bench.length - trial.length;
@@ -417,7 +417,7 @@ export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: {
   list("🧪", tx(lang, "Trial"), core.members.filter((entry) => entry.trial && !entry.bench).map((entry) => `${label(entry)} (${ROLE_WORD[lang][entry.role]})`));
   list("🪑", tx(lang, "Bench"), core.members.filter((entry) => entry.bench).map((entry) => `${label(entry)} (${ROLE_WORD[lang][entry.role]})`));
   list("🔁", tx(lang, "Backup characters"), core.members.flatMap((entry) => (entry.backups ?? [])
-    .map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${backup.character.name}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`)));
+    .map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${displayCharacterName(backup.character)}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`)));
 
   const trials = core.members.filter((entry) => entry.trial && !entry.bench).length;
   const benched = core.members.filter((entry) => entry.bench).length;

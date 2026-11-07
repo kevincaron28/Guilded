@@ -1,3 +1,4 @@
+import { displayCharacterName } from "./character-display.js";
 import { escapeMarkdown, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { prisma } from "../database.js";
@@ -49,7 +50,7 @@ export async function buildReadinessLines(database: Db, guildId: string, options
     const details = status === "LEVELLING" ? "" : `${level ? ` · lvl ${level}` : ""}${snapshot.character.className ? ` ${safe(snapshot.character.className)}` : ""}`;
     const ilvl = status !== "LEVELLING" && status !== "UNKNOWN" && snapshot.itemLevel && Number.isFinite(snapshot.itemLevel) ? ` · ilvl ${snapshot.itemLevel}` : "";
     const checked = Number.isFinite(snapshot.inspectedAt.getTime()) ? ` · checked <t:${Math.floor(snapshot.inspectedAt.getTime() / 1000)}:R>` : "";
-    const head = `${ICON[status]} **${safe(snapshot.character.name)}** — ${LABEL[status]}${details}${ilvl}${checked}`;
+    const head = `${ICON[status]} **${safe(displayCharacterName(snapshot.character))}** — ${LABEL[status]}${details}${ilvl}${checked}`;
     const shown = messages.map(message => `  • ${safe(message)}`);
     rows.push({ name: snapshot.character.name, status, text: [head, ...shown].join("\n") });
   }

@@ -24,7 +24,7 @@ import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
-import { SIGNUP_CHARACTER_SELECT, loadClassEmojis } from "../services/character-display.js";
+import { SIGNUP_CHARACTER_SELECT, loadClassEmojis, cleanCharacterName, displayCharacterName } from "../services/character-display.js";
 import { signupLayout } from "../services/signup-layout.js";
 import { dpsKind, signupSpec, specsForRole } from "../services/dps-kind.js";
 import { currentEdition } from "../services/edition-context.js";
@@ -210,7 +210,7 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     // A core raid shows the character each core member brings to this core ("Kevin · Thrall").
     const coreLabel = new Map(core?.members.map((m) => [m.memberId, coreSpotLabel(m)]) ?? []);
     const label = (signup: { memberId: string; characterName: string | null; member: { displayName: string } }) =>
-      signup.characterName ? `${signup.characterName} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName;
+      signup.characterName ? `${cleanCharacterName(signup.characterName)} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName;
     const edition = currentEdition();
     const input = {
       lang, raid, classEmojis: await loadClassEmojis(discordGuild),
@@ -408,7 +408,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
       WAITLISTED: `${roleLabel[role]} slots are full, so you're on the **waitlist**. You'll get a DM if a slot opens.`
     };
     const lang = asLang((await guildService.getSettings(context.guildId))?.language);
-    await interaction.editReply({ content: (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup recorded.") + await clashNote(raidId, context.guildId, context.memberId, lang), components: await specMenu(raidId, context.memberId, lang) });
+    await interaction.editReply({ content: (character ? `**${displayCharacterName(character)} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup recorded.") + await clashNote(raidId, context.guildId, context.memberId, lang), components: await specMenu(raidId, context.memberId, lang) });
     return;
   }
   if (subcommand === "fill") {
@@ -467,7 +467,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const kindLabel = { MELEE: "melee", RANGED: "ranged" } as const;
     await interaction.reply({ content: roster.length ? roster.map((signup) => {
       const kind = kinds.get(signup.id);
-      return `• ${signup.characterName ? signup.characterName : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}${kind ? ` (${kindLabel[kind]})` : ""}${signup.late ? " ⏰ late" : ""}`;
+      return `• ${signup.characterName ? cleanCharacterName(signup.characterName) : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}${kind ? ` (${kindLabel[kind]})` : ""}${signup.late ? " ⏰ late" : ""}`;
     }).join("\n") : "No members are signed up.", flags: MessageFlags.Ephemeral });
     return;
   }
@@ -692,7 +692,7 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
         MAYBE: t(lang, "reply.maybe", { role: roleText }),
         WAITLISTED: t(lang, "reply.waitlisted", { role: roleText })
       };
-      content = (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
+      content = (character ? `**${displayCharacterName(character)} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
       components = await specMenu(raidId, member.id, lang);
     }
   }

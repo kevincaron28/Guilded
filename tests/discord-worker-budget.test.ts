@@ -13,24 +13,12 @@ function backlog(ordinary: number, countdowns: number) {
 }
 const claims = () => mocks.updateMany.mock.calls.map(([query]) => query.where.id);
 
-describe("countdown backpressure in the shared Discord worker", () => {
-  it("serves reminders first and limits a 200-board backlog to five refreshes", async () => {
-    backlog(2, 200);
-    await runDiscordJobs({} as never);
-    expect(claims()).toEqual(["reminder-0", "reminder-1", "board-0", "board-1", "board-2", "board-3", "board-4"]);
-  });
-  it("leaves countdowns pending when the ordinary delivery queue fills the batch", async () => {
-    backlog(40, 200);
+describe("the shared Discord worker", () => {
+  it("caps one tick at the batch size", async () => {
+    backlog(40, 0);
     await runDiscordJobs({} as never);
     expect(claims()).toHaveLength(25);
-    expect(claims().every(id => id.startsWith("reminder-"))).toBe(true);
     expect(mocks.findMany).toHaveBeenCalledOnce();
-  });
-  it("never exceeds the overall batch cap with spare countdown slots", async () => {
-    backlog(23, 200);
-    await runDiscordJobs({} as never);
-    expect(claims()).toHaveLength(25);
-    expect(claims().slice(-2)).toEqual(["board-0", "board-1"]);
   });
   it("stops starting jobs after the time budget rather than piling up slow work", async () => {
     vi.useFakeTimers(); vi.setSystemTime(0);

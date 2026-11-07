@@ -11,7 +11,8 @@ import { executeWow } from "./commands/wow.js";
 import type { Interaction } from "discord.js";
 import { executeGameEvents, executeOwnerEvents, OWNER_EVENTS_COMMAND, ownerEventsCommand } from "./commands/game-events.js";
 import { reconcileGameEventBoards } from "./services/game-events.js";
-import { hostedPilot, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
+import { hostedPilot, pilotGuildScope, replacePilotApprovals, replacePilotLite } from "./hosted-pilot.js";
+import { runRaidNightChecks } from "./services/raid-night-check.js";
 import { createPilotRequests, PILOT_REQUEST_PREFIX } from "./services/pilot-requests.js";
 import { warnIdleLite, welcomeApprovedOwner } from "./services/pilot-welcome.js";
 import { PILOT_DENIED, PILOT_LITE_DENIED } from "./services/pilot-policy.js";
@@ -532,6 +533,8 @@ client.once(Events.ClientReady, (readyClient) => {
     runWeeklyReports(readyClient).catch(reportJobError("Weekly report check"));
     // 9.1: the daily recap card, once per server day (on by default, officers switch it off with /stats recap-posts:false).
     runDailyRecaps(readyClient).catch(reportJobError("Daily recap check"));
+    // 9.1: the raid night check card, once per planned raid about four hours before it starts (officers switch it off).
+    runRaidNightChecks(readyClient, prisma, pilotGuildScope).catch(reportJobError("Raid night check"));
     // Automatic EPGP decay after each weekly reset (guilds that turned it on).
     runAutoDecay(prisma).catch(reportJobError("Automatic decay"));
     // One private reminder to new members who have not finished onboarding (guilds that turned it on).

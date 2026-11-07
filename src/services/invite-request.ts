@@ -1,3 +1,4 @@
+import { notifyInviters } from "./invite-notify.js";
 import {
   ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type Client, type Message, type ModalSubmitInteraction
@@ -63,6 +64,7 @@ export async function submitInviteRequest(client: Pick<Client, "guilds" | "chann
   if (!posted) return { status: "unavailable", lang };
   await recordInviteRequest(database, { guildId: settings.guildId, parsed: input.parsed, discordUserId: input.discordUserId, channelId: channel.id, messageId: posted.id });
   await posted.react(SEEN).catch(() => undefined);
+  await notifyInviters(database as never, { guildId: settings.guildId, discordGuild: guild, channel: channel as never, requestMessageId: posted.id, requesterId: input.discordUserId, displayName: input.parsed.displayName });
   // The member row lets the character link to them when it joins (invite-prelink.ts). Best effort.
   try { await database.member.upsert({ where: { guildId_discordUserId: { guildId: settings.guildId, discordUserId: input.discordUserId } }, create: { guildId: settings.guildId, discordUserId: input.discordUserId, displayName: member.displayName }, update: {} }); } catch { /* optional */ }
   return { status: "posted", channelId: channel.id, lang };

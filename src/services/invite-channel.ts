@@ -2,6 +2,7 @@ import { MessageFlags, type ButtonInteraction, type Client, type GuildMember, ty
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
+import { notifyInviters } from "./invite-notify.js";
 import { DONE_BUTTON, requestInviteRow } from "./invite-request.js";
 import { INVITE_REQUEST_PREFIX } from "./invite-request.js";
 import { parseInviteAnswers, questionsBlock, storedQuestions } from "./recruiting-kit.js";
@@ -44,6 +45,7 @@ export async function handleInviteMessage(message: Message, database: Database):
   }
   await recordInviteRequest(database, { guildId: settings.guildId, parsed, discordUserId: message.author.id, channelId: message.channelId, messageId: message.id, answers: parseInviteAnswers(message.content) });
   await message.react(SEEN).catch(() => undefined);
+  if (message.channel && "send" in message.channel) await notifyInviters(database as never, { guildId: settings.guildId, discordGuild: message.guild, channel: message.channel as never, requestMessageId: message.id, requesterId: message.author.id, displayName: parsed.displayName });
   // The member row lets the character link to them when it joins (invite-prelink.ts). Best effort.
   try { await database.member.upsert({ where: { guildId_discordUserId: { guildId: settings.guildId, discordUserId: message.author.id } }, create: { guildId: settings.guildId, discordUserId: message.author.id, displayName: message.member?.displayName ?? message.author.username }, update: {} }); } catch { /* optional */ }
   return "recorded";

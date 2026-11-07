@@ -253,6 +253,14 @@ const STRINGS = {
     en: "✅ **{name}** joined **{server}** and is now linked to your Discord account as {kind}, because you asked for that invite. Not your character? Use `/character unlink` there.",
     fr: "✅ **{name}** a rejoint **{server}** et est maintenant lié à ton compte Discord comme {kind}, parce que tu as demandé cette invitation. Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
   },
+  "invite.notify.people": {
+    en: "{mentions} — **{name}** is asking for a guild invite and you look online in game.",
+    fr: "{mentions} — **{name}** demande une invitation de guilde et tu sembles en ligne dans le jeu."
+  },
+  "invite.notify.role": {
+    en: "{role} — **{name}** is asking for a guild invite. Nobody who can invite is known to be online in game right now.",
+    fr: "{role} — **{name}** demande une invitation de guilde. Personne pouvant inviter n'est connu en ligne dans le jeu pour le moment."
+  },
   "linked.first": {
     en: "✅ You're linked on **{server}**. Your Guilded companion proved these characters are yours, so there is nothing more to do:",
     fr: "✅ Tu es lié sur **{server}**. Ton compagnon Guilded a prouvé que ces personnages sont à toi, il n'y a donc plus rien à faire :"

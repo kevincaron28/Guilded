@@ -913,6 +913,8 @@ model GuildSettings {
   inviteChannelId          String?
   inviteQueueEnabled       Boolean   @default(true)
   inviteDmEnabled          Boolean   @default(true)
+  // 9.1: tag up to 3 online officers (else the officer role once) when someone posts their name in the invite channel.
+  inviteNotifyEnabled      Boolean   @default(true)
   // 8.5 light recruiting kit: interview questions (JSON array of strings), the pinned guide message in the invite channel,
   // the recruiting post template and its shared cooldown (one reminder when it is over).
   inviteQuestions          Json?
@@ -3177,6 +3179,8 @@ model InviteRequest {
   invitedBy     String?
   createdAt     DateTime  @default(now())
   invitedAt     DateTime?
+  // 9.1: when the people who can invite were tagged for this request (once).
+  notifiedAt    DateTime?
   guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, messageId])

@@ -68,6 +68,7 @@ Modules\GRMMigration.lua
 Modules\RosterAdmin.lua
 Modules\RosterProfessions.lua
 Modules\Promotion.lua
+Modules\OfficerNotes.lua
 Modules\InviteQueue.lua
 Modules\Scores.lua
 Modules\Milestones.lua

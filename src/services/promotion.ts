@@ -24,7 +24,7 @@ export interface PromotionPlan {
   /** Guild characters at the rank that nobody in Discord has claimed (rank from the officer's last roster upload). */
   unclaimed: { name: string; level: number | null }[];
   /** Linked members at the rank that are not ready yet, with the days left. */
-  waiting: { displayName: string; character: string; daysLeft: number }[];
+  waiting: { displayName: string; character: string; /** The in-game roster name (addonName). */ addon?: string | undefined; daysLeft: number }[];
 }
 
 const same = (a: string | null, b: string) => a !== null && a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -43,7 +43,7 @@ export function planPromotions(input: { people: readonly PromotionPerson[]; uncl
     const days = Math.floor((now - (best.since?.getTime() ?? now)) / DAY);
     const levelOk = input.rule.minLevel === null || (best.level !== null && best.level >= input.rule.minLevel);
     if (days >= input.rule.minDays && levelOk) plan.ready.push({ discordUserId: person.discordUserId, displayName: person.displayName, character: characterName(best), addon: best.addon, days, level: best.level });
-    else plan.waiting.push({ displayName: person.displayName, character: characterName(best), daysLeft: Math.max(0, input.rule.minDays - days) });
+    else plan.waiting.push({ displayName: person.displayName, character: characterName(best), addon: best.addon, daysLeft: Math.max(0, input.rule.minDays - days) });
   }
   for (const row of input.unclaimed) if (same(row.rankName, input.rule.fromRank) && fresh(row.rankAt)) plan.unclaimed.push({ name: characterName(row as { name: string; displayName?: string | null }), level: row.level });
   plan.ready.sort((a, b) => b.days - a.days || a.displayName.localeCompare(b.displayName));

@@ -45,6 +45,8 @@ export interface DungeonImportResult {
   points: number;
   guildRecord: boolean;
   previousGuildBest: number | null;
+  // Where this run's time places among the guild's record-eligible clears of the same route (1 = fastest); absent when not ranked.
+  guildRank?: { rank: number; of: number };
   personalRecords: { character: string; previous: number; now: number }[];
   players: string[];
   // Sum of tracked deaths; null when no player's deaths were tracked.
@@ -339,6 +341,7 @@ export async function importDungeonRuns(
     // Records and history are judged BEFORE this run is saved.
     let guildRecord = false;
     let previousGuildBest: number | null = null;
+    let guildRank: DungeonImportResult["guildRank"];
     const contexts: PlayerContext[] = [];
     const personalRecords: DungeonImportResult["personalRecords"] = [];
     if (earnsPoints) {
@@ -356,6 +359,7 @@ export async function importDungeonRuns(
         !best || row.durationSec! < best.durationSec! ? row : best, null) : null;
       previousGuildBest = best?.durationSec ?? null;
       guildRecord = previousGuildBest !== null && durationSec < previousGuildBest;
+      if (recordEligible) guildRank = { rank: 1 + recordHistory.filter(row => row.durationSec! < durationSec).length, of: recordHistory.length + 1 };
       const weekFrom = weekStart(new Date((run.endedAt ?? 0) * 1000));
       // Guild Points belong to the account, even when multiple alts were recorded.
       // Choose the longest-present eligible character; names break equal-presence ties.
@@ -528,6 +532,7 @@ export async function importDungeonRuns(
       }),
       guildRecord,
       previousGuildBest,
+      ...(guildRank ? { guildRank } : {}),
       personalRecords,
       players: run.players.map((player) => player.character),
       deaths: run.players.some((player) => typeof player.deaths === "number")

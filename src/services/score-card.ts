@@ -42,7 +42,7 @@ export interface DungeonCardMember { name: string; color: string; role?: "TANK" 
  * `deathPoints` are 0..1 positions on a flat map (x right, y down) and switch the death map on.
  */
 export interface DungeonVisual { theme: { a: string; b: string; motif: DungeonMotif; seed: number }; party: DungeonCardMember[];
-  guildLabel: string; outsiderLabel: string; moreLabel: string; deathPoints?: { x: number; y: number }[]; deathMapLabel?: string }
+  guildLabel: string; outsiderLabel: string; moreLabel: string; /** Slug of the dungeon; `site/dungeon-maps/<mapKey>.png` is the map the deaths are drawn on, when that file exists. */ mapKey?: string; deathPoints?: { x: number; y: number }[]; deathMapLabel?: string }
 
 const fontfile = fileURLToPath(new URL("../../site/fonts/source-serif-latin.ttf", import.meta.url));
 const images = new Map<string, Buffer>();
@@ -290,6 +290,14 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
   if (hasMap) {
     const mx = px + 28, my = top + 64 + maxRows * rowH + 6, mw = pw - 56, mh = 450 - (my - top) - 14;
     shapes.push(`<rect x="${mx}" y="${my}" width="${mw}" height="${mh}" rx="8" fill="#140e08" stroke="${th.edge}"/>`);
+    // The dungeon's own map, when one was added to site/dungeon-maps/; otherwise the plain grid below.
+    const mapFile = visual.mapKey && /^[a-z0-9-]{1,60}$/.test(visual.mapKey) ? fileURLToPath(new URL(`../../site/dungeon-maps/${visual.mapKey}.png`, import.meta.url)) : null;
+    if (mapFile) {
+      try {
+        const map = await sharp(mapFile).resize(mw - 2, mh - 2, { fit: "contain", background: "#140e08" }).png().toBuffer();
+        shapes.push(`<image x="${mx + 1}" y="${my + 1}" width="${mw - 2}" height="${mh - 2}" opacity=".85" href="data:image/png;base64,${map.toString("base64")}"/>`);
+      } catch { /* no map file: grid only */ }
+    }
     for (let g = 1; g < 8; g++) shapes.push(`<line x1="${mx + (mw * g) / 8}" y1="${my}" x2="${mx + (mw * g) / 8}" y2="${my + mh}" stroke="${th.edge}" stroke-opacity=".35"/>`);
     for (let g = 1; g < 3; g++) shapes.push(`<line x1="${mx}" y1="${my + (mh * g) / 3}" x2="${mx + mw}" y2="${my + (mh * g) / 3}" stroke="${th.edge}" stroke-opacity=".35"/>`);
     shapes.push(`<defs><radialGradient id="heat"><stop offset="0" stop-color="#ff3b1f" stop-opacity=".75"/><stop offset="1" stop-color="#ff3b1f" stop-opacity="0"/></radialGradient></defs>`);

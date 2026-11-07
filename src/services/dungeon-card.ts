@@ -124,6 +124,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
           guild
         };
       }),
+      mapKey: run.dungeonName.toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""),
       guildLabel: t("Guild", "Guilde"), outsiderLabel: t("Outside guild", "Hors guilde"), moreLabel: t("more", "autres"),
       ...(options.deathPoints?.length ? { deathPoints: options.deathPoints.slice(0, 200), deathMapLabel: t("Where the party fell", "Où le groupe est tombé") } : {})
     }

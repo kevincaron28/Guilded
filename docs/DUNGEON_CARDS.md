@@ -15,3 +15,7 @@ The card draws a map under the party when its definition carries `dungeon.deathP
 1. Addon: on each death of a party member (`PLAYER_DEAD` for self, combat log `UNIT_DIED` for others) record `{ t = seconds since start, x, y, map }` from `C_Map.GetPlayerMapPosition` (use the instance map id; indoors it can be nil, then record nothing).
 2. Companion/bot: add `deathPoints` to `dungeonRunSchema` (optional, capped at 200, `.catch(undefined)` so it can never invalidate a run), keep it in `competitionData`.
 3. Importer: pass the points to `dungeonPosts(summary, lang, { deathPoints: { [runRef]: points } })`, already wired as a hook.
+
+## Real dungeon maps
+
+The death map draws on `site/dungeon-maps/<slug>.png` (slug of the dungeon name, e.g. `wailing-caverns`) when the file exists, else on a plain grid. No map art is bundled: the game's own maps are Blizzard's, so the owner must decide where they come from (own screenshots/exports, or a licensed source) and drop the files in. Positions are 0..1 across that image, so crop each map to the area the addon's `C_Map.GetPlayerMapPosition` coordinates cover.

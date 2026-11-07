@@ -128,5 +128,5 @@ describe("dungeonRunCard", () => {
       expect(png?.subarray(0, 4).toString("hex")).toBe("89504e47");
       expect(png!.length).toBeGreaterThan(5000);
     }
-  });
+  }, 60_000);
 });

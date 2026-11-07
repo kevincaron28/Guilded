@@ -6,6 +6,9 @@ import { participationDay } from "./participation-rules.js";
 export const ROOKIE_DAYS = 60;
 export const ROOKIE_MIN_DAYS = 3;
 export const ROOKIE_ROLE = { en: "🐣 Rookie of the month", fr: "🐣 Recrue du mois" };
+export const WEEKLY_ROOKIE_ROLE = { en: "🌱 Rookie of the week", fr: "🌱 Recrue de la semaine" };
+/** A weekly rookie joined the server within this many days of the end of the week. */
+export const WEEKLY_ROOKIE_DAYS = 30;
 export type RookieMemberLookup = (userId: string) => Promise<Date | null>;
 export type MonthlyRookie = Standing & { activeDays: number; messages: number; reactions: number; voiceHours: number };
 
@@ -58,4 +61,28 @@ export async function monthlyRookie(db: Prisma.TransactionClient, guildId: strin
   }
   eligible.sort((a, b) => b.points - a.points || b.activeDays - a.activeDays || a.joinedAt.getTime() - b.joinedAt.getTime() || a.userId.localeCompare(b.userId));
   return eligible[0] ?? null;
+}
+
+/**
+ * The best new member of a finished week: most points among members with points that week who joined in the last
+ * WEEKLY_ROOKIE_DAYS days and have not been weekly rookie before. Ties go to the earlier join, then the id. Null when nobody qualifies.
+ */
+export async function weeklyRookie(db: Prisma.TransactionClient, guildId: string, windowEnd: Date, board: Standing[], lookup: RookieMemberLookup): Promise<Standing | null> {
+  const won = new Set((await db.communityHonorAward.findMany({ where: { guildId, kind: "ROOKIE" }, select: { userId: true } })).map(row => row.userId));
+  const candidates = board.filter(row => row.points > 0 && !won.has(row.userId)).slice(0, 50);
+  if (!candidates.length) return null;
+  const tests = new Set((await db.member.findMany({ where: { guildId, isTest: true, discordUserId: { in: candidates.map(row => row.userId) } }, select: { discordUserId: true } })).map(row => row.discordUserId));
+  const eligible: (Standing & { joinedAt: Date })[] = [];
+  for (const candidate of candidates) {
+    if (tests.has(candidate.userId)) continue;
+    const joined = await lookup(candidate.userId);
+    if (!joined) continue;
+    await rememberRookieJoin(db, guildId, candidate.userId, joined);
+    const membership = await db.communityRookieMembership.findUniqueOrThrow({ where: { guildId_userId: { guildId, userId: candidate.userId } } });
+    if (membership.joinedAt >= windowEnd || membership.joinedAt.getTime() < windowEnd.getTime() - WEEKLY_ROOKIE_DAYS * 86_400_000) continue;
+    eligible.push({ ...candidate, joinedAt: membership.joinedAt });
+  }
+  eligible.sort((a, b) => b.points - a.points || a.joinedAt.getTime() - b.joinedAt.getTime() || a.userId.localeCompare(b.userId));
+  const best = eligible[0];
+  return best ? { userId: best.userId, points: best.points } as Standing : null;
 }

@@ -588,6 +588,7 @@ export const FR_TEXT: Record<string, string> = {
   "The Who's who post was retired: mains and alts now show on the roster card, in /character and on the guild page. Press the red button to delete the old message, or Keep it. Nothing is deleted until you confirm.": "Le message Qui est qui est retiré : principaux et secondaires s’affichent maintenant sur la carte du roster, dans /character et sur la page de guilde. Appuyez sur le bouton rouge pour supprimer l’ancien message, ou sur Le garder. Rien n’est supprimé avant votre confirmation.",
   "Kept the old Who's who post. It is no longer updated.": "L’ancien message Qui est qui est conservé. Il n’est plus mis à jour.",
   "Deleted the old Who's who post.": "L’ancien message Qui est qui a été supprimé.",
+  "⏳ **Countdowns** were removed from Guilded. To remove the old {channels}, press **Retire an old channel** below and pick it: its messages are saved to a file first and nothing is deleted until you confirm.": "⏳ Les **comptes à rebours** ont été retirés de Guilded. Pour supprimer l’ancien {channels}, appuyez sur **Retirer un ancien salon** ci-dessous et choisissez-le : ses messages sont d’abord enregistrés dans un fichier et rien n’est supprimé avant votre confirmation.",
   "Retire an old channel": "Retirer un ancien salon",
   "Delete #{name} for good": "Supprimer #{name} pour de bon",
   "Keep it": "Le garder",

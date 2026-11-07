@@ -55,6 +55,7 @@ import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.
 import type { Client } from "discord.js";
 import { companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
+import { createPicturePages, prismaPictureStore } from "./services/character-picture.js";
 import { deleteMyData, deleteMyDataByCredential } from "./services/data-deletion.js";
 import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
 import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
@@ -337,10 +338,12 @@ export function createSiteApp(client?: Client) {
   const lootLists = createWebLootLists(prismaLootListStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
   const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const pictures = createPicturePages(prismaPictureStore(prisma), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"));
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
     meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId)) }),
+    meSection({ id: "pictures", group: "overview", render: pictures.meSection }),
     meSection({ id: "achievements", group: "play", render: achievementsWeb.meSection }),
     meSection({ id: "badges", group: "play", render: badges.meSection }),
     meSection({ id: "availability", group: "play", render: availability.meSection }),
@@ -355,7 +358,7 @@ export function createSiteApp(client?: Client) {
     meSection({ id: "connections", group: "account", render: devices.meSection }),
     meSection({ id: "your-data", group: "account", render: memberData.meSection })
   ];
-  routes.unshift(devices.route, legacyBattleNetRedirect, memberData.route, personalCalendar.route, handover.route, raidPlanning.route, lootLists.route);
+  routes.unshift(pictures.route, devices.route, legacyBattleNetRedirect, memberData.route, personalCalendar.route, handover.route, raidPlanning.route, lootLists.route);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,

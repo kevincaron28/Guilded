@@ -555,6 +555,7 @@ model Character {
   guildRankIndex    Int?
   guildRankAt       DateTime?
   rankSeen          CharacterRankSeen?
+  picture           CharacterPicture?
   createdAt          DateTime                     @default(now())
   updatedAt          DateTime                     @updatedAt
   member             Member                       @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -994,6 +995,8 @@ model GuildSettings {
   bgLadderMessageId        String?
   worldPvpEnabled          Boolean @default(true)
   // 8.5 track C5: promotion panel (Initiate -> Member). On by default; officers change the rule or switch it off.
+  // 9.1 character pictures (docs/plans/CHARACTER_VISUALS.md): officers switch member pictures off for the server.
+  characterPicturesEnabled Boolean @default(true)
   promotionEnabled         Boolean @default(true)
   promotionFromRank        String  @default("Initiate")
   promotionMinDays         Int     @default(7)
@@ -3439,4 +3442,26 @@ model DungeonMapGrid {
   cells       Json
   runs        Int      @default(0)
   updatedAt   DateTime @updatedAt
+}
+
+// 9.1: a member-chosen picture per character (docs/plans/CHARACTER_VISUALS.md). Only the re-encoded WebP
+// copies are kept (no original file, no EXIF). "guild" pictures are shown to that guild only; "public" also
+// on public pages. An officer removal keeps the row (status "removed", bytes cleared) as the log of who did it.
+model CharacterPicture {
+  id          String    @id @default(cuid())
+  characterId String    @unique
+  guildId     String
+  large       Bytes
+  thumb       Bytes
+  version     Int       @default(1)
+  source      String    @default("upload")
+  visibility  String    @default("guild")
+  status      String    @default("ok")
+  removedById String?
+  removedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
 }

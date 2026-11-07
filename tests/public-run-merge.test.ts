@@ -66,6 +66,17 @@ describe("one row per real player on the character board", () => {
     const rows = normalizeLeaderRuns([run("run-h", [player("Hulke Hogan"), player("Hulke Smith"), player("Hulke")])]);
     expect(names(rows[0]!).sort()).toEqual(["Hulke", "Hulke Hogan", "Hulke Smith"]);
   });
+  it("resolves a shared first name inside its own party (owner report: El and El Pirata)", () => {
+    // "El Veneking" elsewhere makes "El" ambiguous guild-wide, but this party has only one "El ...".
+    const other = run("run-i", [player("El Veneking"), player("Aaa Bbb")], { instanceId: 43, routeKey: "43", dungeonName: "Wailing Caverns", endedAt: new Date(END.getTime() + 7200_000) });
+    const party = run("run-j", [player("El Pirata"), player("Hulke Hogan"), player("Mister Haragot"), player("Xaldin"), player("El"), player("Crashing Pally")]);
+    const rows = normalizeLeaderRuns([other, party]);
+    const rfc = rows.find((r) => r.instanceId === 389)!;
+    expect(names(rfc).sort()).toEqual(["Crashing Pally", "El Pirata", "Hulke Hogan", "Mister Haragot", "Xaldin"]);
+    // A different class is a different character: no merge.
+    const mixed = normalizeLeaderRuns([other, run("run-k", [player("El Pirata"), player("El", { className: "Priest" })])]);
+    expect(names(mixed.find((r) => r.runId === "run-k")!).sort()).toEqual(["El", "El Pirata"]);
+  });
   it("remembers the older name so a guild roster that lists the first name still matches", () => {
     const [merged] = normalizeLeaderRuns([first(), second()]);
     const hulke = merged!.players.find((p) => p.character === "Hulke Hogan")!;

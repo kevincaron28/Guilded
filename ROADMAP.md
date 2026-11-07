@@ -10,47 +10,53 @@ request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
 ## Start here — 7 November 2026 (next session)
 
-9.0.0 was released on the evening of 6 November (PR #453). The feature-preview gate is gone: every 9.0 feature is ON in every
-server. The owner plays tonight and brings new ideas and fixes tomorrow. Add them under "Owner requests,
-7 November" below, then plan them as tracks (one track per session, coordinator merges).
+**If the owner says "continue work":** you are the coordinator. Read this section, CLAUDE.md and the
+"Owner requests, 7 November 2026" list below. Group the work into tracks that don't touch the same files.
+Start one worker session per track with the cheapest model that fits (Haiku: checks and docs; Sonnet: most
+features; Opus: design-heavy or risky changes). Workers open PRs into `main` and report back to you. You review,
+merge, back up, deploy (`deploy/update.sh`), then publish. Real-client testing uses the owner's two PCs by
+desktop control and is coordinated by you. Keep testing in the kevmister28 test server, never spam Québec Gold.
+Record every new owner request in this file before working on it. Only you bump the version (next: 9.0.1 for
+fixes, 9.1.0 for features).
 
-**Still to verify with real clients (not blockers for the bot, but blockers for calling 9.0 "accepted"):**
-- Companion settings survive an upgrade. The 9.0 companion saves through a fallback, logs every step to
-  `%APPDATA%\Guilded Companion\startup.log`, and its installer-launched start waits for the old copy and retries
-  (#449, #450, #452). The second PC still has to confirm it with test build 3/4 or 9.0.0. Collect startup.log.
-- In game (French Forever client): minimap button visible, `/guilded minimap show` feedback, Guilded chat tab
-  at first login, French login line, panel layout fixes (#451).
-- Guild bank link in Statistics (needs real bank data); `/officer dungeon audit` with real runs; welcome DM
-  "Request a guild invite"; two-PC call for help and duel; relink of a second character.
-- Dungeon posts listed the same player twice (5 Nov Ragefire Chasm post in Québec Gold). Fixed for new imports
-  in 9.0.0 (one row per character); old posts stay as they are.
+**State at the end of 6 November (verified):**
+- Bot: **9.0.0** live, main `debbad1` (includes #455, Season 1 leniency: 50% presence, 6 levels over / 3 under,
+  final boss enough on single-route maps, full names on the best-runs and participation boards, quieter run
+  posts). Backup before it: `/home/ubuntu/guilded-recovery/2026-11-07T00-38-15-048Z` + encrypted local copy.
+- GitHub: **v9.0.0** is the latest release (companions auto-update to it). Pre-releases v9.0.0-test.1..4 can be deleted.
+- CurseForge: 9.0.0 Forever files uploaded for both projects, waiting for CurseForge review (check they went live).
+- Microsoft Store: 8.4.6.0 live; **9.0.0.0 in Submission 12**, submitted by the owner (check certification).
+  Next Store update: `npm run store:package`, then `STORE-STEPS.txt` (docs/MICROSOFT_STORE_MSIX.md).
+- Open PRs to merge first: **#454** (this roadmap + `store:package`) and **#456** (website 9.0 text, `/help` 9.0
+  lines, bilingual `/officer dungeon audit`). Wait for green CI, merge, deploy (#456 touches bot help text).
+- The server's `FEATURE_PREVIEW_GUILD_IDS` line in `/opt/guilded/.env.local` is unused now; delete it.
+- Dependabot #407 and Android #345 are still open.
 
-**Partial items found by the 6 November audit (do these first):**
-1. Race to 60 Hall of Fame is permanent but officers cannot edit it: add officer add/remove/correct.
-2. Owner rule "sharing and sync always on, only Delete my data": `/setup` still has "Turn public sharing off"
-   and `/character nickname off` remains; "Delete my data" is only a web page (`/me/data/delete`). Add a
-   Delete-my-data button in the companion and the member page; decide whether to remove the public-sharing switch.
-3. PoE2 still appears in the companion (`companion-app/renderer/index.html` "Mapping journal" card) and in
-   `achievement-badges.ts`. Hide it when `active-games.mjs` hides PoE2.
-4. Dungeon leaderboards "too strict": confirm officers see why a run was not counted (`dungeon-explain.ts`).
-5. Polish: `/officer dungeon audit` with no options says "for that" instead of asking which member or run;
-   dungeon posts' "0 pts" and "Non classé" lines are noisy for unranked members.
+**Still to verify with real clients (9.0 is not "accepted" until these pass):**
+- Companion settings survive an upgrade (fixes #449, #450, #452): on the second PC, upgrade from 8.4.7 or a test
+  build to 9.0.0 and read `%APPDATA%\Guilded Companion\startup.log`. That PC's old settings are backed up in
+  `D:\GuildedCompanionTest\`.
+- In game (French Forever client): minimap button visible and `/guilded minimap show` feedback, Guilded chat tab
+  at first login, French login line, panel layout (#451).
+- After the leniency deploy: the dungeon board shows real scores (Chad Ho, Crashing Pally, El Pirata, Hulke Hogan,
+  Mister were all 0). If not, run `/dungeon-admin audit why:true` for one of them.
+- Guild bank link in Statistics (needs real bank data); welcome DM "Request a guild invite"; two-PC call for
+  help and duel; relink of a second character.
 
-**After that:** Store (8.4.6.0 certification, then 9.0.0.0), screenshots and website (final phase 1), the phone
-app (Track M), Google Play, dependabot #407, delete the v9.0.0-test.* pre-releases.
+**Partial items from the 6 November audit (do early):**
+1. Race to 60 Hall of Fame: officers cannot edit entries; add add/remove/correct.
+2. "Sharing and sync always on, only Delete my data": `/setup` still has "Turn public sharing off" and
+   `/character nickname off` remains; "Delete my data" is only a web page. Add the button in the companion and
+   member page; ask the owner whether to remove the public-sharing switch.
+3. PoE2 leftovers: `achievement-badges.ts` and the companion's hidden PoE2 markup (meta text fixed in #456).
+4. Officers can see why a run was not counted (`dungeon-explain.ts`): confirm with real data.
 
-**Release status (6 Nov, 23:45 UTC):** bot live at 9.0.0 (main 0a5fd16, backup
-`/home/ubuntu/guilded-recovery/2026-11-06T23-35-29-673Z` plus an encrypted copy on the owner's PC). The GitHub release v9.0.0
-and the CurseForge uploads wait for the owner's go-ahead. The assets are built in `C:\Users\Kev\Desktop\guilded-9.0.0-release\`
-(installer sha256 a655f1ff…, addon 08baae60…, dungeons e2e16672…). Publishing GitHub "latest" auto-updates every
-member's companion. The FEATURE_PREVIEW_GUILD_IDS line in the server's .env.local is now unused and can be deleted.
+**Later phases:** screenshots, install/link guides and website (items 20-21), phone app and TCG plan (Track M,
+item 22), Google Play, Discord audit and fresh-setup check (item 24).
 
 ### Owner requests, 7 November 2026
 
-- (6 Nov, late) Make the dungeon season **a lot less strict** so more runs show up, and start building the
-  database of timed runs now: record every valid completed guild run's time and party, ranked or not; loosen
-  the level band, the presence rule, the uncalibrated targets and the evidence gates; keep the SIM, season-window
-  and final-boss checks. Dispatched to the "dungeon scoring + Season 2" session (PR into main, coordinator deploys).
+- (6 Nov, late) Make the dungeon season **a lot less strict** and start the timed-runs database: **DONE** in #455 (deployed debbad1). Follow-up: check the board shows real scores; routes without a speed target still cannot rank.
 - (6 Nov, late, owner list for 7 Nov; none were quick enough to ship tonight)
   1. **Battle.net link message in the addon:** verify what it says now that the Battle.net link button/option
      was removed; it must not point to a step that no longer exists.

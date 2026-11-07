@@ -579,7 +579,7 @@ export function exportMilestones(database) {
   for (const entry of Object.values(chars)) {
     if (!entry || typeof entry.name !== "string" || !entry.name || entry.name.length > 80 || typeof entry.log !== "object" || !entry.log) continue;
     for (const row of Object.values(entry.log)) {
-      if (!row || !["level", "dungeon", "hk", "duel"].includes(row.kind) || typeof row.ref !== "string"
+      if (!row || !["level", "dungeon", "hk", "duel", "prof"].includes(row.kind) || typeof row.ref !== "string"
         || !/^[a-z]{2,10}:[A-Za-z0-9_-]{1,30}$/.test(row.ref) || !Number.isSafeInteger(row.value) || row.value < 0 || row.value > 1000000
         || !Number.isSafeInteger(row.at) || row.at <= 0 || row.at >= 4102444800) continue;
       out.push({ character: entry.name, realm: typeof entry.realm === "string" ? entry.realm.slice(0, 100) : "", kind: row.kind, ref: row.ref, value: row.value, at: row.at });

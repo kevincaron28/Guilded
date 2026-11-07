@@ -1,18 +1,11 @@
-// FOREVER-FIRST SWITCH. The one place that decides which WoW editions members are offered.
+// FOREVER-FIRST SWITCH: which WoW editions the website and bot still offer.
 //
-// Guilded builds, tests and keeps data for every edition (Forever, Classic Era, TBC, Mists,
-// Retail). While the owner concentrates on WoW Forever, only the editions listed here appear in
-// member-facing choices: the companion's saved-file search, the website's download pages, the
-// installer instructions and the bot's setup/help text. Nothing is deleted: addon builds, edition
-// calendars, saved uploads, existing guilds and published artifacts are untouched, and a guild
-// that already uses another edition keeps working.
+// Being retired: Guilded supports WoW Forever only, and the other editions are being removed in
+// staged PRs (docs/plans/FOREVER_ONLY_REMOVAL.md). The addons, release packaging and the companion
+// no longer use this file (the companion judges game folders with companion/wow-folder.mjs). The
+// bot and website still read it until their stages land; stage 6 deletes it.
 //
-// TO BRING THE OTHER EDITIONS BACK: put the ids back, for example
-//   export const ACTIVE_EDITIONS = ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"];
-// (or `[...GAME_EDITIONS]`), run the tests and release. No other file needs editing; the tests in
-// tests/active-editions.test.* prove every surface follows this list.
-//
-// Plain ESM with no imports so the companion (engine), site build and bot can all load it.
+// Plain ESM with no imports so the site build and bot can load it.
 export const ACTIVE_EDITIONS = /** @type {readonly string[]} */ (["forever"]);
 
 const ALL = ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"];
@@ -41,32 +34,3 @@ export function editionList(lang, active = ACTIVE_EDITIONS, joiner = ["or", "ou"
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} ${joiner[lang]} ${names.at(-1)}`;
 }
-
-/**
- * Which edition a WoW game folder (the "_xxx_" folder inside the install, or the install folder
- * itself) belongs to. "_classic_beta_" is the closed WoW Forever beta client, so it counts as
- * Forever. A folder that names no edition returns null and is never treated as another edition:
- * "_classic_" in particular is NOT judged, because the live Forever client may save there.
- * @param {string} name @returns {string | null}
- */
-export function folderEdition(name) {
-  const folder = String(name ?? "").toLowerCase();
-  if (/forever/.test(folder) || /beta/.test(folder)) return "forever";
-  if (folder === "_classic_era_") return "classic-era";
-  if (folder === "_anniversary_") return "classic-tbc";
-  if (folder === "_retail_") return "retail";
-  return null;
-}
-
-/** True when a game folder is on hold: it clearly belongs to an edition that is switched off.
- * @param {string} name @param {readonly string[]} [active] */
-export function isFolderOnHold(name, active = ACTIVE_EDITIONS) {
-  const edition = folderEdition(name);
-  return edition !== null && !active.includes(edition);
-}
-
-/** Shown when the only WoW install found is for an edition that is switched off. */
-export const ON_HOLD_NOTE = [
-  "Guilded is focused on WoW Forever for now. Support for this WoW version is on hold and will come back later; nothing was changed or deleted.",
-  "Guilded se concentre sur WoW Forever pour le moment. La prise en charge de cette version de WoW est en pause et reviendra plus tard; rien n’a été modifié ni supprimé."
-];

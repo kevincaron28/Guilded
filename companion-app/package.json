@@ -80,7 +80,7 @@
           "live-folder.mjs",
           "saved-folder.mjs",
           "addon-install.mjs",
-          "active-editions.mjs",
+          "wow-folder.mjs",
           "active-games.mjs",
           "revoke.mjs",
           "problems.mjs",

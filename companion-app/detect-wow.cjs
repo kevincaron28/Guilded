@@ -48,14 +48,14 @@ function battleNetInstallPaths(text) {
 function battleNetRecord(programData = process.env.ProgramData || "C:\\ProgramData") {
   try { return battleNetInstallPaths(fs.readFileSync(path.join(programData, "Battle.net", "Agent", "product.db")).toString("latin1")); } catch { return []; }
 }
-// A folder that is (or holds) a WoW install: it has a WTF folder, or a _forever_ / _retail_ style game folder.
+// A folder that is (or holds) a WoW install: it has a WTF folder, or a _forever_ style game folder.
 function looksLikeInstall(dir) {
   return fs.existsSync(path.join(dir, "WTF")) || subdirs(dir).some((sub) => /^_[a-z_]+_$/i.test(path.basename(sub)));
 }
 /** Every WoW install folder found, newest-first order not implied. Options are for tests. */
 function wowInstalls({ drives = driveRoots(), home = os.homedir(), recorded = battleNetRecord() } = {}) {
   const roots = new Set();
-  // A game folder (_forever_, _retail_) belongs to the install around it, which is found instead.
+  // A game folder (_forever_, _classic_) belongs to the install around it, which is found instead.
   const consider = (dir) => { const name = path.basename(dir); if (!name.startsWith("_") && WOW_NAME.test(name) && looksLikeInstall(dir)) roots.add(path.normalize(dir)); };
   for (const dir of recorded) if (fs.existsSync(dir)) roots.add(path.normalize(dir));
   const parents = [...drives, path.join(home, "Desktop"), path.join(home, "Games"), path.join(home, "Downloads"), path.join(home, "AppData", "Local")];
@@ -75,14 +75,14 @@ function candidateRoots(options) {
   return wowInstalls(options);
 }
 
-// `isHeld(game)`: true for a game folder whose edition is switched off (companion/active-editions.mjs);
-// those files are left out, never offered. Use detectHeldSavedVariables to count them.
+// `isOtherEdition(game)`: true for a game folder of another WoW version (companion/wow-folder.mjs);
+// those files are left out, never offered. Use detectOtherEditionSavedVariables to count them.
 // Returns [{ path, exists }]: the file itself when it exists, otherwise where
 // it will appear once the game has saved once (an account's SavedVariables, which WoW creates at
 // the first logout: an account folder without one still counts).
 // `names` in order of preference: leaderboards-only (personal) mode passes
 // GuildedDungeons.lua then Guilded.lua; the companion reads both from the folder.
-function detectSavedVariables(names = ["Guilded.lua"], isHeld = () => false, options = undefined) {
+function detectSavedVariables(names = ["Guilded.lua"], isOtherEdition = () => false, options = undefined) {
   const results = [];
   for (const root of candidateRoots(options)) {
     for (const wtf of findWtfFolders(root)) {
@@ -102,16 +102,16 @@ function detectSavedVariables(names = ["Guilded.lua"], isHeld = () => false, opt
  * Find it: what the search found, so the window can always say something. Installs without an
  * account folder yet (WoW never started) are reported too.
  */
-function searchWow(names = ["Guilded.lua"], isHeld = () => false, options = {}) {
+function searchWow(names = ["Guilded.lua"], isOtherEdition = () => false, options = {}) {
   const drives = options.drives ?? driveRoots();
   const installs = wowInstalls({ ...options, drives });
-  const entries = detectSavedVariables(names, isHeld, { ...options, drives });
+  const entries = detectSavedVariables(names, isOtherEdition, { ...options, drives });
   return { entries, installs, drives: drives.map((root) => root.slice(0, 2)) };
 }
 
-// Same scan, but only the files of editions that are on hold (so the app can say so plainly).
-function detectHeldSavedVariables(names = ["Guilded.lua"], isHeld = () => false) {
-  return detectSavedVariables(names).filter((entry) => isHeld(entry.game));
+// Same scan, but only the files of other WoW versions (so the app can say so plainly).
+function detectOtherEditionSavedVariables(names = ["Guilded.lua"], isOtherEdition = () => false) {
+  return detectSavedVariables(names).filter((entry) => isOtherEdition(entry.game));
 }
 
 function modifiedMs(file) {
@@ -175,9 +175,9 @@ function pickerStart(watchFile, detected = [], installs = []) {
 
 // Every WoW account below a folder the member picked: the install folder, a game folder
 // (_forever_), WTF, WTF\Account, one account folder or anything inside it, or a folder that holds
-// the install. Editions on hold and the beta client are left out when anything else is found.
+// the install. Other WoW versions are left out; the beta client only when anything else is found.
 // Same entries as detectSavedVariables, ranked the same way.
-function accountsUnder(folder, names = ["Guilded.lua"], isHeld = () => false) {
+function accountsUnder(folder, names = ["Guilded.lua"], isOtherEdition = () => false) {
   const parts = String(folder ?? "").split(/[\\/]/).filter((part, index) => part !== "" || index === 0);
   const wtfIndex = parts.findIndex((part, index) => index > 0 && part.toLowerCase() === "wtf");
   const entry = (account, wtf) => {
@@ -199,8 +199,8 @@ function accountsUnder(folder, names = ["Guilded.lua"], isHeld = () => false) {
     for (const root of roots) for (const wtf of findWtfFolders(root)) results.push(...accountsIn(wtf));
   }
   const unique = [...new Map(results.map((item) => [item.path.toLowerCase(), item])).values()];
-  const playable = unique.filter((item) => !isHeld(item.game) && !/beta/i.test(item.game));
-  return rankSavedVariables(playable.length ? playable : unique.filter((item) => !isHeld(item.game)));
+  const playable = unique.filter((item) => !isOtherEdition(item.game) && !/beta/i.test(item.game));
+  return rankSavedVariables(playable.length ? playable : unique.filter((item) => !isOtherEdition(item.game)));
 }
 
-module.exports = { hasDatabase, wowInstalls, battleNetInstallPaths, searchWow, detectSavedVariables, detectHeldSavedVariables, rankSavedVariables, pickSavedVariables, installRootOf, pickerStart, accountsUnder };
+module.exports = { hasDatabase, wowInstalls, battleNetInstallPaths, searchWow, detectSavedVariables, detectOtherEditionSavedVariables, rankSavedVariables, pickSavedVariables, installRootOf, pickerStart, accountsUnder };

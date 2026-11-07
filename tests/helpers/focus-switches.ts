@@ -6,7 +6,6 @@ const ALL = ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"]
 type Mod = Record<string, unknown> & {
   activeEditions: (active?: readonly string[]) => string[]; heldEditions: (active?: readonly string[]) => string[];
   editionList: (lang: 0 | 1, active?: readonly string[], joiner?: string[]) => string;
-  isFolderOnHold: (name: string, active?: readonly string[]) => boolean;
 };
 
 export function allEditionsOn(original: Mod) {
@@ -16,8 +15,7 @@ export function allEditionsOn(original: Mod) {
     isEditionActive: (edition: string, active: readonly string[] = ALL) => active.includes(edition),
     activeEditions: (active: readonly string[] = ALL) => original.activeEditions(active),
     heldEditions: (active: readonly string[] = ALL) => original.heldEditions(active),
-    editionList: (lang: 0 | 1, active: readonly string[] = ALL, joiner?: string[]) => original.editionList(lang, active, joiner),
-    isFolderOnHold: (name: string, active: readonly string[] = ALL) => original.isFolderOnHold(name, active)
+    editionList: (lang: 0 | 1, active: readonly string[] = ALL, joiner?: string[]) => original.editionList(lang, active, joiner)
   };
 }
 

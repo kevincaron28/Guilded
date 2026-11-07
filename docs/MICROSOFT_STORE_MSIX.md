@@ -11,6 +11,14 @@
 3. An agent using Claude in Chrome can upload the file. Chrome blocks plain fetches to 127.0.0.1, so serve the
    folder locally and use `fetch(url, { targetAddressSpace: 'loopback' })`, then a DataTransfer on
    `input.fileuploader`. If Partner Center asks to sign in again, the owner signs in. Agents never type credentials.
+4. **Next submission only (Forever-only companion, 7 November 2026):** add this line to the reviewer notes
+   (Notes for certification), English then French: "The review sandbox now uses a WoW Forever sample character
+   (Reviewmage, level 60); Guilded supports WoW Forever only. The review steps are unchanged." / "Le bac à sable
+   de révision utilise maintenant un personnage d'exemple WoW Forever (Reviewmage, niveau 60); Guilded prend en
+   charge WoW Forever uniquement. Les étapes de révision sont inchangées." Before submitting, rebuild the review
+   kit with `node scripts/prepare-store-review.mjs`, then redeploy the review Worker (it bundles `review-kit.zip`):
+   `npx wrangler deploy -c store-review/wrangler.jsonc`. The sandbox and the kit then both carry the Forever fixture.
+   Remove this step once that submission passes.
 
 **Current, 28 October 2026:** the [Store listing](https://apps.microsoft.com/detail/9N680XX3QFL9)
 published 8.0.1.0 through Submission 3. The actual Store package was installed,

@@ -4,6 +4,10 @@
 // the /setup guide, its checklist and the craft board has an entry.
 
 export const FR_TEXT: Record<string, string> = {
+  "Only officers can use /officer dungeon.": "Seuls les officiers peuvent utiliser /officer dungeon.",
+  "Dungeon scoring settings are locked for all guilds. Season targets, level bands and penalties are shared and frozen. Changes wait for a future shared season; existing scores and history are preserved.": "Les réglages de pointage des donjons sont verrouillés pour toutes les guildes. Les cibles de saison, les tranches de niveau et les pénalités sont communes et figées. Les changements attendront une prochaine saison commune; les scores et l'historique existants sont conservés.",
+  "No dungeon points recorded yet. Pick a member, character or run, or add why:true to see why a run scored as it did.": "Aucun point de donjon enregistré. Choisissez un membre, un personnage ou un parcours, ou ajoutez why:true pour voir pourquoi un parcours a ce score.",
+  "Dungeon seasons are set by the Guilded owner for every guild. See them with `/organize dungeon-seasons preview`.": "Les saisons de donjon sont fixées par le propriétaire de Guilded pour toutes les guildes. Voyez-les avec `/organize dungeon-seasons preview`.",
   "**Public dungeon sharing: OFF.** Officers can enable it with `/mod leaderboard share:true`. Runs already public stay public.": "**Partage public des donjons : DÉSACTIVÉ.** Les officiers peuvent l'activer avec `/mod leaderboard share:true`. Les parcours déjà publics le restent.",
   "Only runs started since {since}; older imports stay private.": "Seulement les parcours commencés depuis {since} ; les anciens imports restent privés.",
   "Eligible saved runs from the last 30 days are included.": "Les parcours admissibles enregistrés au cours des 30 derniers jours sont inclus.",

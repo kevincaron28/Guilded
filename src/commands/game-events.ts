@@ -141,7 +141,7 @@ export async function executeOwnerEvents(interaction: ChatInputCommandInteractio
       }, EVENT_TRANSACTION_OPTIONS));
     }
     const events = await prisma.officialGameEvent.findMany({ orderBy: { updatedAt: "desc" }, take: 20 });
-    await interaction.editReply({ content: `${sub === "list" ? "" : "Saved; boards refresh within a minute. / Enregistré ; actualisation sous une minute.\n"}${events.map(e => `${e.id} · ${e.archived ? "ARCHIVED" : e.state} · ${e.startsAt?.toISOString() ?? "TBA"}`).join("\n") || "—"}`.slice(0, 1950), allowedMentions: { parse: [] } });
+    await interaction.editReply({ content: `${sub === "list" ? "" : "Saved; boards refresh within a minute. / Enregistré ; actualisation sous une minute.\n"}${events.map(e => `${e.id} · ${e.archived ? "ARCHIVED" : e.state} · ${e.startsAt ? `<t:${Math.floor(e.startsAt.getTime() / 1000)}:f>` : "TBA"}`).join("\n") || "—"}`.slice(0, 1950), allowedMentions: { parse: [] } });
   } catch (error) {
     if (error instanceof GameEventInputError) { await interaction.editReply({ content: error.message, allowedMentions: { parse: [] } }); return; }
     throw error;

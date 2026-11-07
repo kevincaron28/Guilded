@@ -1,5 +1,5 @@
 {
-  "verifiedAt": "2026-11-05",
+  "verifiedAt": "2026-11-06",
   "mobile": {
     "android": {
       "version": "0.2.0",
@@ -11,9 +11,9 @@
   },
   "guilded": {
     "github": {
-      "version": "8.4.7",
+      "version": "9.0.0",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v8.4.7"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.0.0"
     },
     "curseforge": {
       "version": "8.4.2",
@@ -43,9 +43,9 @@
       }
     },
     "companionDirect": {
-      "version": "8.4.7",
+      "version": "9.0.0",
       "url": "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe",
-      "sha256": "b69c423b71753fdf2368f427d75231a2529369adb769989e341621fd30ffe8f9"
+      "sha256": "a655f1ff0469bf5d2c7e8c2e825cdc56e5ba7bf466f27ff98b767662d1d1648e"
     },
     "microsoftStore": {
       "version": "8.3.0",

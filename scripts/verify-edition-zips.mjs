@@ -3,7 +3,7 @@ import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
 import { unzipSync } from "fflate";
-import { GAME_EDITIONS, editionFromInterface } from "../companion/game-edition.mjs";
+import { editionFromInterface } from "../companion/game-edition.mjs";
 
 // Run before uploading edition zips to CurseForge (or any host): every zip must really be the
 // edition its file name and upload slot say. A build for another edition installed in a game
@@ -11,12 +11,13 @@ import { GAME_EDITIONS, editionFromInterface } from "../companion/game-edition.m
 //   node scripts/verify-edition-zips.mjs [folder-or-zip ...]     (default: dist/editions)
 // The edition comes from the name, Guilded[Dungeons]-vX.Y.Z-<edition>.zip, which is also what
 // CurseForge's game-version/flavor choice for each upload should match:
-export const CURSEFORGE_FLAVORS = { forever: "Forever", "classic-era": "Classic", "classic-tbc": "Classic TBC", "classic-mists": "MoP Classic", retail: "Retail" };
+// CurseForge flavor. Guilded publishes WoW Forever only.
+export const CURSEFORGE_FLAVORS = { forever: "Forever" };
 
 export function verifyEditionZip(file) {
   const name = basename(file);
   const match = /^(Guilded|GuildedDungeons)-v(\d+\.\d+\.\d+)-([a-z-]+)\.zip$/.exec(name);
-  if (!match || !GAME_EDITIONS.includes(match[3])) return [`${name}: not an edition package name`];
+  if (!match || !Object.hasOwn(CURSEFORGE_FLAVORS, match[3])) return [`${name}: not an edition package name`];
   const [, addon, version, edition] = match;
   const problems = [];
   const files = unzipSync(new Uint8Array(readFileSync(file)));

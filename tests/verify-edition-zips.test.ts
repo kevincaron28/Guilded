@@ -31,7 +31,9 @@ describe("verifyEditionZip", () => {
   });
 
   it("catches a stale stamp and an unknown package name", () => {
-    expect(verifyEditionZip(zip("Guilded-v8.4.2-retail.zip", "retail", 120105, "forever")).join("\n")).toContain("EDITION.txt does not say Edition: retail");
+    expect(verifyEditionZip(zip("Guilded-v8.4.2-forever.zip", "forever", 16001, "retail")).join("\n")).toContain("EDITION.txt does not say Edition: forever");
+    // Guilded publishes WoW Forever only: another edition's package name is not a Guilded package.
+    expect(verifyEditionZip(zip("Guilded-v8.4.2-retail.zip", "retail", 120105))[0]).toContain("not an edition package name");
     expect(verifyEditionZip(zip("Guilded.zip", "forever", 16001))[0]).toContain("not an edition package name");
   });
 });

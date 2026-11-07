@@ -1,8 +1,16 @@
 # Forever-only removal plan
 
-Status: **7 November 2026: plan only (phase 1). Nothing is removed yet.** Phase 2 starts when the
-coordinator says the other sessions' PRs have landed, then runs the staged PRs below one at a time,
-each from `origin/main` with the four checks in CLAUDE.md passing. No version bump in any of them.
+Status: **7 November 2026: phase 2 under way.** Stage 1 (addons) merged in #567; stage 2 (packaging)
+is the next PR. The staged PRs run one at a time, each from `origin/main` with the four checks in
+CLAUDE.md passing. No version bump in any of them.
+
+Change while building (7 November): the shared data sources `companion/dungeon-catalog.mjs` and
+`companion/raid-buffs.mjs`, `scripts/prepare-dungeon-catalog.py`, the launch-timing and calendar
+scripts and `scripts/export-edition-rules.ts` moved from stage 2 to stage 4. The bot's per-edition
+dungeon rules (`dungeon-edition-catalog.ts`, `public-score.ts`, `dungeon-launch-timings.ts`), the Retail
+keystone rating and team composition read them, so they go in the same PR as that bot code. The addon
+already ships Forever rows only (stage 1). The edition plumbing in `companion/character-identity.mjs`,
+`lua-export-content.mjs` and `personal-runs-content.mjs` moves to stage 6, where `GAME_EDITIONS` narrows.
 
 Owner request (7 November 2026): "Remove other versions of WoW from the code and references
 everywhere. We only develop for the WoW Forever edition."
@@ -118,6 +126,11 @@ does, keep the code and drop only the edition test. The release needs real-clien
 (owed list in ROADMAP.md).
 
 ### Stage 2: packaging and companion data (`scripts/`, `companion/` data files)
+
+Built as: Forever-only `build-addon-editions.mjs` and `verify-edition-zips.mjs` (npm script names kept),
+and the empty generated endpoint block in `DungeonRoutes.lua` replaced by a static `routes.sourced = {}`
+with `scripts/sync-dungeon-catalog.mjs` and its CI check removed. The rest of this list moved to stages 4
+and 6 (see Status).
 
 Delete:
 - `scripts/build-addon-editions.mjs`: `EDITION_INTERFACES` loses four entries, `--all-editions` and

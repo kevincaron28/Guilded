@@ -92,7 +92,7 @@ sub-commands.
 | `/mod` `page` `recruit` `leaderboard` `rankroles` | Public guild page, recruitment listing, public leaderboards, rank roles | Officers |
 | `/report` `inactive` `guild` | Inactive members; guild health | Officers |
 | `/organize` | Community seasons, quizzes, honors, lotteries, gaming nights, challenges | Organizers |
-| `/poll` `create` `close` `weekly` | Polls and the weekly question | Officers |
+| `/poll` `create` `close` `weekly` `news` `board` | Polls, the weekly question, and news and polls on the in-game guild board | Officers |
 | `/events` `board` `reminders` `disable` `status` `refresh` | Upcoming Events board and opt-in reminders | Officers |
 | `/participation` `settings` `channels` `claims` `review` `reverse` | Participation settings, nominations and awards | Officers |
 | `/wow` `add` `channel` `roles` | Add an in-game guild; bind a channel; set its roles | Officers |

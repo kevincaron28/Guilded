@@ -123,6 +123,8 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  mapSightings GuildMapSighting[]
+  helpCalls GuildHelpCall[]
   statSnapshots GuildStatSnapshot[]
   dungeonHighlights DungeonHighlight[]
   levelRace LevelRaceEntry[]
@@ -197,6 +199,7 @@ model Guild {
   groupAlerts         GroupAlert[]
   faqEntries          FaqEntry[]
   polls               Poll[]
+  boardPosts          BoardPost[]
   unclaimedCharacters UnclaimedCharacter[]
   inviteRequests InviteRequest[]
   characterPairings   CharacterPairing[]
@@ -450,6 +453,11 @@ model CommunityParticipationDeletion {
 model Member {
   // 8.5 track B: hide this member's characters from the race to 60 board.
   raceHidden Boolean @default(false)
+  // Track M: the member turned off sharing their map position with the guild on the phone map
+  // (their stored positions were deleted then; uploads keep none while this is true).
+  mapShareOff Boolean @default(false)
+  mapSightings GuildMapSighting[]
+  helpCalls GuildHelpCall[]
   achievements MemberAchievement[]
   poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
@@ -991,7 +999,12 @@ model GuildSettings {
   guildBankMemberSearch    Boolean @default(true)
   guildBankRequestPosts    Boolean @default(true)
   guildBankStockAlerts     Boolean @default(true)
+  // Track M: the guildmate map on the phone (last-seen positions, heat map, help pins). Officers' off switch.
+  guildMapEnabled          Boolean @default(true)
   bankRequestChannelId     String?
+  // 9.1 in-game guild board (docs/GUILD_BOARD.md): officers' news and open polls in the addon,
+  // voting from the game. On by default; officers turn it off with /poll board.
+  guildBoardEnabled        Boolean @default(true)
   dungeonChannelId         String?
   dungeonConfig            Json?
   // Monthly dungeon seasons (opt-in; src/services/dungeon-season-schedule.ts).
@@ -2015,6 +2028,30 @@ model PollVote {
   member   Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([pollId, memberId, option])
+}
+
+// 9.1 in-game guild board (docs/GUILD_BOARD.md): an officer's news post, from Discord (/poll news)
+// or from the game (the addon's Board page, uploaded by the officer's companion). Shown on the
+// addon's Board page; a post from the game is also posted in the announcements channel.
+model BoardPost {
+  id        String    @id @default(cuid())
+  guildId   String
+  body      String
+  // The name shown in game: the officer's Discord display name or character name.
+  author    String
+  authorId  String?
+  memberId  String?
+  source    String    @default("discord")
+  // The addon's own reference for a post from the game, so a resent upload posts it once.
+  clientRef String?
+  channelId String?
+  messageId String?
+  removedAt DateTime?
+  createdAt DateTime  @default(now())
+  guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, clientRef])
+  @@index([guildId, createdAt])
 }
 
 // A character the addons revealed (through the guild digest) that no Discord
@@ -3227,4 +3264,55 @@ model DungeonHighlight {
   @@unique([guildId, key])
   @@index([guildId, createdAt])
   @@index([runId])
+// Track M (phone guildmate map): where a member's own character was last seen outdoors, from their
+// companion upload (addon GuildMap.lua). Guild-only, never public; deleted when the member turns
+// sharing off and pruned after 28 days. zone x/y are 0..1 on the zone map; cx/cy on its continent.
+model GuildMapSighting {
+  id          String   @id @default(cuid())
+  guildId     String
+  memberId    String
+  character   String
+  mapId       Int
+  zone        String
+  x           Float
+  y           Float
+  continentId Int?
+  continent   String?
+  cx          Float?
+  cy          Float?
+  seenAt      DateTime
+  createdAt   DateTime @default(now())
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, character, seenAt])
+  @@index([guildId, seenAt])
+}
+
+// Track M: a call for help the member sent in game (addon CallForHelp.lua), uploaded by their own
+// companion, shown as a pin on the phone map. Coordinates are kept only while the member shares.
+model GuildHelpCall {
+  id          String    @id @default(cuid())
+  guildId     String
+  memberId    String
+  ref         String
+  character   String
+  zone        String
+  subzone     String?
+  mapId       Int?
+  x           Float?
+  y           Float?
+  continentId Int?
+  continent   String?
+  cx          Float?
+  cy          Float?
+  attackers   Json
+  calledAt    DateTime
+  clearedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  guild       Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, ref])
+  @@index([guildId, calledAt])
 }

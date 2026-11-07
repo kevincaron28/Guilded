@@ -1631,6 +1631,7 @@ end
 local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Overview", build = buildHomePage },
   { name = "Guild overview", hint = "classes and levels of the whole guild at a glance", group = "Overview", build = function(page) if ns.guildOverview and ns.guildOverview.buildPage then ns.guildOverview.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Board", label = "Guild board", hint = "officers' news and open polls, vote from the game", group = "Overview", build = function(page) if ns.guildBoard and ns.guildBoard.buildPage then ns.guildBoard.buildPage(page, { newLabel = newLabel, newButton = newButton, newEdit = newEdit, at = at, width = PAGE_WIDTH }) end end },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Overview", usesPlayer = true, build = buildMePage },
   { name = "Open raids", hint = "find a raid with room for you", group = "Overview", build = buildPublicRaidsPage },
   { name = "Standings", scope = "guild", group = "Guild", usesPlayer = true, build = buildStandingsPage },
@@ -2338,14 +2339,26 @@ local function buildPanel()
     if ns.guildPanel and ns.guildPanel.tab then ns.guildPanel.tab:SetChecked(false) end
     ui.lastOfficer = nil
   end
+  -- The game also runs OnHide when the window the panel sits in (the guild window) is closed, and
+  -- then the panel's own "shown" flag is still set. Putting it back on UIParent in that state made
+  -- it appear again on its own, with the guild window gone (P0, 7 November: "can't close it").
+  -- So the panel is hidden for real first, then moved.
+  local function hiddenThenRestore()
+    if panel:IsShown() then panel:Hide() end
+    restoreUndocked()
+  end
   panel:HookScript("OnHide", function()
     if ui.scope == "main" then return end
     if ns.util.inCombat() then
       -- If the panel was shown again before combat ended, leave it where it is.
-      ns.util.afterCombat("guilded-panel-restore", function() if not panel:IsShown() then restoreUndocked() end end)
+      ns.util.afterCombat("guilded-panel-restore", function()
+        local host = ui.guildHost
+        local seen = panel:IsShown() and (not host or host:IsShown())
+        if not seen then hiddenThenRestore() end
+      end)
       return
     end
-    restoreUndocked()
+    hiddenThenRestore()
   end)
 
   -- Shift-clicking an item normally inserts its link into chat; also put it

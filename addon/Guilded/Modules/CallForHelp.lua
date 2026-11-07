@@ -28,6 +28,9 @@ local MAX_ATTACKERS = 3
 local POSITION_MAX_AGE = 600
 local MAX_MATES = 5
 local MATE_REFRESH_SECONDS = 5
+-- Phone map (Track M): the member's own calls, saved for their companion to upload as map pins.
+local SAVED_CALLS_MAX = 10
+local SAVED_CALLS_KEEP = 2 * 86400
 
 local module = {}
 ns.callForHelp = module
@@ -435,6 +438,39 @@ local function active()
 end
 
 -- Seconds until a new call is allowed (0 = now).
+-- Saves my call in db.helpCalls (keyed by its server time) for the phone map; returns the key.
+function module.saveCall(call)
+  local db = ns.getDb and ns.getDb()
+  if type(db) ~= "table" or type(call) ~= "table" then return nil end
+  local list = type(db.helpCalls) == "table" and db.helpCalls or {}
+  local at = tonumber(call.time) or serverTime()
+  local row = { id = tostring(at), n = clean(call.name or playerName(), 80), at = at, z = clean(call.zone, 60), sz = clean(call.subzone, 60), a = {} }
+  for i, a in ipairs(call.attackers or {}) do
+    if i > MAX_ATTACKERS then break end
+    row.a[#row.a + 1] = { n = clean(a.name, 40), c = a.class and clean(a.class, 20) or nil, l = tonumber(a.level) }
+  end
+  if call.mapId and call.x and call.y then
+    row.m, row.x, row.y = call.mapId, math.floor(call.x * 10000 + 0.5) / 10000, math.floor(call.y * 10000 + 0.5) / 10000
+    local gm = ns.guildMap
+    if gm and gm.continentOf and gm.translate then
+      local okC, continent, continentName = pcall(gm.continentOf, call.mapId)
+      if okC and continent then
+        local okT, cx, cy = pcall(gm.translate, call.mapId, call.x, call.y, continent)
+        if okT and cx and cy then row.c, row.cn, row.cx, row.cy = continent, continentName, math.floor(cx * 10000 + 0.5) / 10000, math.floor(cy * 10000 + 0.5) / 10000 end
+      end
+    end
+  end
+  list[row.id] = row
+  local keys = {}
+  for key, saved in pairs(list) do
+    if type(saved) ~= "table" or at - (tonumber(saved.at) or 0) > SAVED_CALLS_KEEP then list[key] = nil else keys[#keys + 1] = key end
+  end
+  table.sort(keys, function(a, b) return (tonumber(list[a].at) or 0) < (tonumber(list[b].at) or 0) end)
+  for i = 1, #keys - SAVED_CALLS_MAX do list[keys[i]] = nil end
+  db.helpCalls = list
+  return row.id
+end
+
 function module.cooldownLeft()
   if not lastCallAt then return 0 end
   return math.max(0, math.ceil(COOLDOWN_SECONDS - (now() - lastCallAt)))
@@ -456,6 +492,8 @@ function module.open()
     say(L("Could not send the call for help.")); return false
   end
   mine = { id = clean(call.id, 8), at = now(), zone = zone, responders = {}, posted = false }
+  local okSave, savedKey = pcall(module.saveCall, call)
+  mine.saved = okSave and savedKey or nil
   lastCallAt = now()
   if module.guildChat() and SendChatMessage then
     mine.posted = pcall(SendChatMessage, guildChatLine(call), "GUILD")
@@ -469,6 +507,9 @@ end
 function module.allClear()
   if not mine then return false end
   ns.comm.send(PREFIX, "C|" .. mine.id, "GUILD", nil, nil, "interactive")
+  local db = ns.getDb and ns.getDb()
+  local saved = mine.saved and type(db) == "table" and type(db.helpCalls) == "table" and db.helpCalls[mine.saved]
+  if type(saved) == "table" then saved.clr = serverTime() end
   -- The call put a line in guild chat (and so in Discord): close it there too.
   if mine.posted and SendChatMessage then
     pcall(SendChatMessage, string.format(L("[Guilded] All clear: %s is safe."), clean(mine.name or playerName(), 24)), "GUILD")

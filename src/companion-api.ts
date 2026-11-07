@@ -14,6 +14,7 @@ import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-li
 import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
+import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
@@ -47,6 +48,7 @@ import { applyGuildData } from "./services/guild-data.js";
 import { applyGuildBank } from "./services/guild-bank.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
+import { applyBoardVotes, applyRelayedBoardVotes, boardEnabled, boardForAddon, createBoardService, myBoardVotes, parseAddonBoardPosts, parseAddonBoardVotes } from "./services/guild-board.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
@@ -108,6 +110,12 @@ const importService = createAddonImportService(prisma);
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  response.end(JSON.stringify(body));
+}
+
+/** Guild-only answers (the guildmate map): never stored by a cache or proxy. */
+function privateJson(response: ServerResponse, body: unknown): void {
+  response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "private, no-store" });
   response.end(JSON.stringify(body));
 }
 
@@ -466,19 +474,43 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     const acceptedLedgerRefs = await ledgerRefsFor(database, guild.id, access.memberId);
     const acceptedLootRefs = await lootRefsFor(database, guild.id);
     const standings = (await epgp.getGuildStandings(guild.id, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
+    // 9.1 in-game guild board (guild-board.ts): news and open polls with counts; small and the same for everyone.
+    const board = await boardForAddon(database, guild.id);
     // Shared: the same for every member, so it sets the stamp. Discord events are filtered
     // per member and dungeon/ledger acknowledgements do not change what the addon shows.
     return {
-      shared: { accounts, baseGp, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
+      shared: { accounts, baseGp, board, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
       personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids, ...(promotion ? { promotion } : {}),
         // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
         ...(access.officer ? { officerInvites: inviteListForAddon(await pendingInvites(database, guild.id)) } : {}),
         // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
         bank: await bankForAddon(database, guild.id, access.memberId, !!access.officer),
+        // 9.1 guild board: this member's own picks on the open polls.
+        ...(board.enabled ? { boardVotes: await myBoardVotes(database, guild.id, access.memberId) } : {}),
         publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
       stampOnly: { botRaids }
     };
   }, { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
+}
+
+// The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.
+async function applyGuildBoardUpload(guildId: string, memberId: string, officer: boolean, snapshot: { boardVotes: unknown[]; boardRelayVotes: unknown[]; boardPosts: unknown[];
+  character?: { name: string; displayName?: string | null | undefined } | undefined }, client?: Client): Promise<boolean> {
+  const own = parseAddonBoardVotes(snapshot.boardVotes);
+  const relayed = parseAddonBoardVotes(snapshot.boardRelayVotes, true);
+  const posts = officer ? parseAddonBoardPosts(snapshot.boardPosts) : [];
+  if (!own.length && !relayed.length && !posts.length) return false;
+  if (!await boardEnabled(prisma, guildId)) return false;
+  const polls = new Set([...await applyBoardVotes(prisma, guildId, memberId, own), ...await applyRelayedBoardVotes(prisma, guildId, memberId, relayed)]);
+  const author = snapshot.character?.displayName || snapshot.character?.name || "Officer";
+  const created = posts.length ? await createBoardService(prisma).fromAddon(guildId, memberId, author, posts) : [];
+  if (client && (polls.size || created.length)) {
+    // Loaded only when needed: the poll command module is not part of the API's start-up.
+    const { postGameNews, syncPollById } = await import("./commands/poll.js");
+    for (const pollId of polls) await syncPollById(client, pollId).catch((error: unknown) => console.warn("Poll refresh after game votes failed", error));
+    for (const post of created) await postGameNews(client, guildId, post).catch((error: unknown) => console.warn("Game news post failed", error));
+  }
+  return polls.size > 0 || created.length > 0;
 }
 
 // `client` lets an upload be applied and announced by the bot itself (auto-apply).
@@ -536,6 +568,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Track L: who is signed in, their Guilded servers, and the join invite for their in-game guild.
       const isCompanionMe = request.method === "GET" && url.pathname === "/api/v1/companion/me";
       const isAlbum = request.method === "GET" && url.pathname === "/api/v1/companion/achievements";
+      // Track M: the phone's guildmate map (guild members only) and the member's own sharing switch.
+      const isMapView = request.method === "GET" && url.pathname === "/api/v1/companion/guild-map";
+      const isMapEdit = request.method === "POST" && url.pathname === "/api/v1/companion/guild-map";
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
@@ -548,7 +583,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -735,9 +770,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit || isMapEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isMapView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -754,6 +789,19 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!access) {
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
+      }
+      if (isMapView || isMapEdit) {
+        // Signed-in members of this guild only (the credential is bound to it); never public, never cached.
+        if (!access.memberId) { json(response, 403, { error: "Sign in as a member of this guild to see the guild map." }); return; }
+        if (isMapEdit) {
+          const share = (payload as { share?: unknown } | null)?.share;
+          if (typeof share !== "boolean") { json(response, 400, { error: "share must be true or false" }); return; }
+          const done = await setMapSharing(prisma, access.memberId, share);
+          privateJson(response, { ok: true, ...done, map: await guildMapFor(prisma, guild.id, access.memberId) });
+          return;
+        }
+        privateJson(response, await guildMapFor(prisma, guild.id, access.memberId));
+        return;
       }
       if (isHubView) {
         // The /setup checklist is read from Discord for officers only; if Discord cannot be reached the page says so.
@@ -911,6 +959,18 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (bankRequests.length && pairedMemberId) {
         const created = await createBankService(prisma).fromAddon(guild.id, pairedMemberId, bankRequests).catch((error: unknown) => { console.warn("Bank requests from the addon failed", error); return []; });
         for (const request of created) if (client) await postRequestCard(client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error));
+      }
+      // 9.1 guild board (guild-board.ts): votes made in game, the uploader's own and guildmates' heard in
+      // game; officers' news written in game. Each is idempotent, so a resent upload changes nothing.
+      if (pairedMemberId) {
+        const boardChanged = await applyGuildBoardUpload(guild.id, pairedMemberId, !!access.officer, preview.snapshot, client)
+          .catch((error: unknown) => { console.warn("Guild board upload failed", error); return false; });
+        if (boardChanged) markGuildChanged(guild.id);
+      }
+      // Track M: the uploader's own last-seen positions and calls for help, for the phone map (guild-map.ts).
+      if (pairedMemberId && (preview.snapshot.mapSightings.length || preview.snapshot.helpCalls.length)) {
+        await applyGuildMapUpload(prisma, guild.id, pairedMemberId, parseGuildMapUpload(preview.snapshot.mapSightings, preview.snapshot.helpCalls))
+          .catch((error: unknown) => { console.warn("Guild map upload failed", error); });
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

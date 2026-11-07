@@ -296,6 +296,10 @@ export const addonSnapshotSchema = z.object({
   boardVotes: z.array(z.unknown()).max(50).default([]),
   boardRelayVotes: z.array(z.unknown()).max(200).default([]),
   boardPosts: z.array(z.unknown()).max(10).default([]),
+  // Track M phone map (services/guild-map.ts): the uploader's own last-seen positions and calls for help.
+  // Validated row by row on apply, with their pairing only.
+  mapSightings: z.array(z.unknown()).max(100).default([]),
+  helpCalls: z.array(z.unknown()).max(20).default([]),
   // Rows left out because they were malformed (see parseAddonSnapshot); the rest still imports.
   rejected: z.array(z.object({ section: z.string().max(40), label: z.string().max(120), reason: z.string().max(200) })).max(MAX_REJECTED).default([])
 });

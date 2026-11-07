@@ -123,6 +123,8 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  mapSightings GuildMapSighting[]
+  helpCalls GuildHelpCall[]
   statSnapshots GuildStatSnapshot[]
   levelRace LevelRaceEntry[]
   raceHall RaceHallEntry[]
@@ -450,6 +452,11 @@ model CommunityParticipationDeletion {
 model Member {
   // 8.5 track B: hide this member's characters from the race to 60 board.
   raceHidden Boolean @default(false)
+  // Track M: the member turned off sharing their map position with the guild on the phone map
+  // (their stored positions were deleted then; uploads keep none while this is true).
+  mapShareOff Boolean @default(false)
+  mapSightings GuildMapSighting[]
+  helpCalls GuildHelpCall[]
   achievements MemberAchievement[]
   poeLevelsReached PoeLevelReached[]
   battlegroundReports BattlegroundReport[]
@@ -987,6 +994,8 @@ model GuildSettings {
   guildBankMemberSearch    Boolean @default(true)
   guildBankRequestPosts    Boolean @default(true)
   guildBankStockAlerts     Boolean @default(true)
+  // Track M: the guildmate map on the phone (last-seen positions, heat map, help pins). Officers' off switch.
+  guildMapEnabled          Boolean @default(true)
   bankRequestChannelId     String?
   // 9.1 in-game guild board (docs/GUILD_BOARD.md): officers' news and open polls in the addon,
   // voting from the game. On by default; officers turn it off with /poll board.
@@ -3219,4 +3228,57 @@ model MemberLinkNotice {
   characterIds String  @default("")
   notifiedAt  DateTime @default(now())
   member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+}
+
+// Track M (phone guildmate map): where a member's own character was last seen outdoors, from their
+// companion upload (addon GuildMap.lua). Guild-only, never public; deleted when the member turns
+// sharing off and pruned after 28 days. zone x/y are 0..1 on the zone map; cx/cy on its continent.
+model GuildMapSighting {
+  id          String   @id @default(cuid())
+  guildId     String
+  memberId    String
+  character   String
+  mapId       Int
+  zone        String
+  x           Float
+  y           Float
+  continentId Int?
+  continent   String?
+  cx          Float?
+  cy          Float?
+  seenAt      DateTime
+  createdAt   DateTime @default(now())
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member      Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, character, seenAt])
+  @@index([guildId, seenAt])
+}
+
+// Track M: a call for help the member sent in game (addon CallForHelp.lua), uploaded by their own
+// companion, shown as a pin on the phone map. Coordinates are kept only while the member shares.
+model GuildHelpCall {
+  id          String    @id @default(cuid())
+  guildId     String
+  memberId    String
+  ref         String
+  character   String
+  zone        String
+  subzone     String?
+  mapId       Int?
+  x           Float?
+  y           Float?
+  continentId Int?
+  continent   String?
+  cx          Float?
+  cy          Float?
+  attackers   Json
+  calledAt    DateTime
+  clearedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  guild       Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, ref])
+  @@index([guildId, calledAt])
 }

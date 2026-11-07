@@ -266,6 +266,7 @@ export function parseAddonExportText(text, realm) {
   const guildData = exportGuildData(database);
   const guildBank = exportGuildBank(database);
   const guildBoard = exportGuildBoard(database);
+  const guildMap = exportGuildMap(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -365,7 +366,8 @@ export function parseAddonExportText(text, realm) {
     ...(milestones.length ? { milestones } : {}),
     ...guildData,
     ...guildBank,
-    ...guildBoard
+    ...guildBoard,
+    ...guildMap
   }, edition.gameEdition, realm);
   return syncStats ? { ...identities, syncStats } : identities;
 }
@@ -487,6 +489,52 @@ export function exportGuildBoard(database) {
   const posts = Object.values(board.posts ?? {}).filter((p) => p && typeof p.ref === "string" && /^[A-Za-z0-9-]{6,40}$/.test(p.ref) && typeof p.text === "string" && epoch(p.at))
     .slice(0, 5).map((p) => ({ ref: p.ref, text: p.text.replace(/[|\p{Cc}]/gu, " ").trim().slice(0, 500), at: p.at }));
   return { ...(votes.length ? { boardVotes: votes } : {}), ...(heard.length ? { boardRelayVotes: heard } : {}), ...(posts.length ? { boardPosts: posts } : {}) };
+}
+
+// Track M phone map (addon Modules/GuildMap.lua and Modules/CallForHelp.lua): this player's own
+// last-seen outdoor positions (db.mapSeen, one per character, plus a short db.mapTrail) and their own
+// calls for help (db.helpCalls). Whitelisted field by field; the bot keeps them only for the uploader
+// and only while they share (src/services/guild-map.ts).
+export function exportGuildMap(database) {
+  const text = (v, max) => typeof v === "string" && v.trim() ? v.trim().replace(/[|\p{Cc}]/gu, " ").slice(0, max) : undefined;
+  const share = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1 ? Math.round(v * 10000) / 10000 : undefined;
+  const id = (v) => Number.isInteger(v) && v > 0 && v < 100000 ? v : undefined;
+  const at = (v) => Number.isInteger(v) && v > 1_600_000_000 && v < 4_000_000_000 ? v : undefined;
+  const place = (row) => {
+    const out = {};
+    const mapId = id(row.m), x = share(row.x), y = share(row.y);
+    if (mapId && x !== undefined && y !== undefined) Object.assign(out, { mapId, x, y });
+    const continentId = id(row.c), cx = share(row.cx), cy = share(row.cy);
+    if (out.mapId && continentId && cx !== undefined && cy !== undefined) Object.assign(out, { continentId, cx, cy, ...(text(row.cn, 60) ? { continent: text(row.cn, 60) } : {}) });
+    return out;
+  };
+  const sightings = new Map();
+  const add = (character, row) => {
+    const name = text(character, 80), when = row && at(row.at), zone = row && text(row.z, 60);
+    if (!name || !when || !zone) return;
+    const where = place(row);
+    if (!where.mapId) return;
+    const key = `${name}|${when}`;
+    if (!sightings.has(key)) sightings.set(key, { character: name, zone, ...where, at: when });
+  };
+  for (const [character, row] of Object.entries(database?.mapSeen ?? {})) add(character, row);
+  for (const row of Object.values(database?.mapTrail ?? {})) if (row && typeof row === "object") add(row.n, row);
+  const mapSightings = [...sightings.values()].sort((a, b) => a.at - b.at).slice(-60);
+  const helpCalls = Object.values(database?.helpCalls ?? {}).flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const ref = typeof row.id === "string" && /^[A-Za-z0-9-]{1,40}$/.test(row.id) ? row.id : undefined;
+    const character = text(row.n, 80), when = at(row.at);
+    if (!ref || !character || !when) return [];
+    const attackers = Object.values(row.a ?? {}).flatMap((a) => {
+      const name = a && text(a.n, 40);
+      if (!name) return [];
+      const level = Number.isInteger(a.l) && a.l >= 0 && a.l <= 100 ? { level: a.l } : {};
+      return [{ name, ...(text(a.c, 20) ? { class: text(a.c, 20) } : {}), ...level }];
+    }).slice(0, 3);
+    return [{ ref, character, zone: text(row.z, 60) ?? "", ...(text(row.sz, 60) ? { subzone: text(row.sz, 60) } : {}), ...place(row),
+      attackers, at: when, ...(at(row.clr) ? { clearedAt: at(row.clr) } : {}) }];
+  }).sort((a, b) => a.at - b.at).slice(-10);
+  return { ...(mapSightings.length ? { mapSightings } : {}), ...(helpCalls.length ? { helpCalls } : {}) };
 }
 
 // What the game shows every member about the whole guild (addon Modules/GuildSnapshot.lua and

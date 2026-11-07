@@ -14,6 +14,7 @@ import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-li
 import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
+import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
@@ -109,6 +110,12 @@ const importService = createAddonImportService(prisma);
 
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  response.end(JSON.stringify(body));
+}
+
+/** Guild-only answers (the guildmate map): never stored by a cache or proxy. */
+function privateJson(response: ServerResponse, body: unknown): void {
+  response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "private, no-store" });
   response.end(JSON.stringify(body));
 }
 
@@ -561,6 +568,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Track L: who is signed in, their Guilded servers, and the join invite for their in-game guild.
       const isCompanionMe = request.method === "GET" && url.pathname === "/api/v1/companion/me";
       const isAlbum = request.method === "GET" && url.pathname === "/api/v1/companion/achievements";
+      // Track M: the phone's guildmate map (guild members only) and the member's own sharing switch.
+      const isMapView = request.method === "GET" && url.pathname === "/api/v1/companion/guild-map";
+      const isMapEdit = request.method === "POST" && url.pathname === "/api/v1/companion/guild-map";
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
@@ -573,7 +583,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -760,9 +770,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit || isMapEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isMapView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -779,6 +789,19 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!access) {
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
+      }
+      if (isMapView || isMapEdit) {
+        // Signed-in members of this guild only (the credential is bound to it); never public, never cached.
+        if (!access.memberId) { json(response, 403, { error: "Sign in as a member of this guild to see the guild map." }); return; }
+        if (isMapEdit) {
+          const share = (payload as { share?: unknown } | null)?.share;
+          if (typeof share !== "boolean") { json(response, 400, { error: "share must be true or false" }); return; }
+          const done = await setMapSharing(prisma, access.memberId, share);
+          privateJson(response, { ok: true, ...done, map: await guildMapFor(prisma, guild.id, access.memberId) });
+          return;
+        }
+        privateJson(response, await guildMapFor(prisma, guild.id, access.memberId));
+        return;
       }
       if (isHubView) {
         // The /setup checklist is read from Discord for officers only; if Discord cannot be reached the page says so.
@@ -943,6 +966,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const boardChanged = await applyGuildBoardUpload(guild.id, pairedMemberId, !!access.officer, preview.snapshot, client)
           .catch((error: unknown) => { console.warn("Guild board upload failed", error); return false; });
         if (boardChanged) markGuildChanged(guild.id);
+      }
+      // Track M: the uploader's own last-seen positions and calls for help, for the phone map (guild-map.ts).
+      if (pairedMemberId && (preview.snapshot.mapSightings.length || preview.snapshot.helpCalls.length)) {
+        await applyGuildMapUpload(prisma, guild.id, pairedMemberId, parseGuildMapUpload(preview.snapshot.mapSightings, preview.snapshot.helpCalls))
+          .catch((error: unknown) => { console.warn("Guild map upload failed", error); });
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

@@ -153,7 +153,7 @@ describe("the whole addon, loaded in .toc order", () => {
   it("has an options page and an Addon Compartment entry", () => {
     const s = fullAddon(1);
     expect(s.run(`return type(Guilded_OnAddonCompartmentClick) .. type(Guilded_OnAddonCompartmentEnter) .. type(Guilded_OnAddonCompartmentLeave)`)).toBe("functionfunctionfunction");
-    expect(s.run(`return tostring(#NS.options.switches() == 18 + #NS.MODULES + (NS.isOfficer() and 4 or 0))`)).toBe("true");
+    expect(s.run(`return tostring(#NS.options.switches() == 19 + #NS.MODULES + (NS.isOfficer() and 4 or 0))`)).toBe("true");
     // A switch runs the same command you could type.
     s.run(`for _, sw in ipairs(NS.options.switches()) do if sw.module == "bidding" then sw.set(false) end end`);
     expect(s.run(`return tostring(GuildedDB.settings.modules.bidding)`)).toBe("false");

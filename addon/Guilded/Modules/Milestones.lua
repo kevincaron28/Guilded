@@ -4,6 +4,7 @@
 --   dungeon the first completed run of each dungeon (Dungeon.lua's finished-run hook)
 --   hk      lifetime honorable kills: 1, 100, 500, 1000
 --   duel    duels won against guildmates: 1, 10, 50, 100 (Duels.lua)
+--   prof    profession skill steps 75, 150, 225, 300 (150 and 300 are announced; the others are recorded for the bot)
 --
 -- ON by default for every character (owner decision, 5 Nov 2026): the first time a line is about to go out, a one-time
 -- local notice (chat frame only) says so and how to stop. Each player can turn it off, or turn single types off
@@ -25,9 +26,14 @@ local THROTTLE = 30
 local RETRY_COMBAT = 15
 local MAX_TRIES = 4
 local MAX_LOG = 200
-local KINDS = { "level", "dungeon", "hk", "duel" }
+local KINDS = { "level", "dungeon", "hk", "duel", "prof" }
 local HK_STEPS = { 1, 100, 500, 1000 }
 local DUEL_STEPS = { 1, 10, 50, 100 }
+local PROF_STEPS = { 75, 150, 225, 300 }
+local PROF_ANNOUNCED = { [150] = true, [300] = true }
+-- Skill line ids do not depend on the game language; the key is what the bot reads in the upload.
+local PROF_KEYS = { [171] = "alchemy", [164] = "blacksmithing", [333] = "enchanting", [202] = "engineering", [182] = "herbalism",
+  [165] = "leatherworking", [186] = "mining", [393] = "skinning", [197] = "tailoring", [185] = "cooking", [129] = "firstaid", [356] = "fishing" }
 local EDITION_CAP = { forever = 60, ["classic-era"] = 60, ["classic-tbc"] = 70, ["classic-mists"] = 90, retail = 90 }
 
 local function L(text) return ns.L and ns.L(text) or text end
@@ -94,6 +100,8 @@ local function messageFor(item, name)
   elseif item.kind == "hk" then
     if item.value == 1 then return string.format(L("%s scored a first honorable kill!"), name) end
     return string.format(L("%s reached %d honorable kills!"), name, item.value)
+  elseif item.kind == "prof" then
+    return string.format(L("%s reached skill %d in %s!"), name, item.value, item.label or "?")
   elseif item.kind == "duel" then
     if item.value == 1 then return string.format(L("%s won a first duel!"), name) end
     return string.format(L("%s has won %d duels!"), name, item.value)
@@ -170,7 +178,7 @@ local function reachSteps(kind, steps, value, make)
   end
   for i, step in ipairs(new) do
     local item, ref = make(step)
-    ms.reach(kind .. ":" .. step, ref, item, i < #new)
+    ms.reach(kind .. ":" .. step, ref, item, i < #new or item.announce == false)
   end
 end
 
@@ -196,6 +204,29 @@ function ms.checkDuelWins(wins)
   reachSteps("duel", DUEL_STEPS, wins, function(step) return { kind = "duel", value = step }, "duel:" .. step end)
 end
 
+-- Profession skill steps, per profession (by skill line id, so any game language gives the same key).
+-- Reaching 300 while watching (not found already there at the first run) also records `profnew:<key>`, which lets the
+-- bot tell "first in the guild to reach 300" from a skill that was simply already there.
+function ms.checkProfessions()
+  if not (GetProfessions and GetProfessionInfo) then return end
+  local ok, a, b, c, d, e, f = pcall(GetProfessions)
+  if not ok then return end
+  for _, index in ipairs({ a or false, b or false, c or false, d or false, e or false, f or false }) do
+    if index then
+      local infoOk, name, _, skill, _, _, _, line = pcall(GetProfessionInfo, index)
+      local key = infoOk and PROF_KEYS[tonumber(line) or 0]
+      skill = infoOk and tonumber(skill)
+      if key and skill and skill > 0 and type(name) == "string" and not (ns.isSecret and ns.isSecret(name)) then
+        reachSteps("prof:" .. key, PROF_STEPS, math.floor(skill), function(step)
+          local cur = current()
+          if step == 300 and cur and cur.baselined then ms.reach("profnew:" .. key, "profnew:" .. key, { kind = "prof", value = 300 }, true) end
+          return { kind = "prof", value = step, label = name, announce = PROF_ANNOUNCED[step] == true }, "prof:" .. key .. "-" .. step
+        end)
+      end
+    end
+  end
+end
+
 -- Dungeon.lua's finished-run hook: the first completed run of each dungeon, for this character.
 function ms.onDungeonRun(run)
   if type(run) ~= "table" or run.state ~= "COMPLETED" or type(run.instanceId) ~= "number" then return end
@@ -214,6 +245,7 @@ local function baseline()
   if not c or c.baselined then return end
   ms.checkLevel(safe(UnitLevel, "player"))
   ms.checkHonorableKills()
+  ms.checkProfessions()
   local d = ns.getDb and ns.getDb()
   for _, run in pairs(d and d.dungeon and d.dungeon.runs or {}) do
     if type(run) == "table" and run.state == "COMPLETED" and type(run.instanceId) == "number" and type(run.players) == "table" and run.players[c.name] then
@@ -265,9 +297,9 @@ local function stateWord(on) return on and "ON" or "OFF" end
 local function status()
   local c = current()
   if not c then return end
-  ns.message(string.format(L("Milestone announcements in guild chat: %s. Level %s, dungeons %s, honorable kills %s, duels %s."),
+  ns.message(string.format(L("Milestone announcements in guild chat: %s. Level %s, dungeons %s, honorable kills %s, duels %s, professions %s."),
     stateWord(c.settings.enabled ~= false), stateWord(c.settings.level ~= false), stateWord(c.settings.dungeon ~= false),
-    stateWord(c.settings.hk ~= false), stateWord(c.settings.duel ~= false)))
+    stateWord(c.settings.hk ~= false), stateWord(c.settings.duel ~= false), stateWord(c.settings.prof ~= false)))
   if ms.guildOff() then ns.message(L("Milestone announcements are turned off for the whole guild by an officer.")) end
 end
 local function handle(args)
@@ -286,7 +318,7 @@ local function handle(args)
       if a == kind and (b == "on" or b == "off") then ms.setEnabled(b == "on", kind); status(); return end
     end
     status()
-    ns.message("/guilded announce on | off | level|dungeon|hk|duel on|off | guild on|off (officers)")
+    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof on|off | guild on|off (officers)")
   end
 end
 ns.commandHandlers = ns.commandHandlers or {}
@@ -306,7 +338,7 @@ ns.onDungeonRunFinished = function(run)
 end
 
 local frame = CreateFrame("Frame")
-local events = { "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN", "CHAT_MSG_ADDON" }
+local events = { "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_LEVEL_UP", "PLAYER_PVP_KILLS_CHANGED", "CHAT_MSG_COMBAT_HONOR_GAIN", "SKILL_LINES_CHANGED", "CHAT_MSG_SKILL", "CHAT_MSG_ADDON" }
 for _, event in ipairs(events) do pcall(frame.RegisterEvent, frame, event) end
 frame:SetScript("OnEvent", function(_, event, a, b, c, d)
   local ok, err = pcall(function()
@@ -325,6 +357,8 @@ frame:SetScript("OnEvent", function(_, event, a, b, c, d)
       baseline(); ms.checkLevel(a)
     elseif event == "PLAYER_PVP_KILLS_CHANGED" or event == "CHAT_MSG_COMBAT_HONOR_GAIN" then
       ms.checkHonorableKills()
+    elseif event == "SKILL_LINES_CHANGED" or event == "CHAT_MSG_SKILL" then
+      if current() and current().baselined then ms.checkProfessions() end
     elseif event == "CHAT_MSG_ADDON" and ns.comm.accept(a, b, c, d, PREFIX, function(sender) return ns.isGuildMember and ns.isGuildMember(sender) end) and c == "GUILD" then
       ms.onAddonMessage(b, d)
     end

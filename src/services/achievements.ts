@@ -12,7 +12,7 @@ export interface AchievementFacts {
   /** Per synced character: the level and the cap of its edition. */
   charactersAtCap: number;
   /** Per WoW edition: from the characters of that edition only. */
-  editions: Record<string, { highestLevel: number; atCap: number; profession: number }>;
+  editions: Record<string, { highestLevel: number; atCap: number; profession: number; mastered?: number }>;
   dungeonRuns: Date[];
   /** First completion of each distinct dungeon. */
   dungeonVariety: Date[];
@@ -38,11 +38,15 @@ export interface AchievementFacts {
   duelWins: number;
   duelStreak: number;
   beatTopDuelist: number;
+  /** Professions where the member was the guild's first to 300, recipes only the member knows, and crafts done for others (dated). */
+  professionFirsts: number;
+  rareRecipes: number;
+  craftsDone: Date[];
 }
 
 export interface AchievementResult { def: AchievementDef; value: number; earned: boolean; earnedAt: Date | null }
 
-export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0, honorableKills: 0, duelWins: 0, duelStreak: 0, beatTopDuelist: 0 });
+export const emptyFacts = (): AchievementFacts => ({ highestWowLevel: 0, charactersAtCap: 0, editions: {}, dungeonRuns: [], dungeonVariety: [], highestProfessionSkill: 0, raidsAttended: [], raidClears: [], activeDays: [], poeLevels: [], poeMaps: [], mvpWeeks: [], serverAnniversaries: [], messagesSent: 0, reactionsGiven: 0, reactionsReceived: 0, voiceHours: 0, communityPoints: 0, epEarned: 0, honorableKills: 0, duelWins: 0, duelStreak: 0, beatTopDuelist: 0, professionFirsts: 0, rareRecipes: 0, craftsDone: [] });
 
 function measure(def: AchievementDef, facts: AchievementFacts): { value: number; at: Date | null } {
   const { metric, threshold } = def;
@@ -55,6 +59,10 @@ function measure(def: AchievementDef, facts: AchievementFacts): { value: number;
     case "wowEditionLevel": return { value: edition?.highestLevel ?? 0, at: null };
     case "wowEditionCap": return { value: edition?.atCap ?? 0, at: null };
     case "wowEditionProfession": return { value: edition?.profession ?? 0, at: null };
+    case "professionsMastered": return { value: edition?.mastered ?? 0, at: null };
+    case "professionFirsts": return { value: facts.professionFirsts, at: null };
+    case "rareRecipes": return { value: facts.rareRecipes, at: null };
+    case "craftsDone": return counted(facts.craftsDone);
     case "dungeonRuns": return counted(facts.dungeonRuns);
     case "dungeonVariety": return counted(facts.dungeonVariety);
     case "professionSkill": return { value: facts.highestProfessionSkill, at: null };
@@ -94,9 +102,35 @@ export function evaluateAchievements(facts: AchievementFacts, now: Date): Achiev
   });
 }
 
-type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement" | "memberMilestone" | "duelResult">;
+type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement" | "memberMilestone" | "duelResult" | "craftRequest" | "recipeKnown">;
 
 const dedupe = <T>(rows: T[], key: (row: T) => string) => { const seen = new Set<string>(); return rows.filter(row => { const k = key(row); if (seen.has(k)) return false; seen.add(k); return true; }); };
+
+/**
+ * Professions in which this member's addon saw them reach 300 (`profnew:<key>`) before any other member's 300 was recorded
+ * (that member's own `profnew:` or a step-300 record). A skill that was already 300 when an addon first ran is not "live",
+ * so it can never win this; a tie goes to nobody (strictly earlier is required of the others, not of the member).
+ */
+export function guildFirsts(rows: readonly { memberId: string; ref: string; reachedAt: Date }[], memberId: string): number {
+  const key = (ref: string) => ref.replace(/^profnew:/, "").replace(/^prof:/, "").replace(/-300$/, "");
+  const earliestOther = new Map<string, number>();
+  for (const row of rows) if (row.memberId !== memberId) { const k = key(row.ref), t = row.reachedAt.getTime(); earliestOther.set(k, Math.min(earliestOther.get(k) ?? Infinity, t)); }
+  const mine = new Set<string>();
+  for (const row of rows) if (row.memberId === memberId && row.ref.startsWith("profnew:") && row.reachedAt.getTime() < (earliestOther.get(key(row.ref)) ?? Infinity)) mine.add(key(row.ref));
+  return mine.size;
+}
+
+/** Recipes only this member's characters have learned in the guild. Needs recipe data from at least two other crafters, or "rare" means nothing. */
+async function countRareRecipes(db: Pick<PrismaClient, "recipeKnown">, guildId: string, names: string[]): Promise<number> {
+  if (!names.length) return 0;
+  const [mine, others] = await Promise.all([
+    db.recipeKnown.findMany({ where: { guildId, character: { in: names } }, select: { itemKey: true }, distinct: ["itemKey"], take: 3000 }),
+    db.recipeKnown.findMany({ where: { guildId, character: { notIn: names } }, select: { character: true, realm: true }, distinct: ["character", "realm"], take: 3 })
+  ]);
+  if (others.length < 2 || !mine.length) return 0;
+  const shared = await db.recipeKnown.findMany({ where: { guildId, character: { notIn: names }, itemKey: { in: mine.map(row => row.itemKey) } }, select: { itemKey: true }, distinct: ["itemKey"], take: 3000 });
+  return mine.length - shared.length;
+}
 
 /** Reads the recorded data. Each query is bounded by the largest threshold that uses it. */
 export async function gatherAchievementFacts(db: Db, guildId: string, memberId: string): Promise<AchievementFacts> {
@@ -104,9 +138,9 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
   if (!member) return emptyFacts();
   const founded = member.guild?.discordId ? serverCreatedAt(member.guild.discordId) : null;
   const max = (metric: AchievementMetric) => Math.max(...ACHIEVEMENTS.filter(row => row.metric === metric).map(row => row.threshold));
-  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps, killMilestones, duels, topDuelist] = await Promise.all([
-    db.character.findMany({ where: { memberId, guildId }, select: { level: true, gameEdition: true } }),
-    db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true, character: { select: { gameEdition: true } } }, take: 500 }),
+  const [characters, skills, runs, attendance, days, levels, visits, counter, points, given, ep, mvps, killMilestones, duels, topDuelist, crafts, profMilestones] = await Promise.all([
+    db.character.findMany({ where: { memberId, guildId }, select: { name: true, realm: true, level: true, gameEdition: true } }),
+    db.professionSkill.findMany({ where: { character: { memberId, guildId } }, select: { skillLevel: true, profession: true, character: { select: { gameEdition: true } } }, take: 500 }),
     db.dungeonRunPlayer.findMany({ where: { memberId, run: { guildId, valid: true, state: "COMPLETED" } }, select: { runId: true, run: { select: { instanceId: true, endedAt: true, startedAt: true, createdAt: true } } }, take: 1000 }),
     db.raidAttendance.findMany({ where: { memberId, status: { in: ["PRESENT", "LATE", "BENCHED"] }, raid: { guildId, status: "COMPLETED", isTest: false } },
       select: { raidId: true, raid: { select: { endedAt: true, scheduledAt: true, bosses: { select: { status: true } } } } }, take: 1000 }),
@@ -123,8 +157,13 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     // Lifetime honorable kills as the member's own addon reported them (the highest step it has recorded).
     db.memberMilestone.aggregate({ where: { guildId, memberId, kind: "hk" }, _max: { value: true } }),
     db.duelResult.findMany({ where: { guildId, counted: true, OR: [{ winnerId: memberId }, { loserId: memberId }] }, orderBy: { endedAt: "asc" }, take: 5000, select: { winnerId: true, loserId: true } }),
-    db.duelResult.groupBy({ by: ["winnerId"], where: { guildId, counted: true }, _count: { _all: true }, orderBy: { _count: { winnerId: "desc" } }, take: 1 })
+    db.duelResult.groupBy({ by: ["winnerId"], where: { guildId, counted: true }, _count: { _all: true }, orderBy: { _count: { winnerId: "desc" } }, take: 1 }),
+    // Craft-board requests this member finished for someone else.
+    db.craftRequest.findMany({ where: { guildId, crafterId: memberId, status: "DONE", requesterId: { not: memberId } }, select: { doneAt: true, updatedAt: true }, orderBy: { updatedAt: "asc" }, take: Math.max(1000, max("craftsDone") * 4) }),
+    // Guild-wide: who reached skill 300 and when (live reaches are `profnew:<key>`, steps `prof:<key>-300`).
+    db.memberMilestone.findMany({ where: { guildId, kind: "prof", OR: [{ ref: { startsWith: "profnew:" } }, { ref: { endsWith: "-300" } }] }, select: { memberId: true, ref: true, reachedAt: true }, take: 2000 })
   ]);
+  const rareRecipes = await countRareRecipes(db, guildId, characters.map(row => row.name));
   // Season participation is a lower bound (capped, only in tracked channels); the counter is the full total from
   // when counting started. Taking the larger keeps earlier tracked activity counted.
   const seasonSum = (field: "messages" | "reactions" | "voiceMs") => days.reduce((sum, row) => sum + (row[field] ?? 0), 0);
@@ -139,7 +178,13 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     entry.highestLevel = Math.max(entry.highestLevel, level);
     if (level >= wowLevelCap(row.gameEdition)) entry.atCap++;
   }
-  for (const row of skills) { const entry = forEdition(row.character?.gameEdition); entry.profession = Math.max(entry.profession, row.skillLevel); }
+  const masteredBy = new Map<string, Set<string>>();
+  for (const row of skills) {
+    const entry = forEdition(row.character?.gameEdition);
+    entry.profession = Math.max(entry.profession, row.skillLevel);
+    if (row.skillLevel >= 300) { const key = row.character?.gameEdition ?? "forever"; (masteredBy.get(key) ?? masteredBy.set(key, new Set()).get(key)!).add(row.profession.toLowerCase()); }
+  }
+  for (const [key, set] of masteredBy) forEdition(key).mastered = set.size;
   const duelStats = { wins: 0, best: 0, beaten: new Set<string>() };
   for (let run = 0, i = 0; i < duels.length; i++) {
     const won = duels[i]!.winnerId === memberId;
@@ -170,6 +215,9 @@ export async function gatherAchievementFacts(db: Db, guildId: string, memberId: 
     honorableKills: killMilestones._max.value ?? 0,
     duelWins: duelStats.wins,
     duelStreak: duelStats.best,
+    craftsDone: crafts.map(row => row.doneAt ?? row.updatedAt).sort(byDate),
+    professionFirsts: guildFirsts(profMilestones, memberId),
+    rareRecipes,
     beatTopDuelist: topDuelist[0] && topDuelist[0]._count._all >= 3 && topDuelist[0].winnerId !== memberId && duelStats.beaten.has(topDuelist[0].winnerId) ? 1 : 0
   };
 }

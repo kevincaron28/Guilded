@@ -24,6 +24,29 @@ export function normalRole(role: string | undefined): "TANK" | "HEALER" | "DPS" 
   const r = (role ?? "").toUpperCase();
   return r === "TANK" ? "TANK" : r === "HEALER" ? "HEALER" : r === "DPS" || r === "DAMAGER" ? "DPS" : undefined;
 }
+// Classes that cannot hold a role at all: a Mage "healer" is a stale or wrong tag, not a second healer.
+const CANNOT_HEAL = new Set(["WARRIOR", "ROGUE", "MAGE", "WARLOCK", "HUNTER"]);
+const CANNOT_TANK = new Set(["MAGE", "ROGUE", "HUNTER", "WARLOCK", "PRIEST"]);
+
+/**
+ * The role icon of each party member, in party order. The addon's recorded role is used; a role is never guessed from the class.
+ * A five-player party has one tank and one healer: a class that cannot fill a claimed role loses that claim, and when two
+ * members still claim the same tank or healer slot nobody gets the icon (the card shows no mark, not a second tank or healer).
+ */
+export function partyRoles(details: Pick<Detail, "role" | "class">[]): (ReturnType<typeof normalRole>)[] {
+  const roles = details.map((detail) => {
+    const role = normalRole(detail.role);
+    const cls = (canonicalClass(detail.class) ?? detail.class ?? "").toUpperCase();
+    return (role === "HEALER" && CANNOT_HEAL.has(cls)) || (role === "TANK" && CANNOT_TANK.has(cls)) ? undefined : role;
+  });
+  if (details.length > 5) return roles;
+  for (const slot of ["TANK", "HEALER"] as const) {
+    const claimants = roles.flatMap((role, index) => role === slot ? [index] : []);
+    if (claimants.length > 1) for (const index of claimants) roles[index] = undefined;
+  }
+  return roles;
+}
+
 /** Localized role name: never the raw "HEALER"/"TANK" the addon sends. */
 export function roleName(role: string | undefined, lang: Lang): string | undefined {
   const r = normalRole(role);
@@ -126,6 +149,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
   const members = party.filter((row) => row.guild).length;
   const mark = run.challenge ? `Mythic+ +${run.challenge.level}` : undefined;
   const score = scoreColumn(party.map((row) => row.detail), t);
+  const roles = partyRoles(party.map((row) => row.detail));
   return {
     eyebrow: t("Guilded · Dungeon completed", "Guilded · Donjon terminé"),
     title: runLabel(run).replace(/ \(.*\)$/, ""),
@@ -143,15 +167,15 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
     dungeon: {
       theme: dungeonTheme(run.dungeonName),
       ...(score ? { scoreLabel: score.label } : {}),
-      party: party.slice(0, 40).map(({ detail, guild }) => {
+      party: party.slice(0, 40).map(({ detail, guild }, index) => {
         const cls = canonicalClass(detail.class);
         const spec = canonicalSpecialization(cls, detail.spec);
         const deaths = detail.deaths === null || detail.deaths === undefined ? undefined : fr ? `${detail.deaths} mort(s)` : `${detail.deaths} death(s)`;
         return {
           name: run.fullNames?.[detail.character] ?? detail.character,
           color: classColor(cls ?? detail.class),
-          role: normalRole(detail.role),
-          roleLabel: roleName(detail.role, lang),
+          role: roles[index],
+          roleLabel: roleName(roles[index], lang),
           sub: [className(detail.class, lang), spec ? (fr ? spec.french : spec.name) : undefined, deaths].filter(Boolean).join(" · "),
           guild,
           ...(score ? score.of(detail) : {})

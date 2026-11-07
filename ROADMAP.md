@@ -8,6 +8,109 @@ Forever is the only active edition and PoE2 is hidden ([Forever-only focus](docs
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
+## Start here — 7 November 2026 (next session)
+
+**If the owner says "continue work":** you are the coordinator. Read this section, CLAUDE.md and the
+"Owner requests, 7 November 2026" list below. Group the work into tracks that don't touch the same files.
+Start one worker session per track with the cheapest model that fits (Haiku: checks and docs; Sonnet: most
+features; Opus: design-heavy or risky changes). Workers open PRs into `main` and report back to you. You review,
+merge, back up, deploy (`deploy/update.sh`), then publish. Real-client testing uses the owner's two PCs by
+desktop control and is coordinated by you. Keep testing in the kevmister28 test server, never spam Québec Gold.
+Record every new owner request in this file before working on it. Only you bump the version (next: 9.0.1 for
+fixes, 9.1.0 for features).
+
+**State at the end of 6 November (verified):**
+- Bot: **9.0.0** live, main `debbad1` (includes #455, Season 1 leniency: 50% presence, 6 levels over / 3 under,
+  final boss enough on single-route maps, full names on the best-runs and participation boards, quieter run
+  posts). Backup before it: `/home/ubuntu/guilded-recovery/2026-11-07T00-38-15-048Z` + encrypted local copy.
+- GitHub: **v9.0.0** is the latest release (companions auto-update to it). Pre-releases v9.0.0-test.1..4 can be deleted.
+- CurseForge: 9.0.0 Forever files uploaded for both projects, waiting for CurseForge review (check they went live).
+- Microsoft Store: 8.4.6.0 live; **9.0.0.0 in Submission 12**, submitted by the owner (check certification).
+  Next Store update: `npm run store:package`, then `STORE-STEPS.txt` (docs/MICROSOFT_STORE_MSIX.md).
+- Open PRs to merge first: **#454** (this roadmap + `store:package`) and **#456** (website 9.0 text, `/help` 9.0
+  lines, bilingual `/officer dungeon audit`). Wait for green CI, merge, deploy (#456 touches bot help text).
+- The server's `FEATURE_PREVIEW_GUILD_IDS` line in `/opt/guilded/.env.local` is unused now; delete it.
+- Dependabot #407 and Android #345 are still open.
+
+**Still to verify with real clients (9.0 is not "accepted" until these pass):**
+- Companion settings survive an upgrade (fixes #449, #450, #452): on the second PC, upgrade from 8.4.7 or a test
+  build to 9.0.0 and read `%APPDATA%\Guilded Companion\startup.log`. That PC's old settings are backed up in
+  `D:\GuildedCompanionTest\`.
+- In game (French Forever client): minimap button visible and `/guilded minimap show` feedback, Guilded chat tab
+  at first login, French login line, panel layout (#451).
+- After the leniency deploy: the dungeon board shows real scores (Chad Ho, Crashing Pally, El Pirata, Hulke Hogan,
+  Mister were all 0). If not, run `/dungeon-admin audit why:true` for one of them.
+- Guild bank link in Statistics (needs real bank data); welcome DM "Request a guild invite"; two-PC call for
+  help and duel; relink of a second character.
+
+**Partial items from the 6 November audit (do early):**
+1. Race to 60 Hall of Fame: officers cannot edit entries; add add/remove/correct.
+2. "Sharing and sync always on, only Delete my data": `/setup` still has "Turn public sharing off" and
+   `/character nickname off` remains; "Delete my data" is only a web page. Add the button in the companion and
+   member page; ask the owner whether to remove the public-sharing switch.
+3. PoE2 leftovers: `achievement-badges.ts` and the companion's hidden PoE2 markup (meta text fixed in #456).
+4. Officers can see why a run was not counted (`dungeon-explain.ts`): confirm with real data.
+
+**Later phases:** screenshots, install/link guides and website (items 20-21), phone app and TCG plan (Track M,
+item 22), Google Play, Discord audit and fresh-setup check (item 24).
+
+### Owner requests, 7 November 2026
+
+- (6 Nov, late) Make the dungeon season **a lot less strict** and start the timed-runs database: **DONE** in #455 (deployed debbad1). Follow-up: check the board shows real scores; routes without a speed target still cannot rank.
+- (6 Nov, late, owner list for 7 Nov; none were quick enough to ship tonight)
+  1. **Battle.net link message in the addon:** verify what it says now that the Battle.net link button/option
+     was removed; it must not point to a step that no longer exists.
+  2. **Companion download link in game:** a copyable link (or popup with the URL) in the addon panel.
+  3. **Professions in guild public notes:** write each member's professions into their public note (officer
+     permission needed; respect the note length and any existing note text, e.g. the main/alt marker).
+  4. **Promote Initiate → Member in the game guild when the player is in the Discord** (officer client does
+     it with the promotion queue; never demote).
+  5. **First-link and "what's linked" DM:** list the linked characters in the Guilded DM when someone links or
+     asks, and add a button on the original welcome DM to show them.
+  6. **Monetization plan only (no build):** website, companion and app options; write the plan, change nothing.
+  7. **EPGP in officer notes:** write EP/GP (or the standing) into guild officer notes, officer client only.
+  8. **More addon-message sharing for sync:** use addon messages between guildmates to fill gaps (Track K follow-up).
+  9. **In-game guild greeting** from an officer client (or relayed from the bot) when someone joins the guild;
+     on by default with an officer off switch.
+  10. **Guild bank + Discord:** analyse what other guild-bank addons offer and recommend what to add.
+  11. **Roster admin window in game:** fix its bugs and regroup the options; remove the useless ones.
+  12. **Race to 60 leaderboard redesign:** more like a public leaderboard, with a card when someone hits 60.
+  13. **Dungeon completion cards (analysis + recommendation):** a card instead of the post, with the dungeon
+      image as background and a death heat map of the dungeon.
+  14. **Remove the "availability" module** (owner thinks it is useless; confirm what it is and who uses it first).
+  15. **One name standard everywhere (owner, 6 Nov late: "the names are not standard everywhere"):** every
+      bot post, board, card, DM and addon line shows the character's full name ("First Last", from
+      `displayCharacterName`/`fullNameBook`), never a first name alone ("El", "Crashing") or a Discord name
+      alone ("Simon"). Where a Discord member is shown, use "Full Name (@member)". Audit all of src/services and
+      src/commands for raw `character`/`displayName`/`username` output, fix them, and add a test that fails on
+      new raw-name output. The dungeon board (best runs, participation points) is being fixed tonight first.
+  16. **#invitation-guilde in the WoW category, and only one of it (Québec Gold has two):** in
+      `src/setup-names.ts` move the invite channel to the WoW category (not the Guilded category), so `/setup`
+      keeps it there. In Québec Gold, keep one channel. Before deleting the other, list every name in it that
+      still needs an invite (no ✅ yet) and repost those names in the kept channel through the invite queue.
+      Then delete the extra channel, with the owner confirming the deletion in that session.
+  17. **Guild overview panel in the in-game Guilded tab:** a visual page showing the guild's classes, roster,
+      professions, cores (raid teams) and more at a glance. Research how other guild addons show this before
+      building (roster/class charts, profession directories, core rosters) and propose a layout first.
+  18. **Guildmate map pins hidden in instances:** world-map and minimap icons for guild members must not appear
+      inside dungeons or raids (check `IsInInstance()` before drawing).
+  19. **Native WoW fit for every addon feature:** each feature has a sensible page, tab or button in the Guilded
+      window and looks like the default UI (Blizzard frame templates, fonts, spacing); nothing reachable only by
+      a slash command.
+  20. **Screenshots and guides:** screenshots of the main features for the website, CurseForge and social media;
+      step-by-step "install" and "link" guides with screenshots that a non-technical member can follow
+      (final phase 1, with guides added).
+  21. **Website refresh, especially the Québec Gold pages:** more information and more visuals.
+  22. **Phone app, heavy work (Track M):** much more visual. Plan a trading-card game built on Guilded's Discord
+      badges and achievements, with dailies that earn packs to open. Research popular TCGs (mechanics, pack
+      economy, collection UI) first; plan only until the owner picks a design.
+  23. **Every feature has a home in Discord:** each bot, addon and companion feature and command has a channel,
+      board or guide entry, so members find it from the server itself.
+  24. **Discord server audit, then a fresh-setup check:** bring Québec Gold's permissions, channels and permanent
+      or pinned messages up to date, then run `/setup` on a fresh test server and confirm it matches the Québec
+      Gold layout (channels, categories, permissions, posts).
+- (add more ideas here)
+
 ## How to work from this file (any AI session)
 
 1. Read `CLAUDE.md` first (checks to run, command-size limit, French rules, migrations, never start the bot).

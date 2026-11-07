@@ -43,7 +43,8 @@
     "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-renderer.mjs",
     "worker:build": "npm run site:build && wrangler deploy --dry-run",
     "worker:deploy": "npm run site:build && wrangler deploy",
-    "ledger:compact": "node companion/ledger-compact.mjs"
+    "ledger:compact": "node companion/ledger-compact.mjs",
+    "store:package": "node scripts/store-package.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

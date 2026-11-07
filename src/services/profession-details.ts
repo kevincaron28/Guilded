@@ -36,7 +36,7 @@ export function professionDetailsEmbed(post: ProfessionPost, recipe: ProfessionR
     + (recipe.crafters.length > 15 ? `\n+${recipe.crafters.length - 15}` : "");
   // A positive key is an item id (verified, Wowhead link); a negative one is an enchant's spell id, shown without a link.
   const base = recipe.itemKey > 0
-    ? buildItemEmbed({ itemId: recipe.itemKey, name: recipe.itemName, verified: true }, details)
+    ? buildItemEmbed({ itemId: recipe.itemKey, name: recipe.itemName, verified: true }, details, lang)
     : { title: recipe.itemName.slice(0, 100) || String(recipe.itemKey), description: `${fr ? "Enchantement" : "Enchant"} (spell ${-recipe.itemKey})`, color: 0x5865f2 };
   const embed = new EmbedBuilder().setColor(base.color).setTitle(base.title.slice(0, 256));
   if (base.description) embed.setDescription(base.description);

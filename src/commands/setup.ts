@@ -190,7 +190,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     officerSyncAt: (await prisma.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }))?.officerSyncAt ?? null,
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "dungeonChannelId", "weeklyReportChannelId", "inviteChannelId"] as const)
+    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "craftLadderChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "dungeonChannelId", "weeklyReportChannelId", "inviteChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
@@ -618,7 +618,7 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
 }
 
 export const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId"];
-const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId", "inviteChannelId"];
+const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "craftLadderChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId", "inviteChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
 export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];

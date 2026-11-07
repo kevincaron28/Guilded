@@ -486,7 +486,7 @@ Approve, and a raid can never be paid twice.
 | `/mod faq test <question>` | Which answer a question would get |
 | `/mod recruit set open:<true\|false> [core] [classes] [roles] [days] [times] [language] [faction] [realm] [note]` | The guild's listing on guilded.kcaron.top/recruitment/ (or one core's, with `core`). Empty options keep their value; `none` clears a text. Approved servers only. Website applications arrive in the applications channel (or the officer log) with Accept / Decline / Spam |
 | `/mod recruit status` | This server's listings and the public page |
-| `/mod leaderboard share:<true\|false>` | Copy this guild's valid completed dungeon runs to guilded.kcaron.top/leaderboards/ (checked like personal uploads; every 15 minutes) |
+| `/mod leaderboard` | Sharing is always on; shows the window. Copies this guild's valid completed dungeon runs to guilded.kcaron.top/leaderboards/ (checked like personal uploads; every 15 minutes) |
 | `/tag set` / `/tag delete` | Manage saved answers |
 | `/setup selfroles <title> <role1> [role2..5]` | Post a role button panel |
 | `/config view` | Show settings |

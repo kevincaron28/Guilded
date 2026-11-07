@@ -13,7 +13,6 @@ import { CLASSES } from "../wow-data.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { blockVerifiedCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
-import { restoreNickname } from "../services/nickname-sync.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
 
 export const characterCommand = new SlashCommandBuilder()
@@ -60,10 +59,6 @@ export const characterCommand = new SlashCommandBuilder()
   .addSubcommand((subcommand) => subcommand
     .setName("list")
     .setDescription("List your linked characters."))
-  .addSubcommand((subcommand) => subcommand
-    .setName("nickname")
-    .setDescription("Keep your own nickname, or follow the server format")
-    .addBooleanOption((option) => option.setName("on").setDescription("On = server format, off = your own nickname").setRequired(true)))
   .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
 
 // The realm most of the guild's characters use, so nobody types it.
@@ -83,15 +78,6 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   if (subcommand === "pair") {
     const settings = await guildService.getSettings(context.guildId);
     await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language), "companion"));
-    return;
-  }
-  if (subcommand === "nickname") {
-    const on = interaction.options.getBoolean("on", true);
-    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
-    const restored = interaction.guild ? await restoreNickname(prisma, interaction.guild, context.guildId, interaction.user.id, !on) : false;
-    await interaction.reply({ flags: MessageFlags.Ephemeral, content: on
-      ? (lang === "fr" ? "Ton pseudo suivra le format du serveur si les officiers ont activé la synchro." : "Your nickname follows the server's format if officers turned the sync on.")
-      : (lang === "fr" ? `C'est noté : le bot ne touchera plus à ton pseudo.${restored ? " Ton ancien pseudo est rétabli." : ""}` : `Done: the bot will leave your nickname alone.${restored ? " Your previous nickname is back." : ""}`) });
     return;
   }
   if (subcommand === "race") { await executeRace(interaction, context); return; }

@@ -16,10 +16,12 @@ export const PROFESSION_FR: Record<string, string> = {
   Skinning: "Dépeçage", Cooking: "Cuisine", "First Aid": "Premiers soins", Fishing: "Pêche", Archaeology: "Archéologie"
 };
 
-const canonical = (profession: string) => {
+/** The stored (English) profession name for an English or French name; undefined when it is not a profession. */
+export const canonicalProfession = (profession: string): string | undefined => canonical(profession);
+function canonical(profession: string) {
   const wanted = profession.trim().toLowerCase();
   return Object.keys(PROFESSION_EMOJI).find(name => name.toLowerCase() === wanted || PROFESSION_FR[name]?.toLowerCase() === wanted);
-};
+}
 export const professionEmoji = (profession: string): string => PROFESSION_EMOJI[canonical(profession) ?? ""] ?? "📚";
 /** The profession's name in the guild's language (unknown names are kept as typed). */
 export const professionName = (profession: string, lang: Lang = "en"): string => {

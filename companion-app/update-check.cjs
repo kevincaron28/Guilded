@@ -160,4 +160,35 @@ function launchInstallerOnExit(target, spawn = require("node:child_process").spa
   } catch { return false; }
 }
 
-module.exports = { parseVersion, isNewer, pickUpdate, fetchLatestRelease, installerFrom, downloadInstaller, launchInstaller, isStoreInstall, decideAutoUpdate, hashFileSync, inspectPending, launchInstallerOnExit, RELEASES_PAGE, DIRECT_DOWNLOAD_URL, CHECK_INTERVAL_MS };
+// The Microsoft Store listing itself (not the Store's general Downloads page): one click from the
+// companion lands on Guilded Companion, where the Store shows Update when one is waiting.
+const STORE_LISTING = "ms-windows-store://pdp/?ProductId=9N680XX3QFL9";
+
+/**
+ * The version panel (9.0.x, owner request 7 November): what is installed, what is out, and the one
+ * thing to do. Pure, so every state is tested without Electron.
+ * @param {{ current: string, latest?: { version: string } | null, pending?: { version: string } | null,
+ *   pendingReady?: boolean, store?: boolean, storeUpdate?: { version?: string } | null,
+ *   checkedAt?: string | null, checkFailed?: boolean, autoUpdate?: boolean, installing?: boolean }} input
+ * @returns {{ installed: string, latest: string | null, status: string, action: string | null }}
+ *   status: installing | update-ready | update-available | up-to-date | unknown |
+ *           store-update | store-up-to-date | store-unknown
+ *   action: install-now | update-now | check | open-store | null
+ */
+function versionStatus({ current, latest = null, pending = null, pendingReady = false, store = false, storeUpdate = null, checkedAt = null, checkFailed = false, autoUpdate = true, installing = false }) {
+  const latestVersion = latest && parseVersion(latest.version) ? parseVersion(latest.version).join(".") : null;
+  const base = { installed: String(current), latest: latestVersion, checkedAt: checkedAt || null, autoUpdate: autoUpdate !== false };
+  if (store) {
+    if (storeUpdate || (latestVersion && isNewer(latestVersion, current))) return { ...base, status: "store-update", action: "open-store" };
+    if (latestVersion) return { ...base, status: "store-up-to-date", action: "open-store" };
+    return { ...base, status: "store-unknown", action: "open-store" };
+  }
+  if (installing) return { ...base, status: "installing", action: null };
+  // Downloaded and checked already: it installs at the next quit or start, or now with one click.
+  if (pendingReady && pending && isNewer(pending.version, current)) return { ...base, latest: latestVersion || parseVersion(pending.version).join("."), status: "update-ready", action: "install-now" };
+  if (latestVersion && isNewer(latestVersion, current)) return { ...base, status: "update-available", action: "update-now" };
+  if (latestVersion) return { ...base, status: "up-to-date", action: null };
+  return { ...base, status: "unknown", action: "check", ...(checkFailed ? { checkFailed: true } : {}) };
+}
+
+module.exports = { versionStatus, STORE_LISTING, parseVersion, isNewer, pickUpdate, fetchLatestRelease, installerFrom, downloadInstaller, launchInstaller, isStoreInstall, decideAutoUpdate, hashFileSync, inspectPending, launchInstallerOnExit, RELEASES_PAGE, DIRECT_DOWNLOAD_URL, CHECK_INTERVAL_MS };

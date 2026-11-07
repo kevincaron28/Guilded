@@ -56,7 +56,7 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
     // only) and the ones their companion uploaded. Each account shows once, with its best match (main
     // first); cards sort by character name and page by cursor, so deep pages cost no more than the first.
     async list(filters, after) {
-      const servers = (await database.guild.findMany({ select: { discordId: true }, distinct: ["discordId"], take: 5_000 })).map((row) => row.discordId).filter(allows);
+      const servers = (await database.guild.findMany({ where: { isTestServer: false }, select: { discordId: true }, distinct: ["discordId"], take: 5_000 })).map((row) => row.discordId).filter(allows);
       const conditions = [Prisma.sql`"gameEdition" = ${filters.edition}`];
       if (filters.q) conditions.push(Prisma.sql`lower(character) LIKE ${likePattern(filters.q)}`);
       if (filters.realm) conditions.push(Prisma.sql`lower(realm) = ${filters.realm.toLowerCase()}`);

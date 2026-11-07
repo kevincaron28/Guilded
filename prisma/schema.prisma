@@ -151,6 +151,8 @@ model Guild {
   wowChannels WowGuildChannel[]
   scopeKey            String @default("default")
   gameEdition         String @default("forever")
+  // Owner-marked test server (Guild.isTestServer): kept out of public leaderboards, directory, pages and cross-server feeds; its own data is never hidden from it.
+  isTestServer        Boolean @default(false)
   wowSpace            WowGuild? @relation("WowGuildScope")
   wowGuilds           WowGuild[]
   gameEventBoards GameEventBoard[]

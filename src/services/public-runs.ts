@@ -406,7 +406,7 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
 // Sharing-enabled guilds (GuildSettings.publicDungeonRuns): their valid completed runs, as the bot
 // already stored and checked them, go through the same public checks under "guild:<id>".
 export async function publishGuildRuns(database: PrismaClient, store: PublicRunStore = prismaPublicRunStore(database), now = new Date()): Promise<number> {
-  const guilds = await database.guildSettings.findMany({ where: { publicDungeonRuns: true }, select: { guildId: true, publicDungeonRunsSince: true, guild: { select: { gameEdition: true } } } });
+  const guilds = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { isTestServer: false } }, select: { guildId: true, publicDungeonRunsSince: true, guild: { select: { gameEdition: true } } } });
   let published = 0;
   for (const { guildId, publicDungeonRunsSince, guild } of guilds) {
     const gameEdition = gameEditionOf(guild ?? {});

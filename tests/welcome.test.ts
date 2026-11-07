@@ -38,7 +38,7 @@ describe("welcome message", () => {
       customId: "welcomerole:g1:admin",
       user: { id: "u1" },
       reply, deferReply: vi.fn(), editReply,
-      client: { guilds: { fetch: vi.fn().mockResolvedValue({ id: "g1", name: "QG", roles: { fetch: vi.fn().mockResolvedValue({ id: "admin", name: "Admin" }) } }) } }
+      client: { guilds: { fetch: vi.fn().mockResolvedValue({ id: "g1", name: "QG", roles: { cache: new Map([["admin", { id: "admin", name: "Admin" }]]), fetch: vi.fn().mockResolvedValue({ id: "admin", name: "Admin", managed: false, permissions: { bitfield: 0n } }) } }) } }
     };
     const housekeeping = await import("../src/services/housekeeping.js");
     // Settings offer only "wow"; a crafted "admin" id must be rejected.
@@ -60,7 +60,7 @@ describe("welcome message", () => {
     const member = { id: "u1", roles: { cache: new Map<string, unknown>(), add, remove: vi.fn() } };
     const discordGuild = {
       id: "g1", name: "QG",
-      roles: { fetch: vi.fn(async () => { order.push("roles.fetch"); return { id: "wow", name: "World of Warcraft" }; }) },
+      roles: { cache: new Map([["wow", { id: "wow", name: "World of Warcraft" }]]), fetch: vi.fn(async () => { order.push("roles.fetch"); return { id: "wow", name: "World of Warcraft", managed: false, permissions: { bitfield: 0n } }; }) },
       members: { fetch: vi.fn(async () => { order.push("members.fetch"); return member; }) }
     };
     const editReply = vi.fn();
@@ -82,5 +82,33 @@ describe("welcome message", () => {
     expect(member.roles.remove).not.toHaveBeenCalled();
     expect(interaction.reply).not.toHaveBeenCalled();
     expect(editReply.mock.calls.at(-1)?.[0].content).toContain("World of Warcraft");
+  });
+  // Same report: the pick must work even when the saved game-role list lost the WoW role or the database is slow.
+  it("gives the server's World of Warcraft role even when the settings no longer list it or cannot be read", async () => {
+    for (const settingsFail of [false, true]) {
+      vi.resetModules();
+      const add = vi.fn();
+      const member = { id: "u1", roles: { cache: new Map<string, unknown>(), add, remove: vi.fn() } };
+      const wow = { id: "wow", name: "World of Warcraft", managed: false, permissions: { bitfield: 0n } };
+      const discordGuild = { id: "g1", name: "QG", roles: { cache: new Map([["wow", wow], ["poe", { id: "poe", name: "Path of Exile 2", managed: false, permissions: { bitfield: 0n } }]]), fetch: vi.fn(async () => wow) }, members: { fetch: vi.fn(async () => member) } };
+      const editReply = vi.fn();
+      const interaction = { customId: "welcomerole:g1:wow", user: { id: "u1" }, reply: vi.fn(), deferReply: vi.fn(), editReply, client: { guilds: { fetch: vi.fn(async () => discordGuild) } } };
+      const housekeeping = await import("../src/services/housekeeping.js");
+      if (settingsFail) vi.spyOn(housekeeping.welcomeGuildService, "ensureGuild").mockRejectedValue(new Error("P2028"));
+      else vi.spyOn(housekeeping.welcomeGuildService, "ensureGuild").mockResolvedValue({ id: "db-g1" } as never);
+      vi.spyOn(housekeeping.welcomeGuildService, "getSettings").mockResolvedValue({ welcomeRoleIds: ["poe"], inviteWowRoleId: null, rulesGate: false, rulesChannelId: null } as never);
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      await housekeeping.handleWelcomeRoleButton(interaction as never);
+      expect(add).toHaveBeenCalledTimes(1);
+      expect(editReply.mock.calls.at(-1)?.[0].content).toContain("World of Warcraft");
+    }
+  });
+
+  it("never offers a role with dangerous permissions, even one named World of Warcraft", async () => {
+    const { welcomeRoleOffered } = await import("../src/services/housekeeping.js");
+    const guild = { id: "g1", roles: { cache: new Map([["wow", { id: "wow", name: "World of Warcraft" }]]) } };
+    expect(welcomeRoleOffered(null, guild, { id: "wow", name: "World of Warcraft", managed: false, permissions: { bitfield: 0n } })).toBe(true);
+    expect(welcomeRoleOffered(null, guild, { id: "wow", name: "World of Warcraft", managed: false, permissions: { bitfield: 8n } })).toBe(false);
+    expect(welcomeRoleOffered({ welcomeRoleIds: [], inviteWowRoleId: null }, guild, { id: "other", name: "Other", managed: false, permissions: { bitfield: 0n } })).toBe(false);
   });
 });

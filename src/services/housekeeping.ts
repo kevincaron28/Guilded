@@ -9,6 +9,8 @@ import { currentGuildScope } from "./guild-scope.js";
 import { asLang, t } from "../i18n.js";
 import { linkedCharactersRow } from "./companion-link-dm.js";
 import { onboardingButtons, rulesGateActive, rulesPending, rulesPrompt } from "./onboarding.js";
+import { findWowRoleId } from "./invite-channel.js";
+import { selfRoleProblem } from "./selfrole.js";
 
 const guildService = createGuildService(prisma);
 // Exported so tests can stub settings lookups.
@@ -162,10 +164,14 @@ export async function handleWelcomeRoleButton(interaction: ButtonInteraction): P
     await interaction.editReply({ content: "I'm no longer in that server." });
     return;
   }
-  const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
-  const settings = await guildService.getSettings(guild.id);
+  // A slow or failing database must not cost a member their game role: the role checks below still apply.
+  const loaded = await (async () => {
+    const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
+    return { guild, settings: await guildService.getSettings(guild.id) };
+  })().catch((error: unknown) => { console.error("Welcome role button: settings unavailable", error); return null; });
+  const settings = loaded?.settings ?? null;
   const role = await discordGuild.roles.fetch(roleId).catch(() => null);
-  if (!settings?.welcomeRoleIds.includes(roleId) || !role) {
+  if (!role || !welcomeRoleOffered(settings, discordGuild, role)) {
     await interaction.editReply({ content: "That choice isn't offered anymore. Ask an officer." });
     return;
   }
@@ -174,7 +180,7 @@ export async function handleWelcomeRoleButton(interaction: ButtonInteraction): P
     await interaction.editReply({ content: `You're not in ${discordGuild.name} anymore.` });
     return;
   }
-  if (await rulesPending(guild.id, settings, member.id)) {
+  if (loaded && settings && await rulesPending(loaded.guild.id, settings, member.id).catch(() => false)) {
     await interaction.editReply(rulesPrompt(settings, discordGuild.id, asLang(settings.language), true));
     return;
   }
@@ -186,8 +192,20 @@ export async function handleWelcomeRoleButton(interaction: ButtonInteraction): P
     await interaction.editReply({ content: `I couldn't change "${role.name}". An officer needs to move my role above it (Server Settings > Roles).` });
     return;
   }
-  const lang = asLang(settings.language);
+  const lang = asLang(settings?.language);
   await interaction.editReply({ content: t(lang, had ? "welcome.removed" : "welcome.added", { role: role.name }) });
+}
+
+// A welcome button's role is honoured when the settings still offer it, or when it is the server's World of Warcraft
+// role (owner report, 7 November 2026: WoW picks failed). Either way the role must be harmless to self-assign.
+export function welcomeRoleOffered(
+  settings: Pick<GuildSettings, "welcomeRoleIds" | "inviteWowRoleId"> | null,
+  discordGuild: Pick<DiscordGuild, "id"> & { roles: { cache: { values(): Iterable<{ id: string; name: string }> } } },
+  role: { id: string; name: string; managed: boolean; permissions: { bitfield: bigint } }
+): boolean {
+  if (selfRoleProblem({ id: role.id, managed: role.managed, permissions: role.permissions.bitfield }, discordGuild.id)) return false;
+  if (settings?.welcomeRoleIds.includes(role.id)) return true;
+  return findWowRoleId(discordGuild.roles.cache.values(), settings?.inviteWowRoleId) === role.id;
 }
 
 export async function handleMemberLeave(discordGuild: DiscordGuild, member: GuildMember | PartialGuildMember): Promise<void> {

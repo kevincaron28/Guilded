@@ -146,8 +146,15 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       // Don't deliver yesterday's failed summary alongside today's message.
       const timezone = typeof payload["timezone"] === "string" ? payload["timezone"] : "America/Toronto";
       if (payload["day"] !== participationDay(new Date(), timezone)) return;
-      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { readinessChannelId: true } });
-      if (!settings?.readinessChannelId) return;
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { readinessChannelId: true, readinessPostsEnabled: true } });
+      if (!settings?.readinessChannelId || !settings.readinessPostsEnabled) return;
+      channelId = settings.readinessChannelId;
+    } else if (route === "raidCheck") {
+      // 9.1 raid night check: re-checked at delivery (switch, channel, and the raid still planned and not long past).
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { readinessChannelId: true, readinessPostsEnabled: true } });
+      if (!settings?.readinessChannelId || !settings.readinessPostsEnabled) return;
+      const raid = await prisma.raid.findFirst({ where: { id: String(payload["raidId"] ?? ""), guildId: job.guildId }, select: { status: true, scheduledAt: true } });
+      if (!raid || raid.status !== "PLANNED" || raid.scheduledAt.getTime() < Date.now() - 60 * 60_000) return;
       channelId = settings.readinessChannelId;
     } else if (route === "achievements") {
       // Re-checked at delivery: switching announcements off (or the channel) takes effect for queued posts too.

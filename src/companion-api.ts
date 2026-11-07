@@ -15,6 +15,7 @@ import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/compa
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
 import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
+import { liveNewsFeed } from "./services/news-feed.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createHash } from "node:crypto";
@@ -81,6 +82,7 @@ import { prismaRosterDashboardStore } from "./services/roster-dashboard-store.js
 import { guildDashboardAccess } from "./services/guild-dashboard-access.js";
 import { prismaAvailabilityStore } from "./services/web-availability-store.js";
 import { createWebAvailability } from "./services/web-availability.js";
+import { createWebLootLists, prismaLootListStore } from "./services/web-loot-lists.js";
 import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
 import { createGuildToolsPages } from "./services/guild-tools-pages.js";
 import { createStatsPage } from "./services/stats-page.js";
@@ -321,6 +323,7 @@ export function createSiteApp(client?: Client) {
   const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), discordUserId => deleteMyData(prisma, discordUserId));
   const raidPlanning = createRaidPlanning(raidPlanningStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), client));
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
+  const lootLists = createWebLootLists(prismaLootListStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
   const battleNetLinking: BattleNetLinking = {
     discoverAll: discoverAllBattleNet,
@@ -330,7 +333,7 @@ export function createSiteApp(client?: Client) {
     status: discordUserId => memberLinkStatus(prisma, discordUserId)
   };
   const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
@@ -340,6 +343,7 @@ export function createSiteApp(client?: Client) {
     meSection({ id: "availability", group: "play", render: availability.meSection }),
     meSection({ id: "calendar", group: "play", render: personalCalendar.meSection }),
     meSection({ id: "raid-planning", group: "play", render: raidPlanning.meSection }),
+    meSection({ id: "raid-loot", group: "play", render: lootLists.meSection }),
     meSection({ id: "leaderboards", group: "play", render: leaderboards.meSection, fold: { en: "How to connect the companion", fr: "Comment connecter le compagnon" } }),
     meSection({ id: "guild-tools", group: "guild", render: guildTools.meSection }),
     meSection({ id: "artisans", group: "guild", render: gallery.meSection }),
@@ -348,7 +352,7 @@ export function createSiteApp(client?: Client) {
     meSection({ id: "connections", group: "account", render: devices.meSection }),
     meSection({ id: "your-data", group: "account", render: memberData.meSection })
   ];
-  routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route);
+  routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route, lootLists.route);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
@@ -462,45 +466,62 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     console.warn("Discord calendar events could not be fetched; exporting bot raids only.");
     return [];
   });
-  const loot = await lootRead;
-  return prisma.$transaction(async (transaction) => {
-    const database = transaction as unknown as PrismaClient;
-    const epgp = createEpgpService(database);
-    const baseGp = (await database.guildSettings.findUnique({ where: { guildId: guild.id } }))?.baseGp ?? 0;
-    // Dungeon runs the bot has stored lately, so the addon can mark them
-    // as synced (roadmap D3).
-    const acceptedRunRefs = (await database.dungeonRun.findMany({
-      where: { guildId: guild.id, createdAt: { gte: new Date(Date.now() - 45 * 86_400_000) } },
-      select: { runRef: true },
-      orderBy: { createdAt: "desc" },
-      take: 500
-    })).map((row) => row.runRef);
-    const dungeonBoard = await addonDungeonBoard(database, guild.id);
-    const nextRaid = await nextRaidRoster(database, guild.id);
-    const items = await itemInsights(database, guild.id).catch(() => []);
-    const botRaids = await upcomingRaidsForAddon(database, guild.id);
-    const raids = mergeCalendarEvents(botRaids, scheduledEvents);
-    const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
-    const acceptedLedgerRefs = await ledgerRefsFor(database, guild.id, access.memberId);
-    const acceptedLootRefs = await lootRefsFor(database, guild.id);
-    const standings = (await epgp.getGuildStandings(guild.id, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
+  // Reads that need no snapshot consistency with the standings and ledger: plain client, in
+  // parallel, before the transaction. Inside it they ran the 15 s budget out under load (P2028,
+  // 7 Nov, the same fix as #487 for loot rules). A failing one fails the answer as before
+  // (items keep their empty fallback), so a transient error never writes empty data.
+  const [loot, dungeonBoard, nextRaid, items, botRaids, board, bank, officerInvites, pilotRaids] = await Promise.all([
+    lootRead,
+    addonDungeonBoard(prisma, guild.id),
+    nextRaidRoster(prisma, guild.id),
+    itemInsights(prisma, guild.id).catch(() => []),
+    upcomingRaidsForAddon(prisma, guild.id),
     // 9.1 in-game guild board (guild-board.ts): news and open polls with counts; small and the same for everyone.
-    const board = await boardForAddon(database, guild.id);
-    // Shared: the same for every member, so it sets the stamp. Discord events are filtered
-    // per member and dungeon/ledger acknowledgements do not change what the addon shows.
-    return {
-      shared: { accounts, baseGp, board, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
-      personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids, ...(promotion ? { promotion } : {}),
-        // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
-        ...(access.officer ? { officerInvites: inviteListForAddon(await pendingInvites(database, guild.id)) } : {}),
-        // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
-        bank: await bankForAddon(database, guild.id, access.memberId, !!access.officer),
-        // 9.1 guild board: this member's own picks on the open polls.
-        ...(board.enabled ? { boardVotes: await myBoardVotes(database, guild.id, access.memberId) } : {}),
-        publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
-      stampOnly: { botRaids }
-    };
-  }, { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
+    boardForAddon(prisma, guild.id),
+    // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
+    bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
+    // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
+    access.officer ? pendingInvites(prisma, guild.id).then(inviteListForAddon) : Promise.resolve(null),
+    publicRaids(prisma, hostedPilot.allows)
+  ]);
+  // 9.1 guild board: this member's own picks on the open polls.
+  const boardVotes = board.enabled ? await myBoardVotes(prisma, guild.id, access.memberId) : null;
+  const raids = mergeCalendarEvents(botRaids, scheduledEvents);
+  const consistent = await prisma.$transaction((transaction) => standingsConsistentReads(transaction as unknown as PrismaClient, guild.id, access.memberId),
+    { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
+  const { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs } = consistent;
+  // Shared: the same for every member, so it sets the stamp. Discord events are filtered
+  // per member and dungeon/ledger acknowledgements do not change what the addon shows.
+  return {
+    shared: { accounts, baseGp, board, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
+    personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids, ...(promotion ? { promotion } : {}),
+      ...(officerInvites ? { officerInvites } : {}),
+      bank,
+      ...(boardVotes ? { boardVotes } : {}),
+      publicRaids: { fetchedAt: new Date().toISOString(), raids: pilotRaids } },
+    stampOnly: { botRaids }
+  };
+}
+
+/**
+ * The only reads inside the standings transaction (RepeatableRead): what must agree with each other
+ * in one snapshot, the standings with the base GP and the characters' accounts, and the ledger, loot
+ * and run refs the addon uses to stop resending what the bot has. Everything else is read before.
+ */
+export async function standingsConsistentReads(database: PrismaClient, guildId: string, memberId: string) {
+  const baseGp = (await database.guildSettings.findUnique({ where: { guildId } }))?.baseGp ?? 0;
+  // Dungeon runs the bot has stored lately, so the addon can mark them as synced (roadmap D3).
+  const acceptedRunRefs = (await database.dungeonRun.findMany({
+    where: { guildId, createdAt: { gte: new Date(Date.now() - 45 * 86_400_000) } },
+    select: { runRef: true },
+    orderBy: { createdAt: "desc" },
+    take: 500
+  })).map((row) => row.runRef);
+  const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
+  const acceptedLedgerRefs = await ledgerRefsFor(database, guildId, memberId);
+  const acceptedLootRefs = await lootRefsFor(database, guildId);
+  const standings = (await createEpgpService(database).getGuildStandings(guildId, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
+  return { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs };
 }
 
 // The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.

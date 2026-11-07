@@ -112,7 +112,8 @@ import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
 import { executeOwnerPreviews, handleItemPreviewButton, OWNER_PREVIEWS_COMMAND, ownerPreviewsCommand } from "./commands/owner-previews.js";
 import { ITEM_PREVIEW_PREFIX } from "./services/item-preview-step0.js";
 import { handlePreviewMessage } from "./services/item-preview.js";
-import { CachedItemProvider, nullItemDataProvider, PreviewGate } from "./services/item-preview-data.js";
+import { PreviewGate } from "./services/item-preview-data.js";
+import { itemData } from "./item-data.js";
 import { botOwnerId, executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
 import { executeOwnerConsole, OWNER_CONSOLE_COMMAND, ownerConsoleCommand } from "./commands/owner-console.js";
 import { createOwnerConsole } from "./services/owner-console.js";
@@ -629,7 +630,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
   client.on(Events.MessageCreate, (message) => { if (message.guildId && hostedPilot.allows(message.guildId)) void handleInviteMessage(message, prisma).catch(reportJobError("Guild invite post", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });
   // Discord-only item previews (docs/ITEM_PREVIEWS.md): inert until an owner enables a server.
   const previewGate = new PreviewGate();
-  const previewProvider = new CachedItemProvider(nullItemDataProvider);
+  const previewProvider = itemData; // cached, rate-limited; the null provider without a Battle.net app
   const previewBackoff = new Map<string, number>();
   client.on(Events.MessageCreate, (message) => {
     if (!message.guildId || !hostedPilot.allows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket

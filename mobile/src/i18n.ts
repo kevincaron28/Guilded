@@ -24,6 +24,7 @@ const copy = {
   wishlist: { en: "Wishlist", fr: "Liste de souhaits" },
   raids: { en: "Raids", fr: "Raids" },
   alerts: { en: "Alerts", fr: "Alertes" },
+  album: { en: "Album", fr: "Album" },
   signOut: { en: "Sign out", fr: "Déconnexion" },
   closeSample: { en: "Close sample", fr: "Fermer l'exemple" },
   refresh: { en: "Refresh", fr: "Actualiser" },

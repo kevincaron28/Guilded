@@ -7,8 +7,7 @@ import { hasPermission } from "../permissions.js";
 // Only valid, completed runs, with character names, class, role, time and deaths.
 export const publicLeaderboardCommand = new SlashCommandBuilder()
   .setName("leaderboard")
-  .setDescription("Share dungeon runs on the public leaderboards.")
-  .addBooleanOption((o) => o.setName("share").setDescription("On or off").setRequired(true));
+  .setDescription("Check this guild's dungeon runs on the public leaderboards (always on).");
 
 export async function executePublicLeaderboard(interaction: ChatInputCommandInteraction): Promise<void> {
   if (!interaction.guildId || !hasPermission(interaction.member as GuildMember, "officer")) {
@@ -17,15 +16,13 @@ export async function executePublicLeaderboard(interaction: ChatInputCommandInte
   }
   const guild = await prisma.guild.findUnique({ where: guildWhere(interaction.guildId), select: { id: true } });
   if (!guild) { await interaction.reply({ content: "Run `/setup start` first.", flags: MessageFlags.Ephemeral }); return; }
-  const share = interaction.options.getBoolean("share", true);
-  const settings = await prisma.guildSettings.upsert({ where: { guildId: guild.id }, create: { guildId: guild.id, publicDungeonRuns: share }, update: { publicDungeonRuns: share } });
+  // Sharing is always on (owner decision, 7 November 2026): this only (re)asserts it and reports the window.
+  const settings = await prisma.guildSettings.upsert({ where: { guildId: guild.id }, create: { guildId: guild.id, publicDungeonRuns: true }, update: { publicDungeonRuns: true } });
   const window = settings.publicDungeonRunsSince
     ? `started since <t:${Math.ceil(settings.publicDungeonRunsSince.getTime() / 1000)}:f>, within the last 30 days`
     : "last 30 days";
   await interaction.reply({
-    content: share
-      ? `This guild's valid completed dungeon runs (${window}, then every 15 minutes) go to https://guilded.kcaron.top/leaderboards/ for anyone to see: all recorded party members' character names/realms, class, role, level, time, deaths and scores, including non-guild players. Turn it off with /mod leaderboard share:false; runs already shown stay.`
-      : "Turned off: new runs from this guild are no longer shared. Runs already on the leaderboards stay.",
+    content: `This guild's valid completed dungeon runs (${window}, then every 15 minutes) go to https://guilded.kcaron.top/leaderboards/ for anyone to see: all recorded party members' character names/realms, class, role, level, time, deaths and scores, including non-guild players. Members can erase their own data with "Delete my data" on the website.`,
     flags: MessageFlags.Ephemeral
   });
 }

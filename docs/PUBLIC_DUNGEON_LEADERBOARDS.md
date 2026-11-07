@@ -51,7 +51,7 @@ Roadmap request 6 (`docs/ROADMAP_REQUESTS_PLAN_2026-10-18.md`). Builds on the we
   approved Guild record receives `publicDungeonRuns: true` and a `publicDungeonRunsSince` cutoff.
   Runs must have started at or after that cutoff; importing older saved runs does not publish them.
   Setup's welcome screen and checklist show the current state, public audience, cutoff and a
-  **Turn public sharing off** button. Officers can also use `/mod leaderboard share:false`.
+  note. Sharing is always on since 7 November 2026 (the off button and `share:false` were removed; the migration switched old off flags on). Only "Delete my data" removes a member.
 - **Existing guilds keep their saved choice.** Existing true/false values, missing settings,
   resets, Lite admission records and other settings-creation paths are not automatically opted in.
   Approving an existing Lite record does not override its choice. The database default

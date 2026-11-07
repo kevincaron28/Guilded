@@ -19,15 +19,20 @@ export interface ItemDetailView {
   itemKey: number; name: string; quality?: number; summary?: string; url: string; iconUrl?: string;
   /** True when a provider supplied stats; false when only the id is known. */
   hasStats: boolean;
+  /** Classic Era data shown because Forever does not know this id (may differ in Forever). */
+  classicFallback?: boolean;
 }
 
 const httpsOnly = (url?: string) => { try { return url && new URL(url).protocol === "https:" ? url : undefined; } catch { return undefined; } };
 
-export async function itemDetails(itemKey: number, itemName: string, provider: ItemDataProvider = nullItemDataProvider): Promise<ItemDetailView> {
+export async function itemDetails(itemKey: number, itemName: string, provider: ItemDataProvider = nullItemDataProvider, lang: Lang = "en"): Promise<ItemDetailView> {
   const found = await provider.lookup({ itemId: itemKey, name: itemName, verified: true }).catch(() => null);
-  const view: ItemDetailView = { itemKey, name: found?.name ?? itemName, url: httpsOnly(found?.url) ?? `https://www.wowhead.com/classic/item=${itemKey}`, hasStats: !!(found?.summary || found?.quality !== undefined) };
+  const local = lang === "fr" && found?.fr ? found.fr : found;
+  const view: ItemDetailView = { itemKey, name: local?.name ?? itemName, url: httpsOnly(found?.url) ?? `https://www.wowhead.com/classic/item=${itemKey}`, hasStats: !!(found?.summary || found?.quality !== undefined) };
   if (found?.quality !== undefined) view.quality = found.quality;
-  if (found?.summary) view.summary = found.summary;
+  const summary = local?.summary ?? found?.summary;
+  if (summary) view.summary = summary;
+  if (found?.source === "classic1x") view.classicFallback = true;
   const icon = httpsOnly(found?.iconUrl);
   if (icon) view.iconUrl = icon;
   return view;
@@ -40,6 +45,7 @@ export function itemDetailLines(view: ItemDetailView, lang: Lang = "en"): string
   if (view.quality !== undefined && QUALITY_NAMES[lang][view.quality]) lines.push(QUALITY_NAMES[lang][view.quality]!);
   if (view.summary) lines.push(view.summary.slice(0, 200));
   lines.push(fr ? `Objet n° ${view.itemKey}` : `Item ID ${view.itemKey}`);
+  if (view.classicFallback) lines.push(fr ? "Données de Classic Era : WoW Forever ne connaît pas cet objet, il peut y être différent." : "Classic Era data: WoW Forever does not list this item, so it may differ there.");
   if (!view.hasStats) lines.push(fr ? "Les statistiques ne sont pas encore disponibles ici; voyez le lien." : "Stats are not available here yet; see the link.");
   return lines;
 }

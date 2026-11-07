@@ -44,8 +44,8 @@ describe("nickname plan", () => {
     expect(planNicknames([person({ nickname: null })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Halidor Galemorne)", originalNickname: null }]);
     expect(planNicknames([person({ nickname: null, accountName: "kevin_username" })])[0]).toMatchObject({ nickname: "kevin_username(Halidor G.)" }); // the usual 32-character fallback
   });
-  it("skips opted-out members, the owner/unmanageable (skip), and members with no main", () => {
-    expect(planNicknames([person({ record: { originalNickname: null, appliedNickname: null, optedOut: true } }), person({ discordUserId: "u2", skip: true }), person({ discordUserId: "u3", mainName: null })])).toEqual([]);
+  it("ignores an old opt-out flag, and skips the owner/unmanageable (skip) and members with no main", () => {
+    expect(planNicknames([person({ discordUserId: "u0", record: { originalNickname: null, appliedNickname: null, optedOut: true } }), person({ discordUserId: "u2", skip: true }), person({ discordUserId: "u3", mainName: null })]).map((c) => c.discordUserId)).toEqual(["u0"]);
   });
   it("is idempotent, and follows a main change from the stored original without nesting", () => {
     const applied = { originalNickname: "Kev", appliedNickname: "Kev (Halidor Galemorne)", optedOut: false };
@@ -54,6 +54,15 @@ describe("nickname plan", () => {
     // A member with no server nickname keeps using the account name on every re-sync.
     const none = { originalNickname: null, appliedNickname: "Kevin (Halidor Galemorne)", optedOut: false };
     expect(planNicknames([person({ nickname: "Kevin (Halidor Galemorne)", mainName: "Aria Stone", record: none })])).toEqual([{ discordUserId: "u1", nickname: "Kevin (Aria Stone)", originalNickname: null }]);
+  });
+  it("replaces a character the member typed in parentheses with our format (owner, 7 Nov)", () => {
+    const chars = ["Halidor Galemorne", "Zélie Brightwater"];
+    // Their own "(alt)", or the main typed differently (case, accents, first name only): our "(Main)" replaces it.
+    expect(planNicknames([person({ nickname: "Kev (Zelie)", characterNames: chars })])).toEqual([{ discordUserId: "u1", nickname: "Kev (Halidor Galemorne)", originalNickname: "Kev" }]);
+    expect(planNicknames([person({ nickname: "Kev (zélie brightwater)", characterNames: chars })])[0]).toMatchObject({ nickname: "Kev (Halidor Galemorne)" });
+    expect(planNicknames([person({ nickname: "Kev(HALIDOR)", characterNames: chars })])[0]).toMatchObject({ nickname: "Kev (Halidor Galemorne)" });
+    // Anything else in parentheses is theirs and stays.
+    expect(planNicknames([person({ nickname: "Kev (he/him)", characterNames: chars })])[0]).toMatchObject({ nickname: "Kev (he/him) (Halidor Galemorne)" });
   });
   it("treats a nickname the member changed to between syncs as their new base and original", () => {
     const applied = { originalNickname: "Kev", appliedNickname: "Kev (Halidor Galemorne)", optedOut: false };

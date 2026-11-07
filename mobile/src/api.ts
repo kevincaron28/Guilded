@@ -1,6 +1,8 @@
 // The phone talks to the same companion routes as the Windows app.
 // Permissions stay on the bot: this file only reads and sends what those routes already allow.
 
+import { parseAlbum, type Album } from "./album";
+
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
     super(message);
@@ -469,6 +471,13 @@ export class GuildedClient {
     const { status, body } = await this.call(`/api/v1/standings?guild=${encodeURIComponent(guildDiscordId)}`);
     if (status !== 200) throw new ApiError(messageOf(body, "Raids and standings could not be loaded."), status);
     return parseStandings(body);
+  }
+
+  async album(lang: "en" | "fr"): Promise<Album> {
+    const { status, body } = await this.call(`/api/v1/companion/achievements?lang=${lang}`);
+    if (status === 404) throw new ApiError("This Guilded address does not publish the badge album yet.", 404);
+    if (status !== 200) throw new ApiError(messageOf(body, "The album could not be loaded."), status);
+    return parseAlbum(body);
   }
 
   async setWishlist(guildDiscordId: string, characterId: string, item: string, priority: number): Promise<string> {

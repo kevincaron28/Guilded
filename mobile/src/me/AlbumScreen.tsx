@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { ApiError, GuildedClient } from "./api";
-import { groupSets, isNew, parseAlbum, type Album, type AlbumCard } from "./album";
-import type { Lang } from "./i18n";
-import { clearSession, type Session } from "./storage";
+import { ApiError, GuildedClient } from "../api";
+import { groupSets, isNew, parseAlbum, type Album, type AlbumCard } from "../album";
+import type { Lang } from "../i18n";
+import { clearSession, type Session } from "../storage";
+import { Medal as MedalRing, ProgressBar, SegmentedTabs, colors } from "../ui";
 
-const colors = { panel: "#151714", line: "#282b25", text: "#f3f0e7", muted: "#aaa99f", gold: "#d5ad57", green: "#9fbd83", ink: "#1b160c" };
 const words = {
   title: { en: "Badge album", fr: "Album de badges" },
   intro: { en: "One card for every achievement. A card unlocks when you really earn it: no packs, no luck, nothing to buy.", fr: "Une carte pour chaque succès. Une carte se débloque quand vous le méritez vraiment : pas de paquets, pas de chance, rien à acheter." },
@@ -30,11 +30,7 @@ const sampleBody = { cards: [
 ] };
 
 function Medal({ card, earned }: { card: AlbumCard; earned: boolean }) {
-  const colour = earned ? card.tierColor : "#4a4f58";
-  return <View style={[styles.medal, { borderColor: colour, backgroundColor: earned ? "#1c1a26" : "#101112" }]}>
-    <Text style={[styles.medalLetter, { color: colour }]}>{earned ? card.tier.charAt(0).toUpperCase() : "·"}</Text>
-    {card.rank ? <View style={styles.pips}>{Array.from({ length: Math.min(card.rank, 10) }, (_, i) => <View key={i} style={[styles.pip, { backgroundColor: colour }]} />)}</View> : null}
-  </View>;
+  return <MedalRing tier={card.tier} color={card.tierColor} rank={card.rank} earned={earned} />;
 }
 
 /** The badge album (APP_TCG option 1): a read-only collection of the member's own achievements. `session` null shows sample cards. */
@@ -63,13 +59,12 @@ export function AlbumScreen({ lang, session }: { lang: Lang; session: Session | 
 
   if (error) return <View style={styles.card}><Text style={styles.muted}>{error}</Text><Pressable onPress={() => setAttempt(attempt + 1)} accessibilityRole="button"><Text style={styles.link}>{w("retry", lang)}</Text></Pressable></View>;
   if (!album) return <ActivityIndicator color={colors.gold} style={{ marginVertical: 24 }} />;
-  const pct = (done: number, total: number) => `${total ? Math.round((done / total) * 100) : 0}%` as const;
   return <View>
     <Text style={styles.heading}>{w("title", lang)}</Text>
     <Text style={styles.muted}>{session ? w("intro", lang) : w("sample", lang)}</Text>
     <Text style={styles.total}>{album.earned} / {album.total} {w("of", lang)}</Text>
-    <View style={styles.track}><View style={[styles.fill, { width: pct(album.earned, album.total) }]} /></View>
-    <View style={styles.chips}>{([false, true] as const).map((mine) => <Pressable key={String(mine)} onPress={() => setOnlyMine(mine)} accessibilityRole="tab" accessibilityState={{ selected: onlyMine === mine }} style={[styles.chip, onlyMine === mine && styles.chipOn]}><Text style={[styles.chipText, onlyMine === mine && styles.chipTextOn]}>{w(mine ? "mine" : "all", lang)}</Text></Pressable>)}</View>
+    <ProgressBar done={album.earned} total={album.total} />
+    <View style={styles.chips}><SegmentedTabs options={[{ value: "all", label: w("all", lang) }, { value: "mine", label: w("mine", lang) }]} value={onlyMine ? "mine" : "all"} onChange={(next) => setOnlyMine(next === "mine")} /></View>
     {onlyMine && album.earned === 0 ? <Text style={styles.muted}>{w("empty", lang)}</Text> : null}
     {sets.map((set) => <View key={set.name}>
       <Text style={styles.label}>{set.name.toUpperCase()}  {set.earned}/{album.cards.filter((card) => card.set === set.name).length}</Text>
@@ -95,17 +90,12 @@ const styles = StyleSheet.create({
   heading: { color: colors.text, fontSize: 22, fontWeight: "700", marginTop: 18, marginBottom: 6 },
   muted: { color: colors.muted, fontSize: 13, lineHeight: 20 }, link: { color: colors.gold, fontSize: 14, paddingVertical: 12 },
   total: { color: colors.gold, fontSize: 13, fontWeight: "700", marginTop: 14, marginBottom: 6 },
-  track: { height: 6, borderRadius: 3, backgroundColor: colors.line, overflow: "hidden" }, fill: { height: 6, backgroundColor: colors.gold },
   card: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 14, marginTop: 14 },
-  chips: { flexDirection: "row", gap: 8, marginTop: 14, flexWrap: "wrap" },
-  chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8 }, chipOn: { backgroundColor: colors.gold, borderColor: colors.gold },
-  chipText: { color: colors.muted, fontSize: 12 }, chipTextOn: { color: colors.ink, fontWeight: "700" },
+  chips: { marginTop: 14 },
   label: { color: colors.gold, fontSize: 9, letterSpacing: 1.7, fontWeight: "700", marginTop: 20, marginBottom: 10 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   tile: { width: "48%", flexGrow: 1, backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderTopWidth: 3, borderRadius: 10, padding: 10, alignItems: "center", minHeight: 44 },
   tileLocked: { opacity: 0.7 }, tileOpen: { width: "100%" },
-  medal: { width: 52, height: 52, borderRadius: 26, borderWidth: 3, alignItems: "center", justifyContent: "center", marginBottom: 6 },
-  medalLetter: { fontSize: 18, fontWeight: "800" }, pips: { flexDirection: "row", gap: 2, position: "absolute", bottom: 7 }, pip: { width: 3, height: 3, borderRadius: 2 },
   cardName: { color: colors.text, fontSize: 13, fontWeight: "600", textAlign: "center" }, sub: { color: colors.muted, fontSize: 11, marginTop: 3, textAlign: "center" },
   more: { marginTop: 8, borderTopWidth: 1, borderColor: colors.line, paddingTop: 8, alignSelf: "stretch" }
 });

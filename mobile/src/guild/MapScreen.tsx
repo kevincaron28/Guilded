@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, Alert, Pressable, StyleSheet, Switch, Text, View, type LayoutChangeEvent } from "react-native";
-import { ApiError, GuildedClient } from "./api";
+import { ApiError, GuildedClient } from "../api";
 import {
   HEAT_COLS, HEAT_ROWS, attackersLine, classColor, continentTabs, heatLevel, sampleGuildMap, timeAgo,
   type GuildMap, type HelpPin, type MapMate
-} from "./guildMap";
-import type { Lang } from "./i18n";
-import { clearSession, type Session } from "./storage";
+} from "../guildMap";
+import type { Lang } from "../i18n";
+import { clearSession, type Session } from "../storage";
+import { SegmentedTabs, colors as theme } from "../ui";
 
 // Track M items 3 and 4: guildmate dots, the last-seen heat map and help pins on one plain grid.
 // The map art is our own: a grid with zone names placed where the guild has been. No game map images.
 
-const colors = { panel: "#151714", line: "#282b25", grid: "#20231e", text: "#f3f0e7", muted: "#aaa99f", gold: "#d5ad57", green: "#9fbd83", red: "#e0624f", ink: "#1b160c" };
+const colors = { ...theme, grid: "#20231e" };
 const words = {
   title: { en: "Guild map", fr: "Carte de la guilde" },
   intro: { en: "Where guildmates were last seen outdoors, and where the guild plays. Only signed-in members of this guild see it; it is never public. Positions arrive when a companion uploads, so they are last seen, not live.", fr: "Où les membres ont été vus dehors pour la dernière fois, et où joue la guilde. Seuls les membres connectés de cette guilde la voient ; elle n'est jamais publique. Les positions arrivent quand un compagnon envoie ses données : ce sont des dernières positions, pas du direct." },
@@ -103,11 +104,7 @@ export function MapScreen({ lang, session }: { lang: Lang; session: Session | nu
       <Text style={styles.muted}>{session ? w("intro", lang) : w("sample", lang)}</Text>
     </View>
     {!map.enabled ? <View style={styles.panel}><Text style={styles.muted}>{w("off", lang)}</Text></View> : <>
-      {tabs.length > 1 ? <View style={styles.chips}>
-        {tabs.map((tab) => <Pressable key={tab.id} accessibilityRole="tab" accessibilityState={{ selected: tab.id === shown }} onPress={() => { setContinent(tab.id); setPicked(null); }} style={[styles.chip, tab.id === shown && styles.chipOn]}>
-          <Text style={[styles.chipText, tab.id === shown && styles.chipTextOn]}>{tab.name}</Text>
-        </Pressable>)}
-      </View> : null}
+      {tabs.length > 1 && shown !== null ? <SegmentedTabs options={tabs.map((tab) => ({ value: tab.id, label: tab.name }))} value={shown} onChange={(id) => { setContinent(id); setPicked(null); }} /> : null}
       {shown === null ? <View style={styles.panel}><Text style={styles.muted}>{w("empty", lang)}</Text></View> : <View style={styles.panel}>
         {tabs.length === 1 ? <Text style={styles.subheading}>{tabs[0]!.name}</Text> : null}
         <View onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)} style={[styles.canvas, { height: height || 200 }]}
@@ -187,11 +184,8 @@ const styles = StyleSheet.create({
   text: { color: colors.text, fontSize: 14 },
   muted: { color: colors.muted, fontSize: 13 },
   small: { color: colors.muted, fontSize: 12 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: { borderColor: colors.line, borderWidth: 1, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6, alignSelf: "flex-start" },
-  chipOn: { backgroundColor: colors.gold, borderColor: colors.gold },
   chipText: { color: colors.text, fontSize: 13 },
-  chipTextOn: { color: colors.ink, fontWeight: "700" },
   canvas: { width: "100%", backgroundColor: "#0f110e", borderColor: colors.line, borderWidth: 1, borderRadius: 6, overflow: "hidden" },
   gridLine: { position: "absolute", backgroundColor: colors.grid },
   zoneLabel: { position: "absolute", width: 96, textAlign: "center", color: colors.muted, fontSize: 10 },

@@ -266,6 +266,8 @@ Everything not listed below is done (released, live or merged) per the tables ab
 
 **Bug sweep 8 Nov ~15:15 UTC:** no member reports, no new saved errors. Standings over 20 s: 6 of 934 in the last hour, all either before the #634 fix went live (14:21) or during a deploy build (14:45, 15:06), when the build starves the 1 GB server; one P2028 three minutes after a restart (known startup burst). Nothing new to fix; fewer deploys per hour is the remaining lever. **Guilded Clash on main and live (8 Nov):** collection (#626), engine (#631), AI + PvE (#636), match server (#638), guild-only trading (#639), phone screens (#640); balance pass in progress (first self-play run: first player 59.7%, classes 24-75%). Members get it with the next phone app build (needs Google Play) and the approved painted art.
 
+**Bug sweep 8 Nov ~17:30 UTC:** quiet. No member reports, no new saved errors, no errors in the journal. Standings after #634: 1 of 1,884 answers over 20 s (20.2 s, around the one deploy that hour), p95 17.8 s. Guilded Clash balance pass #642 deployed (199915e3): every design target held on 4,320 games.
+
 **Waiting for owner (cannot be done without him), updated 8 Nov evening:**
 - Approve the 9 class champion paintings (review page, section C9), then each later card art.
 - Google Play: the 3 verifications; then Firebase, `EXPO_TOKEN`, #345, 12 testers, the new APK.

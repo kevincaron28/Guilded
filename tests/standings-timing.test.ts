@@ -13,7 +13,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 describe("standings answer time", () => {
   it("a rebuild slower than the budget answers with the member's previous answer, then the new one", async () => {
     const feed = createStandingsFeed({ composeBudgetMs: 50 });
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const first = await feed.get({ guildId: "g", memberKey: "m", header, compose: async () => parts(10) });
     feed.markChanged("g"); // the member's upload
     const started = Date.now();
@@ -39,7 +39,7 @@ describe("standings answer time", () => {
   it("stops re-reading once the budget is spent, even while writes keep landing", async () => {
     let clock = 1_800_000_000_000;
     const feed = createStandingsFeed({ composeBudgetMs: 10_000, now: () => clock });
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const compose = vi.fn(async () => { clock += 12_000; feed.markChanged("g"); return parts(1); });
     const answer = await feed.get({ guildId: "g", memberKey: "m", header, compose });
     expect(answer.status).toBe(200);
@@ -50,7 +50,7 @@ describe("standings answer time", () => {
 
 describe("Discord scheduled events in the standings answer", () => {
   it("answer within the limit with the last known events, and refresh them for the next answer", async () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const event = { id: "1" } as never;
     expect(await calendarEventsWithin(async () => [event], "g:a", 50)).toEqual([event]);
     const started = Date.now();

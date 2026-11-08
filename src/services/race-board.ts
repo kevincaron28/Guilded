@@ -6,6 +6,8 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { fullNameOf } from "./forever-names.js";
+import { localClassName, localRaceName } from "./character-display.js";
+import { professionName } from "./profession-style.js";
 import { dayStart, participationDay } from "./participation-rules.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
@@ -123,13 +125,13 @@ export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, mem
     subtitle: fr ? `${data.finished} sur ${data.total} personnages au niveau ${LEVEL_CAP}` : `${data.finished} of ${data.total} characters at level ${LEVEL_CAP}`,
     stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · mis à jour à chaque synchronisation · /character race near trouve des partenaires` : `Top ${ranked.length} of ${data.total} · updated after every sync · /character race near finds partners`,
     ladder: {
-      meta: ladderMeta(lang, updatedAt),
+      meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun personnage avec niveau rapporté pour l'instant." : "No levelled character reported yet.",
       columns: [{ label: fr ? "Progression" : "Progress", width: 84, kind: "bar" }, { label: fr ? "Niv." : "Lvl", width: 40, primary: true },
         { label: fr ? "Sem." : "Week", width: 40 }, ...(moves ? [moveColumn(lang)] : [])],
       boards: [{ rows: ranked.map((row, index) => {
         const member = row.discordId ? memberNames.get(row.discordId) : undefined;
         return { rank: index + 1, name: row.name, color: classColor(row.className), values: ["", String(row.level), row.weekGain > 0 ? `+${row.weekGain}` : "", ""],
-          bar: { value: row.level, max: LEVEL_CAP }, sub: [row.className, row.race, member ? `@${member}` : ""].filter(Boolean).join(" · "), ...moveFields(moves, row.key, lang) };
+          bar: { value: row.level, max: LEVEL_CAP }, sub: [localClassName(row.className, lang), localRaceName(row.race, lang), member ? `@${member}` : ""].filter(Boolean).join(" · "), ...moveFields(moves, row.key, lang) };
       }) }]
     }
   };
@@ -139,7 +141,7 @@ export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, mem
 export function raceLine(row: RaceRow, rank: number, lang: Lang, hall = false, edition = "forever"): string {
   const fr = lang === "fr";
   const name = escapeMarkdown(row.name).slice(0, 32);
-  const kind = [row.className, row.race].filter(Boolean).join(" ");
+  const kind = [localClassName(row.className, lang), localRaceName(row.race, lang)].filter(Boolean).join(" ");
   const armory = armoryUrl({ name: row.name, gameEdition: edition });
   const parts = [`**${rank}.** ${armory ? `[${name}](<${armory}>)` : name}`, kind];
   if (row.level >= LEVEL_CAP) parts.push(`**60** ✅${row.reachedMaxAt ? ` ${stamp(row.reachedMaxAt, "d")}` : ""}`);
@@ -220,17 +222,18 @@ export function hallCard(entry: HallRecord, lang: Lang, memberName: string | nul
   const color = classColor(entry.className);
   const professions = (entry.professions ?? "").split(",").map(part => part.trim()).filter(Boolean).slice(0, 3).map(part => {
     const match = /^(.*?)\s+(\d+)$/.exec(part);
-    return { name: match?.[1] ?? part, color: "#f5e6c0", ...(match ? { right: match[2] } : {}) };
+    return { name: professionName(match?.[1] ?? part, lang), color: "#f5e6c0", ...(match ? { right: match[2] } : {}) };
   });
+  const kind = [localClassName(entry.className, lang), localRaceName(entry.race, lang)].filter(Boolean).join(" ");
   return {
-    eyebrow: fr ? "Guilded · Temple de la renommée" : "Guilded · Hall of Fame", title: entry.name, subtitle: fr ? `${[entry.className, entry.race].filter(Boolean).join(" ")} · niveau ${LEVEL_CAP}` : `${[entry.className, entry.race].filter(Boolean).join(" ")} · level ${LEVEL_CAP}`,
+    eyebrow: fr ? "Guilded · Temple de la renommée" : "Guilded · Hall of Fame", title: entry.name, subtitle: fr ? `${kind} · niveau ${LEVEL_CAP}` : `${kind} · level ${LEVEL_CAP}`,
     stats: [
       { label: fr ? `Arrivé au niveau ${LEVEL_CAP}` : `Reached level ${LEVEL_CAP}`, value: ordinal(entry.order, lang), note: fr ? `${ordinal(entry.order, lang)} à atteindre le niveau ${LEVEL_CAP}` : `${ordinal(entry.order, lang)} to reach level ${LEVEL_CAP}`, accent: "gold" },
       ...(took !== null ? [{ label: fr ? "Temps pour le 60" : "Time to 60", value: formatDuration(took, lang), note: fr ? "depuis le lancement, 4 nov. 2026" : "since launch, 4 Nov 2026", accent: "green" as const }] : []),
       { label: "Date", value: dayText(entry.reachedAt, lang), accent: "gold" }
     ],
     rowsLabel: fr ? "Personnage" : "Character",
-    rows: [{ name: entry.className, color, sub: entry.race ?? "", right: String(LEVEL_CAP), rightTone: "gold" },
+    rows: [{ name: localClassName(entry.className, lang), color, sub: localRaceName(entry.race, lang), right: String(LEVEL_CAP), rightTone: "gold" },
       ...(memberName ? [{ name: `@${memberName}`, color: "#f5e6c0", sub: "Discord" }] : []), ...professions],
     badges: [{ text: fr ? "Temple de la renommée" : "Hall of Fame", tone: "ok" }],
     footer: fr ? "Guilded · WoW Forever · course au niveau 60" : "Guilded · WoW Forever · race to level 60"

@@ -182,9 +182,13 @@ export async function tellVerified(client: Client, discordGuildId: string, lang:
   }
   const linked = results.filter((result) => result.status === "linked");
   if (discordGuild && linked.length) {
-    await postToLogChannel(discordGuild, linked.map((result) => `🔗 ${result.name} was linked to <@${result.discordUserId}> by their /guilded verify code`
-      + (result.movedFrom ? ` (an officer's sync moved it from <@${result.movedFrom}>, whose link came from a guildmate's report).`
-        : result.reportedBy ? ` (heard by <@${result.reportedBy}>'s addon; the next officer sync confirms it).` : ".")).join("\n"));
+    await postToLogChannel(discordGuild, linked.map((result) => lang === "fr"
+      ? `🔗 ${result.name} a été lié à <@${result.discordUserId}> par son code /guilded verify`
+        + (result.movedFrom ? ` (la synchronisation d'un officier l'a retiré à <@${result.movedFrom}>, dont le lien venait du rapport d'un membre).`
+          : result.reportedBy ? ` (reçu par l'addon de <@${result.reportedBy}>; la prochaine synchronisation d'un officier le confirme).` : ".")
+      : `🔗 ${result.name} was linked to <@${result.discordUserId}> by their /guilded verify code`
+        + (result.movedFrom ? ` (an officer's sync moved it from <@${result.movedFrom}>, whose link came from a guildmate's report).`
+          : result.reportedBy ? ` (heard by <@${result.reportedBy}>'s addon; the next officer sync confirms it).` : ".")).join("\n"));
   }
 }
 

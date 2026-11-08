@@ -90,7 +90,8 @@ export async function executeReadiness(interaction: ChatInputCommandInteraction)
   }
   const send = async (content: string) => { if (first) { first = false; await interaction.editReply({ content }); } else await interaction.followUp({ content, flags: MessageFlags.Ephemeral }); };
   const attunement = interaction.options.getString("attunement") ?? undefined;
-  const chunks = chunkLines([...await buildReadinessLines(prisma, context.guildId, { attunement }), ...await buildConsumableLines(prisma, context.guildId)], 1900);
-  await send(chunks[0] ?? "No guild members found.");
+  const lang = asLang(settings?.language);
+  const chunks = chunkLines([...await buildReadinessLines(prisma, context.guildId, { attunement, lang }), ...await buildConsumableLines(prisma, context.guildId, now, lang)], 1900);
+  await send(chunks[0] ?? (lang === "fr" ? "Aucun membre de la guilde trouvé." : "No guild members found."));
   for (const chunk of chunks.slice(1)) await send(chunk);
 }

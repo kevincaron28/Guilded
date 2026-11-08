@@ -2,6 +2,7 @@ import { EmbedBuilder } from "discord.js";
 import type { ScoreCard } from "./score-card.js";
 import { classColor } from "./score-card.js";
 import type { StatSnapshot } from "./stat-snapshots.js";
+import { localClassName } from "./character-display.js";
 
 // /stats server: the latest snapshot as an embed, with the class counts drawn in the shared ladder layout
 // (classes ranked by count, class-coloured bars) as the chart image.
@@ -18,7 +19,7 @@ export function serverStatsCard(rows: StatSnapshot[], guildName: string, lang: "
     subtitle: `${last.discordMembers} ${t("members", "membres")} · ${last.rosterSize} ${t("characters", "personnages")} · ${last.level60} ${t("at 60", "au 60")}`,
     stats: [],
     ladder: { columns: [{ label: "", width: 420, kind: "bar" }, { label: t("Characters", "Personnages"), width: 90, primary: true }],
-      boards: [{ rows: classes.map(([name, n], index) => ({ rank: index + 1, name, color: classColor(name), values: ["", String(n)], bar: { value: n, max } })) }] },
+      boards: [{ rows: classes.map(([name, n], index) => ({ rank: index + 1, name: localClassName(name, lang), color: classColor(name), values: ["", String(n)], bar: { value: n, max } })) }] },
     footer: `${last.day} UTC · ${rows.length > 1 ? `${delta >= 0 ? "+" : ""}${delta} ${t("members over", "membres sur")} ${rows.length} ${t("days", "jours")}` : t("first snapshot", "premier relevé")}`
   };
 }

@@ -95,7 +95,7 @@ describe("race board embed and card", () => {
     const card = raceCard(data(rows), "fr", 25, new Map([["42", "Kev"]]), new Date("2026-11-07T14:05:00Z"));
     const ladderRows = card.ladder!.boards[0]!.rows;
     expect(ladderRows).toHaveLength(25);
-    expect(ladderRows[0]).toMatchObject({ rank: 1, name: "Player Number0", color: "#69ccf0", values: ["", "59", "+3", ""], bar: { value: 59, max: 60 }, sub: "Mage · Human · @Kev" });
+    expect(ladderRows[0]).toMatchObject({ rank: 1, name: "Player Number0", color: "#69ccf0", values: ["", "59", "+3", ""], bar: { value: 59, max: 60 }, sub: "Mage · Humain · @Kev" });
     expect(ladderRows[1]!.values[2]).toBe("");
     expect(ladderRows[0]).not.toHaveProperty("move");
     expect(card.ladder!.columns.map(column => column.label)).toEqual(["Progression", "Niv.", "Sem."]);

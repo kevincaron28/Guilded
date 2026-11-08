@@ -153,6 +153,22 @@ export function canonicalClass(value?: string | null): WowClass | undefined {
   return CLASSES.find(name => normalized(name) === key || normalized(CLASS_NAMES_FR[name] ?? "") === key);
 }
 
+/** A class name in the guild's language ("Démoniste" for a French guild); unknown text is kept as written. */
+export function localClassName(value: string | null | undefined, lang: Lang): string {
+  const name = canonicalClass(value);
+  return name ? (lang === "fr" ? CLASS_NAMES_FR[name] ?? name : name) : (value ?? "").trim();
+}
+// Playable races as the French client names them (the stored value is the English name).
+const RACE_NAMES_FR: Record<string, string> = {
+  human: "Humain", dwarf: "Nain", nightelf: "Elfe de la nuit", gnome: "Gnome", draenei: "Draeneï", worgen: "Worgen",
+  orc: "Orc", undead: "Mort-vivant", scourge: "Mort-vivant", tauren: "Tauren", troll: "Troll", bloodelf: "Elfe de sang", goblin: "Gobelin", pandaren: "Pandaren"
+};
+/** A race name in the guild's language; unknown text is kept as written. */
+export function localRaceName(value: string | null | undefined, lang: Lang): string {
+  const text = (value ?? "").trim();
+  return lang === "fr" ? RACE_NAMES_FR[normalized(text)] ?? text : text;
+}
+
 export function classEmojiMap(emojis: Iterable<{ id: string; name: string | null; animated?: boolean | null; available?: boolean | null }>): ClassEmojis {
   const result: ClassEmojis = {};
   for (const emoji of emojis) {

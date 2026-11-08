@@ -1141,7 +1141,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             applyError = error instanceof Error && error.message.length < 200 ? error.message : "The bot could not apply this upload (see the server log).";
             if (access.officer && shouldTellApplyFailure(`${guild.id}:${applyError}`)) {
               const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-              await notify(discordGuild, `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${applyError}\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
+              const officerError = settings?.language === "fr" && !(error instanceof Error && error.message.length < 200) ? "le bot n'a pas pu appliquer cet envoi (voir le journal du serveur)." : applyError;
+              await notify(discordGuild, settings?.language === "fr"
+                ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${officerError}\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/import apply id:${record.id}\`.`
+                : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${applyError}\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
             }
           }
         }

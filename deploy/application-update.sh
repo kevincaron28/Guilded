@@ -8,11 +8,40 @@ MIN_AVAILABLE_KB=393216        # 384 MB MemAvailable
 MIN_AVAILABLE_PLUS_SWAP_KB=786432  # 768 MB MemAvailable + SwapFree
 MEMINFO_FILE="${MEMINFO_FILE:-/proc/meminfo}"
 
+# The heavy preparation steps (npm ci, prisma generate, the bundle build) run in a systemd scope with a
+# memory ceiling, so the kernel kills the install rather than letting it push the running bot into swap.
+# The ceiling sits below the bot's own MemoryMax (700M) and the bot's OOM score is protected (deploy/guilded.service).
+# If systemd-run cannot set these limits here, the steps run without a ceiling (the heap caps still apply).
+heavy_cgroup_ok() {
+  command -v systemd-run >/dev/null 2>&1 || return 1
+  systemd-run --quiet --scope -p MemoryMax=450M -p MemorySwapMax=200M -p CPUWeight=20 -p IOWeight=20 -- true >/dev/null 2>&1
+}
+
+# Decided once per run, before the first heavy step.
+decide_heavy_cap() {
+  HEAVY_CAPPED=0
+  if heavy_cgroup_ok; then
+    HEAVY_CAPPED=1
+  else
+    echo "systemd-run cannot set a memory ceiling here; the install runs without one (heap caps still apply)."
+  fi
+}
+
+# Runs one heavy command, inside the memory ceiling when this box supports it.
+run_heavy() {
+  if [ "${HEAVY_CAPPED:-0}" = 1 ]; then
+    systemd-run --quiet --scope -p MemoryMax=450M -p MemorySwapMax=200M -p CPUWeight=20 -p IOWeight=20 -- "$@"
+  else
+    "$@"
+  fi
+}
+
 prepare_application() {
   local source="$1" app="$2" owner="$3" reuse=0
   [ -d "$source" ] && [ -d "$app" ] && [ ! -L "$app" ] || return 1
   # Decide before anything is created: a fresh npm ci needs memory headroom, or the update stops here.
   if can_reuse_dependencies "$source" "$app"; then reuse=1; else memory_ok_for_install || return 1; fi
+  decide_heavy_cap
   STAGED_APP="$(mktemp -d "${app}.stage.XXXXXXXX")" || return 1
   chmod 700 "$STAGED_APP"
   # Build exclusively from source; do not copy a live dependency tree or stale output.
@@ -32,13 +61,13 @@ prepare_application() {
     # nothing written in staging can reach the live tree. Prisma's client is regenerated; npm ci would have done that too.
     cp -a "$app/node_modules" "$STAGED_APP/node_modules" || return 1
     chown -R "$owner:$owner" "$STAGED_APP/node_modules" || return 1
-    sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate' _ "$STAGED_APP" || return 1
+    run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate' _ "$STAGED_APP" || return 1
   else
     # A genuine dependency change: prefer the npm cache and cap the heap so npm cannot push the box into swap.
-    sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 npm ci --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
+    run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 npm ci --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
   fi
   # The bundle build gets a heap cap so it cannot take the memory the running bot needs.
-  sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm run companion:build' _ "$STAGED_APP"
+  run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm run companion:build' _ "$STAGED_APP"
 }
 
 # Prints a hash of the dependency content of a source tree: the dependency fields of package.json and the

@@ -19,6 +19,21 @@ export function guildPlayers(run: Run): Set<string> {
   return new Set(run.players.filter((name) => !run.unlinked.includes(name) || flagged.has(name)));
 }
 
+export function unrankedLabel(reason: string, lang: Lang): string {
+  if (lang !== "fr") return reason;
+  const labels: Record<string, string> = {
+    "Outside season window": "Hors de la période de saison", "Simulation run": "Simulation",
+    "Automatic final-boss completion required": "Victoire automatique sur le boss final requise",
+    "Dungeon route unknown": "Parcours inconnu", "Level range not configured": "Plage de niveaux non configurée",
+    "Required encounter evidence missing": "Preuves de boss requis manquantes", "Participation-only route": "Parcours de participation seulement",
+    "Different difficulty": "Difficulté différente", "Party levels unknown": "Niveaux du groupe inconnus",
+    "Overlevel carry": "Aide au-dessus du niveau maximal", "Below level range": "Sous le niveau minimal",
+    "Target not calibrated": "Cible non calibrée"
+  };
+  const presence = /^Presence (\d+)% \/ 80% required$/.exec(reason);
+  return presence ? `Présence ${presence[1]} % / 80 % requis` : labels[reason] ?? reason;
+}
+
 /** "TANK" / "HEALER" / "DPS" (DAMAGER folded into DPS), or undefined when the addon recorded no role. */
 export function normalRole(role: string | undefined): "TANK" | "HEALER" | "DPS" | undefined {
   const r = (role ?? "").toUpperCase();
@@ -128,6 +143,26 @@ export function deathPointsOf(run: Run): { x: number; y: number }[] {
   return points.filter((point) => point.map === best).map(({ x, y }) => ({ x, y }));
 }
 
+/**
+ * The run's dungeon score stat (next to the time): what this run added for the season ("+18") with the party's best season
+ * score under it, or a short reason when nothing was rated. Never a zero or NaN: a rated run that improved nobody says so.
+ */
+export function scoreStat(run: Run, party: { detail: Detail; guild: boolean }[], t: (en: string, fr: string) => string, lang: Lang): { label: string; value: string; note?: string; accent: "gold" | "green" } {
+  const label = t("Dungeon score", "Score de donjon");
+  const rated = party.map((row) => row.detail).filter((d) => Number.isFinite(d.ratingTotal));
+  if (rated.length) {
+    const gain = Math.max(0, ...rated.map((d) => Math.round(Number.isFinite(d.ratingGain) ? d.ratingGain! : 0)));
+    const best = Math.max(...rated.map((d) => Math.round(d.ratingTotal!)));
+    return gain > 0
+      ? { label, value: `+${gain}`, note: t(`Best season score ${best}`, `Meilleur score saison ${best}`), accent: "green" }
+      : { label, value: "—", note: t(`Already counted · best ${best}`, `Déjà comptée · meilleur ${best}`), accent: "gold" };
+  }
+  const reason = party.map((row) => row.detail.unrankedReason).find(Boolean);
+  const earned = Math.max(0, ...party.map((row) => Number.isFinite(row.detail.points) ? row.detail.points : 0));
+  if (!reason && earned > 0) return { label: t("Points earned", "Points gagnés"), value: `+${earned}`, accent: "green" };
+  return { label, value: "—", note: reason ? unrankedLabel(reason, lang) : t("Not rated", "Non classée"), accent: "gold" };
+}
+
 export interface DungeonCardOptions {
   /** Death positions as 0..1 map coordinates, when the addon recorded them (see docs/DUNGEON_CARDS.md). */
   deathPoints?: { x: number; y: number }[];
@@ -159,7 +194,8 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
         note: run.completedBy === "final boss" ? t("Final boss defeated", "Boss final vaincu") : run.completedBy === "manual" ? t("Completed manually", "Fin manuelle") : undefined },
       { label: t("Final boss", "Boss final"), value: boss ?? "—", accent: "green" },
       { label: t("Deaths", "Morts"), value: tracked ? String(totalDeaths) : "—", accent: totalDeaths ? "red" : "green",
-        note: tracked && tracked < party.length ? t(`${tracked}/${party.length} tracked`, `${tracked}/${party.length} suivis`) : tracked ? undefined : t("Not tracked", "Non suivies") }
+        note: tracked && tracked < party.length ? t(`${tracked}/${party.length} tracked`, `${tracked}/${party.length} suivis`) : tracked ? undefined : t("Not tracked", "Non suivies") },
+      scoreStat(run, party, t, lang)
     ],
     rowsLabel: t(`Party · ${members} from the guild`, `Groupe · ${members} de la guilde`),
     badges: rankBadges(run, t, lang),

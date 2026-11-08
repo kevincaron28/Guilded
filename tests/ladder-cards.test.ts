@@ -49,10 +49,10 @@ describe("leaderboard cards share the ladder layout", () => {
     expect(card.ladder!.columns.map(column => column.label)).toEqual(["Score", "V", "D", "% vict.", "Record", "Série"]);
     expect(card.ladder!.meta).toBe(ladderMeta("fr", at));
     // With the card attached, the embed only names the top 3 and points at the image.
-    const embed = duelBoardEmbed(duelData(30), "en", "g1", "duels.png").toJSON();
+    const embed = duelBoardEmbed(duelData(30), "en", "duels.png").toJSON();
     expect(embed.image?.url).toBe("attachment://duels.png");
     expect(embed.description!.split("\n")).toHaveLength(3);
-    expect(duelBoardEmbed(duelData(30), "en", "g1").toJSON().description!.split("\n")).toHaveLength(10);
+    expect(duelBoardEmbed(duelData(30), "en").toJSON().description!.split("\n")).toHaveLength(10);
   });
   it("battlegrounds: one panel per mode and bracket", () => {
     const standing = (name: string, wins: number) => ({ memberId: name, name, games: wins + 2, wins, losses: 2, draws: 0, winRate: wins / (wins + 2) });
@@ -61,7 +61,7 @@ describe("leaderboard cards share the ladder layout", () => {
     const card = bgLadderCard(data, "en", new Map(), at);
     expect(card.ladder!.boards.map(board => board.title)).toEqual(["Warsong Gulch · 20-29", "Arathi Basin · 30-39"]);
     expect(card.ladder!.boards[0]!.rows[0]).toMatchObject({ rank: 1, name: "A", values: ["8", "2", "80%", "10", ""] });
-    const embed = bgLadderEmbed(data, "en", "g1", "battlegrounds.png").toJSON();
+    const embed = bgLadderEmbed(data, "en", "battlegrounds.png").toJSON();
     expect(embed.image?.url).toBe("attachment://battlegrounds.png");
     expect(embed.fields ?? []).toHaveLength(0);
   });

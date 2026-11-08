@@ -102,8 +102,8 @@ describe("private BG records navigation", () => {
     const i = { ...interaction("stats"), customId: "bgui:scoped-guild:stats", isChatInputCommand: () => false, isModalSubmit: () => false, isButton: () => true };
     await handleBattlegroundComponent(i as never);
     expect(mocks.stats).not.toHaveBeenCalled();
-    expect(i.editReply.mock.calls[0]![0].content).toContain("Formats and brackets are never mixed");
-    expect(i.editReply.mock.calls[0]![0].content).toContain("not a verified level range");
+    expect(i.editReply.mock.calls[0]![0].content).toContain("For one format only: `/bg stats mode:casual bracket:<bracket>`");
+    expect(i.editReply.mock.calls[0]![0].content).not.toMatch(/API|verified level range/);
     expect(i.editReply.mock.calls[0]![0].content).not.toContain("10-19");
   });
   it("makes conflicts reviewable without enabling mentions or unbounded text", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addonDownloadUrl, companionProblems, newerVersion, problemReference, problemReport, reportableProblems, wowRunningFrom, NOT_SAVED_WITH_OTHERS_MS } from "../companion/problems.mjs";
+import { addonDownloadMirror, addonDownloadUrl, companionProblems, newerVersion, problemReference, problemReport, reportableProblems, wowRunningFrom, NOT_SAVED_WITH_OTHERS_MS } from "../companion/problems.mjs";
 
 // Problems panel (8.5, track F1): one test per check that makes it fire, plus the quiet cases.
 const watchFile = "C:\\Games\\World of Warcraft\\_forever_\\WTF\\Account\\PRIVATEACCOUNT\\SavedVariables\\Guilded.lua";
@@ -33,8 +33,11 @@ describe("companion problem checks", () => {
   });
 
   it("Get the addon opens this release's Forever zip", () => {
-    expect(addonDownloadUrl("forever", "8.4.7")).toBe("https://github.com/kevincaron28/Guilded/releases/download/v8.4.7/Guilded-v8.4.7-forever.zip");
-    expect(addonDownloadUrl("forever", "8.5.0-beta.1")).toBe("https://github.com/kevincaron28/Guilded/releases/download/v8.5.0/Guilded-v8.5.0-forever.zip");
+    // The website's copy first (8 November 2026); the GitHub one when the website does not have it.
+    expect(addonDownloadUrl("forever", "8.4.7")).toBe("https://guilded.kcaron.top/downloads/Guilded-v8.4.7-forever.zip");
+    expect(addonDownloadUrl("forever", "8.5.0-beta.1")).toBe("https://guilded.kcaron.top/downloads/Guilded-v8.5.0-forever.zip");
+    expect(addonDownloadMirror("forever", "8.4.7")).toBe("https://github.com/kevincaron28/Guilded/releases/download/v8.4.7/Guilded-v8.4.7-forever.zip");
+    expect(addonDownloadMirror("retail", "8.4.7")).toBe("https://www.curseforge.com/wow/addons/guilded");
     expect(addonDownloadUrl("retail", "8.4.7")).toBe("https://www.curseforge.com/wow/addons/guilded");
     expect(addonDownloadUrl("forever", "dev")).toBe("https://www.curseforge.com/wow/addons/guilded");
     expect(addonDownloadUrl(null, null)).toBe("https://www.curseforge.com/wow/addons/guilded");

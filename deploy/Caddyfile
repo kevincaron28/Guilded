@@ -79,6 +79,12 @@
 		handle /leaderboards/* {
 			reverse_proxy 127.0.0.1:8787
 		}
+		# The companion installer the website hands out (worker/index.mjs hostedDownload). The release copies
+		# Guilded.Companion.Setup.exe (and its versioned name) into /var/lib/guilded/downloads. Range requests work.
+		handle /downloads/* {
+			root * /var/lib/guilded
+			file_server
+		}
 		handle {
 			respond "Not found" 404
 		}

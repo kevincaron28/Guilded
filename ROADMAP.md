@@ -10,6 +10,35 @@ request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
 ## Start here — 9 November 2026 (next session)
 
+**How to start tomorrow (owner, 8 Nov, late):** open a fresh session and say "continue work". That session is the master
+(coordinator): read this section, CLAUDE.md and memory, then dispatch one worker session per track on the cheapest model that
+fits. Workers report back; the coordinator merges, backs up, deploys and publishes, and updates the owner's Control Board
+(claude.ai/artifact/XWXbyp3yjpoWEjJt9Ch33N, list "Everything you asked for": the 4 gaps are at the top) at every check-in.
+
+**Closed at the end of 8 November (coordinator, ~23:30 UTC):**
+- Every PR from 6-8 Nov is merged (branch-by-branch check: each has a merged PR or was replaced on purpose). Only #345
+  (Android) is open, waiting on Google Play. The 40 worker sessions are archived and their worktrees cleaned.
+- Bot live at 16ca9b6e (#653).
+- Québec Gold: 15 owner-approved character links applied (list on the board, row e01). The owner said NOT to link the
+  test-server candidates (Holy Pl, Mister Haragot, Mister Cleanshot, Hôly Tabernak). The rest link as companions upload or
+  with `/character claim`.
+- **Installer (item 6 below):** #653 merged and deployed. Caddy serves `/var/lib/guilded/downloads/` (9.0.6 installer
+  there, sha256 0a6797a8…, same bytes as GitHub), the Worker passes it through, GitHub stays the fallback. The Cloudflare
+  Workers build for 16ca9b6e failed (the usual random failure; the dashboard needs the owner's sign-in), so this roadmap
+  PR re-triggers it. **Check first:** `curl -sI https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe` must
+  answer 200 with content-length 123298159, not a 302. Release recipe: copy each new installer to the server
+  (`docs/COMPANION_AUTO_UPDATE.md`), never to KV.
+- **Owner, 8 Nov late: "find a better solution for downloads so they always work and free."** Confirm the server path
+  holds under real downloads; compare Cloudflare R2's free tier (10 GB, no download fees) as a second source; keep GitHub
+  as the last fallback.
+- **Card art:** the 9 Legendary cards are painted twice on the review page (claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58):
+  section L9 (painted high fantasy) and L9-WoW (classic online-RPG look: chunky shoulder armour, orc, troll, dwarf and
+  undead heroes, classic zone moods). The owner asked why there are no Blizzard names: Guilded Clash ships through
+  Google Play, the Store and CurseForge and may be monetized, so Blizzard's character, place and boss names, logos and
+  art stay out; generic race and class words and the overall feel are fine. When he picks, the chosen nine go into the
+  app the way the champions did (#652, `docs/plans/app-tcg-art/make-champions.mjs`). The PNGs are in the coordinator's
+  scratchpad (`tcg-art-gen/legendary`, `tcg-art-gen/legendary-wow`); copy them into the repo once approved.
+
 **State at the end of 8 November (coordinator):** 9.0.6 published (GitHub v9.0.6 at aea56c26; CurseForge 9518058/9518060
 in review; website downloads and the companion installer in KV verified; bot deployed). Store 9.0.6.0: the package is
 built in `..\qgb-rel902`; submit it in Partner Center if not done (the companion changed: website-first updates #633).

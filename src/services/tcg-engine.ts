@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { CARD_BY_ID, DECK_SIZE, LOOT_BAG, cardOf, roleOfCard } from "./tcg-cards-set1.js";
-import type { Ability, Action, CardDef, ClassKey, Cond, DeckList, Eff, Keyword, MatchEvent, MatchState, PlayerState, Sel, Target, To, UnitState } from "./tcg-engine-types.js";
+import type { Ability, Action, CardDef, ClassKey, Cond, DeckList, Eff, Keyword, MatchEvent, MatchSetup, MatchState, PlayerState, Sel, Target, To, UnitState } from "./tcg-engine-types.js";
 
 // Guilded Clash rules engine (docs/plans/APP_TCG_GAME.md section 2). Pure and deterministic: all randomness comes from the
 // seed stored inside the match state, nothing reads a clock or Math.random, and a match is fully described by
@@ -95,7 +95,7 @@ const newUnit = (s: MatchState, cardId: string): UnitState => {
 };
 
 function newPlayer(list: DeckList): PlayerState {
-  return { cls: list.cls, hp: START_HEALTH, armor: 0, deck: [...list.cards], hand: [], board: [], standard: null, mana: 0, turns: 0, exhaustion: 0, secondWind: false, powerUsed: false, cooldown: 0, lastDied: null, partyDiscount: false, played: 0, nextDiscount: 0, nextSpellFree: false, perfectTurn: 0, attacked: 0 };
+  return { cls: list.cls, hp: START_HEALTH, maxHp: START_HEALTH, armor: 0, deck: [...list.cards], hand: [], board: [], standard: null, mana: 0, turns: 0, exhaustion: 0, secondWind: false, powerUsed: false, cooldown: 0, lastDied: null, partyDiscount: false, played: 0, nextDiscount: 0, nextSpellFree: false, perfectTurn: 0, attacked: 0 };
 }
 
 function drawRaw(s: MatchState, p: Side): string | null {
@@ -116,7 +116,7 @@ function smooth(s: MatchState, p: Side): void {
   [pl.hand[worst], pl.deck[at]] = [pl.deck[at]!, pl.hand[worst]!];
 }
 
-export function createMatch(seed: number, a: DeckList, b: DeckList): MatchState {
+export function createMatch(seed: number, a: DeckList, b: DeckList, setup: MatchSetup = {}): MatchState {
   for (const list of [a, b]) {
     if (list.cards.length !== DECK_SIZE) throw new Error(`A deck needs ${DECK_SIZE} cards.`);
     for (const id of list.cards) if (!CARD_BY_ID.has(id) || cardOf(id).token) throw new Error(`Unknown card ${id}`);
@@ -125,6 +125,8 @@ export function createMatch(seed: number, a: DeckList, b: DeckList): MatchState 
     v: 1, rng: seed >>> 0, turn: 0, first: 0, active: 0, phase: "mulligan", mulligan: [false, false],
     players: [newPlayer(a), newPlayer(b)], zone: null, nextUid: 1, pending: [], winner: null, reason: null
   };
+  if (setup.hp) for (const p of [0, 1] as const) { s.players[p].hp = setup.hp[p]; s.players[p].maxHp = setup.hp[p]; }
+  if (setup.zone) s.zone = { ...setup.zone };
   s.first = rngInt(s, 2) as Side;
   s.active = s.first;
   for (const p of [0, 1] as const) shuffle(s, s.players[p].deck);
@@ -228,7 +230,7 @@ function resolveTo(x: X, to: To, c: Ctx): Target[] {
     case "randomEnemyChar": { const list: Target[] = [...targetableUnits(s, p, other(p)).map(unitT), { champ: other(p) }]; return [list[rngInt(s, list.length)]!]; }
     case "randomDamagedFriendlyChar": {
       const list: Target[] = [...s.players[p].board.filter(u => u.dmg > 0).map(unitT)];
-      if (s.players[p].hp < START_HEALTH) list.push({ champ: p });
+      if (s.players[p].hp < s.players[p].maxHp) list.push({ champ: p });
       return list.length ? [list[rngInt(s, list.length)]!] : [];
     }
   }
@@ -266,7 +268,7 @@ function dealDamage(x: X, t: Target, amount: number, c: Ctx, source?: { p: Side;
 
 function mendTarget(x: X, t: Target, n: number): number {
   const s = x.s;
-  if ("champ" in t) { const pl = s.players[t.champ]; const gained = Math.max(0, Math.min(n, START_HEALTH - pl.hp)); pl.hp += gained; if (gained) emit(x, "mend", { champ: t.champ, n: gained }); return gained; }
+  if ("champ" in t) { const pl = s.players[t.champ]; const gained = Math.max(0, Math.min(n, pl.maxHp - pl.hp)); pl.hp += gained; if (gained) emit(x, "mend", { champ: t.champ, n: gained }); return gained; }
   if ("unit" in t) { const f = findUnit(s, t.unit); if (!f) return 0; const gained = Math.min(n, f.u.dmg); f.u.dmg -= gained; if (gained) emit(x, "mend", { unit: f.u.uid, n: gained }); return gained; }
   return 0;
 }
@@ -813,8 +815,8 @@ export function apply(s: MatchState, a: Action): { state: MatchState; events: Ma
 }
 
 /** Replays a recorded action list from the start; the result must match the stored final state hash. */
-export function replay(seed: number, a: DeckList, b: DeckList, actions: readonly Action[]): MatchState {
-  let s = createMatch(seed, a, b);
+export function replay(seed: number, a: DeckList, b: DeckList, actions: readonly Action[], setup: MatchSetup = {}): MatchState {
+  let s = createMatch(seed, a, b, setup);
   for (const action of actions) s = apply(s, action).state;
   return s;
 }

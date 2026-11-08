@@ -127,6 +127,8 @@ export interface UnitState {
 export interface PlayerState {
   cls: ClassKey;
   hp: number;
+  /** Maximum Health (20 for players; PvE bosses may have more). */
+  maxHp: number;
   armor: number;
   deck: string[];
   hand: string[];
@@ -180,3 +182,6 @@ export type Action =
 export interface MatchEvent { t: string; [key: string]: unknown }
 
 export interface DeckList { cls: ClassKey; cards: string[] }
+
+/** Optional match set-up used by PvE bosses: a starting Zone and starting Health (also the maximum) per player. */
+export interface MatchSetup { zone?: { card: string; owner: 0 | 1 }; hp?: [number, number] }

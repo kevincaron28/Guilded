@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.0.4 — 8 November 2026
+
+Fixes from the first in-game check of 9.0.3 and the night after it. Details: docs/V9_0_4_RELEASE_NOTES.md.
+
+- Addon: no more "Guilded has been blocked from an action only available to the Blizzard UI" at login (the guild roster professions tooltip no longer hooks a Blizzard mixin).
+- Companion: several WoW accounts on one PC sync by themselves, after one "is it yours too?" question; a line per account and a switch for each.
+- Bot (already live): character pictures on cards and profiles, record cards, polished cards and French text, item previews that always link, the WoW role button fix, clearer addon-import failures with retries, and deploy guards so an update can no longer freeze the server.
+
 ## 9.0.3 — 7 November 2026
 
 Guilded is now WoW Forever only, plus fixes from the day after 9.0.2. Details: docs/V9_0_3_RELEASE_NOTES.md.

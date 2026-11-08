@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { editionSection } from './nav.mjs';
 
 // Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md). Release versions come from
@@ -28,10 +29,16 @@ export function editionCards({ hubs = false } = {}) {
   }).join('')}</div>`;
 }
 
+// The download button serves the zip from this site (site/downloads, copied by scripts/build-site.mjs) when it is there,
+// and falls back to the GitHub release otherwise.
+function hostedZip(addon, version, editionId) {
+  const name = `${addon}-v${version}-${editionId}.zip`;
+  return existsSync(new URL(`./downloads/${name}`, import.meta.url)) ? `/downloads/${escape(name)}` : `https://github.com/kevincaron28/Guilded/releases/download/v${escape(version)}/${escape(name)}`;
+}
 // The two addon downloads (its download page and its hub).
 function downloadCards(edition, version, curseforge) {
   const files = curseforge.version === version ? curseforge.editions?.[edition.id] : null;
-  return [['Guilded', ['Guild tools', 'Outils de guilde'], ['Standings, EP/GP, loot and crafting, with dungeon recording included.', 'Classements, EP/GP, butin et artisanat, avec enregistrement des donjons inclus.']], ['GuildedDungeons', ['Dungeons only', 'Donjons seulement'], ['The separate addon for players who only want dungeon tools. Install Guilded or Guilded Dungeons; both can coexist if you already use them.', 'L’addon séparé pour les joueurs qui veulent seulement les outils de donjons. Installez Guilded ou Guilded Dungeons; les deux peuvent coexister si vous les utilisez déjà.']]].map(([addon, label, description]) => `<article class="edition-download"><p class="eyebrow">${pair(label)}</p><h3>${addon === 'Guilded' ? 'Guilded' : 'Guilded Dungeons'} <small>${escape(version)}</small></h3><p>${pair(description)}</p><a class="button${addon === 'GuildedDungeons' ? ' secondary' : ''}" href="https://github.com/kevincaron28/Guilded/releases/download/v${escape(version)}/${addon}-v${escape(version)}-${edition.id}.zip">${text(`Download ${addon === 'Guilded' ? 'Guilded' : 'Guilded Dungeons'} for ${edition.label[0]}`, `Télécharger ${addon === 'Guilded' ? 'Guilded' : 'Guilded Dungeons'} pour ${edition.label[1]}`)} ↓</a>${files?.[addon === 'Guilded' ? 'guilded' : 'dungeons'] ? `<p class="small"><a href="${escape(files[addon === 'Guilded' ? 'guilded' : 'dungeons'])}">CurseForge · ${escape(version)} ↗</a></p>` : ''}<p class="small"><code>${addon}-v${escape(version)}-${edition.id}.zip</code></p></article>`).join('');
+  return [['Guilded', ['Guild tools', 'Outils de guilde'], ['Standings, EP/GP, loot and crafting, with dungeon recording included.', 'Classements, EP/GP, butin et artisanat, avec enregistrement des donjons inclus.']], ['GuildedDungeons', ['Dungeons only', 'Donjons seulement'], ['The separate addon for players who only want dungeon tools. Install Guilded or Guilded Dungeons; both can coexist if you already use them.', 'L’addon séparé pour les joueurs qui veulent seulement les outils de donjons. Installez Guilded ou Guilded Dungeons; les deux peuvent coexister si vous les utilisez déjà.']]].map(([addon, label, description]) => `<article class="edition-download"><p class="eyebrow">${pair(label)}</p><h3>${addon === 'Guilded' ? 'Guilded' : 'Guilded Dungeons'} <small>${escape(version)}</small></h3><p>${pair(description)}</p><a class="button${addon === 'GuildedDungeons' ? ' secondary' : ''}" href="${hostedZip(addon, version, edition.id)}">${text(`Download ${addon === 'Guilded' ? 'Guilded' : 'Guilded Dungeons'} for ${edition.label[0]}`, `Télécharger ${addon === 'Guilded' ? 'Guilded' : 'Guilded Dungeons'} pour ${edition.label[1]}`)} ↓</a>${files?.[addon === 'Guilded' ? 'guilded' : 'dungeons'] ? `<p class="small"><a href="${escape(files[addon === 'Guilded' ? 'guilded' : 'dungeons'])}">CurseForge · ${escape(version)} ↗</a></p>` : ''}<p class="small"><code>${addon}-v${escape(version)}-${edition.id}.zip</code> · <a href="https://github.com/kevincaron28/Guilded/releases/download/v${escape(version)}/${addon}-v${escape(version)}-${edition.id}.zip">${text('GitHub mirror', 'Miroir GitHub')}</a></p></article>`).join('');
 }
 
 // WoW Forever's launch calendar and checklists (the former /forever/ page, now in its hub).

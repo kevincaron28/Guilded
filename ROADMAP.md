@@ -138,18 +138,24 @@ member and auto-detect joins (#586); release 9.0.3; **build character pictures**
 session); **build several accounts per member** with the proposed answers (track-f session); **paid tier stays off** (Lite/Plus kept
 as a plan until Discord pays Canadian teams or costs grow).
 
+### Claude does these (owner, 7 Nov evening: "do the in game test yourself", "always do the store submissions")
+
+- **Real-client checks, Claude in WoW on the owner's PC:** started 7 Nov ~22:20 UTC on 9.0.3. Guilded window, Guild overview
+  (134 members, 49 online) and Crafting orders work. **Found:** an ADDON_ACTION_FORBIDDEN on every login, traced by module bisection to
+  `Modules/RosterProfessions.lua` hooking `CommunitiesMemberListEntryMixin.OnEnter` (fix with the overview-panel session, for 9.0.4;
+  the module is switched off on the owner's PC until then). Still to check: officer tools (3, 4, 7, 9), minimap spot, chat tab, French
+  client, profession-link and item previews, raid night check card, guild board votes from two clients, companion update over a running
+  app, call for help on two PCs, a real level 60 for Race to 60.
+- **Screenshots in game (item 20):** Claude drives WoW.
+- **Store submissions with every companion release.** 9.0.3.0 is built (`Desktop\guilded-store-9.0.3`); Submission 12 (9.0.0.0) is still
+  in certification, so 9.0.3 goes in when it finishes (cancelling it needs the owner's word in chat).
+- CurseForge uploads are automated (the API token is already in `.env.local`); 9.0.3 files 9501048/9501049 are in review.
+
 ### Waiting for owner
 
-- **Release 9.0.3** (world PvP client parts) and **CurseForge review** of 9.0.2; Store submission (skipped for 9.0.1 and 9.0.2, his call).
-- **Real-client checks:** officer tools (3, 4, 7, 9), minimap spot, chat tab, French client, first profession-link/item previews, raid night check card,
-  guild board votes from two clients, companion update over a running app, Defender banner and call for help on two PCs, a real level 60 for Race to 60.
-- **Screenshots in game (item 20):** Claude drives WoW when he is at the PC.
-- **Québec Gold tidy-up confirmation:** read-only board channels (#550) and the channel audit; rookie role placement.
-- **Season 2 data read** (~18 Nov, two weeks of Season 1) before `/guilded-season season2-activate`.
-- **World PvP default answers** (`docs/WORLD_PVP.md`).
-- **Plans waiting for a pick:** character pictures, Lite/Plus (payout route: Canada is not on Discord's list), several game accounts (4 questions), Forever-only removal (Battle.net option A or B), phone app restructure, TCG design.
+- **Season 2 activation** (~18 Nov, re-run the analysis first) before `/guilded-season season2-activate`.
+- **Plans still waiting:** phone app restructure, TCG design. (Character pictures and several accounts are being built; the paid tier stays off.)
 - **Android / Google Play** (#345 draft, `EXPO_TOKEN`, Firebase, 12 testers) and a new phone APK.
-- Create the CurseForge API token in his own account (CurseForge page freezes for him) if uploads should be automated.
 - His own nickname in Québec Gold (Discord never lets a bot rename the server owner).
 
 ### Owner-message cross-check (7 Nov, all 129 messages since 5 Nov)

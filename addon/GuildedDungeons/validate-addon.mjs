@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { validateCombatLog } from "../../scripts/validate-combat-log.mjs";
+import { validateMixinHooks } from "../../scripts/validate-mixin-hooks.mjs";
 import { check as copiesMatch, tocFiles } from "../../scripts/build-dungeons-addon.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
@@ -32,6 +33,7 @@ try { luaparse = (await import("luaparse")).default; } catch { console.warn("lua
 for (const file of files) {
   const source = readFileSync(join(root, file), "utf8");
   validateCombatLog(source.replaceAll("\r\n", "\n"));
+  validateMixinHooks(source, `GuildedDungeons/${file}`);
   if (file !== "Shared/Util.lua" && /SendAddonMessage\(/.test(source)) throw new Error(`GuildedDungeons/${file} calls SendAddonMessage directly; use ns.comm.send`);
   // Its own data only: never write Guilded's SavedVariables.
   if (file === "Shim.lua" || file === "Main.lua") { if (/GuildedDB\b/.test(source)) throw new Error(`GuildedDungeons/${file} touches GuildedDB`); }

@@ -125,17 +125,50 @@ function module.decorate(button)
   return ok
 end
 local hooked = {}
-function module.install()
-  if type(hooksecurefunc) ~= "function" then return end
-  local function hook(target, key)
-    local fn = type(target) == "table" and target[key] or (type(target) == "string" and _G[target])
-    if hooked[key] or type(fn) ~= "function" then return end
-    local ok = pcall(hooksecurefunc, target, key, function(self) module.decorate(self) end)
-    if ok then hooked[key] = true end
+-- One roster entry frame's own OnEnter script, hooked once. Never hook a Blizzard *Mixin table:
+-- hooksecurefunc writes an insecure wrapper into the mixin, every entry frame made from it copies
+-- that tainted method, and the Communities UI then hits ADDON_ACTION_FORBIDDEN on every login (9.0.4).
+local hookedFrames = setmetatable({}, { __mode = "k" })
+function module.hookEntry(entry)
+  if type(entry) ~= "table" or hookedFrames[entry] or type(entry.HookScript) ~= "function" then return false end
+  local ok = pcall(entry.HookScript, entry, "OnEnter", function(self) module.decorate(self) end)
+  if ok then hookedFrames[entry] = true end
+  return ok
+end
+
+-- The Communities guild roster (load-on-demand): hook each member entry frame as its ScrollBox
+-- creates or reuses it (and the ones already there), or the older list's fixed buttons.
+local listHooked = false
+function module.hookMemberList()
+  local list = CommunitiesFrame and CommunitiesFrame.MemberList
+  if listHooked or type(list) ~= "table" then return listHooked end
+  local box = list.ScrollBox
+  if type(box) == "table" and ScrollUtil and type(ScrollUtil.AddInitializedFrameCallback) == "function" then
+    -- The callback gets (owner, frame, elementData); take whichever argument is the frame.
+    listHooked = pcall(ScrollUtil.AddInitializedFrameCallback, box, function(a, b)
+      module.hookEntry(type(b) == "table" and b.HookScript and b or a)
+    end, module, true) or listHooked
   end
-  hook(_G, "GuildRosterButton_OnEnter")
-  hook(_G, "GuildFrameButton_OnEnter")
-  if CommunitiesMemberListEntryMixin then hook(CommunitiesMemberListEntryMixin, "OnEnter") end
+  local buttons = list.ListScrollFrame and list.ListScrollFrame.buttons
+  if type(buttons) == "table" then
+    for _, button in ipairs(buttons) do module.hookEntry(button) end
+    listHooked = true
+  end
+  return listHooked
+end
+
+function module.install()
+  if type(hooksecurefunc) == "function" then
+    -- Plain global functions: a secure hook on these is safe.
+    local function hook(key)
+      if hooked[key] or type(_G[key]) ~= "function" then return end
+      local ok = pcall(hooksecurefunc, key, function(self) module.decorate(self) end)
+      if ok then hooked[key] = true end
+    end
+    hook("GuildRosterButton_OnEnter")
+    hook("GuildFrameButton_OnEnter")
+  end
+  module.hookMemberList()
 end
 
 function module.text()

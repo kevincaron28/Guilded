@@ -7,7 +7,7 @@ server audit. A feature is "discoverable" when a member can find it from the Dis
 
 | Feature | Where a member finds it |
 |---|---|
-| Linking characters, companion, addon install | #bot-faq, the pinned getting-started guide in #guilded-guide, `/help` first lines |
+| Linking characters, companion, addon install | #invitation-guilde (the guild invitation channel), the pinned getting-started guide in #guilded-guide, `/help` first lines |
 | Raid signups | #raid-signups buttons, `/help` |
 | Raid cores, rosters, Apply | #raid-roster posts (Apply button), `/help` (`/apply`, `/team`) |
 | Raid logs, loot awards, EPGP | #raid-logs, #loot-log, `/help` (`/epgp`, `/loot`) |

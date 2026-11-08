@@ -49,6 +49,9 @@ details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summ
 
 /* Home: the Sync status card (redesign PR 1). One state, one button. */
 .account-ask { margin: 6px 0; }
+.account-list, .account-lines { list-style: none; padding: 0; margin: 8px 0; }
+.account-list li { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.account-lines li { font-size: .92em; opacity: .85; }
 .account-ask .status-actions { display: flex; gap: 8px; }
 .status-card { display: flex; align-items: flex-start; gap: 16px; padding: 20px 22px; border-radius: 14px; border: 1px solid var(--line, rgba(255,255,255,.12)); background: var(--panel, rgba(255,255,255,.04)); margin: 4px 0 6px; }
 .status-card .status-dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; background: #8a8170; }

@@ -25,6 +25,15 @@ bot, addon and Windows companion version). Store identifiers are
   instead (`src/clash/mock.ts`, not the rules engine). Card text comes from
   `src/clash/set1.ts`, generated with `npx tsx mobile/scripts/gen-clash-cards.ts`.
   Art shows a placeholder until each card gets an `artUrl`.
+  **Play** has three parts: **Solo** (AI and gauntlet), **Guild** (challenge a guildmate from the roster,
+  accept or decline challenges with their expiry, your matches with "Your turn" badges on a 24-hour turn
+  clock or live 60-second turns, and the weekly guild board) and **Ranked** (the waiting room, your rank
+  and stars this season, the season end, ranked matches in progress, the global and server ladders).
+  These use the player-vs-player routes of #644 under `/api/v1/companion/clash/` (`challenge`, `accept`,
+  `decline`, `challenge/partners`, `duels`, `duel`, `duel/intent`, `duel/concede`, `ranked`,
+  `ranked/join`, `ranked/leave`, `leaderboard`); a duel opens on the same match screen, with
+  "Waiting for <name>" on the opponent's turn. The hidden matchmaking rating is never sent to the phone:
+  the rank and stars are the visible band.
 
 Signed out, Me and Alerts show a sign-in card. The sample guild fills every tab.
 Shared pieces live in `src/ui/`; the signed-in state is `src/useGuild.ts`.

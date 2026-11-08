@@ -3,13 +3,14 @@ import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, Style
 import type { Lang } from "../i18n";
 import { classColor } from "../publicApi";
 import { colors } from "../ui";
-import type { ClashApi } from "./api";
+import type { ClashApi, MatchDriver } from "./api";
 import { CardFace, HandCard, STONE, UnitToken } from "./CardFrame";
+import { formatLeft, msUntil, urgent } from "./pvp";
 import {
   attacksOf, canEnd, cardOf, immediate, initialMatchUi, matchUiReducer, modesOf, playsOf, powersOf, resolveTap, targetKey, targetsFor, type Selection
 } from "./state";
 import type { Intent, MatchResponse, SideView, Target } from "./types";
-import { CLASS_LABEL, POWER, w } from "./words";
+import { CLASS_LABEL, POWER, rankLabel, w } from "./words";
 
 /** One Champion: portrait (a target when lit), Health, Armor, mana and counts. */
 function ChampionBar({ side, seat, lang, lit, onTap, extra }: { side: SideView; seat: 0 | 1; lang: Lang; lit: boolean; onTap: () => void; extra: string }) {
@@ -30,8 +31,11 @@ function ChampionBar({ side, seat, lang, lit, onTap, extra }: { side: SideView; 
   </View>;
 }
 
-/** The battle: both boards (5 slots each), the Zone, hands, mana, Champions, attacks and targets, end turn and concede. */
-export function MatchView({ api, lang, initial, onExit }: { api: ClashApi; lang: Lang; initial: MatchResponse; onExit: () => void }) {
+/** The battle: both boards (5 slots each), the Zone, hands, mana, Champions, attacks and targets, end turn and concede.
+ *  A two-human duel (#644) passes its own `driver` (the duel routes): the opponent's turn then reads "Waiting for <name>",
+ *  the turn clock shows, and the result shows the ranked stars. */
+export function MatchView({ api, driver, lang, initial, onExit }: { api: ClashApi; driver?: MatchDriver; lang: Lang; initial: MatchResponse; onExit: () => void }) {
+  const calls: MatchDriver = driver ?? api;
   const [ui, dispatch] = useReducer(matchUiReducer, initialMatchUi);
   const [detail, setDetail] = useState<string | null>(null);
   const [showLog, setShowLog] = useState(false);
@@ -50,20 +54,29 @@ export function MatchView({ api, lang, initial, onExit }: { api: ClashApi; lang:
 
   const send = useCallback(async (intent: Intent) => {
     dispatch({ type: "sending" });
-    try { dispatch({ type: "loaded", res: await api.intent(matchId, intent) }); }
+    try { dispatch({ type: "loaded", res: await calls.intent(matchId, intent) }); }
     catch (e) { dispatch({ type: "failed", message: e instanceof Error ? e.message : w("failed", lang) }); }
-  }, [api, matchId, lang]);
+  }, [calls, matchId, lang]);
   const refresh = useCallback(async () => {
     dispatch({ type: "sending" });
-    try { dispatch({ type: "loaded", res: await api.match(matchId) }); }
+    try { dispatch({ type: "loaded", res: await calls.match(matchId) }); }
     catch (e) { dispatch({ type: "failed", message: e instanceof Error ? e.message : w("failed", lang) }); }
-  }, [api, matchId, lang]);
+  }, [calls, matchId, lang]);
   // An opponent still deciding (a live server AI or a Loot choice) is polled gently while the screen is open.
   useEffect(() => {
     if (over || view.yourTurn || ui.busy) return;
     const timer = setTimeout(() => void refresh(), 4000);
     return () => clearTimeout(timer);
   }, [over, view.yourTurn, ui.busy, refresh, res.match.version]);
+  // A duel's turn clock: once a second for a live 60-second turn, twice a minute otherwise.
+  const duel = res.match.duel ?? null;
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!duel || over) return;
+    const timer = setInterval(() => setNow(Date.now()), duel.live ? 1000 : 30_000);
+    return () => clearInterval(timer);
+  }, [duel, over]);
+  const clock = duel && !over ? msUntil(res.match.turnDeadlineAt, now) : null;
 
   const pick = (selection: Selection, action: Parameters<typeof dispatch>[0]) => {
     const now = immediate(selection, legal);
@@ -87,7 +100,7 @@ export function MatchView({ api, lang, initial, onExit }: { api: ClashApi; lang:
     }
   };
   const concede = () => {
-    const go = () => { dispatch({ type: "sending" }); api.concede(matchId).then((r) => dispatch({ type: "loaded", res: r })).catch((e: unknown) => dispatch({ type: "failed", message: e instanceof Error ? e.message : w("failed", lang) })); };
+    const go = () => { dispatch({ type: "sending" }); calls.concede(matchId).then((r) => dispatch({ type: "loaded", res: r })).catch((e: unknown) => dispatch({ type: "failed", message: e instanceof Error ? e.message : w("failed", lang) })); };
     if (Platform.OS === "web") { go(); return; }
     Alert.alert(w("concede", lang), w("concedeAsk", lang), [{ text: w("cancel", lang), style: "cancel" }, { text: w("concede", lang), style: "destructive", onPress: go }]);
   };
@@ -99,7 +112,7 @@ export function MatchView({ api, lang, initial, onExit }: { api: ClashApi; lang:
     : ui.selection.k !== "none" ? w("pickTarget", lang)
     : view.pending ? w("loot", lang)
     : view.opponentChoosing ? w("choosing", lang)
-    : view.yourTurn ? w("pickAttacker", lang) : w("theirTurn", lang));
+    : view.yourTurn ? w("pickAttacker", lang) : duel ? w("waitingFor", lang, { name: duel.opponent }) : w("theirTurn", lang));
   const zone = view.zone ? cardOf(view.zone.card) : null;
   const powerReady = powersOf(legal).length > 0;
   const power = POWER[view.me.cls]?.[lang] ?? w("power", lang);
@@ -107,7 +120,7 @@ export function MatchView({ api, lang, initial, onExit }: { api: ClashApi; lang:
   return <View style={styles.root}>
     <View style={styles.topBar}>
       <Pressable onPress={onExit} accessibilityRole="button" style={styles.topButton}><Text style={styles.link}>{w("back", lang)}</Text></Pressable>
-      <Text style={styles.status} numberOfLines={1}>{res.match.boss?.name ?? w("startAi", lang)} · {w("round", lang)} {view.round}</Text>
+      <Text style={styles.status} numberOfLines={1}>{duel ? `${duel.kind === "ranked" ? w("ranked", lang) : w("friendly", lang)} ${w("vs", lang, { name: duel.opponent })}` : res.match.boss?.name ?? w("startAi", lang)} · {w("round", lang)} {view.round}</Text>
       {!over ? <Pressable onPress={concede} accessibilityRole="button" style={styles.topButton}><Text style={styles.concede}>{w("concede", lang)}</Text></Pressable> : <View style={styles.topButton} />}
     </View>
 
@@ -127,7 +140,10 @@ export function MatchView({ api, lang, initial, onExit }: { api: ClashApi; lang:
       <Pressable onPress={() => zone && setDetail(zone.id)} disabled={!zone} accessibilityRole="button" style={[styles.zone, zone && styles.zoneOn]}>
         <Text style={styles.zoneText} numberOfLines={1}>{zone ? `${w("zone", lang)}: ${zone.name}` : w("noZone", lang)}</Text>
       </Pressable>
-      <Text style={[styles.turn, view.yourTurn && { color: "#9fbd83" }]}>{over ? "" : view.yourTurn ? w("yourTurn", lang) : w("theirTurn", lang)}</Text>
+      <View style={{ alignItems: "flex-end" }}>
+        <Text style={[styles.turn, view.yourTurn && { color: "#9fbd83" }]}>{over ? "" : view.yourTurn ? w("yourTurn", lang) : duel ? duel.opponent : w("theirTurn", lang)}</Text>
+        {clock !== null ? <Text accessibilityLabel={`${w("turnClock", lang)}: ${formatLeft(clock, lang)}`} style={[styles.small, urgent(clock, duel?.live ?? false) && { color: colors.error }]}>⏱ {formatLeft(clock, lang)}</Text> : null}
+      </View>
     </View>
 
     <View style={styles.board} accessibilityLabel="Your board">
@@ -190,6 +206,8 @@ export function MatchView({ api, lang, initial, onExit }: { api: ClashApi; lang:
         <Text style={[styles.result, { color: view.winner === 0 ? STONE.gold : view.winner === "draw" ? colors.text : colors.error }]}>{view.winner === 0 ? w("won", lang) : view.winner === "draw" ? w("draw", lang) : w("lost", lang)}</Text>
         {res.rewards || res.match.rewards ? <Text style={styles.text}>{w("rewards", lang)}: {(res.rewards ?? res.match.rewards)!.dust} {w("dust", lang)}{(res.rewards ?? res.match.rewards)!.packs ? ` + ${(res.rewards ?? res.match.rewards)!.packs} ${w("pack", lang)}` : ""}</Text> : null}
         {res.rewards?.questsCompleted.length ? <Text style={styles.small}>✓ {res.rewards.questsCompleted.join(", ")}</Text> : null}
+        {duel?.ranked ? <Text style={[styles.text, { color: STONE.gold }]}>★ {duel.ranked.starsDelta > 0 ? "+" : ""}{duel.ranked.starsDelta} · {rankLabel(duel.ranked.rank, lang)}</Text> : null}
+        {duel && duel.kind === "friendly" ? <Text style={styles.small}>{w("friendlyResult", lang)}</Text> : null}
         <Pressable onPress={onExit} accessibilityRole="button" style={styles.primary}><Text style={styles.primaryText}>{w("playAgain", lang)}</Text></Pressable>
       </View></View>
     </Modal>

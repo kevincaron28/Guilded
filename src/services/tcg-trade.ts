@@ -116,15 +116,15 @@ export async function personalProblem(tx: Pick<Tx, "tcgAccount" | "tcgPlayer">, 
   return null;
 }
 
-/** The server two members share where the card game and trading are on and both have a linked character. Null when there is none. */
-export async function sharedGuild(tx: Pick<Tx, "member" | "character" | "guildSettings">, a: string, b: string, allows: (discordGuildId: string) => boolean): Promise<string | null> {
+/** The server two members share where the card game (and, unless `needTrading` is false, trading) is on and both have a linked character. Null when there is none. Friendly challenges use the same rule without the trading switch. */
+export async function sharedGuild(tx: Pick<Tx, "member" | "character" | "guildSettings">, a: string, b: string, allows: (discordGuildId: string) => boolean, needTrading = true): Promise<string | null> {
   if (a === b) return null;
   const rows = await tx.member.findMany({ where: { discordUserId: { in: [a, b] }, status: "ACTIVE", isTest: false }, select: { id: true, guildId: true, discordUserId: true, guild: { select: { discordId: true } } }, take: 100 });
   const byGuild = new Map<string, Map<string, string>>();
   for (const row of rows) if (allows(row.guild.discordId)) byGuild.set(row.guildId, (byGuild.get(row.guildId) ?? new Map()).set(row.discordUserId, row.id));
   for (const [guildId, people] of byGuild) {
     if (!people.has(a) || !people.has(b)) continue;
-    const off = await tx.guildSettings.findFirst({ where: { guildId, OR: [{ tcgEnabled: false }, { tcgTradingEnabled: false }] }, select: { guildId: true } });
+    const off = await tx.guildSettings.findFirst({ where: { guildId, OR: needTrading ? [{ tcgEnabled: false }, { tcgTradingEnabled: false }] : [{ tcgEnabled: false }] }, select: { guildId: true } });
     if (off) continue;
     const linked = await Promise.all([people.get(a)!, people.get(b)!].map(memberId => tx.character.count({ where: { memberId } })));
     if (linked.every(count => count > 0)) return guildId;

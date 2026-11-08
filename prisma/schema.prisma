@@ -3630,3 +3630,95 @@ model TcgTradeEvent {
 
   @@index([tradeId, createdAt])
 }
+
+// TCG player-vs-player (Guilded Clash stage E, docs/plans/APP_TCG_GAME.md section 4): friendly challenges between guildmates and
+// the ranked ladder. Seat 0 is userA (the challenger, or the player who queued first) and seat 1 is userB. Like TcgMatch the stored
+// match is seed + decks + the ordered action log, plus the full state (server only; each player gets their own projection).
+model TcgDuel {
+  id             String    @id @default(cuid())
+  // "friendly" (a challenge between two guildmates) or "ranked".
+  kind           String
+  // The internal Guild id both members share (friendly only).
+  guildId        String?
+  userA          String
+  userB          String
+  clsA           String
+  // The challenged member picks their class when they accept.
+  clsB           String?
+  // Live challenges run a 60 second turn clock and expire fast; asynchronous ones run 24 hours a turn.
+  live           Boolean   @default(false)
+  // "pending" (a challenge waiting), "active", "done", "declined", "cancelled" or "expired".
+  status         String    @default("pending")
+  // The ranked season (UTC month, YYYY-MM) the match belongs to.
+  season         String    @default("")
+  seed           Int       @default(0)
+  deckA          Json?
+  deckB          Json?
+  actions        Json      @default("[]")
+  state          Json?
+  stateHash      String    @default("")
+  // 0 or 1 (a seat), 2 for a draw; null while the match is not over.
+  winner         Int?
+  reason         String?
+  spellsA        Int       @default(0)
+  zonesA         Int       @default(0)
+  spellsB        Int       @default(0)
+  zonesB         Int       @default(0)
+  // Both players took enough turns for the match to count.
+  counted        Boolean   @default(false)
+  // Ranked only: the result changed ratings and stars (false for a capped repeat pairing).
+  rated          Boolean   @default(false)
+  // Officer-facing flags: "repeat-pair", "early-concede".
+  flags          Json      @default("[]")
+  // What the match paid and changed for each seat once it ended.
+  result         Json?
+  turnSeconds    Int       @default(86400)
+  turnDeadlineAt DateTime?
+  // Pending challenges expire here.
+  expiresAt      DateTime?
+  lastActionAt   DateTime  @default(now())
+  // Optimistic lock: every change increments it and only the request that read the current value may write.
+  version        Int       @default(0)
+  createdAt      DateTime  @default(now())
+  startedAt      DateTime?
+  finishedAt     DateTime?
+
+  @@index([userA, status])
+  @@index([userB, status])
+  @@index([kind, status, finishedAt])
+  @@index([guildId, kind, finishedAt])
+  @@index([status, expiresAt])
+  @@index([status, turnDeadlineAt])
+}
+
+// One row per member per ranked season: the hidden Glicko-2 rating that drives matchmaking and the visible stars that make the rank.
+model TcgRating {
+  discordUserId String
+  season        String
+  rating        Float    @default(1500)
+  rd            Float    @default(350)
+  vol           Float    @default(0.06)
+  stars         Int      @default(0)
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  streak        Int      @default(0)
+  games         Int      @default(0)
+  version       Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  @@id([discordUserId, season])
+  @@index([season, stars])
+  @@index([season, rating])
+}
+
+// The ranked waiting room: one row per member looking for a match. Matched or abandoned rows are deleted.
+model TcgQueue {
+  discordUserId String   @id
+  cls           String
+  rating        Float
+  rd            Float
+  joinedAt      DateTime @default(now())
+  expiresAt     DateTime
+
+  @@index([joinedAt])
+}

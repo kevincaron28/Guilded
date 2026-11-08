@@ -33,7 +33,7 @@ type Tx = Pick<PrismaClient, "tcgAccount" | "tcgCard" | "tcgLog" | "tcgMatch" | 
 export type MatchDb = Tx & Pick<PrismaClient, "member" | "guildSettings"> & { $transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> };
 
 /** Raised when another request changed the same match or account first. The caller retries once with fresh data. */
-class Conflict extends TcgError { constructor(message = "That match just changed somewhere else. Refresh and try again.") { super(message, 409); } }
+export class Conflict extends TcgError { constructor(message = "That match just changed somewhere else. Refresh and try again.") { super(message, 409); } }
 
 // ---- the player's view (pure) ----
 
@@ -138,7 +138,7 @@ interface Row {
   status: string; reason: string | null; spellsCast: number; zonesPlayed: number; turnSeconds: number; turnDeadlineAt: Date | null;
   lastActionAt: Date; version: number; rewardedAt: Date | null; rewardDust: number; rewardPacks: number; createdAt: Date; finishedAt: Date | null;
 }
-const stateOf = (row: Row) => row.state as MatchState;
+export const stateOf = (row: Row) => row.state as MatchState;
 const actionsOf = (row: Row) => row.actions as Action[];
 
 export interface MatchRewards { dust: number; packs: number; overflowDust: number; questsCompleted: string[]; packProgress: number; won: boolean }
@@ -173,9 +173,9 @@ function runOpponent(state: MatchState, level: AiLevel, log: Action[], events: M
 }
 
 /** Spells and Zones the member plays are counted for the daily quests (the Loot Bag is not a played card). */
-function countPlay(state: MatchState, action: Action): { spells: number; zones: number } {
+export function countPlay(state: MatchState, action: Action, seat: 0 | 1 = ME): { spells: number; zones: number } {
   if (action.t !== "play") return { spells: 0, zones: 0 };
-  const id = state.players[ME].hand[action.hand];
+  const id = state.players[seat].hand[action.hand];
   const card = id ? CARD_BY_ID.get(id) : undefined;
   if (!card || card.bag) return { spells: 0, zones: 0 };
   return { spells: card.type === "spell" ? 1 : 0, zones: card.type === "zone" ? 1 : 0 };
@@ -183,16 +183,24 @@ function countPlay(state: MatchState, action: Action): { spells: number; zones: 
 
 // ---- rewards ----
 
-const jsonList = (value: unknown): string[] => Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
+export const jsonList = (value: unknown): string[] => Array.isArray(value) ? value.filter((x): x is string => typeof x === "string") : [];
 
-interface Settlement { dust: number; packs: number; overflowDust: number; questsCompleted: string[]; packProgress: number; won: boolean; apply: () => Promise<void> }
+export interface Settlement { dust: number; packs: number; overflowDust: number; questsCompleted: string[]; packProgress: number; won: boolean; apply: () => Promise<void> }
 
-/** Works out what a finished match pays and the writes that grant it. Nothing is written here; the caller applies the plan only after it wins the compare-and-set on the match row, so a match pays at most once. */
-async function planSettlement(tx: Tx, row: Row, state: MatchState, spells: number, zones: number, now: Date): Promise<Settlement> {
-  const userId = row.discordUserId;
-  const won = state.winner === ME;
-  const counted = state.players[ME].turns >= MIN_TURNS_COUNTED;
-  const boss = row.bossId ? GAUNTLET.find(b => b.id === row.bossId) ?? null : null;
+/** What one member's finished match is worth. Used by matches against the AI and by both seats of a duel. */
+export interface RewardInput {
+  userId: string; matchId: string; won: boolean; lost: boolean;
+  /** The member took enough turns for the match to count. */
+  counted: boolean;
+  /** A win of this kind counts toward a pack (not Easy AI wins, not friendly challenges, not capped repeat pairings). */
+  winCounts: boolean;
+  spells: number; zones: number; boss: Boss | null;
+}
+export type RewardTx = Pick<Tx, "tcgAccount" | "tcgLog" | "tcgPlayer" | "tcgDaily">;
+
+/** Works out what a finished match pays one member and the writes that grant it. Nothing is written here; the caller applies the plan only after it wins the compare-and-set on the match row, so a match pays at most once. */
+export async function planReward(tx: RewardTx, input: RewardInput, now: Date): Promise<Settlement> {
+  const { userId, won, lost, counted, boss } = input;
   const bossIndex = boss ? GAUNTLET.indexOf(boss) : -1;
   const day = dayKey(now);
 
@@ -208,7 +216,7 @@ async function planSettlement(tx: Tx, row: Row, state: MatchState, spells: numbe
   const bossesPaid = dailyRow ? jsonList(dailyRow.bossesPaid) : [];
   const player = playerRow ?? { packProgress: 0, wins: 0, losses: 0, pveCleared: 0, pveRuns: 0, playedCounted: 0 };
 
-  const progress = settleProgress(day, daily, player.packProgress, { won, counted, winCounts: won && (boss !== null || row.aiLevel !== "easy"), spells, zones });
+  const progress = settleProgress(day, daily, player.packProgress, { won, counted, winCounts: input.winCounts, spells: input.spells, zones: input.zones });
   let dust = 0, packs = progress.packs;
 
   // A boss pays once per boss per day. The weekly spotlight boss pays double dust, and a bonus pack when it is the last boss.
@@ -239,15 +247,25 @@ async function planSettlement(tx: Tx, row: Row, state: MatchState, spells: numbe
           data: { banked, accruedAt: banked >= MAX_BANKED ? now : clock.accruedAt, dust: account.dust + dust }
         });
         if (paid.count !== 1) throw new Conflict("Your packs changed while the match finished. Try again.");
-        await tx.tcgLog.create({ data: { discordUserId: userId, kind: "match", cards: [{ match: row.id, status: won ? "won" : "lost", packs: toBank, overflowDust }], dustDelta: dust } });
+        await tx.tcgLog.create({ data: { discordUserId: userId, kind: "match", cards: [{ match: input.matchId, status: won ? "won" : "lost", packs: toBank, overflowDust }], dustDelta: dust } });
       }
-      const playerData = { packProgress: progress.packProgress, wins: player.wins + (won ? 1 : 0), losses: player.losses + (!won && state.winner === 1 ? 1 : 0), pveCleared, pveRuns, playedCounted: player.playedCounted + (counted ? 1 : 0) };
+      const playerData = { packProgress: progress.packProgress, wins: player.wins + (won ? 1 : 0), losses: player.losses + (lost ? 1 : 0), pveCleared, pveRuns, playedCounted: player.playedCounted + (counted ? 1 : 0) };
       await tx.tcgPlayer.upsert({ where: { discordUserId: userId }, create: { discordUserId: userId, ...playerData }, update: playerData });
       const dailyData = { ...progress.daily, bossesPaid, questsDone: progress.daily.questsDone };
       await tx.tcgDaily.upsert({ where: { discordUserId_day: { discordUserId: userId, day } }, create: { discordUserId: userId, day, ...dailyData }, update: dailyData });
     }
   };
   return result;
+}
+
+/** Works out what a finished match against the AI or a boss pays the member. */
+async function planSettlement(tx: Tx, row: Row, state: MatchState, spells: number, zones: number, now: Date): Promise<Settlement> {
+  const won = state.winner === ME;
+  const boss = row.bossId ? GAUNTLET.find(b => b.id === row.bossId) ?? null : null;
+  return planReward(tx, {
+    userId: row.discordUserId, matchId: row.id, won, lost: state.winner === 1, counted: state.players[ME].turns >= MIN_TURNS_COUNTED,
+    winCounts: won && (boss !== null || row.aiLevel !== "easy"), spells, zones, boss
+  }, now);
 }
 
 // ---- committing a move ----

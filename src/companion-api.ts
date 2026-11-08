@@ -90,6 +90,7 @@ import { createGuildToolsPages } from "./services/guild-tools-pages.js";
 import { createStatsPage } from "./services/stats-page.js";
 import { createGuildBankPage } from "./services/guild-bank-page.js";
 import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
+import { collectionFor, craftCard, openPack, tcgAllowed, TcgError } from "./services/tcg-store.js";
 import { createArtisansGallery } from "./services/artisans-gallery.js";
 import { withDeadline } from "./services/blizzard-items.js";
 import { itemData } from "./item-data.js";
@@ -671,6 +672,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Track L: who is signed in, their Guilded servers, and the join invite for their in-game guild.
       const isCompanionMe = request.method === "GET" && url.pathname === "/api/v1/companion/me";
       const isAlbum = request.method === "GET" && url.pathname === "/api/v1/companion/achievements";
+      // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
+      const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
       // Track M: the phone's guildmate map (guild members only) and the member's own sharing switch.
       const isMapView = request.method === "GET" && url.pathname === "/api/v1/companion/guild-map";
       const isMapEdit = request.method === "POST" && url.pathname === "/api/v1/companion/guild-map";
@@ -686,7 +689,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -805,6 +808,31 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!answer) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
         json(response, 200, answer);
         return;
+      }
+      if (isCards) {
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const tokenHash = hashCompanionSecret(secret);
+        const owner = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } })
+          ?? await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
+        const discordUserId = owner ? ("member" in owner ? owner.member.discordUserId : owner.account.discordUserId) : null;
+        if (!discordUserId) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        const lang = url.searchParams.get("lang") === "fr" ? "fr" : "en";
+        const allows = (id: string) => hostedPilot.allows(id);
+        if (!await tcgAllowed(prisma, discordUserId, allows)) { json(response, 403, { error: "The card collection is off for your server, or you are not in a server that has Guilded." }); return; }
+        try {
+          if (request.method === "GET") { json(response, 200, await collectionFor(prisma as never, discordUserId, lang, allows)); return; }
+          if (url.pathname.endsWith("/open")) {
+            if (!allowCompanionRevocation(`cards:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+            json(response, 200, await openPack(prisma as never, discordUserId, lang, allows)); return;
+          }
+          const body = await readBody(request).catch(() => null) as { card?: unknown } | null;
+          if (typeof body?.card !== "string" || body.card.length > 80) { json(response, 400, { error: "card is required." }); return; }
+          json(response, 200, await craftCard(prisma as never, discordUserId, body.card, lang, allows)); return;
+        } catch (error) {
+          if (error instanceof TcgError) { json(response, error.status, { error: error.message }); return; }
+          throw error;
+        }
       }
       if (isAlbum) {
         // Phone badge album: the signed-in member's own stored achievements (companion-album.ts). Read-only.

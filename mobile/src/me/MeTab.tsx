@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { KeyboardAvoidingView, Linking, Platform, Pressable, Text, View } from "react-native";
 import { t } from "../i18n";
 import type { GuildState } from "../useGuild";
@@ -6,15 +7,21 @@ import { common } from "../ui/common";
 import { Language } from "../guild/SignIn";
 import { AlbumScreen } from "./AlbumScreen";
 import { Wishlist } from "./Wishlist";
+import { ClashHome } from "../clash/ClashHome";
+import { ClashTeaser } from "../clash/ClashTeaser";
 
 /** Me tab: my characters, badges (album), wishlist, language and sign-out. Sign-out lives only here. */
 export function MeTab({ guild, webOrigin, onSignIn }: { guild: GuildState; webOrigin: string; onSignIn: () => void }) {
   const { lang, session, preview, snapshot } = guild;
+  const [clash, setClash] = useState(false);
+  const hub = snapshot?.hub ?? null;
+  // Guilded Clash opens in place of the Me list (the bottom tabs stay). Sample guild and signed out: the local sample game.
+  if (clash) return <Screen><ClashHome lang={lang} session={preview ? null : session} defaultClass={hub?.characters.find((c) => c.isMain)?.className ?? null} onBack={() => setClash(false)} /></Screen>;
   if (!guild.signedIn) return <Screen>
     <SignInCard lang={lang} onSignIn={onSignIn} />
+    <ClashTeaser lang={lang} onOpen={() => setClash(true)} />
     <Settings guild={guild} />
   </Screen>;
-  const hub = snapshot?.hub ?? null;
   const characters = hub?.characters ?? [];
   return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <Screen onRefresh={guild.refresh}>
@@ -35,6 +42,7 @@ export function MeTab({ guild, webOrigin, onSignIn }: { guild: GuildState; webOr
       </Pressable>
       <Text style={common.label}>{t(lang, "badges").toUpperCase()}</Text>
       <AlbumScreen lang={lang} session={preview ? null : session} />
+      <ClashTeaser lang={lang} onOpen={() => setClash(true)} />
       {guild.hasGuild ? <>
         <Text style={common.label}>{t(lang, "wishlist").toUpperCase()}</Text>
         <Wishlist lang={lang} preview={preview} session={session} manage={snapshot?.manage ?? null}

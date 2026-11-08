@@ -160,8 +160,12 @@ const SHRINK_SCRIPT = `for(const f of document.querySelectorAll("form[data-pictu
 const SCRIPT_HASH = createHash("sha256").update(SHRINK_SCRIPT).digest("base64");
 const PAGE_CSP = SECURITY_HEADERS["content-security-policy"].replace("img-src 'self' data:", "img-src 'self' data: blob:") + `; script-src 'sha256-${SCRIPT_HASH}'`;
 
-export function createPicturePages(store: PictureStore, access: PictureAccess, options: { now?: () => number } = {}) {
+/** A report about a picture, for that guild's officers (companion-api.ts posts it to the officer log). */
+export interface PictureReport { guildId: string; characterId: string; reporter: string }
+
+export function createPicturePages(store: PictureStore, access: PictureAccess, options: { now?: () => number; report?: (report: PictureReport) => Promise<boolean> } = {}) {
   const now = options.now ?? Date.now;
+  const reports = new Map<string, number[]>();
   const uploads = new Map<string, number[]>();
   const members = new Map<string, { ok: boolean; at: number }>();
   const MEMBER_TTL = 5 * 60_000;
@@ -236,10 +240,34 @@ export function createPicturePages(store: PictureStore, access: PictureAccess, o
     return { ...page, headers: { ...page.headers, "content-security-policy": PAGE_CSP } };
   }
 
+  // "Report this picture" on a profile: signed in (web-app.ts checks origin and CSRF on every POST), only for a
+  // picture the reporter can see, at most 10 reports a day per member, and never their own picture.
+  async function reportPicture(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
+    const { t, lang } = ctx;
+    const title = t("Report a picture", "Signaler une image");
+    if (!ctx.account) return kit.signInPrompt();
+    if (ctx.request.method !== "POST" || !ctx.form) return { status: 405, headers: { ...SECURITY_HEADERS, allow: "POST" }, body: "" };
+    const characterId = ctx.form.get("character") ?? "";
+    const picture = /^[a-z0-9]{20,40}$/.test(characterId) ? await store.image(characterId) : null;
+    const visible = picture && picture.status === "ok" && picture.enabled
+      && (picture.visibility === "public" || await isMember(ctx.account.discordUserId, picture.guildId));
+    if (!picture || !visible || !options.report) return kit.page(404, title, `<h1>${title}</h1><p>${t("That picture is no longer shown.", "Cette image n'est plus affichée.")}</p>`, { noindex: true });
+    const recent = (reports.get(ctx.account.discordUserId) ?? []).filter(at => now() - at < 86_400_000);
+    if (recent.length >= 10) return kit.page(429, title, `<h1>${title}</h1><p>${t("You have sent many reports today. The officers have them; try again tomorrow.", "Vous avez envoyé beaucoup de signalements aujourd'hui. Les officiers les ont reçus; réessayez demain.")}</p>`, { noindex: true });
+    const mine = (await store.myCharacters(ctx.account.discordUserId, [picture.guildId]).catch(() => [])).some(row => row.id === characterId);
+    if (mine) return kit.redirect(link("/me/pictures/", lang));
+    recent.push(now()); reports.set(ctx.account.discordUserId, recent);
+    const sent = await options.report({ guildId: picture.guildId, characterId, reporter: ctx.account.displayName ?? ctx.account.username }).catch(() => false);
+    return kit.page(sent ? 200 : 503, title, `<h1>${title}</h1><p>${sent
+      ? t("Thank you. The guild's officers were told and can remove the picture.", "Merci. Les officiers de la guilde ont été avertis et peuvent retirer l'image.")
+      : t("The report could not be delivered right now. Try again later.", "Le signalement n'a pas pu être transmis pour le moment. Réessayez plus tard.")}</p>`, { noindex: true });
+  }
+
   const route: WebRoute = async (ctx, kit) => {
     const image = await serveImage(ctx);
     if (image) return image;
     const path = ctx.request.path;
+    if (path === "/players/pictures/report") return reportPicture(ctx, kit);
     if (!path.startsWith("/me/pictures")) return null;
     if (!ctx.account) return kit.signInPrompt();
     const { t, lang } = ctx;

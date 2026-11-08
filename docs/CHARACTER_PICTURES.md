@@ -1,6 +1,6 @@
 # Character pictures (9.1)
 
-A member picks a picture for each linked character; cards and profile pages show it. Plan and owner decisions: [plans/CHARACTER_VISUALS.md](plans/CHARACTER_VISUALS.md). Owner decisions (7 November 2026):
+A member picks a picture for each linked character; cards and profile pages show it. Built in three stacked pull requests: slice 1 (storage and upload), slice 2 (cards), slice 3 (profiles and reports). Plan and owner decisions: [plans/CHARACTER_VISUALS.md](plans/CHARACTER_VISUALS.md). Owner decisions (7 November 2026):
 - pictures are guild-only unless the member chooses Public;
 - officers can switch pictures off for the server;
 - members may upload any image they own, with officer removal and reports;
@@ -43,8 +43,21 @@ Not built:
 - the roster card's per-row thumbs (the plan marks them optional);
 - the generated emblem fallback (plan item 3).
 
-Not in slices 1-2:
-- profile pages and the "Report picture" link (slice 3);
+## Slice 3: profile pages and reports
+
+- **Player profile** `/players/<account>` and the "Your player profile" block on `/me/`:
+  - a picture block under the name, using the main character's picture first, else the first character with one;
+  - a 32 px thumb beside each character in the list.
+- **Who sees which picture** (`visibleTo` in `player-profiles.ts`): public pictures go to everyone; guild pictures only to that guild's signed-in members (the same cached check as the image route) and to the owner. The image route enforces the same rule, so a copied address shows nothing to others.
+- **Report this picture** (signed-in viewers, not on their own picture): a form posting to `/players/pictures/report`.
+  - The post is checked like every website form (origin and CSRF token), and only for a picture the reporter can currently see. At most 10 reports a day per member.
+  - The guild's officer log gets "X reported the picture of Y (member). To remove it: `/officer character picture action:remove name:Y`" (EN/FR, no pings).
+
+Not built:
+- thumbs on the `/players/` search cards and on the leaderboard character pages;
+- a public profile's share image (it keeps the achievements image).
+
+Not in slices 1-3:
 - the addon photo mode (slice 4, which needs a real-client check).
 
 The plan's "previous picture kept 30 days for undo" was left out: replacing a picture deletes the old one, which is simpler to explain and keeps nothing the member removed.

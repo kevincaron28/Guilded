@@ -3,18 +3,22 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import type { Lang } from "../i18n";
 import type { Session } from "../storage";
 import { SegmentedTabs, colors } from "../ui";
-import { ClashClient, type ClashApi } from "./api";
+import { ClashClient, duelAsMatch, duelDriver, type ClashApi, type MatchDriver } from "./api";
 import { STONE } from "./CardFrame";
 import { CollectionView } from "./CollectionView";
+import { DuelsView } from "./DuelsView";
 import { MatchView } from "./MatchView";
 import { MockClash } from "./mock";
 import { PackView } from "./PackView";
 import { PlayView } from "./PlayView";
-import type { ClassKey, Collection, MatchInfo, MatchResponse, PveProgress, StartInput } from "./types";
+import { attentionCount } from "./pvp";
+import { RankedView } from "./RankedView";
+import type { ClassKey, Collection, DuelInfo, DuelResponse, MatchInfo, MatchResponse, PveProgress, StartInput } from "./types";
 import { CLASS_KEYS } from "./types";
 import { w } from "./words";
 
 type Tab = "play" | "collection" | "packs";
+type Mode = "solo" | "guild" | "ranked";
 
 /** Guilded Clash inside the Me tab. Signed in: the member's server (`/api/v1/companion/cards`, `/clash/*`). Signed out or
  *  in the sample guild: the local sample. If the server does not have the game yet, the member can switch to the sample. */
@@ -28,6 +32,9 @@ export function ClashHome({ lang, session, defaultClass, onBack }: { lang: Lang;
   const [pve, setPve] = useState<PveProgress | null>(null);
   const [matches, setMatches] = useState<MatchInfo[]>([]);
   const [match, setMatch] = useState<MatchResponse | null>(null);
+  const [driver, setDriver] = useState<MatchDriver | null>(null);
+  const [mode, setMode] = useState<Mode>("solo");
+  const [duels, setDuels] = useState<DuelInfo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -41,6 +48,17 @@ export function ClashHome({ lang, session, defaultClass, onBack }: { lang: Lang;
     if (failed && failed.status === "rejected") setError(failed.reason instanceof Error ? failed.reason.message : w("failed", lang));
   }, [api, lang]);
   useEffect(() => { void load(); }, [load]);
+  // Duels (#644) load on their own: a server without player-vs-player yet leaves the Guild list empty, not the whole screen broken.
+  const loadDuels = useCallback(async () => {
+    try { setDuels(await api.duels()); } catch { setDuels((d) => d ?? []); }
+  }, [api]);
+  useEffect(() => { void loadDuels(); }, [loadDuels]);
+  const openDuel = (res: DuelResponse) => {
+    const shown = duelAsMatch(res);
+    if (!shown) return;
+    setDriver(duelDriver(api)); setMatch(shown);
+  };
+  const waiting = attentionCount(duels ?? [], Date.now());
 
   const start = async (input: StartInput) => {
     setBusy(true); setError(null);
@@ -51,7 +69,7 @@ export function ClashHome({ lang, session, defaultClass, onBack }: { lang: Lang;
     try { setMatch(await api.match(id)); } catch (e) { setError(e instanceof Error ? e.message : w("failed", lang)); } finally { setBusy(false); }
   };
 
-  if (match) return <MatchView api={api} lang={lang} initial={match} onExit={() => { setMatch(null); void load(); }} />;
+  if (match) return <MatchView api={api} driver={driver ?? undefined} lang={lang} initial={match} onExit={() => { setMatch(null); setDriver(null); void load(); void loadDuels(); }} />;
 
   return <View style={{ gap: 12 }}>
     <View style={styles.head}>
@@ -69,7 +87,11 @@ export function ClashHome({ lang, session, defaultClass, onBack }: { lang: Lang;
         {!api.sample ? <Pressable onPress={() => setForceSample(true)} accessibilityRole="button"><Text style={styles.link}>{w("useSample", lang)}</Text></Pressable> : null}
       </View>
     </View> : null}
-    {tab === "play" ? <PlayView lang={lang} pve={pve} matches={matches} cls={cls} setCls={setCls} busy={busy} onStart={(input) => void start(input)} onResume={(id) => void resume(id)} /> : null}
+    {tab === "play" ? <SegmentedTabs options={[{ value: "solo" as Mode, label: w("solo", lang) }, { value: "guild" as Mode, label: waiting ? `${w("guild", lang)} · ${waiting}` : w("guild", lang) }, { value: "ranked" as Mode, label: w("ranked", lang) }]}
+      value={mode} onChange={setMode} /> : null}
+    {tab === "play" && mode === "solo" ? <PlayView lang={lang} pve={pve} matches={matches} cls={cls} setCls={setCls} busy={busy} onStart={(input) => void start(input)} onResume={(id) => void resume(id)} /> : null}
+    {tab === "play" && mode === "guild" ? <DuelsView api={api} lang={lang} cls={cls} setCls={setCls} duels={duels} reload={loadDuels} onOpen={openDuel} /> : null}
+    {tab === "play" && mode === "ranked" ? <RankedView api={api} lang={lang} cls={cls} setCls={setCls} onOpen={openDuel} /> : null}
     {tab !== "play" && !collection ? (error ? null : <ActivityIndicator color={colors.gold} style={{ marginTop: 24 }} />) : null}
     {tab === "collection" && collection ? <CollectionView api={api} lang={lang} collection={collection} onChange={setCollection} /> : null}
     {tab === "packs" && collection ? <PackView api={api} lang={lang} collection={collection} onChange={setCollection} /> : null}

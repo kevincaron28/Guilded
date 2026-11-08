@@ -8,15 +8,21 @@ bot, addon and Windows companion version). Store identifiers are
 
 ## What you can do
 
-**Already in the first local version**
+**Five tabs** (redesign slice 3, `docs/plans/APP_REDESIGN.md`):
 
-- Home reads the public `GET /leaderboards/summary.json` (this week's season,
-  rated runs and guild count).
-- Ranks and Profile open the existing website: dungeon leaderboards, guild
-  rankings and `/players/`. The website profile button still uses the site's
-  own Discord sign-in.
+- **Guild**: sign-in when signed out; then Roster (characters, reserves), Map
+  and Raids. The app opens here when signed in.
+- **Stats**: this week's summary (`GET /leaderboards/summary.json`) and the
+  public leaderboards. Public; the app opens here when signed out.
+- **Me**: my characters, badges (album), wishlist, language and sign-out.
+- **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
+  vacancy alerts listed as switched off until push lands (PR #345).
+- **News**: Wowhead headlines and the Blizzard news link. Public.
 
-**Added on that app**
+Signed out, Me and Alerts show a sign-in card. The sample guild fills every tab.
+Shared pieces live in `src/ui/`; the signed-in state is `src/useGuild.ts`.
+
+**What each part does**
 
 - **Guild** signs in with the same companion flow as the Windows app. The phone
   calls `POST /api/v1/companion/sign-in`, shows the short code, and opens

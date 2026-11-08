@@ -6,4 +6,5 @@ export { Medal } from "./Medal";
 export { ProgressBar } from "./ProgressBar";
 export { Screen } from "./Screen";
 export { SegmentedTabs } from "./SegmentedTabs";
+export { SignInCard } from "./SignInCard";
 export { StatTile } from "./StatTile";

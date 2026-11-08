@@ -138,6 +138,31 @@ member and auto-detect joins (#586); release 9.0.3; **build character pictures**
 session); **build several accounts per member** with the proposed answers (track-f session); **paid tier stays off** (Lite/Plus kept
 as a plan until Discord pays Canadian teams or costs grow).
 
+**Night of 7-8 Nov (UTC):**
+- **Outage 21:55-01:40:** the 9.0.3 deploy's full `npm ci` (a version bump changed the lock file bytes) froze the 1 GB server.
+  The bot kept running but could not answer, so no greetings. It recovered by itself. Missed welcomes were re-sent (channel and
+  DM) to the 3 joiners, and beame got @World of Warcraft.
+- **Guards, all live:**
+  - dependency fingerprints, so version-only bumps reuse node_modules (#598);
+  - a memory ceiling on deploy installs, the bot unit at OOMScoreAdjust -500 with MemoryLow, and safe unit installs (#601);
+  - an uptime check every 10 minutes that emails the owner;
+  - a 15 s default for interactive transactions (#607).
+- **Live:**
+  - WoW role button (#596), with a backfill of 10 members;
+  - invites tag any online member and auto-detect joins (#586);
+  - character pictures (#589-#591, #599);
+  - several accounts (#592, #593, #600);
+  - record cards (#603);
+  - Discord polish: card text fits, 2 cards that never drew, French boards and journal lines, names (#604);
+  - item previews always link (#602);
+  - addon-import failure reasons and retry (#605);
+  - the pinned "Informations actuelles" rewritten for 9.0.3.
+- **Releases:**
+  - 9.0.3 on GitHub and CurseForge (in review); Store 9.0.3.0 in certification (9.0.0's was cancelled on the owner's word).
+  - 9.0.4 (#606, the login taint fix plus several accounts) is on the bot and built in `Desktop\guilded-release-9.0.4` and
+    `Desktop\guilded-store-9.0.4`. Publishing waits for the owner's "publish 9.0.4" in chat.
+- **Bug sweeps:** no member reports. The freeze-time errors are resolved.
+
 ### Claude does these (owner, 7 Nov evening: "do the in game test yourself", "always do the store submissions")
 
 - **Real-client checks, Claude in WoW on the owner's PC:** started 7 Nov ~22:20 UTC on 9.0.3. Guilded window, Guild overview

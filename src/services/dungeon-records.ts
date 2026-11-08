@@ -15,6 +15,8 @@ export interface DungeonHighlightItem {
   kind: HighlightKind; key: string; instanceId: number; difficultyId: number; dungeonName: string;
   /** Boss name, for a boss record. */
   label?: string; valueSec?: number; previousSec?: number; players: string[];
+  /** A clear record only, not stored: the guild members of the run that held the record before (full names). */
+  previousPlayers?: string[];
 }
 type Encounter = NonNullable<DungeonImportResult["encounters"]>[number];
 /** What an earlier guild clear of the same dungeon tells us. */
@@ -78,7 +80,21 @@ export function runHighlights(run: DungeonImportResult, prior: readonly PriorCle
 
 const instanceOf = (run: DungeonImportResult) => run.instanceId ?? 0;
 
-type RecordsDb = Pick<PrismaClient, "dungeonRun" | "dungeonHighlight">;
+/** The guild members (full names) of the earliest clear that set the record this run just beat. Empty when it cannot be found. */
+async function previousHolders(db: RecordsDb, guildId: string, item: DungeonHighlightItem, runId: string): Promise<string[]> {
+  try {
+    const previous = await db.dungeonRun.findFirst({
+      where: { guildId, instanceId: item.instanceId, difficultyId: item.difficultyId, valid: true, state: "COMPLETED", durationSec: item.previousSec ?? -1,
+        id: { not: runId }, NOT: { runRef: { startsWith: "SIM-" } } },
+      orderBy: { endedAt: "asc" }, select: { players: { where: GUILD_PLAYER, select: { character: true } } }
+    });
+    if (!previous?.players.length) return [];
+    const book = await loadFullNameBook(db, guildId);
+    return [...new Set(previous.players.map(player => displayCharacterName(player.character, book)))].slice(0, 5);
+  } catch { return []; }
+}
+
+type RecordsDb = Pick<PrismaClient, "dungeonRun" | "dungeonHighlight"> & Partial<Pick<PrismaClient, "character" | "unclaimedCharacter" | "guildRosterEntry">>;
 const GUILD_PLAYER = { OR: [{ memberId: { not: null } }, { inGuild: true }] };
 
 /**
@@ -115,6 +131,7 @@ export async function recordRunHighlights(db: RecordsDb, guildId: string, result
         const known = new Set((await db.dungeonHighlight.findMany({ where: { guildId, key: { in: items.map(item => item.key) } }, select: { key: true } })).map(row => row.key));
         const fresh = items.filter(item => !known.has(item.key));
         if (fresh.length) {
+          for (const item of fresh) if (item.kind === "clear" && item.previousSec !== undefined) item.previousPlayers = await previousHolders(db, guildId, item, run.runId!);
           await db.dungeonHighlight.createMany({ skipDuplicates: true, data: fresh.map(item => ({ guildId, runId: run.runId!, key: item.key, kind: item.kind,
             instanceId: item.instanceId, difficultyId: item.difficultyId, dungeonName: item.dungeonName, label: item.label ?? null,
             valueSec: item.valueSec ?? null, previousSec: item.previousSec ?? null, players: item.players.slice(0, 10) })) });

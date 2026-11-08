@@ -35,6 +35,8 @@ export interface PreviewDeps {
 
 export type PreviewOutcome = "off" | "wrong-channel" | "self" | "no-items" | "throttled" | "no-secret" | "bad-secret" | "backoff" | "posted" | "disabled" | "failed";
 
+const NOT_ITEMS = new Set(["guilded"]);
+
 export async function handlePreviewMessage(deps: PreviewDeps, message: PreviewMessage): Promise<PreviewOutcome> {
   const now = deps.now ?? Date.now;
   const config = await deps.loadConfig(message.guildId);
@@ -45,7 +47,8 @@ export async function handlePreviewMessage(deps: PreviewDeps, message: PreviewMe
   if ((deps.botUserId && message.authorId === deps.botUserId) || message.webhookId === config.webhookId) return "self";
   if (!message.content) return "no-items";
   // "[Tailoring]" (a profession link's name, or plain text) is never looked up as an item.
-  const items = parseItemLinks(message.content).filter(item => item.verified || !isProfessionName(item.name));
+  // "[Guilded]" starts the addon's own guild-chat lines (calls for help, milestones): a tag, never an item.
+  const items = parseItemLinks(message.content).filter(item => item.verified || (!isProfessionName(item.name) && !NOT_ITEMS.has(item.name.toLowerCase())));
   const professions = deps.professionCard ? parseProfessionLinks(message.content) : [];
   if (items.length === 0 && professions.length === 0) return "no-items";
   if (!deps.secret) return "no-secret";

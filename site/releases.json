@@ -11,9 +11,9 @@
   },
   "guilded": {
     "github": {
-      "version": "9.0.4",
+      "version": "9.0.5",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.0.4"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.0.5"
     },
     "curseforge": {
       "version": "9.0.3",
@@ -27,10 +27,10 @@
       }
     },
     "companionDirect": {
-      "version": "9.0.4",
+      "version": "9.0.5",
       "url": "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe",
       "siteUrl": "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe",
-      "sha256": "57e48f0280301f2f11987e2371b9c26f71b120c77b17441f1bae5e88352bf228"
+      "sha256": "4a863c4aa54e2015f9f82a25d77a6ef88363f566e09955408cb44ea20035973d"
     },
     "microsoftStore": {
       "version": "8.3.0",

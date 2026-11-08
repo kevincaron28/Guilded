@@ -242,6 +242,8 @@ Everything not listed below is done (released, live or merged) per the tables ab
 | Carried over: 8.4.7 distribution | Obsolete (9.0.x released everywhere) | — |
 | Carried over: unknown Forever final bosses | Done | #491 |
 
+**Bug sweep 8 Nov ~11:30 UTC:** no member reports, no new saved bot errors; the journal only had the two routine hashed notices (readable once #620 deploys). GitHub release downloads timed out for hours (504) on 8 Nov: they block the `windows-package` CI job (merges retried by a loop) and broke the website downloads. #627 serves the addon zips from `site/downloads/` and the companion installer from Cloudflare KV, so the plug-and-play direct download (the owner's main path, not the Store) no longer depends on GitHub. Follow-up for the next companion release: its self-update and addon download should use the website too.
+
 **Waiting for owner (cannot be done without him):**
 - Publish decisions: 9.0.5 is being published on his "publish" (8 Nov); later releases need his yes.
 - French names of the three new final bosses: needs a French client log (switch the client language, or a French member's log).

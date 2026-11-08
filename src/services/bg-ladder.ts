@@ -1,4 +1,5 @@
 import { AttachmentBuilder, EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
+import { isOwnBoard } from "./board-identity.js";
 import { prisma } from "../database.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -72,7 +73,7 @@ export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook 
 }
 
 /** Pure: the board's embed. Same input, same output (the timestamp is added by the caller). With `image`, the card holds the ladders and the embed keeps the summary. */
-export function bgLadderEmbed(data: BgLadderData, lang: Lang, guildId = "", image?: string): EmbedBuilder {
+export function bgLadderEmbed(data: BgLadderData, lang: Lang, image?: string): EmbedBuilder {
   const t = (en: string, french: string) => lang === "fr" ? french : en;
   const name = (value: string) => escapeMarkdown(value).slice(0, 32);
   const embed = new EmbedBuilder().setColor(0x1d4ed8).setTitle(t("🏴 Battleground ladder", "🏴 Classement des champs de bataille"));
@@ -86,7 +87,7 @@ export function bgLadderEmbed(data: BgLadderData, lang: Lang, guildId = "", imag
     }
   }
   if (image && data.brackets.length) embed.setImage(`attachment://${image}`);
-  return embed.setFooter({ text: `${BG_LADDER_MARKER} • ${guildId} • ${t(`${data.edition} · player reports, not verified matches · separate from the duel ladder · no points or awards`, `${data.edition} · rapports de joueurs, pas des matchs vérifiés · distinct du classement des duels · aucun point ni récompense`)}`.slice(0, 2048) });
+  return embed.setFooter({ text: t("Members' reports after each match, not verified by Blizzard · separate from the duel ladder · no points or awards", "Rapports des membres après chaque match, non vérifiés par Blizzard · distinct du classement des duels · aucun point ni récompense") });
 }
 
 export async function loadBgLadderData(db: Pick<PrismaClient, "battlegroundReport" | "member"> & Partial<Pick<PrismaClient, "unclaimedCharacter" | "guildRosterEntry" | "character">>, guildId: string, edition: string, now = new Date()): Promise<BgLadderData> {
@@ -100,7 +101,7 @@ export async function loadBgLadderData(db: Pick<PrismaClient, "battlegroundRepor
   return { brackets: bgLadders(groups, names), participations: groups.reduce((sum, group) => sum + group._count._all, 0), edition };
 }
 
-const isBoard = (message: Message, botId: string) => message.author.id === botId && message.embeds.some(embed => embed.footer?.text?.startsWith(`${BG_LADDER_MARKER} •`));
+const isBoard = (message: Message, botId: string) => isOwnBoard(message, botId, BG_LADDER_MARKER, ["🏴 Battleground ladder", "🏴 Classement des champs de bataille"]);
 
 /**
  * Edits the saved ladder message in place; if it is gone, adopts an existing bot ladder in the channel before ever posting a
@@ -129,14 +130,14 @@ export async function updateBgLadder(discordGuild: DiscordGuild | null, delivery
       if (tracked) moves.set(bgBoardKey(ladder), tracked);
     }
     const png = data.brackets.length ? await scoreCardPng(bgLadderCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
-    const embed = bgLadderEmbed(data, lang, guild.id, png ? BG_CARD_FILE : undefined).setTimestamp(new Date());
+    const embed = bgLadderEmbed(data, lang, png ? BG_CARD_FILE : undefined).setTimestamp(new Date());
     const embeds = [embed], files = png ? [new AttachmentBuilder(png, { name: BG_CARD_FILE })] : [];
     // World PvP (9.1): a second panel on the same message; officers turn it off with /battleground world-pvp.
     if (settings.worldPvpEnabled !== false) {
       const world = await loadWorldPvpData(prisma, guild.id, guild.gameEdition ?? "forever").catch(() => null);
       if (world) {
         const worldPng = world.standings.length ? await scoreCardPng(worldPvpCard(world, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()))).catch(() => null) : null;
-        embeds.push(worldPvpEmbed(world, lang, guild.id, worldPng ? WORLD_PVP_CARD_FILE : undefined));
+        embeds.push(worldPvpEmbed(world, lang, worldPng ? WORLD_PVP_CARD_FILE : undefined));
         if (worldPng) files.push(new AttachmentBuilder(worldPng, { name: WORLD_PVP_CARD_FILE }));
       }
     }

@@ -12,6 +12,7 @@ import { dungeonRating, hasDungeonRating, ratingEmbed } from "./dungeon-rating.j
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
+import { seasonLabel } from "./season-label.js";
 
 export const DUNGEON_BOARD_CARD_FILE = "dungeon-season.png";
 const CARD_TOP = 25;
@@ -23,6 +24,7 @@ const CARD_TOP = 25;
 export function dungeonSeasonCard(rows: readonly { name: string; points: number; dungeons?: number | undefined; key?: string | undefined }[], season: string, lang: "en" | "fr", rated: boolean,
   classes: ClassBook = new Map(), updatedAt = new Date(), moves: Movements | null = null): ScoreCard {
   const fr = lang === "fr";
+  season = seasonLabel(season, lang);
   const ranked = [...rows].sort((a, b) => b.points - a.points || a.name.localeCompare(b.name)).slice(0, CARD_TOP);
   return {
     eyebrow: fr ? "Guilded · Donjons" : "Guilded · Dungeons", title: rated ? (fr ? "Score de donjon" : "Dungeon score") : (fr ? "Points de donjon" : "Dungeon points"),
@@ -50,7 +52,7 @@ const isPanelMessage = (message: Pick<Message, "author" | "embeds" | "content">,
 /** The season line on top of the board: it names the season in progress, so a new season is visible at a glance. */
 export function seasonHeader(season: { name: string; startsAt: Date }, lang: "fr" | "en"): string {
   const when = `<t:${Math.floor(season.startsAt.getTime() / 1000)}:D>`;
-  return lang === "fr" ? `📅 Saison en cours : **${season.name}** · depuis le ${when}` : `📅 Current season: **${season.name}** · since ${when}`;
+  return lang === "fr" ? `📅 Saison en cours : **${seasonLabel(season.name, "fr")}** · depuis le ${when}` : `📅 Current season: **${season.name}** · since ${when}`;
 }
 
 export async function handleDungeonSeasonSelect(interaction: StringSelectMenuInteraction): Promise<void> {
@@ -101,7 +103,7 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
     const cardRows = await leaderboard(prisma, guild.id, "season", null, CARD_TOP), rows = cardRows.slice(0, 10);
     const embed = new EmbedBuilder()
       .setColor(0xd4a017)
-      .setTitle(t(lang, "dungeon.board.season", { season: season?.name ?? "Season 1" }))
+      .setTitle(t(lang, "dungeon.board.season", { season: seasonLabel(season?.name ?? "Season 1", lang) }))
       .setDescription(`${seasonHeader(season, lang === "fr" ? "fr" : "en")}
 
 ${rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty")}`.slice(0, 4096))
@@ -109,12 +111,12 @@ ${rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty")}`.slice
     const seasons = await prisma.dungeonSeason.findMany({ where: { guildId: guild.id }, orderBy: { startsAt: "desc" }, take: 25 });
     for (const past of seasons.filter((row) => row.status === "ENDED").slice(0, 3)) {
       const top = await seasonRows(prisma, guild.id, past, 3);
-      embed.addFields({ name: `${lang === "fr" ? "Saison passée" : "Past season"}: ${past.name}`.slice(0, 256), value: (top.length ? formatLeaderboard(top) : t(lang, "dungeon.board.empty")).slice(0, 1024) });
+      embed.addFields({ name: `${lang === "fr" ? "Saison passée" : "Past season"}: ${seasonLabel(past.name, lang)}`.slice(0, 256), value: (top.length ? formatLeaderboard(top) : t(lang, "dungeon.board.empty")).slice(0, 1024) });
     }
     embed.setFooter({ text: lang === "fr" ? "Toutes les saisons : /dungeon archive. Champions : /dungeon hall-of-fame." : "All seasons: /dungeon archive. Champions: /dungeon hall-of-fame." });
     const components = seasons.length ? [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
       .setCustomId(DUNGEON_SEASON_SELECT).setPlaceholder(lang === "fr" ? "Voir une saison" : "Browse a season")
-      .addOptions(seasons.map((row) => ({ label: `${row.name} (${row.status === "ACTIVE" ? lang === "fr" ? "actuelle" : "current" : lang === "fr" ? "passée" : "past"})`.slice(0, 100), value: row.id }))))] : [];
+      .addOptions(seasons.map((row) => ({ label: `${seasonLabel(row.name, lang)} (${row.status === "ACTIVE" ? lang === "fr" ? "actuelle" : "current" : lang === "fr" ? "passée" : "past"})`.slice(0, 100), value: row.id }))))] : [];
     const best = bestRunsEmbed(await seasonBestRuns(prisma, guild.id, season.id), lang, await guildBossRecords(prisma, guild.id).catch(() => []));
     const ratingRows = hasDungeonRating(season.ratingRules) ? await dungeonRating(prisma, guild.id, season) : null;
     const rating = ratingRows ? ratingEmbed(ratingRows, season.name, lang, season.ratingRules) : null;

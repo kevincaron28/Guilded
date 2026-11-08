@@ -12,7 +12,7 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 describe("Delete my data: companion credential flow", () => {
   function db(found: "guild" | "personal" | "none") {
     const tx = { member: { findMany: vi.fn(async () => [{ id: "m1" }]), update: vi.fn(async () => ({})) } } as Record<string, unknown>;
-    for (const name of ["webAccount", "communityBadgeSharing", "battlegroundReport", "battlegroundConsent", "memberAchievement", "memberMilestone", "recurringRecap", "groupAlert", "webAvailability", "poeLevelReached", "poeMapVisit", "guildMapSighting", "guildHelpCall", "worldPvpWeek", "characterPairing", "characterVerifyCode", "characterVerifyClaim", "companionCredential", "character"]) tx[name] = { deleteMany: vi.fn(async () => ({ count: 1 })) };
+    for (const name of ["webAccount", "communityBadgeSharing", "battlegroundReport", "battlegroundConsent", "memberAchievement", "tcgAccount", "tcgCard", "tcgLog", "memberMilestone", "recurringRecap", "groupAlert", "webAvailability", "poeLevelReached", "poeMapVisit", "guildMapSighting", "guildHelpCall", "worldPvpWeek", "characterPairing", "characterVerifyCode", "characterVerifyClaim", "companionCredential", "character"]) tx[name] = { deleteMany: vi.fn(async () => ({ count: 1 })) };
     const client = {
       companionCredential: { findFirst: vi.fn(async () => found === "guild" ? { member: { discordUserId: "111111111111111111" } } : null) },
       webCompanionCredential: { findFirst: vi.fn(async () => found === "personal" ? { account: { discordUserId: "222222222222222222" } } : null) },

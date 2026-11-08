@@ -6,7 +6,7 @@ import { formatDuration } from "./dungeon-rules.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { bossRecordLines, type BossRecordRow } from "./dungeon-records.js";
 
-export async function seasonBestRuns(database: Pick<PrismaClient, "dungeonRun"> & Partial<Pick<PrismaClient, "character" | "unclaimedCharacter" | "guildRosterEntry">>, guildId: string, seasonId: string): Promise<RecordRow[]> {
+export async function seasonBestRuns(database: Pick<PrismaClient, "dungeonRun"> & Partial<Pick<PrismaClient, "character" | "unclaimedCharacter" | "guildRosterEntry" | "publicRunPlayer">>, guildId: string, seasonId: string): Promise<RecordRow[]> {
   const where = { guildId, seasonId, valid: true, state: "COMPLETED", durationSec: { not: null },
     NOT: { runRef: { startsWith: "SIM-" } }, players: { some: { OR: [{ memberId: { not: null } }, { inGuild: true }] } } };
   // Aggregate first so many short clears cannot crowd a longer dungeon out.
@@ -15,11 +15,24 @@ export async function seasonBestRuns(database: Pick<PrismaClient, "dungeonRun"> 
     where: { ...where, instanceId: best.instanceId, difficultyId: best.difficultyId, durationSec: best._min.durationSec },
     orderBy: [{ endedAt: "asc" }, { id: "asc" }],
     select: { instanceId: true, dungeonName: true, difficultyId: true, durationSec: true, endedAt: true,
-      players: { where: { OR: [{ memberId: { not: null } }, { inGuild: true }] }, select: { character: true } } }
+      players: { where: { OR: [{ memberId: { not: null } }, { inGuild: true }] }, select: { character: true, memberId: true } } }
   })));
-  // The whole guild party (linked or not), by full character name.
-  const book = await loadFullNameBook(database, guildId);
-  return rows.flatMap(row => row?.durationSec !== null && row ? [{ ...row, durationSec: row.durationSec!, players: row.players.map(player => displayCharacterName(player.character, book)) }] : [])
+  // The whole guild party (linked or not), by full character name: the guild's tables, then the public runs for these
+  // very names, then (for a linked player) the member's own character that starts with the stored first name.
+  const party = rows.flatMap(row => row?.players ?? []);
+  const book = await loadFullNameBook(database, guildId, party.map(player => player.character));
+  const memberIds = [...new Set(party.flatMap(player => player.memberId ? [player.memberId] : []))];
+  const owned = memberIds.length && database.character
+    ? await database.character.findMany({ where: { memberId: { in: memberIds } }, select: { memberId: true, name: true, displayName: true }, take: 2_000 }).catch(() => [])
+    : [];
+  const fullName = (player: { character: string; memberId?: string | null }) => {
+    const shown = displayCharacterName(player.character, book);
+    if (shown.includes(" ") || !player.memberId) return shown;
+    const first = `${player.character.trim().toLowerCase()} `;
+    const mine = owned.filter(row => row.memberId === player.memberId).map(row => displayCharacterName(row, book)).filter(name => name.toLowerCase().startsWith(first));
+    return new Set(mine).size === 1 ? mine[0]! : shown;
+  };
+  return rows.flatMap(row => row?.durationSec !== null && row ? [{ ...row, durationSec: row.durationSec!, players: row.players.map(fullName) }] : [])
     .sort((a, b) => a.dungeonName.localeCompare(b.dungeonName) || a.difficultyId - b.difficultyId);
 }
 

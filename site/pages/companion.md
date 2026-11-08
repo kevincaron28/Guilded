@@ -29,6 +29,8 @@ The companion works on **Windows only**. There is no Mac or Linux version and no
 
 That's all. The companion **updates itself**: new versions download in the background and install when you quit or restart it, or at once with **Update now** on its Home page.
 
+**Several WoW accounts on this PC?** Each one syncs by itself. When the companion finds Guilded's data on another account (WoW1, WoW2…), it asks once on the Sync page whether that account is yours too: **Yes, sync it too** adds it, **No, not mine** leaves it alone for good (for a partner who plays on the same PC with their own Discord). Every account then gets its own line on the Sync page, and **Settings → Your WoW folder** has a switch beside each extra account. Log in once on a new account and type `/reload` so WoW saves its data.
+
 **Already have Guilded Companion from the Microsoft Store?** This installer replaces it and keeps your settings and Discord link, so you only have one. Prefer the Store? [Get it from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) instead: it is Store-signed and the Store updates it (to update right away, choose **Open Microsoft Store** on the companion's Home).
 
 **Something not working?** Open the companion and press **Repair**: it checks the WoW folder, the addon, your sign-in and the sync, fixes what it can, and says plainly what is left. See the [member installation guide](../docs/MEMBER_INSTALL.html) for every step with pictures.

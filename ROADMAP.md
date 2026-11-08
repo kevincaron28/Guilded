@@ -8,6 +8,36 @@ Guilded supports WoW Forever only (the other editions were removed 7 November) a
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
+## Start here — 9 November 2026 (next session)
+
+**State at the end of 8 November (coordinator):** 9.0.6 published (GitHub v9.0.6 at aea56c26; CurseForge 9518058/9518060
+in review; website downloads and the companion installer in KV verified; bot deployed). Store 9.0.6.0: the package is
+built in `..\qgb-rel902`; submit it in Partner Center if not done (the companion changed: website-first updates #633).
+Guilded Clash is complete on the server and in the phone app code (#626-#647); the owner approved all 9 class
+champion paintings (8 Nov; files in the coordinator scratchpad `tcg-art-gen/`, review page claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58,
+section C9) and wants to approve every later card art. Achievements: the in-game probe ran on the owner's client
+(29 categories, 111 achievements, all achievement APIs and events available); #649 records every Forever
+achievement as a badge (merging). Google Play: identity documents uploaded (Google reviewing), non-trader status
+declared (owner OK, legal name + email shown publicly as Play requires); still owed by the owner: verify an Android
+device (Play Console app on his phone) and the contact phone number.
+
+**Owner-message cross-check, 8 Nov (all 93 messages since 6 Nov, the five big lists read in full):** everything is done,
+live or tracked, except these, which are first for tomorrow:
+1. **Feature screenshots for the website, CurseForge and social media** (7 Nov list, item 20). Only install-guide
+   screenshots exist. Claude takes them in WoW on the owner's PC (relaunch from the Battle.net app: it logs in with the
+   saved session; never type a password): Guilded window pages, overview panel, crafting orders, dungeon window,
+   minimap menu, chat tab, call for help; plus Discord boards and cards; plus the Guilded Clash phone screens.
+2. **Unlink and relink a second character on the owner's PC** (6 Nov, owner allowed it): run the full link flow again
+   after 9.0.6 and record the friction.
+3. **Store companion updating itself on Windows 10/11** (6 Nov): needs a Store install of 9.0.5.0 or 9.0.6.0 updating.
+4. Live checks still owed: "last seen" in the Crafted by tooltip; two-PC tests (duel, Defender banner, call for help,
+   guild board votes) when the owner's second PC is on.
+5. Guilded Clash: put the 9 approved paintings into the app (Champion cards), then generate and submit the next card
+   art for approval; the next phone build ships everything once Google Play is ready.
+6. **Fix the website installer download (found 8 Nov, late).** The Worker streamed the 123 MB installer from KV in 20 MiB pieces; on the free plan the Worker is cut off (CPU limit), so downloads stopped at random sizes (0.3-106 MB). Mitigation in place: the KV manifests were deleted, so `/downloads/Guilded.Companion.Setup.exe` redirects to GitHub `releases/latest` (v9.0.6, verified complete). Durable fix: serve the installer from the Oracle server through Caddy `file_server` (behind the origin gate) and have the Worker return `fetch(origin)` unchanged (native streaming, no JS per chunk), or move to R2 if the owner enables it. Until then the release recipe must NOT upload installer pieces to KV. The addon zips (site/downloads, static assets) are not affected.
+**Done 8 Nov, late:** artisan channels created in Québec Gold on the owner's yes: #commandes-artisanat (open requests) and #archive-artisanat (finished/cancelled), read-only for members, saved in GuildSettings (#548 had never been applied there). The 9 approved Champion paintings are in the app (#652).
+Not forgotten but impossible: professions and EP/GP in guild notes (WoW Forever refuses addon note edits, #618).
+
 ## Start here — 7 November 2026 (next session)
 
 **If the owner says "continue work":** you are the coordinator. Read this section, CLAUDE.md and the

@@ -2681,6 +2681,8 @@ local DE = {
   ["First achievement: %d %s."] = "Erster Erfolg: %d %s.",
   ["Saved in SavedVariables (db.probes.achievements). Nothing was sent."] = "In den SavedVariables gespeichert (db.probes.achievements). Nichts wurde gesendet.",
   ["/guilded probe achievements - check which achievement APIs this client has"] = "/guilded probe achievements - pr\195\188ft, welche Erfolgs-APIs dieser Client hat",
+  ["%s earned the achievement %s!"] = "%s hat den Erfolg %s erreicht!",
+  ["Achievements in guild chat: %s."] = "Erfolge im Gildenchat: %s.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4354,6 +4356,8 @@ local ES = {
   ["First achievement: %d %s."] = "Primer logro: %d %s.",
   ["Saved in SavedVariables (db.probes.achievements). Nothing was sent."] = "Guardado en SavedVariables (db.probes.achievements). No se envi\195\179 nada.",
   ["/guilded probe achievements - check which achievement APIs this client has"] = "/guilded probe achievements - comprueba qu\195\169 API de logros tiene este cliente",
+  ["%s earned the achievement %s!"] = "\194\161%s ha conseguido el logro %s!",
+  ["Achievements in guild chat: %s."] = "Logros en el chat de hermandad: %s.",
 }
 -- END ES
 
@@ -5131,3 +5135,7 @@ FR["Categories: %d, achievements visible: %d, completed: %d."] = "Cat\195\169gor
 FR["First achievement: %d %s."] = "Premier succ\195\168s : %d %s."
 FR["Saved in SavedVariables (db.probes.achievements). Nothing was sent."] = "Enregistr\195\169 dans les SavedVariables (db.probes.achievements). Rien n'a \195\169t\195\169 envoy\195\169."
 FR["/guilded probe achievements - check which achievement APIs this client has"] = "/guilded probe achievements - v\195\169rifie quelles API de succ\195\168s ce client poss\195\168de"
+
+-- Achievements as milestones (Modules/GameAchievements.lua)
+FR["%s earned the achievement %s!"] = "%s a obtenu le succ\195\168s %s !"
+FR["Achievements in guild chat: %s."] = "Succ\195\168s dans le chat de guilde : %s."

@@ -1,7 +1,8 @@
 # WoW Forever achievements: what to mirror in Guilded (7 November 2026)
 
-Owner request: check Forever's in-game achievements and say which would be interesting to add. Status: research done from public
-sources only (no live client was available to this session); the profession subset is built; the rest needs an in-game API probe first.
+Owner request: check Forever's in-game achievements and say which would be interesting to add. Status (8 November 2026): the profession
+subset is built, the probe ran on a real Forever client (results below), and **every in-game achievement is now tracked and shown as a
+generated badge** ("Built for every in-game achievement" below).
 
 ## What Forever has
 
@@ -53,6 +54,45 @@ The same summary is saved in SavedVariables as `db.probes.achievements` (`apis`,
 it can be read from the file when chat output is hard to copy. Run it once on a Forever character in game and paste the output here. Its answers decide step 1 of
 the detection plan: no category API means falling back to item 3.
 
+### Probe results (real client, 8 November 2026)
+
+Run by the owner on WoW Forever **1.60.1 (build 70862)** with `/guilded probe achievements` (PR #625). It answers step 1 above: Forever has the
+standard achievement API, so no Legacy-specific code and no fallback (item 3) is needed.
+
+- **APIs present:** `GetCategoryList`, `GetCategoryInfo`, `GetCategoryNumAchievements`, `GetAchievementInfo`, `GetAchievementCriteriaInfo`,
+  `GetStatistic`, `GetTotalAchievementPoints`, `GetNumCompletedAchievements`, and `C_AchievementInfo` with `AreGuildAchievementsEnabled`,
+  `GetRewardItemID`, `GetSupercedingAchievements`, `IsGuildAchievement`, `IsValidAchievement`, `SetPortraitTexture`.
+- **Events:** `ACHIEVEMENT_EARNED` and `CRITERIA_UPDATE` both register.
+- **Content:** 29 categories, 111 achievements visible, 0 completed on the probed character. First categories: 15425 "Do Not Display" (0),
+  15577 "Druid" (3), 15587 "Alchemy" (3), 15597 "Ranks" (5), 15607 "Explorer" (3). Category 15425 is the game's hidden bucket and is never read.
+- **Consequence:** the achievements are an ordinary list of ids and names, so Guilded generates its catalogue from what members report
+  instead of keeping a hard-coded list that Forever's seasons would outdate.
+
+## Built for every in-game achievement (9.0.x, roadmap item 8)
+
+- **Addon** (`Modules/GameAchievements.lua`): the first scan of a character records every earned achievement silently, dated by the game
+  (month/day/year from `GetAchievementInfo`, so history keeps its real dates). Later scans (12 seconds after login, once per session) and
+  `ACHIEVEMENT_EARNED` record new ones. Category 15425 is skipped; everything is pcall-wrapped and hidden values are ignored. A client that
+  answers nothing records nothing and tries again next login. Each record is a milestone of kind `ach`: `ref = ach:<id>`, `value = 1`, plus
+  the name, description, category and points the client showed (saved in `GuildedDB.milestones`).
+- **Guild chat:** the newest new achievement is announced (`<name> earned the achievement <achievement>!`) under the same rules as every
+  milestone: ON by default after the one-time notice, `/guilded announce ach on|off`, the general member switch, and an officer's guild-wide
+  off switch wins. The first scan and older achievements found together with a newer one are recorded silently.
+- **Upload:** the existing milestone path. The companion exporter allows kind `ach` (name, description, category, points cleaned and cut) and
+  drops an achievement with no name; the snapshot and importer now take up to 600 milestone rows (was 300) because a log with achievements is longer.
+- **Bot catalogue (generated, no list in the code):** `GameAchievement` (migration `20270127000000_game_achievements`) keeps the first reported
+  name, text, category and points of each id (a later report never renames it). Rows are `forever-ach-<id>` in `achievements-catalogue.ts`'s
+  registry: WoW, Forever, one step, tier from points (under 5 bronze, 5 silver, 10 gold, 25 platinum, 50 epic, 100 legendary). They are never in
+  `ACHIEVEMENTS`, so the evaluator cannot award one; `syncMemberAchievements` stores each one a member's addon recorded (date from the addon) into
+  `MemberAchievement` like any other, and a later view never removes it.
+- **Where they show:** the website achievements page and public profiles (a "WoW Forever · in-game achievements" section, earned ones only: nothing is
+  known about achievements nobody has reported), the share cards (the achievements card and the unlock card), and the opt-in Discord unlock
+  announcement. Forever and guild only, as before. Badge glyph: a keyword in the name or text (dungeon, raid, honor, quest ...), else one of sixteen
+  chosen by the id, the same every time. Names are in the game's own language (no translation to keep in step).
+- **Version:** catalogue version 9, so announcing guilds re-baseline quietly once and the first wave of reported achievements does not flood Discord.
+- **Not done:** the phone app's album and the Guilded Clash badge cards still list only the fixed catalogue (they need a generated-list endpoint and
+  a card rarity for generated rows); guild achievements (`GetGuildCategoryList`) and criteria progress (`GetAchievementCriteriaInfo`) are not read.
+
 ## Built in this change (professions)
 
 - Skill steps 75/150/225/300 (`wow-forever-profession-*`; 150 and 300 kept their ids). Detected on the bot from synced professions
@@ -69,6 +109,6 @@ the detection plan: no category API means falling back to item 3.
 
 ## Next steps
 
-1. Probe the Forever client (items above); record the answers here.
+1. ~~Probe the Forever client~~ (done, results above; every in-game achievement is tracked).
 2. PvP rank and BG reputation rows, then raid firsts once raids open.
 3. Optional: mirror the nine-class level challenge as "class collector".

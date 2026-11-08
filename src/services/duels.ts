@@ -28,10 +28,15 @@ export type DuelResultInput = z.infer<typeof duelResultSchema>;
 export const milestoneSchema = z.object({
   character: z.string().trim().min(1).max(80),
   realm: z.string().trim().max(100).default(""),
-  kind: z.enum(["level", "dungeon", "hk", "duel", "prof"]),
+  kind: z.enum(["level", "dungeon", "hk", "duel", "prof", "ach"]),
   ref: z.string().regex(/^[a-z]{2,10}:[A-Za-z0-9_-]{1,30}$/),
   value: z.number().int().min(0).max(1_000_000),
-  at: z.number().int().positive().max(4102444800)
+  at: z.number().int().positive().max(4102444800),
+  // Only on kind "ach" (a WoW Forever in-game achievement): the name and text the client showed, for the generated badge catalogue.
+  label: z.string().max(120).optional(),
+  desc: z.string().max(300).optional(),
+  category: z.string().max(80).optional(),
+  points: z.number().int().min(0).max(1000).optional()
 }).strict();
 export type MilestoneInput = z.infer<typeof milestoneSchema>;
 
@@ -95,20 +100,34 @@ export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: str
   return result;
 }
 
+/** Rows one upload may carry (the addon sends its log; in-game achievements make it longer than the 300 of 8.4.5). */
+export const MAX_MILESTONE_ROWS = 600;
+/** Text from a client: control characters out, whitespace collapsed, cut to `max`. */
+const cleanText = (text: string | undefined, max: number) => (text ?? "").replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, max);
+
 /** Stores the milestones a paired member's addon recorded for their own characters. Idempotent. */
-export async function importMilestones(tx: Pick<Tx, "memberMilestone">, guildId: string, edition: string, memberId: string | null | undefined,
+export async function importMilestones(tx: Pick<Tx, "memberMilestone"> & Partial<Pick<Tx, "gameAchievement">>, guildId: string, edition: string, memberId: string | null | undefined,
   ownCharacters: readonly { name: string }[], rows: unknown[], now = new Date()): Promise<{ recorded: number; rejected: number }> {
   const result = { recorded: 0, rejected: 0 };
   if (!rows.length) return result;
   if (!memberId) return { ...result, rejected: rows.length };
   const own = new Set(ownCharacters.map(character => character.name.toLowerCase()));
   const data: Prisma.MemberMilestoneCreateManyInput[] = [];
-  for (const raw of rows.slice(0, 300)) {
+  const catalogue = new Map<number, Prisma.GameAchievementCreateManyInput>();
+  for (const raw of rows.slice(0, MAX_MILESTONE_ROWS)) {
     const parsed = milestoneSchema.safeParse(raw);
     if (!parsed.success || !(own.has(parsed.data.character.split("-")[0]!.trim().toLowerCase()) || foreverNameMatches(ownCharacters, parsed.data.character).length === 1) || parsed.data.at * 1000 > now.getTime() + 300_000) { result.rejected++; continue; }
     const m = parsed.data;
+    if (m.kind === "ach") {
+      // An in-game achievement needs its numeric id and the name the client showed; anything else would show as a blank badge.
+      const id = /^ach:(\d{1,9})$/.exec(m.ref)?.[1], name = cleanText(m.label, 80);
+      if (!id || !name) { result.rejected++; continue; }
+      if (!catalogue.has(Number(id))) catalogue.set(Number(id), { gameEdition: edition, achievementId: Number(id), name, description: cleanText(m.desc, 200), categoryName: cleanText(m.category, 60), points: m.points ?? 0 });
+    }
     data.push({ guildId, memberId, gameEdition: edition, kind: m.kind, ref: m.ref, value: m.value, reachedAt: new Date(m.at * 1000) });
   }
+  // The generated catalogue: first report of an id wins, a later one never renames it (skipDuplicates).
+  if (catalogue.size && tx.gameAchievement) await tx.gameAchievement.createMany({ data: [...catalogue.values()], skipDuplicates: true });
   if (data.length) result.recorded = (await tx.memberMilestone.createMany({ data, skipDuplicates: true })).count;
   return result;
 }

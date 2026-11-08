@@ -4,6 +4,7 @@ import { prisma } from "../database.js";
 import { autoLinkUnclaimed } from "./character-autolink.js";
 import { dungeonPosts } from "./dungeon-announce.js";
 import { recordRunHighlights } from "./dungeon-records.js";
+import { recordCard, recordEmbed, recordItems } from "./record-card.js";
 import { updateDungeonLeaderboard } from "./dungeon-leaderboard.js";
 import { notifications, notify, notifyDungeon } from "./notify.js";
 import { postReadinessBoard } from "./readiness-board.js";
@@ -53,6 +54,12 @@ export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dun
       const post = dungeonPosts(dungeons, lang)[index] ?? runs[index]!;
       return { embed: post.embed, card: post.card, components: post.components, ...(post.content ? { content: post.content } : {}) };
     });
+    // A guild record gets its own card right after the run's post, so it is not lost among the run cards. Highlights were
+    // removed above when an officer switched records off, so this follows the same switch. No mentions.
+    const run = dungeons.results.find(result => result.runRef === runs[index]!.runRef);
+    for (const item of run ? recordItems(run.highlights) : []) {
+      await notifyDungeon(discordGuild, (lang) => ({ embed: recordEmbed(run!, item, lang), card: recordCard(run!, item, lang) }));
+    }
   }
   return runs.length > 0;
 }

@@ -76,3 +76,20 @@ it("draws a stored card when a queued message is delivered and still posts witho
   await dispatchDiscordJob(plain.guild as never, job({ route: "raidLog", channelId: "raid-logs", message: { embeds: [{ title: "Report" }] } }) as never);
   expect(plain.send.mock.calls[0]![0].files).toBeUndefined();
 });
+
+it("keeps the delivery id out of the footer members read, and still skips a post it already made", async () => {
+  mocks.address.mockResolvedValue({ guildId: "guild", channelId: "c" });
+  const d = discord();
+  await dispatchDiscordJob(d.guild as never, job({ route: "officer", channelId: "c", message: { embeds: [{ description: "Bilan du jour", footer: { text: "Un bilan par jour" } }] } }) as never);
+  const sent = d.send.mock.calls[0]![0].embeds[0].data;
+  expect(sent.footer.text).toBe("Un bilan par jour");
+  expect(JSON.stringify(sent.footer)).not.toContain("delivery");
+  expect(sent.url).toBe("https://guilded.kcaron.top/?delivery=delivery");
+  // A retry after a crash finds the post by that invisible link, or by the footer posts carried before 9.0.5.
+  for (const embed of [{ url: "https://guilded.kcaron.top/?delivery=delivery" }, { footer: { text: "Un bilan · Guilded delivery delivery" } }]) {
+    const again = discord();
+    again.fetch.mockResolvedValue({ isTextBased: () => true, messages: { fetch: async () => new Collection([["m", { author: { id: "bot" }, embeds: [embed] }]]) }, send: again.send } as never);
+    await dispatchDiscordJob(again.guild as never, job({ route: "officer", channelId: "c", message: { embeds: [{ description: "x" }] } }) as never);
+    expect(again.send).not.toHaveBeenCalled();
+  }
+});

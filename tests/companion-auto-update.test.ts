@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -108,12 +108,30 @@ describe("installing a downloaded update", () => {
 
 describe("direct-download page and release process", () => {
   const pages = ["site/pages/companion.md", "site/pages/companion.fr.md"].map(path => readFileSync(path, "utf8"));
-  const published = JSON.parse(readFileSync("site/releases.json", "utf8")).guilded.companionDirect as { url: string; sha256: string; version: string };
+  const guilded = JSON.parse(readFileSync("site/releases.json", "utf8")).guilded;
+  const published = guilded.companionDirect as { url: string; siteUrl: string; sha256: string; version: string; size: number };
 
-  it("uses one stable URL that always serves the newest installer", () => {
-    expect(published.url).toBe(updates.DIRECT_DOWNLOAD_URL);
+  it("uses one stable URL that always serves the newest installer: the website's, GitHub's for older companions", () => {
+    // 8 November 2026: GitHub release downloads timed out for hours, so the website copy leads.
+    expect(published.siteUrl).toBe(updates.DIRECT_DOWNLOAD_URL);
+    expect(published.siteUrl).toBe("https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe");
+    // Kept for links and companions from before the website copy.
     expect(published.url).toBe("https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe");
     expect(published.sha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(Number.isInteger(published.size) && published.size > 1_000_000).toBe(true);
+  });
+
+  it("lists the SHA-256 of every addon zip the website serves, for this release", () => {
+    const zips = readdirSync("site/downloads").filter((name) => name.endsWith(".zip")).sort();
+    expect(Object.keys(guilded.addonZips).sort()).toEqual(zips);
+    for (const name of zips) {
+      expect(name).toContain(`-v${published.version}-forever.zip`);
+      expect(guilded.addonZips[name]).toBe(createHash("sha256").update(readFileSync(`site/downloads/${name}`)).digest("hex"));
+    }
+  });
+
+  it("publishes releases.json with the website", () => {
+    expect(readFileSync("scripts/build-site.mjs", "utf8")).toContain('copyFileSync("site/releases.json", `${out}/releases.json`)');
   });
 
   it.each([0, 1])("offers Store and direct download with the SmartScreen note and SHA-256 (page %i)", (index) => {

@@ -92,3 +92,25 @@ describe("hidden games in pinned community text", () => {
     expect(withoutHiddenGames(old, true)).toBe(old);
   });
 });
+
+describe("alts sharing a first name on the best-runs board", () => {
+  const run = { instanceId: 389, dungeonName: "Ragefire Chasm", difficultyId: 0, durationSec: 1621, endedAt: null };
+  const alts = [{ memberId: "m-simon", name: "Crashing Pally", displayName: null, className: "Paladin" },
+    { memberId: "m-simon", name: "Crashing Arcane", displayName: null, className: "Mage" }, { memberId: "m-simon", name: "Crashing Shaminem", displayName: null, className: "Shaman" }];
+  const db = (player: { character: string; memberId: string | null; class: string | null }, publicRuns: object[] = []) => ({
+    dungeonRun: { groupBy: async () => [{ instanceId: 389, difficultyId: 0, _min: { durationSec: 1621 } }], findFirst: async () => ({ ...run, players: [player] }) },
+    character: { findMany: async ({ where }: { where: { memberId?: unknown } }) => where.memberId ? alts : [] },
+    unclaimedCharacter: { findMany: async () => [] }, guildRosterEntry: { findMany: async () => [] },
+    publicRunPlayer: { findMany: async () => publicRuns }
+  });
+  it("picks the alt by the class the run recorded", async () => {
+    expect((await seasonBestRuns(db({ character: "Crashing", memberId: "m-simon", class: "PALADIN" }) as never, "g1", "s1"))[0]!.players).toEqual(["Crashing Pally"]);
+  });
+  it("keeps the first name when the class does not settle it", async () => {
+    expect((await seasonBestRuns(db({ character: "Crashing", memberId: "m-simon", class: null }) as never, "g1", "s1"))[0]!.players).toEqual(["Crashing"]);
+  });
+  it("uses the public runs with the same class for an unlinked player", async () => {
+    const seen = [{ character: "Crashing", displayName: "Crashing Pally", className: "Paladin" }, { character: "Crashing", displayName: "Crashing Arcane", className: "Mage" }];
+    expect((await seasonBestRuns(db({ character: "Crashing", memberId: null, class: "Mage" }, seen) as never, "g1", "s1"))[0]!.players).toEqual(["Crashing Arcane"]);
+  });
+});

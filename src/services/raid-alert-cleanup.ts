@@ -17,7 +17,8 @@ export function isExpiredRaidAlert(message: Alert, botId: string, now: Date): bo
   }
   if (message.content || message.embeds.length !== 1) return false;
   const embed = message.embeds[0]!;
-  if (embed.title || embed.fields.length || embed.image || embed.thumbnail || embed.url) return false;
+  // A delivered alert carries its job id as an invisible link (9.0.5); any other link means it is not a plain alert.
+  if (embed.title || embed.fields.length || embed.image || embed.thumbnail || (embed.url && !/^https:\/\/guilded\.kcaron\.top\/\?delivery=[a-zA-Z0-9-]+$/.test(embed.url))) return false;
   if (embed.footer && !/^Guilded delivery [a-zA-Z0-9-]+$/.test(embed.footer.text)) return false;
   return /^(?:⚔️ Raid (?:started:|commencé :)|🏁 Raid (?:ended:|terminé :)) \*\*[^\n]+\*\*$/.test(embed.description ?? "");
 }

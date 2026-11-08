@@ -26,6 +26,7 @@ function validateIpc(channel, args) {
     if (!["en", "fr"].includes(value)) throw new Error("Unsupported language");
   } else if (channel === "set-autostart" || channel === "set-auto-update" || channel === "set-online") { if (typeof value !== "boolean") fail(); }
   else if (channel === "open-invite") text(value, 120);
+  else if (channel === "set-account") { object(value, new Set(["file", "on"])); text(value.file, 1024); if (typeof value.on !== "boolean") fail(); }
   else if (channel === "change-profile") {
     object(value, new Set(["id", "name"]));
     if (Boolean(value.id) === Boolean(value.name)) fail();

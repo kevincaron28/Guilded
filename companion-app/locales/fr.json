@@ -1342,5 +1342,14 @@
   "{0} was added, but the sync did not start. Open Problems to see why.": "{0} a été ajouté, mais la synchronisation n’a pas démarré. Ouvrez Problèmes pour voir pourquoi.",
   "{0} will not sync. You will not be asked again.": "{0} ne sera pas synchronisé. La question ne sera plus posée.",
   "WoW account {0} syncs too, from {1}.": "Le compte WoW {0} est aussi synchronisé, depuis {1}.",
-  "WoW account {0} is not synced (not this member's).": "Le compte WoW {0} n’est pas synchronisé (pas celui de ce membre)."
+  "WoW account {0} is not synced (not this member's).": "Le compte WoW {0} n’est pas synchronisé (pas celui de ce membre).",
+  "{0}: {1}": "{0} : {1}",
+  "{0}: synced {1}": "{0} : synchronisé {1}",
+  "{0}: waiting for WoW to save Guilded's data. Log in on that account and type /reload once.": "{0} : en attente des données Guilded de WoW. Connectez-vous sur ce compte et tapez /reload une fois.",
+  "{0}: not syncing yet": "{0} : pas encore synchronisé",
+  "{0}: off": "{0} : désactivé",
+  "The first account syncs while World of Warcraft is on.": "Le premier compte se synchronise tant que World of Warcraft est activé.",
+  "Sync this account": "Synchroniser ce compte",
+  "WoW account {0} syncs again.": "Le compte WoW {0} se synchronise de nouveau.",
+  "WoW account {0} was switched off.": "Le compte WoW {0} a été désactivé."
 }

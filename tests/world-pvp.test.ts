@@ -121,12 +121,12 @@ describe("board", () => {
     expect(worldPvpCard(data, "fr", new Map(), NOW).title).toBe("JcJ en monde ouvert");
   });
   it("has an embed with a text table, or with the card image, or an empty note", () => {
-    const text = worldPvpEmbed(data, "en", "g1").toJSON();
+    const text = worldPvpEmbed(data, "en").toJSON();
     expect(text.fields?.[0]?.value).toContain("Walter Sobchak — 5 kills · 3 defends · 0 answered");
-    const withImage = worldPvpEmbed(data, "en", "g1", "world-pvp.png").toJSON();
+    const withImage = worldPvpEmbed(data, "en", "world-pvp.png").toJSON();
     expect(withImage.image?.url).toBe("attachment://world-pvp.png");
     expect(withImage.fields).toBeUndefined();
-    expect(worldPvpEmbed({ weekKey: KEY, standings: [] }, "fr", "g1").toJSON().description).toContain("Aucune activité");
-    expect(text.footer?.text).toContain("Guilded world PvP");
+    expect(worldPvpEmbed({ weekKey: KEY, standings: [] }, "fr").toJSON().description).toContain("Aucune activité");
+    expect(text.footer?.text).toBe("Counted by members' Guilded addon, capped each week · no points or awards");
   });
 });

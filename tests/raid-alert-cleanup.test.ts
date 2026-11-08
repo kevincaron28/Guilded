@@ -33,6 +33,9 @@ describe("old raid alert cleanup", () => {
     expect(expired({ ...notice, components: [{}] })).toBe(false);
     expect(expired({ ...notice, attachments: new Map([["file", {}]]) })).toBe(false);
     expect(expired({ ...notice, embeds: [{ ...notice.embeds[0], description: "🏁 Raid terminé : **MC**", footer: { text: "Guilded delivery abc123" } }] })).toBe(true);
+    // 9.0.5 posts carry the job id as an invisible link instead; any other link is not a plain alert.
+    expect(expired({ ...notice, embeds: [{ ...notice.embeds[0], description: "🏁 Raid terminé : **MC**", url: "https://guilded.kcaron.top/?delivery=abc123" }] })).toBe(true);
+    expect(expired({ ...notice, embeds: [{ ...notice.embeds[0], description: "🏁 Raid terminé : **MC**", url: "https://example.com/" }] })).toBe(false);
   });
 
   it("deletes only recognized expired bot alerts in configured channels", async () => {

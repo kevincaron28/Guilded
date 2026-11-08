@@ -53,11 +53,19 @@ const minorNewer = (a, b) => {
 const ADDON_PAGE = "https://www.curseforge.com/wow/addons/guilded";
 /**
  * Where "Get the addon" goes: the Forever zip of this very release (the addon and the companion
- * share one version, and every GitHub release carries Guilded-v<version>-forever.zip), or the
- * CurseForge page for any other edition or an unreadable version.
+ * share one version), served by the website, or the CurseForge page for any other edition or an
+ * unreadable version. The website keeps only the newest release's zips: when it does not have
+ * this one, the companion opens addonDownloadMirror (GitHub) instead (main.cjs open-addon-download).
  * @param {string | null | undefined} edition @param {string | null | undefined} version
  */
 export function addonDownloadUrl(edition, version) {
+  const parts = versionParts(version);
+  if (edition !== "forever" || !parts) return ADDON_PAGE;
+  return `https://guilded.kcaron.top/downloads/Guilded-v${parts.join(".")}-forever.zip`;
+}
+
+/** The same zip on the GitHub release, or the CurseForge page. */
+export function addonDownloadMirror(edition, version) {
   const parts = versionParts(version);
   if (edition !== "forever" || !parts) return ADDON_PAGE;
   const tag = parts.join(".");

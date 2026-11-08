@@ -17,7 +17,8 @@ export const statsFeedCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("toggle").setDescription("Daily statistics on or off.")
     .addBooleanOption((o) => o.setName("on").setDescription("On/off").setRequired(true)))
   .addSubcommand((sub) => sub.setName("cards").setDescription("Phone cards on or off")
-    .addBooleanOption((o) => o.setName("on").setDescription("On/off").setRequired(true)))
+    .addBooleanOption((o) => o.setName("on").setDescription("On/off").setRequired(true))
+    .addBooleanOption((o) => o.setName("trade").setDescription("Trading")))
   .addSubcommand((sub) => sub.setName("bank").setDescription("Weekly bank summary")
     .addBooleanOption((o) => o.setName("on").setDescription("On/off").setRequired(true)));
 
@@ -34,7 +35,10 @@ export async function executeStatsFeed(interaction: ChatInputCommandInteraction)
 
   if (interaction.options.getSubcommand() === "cards") {
     const on = interaction.options.getBoolean("on", true);
-    await prisma.guildSettings.update({ where: { guildId }, data: { tcgEnabled: on } });
+    const trade = interaction.options.getBoolean("trade");
+    await prisma.guildSettings.update({ where: { guildId }, data: { tcgEnabled: on, ...(trade === null ? {} : { tcgTradingEnabled: trade }) } });
+    if (trade !== null) { await reply(trade ? t("Card trading is on: guildmates can swap cards in the phone app. Nothing is posted in Discord.", "Les échanges de cartes sont activés : les membres peuvent échanger des cartes dans l'application. Rien n'est publié dans Discord.")
+      : t("Card trading is off for this server. Open offers expire; cards are kept.", "Les échanges de cartes sont désactivés pour ce serveur. Les offres ouvertes expirent; les cartes sont conservées.")); return; }
     await reply(on ? t("The card collection is on: members open a free daily pack in the phone app. Nothing is posted in Discord.", "La collection de cartes est activée : les membres ouvrent un paquet gratuit par jour dans l'application. Rien n'est publié dans Discord.")
       : t("The card collection is off for this server. Members' cards are kept; turn it on again to show them.", "La collection de cartes est désactivée pour ce serveur. Les cartes des membres sont conservées."));
     return;

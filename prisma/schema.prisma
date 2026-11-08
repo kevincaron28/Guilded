@@ -3510,3 +3510,69 @@ model TcgLog {
 
   @@index([discordUserId, createdAt])
 }
+
+// TCG matches (Guilded Clash stage C): a stored match is seed + decks + the ordered action log; `state` is the current full
+// state (server only, the phone gets a projection). Rewards are granted once, guarded by `rewardedAt`.
+model TcgMatch {
+  id             String    @id @default(cuid())
+  discordUserId  String
+  // "ai" (practice vs the AI) or "pve" (a gauntlet boss).
+  kind           String
+  aiLevel        String
+  bossId         String?
+  seed           Int
+  playerDeck     Json
+  opponentDeck   Json
+  setup          Json
+  actions        Json      @default("[]")
+  state          Json
+  stateHash      String
+  // "active", "won", "lost" or "draw".
+  status         String    @default("active")
+  reason         String?
+  // Spells cast and Zones played by the member, counted for the daily quests.
+  spellsCast     Int       @default(0)
+  zonesPlayed    Int       @default(0)
+  // Turn clock for later live play: seconds a player has per turn and when the current turn runs out (null once over).
+  turnSeconds    Int       @default(86400)
+  turnDeadlineAt DateTime?
+  lastActionAt   DateTime  @default(now())
+  // Optimistic lock: every move increments it and only the request that read the current value may write.
+  version        Int       @default(0)
+  rewardedAt     DateTime?
+  rewardDust     Int       @default(0)
+  rewardPacks    Int       @default(0)
+  createdAt      DateTime  @default(now())
+  finishedAt     DateTime?
+
+  @@index([discordUserId, createdAt])
+  @@index([discordUserId, status])
+}
+
+// One row per member: progress toward the next pack from wins and quests, and the PvE gauntlet run.
+model TcgPlayer {
+  discordUserId String   @id
+  packProgress  Int      @default(0)
+  wins          Int      @default(0)
+  losses        Int      @default(0)
+  // Bosses cleared in the current gauntlet run (0 to 4; the run resets after the fifth) and completed runs.
+  pveCleared    Int      @default(0)
+  pveRuns       Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+// One row per member per UTC day: the daily quest counters, packs earned from play (cap 3) and bosses already paid today.
+model TcgDaily {
+  discordUserId String
+  day           String
+  played        Int      @default(0)
+  wins          Int      @default(0)
+  spells        Int      @default(0)
+  zones         Int      @default(0)
+  packsEarned   Int      @default(0)
+  questsDone    Json     @default("[]")
+  bossesPaid    Json     @default("[]")
+  updatedAt     DateTime @updatedAt
+
+  @@id([discordUserId, day])
+}

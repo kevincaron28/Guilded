@@ -1,0 +1,40 @@
+import { StyleSheet } from "react-native";
+import { colors } from "./theme";
+
+// The text, button and row styles the guild, me and alerts tabs share (moved from the old GuildScreen).
+export const common = StyleSheet.create({
+  fill: { flex: 1 },
+  content: { padding: 24, paddingBottom: 36 },
+  kicker: { color: colors.gold, fontSize: 10, letterSpacing: 2, fontWeight: "700", marginTop: 8 },
+  title: { color: colors.text, fontSize: 32, lineHeight: 36, fontWeight: "700", marginTop: 8, letterSpacing: -0.8 },
+  titleRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  intro: { color: colors.muted, fontSize: 15, lineHeight: 22, marginTop: 10, marginBottom: 8 },
+  muted: { color: colors.muted, fontSize: 13, lineHeight: 20, marginTop: 4 },
+  body: { color: colors.text, fontSize: 14, lineHeight: 20, marginTop: 4 },
+  error: { color: "#e7b4a8", fontSize: 14, lineHeight: 20, marginTop: 12 },
+  hero: { backgroundColor: colors.panel, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 16, marginTop: 16 },
+  heroTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  label: { color: colors.gold, fontSize: 10, letterSpacing: 1.4, fontWeight: "700", marginTop: 18 },
+  code: { color: colors.gold, fontSize: 32, fontWeight: "700", letterSpacing: 3, marginBottom: 8 },
+  banner: { color: colors.ink, backgroundColor: colors.gold, alignSelf: "flex-start", overflow: "hidden", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 12, fontWeight: "700" },
+  primary: { backgroundColor: colors.gold, borderRadius: 8, minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 16, paddingHorizontal: 16 },
+  primaryText: { color: colors.ink, fontWeight: "700", fontSize: 15 },
+  secondary: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, minHeight: 48, alignItems: "center", justifyContent: "center", marginTop: 12, paddingHorizontal: 16 },
+  secondaryText: { color: colors.text, fontWeight: "600", fontSize: 15 },
+  textButton: { minHeight: 44, justifyContent: "center" },
+  textButtonLabel: { color: colors.gold, fontSize: 13, fontWeight: "700" },
+  input: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.bg, color: colors.text, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16, marginTop: 8 },
+  chips: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingVertical: 12 },
+  chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 8 },
+  chipOn: { borderColor: colors.gold, backgroundColor: "#2a2416" },
+  chipText: { color: colors.muted, fontSize: 13 },
+  chipTextOn: { color: colors.gold, fontWeight: "700" },
+  row: { flexDirection: "row", alignItems: "center", gap: 12, borderTopWidth: 1, borderColor: colors.line, paddingVertical: 12 },
+  pill: { color: colors.gold, borderWidth: 1, borderColor: "#3a3424", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, fontSize: 11, overflow: "hidden" },
+  note: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 18 },
+  langRow: { flexDirection: "row", gap: 8, marginTop: 8 },
+  lang: { minWidth: 44, minHeight: 36, borderRadius: 8, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
+  langOn: { borderColor: colors.gold },
+  langText: { color: colors.muted, fontSize: 12, fontWeight: "700" },
+  langTextOn: { color: colors.gold }
+});

@@ -321,7 +321,20 @@ export function createSiteApp(client?: Client) {
       return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId, askCrafter))).posted : false;
     } });
   const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows);
-  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb);
+  const pictures = createPicturePages(prismaPictureStore(prisma), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), {
+    // A "Report this picture" goes to that guild's officer log, with the command that removes it.
+    report: async ({ guildId, characterId, reporter }) => {
+      const character = await prisma.character.findUnique({ where: { id: characterId }, select: { name: true, displayName: true, member: { select: { displayName: true, guild: { select: { discordId: true } } } } } });
+      const discordGuild = character && client ? await client.guilds.fetch(character.member.guild.discordId).catch(() => null) : null;
+      if (!character || !discordGuild) return false;
+      const name = character.displayName ?? character.name;
+      await withGuildScope(prisma, guildId, () => notify(discordGuild, (lang) => lang === "fr"
+        ? `🚩 ${reporter} a signalé l'image du personnage **${name}** (${character.member.displayName}). Pour la retirer : \`/officer character picture action:remove name:${name}\`.`
+        : `🚩 ${reporter} reported the picture of **${name}** (${character.member.displayName}). To remove it: \`/officer character picture action:remove name:${name}\`.`, "officer"));
+      return true;
+    }
+  });
+  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb, pictures);
   const directory = createGuildDirectory(prismaGuildDirectoryStore(prisma, (id) => hostedPilot.allows(id)));
   const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma) });
   const signInPage = companionSignInRoute({
@@ -338,7 +351,6 @@ export function createSiteApp(client?: Client) {
   const lootLists = createWebLootLists(prismaLootListStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
   const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
-  const pictures = createPicturePages(prismaPictureStore(prisma), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"));
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),

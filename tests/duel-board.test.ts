@@ -17,7 +17,7 @@ const data = (over: Partial<DuelBoardData> = {}): DuelBoardData => ({ standings:
 
 describe("duel board embed", () => {
   it("shows the French empty state for Québec Gold", () => {
-    const json = duelBoardEmbed(data(), "fr", "g1").toJSON();
+    const json = duelBoardEmbed(data(), "fr").toJSON();
     expect(json.title).toBe("⚔️ Duels de la guilde");
     expect(json.description).toBe("Aucun duel enregistré — défie un membre de la guilde!");
     expect(json.fields ?? []).toEqual([]);
@@ -34,7 +34,9 @@ describe("duel board embed", () => {
     expect(json.fields?.[0]?.value).toContain("<t:1793880000:R> · **Aria** bat Brom");
     expect(json.fields?.[0]?.value).toContain("gagne (adversaire en fuite) contre Cyd");
     expect(json.footer?.text).toContain("9 duels comptés");
-    expect(json.footer?.text?.startsWith(`${DUEL_BOARD_MARKER} • g1 •`)).toBe(true);
+    // Members see help text only: no marker, no internal guild id, no edition slug.
+    expect(json.footer?.text).not.toContain(DUEL_BOARD_MARKER);
+    expect(json.footer?.text).not.toMatch(/g1|forever/);
   });
   it("caps the board at ten names and escapes markdown", () => {
     const many = Array.from({ length: 14 }, (_, i) => row(i === 0 ? "**Bold**" : `P${i}`, 20 - i, 1));

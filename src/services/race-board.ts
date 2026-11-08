@@ -12,6 +12,7 @@ import { dayStart, participationDay } from "./participation-rules.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
+import { isOwnBoard } from "./board-identity.js";
 
 // The live "Race to 60" leaderboard and Hall of Fame (8.5, track B1). The channel's FIRST message is the live board: the
 // top N guild characters (default 50, officers pick 10-50) with class, race, level bar, professions, last seen and the
@@ -155,7 +156,7 @@ export function raceLine(row: RaceRow, rank: number, lang: Lang, hall = false, e
 }
 
 /** Pure: the board's embed. `image` is the attachment name the card is sent under; `hall` lists every 60 in arrival order. */
-export function raceBoardEmbed(data: RaceBoardData, lang: Lang, guildId = "", options: { image?: string | undefined; top?: number; hall?: boolean } = {}): EmbedBuilder {
+export function raceBoardEmbed(data: RaceBoardData, lang: Lang, options: { image?: string | undefined; top?: number; hall?: boolean } = {}): EmbedBuilder {
   const fr = lang === "fr";
   const t = (en: string, french: string) => fr ? french : en;
   const hall = options.hall === true;
@@ -186,7 +187,7 @@ export function raceBoardEmbed(data: RaceBoardData, lang: Lang, guildId = "", op
     if (!options.image) embed.addFields({ name: t("Level 60", "Niveau 60"), value: String(data.finished), inline: true });
   }
   if (options.image && data.total) embed.setImage(`attachment://${options.image}`);
-  return embed.setFooter({ text: `${RACE_BOARD_MARKER} • ${guildId} • ${t("/character race near finds partners at your level", "/character race near trouve des partenaires de ton niveau")}`.slice(0, 2048) });
+  return embed.setFooter({ text: t("/character race near finds partners at your level", "/character race near trouve des partenaires de ton niveau") });
 }
 
 export interface HallRecord { order: number; name: string; className: string; race: string | null; reachedAt: Date; firstSeenAt: Date; professions: string | null; memberDiscordId: string | null;
@@ -643,7 +644,8 @@ export async function memberNames(discordGuild: DiscordGuild, ids: string[]): Pr
   return names;
 }
 
-const isBoard = (message: Message, botId: string) => message.author.id === botId && message.embeds.some(embed => embed.footer?.text?.startsWith(`${RACE_BOARD_MARKER} •`));
+export const RACE_BOARD_TITLES = ["🏁 Race to 60", "🏁 Course au niveau 60", "🏆 Hall of Fame — level 60", "🏆 Temple de la renommée — niveau 60"] as const;
+const isBoard = (message: Message, botId: string) => isOwnBoard(message, botId, RACE_BOARD_MARKER, RACE_BOARD_TITLES);
 
 /**
  * Creates the `race-to-60` channel for `/setup` when none exists: visible to the member role only, read-only for everyone.
@@ -722,7 +724,7 @@ export async function updateRaceBoard(discordGuild: DiscordGuild | null, deliver
     // Today's ranks are stored on every refresh; the card shows the change since the latest earlier day.
     const moves = data.total && !hall ? await trackRanks(prisma, guild.id, "race", leaderboardOrder(data.rows).map(row => row.key)) : null;
     const png = data.total && !hall ? await scoreCardPng(raceCard(data, lang, top, names, new Date(), moves)).catch(() => null) : null;
-    const embed = raceBoardEmbed(data, lang, guild.id, { image: png ? RACE_CARD_FILE : undefined, top, hall }).setTimestamp(new Date());
+    const embed = raceBoardEmbed(data, lang, { image: png ? RACE_CARD_FILE : undefined, top, hall }).setTimestamp(new Date());
     const payload = { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: RACE_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";
     let existing: Message | null = settings.raceBoardMessageId ? await channel.messages.fetch(settings.raceBoardMessageId).catch(() => null) : null;

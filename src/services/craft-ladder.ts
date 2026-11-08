@@ -1,4 +1,5 @@
 import { AttachmentBuilder, EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
+import { isOwnBoard } from "./board-identity.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { PROFESSION_FR } from "./profession-style.js";
@@ -79,7 +80,7 @@ export function craftLadderEmbed(standings: readonly CrafterStanding[], lang: La
     `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${escapeMarkdown(row.name).slice(0, 40)} — ${row.points} ${t("pt", "pt")} · ${row.month} ${t("in 30 days", "en 30 jours")}`).join("\n")
     : t("No finished crafts yet. Ask on the craft board!", "Aucune commande terminée. Demandez sur le tableau d'artisanat!"));
   if (image && standings.length) embed.setImage(`attachment://${image}`);
-  return embed.setFooter({ text: `${CRAFT_LADDER_MARKER} • ${guildId}` });
+  return embed.setFooter({ text: t("1 point per finished order on the crafting board · no EP/GP", "1 point par commande terminée sur le tableau d'artisanat · aucun EP/GP") });
 }
 
 type LoadDb = HistoryDb & Pick<PrismaClient, "member" | "character">;
@@ -107,7 +108,7 @@ export async function craftHistoryLines(db: HistoryDb, guildId: string, crafterI
 
 type BoardDb = LoadDb & Pick<PrismaClient, "guild" | "guildSettings" | "ladderSnapshot">;
 
-const isBoard = (message: Message, botId: string) => message.author.id === botId && message.embeds.some((embed) => embed.footer?.text?.startsWith(`${CRAFT_LADDER_MARKER} •`));
+const isBoard = (message: Message, botId: string) => isOwnBoard(message, botId, CRAFT_LADDER_MARKER, ["🔨 Top crafters", "🔨 Meilleurs artisans"]);
 
 /** Draws the card and edits the saved message in place (or adopts or posts it). Never throws. */
 export async function updateCraftLadder(db: BoardDb, discordGuild: DiscordGuild | null): Promise<boolean> {

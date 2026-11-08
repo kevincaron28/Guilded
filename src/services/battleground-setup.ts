@@ -33,19 +33,63 @@ const queues = new Map<string, Promise<unknown>>();
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 const posting = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory, PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks];
 
+// The pinned panels' text, in plain words: what the channel shows and which button to press. Results are always shared
+// with the guild (owner decision, 6 November 2026), so there is no privacy button or consent wording any more.
+const PANEL_TEXT: Record<BgPanelPart, Record<Lang, string>> = {
+  groups: {
+    en: "**Find a PvP group.** Press **Create** to start one: it gets its own post here with Tank, Healer and DPS buttons, a waiting list and an optional voice channel, and it closes after 24 hours. **Who's looking** shows the open groups, **My groups** yours, **Upcoming** the ones starting soon.",
+    fr: "**Trouver un groupe JcJ.** Appuie sur **Créer** pour en lancer un : il a son propre message ici avec les boutons Tank, Soigneur et DPS, une liste d'attente et un salon vocal facultatif, et il se ferme après 24 h. **Qui cherche** montre les groupes ouverts, **Mes groupes** les tiens, **À venir** ceux qui commencent bientôt."
+  },
+  results: {
+    en: "**Your battleground results.** After each match, the Guilded addon sends your result. Press **My results** to see your history (only you see it). `/bg result` shows one match; `/bg correct` removes a wrong report.",
+    fr: "**Tes résultats en champ de bataille.** Après chaque match, l'addon Guilded envoie ton résultat. Appuie sur **Mes résultats** pour voir ton historique (toi seul le vois). `/bg result` montre un match; `/bg correct` retire un rapport erroné."
+  },
+  stats: {
+    en: "**The guild's battleground ladder.** The board below updates by itself: wins, then win rate, by battleground and level bracket, from the members' reports after each match (not verified by Blizzard). Press **Statistics** for more detail.",
+    fr: "**Le classement de la guilde en champ de bataille.** Le tableau ci-dessous se met à jour tout seul : victoires, puis taux de victoire, par champ de bataille et tranche de niveaux, d'après les rapports des membres après chaque match (non vérifiés par Blizzard). Appuie sur **Statistiques** pour plus de détails."
+  }
+};
+const PANEL_NOTE: Record<Lang, string> = { en: "Button answers are private: only you see them.", fr: "Les réponses aux boutons sont privées : toi seul les vois." };
+/** Panels made before 9.0.5 were found by this footer; it is still recognised so they are edited, never duplicated. */
+const legacyMarker = (guildId: string, part: BgPanelPart) => `Guilded BG setup • ${guildId} • ${part}`;
+/** True when `message` is this bot's panel for `part` (current text in either language, or the old footer). */
+export function isBgPanel(message: { author: { id: string }; content: string; embeds: readonly { footer?: { text?: string | null } | null }[] }, botId: string, guildId: string, part: BgPanelPart): boolean {
+  return message.author.id === botId && (Object.values(PANEL_TEXT[part]).includes(message.content) || message.embeds.some(e => e.footer?.text === legacyMarker(guildId, part)));
+}
+
 export function bgSetupPanel(part: BgPanelPart, guildId: string, lang: Lang) {
   const fr = lang === "fr";
-  const marker = `Guilded BG setup • ${guildId} • ${part}`;
-  const texts = {
-    groups: fr ? "Cherchez un groupe JcJ ? Créez-en un (tout membre) : il a son propre message ici avec les boutons Tank/Soigneur/DPS, une liste d'attente, un salon vocal facultatif, et expire après 24 h. Qui cherche liste les groupes ouverts. Aucun résultat, point ou récompense automatique." : "Looking for a PvP group? Create one (any member): it gets its own post here with Tank/Healer/DPS buttons, a waiting list, an optional voice channel, and expires after 24 hours. Who's looking lists the open groups. No automatic results, points or rewards.",
-    results: fr ? "Mes résultats ouvre votre historique privé. /bg result affiche une fiche; /bg correct retire un rapport des statistiques. Tout est partagé, sans réglage de confidentialité. Rapports provisoires, sans classement officiel." : "My results opens your private history. /bg result shows a card; /bg correct withdraws a report from statistics. Everything is shared, with no privacy setting. Provisional reports, no official ranking.",
-    stats: fr ? "Statistiques de participations provisoires, pas de matchs uniques certifiés ni de MMR. Choisissez édition/saison, mode et identifiant API du bracket provenant de /bg result (pas une tranche de niveaux vérifiée). Seuls les membres consentants contribuent; conflits et retraits sont exclus." : "Provisional participation statistics, not certified unique matches or MMR. Choose edition/season, mode and the API bracket identifier from /bg result (not a verified level range). Only consenting members contribute; conflicts and withdrawals are excluded."
-  };
   const actions = part === "groups" ? [["create", fr ? "Créer" : "Create"], ["looking", fr ? "Qui cherche" : "Who's looking"], ["mine", fr ? "Mes groupes" : "My groups"], ["upcoming", fr ? "À venir" : "Upcoming"]]
-    : part === "results" ? [["history", fr ? "Mes résultats" : "My results"], ["privacy-help", fr ? "Confidentialité" : "Privacy"]]
-    : [["stats", fr ? "Statistiques" : "Statistics"], ["privacy-help", fr ? "Confidentialité" : "Privacy"]];
-  return { content: texts[part], embeds: [{ footer: { text: marker }, description: fr ? "Panneau statique • réponses personnelles privées" : "Static panel • private personal responses" }],
+    : part === "results" ? [["history", fr ? "Mes résultats" : "My results"]]
+    : [["stats", fr ? "Statistiques" : "Statistics"]];
+  return { content: PANEL_TEXT[part][lang], embeds: [{ description: PANEL_NOTE[lang] }],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(actions.map(([action, label]) => new ButtonBuilder().setCustomId(`bgui:${guildId}:${action}`).setLabel(label!).setStyle(ButtonStyle.Secondary)))], allowedMentions: { parse: [] } };
+}
+
+/**
+ * On start: rewrites the saved, pinned PvP panels of this Discord server with the current text and buttons. Edits only
+ * a message the bot wrote and the settings point to; never posts, pins or deletes. Returns how many panels changed.
+ */
+export async function refreshBgPanels(guild: DiscordGuild, db: Pick<PrismaClient, "guildSettings">): Promise<number> {
+  const rows = await db.guildSettings.findMany({ where: { guild: { discordId: guild.id } }, select: { guildId: true, language: true,
+    bgGroupsChannelId: true, bgGroupsMessageId: true, bgResultsChannelId: true, bgResultsMessageId: true, bgStatsChannelId: true, bgStatsMessageId: true } });
+  const botId = guild.client.user?.id;
+  let changed = 0;
+  for (const row of rows) for (const part of ["groups", "results", "stats"] as const) {
+    const fields = BG_SETUP_FIELDS[part], channelId = row[fields.channel], messageId = row[fields.message];
+    if (!channelId || !messageId || !botId) continue;
+    const channel = await guild.channels.fetch(channelId).catch(() => null);
+    if (!channel?.isTextBased()) continue;
+    const message = await channel.messages.fetch(messageId).catch(() => null);
+    if (!message || message.author.id !== botId || !message.editable) continue;
+    const payload = bgSetupPanel(part, row.guildId, row.language === "fr" ? "fr" : "en");
+    const buttons = (payload.components[0]!.toJSON().components as { label?: string }[]).map(button => button.label).join("|");
+    const shown = message.components.flatMap(rowComponent => "components" in rowComponent ? (rowComponent.components as { label?: string | null }[]).map(button => button.label ?? "") : []).join("|");
+    if (message.content === payload.content && message.embeds[0]?.description === payload.embeds[0]!.description && !message.embeds[0]?.footer && shown === buttons) continue;
+    await message.edit({ content: payload.content, embeds: payload.embeds, components: payload.components, allowedMentions: { parse: [] } });
+    changed++;
+  }
+  return changed;
 }
 
 /** Explicit install/repair only. Never called by normal setup or a background job. */
@@ -200,7 +244,6 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     const text = channel as TextChannel;
     if (part === "duels") { notes.push(`<#${text.id}>`); continue; }
     const payload = bgSetupPanel(part, guildId, lang);
-    const marker = `Guilded BG setup • ${guildId} • ${part}`;
     const savedId = settings[fields.message];
     let message = savedId ? await text.messages.fetch(savedId).catch((error: unknown) => {
       if ((error as { code?: number }).code === 10008) return null;
@@ -210,7 +253,7 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
     if (!message) {
       const recent = await text.messages.fetch({ limit: 100 });
       const pinned = await text.messages.fetchPins();
-      const candidates = [...recent.values(), ...pinned.items.map(p => p.message)].filter(m => m.author.id === me.id && m.embeds.some(e => e.footer?.text === marker));
+      const candidates = [...recent.values(), ...pinned.items.map(p => p.message)].filter(m => isBgPanel(m, me.id, guildId, part));
       const unique = [...new Map(candidates.map(m => [m.id, m])).values()];
       if (unique.length > 1) fail("Multiple panels found; repair the saved message ID before retrying.", "Plusieurs panneaux trouvés; corrigez l’ID du message avant de réessayer.");
       message = unique[0] ?? null;

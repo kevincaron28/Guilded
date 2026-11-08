@@ -65,7 +65,7 @@ type FinderDb = Pick<PrismaClient, "dungeonGroup">;
 /** Open or started PvP finder groups with their rosters, newest first. `memberId` limits to groups that member is in or leads. */
 export async function loadPvpGroups(db: FinderDb, guildId: string, discordGuildId: string, memberId: string | null = null): Promise<PvpGroupView[]> {
   const rows = await db.dungeonGroup.findMany({
-    where: { guildId, kind: "PVP", status: { in: ["OPEN", "STARTED"] }, ...(memberId ? { OR: [{ leaderId: memberId }, { signups: { some: { memberId } } }] } : {}) },
+    where: { guildId, kind: { in: ["PVP", "WORLDPVP"] }, status: { in: ["OPEN", "STARTED"] }, ...(memberId ? { OR: [{ leaderId: memberId }, { signups: { some: { memberId } } }] } : {}) },
     include: { signups: { include: { member: { select: { displayName: true } } }, orderBy: { joinedAt: "asc" } } }, orderBy: { createdAt: "desc" }, take: 25 });
   return rows.map(row => ({
     id: row.id, title: row.title, size: row.maxSize, createdAt: row.createdAt, started: row.status === "STARTED",

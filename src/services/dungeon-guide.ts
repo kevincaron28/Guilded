@@ -19,16 +19,16 @@ export const LFG_ROLE_NAMES: Record<GroupKind, string> = {
 
 export function dungeonSignupGuideText(lang: Lang): string {
   return (lang === "fr" ? [
-    "**Groupes de donjon**", "• Publiez un donjon avec le bouton ci-dessous : précisez le donjon, l'heure et les rôles recherchés.",
-    "• 1 tank, 1 soigneur et 3 DPS. Les joueurs supplémentaires vont en liste d'attente.",
-    "• Un salon vocal privé est créé au départ et supprimé quand il reste vide.",
-    "• Utilisez les salons PvP et leveling pour vos annonces libres. Les alertes du bot concernent uniquement les donjons.",
+    "**Recherche de groupe : donjons et JcJ (PvP)**", "• Appuyez sur le bouton ci-dessous, choisissez l'activité (donjon, champ de bataille, arène ou JcJ en monde ouvert), puis précisez l'heure et ce que vous cherchez.",
+    "• Donjon : 1 tank, 1 soigneur et 3 DPS. JcJ : tout rôle, de 2 à 40 joueurs. Les joueurs en trop vont en file d'attente.",
+    "• Un salon vocal privé est créé au départ et supprimé quand il reste vide. Un groupe ouvert expire après 24 h.",
+    "• Utilisez le salon leveling pour les annonces de leveling. 🔔 Mes alertes de groupe vous prévient des groupes qui vous conviennent.",
     "• `/dungeon rules` explique la cote par personnage et les points de participation par compte, avec les bonus et limites configurés."
   ] : [
-    "**Dungeon groups**", "• Post a dungeon below: say which dungeon, when, and which roles you need.",
-    "• 1 tank, 1 healer and 3 DPS. Extra players join the waitlist.",
-    "• A private voice channel opens when the group starts and is removed after it stays empty.",
-    "• Use the PvP and leveling channels for member posts. Bot alerts are for dungeons only.",
+    "**Group finder: dungeons and PvP**", "• Press the button below, pick the activity (dungeon, battleground, arena or world PvP), then say when and what you need.",
+    "• Dungeon: 1 tank, 1 healer and 3 DPS. PvP: any role, 2 to 40 players. Extra players join the queue.",
+    "• A private voice channel opens when the group starts and is removed after it stays empty. An open group expires after 24 hours.",
+    "• Use the leveling channel for leveling posts. 🔔 My group alerts pings you for groups that fit you.",
     "• `/dungeon rules` explains character rating and account participation points, including configured bonuses and limits."
   ]).join("\n");
 
@@ -36,7 +36,7 @@ export function dungeonSignupGuideText(lang: Lang): string {
 
 export function dungeonSignupGuideComponents(lang: Lang) {
   return [new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder()
-    .setCustomId(DUNGEON_GUIDE_CREATE_ID).setLabel(lang === "fr" ? "Créer un groupe de donjon" : "Post a dungeon group").setEmoji("⚔️").setStyle(ButtonStyle.Primary)),
+    .setCustomId(DUNGEON_GUIDE_CREATE_ID).setLabel(lang === "fr" ? "Créer un groupe" : "Post a group").setEmoji("⚔️").setStyle(ButtonStyle.Primary)),
   new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder()
     .setCustomId(DUNGEON_GUIDE_ALERTS_ID).setLabel(tx(lang, "My group alerts")).setEmoji("🔔").setStyle(ButtonStyle.Secondary))];
 }
@@ -60,7 +60,8 @@ function isDungeonGuide(message: Message): boolean {
 // True when the pinned message is the current version (the menu and the alerts button).
 export function isCurrentGuide(message: Message): boolean {
   const ids = componentIds(message);
-  return ids.includes(DUNGEON_GUIDE_CREATE_ID) && ids.includes(DUNGEON_GUIDE_ALERTS_ID) && !ids.includes(DUNGEON_GUIDE_KIND_ID);
+  // 9.1: the text names PvP once the guide is the merged one, so a guide pinned before it is refreshed.
+  return ids.includes(DUNGEON_GUIDE_CREATE_ID) && ids.includes(DUNGEON_GUIDE_ALERTS_ID) && !ids.includes(DUNGEON_GUIDE_KIND_ID) && /PvP|JcJ/.test(message.content ?? "");
 }
 
 export async function hasDungeonSignupGuide(channel: GuildTextBasedChannel): Promise<boolean> {

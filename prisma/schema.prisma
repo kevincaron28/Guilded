@@ -965,6 +965,7 @@ model GuildSettings {
   bgStatsMessageId         String?
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
   duelBoardEnabled         Boolean @default(true)
+  unifiedGroupFinder Boolean @default(true)
   duelBoardMessageId       String?
   // 8.5 track B: the duel ladder has its own channel (duel-ladder); the battleground ladder stays in bgStatsChannelId.
   duelBoardChannelId       String?
@@ -2005,6 +2006,8 @@ model DungeonGroup {
   // DUNGEON, LEVELING, PVP, WORLDPVP, WORLD or OTHER (the group finder); sets size and roles.
   kind             String               @default("DUNGEON")
   maxSize          Int                  @default(5)
+  // "battleground" or "arena" for a PvP group (null for every other kind); labels the post.
+  activity         String?
   // The level range players need (5.0: from the form, or guessed from the dungeon in the title);
   // group alerts only ping members with a linked character in it. Null = any level.
   minLevel         Int?

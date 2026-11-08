@@ -144,3 +144,6 @@ scheduled sessions stay on `/bg create` (activity core). Needs a real Discord ch
 
 ### Post redesign (9.1)
 The finder post is now a picture (the shared card: party with role icons, size, bracket, open-until time) plus an embed with the roster by role, the queue in order, the leader and the expiry. Built in `src/services/pvp-group-post.ts`; the dungeon finder keeps its plain embed. Same `dgrp:` buttons, waitlist and 24 h expiry.
+
+### One group finder (9.1)
+Dungeons and PvP share one finder channel. The pinned button asks the activity (dungeon, battleground, arena, world PvP); PvP posts go to the finder channel (`finderChannelFor`), `/setup` stops creating pvp-groups when a finder exists and reports an old one as safe to archive. Officers switch it off with `/bg group-finder enabled:false` (PvP then posts in pvp-groups as before). `DungeonGroup.activity` stores battleground/arena.

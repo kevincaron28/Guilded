@@ -56,6 +56,27 @@ describe("optional battleground installation", () => {
     expect(f.settings["bgCategoryId"]).toBeTruthy();
     expect(Object.keys(f.settings).some(k => /capture|award|consent/i.test(k))).toBe(false);
   });
+  it("creates no pvp-groups channel when the group finder exists, and reports an old one as merged", async () => {
+    const f = fixture(); f.settings["dungeonSignupChannelId"] = "finder";
+    const note = await f.run();
+    expect(f.guild.channels.create).toHaveBeenCalledTimes(4); // category, results, ladder, duel ladder: no groups
+    expect(f.settings["bgGroupsChannelId"]).toBeUndefined();
+    expect(note).not.toContain("merged");
+    const old = fixture(); old.settings["dungeonSignupChannelId"] = "finder";
+    old.channel("cat", ChannelType.GuildCategory); old.settings["bgCategoryId"] = "cat"; old.channel("oldgroups", ChannelType.GuildText, "cat", "pvp-groups");
+    const merged = await old.run();
+    expect(merged).toContain("<#oldgroups> (merged into the group finder <#finder>, safe to archive)");
+    expect(old.posted.some(m => m.embeds.some((e: any) => e.footer?.text?.endsWith("groups")))).toBe(false);
+    expect((await old.run(undefined, "fr"))).toContain("peut être archivé");
+  });
+
+  it("keeps creating pvp-groups when the officers switched the merge off", async () => {
+    const f = fixture(); f.settings["dungeonSignupChannelId"] = "finder"; f.settings["unifiedGroupFinder"] = false;
+    await f.run();
+    expect(f.guild.channels.create).toHaveBeenCalledTimes(5);
+    expect(f.settings["bgGroupsChannelId"]).toBeTruthy();
+  });
+
   it("repairs a deleted saved channel without replacing surviving panels", async () => {
     const f = fixture(); await f.run();
     const groups = f.settings["bgGroupsChannelId"];

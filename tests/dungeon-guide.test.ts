@@ -4,9 +4,9 @@ import {
 } from "../src/services/dungeon-guide.js";
 
 describe("dungeon signup guide", () => {
-  it("offers dungeon creation only in both languages", () => {
-    expect(dungeonSignupGuideText("en")).toContain("Dungeon groups");
-    expect(dungeonSignupGuideText("fr")).toContain("Groupes de donjon");
+  it("offers one group button naming dungeons and PvP in both languages", () => {
+    expect(dungeonSignupGuideText("en")).toContain("dungeons and PvP");
+    expect(dungeonSignupGuideText("fr")).toContain("donjons et JcJ");
     for (const lang of ["en", "fr"] as const) {
       const component = dungeonSignupGuideComponents(lang)[0]!.toJSON().components[0]! as { custom_id?: string; options?: { value: string }[] };
       expect(component.custom_id).toBe(DUNGEON_GUIDE_CREATE_ID);

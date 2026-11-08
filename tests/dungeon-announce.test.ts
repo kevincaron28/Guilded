@@ -109,7 +109,7 @@ describe("dungeonRunCard", () => {
   it("shows time, final boss, deaths and the whole party with guild first", () => {
     const card = dungeonRunCard(run, "fr");
     expect(finalBoss(run)).toBe("Mutanus the Devourer");
-    expect(card.stats.map((stat) => [stat.label, stat.value])).toEqual([["Temps", "18:25"], ["Boss final", "Mutanus the Devourer"], ["Morts", "3"]]);
+    expect(card.stats.map((stat) => [stat.label, stat.value])).toEqual([["Temps", "18:25"], ["Boss final", "Mutanus the Devourer"], ["Morts", "3"], ["Score de donjon", "—"]]);
     expect(card.dungeon!.party.map((member) => [member.name, member.guild])).toEqual([["Kev Mage", true], ["Ann Heal", true], ["Pug Tank", false]]);
     expect(card.dungeon!.party[0]).toMatchObject({ role: "DPS", color: "#69ccf0" });
     expect(card.dungeon!.deathPoints).toBeUndefined();

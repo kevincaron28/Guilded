@@ -79,7 +79,31 @@ const copy = {
   trial: { en: "Trial", fr: "Essai" },
   backup: { en: "Backup", fr: "Remplaçant" },
   linked: { en: "Linked", fr: "Lié" },
-  notLinked: { en: "Not linked", fr: "Non lié" }
+  notLinked: { en: "Not linked", fr: "Non lié" },
+  tabGuild: { en: "Guild", fr: "Guilde" },
+  tabStats: { en: "Stats", fr: "Stats" },
+  tabMe: { en: "Me", fr: "Moi" },
+  tabNews: { en: "News", fr: "Nouvelles" },
+  roster: { en: "Roster", fr: "Membres" },
+  signInCardTitle: { en: "Sign in to see this", fr: "Connectez-vous pour voir ceci" },
+  signInCardBody: { en: "Your characters, badges, wishlist and raid reminders need the Discord sign-in. Leaderboards and news work without it.", fr: "Vos personnages, badges, liste de souhaits et rappels de raid demandent la connexion Discord. Les classements et les nouvelles fonctionnent sans elle." },
+  signInGo: { en: "Sign in or look at a sample guild", fr: "Se connecter ou voir une guilde d'exemple" },
+  profile: { en: "Profile", fr: "Profil" },
+  badges: { en: "Badges", fr: "Badges" },
+  settings: { en: "Settings", fr: "Réglages" },
+  language: { en: "Language", fr: "Langue" },
+  webProfile: { en: "Open your profile on the web", fr: "Ouvrir votre profil sur le site" },
+  mapShareHere: { en: "Sharing your map position is switched in the Map section of the Guild tab.", fr: "Le partage de votre position se règle dans la section Carte de l'onglet Guilde." },
+  pushTitle: { en: "Needs push notifications", fr: "Demande les notifications push" },
+  pushBody: { en: "These arrive with a future update of the app. They are listed here so you know what is coming.", fr: "Elles arrivent avec une prochaine mise à jour de l'appli. Elles sont listées ici pour annoncer la suite." },
+  pushHelp: { en: "Call for help from a guildmate nearby", fr: "Appel à l'aide d'un membre proche" },
+  pushDungeon: { en: "A dungeon group needs your role", fr: "Un groupe de donjon cherche votre rôle" },
+  pushRaid: { en: "A spot opens in a raid you signed up for", fr: "Une place se libère dans un raid où vous êtes inscrit" },
+  thisWeek: { en: "This week on Guilded", fr: "Cette semaine sur Guilded" },
+  ratedRuns: { en: "Rated runs", fr: "Donjons cotés" },
+  guilds: { en: "Guilds", fr: "Guildes" },
+  summaryDown: { en: "The weekly summary is unavailable right now.", fr: "Le résumé de la semaine est indisponible pour le moment." },
+  players: { en: "Find a player profile", fr: "Trouver un profil de joueur" }
 } as const;
 
 export type CopyKey = keyof typeof copy;

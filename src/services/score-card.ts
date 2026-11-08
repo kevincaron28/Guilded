@@ -453,12 +453,20 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
   await put(span(th.ink, clip(card.title, 26)), titleSize, 58, 68 + (62 - titleSize) / 2, leftW, true);
   await put(span(th.muted, clip(card.subtitle, 40)), 25, 60, 146, leftW, true);
 
-  const [time, boss, deaths] = card.stats;
+  const [time, boss, deaths, score] = card.stats;
   if (time) {
     shapes.push(`<rect x="60" y="218" width="4" height="24" rx="2" fill="${accent[time.accent ?? "gold"]}"/>`);
     await put(caps(th.muted, clip(time.label, 30)), 17, 76, 220, leftW, true);
     await put(span(accent[time.accent ?? "gold"], clip(time.value, 8)), 104, 56, 244, leftW, true);
     if (time.note) await put(span(th.ink, clip(time.note, 38)), 20, 60, 366, leftW, true);
+  }
+  // The run's dungeon score sits to the right of the time: a prominent "+18" with the best season score under it, or a short reason.
+  if (score) {
+    const rated = score.value !== "—", scoreRight = 540;
+    shapes.push(`<rect x="372" y="218" width="4" height="24" rx="2" fill="${accent[score.accent ?? "gold"]}"/>`);
+    await put(caps(th.muted, clip(score.label, 22)), 17, 388, 220, 160, true);
+    if (rated) await putRight(span(accent[score.accent ?? "gold"], clip(score.value, 6)), 64, scoreRight, 252);
+    if (score.note) await put(span(rated ? th.ink : th.muted, clip(score.note, rated ? 26 : 28)), rated ? 16 : 19, 388, rated ? 330 : 252, 160, true);
   }
   const small = async (stat: CardStat | undefined, x: number, w: number, chars: number) => {
     if (!stat) return;

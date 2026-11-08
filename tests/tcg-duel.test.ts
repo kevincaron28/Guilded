@@ -4,6 +4,7 @@ import { actor } from "../src/services/tcg-engine.js";
 import type { MatchState } from "../src/services/tcg-engine-types.js";
 import { stateHash } from "../src/services/tcg-engine.js";
 import { acceptChallenge, challenge, concedeDuel, declineChallenge, duelPartners, getDuel, joinRanked, leaderboard, leaveRanked, listDuels, pollDuel, rankedStatus, replayDuel, submitDuelIntent, CHALLENGE_TTL_MS, LIVE_CHALLENGE_TTL_MS, LIVE_TURN_SECONDS, MAX_ACTIVE_DUELS, MAX_OPEN_CHALLENGES, QUEUE_TTL_MS, TURN_SECONDS, type DuelDb } from "../src/services/tcg-duel.js";
+import { forgetPresence, markSeenInApp, ONLINE_APP_MS } from "../src/services/tcg-presence.js";
 import { applyStars, glicko2, LEGEND_STARS, queueWindow, rankOf, rolloverRating, seasonKey, startStars, weekStart } from "../src/services/tcg-rating.js";
 
 interface Rec { [key: string]: unknown }
@@ -61,10 +62,11 @@ class Table {
 }
 
 let counter = 0;
-interface Tables { tcgAccount: Table; tcgCard: Table; tcgLog: Table; tcgMatch: Table; tcgPlayer: Table; tcgDaily: Table; tcgDuel: Table; tcgRating: Table; tcgQueue: Table; member: Table; character: Table; guildSettings: Table }
+interface Tables { tcgAccount: Table; tcgCard: Table; tcgLog: Table; tcgMatch: Table; tcgPlayer: Table; tcgDaily: Table; tcgDuel: Table; tcgRating: Table; tcgQueue: Table; member: Table; character: Table; guildSettings: Table; guildRosterEntry: Table }
 interface World { db: DuelDb; t: Tables; users: string[]; link: (user: string, linked: boolean) => void; settings: Rec[]; addUser: (id: string, opts?: { guild?: string; discord?: string; ageDays?: number; played?: number; name?: string }) => void; duel: (id: string) => Rec }
 
 function world(userCount = 3): World {
+  forgetPresence();
   const t: Tables = {
     tcgAccount: new Table(() => ({ banked: 1, accruedAt: NOW, pityEpic: 0, pityLegendary: 0, dust: 0, packsOpened: 0, createdAt: NOW }), ["discordUserId"]),
     tcgCard: new Table(() => ({}), []),
@@ -77,7 +79,8 @@ function world(userCount = 3): World {
     tcgQueue: new Table(() => ({ joinedAt: NOW }), ["discordUserId"]),
     member: new Table(() => ({}), []),
     character: new Table(() => ({}), []),
-    guildSettings: new Table(() => ({}), [])
+    guildSettings: new Table(() => ({}), []),
+    guildRosterEntry: new Table(() => ({ inGuild: true }), [])
   };
   const settings = t.guildSettings.rows;
   const snapshot = () => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, structuredClone(v.rows)]));
@@ -85,8 +88,9 @@ function world(userCount = 3): World {
     ...t,
     // The member table answers with the guild it belongs to, like the real select.
     member: { findMany: async (args: { where?: Rec; select?: Rec; take?: number }) => (await t.member.findMany(args)).map(m => ({ ...m, guild: { discordId: m["discordId"], name: m["guildName"] } })) },
-    character: { count: async ({ where }: { where: Rec }) => (await t.member.findMany({ where: { id: where["memberId"] } })).some(m => m["linked"] !== false) ? 1 : 0 },
+    character: { findMany: async ({ where }: { where: Rec }) => { const ids = ((where["member"] as Rec)["discordUserId"] as Rec)["in"] as string[]; return t.member.rows.filter(m => ids.includes(m["discordUserId"] as string) && m["linked"] !== false).map(m => ({ name: `Char ${m["discordUserId"]}`, guildId: m["guildId"], member: { discordUserId: m["discordUserId"] } })); }, count: async ({ where }: { where: Rec }) => (await t.member.findMany({ where: { id: where["memberId"] } })).some(m => m["linked"] !== false) ? 1 : 0 },
     guildSettings: { findFirst: t.guildSettings.findFirst.bind(t.guildSettings), findMany: t.guildSettings.findMany.bind(t.guildSettings) },
+    guildRosterEntry: { findMany: t.guildRosterEntry.findMany.bind(t.guildRosterEntry) },
     async $transaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
       const before = snapshot();
       try { return await fn(db); } catch (error) { for (const [k, rows] of Object.entries(before)) { const table = (t as unknown as Record<string, Table>)[k]!; table.rows.length = 0; table.rows.push(...(rows as Rec[])); } throw error; }
@@ -125,6 +129,7 @@ async function playOut(w: World, id: string, a: string, b: string, startAt = NOW
 
 const startFriendly = async (w: World, a = "u1", b = "u2", opts: { live?: boolean; clsA?: string; clsB?: string; now?: Date } = {}) => {
   const now = opts.now ?? NOW;
+  if (opts.live) markSeenInApp(b, now);
   const sent = await challenge(w.db, a, { to: b, cls: opts.clsA ?? "warrior", ...(opts.live ? { live: true } : {}) }, allows, now);
   const started = await acceptChallenge(w.db, b, sent.duel.id, opts.clsB ?? "mage", allows, now, 4242);
   return { id: sent.duel.id, sent, started };
@@ -298,6 +303,7 @@ describe("friendly challenges", () => {
   it("expires: 24 hours for an asynchronous challenge, 2 minutes for a live one", async () => {
     const w = world();
     const slow = await challenge(w.db, "u1", { to: "u2", cls: "warrior" }, allows, NOW);
+    markSeenInApp("u3", NOW);
     const fast = await challenge(w.db, "u1", { to: "u3", cls: "warrior", live: true }, allows, NOW);
     expect(fast.duel).toMatchObject({ live: true, turnSeconds: LIVE_TURN_SECONDS });
     expect(new Date(fast.duel.expiresAt!).getTime()).toBe(NOW.getTime() + LIVE_CHALLENGE_TTL_MS);
@@ -316,6 +322,41 @@ describe("friendly challenges", () => {
     w.link("u3", false);
     expect((await duelPartners(w.db, "u1", allows)).partners.map(p => p.discordUserId)).toEqual(["u2"]);
     expect((await duelPartners(w.db, "u1", () => false)).partners).toEqual([]);
+  });
+});
+
+describe("presence for live challenges", () => {
+  it("refuses a live challenge when the opponent is not online in the app, and offers async instead", async () => {
+    const w = world();
+    await expect(challenge(w.db, "u1", { to: "u2", cls: "warrior", live: true }, allows, NOW)).rejects.toMatchObject({ status: 409, message: expect.stringContaining("asynchronous") });
+    expect(w.t.tcgDuel.rows).toHaveLength(0);
+    // An async challenge never needs presence.
+    await expect(challenge(w.db, "u1", { to: "u2", cls: "warrior" }, allows, NOW)).resolves.toBeTruthy();
+    // Online in the app: live is allowed. Three minutes of silence: it is not.
+    markSeenInApp("u3", NOW);
+    await expect(challenge(w.db, "u1", { to: "u3", cls: "warrior", live: true }, allows, later(ONLINE_APP_MS - 1000))).resolves.toBeTruthy();
+    const w2 = world();
+    markSeenInApp("u2", NOW);
+    await expect(challenge(w2.db, "u1", { to: "u2", cls: "warrior", live: true }, allows, later(ONLINE_APP_MS + 1000))).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("puts onlineInApp and onlineInGame on the guildmate list, online ones first", async () => {
+    const w = world(4);
+    markSeenInApp("u3", NOW);
+    w.t.guildRosterEntry.rows.push({ inGuild: true, guildId: "g1", name: "char u2", lastOnlineAt: ago(60_000) }, { inGuild: true, guildId: "g1", name: "Char u4", lastOnlineAt: ago(3_600_000) }, { inGuild: true, guildId: "g2", name: "Char u3", lastOnlineAt: ago(1000) });
+    const { partners } = await duelPartners(w.db, "u1", allows, NOW);
+    expect(partners.map(p => [p.discordUserId, p.onlineInApp, p.onlineInGame])).toEqual([["u3", true, false], ["u2", false, true], ["u4", false, false]]);
+  });
+
+  it("puts presence on the challenge payloads and the list", async () => {
+    const w = world();
+    markSeenInApp("u2", NOW);
+    w.t.guildRosterEntry.rows.push({ inGuild: true, guildId: "g1", name: "Char u2", lastOnlineAt: ago(1000) });
+    const sent = await challenge(w.db, "u1", { to: "u2", cls: "warrior", live: true }, allows, NOW);
+    expect(sent.duel.opponent).toMatchObject({ onlineInApp: true, onlineInGame: true });
+    const listed = (await listDuels(w.db, "u1", NOW)).duels[0]!;
+    expect(listed.opponent).toMatchObject({ onlineInApp: true, onlineInGame: true });
+    expect((await listDuels(w.db, "u2", later(ONLINE_APP_MS + 1000))).duels[0]!.opponent).toMatchObject({ onlineInApp: false, onlineInGame: false });
   });
 });
 
@@ -472,6 +513,7 @@ describe("turn clocks and forfeits", () => {
   it("settles overdue matches and expired challenges when the list is read", async () => {
     const w = world();
     const { id } = await startFriendly(w);
+    markSeenInApp("u3", NOW);
     const pending = await challenge(w.db, "u1", { to: "u3", cls: "rogue", live: true }, allows, NOW);
     const out = await listDuels(w.db, "u1", later(TURN_SECONDS * 1000 + 1000));
     expect(out.duels.find(d => d.id === id)!.status).toMatch(/won|lost/);

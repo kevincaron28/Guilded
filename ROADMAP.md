@@ -244,8 +244,10 @@ Everything not listed below is done (released, live or merged) per the tables ab
 | Card game: art style | Owner approved painted Magic-style art in frame A (8 Nov); 9 class champions painted, awaiting his OK (review page C9) | #613, #623 |
 | Card game server stage 1 (catalogue, packs, daily, dust) | Merged (deploys with the next bot deploy) | #626 |
 | Guilded Clash design | Approved in chat, merged | #629 |
-| **Guilded Clash engine (stage A)** | **Merging** | #631 |
-| **Guilded Clash stages B-D** (AI + PvE gauntlet, server/API, guild trading), then phone screens | **Next**, track-d-gallery after #631 | `docs/plans/APP_TCG_GAME.md` |
+| Guilded Clash engine (stage A) | Live | #631 |
+| Guilded Clash stages B-E: AI + PvE gauntlet, match server, guild-only trading, balance (every target met on 4,320 games), player-vs-player (friendly, guild board, ranked) | Live on the bot (d853d1de) | #636, #638, #639, #642, #644 |
+| Guilded Clash phone screens | Collection, packs, match, PvE merged (#640); **PvP screens in progress** (mobile-map session); members get them with the next APK (Google Play) | #640 |
+| Later (owner idea): Québec Gold members as Clash cards, opt-in | Not started (after launch, as planned) | — |
 | **Forever achievements beyond professions (8)** | Probe merged (#625); **Claude runs it in game** (results below when done) | `docs/plans/FOREVER_ACHIEVEMENTS.md` |
 | Lite/Plus stage 1 (3) | Not building: paid tier stays off (owner, 7-8 Nov) | "Later: monetization" above |
 | Armory enrichment (10) | Blocked on Blizzard (Forever profile API closed) | `scripts/forever-armory-probe.mjs` |

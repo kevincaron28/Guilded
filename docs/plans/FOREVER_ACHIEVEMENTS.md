@@ -37,6 +37,22 @@ Unverified until probed on a live Forever client; do not ship detection code for
 3. If no list API: PvP rank via `UnitPVPRank`/`GetPVPRankInfo`, reputation via `GetFactionInfoByID` (standing 8 = Exalted), skill via
    `GetProfessions` (already used), raid kills via the existing Dungeon/raid recorders.
 
+### Running the probe (chat `/run` is blocked on Forever)
+
+`/guilded probe achievements` (addon, any player, read-only; `Modules/Probe.lua`) does the checks above without scripts. Everything is wrapped in pcall,
+nothing protected is called, and nothing is sent. It prints to the Guilded chat tab:
+
+- the client version and edition;
+- which of `GetCategoryList`, `GetCategoryInfo`, `GetCategoryNumAchievements`, `GetAchievementInfo`, `GetAchievementCriteriaInfo`,
+  `GetNumCompletedAchievements`, `GetTotalAchievementPoints` and `GetStatistic` exist, and whether `C_AchievementInfo` exists (with its function names);
+- any global whose name contains "legacy" (names only, up to 20), to find Forever's Legacy system;
+- whether `ACHIEVEMENT_EARNED` and `CRITERIA_UPDATE` can be registered;
+- the category count, the first five categories (id, name, achievement count), the total and completed achievements, and the first achievement of the first category.
+
+The same summary is saved in SavedVariables as `db.probes.achievements` (`apis`, `infoFunctions`, `legacyNames`, `events`, `categories`, `shown`, `total`, `completed`, `sample`), so
+it can be read from the file when chat output is hard to copy. Run it once on a Forever character in game and paste the output here. Its answers decide step 1 of
+the detection plan: no category API means falling back to item 3.
+
 ## Built in this change (professions)
 
 - Skill steps 75/150/225/300 (`wow-forever-profession-*`; 150 and 300 kept their ids). Detected on the bot from synced professions

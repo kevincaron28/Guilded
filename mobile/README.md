@@ -18,6 +18,13 @@ bot, addon and Windows companion version). Store identifiers are
 - **Alerts**: raid reminders on this phone, plus help-call, dungeon and raid
   vacancy alerts listed as switched off until push lands (PR #345).
 - **News**: Wowhead headlines and the Blizzard news link. Public.
+- **Guilded Clash** (Me tab, under the badges; `src/clash/`): the collection, free
+  packs with crafting, matches against the AI and the PvE gauntlet, from
+  `/api/v1/companion/cards` and `/api/v1/companion/clash/*`. Signed out, in the
+  sample guild, or on a server without the game, a local sample game runs
+  instead (`src/clash/mock.ts`, not the rules engine). Card text comes from
+  `src/clash/set1.ts`, generated with `npx tsx mobile/scripts/gen-clash-cards.ts`.
+  Art shows a placeholder until each card gets an `artUrl`.
 
 Signed out, Me and Alerts show a sign-in card. The sample guild fills every tab.
 Shared pieces live in `src/ui/`; the signed-in state is `src/useGuild.ts`.

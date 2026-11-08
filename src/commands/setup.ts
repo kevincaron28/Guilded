@@ -1267,7 +1267,7 @@ export async function logSetupStatus(guilds: Iterable<DiscordGuild>): Promise<vo
       const checks = setupChecks(await gatherFacts(guild, record.id, settings));
       const missing = checks.filter((check) => !check.ok && !check.optional);
       if (missing.length === 0) console.info(`Setup complete for "${guild.name}".`);
-      else console.warn(`Setup not finished for "${guild.name}" (${missing.map((check) => check.label).join("; ")}). Run /setup start in Discord.`);
+      else console.info(`Setup not finished for "${guild.name}" (${missing.map((check) => check.label).join("; ")}). Run /setup start in Discord.`);
     } catch (error) {
       console.warn(`Could not check setup for "${guild.name}": ${error instanceof Error ? error.message : String(error)}`);
     }

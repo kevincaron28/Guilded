@@ -63,6 +63,33 @@ describe("note text", () => {
   });
 });
 
+describe("guild actions the game refuses", () => {
+  it("never tries a guild note on WoW Forever, where the game blocks it even on a click", () => {
+    setup(); only(["professions"]);
+    s.run('EDITION="forever"; ROWS[2].name="Amy Winter"; ROWS[3].name="Bob Stone"');
+    expect(tick(100)).toBe("false");
+    expect(tick(200)).toBe("false");
+    expect(calls()).toBe("");
+    expect(s.run('return NS.rosterTools.blockedMessage("public")')).toContain("guild notes");
+  });
+  it("remembers any other refusal for this client build and stops asking", () => {
+    setup(); only(["professions"]);
+    s.run('GetBuildInfo=function() return "1.0", "777" end');
+    expect(tick(100)).toBe("true");
+    // the game answers with ADDON_ACTION_BLOCKED naming Guilded right after the request
+    expect(s.run("return tostring(NS.rosterTools.onBlocked())")).toBe("true");
+    expect(s.run("return tostring(DB.rosterBlocked.note)")).toBe("777");
+    expect(s.run("return NS.rosterTools.store().audit[1].status")).toBe("blocked");
+    expect(tick(200)).toBe("false");
+    expect(calls()).toBe("2=old Alch300 Herb225");
+    // a later, unrelated popup is not ours
+    expect(s.run("CLOCK=300; return tostring(NS.rosterTools.onBlocked())")).toBe("false");
+    // a new client build tries again
+    s.run('GetBuildInfo=function() return "1.0", "778" end');
+    expect(s.run('return tostring(NS.rosterTools.isBlocked("public"))')).toBe("false");
+  });
+});
+
 describe("professions in public notes", () => {
   it("writes one note per interval, keeps text, then goes quiet", () => {
     setup(); only(["professions"]);

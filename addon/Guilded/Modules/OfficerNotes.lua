@@ -197,7 +197,7 @@ function module.tick()
   end
   local snapshot = tools.snapshot(); if not snapshot then return false end
   for _, c in ipairs(module.candidates(snapshot)) do
-    if (tried[attemptKey(c)] or 0) < 2 then
+    if (tried[attemptKey(c)] or 0) < 2 and not (tools.isBlocked and tools.isBlocked(c.action)) then
       nextAt = clock() + module.INTERVAL
       return module.apply(c)
     end

@@ -2666,6 +2666,21 @@ local DE = {
   ["%d runs"] = "%d L\195\164ufe",
   ["(#%d of %d, top %d%%)"] = "(#%d von %d, Top %d%%)",
   ["This character: %d runs, %d completed, %d dungeons. Click a dungeon for details."] = "Dieser Charakter: %d L\195\164ufe, %d abgeschlossen, %d Dungeons. Klicke auf einen Dungeon f\195\188r Details.",
+  ["Achievement probe: client %s, edition %s."] = "Erfolgs-Sonde: Client %s, Edition %s.",
+  ["Achievement APIs: all of them exist."] = "Erfolgs-APIs: alle vorhanden.",
+  ["Achievement APIs missing: %s."] = "Erfolgs-APIs fehlen: %s.",
+  ["C_AchievementInfo: %s%s."] = "C_AchievementInfo: %s%s.",
+  ["present"] = "vorhanden",
+  ["absent"] = "fehlt",
+  ["Legacy-looking globals: %s."] = "Legacy-artige Globale: %s.",
+  ["none"] = "keine",
+  ["Event %s: %s."] = "Ereignis %s: %s.",
+  ["registers"] = "registriert sich",
+  ["does not register"] = "registriert sich nicht",
+  ["Categories: %d, achievements visible: %d, completed: %d."] = "Kategorien: %d, sichtbare Erfolge: %d, abgeschlossen: %d.",
+  ["First achievement: %d %s."] = "Erster Erfolg: %d %s.",
+  ["Saved in SavedVariables (db.probes.achievements). Nothing was sent."] = "In den SavedVariables gespeichert (db.probes.achievements). Nichts wurde gesendet.",
+  ["/guilded probe achievements - check which achievement APIs this client has"] = "/guilded probe achievements - pr\195\188ft, welche Erfolgs-APIs dieser Client hat",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4324,6 +4339,21 @@ local ES = {
   ["%d runs"] = "%d recorridos",
   ["(#%d of %d, top %d%%)"] = "(n.\194\186 %d de %d, top %d%%)",
   ["This character: %d runs, %d completed, %d dungeons. Click a dungeon for details."] = "Este personaje: %d recorridos, %d completados, %d mazmorras. Haz clic en una mazmorra para ver los detalles.",
+  ["Achievement probe: client %s, edition %s."] = "Sonda de logros: cliente %s, edici\195\179n %s.",
+  ["Achievement APIs: all of them exist."] = "API de logros: todas existen.",
+  ["Achievement APIs missing: %s."] = "Faltan API de logros: %s.",
+  ["C_AchievementInfo: %s%s."] = "C_AchievementInfo: %s%s.",
+  ["present"] = "presente",
+  ["absent"] = "ausente",
+  ["Legacy-looking globals: %s."] = "Globales de tipo Legacy: %s.",
+  ["none"] = "ninguna",
+  ["Event %s: %s."] = "Evento %s: %s.",
+  ["registers"] = "se registra",
+  ["does not register"] = "no se registra",
+  ["Categories: %d, achievements visible: %d, completed: %d."] = "Categor\195\173as: %d, logros visibles: %d, completados: %d.",
+  ["First achievement: %d %s."] = "Primer logro: %d %s.",
+  ["Saved in SavedVariables (db.probes.achievements). Nothing was sent."] = "Guardado en SavedVariables (db.probes.achievements). No se envi\195\179 nada.",
+  ["/guilded probe achievements - check which achievement APIs this client has"] = "/guilded probe achievements - comprueba qu\195\169 API de logros tiene este cliente",
 }
 -- END ES
 
@@ -5084,3 +5114,20 @@ FR["Click for details."] = "Cliquez pour les d\195\169tails."
 FR["%d runs"] = "%d donjons"
 FR["(#%d of %d, top %d%%)"] = "(n\194\176%d sur %d, top %d%%)"
 FR["This character: %d runs, %d completed, %d dungeons. Click a dungeon for details."] = "Ce personnage : %d donjons, %d termin\195\169s, %d donjons diff\195\169rents. Cliquez sur un donjon pour les d\195\169tails."
+
+-- Client probe (Modules/Probe.lua)
+FR["Achievement probe: client %s, edition %s."] = "Sonde des succ\195\168s : client %s, \195\169dition %s."
+FR["Achievement APIs: all of them exist."] = "API de succ\195\168s : toutes pr\195\169sentes."
+FR["Achievement APIs missing: %s."] = "API de succ\195\168s absentes : %s."
+FR["C_AchievementInfo: %s%s."] = "C_AchievementInfo : %s%s."
+FR["present"] = "pr\195\169sent"
+FR["absent"] = "absent"
+FR["Legacy-looking globals: %s."] = "Globales de type Legacy : %s."
+FR["none"] = "aucune"
+FR["Event %s: %s."] = "\195\137v\195\169nement %s : %s."
+FR["registers"] = "s'enregistre"
+FR["does not register"] = "ne s'enregistre pas"
+FR["Categories: %d, achievements visible: %d, completed: %d."] = "Cat\195\169gories : %d, succ\195\168s visibles : %d, termin\195\169s : %d."
+FR["First achievement: %d %s."] = "Premier succ\195\168s : %d %s."
+FR["Saved in SavedVariables (db.probes.achievements). Nothing was sent."] = "Enregistr\195\169 dans les SavedVariables (db.probes.achievements). Rien n'a \195\169t\195\169 envoy\195\169."
+FR["/guilded probe achievements - check which achievement APIs this client has"] = "/guilded probe achievements - v\195\169rifie quelles API de succ\195\168s ce client poss\195\168de"

@@ -48,7 +48,7 @@ const startEditions = french => {
   return `<div class="start-editions">${buttons}</div><p class="small">${french ? "Fermez WoW avant d’installer." : "Close WoW before you install."}</p>`;
 };
 const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", version).replaceAll("{{GUILDED_CURSEFORGE_VERSION}}", publishedGuilded.curseforge.version)
-  .replaceAll("{{COMPANION_DIRECT_URL}}", publishedGuilded.companionDirect.url).replaceAll("{{COMPANION_DIRECT_VERSION}}", publishedGuilded.companionDirect.version).replaceAll("{{COMPANION_DIRECT_SHA256}}", publishedGuilded.companionDirect.sha256)
+  .replaceAll("{{COMPANION_DIRECT_URL}}", publishedGuilded.companionDirect.siteUrl ?? publishedGuilded.companionDirect.url).replaceAll("{{COMPANION_DIRECT_VERSION}}", publishedGuilded.companionDirect.version).replaceAll("{{COMPANION_DIRECT_SHA256}}", publishedGuilded.companionDirect.sha256)
   .replaceAll("{{ANDROID_VERSION}}", publishedMobile.android.version).replaceAll("{{ANDROID_APK_URL}}", publishedMobile.android.apkUrl)
   .replaceAll("{{ANDROID_RELEASE_URL}}", publishedMobile.android.releaseUrl).replaceAll("{{ANDROID_SHA256}}", publishedMobile.android.sha256);
 // Static pages link relative to the site root (so a project subpath works); bot pages stay absolute.
@@ -83,6 +83,9 @@ mkdirSync(`${out}/images/showcase`, { recursive: true });
 for (const name of readdirSync("site/images/showcase")) {
   if (/\.(png|jpe?g|webp)$/.test(name)) copyFileSync(`site/images/showcase/${name}`, `${out}/images/showcase/${name}`);
 }
+// The released addon zips, served from this site so a download never depends on GitHub release downloads
+// (GitHub returned 504s for hours on 8 November 2026). Bytes are the published release files; release steps copy them here.
+if (existsSync("site/downloads")) cpSync("site/downloads", `${out}/downloads`, { recursive: true });
 // Google's public ownership files are curated separately from other local files.
 // They are served on both sites by the existing static asset binding.
 if (existsSync("site/verification")) {

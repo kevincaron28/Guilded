@@ -126,3 +126,37 @@ describe("Guilded Clash trade routes", () => {
     expect((await fetch(`${base}/trades`, { method: "POST", headers: headers(), body: "{}" })).status).toBe(404);
   });
 });
+
+describe("Guilded Clash player-vs-player routes", () => {
+  const routes = [["POST", "challenge"], ["POST", "accept"], ["POST", "decline"], ["GET", "challenge/partners"], ["GET", "duels"], ["GET", "duel?id=x"], ["POST", "duel/intent"], ["POST", "duel/concede"], ["GET", "ranked"], ["POST", "ranked/join"], ["POST", "ranked/leave"], ["GET", "leaderboard"]] as const;
+  it("answers 401 without a valid sign-in and 403 when the card game is off", async () => {
+    for (const [method, path] of routes) {
+      resetFailures();
+      const res = await fetch(`${base}/${path}`, { method, headers: headers("z".repeat(43)), ...(method === "POST" ? { body: "{}" } : {}) });
+      expect(res.status, `${method} ${path}`).toBe(401);
+    }
+    db.guildSettings.findMany.mockResolvedValue([{ guildId: "g1" }]);
+    for (const [method, path] of routes) {
+      resetFailures();
+      const res = await fetch(`${base}/${path}`, { method, headers: headers(), ...(method === "POST" ? { body: "{}" } : {}) });
+      expect(res.status, `${method} ${path}`).toBe(403);
+    }
+  });
+
+  it("answers 400 for malformed requests, and 404 for wrong methods", async () => {
+    expect((await post("challenge", { cls: "warrior" })).status).toBe(400);
+    expect((await post("challenge", { to: "u2", cls: "warrior", live: "yes" })).status).toBe(400);
+    expect((await post("accept", {})).status).toBe(400);
+    expect((await post("decline", {})).status).toBe(400);
+    expect((await post("duel/concede", {})).status).toBe(400);
+    expect((await post("duel/intent", { id: "x", action: { t: "dance" } })).status).toBe(400);
+    expect((await post("ranked/join", { cls: "wizard" })).status).toBe(400);
+    expect((await get("duel")).status).toBe(400);
+    expect((await get("duel?id=x&since=abc")).status).toBe(400);
+    expect((await get("leaderboard?scope=world")).status).toBe(400);
+    expect((await get("challenge")).status).toBe(404);
+    expect((await fetch(`${base}/duels`, { method: "POST", headers: headers(), body: "{}" })).status).toBe(404);
+    expect((await get("ranked/join")).status).toBe(404);
+  });
+});
+

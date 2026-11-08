@@ -91,6 +91,7 @@ import { createStatsPage } from "./services/stats-page.js";
 import { createGuildBankPage } from "./services/guild-bank-page.js";
 import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
 import { collectionFor, craftCard, openPack, tcgAllowed, TcgError } from "./services/tcg-store.js";
+import { DUEL_ROUTES, handleDuelRoute } from "./services/tcg-duel-api.js";
 import { cancelTrade, confirmTrade, editTrade, getTrade, listTrades, offerTrade, setTradingOff, tradableCards, tradePartners } from "./services/tcg-trade.js";
 import { concedeMatch, getMatch, isAiLevel, isClassKey, listMatches, parseIntent, pveProgress, startMatch, submitIntent } from "./services/tcg-match.js";
 import { createArtisansGallery } from "./services/artisans-gallery.js";
@@ -678,7 +679,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
       // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
       const clashMethods: Record<string, string> = { start: "POST", match: "GET", intent: "POST", concede: "POST", matches: "GET", pve: "GET",
-        "trade/partners": "GET", "trade/cards": "GET", trades: "GET", trade: "GET", "trade/offer": "POST", "trade/edit": "POST", "trade/confirm": "POST", "trade/cancel": "POST", "trade/settings": "POST" };
+        "trade/partners": "GET", "trade/cards": "GET", trades: "GET", trade: "GET", "trade/offer": "POST", "trade/edit": "POST", "trade/confirm": "POST", "trade/cancel": "POST", "trade/settings": "POST", ...DUEL_ROUTES };
       const clashRoute = url.pathname.startsWith("/api/v1/companion/clash/") ? url.pathname.slice("/api/v1/companion/clash/".length) : null;
       const isClash = clashRoute !== null && Object.hasOwn(clashMethods, clashRoute) && request.method === clashMethods[clashRoute];
       // Track M: the phone's guildmate map (guild members only) and the member's own sharing switch.
@@ -852,6 +853,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const lang = url.searchParams.get("lang") === "fr" ? "fr" : "en";
         if (!await tcgAllowed(prisma, discordUserId, (id) => hostedPilot.allows(id))) { json(response, 403, { error: "The card game is off for your server, or you are not in a server that has Guilded." }); return; }
         try {
+          if (Object.hasOwn(DUEL_ROUTES, clashRoute)) {
+            if (DUEL_ROUTES[clashRoute] === "POST" && !allowCompanionRevocation(`clash-pvp:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+            const reply = await handleDuelRoute(prisma as never, clashRoute, discordUserId, url.searchParams, () => readBody(request), (id) => hostedPilot.allows(id));
+            json(response, reply.status, reply.body); return;
+          }
           if (clashRoute.startsWith("trade") || clashRoute === "trades") {
             const allows = (id: string) => hostedPilot.allows(id);
             if (clashRoute === "trade/partners") { json(response, 200, await tradePartners(prisma as never, discordUserId, allows)); return; }

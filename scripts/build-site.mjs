@@ -48,7 +48,7 @@ const startEditions = french => {
   return `<div class="start-editions">${buttons}</div><p class="small">${french ? "Fermez WoW avant d’installer." : "Close WoW before you install."}</p>`;
 };
 const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", version).replaceAll("{{GUILDED_CURSEFORGE_VERSION}}", publishedGuilded.curseforge.version)
-  .replaceAll("{{COMPANION_DIRECT_URL}}", publishedGuilded.companionDirect.url).replaceAll("{{COMPANION_DIRECT_VERSION}}", publishedGuilded.companionDirect.version).replaceAll("{{COMPANION_DIRECT_SHA256}}", publishedGuilded.companionDirect.sha256)
+  .replaceAll("{{COMPANION_DIRECT_URL}}", publishedGuilded.companionDirect.siteUrl ?? publishedGuilded.companionDirect.url).replaceAll("{{COMPANION_DIRECT_VERSION}}", publishedGuilded.companionDirect.version).replaceAll("{{COMPANION_DIRECT_SHA256}}", publishedGuilded.companionDirect.sha256)
   .replaceAll("{{ANDROID_VERSION}}", publishedMobile.android.version).replaceAll("{{ANDROID_APK_URL}}", publishedMobile.android.apkUrl)
   .replaceAll("{{ANDROID_RELEASE_URL}}", publishedMobile.android.releaseUrl).replaceAll("{{ANDROID_SHA256}}", publishedMobile.android.sha256);
 // Static pages link relative to the site root (so a project subpath works); bot pages stay absolute.

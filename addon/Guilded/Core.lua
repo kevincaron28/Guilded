@@ -2309,6 +2309,8 @@ local function onEvent(_, event, ...)
     local blockedAddon, blockedFunction = ...
     logDiagnostic(event, string.format("%s tried to call %s", tostring(blockedAddon), tostring(blockedFunction)),
       blockedAddon ~= addonName)
+    -- A refused guild action is never retried on this client build (see RosterTools).
+    if blockedAddon == addonName and ns.rosterTools and ns.rosterTools.onBlocked then pcall(ns.rosterTools.onBlocked) end
   elseif event == "UI_ERROR_MESSAGE" then
     -- Fallback net in case the blocked-action popup surfaces as a generic UI
     -- error toast instead of ADDON_ACTION_BLOCKED/FORBIDDEN -- log it only

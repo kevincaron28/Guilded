@@ -5,26 +5,13 @@ import { highlightHeadline, highlightText } from "./dungeon-records.js";
 import type { DungeonImportResult, DungeonImportSummary } from "./dungeon-import.js";
 import { formatDuration } from "./dungeon-rules.js";
 import { dungeonTimeline } from "./dungeon-timeline.js";
-import { dungeonRunCard, finalBoss, guildPlayers, partyOf, roleName, className, runLabel } from "./dungeon-card.js";
+import { unrankedLabel, dungeonRunCard, finalBoss, guildPlayers, partyOf, roleName, className, runLabel } from "./dungeon-card.js";
 import type { ScoreCard } from "./score-card.js";
 
 /** Button on a run post: shows the boss chronology to whoever asks, privately. */
 export const DUNGEON_TIMELINE_PREFIX = "dgtl:";
 
-export function unrankedLabel(reason: string, lang: Lang): string {
-  if (lang !== "fr") return reason;
-  const labels: Record<string, string> = {
-    "Outside season window": "Hors de la période de saison", "Simulation run": "Simulation",
-    "Automatic final-boss completion required": "Victoire automatique sur le boss final requise",
-    "Dungeon route unknown": "Parcours inconnu", "Level range not configured": "Plage de niveaux non configurée",
-    "Required encounter evidence missing": "Preuves de boss requis manquantes", "Participation-only route": "Parcours de participation seulement",
-    "Different difficulty": "Difficulté différente", "Party levels unknown": "Niveaux du groupe inconnus",
-    "Overlevel carry": "Aide au-dessus du niveau maximal", "Below level range": "Sous le niveau minimal",
-    "Target not calibrated": "Cible non calibrée"
-  };
-  const presence = /^Presence (\d+)% \/ 80% required$/.exec(reason);
-  return presence ? `Présence ${presence[1]} % / 80 % requis` : labels[reason] ?? reason;
-}
+export { unrankedLabel };
 
 export interface DungeonPost {
   runRef: string;

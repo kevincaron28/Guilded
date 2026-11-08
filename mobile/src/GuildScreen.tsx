@@ -2,10 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import {
   ApiError, GuildedClient, apiOrigin, discordEventLink, parseHub, parseManage, parseStandings, withMine,
-  type CoreBoard, type HubView, type ManageView, type StandingsView, type WishCharacter
+  type CoreBoard, type HubView, type ManageView, type StandingsView
 } from "./api";
-import { AlbumScreen } from "./AlbumScreen";
-import { MapScreen } from "./MapScreen";
+import { AlbumScreen } from "./me/AlbumScreen";
+import { Wishlist } from "./me/Wishlist";
+import { MapScreen } from "./guild/MapScreen";
+import { shownName } from "./ui";
 import { formatPr, formatWhen, lootModeLabel, roleLabel, t, type Lang } from "./i18n";
 import { syncRaidReminders, type ReminderSync } from "./notify";
 import { planReminders, soonRaids } from "./reminders";
@@ -26,10 +28,6 @@ interface Snapshot {
 
 function sampleSnapshot(): Snapshot {
   return { hub: parseHub(sampleHubBody), manage: parseManage(sampleManageBody), standings: parseStandings(sampleStandingsBody), errors: {} };
-}
-
-function shownName(character: { name: string; displayName: string | null }): string {
-  return character.displayName || character.name;
 }
 
 export function GuildScreen({ defaultOrigin }: { defaultOrigin: string }) {
@@ -322,84 +320,6 @@ function Reserves({ lang, hub, error }: { lang: Lang; hub: HubView | null; error
         <Text style={styles.muted}>{item.characters.join(", ")}</Text>
       </View>)}
     </View>}
-  </>;
-}
-
-function Wishlist({ lang, preview, session, manage, error, onChange }: {
-  lang: Lang; preview: boolean; session: Session | null; manage: ManageView | null; error?: string;
-  onChange: (next: ManageView) => void;
-}) {
-  const [characterId, setCharacterId] = useState<string | null>(null);
-  const [item, setItem] = useState("");
-  const [priority, setPriority] = useState(1);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const activeId = characterId ?? manage?.characters[0]?.id ?? null;
-  const selected = manage?.characters.find((character) => character.id === activeId) ?? null;
-
-  const applyLocal = (character: WishCharacter, nextList: WishCharacter["wishlist"]) => {
-    if (!manage) return;
-    onChange({ ...manage, characters: manage.characters.map((entry) => entry.id === character.id ? { ...entry, wishlist: nextList } : entry) });
-  };
-
-  const add = async () => {
-    if (!selected || !item.trim()) return;
-    const name = item.trim();
-    setBusy(true);
-    setNotice(null);
-    try {
-      if (preview || !session) {
-        const without = selected.wishlist.filter((wish) => wish.itemName.toLowerCase() !== name.toLowerCase());
-        applyLocal(selected, [...without, { itemName: name, priority }].sort((a, b) => a.priority - b.priority || a.itemName.localeCompare(b.itemName)));
-      } else {
-        const message = await new GuildedClient(session.apiOrigin, session.companionCredential).setWishlist(session.guildDiscordId, selected.id, name, priority);
-        setNotice(message);
-        const fresh = await new GuildedClient(session.apiOrigin, session.companionCredential).manage(session.guildDiscordId);
-        onChange(fresh);
-      }
-      setItem("");
-    } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : t(lang, "add"));
-    } finally { setBusy(false); }
-  };
-
-  const remove = async (wish: string) => {
-    if (!selected) return;
-    setNotice(null);
-    try {
-      if (preview || !session) applyLocal(selected, selected.wishlist.filter((entry) => entry.itemName !== wish));
-      else if (session) {
-        const message = await new GuildedClient(session.apiOrigin, session.companionCredential).removeWishlist(session.guildDiscordId, selected.id, wish);
-        setNotice(message);
-        onChange(await new GuildedClient(session.apiOrigin, session.companionCredential).manage(session.guildDiscordId));
-      }
-    } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : t(lang, "remove"));
-    }
-  };
-
-  if (error) return <Text style={styles.error}>{error}</Text>;
-  if (!manage) return null;
-  return <>
-    <Text style={styles.intro}>{t(lang, "wishlistIntro")}</Text>
-    <View style={styles.chips}>
-      {manage.characters.map((character) => <Pressable key={character.id} onPress={() => setCharacterId(character.id)} style={[styles.chip, selected?.id === character.id && styles.chipOn]}>
-        <Text style={[styles.chipText, selected?.id === character.id && styles.chipTextOn]}>{shownName(character)}</Text>
-      </Pressable>)}
-    </View>
-    {notice ? <Text style={styles.muted}>{notice}</Text> : null}
-    {selected && selected.wishlist.length === 0 ? <Text style={styles.muted}>{t(lang, "noWishes")}</Text> : selected?.wishlist.map((wish) => <View key={wish.itemName} style={styles.row}>
-      <Text style={[styles.body, { flex: 1 }]}>{wish.priority}. {wish.itemName}</Text>
-      <Pressable onPress={() => void remove(wish.itemName)}><Text style={styles.textButtonLabel}>{t(lang, "remove")}</Text></Pressable>
-    </View>)}
-    {selected ? <View style={styles.hero}>
-      <TextInput value={item} onChangeText={setItem} placeholder={t(lang, "itemPlaceholder")} placeholderTextColor={colors.muted} style={styles.input} />
-      <Text style={styles.label}>{t(lang, "priority")}</Text>
-      <View style={styles.langRow}>
-        {[1, 2, 3].map((value) => <Pressable key={value} onPress={() => setPriority(value)} style={[styles.lang, priority === value && styles.langOn]}><Text style={[styles.langText, priority === value && styles.langTextOn]}>{value}</Text></Pressable>)}
-      </View>
-      <Pressable onPress={() => void add()} disabled={busy || !item.trim()} style={styles.primary}><Text style={styles.primaryText}>{t(lang, "add")}</Text></Pressable>
-    </View> : null}
   </>;
 }
 

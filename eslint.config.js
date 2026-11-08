@@ -6,7 +6,7 @@ export default defineConfig(
   { ignores: ["companion-app/**", "dist/**", "node_modules/**", "backups/**", ".claude/**", ".wrangler/**", "src/generated/**"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
-  { files: ["worker/**/*.mjs"], languageOptions: { globals: { Request: "readonly", Response: "readonly", Headers: "readonly", HTMLRewriter: "readonly" } } },
+  { files: ["worker/**/*.mjs"], languageOptions: { globals: { Request: "readonly", Response: "readonly", Headers: "readonly", HTMLRewriter: "readonly", TransformStream: "readonly" } } },
   { files: ["site/**/*.js"], languageOptions: { globals: { document: "readonly", window: "readonly", navigator: "readonly", URL: "readonly" } } },
   {
     ignores: ["dist/**", "companion-app/**", "node_modules/**", "prisma/migrations/**"],

@@ -2,7 +2,7 @@
 
 ## Current stage — 7 November 2026
 
-Guilded **9.0.4** (the fourth update on 9.0.0, which was the 8.5 work shipped as 9.0) (tracks A-K and the owner batches below). The previous release is 9.0.3. Branch and doc names keep "8.5".
+Guilded **9.0.5** (the fifth update on 9.0.0, which was the 8.5 work shipped as 9.0) (tracks A-K and the owner batches below). The previous release is 9.0.4. Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
@@ -16,6 +16,13 @@ Start one worker session per track with the cheapest model that fits (Haiku: che
 features; Opus: design-heavy or risky changes). Workers open PRs into `main` and report back to you. You review,
 merge, back up, deploy (`deploy/update.sh`), then publish. Real-client testing uses the owner's two PCs by
 desktop control and is coordinated by you. Keep testing in the kevmister28 test server, never spam Québec Gold.
+
+**8 November, morning (coordinator; bot live, every deploy backed up first):**
+- Merged: dungeon score on run cards (#611, live), Forever-only listing texts (#612), card art proposal (#613), phone app redesign (#614, #615), Google Play listing kit (#616), monetization "later" plan and Play trader status (#617).
+- Owner's login popup ("Guilded has been blocked"): WoW Forever refuses addon guild-note edits, even on a click (checked in game). Auto professions notes retried every ~16 s. Fixed in #618 (no note writes on Forever; any other refused guild action is remembered per client build). Installed by hand on the owner's PC (backup `Desktopddon-backup-pre618`); members get it with **9.0.5 (owner's yes needed)**.
+- Owner idea: one group finder for dungeons and PvP, live (#619; officer switch `/bg group-finder`). The old PvP groups channel still works and can be archived.
+- Card art: five styles for the owner to pick at claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58 (the page stores the pick).
+- Bug sweep 09:30 UTC: no member reports and no new saved bot errors since 7 Nov 16:09. The journal's only noise was hashed `[diagnostic:...]` lines: `aa56b5beb2ee` (64 in 30 days, after addon uploads: the hourly standings fallback, rebuild over 10 s or still changing) and four per restart ("Setup not finished" for servers mid-setup). These are routine; #620 logs them as info so the text is readable. Watch: standings rebuilds take 9-20 s under upload bursts on the 1 GB server.
 
 **Overnight progress, 7 Nov (coordinator; bot live at 8cde683, every deploy backed up first):**
 - Done and deployed: dungeon cards, one per run (#461); observer copies of one run merged, so no more triple
@@ -218,22 +225,46 @@ Almost everything was already a row above or in the older tables. These are the 
 
 Everything else in the file (arena ladder, Race to 60 and Hall of Fame, call for help, minimap shortcuts, fresh-PC test, advanced options, Kinfolk, bank, TCG, character names in Discord, in-game guild board, item previews, profession cards, companion decisions 1-4) is already a row above with a PR.
 
-### Not started
+### Completeness audit, 8 November 2026 (every list re-read: start here, requests 1-24, idea lists 2-4, tracks A-M, carried over, later)
 
-Each line: what, then the files it would touch.
+Everything not listed below is done (released, live or merged) per the tables above and `git log origin/main`. The old "Not started" list of 7 Nov was mostly finished overnight; its rows are resolved here.
 
-1. **French names of the three new final bosses** (needs a French client log): `src/services/dungeon-november-catalog.ts`, `src/services/dungeon-beta-preset.ts`, addon dungeon data.
-2. **Character pictures** (4 slices, after the owner picks): `prisma/schema.prisma` + migration, new `src/services/character-picture.ts`, `src/services/card-member.ts`, `src/services/score-card.ts`, `src/companion-api.ts`, `worker/index.mjs`, `site/` profile pages, then addon photo mode and the companion.
-3. **Lite/Plus stage 1** (plan flag, terms and privacy pages; payout route is a prerequisite for launch only): new `src/services/plans.ts`, `prisma/schema.prisma` + migration, `src/commands/lite.ts`, `docs/PRIVACY.md`, new site terms page.
-4. **Several game accounts** (4 steps): `companion/engine.mjs`, `companion/` config and watch-files code, `companion-app/`, then Battle.net identities in `prisma/schema.prisma`, `src/services/battlenet*.ts`, site pages.
-5. **Forever-only removal, stages 1-8** (after the Battle.net A/B answer): `addon/Guilded`, `addon/GuildedDungeons`, `scripts/`, `companion/`, `src/`, `site/`, `worker/`, `wrangler.jsonc`.
-6. **Phone app restructure, slices 2-4**: new `mobile/src/ui/`, `mobile/App.tsx`, `mobile/src/AlbumScreen.tsx`, map and wishlist screens, then the TCG tab and Alerts rows (need #345/Firebase).
-7. **Season 2 activation and the missing 45-59/60 routes**: `src/services/official-seasons.ts`, `src/services/public-score.ts`, `src/services/dungeon-november-catalog.ts` (activation is the owner's command).
-8. **Forever achievements beyond professions** (needs an in-game API probe): `addon/Guilded` achievements module, `src/services/achievement-badges.ts`, `docs/plans/FOREVER_ACHIEVEMENTS.md`.
-9. **PoE2 leftovers in code** (`src/services/achievement-badges.ts`, companion hidden markup), unverified since #456, and **availability module deletion** (hidden, not deleted): `src/commands/application.ts`, `autocomplete.ts`, `community.ts`, `craft.ts`, `team.ts`.
-10. **Armory enrichment**: blocked on Blizzard; re-run `scripts/forever-armory-probe.mjs` after Forever patches.
-11. **Jeeves bot research** — written up in `docs/JEEVES_COMPARISON.md` (plan only). Ideas to adopt, plan only: a "reported, not verified" label on characters (`site/`, character-link views); a role-rules preview for officers (`src/commands/setup.ts`, role sync); a "last roster update" line in `/setup status` (`src/commands/setup.ts`, `src/services/guild-data.ts`).
-12. Housekeeping: close superseded PRs #515 and #557.
+| Item | Status | Where |
+| --- | --- | --- |
+| Character pictures (old not-started 2) | Live | #589-#591, #599 |
+| Several game accounts (4) | Released 9.0.4 | #592, #593, #600 |
+| Forever-only removal (5) | Done; stage 7 declined | #567-#584 |
+| Phone app restructure (6) | Slices 1-3 merged; Alerts/TCG tab need #345 + Firebase | #614, #615 |
+| Jeeves research (11) | Written, plan only (owner has not asked to build the 3 ideas) | `docs/JEEVES_COMPARISON.md` |
+| PoE2 leftovers + availability module (9) | Hidden behind reversible switches, data kept (by design, `docs/FOREVER_ONLY_FOCUS.md`); no deletion planned | #472, #477 |
+| Hall of Fame edits, sharing always on (partial 1-2) | Live | #471, #498 |
+| Login popup on Forever (officer guild-note writes) | Fixed; release 9.0.5 in progress | #618, #622 |
+| Items 3 and 7 (professions / EP-GP in guild notes) | **Not possible on Forever**: the game refuses addon note edits even on a click; Guilded stops trying | #618 |
+| One group finder for dungeons and PvP (idea, 8 Nov) | Live | #619 |
+| Card game: art style | Owner picked A (8 Nov); second art pass in review | #613, #623 |
+| **Card game build, stage 1 (server: catalogue, packs, daily, dust)** | **In progress** (track-d-gallery) | `docs/plans/APP_TCG.md` |
+| **Forever achievements beyond professions (8)** | **In progress**: an in-game probe command (track-a-achievements), then Claude runs it in game | `docs/plans/FOREVER_ACHIEVEMENTS.md` |
+| Lite/Plus stage 1 (3) | Not building: paid tier stays off (owner, 7-8 Nov) | "Later: monetization" above |
+| Armory enrichment (10) | Blocked on Blizzard (Forever profile API closed) | `scripts/forever-armory-probe.mjs` |
+| Carried over: 8.4.7 distribution | Obsolete (9.0.x released everywhere) | — |
+| Carried over: unknown Forever final bosses | Done | #491 |
+
+**Bug sweep 8 Nov ~11:30 UTC:** no member reports, no new saved bot errors; the journal only had the two routine hashed notices (readable once #620 deploys). GitHub release downloads timed out for hours (504) on 8 Nov: they block the `windows-package` CI job (merges retried by a loop) and broke the website downloads. #627 serves the addon zips from `site/downloads/` and the companion installer from Cloudflare KV, so the plug-and-play direct download (the owner's main path, not the Store) no longer depends on GitHub. Follow-up for the next companion release: its self-update and addon download should use the website too.
+
+**Owner, 8 Nov: #wow-personnage removed from Québec Gold** (its job moved to #invitation-guilde; the bot no longer creates or names it). **Discord text audit (owner request, in progress, server-hygiene session):** every bot message, DM, pinned guide, channel topic, /help, /faq, site page and guide that names a channel is checked against what `/setup` creates today (removed or merged: #wow-personnage, #bot-faq, the PvP groups channel merged into the group finder #619). Stale texts are fixed by PR with a guard test. A read-only scan of Québec Gold and the test server lists out-of-date pinned and bot messages in `docs/DISCORD_TEXT_AUDIT_2026-11-08.md`; the coordinator applies the Québec Gold edits to bot-owned guide texts.
+
+**Guilded Clash (card game, owner 8 Nov):** design `docs/plans/APP_TCG_GAME.md` (#629) approved in chat: core rules as written, AI + PvE gauntlet before ranked, guild-only trading v1, name "Guilded Clash". The owner approves every final card art (painted, Magic-style, made with his ChatGPT). Build stages A-D with track-d-gallery. **Later (owner idea):** Québec Gold members as cards: a guildmate's character (full name, class, picture, real achievements) as a collectible card, opt-in per member with an off switch that removes it, after the engine and AI stages.
+
+**Waiting for owner (cannot be done without him):**
+- Publish decisions: 9.0.5 is being published on his "publish" (8 Nov); later releases need his yes.
+- French names of the three new final bosses: needs a French client log (switch the client language, or a French member's log).
+- Promotion (Initiate to Member) from an officer client: untested on Forever; testing changes a real member's rank.
+- `dungeon-explain` with real data (`/dungeon-admin audit why:true` in Québec Gold) and the Season 2 re-run (~18 Nov), which needs a production read.
+- Two-PC checks (duel, Defender banner, call for help, guild board votes) and in-game screenshots for the guides (item 20).
+- Québec Gold: the extra `#invitation-guilde` deletion (item 16) and archiving the old PvP groups channel.
+- Google Play: the 3 verifications; then Firebase, `EXPO_TOKEN`, #345, 12 testers.
+- Close PR #515 (superseded by #522/#534; Claude's close was blocked as an external write).
+- Item previews in Québec Gold (built, off) and crafter offers (built, off): turning them on.
 
 **First priorities (owner, 7 Nov 01:45 UTC):**
 1. **Dungeon cards (item 13) now, not later.** One `#donjons-terminés` post bundled three runs (two Wailing

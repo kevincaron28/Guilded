@@ -49,7 +49,9 @@ describe("embed", () => {
     expect(verified.url).toBe("https://www.wowhead.com/classic/item=2092");
     expect(verified.color).toBe(0xa335ee);
     const unverified = buildItemEmbed({ itemId: null, name: "Dagger", verified: false }, null);
-    expect(unverified.url).toBeUndefined();
+    // No invented id: a name nobody matched links to a Wowhead search for that name.
+    expect(unverified.url).toBe("https://www.wowhead.com/classic/search?q=Dagger");
+    expect(buildItemEmbed({ itemId: null, name: "Kresh's Back & co", verified: false }, null).url).toBe("https://www.wowhead.com/classic/search?q=Kresh's%20Back%20%26%20co");
     expect(unverified.description).toContain("Unverified");
     expect(buildPayload([verified]).allowed_mentions).toEqual({ parse: [] });
   });
@@ -158,7 +160,17 @@ describe("handlePreviewMessage", () => {
     expect(await handlePreviewMessage(deps, msg({ authorId: "bot" }))).toBe("self");
     expect(await handlePreviewMessage(deps, msg({ webhookId: row.webhookId }))).toBe("self");
     expect(await handlePreviewMessage(deps, msg({ content: "hello" }))).toBe("no-items");
+    // The addon's own "[Guilded] Help! ..." lines are a tag, not an item (seen in #chat-guilde, 8 Nov).
+    expect(await handlePreviewMessage(deps, msg({ content: "[Guilded] Help! Domichammon Graves is under attack in Ashenvale" }))).toBe("no-items");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("posts a burst of five bracket names from the relay within the per-minute gate, each linked", async () => {
+    const { deps, fetchMock } = make();
+    for (const name of ["Keen Skinning Knife", "Conjured Muffin", "Intact Makrura Eye", "Strange Dust", "Greater Magic Wand"]) {
+      expect(await handlePreviewMessage(deps, msg({ content: `[${name}]` }))).toBe("posted");
+    }
+    const body = JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, { body: string }])[1].body)) as { embeds: { url?: string }[] };
+    expect(body.embeds[0]!.url).toBe("https://www.wowhead.com/classic/search?q=Keen%20Skinning%20Knife");
   });
   it("de-duplicates a repeated link", async () => {
     const { deps } = make();

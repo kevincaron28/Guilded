@@ -176,7 +176,7 @@ everything. Officer rows need the officer rank in your WoW guild.
 | Tab | What it shows | Who |
 | --- | --- | --- |
 | Home · My character · Open raids | What is going on, your gear check, raids with room for you | Everyone |
-| Standings · Crafting · Availability | Guild standings, recipes, who is online | Everyone |
+| Standings · Crafting | Guild standings and recipes | Everyone |
 | Ready · Reserves · Loot · Council | Raid-night checks, soft reserves, bids and council answers | Leaders / Everyone / Officers |
 | Raid · Administration · Gear | Run a raid, award EP/GP, item level per member | Officers |
 | Calendar · Local guild · Roster admin · Officer tools | Guild calendar, no-Discord setup, roster tools, log and imports | Officers |

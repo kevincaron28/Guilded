@@ -28,6 +28,9 @@ export function sanitizeName(name: string, max = 60): string {
 
 const httpsOnly = (url?: string) => { try { return url && new URL(url).protocol === "https:" ? url : undefined; } catch { return undefined; } };
 
+/** A Wowhead search for a name (Classic database): the link for a bracket-only name no source could match. */
+export const wowheadSearchUrl = (name: string) => `https://www.wowhead.com/classic/search?q=${encodeURIComponent(name.trim().slice(0, 60))}`;
+
 export function buildItemEmbed(item: ParsedItem, found: ItemDetails | null, lang: "en" | "fr" = "en"): WebhookEmbed {
   const fr = lang === "fr";
   // A name-only link counts as known only when the source found exactly one item with that exact name.
@@ -48,7 +51,7 @@ export function buildItemEmbed(item: ParsedItem, found: ItemDetails | null, lang
   } else if (nameMatch) {
     lines.push(fr ? `Objet n° ${nameMatch} (trouvé par son nom exact)` : `Item ID ${nameMatch} (matched by its exact name)`);
   } else {
-    lines.push(fr ? "Non vérifié : seul le nom a été partagé, aucune statistique n'est montrée." : "Unverified: only the name was shared, so no stats are shown.");
+    lines.push(fr ? "Non vérifié : seul le nom a été partagé, aucune statistique n'est montrée. Le titre ouvre une recherche Wowhead." : "Unverified: only the name was shared, so no stats are shown. The title opens a Wowhead search.");
   }
   if (details?.source === "classic1x") lines.push(fr ? "Données de Classic Era : WoW Forever ne connaît pas cet objet, il peut y être différent." : "Classic Era data: WoW Forever does not list this item, so it may differ there.");
   const embed: WebhookEmbed = {
@@ -57,8 +60,9 @@ export function buildItemEmbed(item: ParsedItem, found: ItemDetails | null, lang
     color,
     footer: { text: item.verified || nameMatch ? (fr ? "Aperçu d'objet Guilded" : "Guilded item preview") : (fr ? "Aperçu d'objet Guilded (non vérifié)" : "Guilded item preview (unverified)") }
   };
-  // A link is offered only for a verified numeric id (or one a provider vouched for).
-  const url = httpsOnly(details?.url) ?? (item.verified && item.itemId ? `https://www.wowhead.com/classic/item=${item.itemId}` : undefined);
+  // An item link only for a verified numeric id (or one a provider vouched for). A name nobody could match gets a
+  // Wowhead search for that name instead: still a link, never an invented id.
+  const url = httpsOnly(details?.url) ?? (item.verified && item.itemId ? `https://www.wowhead.com/classic/item=${item.itemId}` : wowheadSearchUrl(item.name));
   if (url) embed.url = url;
   const icon = httpsOnly(details?.iconUrl);
   if (icon) embed.thumbnail = { url: icon };

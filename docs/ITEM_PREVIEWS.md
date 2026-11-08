@@ -49,9 +49,11 @@ until an owner enables it for a server.
 
 ## What is NOT verified / not built
 
-- Whether the bot receives the relayed messages with content, and whether item links reach it as raw
-  links (id kept) or only as `[Name]` text. If only names arrive, previews are name-only and labelled
-  "Unverified", with no stats or link.
+- Seen in Québec Gold's #chat-guilde (audit of 1,636 messages, 5-8 November 2026): the Forever relay keeps only
+  `[Name]` text, never `|Hitem:` links. Names are matched through the Blizzard item search (exactly one exact name,
+  "matched by its exact name", with stats and an item link). A name nobody matched is "Unverified" and its title
+  links to a Wowhead **search** for that name, never an invented id. Lookups give up after 4 seconds so a slow
+  Battle.net never holds a preview back. The addon's own `[Guilded] Help! ...` lines are not items.
 - Whether a webhook can post in the Blizzard-linked channel and whether the post echoes into WoW.
 - Item data has not yet been seen in a live preview or Details answer (the API calls below were checked on the
   server on 7 November 2026, the Discord side was not).

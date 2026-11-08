@@ -114,6 +114,7 @@ import { handlePreviewMessage } from "./services/item-preview.js";
 import { professionCardFor } from "./services/profession-link-card-live.js";
 import { PreviewGate } from "./services/item-preview-data.js";
 import { itemData } from "./item-data.js";
+import { withDeadline } from "./services/blizzard-items.js";
 import { botOwnerId, executeOwnerSeason, OWNER_SEASON_COMMAND, ownerSeasonCommand } from "./commands/owner-season.js";
 import { executeOwnerConsole, OWNER_CONSOLE_COMMAND, ownerConsoleCommand } from "./commands/owner-console.js";
 import { createOwnerConsole } from "./services/owner-console.js";
@@ -618,7 +619,9 @@ if (config.MESSAGE_CONTENT_INTENT) {
   client.on(Events.MessageCreate, (message) => { if (message.guildId && hostedPilot.allows(message.guildId)) void handleInviteMessage(message, prisma).catch(reportJobError("Guild invite post", { guildId: message.guildId, channelId: message.channelId, messageId: message.id })); });
   // Discord-only item previews (docs/ITEM_PREVIEWS.md): inert until an owner enables a server.
   const previewGate = new PreviewGate();
-  const previewProvider = itemData; // cached, rate-limited; the null provider without a Battle.net app
+  // Cached and rate-limited; the null provider without a Battle.net app. At most 4 s per lookup: a slow Battle.net
+  // (12 s on 8 Nov) posts the preview with a Wowhead search link instead of holding it back.
+  const previewProvider = withDeadline(itemData, 4_000);
   const previewBackoff = new Map<string, number>();
   client.on(Events.MessageCreate, (message) => {
     if (!message.guildId || !hostedPilot.allows(message.guildId) || !message.content.includes("[")) return; // every item link has a bracket

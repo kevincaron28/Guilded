@@ -264,6 +264,8 @@ Everything not listed below is done (released, live or merged) per the tables ab
 
 **Guilded Clash (card game, owner 8 Nov):** design `docs/plans/APP_TCG_GAME.md` (#629) approved in chat: core rules as written, AI + PvE gauntlet before ranked, guild-only trading v1, name "Guilded Clash". The owner approves every final card art (painted, Magic-style, made with his ChatGPT). Build stages A-D with track-d-gallery. **Later (owner idea):** Québec Gold members as cards: a guildmate's character (full name, class, picture, real achievements) as a collectible card, opt-in per member with an off switch that removes it, after the engine and AI stages.
 
+**Bug sweep 8 Nov ~15:15 UTC:** no member reports, no new saved errors. Standings over 20 s: 6 of 934 in the last hour, all either before the #634 fix went live (14:21) or during a deploy build (14:45, 15:06), when the build starves the 1 GB server; one P2028 three minutes after a restart (known startup burst). Nothing new to fix; fewer deploys per hour is the remaining lever. **Guilded Clash on main and live (8 Nov):** collection (#626), engine (#631), AI + PvE (#636), match server (#638), guild-only trading (#639), phone screens (#640); balance pass in progress (first self-play run: first player 59.7%, classes 24-75%). Members get it with the next phone app build (needs Google Play) and the approved painted art.
+
 **Waiting for owner (cannot be done without him), updated 8 Nov evening:**
 - Approve the 9 class champion paintings (review page, section C9), then each later card art.
 - Google Play: the 3 verifications; then Firebase, `EXPO_TOKEN`, #345, 12 testers, the new APK.

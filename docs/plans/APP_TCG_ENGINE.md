@@ -27,3 +27,18 @@ The headless rules engine of [APP_TCG_GAME.md](APP_TCG_GAME.md) section 2, with 
 `tests/tcg-cards-set1.test.ts`: counts (60/32/27/16/15), the forbidden-names list, token references, roles, legal starter decks and the cost-curve check. `tests/tcg-engine.test.ts`: rules, a table-driven test that plays every card in every legal way, random games for all class pairings with invariants, and replay equality.
 
 Next: stage B (AI opponent, self-play harness, PvE gauntlet data), then the server match service and API (stage C), then trading (stage D).
+
+## Stage B: AI opponent, self-play and the PvE gauntlet (built)
+
+| File | What it holds |
+| --- | --- |
+| `src/services/tcg-ai.ts` | `chooseAction(state, level)`: a greedy one-ply search (easy adds noise and sometimes stops early, normal is plain, hard also fears the opponent's next attack). A pure function of the state; it reseeds the copy's random numbers so it cannot peek at shuffles. |
+| `src/services/tcg-sim.ts` | `playGame`, `buildDeck` (tuned decks), `runMatrix` (class pairs, rotating starter and three tuned decks), `missedTargets` (the section 7.5 targets). |
+| `src/services/tcg-pve.ts` | The five-boss gauntlet as data (Zone already in play, extra Health, frozen decks, rewards), `createGauntletMatch`, `runReward`, `featuredRun`. |
+| `scripts/clash-selfplay.ts` | `npm run clash:selfplay -- --games 20000 --level normal` prints the balance report. `--games` is per ordered class pair (72 pairs); it runs about 30 games a second. |
+
+The engine gained `MatchSetup` (`zone`, `hp`) for bosses and a per-player `maxHp`.
+
+First report (`--games 40`, 2,880 games, normal AI): see the stage B pull request. The matrix is a balance tool, not a verdict: the AI undervalues support effects, so low rates for Priest and Mage may be the AI rather than the cards.
+
+First report (`--games 40`, 2,880 games, normal AI vs normal AI, about 75 s): first player wins 59.7%, median 8 rounds, Exhaustion 1.0%, no stuck games. Class win rates: Paladin 74.5, Warrior 71.3, Hunter 65.5, Druid 62.5, Rogue 43.0, Warlock 40.3, Shaman 40.0, Priest 28.9, Mage 24.1. Cards with the highest win rate when played are the big Guard and Shield bodies (011, 032, 010, 020, 009); the lowest are healing and spell cards (077, 048, 069, 128). This misses most targets of section 7.5; fixing it needs the harness to run with a smarter AI first (support and spell values) and then data patches.

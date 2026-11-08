@@ -29,6 +29,20 @@ describe("standings answer time", () => {
     warn.mockRestore(); feed.clear();
   });
 
+  it("a long poll woken near its end answers within answerWithinMs, not wait + full rebuild budget (8 Nov: 22 s)", async () => {
+    const feed = createStandingsFeed({ composeBudgetMs: 2_000, answerWithinMs: 300, wakeDelayMs: 0 });
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const first = await feed.get({ guildId: "g", memberKey: "m", header, compose: async () => parts(1) });
+    const started = Date.now();
+    setTimeout(() => feed.markChanged("g"), 200); // a change lands near the end of the wait
+    const answer = await feed.get({ guildId: "g", memberKey: "m", header, ifNoneMatch: first.etag, waitMs: 250,
+      compose: async () => { await sleep(3_000); return parts(2); } });
+    // Old behaviour: 200 ms wait + the full 2 s budget (~2.2 s). Now: what is left of 300 ms, with the 1 s floor (~1.2 s).
+    expect(Date.now() - started).toBeLessThan(1_700);
+    expect(answer.etag).toBe(first.etag);
+    info.mockRestore(); feed.clear();
+  });
+
   it("a first answer (nothing to fall back on) still waits for the rebuild", async () => {
     const feed = createStandingsFeed({ composeBudgetMs: 20 });
     const answer = await feed.get({ guildId: "g", memberKey: "m", header, compose: async () => { await sleep(60); return parts(5); } });

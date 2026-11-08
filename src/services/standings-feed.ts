@@ -35,6 +35,8 @@ export interface StandingsFeedOptions {
   maxEntries?: number;
   // A rebuild slower than this answers with the member's previous answer, if any (default 10 s).
   composeBudgetMs?: number;
+  /** Every answer leaves within this time of the request (the website Worker and companions give up at 20 s). */
+  answerWithinMs?: number;
   now?: () => number;
   // Called when a guild's shared stamp moves, so it can be kept across restarts.
   onStamp?: (guildId: string, stamp: Stamp) => void;
@@ -50,6 +52,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   const wakeDelayMs = options.wakeDelayMs ?? 1_500;
   const maxEntries = options.maxEntries ?? 500;
   const composeBudgetMs = options.composeBudgetMs ?? 10_000;
+  const answerWithinMs = options.answerWithinMs ?? 17_000;
   const now = options.now ?? Date.now;
   const cache = new Map<string, Cached>();
   const inflight = new Map<string, Promise<Cached>>();
@@ -103,7 +106,7 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
   // rebuild takes longer than `composeBudgetMs` and this member already had an answer, that
   // answer is served (its own, older stamp: never presented as newer) while the rebuild
   // finishes in the background and replaces it in the cache.
-  async function build(key: string, guildId: string, compose: () => Promise<FeedParts>, header: Record<string, unknown>, previous?: Cached): Promise<Cached> {
+  async function build(key: string, guildId: string, compose: () => Promise<FeedParts>, header: Record<string, unknown>, previous?: Cached, budgetMs = composeBudgetMs): Promise<Cached> {
     let work = inflight.get(key);
     if (!work) {
       const started = composeOnce(key, guildId, compose, header);
@@ -111,9 +114,9 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
       inflight.set(key, started);
       void started.catch(() => undefined).finally(() => { if (inflight.get(key) === started) inflight.delete(key); });
     }
-    if (!previous || composeBudgetMs <= 0) return work;
+    if (!previous || budgetMs <= 0) return work;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), composeBudgetMs); });
+    const late = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), budgetMs); });
     try {
       const winner = await Promise.race([work, late]);
       if (winner) return winner;
@@ -170,11 +173,16 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
       header: Record<string, unknown>; compose: () => Promise<FeedParts>;
     }): Promise<FeedAnswer> {
       const key = `${input.guildId}:${input.memberKey}`;
+      // 8 Nov 2026: a long poll woken near the end of its 12 s wait could then spend the whole
+      // rebuild budget (10 s) and answer after 22 s, past the Worker's 20 s limit (34 polls in
+      // 2 h). The rebuild budget is what is left of answerWithinMs, never less than 1 s.
+      const startedAt = now();
       const deadline = now() + Math.max(0, Math.min(maxWaitMs, input.waitMs ?? 0));
       for (;;) {
         const cached = cache.get(key);
         const fresh = cached && cached.generation === generation(input.guildId) && now() - cached.at < ttlMs;
-        const entry = fresh ? cached : await build(key, input.guildId, input.compose, input.header, cached);
+        const budget = composeBudgetMs <= 0 ? 0 : Math.min(composeBudgetMs, Math.max(1_000, startedAt + answerWithinMs - now()));
+        const entry = fresh ? cached : await build(key, input.guildId, input.compose, input.header, cached, budget);
         if (!input.ifNoneMatch || input.ifNoneMatch !== entry.etag) return { status: 200, etag: entry.etag, body: entry.body };
         const left = deadline - now();
         if (left <= 0) return { status: 304, etag: entry.etag };

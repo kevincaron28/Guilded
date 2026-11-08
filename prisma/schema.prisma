@@ -1000,6 +1000,8 @@ model GuildSettings {
   characterPicturesEnabled Boolean @default(true)
   // The phone card collection (TCG): on by default, officers can turn it off with /officer stats cards.
   tcgEnabled Boolean @default(true)
+  // Guild-only card trading (TCG stage D): on by default, officers can turn it off with /officer stats trading.
+  tcgTradingEnabled Boolean @default(true)
   promotionEnabled         Boolean @default(true)
   promotionFromRank        String  @default("Initiate")
   promotionMinDays         Int     @default(7)
@@ -3558,6 +3560,11 @@ model TcgPlayer {
   // Bosses cleared in the current gauntlet run (0 to 4; the run resets after the fifth) and completed runs.
   pveCleared    Int      @default(0)
   pveRuns       Int      @default(0)
+  // Matches that counted as played (the member took at least two turns): part of the trading eligibility.
+  playedCounted Int      @default(0)
+  // The member turned their own trading off; an officer or the terms removed it for abuse.
+  tradingOff    Boolean  @default(false)
+  tradeBanned   Boolean  @default(false)
   updatedAt     DateTime @updatedAt
 }
 
@@ -3575,4 +3582,51 @@ model TcgDaily {
   updatedAt     DateTime @updatedAt
 
   @@id([discordUserId, day])
+}
+
+// TCG trades (Guilded Clash stage D, docs/plans/APP_TCG_GAME.md section 6): one row per offer, kept for good as the audit log.
+model TcgTrade {
+  id            String    @id @default(cuid())
+  // The internal Guild id both members share.
+  guildId       String
+  fromUser      String
+  toUser        String
+  // "swap" (cards both ways) or "gift" (Common and Uncommon from the proposer only).
+  kind          String
+  // Card keys the proposer gives and the card keys the other member gives.
+  fromCards     Json
+  toCards       Json
+  fromValue     Int       @default(0)
+  toValue       Int       @default(0)
+  legendary     Boolean   @default(false)
+  // "open", "done", "cancelled" or "expired".
+  status        String    @default("open")
+  fromConfirmed Boolean   @default(false)
+  toConfirmed   Boolean   @default(false)
+  // After any change nobody can confirm until this passes (10 seconds).
+  lockedUntil   DateTime
+  expiresAt     DateTime
+  // Optimistic lock: every change increments it and only the request that read the current value may write.
+  version       Int       @default(0)
+  // Officer-facing flags set when the trade completed (for example a large net inflow in 7 days).
+  flags         Json      @default("[]")
+  createdAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  @@index([fromUser, createdAt])
+  @@index([toUser, createdAt])
+  @@index([status, expiresAt])
+  @@index([guildId, completedAt])
+}
+
+// Every step of a trade: offered, edited, confirmed, cancelled, expired, completed.
+model TcgTradeEvent {
+  id        String   @id @default(cuid())
+  tradeId   String
+  actor     String
+  kind      String
+  detail    Json
+  createdAt DateTime @default(now())
+
+  @@index([tradeId, createdAt])
 }

@@ -73,6 +73,16 @@ const apiMethods = new Map([
   ["/api/v1/companion/clash/concede", ["POST"]],
   ["/api/v1/companion/clash/matches", ["GET"]],
   ["/api/v1/companion/clash/pve", ["GET"]],
+  // Guild-only card trading (ids travel in the query string or body).
+  ["/api/v1/companion/clash/trade/partners", ["GET"]],
+  ["/api/v1/companion/clash/trade/cards", ["GET"]],
+  ["/api/v1/companion/clash/trades", ["GET"]],
+  ["/api/v1/companion/clash/trade", ["GET"]],
+  ["/api/v1/companion/clash/trade/offer", ["POST"]],
+  ["/api/v1/companion/clash/trade/edit", ["POST"]],
+  ["/api/v1/companion/clash/trade/confirm", ["POST"]],
+  ["/api/v1/companion/clash/trade/cancel", ["POST"]],
+  ["/api/v1/companion/clash/trade/settings", ["POST"]],
   // Track M phone guildmate map (guild members only, never public) and the member's sharing switch.
   ["/api/v1/companion/guild-map", ["GET", "POST"]],
   ["/api/v1/manage", ["GET", "POST"]],

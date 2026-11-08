@@ -1,3 +1,4 @@
+> 9.0.4 (8 November 2026): no more "blocked action" warning at login (RosterProfessions taint, #595), several WoW accounts per member in the companion (#592, #593), plus the bot updates live since 9.0.3: character pictures, record cards, Discord polish (French, card text fits), item previews always link, WoW role button fix, addon-import failure reasons and retries, deploy guards after the 7-8 Nov freeze (#598, #601) and an uptime email. Store: submit with every companion release (owner, 7 Nov).
 > 9.0.3 (7 November 2026): WoW Forever only everywhere (addons, companion, packaging, website and bot; old rows kept, stage 7 declined), world PvP board, any online guild member tagged for invites with join auto-detect, correct roles on dungeon cards, plain-letter names on cards, lighter deploys. Owner decisions: character pictures and several accounts per member approved; paid tier stays off. Store: skipped unless the owner asks.
 > 9.0.2 (7 November 2026): companion redesign with automatic setup, an installer that replaces a Store install, in-game crafting orders, dungeon stats screens, world PvP stats, traced dungeon maps, profession badges, the false call-for-help fix; bot: guild activity ladder, Top crafters, craft order channels, duel scoring by level, 24h rank arrows, read-only boards, rookie of the week, countdowns removed, low-priority deploys. Store: skipped unless the owner asks (next package 9.0.2.0).
 > 9.0.1 (7 November 2026): fix release after 9.0.0 — addon fixes (guild snapshot error, companion download window, roster admin window, Info and data tab, officer notes, sync relay), bot fixes (one dungeon card per run, nickname sync, race to 60 cards, Delete my data, full names) and website updates. Store: ship the companion as 9.0.1.0.
@@ -22,7 +23,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (7 November 2026): version 9.0.3, protocol 2.**
+**Current status (7 November 2026): version 9.0.4, protocol 2.**
 8.4.7 is on GitHub (latest release) and the bot. CurseForge has the 8.4.6 Forever files; the
 Store has 8.4.4.0 live with 8.4.6.0 in certification. Check each provider live before claiming
 status. WoW Forever launched 4 November 2026; its first raids open 9 December.

@@ -1233,6 +1233,16 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
   Firebase project (`google-services.json`); then Google Play (12 testers for 14 days). On this PC
   run EAS as `npx.cmd eas-cli …` (PowerShell blocks plain `npx`).
 
+## Discord text audit (owner, 8 November 2026)
+
+Keep what the bot and the docs say about Discord accurate, especially messages that name a channel.
+Done in the 8 November audit: `tests/channel-names-in-text.test.ts` fails when member-facing text (bot strings, website
+pages, the member install guide) names a retired channel (#bot-faq, #wow-personnage, the PvP groups channel) or a channel
+`/setup` does not create; stale mentions in the docs and site were fixed. The read-only look at the live servers' topics, pins and
+posted guides is in [DISCORD_TEXT_AUDIT_2026-11-08.md](docs/DISCORD_TEXT_AUDIT_2026-11-08.md); the owner or coordinator applies its edits
+in Québec Gold (the bot never edits there by hand). Repeat after every channel is added, merged or retired (add the new name to
+`src/setup-names.ts` and the test follows).
+
 ## Later
 
 - Raid leader tools live in the separate **Pullscript** addon (CurseForge 1729283).

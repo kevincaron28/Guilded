@@ -131,6 +131,8 @@ export function channelSpec(field: ChannelField, lang: Lang): ChannelSpec {
 // Every name the bot has ever given this channel (either language).
 // Names used by earlier versions still count (the group finder was "dungeon-signups").
 const LEGACY_NAMES: Partial<Record<ChannelField, string[]>> = { guideChannelId: [`${BRAND.channelPrefix}-addon`], raidSignupChannelId: ["raid-inscription", "raid-inscriptions"], dungeonSignupChannelId: ["dungeon-signups", "inscriptions-donjon"] };
+/** Every channel field /setup knows (the guard test checks member-facing text against their names). */
+export const CHANNEL_FIELDS = Object.keys(TEXT.en) as ChannelField[];
 export const channelNames = (field: ChannelField): string[] => [TEXT.en[field].name, TEXT.fr[field].name, ...(LEGACY_NAMES[field] ?? [])];
 export const categoryNames = (key: CategoryKey): string[] => [...new Set([
   CATEGORY_NAMES.en[key], CATEGORY_NAMES.fr[key], ...(key === "guild" ? ["⚜️ Guild", "⚜️ Guilde"] : key === "raid" ? ["⚔️ Raids"] : [])

@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  html, body { margin: 0; width: 1024px; height: 500px; overflow: hidden; background: #0b0c0b; font-family: "Segoe UI", system-ui, sans-serif; }
+  .wrap { position: relative; width: 1024px; height: 500px; background:
+    radial-gradient(circle at 78% 40%, rgba(213,173,87,0.20), transparent 46%),
+    linear-gradient(135deg, #0b0c0b 0%, #151714 60%, #1c1a12 100%); }
+  .grid { position: absolute; inset: 0; background-image: linear-gradient(#20231e 1px, transparent 1px), linear-gradient(90deg, #20231e 1px, transparent 1px); background-size: 42px 42px; opacity: 0.55; }
+  .text { position: absolute; left: 72px; top: 118px; width: 520px; }
+  .brand { color: #d5ad57; font-size: 64px; font-weight: 900; letter-spacing: 12px; }
+  .line { width: 120px; height: 4px; background: #d5ad57; margin: 18px 0 26px; }
+  .tag { color: #f3f0e7; font-size: 34px; font-weight: 700; line-height: 1.2; }
+  .sub { color: #aaa99f; font-size: 20px; margin-top: 16px; }
+  .phone { position: absolute; right: 120px; top: 52px; width: 230px; height: 420px; border-radius: 30px; border: 3px solid #d5ad57; background: #0f110e; box-shadow: 0 0 60px rgba(213,173,87,0.25); overflow: hidden; }
+  .bar { height: 34px; border-bottom: 1px solid #282b25; color: #d5ad57; font-weight: 900; letter-spacing: 3px; font-size: 13px; padding: 10px 16px 0; }
+  .card { margin: 12px; padding: 10px; border: 1px solid #282b25; border-top: 3px solid #d5ad57; border-radius: 10px; background: #151714; }
+  .row { height: 10px; border-radius: 5px; background: #282b25; margin: 8px 0; }
+  .dots { position: relative; height: 120px; margin: 12px; border: 1px solid #282b25; border-radius: 8px; background: #0b0c0b; }
+  .dot { position: absolute; width: 12px; height: 12px; border-radius: 6px; border: 1px solid #000; }
+  .heat { position: absolute; width: 26px; height: 22px; background: #d5ad57; opacity: 0.35; }
+  .tabs { position: absolute; bottom: 0; left: 0; right: 0; height: 40px; border-top: 1px solid #282b25; display: flex; }
+  .tabs span { flex: 1; height: 6px; margin: 17px 10px; border-radius: 3px; background: #282b25; }
+  .tabs span.on { background: #d5ad57; }
+</style></head><body><div class="wrap"><div class="grid"></div>
+  <div class="text">
+    <div class="brand">GUILDED</div>
+    <div class="line"></div>
+    <div class="tag">Your guild,<br>in your pocket.</div>
+    <div class="sub">Roster · Guild map · Raids · Badges · Leaderboards</div>
+  </div>
+  <div class="phone">
+    <div class="bar">GUILDED</div>
+    <div class="card"><div class="row" style="width:60%;background:#d5ad57;opacity:.8"></div><div class="row"></div><div class="row" style="width:75%"></div></div>
+    <div class="dots">
+      <div class="heat" style="left:30px;top:24px"></div><div class="heat" style="left:56px;top:24px;opacity:.55"></div><div class="heat" style="left:120px;top:70px"></div>
+      <div class="dot" style="left:44px;top:30px;background:#c69b6d"></div><div class="dot" style="left:126px;top:74px;background:#3fc7eb"></div><div class="dot" style="left:160px;top:40px;background:#ffffff"></div>
+      <div class="dot" style="left:96px;top:56px;background:#e0624f;width:16px;height:16px;border-radius:8px"></div>
+    </div>
+    <div class="card"><div class="row" style="width:40%;background:#9fbd83"></div><div class="row"></div></div>
+    <div class="tabs"><span class="on"></span><span></span><span></span><span></span><span></span></div>
+  </div>
+</div></body></html>

@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { ACHIEVEMENTS, RETIRED_ACHIEVEMENT_IDS, wowLevelCap, type AchievementDef, type AchievementMetric } from "./achievements-catalogue.js";
+import { earnedGameAchievements } from "./game-achievements.js";
 import { anniversariesAttended, serverCreatedAt } from "./server-anniversary.js";
 
 // Evaluates the catalogue against recorded data and stores what a member newly earned. Viewing is the only
@@ -83,6 +84,7 @@ function measure(def: AchievementDef, facts: AchievementFacts): { value: number;
     case "duelWins": return { value: facts.duelWins, at: null };
     case "duelStreak": return { value: facts.duelStreak, at: null };
     case "beatTopDuelist": return { value: facts.beatTopDuelist, at: null };
+    case "gameAchievement": return { value: 0, at: null }; // generated rows are stored from the addon's record, never evaluated
     case "poeLevel": {
       const reached = facts.poeLevels.filter(row => row.level >= threshold).sort((a, b) => a.reachedAt.getTime() - b.reachedAt.getTime())[0];
       return { value: facts.poeLevels.reduce((best, row) => Math.max(best, row.level), 0), at: reached?.reachedAt ?? null };
@@ -102,7 +104,7 @@ export function evaluateAchievements(facts: AchievementFacts, now: Date): Achiev
   });
 }
 
-type Db = Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement" | "memberMilestone" | "duelResult" | "craftRequest" | "recipeKnown">;
+type Db = Partial<Pick<PrismaClient, "gameAchievement">> & Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "member" | "memberAchievement" | "memberMilestone" | "duelResult" | "craftRequest" | "recipeKnown">;
 
 const dedupe = <T>(rows: T[], key: (row: T) => string) => { const seen = new Set<string>(); return rows.filter(row => { const k = key(row); if (seen.has(k)) return false; seen.add(k); return true; }); };
 
@@ -233,7 +235,10 @@ export interface MemberAchievementView {
  * make repeats, races and concurrent views safe, and an earned row is never changed or removed.
  */
 export async function syncMemberAchievements(db: Db, guildId: string, memberId: string, now = new Date()): Promise<MemberAchievementView> {
-  const results = evaluateAchievements(await gatherAchievementFacts(db, guildId, memberId), now);
+  const evaluated = evaluateAchievements(await gatherAchievementFacts(db, guildId, memberId), now);
+  // WoW Forever's own achievements, as the member's addon recorded them (kept as stored; the date is the client's).
+  const generated = await earnedGameAchievements(db, guildId, memberId);
+  const results: AchievementResult[] = [...evaluated, ...generated.map(row => ({ def: row.def, value: 1, earned: true, earnedAt: row.earnedAt <= now ? row.earnedAt : now }))];
   const stored = await db.memberAchievement.findMany({ where: { guildId, memberId }, select: { key: true, earnedAt: true, value: true } });
   const have = new Map(stored.map(row => [row.key, row]));
   const fresh = results.filter(row => row.earned && !have.has(row.def.id));

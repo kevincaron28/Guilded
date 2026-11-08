@@ -5,6 +5,7 @@
 --   hk      lifetime honorable kills: 1, 100, 500, 1000
 --   duel    duels won against guildmates: 1, 10, 50, 100 (Duels.lua)
 --   prof    profession skill steps 75, 150, 225, 300 (150 and 300 are announced; the others are recorded for the bot)
+--   ach     every WoW Forever in-game achievement (Modules/GameAchievements.lua records them here; the newest is announced)
 --
 -- ON by default for every character (owner decision, 5 Nov 2026): the first time a line is about to go out, a one-time
 -- local notice (chat frame only) says so and how to stop. Each player can turn it off, or turn single types off
@@ -26,7 +27,7 @@ local THROTTLE = 30
 local RETRY_COMBAT = 15
 local MAX_TRIES = 4
 local MAX_LOG = 200
-local KINDS = { "level", "dungeon", "hk", "duel", "prof" }
+local KINDS = { "level", "dungeon", "hk", "duel", "prof", "ach" }
 local HK_STEPS = { 1, 100, 500, 1000 }
 local DUEL_STEPS = { 1, 10, 50, 100 }
 local PROF_STEPS = { 75, 150, 225, 300 }
@@ -102,6 +103,8 @@ local function messageFor(item, name)
     return string.format(L("%s reached %d honorable kills!"), name, item.value)
   elseif item.kind == "prof" then
     return string.format(L("%s reached skill %d in %s!"), name, item.value, item.label or "?")
+  elseif item.kind == "ach" then
+    return string.format(L("%s earned the achievement %s!"), name, item.label or "?")
   elseif item.kind == "duel" then
     if item.value == 1 then return string.format(L("%s won a first duel!"), name) end
     return string.format(L("%s has won %d duels!"), name, item.value)
@@ -157,9 +160,11 @@ end
 function ms.reach(id, ref, item, silent)
   local c = current()
   if not c or not active() or c.done[id] then return false end
-  local at = epoch()
+  -- An achievement carries the date the game gave it (and its text, for the bot's badge catalogue); everything else is "now".
+  local at = tonumber(item.at) or epoch()
   c.done[id] = at
-  c.log[#c.log + 1] = { id = id, kind = item.kind, ref = ref, value = item.value, at = at }
+  c.log[#c.log + 1] = { id = id, kind = item.kind, ref = ref, value = item.value, at = at, label = item.kind == "ach" and item.label or nil,
+    desc = item.kind == "ach" and item.desc or nil, category = item.kind == "ach" and item.category or nil, points = item.kind == "ach" and item.points or nil }
   while #c.log > MAX_LOG do table.remove(c.log, 1) end
   if not silent and c.settings.enabled ~= false and not ms.guildOff() and c.settings[item.kind] ~= false and c.baselined then
     queue[#queue + 1] = item
@@ -226,6 +231,9 @@ function ms.checkProfessions()
     end
   end
 end
+
+-- This character's record, for Modules/GameAchievements.lua (settings, what was reached, the upload log).
+function ms.state() return (current()) end
 
 -- Dungeon.lua's finished-run hook: the first completed run of each dungeon, for this character.
 function ms.onDungeonRun(run)
@@ -300,6 +308,7 @@ local function status()
   ns.message(string.format(L("Milestone announcements in guild chat: %s. Level %s, dungeons %s, honorable kills %s, duels %s, professions %s."),
     stateWord(c.settings.enabled ~= false), stateWord(c.settings.level ~= false), stateWord(c.settings.dungeon ~= false),
     stateWord(c.settings.hk ~= false), stateWord(c.settings.duel ~= false), stateWord(c.settings.prof ~= false)))
+  ns.message(string.format(L("Achievements in guild chat: %s."), stateWord(c.settings.ach ~= false)))
   if ms.guildOff() then ns.message(L("Milestone announcements are turned off for the whole guild by an officer.")) end
 end
 local function handle(args)
@@ -318,7 +327,7 @@ local function handle(args)
       if a == kind and (b == "on" or b == "off") then ms.setEnabled(b == "on", kind); status(); return end
     end
     status()
-    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof on|off | guild on|off (officers)")
+    ns.message("/guilded announce on | off | level|dungeon|hk|duel|prof|ach on|off | guild on|off (officers)")
   end
 end
 ns.commandHandlers = ns.commandHandlers or {}

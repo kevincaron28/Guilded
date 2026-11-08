@@ -25,7 +25,7 @@ describe("achievement catalogue", () => {
     expect([...new Set(ACHIEVEMENTS.map(row => row.game))].sort()).toEqual(["guild", "wow"]);
   });
   it("is version 8: only WoW Forever and guild rows, and every retired id stays out of it for good", () => {
-    expect(ACHIEVEMENT_CATALOGUE_VERSION).toBe(8);
+    expect(ACHIEVEMENT_CATALOGUE_VERSION).toBe(9);
     expect(CATALOGUE_EDITIONS).toEqual(["forever"]);
     for (const row of ACHIEVEMENTS) expect(row.game === "guild" || row.id.startsWith("wow-forever-"), row.id).toBe(true);
     expect(new Set(RETIRED_ACHIEVEMENT_IDS).size).toBe(RETIRED_ACHIEVEMENT_IDS.length);

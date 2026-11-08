@@ -608,6 +608,18 @@ export function exportGuildData(database) {
   return out;
 }
 
+// The text of an in-game achievement row (kind "ach"): name, description, category and points as the client showed them.
+const clean = (value, max) => typeof value === "string" ? value.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, max) : "";
+function achievementText(row) {
+  const out = {};
+  const label = clean(row.label, 80), desc = clean(row.desc, 200), category = clean(row.category, 60);
+  if (label) out.label = label;
+  if (desc) out.desc = desc;
+  if (category) out.category = category;
+  if (Number.isSafeInteger(row.points) && row.points >= 0 && row.points <= 1000) out.points = row.points;
+  return out;
+}
+
 // Personal milestones (Modules/Milestones.lua): level steps, first dungeon clears, honorable kills, duel wins. Own characters
 // only, numbers and dates; the Discord echo is the server's own opt-in, never decided here.
 export function exportMilestones(database) {
@@ -617,13 +629,15 @@ export function exportMilestones(database) {
   for (const entry of Object.values(chars)) {
     if (!entry || typeof entry.name !== "string" || !entry.name || entry.name.length > 80 || typeof entry.log !== "object" || !entry.log) continue;
     for (const row of Object.values(entry.log)) {
-      if (!row || !["level", "dungeon", "hk", "duel", "prof"].includes(row.kind) || typeof row.ref !== "string"
+      if (!row || !["level", "dungeon", "hk", "duel", "prof", "ach"].includes(row.kind) || typeof row.ref !== "string"
         || !/^[a-z]{2,10}:[A-Za-z0-9_-]{1,30}$/.test(row.ref) || !Number.isSafeInteger(row.value) || row.value < 0 || row.value > 1000000
         || !Number.isSafeInteger(row.at) || row.at <= 0 || row.at >= 4102444800) continue;
-      out.push({ character: entry.name, realm: typeof entry.realm === "string" ? entry.realm.slice(0, 100) : "", kind: row.kind, ref: row.ref, value: row.value, at: row.at });
+      const extra = row.kind === "ach" ? achievementText(row) : {};
+      if (row.kind === "ach" && !extra.label) continue; // an in-game achievement without its name cannot become a badge
+      out.push({ character: entry.name, realm: typeof entry.realm === "string" ? entry.realm.slice(0, 100) : "", kind: row.kind, ref: row.ref, value: row.value, at: row.at, ...extra });
     }
   }
-  return out.sort((a, b) => b.at - a.at).slice(0, 300);
+  return out.sort((a, b) => b.at - a.at).slice(0, 600);
 }
 
 // The character's rank in the WoW guild the saved data belongs to: { guildRankName, guildRankIndex }

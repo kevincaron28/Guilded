@@ -3042,6 +3042,21 @@ model DuelResult {
 // Personal milestones the member's own addon recorded (level steps, first dungeon clears, honorable kills,
 // duel wins). Numbers and dates only. Feeds the achievements; posting to Discord stays the guild's own
 // opt-in (/config achievements), never automatic.
+/// WoW Forever's in-game achievements as members' addons reported them: the generated catalogue behind the forever-ach-N badges
+/// (docs/plans/FOREVER_ACHIEVEMENTS.md). Game data, not personal: first report of an id wins, names are never rewritten.
+model GameAchievement {
+  id           String   @id @default(cuid())
+  gameEdition  String   @default("forever")
+  achievementId Int
+  name         String
+  description  String   @default("")
+  categoryName String   @default("")
+  points       Int      @default(0)
+  firstSeenAt  DateTime @default(now())
+
+  @@unique([gameEdition, achievementId])
+}
+
 model MemberMilestone {
   id          String   @id @default(cuid())
   guildId     String

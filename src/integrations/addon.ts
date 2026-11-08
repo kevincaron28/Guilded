@@ -280,7 +280,7 @@ export const addonSnapshotSchema = z.object({
   // Guild duels and personal milestones (8.4.5). Each row is validated on apply (services/duels), so one
   // malformed row never rejects the upload.
   duelResults: z.array(z.unknown()).max(200).default([]),
-  milestones: z.array(z.unknown()).max(300).default([]),
+  milestones: z.array(z.unknown()).max(600).default([]),
   // 8.5 guild data (services/guild-data.ts): the game's guild roster, event log and info text.
   // Validated row by row on apply, so one odd row never rejects the upload.
   guildRoster: z.object({ at: z.number().int().positive(), complete: z.boolean().default(false), members: z.array(z.unknown()).max(1000).default([]) }).optional(),

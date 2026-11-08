@@ -1,8 +1,8 @@
 # Guilded Collection: card art proposal (option 2 of `APP_TCG.md`)
 
-Status: **proposal for the owner to approve, 8 November 2026.** Nothing is built. Pick a direction (or ask for changes) before the pack build starts.
+Status: **owner picked style A, "Gold and stone", on 8 November 2026**, asking for richer, WoW Forever-inspired artwork. This is art pass 2 (illustrated scenes replace the first pass's simple emblems). Nothing is built in the app yet.
 
-All art here is original Guilded vector iconography in the guild's WoW gold theme (the same dark stone, parchment and bright-gold palette as `src/services/score-card.ts`). No Blizzard art, icons or screenshots. Class names are plain text. Regenerate the samples with `node docs/plans/app-tcg-art/make-samples.mjs`.
+All art here is original Guilded vector illustration in the guild's WoW gold theme (the same dark stone, parchment and bright-gold palette as `src/services/score-card.ts`). No Blizzard art, icons or screenshots. Class names are plain text. Regenerate the samples with `node docs/plans/app-tcg-art/make-samples.mjs`.
 
 ## The three sample cards
 
@@ -26,9 +26,15 @@ Rarity uses the colours WoW players already read as quality, so it feels native 
 
 Rules: colour is never the only signal (the footer also says the rarity in words and the gem shape grows with rarity), so it stays readable for colour-blind members. Rarer cards add ornament, not clutter: the art window and text positions never move.
 
-## Class cards: the art idea
+## Class cards: the art (pass 2)
 
-Each of the 9 classes is a bold, original emblem (shield and crossed blades, arcane star, sunburst cross, and so on) drawn as clean vector lines over a radial glow in the class tone. Three treatments per class (the plan's "9 x 3"): **plain emblem** (Common), **tinted glow** (Rare), **gilded emblem with sunburst rays** (Epic). It is cheap to draw, scales to any phone and reuses the same SVG approach as the badge glyphs in `achievement-badges.ts`. A later pass can swap in commissioned illustration without changing the frame.
+Each card now has a layered scene generated in code (SVG through sharp, `make-samples.mjs`), so it scales to any phone, stays in the repo and renders the same every time. Every scene is built from the same layers: a lit sky, distant ridges, fog bands, a silhouette with rim light, atmospheric particles (embers, stars, golden motes), a painterly noise overlay, a vignette and film grain.
+
+- **Warrior (Common)**: a setting sun over a battlefield ridge, red banners, crossed axes behind a gold-rimmed shield, a shield wall and spear tips in the foreground.
+- **Mage (Rare)**: a robed figure holding a glowing arcane orb with an orbiting rune ring, a crystal-tipped staff, a crescent moon and distant towers, framed by a stone tower window in the foreground.
+- **Paladin (Epic)**: an armoured figure with a crested helm, a gold cross breastplate and a raised warhammer in front of a radiant sunburst, with cape, purple clouds and a rune circle on the ground.
+
+Original only: shapes are drawn from scratch (no Blizzard logos, icons, screenshots, character likenesses or traced art), class names are plain text, and the look follows classic fantasy conventions rather than copying anyone's trade dress. Three treatments per class are kept from the plan (9 x 3): the Common scene is warm and muted, the Rare is cooler with glow, and the Epic is gilded with rays. The same pipeline draws the other six classes later; commissioned illustration can replace any scene without changing the frame.
 
 ## Card back and pack
 
@@ -36,14 +42,13 @@ Each of the 9 classes is a bold, original emblem (shield and crossed blades, arc
 | --- | --- |
 | ![Card back](app-tcg-art/card-back.png) | ![Pack](app-tcg-art/pack.png) |
 
-- **Card back**: gold-bordered dark stone, a sunburst ring and the Guilded shield with a check. One back for everyone; the set-completion cosmetics in the plan can unlock alternate backs later.
-- **Pack**: a crimped foil wrapper (zig-zag top and bottom) in bronze-to-dark gradient with the same shield, "Daily Pack, 5 cards". On open, the foil tears across the top, the cards fan out face down and flip one by one on tap with a "NEW" tag, as in the plan.
+- **Card back**: gold-bordered dark stone with a painted texture, a sunburst medallion ringed with runes, corner trim, drifting embers and the Guilded shield with a check. One back for everyone; the set-completion cosmetics in the plan can unlock alternate backs later.
+- **Pack**: a crimped foil wrapper (zig-zag top and bottom) in a bronze-to-dark gradient with a light sheen, the same rune medallion, "Daily Pack, 5 cards". On open, the foil tears across the top, the cards fan out face down and flip one by one on tap with a "NEW" tag, as in the plan.
 
-## What I need from the owner
+## Still open
 
-1. **Direction**: keep this gold-and-stone look as is, or ask for a variant (lighter parchment frames, a more ornate Legendary, a different card back).
-2. **Class emblems**: happy with abstract original emblems, or prefer commissioned illustration later (does not block the build).
-3. **Names and flavour lines** are placeholders; they are English now and will get French translations in the build.
+1. **Class emblems versus scenes for the other six classes**: the same scene approach is planned; say if any class should look different.
+2. **Names and flavour lines** are placeholders; they get French translations in the build.
 
 ## Next (after approval)
 

@@ -1,52 +1,50 @@
-/* global Blob, Request */
-import { describe, expect, it } from "vitest";
+/* global Request, Response */
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { hostedDownload } from "../worker/index.mjs";
 
-// A KV stand-in: JSON values, and pieces read back as streams.
-function kv(entries) {
-  return {
-    async get(key, type) {
-      if (!(key in entries)) return null;
-      const value = entries[key];
-      if (type === "json") return JSON.parse(value);
-      if (type === "stream") return new Blob([value]).stream();
-      return value;
-    }
-  };
-}
-const bytes = (text) => new TextEncoder().encode(text);
-const manifest = { name: "Guilded.Companion.Setup.9.0.4.exe", version: "9.0.4", size: 11, sha256: "a".repeat(64), chunks: 3, chunkKey: "downloads/Guilded.Companion.Setup.9.0.4.exe" };
-const store = {
-  "downloads/Guilded.Companion.Setup.exe": JSON.stringify(manifest),
-  "downloads/Guilded.Companion.Setup.9.0.4.exe": JSON.stringify(manifest),
-  "downloads/Guilded.Companion.Setup.9.0.4.exe#0": bytes("hell"),
-  "downloads/Guilded.Companion.Setup.9.0.4.exe#1": bytes("o wo"),
-  "downloads/Guilded.Companion.Setup.9.0.4.exe#2": bytes("rld")
-};
-const get = (path, method = "GET", entries = store) => hostedDownload(new Request(`https://guilded.kcaron.top${path}`, { method }), { OWNER_RESOURCES: kv(entries) }, { waitUntil() {} });
+// The installer comes from the bot's server (Caddy file_server); the Worker passes the body through.
+const env = { GUILDED_ORIGIN_TOKEN: "origin-token", GUILDED_ORIGIN_URL: "https://bot.example.org/" };
+const get = (path, method = "GET", headers = {}) => hostedDownload(new Request(`https://guilded.kcaron.top${path}`, { method, headers }), env, { waitUntil() {} });
+afterEach(() => vi.unstubAllGlobals());
 
-describe("companion installer served from KV (GitHub downloads timed out, 8 Nov 2026)", () => {
-  it("joins the pieces in order with the size, file name and checksum", async () => {
+describe("companion installer served from the bot's server (8 Nov 2026)", () => {
+  it("streams the server's file with its length, a download name and the origin credential", async () => {
+    const fetchMock = vi.fn(async () => new Response("hello world", { status: 200, headers: { "content-length": "11", "accept-ranges": "bytes", etag: '"abc"', server: "Caddy" } }));
+    vi.stubGlobal("fetch", fetchMock);
     const response = await get("/downloads/Guilded.Companion.Setup.exe");
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("hello world");
     expect(response.headers.get("content-length")).toBe("11");
-    expect(response.headers.get("content-disposition")).toContain("Guilded.Companion.Setup.9.0.4.exe");
-    expect(response.headers.get("x-sha256")).toBe("a".repeat(64));
+    expect(response.headers.get("accept-ranges")).toBe("bytes");
+    expect(response.headers.get("server")).toBeNull();
+    expect(response.headers.get("content-disposition")).toContain("Guilded.Companion.Setup.exe");
+    const [target, init] = fetchMock.mock.calls[0];
+    expect(target).toBe("https://bot.example.org/downloads/Guilded.Companion.Setup.exe");
+    expect(init.headers.get("x-guilded-origin")).toBe("origin-token");
   });
-  it("answers HEAD without a body and serves the versioned name too", async () => {
-    const head = await get("/downloads/Guilded.Companion.Setup.9.0.4.exe", "HEAD");
-    expect(head.status).toBe(200);
+  it("passes a resume (Range) through and answers HEAD without a body", async () => {
+    const fetchMock = vi.fn(async () => new Response("world", { status: 206, headers: { "content-range": "bytes 6-10/11", "content-length": "5" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    const partial = await get("/downloads/Guilded.Companion.Setup.9.0.6.exe", "GET", { range: "bytes=6-" });
+    expect(partial.status).toBe(206);
+    expect(partial.headers.get("content-range")).toBe("bytes 6-10/11");
+    expect(fetchMock.mock.calls[0][1].headers.get("range")).toBe("bytes=6-");
+    const head = await get("/downloads/Guilded.Companion.Setup.9.0.6.exe", "HEAD");
     expect(head.body).toBeNull();
   });
-  it("falls back to the GitHub release when nothing is stored, and ignores other paths", async () => {
-    const missing = await get("/downloads/Guilded.Companion.Setup.exe", "GET", {});
+  it("tries the next address, then falls back to the GitHub release", async () => {
+    const fetchMock = vi.fn(async () => new Response("Not found", { status: 404 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const missing = await get("/downloads/Guilded.Companion.Setup.exe");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(missing.status).toBe(302);
     expect(missing.headers.get("location")).toContain("github.com/kevincaron28/Guilded/releases/latest");
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("unreachable"); }));
+    expect((await get("/downloads/Guilded.Companion.Setup.exe")).status).toBe(302);
+  });
+  it("ignores other paths and refuses writes", async () => {
     expect(await get("/downloads/Guilded-v9.0.4-forever.zip")).toBeNull();
     expect(await get("/downloads/../secret.exe")).toBeNull();
-  });
-  it("refuses writes", async () => {
     expect((await get("/downloads/Guilded.Companion.Setup.exe", "POST")).status).toBe(405);
   });
 });

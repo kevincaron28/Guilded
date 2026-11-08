@@ -180,44 +180,50 @@ function unavailablePage(request, url) {
   } });
 }
 
-// The companion installer, served from Cloudflare KV so the website's download never depends on GitHub release
-// downloads (they returned 504 for hours on 8 November 2026). KV holds at most 25 MiB per value, so the release step
-// stores the installer in 20 MiB pieces under `<chunkKey>#0..n-1`, plus a JSON manifest at `downloads/<name>`
-// ({ name, version, size, sha256, chunks, chunkKey }). `Guilded.Companion.Setup.exe` is the manifest of the newest one.
+// The companion installer. GitHub release downloads returned 504 for hours on 8 November 2026, and streaming it from KV
+// in pieces broke on the free plan (the Worker was cut off mid-download). The bot's server now keeps the installer
+// (Caddy file_server at /downloads/, behind the origin gate) and the Worker hands its response body straight through:
+// no JavaScript runs per chunk, so nothing cuts it off. Range requests pass through, so a browser can resume.
+// If the server cannot be reached or does not have it, the visitor goes to the GitHub release instead.
 const HOSTED_DOWNLOAD = /^\/downloads\/(Guilded\.Companion\.Setup(?:\.\d{1,3}\.\d{1,3}\.\d{1,4})?\.exe)$/;
+const GITHUB_INSTALLER = "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe";
+const PASSED_HEADERS = ["content-length", "content-range", "accept-ranges", "last-modified", "etag"];
 export async function hostedDownload(request, env, ctx, url = new URL(request.url)) {
   const match = HOSTED_DOWNLOAD.exec(url.pathname);
-  if (!match || !env.OWNER_RESOURCES) return null;
+  if (!match) return null;
   if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
-  const manifest = await env.OWNER_RESOURCES.get(`downloads/${match[1]}`, "json").catch(() => null);
-  const chunks = Number(manifest?.chunks), size = Number(manifest?.size);
-  if (!manifest || !Number.isInteger(chunks) || chunks < 1 || chunks > 20 || !Number.isInteger(size) || size < 1 || typeof manifest.chunkKey !== "string" || !manifest.chunkKey.startsWith("downloads/")) {
-    // Not stored yet: the GitHub release still has it.
-    return new Response(null, { status: 302, headers: { location: `https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe`, "cache-control": "no-store" } });
+  const github = () => new Response(null, { status: 302, headers: { location: GITHUB_INSTALLER, "cache-control": "no-store" } });
+  const latest = match[1] === "Guilded.Companion.Setup.exe";
+  const headers = new Headers();
+  if (env.GUILDED_ORIGIN_TOKEN) headers.set("x-guilded-origin", env.GUILDED_ORIGIN_TOKEN);
+  for (const name of ["range", "if-none-match", "if-modified-since", "if-range"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
   }
-  const headers = {
-    "content-type": "application/vnd.microsoft.portable-executable",
-    "content-length": String(size),
-    "content-disposition": `attachment; filename="${String(manifest.name ?? match[1]).replace(/[^A-Za-z0-9._-]/g, "")}"`,
-    "cache-control": match[1] === "Guilded.Companion.Setup.exe" ? "public, max-age=300" : "public, max-age=86400",
-    ...(typeof manifest.sha256 === "string" && /^[0-9a-f]{64}$/.test(manifest.sha256) ? { "x-sha256": manifest.sha256 } : {})
-  };
-  if (request.method === "HEAD") return new Response(null, { status: 200, headers });
-  const { readable, writable } = new TransformStream();
-  const pump = (async () => {
+  for (const origin of botOrigins(env)) {
+    // Give up on an origin that has not started answering in 15 seconds; once it answers, the download runs as long as it needs.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
     try {
-      for (let index = 0; index < chunks; index++) {
-        const part = await env.OWNER_RESOURCES.get(`${manifest.chunkKey}#${index}`, "stream");
-        if (!part) throw new Error(`missing piece ${index}`);
-        await part.pipeTo(writable, { preventClose: true });
+      const upstream = await fetch(`${origin}/downloads/${match[1]}`, { method: request.method, headers, redirect: "manual", signal: controller.signal, cf: { cacheTtl: 0, cacheEverything: false } });
+      clearTimeout(timer);
+      if (![200, 206, 304, 416].includes(upstream.status)) { await upstream.body?.cancel(); continue; }
+      const out = new Headers({
+        "content-type": "application/vnd.microsoft.portable-executable",
+        "content-disposition": `attachment; filename="${match[1]}"`,
+        "cache-control": latest ? "no-cache" : "public, max-age=86400",
+        "x-content-type-options": "nosniff"
+      });
+      for (const name of PASSED_HEADERS) {
+        const value = upstream.headers.get(name);
+        if (value) out.set(name, value);
       }
-      await writable.close();
-    } catch (error) {
-      await writable.abort(error).catch(() => undefined);
+      return new Response(request.method === "HEAD" ? null : upstream.body, { status: upstream.status, headers: out });
+    } catch {
+      clearTimeout(timer);
     }
-  })();
-  ctx?.waitUntil?.(pump);
-  return new Response(readable, { status: 200, headers });
+  }
+  return github();
 }
 
 export default {

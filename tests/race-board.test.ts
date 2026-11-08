@@ -45,15 +45,16 @@ describe("race to 60 state", () => {
 
 describe("race board embed and card", () => {
   it("has English and French empty states and the marker", () => {
-    expect(raceBoardEmbed(data([]), "en", "g1").toJSON().description).toContain("No levelled character");
-    const fr = raceBoardEmbed(data([]), "fr", "g1").toJSON();
+    expect(raceBoardEmbed(data([]), "en").toJSON().description).toContain("No levelled character");
+    const fr = raceBoardEmbed(data([]), "fr").toJSON();
     expect(fr.title).toBe("🏁 Course au niveau 60");
-    expect(fr.footer?.text?.startsWith(`${RACE_BOARD_MARKER} • g1 •`)).toBe(true);
+    expect(fr.footer?.text).toBe("/character race near trouve des partenaires de ton niveau");
+    expect(fr.footer?.text).not.toContain(RACE_BOARD_MARKER);
   });
   it("lists the top characters with class, race, level bar, professions, last seen and the linked member", () => {
     const rows = [row("Aria", 60, { reachedMaxAt: new Date("2026-11-06T12:00:00Z"), weekGain: 4, discordId: "42" }),
       row("Brom", 41, { weekGain: 9, professions: ["Mining 300", "Herbalism 225", "Cooking 100"], lastSeenAt: new Date("2026-11-06T10:00:00Z") }), row("Cy", 20)];
-    const json = raceBoardEmbed(data(rows), "en", "g1", { image: "race.png" }).toJSON();
+    const json = raceBoardEmbed(data(rows), "en", { image: "race.png" }).toJSON();
     expect(json.description).toContain("Top **3** of **3** characters on the card");
     expect(json.description).toContain("**1.** [Aria](<https://worldofwarcraft.blizzard.com/en-us/forever/us/armory?q=Aria>) · Mage Human · **60** ✅ <t:1793966400:d> · <@42>");
     expect(json.description).toContain("**2.** [Brom](<https://worldofwarcraft.blizzard.com/en-us/forever/us/armory?q=Brom>) · Mage Human · **41** ▰▰▰▰▰▱▱▱ 68% · Mining 300, Herbalism 225 · seen <t:1793959200:R>");
@@ -61,17 +62,17 @@ describe("race board embed and card", () => {
     expect(json.fields ?? []).toHaveLength(0); // the card carries the weekly gains
     expect(json.image?.url).toBe("attachment://race.png");
     // without a card (drawing busy) the embed falls back to the full list, gains and count
-    const plain = raceBoardEmbed(data(rows), "en", "g1").toJSON();
+    const plain = raceBoardEmbed(data(rows), "en").toJSON();
     expect(plain.fields?.map(f => f.name)).toEqual(["Most levels this week", "Level 60"]);
     expect(plain.fields?.[0]?.value).toBe("Brom +9\nAria +4");
   });
   it("lists only the top N, escapes markdown and stays inside the embed limit", () => {
     const many = Array.from({ length: 40 }, (_, i) => row(i === 0 ? "**Bold**" : `Player${i}`, 59 - i, { professions: ["Alchemy 300", "Herbalism 300"], discordId: "123456789012345678", lastSeenAt: new Date("2026-11-06T10:00:00Z") }));
-    const json = raceBoardEmbed(data(many), "en", "g1", { top: 25 }).toJSON();
+    const json = raceBoardEmbed(data(many), "en", { top: 25 }).toJSON();
     expect(json.description?.split("\n").filter(line => /^\*\*\d+\./.test(line))).toHaveLength(25);
     expect(json.description).toContain("Top **25** of **40**");
     // with the card the embed stays short: the three leaders only
-    const short = raceBoardEmbed(data(many), "en", "g1", { top: 25, image: "race.png" }).toJSON();
+    const short = raceBoardEmbed(data(many), "en", { top: 25, image: "race.png" }).toJSON();
     expect(short.description?.split("\n").filter(line => /^\*\*\d+\./.test(line))).toHaveLength(3);
     expect(short.description).toContain("Top **25** of **40**");
     expect(json.description).toContain("\\*\\*Bold\\*\\*");
@@ -85,7 +86,7 @@ describe("race board embed and card", () => {
     expect(hallMode(done, false)).toBe(true);
     expect(hallMode(data([row("A", 60), row("B", 30), row("C", 12)]), false)).toBe(false);
     expect(hallMode(data([row("A", 60), row("B", 30), row("C", 12)]), true)).toBe(true);
-    const json = raceBoardEmbed(data([row("Late", 60, { reachedMaxAt: new Date("2026-11-08T00:00:00Z") }), row("Early", 60, { reachedMaxAt: new Date("2026-11-06T00:00:00Z") }), row("Racer", 30)]), "fr", "g1", { hall: true }).toJSON();
+    const json = raceBoardEmbed(data([row("Late", 60, { reachedMaxAt: new Date("2026-11-08T00:00:00Z") }), row("Early", 60, { reachedMaxAt: new Date("2026-11-06T00:00:00Z") }), row("Racer", 30)]), "fr", { hall: true }).toJSON();
     expect(json.title).toContain("Temple de la renommée");
     expect(json.description!.indexOf("Early")).toBeLessThan(json.description!.indexOf("Late"));
     expect(json.description).not.toContain("Racer");
@@ -291,13 +292,14 @@ describe("battleground ladder (separate from the duel ladder)", () => {
     expect(ladders[0]!.standings.map(p => [p.name, p.wins, p.losses, p.draws, p.games])).toEqual([["Aria", 3, 1, 0, 4], ["Brom", 3, 0, 1, 4]]);
   });
   it("labels the board as player reports, shows the French empty state and carries the marker", () => {
-    const empty = bgLadderEmbed({ brackets: [], participations: 0, edition: "forever" }, "fr", "g1").toJSON();
+    const empty = bgLadderEmbed({ brackets: [], participations: 0, edition: "forever" }, "fr").toJSON();
     expect(empty.title).toBe("🏴 Classement des champs de bataille");
-    expect(empty.footer?.text?.startsWith(`${BG_LADDER_MARKER} • g1 •`)).toBe(true);
-    const json = bgLadderEmbed({ brackets: bgLadders([group("a", "win", 2)], names), participations: 2, edition: "forever" }, "en", "g1").toJSON();
+    expect(empty.footer?.text).not.toContain(BG_LADDER_MARKER);
+    expect(empty.footer?.text).toContain("non vérifiés par Blizzard");
+    const json = bgLadderEmbed({ brackets: bgLadders([group("a", "win", 2)], names), participations: 2, edition: "forever" }, "en").toJSON();
     expect(json.fields?.[0]).toMatchObject({ name: "casual · 10-19" });
     expect(json.fields?.[0]?.value).toContain("🥇 Aria — 2W 0L · 100% · 2 games");
-    expect(json.footer?.text).toContain("player reports, not verified matches");
+    expect(json.footer?.text).toContain("not verified by Blizzard");
     expect(json.footer?.text).toContain("separate from the duel ladder");
   });
 });

@@ -1,4 +1,5 @@
 import { AttachmentBuilder, EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
+import { isOwnBoard } from "./board-identity.js";
 import { prisma } from "../database.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -44,7 +45,7 @@ export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBoo
 }
 
 /** Pure: the board's embed. Same input, same output (the timestamp is added by the caller). With `image`, the card holds the ladder and the embed names the top 3. */
-export function duelBoardEmbed(data: DuelBoardData, lang: Lang, guildId = "", image?: string): EmbedBuilder {
+export function duelBoardEmbed(data: DuelBoardData, lang: Lang, image?: string): EmbedBuilder {
   const fr = lang === "fr";
   const t = (en: string, french: string) => fr ? french : en;
   const name = (value: string) => escapeMarkdown(value).slice(0, 40);
@@ -63,7 +64,7 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, guildId = "", im
     }
   }
   if (image && data.standings.length) embed.setImage(`attachment://${image}`);
-  return embed.setFooter({ text: `${DUEL_BOARD_MARKER} • ${guildId} • ${t(`${data.duels} counted duels · ${data.edition} · score: 10 per win, +2 per level above you, -2 per level below (0-20) · max 5 per pair per day · no rewards`, `${data.duels} duels comptés · ${data.edition} · score : 10 par victoire, +2 par niveau au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour · aucune récompense`)}`.slice(0, 2048) });
+  return embed.setFooter({ text: t(`${data.duels} counted duels · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · max 5 per pair per day · no rewards`, `${data.duels} duels comptés · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour · aucune récompense`) });
 }
 
 export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult">, guildId: string, edition: string, now = new Date()): Promise<DuelBoardData> {
@@ -80,7 +81,7 @@ export function withFullNames(data: DuelBoardData, book: FullNameBook): DuelBoar
     recent: data.recent.map(duel => ({ ...duel, winner: displayCharacterName(duel.winner, book), loser: displayCharacterName(duel.loser, book) })) };
 }
 
-const isBoard = (message: Message, botId: string) => message.author.id === botId && message.embeds.some(embed => embed.footer?.text?.startsWith(`${DUEL_BOARD_MARKER} •`));
+const isBoard = (message: Message, botId: string) => isOwnBoard(message, botId, DUEL_BOARD_MARKER, ["⚔️ Guild duels", "⚔️ Duels de la guilde"]);
 
 /**
  * Edits the saved board message in place; if it is gone, adopts an existing bot board in the channel before ever
@@ -108,7 +109,7 @@ export async function updateDuelBoard(discordGuild: DiscordGuild | null, deliver
     const data = withFullNames(await loadDuelBoardData(prisma, guild.id, edition), await loadFullNameBook(prisma, guild.id));
     const moves = data.standings.length ? await trackRanks(prisma, guild.id, "duel", data.standings.map(row => row.memberId)) : null;
     const png = data.standings.length ? await scoreCardPng(duelBoardCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
-    const embed = duelBoardEmbed(data, lang, guild.id, png ? DUEL_CARD_FILE : undefined).setTimestamp(new Date());
+    const embed = duelBoardEmbed(data, lang, png ? DUEL_CARD_FILE : undefined).setTimestamp(new Date());
     const payload = { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: DUEL_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";
     let existing: Message | null = settings.duelBoardMessageId ? await channel.messages.fetch(settings.duelBoardMessageId).catch(() => null) : null;

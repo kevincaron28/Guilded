@@ -25,6 +25,7 @@ import { defaultBracket, dungeonRating, hasDungeonRating, ratingEmbed, type Rati
 import { executeCooperativeGoal } from "./cooperative-goal.js";
 import { executeGroupWatch, groupWatchSubcommand } from "./group-watch.js";
 import { bossRecordLines, guildBossRecords } from "../services/dungeon-records.js";
+import { seasonLabel } from "../services/season-label.js";
 
 // Dungeon challenge views (roadmap D5). Points come from runs the addon
 // recorded and an officer imported (/import apply).
@@ -199,7 +200,7 @@ export async function executeDungeon(interaction: ChatInputCommandInteraction): 
     }
     const rows = season?.status === "ENDED" && instanceId === null ? await seasonRows(prisma, context.guildId, { ...season, ratingRules: null }) : await leaderboard(prisma, context.guildId, period, instanceId, 10, new Date(), seasonId);
     embed.setTitle(period === "season"
-      ? t(lang, "dungeon.board.season", { season: season?.name ?? "Season 1" })
+      ? t(lang, "dungeon.board.season", { season: seasonLabel(season?.name ?? "Season 1", lang) })
       : t(lang, period === "week" ? "dungeon.board.week" : "dungeon.board.all"));
     if (instanceId !== null) {
       const run = await prisma.dungeonRun.findFirst({ where: { guildId: context.guildId, instanceId }, select: { dungeonName: true } });

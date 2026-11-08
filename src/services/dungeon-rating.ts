@@ -1,4 +1,5 @@
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
+import { seasonLabel } from "./season-label.js";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { integrityStartReason, integrityPresence, integrityRole, integrityRuleWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
@@ -469,6 +470,7 @@ export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules): Ratin
   });
 }
 export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: unknown = DUNGEON_RATING_RULES, bracket?: string): EmbedBuilder {
+  seasonName = seasonLabel(seasonName, lang);
   if (validBracketedRules(rules)) return bracketRatingEmbed(rows, seasonName, lang, rules, bracket);
   const fr = lang === "fr";
   const speed = hasDungeonRating(rules) && (rules as { version: number }).version === 2;
@@ -482,8 +484,7 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
         : "Per-character rating: each alt has its own best runs. Equal ratings share a rank.")];
   if (timed) lines.push(fr ? "200 à la cible, 50–400 par donjon. Cibles figées. Sans cible : calibration, 0 point."
     : "200 at target, 50–400 per dungeon. Fixed targets. No target: calibrating, 0 points.");
-  if (timed) lines.push(fr ? "Arrondi(200 × cible ÷ durée). Somme des meilleurs scores seulement; répétitions non cumulées. Détails : `/dungeon rules`."
-    : "Round(200 × target ÷ duration). Sum of best scores only; repeats do not stack. Details: `/dungeon rules`.");
+  if (timed) lines.splice(1, 0, howToScore(fr));
   if (bestEight) lines.push(fr
     ? "**Bêta : les 8 meilleurs donjons/ailes distincts comptent.** Tous les participants doivent rester niveau 30. 1 600 à la cible; maximum 3 200. La couverture au-delà de 8 reste visible, sans points supplémentaires."
     : "**Beta: your best 8 distinct dungeons/wings count.** All participants must remain level 30. 1,600 at target; maximum 3,200. Coverage beyond 8 remains visible without extra points.");
@@ -510,6 +511,10 @@ const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {
   return `${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scored} ${fr ? "parcours classé(s)" : "ranked route(s)"}`;
 };
 /** Shown while a provisional all-level season still has a route on its starting target. */
+/** The first thing a member reads on the dungeon board: how to score, in plain words. The exact formula is in /dungeon rules. */
+export const howToScore = (fr: boolean) => fr
+  ? "**Pour marquer :** termine le donjon le plus vite possible, tue le boss final, et fais la plus grande partie du parcours avec des membres de la guilde. Ton meilleur temps par donjon compte; refaire plus lentement ne fait rien perdre. Le calcul exact : `/dungeon rules`."
+  : "**To score:** finish the dungeon as fast as you can, kill the final boss, and spend most of the run with guildmates. Your best time per dungeon counts; a slower repeat costs nothing. The exact formula: `/dungeon rules`.";
 export const provisionalNote = (fr: boolean) => fr
   ? "⚠️ **Cibles provisoires** : des recommandations en attendant de vrais chronos. Cibles communes à toutes les guildes et figées pour la saison; les ajustements attendent une future saison."
   : "⚠️ **Provisional targets**: recommendations until real timed runs exist. Targets are shared by all guilds and frozen for the season; adjustments wait for a future season.";
@@ -521,11 +526,10 @@ const bracketLabel = (b: DungeonBracket, fr: boolean) => b.min === b.max ? `${fr
 function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: BracketedRules, key?: string): EmbedBuilder {
   const fr = lang === "fr";
   const chosen = rules.brackets.find(b => b.key === key);
-  const lines = [fr ? "**Score de vitesse par tranche de niveaux · meilleure tentative par parcours**" : "**Dungeon-time rating by level bracket · best result per route**",
-    fr ? "Arrondi(200 × cible ÷ durée), 50–400 avant pénalité, puis nouvel arrondi. Un parcours classé reste dans la tranche du parcours, même avec un dépassement de niveau autorisé. Détails : `/dungeon rules`."
-      : "Round(200 × target ÷ duration), 50–400 before penalty, then round again. A ranked run stays in its route's bracket, including allowed overlevel players. Details: `/dungeon rules`.",
-    fr ? `Groupe au-dessus de la plage : −${rules.overlevelPenalty.percentPerLevel} % par niveau du plus haut participant, jusqu’à ${rules.overlevelPenalty.maxLevels} niveaux; au-delà, transport : 0.`
-      : `Group above the band: −${rules.overlevelPenalty.percentPerLevel}% per level of the highest participant, up to ${rules.overlevelPenalty.maxLevels} levels; beyond that it is a carry: 0.`];
+  const lines = [howToScore(fr),
+    fr ? "**Score de vitesse par tranche de niveaux · meilleure tentative par parcours**" : "**Dungeon-time rating by level bracket · best result per route**",
+    fr ? `Un groupe plus haut que la tranche gagne moins (−${rules.overlevelPenalty.percentPerLevel} % par niveau en trop, jusqu’à ${rules.overlevelPenalty.maxLevels}); au-delà, c’est un transport : 0.`
+      : `A group above the bracket earns less (−${rules.overlevelPenalty.percentPerLevel}% per level over, up to ${rules.overlevelPenalty.maxLevels}); beyond that it is a carry: 0.`];
   if (rules.provisionalTargets) lines.unshift(provisionalNote(fr));
   const embed = new EmbedBuilder().setColor(0x8b5cf6).setFooter({ text: footerText(fr, rules) });
   if (chosen) {

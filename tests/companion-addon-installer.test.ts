@@ -73,6 +73,7 @@ describe("addon install: what to offer", () => {
   it("names the release files of this companion version", () => {
     expect(installer.releaseAssets("8.5.0")).toEqual({
       version: "8.5.0", zipName: "Guilded-v8.5.0-forever.zip",
+      siteZip: "https://guilded.kcaron.top/downloads/Guilded-v8.5.0-forever.zip",
       zip: "https://github.com/kevincaron28/Guilded/releases/download/v8.5.0/Guilded-v8.5.0-forever.zip",
       sums: "https://github.com/kevincaron28/Guilded/releases/download/v8.5.0/SHA256SUMS-v8.5.0.txt"
     });

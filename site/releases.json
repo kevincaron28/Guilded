@@ -1,5 +1,5 @@
 {
-  "verifiedAt": "2026-11-07",
+  "verifiedAt": "2026-11-08",
   "mobile": {
     "android": {
       "version": "0.2.0",
@@ -11,12 +11,12 @@
   },
   "guilded": {
     "github": {
-      "version": "9.0.3",
+      "version": "9.0.4",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.0.3"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.0.4"
     },
     "curseforge": {
-      "version": "8.4.2",
+      "version": "9.0.3",
       "stage": "release",
       "url": "https://www.curseforge.com/wow/addons/guilded",
       "editions": {
@@ -27,9 +27,9 @@
       }
     },
     "companionDirect": {
-      "version": "9.0.3",
+      "version": "9.0.4",
       "url": "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe",
-      "sha256": "58eb7f0faf9b7ac8b1991cf5dfc918fa00ada1c17a98c6aa774f40e7b18dde17"
+      "sha256": "57e48f0280301f2f11987e2371b9c26f71b120c77b17441f1bae5e88352bf228"
     },
     "microsoftStore": {
       "version": "8.3.0",

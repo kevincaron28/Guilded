@@ -62,6 +62,10 @@ const apiMethods = new Map([
   ["/api/v1/companion/me", ["GET"]],
   // Phone badge album: the signed-in member's own achievements (read-only).
   ["/api/v1/companion/achievements", ["GET"]],
+  // Guilded Collection (phone card game): read, open the daily pack, craft.
+  ["/api/v1/companion/cards", ["GET"]],
+  ["/api/v1/companion/cards/open", ["POST"]],
+  ["/api/v1/companion/cards/craft", ["POST"]],
   // Track M phone guildmate map (guild members only, never public) and the member's sharing switch.
   ["/api/v1/companion/guild-map", ["GET", "POST"]],
   ["/api/v1/manage", ["GET", "POST"]],

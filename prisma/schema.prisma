@@ -998,6 +998,8 @@ model GuildSettings {
   // 8.5 track C5: promotion panel (Initiate -> Member). On by default; officers change the rule or switch it off.
   // 9.1 character pictures (docs/plans/CHARACTER_VISUALS.md): officers switch member pictures off for the server.
   characterPicturesEnabled Boolean @default(true)
+  // The phone card collection (TCG): on by default, officers can turn it off with /officer stats cards.
+  tcgEnabled Boolean @default(true)
   promotionEnabled         Boolean @default(true)
   promotionFromRank        String  @default("Initiate")
   promotionMinDays         Int     @default(7)
@@ -3467,4 +3469,44 @@ model CharacterPicture {
   character   Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
   @@index([guildId])
+}
+
+// TCG (Guilded Collection, docs/plans/APP_TCG.md option 2, stage 1: server side). A collection belongs to a person
+// (their Discord account), not to one server, like the phone badge album. The card catalogue lives in code
+// (src/services/tcg-catalogue.ts), like the achievements, so there is nothing to seed. Cards have no cash, EP or GP
+// value; packs are free and can never be bought.
+model TcgAccount {
+  discordUserId String   @id
+  // Packs ready to open (cap 3) and when the next one accrues from (one per 20 hours).
+  banked        Int      @default(1)
+  accruedAt     DateTime @default(now())
+  // Packs opened without an Epic (or better) and without a Legendary: the pity counters.
+  pityEpic      Int      @default(0)
+  pityLegendary Int      @default(0)
+  dust          Int      @default(0)
+  packsOpened   Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model TcgCard {
+  discordUserId String
+  cardKey       String
+  // Copies obtained in total (extra copies were turned into dust when they arrived).
+  count         Int      @default(1)
+  firstSeenAt   DateTime @default(now())
+
+  @@id([discordUserId, cardKey])
+}
+
+// One row per pack opened or card crafted: the audit and replay log (what was rolled, what it paid in dust).
+model TcgLog {
+  id            String   @id @default(cuid())
+  discordUserId String
+  kind          String
+  cards         Json
+  dustDelta     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  @@index([discordUserId, createdAt])
 }

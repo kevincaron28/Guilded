@@ -8,7 +8,7 @@ import { postGroup } from "./dungeon-group.js";
 import { guildService } from "./context.js";
 
 // The PvP group finder's Discord side. Create opens a form (any member, like the dungeon finder); the group is a normal
-// finder post (`dgrp:` buttons: Tank/Healer/DPS, Leave, Start now, Close) in the pvp-groups channel, so the waitlist, voice
+// finder post (`dgrp:` buttons: Tank/Healer/DPS, Leave, Start now, Close) in the group finder channel, so the waitlist, voice
 // channel, 24-hour expiry, LFG PvP ping and group alerts are the dungeon finder's own code.
 
 const service = createDungeonGroupService(prisma);
@@ -24,7 +24,7 @@ export function pvpGroupModal(fr: boolean, guildId: string) {
       field("levels", fr ? "Niveaux (facultatif)" : "Levels (optional)", fr ? "ex. 10-19, 60 ou 55+" : "e.g. 10-19, 60 or 55+", 9, false));
 }
 
-/** The form was submitted: one new finder post in the pvp-groups channel. */
+/** The form was submitted: one new finder post in the group finder channel. */
 export async function createPvpGroupFromModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.guild) return;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -34,11 +34,11 @@ export async function createPvpGroupFromModal(interaction: ModalSubmitInteractio
   const lang = asLang(settings?.language);
   const fr = lang === "fr";
   const member = await guildService.ensureMember(record.id, interaction.user.id, (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
-  // With the merged group finder (the default) the post goes to the finder channel; otherwise to the pvp-groups channel.
+  // With the merged group finder (the default) the post goes to the finder channel; otherwise to the old separate PvP groups channel.
   const targetId = finderChannelFor(settings, "BATTLEGROUND");
   const channel = targetId ? await guild.channels.fetch(targetId).catch(() => null) : null;
   if (!channel?.isTextBased() || !("send" in channel)) {
-    throw new Error(fr ? "Le salon des groupes JcJ n'existe pas encore : un officier lance /setup puis Créer les salons manquants." : "The PvP groups channel does not exist yet: an officer runs /setup, then Create missing channels.");
+    throw new Error(fr ? "Le salon de recherche de groupe n'existe pas encore : un officier lance /setup puis Créer les salons manquants." : "The group finder channel does not exist yet: an officer runs /setup, then Create missing channels.");
   }
   const form = parsePvpForm({ title: interaction.fields.getTextInputValue("title"), size: interaction.fields.getTextInputValue("size"), levels: interaction.fields.getTextInputValue("levels") });
   const open = await prisma.dungeonGroup.count({ where: { guildId: record.id, kind: { in: ["PVP", "WORLDPVP"] }, leaderId: member.id, status: { in: ["OPEN", "STARTED"] } } });

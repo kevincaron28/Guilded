@@ -79,6 +79,7 @@ privacy boundaries and the two-client acceptance test.
 | PasteBox.lua | always on | (none) | 7.5.0: the multi-line paste window imports use |
 | LootImports.lua | `imports` | (none) | 7.5.0: softres.it lists into Reserve.lua (`ns.reserve.importEntries`) and That's My BiS priorities onto tooltips |
 | Perf.lua | always loaded; personal opt-in | (none) | 7.5.0: `/guilded perf`, timings of Guilded events and commands plus message-queue depth while on |
+| Probe.lua | always loaded; read-only | (none) | 9.0.x: `/guilded probe achievements`, lists which achievement APIs this client has and saves a summary in `db.probes.achievements` |
 | Minimap.lua | always on | (none) | Minimap button and tools window |
 
 ## Local guild and loot rolls

@@ -34,6 +34,8 @@ live or tracked, except these, which are first for tomorrow:
    guild board votes) when the owner's second PC is on.
 5. Guilded Clash: put the 9 approved paintings into the app (Champion cards), then generate and submit the next card
    art for approval; the next phone build ships everything once Google Play is ready.
+6. **Fix the website installer download (found 8 Nov, late).** The Worker streamed the 123 MB installer from KV in 20 MiB pieces; on the free plan the Worker is cut off (CPU limit), so downloads stopped at random sizes (0.3-106 MB). Mitigation in place: the KV manifests were deleted, so `/downloads/Guilded.Companion.Setup.exe` redirects to GitHub `releases/latest` (v9.0.6, verified complete). Durable fix: serve the installer from the Oracle server through Caddy `file_server` (behind the origin gate) and have the Worker return `fetch(origin)` unchanged (native streaming, no JS per chunk), or move to R2 if the owner enables it. Until then the release recipe must NOT upload installer pieces to KV. The addon zips (site/downloads, static assets) are not affected.
+**Done 8 Nov, late:** artisan channels created in Québec Gold on the owner's yes: #commandes-artisanat (open requests) and #archive-artisanat (finished/cancelled), read-only for members, saved in GuildSettings (#548 had never been applied there). The 9 approved Champion paintings are in the app (#652).
 Not forgotten but impossible: professions and EP/GP in guild notes (WoW Forever refuses addon note edits, #618).
 
 ## Start here — 7 November 2026 (next session)

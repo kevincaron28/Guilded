@@ -177,7 +177,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | Onglet | Ce qu’il montre | Qui |
 | --- | --- | --- |
 | Home · My character · Open raids | Ce qui se passe, votre équipement, les raids avec de la place | Tout le monde |
-| Standings · Crafting · Availability | Classements, recettes, qui est en ligne | Tout le monde |
+| Standings · Crafting | Classements et recettes | Tout le monde |
 | Ready · Reserves · Loot · Council | Vérifications de soirée de raid, réserves, mises et réponses du conseil | Chefs / Tout le monde / Officiers |
 | Raid · Administration · Gear | Mener un raid, donner des EP/GP, niveau d’objet par membre | Officiers |
 | Calendar · Local guild · Roster admin · Officer tools | Calendrier, configuration sans Discord, outils de roster, journal et imports | Officiers |

@@ -80,6 +80,24 @@ export const GLYPH_BY_ID: Record<string, GlyphName> = {
   ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.rank && !def.edition && !(def.id in SINGLE_GLYPH)).map(def => [def.id, ladderGlyph(def)]))
 };
 
+/**
+ * Generated rows (in-game Forever achievements, no fixed list) pick a glyph from their text: a keyword in the name or description first
+ * (dungeon, raid, honor ...), else one of a fixed set chosen by the id, so the same achievement always draws the same badge.
+ */
+const GENERATED_KEYWORDS: [RegExp, GlyphName][] = [
+  [/dungeon|instance|spelunk|deadmines|stockade|caverns|depths/i, "door"], [/raid|boss|hyjal|onyxia|barrow/i, "banner"], [/duel/i, "duel"],
+  [/honor|rank|pvp|battleground|warsong|arathi|alterac|kill/i, "swords"], [/explor|zone|discover|journey/i, "compass"], [/quest/i, "map"],
+  [/alchemy|potion/i, "orb"], [/blacksmith|engineer|forge|smith/i, "anvil"], [/enchant|tailor|leather|skinning|herb|mining|cooking|fishing|first aid|profession|skill/i, "hammer"],
+  [/reputation|exalted|renown|faction/i, "banner"], [/gold|coin|money|wealth/i, "coin"], [/level|class|druid|hunter|mage|paladin|priest|rogue|shaman|warlock|warrior/i, "star"]
+];
+const GENERATED_POOL: GlyphName[] = ["star", "gem", "compass", "banner", "shield", "torch", "map", "key", "crown", "orb", "horn", "tower", "sword", "flame", "medal", "sparkle"];
+export function generatedGlyph(def: Pick<AchievementDef, "id" | "en">): GlyphName {
+  const text = `${def.en.name} ${def.en.description}`;
+  for (const [pattern, glyph] of GENERATED_KEYWORDS) if (pattern.test(text)) return glyph;
+  const n = Number(/(\d+)$/.exec(def.id)?.[1] ?? 0);
+  return GENERATED_POOL[n % GENERATED_POOL.length]!;
+}
+
 // Frame outlines on a 64x64 grid, one per tier: circle, hexagon, shield, octagon, spiked star, sunburst.
 const spiked = Array.from({ length: 16 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 8, d = i % 2 ? 24.500 : 30.500; return `${(32 + d * Math.cos(a)).toFixed(1)},${(32 + d * Math.sin(a)).toFixed(1)}`; }).join(" ");
 const hex = Array.from({ length: 6 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 3; return `${(32 + 29.500 * Math.cos(a)).toFixed(1)},${(32 + 29.500 * Math.sin(a)).toFixed(1)}`; }).join(" ");
@@ -122,7 +140,7 @@ export function badgeInner(def: AchievementDef, earned: boolean, tracking?: bool
   const gem = def.tier === "epic" || def.tier === "legendary" ? `<circle cx="32" cy="6.500" r="3.200" fill="${earned ? (def.tier === "epic" ? "#ff5ad0" : "#5ae6ff") : "#2a2d33"}" stroke="${edge}" stroke-width="1"/>` : "";
   // Rank pips (one per step of a long progression) under the glyph, so steps in the same tier look different.
   const pips = def.rank ? Array.from({ length: Math.min(def.rank, 10) }, (_, i) => `<circle cx="${(32 + (i - (Math.min(def.rank!, 10) - 1) / 2) * 3.200).toFixed(1)}" cy="49.500" r="1.100" fill="${glyph}"${earned ? "" : ` opacity=".7"`}/>`).join("") : "";
-  const glyphName = GLYPH_BY_ID[def.id];
+  const glyphName = GLYPH_BY_ID[def.id] ?? (def.metric === "gameAchievement" ? generatedGlyph(def) : undefined);
   if (!glyphName) throw new Error(`Achievement ${def.id} has no badge glyph`);
   const body = GLYPHS[glyphName];
   return `<defs><linearGradient id="${id}-m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${m0}"/><stop offset=".5" stop-color="${m1}"/><stop offset="1" stop-color="${m2}"/></linearGradient>`

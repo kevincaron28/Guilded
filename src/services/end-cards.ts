@@ -135,7 +135,7 @@ export function achievementUnlockedCard(name: string, ids: string[], totalEarned
   name = cardName(name);
   const defs = ids.flatMap(id => { const def = achievementById(id); return def ? [def] : []; });
   const newest = defs.slice().reverse(), shown = newest.slice(0, UNLOCK_CARD_MAX);
-  const total = ACTIVE_ACHIEVEMENTS.length, percent = Math.round((totalEarned / Math.max(1, total)) * 100);
+  const total = Math.max(ACTIVE_ACHIEVEMENTS.length, totalEarned), percent = Math.round((totalEarned / Math.max(1, total)) * 100);
   const tierCounts = (Object.keys(TIER_COLOR) as AchievementTier[]).flatMap(tier => { const count = defs.filter(def => def.tier === tier).length; return count ? [{ label: TIER_LABEL[tier][lang], color: TIER_COLOR[tier], count }] : []; });
   return {
     eyebrow: t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,

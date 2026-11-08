@@ -11,7 +11,7 @@ export type AchievementGame = "wow" | "poe2" | "guild";
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
 
 /** Bumped whenever rows are added that older data can already satisfy; guilds that announce re-baseline quietly once. */
-export const ACHIEVEMENT_CATALOGUE_VERSION = 8;
+export const ACHIEVEMENT_CATALOGUE_VERSION = 9;
 
 /**
  * What is measured:
@@ -29,6 +29,8 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 8;
  * - professionFirsts: professions in which the member was the first of the guild to reach skill 300 while their addon was watching.
  * - rareRecipes: recipes only this member's characters know in the guild (needs recipe data from at least three crafters).
  * - craftsDone: craft-board requests the member completed for another member.
+ * - gameAchievement: a WoW Forever in-game achievement the member's addon reported (generated rows, see "Generated rows" below;
+ *   never in ACHIEVEMENTS, so the evaluator never awards them: they are stored from the addon's own record).
  * - professionSkill: the highest profession skill among the member's synced characters.
  * - poeLevel: the highest PoE2 character level the member's own client log reported.
  * - poeMaps: distinct PoE2 map instances the member's companion recorded.
@@ -45,7 +47,7 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 8;
  * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
  *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone";
+export type AchievementMetric = "gameAchievement" | "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -270,7 +272,28 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = BASE_ACHIEVEMENTS;
 export const ACTIVE_ACHIEVEMENTS: readonly AchievementDef[] = ACHIEVEMENTS;
 
 const BY_ID = new Map(ACHIEVEMENTS.map(row => [row.id, row]));
-export const achievementById = (id: string): AchievementDef | undefined => BY_ID.get(id);
+
+// ----- Generated rows: WoW Forever's in-game achievements --------------------------------------------------------------
+// Members' addons report the achievements their characters earned (milestone kind "ach"); the names arrive with the report and are
+// kept in GameAchievement, so there is no list to maintain here. A generated row is `forever-ach-<game id>`, game "wow", edition
+// "forever", one step (threshold 1); its tier follows the points the client showed. The registry below is filled from the database
+// (services/game-achievements.ts) and read by achievementById, so every surface that looks a row up by id finds it.
+const GENERATED = new Map<string, AchievementDef>();
+export const GENERATED_ACHIEVEMENT_PREFIX = "forever-ach-";
+export const isGeneratedAchievementId = (id: string) => id.startsWith(GENERATED_ACHIEVEMENT_PREFIX);
+/** The tier of an in-game achievement from its points (the client's own scale: 5, 10, 25, 50 ...). */
+export const tierForPoints = (points: number): AchievementTier => points >= 100 ? "legendary" : points >= 50 ? "epic" : points >= 25 ? "platinum" : points >= 10 ? "gold" : points >= 5 ? "silver" : "bronze";
+export function generatedAchievement(row: { achievementId: number; name: string; description: string; categoryName: string; points: number }): AchievementDef {
+  const text = { name: row.name, description: row.description || (row.categoryName ? row.categoryName : "WoW Forever") };
+  return { id: `${GENERATED_ACHIEVEMENT_PREFIX}${row.achievementId}`, game: "wow", tier: tierForPoints(row.points), metric: "gameAchievement", threshold: 1, edition: "forever", en: text, fr: text };
+}
+/** Replaces the generated rows (the whole list, as loaded). The names are the client's own language, so English and French are the same text. */
+export function setGeneratedAchievements(rows: readonly Parameters<typeof generatedAchievement>[0][]): void {
+  GENERATED.clear();
+  for (const row of rows) { const def = generatedAchievement(row); GENERATED.set(def.id, def); }
+}
+export const generatedAchievements = (): AchievementDef[] => [...GENERATED.values()];
+export const achievementById = (id: string): AchievementDef | undefined => BY_ID.get(id) ?? GENERATED.get(id);
 export const TIER_COLOR: Record<AchievementTier, string> = { bronze: "#cd7f32", silver: "#c9d1d9", gold: "#ffd100", platinum: "#7fe3f5", epic: "#c56cf0", legendary: "#ff6a2e" };
 export const TIER_LABEL: Record<AchievementTier, { en: string; fr: string }> = {
   bronze: { en: "Bronze", fr: "Bronze" }, silver: { en: "Silver", fr: "Argent" }, gold: { en: "Gold", fr: "Or" },

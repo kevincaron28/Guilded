@@ -179,8 +179,22 @@ as a plan until Discord pays Canadian teams or costs grow).
 ### Waiting for owner
 
 - **Season 2 activation** (~18 Nov, re-run the analysis first) before `/guilded-season season2-activate`.
-- **Plans still waiting:** phone app restructure, TCG design. (Character pictures and several accounts are being built; the paid tier stays off.)
-- **Android / Google Play** (#345 draft, `EXPO_TOKEN`, Firebase, 12 testers) and a new phone APK.
+- **Card game:** pick the card art style (#613). The phone app five-tab redesign is approved and being built (#614, #615).
+- **Android / Google Play:** developer account paid (8 Nov). The owner finishes Play Console's 3 verifications (identity, trader status,
+  Android device). Trader status: **"not a trader" for now** (owner, 8 Nov); switch to "trader" before the first monetized release.
+  The listing kit is in #616; then Firebase, `EXPO_TOKEN`, #345 and 12 testers for 14 days.
+
+### Later: monetization (direction set 8 Nov, not a priority yet)
+
+The owner plans to monetize Guilded later: the bot with free and paid tiers (Lite/Plus in `docs/plans/MONETIZATION.md`), and probably
+ads in the phone app and on the website (not certain). Nothing is built or switched on. Before the first monetized release:
+1. **Google Play trader status:** switch to "trader" a few days before. Prepare a business address or mailbox service, a dedicated
+   phone number and a business email (e.g. contact@kcaron.top), because Google shows them publicly in the EU.
+2. **Ads, if chosen:** "Contains ads" on the Play listing, new data-safety answers (an ad SDK collects device IDs), an EU/UK consent
+   prompt, and the same for the website (consent banner, privacy policy update).
+3. **Paid bot tiers:** a payment route (Discord pays US/EU/UK teams only; Stripe or similar through the website), terms of sale,
+   and a check on Canadian business registration and sales tax.
+4. A short legal read of the PolyForm Noncommercial licence before charging (already listed in MONETIZATION.md).
 - His own nickname in Québec Gold (Discord never lets a bot rename the server owner).
 
 ### Owner-message cross-check (7 Nov, all 129 messages since 5 Nov)

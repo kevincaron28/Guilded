@@ -41,6 +41,15 @@ describe("deploy/application-update.sh dependency reuse (static)", () => {
     expect(library).toContain("MIN_AVAILABLE_PLUS_SWAP_KB=786432");
   });
 
+  it("runs every heavy step through run_heavy, inside the memory ceiling", () => {
+    expect(library.match(/^\s*run_heavy sudo -u "\$owner"/gm)).toHaveLength(3);
+    expect(library).not.toMatch(/^\s*sudo -u "\$owner"/m);
+    expect(library).toContain("MemoryMax=450M -p MemorySwapMax=200M -p CPUWeight=20 -p IOWeight=20");
+    expect(library).toContain("command -v systemd-run");
+    expect(library).toContain("HEAVY_CAPPED=0");
+    expect(library).toContain("cannot set a memory ceiling here");
+  });
+
   it("caps the Node heap for Prisma generation and the bundle build", () => {
     expect(library).toContain("NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate");
     expect(library).toContain("NODE_OPTIONS=--max-old-space-size=384 npm run companion:build");
@@ -54,6 +63,8 @@ describe.skipIf(!hasRsync || !hasGroup)("deploy/application-update.sh dependency
     appVersion?: string;
     appLock?: string;
     meminfo?: string;
+    // "works": systemd-run passes the command through and logs its limits. "fails": it refuses, as on a box without cgroup limits.
+    systemdRun?: "works" | "fails";
   };
 
   function fixture(f: Fixture = {}) {
@@ -82,6 +93,11 @@ describe.skipIf(!hasRsync || !hasGroup)("deploy/application-update.sh dependency
     writeFileSync(join(shims, "sudo"), '#!/bin/sh\nif [ "$1" = "-u" ]; then shift 2; fi\nexec "$@"\n');
     writeFileSync(join(shims, "npm"), `#!/bin/sh\necho "npm $* heap=$NODE_OPTIONS" >> "${log}"\n`);
     for (const name of ["sudo", "npm"]) chmodSync(join(shims, name), 0o755);
+    const systemdRun = f.systemdRun === "fails"
+      ? `#!/bin/sh\necho "systemd-run $*" >> "${log}"\nexit 1\n`
+      : `#!/bin/sh\necho "systemd-run $*" >> "${log}"\nwhile [ "$#" -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ "$#" -gt 0 ] && shift\nexec "$@"\n`;
+    writeFileSync(join(shims, "systemd-run"), systemdRun);
+    chmodSync(join(shims, "systemd-run"), 0o755);
     const meminfo = join(root, "meminfo");
     writeFileSync(meminfo, f.meminfo ?? "MemTotal: 1000000 kB\nMemAvailable: 900000 kB\nSwapTotal: 0 kB\nSwapFree: 0 kB\n");
     const script = `set -euo pipefail
@@ -134,6 +150,32 @@ echo "STAGED=\${STAGED_APP:-}"`;
     expect(calls).not.toContain("npm ci");
     expect(stageDirs).toEqual([]);
     expect(staged).toBe("");
+  });
+
+  it("runs the heavy steps under the ceiling: a probe, then prisma and the bundle", () => {
+    const { calls, out } = fixture({ sourceVersion: "9.0.3" });
+    expect(out).toContain("RESULT=ok");
+    expect(calls).toContain("-p MemoryMax=450M -p MemorySwapMax=200M -p CPUWeight=20 -p IOWeight=20");
+    // The probe, Prisma generation and the bundle build: three systemd-run calls for a version-only bump.
+    expect(calls.match(/^systemd-run /gm)).toHaveLength(3);
+  });
+
+  it("runs npm ci under the ceiling for a real dependency change", () => {
+    const changed = JSON.stringify({ name: "fixture", version: "9.0.2", lockfileVersion: 3, packages: { "": { name: "fixture", version: "9.0.2" } } });
+    const { calls, out } = fixture({ sourceLock: changed });
+    expect(out).toContain("RESULT=ok");
+    expect(calls.match(/^systemd-run /gm)).toHaveLength(3);
+    expect(calls).toContain("-- sudo -u");
+    expect(calls).toContain("npm ci --prefer-offline --no-audit --no-fund heap=--max-old-space-size=512");
+  });
+
+  it("says so and still installs when systemd-run cannot set a ceiling", () => {
+    const changed = JSON.stringify({ name: "fixture", version: "9.0.2", lockfileVersion: 3, packages: { "": { name: "fixture", version: "9.0.2" } } });
+    const { calls, out } = fixture({ sourceLock: changed, systemdRun: "fails" });
+    expect(out).toContain("cannot set a memory ceiling here");
+    expect(out).toContain("RESULT=ok");
+    expect(calls).not.toContain("-- sudo");
+    expect(calls).toContain("npm ci --prefer-offline --no-audit --no-fund heap=--max-old-space-size=512");
   });
 
   it("an unreadable memory report refuses a fresh install rather than guessing", () => {

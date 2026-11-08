@@ -92,12 +92,23 @@ echo "Saved application for code recovery: $PREVIOUS_APP"
 # Keep the three newest saved applications. The service is already stopped, so a failure here must not stop the script.
 prune_previous_applications "$APP" 3 || echo "Could not prune old saved applications; free space manually if needed."
 
-# A changed service file needs systemd to reload it.
-
-if ! cmp -s "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service; then
+# A changed service file (memory ceiling, OOM protection, restart policy) is installed before the bot starts
+# again. The new file is written beside the old one and moved into place in one step. If systemd rejects it,
+# the previous file (saved above as .recovery-service) goes back, so the bot still starts with what it had.
+UNIT=/etc/systemd/system/guilded.service
+if ! cmp -s "$APP/deploy/guilded.service" "$UNIT"; then
   say "Service file changed"
-  cp "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service
-  systemctl daemon-reload
+  UNIT_NEW="$(mktemp /etc/systemd/system/.guilded.service.XXXXXXXX)" || UNIT_NEW=""
+  if [ -n "$UNIT_NEW" ] && install -m 644 "$APP/deploy/guilded.service" "$UNIT_NEW" && mv -f "$UNIT_NEW" "$UNIT"; then
+    if ! systemctl daemon-reload; then
+      echo "systemd did not accept the new service file; restoring the previous one."
+      cp -p "$PREVIOUS_APP/.recovery-service" "$UNIT" || echo "Could not restore $UNIT: copy $PREVIOUS_APP/.recovery-service back by hand."
+      systemctl daemon-reload || true
+    fi
+  else
+    rm -f "${UNIT_NEW:-}"
+    echo "Could not install the new service file; the previous one stays in place."
+  fi
 fi
 
 # The Caddy config is the repository's deploy/Caddyfile with this server's hostname filled in.

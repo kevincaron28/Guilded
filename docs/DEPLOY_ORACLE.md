@@ -143,3 +143,39 @@ Windows notification when GitHub or its bot has a newer version. Nothing install
 Personal pairing controls uploads and standings; the old shared upload token is
 retired. Officer access is checked per request. Configure host security updates
 and monitor the public health endpoint using your preferred hosting tools.
+
+## Deploy guards, the 7-8 November freeze and the uptime monitor
+
+**The freeze.** On 7 November 2026 the 9.0.3 deploy hung the 1 GB Oracle server at about
+21:55 UTC: the install drove the box into memory pressure and the bot's database queries timed out. Deploys
+to that server were frozen for 7 and 8 November. The owner decides when the freeze ends.
+
+**Guards in the updater** (`deploy/update.sh` and `deploy/application-update.sh`):
+
+- The new version is prepared beside the running one. The bot is not stopped until a prepared
+  copy exists, so a failed preparation leaves it running.
+- The heavy steps (`npm ci`, `prisma generate`, the companion bundle build) run in a systemd
+  scope capped at 450 MB of memory and 200 MB of swap, with low CPU and I/O weight. A step that
+  exceeds the cap is killed and the deploy stops; the bot is untouched. If `systemd-run` cannot
+  set the cap here, the steps run without it and the update says so.
+- A version-only bump reuses the running `node_modules`. A real dependency change runs `npm ci`
+  only after a memory check: it needs 384 MB available (768 MB with swap), otherwise the update
+  refuses before creating anything.
+- The bot's unit (`deploy/guilded.service`) keeps `MemoryMax=700M`, adds `MemoryLow=256M` and
+  `OOMScoreAdjust=-500` (the kernel prefers to kill the deploy's install over the bot), and
+  keeps `Restart=always`. An updated unit is written beside the old one and moved into place; if
+  systemd rejects it, the previous file is restored before the bot starts again.
+- At least 3 GB must be free next to the application before preparing. Old saved applications
+  are pruned first.
+
+**The uptime monitor.** `.github/workflows/uptime.yml` runs every 10 minutes against
+`https://guilded.kcaron.top/health` and several public pages, with retries. A failed run is
+emailed to the repository owner by GitHub. No secrets are needed for the email.
+
+**If the monitor emails you:**
+
+1. Wait 10 minutes. A restart or a slow page often clears by itself.
+2. Open `https://guilded.kcaron.top/health` in a browser. If it answers, no action is needed.
+3. If it is still down after 10 minutes, in the Oracle Cloud console open the instance and choose
+   **Reboot**. Wait about 5 minutes, then check `/health` again.
+4. If it is still down after the reboot, contact the developer. Do not redeploy from the console.

@@ -41,6 +41,7 @@ import { createGuildDirectory, prismaGuildDirectoryStore } from "./services/guil
 import { calendarEventsWithin, discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
+import { applyAttempts, applyFailureLogLine, applyWithRetry, classifyApplyFailure, type ApplyFailure } from "./services/import-apply-failure.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
@@ -395,6 +396,53 @@ export function shouldTellApplyFailure(key: string, now = Date.now()): boolean {
   return true;
 }
 
+type AutoApplied = { epgp: number; discovered: number; held: number; voided: number; rejected: number };
+interface AutoApplyInput { guildId: string; discordId: string; importId: string; createdBy: string; since: Date; retried: boolean; onApplied?: () => void; client?: Client | undefined }
+
+// Applies a stored upload, then records and follows it up. `onApplied` runs once the import has
+// committed: a later follow-up failure must not be reported as "not applied".
+async function autoApplyImportWith(input: AutoApplyInput): Promise<AutoApplied> {
+  const result = await importService.apply(input.guildId, input.importId, input.createdBy);
+  input.onApplied?.();
+  markGuildChanged(input.guildId);
+  await auditService.record({
+    guildId: input.guildId, actorId: input.createdBy, action: "IMPORT_APPLIED", entityId: input.importId,
+    metadata: { auto: true, ...(input.retried ? { retried: true } : {}), epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
+  });
+  const discordGuild = input.client ? await input.client.guilds.fetch(input.discordId).catch(() => null) : null;
+  await followUpImport(discordGuild, input.guildId, result, { since: input.since });
+  return { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
+}
+
+// Background retries after a transient database failure (P2028 and friends), outside the upload
+// request: the Worker gives up on a request after 20 seconds. One pending retry per import.
+const APPLY_RETRY_DELAYS_MS = [30_000, 120_000] as const;
+const pendingApplyRetries = new Set<string>();
+function retryApplyLaterWith(input: Omit<AutoApplyInput, "retried" | "onApplied"> & { officer: boolean; tellOfficers: (failure: ApplyFailure, attempts: number) => Promise<void> }): void {
+  if (pendingApplyRetries.has(input.importId) || pendingApplyRetries.size > 200) return;
+  pendingApplyRetries.add(input.importId);
+  const startedAt = Date.now();
+  const run = async () => {
+    let committed = false;
+    try {
+      await new Promise<void>((resolve) => setTimeout(resolve, APPLY_RETRY_DELAYS_MS[0]).unref?.());
+      const { attempts } = await applyWithRetry(() => autoApplyImportWith({ ...input, retried: true, onApplied: () => { committed = true; } }),
+        { delaysMs: APPLY_RETRY_DELAYS_MS.slice(1) });
+      console.info(`import-apply-retried import=${input.importId.slice(-8)} attempts=${attempts + 1} ms=${Date.now() - startedAt}`);
+    } catch (error) {
+      if (committed) { console.error("Follow-up of a retried addon import failed", error); return; }
+      const failure = classifyApplyFailure(error);
+      if (failure.reason === "already-applied") return; // the companion's resend got there first
+      const attempts = applyAttempts(error) + 1;
+      console.info(applyFailureLogLine({ guildId: input.guildId, importId: input.importId, failure, attempts, ms: Date.now() - startedAt, officer: input.officer, retriedDuplicate: false }));
+      await input.tellOfficers(failure, attempts).catch((notifyError: unknown) => console.error("Officer notice for a failed import failed", notifyError));
+    } finally {
+      pendingApplyRetries.delete(input.importId);
+    }
+  };
+  void run();
+}
+
 // The references the addon needs back: its own ledger entries the bot has stored (so they stop
 // counting as "not sent yet"), everyone's recent ones (other officers' awards shared in game)
 // and `void:<ref>` for entries reversed after a /guilded void. Not the whole guild's history.
@@ -568,6 +616,8 @@ async function applyGuildBoardUpload(guildId: string, memberId: string, officer:
 
 // `client` lets an upload be applied and announced by the bot itself (auto-apply).
 export function startCompanionApi(client?: Client): ReturnType<typeof createServer> {
+  const autoApplyImport = (input: Omit<AutoApplyInput, "client">) => autoApplyImportWith({ ...input, client });
+  const retryApplyLater = (input: Omit<Parameters<typeof retryApplyLaterWith>[0], "client">) => retryApplyLaterWith({ ...input, client });
   const site = createSiteApp(client);
   const server = createServer(async (request, response) => {
     const requestStartedAt = Date.now();
@@ -1085,20 +1135,16 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // companion say "waiting for officer review", which a member cannot do.
         if (existing?.status === "PREVIEWED" && (!access.officer || settings?.autoApplyImports)) {
           let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
+          const startedApply = Date.now();
           try {
-            const result = await importService.apply(guild.id, existing.id, createdBy);
-            autoApplied = { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
-            markGuildChanged(guild.id);
-            await auditService.record({
-              guildId: guild.id, actorId: createdBy, action: "IMPORT_APPLIED", entityId: existing.id,
-              metadata: { auto: true, retried: true, epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
-            });
-            const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-            await followUpImport(discordGuild, guild.id, result, { since: uploadStartedAt });
+            autoApplied = await autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: existing.id, createdBy, since: uploadStartedAt, retried: true });
           } catch (error) {
             const already = error instanceof Error && /already been applied/i.test(error.message);
             if (!autoApplied && !already) {
-              const applyError = error instanceof Error && error.message.length < 200 ? error.message : "The bot could not apply this upload (see the server log).";
+              // This path used to log nothing at all.
+              const failure = classifyApplyFailure(error);
+              console.info(applyFailureLogLine({ guildId: guild.id, importId: existing.id, failure, attempts: 1, ms: Date.now() - startedApply, officer: !!access.officer, retriedDuplicate: true }));
+              const applyError = failure.message;
               json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "PREVIEWED", applyError, botVersion: BOT_VERSION, protocolVersion: 2 });
               return;
             }
@@ -1121,32 +1167,34 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
       let applyError: string | null = null;
       if (!access.officer || settings?.autoApplyImports) {
+        const startedApply = Date.now();
         let applied = false;
         try {
-          const result = await importService.apply(guild.id, record.id, createdBy);
-          applied = true;
-          markGuildChanged(guild.id);
-          autoApplied = { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
-          await auditService.record({
-            guildId: guild.id, actorId: createdBy, action: "IMPORT_APPLIED", entityId: record.id,
-            metadata: { auto: true, epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
-          });
-          const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-          await followUpImport(discordGuild, guild.id, result, { since: uploadStartedAt });
+          autoApplied = await autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, retried: false,
+            onApplied: () => { applied = true; } });
         } catch (error) {
           // Application and notification are distinct: a committed import stays APPLIED even if follow-up fails.
           console.error("Auto-apply of an addon import failed", error);
           if (!applied) {
-            // Nothing was imported: say so to the uploader and, for a guild upload, to the officers,
-            // instead of leaving it in the server log only. Short messages are ours; anything else
-            // (a database error) is not shown.
-            applyError = error instanceof Error && error.message.length < 200 ? error.message : "The bot could not apply this upload (see the server log).";
-            if (access.officer && shouldTellApplyFailure(`${guild.id}:${applyError}`)) {
+            // Nothing was imported. The reason goes to the server log as readable codes, to the
+            // uploader, and (for a guild upload) to the officers. A transient database failure
+            // (load, a concurrent upload) is retried in the background first and only told
+            // to the officers if the retries fail too.
+            const failure = classifyApplyFailure(error);
+            console.info(applyFailureLogLine({ guildId: guild.id, importId: record.id, failure, attempts: 1, ms: Date.now() - startedApply, officer: !!access.officer, retriedDuplicate: false }));
+            applyError = failure.transient ? `${failure.message} The bot tries again in a minute.` : failure.message;
+            const tellOfficers = async (told: ApplyFailure, attempts: number) => {
+              if (!access.officer || !shouldTellApplyFailure(`${guild.id}:${told.reason}:${told.message}`)) return;
               const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-              const officerError = settings?.language === "fr" && !(error instanceof Error && error.message.length < 200) ? "le bot n'a pas pu appliquer cet envoi (voir le journal du serveur)." : applyError;
+              // The reason stays as the classifier wrote it (it matches the server log); the frame is in the guild's language.
               await notify(discordGuild, settings?.language === "fr"
-                ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${officerError}\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/import apply id:${record.id}\`.`
-                : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${applyError}\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
+                ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${told.message}${attempts > 1 ? ` (${attempts} essais)` : ""} [${told.reason}]\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/import apply id:${record.id}\`.`
+                : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${told.message}${attempts > 1 ? ` (${attempts} tries)` : ""} [${told.reason}]\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
+            };
+            if (failure.transient) {
+              retryApplyLater({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, officer: !!access.officer, tellOfficers });
+            } else {
+              await tellOfficers(failure, 1);
             }
           }
         }

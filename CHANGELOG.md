@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.0.5 — 8 November 2026
+
+Fix for the login popup on WoW Forever, plus the bot updates live since 9.0.4. Details: docs/V9_0_5_RELEASE_NOTES.md.
+
+- Addon: no more "Guilded has been blocked from an action only available to the Blizzard UI" at login. WoW Forever does not let addons edit guild notes, so the officer auto notes stop trying, and any guild action the game refuses is not retried.
+- Bot (already live): the dungeon score on each run card, and one group finder for dungeons and PvP (pick Dungeon, Battleground, Arena or World PvP first).
+
 ## 9.0.4 — 8 November 2026
 
 Fixes from the first in-game check of 9.0.3 and the night after it. Details: docs/V9_0_4_RELEASE_NOTES.md.

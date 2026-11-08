@@ -147,12 +147,52 @@ function unavailablePage(request, url) {
   } });
 }
 
+// The companion installer, served from Cloudflare KV so the website's download never depends on GitHub release
+// downloads (they returned 504 for hours on 8 November 2026). KV holds at most 25 MiB per value, so the release step
+// stores the installer in 20 MiB pieces under `<chunkKey>#0..n-1`, plus a JSON manifest at `downloads/<name>`
+// ({ name, version, size, sha256, chunks, chunkKey }). `Guilded.Companion.Setup.exe` is the manifest of the newest one.
+const HOSTED_DOWNLOAD = /^\/downloads\/(Guilded\.Companion\.Setup(?:\.\d{1,3}\.\d{1,3}\.\d{1,4})?\.exe)$/;
+export async function hostedDownload(request, env, ctx, url = new URL(request.url)) {
+  const match = HOSTED_DOWNLOAD.exec(url.pathname);
+  if (!match || !env.OWNER_RESOURCES) return null;
+  if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+  const manifest = await env.OWNER_RESOURCES.get(`downloads/${match[1]}`, "json").catch(() => null);
+  const chunks = Number(manifest?.chunks), size = Number(manifest?.size);
+  if (!manifest || !Number.isInteger(chunks) || chunks < 1 || chunks > 20 || !Number.isInteger(size) || size < 1 || typeof manifest.chunkKey !== "string" || !manifest.chunkKey.startsWith("downloads/")) {
+    // Not stored yet: the GitHub release still has it.
+    return new Response(null, { status: 302, headers: { location: `https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe`, "cache-control": "no-store" } });
+  }
+  const headers = {
+    "content-type": "application/vnd.microsoft.portable-executable",
+    "content-length": String(size),
+    "content-disposition": `attachment; filename="${String(manifest.name ?? match[1]).replace(/[^A-Za-z0-9._-]/g, "")}"`,
+    "cache-control": match[1] === "Guilded.Companion.Setup.exe" ? "public, max-age=300" : "public, max-age=86400",
+    ...(typeof manifest.sha256 === "string" && /^[0-9a-f]{64}$/.test(manifest.sha256) ? { "x-sha256": manifest.sha256 } : {})
+  };
+  if (request.method === "HEAD") return new Response(null, { status: 200, headers });
+  const { readable, writable } = new TransformStream();
+  const pump = (async () => {
+    try {
+      for (let index = 0; index < chunks; index++) {
+        const part = await env.OWNER_RESOURCES.get(`${manifest.chunkKey}#${index}`, "stream");
+        if (!part) throw new Error(`missing piece ${index}`);
+        await part.pipeTo(writable, { preventClose: true });
+      }
+      await writable.close();
+    } catch (error) {
+      await writable.abort(error).catch(() => undefined);
+    }
+  })();
+  ctx?.waitUntil?.(pump);
+  return new Response(readable, { status: 200, headers });
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS" && mobileDevCors(request)) {
       return new Response(null, { status: 204, headers: { ...mobileDevCors(request), "cache-control": "no-store" } });
     }
-    let response = await route(request, env);
+    let response = await route(request, env, ctx);
     // A page inside an edition's section remembers that edition for the next visit.
     const url = new URL(request.url);
     const section = ["kcaron.top", "www.kcaron.top"].includes(url.hostname) ? null : splitEditionPath(url.pathname);
@@ -165,11 +205,13 @@ export default {
   }
 };
 
-async function route(request, env) {
+async function route(request, env, ctx) {
     // Guard every hostname, including workers.dev, before any static fallback.
     const privateResponse = await ownerResources(request, env);
     if (privateResponse) return privateResponse;
     const url = new URL(request.url);
+    const download = await hostedDownload(request, env, ctx, url);
+    if (download) return download;
     // Keep Google's exact verification filename at HTTP 200 despite clean HTML URLs.
     if (/^\/google[a-f0-9]{8,64}\.html$/.test(url.pathname)) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");

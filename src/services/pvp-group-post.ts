@@ -3,6 +3,7 @@ import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { canonicalClass } from "./character-display.js";
 import { OPEN_GROUP_HOURS } from "./dungeon-group.js";
+import { activityLabel, activityOfGroup } from "./group-finder.js";
 import { classColor, scoreCardPng, type ScoreCard } from "./score-card.js";
 
 // The PvP group finder's post (9.1 redesign): one picture (the shared card layout: party with role icons, size, bracket, expiry)
@@ -13,6 +14,7 @@ const ROLE_ICON: Record<RaidRole, string> = { TANK: "🛡️", HEALER: "💚", D
 
 export interface PvpPostPlayer { name: string; role: RaidRole; color?: string | undefined }
 export interface PvpPostData {
+  /** "Battleground", "Arena" or "World PvP": the activity named on the card. */ activityEn?: string | undefined; activityFr?: string | undefined;
   id: string; title: string; size: number; status: "OPEN" | "STARTED" | "CLOSED"; createdAt: Date; minLevel: number | null; maxLevel: number | null;
   leaderDiscordId: string; voiceChannelId: string | null; members: PvpPostPlayer[]; waiting: PvpPostPlayer[];
 }
@@ -39,7 +41,7 @@ export function pvpGroupCard(data: PvpPostData, lang: Lang): ScoreCard {
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const seed = [...data.id].reduce((sum, ch) => (sum * 31 + ch.charCodeAt(0)) | 0, 7);
   return {
-    eyebrow: t("Guilded · PvP group", "Guilded · Groupe JcJ"),
+    eyebrow: `Guilded · ${fr ? (data.activityFr ?? "Groupe JcJ") : (data.activityEn ?? "PvP group")}`,
     title: data.title,
     subtitle: `${pvpBracket(data.minLevel, data.maxLevel, lang)} · ${statusText(data.status, fr)}`,
     stats: [
@@ -67,7 +69,7 @@ export function pvpGroupEmbed(data: PvpPostData, lang: Lang, image?: string): Em
   const byRole = (role: RaidRole) => data.members.filter(m => m.role === role).map(m => name(m.name));
   const embed = new EmbedBuilder().setColor(data.status === "CLOSED" ? 0x808080 : 0xb91c1c)
     .setTitle(`⚔️ ${data.title}`.slice(0, 256))
-    .setDescription([`**${pvpBracket(data.minLevel, data.maxLevel, lang)}** · ${data.members.length}/${data.size} · ${statusText(data.status, fr)}`,
+    .setDescription([`${data.activityEn ? `**${fr ? data.activityFr : data.activityEn}** · ` : ""}**${pvpBracket(data.minLevel, data.maxLevel, lang)}** · ${data.members.length}/${data.size} · ${statusText(data.status, fr)}`,
       data.status === "OPEN" ? t(`Closes <t:${expires}:R> if it is not started.`, `Se ferme <t:${expires}:R> s'il n'est pas démarré.`) : ""].filter(Boolean).join("\n"));
   for (const role of ["TANK", "HEALER", "DPS"] as const) {
     const names = byRole(role);
@@ -90,7 +92,8 @@ export async function loadPvpPostData(db: Pick<PrismaClient, "dungeonGroup" | "d
   const color = new Map<string, string>();
   for (const character of characters) if (!color.has(character.memberId)) color.set(character.memberId, classColor(canonicalClass(character.className) ?? character.className));
   const player = (s: (typeof signups)[number]): PvpPostPlayer => ({ name: s.member.displayName, role: s.role, color: color.get(s.memberId) });
-  return { id: group.id, title: group.title, size: group.maxSize, status: group.status as PvpPostData["status"], createdAt: group.createdAt, minLevel: group.minLevel, maxLevel: group.maxLevel,
+  const id = activityOfGroup(group.kind, group.activity);
+  return { activityEn: id ? activityLabel(id, "en") : undefined, activityFr: id ? activityLabel(id, "fr") : undefined, id: group.id, title: group.title, size: group.maxSize, status: group.status as PvpPostData["status"], createdAt: group.createdAt, minLevel: group.minLevel, maxLevel: group.maxLevel,
     leaderDiscordId: leader?.discordUserId ?? "0", voiceChannelId: group.voiceChannelId, members: signups.filter(s => s.status === "SIGNED_UP").map(player), waiting: signups.filter(s => s.status === "WAITLISTED").map(player) };
 }
 

@@ -3,6 +3,7 @@ import { prisma } from "../database.js";
 import { asLang } from "../i18n.js";
 import { createDungeonGroupService } from "../services/dungeon-group.js";
 import { loadPvpGroups, lookingEmbed, parsePvpForm, PVP_DEFAULT_SIZE, PVP_OPEN_PER_LEADER } from "../services/pvp-group.js";
+import { finderChannelFor } from "../services/group-finder.js";
 import { postGroup } from "./dungeon-group.js";
 import { guildService } from "./context.js";
 
@@ -33,16 +34,18 @@ export async function createPvpGroupFromModal(interaction: ModalSubmitInteractio
   const lang = asLang(settings?.language);
   const fr = lang === "fr";
   const member = await guildService.ensureMember(record.id, interaction.user.id, (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
-  const channel = settings?.bgGroupsChannelId ? await guild.channels.fetch(settings.bgGroupsChannelId).catch(() => null) : null;
+  // With the merged group finder (the default) the post goes to the finder channel; otherwise to the pvp-groups channel.
+  const targetId = finderChannelFor(settings, "BATTLEGROUND");
+  const channel = targetId ? await guild.channels.fetch(targetId).catch(() => null) : null;
   if (!channel?.isTextBased() || !("send" in channel)) {
     throw new Error(fr ? "Le salon des groupes JcJ n'existe pas encore : un officier lance /setup puis Créer les salons manquants." : "The PvP groups channel does not exist yet: an officer runs /setup, then Create missing channels.");
   }
   const form = parsePvpForm({ title: interaction.fields.getTextInputValue("title"), size: interaction.fields.getTextInputValue("size"), levels: interaction.fields.getTextInputValue("levels") });
-  const open = await prisma.dungeonGroup.count({ where: { guildId: record.id, kind: "PVP", leaderId: member.id, status: { in: ["OPEN", "STARTED"] } } });
+  const open = await prisma.dungeonGroup.count({ where: { guildId: record.id, kind: { in: ["PVP", "WORLDPVP"] }, leaderId: member.id, status: { in: ["OPEN", "STARTED"] } } });
   if (open >= PVP_OPEN_PER_LEADER) {
     throw new Error(fr ? `Vous avez déjà ${open} groupes JcJ ouverts : fermez-en un avant d'en créer un autre.` : `You already have ${open} open PvP groups: close one before starting another.`);
   }
-  const group = await service.create({ guildId: record.id, title: form.title, leaderId: member.id, channelId: channel.id, kind: "PVP", size: form.size, minLevel: form.minLevel, maxLevel: form.maxLevel });
+  const group = await service.create({ guildId: record.id, title: form.title, leaderId: member.id, channelId: channel.id, kind: "PVP", activity: "battleground", size: form.size, minLevel: form.minLevel, maxLevel: form.maxLevel });
   await postGroup(guild, channel as GuildTextBasedChannel, group, interaction.user.id, lang);
   await interaction.editReply({ content: fr
     ? `Groupe publié dans <#${channel.id}>. Choisissez votre rôle avec les boutons ; **Démarrer** crée le salon vocal (ou il démarre à ${group.maxSize} joueurs). Le groupe expire après 24 h.`

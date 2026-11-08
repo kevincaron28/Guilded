@@ -5,7 +5,7 @@ const count = vi.fn(async () => 0), create = vi.fn(async ({ data }: any) => ({ i
 vi.mock("../src/database.js", () => ({ prisma: { dungeonGroup: { count, create } } }));
 const postGroup = vi.fn(async () => undefined);
 vi.mock("../src/commands/dungeon-group.js", () => ({ postGroup }));
-const settings = { language: "en", bgGroupsChannelId: "pvpchan" as string | null };
+const settings = { language: "en", bgGroupsChannelId: "pvpchan" as string | null, dungeonSignupChannelId: null as string | null, unifiedGroupFinder: true };
 vi.mock("../src/commands/context.js", () => ({ guildService: {
   ensureGuild: vi.fn(async () => ({ id: "scope" })), getSettings: vi.fn(async () => settings), ensureMember: vi.fn(async () => ({ id: "member1" })) } }));
 vi.mock("../src/services/dungeon-group.js", async (importOriginal) => {
@@ -21,7 +21,7 @@ const modal = (fields: Record<string, string>, channel: any = { id: "pvpchan", i
 };
 
 describe("creating a PvP group from the form", () => {
-  beforeEach(() => { vi.clearAllMocks(); count.mockResolvedValue(0); settings.bgGroupsChannelId = "pvpchan"; });
+  beforeEach(() => { vi.clearAllMocks(); count.mockResolvedValue(0); settings.bgGroupsChannelId = "pvpchan"; settings.dungeonSignupChannelId = null; settings.unifiedGroupFinder = true; });
 
   it("opens one form with what/when, size and levels, in both languages", () => {
     for (const fr of [false, true]) {
@@ -36,6 +36,17 @@ describe("creating a PvP group from the form", () => {
     expect(create.mock.calls[0]![0].data).toMatchObject({ kind: "PVP", maxSize: 12, minLevel: 60, maxLevel: 60, leaderId: "member1", channelId: "pvpchan" });
     expect(postGroup).toHaveBeenCalledTimes(1);
     expect(i.editReply.mock.calls[0][0].content).toContain("<#pvpchan>");
+  });
+  it("posts in the group finder channel when one exists (the merged finder), and in pvp-groups when the merge is off", async () => {
+    settings.dungeonSignupChannelId = "finder";
+    const i = modal({ title: "WSG 9pm" }, { id: "finder", isTextBased: () => true, send: vi.fn() });
+    await createPvpGroupFromModal(i);
+    expect(i.guild.channels.fetch).toHaveBeenCalledWith("finder");
+    expect(create.mock.calls[0]![0].data).toMatchObject({ kind: "PVP", activity: "battleground", channelId: "finder" });
+    settings.unifiedGroupFinder = false;
+    const j = modal({ title: "WSG 9pm" });
+    await createPvpGroupFromModal(j);
+    expect(j.guild.channels.fetch).toHaveBeenCalledWith("pvpchan");
   });
   it("refuses when the groups channel does not exist yet, or the leader has too many open groups", async () => {
     settings.bgGroupsChannelId = null;

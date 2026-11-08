@@ -44,7 +44,7 @@ describe("who's looking", () => {
     const groups = await loadPvpGroups({ dungeonGroup: { findMany } } as never, "scope", "disc", "m1");
     expect(groups[0]).toMatchObject({ members: ["Aria"], waiting: ["Brom"], link: "https://discord.com/channels/disc/c/m" });
     const where = (findMany.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
-    expect(where).toMatchObject({ guildId: "scope", kind: "PVP", status: { in: ["OPEN", "STARTED"] } });
+    expect(where).toMatchObject({ guildId: "scope", kind: { in: ["PVP", "WORLDPVP"] }, status: { in: ["OPEN", "STARTED"] } });
     expect(where["OR"]).toBeTruthy();
     await loadPvpGroups({ dungeonGroup: { findMany } } as never, "scope", "disc");
     expect((findMany.mock.calls[1] as unknown as [{ where: Record<string, unknown> }])[0].where["OR"]).toBeUndefined();

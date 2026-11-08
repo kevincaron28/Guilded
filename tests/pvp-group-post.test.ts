@@ -91,3 +91,14 @@ describe("PvP group post", () => {
     expect(json.fields!.find(f => f.name.startsWith("Queue"))!.value).toBe("1. Brom ⚔️");
   });
 });
+
+describe("activity label on the post (one group finder)", () => {
+  it("names battleground, arena or world PvP on the card and the embed, in both languages", () => {
+    const arena = data({ activityEn: "Arena", activityFr: "Arène" });
+    expect(pvpGroupCard(arena, "en").eyebrow).toBe("Guilded · Arena");
+    expect(pvpGroupCard(arena, "fr").eyebrow).toBe("Guilded · Arène");
+    expect(pvpGroupEmbed(arena, "en").toJSON().description).toContain("**Arena** · **Bracket 20-29**");
+    expect(pvpGroupEmbed(arena, "fr").toJSON().description).toContain("**Arène** ·");
+    expect(pvpGroupCard(data(), "en").eyebrow).toBe("Guilded · PvP group");
+  });
+});

@@ -65,6 +65,8 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn world PvP on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le JcJ en monde ouvert" }).setRequired(true)))
   .addSubcommand(s => s.setName("pvp-module").setDescription("Officers: include the PvP channels (groups, results, ladder) in /setup").setDescriptionLocalizations({ fr: "Officiers : inclure les salons JcJ (groupes, résultats, classement) dans /setup" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the PvP channels on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver les salons JcJ" }).setRequired(true)))
+  .addSubcommand(s => s.setName("group-finder").setDescription("Officers: one group finder channel for dungeons and PvP (on by default)").setDescriptionLocalizations({ fr: "Officiers : une seule recherche de groupe pour donjons et JcJ (activé par défaut)" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Merge PvP groups into the group finder, or keep them in the PvP groups channel").setDescriptionLocalizations({ fr: "Fusionner les groupes JcJ dans la recherche de groupe, ou les garder dans leur salon" }).setRequired(true)))
   .addSubcommand(s => s.setName("setup").setDescription("Officer setup instructions; changes no channels or permissions").setDescriptionLocalizations({ fr: "Guide officiers, sans modification de salons ou permissions" }));
 
 type BgInteraction = ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction;
@@ -101,7 +103,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
   if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if ((sub === "setup" || sub === "duel-board" || sub === "pvp-module" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if ((sub === "setup" || sub === "duel-board" || sub === "pvp-module" || sub === "group-finder" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
   if (sub === "bg-ladder") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { bgLadderEnabled: enabled } });
@@ -124,6 +126,13 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     await i.editReply({ content: enabled
       ? t("PvP channels on (the default). Run /setup and press Create missing channels: it adds one PvP category (groups, results, ladder) and adopts battleground channels you already have. Nothing is posted until then.", "Salons JcJ activés (par défaut). Lancez /setup et appuyez sur Créer les salons manquants : une catégorie JcJ (groupes, résultats, classement) est ajoutée et vos salons de champs de bataille existants sont repris. Rien n'est publié avant.")
       : t("PvP channels off. Existing channels and boards stay as they are.", "Salons JcJ désactivés. Les salons et tableaux existants restent en place."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "group-finder") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { unifiedGroupFinder: enabled } });
+    await i.editReply({ content: enabled
+      ? t("One group finder on (the default). The pinned button asks dungeon, battleground, arena or world PvP and every post goes to the group finder channel. /setup stops creating the PvP groups channel; an existing one stays and can be archived.", "Recherche de groupe unique activée (par défaut). Le bouton épinglé demande donjon, champ de bataille, arène ou JcJ en monde ouvert et chaque message va dans le salon de recherche de groupe. /setup ne crée plus le salon des groupes JcJ; celui qui existe reste et peut être archivé.")
+      : t("One group finder off. The pinned button posts dungeons only; PvP groups are posted in the PvP groups channel, as before.", "Recherche de groupe unique désactivée. Le bouton épinglé ne publie que des donjons; les groupes JcJ restent dans leur salon, comme avant."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "duel-board") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;

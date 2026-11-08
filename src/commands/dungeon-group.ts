@@ -1,6 +1,6 @@
 import { pilotGuildScope } from "../hosted-pilot.js";
 import {
-  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, TextInputBuilder, TextInputStyle,
+  ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, ModalBuilder, PermissionFlagsBits, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle,
   type ButtonInteraction, type ChatInputCommandInteraction, type Client, type Guild as DiscordGuild, type GuildMember, type ModalSubmitInteraction,
   type GuildTextBasedChannel, type OverwriteResolvable, type StringSelectMenuInteraction,
   MessageFlags,
@@ -11,7 +11,9 @@ import { serializeDungeonGroup } from "../services/dungeon-group-queue.js";
 import { hasPermission, isPermissionRole } from "../permissions.js";
 import { asGroupKind, createDungeonGroupService, GROUP_CAPS, GROUP_KINDS, groupSize, shouldDeleteVoice, shouldDeleteClosedPost, shouldExpireOpenGroup, type GroupKind } from "../services/dungeon-group.js";
 import { DUNGEON_GUIDE_CREATE_ID, DUNGEON_GUIDE_KIND_ID, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
+import { PVP_OPEN_PER_LEADER } from "../services/pvp-group.js";
 import { pvpPostPayload } from "../services/pvp-group-post.js";
+import { activityFromId, activityLabel, FINDER_ACTIVITIES, finderChannelFor, finderIsMerged, isPvpKind, offeredActivities, type FinderActivity } from "../services/group-finder.js";
 import { alertRecipients, dungeonLevelsFromTitle, parseLevelRange, rolesFromTitle, type AlertGroup } from "../services/group-alerts.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
@@ -27,7 +29,9 @@ export const DUNGEON_GROUP_PREFIX = "dgrp:";
 
 // The form for a new group: what / when / who for every kind, and the group size for the kinds
 // that are not a 5-player dungeon. The kind travels in the form's id ("dguide:create:PVP").
-function dungeonGroupModal(lang: Lang, kind: GroupKind = "DUNGEON") {
+function dungeonGroupModal(lang: Lang, activityId: FinderActivity = "DUNGEON") {
+  const activity = FINDER_ACTIVITIES[activityId];
+  const kind = activity.kind;
   const info = GROUP_KINDS[kind];
   const input = new TextInputBuilder()
     .setCustomId("title")
@@ -38,13 +42,13 @@ function dungeonGroupModal(lang: Lang, kind: GroupKind = "DUNGEON") {
     .setMaxLength(80)
     .setRequired(true);
   const modal = new ModalBuilder()
-    .setCustomId(`${DUNGEON_GUIDE_CREATE_ID}:${kind}`)
-    .setTitle(`${info.emoji} ${tx(lang, info.label)}`.slice(0, 45))
+    .setCustomId(`${DUNGEON_GUIDE_CREATE_ID}:${activityId}`)
+    .setTitle((kind === "DUNGEON" ? `${info.emoji} ${tx(lang, info.label)}` : `${activity.emoji} ${activityLabel(activityId, lang)}`).slice(0, 45))
     .addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(input));
   if (!info.roles) {
     modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder()
       .setCustomId("size").setLabel(tx(lang, "Group size ({min} to {max})", { min: info.minSize, max: info.maxSize }))
-      .setPlaceholder(String(info.size)).setStyle(TextInputStyle.Short).setMaxLength(2).setRequired(false)));
+      .setPlaceholder(String(activity.size)).setStyle(TextInputStyle.Short).setMaxLength(2).setRequired(false)));
   }
   // 5.0: the level range, for group alerts (empty: guessed from the dungeon in the title).
   modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder()
@@ -54,22 +58,33 @@ function dungeonGroupModal(lang: Lang, kind: GroupKind = "DUNGEON") {
   return modal;
 }
 
-// The pre-4.6 pinned button: a dungeon group.
+// The pinned button. With the merged finder (the default) it asks the activity first: dungeon, battleground, arena or
+// world PvP. With the merge off it opens the dungeon form at once, as before.
 export async function handleDungeonGuideButton(interaction: ButtonInteraction): Promise<void> {
   if (interaction.customId !== DUNGEON_GUIDE_CREATE_ID || !interaction.guild) return;
   const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
-  await interaction.showModal(dungeonGroupModal(await groupLang(record.id), "DUNGEON"));
+  const settings = await guildService.getSettings(record.id);
+  const lang = asLang(settings?.language);
+  if (!finderIsMerged(settings)) { await interaction.showModal(dungeonGroupModal(lang, "DUNGEON")); return; }
+  const fr = lang === "fr";
+  await interaction.reply({ flags: MessageFlags.Ephemeral, content: fr ? "Quel type de groupe cherchez-vous ?" : "What kind of group are you looking for?",
+    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(DUNGEON_GUIDE_KIND_ID)
+      .setPlaceholder(fr ? "Donjon, champ de bataille, arène ou JcJ en monde ouvert" : "Dungeon, battleground, arena or world PvP")
+      .addOptions(offeredActivities(true).map(id => ({ label: activityLabel(id, lang), value: id, emoji: FINDER_ACTIVITIES[id].emoji, description: fr ? FINDER_ACTIVITIES[id].hintFr : FINDER_ACTIVITIES[id].hintEn }))))] });
 }
 
 // The pinned menu: the kind picked, then its form.
 export async function handleDungeonGuideSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   if (interaction.customId !== DUNGEON_GUIDE_KIND_ID || !interaction.guild) return;
-  if (interaction.values[0] !== "DUNGEON") {
-    await interaction.reply({ content: "The bot now forms dungeon groups only. Post PvP and leveling groups in their dedicated channels.", flags: MessageFlags.Ephemeral });
+  const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
+  const settings = await guildService.getSettings(record.id);
+  const lang = asLang(settings?.language);
+  const activity = activityFromId(interaction.values[0]);
+  if (activity !== "DUNGEON" && !finderIsMerged(settings)) {
+    await interaction.reply({ content: lang === "fr" ? "Les groupes JcJ se publient dans leur salon dédié." : "Post PvP groups in the PvP groups channel.", flags: MessageFlags.Ephemeral });
     return;
   }
-  const record = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
-  await interaction.showModal(dungeonGroupModal(await groupLang(record.id), asGroupKind(interaction.values[0])));
+  await interaction.showModal(dungeonGroupModal(lang, activity));
 }
 
 // The group's level range: the Levels box, else (dungeons and leveling) the dungeon in the title.
@@ -121,26 +136,33 @@ function pingRoleId(guild: DiscordGuild, kind: GroupKind): string | null {
 
 export async function handleDungeonGuideModal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.customId.startsWith(DUNGEON_GUIDE_CREATE_ID) || !interaction.guild) return;
-  const kind = asGroupKind(interaction.customId.slice(DUNGEON_GUIDE_CREATE_ID.length + 1));
   const requestedKind = interaction.customId.slice(DUNGEON_GUIDE_CREATE_ID.length + 1);
-  if (requestedKind && requestedKind !== "DUNGEON") {
-    await interaction.reply({ content: "The bot now forms dungeon groups only. Use the dedicated channels for other groups.", flags: MessageFlags.Ephemeral });
+  const activityId = activityFromId(requestedKind);
+  const activity = FINDER_ACTIVITIES[activityId];
+  const kind = activity.kind;
+  if (requestedKind && !(requestedKind.toUpperCase() in FINDER_ACTIVITIES) && requestedKind !== "PVP") {
+    await interaction.reply({ content: "The bot forms dungeon and PvP groups here. Use the dedicated channels for other groups.", flags: MessageFlags.Ephemeral });
     return;
   }
-  const askedSize = GROUP_KINDS[kind].roles ? null : Number(interaction.fields.fields.has("size") ? interaction.fields.getTextInputValue("size") : "") || null;
+  const askedSize = GROUP_KINDS[kind].roles ? null : Number(interaction.fields.fields.has("size") ? interaction.fields.getTextInputValue("size") : "") || activity.size;
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const guild = interaction.guild;
   const record = await guildService.ensureGuild(guild.id, guild.name);
   const member = await guildService.ensureMember(record.id, interaction.user.id,
     (interaction.member as GuildMember | null)?.displayName ?? interaction.user.username);
   const settings = await guildService.getSettings(record.id);
-  const channel = settings?.dungeonSignupChannelId
-    ? await guild.channels.fetch(settings.dungeonSignupChannelId).catch(() => null)
-    : null;
+  const targetId = finderChannelFor(settings, activityId);
+  const channel = targetId ? await guild.channels.fetch(targetId).catch(() => null) : null;
   if (!channel?.isTextBased() || !("send" in channel)) {
-    throw new Error("I can't post in the configured dungeon signups channel. Check /setup status and channel permissions.");
+    throw new Error("I can't post in the configured group finder channel. Check /setup status and channel permissions.");
   }
   const lang = asLang(settings?.language);
+  if (isPvpKind(kind)) {
+    const open = await prisma.dungeonGroup.count({ where: { guildId: record.id, kind: { in: ["PVP", "WORLDPVP"] }, leaderId: member.id, status: { in: ["OPEN", "STARTED"] } } });
+    if (open >= PVP_OPEN_PER_LEADER) {
+      throw new Error(lang === "fr" ? `Vous avez déjà ${open} groupes JcJ ouverts : fermez-en un avant d'en créer un autre.` : `You already have ${open} open PvP groups: close one before starting another.`);
+    }
+  }
   const title = interaction.fields.getTextInputValue("title").trim();
   const levels = groupLevels(kind, title, interaction.fields.fields.has("levels") ? interaction.fields.getTextInputValue("levels") : "");
   const group = await service.create({
@@ -149,6 +171,7 @@ export async function handleDungeonGuideModal(interaction: ModalSubmitInteractio
     leaderId: member.id,
     channelId: channel.id,
     kind,
+    activity: activity.activity,
     size: askedSize,
     ...levels
   });
@@ -169,7 +192,7 @@ async function groupLang(guildId: string): Promise<Lang> {
 
 /** The post's picture and embed: the PvP finder has its own card layout (services/pvp-group-post.ts), the others a plain embed. */
 async function groupBody(groupId: string, kind: GroupKind, lang: Lang): Promise<{ embeds: EmbedBuilder[]; files: AttachmentBuilder[] }> {
-  if (kind === "PVP") return pvpPostPayload(prisma, groupId, lang);
+  if (isPvpKind(kind)) return pvpPostPayload(prisma, groupId, lang);
   return { embeds: [await groupEmbed(groupId)], files: [] };
 }
 

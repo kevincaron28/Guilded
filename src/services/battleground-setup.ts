@@ -4,6 +4,7 @@ import type { Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { BG_SETUP_NAMES, PVP_SETUP_NAMES } from "../setup-names.js";
 import { loadGuildScope, runInGuildScope } from "./guild-scope.js";
+import { finderIsMerged } from "./group-finder.js";
 
 export const BG_SETUP_PARTS = ["groups", "results", "stats", "duels"] as const;
 export type BgSetupPart = typeof BG_SETUP_PARTS[number];
@@ -149,6 +150,13 @@ async function install(guild: DiscordGuild, db: PrismaClient, guildId: string, l
   const notes: string[] = [];
   for (const part of selection ? [selection.part] : BG_SETUP_PARTS) {
     const fields = BG_SETUP_FIELDS[part];
+    // 9.1: with a group finder channel (and the merge on, the default) the PvP groups live in the finder. No pvp-groups channel
+    // is created or posted to; one that already exists is reported as safe to archive and left untouched.
+    if (part === "groups" && !selection && finderIsMerged(settings)) {
+      const old = settings[fields.channel] ?? guild.channels.cache.find(c => c.type === ChannelType.GuildText && (!categoryId || c.parentId === categoryId) && pvpChannelNames("groups").includes(c.name))?.id ?? null;
+      if (old) notes.push(say(lang, `<#${old}> (merged into the group finder <#${settings.dungeonSignupChannelId}>, safe to archive)`, `<#${old}> (fusionné dans la recherche de groupe <#${settings.dungeonSignupChannelId}>, peut être archivé)`));
+      continue;
+    }
     let id = settings[fields.channel];
     if (!id && legacy && !selection && part !== "duels") {
       const old = await fetchChannel(legacy[part].channel);

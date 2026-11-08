@@ -70,6 +70,20 @@ describe("achievements on the website", () => {
     expect(visible?.headers["content-type"]).toBe("image/png");
     expect(visible?.binaryBody?.subarray(1, 4).toString()).toBe("PNG");
   });
+  it("draws the member's character picture on the share image: Public only on the public card, any of theirs on their own", async () => {
+    const { default: sharp } = await import("sharp");
+    const thumb = await sharp({ create: { width: 128, height: 128, channels: 3, background: "#3366cc" } }).webp().toBuffer();
+    const portrait = vi.fn(async () => ({ characterId: "c1", version: 1, thumb }));
+    const path = `/players/${"a".repeat(24)}/achievements.png`;
+    const drawn = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows, portrait).route(ctx(path), kit);
+    expect(portrait).toHaveBeenLastCalledWith("u1", false);
+    const plain = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).route(ctx(path), kit);
+    expect(Buffer.compare(drawn!.binaryBody!, plain!.binaryBody!)).not.toBe(0);
+    const none = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows, async () => null).route(ctx(path), kit);
+    expect(none!.binaryBody).toEqual(plain!.binaryBody);
+    await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows, portrait).ownerRoute(ctx("/me/achievements.png", "en", { id: "a".repeat(24) } as WebContext["account"]), kit);
+    expect(portrait).toHaveBeenLastCalledWith("u1", true);
+  });
   it("ignores other paths", async () => {
     const web = createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows);
     expect(await web.route(ctx("/players/"), kit)).toBeNull();

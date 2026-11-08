@@ -53,11 +53,20 @@ Not built:
   - The post is checked like every website form (origin and CSRF token), and only for a picture the reporter can currently see. At most 10 reports a day per member.
   - The guild's officer log gets "X reported the picture of Y (member). To remove it: `/officer character picture action:remove name:Y`" (EN/FR, no pings).
 
-Not built:
-- thumbs on the `/players/` search cards and on the leaderboard character pages;
-- a public profile's share image (it keeps the achievements image).
+## Extras: pictures on open pages
 
-Not in slices 1-3:
+Pages that look the same for every viewer, and links pasted into Discord, use **Public pictures only**. Guild-only pictures stay on the profile page, where each viewer is checked. `src/services/public-pictures.ts` does the lookups, and a picture shows only when:
+- its status is ok and its owner set it to Public;
+- the server switch is on and the site serves that server;
+- it is the only character with that name and realm. If two different characters share them, neither picture shows.
+
+Where the pictures appear:
+- **`/players/` search cards:** a 40 px thumb beside the character's name. The lookup is two queries for the whole page and reads no image bytes.
+- **Leaderboard character page** `/leaderboards/character/<Name-Realm>`: a 64 px thumb beside the name, and the picture on that page's share card (`card.png`).
+- **Profile share image** (`/players/<account>/achievements.png`): the main character's Public picture, in a gold ring beside the name ([sample](cards/achievements-share-picture.png)). The member's own `/me/achievements.png` may also use their guild-only picture, since only they can open it.
+- **Score cards:** the default card layout (`render` in `score-card.ts`) now draws `portrait` the same way the unlock cards do.
+
+Not built yet:
 - the addon photo mode (slice 4, which needs a real-client check).
 
 The plan's "previous picture kept 30 days for undo" was left out: replacing a picture deletes the old one, which is simpler to explain and keeps nothing the member removed.

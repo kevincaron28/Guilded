@@ -246,6 +246,8 @@ Everything not listed below is done (released, live or merged) per the tables ab
 
 **Owner, 8 Nov: #wow-personnage removed from Québec Gold** (its job moved to #invitation-guilde; the bot no longer creates or names it). **Discord text audit (owner request, in progress, server-hygiene session):** every bot message, DM, pinned guide, channel topic, /help, /faq, site page and guide that names a channel is checked against what `/setup` creates today (removed or merged: #wow-personnage, #bot-faq, the PvP groups channel merged into the group finder #619). Stale texts are fixed by PR with a guard test. A read-only scan of Québec Gold and the test server lists out-of-date pinned and bot messages in `docs/DISCORD_TEXT_AUDIT_2026-11-08.md`; the coordinator applies the Québec Gold edits to bot-owned guide texts.
 
+**Guilded Clash (card game, owner 8 Nov):** design `docs/plans/APP_TCG_GAME.md` (#629) approved in chat: core rules as written, AI + PvE gauntlet before ranked, guild-only trading v1, name "Guilded Clash". The owner approves every final card art (painted, Magic-style, made with his ChatGPT). Build stages A-D with track-d-gallery. **Later (owner idea):** Québec Gold members as cards: a guildmate's character (full name, class, picture, real achievements) as a collectible card, opt-in per member with an off switch that removes it, after the engine and AI stages.
+
 **Waiting for owner (cannot be done without him):**
 - Publish decisions: 9.0.5 is being published on his "publish" (8 Nov); later releases need his yes.
 - French names of the three new final bosses: needs a French client log (switch the client language, or a French member's log).

@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld("companion", {
   dismissLiveFolder: () => ipcRenderer.invoke("dismiss-live-folder"),
   accountYes: () => ipcRenderer.invoke("account-yes"),
   accountNo: () => ipcRenderer.invoke("account-no"),
+  setAccount: (file, on) => ipcRenderer.invoke("set-account", { file, on }),
   uploadNow: () => ipcRenderer.invoke("upload-now"),
   refreshStandings: () => ipcRenderer.invoke("refresh-standings"),
   exportSheets: (table) => ipcRenderer.invoke("export-sheets", table),

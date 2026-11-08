@@ -10,6 +10,7 @@ import { CLASSES } from "../wow-data.js";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 import { pictureUrl, type PictureVisibility } from "./character-picture.js";
+import type { PublicPictureLookup } from "./public-pictures.js";
 
 /** 9.1: a guild character's picture (character-picture.ts). Shown only to viewers allowed by its visibility. */
 export interface ProfilePicture { characterId: string; guildId: string; version: number; visibility: PictureVisibility }
@@ -143,7 +144,7 @@ export interface ProfileAchievements { publicSection(ctx: WebContext, accountId:
  */
 export interface ProfilePictures { isMember(discordUserId: string, guildId: string): Promise<boolean> }
 
-export function createPlayerProfiles(store: ProfileStore, achievements?: ProfileAchievements, pictures?: ProfilePictures): { route: WebRoute; meSection(ctx: WebContext): Promise<string> } {
+export function createPlayerProfiles(store: ProfileStore, achievements?: ProfileAchievements, pictures?: ProfilePictures, cardPictures?: Pick<PublicPictureLookup, "forCards">): { route: WebRoute; meSection(ctx: WebContext): Promise<string> } {
   const path = (id: string) => `/players/${encodeURIComponent(id)}`;
   /** The profile with only the pictures this viewer may see. */
   async function visibleTo(ctx: WebContext, profile: PlayerProfile, own: boolean): Promise<PlayerProfile> {
@@ -192,6 +193,8 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
       const after = decodeCursor(query.get("after"));
       const rows = await store.list(filters, after);
       const shown = rows.slice(0, PAGE_SIZE);
+      // Public pictures only: this page is the same for every viewer.
+      const faces = cardPictures ? await cardPictures.forCards(shown) : new Map<string, { characterId: string; version: number }>();
       // Links keep the filters; "after" moves to the next page.
       const keep = { q: filters.q || null, realm: filters.realm, class: filters.className, role: filters.role, guild: filters.guild, edition: filters.edition === "forever" ? null : filters.edition };
       const any = { value: "", label: t("Any", "Tous") };
@@ -202,7 +205,8 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
         + `<div><label for="realm">${t("Realm", "Royaume")}</label><input id="realm" name="realm" maxlength="${TEXT_MAX}" value="${escapeHtml(filters.realm ?? "")}"></div>`
         + `<div><label for="guild">${t("Guild", "Guilde")}</label><input id="guild" name="guild" maxlength="${TEXT_MAX}" value="${escapeHtml(filters.guild ?? "")}"></div>`
         + `<div><button class="button" type="submit">${t("Search", "Rechercher")}</button></div></form>`;
-      const card = (row: PlayerRow) => `<article class="card"><h2><a href="${link(path(row.id), lang)}">${escapeHtml(row.character)}</a></h2>`
+      const face = (row: PlayerRow) => { const picture = faces.get(row.id); return picture ? `<img src="${escapeHtml(pictureUrl(picture.characterId, picture.version, "thumb"))}" alt="" width="40" height="40" loading="lazy" style="border-radius:50%;vertical-align:middle;margin-right:8px">` : ""; };
+      const card = (row: PlayerRow) => `<article class="card"><h2>${face(row)}<a href="${link(path(row.id), lang)}">${escapeHtml(row.character)}</a></h2>`
         + `<p class="tag">${escapeHtml([row.className && classLabel(row.className, lang), row.role && roleLabel(row.role, lang), row.level ? `${t("level", "niveau")} ${row.level}` : null, row.realm, row.guild].filter(Boolean).join(" · "))}</p></article>`;
       return kit.page(200, t("Players", "Joueurs"), `<h1>${t("Guilded players", "Joueurs Guilded")}</h1><p>${t("Public player profiles: characters, dungeon runs and scores. Each player shows once, by their character.", "Profils publics : personnages, donjons et scores. Chaque joueur apparaît une fois, par son personnage.")}</p>`
         + form

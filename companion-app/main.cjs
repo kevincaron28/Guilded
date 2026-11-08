@@ -516,7 +516,7 @@ function onState(state) {
   refreshUpdate(state);
   const status = health(state);
   const found = problems(state);
-  win?.webContents.send("state", { state, health: status, update, savedFile, problems: found, addonAction: addonAction(), otherAccount: otherAccount ? { account: otherAccount.account } : null });
+  win?.webContents.send("state", { state, health: status, update, savedFile, problems: found, addonAction: addonAction(), otherAccount: otherAccount ? { account: otherAccount.account } : null, accountRows: accountRowsFor(state) });
   if (tray) {
     // Only problems the member can fix turn the tray red; Guilded's outages stay amber.
     const own = linkIdentity.memberProblems(found);
@@ -881,6 +881,21 @@ async function answerOtherAccount(yes) {
   await refreshSavedFile();
   return { ok: started, account: asked.account };
 }
+// Settings › Your WoW folder (plan step 2): a line per account, with a switch beside each further one.
+function accountRowsFor(state) {
+  try { return typeof engineModules?.accountRows === "function" ? engineModules.accountRows(config, state?.accounts ?? []) : []; } catch { return []; }
+}
+registerIpc("set-account", async (_event, { file, on }) => {
+  const next = engineModules.switchAccount(config, file, on);
+  if (next === config) return { ok: false };
+  config = next;
+  await saveConfig();
+  pushLog({ time: new Date().toISOString(), level: "info", message: on ? E("WoW account {0} syncs again.", engineModules.accountName(file)) : E("WoW account {0} was switched off.", engineModules.accountName(file)) });
+  const started = await engine.configure(config);
+  if (on && started) engine.uploadNow();
+  await refreshSavedFile();
+  return { ok: started };
+});
 registerIpc("account-yes", () => answerOtherAccount(true));
 registerIpc("account-no", () => answerOtherAccount(false));
 registerIpc("dismiss-live-folder", async () => {

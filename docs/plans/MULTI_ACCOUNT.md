@@ -12,6 +12,15 @@ question under the Sync status card, Repair and setup start with the newest acco
 stopping). Standings stay in the install's `Interface\AddOns` folder, which every account of that
 install shares, so only the first account's engine writes them.
 
+**Built:** step 2: one line per account on the Sync page (synced, waiting for a /reload, or its
+error) and in Settings › Your WoW folder, with a switch beside each further account. Switching
+one off stops its sync and it is never asked about again; switching it back on syncs it again.
+
+**Not built (owner, 7 November 2026): step 3.** Battle.net identities were removed with the
+Forever-only focus (#573): no Battle.net sign-in, page or auto-link is left, and the stored rows
+are no longer read. Step 1 already syncs every WoW account folder on a PC, two Battle.net logins
+included, and characters are proven from the saved data, so several accounts are covered without it.
+
 ## 1. Who this is for
 
 A member is one Discord account. Behind that one person there can be:

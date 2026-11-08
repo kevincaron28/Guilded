@@ -24,7 +24,7 @@ describe("deploy/update.sh disk housekeeping (static)", () => {
 
   it("removes its own staging directory when preparation fails", () => {
     const failure = update.slice(update.indexOf("if ! prepare_application"), update.indexOf("say \"Stopping the bot"));
-    expect(failure).toContain("discard_own_staging \"${STAGED_APP:-}\"");
+    expect(failure).toContain("discard_own_staging \"$STAGED_APP\"");
     expect(failure).toMatch(/exit 1/);
   });
 

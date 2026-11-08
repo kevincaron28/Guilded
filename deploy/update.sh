@@ -68,7 +68,9 @@ fi
 say "Preparing dependencies and the companion interface bundle outside the running application"
 command -v rsync >/dev/null || apt-get install -y rsync
 if ! prepare_application "$SRC" "$APP" guilded; then
-  if discard_own_staging "${STAGED_APP:-}"; then
+  if [ -z "${STAGED_APP:-}" ]; then
+    STAGE_NOTE="No staging directory was created."
+  elif discard_own_staging "$STAGED_APP"; then
     STAGE_NOTE="This run's private staging directory was removed."
   else
     STAGE_NOTE="Could not remove this run's staging directory: ${STAGED_APP:-not created}."

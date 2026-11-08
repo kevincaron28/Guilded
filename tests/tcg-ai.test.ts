@@ -101,9 +101,9 @@ describe("self-play", () => {
     expect(classWins).toBe(report.games - report.draws);
   }, 120_000);
   it("reports the design targets it misses", () => {
-    const fine: MatrixReport = { games: 100, draws: 0, stuck: 0, firstPlayerWins: 50, medianRounds: 7, exhaustionShare: 0.01, byClass: { warrior: { games: 100, wins: 50, rate: 0.5 } }, pairs: [], cards: { "001": { played: 500, wins: 250, rate: 0.5 } } };
+    const fine: MatrixReport = { games: 100, draws: 0, stuck: 0, firstPlayerWins: 50, medianRounds: 7, exhaustionShare: 0.01, byClass: { warrior: { games: 100, wins: 50, rate: 0.5 } }, pairs: [], cards: { "001": { played: 500, wins: 250, rate: 0.5, drawn: 500, drawnWins: 250, drawnRate: 0.5 } } };
     expect(missedTargets(fine)).toEqual([]);
-    const bad: MatrixReport = { ...fine, firstPlayerWins: 70, medianRounds: 12, exhaustionShare: 0.05, byClass: { warrior: { games: 100, wins: 70, rate: 0.7 } }, cards: { "001": { played: 500, wins: 350, rate: 0.7 } } };
+    const bad: MatrixReport = { ...fine, firstPlayerWins: 70, medianRounds: 12, exhaustionShare: 0.05, byClass: { warrior: { games: 100, wins: 70, rate: 0.7 } }, cards: { "001": { played: 500, wins: 350, rate: 0.7, drawn: 500, drawnWins: 350, drawnRate: 0.7 } } };
     expect(missedTargets(bad)).toHaveLength(5);
   });
 });

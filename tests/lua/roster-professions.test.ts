@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { newLuaSession, type LuaSession } from "./harness.js";
 import { rosterPrelude } from "./roster-tools.test.js";
 import { noteIsWritable, professionNoteTag } from "../../src/services/profession-note.js";
+import { mixinHookLines } from "../../scripts/validate-mixin-hooks.mjs";
 
 let s: LuaSession;
 afterEach(() => s?.close());
@@ -88,10 +89,51 @@ describe("guild roster tooltip", () => {
   });
   it("hooks Blizzard's roster button once and tolerates a missing hook API", () => {
     setup();
-    s.run(`HOOKS = {}; hooksecurefunc = function(t, k, fn) HOOKS[#HOOKS + 1] = k end; GuildRosterButton_OnEnter = function() end`);
+    s.run(`HOOKS = {}; hooksecurefunc = function(name, fn) HOOKS[#HOOKS + 1] = name end; GuildRosterButton_OnEnter = function() end`);
     s.run("NS.rosterProfessions.install(); NS.rosterProfessions.install()");
     expect(s.run('return table.concat(HOOKS, ",")')).toBe("GuildRosterButton_OnEnter");
     s.run("hooksecurefunc = nil; NS.rosterProfessions.install()");
+  });
+  // 9.0.4: hooking CommunitiesMemberListEntryMixin made every roster entry frame inherit tainted
+  // code (ADDON_ACTION_FORBIDDEN on each login). Now each entry frame's own OnEnter is hooked.
+  it("never hooks the Communities mixin table; hooks each member entry frame once", () => {
+    setup();
+    s.run(`HOOKED = {}; hooksecurefunc = function(t, k) HOOKED[#HOOKED + 1] = type(t) == "string" and t or ("table." .. tostring(k)) end
+      CommunitiesMemberListEntryMixin = { OnEnter = function() end }
+      ORIGINAL = CommunitiesMemberListEntryMixin.OnEnter
+      LINES = {}
+      GameTooltip = { AddLine = function(_, t) LINES[#LINES + 1] = t end, Show = function() end }
+      function ENTRY(name)
+        local f = { scripts = {}, hooks = 0, memberInfo = { name = name } }
+        function f:HookScript(script, fn) self.hooks = self.hooks + 1; self.scripts[script] = fn end
+        return f
+      end
+      EXISTING = ENTRY("Amy-Realm")
+      CALLBACKS = {}
+      ScrollUtil = { AddInitializedFrameCallback = function(box, fn, owner, iterateExisting)
+        CALLBACKS[#CALLBACKS + 1] = fn
+        if iterateExisting then fn(owner, EXISTING, {}) end
+      end }
+      CommunitiesFrame = { MemberList = { ScrollBox = {} } }
+      GuildRosterButton_OnEnter = function() end`);
+    s.run("NS.rosterProfessions.install(); NS.rosterProfessions.install()");
+    // The mixin is untouched; only the plain global function got a secure hook.
+    expect(s.run("return tostring(CommunitiesMemberListEntryMixin.OnEnter == ORIGINAL) .. ' ' .. table.concat(HOOKED, ',')")).toBe("true GuildRosterButton_OnEnter");
+    // One list callback; the frame already on screen and a new one are hooked once each.
+    s.run("NEW = ENTRY('Bob-Realm'); CALLBACKS[1](NS.rosterProfessions, NEW, {}); CALLBACKS[1](NS.rosterProfessions, NEW, {})");
+    expect(s.run("return #CALLBACKS .. ' ' .. EXISTING.hooks .. ' ' .. NEW.hooks")).toBe("1 1 1");
+    s.run("EXISTING.scripts.OnEnter(EXISTING)");
+    expect(s.run('return table.concat(LINES, "|")')).toContain("Alchemy 300");
+  });
+
+  it("hooks the older member list's fixed buttons when there is no ScrollBox", () => {
+    setup();
+    s.run(`hooksecurefunc = function() end
+      B1 = { hooks = 0, HookScript = function(self) self.hooks = self.hooks + 1 end }
+      B2 = { hooks = 0, HookScript = function(self) self.hooks = self.hooks + 1 end }
+      CommunitiesFrame = { MemberList = { ListScrollFrame = { buttons = { B1, B2 } } } }`);
+    s.run("NS.rosterProfessions.install(); NS.rosterProfessions.install()");
+    expect(s.run("return B1.hooks .. ' ' .. B2.hooks")).toBe("1 1");
   });
 });
 
@@ -146,5 +188,21 @@ describe("ready to promote panel", () => {
     setup(); s.run(rows);
     expect(s.run('local ok=NS.promotion.promote("Amy-Realm\\tpromote\\t\\nBob-Realm"); return tostring(ok)')).toBe("false");
     expect(s.run("return #CALLS")).toBe("0");
+  });
+});
+
+describe("validator: no secure hooks on Blizzard mixin tables", () => {
+  it("flags hooksecurefunc on a *Mixin, directly, through pcall or a local wrapper", () => {
+    expect(mixinHookLines('hooksecurefunc(CommunitiesMemberListEntryMixin, "OnEnter", fn)')).toEqual([1]);
+    expect(mixinHookLines(['x = 1', 'local ok = pcall(hooksecurefunc, Some.FooMixin, "OnShow", fn)'].join(String.fromCharCode(10)))).toEqual([2]);
+    expect(mixinHookLines('if CommunitiesMemberListEntryMixin then hook(CommunitiesMemberListEntryMixin, "OnEnter") end')).toEqual([1]);
+  });
+  it("allows global-function hooks, frame HookScript and comments", () => {
+    expect(mixinHookLines([
+      'hooksecurefunc("GuildRosterButton_OnEnter", fn)',
+      'frame:HookScript("OnEnter", fn)',
+      '-- never hooksecurefunc(CommunitiesMemberListEntryMixin, "OnEnter")',
+      'local f = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate")',
+    ].join(String.fromCharCode(10)))).toEqual([]);
   });
 });

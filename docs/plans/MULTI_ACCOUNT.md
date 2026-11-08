@@ -21,6 +21,11 @@ Forever-only focus (#573): no Battle.net sign-in, page or auto-link is left, and
 are no longer read. Step 1 already syncs every WoW account folder on a PC, two Battle.net logins
 included, and characters are proven from the saved data, so several accounts are covered without it.
 
+**Built:** step 4: the member install guide (`docs/MEMBER_INSTALL.md`, English and French), the
+install guide page's help list and the companion page (`site/pages/`, both languages) say that
+several WoW accounts on one PC sync by themselves, after one "Is it yours too?" question each.
+With that the plan is done.
+
 ## 1. Who this is for
 
 A member is one Discord account. Behind that one person there can be:

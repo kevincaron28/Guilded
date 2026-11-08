@@ -102,6 +102,17 @@ const CLASS_COLOR: Record<string, string> = { warrior: "#c79c6e", paladin: "#f58
 export const classColor = (name: string | null | undefined) => CLASS_COLOR[(name ?? "").toLowerCase().replace(/[^a-z]/g, "")] ?? "#bfc9bd";
 
 interface Layer { input: Buffer; left: number; top: number }
+
+/** A portrait (Discord avatar or character picture, base64) in a gold ring at the card's top left; false when the image is unreadable. */
+async function ringPortrait(portrait: string, shapes: string[], layers: Layer[]): Promise<boolean> {
+  try {
+    const avatar = await sharp(Buffer.from(portrait, "base64")).resize(80, 80, { fit: "cover" })
+      .composite([{ input: Buffer.from(`<svg width="80" height="80"><circle cx="40" cy="40" r="40"/></svg>`), blend: "dest-in" }]).png().toBuffer();
+    shapes.push(`<circle cx="100" cy="104" r="44" fill="${th.panel}" stroke="${th.gold}" stroke-width="2.5"/>`);
+    layers.push({ input: avatar, left: 60, top: 64 });
+    return true;
+  } catch { return false; }
+}
 const rect = (x: number, y: number, w: number, h: number, fill: string, edge?: string, r = 12) =>
   `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${fill}"${edge ? ` stroke="${edge}" stroke-width="1.5"` : ""}/>`;
 
@@ -282,10 +293,12 @@ async function render(card: ScoreCard): Promise<Buffer> {
   const leftW = hasRows ? 500 : 1080;
 
   // The title shrinks to fit the narrower left column rather than being cut short.
-  const titleLen = [...drawable(card.title)].length, titleSize = !hasRows || titleLen <= 12 ? 62 : titleLen <= 17 ? 50 : 40;
+  // A character picture (share images) sits left of the title and pushes it right.
+  const titleX = card.portrait && await ringPortrait(card.portrait, shapes, layers) ? 162 : 58;
+  const titleLen = [...drawable(card.title)].length, titleSize = Math.min(titleX > 58 ? 50 : 62, !hasRows || titleLen <= 12 ? 62 : titleLen <= 17 ? 50 : 40);
   await put(caps(th.gold, clip(card.eyebrow ?? "Guilded · Dungeons", 44)), 20, 60, 40, leftW);
-  await put(span(th.ink, clip(card.title, hasRows ? 26 : 38)), titleSize, 58, 68 + (62 - titleSize) / 2, leftW);
-  await put(span(th.muted, clip(card.subtitle, hasRows ? 38 : 90)), 25, 60, 146, leftW);
+  await put(span(th.ink, clip(card.title, titleX > 58 ? (hasRows ? 18 : 30) : (hasRows ? 26 : 38))), titleSize, titleX, 68 + (62 - titleSize) / 2, leftW - (titleX - 58));
+  await put(span(th.muted, clip(card.subtitle, hasRows ? 38 : 90)), 25, 60, titleX > 58 ? 160 : 146, leftW);
 
   // Headline: the first stat is large, the next two sit side by side underneath.
   const [big, ...small] = card.stats.slice(0, 3);
@@ -663,16 +676,7 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
   const single = all.length === 1, lead = single ? 1080 : 500, len = [...card.title].length;
   const size = len <= 14 ? 62 : len <= 22 ? 54 : len <= 30 ? 46 : 40;
   // A Discord avatar (added at delivery) sits left of the name in a gold ring; an unreadable image is skipped.
-  let nameX = 58;
-  if (card.portrait) {
-    try {
-      const avatar = await sharp(Buffer.from(card.portrait, "base64")).resize(80, 80, { fit: "cover" })
-        .composite([{ input: Buffer.from(`<svg width="80" height="80"><circle cx="40" cy="40" r="40"/></svg>`), blend: "dest-in" }]).png().toBuffer();
-      shapes.push(`<circle cx="100" cy="104" r="44" fill="${th.panel}" stroke="${th.gold}" stroke-width="2.5"/>`);
-      layers.push({ input: avatar, left: 60, top: 64 });
-      nameX = 162;
-    } catch { /* no avatar */ }
-  }
+  const nameX = card.portrait && await ringPortrait(card.portrait, shapes, layers) ? 162 : 58;
   await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40, lead);
   await put(span(th.ink, clip(card.title, 48)), nameX > 100 ? Math.min(size, 50) : size, nameX, 68 + (62 - (nameX > 100 ? Math.min(size, 50) : size)) / 2 + (nameX > 100 ? 10 : 0), lead - nameX);
   // Discord role as a pill at the right of the header (single-unlock layout; the batch layouts have no room).

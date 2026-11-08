@@ -36,6 +36,7 @@ import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { publicRaids } from "./services/public-raids.js";
 import { createPlayerProfiles, prismaProfileStore } from "./services/player-profiles.js";
 import { createAchievementsWeb } from "./services/achievements-web.js";
+import { publicPictures } from "./services/public-pictures.js";
 import { createGuildDirectory, prismaGuildDirectoryStore } from "./services/guild-directory.js";
 import { calendarEventsWithin, discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
@@ -320,7 +321,8 @@ export function createSiteApp(client?: Client) {
       const discordGuild = record && client ? await client.guilds.fetch(record.discordId).catch(() => null) : null;
       return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId, askCrafter))).posted : false;
     } });
-  const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows);
+  const openPictures = publicPictures(prisma, id => hostedPilot.allows(id));
+  const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows, (discordUserId, own) => openPictures.byAccount(discordUserId, own));
   const pictures = createPicturePages(prismaPictureStore(prisma), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), {
     // A "Report this picture" goes to that guild's officer log, with the command that removes it.
     report: async ({ guildId, characterId, reporter }) => {
@@ -334,9 +336,9 @@ export function createSiteApp(client?: Client) {
       return true;
     }
   });
-  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb, pictures);
+  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb, pictures, openPictures);
   const directory = createGuildDirectory(prismaGuildDirectoryStore(prisma, (id) => hostedPilot.allows(id)));
-  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma) });
+  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma), picture: (name, realm) => openPictures.byCharacter(name, realm) });
   const signInPage = companionSignInRoute({
     signIn: companionSignIn,
     servers: (discordUserId) => signInServers(client, discordUserId),

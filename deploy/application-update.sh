@@ -2,9 +2,17 @@
 # Shared filesystem operations for update/recovery. The caller owns service control.
 # Never applies migrations or starts a bot. Keep recovery directories private.
 
+# Thresholds for starting a fresh npm ci on the 1 GB server (kB). Below them the install would swap and
+# thrash the running bot, so the update stops first. Tunable here; a version-only bump never needs them.
+MIN_AVAILABLE_KB=393216        # 384 MB MemAvailable
+MIN_AVAILABLE_PLUS_SWAP_KB=786432  # 768 MB MemAvailable + SwapFree
+MEMINFO_FILE="${MEMINFO_FILE:-/proc/meminfo}"
+
 prepare_application() {
-  local source="$1" app="$2" owner="$3"
+  local source="$1" app="$2" owner="$3" reuse=0
   [ -d "$source" ] && [ -d "$app" ] && [ ! -L "$app" ] || return 1
+  # Decide before anything is created: a fresh npm ci needs memory headroom, or the update stops here.
+  if can_reuse_dependencies "$source" "$app"; then reuse=1; else memory_ok_for_install || return 1; fi
   STAGED_APP="$(mktemp -d "${app}.stage.XXXXXXXX")" || return 1
   chmod 700 "$STAGED_APP"
   # Build exclusively from source; do not copy a live dependency tree or stale output.
@@ -18,26 +26,68 @@ prepare_application() {
   # Arguments, not interpolated shell text: paths may contain spaces.
   # The live bot still serves Discord's short interaction deadline while staging.
   # Prefer its CPU work over npm extraction/Prisma generation on the small VM.
-  if can_reuse_dependencies "$source" "$app"; then
-    # Same dependency tree as the running application: copy its node_modules rather than running npm ci,
-    # the step that drove the 1 GB server into swap. A real copy, not links, so nothing written in
-    # staging can reach the live tree. Prisma's client is regenerated; npm ci would have done that too.
+  if [ "$reuse" = 1 ]; then
+    # Same dependencies as the running application (a version-only bump still counts): copy its node_modules
+    # rather than running npm ci, the step that drove the 1 GB server into swap. A real copy, not links, so
+    # nothing written in staging can reach the live tree. Prisma's client is regenerated; npm ci would have done that too.
     cp -a "$app/node_modules" "$STAGED_APP/node_modules" || return 1
     chown -R "$owner:$owner" "$STAGED_APP/node_modules" || return 1
     sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate' _ "$STAGED_APP" || return 1
   else
-    sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && npm ci --no-audit --no-fund' _ "$STAGED_APP" || return 1
+    # A genuine dependency change: prefer the npm cache and cap the heap so npm cannot push the box into swap.
+    sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 npm ci --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
   fi
   # The bundle build gets a heap cap so it cannot take the memory the running bot needs.
   sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm run companion:build' _ "$STAGED_APP"
 }
 
-# True when the running application was installed from the same package.json and package-lock.json
-# and has a node_modules tree to copy. Byte comparison: any difference means a fresh npm ci.
+# Prints a hash of the dependency content of a source tree: the dependency fields of package.json and the
+# whole lockfile, with only the version fields removed (the package's own version, and the lockfile's root
+# version). A version-only bump therefore keeps the same hash; any dependency change alters it.
+dependency_fingerprint() {
+  node -e '
+const fs = require("fs"), crypto = require("crypto");
+const dir = process.argv[1];
+const canon = (v) => Array.isArray(v) ? v.map(canon)
+  : v && typeof v === "object" ? Object.keys(v).sort().reduce((o, k) => { o[k] = canon(v[k]); return o; }, {})
+  : v;
+const pkg = JSON.parse(fs.readFileSync(dir + "/package.json", "utf8"));
+const manifest = {};
+for (const k of ["dependencies", "devDependencies", "optionalDependencies", "peerDependencies", "overrides"]) {
+  if (k in pkg) manifest[k] = pkg[k];
+}
+const lock = JSON.parse(fs.readFileSync(dir + "/package-lock.json", "utf8"));
+delete lock.version;
+if (lock.packages && lock.packages[""]) delete lock.packages[""].version;
+const text = JSON.stringify({ manifest: canon(manifest), lock: canon(lock) });
+process.stdout.write(crypto.createHash("sha256").update(text).digest("hex") + "\n");
+' "$1"
+}
+
+# True when the running application has a node_modules tree built from the same dependencies as the source.
+# Any unreadable file, or a dependency difference, means a fresh npm ci.
 can_reuse_dependencies() {
-  local source="$1" app="$2"
+  local source="$1" app="$2" want have
   [ -d "$app/node_modules" ] && [ ! -L "$app/node_modules" ] || return 1
-  cmp -s "$source/package.json" "$app/package.json" && cmp -s "$source/package-lock.json" "$app/package-lock.json"
+  want="$(dependency_fingerprint "$source" 2>/dev/null)" || return 1
+  have="$(dependency_fingerprint "$app" 2>/dev/null)" || return 1
+  [ -n "$want" ] && [ "$want" = "$have" ]
+}
+
+# Refuses a fresh npm ci unless the box has memory headroom now. Unknown or low values stop the update
+# before anything is created, instead of thrashing the running bot. Prints the reason.
+memory_ok_for_install() {
+  local available swap
+  available="$(awk '/^MemAvailable:/{print $2}' "$MEMINFO_FILE" 2>/dev/null || true)"
+  swap="$(awk '/^SwapFree:/{print $2}' "$MEMINFO_FILE" 2>/dev/null || true)"
+  case "$available" in ''|*[!0-9]*) echo "Could not read available memory; not starting npm ci."; return 1 ;; esac
+  case "$swap" in ''|*[!0-9]*) swap=0 ;; esac
+  if [ "$available" -lt "$MIN_AVAILABLE_KB" ] || [ $((available + swap)) -lt "$MIN_AVAILABLE_PLUS_SWAP_KB" ]; then
+    echo "Not enough memory to install new dependencies: $((available / 1024)) MB available, $((swap / 1024)) MB swap free."
+    echo "A fresh npm ci needs about 384 MB available (768 MB with swap). Nothing was changed; the bot is still running."
+    echo "Retry when the server is quieter, or free memory first."
+    return 1
+  fi
 }
 
 activate_application() {

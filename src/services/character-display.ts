@@ -70,7 +70,7 @@ export function fullNameBook(rows: Iterable<{ name?: string | null; displayName?
 
 /** Loads one guild's book from the bot's own tables. Never throws: a failed read gives an empty book (stored names are shown). */
 export async function loadFullNameBook(db: { character?: { findMany: (args: never) => Promise<{ name: string; displayName: string | null }[]> }; unclaimedCharacter?: { findMany: (args: never) => Promise<{ name: string; displayName: string | null }[]> }; guildRosterEntry?: { findMany: (args: never) => Promise<{ name: string }[]> };
-  publicRunPlayer?: { findMany: (args: never) => Promise<{ character: string; displayName: string | null }[]> } }, guildId: string): Promise<FullNameBook> {
+  publicRunPlayer?: { findMany: (args: never) => Promise<{ character: string; displayName: string | null }[]> } }, guildId: string, alsoLookUp: readonly string[] = []): Promise<FullNameBook> {
   try {
     const [linked, unclaimed, roster] = await Promise.all([
       db.character?.findMany({ where: { member: { guildId } }, select: { name: true, displayName: true }, take: 5_000 } as never) ?? [],
@@ -80,7 +80,8 @@ export async function loadFullNameBook(db: { character?: { findMany: (args: neve
     const own = fullNameBook([...linked, ...unclaimed, ...roster]);
     // First names the guild's own tables cannot complete: the public runs carry the full names the addon saw ("Crashing" -> "Crashing Pally").
     // Used only for those names, so another guild's look-alike never changes a name the guild already resolves.
-    const bare = [...new Set([...linked, ...unclaimed, ...roster].map(row => squash(row.name)).filter(name => name && !name.includes(" ") && !own.fullFor(name)))].slice(0, 2_000);
+    // `alsoLookUp`: first names a board is about to show (a run's party) that may be in none of the guild's tables.
+    const bare = [...new Set([...[...linked, ...unclaimed, ...roster].map(row => row.name), ...alsoLookUp].map(name => squash(name)).filter(name => name && !name.includes(" ") && !own.fullFor(name)))].slice(0, 2_000);
     const seen = bare.length && db.publicRunPlayer
       ? await db.publicRunPlayer.findMany({ where: { character: { in: bare }, displayName: { contains: " " } }, select: { character: true, displayName: true }, distinct: ["character", "displayName"], take: 5_000 } as never).catch(() => [])
       : [];

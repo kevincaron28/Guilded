@@ -1,4 +1,6 @@
 import { AttachmentBuilder, EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
+import { seasonLabel } from "./season-label.js";
+import { isOwnBoard } from "./board-identity.js";
 import { prisma } from "../database.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -80,10 +82,10 @@ export function activityCard(data: ActivityData, lang: Lang, classes: ClassBook 
     eyebrow: fr ? "Guilded · Participation" : "Guilded · Participation", title: fr ? "Activité de la guilde" : "Guild activity",
     subtitle: data.view === "week"
       ? fr ? `Cette semaine · ${data.rows.length} membres actifs` : `This week · ${data.rows.length} active members`
-      : fr ? `${data.label} · ${data.rows.length} membres actifs` : `${data.label} · ${data.rows.length} active members`,
+      : fr ? `${seasonLabel(data.label, lang)} · ${data.rows.length} membres actifs` : `${data.label} · ${data.rows.length} active members`,
     stats: [], footer: weightsText(lang),
     ladder: {
-      meta: ladderMeta(lang, updatedAt, data.view === "season" ? data.label : null),
+      meta: ladderMeta(lang, updatedAt, data.view === "season" ? seasonLabel(data.label, lang) : null),
       empty: fr ? "Aucune activité comptée pour l'instant." : "No activity counted yet.",
       columns: [{ label: fr ? "Donjons" : "Dungeons", width: 70 }, { label: "Duels", width: 56 }, { label: fr ? "CdB" : "BGs", width: 56 },
         { label: "Total", width: 64, primary: true }, ...(moves ? [moveColumn(lang)] : [])],
@@ -94,7 +96,7 @@ export function activityCard(data: ActivityData, lang: Lang, classes: ClassBook 
 }
 
 /** Pure: the board's embed (the week's podium and the season's), plus the weights. With `image`, the card holds the season ladder. */
-export function activityEmbed(week: ActivityData, season: ActivityData, lang: Lang, guildId = "", image?: string): EmbedBuilder {
+export function activityEmbed(week: ActivityData, season: ActivityData, lang: Lang, image?: string): EmbedBuilder {
   const fr = lang === "fr";
   const line = (row: ActivityRow, index: number) => `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${escapeMarkdown(row.name).slice(0, 40)} — **${row.total}**`
     + ` (${fr ? "donjons" : "dungeons"} ${row.dungeons} · duels ${row.duels} · ${fr ? "CdB" : "BGs"} ${row.battlegrounds})`;
@@ -103,10 +105,15 @@ export function activityEmbed(week: ActivityData, season: ActivityData, lang: La
       : "Dungeons, duels and battlegrounds in one ladder. Each board keeps its own numbers.");
   const field = (data: ActivityData, name: string, top: number) => embed.addFields({ name, value: (data.rows.length ? data.rows.slice(0, top).map(line).join("\n")
     : fr ? "Rien encore." : "Nothing yet.").slice(0, 1024) });
-  field(week, fr ? "Cette semaine" : "This week", EMBED_TOP);
-  field(season, season.label, image ? EMBED_TOP : 10);
+  // Early in a season the week and the season hold the same people and numbers: one field then, not two copies.
+  const same = week.rows.length === season.rows.length && week.rows.every((row, i) => row.memberId === season.rows[i]!.memberId && row.total === season.rows[i]!.total);
+  if (same) field(season, `${seasonLabel(season.label, lang)} · ${fr ? "cette semaine aussi" : "this week too"}`, image ? EMBED_TOP : 10);
+  else {
+    field(week, fr ? "Cette semaine" : "This week", EMBED_TOP);
+    field(season, seasonLabel(season.label, lang), image ? EMBED_TOP : 10);
+  }
   if (image && season.rows.length) embed.setImage(`attachment://${image}`);
-  return embed.setFooter({ text: `${ACTIVITY_BOARD_MARKER} • ${guildId} • ${weightsText(lang)}`.slice(0, 2048) });
+  return embed.setFooter({ text: weightsText(lang).slice(0, 2048) });
 }
 
 type Db = Pick<PrismaClient, "dungeonPointTransaction" | "dungeonSeason" | "duelResult" | "battlegroundReport" | "member">
@@ -147,7 +154,7 @@ export async function loadActivity(db: Db, guildId: string, edition: string, vie
 export const activityChannelId = (settings: { dungeonLeaderboardChannelId?: string | null; duelBoardChannelId?: string | null }) =>
   settings.dungeonLeaderboardChannelId ?? settings.duelBoardChannelId ?? null;
 
-const isBoard = (message: Message, botId: string) => message.author.id === botId && message.embeds.some(embed => embed.footer?.text?.startsWith(`${ACTIVITY_BOARD_MARKER} •`));
+const isBoard = (message: Message, botId: string) => isOwnBoard(message, botId, ACTIVITY_BOARD_MARKER, ["🏅 Guild activity", "🏅 Activité de la guilde"]);
 
 /** The picture and embed for one guild (also used by /stats activity). Never throws on drawing: no picture just means embed only. */
 export async function activityPayload(guildId: string, edition: string, lang: Lang, view: ActivityView = "season", snapshot = true) {
@@ -156,7 +163,7 @@ export async function activityPayload(guildId: string, edition: string, lang: La
   // Each view is its own snapshot board; a new dungeon season starts a new one, so arrows never compare two seasons.
   const moves = snapshot && shown.rows.length ? await trackRanks(prisma, guildId, `activity:${view}:${view === "week" ? week.since.toISOString().slice(0, 10) : season.label}`.slice(0, 120), shown.rows.map(row => row.memberId)) : null;
   const png = shown.rows.length ? await scoreCardPng(activityCard(shown, lang, await loadClassBook(prisma, guildId).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
-  const embed = activityEmbed(week, season, lang, guildId, png ? ACTIVITY_CARD_FILE : undefined).setTimestamp(new Date());
+  const embed = activityEmbed(week, season, lang, png ? ACTIVITY_CARD_FILE : undefined).setTimestamp(new Date());
   return { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: ACTIVITY_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
 }
 

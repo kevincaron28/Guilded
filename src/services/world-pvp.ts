@@ -126,7 +126,7 @@ export function worldPvpCard(data: WorldPvpData, lang: Lang, classes: ClassBook 
 }
 
 /** Pure: the second embed on the PvP ladder message. With `image`, the card holds the table and the embed keeps the summary. */
-export function worldPvpEmbed(data: WorldPvpData, lang: Lang, guildId = "", image?: string): EmbedBuilder {
+export function worldPvpEmbed(data: WorldPvpData, lang: Lang, image?: string): EmbedBuilder {
   const t = (en: string, french: string) => lang === "fr" ? french : en;
   const name = (value: string) => escapeMarkdown(value).slice(0, 32);
   const embed = new EmbedBuilder().setColor(0xb91c1c).setTitle(t("⚔️ World PvP this week", "⚔️ JcJ en monde ouvert cette semaine"));
@@ -140,5 +140,5 @@ export function worldPvpEmbed(data: WorldPvpData, lang: Lang, guildId = "", imag
     }
   }
   if (image && data.standings.length) embed.setImage(`attachment://${image}`);
-  return embed.setFooter({ text: `${WORLD_PVP_MARKER} • ${guildId} • ${t("player counters, capped · no points or awards", "compteurs des joueurs, plafonnés · aucun point ni récompense")}`.slice(0, 2048) });
+  return embed.setFooter({ text: t("Counted by members' Guilded addon, capped each week · no points or awards", "Comptés par l'addon Guilded des membres, plafonnés chaque semaine · aucun point ni récompense") });
 }

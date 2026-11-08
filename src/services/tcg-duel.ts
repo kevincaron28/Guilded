@@ -4,6 +4,7 @@ import { starterDeck } from "./tcg-cards-set1.js";
 import { actor, apply, applyMut, cloneState, createMatch, IllegalAction, replay, round, stateHash } from "./tcg-engine.js";
 import type { Action, DeckList, MatchEvent, MatchState } from "./tcg-engine-types.js";
 import { Conflict, countPlay, isClassKey, planReward, playerView, type MatchRewards, type PlayerView, type Settlement } from "./tcg-match.js";
+import { onlineInApp, onlineInGame } from "./tcg-presence.js";
 import { MIN_TURNS_COUNTED } from "./tcg-quests.js";
 import { applyStars, glicko2, PAIR_CAP, queueWindow, rankOf, rolloverRating, seasonEndsAt, seasonKey, START_RATING, START_RD, START_VOL, weekStart, type RankInfo } from "./tcg-rating.js";
 import { TcgError } from "./tcg-store.js";
@@ -36,7 +37,7 @@ export const FRIENDLY_PAIR_WEEKLY_CAP = 3;
 export const LADDER_SIZE = 50;
 const DAY_MS = 86_400_000;
 
-type Tx = Pick<PrismaClient, "tcgAccount" | "tcgCard" | "tcgLog" | "tcgMatch" | "tcgPlayer" | "tcgDaily" | "tcgDuel" | "tcgRating" | "tcgQueue" | "member" | "character" | "guildSettings">;
+type Tx = Pick<PrismaClient, "tcgAccount" | "tcgCard" | "tcgLog" | "tcgMatch" | "tcgPlayer" | "tcgDaily" | "tcgDuel" | "tcgRating" | "tcgQueue" | "member" | "character" | "guildSettings" | "guildRosterEntry">;
 export type DuelDb = Tx & { $transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T> };
 
 // ---- stored shape ----
@@ -62,7 +63,7 @@ export interface DuelInfo {
   direction: "incoming" | "outgoing" | "match";
   seat: 0 | 1; yourTurn: boolean;
   you: { id: string; cls: string };
-  opponent: { id: string; name: string; cls: string | null };
+  opponent: { id: string; name: string; cls: string | null; onlineInApp: boolean; onlineInGame?: boolean };
   season: string | null; round: number; version: number; turnSeconds: number; turnDeadlineAt: string | null; expiresAt: string | null;
   createdAt: string; finishedAt: string | null; rated: boolean;
 }
@@ -84,7 +85,7 @@ function infoOf(row: DuelRow, userId: string, names: Names): DuelInfo {
     id: row.id, kind: row.kind as "friendly" | "ranked", status, reason: row.reason, live: row.live,
     direction: row.status === "pending" ? (seat === 0 ? "outgoing" : "incoming") : "match",
     seat, yourTurn: row.status === "active" && state !== null && state.phase !== "over" && actor(state) === seat,
-    you: { id: userId, cls: mine }, opponent: { id: otherId, name: names.get(otherId) ?? "A guildmate", cls: otherCls },
+    you: { id: userId, cls: mine }, opponent: { id: otherId, name: names.get(otherId) ?? "A guildmate", cls: otherCls, onlineInApp: onlineInApp(otherId) },
     season: row.kind === "ranked" ? row.season : null, round: state ? round(state) : 0, version: row.version, turnSeconds: row.turnSeconds,
     turnDeadlineAt: row.turnDeadlineAt?.toISOString() ?? null, expiresAt: row.expiresAt?.toISOString() ?? null,
     createdAt: row.createdAt.toISOString(), finishedAt: row.finishedAt?.toISOString() ?? null, rated: row.rated
@@ -273,6 +274,7 @@ export async function challenge(db: DuelDb, userId: string, input: { to: string;
   const live = input.live === true;
   return db.$transaction(async tx => {
     if (input.to === userId) throw new TcgError("Challenge a guildmate, not yourself.", 400);
+    if (live && !onlineInApp(input.to, now)) throw new TcgError("They are not online in the app right now, so a live challenge would just expire. Send an asynchronous challenge instead (24 hours a turn).", 409);
     const guildId = await sharedGuild(tx, userId, input.to, allows, false);
     if (!guildId) throw new TcgError("You can only challenge a guildmate who has Guilded, a linked character and the card game switched on.", 403);
     const open = await tx.tcgDuel.count({ where: { kind: "friendly", status: "pending", userA: userId } });
@@ -284,7 +286,9 @@ export async function challenge(db: DuelDb, userId: string, input: { to: string;
       kind: "friendly", guildId, userA: userId, userB: input.to, clsA: cls, live, status: "pending",
       turnSeconds: live ? LIVE_TURN_SECONDS : TURN_SECONDS, expiresAt: new Date(now.getTime() + (live ? LIVE_CHALLENGE_TTL_MS : CHALLENGE_TTL_MS)), lastActionAt: now
     } }) as DuelRow;
-    return reply(tx, row, userId);
+    const response = await reply(tx, row, userId);
+    response.duel.opponent.onlineInGame = (await onlineInGame(tx, [input.to], now)).has(input.to);
+    return response;
   });
 }
 
@@ -394,11 +398,15 @@ export async function concedeDuel(db: DuelDb, userId: string, id: string, now = 
 export async function listDuels(db: DuelDb, userId: string, now = new Date(), limit = 40): Promise<{ duels: DuelInfo[] }> {
   const rows = await db.tcgDuel.findMany({ where: { OR: [{ userA: userId }, { userB: userId }] }, orderBy: { createdAt: "desc" }, take: Math.min(limit, 60) }) as DuelRow[];
   const names = await namesOf(db, rows.flatMap(r => [r.userA, r.userB]));
+  const inGame = await onlineInGame(db, rows.filter(r => r.status === "pending" || r.status === "active").map(r => r.userA === userId ? r.userB : r.userA), now);
   const out: DuelInfo[] = [];
   for (const row of rows) {
     const due = (row.status === "pending" && row.expiresAt && row.expiresAt.getTime() <= now.getTime()) || (row.status === "active" && row.turnDeadlineAt && row.turnDeadlineAt.getTime() <= now.getTime());
-    if (due) { const settled = await getDuel(db, userId, row.id, now).catch(() => null); if (settled) { out.push(settled.duel); continue; } }
-    out.push(infoOf(row, userId, names));
+    const info = infoOf(row, userId, names);
+    info.opponent.onlineInApp = onlineInApp(info.opponent.id, now);
+    info.opponent.onlineInGame = inGame.has(info.opponent.id);
+    if (due) { const settled = await getDuel(db, userId, row.id, now).catch(() => null); if (settled) { settled.duel.opponent.onlineInGame = info.opponent.onlineInGame; out.push(settled.duel); continue; } }
+    out.push(info);
   }
   return { duels: out };
 }
@@ -409,7 +417,7 @@ export function replayDuel(row: Pick<DuelRow, "seed" | "deckA" | "deckB" | "acti
 }
 
 /** Guildmates the member can challenge: same server, card game on, a linked character. */
-export async function duelPartners(db: DuelDb, userId: string, allows: Allows): Promise<{ partners: { discordUserId: string; name: string }[] }> {
+export async function duelPartners(db: DuelDb, userId: string, allows: Allows, now = new Date()): Promise<{ partners: { discordUserId: string; name: string; onlineInApp: boolean; onlineInGame: boolean }[] }> {
   const mine = await db.member.findMany({ where: { discordUserId: userId, status: "ACTIVE", isTest: false }, select: { guildId: true, guild: { select: { discordId: true } } }, take: 25 });
   const served = mine.filter(m => allows(m.guild.discordId)).map(m => m.guildId);
   if (!served.length) return { partners: [] };
@@ -417,9 +425,10 @@ export async function duelPartners(db: DuelDb, userId: string, allows: Allows): 
   const guilds = served.filter(g => !off.some(o => o.guildId === g));
   if (!guilds.length) return { partners: [] };
   const others = await db.member.findMany({ where: { guildId: { in: guilds }, discordUserId: { not: userId }, status: "ACTIVE", isTest: false, characters: { some: {} } }, select: { discordUserId: true, displayName: true }, take: 400 });
-  const seen = new Set<string>(), partners: { discordUserId: string; name: string }[] = [];
-  for (const other of others) if (!seen.has(other.discordUserId)) { seen.add(other.discordUserId); partners.push({ discordUserId: other.discordUserId, name: other.displayName }); }
-  return { partners: partners.sort((a, b) => a.name.localeCompare(b.name)).slice(0, 150) };
+  const seen = new Set<string>(), partners: { discordUserId: string; name: string; onlineInApp: boolean; onlineInGame: boolean }[] = [];
+  const inGame = await onlineInGame(db, others.map(o => o.discordUserId), now);
+  for (const other of others) if (!seen.has(other.discordUserId)) { seen.add(other.discordUserId); partners.push({ discordUserId: other.discordUserId, name: other.displayName, onlineInApp: onlineInApp(other.discordUserId, now), onlineInGame: inGame.has(other.discordUserId) }); }
+  return { partners: partners.sort((a, b) => Number(b.onlineInApp) - Number(a.onlineInApp) || a.name.localeCompare(b.name)).slice(0, 150) };
 }
 
 // ---- the ranked waiting room ----

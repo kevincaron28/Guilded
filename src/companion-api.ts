@@ -91,6 +91,7 @@ import { createStatsPage } from "./services/stats-page.js";
 import { createGuildBankPage } from "./services/guild-bank-page.js";
 import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
 import { collectionFor, craftCard, openPack, tcgAllowed, TcgError } from "./services/tcg-store.js";
+import { markSeenInApp } from "./services/tcg-presence.js";
 import { DUEL_ROUTES, handleDuelRoute } from "./services/tcg-duel-api.js";
 import { cancelTrade, confirmTrade, editTrade, getTrade, listTrades, offerTrade, setTradingOff, tradableCards, tradePartners } from "./services/tcg-trade.js";
 import { concedeMatch, getMatch, isAiLevel, isClassKey, listMatches, parseIntent, pveProgress, startMatch, submitIntent } from "./services/tcg-match.js";
@@ -853,6 +854,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const lang = url.searchParams.get("lang") === "fr" ? "fr" : "en";
         if (!await tcgAllowed(prisma, discordUserId, (id) => hostedPilot.allows(id))) { json(response, 403, { error: "The card game is off for your server, or you are not in a server that has Guilded." }); return; }
         try {
+          markSeenInApp(discordUserId);
           if (Object.hasOwn(DUEL_ROUTES, clashRoute)) {
             if (DUEL_ROUTES[clashRoute] === "POST" && !allowCompanionRevocation(`clash-pvp:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
             const reply = await handleDuelRoute(prisma as never, clashRoute, discordUserId, url.searchParams, () => readBody(request), (id) => hostedPilot.allows(id));

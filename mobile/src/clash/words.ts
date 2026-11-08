@@ -80,7 +80,73 @@ const words = {
   log: { en: "Battle log", fr: "Journal" },
   failed: { en: "The card game is unavailable right now.", fr: "Le jeu de cartes est indisponible pour le moment." },
   retry: { en: "Try again", fr: "Réessayer" },
-  useSample: { en: "Try the sample game", fr: "Essayer la partie d'exemple" }
+  useSample: { en: "Try the sample game", fr: "Essayer la partie d'exemple" },
+  // player-vs-player (#644)
+  solo: { en: "Solo", fr: "Solo" },
+  guild: { en: "Guild", fr: "Guilde" },
+  ranked: { en: "Ranked", fr: "Classé" },
+  challengeTitle: { en: "Challenge a guildmate", fr: "Défier un membre de la guilde" },
+  challengeIntro: { en: "Friendly match on your server. No rewards beyond quest credit; wins count on the weekly guild board.", fr: "Match amical sur votre serveur. Pas de récompense sauf les quêtes; les victoires comptent au tableau hebdomadaire." },
+  searchGuild: { en: "Search the guild roster", fr: "Chercher dans la guilde" },
+  noPartners: { en: "Nobody to challenge yet: guildmates need Guilded, a linked character and the card game on.", fr: "Personne à défier pour l'instant : il faut Guilded, un personnage lié et le jeu de cartes activé." },
+  noMatch: { en: "No guildmate by that name.", fr: "Aucun membre de ce nom." },
+  change: { en: "Change", fr: "Changer" },
+  asyncTurns: { en: "Async: 24 h a turn", fr: "Différé : 24 h par tour" },
+  liveTurns: { en: "Live: 60 s a turn", fr: "En direct : 60 s par tour" },
+  liveNote: { en: "Live works when you are both online now: they have 2 minutes to accept.", fr: "En direct si vous êtes tous deux en ligne : 2 minutes pour accepter." },
+  asyncNote: { en: "Play at your own pace. They have 24 hours to accept, then 24 hours a turn.", fr: "Jouez à votre rythme. 24 heures pour accepter, puis 24 heures par tour." },
+  sendChallenge: { en: "Send challenge", fr: "Envoyer le défi" },
+  challengeSent: { en: "Challenge sent to {name}.", fr: "Défi envoyé à {name}." },
+  incoming: { en: "Challenges for you", fr: "Défis reçus" },
+  outgoing: { en: "Challenges you sent", fr: "Défis envoyés" },
+  accept: { en: "Accept", fr: "Accepter" },
+  decline: { en: "Decline", fr: "Refuser" },
+  withdraw: { en: "Withdraw", fr: "Retirer" },
+  playAs: { en: "Play as", fr: "Jouer en" },
+  expiresIn: { en: "expires in {t}", fr: "expire dans {t}" },
+  yourMatches: { en: "Your matches", fr: "Vos matchs" },
+  yourMove: { en: "Your turn", fr: "À vous" },
+  theirMove: { en: "Their turn", fr: "À l'adversaire" },
+  timeLeft: { en: "{t} left", fr: "reste {t}" },
+  play2: { en: "Play", fr: "Jouer" },
+  view: { en: "View", fr: "Voir" },
+  noDuels: { en: "No match against a guildmate yet.", fr: "Aucun match contre un membre pour l'instant." },
+  recent: { en: "Recent", fr: "Récents" },
+  status_won: { en: "Won", fr: "Gagné" }, status_lost: { en: "Lost", fr: "Perdu" }, status_draw: { en: "Draw", fr: "Nul" },
+  status_declined: { en: "Declined", fr: "Refusé" }, status_cancelled: { en: "Withdrawn", fr: "Retiré" }, status_expired: { en: "Expired", fr: "Expiré" },
+  status_pending: { en: "Waiting", fr: "En attente" }, status_active: { en: "In progress", fr: "En cours" },
+  live: { en: "Live", fr: "Direct" },
+  friendly: { en: "Friendly", fr: "Amical" },
+  weekly: { en: "This week's guild board", fr: "Tableau de la guilde cette semaine" },
+  weeklyIntro: { en: "Friendly challenge wins since Monday (at most 3 a week count against the same guildmate).", fr: "Victoires amicales depuis lundi (au plus 3 par semaine contre le même membre)." },
+  noWeekly: { en: "No friendly match finished this week yet.", fr: "Aucun match amical terminé cette semaine." },
+  waitingFor: { en: "Waiting for {name}…", fr: "En attente de {name}…" },
+  vs: { en: "vs {name}", fr: "contre {name}" },
+  turnClock: { en: "Turn clock", fr: "Temps du tour" },
+  friendlyResult: { en: "Friendly match: counts on the weekly guild board.", fr: "Match amical : compte au tableau de la guilde." },
+  starsGained: { en: "{n} star", fr: "{n} étoile" },
+  rankedTitle: { en: "Ranked ladder", fr: "Classement" },
+  rankedIntro: { en: "Against players from every Guilded server, matched by skill. Monthly seasons.", fr: "Contre des joueurs de tous les serveurs Guilded, selon le niveau. Saisons mensuelles." },
+  seasonEnds: { en: "Season {season} ends in {t}", fr: "La saison {season} se termine dans {t}" },
+  starsToNext: { en: "{n} more star to the next division", fr: "encore {n} étoile pour la division suivante" },
+  legendNote: { en: "Legend: ranked by skill on the leaderboard.", fr: "Légende : classé par niveau au tableau." },
+  safeRank: { en: "No star is lost at Initiate and Adept.", fr: "Aucune étoile perdue en Initié et Adepte." },
+  lossRank: { en: "A loss costs one star, never below the start of your rank.", fr: "Une défaite coûte une étoile, jamais sous le début de votre rang." },
+  streak: { en: "{n} wins in a row: +2 stars a win", fr: "{n} victoires d'affilée : +2 étoiles par victoire" },
+  findMatch: { en: "Find a ranked match", fr: "Chercher un match classé" },
+  searching: { en: "Looking for an opponent near your level…", fr: "Recherche d'un adversaire de votre niveau…" },
+  searchingFor: { en: "Waiting {t}. The search widens every 10 seconds.", fr: "Attente {t}. La recherche s'élargit toutes les 10 secondes." },
+  leaveQueue: { en: "Stop searching", fr: "Arrêter" },
+  matchFound: { en: "Match found: {name}", fr: "Adversaire trouvé : {name}" },
+  openMatch: { en: "Open the match", fr: "Ouvrir le match" },
+  rankedActive: { en: "Ranked matches in progress", fr: "Matchs classés en cours" },
+  ladder: { en: "Ladder", fr: "Tableau" },
+  global: { en: "Global", fr: "Global" },
+  myServer: { en: "My server", fr: "Mon serveur" },
+  noLadder: { en: "Nobody has played ranked this season yet.", fr: "Personne n'a encore joué en classé cette saison." },
+  you: { en: "You", fr: "Vous" },
+  rankName_Initiate: { en: "Initiate", fr: "Initié" }, rankName_Adept: { en: "Adept", fr: "Adepte" }, rankName_Veteran: { en: "Veteran", fr: "Vétéran" },
+  rankName_Elite: { en: "Elite", fr: "Élite" }, rankName_Legend: { en: "Legend", fr: "Légende" }
 } as const;
 
 export type WordKey = keyof typeof words;
@@ -101,3 +167,16 @@ export const POWER: Record<string, { en: string; fr: string }> = {
   priest: { en: "Mending Word: Mend 3", fr: "Mot de soin : Soin 3" }, shaman: { en: "Stone Totem: 0/2 Guard", fr: "Totem de pierre : 0/2" },
   mage: { en: "Ember Spark: 1 dmg", fr: "Étincelle : 1 dégât" }, warlock: { en: "Soul Pact: draw", fr: "Pacte : pioche" }, druid: { en: "Growth: +1/+1", fr: "Croissance : +1/+1" }
 };
+
+const ROMAN = ["", "I", "II", "III", "IV"];
+/** "Adept II" in the member's language (the server sends English labels). */
+export function rankLabel(rank: { rank: string; division: number; legend: boolean }, lang: Lang): string {
+  const key = `rankName_${rank.rank}` as WordKey;
+  const name = key in words ? w(key, lang) : rank.rank;
+  return rank.legend ? name : `${name} ${ROMAN[rank.division] ?? ""}`.trim();
+}
+/** A server label such as "Veteran III" or "Legend" in the member's language. */
+export function rankLabelText(label: string, lang: Lang): string {
+  const [name = label, roman] = label.split(" ");
+  return rankLabel({ rank: name, division: Math.max(0, ROMAN.indexOf(roman ?? "")), legend: !roman }, lang);
+}

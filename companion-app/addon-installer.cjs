@@ -9,6 +9,10 @@ const crypto = require("node:crypto");
 const zlib = require("node:zlib");
 const nodePath = require("node:path");
 
+// Website first, GitHub second (8 November 2026: GitHub release downloads timed out for hours): the
+// website serves the release's zips under /downloads/ and lists their SHA-256 in releases.json
+// (guilded.addonZips). GitHub's SHA256SUMS and zip stay the fallback.
+const { fetchSiteReleases, SITE_DOWNLOADS } = require("./update-check.cjs");
 const RELEASE_DOWNLOADS = "https://github.com/kevincaron28/Guilded/releases/download/";
 const MAX_ZIP_BYTES = 20 * 1024 * 1024; // the 8.4.7 zip is 0.6 MB
 const MAX_UNPACKED_BYTES = 40 * 1024 * 1024;
@@ -33,7 +37,14 @@ function releaseAssets(version) {
   const parts = versionParts(version);
   if (!parts) return null;
   const tag = parts.join(".");
-  return { version: tag, zipName: `Guilded-v${tag}-forever.zip`, zip: `${RELEASE_DOWNLOADS}v${tag}/Guilded-v${tag}-forever.zip`, sums: `${RELEASE_DOWNLOADS}v${tag}/SHA256SUMS-v${tag}.txt` };
+  const zipName = `Guilded-v${tag}-forever.zip`;
+  return { version: tag, zipName, siteZip: `${SITE_DOWNLOADS}${zipName}`, zip: `${RELEASE_DOWNLOADS}v${tag}/${zipName}`, sums: `${RELEASE_DOWNLOADS}v${tag}/SHA256SUMS-v${tag}.txt` };
+}
+
+/** The SHA-256 the website's releases.json lists for `name` (guilded.addonZips), or null. */
+function siteChecksumFor(guilded, name) {
+  const value = guilded?.addonZips?.[name];
+  return typeof value === "string" && /^[0-9a-f]{64}$/.test(value) ? value : null;
 }
 
 /**
@@ -186,13 +197,27 @@ async function installAddon({ addon, companionVersion, wowRunning = false, force
   if (decision.action === "none") throw new Error("The Guilded addon is already installed and up to date.");
   if (decision.blocked === "wow-running") throw new Error("Exit World of Warcraft first: WoW is running.");
   const assets = releaseAssets(companionVersion);
-  const sums = (await fetchBuffer(assets.sums, fetchImpl, 1024 * 1024)).toString("utf8");
-  const expected = checksumFor(sums, assets.zipName);
-  const zip = await fetchBuffer(assets.zip, fetchImpl, MAX_ZIP_BYTES);
-  verifyChecksum(zip, expected);
+  // The checksum: the website's releases.json when it lists this zip, otherwise the release's SHA256SUMS.
+  let expected = siteChecksumFor(await fetchSiteReleases(fetchImpl), assets.zipName);
+  if (!expected) {
+    const sums = (await fetchBuffer(assets.sums, fetchImpl, 1024 * 1024)).toString("utf8");
+    expected = checksumFor(sums, assets.zipName);
+  }
+  if (!/^[0-9a-f]{64}$/.test(String(expected ?? ""))) throw new Error("The release has no checksum for the addon.");
+  // The zip: the website's copy, then GitHub's; either must match the one checksum.
+  let zip = null, failure = null;
+  for (const url of [assets.siteZip, assets.zip]) {
+    try {
+      const candidate = await fetchBuffer(url, fetchImpl, MAX_ZIP_BYTES);
+      verifyChecksum(candidate, expected);
+      zip = candidate;
+      break;
+    } catch (error) { failure = error; }
+  }
+  if (!zip) throw failure;
   const files = readZip(zip);
   const result = installAddonFiles({ addOnsFolder: nodePath.dirname(addon.folder), files, fs, now });
   return { ...result, action: decision.action, version: assets.version };
 }
 
-module.exports = { releaseAssets, decideAddonInstall, checksumFor, verifyChecksum, readZip, installAddonFiles, installAddon, MAX_ZIP_BYTES };
+module.exports = { releaseAssets, siteChecksumFor, decideAddonInstall, checksumFor, verifyChecksum, readZip, installAddonFiles, installAddon, MAX_ZIP_BYTES };

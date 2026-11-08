@@ -86,6 +86,9 @@ for (const name of readdirSync("site/images/showcase")) {
 // The released addon zips, served from this site so a download never depends on GitHub release downloads
 // (GitHub returned 504s for hours on 8 November 2026). Bytes are the published release files; release steps copy them here.
 if (existsSync("site/downloads")) cpSync("site/downloads", `${out}/downloads`, { recursive: true });
+// The companion reads /releases.json before GitHub: the installer's version, size and SHA-256 and the
+// addon zips' SHA-256 (companion-app/update-check.cjs, addon-installer.cjs).
+copyFileSync("site/releases.json", `${out}/releases.json`);
 // Google's public ownership files are curated separately from other local files.
 // They are served on both sites by the existing static asset binding.
 if (existsSync("site/verification")) {

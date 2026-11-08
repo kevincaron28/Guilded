@@ -238,16 +238,25 @@ Everything not listed below is done (released, live or merged) per the tables ab
 | Jeeves research (11) | Written, plan only (owner has not asked to build the 3 ideas) | `docs/JEEVES_COMPARISON.md` |
 | PoE2 leftovers + availability module (9) | Hidden behind reversible switches, data kept (by design, `docs/FOREVER_ONLY_FOCUS.md`); no deletion planned | #472, #477 |
 | Hall of Fame edits, sharing always on (partial 1-2) | Live | #471, #498 |
-| Login popup on Forever (officer guild-note writes) | Fixed; release 9.0.5 in progress | #618, #622 |
+| Login popup on Forever (officer guild-note writes) | **Released 9.0.5** (8 Nov: GitHub, CurseForge review, website, bot) | #618, #622, #628 |
 | Items 3 and 7 (professions / EP-GP in guild notes) | **Not possible on Forever**: the game refuses addon note edits even on a click; Guilded stops trying | #618 |
 | One group finder for dungeons and PvP (idea, 8 Nov) | Live | #619 |
-| Card game: art style | Owner picked A (8 Nov); second art pass in review | #613, #623 |
-| **Card game build, stage 1 (server: catalogue, packs, daily, dust)** | **In progress** (track-d-gallery) | `docs/plans/APP_TCG.md` |
-| **Forever achievements beyond professions (8)** | **In progress**: an in-game probe command (track-a-achievements), then Claude runs it in game | `docs/plans/FOREVER_ACHIEVEMENTS.md` |
+| Card game: art style | Owner approved painted Magic-style art in frame A (8 Nov); 9 class champions painted, awaiting his OK (review page C9) | #613, #623 |
+| Card game server stage 1 (catalogue, packs, daily, dust) | Merged (deploys with the next bot deploy) | #626 |
+| Guilded Clash design | Approved in chat, merged | #629 |
+| **Guilded Clash engine (stage A)** | **Merging** | #631 |
+| **Guilded Clash stages B-D** (AI + PvE gauntlet, server/API, guild trading), then phone screens | **Next**, track-d-gallery after #631 | `docs/plans/APP_TCG_GAME.md` |
+| **Forever achievements beyond professions (8)** | Probe merged (#625); **Claude runs it in game** (results below when done) | `docs/plans/FOREVER_ACHIEVEMENTS.md` |
 | Lite/Plus stage 1 (3) | Not building: paid tier stays off (owner, 7-8 Nov) | "Later: monetization" above |
 | Armory enrichment (10) | Blocked on Blizzard (Forever profile API closed) | `scripts/forever-armory-probe.mjs` |
 | Carried over: 8.4.7 distribution | Obsolete (9.0.x released everywhere) | — |
 | Carried over: unknown Forever final bosses | Done | #491 |
+| Website downloads independent of GitHub (owner wants the direct download first) | Live: zips and installer served by the site | #627, #628 |
+| Companion updates and addon downloads from the website first | Merging; ships with the next companion release | #633 |
+| Discord text audit (channel names in messages) | Fixed by PR + guard test; Québec Gold guide fixed (owner yes) | #630 |
+| Board channels review (owner, 8 Nov) | 13 old messages deleted, 6 boards read-only (owner yes); footers, full names, French labels, plain PvP panels | #632 |
+| Standings answers over 20 s (34 of 1,929 polls) | Fixed: 17 s answer deadline | #634 |
+| Crafter offers / item previews in Québec Gold | ON (owner yes, 8 Nov) | — |
 
 **Bug sweep 8 Nov ~11:30 UTC:** no member reports, no new saved bot errors; the journal only had the two routine hashed notices (readable once #620 deploys). GitHub release downloads timed out for hours (504) on 8 Nov: they block the `windows-package` CI job (merges retried by a loop) and broke the website downloads. #627 serves the addon zips from `site/downloads/` and the companion installer from Cloudflare KV, so the plug-and-play direct download (the owner's main path, not the Store) no longer depends on GitHub. Follow-up for the next companion release: its self-update and addon download should use the website too.
 
@@ -255,16 +264,16 @@ Everything not listed below is done (released, live or merged) per the tables ab
 
 **Guilded Clash (card game, owner 8 Nov):** design `docs/plans/APP_TCG_GAME.md` (#629) approved in chat: core rules as written, AI + PvE gauntlet before ranked, guild-only trading v1, name "Guilded Clash". The owner approves every final card art (painted, Magic-style, made with his ChatGPT). Build stages A-D with track-d-gallery. **Later (owner idea):** Québec Gold members as cards: a guildmate's character (full name, class, picture, real achievements) as a collectible card, opt-in per member with an off switch that removes it, after the engine and AI stages.
 
-**Waiting for owner (cannot be done without him):**
-- Publish decisions: 9.0.5 is being published on his "publish" (8 Nov); later releases need his yes.
-- French names of the three new final bosses: needs a French client log (switch the client language, or a French member's log).
-- Promotion (Initiate to Member) from an officer client: untested on Forever; testing changes a real member's rank.
-- `dungeon-explain` with real data (`/dungeon-admin audit why:true` in Québec Gold) and the Season 2 re-run (~18 Nov), which needs a production read.
-- Two-PC checks (duel, Defender banner, call for help, guild board votes) and in-game screenshots for the guides (item 20).
-- Québec Gold: the extra `#invitation-guilde` deletion (item 16) and archiving the old PvP groups channel.
-- Google Play: the 3 verifications; then Firebase, `EXPO_TOKEN`, #345, 12 testers.
-- Close PR #515 (superseded by #522/#534; Claude's close was blocked as an external write).
-- Item previews in Québec Gold (built, off) and crafter offers (built, off): turning them on.
+**Waiting for owner (cannot be done without him), updated 8 Nov evening:**
+- Approve the 9 class champion paintings (review page, section C9), then each later card art.
+- Google Play: the 3 verifications; then Firebase, `EXPO_TOKEN`, #345, 12 testers, the new APK.
+- Turn on the second PC for the two-PC checks (duel, Defender banner, call for help, guild board votes, relink).
+- Around 18 Nov: "run the Season 2 analysis" (production read), then activate Season 2.
+- French names of the three new final bosses: a French client log is needed.
+- Promotion (Initiate to Member) on Forever: testing changes a real member's rank.
+- Next releases (9.0.6 with #625 probe, #633 companion web-first): his yes to publish.
+Done today on his word: 9.0.5 published, painted art approved, guide fixed, #515 closed, board channels read-only,
+crafter offers on, old board messages deleted.
 
 **First priorities (owner, 7 Nov 01:45 UTC):**
 1. **Dungeon cards (item 13) now, not later.** One `#donjons-terminés` post bundled three runs (two Wailing

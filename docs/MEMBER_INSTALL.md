@@ -169,9 +169,9 @@ and PoE2 log tracking, especially useful for leaders and officers.
    **Older companions or your guild's own bot**. Companions older than 7.2 use the
    one-time code from `/character pair` there instead (it expires after 15 minutes).
 4. Enable **World of Warcraft**. Press **Find it**, then verify the selected
-   `Guilded.lua` belongs to your current client and account. If several accounts
-   are found, use **Browse** to select the right one:
-   `<client>\WTF\Account\<account>\SavedVariables\Guilded.lua`.
+   `Guilded.lua` belongs to your current client and account:
+   `<client>\WTF\Account\<account>\SavedVariables\Guilded.lua`. Several WoW
+   accounts on this PC sync by themselves: see below.
    Do not select the addon code in `Interface\AddOns`.
 5. Press **Save & start syncing**. In WoW, `/reload`. Check **Activity** for a
    successful upload and the message that your character is linked.
@@ -185,6 +185,14 @@ An officer's guild upload may wait for review if automatic import is off.
 Leave the companion in the tray while playing. New game data reaches disk on
 `/reload` or logout. Open each crafting profession normally: recipe detection is
 automatic; `/guilded recipes mine` is only a way to inspect the stored result.
+
+**Several WoW accounts on one PC (WoW1, WoW2…).** Each syncs by itself. When the
+companion finds Guilded's data on another account of the same WoW, it asks once on
+the Sync page whether that account is yours too: **Yes, sync it too** adds it;
+**No, not mine** (a partner who plays on this PC with their own Discord) is
+remembered and never asked again. Each account then has its own line on the Sync
+page, and **Settings → Your WoW folder** has a switch beside each extra account.
+Log in once on a new account and `/reload` so WoW saves its data.
 
 Signing in on another companion adds a device; your other companions stay
 connected. Remove a device under Connections on the website. **Update now** on the Overview page opens the new version's
@@ -299,6 +307,15 @@ Discord** remplace la connexion compagnon précédente. `/character list` montre
 résultat après la synchro. **Update now** ouvre l'installateur de la nouvelle
 version, qui montre sa progression et redémarre le compagnon; si une mise à jour
 ne se termine pas, le prochain démarrage propose **Run the installer**.
+
+**Plusieurs comptes WoW sur un PC (WoW1, WoW2…) :** chacun se synchronise tout
+seul. Quand le compagnon trouve des données Guilded sur un autre compte du même
+WoW, il demande une seule fois, sur la page Synchronisation, si ce compte est à
+vous aussi : **Oui, le synchroniser aussi** l'ajoute; **Non, pas le mien** (un ou
+une partenaire qui joue sur ce PC avec son propre Discord) est retenu et il ne
+redemande plus. Chaque compte a ensuite sa ligne sur la page Synchronisation, et
+**Paramètres → Votre dossier WoW** a un interrupteur à côté de chaque compte
+supplémentaire. Connectez-vous une fois sur un nouveau compte et faites `/reload`.
 
 Vous n'avez pas besoin du jeton du bot. Ne partagez jamais un code à usage unique
 de `/character pair`.

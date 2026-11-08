@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.0.6 — 8 November 2026
+
+Companion downloads from the Guilded website, and an achievement probe for WoW Forever. Details: docs/V9_0_6_RELEASE_NOTES.md.
+
+- Companion: checks for updates, downloads its installer and installs the addon from the Guilded website first, with GitHub as the fallback. Every file is checked against its SHA-256.
+- Addon: `/guilded probe achievements` shows which achievement information WoW Forever gives addons (read-only).
+- Bot (already live): Guilded Clash (the card game: collection, packs, AI and PvE matches, guild-only trading, friendly and ranked player-vs-player), clearer board channels, standings answers within 17 s.
+
 ## 9.0.5 — 8 November 2026
 
 Fix for the login popup on WoW Forever, plus the bot updates live since 9.0.4. Details: docs/V9_0_5_RELEASE_NOTES.md.

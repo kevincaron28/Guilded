@@ -1,6 +1,6 @@
 # Guilded Collection: card art proposal (option 2 of `APP_TCG.md`)
 
-Status: **owner picked style A, "Gold and stone", on 8 November 2026**, asking for richer, WoW Forever-inspired artwork. This is art pass 2 (illustrated scenes replace the first pass's simple emblems). Nothing is built in the app yet.
+Status: **owner picked style A, "Gold and stone", on 8 November 2026**, asking for richer, WoW Forever-inspired artwork. This is art pass 2 (illustrated scenes replace the first pass's simple emblems). The nine class Champion paintings are approved and bundled (see "Approved Champion paintings" below).
 
 All art here is original Guilded vector illustration in the guild's WoW gold theme (the same dark stone, parchment and bright-gold palette as `src/services/score-card.ts`). No Blizzard art, icons or screenshots. Class names are plain text. Regenerate the samples with `node docs/plans/app-tcg-art/make-samples.mjs`.
 
@@ -53,3 +53,13 @@ Original only: shapes are drawn from scratch (no Blizzard logos, icons, screensh
 ## Next (after approval)
 
 Follow `APP_TCG.md` option 2: the data tables, the server-authoritative pack, daily and dust endpoints, then the app screens in `mobile/` (after the `mobile/` restructure lands). The frame and emblem code from `make-samples.mjs` becomes the card component's SVG.
+
+## Approved Champion paintings
+
+**Owner approved all nine class Champion paintings on 8 November 2026.** Original art made with the owner's own tools (1448x1086 PNG, kept outside the repo); no Blizzard art. The approved set is in [`app-tcg-art/champions/`](app-tcg-art/champions/) (640x480 previews) and the app builds from `mobile/assets/clash/champions/`:
+
+- `<class>.webp`: full picture, 640x480.
+- `<class>-window.webp`: the card art window crop, 624x240 (about 2.6:1), used by Champion (class) cards in the collection and pack opening when no `artUrl` is set.
+- `<class>-portrait.webp`: 192x192 square, the Champion portrait in a match.
+
+About 1 MB for all 27 files. Regenerate with `node docs/plans/app-tcg-art/make-champions.mjs <folder with the nine PNGs>` (the per-class face focus table is in the script). The set cards (units, spells and so on) keep the class-coloured placeholder until their art is approved.

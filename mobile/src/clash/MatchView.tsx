@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useReducer, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { Lang } from "../i18n";
 import { classColor } from "../publicApi";
 import { colors } from "../ui";
 import type { ClashApi, MatchDriver } from "./api";
+import { championArt } from "./championArt";
 import { CardFace, HandCard, STONE, UnitToken } from "./CardFrame";
 import { formatLeft, msUntil, urgent } from "./pvp";
 import {
@@ -18,7 +19,8 @@ function ChampionBar({ side, seat, lang, lit, onTap, extra }: { side: SideView; 
   return <View style={styles.champRow}>
     <Pressable onPress={onTap} disabled={!lit} accessibilityRole="button" accessibilityLabel={`${seat === 0 ? "Your" : "Enemy"} Champion, ${side.hp} health${side.armor ? `, ${side.armor} armor` : ""}`}
       style={[styles.portrait, { borderColor: lit ? "#e0624f" : tint }, lit && styles.portraitLit]}>
-      <Text style={[styles.portraitText, { color: tint }]}>{CLASS_LABEL[side.cls]![lang].charAt(0)}</Text>
+      {championArt(side.cls) ? <Image source={championArt(side.cls)!.portrait} style={styles.portraitImg} accessibilityIgnoresInvertColors />
+        : <Text style={[styles.portraitText, { color: tint }]}>{CLASS_LABEL[side.cls]![lang].charAt(0)}</Text>}
       <View style={styles.hpBadge}><Text style={styles.hpText}>{side.hp}</Text></View>
       {side.armor ? <View style={styles.armorBadge}><Text style={styles.armorText}>{side.armor}</Text></View> : null}
     </Pressable>
@@ -223,6 +225,7 @@ const styles = StyleSheet.create({
   concede: { color: colors.error, fontWeight: "700", fontSize: 12, textAlign: "right" },
   champRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   portrait: { width: 52, height: 52, borderRadius: 26, borderWidth: 3, backgroundColor: STONE.panel, alignItems: "center", justifyContent: "center" },
+  portraitImg: { width: 46, height: 46, borderRadius: 23 },
   portraitLit: { shadowColor: "#e0624f", shadowOpacity: 1, shadowRadius: 10 },
   portraitText: { fontSize: 22, fontWeight: "900" },
   hpBadge: { position: "absolute", right: -6, bottom: -4, backgroundColor: "#5a1414", borderColor: "#ff9a8a", borderWidth: 1.5, borderRadius: 11, minWidth: 24, height: 22, alignItems: "center", justifyContent: "center", paddingHorizontal: 3 },

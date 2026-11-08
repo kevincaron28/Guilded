@@ -66,14 +66,15 @@ export function createStandingsFeed(options: StandingsFeedOptions = {}) {
     const last = unstableLoggedAt.get(guildId);
     if (last !== undefined && now() - last < 3_600_000) return;
     unstableLoggedAt.set(guildId, now());
-    console.warn(`Standings for guild ${guildId} kept changing during refresh; served the latest read under the previous stamp.`);
+    // console.info: routine fallbacks, readable in the journal (warn/error text is hashed by diagnostic-privacy).
+    console.info(`Standings for guild ${guildId} kept changing during refresh; served the latest read under the previous stamp.`);
   }
   const slowLoggedAt = new Map<string, number>();
   function slow(guildId: string) {
     const last = slowLoggedAt.get(guildId);
     if (last !== undefined && now() - last < 3_600_000) return;
     slowLoggedAt.set(guildId, now());
-    console.warn(`Standings for guild ${guildId} took over ${composeBudgetMs} ms to rebuild; served the previous answer meanwhile.`);
+    console.info(`Standings for guild ${guildId} took over ${composeBudgetMs} ms to rebuild; served the previous answer meanwhile.`);
   }
 
   // The stamp only moves when the shared content changes, and always forward.

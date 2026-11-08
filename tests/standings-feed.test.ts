@@ -30,7 +30,7 @@ describe("standings feed", () => {
   it("still answers when writes keep landing during every read, under the previous stamp (8.5 hotfix)", async () => {
     let clock = 1_800_000_000_000;
     const feed = createStandingsFeed({ now: () => clock });
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const first = await feed.get({ guildId: "g", memberKey: "a", header, compose: async () => parts([{ ep: 10 }]) });
     const stamp = JSON.parse(first.body!).updatedAt;
     clock += 60_000;

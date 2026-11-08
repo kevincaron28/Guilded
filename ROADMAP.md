@@ -2,7 +2,7 @@
 
 ## Current stage — 7 November 2026
 
-Guilded **9.0.4** (the fourth update on 9.0.0, which was the 8.5 work shipped as 9.0) (tracks A-K and the owner batches below). The previous release is 9.0.3. Branch and doc names keep "8.5".
+Guilded **9.0.5** (the fifth update on 9.0.0, which was the 8.5 work shipped as 9.0) (tracks A-K and the owner batches below). The previous release is 9.0.4. Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
@@ -16,6 +16,13 @@ Start one worker session per track with the cheapest model that fits (Haiku: che
 features; Opus: design-heavy or risky changes). Workers open PRs into `main` and report back to you. You review,
 merge, back up, deploy (`deploy/update.sh`), then publish. Real-client testing uses the owner's two PCs by
 desktop control and is coordinated by you. Keep testing in the kevmister28 test server, never spam Québec Gold.
+
+**8 November, morning (coordinator; bot live, every deploy backed up first):**
+- Merged: dungeon score on run cards (#611, live), Forever-only listing texts (#612), card art proposal (#613), phone app redesign (#614, #615), Google Play listing kit (#616), monetization "later" plan and Play trader status (#617).
+- Owner's login popup ("Guilded has been blocked"): WoW Forever refuses addon guild-note edits, even on a click (checked in game). Auto professions notes retried every ~16 s. Fixed in #618 (no note writes on Forever; any other refused guild action is remembered per client build). Installed by hand on the owner's PC (backup `Desktopddon-backup-pre618`); members get it with **9.0.5 (owner's yes needed)**.
+- Owner idea: one group finder for dungeons and PvP, live (#619; officer switch `/bg group-finder`). The old PvP groups channel still works and can be archived.
+- Card art: five styles for the owner to pick at claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58 (the page stores the pick).
+- Bug sweep 09:30 UTC: no member reports and no new saved bot errors since 7 Nov 16:09. The journal's only noise was hashed `[diagnostic:...]` lines: `aa56b5beb2ee` (64 in 30 days, after addon uploads: the hourly standings fallback, rebuild over 10 s or still changing) and four per restart ("Setup not finished" for servers mid-setup). These are routine; #620 logs them as info so the text is readable. Watch: standings rebuilds take 9-20 s under upload bursts on the 1 GB server.
 
 **Overnight progress, 7 Nov (coordinator; bot live at 8cde683, every deploy backed up first):**
 - Done and deployed: dungeon cards, one per run (#461); observer copies of one run merged, so no more triple

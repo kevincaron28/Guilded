@@ -91,6 +91,7 @@ import { createStatsPage } from "./services/stats-page.js";
 import { createGuildBankPage } from "./services/guild-bank-page.js";
 import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
 import { collectionFor, craftCard, openPack, tcgAllowed, TcgError } from "./services/tcg-store.js";
+import { concedeMatch, getMatch, isAiLevel, isClassKey, listMatches, parseIntent, pveProgress, startMatch, submitIntent } from "./services/tcg-match.js";
 import { createArtisansGallery } from "./services/artisans-gallery.js";
 import { withDeadline } from "./services/blizzard-items.js";
 import { itemData } from "./item-data.js";
@@ -674,6 +675,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isAlbum = request.method === "GET" && url.pathname === "/api/v1/companion/achievements";
       // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
       const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
+      // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
+      const clashPaths = ["start", "match", "intent", "concede", "matches", "pve"];
+      const clashRoute = url.pathname.startsWith("/api/v1/companion/clash/") ? url.pathname.slice("/api/v1/companion/clash/".length) : null;
+      const isClash = clashRoute !== null && clashPaths.includes(clashRoute) && request.method === (["match", "matches", "pve"].includes(clashRoute) ? "GET" : "POST");
       // Track M: the phone's guildmate map (guild members only) and the member's own sharing switch.
       const isMapView = request.method === "GET" && url.pathname === "/api/v1/companion/guild-map";
       const isMapEdit = request.method === "POST" && url.pathname === "/api/v1/companion/guild-map";
@@ -689,7 +694,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
+      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -829,6 +834,44 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           const body = await readBody(request).catch(() => null) as { card?: unknown } | null;
           if (typeof body?.card !== "string" || body.card.length > 80) { json(response, 400, { error: "card is required." }); return; }
           json(response, 200, await craftCard(prisma as never, discordUserId, body.card, lang, allows)); return;
+        } catch (error) {
+          if (error instanceof TcgError) { json(response, error.status, { error: error.message }); return; }
+          throw error;
+        }
+      }
+      if (isClash) {
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const tokenHash = hashCompanionSecret(secret);
+        const owner = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } })
+          ?? await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
+        const discordUserId = owner ? ("member" in owner ? owner.member.discordUserId : owner.account.discordUserId) : null;
+        if (!discordUserId) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        const lang = url.searchParams.get("lang") === "fr" ? "fr" : "en";
+        if (!await tcgAllowed(prisma, discordUserId, (id) => hostedPilot.allows(id))) { json(response, 403, { error: "The card game is off for your server, or you are not in a server that has Guilded." }); return; }
+        try {
+          if (clashRoute === "matches") { json(response, 200, await listMatches(prisma as never, discordUserId)); return; }
+          if (clashRoute === "pve") { json(response, 200, await pveProgress(prisma as never, discordUserId, lang)); return; }
+          if (clashRoute === "match") {
+            const id = url.searchParams.get("id") ?? "";
+            if (!id || id.length > 40) { json(response, 400, { error: "id is required." }); return; }
+            json(response, 200, await getMatch(prisma as never, discordUserId, id)); return;
+          }
+          if (!allowCompanionRevocation(`clash:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+          const body = await readBody(request).catch(() => null) as { mode?: unknown; cls?: unknown; level?: unknown; opponent?: unknown; boss?: unknown; id?: unknown; action?: unknown } | null;
+          if (!body || typeof body !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }
+          if (clashRoute === "start") {
+            if ((body.mode !== "ai" && body.mode !== "pve") || !isClassKey(body.cls)) { json(response, 400, { error: "mode (ai or pve) and cls (your class) are required." }); return; }
+            if (body.level !== undefined && !isAiLevel(body.level)) { json(response, 400, { error: "level must be easy, normal or hard." }); return; }
+            if (body.opponent !== undefined && !isClassKey(body.opponent)) { json(response, 400, { error: "opponent must be a class." }); return; }
+            if (body.mode === "pve" && (typeof body.boss !== "string" || body.boss.length > 40)) { json(response, 400, { error: "boss is required for the gauntlet." }); return; }
+            json(response, 200, await startMatch(prisma as never, discordUserId, { mode: body.mode, cls: body.cls, ...(body.level !== undefined ? { level: body.level as never } : {}), ...(body.opponent !== undefined ? { opponentCls: body.opponent as never } : {}), ...(typeof body.boss === "string" ? { boss: body.boss } : {}) })); return;
+          }
+          if (typeof body.id !== "string" || !body.id || body.id.length > 40) { json(response, 400, { error: "id is required." }); return; }
+          if (clashRoute === "concede") { json(response, 200, await concedeMatch(prisma as never, discordUserId, body.id)); return; }
+          const action = parseIntent(body.action);
+          if (!action) { json(response, 400, { error: "action is not a valid move." }); return; }
+          json(response, 200, await submitIntent(prisma as never, discordUserId, body.id, action)); return;
         } catch (error) {
           if (error instanceof TcgError) { json(response, error.status, { error: error.message }); return; }
           throw error;

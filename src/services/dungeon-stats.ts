@@ -246,13 +246,12 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
 // "1. Kev — 240" lines with medals for the top three.
 /**
  * "Character (Discord name)", the owner's naming rule, without doubled brackets: a server nickname that already ends in
- * brackets ("Maxle (class)") loses them, and the Discord name is left out when it already names the character.
+ * brackets ("Maxle (class)") loses them. The Discord name is left out only when it is the character's name itself.
  */
 export function characterWithMember(character: string | undefined, memberName: string): string {
   if (!character) return memberName;
   const member = memberName.replace(/\s*\([^()]*\)\s*$/, "").trim() || memberName.trim();
-  const plain = (text: string) => text.normalize("NFKC").toLowerCase();
-  return !member || plain(member).includes(plain(character)) || (plain(member).length >= 4 && plain(character).includes(plain(member))) ? character : `${character} (${member})`;
+  return member.normalize("NFKC").toLowerCase() === character.normalize("NFKC").toLowerCase() ? character : `${character} (${member})`;
 }
 
 export function formatLeaderboard(rows: LeaderRow[]): string {

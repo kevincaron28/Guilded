@@ -95,10 +95,11 @@ describe("French cards speak French", () => {
 });
 
 describe("names", () => {
-  it("shows Character (Discord name) without doubled brackets or a repeated name", () => {
+  it("shows Character (Discord name) without doubled brackets", () => {
     expect(characterWithMember("Crashing Pally", "Simon")).toBe("Crashing Pally (Simon)");
-    expect(characterWithMember("Maxle Druide", "Maxle (class)")).toBe("Maxle Druide");
-    expect(characterWithMember("El Pirata", "El Pirata Qc")).toBe("El Pirata");
+    expect(characterWithMember("Maxle Druide", "Maxle (class)")).toBe("Maxle Druide (Maxle)");
+    expect(characterWithMember("El Pirata", "El Pirata Qc")).toBe("El Pirata (El Pirata Qc)");
+    expect(characterWithMember("El Pirata", "el pirata")).toBe("El Pirata");
     expect(characterWithMember("Grok Solidtusk", "simplyfrank3368 (Grok)")).toBe("Grok Solidtusk (simplyfrank3368)");
     expect(characterWithMember(undefined, "kev")).toBe("kev");
   });

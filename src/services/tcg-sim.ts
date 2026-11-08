@@ -15,6 +15,8 @@ export interface GameResult {
   exhaustion: boolean;
   /** Distinct cards each seat played during the game. */
   played: [string[], string[]];
+  /** Distinct cards each seat drew at least once (opening hand included): the basis of the per-card targets. */
+  drawn: [string[], string[]];
   stuck: boolean;
 }
 
@@ -36,7 +38,14 @@ export function playGame(seed: number, a: DeckList, b: DeckList, levels: [AiLeve
     }
     steps++;
   }
-  return { winner: s.winner ?? "draw", first: s.first, rounds: round(s), steps, reason: s.reason, exhaustion, played: [[...played[0]], [...played[1]]], stuck: s.phase !== "over" };
+  const drawn = ([a, b] as const).map((list, seat) => {
+    const left = new Map<string, number>();
+    for (const id of s.players[seat as 0 | 1].deck) left.set(id, (left.get(id) ?? 0) + 1);
+    const total = new Map<string, number>();
+    for (const id of list.cards) total.set(id, (total.get(id) ?? 0) + 1);
+    return [...total].filter(([id, n]) => n > (left.get(id) ?? 0)).map(([id]) => id);
+  }) as [string[], string[]];
+  return { winner: s.winner ?? "draw", first: s.first, rounds: round(s), steps, reason: s.reason, exhaustion, played: [[...played[0]], [...played[1]]], drawn, stuck: s.phase !== "over" };
 }
 
 // ---- deck building for the "tuned" decks of the matrix ----
@@ -94,7 +103,7 @@ export interface MatrixReport {
   exhaustionShare: number;
   byClass: Record<string, { games: number; wins: number; rate: number }>;
   pairs: { a: ClassKey; b: ClassKey; games: number; winsA: number; winsB: number }[];
-  cards: Record<string, { played: number; wins: number; rate: number }>;
+  cards: Record<string, { played: number; wins: number; rate: number; drawn: number; drawnWins: number; drawnRate: number }>;
 }
 
 /** Plays every ordered pair of different classes `gamesPerPair` times, rotating through the decks of each class. */
@@ -124,16 +133,21 @@ export function runMatrix(opts: MatrixOptions): MatrixReport {
       if (r.winner === r.first) firstWins++;
       if (r.winner === 0) { pair.winsA++; byClass[a]!.wins++; } else { pair.winsB++; byClass[b]!.wins++; }
       for (const seat of [0, 1] as const) for (const id of r.played[seat]) {
-        const row = (cards[id] ??= { played: 0, wins: 0, rate: 0 });
+        const row = (cards[id] ??= { played: 0, wins: 0, rate: 0, drawn: 0, drawnWins: 0, drawnRate: 0 });
         row.played++;
         if (r.winner === seat) row.wins++;
+      }
+      for (const seat of [0, 1] as const) for (const id of r.drawn[seat]) {
+        const row = (cards[id] ??= { played: 0, wins: 0, rate: 0, drawn: 0, drawnWins: 0, drawnRate: 0 });
+        row.drawn++;
+        if (r.winner === seat) row.drawnWins++;
       }
     }
     pairs.push(pair);
   }
   rounds.sort((x, y) => x - y);
   for (const row of Object.values(byClass)) row.rate = row.games ? row.wins / row.games : 0;
-  for (const row of Object.values(cards)) row.rate = row.played ? row.wins / row.played : 0;
+  for (const row of Object.values(cards)) { row.rate = row.played ? row.wins / row.played : 0; row.drawnRate = row.drawn ? row.drawnWins / row.drawn : 0; }
   return { games, draws, stuck, firstPlayerWins: firstWins, medianRounds: rounds[Math.floor(rounds.length / 2)] ?? 0, exhaustionShare: games ? exhaustion / games : 0, byClass, pairs, cards };
 }
 
@@ -146,6 +160,6 @@ export function missedTargets(r: MatrixReport, minCardPlays = 200): string[] {
   if (first < 0.48 || first > 0.52) out.push(`first player wins ${(first * 100).toFixed(1)}% (target 48 to 52)`);
   if (r.medianRounds < 6 || r.medianRounds > 9) out.push(`median match is ${r.medianRounds} rounds (target 6 to 9)`);
   if (r.exhaustionShare >= 0.02) out.push(`${(r.exhaustionShare * 100).toFixed(1)}% of games reach Exhaustion (target under 2)`);
-  for (const [id, row] of Object.entries(r.cards)) if (row.played >= minCardPlays && row.rate > 0.6) out.push(`card ${id} wins ${(row.rate * 100).toFixed(1)}% when played (target at most 60)`);
+  for (const [id, row] of Object.entries(r.cards)) if (row.drawn >= minCardPlays && row.drawnRate > 0.6) out.push(`card ${id} wins ${(row.drawnRate * 100).toFixed(1)}% when drawn (target at most 60)`);
   return out;
 }

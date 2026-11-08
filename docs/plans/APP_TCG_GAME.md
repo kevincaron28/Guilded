@@ -70,7 +70,7 @@ Rules facts below were checked against the linked pages where a link is given; i
 
 - On your **n-th turn** you have **min(n, 8)** mana. Unused mana is lost.
 - Temporary mana (from cards such as Caravan Master or the Loot Bag) is added for that turn only; the total can never exceed 10.
-- **Second player:** draws 4 cards (first player 3) and gets a **Loot Bag**, a 0-cost card that gives 1 temporary mana, playable once.
+- **Second player:** draws 4 cards (first player 3) and gets a **Loot Bag**, a 0-cost card that gives 2 temporary mana (changed from 1 in the balance pass), playable once.
 
 ### 2.4 Turn structure
 
@@ -163,7 +163,7 @@ Warrior (first player, "P1") against Mage ("P2"). Cards from section 8.
 1. **P1, round 1** (1 mana, no draw). Plays **Gate Brawler** (2/1). It is exhausted. End.
 2. **P2, round 1** (1 mana, draws, has the Loot Bag). Plays **Apprentice Spark** (1/2). End.
 3. **P1, round 2** (2 mana, draws **Shield Wall Recruit**). Plays it (2/2 Guard). **Gate Brawler** attacks the Mage Champion (no Guard on that side): 20 to 18.
-4. **P2, round 2** (2 mana + Loot Bag = 3). Draws **Rime Adept**, plays it (2/3). Rally: **Chill** the Shield Wall Recruit, which cannot attack on P1's next turn. Apprentice Spark stays home (it would have to attack the Guard).
+4. **P2, round 2** (2 mana + Loot Bag = 4). Draws **Rime Adept**, plays it (2/3). Rally: **Chill** the Shield Wall Recruit, which cannot attack on P1's next turn. Apprentice Spark stays home (it would have to attack the Guard).
 5. **P1, round 3** (3 mana, draws **Cleaving Strike**). Plays it on Rime Adept: 3 damage kills it, so no recoil. Gate Brawler attacks: Mage 18 to 16. The Recruit is Chilled, so it stays. 1 mana unspent (Brace costs 2). End.
 6. **P2, round 3** (3 mana, draws **Ember Bolt**). Casts it on Gate Brawler (3 damage, destroyed). Apprentice Spark has no target worth hitting. Board: P1 has the Recruit; P2 has Apprentice Spark. Champions: P1 20, P2 16.
 

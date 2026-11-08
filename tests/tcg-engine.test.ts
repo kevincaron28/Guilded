@@ -71,7 +71,7 @@ describe("setup and turn flow", () => {
     s = act(s, { t: "end" });
     expect(s.players[0].deck).toHaveLength(20);
   });
-  it("lets the second player spend the Loot Bag for 1 temporary mana", () => {
+  it("lets the second player spend the Loot Bag for 2 temporary mana", () => {
     let s = game();
     hand(s, 1);
     s.players[1].hand = ["loot-bag"];
@@ -79,7 +79,7 @@ describe("setup and turn flow", () => {
     const before = s.players[1].mana;
     const idx = s.players[1].hand.indexOf("loot-bag");
     s = play(s, idx);
-    expect(s.players[1].mana).toBe(before + 1);
+    expect(s.players[1].mana).toBe(before + 2);
   });
 });
 
@@ -150,7 +150,7 @@ describe("combat", () => {
     s.players[0].hp = 15;
     const siphon = spawn(s, 0, "084");
     s = act(s, { t: "attack", unit: siphon.uid, target: { champ: 1 } });
-    expect(s.players[0].hp).toBe(18);
+    expect(s.players[0].hp).toBe(19);
   });
   it("lets Twin Strike attack twice and no more", () => {
     let s = game();

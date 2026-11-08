@@ -12,8 +12,8 @@ console.log(`Games ${report.games}, draws ${report.draws}, stuck ${report.stuck}
 console.log(`First player wins ${pct(report.firstPlayerWins / Math.max(1, report.games - report.draws))}; median rounds ${report.medianRounds}; Exhaustion ${pct(report.exhaustionShare)}`);
 console.log("Class win rates:");
 for (const [cls, row] of Object.entries(report.byClass)) console.log(`  ${cls.padEnd(8)} ${pct(row.rate)} (${row.games} games)`);
-const top = Object.entries(report.cards).filter(([, r]) => r.played >= 50).sort((a, b) => b[1].rate - a[1].rate);
-console.log("Highest win rate when played:", top.slice(0, 8).map(([id, r]) => `${id} ${pct(r.rate)}`).join(", "));
-console.log("Lowest:", top.slice(-8).map(([id, r]) => `${id} ${pct(r.rate)}`).join(", "));
+const top = Object.entries(report.cards).filter(([, r]) => r.drawn >= 50).sort((a, b) => b[1].drawnRate - a[1].drawnRate);
+console.log("Highest win rate when drawn:", top.slice(0, 8).map(([id, r]) => `${id} ${pct(r.drawnRate)}`).join(", "));
+console.log("Lowest:", top.slice(-8).map(([id, r]) => `${id} ${pct(r.drawnRate)}`).join(", "));
 const missed = missedTargets(report);
 console.log(missed.length ? `Missed targets:\n  ${missed.join("\n  ")}` : "All targets met.");

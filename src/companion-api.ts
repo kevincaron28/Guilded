@@ -91,6 +91,7 @@ import { createStatsPage } from "./services/stats-page.js";
 import { createGuildBankPage } from "./services/guild-bank-page.js";
 import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
 import { collectionFor, craftCard, openPack, tcgAllowed, TcgError } from "./services/tcg-store.js";
+import { cancelTrade, confirmTrade, editTrade, getTrade, listTrades, offerTrade, setTradingOff, tradableCards, tradePartners } from "./services/tcg-trade.js";
 import { concedeMatch, getMatch, isAiLevel, isClassKey, listMatches, parseIntent, pveProgress, startMatch, submitIntent } from "./services/tcg-match.js";
 import { createArtisansGallery } from "./services/artisans-gallery.js";
 import { withDeadline } from "./services/blizzard-items.js";
@@ -676,9 +677,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
       const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
       // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
-      const clashPaths = ["start", "match", "intent", "concede", "matches", "pve"];
+      const clashMethods: Record<string, string> = { start: "POST", match: "GET", intent: "POST", concede: "POST", matches: "GET", pve: "GET",
+        "trade/partners": "GET", "trade/cards": "GET", trades: "GET", trade: "GET", "trade/offer": "POST", "trade/edit": "POST", "trade/confirm": "POST", "trade/cancel": "POST", "trade/settings": "POST" };
       const clashRoute = url.pathname.startsWith("/api/v1/companion/clash/") ? url.pathname.slice("/api/v1/companion/clash/".length) : null;
-      const isClash = clashRoute !== null && clashPaths.includes(clashRoute) && request.method === (["match", "matches", "pve"].includes(clashRoute) ? "GET" : "POST");
+      const isClash = clashRoute !== null && Object.hasOwn(clashMethods, clashRoute) && request.method === clashMethods[clashRoute];
       // Track M: the phone's guildmate map (guild members only) and the member's own sharing switch.
       const isMapView = request.method === "GET" && url.pathname === "/api/v1/companion/guild-map";
       const isMapEdit = request.method === "POST" && url.pathname === "/api/v1/companion/guild-map";
@@ -850,6 +852,32 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const lang = url.searchParams.get("lang") === "fr" ? "fr" : "en";
         if (!await tcgAllowed(prisma, discordUserId, (id) => hostedPilot.allows(id))) { json(response, 403, { error: "The card game is off for your server, or you are not in a server that has Guilded." }); return; }
         try {
+          if (clashRoute.startsWith("trade") || clashRoute === "trades") {
+            const allows = (id: string) => hostedPilot.allows(id);
+            if (clashRoute === "trade/partners") { json(response, 200, await tradePartners(prisma as never, discordUserId, allows)); return; }
+            if (clashRoute === "trade/cards") { json(response, 200, await tradableCards(prisma as never, discordUserId, lang)); return; }
+            if (clashRoute === "trades") { json(response, 200, await listTrades(prisma as never, discordUserId, lang)); return; }
+            if (clashRoute === "trade") {
+              const id = url.searchParams.get("id") ?? "";
+              if (!id || id.length > 40) { json(response, 400, { error: "id is required." }); return; }
+              json(response, 200, await getTrade(prisma as never, discordUserId, id, lang)); return;
+            }
+            if (!allowCompanionRevocation(`clash-trade:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+            const body = await readBody(request).catch(() => null) as { to?: unknown; give?: unknown; want?: unknown; id?: unknown; off?: unknown } | null;
+            if (!body || typeof body !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }
+            if (clashRoute === "trade/settings") {
+              if (typeof body.off !== "boolean") { json(response, 400, { error: "off (true or false) is required." }); return; }
+              json(response, 200, await setTradingOff(prisma as never, discordUserId, body.off)); return;
+            }
+            if (clashRoute === "trade/offer") {
+              if (typeof body.to !== "string" || !body.to || body.to.length > 32) { json(response, 400, { error: "to (a guildmate) is required." }); return; }
+              json(response, 200, await offerTrade(prisma as never, discordUserId, { to: body.to, give: body.give, want: body.want ?? [] }, lang, allows)); return;
+            }
+            if (typeof body.id !== "string" || !body.id || body.id.length > 40) { json(response, 400, { error: "id is required." }); return; }
+            if (clashRoute === "trade/edit") { json(response, 200, await editTrade(prisma as never, discordUserId, body.id, { give: body.give, want: body.want ?? [] }, lang)); return; }
+            if (clashRoute === "trade/confirm") { json(response, 200, await confirmTrade(prisma as never, discordUserId, body.id, lang, allows)); return; }
+            json(response, 200, await cancelTrade(prisma as never, discordUserId, body.id, lang)); return;
+          }
           if (clashRoute === "matches") { json(response, 200, await listMatches(prisma as never, discordUserId)); return; }
           if (clashRoute === "pve") { json(response, 200, await pveProgress(prisma as never, discordUserId, lang)); return; }
           if (clashRoute === "match") {

@@ -100,3 +100,29 @@ describe("Guilded Clash match routes", () => {
     expect(body.daily.quests).toHaveLength(3);
   });
 });
+
+describe("Guilded Clash trade routes", () => {
+  const routes = [["GET", "trade/partners"], ["GET", "trade/cards"], ["GET", "trades"], ["GET", "trade?id=x"], ["POST", "trade/offer"], ["POST", "trade/edit"], ["POST", "trade/confirm"], ["POST", "trade/cancel"], ["POST", "trade/settings"]] as const;
+  it("answers 401 without a valid sign-in and 403 when the card game is off", async () => {
+    for (const [method, path] of routes) {
+      resetFailures();
+      const res = await fetch(`${base}/${path}`, { method, headers: headers("z".repeat(43)), ...(method === "POST" ? { body: "{}" } : {}) });
+      expect(res.status, `${method} ${path}`).toBe(401);
+    }
+    db.guildSettings.findMany.mockResolvedValue([{ guildId: "g1" }]);
+    for (const [method, path] of routes) {
+      resetFailures();
+      const res = await fetch(`${base}/${path}`, { method, headers: headers(), ...(method === "POST" ? { body: "{}" } : {}) });
+      expect(res.status, `${method} ${path}`).toBe(403);
+    }
+  });
+
+  it("answers 400 for malformed bodies and 404 for unknown routes and wrong methods", async () => {
+    expect((await get("trade")).status).toBe(400);
+    expect((await post("trade/offer", { give: ["a"] })).status).toBe(400);
+    expect((await post("trade/settings", { off: "yes" })).status).toBe(400);
+    expect((await post("trade/confirm", {})).status).toBe(400);
+    expect((await get("trade/offer")).status).toBe(404);
+    expect((await fetch(`${base}/trades`, { method: "POST", headers: headers(), body: "{}" })).status).toBe(404);
+  });
+});

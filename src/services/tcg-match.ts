@@ -206,7 +206,7 @@ async function planSettlement(tx: Tx, row: Row, state: MatchState, spells: numbe
     ? { played: dailyRow.played, wins: dailyRow.wins, spells: dailyRow.spells, zones: dailyRow.zones, packsEarned: dailyRow.packsEarned, questsDone: jsonList(dailyRow.questsDone) }
     : emptyDaily();
   const bossesPaid = dailyRow ? jsonList(dailyRow.bossesPaid) : [];
-  const player = playerRow ?? { packProgress: 0, wins: 0, losses: 0, pveCleared: 0, pveRuns: 0 };
+  const player = playerRow ?? { packProgress: 0, wins: 0, losses: 0, pveCleared: 0, pveRuns: 0, playedCounted: 0 };
 
   const progress = settleProgress(day, daily, player.packProgress, { won, counted, winCounts: won && (boss !== null || row.aiLevel !== "easy"), spells, zones });
   let dust = 0, packs = progress.packs;
@@ -241,7 +241,7 @@ async function planSettlement(tx: Tx, row: Row, state: MatchState, spells: numbe
         if (paid.count !== 1) throw new Conflict("Your packs changed while the match finished. Try again.");
         await tx.tcgLog.create({ data: { discordUserId: userId, kind: "match", cards: [{ match: row.id, status: won ? "won" : "lost", packs: toBank, overflowDust }], dustDelta: dust } });
       }
-      const playerData = { packProgress: progress.packProgress, wins: player.wins + (won ? 1 : 0), losses: player.losses + (!won && state.winner === 1 ? 1 : 0), pveCleared, pveRuns };
+      const playerData = { packProgress: progress.packProgress, wins: player.wins + (won ? 1 : 0), losses: player.losses + (!won && state.winner === 1 ? 1 : 0), pveCleared, pveRuns, playedCounted: player.playedCounted + (counted ? 1 : 0) };
       await tx.tcgPlayer.upsert({ where: { discordUserId: userId }, create: { discordUserId: userId, ...playerData }, update: playerData });
       const dailyData = { ...progress.daily, bossesPaid, questsDone: progress.daily.questsDone };
       await tx.tcgDaily.upsert({ where: { discordUserId_day: { discordUserId: userId, day } }, create: { discordUserId: userId, day, ...dailyData }, update: dailyData });

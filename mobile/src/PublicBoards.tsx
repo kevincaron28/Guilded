@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { classColor, classMix, fetchBoards, fetchPublicGuild, type BoardBracket, type Boards, type PublicGuild } from "./publicApi";
 import type { Lang } from "./i18n";
@@ -26,7 +26,7 @@ function Retry({ lang, onPress, message }: { lang: Lang; onPress: () => void; me
   return <View style={styles.card}><Text style={styles.muted}>{message ?? w("failed", lang)}</Text><Pressable onPress={onPress} accessibilityRole="button"><Text style={styles.link}>{w("retry", lang)}</Text></Pressable></View>;
 }
 
-export function PublicBoards({ origin, lang }: { origin: string; lang: Lang }) {
+export function PublicBoards({ origin, lang, header }: { origin: string; lang: Lang; header?: ReactNode }) {
   const [boards, setBoards] = useState<Boards | null>(null);
   const [failed, setFailed] = useState(false);
   const [bracket, setBracket] = useState(0);
@@ -43,6 +43,7 @@ export function PublicBoards({ origin, lang }: { origin: string; lang: Lang }) {
   if (slug) return <PublicGuildView origin={origin} lang={lang} slug={slug} onBack={() => setSlug(null)} />;
   const current: BoardBracket | undefined = boards?.brackets[Math.min(bracket, (boards?.brackets.length ?? 1) - 1)];
   return <ScrollView contentContainerStyle={styles.content}>
+    {header}
     <Text style={styles.kicker}>{(boards?.season || "GUILDED").toUpperCase()}</Text>
     <Text style={styles.title}>{w("title", lang)}</Text>
     <Text style={styles.intro}>{w("intro", lang)}</Text>

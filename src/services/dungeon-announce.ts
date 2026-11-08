@@ -78,12 +78,14 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
   lines.push([`⏱️ **${formatDuration(run.durationSec as number)}**`, boss ? `${fr ? "boss final" : "final boss"} **${escapeMarkdown(boss)}**` : undefined,
     tracked ? `${fr ? "morts de guilde" : "guild deaths"} ${memberDeaths}` : undefined].filter(Boolean).join(" · "));
 
-  // Guildmates: tagged when linked (no ping, the delivery allows no mentions), otherwise their full name.
+  // Guildmates: their full character name, with the member tagged after it when linked (no ping, the delivery allows
+  // no mentions). Never the mention alone: the post should say which character ran.
   const guildRows = party.filter((row) => row.guild);
-  const tagged = guildRows.map((row) => { const mention = run.mentions?.[row.detail.character]; return mention ? `<@${mention}>` : `**${name(row.detail.character)}**`; });
+  const tagged = guildRows.map((row) => { const mention = run.mentions?.[row.detail.character]; return `**${name(row.detail.character)}**${mention ? ` (<@${mention}>)` : ""}`; });
   const linked = guildRows.filter((row) => run.mentions?.[row.detail.character] || !run.unlinked.includes(row.detail.character)).length;
-  const linkedNote = linked > 0 && linked < members.size ? ` (${linked} ${fr ? "lié(s)" : "linked"})` : "";
-  lines.push(`🏰 ${members.size} ${fr ? "membre(s) de guilde" : "guild member(s)"}${linkedNote}: ${tagged.join(", ")}`);
+  const linkedNote = linked > 0 && linked < members.size ? ` (${linked} ${fr ? (linked > 1 ? "liés" : "lié") : "linked"})` : "";
+  const memberWord = fr ? (members.size > 1 ? "membres de la guilde" : "membre de la guilde") : (members.size > 1 ? "guild members" : "guild member");
+  lines.push(`🏰 ${members.size} ${memberWord}${linkedNote}${fr ? " :" : ":"} ${tagged.join(", ")}`);
   if (run.points > 0) lines.push(`${run.points} ${run.ratingEnabled ? (fr ? "points de participation" : "participation points") : (fr ? "points attribués au total" : "total points awarded")}`);
 
   // One "Non classé ×N" for the whole run, with the distinct reasons: never one line per member.
@@ -97,9 +99,11 @@ function dungeonEmbed(run: DungeonImportResult, lang: Lang): EmbedBuilder {
   if (outsiders.length) {
     const shown = outsiders.slice(0, 8).map((row) => {
       const info = [className(row.detail.class, lang), roleName(row.detail.role, lang)].filter(Boolean).join(", ");
-      return `${name(row.detail.character)}${info ? ` (${escapeMarkdown(info)})` : ""}`;
+      // The addon sends "Unknown" when the game had not loaded a player's name yet.
+      const who = row.detail.character === "Unknown" ? (fr ? "Inconnu" : "Unknown") : name(row.detail.character);
+      return `${who}${info ? ` (${escapeMarkdown(info)})` : ""}`;
     });
-    lines.push(`🌐 ${fr ? "Hors guilde" : "Outside the guild"} (${outsiders.length}): ${shown.join(", ")}${outsiders.length > 8 ? ` ${t(lang, "dungeon.post.more", { count: outsiders.length - 8 })}` : ""}`);
+    lines.push(`🌐 ${fr ? "Hors guilde" : "Outside the guild"} (${outsiders.length})${fr ? " :" : ":"} ${shown.join(", ")}${outsiders.length > 8 ? ` ${t(lang, "dungeon.post.more", { count: outsiders.length - 8 })}` : ""}`);
   }
   // 9.1 records and challenges: the clear record keeps its own line below; boss records and challenges are listed here.
   for (const item of (run.highlights ?? []).filter(item => item.kind !== "clear").slice(0, 6)) lines.push(highlightText(item, lang));

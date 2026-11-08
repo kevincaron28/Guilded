@@ -61,10 +61,7 @@ export async function leaderboard(database: Db & Partial<Pick<PrismaClient, "cha
   const book = await loadFullNameBook(database, guildId);
   const mainOf = new Map<string, string>();
   for (const character of mains) if (!mainOf.has(character.memberId)) mainOf.set(character.memberId, displayCharacterName(character, book));
-  const names = new Map(members.map((member) => {
-    const character = mainOf.get(member.id);
-    return [member.id, !character ? member.displayName : character.toLowerCase() === member.displayName.toLowerCase() ? character : `${character} (${member.displayName})`] as const;
-  }));
+  const names = new Map(members.map((member) => [member.id, characterWithMember(mainOf.get(member.id), member.displayName)] as const));
   return grouped
     .map((row) => ({ memberId: row.memberId, name: names.get(row.memberId) ?? "?", points: row._sum.amount ?? 0 }))
     .filter((row) => row.points > 0)
@@ -247,6 +244,16 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
 }
 
 // "1. Kev — 240" lines with medals for the top three.
+/**
+ * "Character (Discord name)", the owner's naming rule, without doubled brackets: a server nickname that already ends in
+ * brackets ("Maxle (class)") loses them. The Discord name is left out only when it is the character's name itself.
+ */
+export function characterWithMember(character: string | undefined, memberName: string): string {
+  if (!character) return memberName;
+  const member = memberName.replace(/\s*\([^()]*\)\s*$/, "").trim() || memberName.trim();
+  return member.normalize("NFKC").toLowerCase() === character.normalize("NFKC").toLowerCase() ? character : `${character} (${member})`;
+}
+
 export function formatLeaderboard(rows: LeaderRow[]): string {
   const medals = ["🥇", "🥈", "🥉"];
   return rows.map((row, index) => `${medals[index] ?? `${index + 1}.`} **${row.name}** — ${row.points}`).join("\n");

@@ -56,7 +56,8 @@ export async function dailyRecap(db: RecapDb, guildId: string, day: string, time
     const perMember = new Map<string, { name: string; runs: number }>();
     for (const run of runs) for (const id of new Set(run.players.flatMap(player => player.memberId ? [player.memberId] : []))) {
       const player = run.players.find(row => row.memberId === id)!;
-      const row = perMember.get(id) ?? { name: player.member?.displayName ?? player.character, runs: 0 };
+      // The character who ran (its full name below), not the member's Discord name.
+      const row = perMember.get(id) ?? { name: player.character || player.member?.displayName || "?", runs: 0 };
       row.runs++; perMember.set(id, row);
     }
     const best = [...perMember.values()].sort((a, b) => b.runs - a.runs || a.name.localeCompare(b.name))[0];
@@ -74,9 +75,9 @@ export async function dailyRecap(db: RecapDb, guildId: string, day: string, time
   }
 
   // Full "First Last" names where only a first name is stored.
-  if (race && db.character) {
+  if ((race || dungeons?.mostRuns) && db.character) {
     const book = await loadFullNameBook(db, guildId).catch(() => null);
-    if (book) for (const row of [...race.top, ...race.new60]) row.name = displayCharacterName(row.name, book);
+    if (book) for (const row of [...(race?.top ?? []), ...(race?.new60 ?? []), ...(dungeons?.mostRuns ? [dungeons.mostRuns] : [])]) row.name = displayCharacterName(row.name, book);
   }
   return { day, race, dungeons, pvp };
 }

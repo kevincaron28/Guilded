@@ -47,16 +47,20 @@ describe("dungeonPosts", () => {
   it("tags linked guildmates and never prints '(0 lié(s))' when members are tagged", () => {
     const run = result({ players: ["Kev", "Ann"], unlinked: ["Ann"], inGuildPlayers: ["Kev", "Ann"], mentions: { Kev: "1234", Ann: "5678" } });
     const fr = text(run, "fr");
-    expect(fr).toContain("<@1234>");
-    expect(fr).toContain("<@5678>");
-    expect(fr).not.toContain("lié(s)");
+    // The character name comes first, the member's tag after it: never the tag alone.
+    expect(fr).toContain("**Kev** (<@1234>)");
+    expect(fr).toContain("**Ann** (<@5678>)");
+    expect(fr).not.toContain("lié");
     // Flagged but nobody linked: no confusing "(0 linked)" either.
     const none = result({ players: ["A", "B"], unlinked: ["A", "B"], inGuildPlayers: ["A", "B"] });
-    expect(text(none)).toContain("2 guild member(s):");
+    expect(text(none)).toContain("2 guild members:");
     expect(text(none)).not.toContain("linked");
     // Partly linked keeps the useful note.
     const some = result({ players: ["Kev", "Ann", "Bo"], unlinked: ["Ann", "Bo"], inGuildPlayers: ["Kev", "Ann", "Bo"], mentions: { Kev: "1234" } });
-    expect(text(some, "fr")).toContain("3 membre(s) de guilde (1 lié(s))");
+    expect(text(some, "fr")).toContain("3 membres de la guilde (1 lié) :");
+    const solo = result({ players: ["Kev"], inGuildPlayers: ["Kev"] });
+    expect(text(solo)).toContain("1 guild member:");
+    expect(text(solo, "fr")).toContain("1 membre de la guilde :");
   });
   it("localizes roles for outsiders (no raw HEALER/TANK) and uses full names", () => {
     const run = result({ players: ["Kev", "Pug One", "Pug Two"], unlinked: ["Pug One", "Pug Two"], inGuildPlayers: ["Kev"], fullNames: { "Pug One": "Pug One Healerson" },

@@ -1186,7 +1186,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             const tellOfficers = async (told: ApplyFailure, attempts: number) => {
               if (!access.officer || !shouldTellApplyFailure(`${guild.id}:${told.reason}:${told.message}`)) return;
               const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-              await notify(discordGuild, `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${told.message}${attempts > 1 ? ` (${attempts} tries)` : ""} [${told.reason}]\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
+              // The reason stays as the classifier wrote it (it matches the server log); the frame is in the guild's language.
+              await notify(discordGuild, settings?.language === "fr"
+                ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${told.message}${attempts > 1 ? ` (${attempts} essais)` : ""} [${told.reason}]\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/import apply id:${record.id}\`.`
+                : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${told.message}${attempts > 1 ? ` (${attempts} tries)` : ""} [${told.reason}]\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
             };
             if (failure.transient) {
               retryApplyLater({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, officer: !!access.officer, tellOfficers });

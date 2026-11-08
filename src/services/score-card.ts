@@ -119,10 +119,42 @@ async function ringPortrait(portrait: string, shapes: string[], layers: Layer[])
 const rect = (x: number, y: number, w: number, h: number, fill: string, edge?: string, r = 12) =>
   `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${r}" fill="${fill}"${edge ? ` stroke="${edge}" stroke-width="1.5"` : ""}/>`;
 
-/** Rendered text sized to its own content, so pills can be fitted around it. */
-async function text(markup: string, size: number, maxWidth: number) {
+const MIN_FIT = 0.62;
+async function drawText(markup: string, size: number, maxWidth: number) {
   const { data, info } = await sharp({ text: { text: markup, font: `Source Serif 4 ${size}`, fontfile, width: maxWidth, rgba: true, wrap: "none" } }).png().toBuffer({ resolveWithObject: true });
   return { input: data, width: info.width, height: info.height };
+}
+/**
+ * Rendered text sized to its own content, so pills can be fitted around it, and never wider than `maxWidth`: sharp does not
+ * enforce the width on unwrapped text, so a long name used to run into the next panel. Too wide, it is drawn smaller (down to
+ * MIN_FIT of its size, on the same baseline), then cut with an ellipsis.
+ */
+async function text(markup: string, size: number, maxWidth: number) {
+  // sharp refuses a text with nothing visible (an empty value, or an emoji the card font drops): draw nothing rather than fail the card.
+  if (!markup.replace(/<[^>]*>/g, "").replace(/&#160;|&nbsp;/g, " ").trim()) {
+    const blank = await sharp({ create: { width: 1, height: Math.round(size * 1.3), channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    return { input: blank, width: 1, height: Math.round(size * 1.3) };
+  }
+  const full = await drawText(markup, size, maxWidth);
+  if (full.width <= maxWidth) return full;
+  const smaller = Math.max(Math.ceil(size * MIN_FIT), Math.floor((size * maxWidth) / full.width));
+  let fitted = await drawText(markup, smaller, maxWidth);
+  const parts = /^(<span[^>]*>)([\s\S]*)(<\/span>)$/.exec(markup);
+  if (fitted.width > maxWidth && parts) {
+    // One span of escaped text: drop characters (an entity counts as one) until it fits with an ellipsis.
+    const chars = parts[2]!.match(/&[a-z]+;|&#\d+;|[\s\S]/gu) ?? [];
+    let low = 0, high = chars.length - 1, best: typeof fitted | null = null;
+    while (low <= high) {
+      const keep = (low + high) >> 1, attempt = await drawText(`${parts[1]}${chars.slice(0, keep).join("").trimEnd()}…${parts[3]}`, smaller, maxWidth);
+      if (attempt.width <= maxWidth) { best = attempt; low = keep + 1; } else high = keep - 1;
+    }
+    if (best) fitted = best;
+  }
+  // Keep the baseline where the full-size text had it, so a shrunk title does not jump up.
+  const lift = Math.max(0, Math.round((full.height - fitted.height) * 0.8));
+  if (!lift) return fitted;
+  const input = await sharp(fitted.input).extend({ top: lift, bottom: 0, left: 0, right: 0, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png().toBuffer();
+  return { input, width: fitted.width, height: fitted.height + lift };
 }
 const span = (color: string, body: string, extra = "") => `<span foreground="${color}"${extra}>${escapeText(body || " ")}</span>`;
 const caps = (color: string, body: string) => span(color, body.toUpperCase(), ' letter_spacing="1800"');
@@ -200,7 +232,7 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
     const nameX = x + 62, nameW = Math.max(120, edge - nameX);
     await put(caps(th.muted, "#"), 12, x + 24, hy + 4, 30);
     for (const [c, column] of visual.columns.entries()) {
-      if (column.kind === "bar") await put(caps(th.muted, clip(column.label, 14)), 12, colX[c]! - column.width, hy + 4, column.width);
+      if (column.kind === "bar") await put(caps(th.muted, clip(column.label, 14)), 12, colX[c]! - column.width, hy + 4, column.width + 40);
       else await putRight(caps(th.muted, clip(column.label, 14)), 12, colX[c]!, hy + 4, column.width + 40);
     }
     body.push(`<rect x="${x + 12}" y="${hy + 24}" width="${pw - 24}" height="1" fill="${th.edge}"/>`);
@@ -243,7 +275,7 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
     }
   }
   shapes.push(...body, `<rect x="60" y="${height - 52}" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 150)), 17, 60, height - 40);
+  await put(span(th.muted, clip(card.footer, 260)), 17, 60, height - 40);
   const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="${height}">${shapes.join("")}</svg>`);
   return sharp(base).composite(layers).png().toBuffer();
 }
@@ -279,17 +311,17 @@ async function render(card: ScoreCard): Promise<Buffer> {
     shapes.push(`<rect x="60" y="${y + 4}" width="4" height="24" rx="2" fill="${accent[big.accent ?? "gold"]}"/>`);
     await put(caps(th.muted, clip(big.label, 30)), 17, 76, y + 6, leftW);
     await put(span(accent[big.accent ?? "gold"], clip(big.value, hasRows ? 10 : 20)), hasRows ? 100 : 120, 56, y + 34, leftW);
-    if (big.note) await put(span(th.ink, clip(big.note, hasRows ? 38 : 80)), 21, 60, y + 146, leftW);
+    if (big.note) await put(span(th.ink, clip(big.note, 90)), 21, 60, y + 146, leftW);
     y += 200;
   }
   const smallW = hasRows ? Math.floor((leftW - 20) / Math.max(1, small.length)) : 340;
   for (const [i, stat] of small.entries()) {
     const x = 60 + i * (smallW + 20);
     shapes.push(`<rect x="${x}" y="${y + 4}" width="4" height="20" rx="2" fill="${accent[stat.accent ?? "gold"]}"/>`);
-    await put(caps(th.muted, clip(stat.label, hasRows ? 14 : 30)), 15, x + 14, y + 4, smallW - 14);
+    await put(caps(th.muted, clip(stat.label, 32)), 15, x + 14, y + 4, smallW - 14);
     const len = [...stat.value].length;
-    await put(span(accent[stat.accent ?? "gold"], clip(stat.value, 18)), len > 11 ? 26 : len > 6 ? 34 : 54, x - 1, y + 26, smallW);
-    if (stat.note) await put(span(th.ink, clip(stat.note, Math.floor(smallW / 9))), 17, x + 1, y + 78, smallW);
+    await put(span(accent[stat.accent ?? "gold"], clip(stat.value, 30)), len > 11 ? 26 : len > 6 ? 34 : 54, x - 1, y + 26, smallW);
+    if (stat.note) await put(span(th.ink, clip(stat.note, 70)), 17, x + 1, y + 78, smallW);
   }
 
   // Right panel: one row per party member or run.
@@ -327,7 +359,7 @@ async function render(card: ScoreCard): Promise<Buffer> {
   }
 
   shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590);
+  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590);
 
   const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
   return sharp(base).composite(layers).png().toBuffer();
@@ -431,9 +463,9 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
   const small = async (stat: CardStat | undefined, x: number, w: number, chars: number) => {
     if (!stat) return;
     shapes.push(`<rect x="${x}" y="420" width="4" height="20" rx="2" fill="${accent[stat.accent ?? "gold"]}"/>`);
-    await put(caps(th.muted, clip(stat.label, 16)), 15, x + 14, 420, w, true);
+    await put(caps(th.muted, clip(stat.label, 32)), 15, x + 14, 420, w, true);
     await put(span(accent[stat.accent ?? "gold"], clip(stat.value, chars)), stat.value.length > 16 ? 24 : 32, x - 1, 444, w, true);
-    if (stat.note) await put(span(th.ink, clip(stat.note, 24)), 16, x + 1, 488, w, true);
+    if (stat.note) await put(span(th.ink, clip(stat.note, 60)), 16, x + 1, 488, w, true);
   };
   await small(boss, 60, 310, 28);
   await small(deaths, 390, 150, 6);
@@ -520,7 +552,7 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
     bx += w + 12;
   }
   shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590, 1080, true);
+  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590, 1080, true);
   const overlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
   return sharp(art).composite([{ input: overlay, left: 0, top: 0 }, ...layers]).png().toBuffer();
 }
@@ -582,7 +614,7 @@ async function renderRecap(card: ScoreCard): Promise<Buffer> {
     }
   }
   shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590, 1080, true);
+  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590, 1080, true);
   const overlay = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
   return sharp(art).composite([{ input: overlay, left: 0, top: 0 }, ...layers]).png().toBuffer();
 }
@@ -650,7 +682,7 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
   // A Discord avatar (added at delivery) sits left of the name in a gold ring; an unreadable image is skipped.
   const nameX = card.portrait && await ringPortrait(card.portrait, shapes, layers) ? 162 : 58;
   await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 40, lead);
-  await put(span(th.ink, clip(card.title, single ? 36 : 24)), nameX > 100 ? Math.min(size, 50) : size, nameX, 68 + (62 - (nameX > 100 ? Math.min(size, 50) : size)) / 2 + (nameX > 100 ? 10 : 0), lead - nameX);
+  await put(span(th.ink, clip(card.title, 48)), nameX > 100 ? Math.min(size, 50) : size, nameX, 68 + (62 - (nameX > 100 ? Math.min(size, 50) : size)) / 2 + (nameX > 100 ? 10 : 0), lead - nameX);
   // Discord role as a pill at the right of the header (single-unlock layout; the batch layouts have no room).
   if (single && card.rank) {
     const color = legible(card.rank.color), t = await text(span(color, clip(card.rank.label, 24)), 21, 400), w = t.width + 52, x = 1140 - w;
@@ -745,7 +777,7 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
   }
 
   shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590);
+  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590);
   const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
   return sharp(base).composite(layers).png().toBuffer();
 }
@@ -779,7 +811,7 @@ async function renderRoster(card: ScoreCard): Promise<Buffer> {
     const rowH = Math.min(28, Math.floor((lh - 70) / classes.length)), barX = lx + 170, barW = lw - 170 - 70, max = Math.max(1, ...classes.map((c) => c.total));
     for (const [i, c] of classes.entries()) {
       const y = ly + 54 + i * rowH, color = legible(c.color);
-      await putRight(span(color, clip(c.name, 14)), Math.min(20, rowH - 4), barX - 12, y);
+      await putRight(span(color, clip(c.name, 24)), Math.min(20, rowH - 4), barX - 12, y);
       let x = barX;
       for (const [band, count] of c.byBand.entries()) {
         const w = count ? Math.max(2, Math.round((count / max) * barW)) : 0;
@@ -797,13 +829,13 @@ async function renderRoster(card: ScoreCard): Promise<Buffer> {
   for (const [i, p] of tiles.entries()) {
     const x = rx + 24 + (i % 3) * (tw + 8), y = ly + 52 + Math.floor(i / 3) * (th2 + 8), gap = p.crafters === 0;
     shapes.push(`<rect x="${x}" y="${y}" width="${tw}" height="${th2}" rx="8" fill="${gap ? th.warn.fill : th.ok.fill}" stroke="${gap ? th.red : th.ok.edge}" stroke-width="1.5"/>`);
-    await put(span(th.ink, clip(p.name, 14)), 16, x + 8, y + 6, tw - 10);
+    await put(span(th.ink, clip(p.name, 24)), 16, x + 8, y + 6, tw - 10);
     await put(span(gap ? th.red : th.green, gap ? "0" : String(p.crafters)), 24, x + 10, y + 28, 60);
     if (!gap) await putRight(span(th.muted, String(p.maxSkill)), 17, x + tw - 10, y + 36);
   }
 
   shapes.push(`<rect x="60" y="578" width="1080" height="1" fill="${th.edge}"/>`);
-  await put(span(th.muted, clip(card.footer, 150)), 17, 60, 590);
+  await put(span(th.muted, clip(card.footer, 260)), 17, 60, 590);
   const base = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${shapes.join("")}</svg>`);
   return sharp(base).composite(layers).png().toBuffer();
 }

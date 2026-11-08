@@ -76,6 +76,8 @@ export async function tellPrelinked(client: Client, discordGuildId: string, lang
     }).catch(() => undefined);
   }
   if (guild) {
-    await postToLogChannel(guild, results.map((result) => `🔗 ${result.name} was linked to <@${result.discordUserId}> because they asked for that name in the invite channel (the next officer sync or their /guilded verify code confirms it).`).join("\n")).catch(() => undefined);
+    await postToLogChannel(guild, results.map((result) => language === "fr"
+      ? `🔗 ${result.name} a été lié à <@${result.discordUserId}>, qui a demandé ce nom dans le salon d'invitation (la prochaine synchronisation d'un officier ou son code /guilded verify le confirme).`
+      : `🔗 ${result.name} was linked to <@${result.discordUserId}> because they asked for that name in the invite channel (the next officer sync or their /guilded verify code confirms it).`).join("\n")).catch(() => undefined);
   }
 }

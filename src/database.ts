@@ -20,6 +20,7 @@ export const DEFAULT_CONNECTION_LIMIT = 8;
 // up; Prisma 6's 5s connect timeout failed the first query after a quiet spell ("Can't reach
 // database server"). node-postgres has no timeout at all by default, so keep 30s.
 const DEFAULT_TIMEOUT_SECONDS = 30;
+export const DEFAULT_TRANSACTION_TIMEOUT_MS = 15_000;
 // Prisma 6 closed idle connections after 5 minutes; node-postgres would after 10 seconds,
 // paying a new TLS handshake to Aiven for most queries.
 const IDLE_TIMEOUT_MS = 300_000;
@@ -96,11 +97,14 @@ export function createPrismaClient(url = process.env["DATABASE_URL"]): PrismaCli
   // Interactive transactions otherwise give up after 2s even though pg still
   // allows 30s for connection acquisition. Match the configured pool wait for
   // every caller, keeping a finite default when pg's timeout is disabled (0).
-  // This does not extend transaction execution time or enlarge the pool.
   // Callers that can fail fast use a shorter maxWait and retry the start
   // (transaction-retry.ts). A longer wait here only applies when they don't.
+  // Execution: Prisma's 5s default failed short transactions (pairing, invite pre-link, dungeon import)
+  // with P2028 while the small server was busy right after a restart (8 Nov 2026), so the default is 15s,
+  // like SHORT_TRANSACTION. Callers that set their own timeout (public runs: 60s) keep it.
   return new PrismaClient({ adapter, transactionOptions: {
-    maxWait: settings.connectionTimeoutMillis || DEFAULT_TIMEOUT_SECONDS * 1000
+    maxWait: settings.connectionTimeoutMillis || DEFAULT_TIMEOUT_SECONDS * 1000,
+    timeout: DEFAULT_TRANSACTION_TIMEOUT_MS
   } });
 }
 

@@ -1353,7 +1353,18 @@ registerIpc("copy-problem-report", () => {
   return { reference: report.reference, text: report.text };
 });
 // The Forever zip of this release when the folder needs Forever; otherwise the CurseForge page.
-registerIpc("open-addon-download", () => shell.openExternal(engineModules.addonDownloadUrl?.(savedFile?.addon?.expected, app.getVersion()) ?? "https://www.curseforge.com/wow/addons/guilded"));
+// The website's copy first; the GitHub one when the website does not have this version or does not answer.
+registerIpc("open-addon-download", async () => {
+  const edition = savedFile?.addon?.expected, version = app.getVersion();
+  const primary = engineModules.addonDownloadUrl?.(edition, version) ?? "https://www.curseforge.com/wow/addons/guilded";
+  const mirror = engineModules.addonDownloadMirror?.(edition, version) ?? primary;
+  let target = primary;
+  if (mirror !== primary) {
+    const found = await fetch(primary, { method: "HEAD", headers: { "user-agent": "Guilded-Companion" }, signal: AbortSignal.timeout(5_000) }).then((response) => response.ok, () => false);
+    if (!found) target = mirror;
+  }
+  return shell.openExternal(target);
+});
 // Downloads this release's Forever zip, checks it against the release's SHA256SUMS, refuses while
 // WoW runs, backs up an existing Guilded folder and puts the new one in AddOns.
 let addonInstalling = false;

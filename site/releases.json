@@ -30,7 +30,12 @@
       "version": "9.0.5",
       "url": "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe",
       "siteUrl": "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe",
+      "size": 123296448,
       "sha256": "4a863c4aa54e2015f9f82a25d77a6ef88363f566e09955408cb44ea20035973d"
+    },
+    "addonZips": {
+      "Guilded-v9.0.5-forever.zip": "e2608afa732f9b738b18329009d2d6462479951311ef989975d5e2a3df0736c4",
+      "GuildedDungeons-v9.0.5-forever.zip": "dc2c075ee682bbdafc200316c6cc31d3a74ff9594d63b613c3829e829b853133"
     },
     "microsoftStore": {
       "version": "8.3.0",

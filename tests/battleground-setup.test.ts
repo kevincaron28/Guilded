@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { Collection, ChannelType, PermissionFlagsBits } from "discord.js";
 import { readFileSync } from "node:fs";
-import { ensureBattlegroundSetup, bgSetupPanel, BG_SETUP_PARTS, QG_BG_ADOPTION } from "../src/services/battleground-setup.js";
+import { ensureBattlegroundSetup, bgSetupPanel, BG_SETUP_PARTS, QG_BG_ADOPTION, isBgPanel, refreshBgPanels } from "../src/services/battleground-setup.js";
 vi.mock("../src/permissions.js", () => ({ hasPermission: (actor: { officer: boolean }) => actor.officer }));
 
 function fixture(options: { manage?: boolean; role?: string | null; discordId?: string; scopeKey?: string } = {}) {
@@ -18,8 +18,8 @@ function fixture(options: { manage?: boolean; role?: string | null; discordId?: 
     const item: any = { id, type, parentId, name, guild: { id: discordId }, permissionOverwrites: { cache: new Collection() },
       permissionsFor: (member: any) => ({ has: () => member === actor ? actor.visible : true }),
       send: vi.fn(async (payload: any) => {
-        const m: any = { id: `message${++sequence}`, author: { id: "bot" }, embeds: payload.embeds, pinned: false,
-          edit: vi.fn(async (p: any) => { m.embeds = p.embeds; }), pin: vi.fn(async () => { m.pinned = true; }) };
+        const m: any = { id: `message${++sequence}`, author: { id: "bot" }, content: payload.content, embeds: payload.embeds, pinned: false,
+          edit: vi.fn(async (p: any) => { m.content = p.content; m.embeds = p.embeds; }), pin: vi.fn(async () => { m.pinned = true; }) };
         messages.set(m.id, m); posted.push(m); return m;
       }), messages: {
         fetch: vi.fn(async (arg: any) => { if (typeof arg !== "string") return messages; if (!messages.has(arg)) throw { code: 10008 }; return messages.get(arg); }),
@@ -92,7 +92,7 @@ describe("optional battleground installation", () => {
     await f.run(undefined, "fr");
     expect(f.guild.channels.create).toHaveBeenCalledTimes(5);
     expect([...f.channels.values()].map(c => c.permissionOverwrites)).toEqual(before);
-    expect(f.posted[0].edit.mock.calls[0][0].content).toContain("Créez");
+    expect(f.posted[0].edit.mock.calls[0][0].content).toContain("Appuie sur **Créer**");
   });
   it("recovers bot-owned marker messages when message IDs were lost", async () => {
     const f = fixture(); await f.run();
@@ -181,7 +181,7 @@ describe("optional battleground installation", () => {
     expect(f.guild.channels.create.mock.calls[0][0]).toMatchObject({ name: "duel-ladder", parent: QG_BG_ADOPTION.category });
     expect(f.settings["bgStatsChannelId"]).toBe(QG_BG_ADOPTION.stats.channel);
     expect(f.settings["duelBoardChannelId"]).not.toBe(QG_BG_ADOPTION.stats.channel);
-    expect(f.posted.filter(m => m.embeds.some((e: any) => e.footer?.text?.startsWith("Guilded BG setup")))).toHaveLength(3);
+    expect(f.posted.filter(m => BG_SETUP_PARTS.some(part => part !== "duels" && isBgPanel(m, "bot", "scope", part)))).toHaveLength(3);
     await f.run(); // a re-run never duplicates a channel
     expect(f.guild.channels.create).toHaveBeenCalledTimes(1);
     expect(f.settings["bgGroupsChannelId"]).toBe(QG_BG_ADOPTION.groups.channel);
@@ -214,5 +214,43 @@ describe("optional battleground installation", () => {
     const setup = readFileSync("src/commands/setup.ts", "utf8");
     expect(setup).toContain('action === "bg-install"');
     expect(setup).not.toMatch(/create-all-channels[^\n]*ensureBattlegroundSetup/);
+  });
+});
+
+describe("plain PvP panels (owner request, 8 November 2026)", () => {
+  it("has no privacy button or consent wording, and says which button to press", () => {
+    for (const part of ["groups", "results", "stats"] as const) for (const lang of ["en", "fr"] as const) {
+      const panel = bgSetupPanel(part, "scope", lang);
+      const ids = panel.components[0]!.components.map(b => (b.toJSON() as { custom_id: string }).custom_id);
+      expect(ids.some(id => id.endsWith("privacy-help"))).toBe(false);
+      expect(panel.content).not.toMatch(/consent|Confidentialit|Privacy|identifiant API|API bracket|Panneau statique|Static panel/i);
+      expect(panel.content).toMatch(/\*\*(Create|Créer|My results|Mes résultats|Statistics|Statistiques)\*\*/);
+      expect(JSON.stringify(panel.embeds)).not.toContain("scope");
+    }
+  });
+  it("recognises its own panels by their text in either language, and the pre-9.0.5 footer", () => {
+    const en = bgSetupPanel("stats", "scope", "en"), fr = bgSetupPanel("stats", "scope", "fr");
+    expect(isBgPanel({ author: { id: "bot" }, content: en.content, embeds: [] }, "bot", "scope", "stats")).toBe(true);
+    expect(isBgPanel({ author: { id: "bot" }, content: fr.content, embeds: [] }, "bot", "scope", "stats")).toBe(true);
+    expect(isBgPanel({ author: { id: "bot" }, content: "old", embeds: [{ footer: { text: "Guilded BG setup • scope • stats" } }] }, "bot", "scope", "stats")).toBe(true);
+    expect(isBgPanel({ author: { id: "bot" }, content: fr.content, embeds: [] }, "bot", "scope", "results")).toBe(false);
+    expect(isBgPanel({ author: { id: "member" }, content: fr.content, embeds: [] }, "bot", "scope", "stats")).toBe(false);
+  });
+  it("rewrites the saved pinned panels on start, in place, and never posts", async () => {
+    const message = (id: string, author = "bot") => ({ id, author: { id: author }, editable: true, content: "Statistiques de participations provisoires…", embeds: [{ footer: { text: "Guilded BG setup • scope • stats" } }],
+      components: [{ components: [{ label: "Statistiques" }, { label: "Confidentialité" }] }], edit: vi.fn() });
+    const stats = message("m-stats"), foreign = message("m-results", "member");
+    const send = vi.fn();
+    const channel = { isTextBased: () => true, send, messages: { fetch: vi.fn(async (id: string) => id === "m-stats" ? stats : id === "m-results" ? foreign : null) } };
+    const guild = { id: "server", client: { user: { id: "bot" } }, channels: { fetch: vi.fn(async () => channel) } };
+    const db = { guildSettings: { findMany: vi.fn(async () => [{ guildId: "scope", language: "fr", bgGroupsChannelId: null, bgGroupsMessageId: null,
+      bgResultsChannelId: "c", bgResultsMessageId: "m-results", bgStatsChannelId: "c", bgStatsMessageId: "m-stats" }]) } };
+    expect(await refreshBgPanels(guild as never, db as never)).toBe(1);
+    expect(stats.edit).toHaveBeenCalledWith(expect.objectContaining({ content: bgSetupPanel("stats", "scope", "fr").content }));
+    expect(foreign.edit).not.toHaveBeenCalled(); // a member's message is never touched
+    expect(send).not.toHaveBeenCalled();
+    // Already current: nothing to do.
+    Object.assign(stats, { content: bgSetupPanel("stats", "scope", "fr").content, embeds: [{ description: "Les réponses aux boutons sont privées : toi seul les vois." }], components: [{ components: [{ label: "Statistiques" }] }] });
+    expect(await refreshBgPanels(guild as never, db as never)).toBe(0);
   });
 });

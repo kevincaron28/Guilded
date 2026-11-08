@@ -11,7 +11,7 @@ release records in `docs/V8_4_0_RELEASE_ACCEPTANCE.md` and `docs/archive/` hold 
 ### 8.5 track B: PvP channels and the ladder
 
 - **One PvP category.** The module is on by default (`/battleground pvp-module enabled:false` switches it off); `/setup`
-  adds the category (`⚔️ PvP` / `⚔️ JcJ`) with `pvp-groups`, `pvp-results` and
+  adds the category (`⚔️ PvP` / `⚔️ JcJ`) with `pvp-results` and
   `pvp-ladder` (`groupes-pvp`, `resultats-pvp`, `classement-pvp` in French) through the
   button "Create missing channels". Channels already saved in the settings, or already named
   like the 8.4 battleground channels (`battleground-groups` ...) and sitting together in one
@@ -135,7 +135,7 @@ does not remove the remaining features from scope.
 
 ## PvP group finder (9.0)
 
-The pvp-groups channel works like the dungeon group finder: **Create** (any member) opens a form (what/when, size 2-40, levels)
+(Merged into the shared group finder since 9.0.4; older servers may still have a separate pvp-groups channel.) The PvP group post works like the dungeon group finder: **Create** (any member) opens a form (what/when, size 2-40, levels)
 and posts one message per group with the same `dgrp:` buttons (Tank/Healer/DPS, Leave, Start now, Close), a waiting list when
 full, an optional private voice channel, the `LFG PvP` role ping, group alerts, and a 24-hour auto-expiry. It is a normal
 `DungeonGroup` of kind `PVP` (`src/services/pvp-group.ts`, `src/commands/pvp-group.ts`). **Who's looking** lists the open groups

@@ -36,7 +36,7 @@ describe("dungeon leaderboard panel", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
   it("names the current season at the top", () => {
-    expect(seasonHeader({ name: "Season 1", startsAt: new Date("2026-11-04T23:00:00Z") }, "fr")).toBe("📅 Saison en cours : **Season 1** · depuis le <t:1793833200:D>");
+    expect(seasonHeader({ name: "Season 1", startsAt: new Date("2026-11-04T23:00:00Z") }, "fr")).toBe("📅 Saison en cours : **Saison 1** · depuis le <t:1793833200:D>");
     expect(seasonHeader({ name: "Season 2", startsAt: new Date("2027-02-03T23:00:00Z") }, "en")).toContain("Current season: **Season 2**");
   });
 
@@ -50,7 +50,7 @@ describe("dungeon leaderboard panel", () => {
     expect(await updateDungeonLeaderboard(f.guild, true)).toBe(true);
     expect(edit).toHaveBeenCalledTimes(1);
     const payload = (edit.mock.calls[0] as unknown as [{ embeds: EmbedBuilder[] }])[0];
-    expect(payload.embeds.map(e => e.toJSON().description).join("\n")).toContain("Saison en cours : **Season 1**");
+    expect(payload.embeds.map(e => e.toJSON().description).join("\n")).toContain("Saison en cours : **Saison 1**");
     expect(f.channel.send).not.toHaveBeenCalled();
     expect(guide.delete).toHaveBeenCalledTimes(1);
     expect(stranger.delete).not.toHaveBeenCalled();

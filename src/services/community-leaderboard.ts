@@ -7,8 +7,16 @@ import { COMMUNITY_CHANNEL_SPECS, communityChannelNames } from "../setup-names.j
 import { standings, type Standing } from "./community-rules.js";
 import { communitySeasonLabel } from "./community-display.js";
 import { communityHubButton, communityHubCard, COMMUNITY_HUB_MARKER } from "./community-panels.js";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 
 export const COMMUNITY_BOARD_MARKER = "Guilded · Community podium";
+
+/** A pinned guide's text without the PoE 2 mention while PoE 2 tracking is off (unchanged otherwise, or when not found). */
+export function withoutHiddenGames(text: string, poeTracking = POE_TRACKING_ENABLED): string {
+  if (poeTracking) return text;
+  return text.replace("Les saisons Discord, WoW et PoE 2 restent séparées.", "Les saisons Discord et WoW restent séparées.")
+    .replace("Discord, WoW and PoE 2 seasons stay separate.", "Discord and WoW seasons stay separate.");
+}
 export const COMMUNITY_BOARD_NAMES = ["🏆・leaderboard", "🏆-leaderboard", "leaderboard", "community-standings", "classement"];
 const say = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 const nameCache = new Map<string, { name: string; expiresAt: number }>();
@@ -153,6 +161,14 @@ export async function updateCommunityLeaderboard(rest: REST, database: PrismaCli
     if (JSON.stringify({ embeds: message.embeds, components: message.components }) !== JSON.stringify({ embeds: body.embeds, components: body.components })) await rest.patch(Routes.channelMessage(channel.id, message.id), { body });
   } else message = await rest.post(Routes.channelMessages(channel.id), { body: { ...body, nonce: `cp:${channel.id}`, enforce_nonce: true } }) as APIMessage;
   if (!pins.items.some(item => item.message.id === message!.id)) await rest.put(Routes.channelMessagesPin(channel.id, message.id));
+  // The older pinned guide ("Classements et participation", written once in October) names PoE 2 seasons. While PoE 2
+  // tracking is off, that sentence drops PoE 2; nothing else in the guide changes.
+  for (const item of pins.items) {
+    const old = item.message, embed = old.embeds[0];
+    const fixed = embed?.description ? withoutHiddenGames(embed.description) : null;
+    if (old.author.id !== botId || old.embeds.length !== 1 || !fixed || fixed === embed!.description) continue;
+    await rest.patch(Routes.channelMessage(channel.id, old.id), { body: { embeds: [{ ...embed, description: fixed }] } }).catch(() => undefined);
+  }
   if (provision) {
     for (const item of pins.items) {
       if (item.message.id !== message.id && item.message.author.id === botId && item.message.embeds.some(e => e.title === "Classements et participation")) {

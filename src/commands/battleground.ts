@@ -171,7 +171,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   if (sub === "stats") {
     const mode = text("mode"), bracket = text("bracket");
     if (!mode || !bracket) {
-      await i.editReply({ content: t("Choose one format and the reported API bracket identifier shown in /bg result: /bg stats mode:casual bracket:<identifier>. This is not a verified level range. The current guild edition and season apply; use season:<number> for an earlier season. Formats and brackets are never mixed.", "Choisissez un format et l'identifiant de bracket rapporté par l'API dans /bg result : /bg stats mode:casual bracket:<identifiant>. Ce n'est pas une tranche de niveaux vérifiée. L'édition de guilde et la saison actuelle s'appliquent; season:<numéro> choisit une saison antérieure. Les formats et brackets ne sont jamais mélangés."), allowedMentions: { parse: [] } }); return;
+      await i.editReply({ content: t("The battleground ladder in the PvP stats channel updates by itself, by battleground and level bracket. For one format only: `/bg stats mode:casual bracket:<bracket>` (the bracket is shown by `/bg result`); add `season:<number>` for an earlier season.", "Le classement des champs de bataille du salon des statistiques JcJ se met à jour tout seul, par champ de bataille et tranche de niveaux. Pour un seul format : `/bg stats mode:casual bracket:<tranche>` (la tranche est affichée par `/bg result`); ajoute `season:<numéro>` pour une saison passée."), allowedMentions: { parse: [] } }); return;
     }
     const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
     const now = new Date();

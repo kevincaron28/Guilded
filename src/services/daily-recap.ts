@@ -76,7 +76,7 @@ export async function dailyRecap(db: RecapDb, guildId: string, day: string, time
 
   // Full "First Last" names where only a first name is stored.
   if ((race || dungeons?.mostRuns) && db.character) {
-    const book = await loadFullNameBook(db, guildId).catch(() => null);
+    const book = await loadFullNameBook(db, guildId, dungeons?.mostRuns ? [dungeons.mostRuns.name] : []).catch(() => null);
     if (book) for (const row of [...(race?.top ?? []), ...(race?.new60 ?? []), ...(dungeons?.mostRuns ? [dungeons.mostRuns] : [])]) row.name = displayCharacterName(row.name, book);
   }
   return { day, race, dungeons, pvp };

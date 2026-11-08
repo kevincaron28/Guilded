@@ -10,14 +10,16 @@ import { guildService, requireGuildContext } from "./context.js";
 // who asked, and only a hash is stored (services/stat-snapshots.ts).
 export const statsFeedCommand = new SlashCommandBuilder()
   .setName("stats")
-  .setDescription("Daily statistics and the Google Sheets feed.")
-  .addSubcommand((sub) => sub.setName("feed").setDescription("Address for Google Sheets (IMPORTDATA).")
+  .setDescription("Daily statistics and Sheets feed.")
+  .addSubcommand((sub) => sub.setName("feed").setDescription("Sheets feed address.")
     .addStringOption((o) => o.setName("action").setDescription("Default: create the address").addChoices(
       { name: "Create (or say one exists)", value: "show" }, { name: "New address (the old one stops)", value: "regenerate" }, { name: "Revoke (stop the feed)", value: "revoke" })))
-  .addSubcommand((sub) => sub.setName("toggle").setDescription("Turn the daily statistics on or off.")
-    .addBooleanOption((o) => o.setName("on").setDescription("On or off").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("toggle").setDescription("Daily statistics on or off.")
+    .addBooleanOption((o) => o.setName("on").setDescription("On/off").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("cards").setDescription("Phone cards on or off")
+    .addBooleanOption((o) => o.setName("on").setDescription("On/off").setRequired(true)))
   .addSubcommand((sub) => sub.setName("bank").setDescription("Weekly bank summary")
-    .addBooleanOption((o) => o.setName("on").setDescription("On or off").setRequired(true)));
+    .addBooleanOption((o) => o.setName("on").setDescription("On/off").setRequired(true)));
 
 export async function executeStatsFeed(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
@@ -30,6 +32,13 @@ export async function executeStatsFeed(interaction: ChatInputCommandInteraction)
   const settings = await prisma.guildSettings.findUnique({ where: { guildId }, select: { statsEnabled: true, statsFeedKeyHash: true, statsFeedKeyAt: true } });
   if (!settings) { await reply(t("Run /setup first.", "Lancez d'abord /setup.")); return; }
 
+  if (interaction.options.getSubcommand() === "cards") {
+    const on = interaction.options.getBoolean("on", true);
+    await prisma.guildSettings.update({ where: { guildId }, data: { tcgEnabled: on } });
+    await reply(on ? t("The card collection is on: members open a free daily pack in the phone app. Nothing is posted in Discord.", "La collection de cartes est activée : les membres ouvrent un paquet gratuit par jour dans l'application. Rien n'est publié dans Discord.")
+      : t("The card collection is off for this server. Members' cards are kept; turn it on again to show them.", "La collection de cartes est désactivée pour ce serveur. Les cartes des membres sont conservées."));
+    return;
+  }
   if (interaction.options.getSubcommand() === "bank") {
     const on = interaction.options.getBoolean("on", true);
     await prisma.guildSettings.update({ where: { guildId }, data: { guildBankWeeklyEnabled: on } });

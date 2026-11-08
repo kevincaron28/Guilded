@@ -105,6 +105,7 @@ import { updateActivityBoard } from "./services/guild-activity.js";
 import { updateRaceBoard } from "./services/race-board.js";
 import { updateBgLadder } from "./services/bg-ladder.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
+import { refreshBgPanels } from "./services/battleground-setup.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
 import { freezeSeasonRules, loadOfficialWindows, rotateOfficialSeasons, startOfficialSeason } from "./services/official-seasons.js";
 import { finalizeClosingSeasons } from "./services/dungeon-admin.js";
@@ -363,6 +364,7 @@ client.once(Events.ClientReady, (readyClient) => {
         await repairCoreRaids(guild, true).catch(reportJobError("Core channels and raid posts", origin));
       });
       await refreshExistingBotGuides(guild, prisma).catch(reportJobError("Pinned bot guides", origin));
+      await refreshBgPanels(guild, prisma).catch(reportJobError("PvP panels", origin));
     }
   })();
   // The live boards are edited in place every 30 minutes (and after uploads), so a season change or a missed

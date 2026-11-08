@@ -66,6 +66,13 @@ const apiMethods = new Map([
   ["/api/v1/companion/cards", ["GET"]],
   ["/api/v1/companion/cards/open", ["POST"]],
   ["/api/v1/companion/cards/craft", ["POST"]],
+  // Guilded Clash matches against the AI and the PvE gauntlet (ids travel in the query string or body).
+  ["/api/v1/companion/clash/start", ["POST"]],
+  ["/api/v1/companion/clash/match", ["GET"]],
+  ["/api/v1/companion/clash/intent", ["POST"]],
+  ["/api/v1/companion/clash/concede", ["POST"]],
+  ["/api/v1/companion/clash/matches", ["GET"]],
+  ["/api/v1/companion/clash/pve", ["GET"]],
   // Track M phone guildmate map (guild members only, never public) and the member's sharing switch.
   ["/api/v1/companion/guild-map", ["GET", "POST"]],
   ["/api/v1/manage", ["GET", "POST"]],

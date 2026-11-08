@@ -180,17 +180,20 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     }
     const channel = await guild.channels.fetch(channelId);
     if (!channel?.isTextBased()) throw new Error("Channel unavailable");
-    // Discord only retains nonce deduplication briefly. A visible footer is also checked
-    // after a crash so a delayed retry can reuse the already posted announcement.
-    const marker = `Guilded delivery ${job.id}`;
+    // Discord only retains nonce deduplication briefly, so the post also carries the job id, checked after a crash so a
+    // delayed retry never posts twice. Until 9.0.5 it sat in the footer ("Guilded delivery <id>", seen by members); it
+    // now sits in the link of an embed without a title, which Discord does not show. Old footers still match.
+    const marker = `Guilded delivery ${job.id}`, link = deliveryLink(job.id);
     const recent = await channel.messages.fetch({ limit: 100 });
-    if (recent.some(message => message.author.id === guild.client.user?.id && message.embeds.some(embed => embed.footer?.text.includes(marker)))) return;
+    if (recent.some(message => message.author.id === guild.client.user?.id && message.embeds.some(embed => embed.footer?.text.includes(marker) || embed.url === link))) return;
     const message = payload["message"] as MessageCreateOptions;
     const embeds = (message.embeds ?? []).map(embed => new EmbedBuilder("toJSON" in embed ? embed.toJSON() : embed));
     if (!embeds.length) embeds.push(new EmbedBuilder().setDescription(message.content || "Guilded update"));
     const last = embeds[embeds.length - 1]!;
-    const footer = last.data.footer?.text;
-    last.setFooter({ text: footer ? `${footer.slice(0, 1900)} · ${marker}` : marker });
+    // An embed without a title keeps its link invisible; with titles everywhere, an extra empty-looking embed would
+    // show, so the last one gets the link and its title simply links to the website.
+    const carrier = embeds.find(embed => !embed.data.title && !embed.data.url) ?? embeds.find(embed => !embed.data.url) ?? last;
+    if (!carrier.data.url) carrier.setURL(link);
     // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
     const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
     // An optional card is drawn here from its stored definition; without an image the post still goes out.
@@ -211,6 +214,9 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" })] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
   } else throw new Error("Unknown job type");
 }
+
+/** The invisible marker a delivered post carries: the website address with the job id. */
+export const deliveryLink = (jobId: string) => `https://guilded.kcaron.top/?delivery=${encodeURIComponent(jobId)}`;
 
 let running = false;
 const DELIVERY_BATCH_SIZE = 25;

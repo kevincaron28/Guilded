@@ -4,6 +4,7 @@ import sharp from "sharp";
 import type { WebResponse } from "./web-app.js";
 import type { RosterVisual } from "./roster-visual.js";
 import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
+import type { RecordVisual } from "./record-card.js";
 
 /**
  * A 1200x630 share card, two columns. Left: what it is (eyebrow, title, subtitle), one big headline
@@ -47,7 +48,9 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   /** 9.1: the dungeon completion layout (themed art, party with role icons, optional death map). */
   dungeon?: DungeonVisual;
   /** 9.1: the daily recap layout (painted scene, a stats strip, up to three section panels of rows). */
-  recap?: RecapVisual }
+  recap?: RecapVisual;
+  /** 9.1: the new guild record card, drawn by record-card.ts. */
+  record?: RecordVisual }
 
 /** A recap: up to three panels, each a title and up to five rows (name in its colour, a line under it, a value on the right). */
 export interface RecapVisual { theme: DungeonArtTheme; sections: { title: string; rows: CardRow[] }[] }
@@ -248,6 +251,7 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
 async function render(card: ScoreCard): Promise<Buffer> {
   if (card.dungeon) return renderDungeon(card);
   if (card.recap) return renderRecap(card);
+  if (card.record) return (await import("./record-card.js")).renderRecordCard(card);
   if (card.roster) return renderRoster(card);
   if (card.unlocks?.length) return renderUnlock(card);
   if (card.ladder) return renderLadder(card);

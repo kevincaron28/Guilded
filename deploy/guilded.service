@@ -1,4 +1,4 @@
-# systemd unit for the Guilded Discord bot (installed by deploy/setup-server.sh)
+# systemd unit for the Guilded Discord bot (installed by deploy/setup-server.sh and deploy/update.sh)
 [Unit]
 Description=Guilded Discord bot
 After=network-online.target
@@ -12,10 +12,16 @@ EnvironmentFile=/opt/guilded/.env.local
 # Apply database migrations and regenerate the client before every start.
 ExecStartPre=/usr/bin/npm run db:update
 ExecStart=/usr/bin/npm run start:local
+# Always come back after a crash, an OOM kill or a clean exit.
 Restart=always
 RestartSec=10
 # Keep memory bounded on a 1 GB machine.
 MemoryMax=700M
+# Under memory pressure the kernel reclaims the bot's memory last (the bot keeps this much even when the box is short).
+MemoryLow=256M
+# If the kernel must kill something, it prefers the deploy's install processes (capped at 450 MB in
+# deploy/application-update.sh) over the bot.
+OOMScoreAdjust=-500
 NoNewPrivileges=true
 
 [Install]

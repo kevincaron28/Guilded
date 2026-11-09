@@ -1,3 +1,4 @@
+> 9.0.9 (9 November 2026): every guild and party Invite button is a secure `/ginvite` or `/invite` macro button (#681), uploads survive two connections sending one file (P2034 retry, queued uploads), the companion warns about a wrong server and can Remove this server (#682), members download from the website instead of GitHub (#683); bot: smaller addon-import payloads and backups (#679). Store: 9.0.9.0 package built, waits for Submission 13.
 > 9.0.8 (9 November 2026): the bot confirms every received dungeon run (DungeonRunReceipt, #669) so none wait forever, uploads skip known runs (ended the P2028 timeouts), the Store companion can start with Windows; the addon's chat tab and auto-invite stop calling protected functions (login popup, #668) and map dots use Guilded's own layer (#662); bot: confirmed vs reported characters, rank roles preview, roster freshness (#667). Store: 9.0.8.0 waits for Submission 13.
 > 9.0.7 (9 November 2026): Guilded Dungeons no longer taints `SlashCmdList`, so `/ginvite` works again (#655, guard test), tooltips are no longer refreshed or decorated by Guilded in combat (duel Lua error and blocked actions, #657), and every WoW Forever achievement is tracked as a generated badge (#649, companion uploads it). Website installer served from the bot's server (#653, already live). Store: submit 9.0.7.0 (companion changed).
 > 9.0.6 (8 November 2026): the companion updates itself and installs the addon from the website first (GitHub second, after GitHub downloads timed out on 8 Nov, #633), and `/guilded probe achievements` reads what achievement data WoW Forever exposes (#625). Bot (already live): Guilded Clash card game server (collection, AI + PvE, matches, guild trading, friendly and ranked PvP), board channel fixes, 17 s standings deadline. Store: submit 9.0.6.0 (companion changed).
@@ -27,7 +28,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (9 November 2026): version 9.0.8, protocol 2.**
+**Current status (9 November 2026): version 9.0.9, protocol 2.**
 8.4.7 is on GitHub (latest release) and the bot. CurseForge has the 8.4.6 Forever files; the
 Store has 8.4.4.0 live with 8.4.6.0 in certification. Check each provider live before claiming
 status. WoW Forever launched 4 November 2026; its first raids open 9 December.

@@ -2,7 +2,7 @@
 
 ## Current stage — 7 November 2026
 
-Guilded **9.0.8** (the eighth update on 9.0.0, which was the 8.5 work shipped as 9.0) (tracks A-K and the owner batches below). The previous release is 9.0.7. Branch and doc names keep "8.5".
+Guilded **9.0.9** (the ninth update on 9.0.0, which was the 8.5 work shipped as 9.0) (tracks A-K and the owner batches below). The previous release is 9.0.8. Branch and doc names keep "8.5".
 WoW Forever (level cap 60) launched 4 November 2026; its first raids open 9 December.
 Guilded supports WoW Forever only (the other editions were removed 7 November) and PoE2 is hidden ([WoW Forever only](docs/FOREVER_ONLY_FOCUS.md)).
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished

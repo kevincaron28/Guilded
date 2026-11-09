@@ -54,7 +54,8 @@ export function matchUnclaimed(unclaimed: { id: string; name: string; displayNam
 type Db = PrismaClient;
 
 // Turns an unclaimed character into a linked one for `memberId` (main if it is their first).
-export async function linkUnclaimed(database: Db, memberId: string, unclaimed: UnclaimedCharacter): Promise<{ isMain: boolean }> {
+// confirmed: an officer linked it by hand (/officer character link); a name match or a member's own claim is only reported.
+export async function linkUnclaimed(database: Db, memberId: string, unclaimed: UnclaimedCharacter, options: { confirmed?: boolean } = {}): Promise<{ isMain: boolean }> {
   const hasMain = (await database.character.count({ where: { memberId, isMain: true } })) > 0;
   const guild = createGuildService(database);
   await guild.addCharacter({
@@ -74,7 +75,7 @@ export async function linkUnclaimed(database: Db, memberId: string, unclaimed: U
         update: { skillLevel: Number(profession.skillLevel) || 0 }
       });
     }
-    await database.character.update({ where: { id: created.id }, data: { lastSeenAt: unclaimed.lastSeenAt, professionsUpdatedAt: unclaimed.professionsUpdatedAt } });
+    await database.character.update({ where: { id: created.id }, data: { lastSeenAt: unclaimed.lastSeenAt, professionsUpdatedAt: unclaimed.professionsUpdatedAt, ...(options.confirmed ? { confirmedAt: new Date() } : {}) } });
   }
   await database.unclaimedCharacter.delete({ where: { id: unclaimed.id } });
   return { isMain: !hasMain };

@@ -18,7 +18,9 @@ export function hashCompanionSecret(secret: string): string {
 // included). Shared by the immediate upload-time link (linkPairedCharacter,
 // its own transaction) and the apply-time safety net in addon-import.ts
 // (already inside its own transaction) so the two never drift apart.
-export async function createSelfCharacter(tx: Tx, guildId: string, memberId: string, self: AddonCharacter) {
+// confirm: the member's own signed-in companion (or an officer) brought it, so it is confirmed, not only
+// reported (Character.confirmedAt, the "reported, not verified" label in character-trust.ts).
+export async function createSelfCharacter(tx: Tx, guildId: string, memberId: string, self: AddonCharacter, confirm = false) {
   const hasMain = (await tx.character.count({ where: { memberId, isMain: true } })) > 0;
   const created = await tx.character.create({
     data: {
@@ -36,7 +38,8 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
       ...guildRankUpdate(self),
       isMain: !hasMain,
       professionsUpdatedAt: self.professionsComplete === true ? self.professionsAt ?? new Date() : null,
-      lastSeenAt: new Date()
+      lastSeenAt: new Date(),
+      ...(confirm ? { confirmedAt: new Date() } : {})
     }
   });
   for (const profession of self.professions) {
@@ -50,10 +53,10 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
   return created;
 }
 
-export async function linkPairedCharacter(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter) {
+export async function linkPairedCharacter(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter, options: { confirm?: boolean } = {}) {
   if (!self.class) return "missing-class" as const;
   try {
-    return await linkPairedCharacterOnce(database, guildId, memberId, self);
+    return await linkPairedCharacterOnce(database, guildId, memberId, self, options.confirm === true);
   } catch (error) {
     // A parallel request linked this character between our look and our create (unique constraint, P2002):
     // it is linked, so say so and let the upload carry on.
@@ -62,7 +65,7 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
   }
 }
 
-async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter) {
+async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter, confirm: boolean) {
   return database.$transaction(async (tx) => {
     const characters = await tx.character.findMany({
       where: { member: { guildId } },
@@ -88,7 +91,8 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
           spec: self.spec || null,
 
           ...guildRankUpdate(self),
-          lastSeenAt: new Date()
+          lastSeenAt: new Date(),
+          ...(confirm && !existing.confirmedAt ? { confirmedAt: new Date() } : {})
         }
       });
       return "already-linked" as const;
@@ -99,7 +103,7 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
       select: { id: true }
     });
     if (removed) return "removed-by-officer" as const;
-    await createSelfCharacter(tx, guildId, memberId, self);
+    await createSelfCharacter(tx, guildId, memberId, self, confirm);
     return "linked" as const;
   // 9.0.8: its own budget. The 5 s default ran out while a big upload's import held the database (P2028, 9 November).
   }, { timeout: 20_000, maxWait: 10_000 });

@@ -17,6 +17,8 @@ local function settings()
   return ns.getSettings and ns.getSettings()
 end
 
+local function L(text) return ns.L and ns.L(text) or text end
+
 -- A closed chat window keeps its name, so the name alone does not mean it is open: a docked
 -- window shows its tab, an undocked one shows its frame. (GetChatWindowInfo's "shown" is false
 -- for docked windows, even General.)
@@ -38,30 +40,19 @@ local function findFrame()
   return nil
 end
 
--- Opening or closing a chat window shows/hides Blizzard's chat frames (ChatFrame1:Show,
--- HideBase) and re-docks them. The game refuses that in combat (ADDON_ACTION_BLOCKED) and the
--- failed insecure call can leave the chat frames tainted, so these calls only run out of
--- combat; in combat they wait for PLAYER_REGEN_ENABLED (ns.util.afterCombat).
-local function inCombat()
-  return ns.util and ns.util.inCombat and ns.util.inCombat() or false
-end
-local function afterCombat(key, fn)
-  if ns.util and ns.util.afterCombat then return ns.util.afterCombat(key, fn) end
-  fn()
-  return false
-end
+-- Guilded never opens, closes or docks chat windows itself (FCF_OpenNewWindow, FCF_Close).
+-- Those functions rewrite the chat frames' shared state (the docked and the last active chat
+-- box). Run from addon code they leave it tainted, and the next slash command the player types
+-- in that box runs tainted too: on 9 November 2026 a plain /reload then failed with "Guilded has
+-- been blocked from an action only available to the Blizzard UI" (ADDON_ACTION_FORBIDDEN, the
+-- reload itself is protected). Earlier builds also got ChatFrame1:Show/HideBase blocked in
+-- combat. So the player makes the window (right-click a chat tab, New Window, name it Guilded)
+-- and Guilded only finds it by name. tests/addon-no-global-taint.test.ts keeps it that way.
+local MAKE_IT = "Right-click a chat tab, choose New Window and name it Guilded: Guilded's lines go there as soon as it exists."
 
--- Finds the tab, opening it when asked to.
+-- The open chat window named Guilded, or nil. `create` is ignored (see above); kept for callers.
 function module.frame(create)
-  local frame = findFrame()
-  if frame then return frame end
-  if create and FCF_OpenNewWindow then
-    if inCombat() then return nil end
-    local ok, result = pcall(FCF_OpenNewWindow, TAB_NAME)
-    if ok and result and result.AddMessage then return result end
-    return findFrame()
-  end
-  return nil
+  return findFrame()
 end
 
 function module.enabled()
@@ -85,28 +76,20 @@ ns.commandHandlers["chat"] = function(args)
   local s = settings()
   if not s then return end
   local action = string.lower(args[1] or "")
-  if (action == "tab" or action == "on" or action == "off") and inCombat() then
-    afterCombat("guilded-chat-tab", function() ns.commandHandlers["chat"](args) end)
-    return
-  end
   if action == "tab" or action == "on" then
-    local frame = module.frame(true)
+    s.chatTab = true
+    local frame = findFrame()
     if not frame then
-      say("This game version cannot open a chat tab from here. Right-click a chat tab, Open New Window, name it Guilded, then /guilded chat tab.")
+      say(L(MAKE_IT))
       return
     end
-    s.chatTab = true
     say("Guilded's own lines now go to the Guilded chat tab. /guilded chat off to go back.")
     if frame.AddMessage then frame:AddMessage("|cffd4af37[Guilded]|r This tab shows Guilded's messages.") end
   elseif action == "off" then
     s.chatTab = false
-    -- Close the tab too, so the player is not left with an empty window. The first two chat
-    -- windows (General, Combat Log) cannot be closed and are never named Guilded by us.
-    local tab = findFrame()
-    if tab and tab ~= DEFAULT_CHAT_FRAME and tab ~= ChatFrame1 and tab ~= ChatFrame2 and FCF_Close then
-      pcall(FCF_Close, tab)
-    end
-    say("Guilded's lines are back in the main chat window.")
+    -- The window stays (closing it from here would taint the chat frames, see above).
+    say(findFrame() and "Guilded's lines are back in the main chat window. To remove the Guilded tab, right-click it and close it."
+      or "Guilded's lines are back in the main chat window.")
   else
     say(module.enabled() and "Guilded's own lines go to the Guilded chat tab. /guilded chat off to go back."
       or "Guilded's own lines go to the main chat. /guilded chat tab puts them in their own tab.")
@@ -270,38 +253,23 @@ function module.onSystem(text)
   return true
 end
 
--- First login with no saved choice: open the Guilded tab and turn it on. Tried at most three logins
--- (a client that cannot open a window from here is left alone, with the manual steps on /guilded chat tab).
-local sessionRetries = 0
+-- First login with no saved choice: the tab is on by default (8.5). Guilded's lines use a chat
+-- window named Guilded when there is one; otherwise they stay in the main chat and one line says
+-- how to make the window. Nothing here touches the chat windows (see the top of this file).
 function module.firstRun()
   local s = settings()
   if not s or s.chatTab ~= nil then return false end
-  s.chatTabTries = (s.chatTabTries or 0) + 1
-  if s.chatTabTries > 3 then s.chatTab = false return false end
-  local ok = false
-  local function attempt()
-    local current = settings()
-    if not current or current.chatTab ~= nil then return end
-    local frame = module.frame(true)
-    if not frame then
-      -- The chat windows are sometimes not ready 6 seconds after login (a fresh install on the
-      -- Forever client): try again a few times in this session before counting the login as failed.
-      if sessionRetries < 3 and C_Timer and C_Timer.After then
-        sessionRetries = sessionRetries + 1
-        C_Timer.After(20, function() afterCombat("guilded-chat-tab-retry", function() pcall(attempt) end) end)
-      end
-      return
-    end
-    current.chatTab = true
-    current.chatTabTries = nil
-    ok = true
-    if frame.AddMessage then frame:AddMessage("|cffd4af37[Guilded]|r " .. (ns.L and ns.L("This tab shows Guilded's messages and guild events (joins, leaves, online, offline). /guilded chat off turns it off.") or "This tab shows Guilded's messages and guild events (joins, leaves, online, offline). /guilded chat off turns it off.")) end
+  s.chatTab = true
+  s.chatTabTries = nil
+  local frame = findFrame()
+  if frame and frame.AddMessage then
+    frame:AddMessage("|cffd4af37[Guilded]|r " .. L("This tab shows Guilded's messages and guild events (joins, leaves, online, offline). /guilded chat off turns it off."))
+    return true
   end
-  afterCombat("guilded-chat-tab-first", attempt)
-  return ok
+  say(L(MAKE_IT))
+  return false
 end
 
--- A tab that was turned on but closed by the player: reopen it once at login, quietly.
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("CHAT_MSG_SYSTEM")
@@ -311,12 +279,7 @@ frame:SetScript("OnEvent", function(_, event, text)
     if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "chat tab events: " .. tostring(err)) end
     return
   end
-  if module.enabled() and not findFrame() then
-    afterCombat("guilded-chat-tab-login", function()
-      if module.enabled() and not findFrame() then pcall(module.frame, true) end
-    end)
-  end
-  -- 8.5: on by default. The first time this character has no saved choice, open the tab once the
-  -- chat windows exist; /guilded chat off (or the options page) turns it off for good.
+  -- 8.5: on by default. The first time this character has no saved choice, once the chat windows
+  -- exist; /guilded chat off (or the options page) turns it off for good.
   if C_Timer and C_Timer.After then C_Timer.After(6, function() pcall(module.firstRun) end) end
 end)

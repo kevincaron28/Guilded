@@ -549,6 +549,10 @@ model Character {
   // character from the guild digest, and that guildmate's Member id ("reported by a guildmate").
   relayedAt          DateTime?
   relayedById        String?
+  // 9.1 (docs/JEEVES_COMPARISON.md idea 1): when something trusted confirmed this character is the
+  // member's: their own signed-in companion uploaded it, or an officer linked it. Null = only reported
+  // (typed in, matched by name, a guildmate's addon heard their /guilded verify code, an invite request).
+  confirmedAt        DateTime?
   // 8.5: the pre-8.5 Forever first name this row had before it took its full "First Last" name
   // (owner backfill scripts/forever-names.ts, or the member's own upload). Never a key.
   legacyName         String?

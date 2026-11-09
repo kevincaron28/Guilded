@@ -1,4 +1,6 @@
+import type { Lang } from "../i18n";
 import { SET1 } from "./set1";
+import { SET1_FR } from "./set1-fr";
 import type { ClashCard, CollectionCard, Intent, MatchEvent, MatchResponse, Rarity, Target } from "./types";
 import { RARITIES } from "./types";
 
@@ -8,9 +10,12 @@ import { RARITIES } from "./types";
 // ---- cards ----
 
 const BY_ID = new Map(SET1.map((card) => [card.id, card]));
-/** A set card by id; an unknown id (a newer set than this app) shows as a blank card instead of crashing. */
-export function cardOf(id: string): ClashCard {
-  return BY_ID.get(id) ?? { id, name: id, type: "spell", rarity: "common", cost: 0, cls: "neutral", text: "", flavour: "", artUrl: null };
+/** A set card by id, in the app language (French names, rules text and flavour); an unknown id (a newer set than this app) shows as a blank card instead of crashing. */
+export function cardOf(id: string, lang: Lang = "en"): ClashCard {
+  const card = BY_ID.get(id);
+  const fr = lang === "fr" ? SET1_FR[id] : undefined;
+  if (card && fr) return { ...card, name: fr.name, text: fr.text, flavour: fr.flavour };
+  return card ?? { id, name: id, type: "spell", rarity: "common", cost: 0, cls: "neutral", text: "", flavour: "", artUrl: null };
 }
 
 /** Rules text without the keyword line already shown above it ("Guard. Rally: ..." shows "Rally: ..."); the flavour when there is none. */

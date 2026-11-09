@@ -1610,7 +1610,7 @@ ns.MODULES = {
   { key = "battleground", name = "Battleground capture", desc = "provisional own-character postmatch capture (always on where supported)", commands = { "bgcapture" } },
   { key = "calendar", name = "Calendar", desc = "guild calendar check", commands = { "calendar" } },
   { key = "syncnow", name = "Send to Discord", desc = "a Send to Discord button and reminder so the companion uploads sooner", commands = { "sync" } },
-  { key = "autoinvite", name = "Auto-invite", desc = "guild invite when someone whispers a phrase", commands = { "autoinvite", "invite" } },
+  { key = "autoinvite", name = "Auto-invite", desc = "a /ginvite line when someone whispers a phrase", commands = { "autoinvite", "invite" } },
   { key = "backup", name = "Backup and restore", desc = "copy this guild's saved data as one code", commands = { "backup", "restore" } },
   { key = "digest", name = "Login digest", desc = "what changed since your last login", commands = { "digest" } },
   { key = "chattab", name = "Guilded chat tab", desc = "Guilded's own lines in a separate chat tab", commands = { "chat" } },

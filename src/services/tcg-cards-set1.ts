@@ -3,7 +3,7 @@ import { CLASS_KEYS } from "./tcg-engine-types.js";
 
 // Guilded Clash set 1, "Dawn of Forever": the 150 cards of docs/plans/APP_TCG_GAME.md section 8 as data, with the owner's
 // 8 November decision applied (27 neutral cards moved into the class columns, three per class). Names are original;
-// the flavour lines are placeholders for the writing pass. No art refs here (art is separate and owner-approved).
+// the flavour lines had their writing pass on 9 November (short, heroic, lightly witty). French lives in tcg-cards-set1-fr.ts. No art refs here (art is separate and owner-approved).
 
 // ---- effect shorthands ----
 const dmg = (n: number, to: To = "target", recoil?: number): Eff => recoil ? { k: "dmg", n, to, recoil } : { k: "dmg", n, to };
@@ -39,7 +39,7 @@ unit("001", "Gate Brawler", "warrior", "common", 1, 2, 1, "", "He lost the argum
 spell("002", "Cleaving Strike", "warrior", "common", 2, "Deal 3 damage to a unit. If it survives, it deals 2 damage to your Champion.", "Not every swing is clean.", [A([dmg(3, "target", 2)], "anyUnit")]);
 unit("003", "Shield Wall Recruit", "warrior", "common", 2, 2, 2, "Guard", "Stand where you are told.", { kw: ["guard"] });
 unit("004", "Scarred Veteran", "warrior", "common", 3, 3, 3, "Frenzy: gain +2 Attack the first time this survives damage.", "Every scar is a lesson.", { frenzy: [buff(2, 0, "self")] });
-spell("005", "Battle Cry", "warrior", "uncommon", 3, "Give all friendly units +1 Attack this turn and Swift.", "Charge!", [A([buff(1, 0, "allFriendlyUnits", true), kw("swift", "allFriendlyUnits", true)])]);
+spell("005", "Battle Cry", "warrior", "uncommon", 3, "Give all friendly units +1 Attack this turn and Swift.", "Steel out, voices up, everyone forward.", [A([buff(1, 0, "allFriendlyUnits", true), kw("swift", "allFriendlyUnits", true)])]);
 unit("006", "Ironhide Captain", "warrior", "uncommon", 3, 2, 3, "Guard. Rally: gain +1 Health per damaged friendly unit.", "He counts the wounded twice.", { kw: ["guard"], onPlay: [A([{ k: "hpPerDamaged" }])] });
 unit("007", "Banner Carrier", "warrior", "common", 4, 3, 4, "Rally: your Champion gains 2 Armor.", "Up the colours!", { onPlay: [A([armor(2)])] });
 unit("008", "Berserker Chieftain", "warrior", "rare", 5, 3, 4, "Twin Strike", "Two swings, no questions.", { kw: ["twin"] });
@@ -57,7 +57,7 @@ spell("017", "Reckoning", "paladin", "uncommon", 4, "Destroy a unit with 5 or mo
 unit("018", "Dawn Avenger", "paladin", "rare", 4, 3, 3, "Shield. Rally: give a friendly unit Shield.", "Take mine too.", { kw: ["shield"], onPlay: [A([kw("shield")], "friendlyOtherUnit")] });
 unit("019", "Crusader of the Ember", "paladin", "uncommon", 5, 4, 5, "Shield", "Burns brighter hurt.", { kw: ["shield"] });
 unit("020", "Sunward Marshal", "paladin", "rare", 6, 4, 4, "Guard. Rally: give your other units +1/+1.", "League standard.", { kw: ["guard"], onPlay: [A([buff(1, 1, "otherFriendlyUnits")])] });
-unit("021", "Archon of the Sunspire", "paladin", "epic", 7, 5, 6, "Shield, Drain", "A star pretending to be a man.", { kw: ["shield", "drain"] });
+unit("021", "Archon of the Sunspire", "paladin", "epic", 7, 5, 6, "Shield, Drain", "A star dressed as a knight.", { kw: ["shield", "drain"] });
 unit("022", "Avatar of Aegis", "paladin", "legendary", 8, 7, 7, "Guard, Shield. Rally: Mend 8 your Champion.", "The light bows to no one.", { kw: ["guard", "shield"], onPlay: [A([mend(8, "myChamp")])] });
 
 // ---- Hunter ----
@@ -78,7 +78,7 @@ unit("034", "Alley Cutpurse", "rogue", "common", 1, 2, 1, "", "Your purse is in 
 spell("035", "Cutthroat Strike", "rogue", "common", 1, "Deal 3 damage to an undamaged unit.", "The oldest trick.", [A([dmg(3)], "undamagedUnit")]);
 unit("036", "Shadow Footpad", "rogue", "common", 2, 2, 2, "Shadow", "Gone before you blink.", { kw: ["shadow"] });
 spell("037", "Quick Fingers", "rogue", "uncommon", 2, "Draw 2 cards.", "Look away.", [A([draw(2)])]);
-unit("038", "Swindler", "rogue", "common", 3, 2, 4, "Rally: Loot a card from your deck: choose 1 of 3.", "Fingers fast.", { onPlay: [A([{ k: "loot" }])] });
+unit("038", "Swindler", "rogue", "common", 3, 2, 4, "Rally: Loot a card from your deck: choose 1 of 3.", "Count your coins. Then count again.", { onPlay: [A([{ k: "loot" }])] });
 unit("039", "Venom Dagger Acolyte", "rogue", "common", 3, 2, 2, "Venom", "Poisoned wit, poisoned blade.", { kw: ["venom"] });
 unit("040", "Assassin of the Veil", "rogue", "uncommon", 4, 3, 3, "Shadow, Venom", "Whispers, then silence.", { kw: ["shadow", "venom"] });
 unit("041", "Master Lockpick", "rogue", "uncommon", 4, 4, 3, "Rally: draw a card.", "No lock stays shut.", { onPlay: [A([draw(1)])] });
@@ -87,12 +87,12 @@ unit("043", "Veilmaster", "rogue", "rare", 6, 5, 4, "Shadow, Twin Strike", "Two 
 unit("044", "Prince of Thieves", "rogue", "epic", 6, 5, 7, "Shadow. Rally: steal a random card from the enemy hand.", "Everything is a loan.", { kw: ["shadow"], onPlay: [A([{ k: "steal" }])] });
 
 // ---- Priest ----
-unit("045", "Temple Novice", "priest", "common", 1, 1, 3, "", "Lights the candles.");
+unit("045", "Temple Novice", "priest", "common", 1, 1, 3, "", "Still learning which end is holy.");
 unit("046", "Hospice Healer", "priest", "common", 2, 2, 3, "At the end of your turn, Mend 1 a damaged friendly character.", "Every ward needs one.", { endTurn: [mend(1, "randomDamagedFriendlyChar")] });
-spell("047", "Radiant Lash", "priest", "common", 1, "Deal 3 damage to a unit.", "Burn.", [A([dmg(3)], "anyUnit")]);
+spell("047", "Radiant Lash", "priest", "common", 1, "Deal 3 damage to a unit.", "Faith has a sharp edge.", [A([dmg(3)], "anyUnit")]);
 spell("048", "Circle of Mending", "priest", "uncommon", 2, "Mend 4 each friendly character.", "For the whole room.", [A([mend(4, "allFriendlyChars")])]);
 unit("049", "Spirit Warden", "priest", "uncommon", 3, 2, 3, "Last Stand: Mend 5 your Champion.", "Still watching.", { lastStand: [mend(5, "myChamp")] });
-unit("050", "Cleric of the Veil", "priest", "common", 4, 3, 3, "Rally: Mend 4 a friendly character.", "Light finds the hurt.", { onPlay: [A([mend(4)], "friendlyChar")] });
+unit("050", "Cleric of the Veil", "priest", "common", 4, 3, 3, "Rally: Mend 4 a friendly character.", "Mercy, delivered quietly.", { onPlay: [A([mend(4)], "friendlyChar")] });
 unit("051", "Herald of the Dawn", "priest", "uncommon", 5, 5, 4, "Rally: give a friendly unit +2 Health.", "His voice carries.", { onPlay: [A([buff(0, 2)], "friendlyOtherUnit")] });
 unit("052", "Soul Binder", "priest", "rare", 5, 3, 4, "Drain. Last Stand: return this to your hand.", "Death is a door.", { kw: ["drain"], lastStand: [{ k: "returnSelf" }] });
 unit("053", "Shadowhymn Confessor", "priest", "rare", 6, 5, 6, "Rally: Dispel an enemy unit and deal 2 damage to it.", "Silence, please.", { onPlay: [A([{ k: "dispel", to: "target" }, dmg(2)], "enemyUnit")] });
@@ -101,14 +101,14 @@ unit("055", "Matriarch of the Order", "priest", "epic", 7, 5, 8, "Drain. Rally: 
 
 // ---- Shaman ----
 unit("056", "Totem Tender", "shaman", "common", 1, 1, 2, "", "Always one stone away.");
-spell("057", "Lightning Lance", "shaman", "common", 2, "Deal 3 damage to a unit. Cooldown 1.", "Sky unspooled.", [A([dmg(3)], "anyUnit")], { cooldown: 1 });
+spell("057", "Lightning Lance", "shaman", "common", 2, "Deal 3 damage to a unit. Cooldown 1.", "The sky, unspooled and aimed.", [A([dmg(3)], "anyUnit")], { cooldown: 1 });
 unit("058", "Stoneward Totem", "shaman", "common", 2, 1, 4, "Guard", "Hums when it is angry.", { kw: ["guard"] });
 unit("059", "Wind Rider", "shaman", "common", 3, 3, 3, "Twin Strike", "Two for one.", { kw: ["twin"] });
 spell("060", "Spirit Link", "shaman", "uncommon", 3, "Give a unit Shield and +2 Attack this turn.", "Not alone.", [A([kw("shield"), buff(2, 0, "target", true)], "anyUnit")]);
 unit("061", "Stormcaller", "shaman", "uncommon", 3, 2, 3, "Rally: deal 2 damage randomly split among enemy characters.", "Thunder is a promise.", { onPlay: [A([{ k: "splitDmg", n: 2 }])] });
 unit("062", "Spirit Wolf Pack", "shaman", "common", 4, 3, 3, "Guard. Rally: summon a 2/2 Wolf.", "They run together.", { kw: ["guard"], onPlay: [A([summon("tk-wolf")])] });
-unit("063", "Emberbrand Adept", "shaman", "rare", 4, 3, 4, "Your Gear costs 1 less. Rally: gain +1 Attack for each Gear you control.", "Hands warm.", { aura: [{ k: "gearCost", n: 1 }], onPlay: [A([{ k: "atkPerGear" }])] });
-unit("064", "Tempest Spirit", "shaman", "rare", 5, 4, 4, "Twin Strike. Cooldown 1.", "Steel, wind and tempers.", { kw: ["twin"], cooldown: 1 });
+unit("063", "Emberbrand Adept", "shaman", "rare", 4, 3, 4, "Your Gear costs 1 less. Rally: gain +1 Attack for each Gear you control.", "His hammer is never cold.", { aura: [{ k: "gearCost", n: 1 }], onPlay: [A([{ k: "atkPerGear" }])] });
+unit("064", "Tempest Spirit", "shaman", "rare", 5, 4, 4, "Twin Strike. Cooldown 1.", "Steel, wind and a short temper.", { kw: ["twin"], cooldown: 1 });
 unit("065", "Earthmother's Avatar", "shaman", "epic", 7, 5, 5, "Guard. Rally: summon two 2/3 Stone Totems with Guard.", "The mountain nods.", { kw: ["guard"], onPlay: [A([summon("tk-stone-totem", 2)])] });
 unit("066", "Storm Colossus", "shaman", "legendary", 8, 8, 10, "Twin Strike. Cooldown 2.", "Thunder wears a face.", { kw: ["twin"], cooldown: 2 });
 
@@ -139,13 +139,13 @@ unit("087", "Dread Pretender", "warlock", "epic", 7, 7, 7, "Drain. Rally: deal 4
 unit("088", "Void Sovereign", "warlock", "legendary", 8, 7, 11, "Drain. Rally: destroy all other units.", "The hollow king.", { kw: ["drain"], onPlay: [A([{ k: "destroy", to: "otherUnits" }])] });
 
 // ---- Druid ----
-unit("089", "Sapling Guardian", "druid", "common", 1, 1, 2, "", "Takes root.");
+unit("089", "Sapling Guardian", "druid", "common", 1, 1, 2, "", "Slow to rise, hard to fell.");
 gear("090", "Thornbark Vest", "druid", "common", 2, { atk: 0, hp: 3, thorns: true }, "+0/+3. Equipped unit deals 1 damage to any attacker.", "Hug it.");
-unit("091", "Bear Form Guardian", "druid", "common", 3, 2, 4, "Guard", "Has words with trespassers.", { kw: ["guard"] });
+unit("091", "Bearskin Guardian", "druid", "common", 3, 2, 4, "Guard", "Has words with trespassers.", { kw: ["guard"] });
 spell("092", "Spring Bloom", "druid", "common", 3, "Mend 4 a friendly character and draw a card.", "Good rain.", [A([mend(4), draw(1)], "friendlyChar")]);
-unit("093", "Wild Growth Sage", "druid", "uncommon", 4, 2, 3, "Rally: draw a card; your next card this turn costs 1 less.", "Patience grows.", { onPlay: [A([draw(1), { k: "nextDiscount", n: 1 }])] });
+unit("093", "Overgrowth Sage", "druid", "uncommon", 4, 2, 3, "Rally: draw a card; your next card this turn costs 1 less.", "Patience grows.", { onPlay: [A([draw(1), { k: "nextDiscount", n: 1 }])] });
 unit("094", "Grove Keeper", "druid", "common", 5, 3, 4, "Rally: give a friendly unit +2/+2.", "Water and wait.", { onPlay: [A([buff(2, 2)], "friendlyOtherUnit")] });
-spell("095", "Grove's Fury", "druid", "uncommon", 4, "Choose: deal 4 damage to a unit; or give a friendly unit +3/+3.", "Choose a face.", [A([dmg(4)], "anyUnit"), A([buff(3, 3)], "friendlyUnit")]);
+spell("095", "Grove's Fury", "druid", "uncommon", 4, "Choose: deal 4 damage to a unit; or give a friendly unit +3/+3.", "Pick a face: the claw or the bloom.", [A([dmg(4)], "anyUnit"), A([buff(3, 3)], "friendlyUnit")]);
 unit("096", "Treant Matriarch", "druid", "rare", 5, 2, 3, "Rally: summon two 1/2 Treants with Guard.", "The grove listens.", { onPlay: [A([summon("tk-treant-small", 2)])] });
 unit("097", "Elder of Lore", "druid", "rare", 6, 3, 5, "Rally: choose: draw 2 cards; or Mend 6 your Champion.", "Old as the oak.", { onPlay: [A([draw(2)]), A([mend(6, "myChamp")])] });
 unit("098", "Archdruid of the Moon", "druid", "epic", 7, 4, 7, "Shadow. Rally: Mend 6 your Champion and gain 2 temporary mana.", "The moon bends.", { kw: ["shadow"], onPlay: [A([mend(6, "myChamp"), { k: "tempMana", n: 2 }])] });
@@ -154,19 +154,19 @@ unit("099", "Elder Tree Spirit", "druid", "legendary", 8, 4, 6, "Guard. Last Sta
 // ---- Neutral units (some are moved into class columns below) ----
 unit("100", "Roadside Mercenary", "neutral", "common", 1, 1, 2, "", "Pays double after dark.");
 unit("101", "Tavern Bard", "neutral", "common", 1, 1, 2, "Rally: Mend 1 your Champion.", "A little song for the road.", { onPlay: [A([mend(1, "myChamp")])] });
-unit("102", "Militia Guard", "neutral", "common", 2, 2, 3, "", "Nine-to-five.");
+unit("102", "Militia Guard", "neutral", "common", 2, 2, 3, "", "Nine to five, sword included.");
 unit("103", "Village Defender", "neutral", "common", 2, 1, 3, "Guard", "It's his house.", { kw: ["guard"] });
-unit("104", "Wanderer of the Waste", "neutral", "uncommon", 2, 2, 2, "Shadow", "Where is he? There.", { kw: ["shadow"] });
+unit("104", "Wanderer of the Waste", "neutral", "uncommon", 2, 2, 2, "Shadow", "Where is he? There. No, there.", { kw: ["shadow"] });
 unit("105", "Field Medic", "neutral", "common", 3, 3, 3, "Rally: Mend 3 a friendly character.", "Hold still.", { onPlay: [A([mend(3)], "friendlyChar")] });
 unit("106", "Fort Archer", "neutral", "common", 3, 3, 2, "Rally: deal 1 damage to the enemy Champion.", "Aim high.", { onPlay: [A([dmg(1, "oppChamp")])] });
 unit("107", "Sellsword", "neutral", "common", 3, 3, 4, "", "Reliable until payday.");
 unit("108", "Dungeon Warden", "neutral", "uncommon", 3, 2, 3, "Guard. Rally: Mend 2 your Champion if you control a Zone.", "Keys on a ring.", { kw: ["guard"], onPlay: [A([when("zone", mend(2, "myChamp"))])] });
 unit("109", "Sapper", "neutral", "uncommon", 3, 2, 3, "Last Stand: deal 3 damage to a random enemy unit.", "Fuse lit.", { lastStand: [dmg(3, "randomEnemyUnit")] });
-unit("110", "Cavalry Rider", "neutral", "common", 4, 4, 3, "Swift", "Charge!", { kw: ["swift"] });
+unit("110", "Cavalry Rider", "neutral", "common", 4, 4, 3, "Swift", "Hooves first, questions later.", { kw: ["swift"] });
 unit("111", "Ogre Bruiser", "neutral", "common", 4, 5, 4, "", "Thinks slowly, hits fast.");
 unit("112", "Relic Hunter", "neutral", "common", 4, 3, 3, "Rally: Loot a card: choose 1 of 3 from your deck.", "Always brings something.", { onPlay: [A([{ k: "loot" }])] });
 unit("113", "Caravan Master", "neutral", "uncommon", 4, 3, 3, "At the start of your turn, gain 1 temporary mana.", "Always one more crate.", { startTurn: [{ k: "tempMana", n: 1 }] });
-unit("114", "Tomb Raider", "neutral", "uncommon", 4, 3, 3, "Swift", "Loves a vault.", { kw: ["swift"] });
+unit("114", "Crypt Delver", "neutral", "uncommon", 4, 3, 3, "Swift", "Loves a vault.", { kw: ["swift"] });
 unit("115", "Duelist of the Third Gate", "neutral", "rare", 4, 4, 2, "Swift. Role: Damage. +2 Attack while you control a Tank and a Healer.", "Hits hardest, falls first.", { kw: ["swift"], role: "damage", aura: [{ k: "atkIfTankHealer", n: 2 }] });
 unit("116", "Priest of the Third Gate", "neutral", "rare", 4, 2, 3, "Role: Healer. At the end of your turn, Mend 2 each friendly unit.", "Heals through anything.", { role: "healer", endTurn: [mend(2, "allFriendlyUnits")] });
 unit("117", "Tank of the Third Gate", "neutral", "rare", 4, 3, 4, "Guard. Role: Tank. Your Healer and Damage units gain +1 Health.", "Takes the hit.", { kw: ["guard"], role: "tank", aura: [{ k: "hpRoles", n: 1, roles: ["healer", "damage"] }] });
@@ -177,7 +177,7 @@ unit("121", "The Tavern Keeper", "neutral", "legendary", 5, 3, 5, "Rally: both p
 unit("122", "Mountain Giant", "neutral", "uncommon", 6, 7, 7, "", "Rarely visited, never forgotten.");
 unit("123", "Hero of the Hollow", "neutral", "legendary", 6, 6, 8, "Shield. Rally: draw a card.", "Legend before lunchtime.", { kw: ["shield"], onPlay: [A([draw(1)])] });
 unit("124", "Wyrm of the Ashen Peak", "neutral", "rare", 7, 7, 7, "Rally: deal 4 damage to the enemy Champion.", "It remembers the village.", { onPlay: [A([dmg(4, "oppChamp")])] });
-unit("125", "Wandering Dragon", "neutral", "epic", 8, 7, 7, "Swift", "Drops by.", { kw: ["swift"] });
+unit("125", "Wandering Dragon", "neutral", "epic", 8, 7, 7, "Swift", "Just dropping by. Mind the village.", { kw: ["swift"] });
 
 // ---- Neutral spells and gear ----
 spell("126", "Gambit", "neutral", "common", 1, "Discard a card, draw 2 cards.", "Toss away the stale.", [A([{ k: "discard" }, draw(2)], "handOther")]);
@@ -193,7 +193,7 @@ zone("133", "Emberdeep Chasm", "common", 2, "burning", "Burning: at the start of
 zone("134", "The Sunken Mine", "common", 2, "narrow", "Narrow: each side can control at most 4 units.", "Single file, please.");
 zone("135", "Briar Hollow", "uncommon", 3, "overgrown", "Overgrown: at the end of your turn, Mend 1 each friendly unit.", "Gentle as thorns.");
 zone("136", "Wailing Warrens", "uncommon", 3, "echoes", "Echoes: Rally effects trigger twice.", "Say it again.");
-zone("137", "Ashfall Plain", "rare", 4, "smoke", "Smoke: Shadow units have +1 Attack; Rally damage dealt to Champions is reduced by 1.", "Cough, cough.");
+zone("137", "Ashfall Plain", "rare", 4, "smoke", "Smoke: Shadow units have +1 Attack; Rally damage dealt to Champions is reduced by 1.", "Visibility: a rumour.");
 zone("138", "Cairn of Kings", "rare", 4, "cairn", "Ancient Ward: units entering play gain Shield until the end of the next turn.", "They are watching.");
 
 // ---- Guild Standards (earned from achievements, bound to the account) ----
@@ -203,7 +203,7 @@ standard("141", "Sigil of the Forge", "rare", "craft", "Your Gear costs 1 less."
 standard("142", "Standard of the First Delve", "rare", "dungeon", "Your units that survive a turn gain +1 Health (max once each).", "First clears are earned, not given.", { flag: "survivor" });
 standard("143", "Banner of the Battleground", "epic", "pvp", "When you destroy an enemy unit, your Champion gains 1 Armor.", "Hold the line.", { flag: "armorOnKill" });
 standard("144", "Flag of the Chronicle", "epic", "social", "Your first card each turn costs 1 less if you control a Zone.", "Written in the wall.", { flag: "zoneDiscount" });
-standard("145", "Sigil of the Master Artisan", "epic", "craft", "When a unit with Gear dies, return its Gear to your hand.", "Mend and reuse.", { flag: "gearReturn" });
+standard("145", "Sigil of the Master Artisan", "epic", "craft", "When a unit with Gear dies, return its Gear to your hand.", "Broken is just unfinished.", { flag: "gearReturn" });
 standard("146", "Standard of the Deep Run", "epic", "dungeon", "At the start of your turn, if you control 3+ units, draw a card.", "Deeper every time.", { startTurn: [when("units3", draw(1))] });
 standard("147", "Banner of the Warlord's Ladder", "legendary", "pvp", "Your units have +1 Attack on your turn.", "Rank is a weapon.", { flag: "atkOnTurn" });
 standard("148", "Flag of the Hall of Fame", "legendary", "social", "When your Champion is below 10 health, draw 1 extra card at your turn start.", "Remember me.", { startTurn: [when("low10", draw(1))] });

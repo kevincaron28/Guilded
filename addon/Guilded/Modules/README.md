@@ -56,7 +56,7 @@ privacy boundaries and the two-client acceptance test.
 | Council.lua | `council` | GuildedLC | Loot council: BiS / upgrade / off-spec answers, ranked for the officers |
 | Dungeon.lua | `dungeon` | GuildedDgn | Dungeon run tracking for the Dungeon Challenge |
 | Calendar.lua | `calendar` | (none) | `/guilded calendar check` |
-| AutoInvite.lua | `autoinvite` | (none) | Officers: `/guilded autoinvite on [phrase]`, guild invite for whoever whispers the phrase (rate limited) |
+| AutoInvite.lua | `autoinvite` | (none) | Officers: `/guilded autoinvite on [phrase]`, a ready `/ginvite` line for whoever whispers the phrase (rate limited; no automatic invite) |
 | SyncNow.lua | `syncnow` | (none) | `/guilded sync`, `/guilded sync auto`: save now / auto-save at safe moments so the companion uploads sooner |
 | History.lua | always on | `GuildedHist` | `/guilded history`: a member's EP/GP and loot history; one officer whose PC has the records whispers it back (`REQ`/`DONE` on GUILD, `ROW` by whisper) |
 | Backup.lua | `backup` | (none) | `/guilded backup` and `/guilded restore [undo]`: this guild's saved data as one `QGBKP1:` code |

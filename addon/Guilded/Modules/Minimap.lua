@@ -1027,7 +1027,7 @@ local function buildToolsPage(page)
   local clearTests = forModule("sim", tip(at(newButton(page, "Clear test data", 136), page, 284, -188), "Deletes every test raid and test dungeon run from this PC. Click twice to confirm."), true)
   confirmClick(clearTests, "Clear test data", function() run("sim clear") end)
 
-  tip(at(newButton(page, "Announcements", 130, function() ui.selectTabByName("Announcements") end), page, 284, -234), "Say your milestones in guild chat (off until you turn them on).")
+  tip(at(newButton(page, "Announcements", 130, function() ui.selectTabByName("Announcements") end), page, 284, -234), "Say your milestones in guild chat (on by default).")
 
   -- Window size, kept between sessions.
   at(newLabel(page, "Window size", "GameFontNormalSmall"), page, 0, -238)
@@ -1581,7 +1581,7 @@ end
 -- Milestone announcements in guild chat (Modules/Milestones.lua): your master switch, one per
 -- kind, and (officers) the guild-wide off switch. The same switches exist in Interface Options.
 local function buildAnnouncementsPage(page)
-  local intro = at(newLabel(page, "Say your milestones (levels, first dungeon clears, honorable kills, duel wins) once in guild chat so guildmates can cheer. Off until you turn them on.", "GameFontHighlightSmall"), page, 0, 0)
+  local intro = at(newLabel(page, "Say your milestones (levels, first dungeon clears, honorable kills, duel wins) once in guild chat so guildmates can cheer. On by default; untick to turn them off.", "GameFontHighlightSmall"), page, 0, 0)
   intro:SetWidth(PAGE_WIDTH)
   local rows = {
     { nil, "Announce my milestones in guild chat" },

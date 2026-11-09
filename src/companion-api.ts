@@ -24,7 +24,7 @@ import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
 import { createDevicePages, prismaDeviceStore } from "./services/companion-devices.js";
 import { memberLinkStatus } from "./services/link-status.js";
-import { charactersMeSection, legacyBattleNetRedirect } from "./services/me-characters.js";
+import { charactersMeSection, legacyBattleNetRedirect, meCharacterList } from "./services/me-characters.js";
 import { prisma } from "./database.js";
 import { createAddonImportService } from "./services/addon-import.js";
 import { createEpgpService } from "./services/epgp.js";
@@ -362,7 +362,7 @@ export function createSiteApp(client?: Client) {
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
-    meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId)) }),
+    meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),
     meSection({ id: "pictures", group: "overview", render: pictures.meSection }),
     meSection({ id: "achievements", group: "play", render: achievementsWeb.meSection }),
     meSection({ id: "badges", group: "play", render: badges.meSection }),

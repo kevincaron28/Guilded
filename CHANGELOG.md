@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.0.9 — 9 November 2026
+
+Invite buttons that work, uploads that survive collisions, downloads from the website. Details: docs/V9_0_9_RELEASE_NOTES.md.
+
+- Addon: every guild and party Invite button is a secure /ginvite or /invite macro button (#681).
+- Companion: survives two connections uploading one file (P2034), queues uploads, warns about a wrong server, adds Remove this server (#682).
+- Website and companion: members download from the website, not GitHub (#683, #680).
+- Bot: smaller addon-import payloads, harder pruning, lighter backups (#679).
+
 ## 9.0.8 — 9 November 2026
 
 Runs stop waiting forever, no more blocked-action popups from the chat tab or the map. Details: docs/V9_0_8_RELEASE_NOTES.md.

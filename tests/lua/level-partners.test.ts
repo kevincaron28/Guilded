@@ -14,6 +14,15 @@ function setup(level = 30) {
     function GetRealZoneText() return ZONE end
     function IsInGuild() return true end
     function InviteUnit(name) INVITES[#INVITES + 1] = name end
+    IN_COMBAT = false
+    function InCombatLockdown() return IN_COMBAT end
+    local make = CreateFrame
+    CreateFrame = function(kind, name, parent, template)
+      local f = make(kind, name, parent, template)
+      f.template = template; f.attrs = {}
+      f.SetAttribute = function(self, k, v) self.attrs[k] = v end
+      return f
+    end
     function ChatFrame_SendTell(name) TELLS[#TELLS + 1] = name end
     ROSTER = {
       { "Kev", 30, "ROGUE", "Duskwood", true }, { "Ann-Realm", 31, "MAGE", "Redridge Mountains", true },
@@ -74,10 +83,23 @@ describe("levelling partners", () => {
     expect(msgs()).toBe("");
     expect(s!.run(`return tostring(NS.levelPartners.whisper("Bo-Realm"))`)).toBe("true");
     expect(s!.run(`return table.concat(TELLS, ",")`)).toBe("Bo-Realm");
-    expect(s!.run(`return tostring(NS.levelPartners.invite("Bo-Realm"))`)).toBe("true");
-    expect(s!.run(`return table.concat(INVITES, ",")`)).toBe("Bo-Realm");
-    s!.run(`InviteUnit = nil`);
-    expect(s!.run(`return tostring(NS.levelPartners.invite("Ann-Realm"))`)).toBe("false");
+    expect(s!.run(`return tostring(NS.levelPartners.invited("Bo"))`)).toBe("true");
+    expect(msgs()).toContain("Sent /invite Bo.");
+    expect(s!.run(`return table.concat(INVITES, ",")`)).toBe("");   // the invite API is never called from addon code
+  });
+
+  it("makes every Invite button a secure /invite macro button, refreshed only out of combat", () => {
+    setup();
+    s!.run(`NS.levelPartners.open()`);
+    const macros = () => s!.run(`local t = {} for _, f in ipairs(FRAMES) do if type(f.attrs) == "table" and f.attrs.macrotext and f.attrs.macrotext ~= "" then t[#t + 1] = f.attrs.macrotext end end table.sort(t) return table.concat(t, "|")`);
+    expect(macros()).toBe("/invite Ann|/invite Bo|/invite Cy|/invite Eve|/invite Gus|/invite Hal");
+    expect(s!.run(`local n = 0 for _, f in ipairs(FRAMES) do if type(f.attrs) == "table" and type(f.template) == "string" and f.template:find("SecureActionButtonTemplate") and f.attrs.type == "macro" then n = n + 1 end end return n`)).toBe("6");
+    s!.run(`IN_COMBAT = true; ROSTER[3][1] = "Zed-Realm"`);
+    s!.run(`NS.levelPartners.refresh()`);
+    expect(macros()).toContain("/invite Bo");
+    s!.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(macros()).toContain("/invite Zed");
+    expect(macros()).not.toContain("/invite Bo");
   });
 
   it("registers /guilded partners and translates", () => {

@@ -127,7 +127,7 @@ The nine Champion paintings were repainted in the same look and approved on 9 No
 
 ## Approved Rare paintings (9 November 2026)
 
-**Owner approved the Rare paintings (review page section R27, "I approve the cards") on 9 November 2026**, in the same L9-WoW painted look. Original art made with the owner's own tools (PNG, kept outside the repo); no Blizzard art. 26 are wired; previews (640x480) are in [`app-tcg-art/cards/`](app-tcg-art/cards/) and the app builds from `mobile/assets/clash/cards/` through the shared registry `mobile/src/clash/cardArt.ts`.
+**Owner approved the Rare paintings (review page section R27, "I approve the cards") on 9 November 2026**, in the same L9-WoW painted look. Original art made with the owner's own tools (PNG, kept outside the repo); no Blizzard art. 27 are wired; previews (640x480) are in [`app-tcg-art/cards/`](app-tcg-art/cards/) and the app builds from `mobile/assets/clash/cards/` through the shared registry `mobile/src/clash/cardArt.ts`.
 
 | Card id | Card | Type |
 | --- | --- | --- |
@@ -156,7 +156,8 @@ The nine Champion paintings were repainted in the same look and approved on 9 No
 | 138 | Cairn of Kings | zone |
 | 139 | Banner of the Duel | standard |
 | 140 | Flag of the Guild Hall | standard |
+| 141 | Sigil of the Forge | standard |
 | 142 | Standard of the First Delve | standard |
 
-- **Pending**: 141 Sigil of the Forge is being repainted and is not wired yet; they keep the placeholder until the repaint is approved and added the same way.
+- 141 Sigil of the Forge was repainted and approved by the owner the same day (copy of `batch3-rare/141-sigil-of-the-forge.png`), so all 27 Rares are wired.
 - Built with `node docs/plans/app-tcg-art/make-card-art.mjs <folder>`. The bundle test limit for all paintings is now 10 MB (all painted cards together are about 7.7 MB).

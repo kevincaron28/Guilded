@@ -1,0 +1,186 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { deviceUploadBody } from "../companion/device-sync.mjs";
+import { readAddonExport } from "../companion/lua-export.mjs";
+import { mergeDeviceReceipts, parseDeviceReceipts, readDeviceReceipts, writeDeviceReceipts } from "../companion/device-receipts.mjs";
+import { handleDeviceUpload, prismaInstallStore, storeDeviceRuns, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
+import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
+import { newLuaSession, type LuaSession } from "./lua/harness.js";
+
+// 9.1.3 (second-PC test of 9.1.2): an unsigned (device-key) companion uploaded its runs, but 10 stayed "waiting" for ever.
+// The whole path, in one test: saved file -> device upload -> the bot stores the runs and writes receipts -> the answer
+// carries the receipts -> the companion writes them for the addon -> the addon marks the runs synced at the next load.
+
+const dirs: string[] = [];
+let lua: LuaSession | undefined;
+afterEach(() => { lua?.close(); lua = undefined; for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
+
+const season = { id: "s1", startsAt: new Date("2026-11-04T23:00:00Z"), endsAt: null, status: "ACTIVE", name: "Season 1", ratingRules: provisionalSeasonRules().rules };
+const START = Math.floor(new Date("2026-11-08T20:00:00Z").getTime() / 1000);
+const now = new Date("2026-11-09T12:00:00Z");
+
+/** A transaction double with the tables the run import reads and writes, receipts included. */
+function fakeDatabase() {
+  const runs: Record<string, unknown>[] = [];
+  const receipts: Record<string, unknown>[] = [];
+  const tx = {
+    guild: { findUnique: async () => ({ gameEdition: "forever" }) },
+    character: { findMany: async () => [] },
+    guildSettings: { findUnique: async () => ({ dungeonLeaderboardChannelId: null }) },
+    dungeonSeason: { findFirst: async () => season, create: async () => season, update: vi.fn() },
+    dungeonRun: {
+      findUnique: async ({ where }: { where: { guildId_runRef: { runRef: string } } }) => runs.find((r) => r["runRef"] === where.guildId_runRef.runRef) ?? null,
+      findMany: async ({ where }: { where: { runRef?: { in: string[] }; instanceId?: number; valid?: boolean; state?: string; completedBy?: string } }) => runs.filter((r) =>
+        (!where.runRef || where.runRef.in.includes(r["runRef"] as string)) && (where.instanceId === undefined || r["instanceId"] === where.instanceId)
+        && (where.valid === undefined || r["valid"] === where.valid) && (where.state === undefined || r["state"] === where.state)
+        && (where.completedBy === undefined || r["completedBy"] === where.completedBy)),
+      create: async ({ data }: { data: Record<string, unknown> & { players: { create: { character: string; memberId: string | null }[] } } }) => {
+        const row = { ...data, id: `run-${runs.length + 1}`, players: data.players.create.map((p) => ({ ...p, member: null })) };
+        runs.push(row);
+        return row;
+      }
+    },
+    dungeonRunReceipt: {
+      findMany: async ({ where }: { where: { guildId: string; runRef: { in: string[] }; outcome?: string } }) =>
+        receipts.filter((r) => r["guildId"] === where.guildId && where.runRef.in.includes(r["runRef"] as string) && (!where.outcome || r["outcome"] === where.outcome)),
+      createMany: async ({ data }: { data: Record<string, unknown>[] }) => { receipts.push(...data); return { count: data.length }; },
+      updateMany: async () => ({ count: 0 }),
+      update: async () => ({})
+    },
+    dungeonAchievement: { findMany: async () => [], create: async () => ({}) },
+    dungeonPointTransaction: { create: async ({ data }: { data: unknown }) => data }
+  };
+  return { tx, runs, receipts };
+}
+
+const luaRun = (id: string, over: { endedAt?: number; instanceId?: number } = {}) => {
+  const endedAt = over.endedAt ?? START + 2700;
+  return `{ id = "${id}", state = "COMPLETED", instanceId = ${over.instanceId ?? 90}, name = "Gnomeregan", difficultyId = 0, startedAt = ${endedAt - 2700}, endedAt = ${endedAt}, completedBy = "final boss",
+    players = { ["Meo"] = { presentSec = 2700, inGuild = true, level = 30, deaths = 0 }, ["Bob"] = { presentSec = 2700, inGuild = true, level = 30, deaths = 0 }, ["Amy"] = { presentSec = 2700, inGuild = true, level = 30, deaths = 0 } }, encounters = {} }`;
+};
+
+function layout() {
+  const root = mkdtempSync(join(tmpdir(), "qg-receipts-"));
+  dirs.push(root);
+  const saved = join(root, "WTF", "Account", "ACC", "SavedVariables");
+  const guilded = join(root, "Interface", "AddOns", "Guilded");
+  mkdirSync(saved, { recursive: true });
+  mkdirSync(guilded, { recursive: true });
+  writeFileSync(join(guilded, "Guilded.toc"), "## Interface: 11508\n## Title: Guilded\nStandings.lua\n");
+  // A signed-in companion of someone else used this folder before: its Standings.lua still names its Discord user.
+  writeFileSync(join(guilded, "Standings.lua"), 'GuildedLinkedAs = "Meo Gratton"\nGuildedDungeonAccepted = { "old-run" }\n');
+  const file = join(saved, "Guilded.lua");
+  const runs = [luaRun("QG-1"), luaRun("QG-2", { endedAt: START + 9000 }), luaRun("QG-3", { endedAt: START + 20000 }), luaRun("QG-RESET", { endedAt: START - 8 * 86400 })];
+  writeFileSync(file, `GuildedDB = { version = 3, guildKey = "Quebec Gold-CAMWOW US2 Realm 2 PvP", character = { name = "Meo", realm = "", class = "PALADIN", level = 30, gameEdition = "forever" },
+    dungeon = { runs = { ${runs.map((run, i) => `[${i + 1}] = ${run}`).join(", ")} } } }`);
+  return { root, file, guilded };
+}
+
+const quebec: ServerCandidate = { guildId: "g1", discordId: "111111111", serverName: "Quebec Gold", officerLinked: true };
+const device: DeviceRow = { id: "d1", guildId: null, chosenGuildId: null, claimedMemberId: null, revokedAt: null, uploads: 0 };
+
+function botStore(database: ReturnType<typeof fakeDatabase>): DeviceStore {
+  const real = prismaInstallStore(database.tx as never);
+  return {
+    async create() { return { id: "d1" }; },
+    async find() { return device; },
+    // Matched by the in-game guild name, not the realm (#695): the guild is on "Realm 2", the character on another realm.
+    async candidates(nameKey) { return nameKey === "quebec gold" ? [quebec] : []; },
+    async characterKeys() { return []; },
+    async saveUpload() { /* device rows are not under test */ },
+    async claim() { return false; },
+    importRuns: (guildId, runs, at) => storeDeviceRuns(database.tx as never, guildId, runs, at),
+    receipts: (guildId, refs) => real.receipts!(guildId, refs)
+  };
+}
+
+/** One companion upload against the bot double: the JSON the bot would answer. */
+async function sync(file: string, database: ReturnType<typeof fakeDatabase>, acknowledged = new Set<string>()) {
+  const full = await readAddonExport(file, "Forever");
+  const body = JSON.parse(JSON.stringify(deviceUploadBody(full, { acknowledged })));
+  return { body, answer: JSON.parse(JSON.stringify(await handleDeviceUpload(botStore(database), device, body, { now, allows: () => true, runLimiter: () => true }))) };
+}
+
+function addonSession() {
+  lua = newLuaSession();
+  lua.run(`NS = {}; GuildedDB = nil; CLOCK = 1800000000; CHAT_LOG = {}
+    TIMERS = {}
+    C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end, NewTicker = function() return {} end }`);
+  for (const name of ["Core.lua", "Locale.lua", "DungeonRoutes.lua", "Compat.lua", "Modules/Dungeon.lua", "Modules/CompanionLink.lua"]) lua.load(name);
+  lua.run(`fire_event("PLAYER_LOGIN")
+    NS.compat.serverTime = function() return ${START + 86400} end
+    NS.playerName = function() return "Meo" end`);
+  return lua;
+}
+
+describe("unsigned companion: runs reach the bot and come back as receipts", () => {
+  it("stores the runs, answers with receipts, and the addon marks them synced", async () => {
+    const { file, guilded } = layout();
+    const database = fakeDatabase();
+    const { body, answer } = await sync(file, database);
+    // Four finished runs went up under the device key, with the guild's name and no Discord sign-in.
+    expect(body.dungeonRuns).toHaveLength(4);
+    expect(body.guild).toEqual({ name: "Quebec Gold", realm: "CAMWOW US2 Realm 2 PvP" });
+    // The server was found by the in-game guild name and the runs were stored for it.
+    expect(answer).toMatchObject({ status: "synced", server: { discordId: "111111111" }, runs: { received: 4 } });
+    expect(database.runs.map((run) => run["runRef"]).sort()).toEqual(["QG-1", "QG-2", "QG-3", "QG-RESET"]);
+    // A run from before the season is kept as not scored, and that is receipted too (with a reason), so it stops waiting.
+    expect(database.receipts.map((r) => r["runRef"]).sort()).toEqual(["QG-1", "QG-2", "QG-3", "QG-RESET"]);
+    expect(answer.runReceipts.acceptedRunRefs.sort()).toEqual(["QG-1", "QG-2", "QG-3", "QG-RESET"]);
+    expect(answer.runReceipts.runNotes["QG-RESET"]).toBe("Outside the season window");
+
+    // The companion writes them where the addon reads them.
+    const config = { watchFile: file };
+    expect(await writeDeviceReceipts(config, answer.runReceipts, undefined, now)).not.toHaveLength(0);
+    const text = readFileSync(join(guilded, "Standings.lua"), "utf8");
+    expect(text).toContain("GuildedLinkedAs = nil");
+    expect(text).not.toContain("Meo Gratton");
+    expect(parseDeviceReceipts(text).refs.sort()).toEqual(["QG-1", "QG-2", "QG-3", "QG-RESET"]);
+    expect(readFileSync(join(guilded, "..", "GuildedData", "Standings.lua"), "utf8")).toContain('"QG-RESET"');
+
+    // Next game load: the addon (no Discord link anywhere) marks the runs synced and keeps the reason.
+    const session = addonSession();
+    for (const id of ["QG-1", "QG-2", "QG-3", "QG-RESET", "QG-LATER"]) {
+      session.run(`NS.dungeon.savedRuns()["${id}"] = ${id === "QG-RESET" ? luaRun(id, { endedAt: START - 8 * 86400 }) : luaRun(id)}`);
+    }
+    session.run(text);
+    session.run("NS.dungeon.markSynced()");
+    const flag = (id: string) => session.run(`return tostring(NS.dungeon.savedRuns()["${id}"].synced)`);
+    expect(["QG-1", "QG-2", "QG-3", "QG-RESET", "QG-LATER"].map(flag)).toEqual(["true", "true", "true", "true", "nil"]);
+    expect(session.run(`return NS.dungeon.savedRuns()["QG-RESET"].syncNote`)).toBe("Outside the season window");
+  });
+
+  it("does not send an acknowledged run again, and keeps earlier acknowledgements", async () => {
+    const { file } = layout();
+    const config = { watchFile: file };
+    const first = await sync(file, fakeDatabase());
+    await writeDeviceReceipts(config, first.answer.runReceipts, undefined, now);
+    const acknowledged = new Set((await readDeviceReceipts(config)).refs);
+    expect(acknowledged.has("QG-1")).toBe(true);
+    const second = await sync(file, fakeDatabase(), acknowledged);
+    expect(second.body.dungeonRuns ?? []).toHaveLength(0);
+    expect(second.answer.runReceipts).toBeUndefined();
+    // Writing with no new receipts (a later upload) leaves the earlier ones in place.
+    await writeDeviceReceipts(config, second.answer.runReceipts, undefined, now);
+    expect((await readDeviceReceipts(config)).refs).toHaveLength(4);
+  });
+
+  it("merges receipts newest first and lets the bot's latest note replace an older one", () => {
+    const merged = mergeDeviceReceipts({ refs: ["a", "b"], notes: { a: "old", b: "kept" } }, { acceptedRunRefs: ["c", "a"], runNotes: { c: "new" } });
+    expect(merged).toEqual({ refs: ["c", "a", "b"], notes: { c: "new", b: "kept" } });
+  });
+});
+
+describe("the addon and an unsigned companion", () => {
+  it("never announces an old Discord link once the companion says this PC is unsigned", () => {
+    const session = addonSession();
+    session.run(`GuildedLinkedAs = "Meo Gratton"`);
+    expect(session.run("return tostring(NS.companionLink.linkedAs())")).toBe("Meo Gratton");
+    session.run(`GuildedCompanion = { mode = "device", updatedAt = "2026-11-09T12:00:00.000Z" }`);
+    expect(session.run("return tostring(NS.companionLink.linkedAs())")).toBe("nil");
+    expect(session.run("return tostring(NS.companionLink.announceLinked())")).toBe("false");
+    expect(session.run("return tostring(NS.companionLink.needed())")).toBe("false");
+  });
+});

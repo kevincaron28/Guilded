@@ -14,6 +14,7 @@ import { GAME_EDITIONS } from "./game-edition.mjs";
 import { normalizeSavedPath } from "./saved-folder.mjs";
 import { errorDetail, isTimeout, rememberError } from "./error-detail.mjs";
 import { deviceHeaders, deviceMessage, deviceSummary, hasDeviceKey, uploadAsDevice } from "./device-sync.mjs";
+import { readDeviceReceipts, writeDeviceReceipts } from "./device-receipts.mjs";
 
 // Zero-setup companion (device-sync.mjs): no Discord sign-in yet, only the per-install device key.
 export const isDeviceMode = (config) => config?.device === true && hasDeviceKey(config) && !(typeof config.companionCredential === "string" && config.companionCredential.length >= 32);
@@ -392,7 +393,9 @@ export function createEngine(initialConfig, hooks = {}) {
       // Sync page shows "Sent" and "Received" instead of "Unknown" after an unsigned sync.
       const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
       state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
-      const { response, body } = await uploadAsDevice(current, full, controller.signal);
+      // Runs the bot already acknowledged (kept in the addon's data file) are not sent again: only the newest 50 go in one upload.
+      const acknowledged = new Set((await readDeviceReceipts(current)).refs);
+      const { response, body } = await uploadAsDevice(current, full, controller.signal, { acknowledged });
       if (epoch !== generation) return;
       state.botVersion = body.botVersion ?? state.botVersion;
       if (!response.ok) {
@@ -402,6 +405,11 @@ export function createEngine(initialConfig, hooks = {}) {
       }
       const summary = deviceSummary(body);
       state.device = summary;
+      // (9.1.3) The bot's receipts for the runs this upload carried go to the addon, which marks them synced at the next load.
+      if (summary?.status === "synced" && body.runReceipts) {
+        try { await writeDeviceReceipts(current, body.runReceipts, controller.signal); }
+        catch (error) { if (epoch !== generation) return; log("warn", `Could not save the run receipts for the addon: ${describeError(error)}`); }
+      }
       const message = deviceMessage(summary);
       state.lastUpload = { at: new Date().toISOString(), message };
       state.syncPhase = summary?.status === "synced" ? "synced" : "needs-attention";
@@ -727,6 +735,8 @@ export function createEngine(initialConfig, hooks = {}) {
     // Standings first: they say what the bot already has, which the first upload leaves out.
     await refreshStandings();
     if (epoch !== generation || !state.running) return false;
+    // (9.1.3) An unsigned PC says so in the addon's data: an old signed-in companion's "Linked to Discord as ..." ends.
+    if (isDeviceMode(config)) await writeDeviceReceipts({ ...config }, null, controller.signal).catch(() => undefined);
     scheduleUpload(0);
     // Safety net for the folder watch: a save it missed is noticed within 30 seconds.
     fileCheckTimer = setInterval(() => track((async () => {

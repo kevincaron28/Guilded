@@ -44,12 +44,21 @@ function module.needed()
     end
   end
   if module.linkedAs() then return false end
+  -- (9.1.3) An unsigned (zero-setup) companion that wrote its data file is a companion.
+  if module.unsignedCompanion() then return false end
   return not (type(GuildedStandings) == "table" and type(GuildedStandings.updatedAt) == "string")
 end
 
 -- "Linked to Discord as <name>" (8.5 Track L): the companion writes GuildedLinkedAs with the
 -- standings once this PC is linked. Said once in chat per name, and shown by /guilded companion.
+-- (9.1.3) The companion on this PC has no Discord sign-in (zero-setup): it writes GuildedCompanion.mode = "device".
+function module.unsignedCompanion()
+  return type(GuildedCompanion) == "table" and GuildedCompanion.mode == "device"
+end
+
 function module.linkedAs()
+  -- An unsigned companion means any GuildedLinkedAs left by an earlier signed-in one is stale: never announce it.
+  if module.unsignedCompanion() then return nil end
   local name = GuildedLinkedAs
   if type(name) ~= "string" then return nil end
   name = string.gsub(name, "|", "")

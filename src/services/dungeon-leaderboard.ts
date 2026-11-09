@@ -13,6 +13,7 @@ import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 import { seasonLabel } from "./season-label.js";
+import { diagnoseDungeonBoard, emptyBoardNote } from "./dungeon-board-diagnosis.js";
 
 export const DUNGEON_BOARD_CARD_FILE = "dungeon-season.png";
 const CARD_TOP = 25;
@@ -125,6 +126,12 @@ ${rows.length ? formatLeaderboard(rows) : t(lang, "dungeon.board.empty")}`.slice
     const ratingRows = hasDungeonRating(season.ratingRules) ? await dungeonRating(prisma, guild.id, season) : null;
     const rating = ratingRows ? ratingEmbed(ratingRows, season.name, lang, season.ratingRules) : null;
     if (rating) embed.setTitle(lang === "fr" ? "🤝 Points de participation" : "🤝 Participation points");
+    // An empty board says why (runs received but none counted, or none received) instead of only "no points yet".
+    const unranked = !(ratingRows ?? cardRows).some(row => row.points > 0);
+    const emptyNote = unranked ? emptyBoardNote(await diagnoseDungeonBoard(prisma, guild.id).catch(() => ({ season: null, received: 0, counted: 1, reasons: [] })), lang === "fr" ? "fr" : "en") : null;
+    if (emptyNote) embed.setDescription(`${embed.data.description ?? ""}
+
+${emptyNote}`.slice(0, 4096));
     // Discord applies the 6,000-character budget across all embeds in a message.
     if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setFields([]);
     if (embed.length + best.length + (rating?.length ?? 0) > 5900) embed.setDescription("/dungeon leaderboard metric:participation");

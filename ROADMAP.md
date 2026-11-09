@@ -8,6 +8,24 @@ Guilded supports WoW Forever only (the other editions were removed 7 November) a
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
+## Done 9 November 2026 (coordinator, ~02:30 UTC)
+
+- **9.0.7 published:** GitHub v9.0.7 (30261689), bot deployed after a backup (`guilded-recovery/2026-11-09T02-01-09-371Z`,
+  offsite copy verified), CurseForge 9520274/9520275 in review, installer on the bot server (sha ce255ccc…), site #660.
+  Contents: `/ginvite` taint fix (#655), achievement badges (#649), and the duel tooltip fix (#657, owner report: Lua error
+  in SharedTooltipTemplates "tainted by Guilded" after a duel; Shift refreshed a player tooltip from Guilded code in combat).
+- **Store:** 9.0.7.0 built (`Desktop\guilded-store-9.0.7`). Owner: wait for Submission 13 (9.0.4.0) to pass, then submit it.
+- **Downloads (item 6, owner "always work and free"):** #658 merged: `docs/DOWNLOADS_RELIABILITY.md`; optional R2 mirror
+  (`GUILDED_DOWNLOAD_MIRROR_URL`) first, the server second, GitHub last. **Owner:** enable R2 and set the variable (steps in
+  the doc); nothing changes until then.
+- **Card art:** owner picked the L9-WoW Legendary set, now in the app (#659). Owner, 9 Nov: repaint the 9 class champions in
+  the same style, and that style is the game's look from now on, card backs and theme included. In progress (ChatGPT, review
+  page for his OK).
+- **Duels:** recorded in game (owner's board showed 2 duels); they reach Discord only when the companion runs and uploads.
+- **Open:** `ADDON_ACTION_BLOCKED Button:SetPassThroughButtons()` after duels on the owner's 9.0.5 client (map pins blocked in
+  combat under Guilded taint). Worker session map-taint is auditing GuildMap.lua; then 9.0.8.
+- **Owner, 9 Nov: in-game screenshots and real-client checks "later tonight"** (Claude drives WoW when he steps away).
+
 ## Start here — 9 November 2026 (next session)
 
 **How to start tomorrow (owner, 8 Nov, late):** open a fresh session and say "continue work". That session is the master

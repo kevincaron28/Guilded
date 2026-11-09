@@ -1,6 +1,6 @@
 # Guilded 9.0.7 — release notes (9 November 2026)
 
-`/ginvite` works again with Guilded Dungeons installed, every WoW Forever achievement becomes a Guilded badge, and the
+`/ginvite` works again with Guilded Dungeons installed, no more tooltip errors after a duel, every WoW Forever achievement becomes a Guilded badge, and the
 bot updates live since 9.0.6. Protocol 2, WoW Forever only.
 
 Real-client checks: docs/V8_5_0_RELEASE_ACCEPTANCE.md.
@@ -10,6 +10,9 @@ Real-client checks: docs/V8_5_0_RELEASE_ACCEPTANCE.md.
 - **`/ginvite` and other game slash commands work again.** Guilded Dungeons replaced the game's own slash-command
   table at load, which blocked `/ginvite` as a protected action. It now leaves that table alone, and a test fails if
   any addon file does that again. (#655)
+- **No more Lua error or blocked actions after a duel.** Pressing Shift over a player in combat made Guilded redraw
+  that tooltip, which broke Blizzard's tooltip code ("tainted by Guilded"). Guilded now leaves tooltips alone in combat,
+  and the call-for-help button no longer mistakes a duel for an attack. (#657)
 - **Every in-game achievement is tracked.** Guilded records each WoW Forever achievement you earn and shows it as a
   generated badge next to the profession badges. (#649)
 

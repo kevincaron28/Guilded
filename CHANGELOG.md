@@ -5,6 +5,7 @@
 `/ginvite` works again with Guilded Dungeons, and every WoW Forever achievement becomes a badge. Details: docs/V9_0_7_RELEASE_NOTES.md.
 
 - Addon: Guilded Dungeons no longer blocks `/ginvite` and other game slash commands (#655).
+- Addon: no Lua error or blocked actions after a duel (tooltips are left alone in combat; call for help knows a duel) (#657).
 - Addon and companion: every in-game achievement is recorded and shown as a generated badge (#649).
 - Website (already live): the companion installer downloads in one piece from the Guilded server, GitHub as fallback (#653).
 

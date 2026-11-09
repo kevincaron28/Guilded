@@ -1006,9 +1006,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit || isMapEdit ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || (isMobileDevice && request.method === "POST") || isPoeLevels || isManageEdit || isHubEdit || isMapEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isMapView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isMapView || (isMobileDevice && request.method === "GET") ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -1025,6 +1025,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!access) {
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
+      }
+      if (isMobileDevice) {
+        const device = request.method === "GET"
+          ? await prisma.mobileDevice.findUnique({ where: { credentialId: (await prisma.companionCredential.findUniqueOrThrow({ where: { tokenHash: hashCompanionSecret(header as string) }, select: { id: true } })).id }, select: { enabled: true } })
+          : await configureMobileDevice(prisma, header as string, payload);
+        json(response, 200, { ok: true, enabled: device?.enabled ?? false });
+        return;
       }
       if (isMapView || isMapEdit) {
         // Signed-in members of this guild only (the credential is bound to it); never public, never cached.

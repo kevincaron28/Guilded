@@ -30,7 +30,8 @@ function module.parse(text)
   local skills = {}
   if type(text) ~= "string" then return skills end
   for name, skill in text:gmatch("([^:,]+):(%d+)") do
-    if #skills < 10 and #name <= 40 and #skill <= 4 then skills[#skills + 1] = { name = trim(name), skill = tonumber(skill) } end
+    -- Canonical English name whatever language the sender's client used (Util.lua), so the note tag and the icon match.
+    if #skills < 10 and #name <= 40 and #skill <= 4 then skills[#skills + 1] = { name = ns.util.professionName(trim(name)), skill = tonumber(skill) } end
   end
   return skills
 end
@@ -78,7 +79,7 @@ function module.skillsFor(name)
   if key == (ns.playerName and ns.playerName()) and ns.collectProfessions then
     local mine = ns.collectProfessions()
     local out = {}
-    for _, p in ipairs(mine) do out[#out + 1] = { name = p.name, skill = p.skillLevel } end
+    for _, p in ipairs(mine) do out[#out + 1] = { name = ns.util.professionName(p.name), skill = p.skillLevel } end
     if #out > 0 then return out end
   end
   local d = db()
@@ -95,7 +96,7 @@ end
 -- One line per profession, with its icon, for a tooltip.
 function module.lines(name)
   local out = {}
-  for _, s in ipairs(sorted(module.skillsFor(name))) do out[#out + 1] = module.icon(s.name) .. s.name .. " " .. s.skill end
+  for _, s in ipairs(sorted(module.skillsFor(name))) do out[#out + 1] = module.icon(s.name) .. ns.util.professionLabel(s.name) .. " " .. s.skill end
   return out
 end
 

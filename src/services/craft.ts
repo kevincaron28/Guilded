@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { normalizeProfessionName } from "./profession-names.js";
 
 type Db = Pick<PrismaClient, "craftRequest">;
 
@@ -34,7 +35,7 @@ export function createCraftService(database: Db) {
           guildId: input.guildId,
           requesterId: input.requesterId,
           item: item.slice(0, 100),
-          profession: input.profession?.trim().slice(0, 40) || null,
+          profession: input.profession?.trim() ? normalizeProfessionName(input.profession).slice(0, 40) : null,
           quantity: input.quantity,
           note: input.note?.trim().slice(0, 300) || null,
           materialsProvided: input.materialsProvided,

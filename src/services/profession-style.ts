@@ -1,5 +1,6 @@
 import { cleanCharacterName } from "./character-display.js";
 import type { Lang } from "../i18n.js";
+import { canonicalProfessionName } from "./profession-names.js";
 
 // 8.5 track D (owner request 11): ONE way to show a profession everywhere (directory, per-profession posts, gallery,
 // /craft who): an icon, the name, a skill bar and a recency dot, grouped by profession, with a one-line legend.
@@ -16,11 +17,10 @@ export const PROFESSION_FR: Record<string, string> = {
   Skinning: "Dépeçage", Cooking: "Cuisine", "First Aid": "Premiers soins", Fishing: "Pêche", Archaeology: "Archéologie"
 };
 
-/** The stored (English) profession name for an English or French name; undefined when it is not a profession. */
+/** The stored (English) profession name for a name in any client language; undefined when it is not a profession. */
 export const canonicalProfession = (profession: string): string | undefined => canonical(profession);
 function canonical(profession: string) {
-  const wanted = profession.trim().toLowerCase();
-  return Object.keys(PROFESSION_EMOJI).find(name => name.toLowerCase() === wanted || PROFESSION_FR[name]?.toLowerCase() === wanted);
+  return canonicalProfessionName(profession);
 }
 export const professionEmoji = (profession: string): string => PROFESSION_EMOJI[canonical(profession) ?? ""] ?? "📚";
 /** The profession's name in the guild's language (unknown names are kept as typed). */

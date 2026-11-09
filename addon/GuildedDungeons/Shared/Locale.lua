@@ -2720,6 +2720,21 @@ local DE = {
   ["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) Offen lassen (startet mit Windows). Die Anmeldung mit Discord ist optional.",
   ["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Am einfachsten: Installiere die Guilded-Windows-App (Schritte unten). Sie synchronisiert von selbst, ohne Anmeldung. Keine App? Nutze in Discord /character pair und f\195\188ge den Code unten ein.",
   ["Commands: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto"] = "Befehle: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto",
+  ["Alchemy"] = "Alchimie",
+  ["Blacksmithing"] = "Schmiedekunst",
+  ["Enchanting"] = "Verzauberkunst",
+  ["Engineering"] = "Ingenieurskunst",
+  ["Herbalism"] = "Kr\195\164uterkunde",
+  ["Inscription"] = "Inschriftenkunde",
+  ["Jewelcrafting"] = "Juwelenschleifen",
+  ["Leatherworking"] = "Lederverarbeitung",
+  ["Mining"] = "Bergbau",
+  ["Skinning"] = "K\195\188rschnerei",
+  ["Tailoring"] = "Schneiderei",
+  ["Cooking"] = "Kochkunst",
+  ["First Aid"] = "Erste Hilfe",
+  ["Fishing"] = "Angeln",
+  ["Archaeology"] = "Arch\195\164ologie",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4417,6 +4432,21 @@ local ES = {
   ["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) D\195\169jalo abierto (arranca con Windows). Iniciar sesi\195\179n con Discord es opcional.",
   ["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Lo m\195\161s f\195\161cil: instala la aplicaci\195\179n de Windows de Guilded (pasos abajo). Sincroniza sola, sin iniciar sesi\195\179n. \194\191Sin la aplicaci\195\179n? En Discord usa /character pair y pega el c\195\179digo abajo.",
   ["Commands: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto"] = "Comandos: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto",
+  ["Alchemy"] = "Alquimia",
+  ["Blacksmithing"] = "Herrer\195\173a",
+  ["Enchanting"] = "Encantamiento",
+  ["Engineering"] = "Ingenier\195\173a",
+  ["Herbalism"] = "Herborister\195\173a",
+  ["Inscription"] = "Inscripci\195\179n",
+  ["Jewelcrafting"] = "Joyer\195\173a",
+  ["Leatherworking"] = "Peleter\195\173a",
+  ["Mining"] = "Miner\195\173a",
+  ["Skinning"] = "Desuello",
+  ["Tailoring"] = "Sastrer\195\173a",
+  ["Cooking"] = "Cocina",
+  ["First Aid"] = "Primeros auxilios",
+  ["Fishing"] = "Pesca",
+  ["Archaeology"] = "Arqueolog\195\173a",
 }
 -- END ES
 
@@ -5208,3 +5238,20 @@ FR["2) Run the installer. It finds WoW and your guild's Discord server by itself
 FR["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) Laissez-le ouvert (il d\195\169marre avec Windows). La connexion avec Discord est facultative."
 FR["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Le plus simple : installez l'application Windows Guilded (\195\169tapes ci-dessous). Elle synchronise toute seule, sans connexion. Pas d'application ? Dans Discord, utilisez /character pair, puis collez le code ci-dessous."
 FR["Commands: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto"] = "Commandes : /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto"
+
+-- (9.0.10) Profession names: the stored and sent name is the English one; the player sees their own language's.
+FR["Alchemy"] = "Alchimie"
+FR["Blacksmithing"] = "Forge"
+FR["Enchanting"] = "Enchantement"
+FR["Engineering"] = "Ing\195\169nierie"
+FR["Herbalism"] = "Herboristerie"
+FR["Inscription"] = "Calligraphie"
+FR["Jewelcrafting"] = "Joaillerie"
+FR["Leatherworking"] = "Travail du cuir"
+FR["Mining"] = "Minage"
+FR["Skinning"] = "D\195\169pe\195\167age"
+FR["Tailoring"] = "Couture"
+FR["Cooking"] = "Cuisine"
+FR["First Aid"] = "Premiers soins"
+FR["Fishing"] = "P\195\170che"
+FR["Archaeology"] = "Arch\195\169ologie"

@@ -459,7 +459,7 @@ local function onPeer(text, sender)
   for profession, skill in string.gmatch(professions or "", "([^:,]+):(%d+)") do
     if #kept < 10 and #profession <= 40 and #skill <= 4 then table.insert(kept, profession .. ":" .. skill) end
   end
-  local profText, profAt = table.concat(kept, ","), professionsAt > 0 and professionsAt or nil
+  local profText, profAt = ns.util.professionSkillText(table.concat(kept, ",")), professionsAt > 0 and professionsAt or nil
   -- Professions never go back to an older list.
   if previous and previous.professionsAt and (not profAt or previous.professionsAt > profAt) then
     profText, profAt = previous.professions, previous.professionsAt
@@ -485,6 +485,7 @@ local function onRecipes(text, sender)
   part, total, stamp = tonumber(part), tonumber(total), tonumber(stamp)
   if not name or not stamp or not part or not total or total < 1 or total > MAX_RECIPE_PARTS or part < 1 or part > total then return end
   if #profession > 40 or string.find(profession, "[,%c]") or not string.match(chunk, "^[%-%d,]*$") then return end
+  profession = ns.util.professionName(profession) or profession -- one name per profession in every game language
   name = ns.normalizeName(name)
   if not name or name == me() or not (ns.isGuildMember and ns.isGuildMember(name)) then return end
   if stamp < now() - LONG_WINDOW_SECONDS or ns.util.tooFarAhead(stamp) then return end

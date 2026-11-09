@@ -865,3 +865,125 @@ function comm.register(prefix)
   end)
 end
 
+-- ---------------------------------------------------------------------
+-- Professions have ONE identity in every game language (owner report, 9 November 2026: "Cooking" and
+-- "Cuisine" showed as two professions). The key is the English name, from the skill line id when the
+-- game gives it, else from any client's localized name. Same table as the bot's
+-- src/services/profession-names.ts (tests/lua/profession-names.test.ts keeps them equal). Accented
+-- names are escapes because the validator rejects non-ASCII.
+-- ---------------------------------------------------------------------
+local SKILL_LINES = { [171] = "Alchemy", [164] = "Blacksmithing", [333] = "Enchanting", [202] = "Engineering", [182] = "Herbalism", [773] = "Inscription", [755] = "Jewelcrafting", [165] = "Leatherworking", [186] = "Mining", [393] = "Skinning", [197] = "Tailoring", [185] = "Cooking", [129] = "First Aid", [356] = "Fishing", [794] = "Archaeology" }
+local NAMES = {
+  ["Alchemy"] = "Alchemy", ["Alchimie"] = "Alchemy", ["Alquimia"] = "Alchemy", ["Alchimia"] = "Alchemy", ["\208\144\208\187\209\133\208\184\208\188\208\184\209\143"] = "Alchemy",
+  ["Blacksmithing"] = "Blacksmithing", ["Forge"] = "Blacksmithing", ["Schmiedekunst"] = "Blacksmithing", ["Herrer\195\173a"] = "Blacksmithing", ["Ferraria"] = "Blacksmithing", ["Forgiatura"] = "Blacksmithing", ["\208\154\209\131\208\183\208\189\208\181\209\135\208\189\208\190\208\181 \208\180\208\181\208\187\208\190"] = "Blacksmithing",
+  ["Enchanting"] = "Enchanting", ["Enchantement"] = "Enchanting", ["Verzauberkunst"] = "Enchanting", ["Encantamiento"] = "Enchanting", ["Encantamento"] = "Enchanting", ["Incantamento"] = "Enchanting", ["\208\157\208\176\208\187\208\190\208\182\208\181\208\189\208\184\208\181 \209\135\208\176\209\128"] = "Enchanting",
+  ["Engineering"] = "Engineering", ["Ing\195\169nierie"] = "Engineering", ["Ingenieurskunst"] = "Engineering", ["Ingenier\195\173a"] = "Engineering", ["Engenharia"] = "Engineering", ["Ingegneria"] = "Engineering", ["\208\152\208\189\208\182\208\181\208\189\208\181\209\128\208\189\208\190\208\181 \208\180\208\181\208\187\208\190"] = "Engineering",
+  ["Herbalism"] = "Herbalism", ["Herboristerie"] = "Herbalism", ["Kr\195\164uterkunde"] = "Herbalism", ["Herborister\195\173a"] = "Herbalism", ["Herborismo"] = "Herbalism", ["Erboristeria"] = "Herbalism", ["\208\162\209\128\208\176\208\178\208\189\208\184\209\135\208\181\209\129\209\130\208\178\208\190"] = "Herbalism",
+  ["Inscription"] = "Inscription", ["Calligraphie"] = "Inscription", ["Inschriftenkunde"] = "Inscription", ["Inscripci\195\179n"] = "Inscription", ["Escrivania"] = "Inscription", ["Runografia"] = "Inscription", ["\208\157\208\176\209\135\208\181\209\128\209\130\208\176\208\189\208\184\208\181"] = "Inscription",
+  ["Jewelcrafting"] = "Jewelcrafting", ["Joaillerie"] = "Jewelcrafting", ["Juwelenschleifen"] = "Jewelcrafting", ["Joyer\195\173a"] = "Jewelcrafting", ["Joalheria"] = "Jewelcrafting", ["Oreficeria"] = "Jewelcrafting", ["\208\174\208\178\208\181\208\187\208\184\209\128\208\189\208\190\208\181 \208\180\208\181\208\187\208\190"] = "Jewelcrafting",
+  ["Leatherworking"] = "Leatherworking", ["Travail du cuir"] = "Leatherworking", ["Lederverarbeitung"] = "Leatherworking", ["Peleter\195\173a"] = "Leatherworking", ["Couraria"] = "Leatherworking", ["Conciatura"] = "Leatherworking", ["\208\154\208\190\208\182\208\181\208\178\208\189\208\184\209\135\208\181\209\129\209\130\208\178\208\190"] = "Leatherworking",
+  ["Mining"] = "Mining", ["Minage"] = "Mining", ["Bergbau"] = "Mining", ["Miner\195\173a"] = "Mining", ["Minera\195\167\195\163o"] = "Mining", ["Estrazione"] = "Mining", ["\208\147\208\190\209\128\208\189\208\190\208\181 \208\180\208\181\208\187\208\190"] = "Mining",
+  ["Skinning"] = "Skinning", ["D\195\169pe\195\167age"] = "Skinning", ["K\195\188rschnerei"] = "Skinning", ["Desuello"] = "Skinning", ["Desollar"] = "Skinning", ["Esfolamento"] = "Skinning", ["Scuoiatura"] = "Skinning", ["\208\161\208\189\209\143\209\130\208\184\208\181 \209\136\208\186\209\131\209\128"] = "Skinning",
+  ["Tailoring"] = "Tailoring", ["Couture"] = "Tailoring", ["Schneiderei"] = "Tailoring", ["Sastrer\195\173a"] = "Tailoring", ["Alfaiataria"] = "Tailoring", ["Sartoria"] = "Tailoring", ["\208\159\208\190\209\128\209\130\208\189\209\143\208\182\208\189\208\190\208\181 \208\180\208\181\208\187\208\190"] = "Tailoring",
+  ["Cooking"] = "Cooking", ["Cuisine"] = "Cooking", ["Kochkunst"] = "Cooking", ["Cocina"] = "Cooking", ["Culin\195\161ria"] = "Cooking", ["Cucina"] = "Cooking", ["\208\154\209\131\208\187\208\184\208\189\208\176\209\128\208\184\209\143"] = "Cooking",
+  ["First Aid"] = "First Aid", ["Premiers soins"] = "First Aid", ["Secourisme"] = "First Aid", ["Erste Hilfe"] = "First Aid", ["Primeros auxilios"] = "First Aid", ["Primeiros Socorros"] = "First Aid", ["Primo Soccorso"] = "First Aid", ["\208\159\208\181\209\128\208\178\208\176\209\143 \208\191\208\190\208\188\208\190\209\137\209\140"] = "First Aid",
+  ["Fishing"] = "Fishing", ["P\195\170che"] = "Fishing", ["Angeln"] = "Fishing", ["Pesca"] = "Fishing", ["\208\160\209\139\208\177\208\189\208\176\209\143 \208\187\208\190\208\178\208\187\209\143"] = "Fishing",
+  ["Archaeology"] = "Archaeology", ["Arch\195\169ologie"] = "Archaeology", ["Arch\195\164ologie"] = "Archaeology", ["Arqueolog\195\173a"] = "Archaeology", ["Arqueologia"] = "Archaeology", ["Archeologia"] = "Archaeology", ["\208\144\209\128\209\133\208\181\208\190\208\187\208\190\208\179\208\184\209\143"] = "Archaeology",
+}
+
+local function trimText(text)
+  return (string.gsub(string.gsub(text, "^%s+", ""), "%s+$", ""))
+end
+local LOWER_NAMES = {}
+for name, canonical in pairs(NAMES) do LOWER_NAMES[string.lower(name)] = canonical end
+
+-- The canonical (English) profession for a skill line id or a name in any client language; nil when unknown.
+function util.professionKey(name, skillLine)
+  local byLine = SKILL_LINES[tonumber(skillLine) or -1]
+  if byLine then return byLine end
+  if type(name) ~= "string" or isSecret(name) then return nil end
+  local text = trimText(name)
+  return NAMES[text] or LOWER_NAMES[string.lower(text)]
+end
+-- The name to store and send: canonical when known, else the name as it was (trimmed).
+function util.professionName(name, skillLine)
+  local key = util.professionKey(name, skillLine)
+  if key then return key end
+  if type(name) ~= "string" or isSecret(name) then return nil end
+  return trimText(name)
+end
+-- The profession shown in the player's language (Locale.lua translates the canonical English names).
+function util.professionLabel(name)
+  local key = util.professionKey(name) or name
+  if type(key) ~= "string" then return key end
+  return ns.L and ns.L(key) or key
+end
+-- "Cuisine:300,Cooking:150,Fishing:75" (the digest format) -> "Cooking:300,Fishing:75": canonical names, the
+-- highest skill when one profession appears twice, first-seen order kept.
+function util.professionSkillText(text)
+  if type(text) ~= "string" or text == "" then return text end
+  local order, best = {}, {}
+  for name, skill in string.gmatch(text, "([^:,]+):(%d+)") do
+    local key = util.professionName(name)
+    local value = tonumber(skill) or 0
+    if best[key] == nil then order[#order + 1] = key end
+    if best[key] == nil or value > best[key] then best[key] = value end
+  end
+  local parts = {}
+  for _, key in ipairs(order) do parts[#parts + 1] = key .. ":" .. tostring(best[key]) end
+  return table.concat(parts, ",")
+end
+-- Renames the keys of { [profession] = value } to canonical names; when two collapse, merge(old, new) picks.
+function util.professionKeyedTable(source, merge)
+  if type(source) ~= "table" then return source end
+  local out, changed = {}, false
+  for name, value in pairs(source) do
+    local key = type(name) == "string" and util.professionName(name) or name
+    if key ~= name then changed = true end
+    if out[key] ~= nil and merge then out[key] = merge(out[key], value) else out[key] = value end
+  end
+  if not changed then return source end
+  return out
+end
+-- (9.0.10) Saved data from before the canonical names: the same profession was kept under every client language's
+-- name ("Cooking" and "Cuisine"). Rewrites the recipe book and the guildmates' digests in place.
+local function newerRecipes(a, b)
+  if type(a) ~= "table" then return b end
+  if type(b) ~= "table" then return a end
+  if (tonumber(b.v) or 0) > (tonumber(a.v) or 0) then return b end
+  return a
+end
+function util.normalizeProfessionData(db)
+  if type(db) ~= "table" then return false end
+  local changed = false
+  local book = db.recipeBook
+  if type(book) == "table" then
+    if type(book.people) == "table" then
+      for player, professions in pairs(book.people) do
+        local fixed = util.professionKeyedTable(professions, newerRecipes)
+        if fixed ~= professions then book.people[player] = fixed; changed = true end
+      end
+    end
+    if type(book.cooldowns) == "table" then
+      for player, list in pairs(book.cooldowns) do
+        if type(list) == "table" then
+          for _, cooldown in ipairs(list) do
+            if type(cooldown) == "table" and type(cooldown.prof) == "string" then
+              local key = util.professionName(cooldown.prof)
+              if key ~= cooldown.prof then cooldown.prof = key; changed = true end
+            end
+          end
+        end
+      end
+    end
+  end
+  if type(db.peerRoster) == "table" then
+    for _, peer in pairs(db.peerRoster) do
+      if type(peer) == "table" and type(peer.professions) == "string" then
+        local fixed = util.professionSkillText(peer.professions)
+        if fixed ~= peer.professions then peer.professions = fixed; changed = true end
+      end
+    end
+  end
+  return changed
+end

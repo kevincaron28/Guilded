@@ -755,9 +755,16 @@ end
 register("PLAYER_LOGIN")
 register("CHAT_MSG_ADDON")
 register("UNIT_COMBAT")
+-- DUEL_INBOUNDS only fires on walking back inside the duel flag's area, so it cannot mark the
+-- start of a duel by itself: a request (either side) and the countdown do. DUEL_FINISHED ends it.
+register("DUEL_REQUESTED")
+register("DUEL_COUNTDOWN")
 register("DUEL_INBOUNDS")
+register("DUEL_OUTOFBOUNDS")
 register("DUEL_FINISHED")
 register("PLAYER_ENTERING_WORLD")
+-- I asked for the duel: hooksecurefunc only watches StartDuel and taints nothing.
+if hooksecurefunc and StartDuel then pcall(hooksecurefunc, "StartDuel", function() dueling, hits = true, {} end) end
 
 local sinceTick = 0
 local matesAt = 0
@@ -787,7 +794,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
       frame:SetScript("OnUpdate", onUpdate)
     elseif event == "UNIT_COMBAT" then
       if args[1] == "player" and args[2] == "WOUND" then module.noteDamage(args[4]) end
-    elseif event == "DUEL_INBOUNDS" then
+    elseif event == "DUEL_REQUESTED" or event == "DUEL_COUNTDOWN" or event == "DUEL_INBOUNDS" or event == "DUEL_OUTOFBOUNDS" then
       dueling, hits = true, {}
     elseif event == "DUEL_FINISHED" or event == "PLAYER_ENTERING_WORLD" then
       dueling, hits = false, {}

@@ -187,13 +187,32 @@ function unavailablePage(request, url) {
 // If the server cannot be reached or does not have it, the visitor goes to the GitHub release instead.
 const HOSTED_DOWNLOAD = /^\/downloads\/(Guilded\.Companion\.Setup(?:\.\d{1,3}\.\d{1,3}\.\d{1,4})?\.exe)$/;
 const GITHUB_INSTALLER = "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe";
+function mirrorUrl(env) {
+  try {
+    const u = new URL(env.GUILDED_DOWNLOAD_MIRROR_URL ?? "");
+    if (u.protocol === "https:" && !u.username && !u.password && !u.search && !u.hash) return u.origin + u.pathname.replace(/\/+$/, "");
+  } catch { /* not configured */ }
+  return null;
+}
 const PASSED_HEADERS = ["content-length", "content-range", "accept-ranges", "last-modified", "etag"];
 export async function hostedDownload(request, env, ctx, url = new URL(request.url)) {
   const match = HOSTED_DOWNLOAD.exec(url.pathname);
   if (!match) return null;
   if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
-  const github = () => new Response(null, { status: 302, headers: { location: GITHUB_INSTALLER, "cache-control": "no-store" } });
   const latest = match[1] === "Guilded.Companion.Setup.exe";
+  // A versioned name falls back to that exact release's asset, never to whatever "latest" is by then.
+  const version = /^Guilded\.Companion\.Setup\.(\d{1,3}\.\d{1,3}\.\d{1,4})\.exe$/.exec(match[1])?.[1];
+  const github = () => new Response(null, { status: 302, headers: { location: version ? `https://github.com/kevincaron28/Guilded/releases/download/v${version}/${match[1]}` : GITHUB_INSTALLER, "cache-control": "no-store" } });
+  const mirrorBase = mirrorUrl(env);
+  if (mirrorBase) {
+    // Optional second copy (Cloudflare R2 on a custom domain: docs/DOWNLOADS_RELIABILITY.md). A short HEAD probe confirms it
+    // has the file; the visitor is then redirected, so the bytes never pass through this Worker.
+    const target = `${mirrorBase}/${match[1]}`;
+    try {
+      const probe = await fetch(target, { method: "HEAD", signal: AbortSignal.timeout(4_000), cf: { cacheTtl: 0, cacheEverything: false } });
+      if (probe.status === 200) return new Response(null, { status: 302, headers: { location: target, "cache-control": "no-store" } });
+    } catch { /* fall through to the server, then GitHub */ }
+  }
   const headers = new Headers();
   if (env.GUILDED_ORIGIN_TOKEN) headers.set("x-guilded-origin", env.GUILDED_ORIGIN_TOKEN);
   for (const name of ["range", "if-none-match", "if-modified-since", "if-range"]) {
@@ -201,9 +220,9 @@ export async function hostedDownload(request, env, ctx, url = new URL(request.ur
     if (value) headers.set(name, value);
   }
   for (const origin of botOrigins(env)) {
-    // Give up on an origin that has not started answering in 15 seconds; once it answers, the download runs as long as it needs.
+    // Give up on an origin that has not started answering in 8 seconds; once it answers, the download runs as long as it needs.
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15_000);
+    const timer = setTimeout(() => controller.abort(), 8_000);
     try {
       const upstream = await fetch(`${origin}/downloads/${match[1]}`, { method: request.method, headers, redirect: "manual", signal: controller.signal, cf: { cacheTtl: 0, cacheEverything: false } });
       clearTimeout(timer);

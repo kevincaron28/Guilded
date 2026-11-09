@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.1.0 — 9 November 2026
+
+The companion no longer needs any setup: install it and it syncs. Details: docs/V9_1_0_RELEASE_NOTES.md.
+
+- Companion: zero-setup sync with a device key, server chosen from the in-game guild, optional Discord sign-in that claims the device (#684).
+- Bot: `/api/v1/device/register|uploads|claim`, reported characters in `/roster gaps`, migration `companion_devices`.
+- Website Worker: allow-lists the device routes.
+
 ## 9.0.9 — 9 November 2026
 
 Invite buttons that work, uploads that survive collisions, downloads from the website. Details: docs/V9_0_9_RELEASE_NOTES.md.

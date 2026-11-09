@@ -2734,6 +2734,14 @@ local DE = {
   ["First Aid"] = "Erste Hilfe",
   ["Fishing"] = "Angeln",
   ["Archaeology"] = "Arch\195\164ologie",
+  ["No off-hand item equipped (expected when using a two-handed weapon)."] = "Kein Gegenstand in der Nebenhand (normal bei einer Zweihandwaffe).",
+  ["Empty slots (normal while levelling): %s."] = "Leere Pl\195\164tze (normal beim Leveln): %s.",
+  ["Missing enchants: %s."] = "Fehlende Verzauberungen: %s.",
+  ["No flask or elixir active."] = "Kein Fl\195\164schchen oder Elixier aktiv.",
+  ["No food buff active."] = "Kein Nahrungsbonus aktiv.",
+  ["Dungeon data is not loaded yet. Try again in a moment, or /reload."] = "Die Dungeon-Daten sind noch nicht geladen. Versuche es gleich noch einmal oder /reload.",
+  ["The dungeon command failed. /guilded diag shows the details."] = "Der Dungeon-Befehl ist fehlgeschlagen. /guilded diag zeigt die Details.",
+  ["Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."] = "Guilded Dungeons %s ist neben Guilded %s installiert. Guilded zeichnet deine L\195\164ufe auf; aktualisiere Guilded Dungeons mit dem Guilded Companion (oder entferne es).",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4446,6 +4454,14 @@ local ES = {
   ["First Aid"] = "Primeros auxilios",
   ["Fishing"] = "Pesca",
   ["Archaeology"] = "Arqueolog\195\173a",
+  ["No off-hand item equipped (expected when using a two-handed weapon)."] = "No hay ning\195\186n objeto en la mano izquierda (normal con un arma a dos manos).",
+  ["Empty slots (normal while levelling): %s."] = "Ranuras vac\195\173as (normal al subir de nivel): %s.",
+  ["Missing enchants: %s."] = "Encantamientos que faltan: %s.",
+  ["No flask or elixir active."] = "Sin frasco ni elixir activo.",
+  ["No food buff active."] = "Sin bonificaci\195\179n de comida activa.",
+  ["Dungeon data is not loaded yet. Try again in a moment, or /reload."] = "Los datos de mazmorra a\195\186n no est\195\161n cargados. Int\195\169ntalo de nuevo en un momento o /reload.",
+  ["The dungeon command failed. /guilded diag shows the details."] = "El comando de mazmorra ha fallado. /guilded diag muestra los detalles.",
+  ["Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."] = "Guilded Dungeons %s est\195\161 instalado junto a Guilded %s. Guilded registra tus recorridos; actualiza Guilded Dungeons con el Guilded Companion (o qu\195\173talo).",
 }
 -- END ES
 
@@ -5264,3 +5280,4 @@ FR["No food buff active."] = "Aucun bonus de nourriture actif."
 FR["Dungeon data is not loaded yet. Try again in a moment, or /reload."] = "Les donn\195\169es de donjon ne sont pas encore charg\195\169es. R\195\169essayez dans un instant, ou faites /reload."
 FR["The dungeon command failed. /guilded diag shows the details."] = "La commande de donjon a \195\169chou\195\169. /guilded diag montre les d\195\169tails."
 FR["Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."] = "Guilded Dungeons %s est install\195\169 \195\160 c\195\180t\195\169 de Guilded %s. Guilded enregistre vos donjons ; mettez Guilded Dungeons \195\160 jour avec le Guilded Companion (ou retirez-le)."
+

@@ -130,7 +130,7 @@ export function savedSince(savedFile, since) {
  * What the wizard does by itself next (owner, 7 November 2026: automatic setup). Each automatic step
  * runs once per run of the companion; after that the member gets the button.
  * @param {{ current?: string | null } | null} wizard  linkWizard's answer
- * @param {{ wow?: boolean, signIn?: boolean, visible?: boolean, signInBusy?: boolean }} [done]
+ * @param {{ wow?: boolean, signIn?: boolean, visible?: boolean, signInBusy?: boolean, zeroSetup?: boolean }} [done]
  * @returns {"setup-wow" | "sign-in" | null}
  */
 // zeroSetup: the companion registers its own device key within seconds of its first start (9.1.0), so on a

@@ -21,7 +21,7 @@ export function tocEditions(toc) {
 
 /**
  * @param {string} watchFile
- * @returns {Promise<{ status: "ok" | "wrong-edition" | "not-installed" | "unchecked" | "other-edition", expected?: string, installed?: string[], folder?: string }>}
+ * @returns {Promise<{ status: "ok" | "wrong-edition" | "not-installed" | "unchecked" | "other-edition", expected?: string, installed?: string[], folder?: string, version?: string, extras?: { name: string, version: string }[] }>}
  */
 export async function checkInstalledAddon(watchFile) {
   const parts = savedFileParts(watchFile);

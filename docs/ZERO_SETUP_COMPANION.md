@@ -23,8 +23,8 @@ confirmed.
 2. **Uploads.** In device mode (`engine.mjs` `isDeviceMode`) the engine sends
    `POST /api/v1/device/uploads` with the `x-companion-device` header and only:
    the in-game guild (`GuildedDB.guildKey`, split into name and realm) and up to 12 characters on
-   this PC (name, realm, class, race, level). Nothing else from the saved file leaves the PC:
-   no EP/GP ledger, loot, ranks, guild roster, bank, runs or votes (`device-sync.mjs`
+   this PC (name, realm, class, race, level). Since 9.1.1 it also sends the newest 50 finished dungeon runs (the bot stores each run it does not already hold, scores it with the normal rules, and only when a character this device reported was in it; per device 300 runs per hour). Nothing else from the saved file leaves the PC:
+   no EP/GP ledger, loot, ranks, guild roster, bank or votes (`device-sync.mjs`
    `deviceUploadBody`). No standings are fetched before a sign-in.
 3. **Which server.** `companion-device.ts` `pickServer`: the `WowGuild` rows `/setup` registered for
    that guild name and realm (WoW Forever). One: that one. Several Discord servers: the ones whose
@@ -54,7 +54,7 @@ nothing about who sends it.
 | --- | --- |
 | Pose as a member to change their data | Device uploads write only `DeviceCharacter` rows of that device. They never touch `Character`, `Member`, the EP/GP ledger, loot, ranks, guild roster/bank/events, crafting orders, votes or map data: those paths still need a member credential (`companionAccess`). No global write bypass exists. |
 | Take over a member's account through a device | Only a Discord sign-in claims a device (member credential + device key in one request). A device already claimed by one member can never be claimed by another (409). A `/guilded verify` code is **not** a device proof: the addon broadcasts it to guildmates (Core.lua `|V:` digest), so any guildmate's saved file may hold it. Verify and officer links still confirm *characters*, not devices. |
-| Pump public rankings or scores | Device uploads send no dungeon runs; public runs still come only from signed-in personal or guild uploads with the #203 evidence rules (party confirmations, integrity). Many fake devices therefore cannot "confirm" a run. |
+| Pump public rankings or scores | Device runs go through the normal import checks (validity, final boss, season window, route, presence) and never replace a run the server already stores; they reach the public site only through the guild sharing job with the #203 evidence rules, so many fake devices cannot "confirm" a public run. |
 | Flood the bot (1 GB server) | Registration: 5 per IP per hour at the bot plus the Worker's pairing limiter. Uploads: 30 per device and 120 per IP per hour. 12 characters per upload and per device (known ones keep updating). Strict schema (unknown fields dropped, names without `|` or control characters). Unknown keys count toward the shared failed-auth lockout. |
 | Steal a device key | It only lets the thief report characters for that device. It is never logged (engine redaction) and never shown in the window. Signing in drops it. |
 | Guild name squatting (a second server registers the same guild) | The server with officer syncs wins; otherwise the member chooses. A wrong pick costs only reported rows; nothing is linked until the member signs in and picks the server on the website. |

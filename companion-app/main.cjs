@@ -180,7 +180,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, wowFolderModule, activeGamesModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("wow-folder.mjs")), import(url("active-games.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")), ...await import(url("wow-accounts.mjs")) };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")), ...await import(url("wow-accounts.mjs")), deviceSync: await import(url("device-sync.mjs")) };
 }
 
 // Start-up diagnostics (9.0 release blocker): every line logged before the window is ready also
@@ -801,6 +801,10 @@ app.whenReady().then(async () => {
   powerMonitor.on("resume", () => { void engine.resume().catch(error => pushLog({ level: "error", time: new Date().toISOString(), message: error.message })); });
   onState(engine.state());
   void refreshSavedFile();
+  // Zero-setup companion: no sign-in needed to start syncing (tried again every 5 minutes until it works).
+  const zeroSetup = () => void zeroSetupStep().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("Automatic setup will try again: {0}", error instanceof Error ? error.message : String(error)) }));
+  zeroSetup();
+  setInterval(zeroSetup, 5 * 60 * 1000).unref?.();
   // Every 5 minutes: a few file dates, so a /reload that did not save Guilded.lua shows up soon.
   setInterval(() => void refreshSavedFile(), 5 * 60 * 1000);
   checkWowRunning();
@@ -1048,9 +1052,73 @@ registerIpc("install-update", async () => {
 
 registerIpc("test-connection", (_event, next) => engineModules.testConnection({ ...config, ...next }));
 
+// Zero-setup companion (owner decision, 9 November 2026; docs/ZERO_SETUP_COMPANION.md). With no
+// Discord sign-in anywhere, the companion finds the WoW folder, gets a device key from the bot (kept
+// in these encrypted settings) and syncs: the bot picks the server from the character's in-game
+// guild and keeps the characters as "reported". Sign-in stays optional; an install that is already
+// signed in is never changed here.
+let zeroSetupRunning = false;
+async function zeroSetupStep() {
+  if (zeroSetupRunning || !engine || signIn) return false;
+  const summary = configLoadModule().configSummary(config);
+  if (summary.signedIn || config.personal || config.wowEnabled === false || config.zeroSetupOff === true) return false;
+  zeroSetupRunning = true;
+  try {
+    const next = { ...config };
+    if (!next.uploadUrl) next.uploadUrl = engineModules.HOSTED_UPLOAD_URL;
+    if (!next.watchFile) {
+      const detected = await detectSavedVariables(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions());
+      const found = detected.filter((entry) => entry.exists);
+      const chosen = pickPrimaryAccount(found) || (found.length === 0 ? pickSavedVariables(detected.filter((entry) => !/beta/i.test(entry.game))) : null);
+      // Not found (or several accounts): the window offers one folder picker; nothing else to choose.
+      if (chosen) next.watchFile = chosen.path;
+    }
+    // The bot no longer knows this key (its data was reset): get a new one.
+    if (/device key is not known/.test(String(engine.state()?.uploadError ?? ""))) delete next.deviceSecret;
+    if (!engineModules.deviceSync.hasDeviceKey(next)) {
+      const registered = await engineModules.deviceSync.registerDevice(next);
+      if (!registered.ok) {
+        // An older bot without zero-setup: Sign in with Discord still works as before.
+        if (!registered.unsupported) throw new Error(registered.message);
+        return false;
+      }
+      next.deviceSecret = registered.deviceSecret;
+      pushLog({ time: new Date().toISOString(), level: "info", message: E("This companion got its own device key: it syncs without Discord sign-in.") });
+    }
+    next.device = true;
+    const changed = ["uploadUrl", "watchFile", "deviceSecret", "device"].some((key) => next[key] !== config[key]);
+    // A sign-in that finished meanwhile wins.
+    if (!changed || configLoadModule().configSummary(config).signedIn || signIn) return false;
+    config = { ...config, uploadUrl: next.uploadUrl, watchFile: next.watchFile, deviceSecret: next.deviceSecret, device: true };
+    await saveConfig();
+    await engine.configure(config);
+    void refreshSavedFile();
+    return true;
+  } finally {
+    zeroSetupRunning = false;
+  }
+}
+
+// "Advanced: choose server": when several Discord servers set up the same in-game guild ("" = automatic).
+registerIpc("device-choose-server", async (_event, discordId) => {
+  if (!engineModules.isDeviceMode(config)) return { ok: false, message: T("Signed-in companions choose their server when they sign in.") };
+  config = { ...config, deviceServer: discordId || undefined };
+  await saveConfig();
+  await engine.configure(config);
+  engine.uploadNow();
+  return { ok: true, message: T("Saved. Syncing now.") };
+});
+
 // A pairing code or a Discord sign-in: both end with the same credential and settings.
 async function applyPairing(next, result) {
   if (!result.ok) return result;
+  // Zero-setup companion: the sign-in claims this PC's device key, so what it reported becomes the
+  // member's (confirmed by the next, signed-in upload). The device key is not needed afterwards.
+  if (engineModules.deviceSync.hasDeviceKey(config) && !result.personal) {
+    const claimed = await engineModules.deviceSync.claimDevice({ ...config, uploadUrl: result.uploadUrl || config.uploadUrl }, result.companionCredential);
+    pushLog({ time: new Date().toISOString(), level: claimed.ok ? "info" : "warn", message: claimed.ok ? E("This PC's earlier uploads now belong to your Discord account.") : E("This PC's earlier uploads could not be moved to your Discord account ({0}); your next sync sends them again.", claimed.status ?? "offline") });
+  }
+  if (engineModules.deviceSync.hasDeviceKey(config) || config.device) config = { ...config, deviceSecret: undefined, device: false, deviceServer: undefined };
   // A code from guilded.kcaron.top/me/ pairs a personal account (public dungeon runs, no guild).
   config = { ...config, ...next, gameEdition: result.gameEdition, wowGuildId: result.wowGuildId, wowGuildName: result.wowGuildName, ...(result.uploadUrl ? { uploadUrl: result.uploadUrl } : {}), pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
   await saveConfig();
@@ -1246,7 +1314,7 @@ registerIpc("search-wow", () => {
 // "Link everything", step 3: after sign-in, pick the saved-data file by itself when exactly one
 // account on this PC has it. Local read only; with several accounts the member chooses.
 registerIpc("link-find-saved-data", async () => {
-  if (!config.companionCredential) return { ok: false, found: 0, message: T("Sign in with Discord first.") };
+  if (!config.companionCredential && !engineModules.isDeviceMode(config)) return { ok: false, found: 0, message: T("Sign in with Discord first.") };
   // A watched file that exists and is the live one is done. One that is missing, from the beta
   // client or stale (the player moved to WoW Forever) is looked for again below.
   if (config.watchFile) {

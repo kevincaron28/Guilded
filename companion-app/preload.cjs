@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld("companion", {
   accountNo: () => ipcRenderer.invoke("account-no"),
   setAccount: (file, on) => ipcRenderer.invoke("set-account", { file, on }),
   uploadNow: () => ipcRenderer.invoke("upload-now"),
+  deviceChooseServer: (discordId) => ipcRenderer.invoke("device-choose-server", discordId),
   refreshStandings: () => ipcRenderer.invoke("refresh-standings"),
   exportSheets: (table) => ipcRenderer.invoke("export-sheets", table),
   convertGRM: (options) => ipcRenderer.invoke("convert-grm", options),

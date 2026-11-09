@@ -166,3 +166,23 @@ describe("claim after a Discord sign-in", () => {
     expect((await deviceFor(store, secret))!.claimedMemberId).toBe("member-1");
   });
 });
+
+describe("officers see what unsigned companions reported", () => {
+  it("lists reported characters nobody linked, once each, in /roster gaps", async () => {
+    const { reportedDeviceCharacters } = await import("../src/services/companion-device.js");
+    const { formatRosterGaps } = await import("../src/services/roster-gaps.js");
+    const database = {
+      deviceCharacter: { findMany: async () => [
+        { nameKey: "lebowski highspirits", name: "Lebowski Highspirits", displayName: null, className: "Priest", level: 1, lastSeenAt: new Date() },
+        { nameKey: "lebowski highspirits", name: "Lebowski Highspirits", displayName: null, className: "Priest", level: 1, lastSeenAt: new Date() },
+        { nameKey: "lebowski holyroller", name: "Lebowski Holyroller", displayName: null, className: "Paladin", level: 14, lastSeenAt: new Date() }
+      ] },
+      character: { findMany: async () => [{ name: "Lebowski Holyroller", realm: "", gameEdition: "forever" }] }
+    };
+    const rows = await reportedDeviceCharacters(database as never, "g1");
+    expect(rows.map((row) => row.name)).toEqual(["Lebowski Highspirits"]);
+    const { text } = formatRosterGaps({ notInGuild: [], noLink: [], unclaimed: [], syncFresh: true, considered: 0, fromCompanions: [{ name: "Lebowski Highspirits", level: 1 }] }, "fr");
+    expect(text).toContain("Signalés par un compagnon sans connexion Discord** (1)");
+    expect(text).toContain("Lebowski Highspirits 1");
+  });
+});

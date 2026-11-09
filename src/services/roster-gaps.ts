@@ -29,6 +29,8 @@ export interface RosterGaps {
   unclaimed: { name: string; className: string; level: number | null }[];
   /** False when no officer upload is recent: the lists above cannot be trusted. */
   syncFresh: boolean;
+  /** Zero-setup companions (no Discord sign-in): characters they reported that no member has linked. */
+  fromCompanions?: { name: string; level: number | null }[];
   /** Members counted (not bots, not ignored roles). */
   considered: number;
   /** 9.1: linked characters only reported, not verified (character-trust.ts); omitted = not checked. */
@@ -119,6 +121,11 @@ export function formatRosterGaps(gaps: RosterGaps, lang: "en" | "fr"): { text: s
       ? gaps.reported.slice(0, 15).map((row) => `${row.name} (${row.displayName.slice(0, 20)})`).join(", ") + (gaps.reported.length > 15 ? ` +${gaps.reported.length - 15}` : "")
         + `\n-# ${t("Confirmed when the member syncs with their own Guilded app, an officer links it, or an officer's sync hears their /guilded verify code.", "Confirmé quand le membre synchronise avec sa propre application Guilded, qu'un officier le lie, ou que la synchro d'un officier entend son code /guilded verify.")}`
       : "—");
+  }
+  if (gaps.fromCompanions?.length) {
+    // docs/ZERO_SETUP_COMPANION.md: reported only; the member's Discord sign-in in that companion confirms them.
+    lines.push("", `**${t("Reported by a companion without Discord sign-in", "Signalés par un compagnon sans connexion Discord")}** (${gaps.fromCompanions.length})`);
+    lines.push(gaps.fromCompanions.slice(0, 20).map((row) => `${row.name}${row.level ? ` ${row.level}` : ""}`).join(", ") + (gaps.fromCompanions.length > 20 ? ` +${gaps.fromCompanions.length - 20}` : ""));
   }
   return { text: lines.join("\n").slice(0, 1900), invites: invites.join("\n") };
 }

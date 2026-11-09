@@ -135,10 +135,34 @@ async function statusAction() {
     case 'switch-folder': { const answer = await api.switchLiveFolder(); say(answer?.path ? T('Switched. Now watching {0}', answer.path) : '', true); return; }
     case 'retry': await api.recoverSync(); await api.uploadNow(); say(T('Trying again. Follow the result in Activity.')); return;
     case 'sync-now': await api.uploadNow(); say(T('Syncing now. Follow the result in Activity.')); return;
+    case 'choose-server': $('deviceAdvanced').open = true; $('deviceServerList').focus(); return;
     default: return;
   }
 }
 bind('btnStatusAction', statusAction);
+// Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): the optional sign-in note and "Advanced: choose server".
+function renderDevice(snapshot) {
+  const overview = window.guildedOverview(savedConfig, snapshot.state || {});
+  $('devicePanel').hidden = !overview.device;
+  if (!overview.device) return;
+  const device = snapshot.state?.device;
+  const list = $('deviceServerList');
+  const servers = Array.isArray(device?.servers) ? device.servers : [];
+  const wanted = ['', ...servers.map((server) => server.discordId)].join('|');
+  if (list.dataset.servers !== wanted) {
+    list.dataset.servers = wanted;
+    list.replaceChildren(new Option(T('Automatic (from your guild)'), ''), ...servers.map((server) => new Option(server.name || server.discordId, server.discordId)));
+  }
+  if (device?.status === 'choose' && !$('deviceAdvanced').dataset.opened) { $('deviceAdvanced').open = true; $('deviceAdvanced').dataset.opened = 'true'; }
+}
+bind('btnDeviceServer', async () => {
+  const typed = $('deviceServerId').value.trim();
+  const choice = typed || $('deviceServerList').value;
+  if (choice && !/^\d{5,25}$/.test(choice)) { $('deviceServerResult').textContent = T('A Discord server ID is a long number.'); $('deviceServerResult').className = 'result bad'; return; }
+  const answer = await api.deviceChooseServer(choice);
+  $('deviceServerResult').textContent = M(answer.message);
+  $('deviceServerResult').className = answer.ok ? 'result ok' : 'result bad';
+});
 // Several WoW accounts (docs/plans/MULTI_ACCOUNT.md): another account folder with Guilded's data.
 // Asked once; main.cjs keeps which file it is and remembers the answer.
 function renderAccountAsk(snapshot) {
@@ -183,6 +207,7 @@ function renderState(snapshot) {
   lastSnapshot = snapshot;
   try { renderStatusCard(snapshot); } catch { /* the rest of the page still renders */ }
   try { renderAccountAsk(snapshot); } catch { /* the rest of the page still renders */ }
+  try { renderDevice(snapshot); } catch { /* the rest of the page still renders */ }
   try { renderAccounts(snapshot); } catch { /* the rest of the page still renders */ }
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
   const guildWarnings = (snapshot.state.profiles || []).filter(p => p.warning).map(p => '[' + p.name + '] ' + p.warning);
@@ -205,7 +230,7 @@ function renderState(snapshot) {
   evidencePanel.textContent += ' · ' + T('Edition: {0} · Character: {1} · Saved-data source: {2}', sync.edition === 'unknown' ? T('Unknown') : sync.edition, sync.character || T('Unknown'), sync.folder || sync.watchedFile || state.watching || T('Unknown')) + ' · ' + T(syncActions[sync.action]);
   renderUpdate(snapshot.update);
   const overview = window.guildedOverview(savedConfig,state);
-  $('btnUpload').hidden = !overview.linked;
+  $('btnUpload').hidden = !overview.linked && !overview.device;
   $('btnUpload').disabled = !overview.canSync || $('btnUpload').dataset.busy === 'true';
   const linked = !!savedConfig.companionCredential;
   const paused = linked && !state.running && health.text === 'Not running';

@@ -9,6 +9,9 @@ import type { ClashCard, Keyword, Rarity, UnitView } from "./types";
 // card, a gold title, the rarity on the outer edge and a parchment rules box. The art window shows `artUrl` when the
 // owner-approved painted art exists, and a plain class-coloured placeholder until then. No Blizzard art.
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const CARD_BACK = require("../../assets/clash/card-back.webp") as number;
+
 export const STONE = { gold: "#ffd100", parch: "#f5e6c0", muted: "#b9a77f", brown: "#120d08", panel: "#21180f", line: "#3a2c1c" } as const;
 export const RARITY_EDGE: Record<Rarity, string> = { common: "#9d9d9d", uncommon: "#1eff00", rare: "#3b8fe8", epic: "#b25cf0", legendary: "#ff8000" };
 const KW_LABEL: Record<Keyword, string> = { guard: "Guard", swift: "Swift", shield: "Shield", shadow: "Shadow", venom: "Venom", drain: "Drain", twin: "Twin Strike" };
@@ -61,10 +64,10 @@ export function CardFace({ card, width = 150, dim = false, style, typeLabel, col
   </View>;
 }
 
-/** The back of a card (pack opening, opponent's hand). */
+/** The back of a card (pack opening, opponent's hand): the owner-approved painted back (dark leather and gold). */
 export function CardBack({ width = 150, style }: { width?: number; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.card, styles.back, { width, height: width * 1.4 }, style]}>
-    <View style={[styles.backRing, { width: width * 0.5, height: width * 0.5, borderRadius: width * 0.25 }]}><Text style={[styles.backG, { fontSize: width * 0.26 }]}>G</Text></View>
+    <Image source={CARD_BACK} style={styles.backImage} resizeMode="cover" accessibilityIgnoresInvertColors />
   </View>;
 }
 
@@ -110,9 +113,8 @@ const styles = StyleSheet.create({
   hp: { backgroundColor: "#5a1414", borderColor: "#ff9a8a" },
   statText: { color: "#fff", fontWeight: "900" },
   gear: { position: "absolute", right: 6, bottom: 6, color: STONE.gold, fontWeight: "800" },
-  back: { borderColor: STONE.gold, alignItems: "center", justifyContent: "center", backgroundColor: "#1a120b" },
-  backRing: { borderWidth: 3, borderColor: STONE.gold, alignItems: "center", justifyContent: "center", backgroundColor: STONE.brown },
-  backG: { color: STONE.gold, fontWeight: "900" },
+  back: { borderColor: STONE.gold, padding: 0, backgroundColor: "#1a120b" },
+  backImage: { width: "100%", height: "100%" },
   hand: { width: 66, height: 92, borderRadius: 7, borderWidth: 2, backgroundColor: STONE.panel, padding: 4, opacity: 0.6 },
   handPlayable: { opacity: 1, shadowColor: "#9fd0ff", shadowOpacity: 0.6, shadowRadius: 6 },
   handPicked: { transform: [{ translateY: -10 }], opacity: 1 },

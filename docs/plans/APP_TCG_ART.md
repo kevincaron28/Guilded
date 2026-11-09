@@ -42,7 +42,7 @@ Original only: shapes are drawn from scratch (no Blizzard logos, icons, screensh
 | --- | --- |
 | ![Card back](app-tcg-art/card-back.png) | ![Pack](app-tcg-art/pack.png) |
 
-- **Card back**: gold-bordered dark stone with a painted texture, a sunburst medallion ringed with runes, corner trim, drifting embers and the Guilded shield with a check. One back for everyone; the set-completion cosmetics in the plan can unlock alternate backs later.
+- **Card back**: the owner-approved painted back "dark leather and gold" (option CB2, 9 November 2026), shown by `CardBack` in `mobile/src/clash/CardFrame.tsx` from `mobile/assets/clash/card-back.webp` (600 px tall, 1:1.4). One back for everyone; the set-completion cosmetics in the plan can unlock alternate backs later. The earlier drawn "G" ring is gone.
 - **Pack**: a crimped foil wrapper (zig-zag top and bottom) in a bronze-to-dark gradient with a light sheen, the same rune medallion, "Daily Pack, 5 cards". On open, the foil tears across the top, the cards fan out face down and flip one by one on tap with a "NEW" tag, as in the plan.
 
 ## Still open
@@ -83,3 +83,11 @@ About 1 MB for all 27 files. Regenerate with `node docs/plans/app-tcg-art/make-c
 - `<id>.webp`: full picture, 640x480. `<id>-window.webp`: the card art window crop, 624x240, used by the card frame when the card has no `artUrl`.
 - About 1 MB for all 18 files. Regenerate with `node docs/plans/app-tcg-art/make-legendaries.mjs <folder with the nine PNGs named by class>`.
 - The other two Legendary units (121 The Tavern Keeper, 123 Hero of the Hollow) and the four Legendary Standards (147 to 150) have no painting yet.
+
+## Art style decision
+
+**Owner decision (9 November 2026): the L9-WoW painted look is the art style for the whole game**, card backs and theme included. New art (backs, pack, board and screen backgrounds, Standards, the remaining Legendaries) follows it, and every piece still needs the owner's approval.
+
+## Approved Champion paintings and card back (9 November 2026)
+
+The nine Champion paintings were repainted in the same look and approved on 9 November 2026; they replace the 8 November set under the same file names (`mobile/assets/clash/champions/`, previews in `app-tcg-art/champions/`), regenerated with `make-champions.mjs`.

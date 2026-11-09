@@ -31,6 +31,7 @@ function validateIpc(channel, args) {
     object(value, new Set(["id", "name"]));
     if (Boolean(value.id) === Boolean(value.name)) fail();
     text(value.id || value.name, 80);
+  } else if (channel === "remove-profile") { text(value, 80);
   } else if (channel === "export-sheets") { if (value !== undefined && value !== null) text(value, 40); }
   else if (channel === "convert-grm") {
     object(value, new Set(["guild", "realm", "edition", "includePrivate"]));

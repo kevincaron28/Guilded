@@ -867,6 +867,20 @@ registerIpc("change-profile", async (_event, choice) => {
   } catch (error) { return { ok: false, message: error.message }; }
 });
 
+registerIpc("remove-profile", async (_event, id) => {
+  try {
+    if (signIn) return { ok: false, message: "Finish or cancel Discord sign-in before removing a connection." };
+    await engine.stop();
+    config = engineModules.removeProfile(config, id);
+    config.poeJournalFile = path.join(app.getPath("userData"), config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
+    await saveConfig();
+    savedFile = null;
+    await engine.configure(config);
+    onState(engine.state());
+    return { ok: true, message: "Connection removed from this PC. Nothing was deleted on the server." };
+  } catch (error) { try { await engine.configure(config); } catch { /* keep the old selection running if possible */ } return { ok: false, message: error.message }; }
+});
+
 registerIpc("set-language", (_event, value) => {
   if (!["en", "fr"].includes(value)) throw new Error("Unsupported language");
   const file = path.join(app.getPath("userData"), "language.json");

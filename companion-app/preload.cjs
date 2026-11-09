@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld("companion", {
   getAll: () => ipcRenderer.invoke("get-all"),
   listProfiles: () => ipcRenderer.invoke("list-profiles"),
   changeProfile: (choice) => ipcRenderer.invoke("change-profile", choice),
+  removeProfile: (id) => ipcRenderer.invoke("remove-profile", id),
   saveConfig: (config) => ipcRenderer.invoke("save-config", config),
   testConnection: (config) => ipcRenderer.invoke("test-connection", config),
   pairAccount: (config) => ipcRenderer.invoke("pair-account", config),

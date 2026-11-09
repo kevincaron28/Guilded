@@ -47,3 +47,19 @@ export async function provisionWowGuild(database: PrismaClient, rootGuildId: str
     } });
   });
 }
+
+/**
+ * Does this server know the in-game guild an upload came from? `known: false` means the character's guild is not set up here
+ * (the 9 Nov 2026 wrong-connection case). Matches the server's own guild name and every registered in-game guild, with or without the realm.
+ */
+export async function serverKnowsWowGuild(database: Pick<PrismaClient, "wowGuild">, guild: { id: string; name?: string | null }, uploaded: string | undefined): Promise<{ known: boolean; name: string } | undefined> {
+  if (!uploaded?.trim()) return undefined;
+  const norm = (value: string) => value.normalize("NFKC").trim().toLowerCase();
+  const rows = await database.wowGuild.findMany({ where: { OR: [{ scopeGuildId: guild.id }, { guildId: guild.id }] }, select: { name: true, realm: true } });
+  const known = new Set<string>();
+  if (guild.name) known.add(norm(guild.name));
+  for (const row of rows) { known.add(norm(row.name)); known.add(norm(`${row.name}-${row.realm}`)); }
+  const full = norm(uploaded);
+  const name = full.includes("-") ? full.slice(0, full.lastIndexOf("-")) : full;
+  return { known: known.has(full) || known.has(name), name: guild.name ?? "" };
+}

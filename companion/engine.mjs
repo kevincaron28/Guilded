@@ -187,6 +187,19 @@ const FILE_CHECK_MS = 30_000;
 const WATCH_RETRY_MS = 5 * 60_000;
 const WATCH_STABLE_MS = 10 * 60_000;
 
+// One member can have several connections (servers) reading the same saved file. Their uploads go one at a time,
+// never at the same instant: two roster applies for the same guild collided on the bot (9 Nov 2026, P2034).
+const uploadGates = new Map();
+export function withUploadGate(file, work) {
+  const key = String(file || "").replaceAll("\\", "/").toLowerCase();
+  const previous = uploadGates.get(key) || Promise.resolve();
+  const run = previous.then(work, work);
+  const tail = run.catch(() => {});
+  uploadGates.set(key, tail);
+  tail.then(() => { if (uploadGates.get(key) === tail) uploadGates.delete(key); });
+  return run;
+}
+
 export function createEngine(initialConfig, hooks = {}) {
   // A file picked inside a character folder (WTF\Account\X\<realm>\<character>\SavedVariables) never holds GuildedDB:
   // watch the account-level one instead (companion/saved-folder.mjs).
@@ -233,6 +246,7 @@ export function createEngine(initialConfig, hooks = {}) {
     // The addon's guild sync counters from the last save (9.0; support summary only).
     gameSync: null,
     uploads: 0,
+    guildWarning: null,
     syncPhase: "waiting-save",
     syncEvidence: {},
     // "live" (the bot tells this companion about changes as they happen) or "interval".
@@ -391,8 +405,15 @@ export function createEngine(initialConfig, hooks = {}) {
     // Leave out what the bot already stored (it said so in the last standings answer).
     const { exported, omitted } = pruneAcknowledged(full, ack, features);
     const uploadedAt = new Date().toISOString();
-    const { response, body } = await send(current, exported, epoch);
+    const { response, body } = await withUploadGate(current.watchFile, () => send(current, exported, epoch));
     if (epoch !== generation) return;
+    // The bot says whether this server knows the character's in-game guild; a wrong connection is warned about, never silent.
+    if (body.serverWowGuild) {
+      state.guildWarning = body.serverWowGuild.known === false
+        ? `This character's guild${full.wowGuild ? ` (${full.wowGuild})` : ""} isn't set up in ${current.profileName || current.wowGuildName || body.serverWowGuild.name || "this server"}. If this is the wrong server, remove it on the Server page.`
+        : null;
+      if (state.guildWarning) log("warn", state.guildWarning);
+    }
     if (response.ok || response.status === 409 && body.importId) {
       Object.assign(state.syncEvidence, { uploadedAt, uploadedRevision: revision });
       // A failed apply is not accepted, even when the same bytes were stored earlier.

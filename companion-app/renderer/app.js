@@ -185,6 +185,8 @@ function renderState(snapshot) {
   try { renderAccountAsk(snapshot); } catch { /* the rest of the page still renders */ }
   try { renderAccounts(snapshot); } catch { /* the rest of the page still renders */ }
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
+  const guildWarnings = (snapshot.state.profiles || []).filter(p => p.warning).map(p => '[' + p.name + '] ' + p.warning);
+  for (const note of document.querySelectorAll('.guild-warning')) { note.hidden = !guildWarnings.length; note.textContent = M(guildWarnings.join(' ')); }
   const {state,health} = snapshot;
   const sync = window.guildedSyncStatus(savedConfig, state, state.syncEvidence);
   let evidencePanel = $('syncEvidence');
@@ -524,6 +526,17 @@ async function changeConnection(choice) {
 }
 $('connectionProfile').addEventListener('change', () => changeConnection({ id: $('connectionProfile').value }));
 document.addEventListener('companion-language', () => { void renderProfiles().catch(error => toast(error.message, true)); });
+bind('btnRemoveProfile', async () => {
+  const select = $('connectionProfile'); const label = select.selectedOptions[0]?.textContent || '';
+  if (!confirm([T('Remove this server from this PC?'), label, T('Nothing is deleted on the server; this companion just stops uploading there.')].join(String.fromCharCode(10)))) return;
+  const result = await api.removeProfile(select.value);
+  if (!result.ok) { toast(languageUI.message(result.message), true); return; }
+  const all = await api.getAll(); savedConfig = all.config;
+  for (const id of fields) $(id).value = all.config[id] ?? '';
+  $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false;
+  gameFields(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
+  await renderProfiles(); toast(languageUI.message(result.message));
+});
 bind('btnAddProfile', async () => { await changeConnection({ name: $('newProfileName').value }); $('newProfileName').value = ''; });
 
 // The companion opens on Link everything (status, characters, big actions); Skip for now sends the user to Home and is remembered on this PC.

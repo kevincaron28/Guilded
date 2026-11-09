@@ -1174,6 +1174,8 @@
   "Installed the Guilded addon {0}.": "Addon Guilded {0} installé.",
   "Updated the Guilded addon to {0}.": "Addon Guilded mis à jour en {0}.",
   "The Guilded addon could not be installed: {0}": "L’addon Guilded n’a pas pu être installé : {0}",
+  "Discord sign-in: optional, not used.": "Connexion Discord : facultative, non utilisée.",
+  "Settings, Discord sign-in and WoW folder were copied from the Microsoft Store version ({0}, {1} files). The Store copy was left as it is.": "Les réglages, la connexion Discord et le dossier WoW ont été copiés depuis la version Microsoft Store ({0}, {1} fichiers). La copie du Store n’a pas été modifiée.",
   "Not signed in. Press Sign in with Discord.": "Non connecté. Appuyez sur Se connecter avec Discord.",
   "Signed in to Discord as {0}.": "Connecté à Discord en tant que {0}.",
   "Signed in for public dungeon rankings only. Join {0} on Discord, then press Link to my guild.": "Connecté pour les classements publics des donjons seulement. Rejoignez {0} sur Discord, puis appuyez sur Relier à ma guilde.",

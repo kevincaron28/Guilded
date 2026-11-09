@@ -47,6 +47,8 @@ import { linkVerifiedCharacters, tellVerified } from "./services/character-verif
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { applyGuildData } from "./services/guild-data.js";
 import { applyGuildBank } from "./services/guild-bank.js";
+import { serverKnowsWowGuild } from "./services/wow-guilds.js";
+import { retryWriteConflict, serializeByKey } from "./services/transaction-retry.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
 import { applyOrderActions, craftOrdersForAddon, parseAddonOrderActions } from "./services/craft-orders.js";
@@ -1163,8 +1165,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // members without the addon reach the race board, last seen and roster gaps. Rank only from
       // officers. No markGuildChanged: none of it is in the standings feed. Never fails the upload.
       if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
-        await prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
-          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild data upload failed", error); });
+        // 9 Nov 2026: two connections uploading one file at once collided on the same Character rows (P2034). Uploads for one
+        // guild now apply one at a time, and a lost write conflict is retried with a short jittered backoff inside an 8 s budget.
+        await serializeByKey(`guild-data:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
+          { timeout: 60_000, maxWait: 15_000 }))).catch((error: unknown) => { console.error("Guild data upload failed", error); });
         // The whole guild roster (any member's upload) is now stored: waiting invite requests for those names are done.
         if (client && preview.snapshot.guildRoster) {
           void backCheckInvites(client, prisma, { id: guild.id, discordId: guild.discordId })
@@ -1178,8 +1182,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
       if (preview.snapshot.guildBank !== undefined) {
-        const bankResult = await prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
-          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild bank upload failed", error); return null; });
+        const bankResult = await serializeByKey(`guild-bank:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
+          { timeout: 60_000, maxWait: 15_000 }))).catch((error: unknown) => { console.error("Guild bank upload failed", error); return null; });
         // 9.1: one alert in the log channel for items that just went below their minimum (/bank stock).
         if (bankResult?.contents && client) void alertLowStock(client, prisma, guild.id).catch((error: unknown) => console.warn("Bank stock alert failed", error));
       }
@@ -1319,7 +1323,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           }
         }
       }
+      // 9.0.9: does this server know the uploading character's WoW guild? The companion warns about a wrong connection.
+      const guildCheck = await serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild).catch(() => undefined);
       json(response, 201, {
+        ...(guildCheck ? { serverWowGuild: guildCheck } : {}),
         autoApplied,
         applyError,
         professionRelay,

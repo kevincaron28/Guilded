@@ -7,10 +7,14 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 
 const DAY_MS = 86_400_000;
 export const RETENTION = {
-  // An applied export was already turned into ledger rows; a newer upload replaces it anyway.
-  appliedImportDays: 30,
-  // Never applied (waiting for /import apply): kept longer, then dropped.
-  pendingImportDays: 90,
+  // An applied export was already turned into ledger rows and keeps only a small summary (its raw
+  // payload is dropped when it is applied); the row stays for duplicate detection by checksum.
+  appliedImportDays: 14,
+  // Never applied (waiting for /import apply): kept with its full payload, then dropped.
+  pendingImportDays: 30,
+  // ...and at most this many per guild, once older than pendingOverflowDays.
+  pendingImportsPerGuild: 25,
+  pendingOverflowDays: 2,
   // Gear checks: the newest one per character is always kept; older ones this long.
   snapshotDays: 45,
   errorReportDays: 90
@@ -26,6 +30,19 @@ export async function runRetention(database: Db, now = new Date()): Promise<{ im
       { status: { not: "APPLIED" }, createdAt: { lt: before(RETENTION.pendingImportDays) } }
     ] }
   });
+  // Not yet applied: only the newest pendingImportsPerGuild per guild are kept (the /import apply
+  // autocomplete lists 25 anyway), and only once they are a couple of days old.
+  const overflow = await database.$executeRaw`
+    DELETE FROM "AddonImport" WHERE "id" IN (
+      SELECT "id" FROM (
+        SELECT "id", "createdAt", row_number() OVER (PARTITION BY "guildId" ORDER BY "createdAt" DESC) AS rank
+        FROM "AddonImport" WHERE "status" <> 'APPLIED') ranked
+      WHERE rank > ${RETENTION.pendingImportsPerGuild} AND "createdAt" < ${before(RETENTION.pendingOverflowDays)})`;
+  // Applied rows written before payloads were compacted on apply: drop the raw payload, keep the summary.
+  await database.$executeRaw`
+    UPDATE "AddonImport"
+    SET "payload" = jsonb_build_object('compacted', true, 'source', "source", 'exportedAt', "payload"->'exportedAt', 'gameEdition', "payload"->'gameEdition')
+    WHERE "status" = 'APPLIED' AND ("payload"->>'compacted') IS NULL`;
   // Items, consumables and findings go with their snapshot (ON DELETE CASCADE).
   const snapshots = await database.$executeRaw`
     DELETE FROM "InspectedCharacterSnapshot" old
@@ -38,5 +55,5 @@ export async function runRetention(database: Db, now = new Date()): Promise<{ im
   await database.$executeRaw`DELETE FROM "DiscordJob" WHERE "status" = 'DONE' AND "deliveredAt" < ${before(30)}`;
   // Expired availability is immediately hidden by reads; purge rows every six hours.
   await database.$executeRaw`DELETE FROM "WebAvailability" WHERE "expiresAt" <= ${now}`;
-  return { imports: imports.count, snapshots, errors: errors.count };
+  return { imports: imports.count + overflow, snapshots, errors: errors.count };
 }

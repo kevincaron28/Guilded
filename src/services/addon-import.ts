@@ -41,6 +41,16 @@ const sectionMemory = new Map<string, { hash: string; at: number }>();
 const sectionHash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 export function forgetAppliedSections(): void { sectionMemory.clear(); }
 
+// What stays of an applied upload: who sent it and when, plus how many rows each part held.
+// retention.ts writes the same shape for older rows in SQL (without counts).
+export function compactPayload(payload: unknown): Prisma.InputJsonValue {
+  const source = (payload && typeof payload === "object" ? payload : {}) as Record<string, unknown>;
+  const counts: Record<string, number> = {};
+  for (const [key, value] of Object.entries(source)) if (Array.isArray(value) && value.length) counts[key] = value.length;
+  const text = (value: unknown) => typeof value === "string" || typeof value === "number" ? value : null;
+  return { compacted: true, source: text(source["source"]), exportedAt: text(source["exportedAt"]) ?? (source["exportedAt"] instanceof Date ? source["exportedAt"].toISOString() : null), gameEdition: text(source["gameEdition"]), counts };
+}
+
 // Prisma's createManyAndReturn, or one create per row where it is not available (test doubles).
 async function createRows<Row, Out>(store: { create: (args: { data: Row }) => Promise<Out>; createManyAndReturn?: (args: { data: Row[] }) => Promise<Out[]> }, rows: Row[]): Promise<Out[]> {
   if (rows.length === 0) return [];
@@ -421,7 +431,9 @@ export function createAddonImportService(database: PrismaClient) {
 
         await tx.addonImport.update({
           where: { id: imported.id },
-          data: { status: "APPLIED" }
+          // Everything in the payload is now in the ledger tables; only a summary stays (checksum and source
+          // remain on the row for duplicate detection). Raw payloads were ~97% of the database JSON (9 Nov 2026).
+          data: { status: "APPLIED", payload: compactPayload(imported.payload) }
         });
         // The import and its public refresh requests commit together. A process crash
         // between commit and followUpImport cannot leave the display stale forever.

@@ -96,7 +96,7 @@ export interface DungeonImportSummary {
   receipts?: RunReceipt[];
 }
 
-export interface RunReceipt { runRef: string; outcome: "stored" | "copy" | "refused"; reason: string | null; runId: string | null; fresh?: boolean }
+export interface RunReceipt { runRef: string; outcome: "stored" | "copy" | "refused"; reason: string | null; runId: string | null; state?: string | null; fresh?: boolean }
 
 const RECEIPT_REASON_MAX = 80;
 // Short, member-facing reasons the addon shows next to a run that earned nothing.
@@ -116,18 +116,68 @@ const refOf = (raw: unknown): string | null => {
  * or refused. A ref seen again only refreshes `seenAt`, keeping the first outcome and reason.
  */
 export async function saveRunReceipts(tx: Partial<Pick<Prisma.TransactionClient, "dungeonRunReceipt">>, guildId: string, receipts: RunReceipt[], now = new Date()): Promise<void> {
-  if (!tx.dungeonRunReceipt) return;
-  const seen = new Set<string>();
-  for (const receipt of receipts) {
-    if (seen.has(receipt.runRef)) continue;
-    seen.add(receipt.runRef);
-    await tx.dungeonRunReceipt.upsert({
-      where: { guildId_runRef: { guildId, runRef: receipt.runRef } },
-      create: { guildId, runRef: receipt.runRef, outcome: receipt.outcome, reason: receipt.reason, runId: receipt.runId, createdAt: now, seenAt: now },
-      // A newly stored (or recovered) run takes its new outcome and reason; a repeat only moves the date.
-      update: receipt.fresh ? { seenAt: now, outcome: receipt.outcome, reason: receipt.reason, runId: receipt.runId } : { seenAt: now }
-    });
+  const table = tx.dungeonRunReceipt;
+  if (!table || !receipts.length) return;
+  // Batched (a whole upload's runs in three or four queries): this runs under the guild's import lock.
+  // The first receipt of a ref wins (one upload can carry the same run twice).
+  const first = new Map<string, RunReceipt>();
+  for (const receipt of receipts) if (!first.has(receipt.runRef)) first.set(receipt.runRef, receipt);
+  const rows = [...first.values()];
+  const existing = new Set((await table.findMany({ where: { guildId, runRef: { in: rows.map((row) => row.runRef) } }, select: { runRef: true } })).map((row) => row.runRef));
+  const created = rows.filter((row) => !existing.has(row.runRef));
+  if (created.length) await table.createMany({ skipDuplicates: true, data: created.map((row) => ({ guildId, runRef: row.runRef, outcome: row.outcome,
+    state: row.state ?? null, reason: row.reason, runId: row.runId, createdAt: now, seenAt: now })) });
+  const repeats = rows.filter((row) => existing.has(row.runRef) && !row.fresh).map((row) => row.runRef);
+  if (repeats.length) await table.updateMany({ where: { guildId, runRef: { in: repeats } }, data: { seenAt: now } });
+  // A newly stored (or recovered) run takes its new outcome and reason; a repeat only moves the date.
+  for (const row of rows.filter((candidate) => existing.has(candidate.runRef) && candidate.fresh)) {
+    await table.update({ where: { guildId_runRef: { guildId, runRef: row.runRef } },
+      data: { seenAt: now, outcome: row.outcome, state: row.state ?? null, reason: row.reason, runId: row.runId } });
   }
+}
+
+// True when this exact observer report is already kept with the stored run (or no more are kept):
+// sending it again changes nothing.
+function alreadyReported(data: unknown, run: DungeonRunInput): boolean {
+  const reports = (data as { observerReports?: unknown[] } | null)?.observerReports ?? [];
+  if (reports.length >= 40) return true;
+  const key = JSON.stringify({ ...run, mapCells: undefined });
+  return reports.some((value) => { const parsed = dungeonRunSchema.safeParse(value); return parsed.success && JSON.stringify(parsed.data) === key; });
+}
+
+/**
+ * 9.0.8: the companion sends every saved run on each upload, and the import holds the guild's lock
+ * (shared with the leaderboard job and season rotation) while it works. Runs the bot already has are
+ * answered from batched reads and skip the per-run work (map merge, season, copy search, history):
+ * that work used to keep the lock for seconds and time out other transactions (P2028).
+ * Still taken the long way: a COMPLETED recovery of a stored unfinished run, a new observer report
+ * of a completed run, and a guildmate's copy that comes back in another state.
+ */
+async function knownRuns(tx: Tx, guildId: string, runs: DungeonRunInput[]): Promise<Map<string, RunReceipt>> {
+  const known = new Map<string, RunReceipt>();
+  const refs = [...new Set(runs.map((run) => run.id))];
+  if (!refs.length) return known;
+  const stored = new Map((await tx.dungeonRun.findMany({ where: { guildId, runRef: { in: refs } },
+    select: { id: true, runRef: true, state: true, valid: true, invalidReason: true } })).map((row) => [row.runRef, row] as const));
+  const reportable = runs.filter((run) => run.integrity?.observer && stored.get(run.id)?.valid && stored.get(run.id)?.state === "COMPLETED").map((run) => run.id);
+  const reports = new Map(reportable.length ? (await tx.dungeonRun.findMany({ where: { guildId, runRef: { in: reportable } },
+    select: { runRef: true, competitionData: true } })).map((row) => [row.runRef, row.competitionData] as const) : []);
+  const copies = new Map(tx.dungeonRunReceipt ? (await tx.dungeonRunReceipt.findMany({ where: { guildId, runRef: { in: refs.filter((ref) => !stored.has(ref)) }, outcome: "copy" },
+    select: { runRef: true, reason: true, runId: true, state: true } })).map((row) => [row.runRef, row] as const) : []);
+  for (const run of runs) {
+    if (known.has(run.id)) continue;
+    const existing = stored.get(run.id);
+    if (existing) {
+      if (existing.state !== "COMPLETED" && run.state === "COMPLETED") continue;
+      if (reports.has(run.id) && !alreadyReported(reports.get(run.id), run)) continue;
+      known.set(run.id, { runRef: run.id, outcome: "stored", state: run.state, runId: existing.id,
+        reason: receiptReason(existing.invalidReason ?? (existing.state === "COMPLETED" ? null : "Not completed")) });
+      continue;
+    }
+    const copy = copies.get(run.id);
+    if (copy && copy.state === run.state) known.set(run.id, { runRef: run.id, outcome: "copy", state: run.state, reason: copy.reason, runId: copy.runId });
+  }
+  return known;
 }
 
 
@@ -257,7 +307,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     const ref = refOf(rawRuns[index]);
     if (ref) receipts.push({ runRef: ref, outcome: "refused", reason: "Run data could not be read", runId: null });
   });
-  const runs = parsed.filter((result) => result.success).map((result) => result.data)
+  const sorted = parsed.filter((result) => result.success).map((result) => result.data)
     .filter(run => {
       if (!predatesDungeonReset(run, cutoff)) return true;
       logDungeonRun("predates the dungeon reset", run);
@@ -266,6 +316,10 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       return false;
     })
     .sort((a, b) => (a.endedAt ?? a.startedAt ?? 0) - (b.endedAt ?? b.startedAt ?? 0));
+  if (!sorted.length) return;
+  const known = await knownRuns(tx, guildId, sorted);
+  for (const receipt of known.values()) { receipts.push(receipt); summary.duplicates++; }
+  const runs = sorted.filter((run) => !known.has(run.id));
   if (!runs.length) return;
   // Import, rotation and finalization share this lock, including direct import callers.
   if (tx.$executeRaw) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
@@ -381,7 +435,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
           memberId: findCharacter(characters, player.character, player.realm, gameEditionOf(run))?.memberId ?? null,
           class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild })) } } : {})
       } });
-      receipts.push({ runRef: run.id, outcome: "copy", reason: "Counted with a guildmate's copy of this run", runId: sameRun.id });
+      receipts.push({ runRef: run.id, outcome: "copy", state: run.state, reason: "Counted with a guildmate's copy of this run", runId: sameRun.id });
       summary.duplicates++;
       continue;
     }
@@ -516,7 +570,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       }
     });
 
-    receipts.push({ runRef: run.id, outcome: "stored", reason: receiptReason(notScored), runId: stored.id, fresh: true });
+    receipts.push({ runRef: run.id, outcome: "stored", state: run.state, reason: receiptReason(notScored), runId: stored.id, fresh: true });
     let points = 0;
     const playerPoints = new Map<string, number>();
     let achievements: DungeonImportResult["achievements"] = [];

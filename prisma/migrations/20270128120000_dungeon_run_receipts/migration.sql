@@ -5,6 +5,7 @@ CREATE TABLE "DungeonRunReceipt" (
     "guildId" TEXT NOT NULL,
     "runRef" TEXT NOT NULL,
     "outcome" TEXT NOT NULL,
+    "state" TEXT,
     "reason" TEXT,
     "runId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

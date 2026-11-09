@@ -8,19 +8,20 @@ import * as ratingService from "../src/services/dungeon-rating.js";
 // run an upload brought, not only the rows it stored under that run's own id. A guildmate's copy of a
 // stored run, and refused runs, used to wait in the addon forever.
 
-interface Receipt { guildId: string; runRef: string; outcome: string; reason: string | null; runId: string | null; createdAt: Date; seenAt: Date }
+interface Receipt { guildId: string; runRef: string; outcome: string; state?: string | null; reason: string | null; runId: string | null; createdAt: Date; seenAt: Date }
 
 function fakeTx() {
   const runs: { id: string; runRef: string; instanceId: number; difficultyId: number; state: string; valid: boolean; invalidReason: string | null;
     startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: { character: string; memberId: string | null }[]; competitionData?: unknown }[] = [];
   const receipts: Receipt[] = [];
+  const queries: string[] = [];
   const season = { id: "season-1", startsAt: new Date(0), ratingRules: ratingService.createDungeonRatingRules({}, 3, { "36": { min: 15, max: 25, difficultyId: 1 } }) };
   const tx = {
     officialSeason: { findFirst: async () => null },
     guildSettings: { findUnique: async () => null },
     dungeonSeason: { findFirst: async () => null, create: async () => season },
     dungeonRun: {
-      findUnique: async ({ where }: { where: { guildId_runRef: { runRef: string } } }) => runs.find((row) => row.runRef === where.guildId_runRef.runRef) ?? null,
+      findUnique: async ({ where }: { where: { guildId_runRef: { runRef: string } } }) => (queries.push("run.findUnique"), runs.find((row) => row.runRef === where.guildId_runRef.runRef) ?? null),
       findMany: async ({ where }: { where: { instanceId?: number; valid?: boolean; state?: string; startedAt?: { gte: Date; lte: Date } } }) => runs.filter((row) =>
         (where.instanceId === undefined || row.instanceId === where.instanceId) && (where.valid === undefined || row.valid === where.valid)
         && (where.state === undefined || row.state === where.state)
@@ -39,15 +40,24 @@ function fakeTx() {
     dungeonAchievement: { findMany: async () => [], create: async ({ data }: { data: unknown }) => data },
     dungeonPointTransaction: { findMany: async () => [], create: async ({ data }: { data: unknown }) => data },
     dungeonRunReceipt: {
-      upsert: async ({ where, create, update }: { where: { guildId_runRef: { guildId: string; runRef: string } }; create: Receipt; update: Partial<Receipt> }) => {
-        const found = receipts.find((row) => row.guildId === where.guildId_runRef.guildId && row.runRef === where.guildId_runRef.runRef);
-        if (found) { Object.assign(found, update); return found; }
-        receipts.push({ ...create });
-        return create;
+      findMany: async ({ where }: { where: { guildId: string; runRef: { in: string[] }; outcome?: string } }) => {
+        queries.push("receipt.findMany");
+        return receipts.filter((row) => row.guildId === where.guildId && where.runRef.in.includes(row.runRef) && (!where.outcome || row.outcome === where.outcome));
+      },
+      createMany: async ({ data }: { data: Receipt[] }) => { queries.push("receipt.createMany"); receipts.push(...data.map((row) => ({ ...row }))); return { count: data.length }; },
+      updateMany: async ({ where, data }: { where: { guildId: string; runRef: { in: string[] } }; data: Partial<Receipt> }) => {
+        queries.push("receipt.updateMany");
+        for (const row of receipts) if (row.guildId === where.guildId && where.runRef.in.includes(row.runRef)) Object.assign(row, data);
+        return { count: 0 };
+      },
+      update: async ({ where, data }: { where: { guildId_runRef: { guildId: string; runRef: string } }; data: Partial<Receipt> }) => {
+        queries.push("receipt.update");
+        const found = receipts.find((row) => row.guildId === where.guildId_runRef.guildId && row.runRef === where.guildId_runRef.runRef)!;
+        return Object.assign(found, data);
       }
     }
   };
-  return { tx: tx as unknown as Parameters<typeof importDungeonRuns>[0], runs, receipts };
+  return { tx: tx as unknown as Parameters<typeof importDungeonRuns>[0], runs, receipts, queries };
 }
 
 const characters = ["Hulke Hogan", "Banished Zakarum", "Maxle Druide", "Xao Void", "Slaiker Ravencourt"].map((name) => ({ name, realm: "Forever", memberId: `m-${name.split(" ")[0]!.toLowerCase()}` }));
@@ -97,6 +107,27 @@ describe("dungeon run receipts", () => {
     const recovered = new Date(now.getTime() + 120_000);
     await importDungeonRuns(tx, "g1", [run("rec")], characters, "officer", null, recovered);
     expect(byRef(receipts)["rec"]).toMatchObject({ outcome: "stored", reason: null, seenAt: recovered });
+  });
+
+  it("answers runs it already has from batched reads, without the per-run work, on the next upload", async () => {
+    const { tx, runs, receipts, queries } = fakeTx();
+    const upload = () => [run("QG-024533-Banished"), run("QG-024818-Banished", { startedAt: start + 165 }), run("left", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", endedAt: start + 3000, instanceId: 389, name: "Ragefire Chasm" })];
+    await importDungeonRuns(tx, "g1", upload(), characters, "officer", null, now);
+    expect(runs).toHaveLength(2);
+    queries.length = 0;
+    const later = new Date(now.getTime() + 60_000);
+    const again = await importDungeonRuns(tx, "g1", upload(), characters, "officer", null, later);
+    expect(again.duplicates).toBe(3);
+    expect(again.results).toEqual([]);
+    expect(queries).not.toContain("run.findUnique"); // nothing went through the per-run path
+    expect(queries.filter((q) => q.startsWith("receipt."))).toEqual(["receipt.findMany", "receipt.findMany", "receipt.updateMany"]);
+    expect(receipts.every((row) => row.seenAt === later)).toBe(true);
+    expect(byRef(receipts)["QG-024818-Banished"]).toMatchObject({ outcome: "copy", state: "COMPLETED" });
+    // A copy that comes back COMPLETED after an addon recovery, and a recovered stored run, still go the long way.
+    queries.length = 0;
+    await importDungeonRuns(tx, "g1", [run("left", { instanceId: 389, name: "Ragefire Chasm" })], characters, "officer", null, later);
+    expect(queries).toContain("run.findUnique");
+    expect(runs.find((row) => row.runRef === "left")).toMatchObject({ state: "COMPLETED" });
   });
 
   it("keeps reasons short and free of WoW escape codes, and does nothing without the table", async () => {

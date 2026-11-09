@@ -4,7 +4,7 @@ import { EmbedBuilder } from "discord.js";
 const { settingsRow, updateSettings } = vi.hoisted(() => ({ settingsRow: { current: null as Record<string, unknown> | null }, updateSettings: vi.fn() }));
 vi.mock("../src/database.js", () => ({ prisma: {
   $transaction: async (fn: (tx: unknown) => unknown) => fn({ $executeRaw: async () => 0 }),
-  dungeonSeason: { findMany: async () => [{ id: "s1", name: "Season 1", status: "ACTIVE", startsAt: new Date("2026-11-04T23:00:00Z") }] }, discordJob: {}
+  dungeonSeason: { findFirst: async () => null, findMany: async () => [{ id: "s1", name: "Season 1", status: "ACTIVE", startsAt: new Date("2026-11-04T23:00:00Z") }] }, discordJob: {}
 } }));
 vi.mock("../src/services/guild.js", () => ({ createGuildService: () => ({
   ensureGuild: async () => ({ id: "g1" }), getSettings: async () => settingsRow.current, updateSettings

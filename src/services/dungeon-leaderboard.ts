@@ -96,10 +96,14 @@ export async function updateDungeonLeaderboard(discordGuild: DiscordGuild | null
     if (!channel?.isTextBased()) return false;
 
     const lang = asLang(settings.language);
-    const season = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guild.id}, 0))`;
-      return activeSeason(tx, guild.id);
-    });
+    // 9.0.8: the active season is a plain read; the guild lock (held by an upload's import for up to
+    // a minute) is only needed to create the first season, and then with a budget that outlasts the wait
+    // (the 5 s default timed out behind an import: P2028, 9 November).
+    const season = await prisma.dungeonSeason.findFirst({ where: { guildId: guild.id, status: "ACTIVE" }, orderBy: { startsAt: "desc" } })
+      ?? await prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guild.id}, 0))`;
+        return activeSeason(tx, guild.id);
+      }, { timeout: 75_000, maxWait: 15_000 });
     const cardRows = await leaderboard(prisma, guild.id, "season", null, CARD_TOP), rows = cardRows.slice(0, 10);
     const embed = new EmbedBuilder()
       .setColor(0xd4a017)

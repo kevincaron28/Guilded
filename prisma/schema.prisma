@@ -1706,6 +1706,8 @@ model DungeonRunReceipt {
   runRef    String
   // stored | copy | refused
   outcome   String
+  // The run's state in that upload (a copy that comes back COMPLETED after an addon recovery is looked at again).
+  state     String?
   reason    String?
   // The stored run this ref is (or is a copy of), when there is one.
   runId     String?

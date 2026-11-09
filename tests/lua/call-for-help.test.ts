@@ -40,6 +40,8 @@ function setup() {
     SETTINGS = {}
     -- Two hits from an enemy player in combat who targets me: a real attack.
     function ATTACK() ENEMY = { name = "Thug", level = 60 }; NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; NS.callForHelp.noteDamage(5) end`);
+  // The real shared helpers (ns.util.inviteButton, afterCombat), loaded on a scratch namespace so NS keeps its stubs.
+  s.run("UTILNS = {}"); s.load("Util.lua", "UTILNS"); s.run("for k, v in pairs(UTILNS.util) do NS.util[k] = v end");
   s.load("Locale.lua");
   s.load("Modules/CallForHelp.lua");
   return s;
@@ -255,23 +257,47 @@ describe("call for help: guildmates in the zone and party invites", () => {
       function GetNumGuildMembers() return #ROSTER end
       function GetGuildRosterInfo(i) local r = ROSTER[i]; return r[1], "Member", 3, r[2], r[3], r[4], "", "", r[5] end
       function InviteUnit(name) INVITES[#INVITES + 1] = name end
+      IN_COMBAT = false
+      function InCombatLockdown() return IN_COMBAT end
+      local make = CreateFrame
+      CreateFrame = function(kind, name, parent, template)
+        local f = make(kind, name, parent, template)
+        f.template = template; f.attrs = {}
+        f.SetAttribute = function(self, k, v) self.attrs[k] = v end
+        return f
+      end
       function SendChatMessage(text, channel, _, target) if channel == "WHISPER" then WHISPERS[#WHISPERS + 1] = target .. ":" .. text else CHAT_OUT[#CHAT_OUT + 1] = channel .. ":" .. text end end`);
     return lua;
   }
   const invites = () => s!.run(`return table.concat(INVITES, ",")`);
+  // The macro text of every secure invite button (the buttons are what invite now, never InviteUnit).
+  const macros = () => s!.run(`local t = {} for _, f in ipairs(FRAMES) do if type(f.attrs) == "table" and f.attrs.macrotext and f.attrs.macrotext ~= "" then t[#t + 1] = f.attrs.macrotext end end table.sort(t) return table.concat(t, "|")`);
 
   it("lists online guildmates in my zone, not me, offline members or other zones", () => {
     const lua = withRoster();
     expect(lua.run(`local t = {} for _, m in ipairs(NS.callForHelp.zoneMates()) do t[#t + 1] = m.name end return table.concat(t, ",")`)).toBe("Ann-Realm,Dee-Realm");
   });
 
-  it("shows them under the caller's call and invites one on click", () => {
+  it("shows them under the caller's call as secure /invite buttons and says what was sent after the click", () => {
     const lua = withRoster();
     lua.run(`NS.callForHelp.open()`);
     expect(lua.run(`return tostring(NS.callForHelp.refreshMates())`)).toBe("2");
-    expect(lua.run(`return tostring(NS.callForHelp.invite("Ann-Realm"))`)).toBe("true");
-    expect(invites()).toBe("Ann-Realm");
-    expect(msgs()).toContain("Invited Ann-Realm to your party.");
+    expect(macros()).toBe("/invite Ann|/invite Dee");
+    expect(lua.run(`local n = 0 for _, f in ipairs(FRAMES) do if type(f.attrs) == "table" and type(f.template) == "string" and f.template:find("SecureActionButtonTemplate") and f.attrs.type == "macro" then n = n + 1 end end return n`)).toBe("2");
+    expect(lua.run(`return tostring(NS.callForHelp.invited("Ann"))`)).toBe("true");
+    expect(msgs()).toContain("Sent /invite Ann.");
+    expect(invites()).toBe("");   // the invite API is never called from addon code
+  });
+
+  it("does not change an invite macro in combat, and applies it afterwards", () => {
+    const lua = withRoster();
+    lua.run(`NS.callForHelp.open()`);
+    lua.run(`NS.callForHelp.refreshMates()`);
+    lua.run(`IN_COMBAT = true; ROSTER[2][1] = "Eli-Realm"`);
+    lua.run(`NS.callForHelp.refreshMates()`);
+    expect(macros()).toBe("/invite Ann|/invite Dee");
+    lua.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(macros()).toBe("/invite Dee|/invite Eli");
   });
 
   it("keeps the list to five names", () => {
@@ -285,17 +311,13 @@ describe("call for help: guildmates in the zone and party invites", () => {
     expect(callFrom("Bob-Realm", goodCall)).toBe("banner");
     expect(lua.run(`return tostring(NS.callForHelp.join())`)).toBe("true");
     expect(lua.run(`return table.concat(WHISPERS, ",")`)).toBe("Bob-Realm:inv");
-    expect(lua.run(`return tostring(NS.callForHelp.inviteCaller())`)).toBe("true");
-    expect(invites()).toBe("Bob-Realm");
+    expect(macros()).toContain("/invite Bob");
   });
 
-  it("does nothing without a banner or without an invite function", () => {
+  it("does nothing without a banner", () => {
     const lua = withRoster();
     expect(lua.run(`return tostring(NS.callForHelp.join())`)).toBe("false");
-    expect(lua.run(`return tostring(NS.callForHelp.inviteCaller())`)).toBe("false");
-    lua.run(`InviteUnit = nil`);
-    expect(lua.run(`return tostring(NS.callForHelp.invite("Ann-Realm"))`)).toBe("false");
-    expect(msgs()).toContain("Could not invite Ann-Realm.");
+    expect(macros()).toBe("");
   });
 
   it("translates the new buttons to French", () => {

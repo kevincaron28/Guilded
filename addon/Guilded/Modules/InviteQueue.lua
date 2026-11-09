@@ -1,6 +1,6 @@
 -- 8.5 batch 3 (#14): the "To invite" panel for officers. Players write their full character name in the Discord
 -- guild-invite channel; the officer's companion brings the waiting names into GuildedInvites (Standings.lua). Each row has
--- its own Invite button: one click sends one guild invite (a protected action needs the click). Nothing is invited
+-- its own Invite button: one click runs /ginvite for that name (a secure macro button: the game refuses the invite API to addons). Nothing is invited
 -- automatically, and the list never leaves this computer. The bot puts the check mark on Discord when the character
 -- shows up in a roster upload; the panel also hides names that are already in the guild.
 local _, ns = ...
@@ -46,22 +46,21 @@ function module.list()
   return out
 end
 
-local function sendInvite(name)
-  if C_GuildInfo and C_GuildInfo.Invite then return pcall(C_GuildInfo.Invite, name) end
-  if GuildInvite then return pcall(GuildInvite, name) end
-  return false, "no invite function"
+-- The invite itself is a secure button running "/ginvite First Last" (util.inviteButton): the guild invite API is refused to
+-- addon code on WoW Forever, even from a click. This only validates the name and remembers that the click happened.
+function module.canInvite()
+  if not officer() then return false, L("Current officer access is required.") end
+  if CanGuildInvite and not CanGuildInvite() then return false, L("Your rank cannot invite to the guild.") end
+  return true
 end
 
--- One name, one invite. The caller is a button click.
-function module.invite(name)
-  if not officer() then return false, L("Current officer access is required.") end
-  if type(name) ~= "string" or name == "" or name:find("[\t\r\n]") then return false, L("Unknown or ambiguous character.") end
-  if CanGuildInvite and not CanGuildInvite() then return false, L("Your rank cannot invite to the guild.") end
-  local ok = sendInvite(name)
-  if not ok then return false, L("The game would not send the invite. Invite them by hand.") end
+-- Called after the secure button's click (the macro has run). The chat line says what was sent, not that it worked:
+-- the game prints its own error when the name is wrong.
+function module.markInvited(name)
+  if type(name) ~= "string" or name == "" or name:find("%c") then return false, L("Unknown or ambiguous character.") end
   local d = db()
   if d then d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}; d.inviteSent[key(name)] = nowSeconds() end
-  return true, string.format(L("Invite sent to %s."), name)
+  return true, string.format(L("Sent /ginvite %s. The game's own message tells you if it did not work."), name)
 end
 
 function module.text()
@@ -74,7 +73,7 @@ function module.text()
 end
 
 local window, rows = nil, {}
-function module.refresh()
+local function refreshNow()
   if not window then return end
   local list, err = module.list()
   window.status:SetText(list and string.format(L("%d waiting for a guild invite."), #list) or tostring(err))
@@ -82,15 +81,28 @@ function module.refresh()
     local row, item = rows[i], list and list[i]
     if item then
       row.label:SetText(item.name .. (item.sent and (" (" .. L("invited") .. ")") or ""))
-      row.item = item; row.label:Show(); row.button:Show()
-    else row.item = nil; row.label:Hide(); row.button:Hide() end
+      row.item = item; row.label:Show(); row.button:Show(); row.button.setInvite(item.name)
+    else row.item = nil; row.label:Hide(); row.button:Hide(); row.button.setInvite(nil) end
   end
   window.empty:SetText(list and #list == 0 and L("Nobody is waiting for a guild invite.") or "")
   window.more:SetText(list and #list > MAX_ROWS and string.format(L("+%d more"), #list - MAX_ROWS) or "")
 end
 
+-- Rows, labels and macros change together and only out of combat (secure buttons cannot be touched in combat).
+function module.refresh()
+  if not window then return end
+  if ns.util and ns.util.afterCombat then ns.util.afterCombat("inviteQueue.refresh", refreshNow, true) else refreshNow() end
+end
+
+local build
 function module.open()
   if not officer() then if ns.message then ns.message(L("Current officer access is required.")) end; return end
+  if window then window:Show(); module.refresh(); return end
+  -- Secure buttons cannot be created in combat: build the window afterwards.
+  if ns.util and ns.util.afterCombat then ns.util.afterCombat("inviteQueue.open", function() build() end) else build() end
+end
+
+function build()
   if window then window:Show(); module.refresh(); return end
   local f = CreateFrame("Frame", "GuildedInviteQueuePanel", UIParent, "BasicFrameTemplateWithInset")
   window = f; f:SetSize(420, 120 + MAX_ROWS * 26); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true)
@@ -108,16 +120,14 @@ function module.open()
     local y = -56 - (i - 1) * 26
     local label = f:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
     label:SetPoint("TOPLEFT", 18, y - 4); label:SetWidth(280); label:SetJustifyH("LEFT")
-    local button = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    button:SetPoint("TOPLEFT", 310, y); button:SetSize(90, 22); button:SetText(L("Invite"))
-    local row = { label = label, button = button }
-    button:SetScript("OnClick", function()
-      if not row.item then return end
-      local ok, message = module.invite(row.item.name)
+    local button = ns.util.inviteButton(f, "guild", L("Invite"), 90, 22, function(name)
+      local ok, message = module.markInvited(name)
+      module.refresh()
       f.status:SetText(message or "")
-      if ok then module.refresh(); f.status:SetText(message or "") end
+      if ok and ns.message then ns.message(message) end
     end)
-    rows[i] = row
+    button:SetPoint("TOPLEFT", 310, y)
+    rows[i] = { label = label, button = button }
   end
   f:SetScript("OnShow", function() module.refresh() end)
   module.refresh()

@@ -467,6 +467,69 @@ end
 -- For tests: whether anything is waiting for combat to end.
 function util.pendingAfterCombat(key) return pendingAfterCombat[key] ~= nil end
 
+-- Invites. On WoW Forever the invite API (GuildInvite, C_GuildInfo.Invite, InviteUnit) is refused to addon code
+-- even from a click ("Guilded has been blocked from an action only available to the Blizzard UI"). A *secure*
+-- button whose click runs the macro "/ginvite First Last" (guild) or "/invite First Last" (party) is allowed:
+-- the click is the player's own. util.inviteMacro builds that line; util.inviteButton makes the button.
+-- Secure attributes cannot change in combat, so setInvite() defers the change with util.afterCombat.
+function util.inviteMacro(kind, name)
+  if type(name) ~= "string" or isSecret(name) then return nil end
+  name = name:match("^%s*(.-)%s*$")
+  if name == "" or #name > 80 or name:find("[|%c]") then return nil end
+  return (kind == "party" and "/invite " or "/ginvite ") .. name
+end
+
+-- kind: "guild" or "party". The returned button has button.setInvite(name) (out-of-combat refresh of the macro) and
+-- button.macroName() (the name its macro invites right now), and runs onClick(name) after the click (PostClick: no
+-- protected calls there). Created in combat it is a plain button that prints the line to type instead.
+function util.inviteButton(parent, kind, text, width, height, onClick)
+  local isPlain, macroName, wantedMacro = false, nil, nil
+  local function plain()
+    isPlain = true
+    return CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+  end
+  local button
+  if util.inCombat() then button = plain()
+  else
+    local ok, made = pcall(CreateFrame, "Button", nil, parent, "SecureActionButtonTemplate,UIPanelButtonTemplate")
+    button = ok and made or plain()
+  end
+  if width and button.SetWidth then button:SetWidth(width) end
+  if height and button.SetHeight then button:SetHeight(height) end
+  if button.SetText then button:SetText(text) end
+  -- Newer clients fire secure clicks on the key-down or key-up edge depending on a setting.
+  if not isPlain and button.RegisterForClicks then button:RegisterForClicks("AnyUp", "AnyDown") end
+  if not isPlain and button.SetAttribute then button:SetAttribute("type", "macro") end
+  function button.macroName() return macroName end
+  function button.setInvite(name)
+    -- Forever names are "First Last" (no realm); the roster may append "-Realm", which /ginvite does not need.
+    local target = type(name) == "string" and util.isForever() and util.bareName(name) or name
+    local macro = util.inviteMacro(kind, target)
+    wantedMacro = macro
+    if isPlain or not button.SetAttribute then return end
+    util.afterCombat("inviteButton:" .. tostring(button), function()
+      button:SetAttribute("macrotext", macro or "")
+      macroName = macro and target or nil
+    end, true)
+  end
+  local lastAt
+  local function clicked()
+    -- Registered for both edges, so a click reports twice: act once.
+    local now = GetTime and GetTime() or 0
+    if lastAt and now - lastAt < 0.4 then return end
+    lastAt = now
+    if isPlain then
+      if wantedMacro and ns.message then
+        ns.message(string.format(ns.L and ns.L("In combat: type %s to invite them.") or "In combat: type %s to invite them.", wantedMacro))
+      end
+      return
+    end
+    if macroName and onClick then onClick(macroName) end
+  end
+  if button.HookScript then button:HookScript("PostClick", clicked) end
+  return button
+end
+
 function util.serverTime()
   if GetServerTime then
     local ok, value = pcall(GetServerTime)

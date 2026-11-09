@@ -2,7 +2,9 @@ import { Image, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "r
 import { classColor } from "../publicApi";
 import { championArt } from "./championArt";
 import { legendaryArt } from "./legendaryArt";
+import type { Lang } from "../i18n";
 import { rulesText } from "./state";
+import { CLASS_LABEL } from "./words";
 import type { ClashCard, Keyword, Rarity, UnitView } from "./types";
 
 // Frame style A, "gold and stone" (docs/plans/APP_TCG_ART.md, docs/plans/app-tcg-art/make-samples.mjs): a dark stone
@@ -13,6 +15,11 @@ export const STONE = { gold: "#ffd100", parch: "#f5e6c0", muted: "#b9a77f", brow
 export const RARITY_EDGE: Record<Rarity, string> = { common: "#9d9d9d", uncommon: "#1eff00", rare: "#3b8fe8", epic: "#b25cf0", legendary: "#ff8000" };
 const KW_LABEL: Record<Keyword, string> = { guard: "Guard", swift: "Swift", shield: "Shield", shadow: "Shadow", venom: "Venom", drain: "Drain", twin: "Twin Strike" };
 const TYPE_LABEL: Record<ClashCard["type"], string> = { unit: "Unit", spell: "Spell", gear: "Gear", zone: "Zone", standard: "Standard" };
+// French keyword and type words: the same terms as src/services/tcg-cards-set1-fr.ts (the rules text opens with this keyword list).
+const KW_LABEL_FR: Record<Keyword, string> = { guard: "Garde", swift: "Célérité", shield: "Bouclier", shadow: "Ombre", venom: "Venin", drain: "Drain", twin: "Double frappe" };
+const TYPE_LABEL_FR: Record<ClashCard["type"], string> = { unit: "Unité", spell: "Sort", gear: "Équipement", zone: "Zone", standard: "Étendard" };
+export const kwLabel = (k: Keyword, lang: Lang = "en"): string => (lang === "fr" ? KW_LABEL_FR : KW_LABEL)[k];
+const typeLabel = (type: ClashCard["type"], lang: Lang): string => (lang === "fr" ? TYPE_LABEL_FR : TYPE_LABEL)[type];
 
 /** The art window: painted art when it exists, else a placeholder in the card's class colour with its initial. */
 export function ArtWindow({ card, height }: { card: Pick<ClashCard, "id" | "name" | "cls" | "artUrl" | "type">; height: number }) {
@@ -40,14 +47,14 @@ function Stat({ value, kind, size, hurt }: { value: number; kind: "atk" | "hp"; 
 }
 
 /** A full card (collection, pack, card detail). `width` sets the scale; height follows the 5:7 card shape. */
-export function CardFace({ card, width = 150, dim = false, style, typeLabel, collectible = false }: { card: ClashCard; width?: number; dim?: boolean; style?: StyleProp<ViewStyle>; typeLabel?: string; collectible?: boolean }) {
+export function CardFace({ card, width = 150, dim = false, style, typeLabel: typeLine, collectible = false, lang = "en" }: { card: ClashCard; width?: number; dim?: boolean; style?: StyleProp<ViewStyle>; typeLabel?: string; collectible?: boolean; lang?: Lang }) {
   const edge = RARITY_EDGE[card.rarity];
   const s = width / 150;
-  const keywords = (card.kw ?? []).map((k) => KW_LABEL[k]).join(", ");
-  return <View style={[styles.card, { width, height: width * 1.4, borderColor: edge, opacity: dim ? 0.45 : 1 }, style]} accessible accessibilityLabel={`${card.name}, ${card.cost} mana ${TYPE_LABEL[card.type]}. ${card.text}`}>
+  const keywords = (card.kw ?? []).map((k) => kwLabel(k, lang)).join(", ");
+  return <View style={[styles.card, { width, height: width * 1.4, borderColor: edge, opacity: dim ? 0.45 : 1 }, style]} accessible accessibilityLabel={`${card.name}, ${card.cost} mana ${typeLabel(card.type, lang)}. ${card.text}`}>
     <View style={[styles.title, { height: 22 * s, paddingHorizontal: collectible ? 4 : 18 * s }]}><Text style={[styles.titleText, { fontSize: 11 * s }]} numberOfLines={1}>{card.name}</Text></View>
     <ArtWindow card={card} height={58 * s} />
-    <Text style={[styles.typeLine, { fontSize: 8 * s }]} numberOfLines={1}>{typeLabel ?? <>{TYPE_LABEL[card.type]}{card.cls !== "neutral" ? ` · ${card.cls.charAt(0).toUpperCase()}${card.cls.slice(1)}` : ""}{card.role && card.role !== "damage" ? ` · ${card.role === "tank" ? "Tank" : "Healer"}` : ""}</>}</Text>
+    <Text style={[styles.typeLine, { fontSize: 8 * s }]} numberOfLines={1}>{typeLine ?? <>{typeLabel(card.type, lang)}{card.cls !== "neutral" ? ` · ${CLASS_LABEL[card.cls]?.[lang] ?? card.cls}` : ""}{card.role && card.role !== "damage" ? ` · ${card.role === "tank" ? "Tank" : lang === "fr" ? "Soigneur" : "Healer"}` : ""}</>}</Text>
     <View style={styles.rules}>
       {keywords ? <Text style={[styles.kw, { fontSize: 8.5 * s }]} numberOfLines={1}>{keywords}</Text> : null}
       <Text style={[styles.rulesText, { fontSize: 8.5 * s }]} numberOfLines={4}>{rulesText(card, keywords)}</Text>
@@ -69,23 +76,23 @@ export function CardBack({ width = 150, style }: { width?: number; style?: Style
 }
 
 /** A small hand card: cost, name, stats. Lit when playable, raised when picked. */
-export function HandCard({ card, playable, picked, marked }: { card: ClashCard; playable: boolean; picked: boolean; marked?: boolean }) {
+export function HandCard({ card, playable, picked, marked, lang = "en" }: { card: ClashCard; playable: boolean; picked: boolean; marked?: boolean; lang?: Lang }) {
   return <View style={[styles.hand, { borderColor: picked ? STONE.gold : RARITY_EDGE[card.rarity] }, playable && styles.handPlayable, picked && styles.handPicked, marked && styles.handMarked]}>
-    <View style={styles.handTop}><Gem value={card.cost} size={16} /><Text style={styles.handType}>{TYPE_LABEL[card.type].charAt(0)}</Text></View>
+    <View style={styles.handTop}><Gem value={card.cost} size={16} /><Text style={styles.handType}>{typeLabel(card.type, lang).charAt(0)}</Text></View>
     <Text style={styles.handName} numberOfLines={2}>{card.name}</Text>
     {card.type === "unit" ? <View style={styles.handStats}><Stat value={card.atk ?? 0} kind="atk" size={15} /><Stat value={card.hp ?? 0} kind="hp" size={15} /></View> : null}
   </View>;
 }
 
 /** A unit on the board: art, keywords as letters, Attack and current Health. */
-export function UnitToken({ unit, card, ready, picked, target, width = 60 }: { unit: UnitView; card: ClashCard; ready: boolean; picked: boolean; target: boolean; width?: number }) {
+export function UnitToken({ unit, card, ready, picked, target, width = 60, lang = "en" }: { unit: UnitView; card: ClashCard; ready: boolean; picked: boolean; target: boolean; width?: number; lang?: Lang }) {
   const kw = [...new Set([...unit.kw, ...unit.tempKw])];
   const health = unit.hp - unit.dmg;
   return <View style={[styles.unit, { width, height: width * 1.4, borderColor: picked ? STONE.gold : target ? "#e0624f" : RARITY_EDGE[card.rarity] }, ready && styles.unitReady, picked && styles.unitPicked, target && styles.unitTarget, kw.includes("guard") && styles.guard]}
-    accessible accessibilityLabel={`${card.name}, ${unit.atk + unit.tempAtk} attack, ${health} health${kw.length ? `, ${kw.map((k) => KW_LABEL[k]).join(", ")}` : ""}${unit.chilled ? ", chilled" : ""}`}>
+    accessible accessibilityLabel={`${card.name}, ${unit.atk + unit.tempAtk} attack, ${health} health${kw.length ? `, ${kw.map((k) => kwLabel(k, lang)).join(", ")}` : ""}${unit.chilled ? ", chilled" : ""}`}>
     <ArtWindow card={card} height={width * 0.5} />
     <Text style={styles.unitName} numberOfLines={1}>{card.name}</Text>
-    <Text style={styles.unitKw} numberOfLines={1}>{kw.map((k) => KW_LABEL[k].charAt(0)).join(" ")}{unit.chilled ? " ❄" : ""}{unit.gear ? " ⚙" : ""}</Text>
+    <Text style={styles.unitKw} numberOfLines={1}>{kw.map((k) => kwLabel(k, lang).charAt(0)).join(" ")}{unit.chilled ? " ❄" : ""}{unit.gear ? " ⚙" : ""}</Text>
     <View style={styles.unitStats}><Stat value={unit.atk + unit.tempAtk} kind="atk" size={17} /><Stat value={health} kind="hp" size={17} hurt={unit.dmg > 0} /></View>
   </View>;
 }

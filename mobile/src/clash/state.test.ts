@@ -37,6 +37,13 @@ describe("card data", () => {
     expect(cardOf("nope")).toMatchObject({ id: "nope", name: "nope", cost: 0 });
   });
 
+  it("shows French names, rules text and flavour when the app is in French", () => {
+    expect(cardOf("001", "fr")).toMatchObject({ id: "001", name: "Videur de la porte", cost: 1, atk: 2, hp: 1 });
+    expect(cardOf("003", "fr").text).toBe("Garde");
+    expect(cardOf("003", "en").name).toBe("Shield Wall Recruit");
+    expect(cardOf("nope", "fr").name).toBe("nope");
+  });
+
   it("drops the keyword line from the rules text and keeps sentences intact", () => {
     expect(rulesText({ text: "Deal 3 damage to a unit. If it survives, it deals 2 damage to your Champion.", flavour: "f" }, "")).toBe("Deal 3 damage to a unit. If it survives, it deals 2 damage to your Champion.");
     expect(rulesText({ text: "Guard, Shield. Last Stand: your Champion gains 10 Armor.", flavour: "f" }, "Guard, Shield")).toBe("Last Stand: your Champion gains 10 Armor.");

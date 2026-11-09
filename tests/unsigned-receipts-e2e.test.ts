@@ -184,3 +184,15 @@ describe("the addon and an unsigned companion", () => {
     expect(session.run("return tostring(NS.companionLink.needed())")).toBe("false");
   });
 });
+
+describe("runs that are not this PC's", () => {
+  it("answers a guildmate's run with a reason instead of leaving it waiting", async () => {
+    const database = fakeDatabase();
+    const store = botStore(database);
+    const body = { guild: { name: "Quebec Gold", realm: "R" }, characters: [{ name: "Meo", realm: "" }], dungeonRuns: [
+      { id: "QG-OTHER", protocolVersion: 1, state: "COMPLETED", instanceId: 90, name: "Gnomeregan", difficultyId: 0, startedAt: START, endedAt: START + 2700, encounters: [], players: [{ character: "Zed", realm: "", presentSec: 2700, inGuild: true }] }
+    ] };
+    const answer = await handleDeviceUpload(store, device, body, { now, allows: () => true, runLimiter: () => true });
+    expect(answer).toMatchObject({ status: "synced", runReceipts: { acceptedRunRefs: ["QG-OTHER"], runNotes: { "QG-OTHER": "Not one of this PC's characters" } } });
+  });
+});

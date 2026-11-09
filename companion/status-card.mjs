@@ -55,8 +55,9 @@ export function statusCard({ problems = [], config = {}, state = {} } = {}) {
   if (state.syncPhase === "uploading") return card("syncing", "busy", ["Sending your latest data…"], null, null);
   if (device && state.device?.status === "no-guild") {
     const guild = state.device.guild?.name;
+    const realm = state.device.guild?.realm;
     return guild
-      ? card("guild-not-set-up", "warn", ["Your guild {0} isn't set up on Discord yet.", guild], ["Your data waits here. Ask an officer to run /setup on your guild's Discord: the companion syncs by itself after that."], { action: "sign-in", label: "Sign in with Discord" })
+      ? card("guild-not-set-up", "warn", realm ? ["Your guild {0} (realm {1}) isn't set up on Discord yet.", guild, realm] : ["Your guild {0} isn't set up on Discord yet.", guild], ["Your data waits here. Ask an officer to run /setup on your guild's Discord: the companion syncs by itself after that."], { action: "sign-in", label: "Sign in with Discord" })
       : card("guild-not-set-up", "warn", ["Waiting for your character's guild."], ["Log in to WoW with the Guilded addon enabled, then type /reload once."], null);
   }
   if (device && state.device?.status === "choose") return card("choose-server", "warn", ["Choose your guild's Discord server."], ["Several Discord servers set up your guild {0}. Pick yours once.", state.device.guild?.name ?? ""], { action: "choose-server", label: "Choose server" });

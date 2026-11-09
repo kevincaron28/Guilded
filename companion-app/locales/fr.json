@@ -1372,6 +1372,7 @@
   "Use this server": "Utiliser ce serveur",
   "Or a Discord server ID": "Ou l’identifiant d’un serveur Discord",
   "Your guild {0} isn't set up on Discord yet.": "Votre guilde {0} n’est pas encore configurée sur Discord.",
+  "Your guild {0} (realm {1}) isn't set up on Discord yet.": "Votre guilde {0} (royaume {1}) n’est pas encore configurée sur Discord.",
   "Your data waits here. Ask an officer to run /setup on your guild's Discord: the companion syncs by itself after that.": "Vos données attendent ici. Demandez à un officier de lancer /setup sur le Discord de votre guilde : le compagnon se synchronise ensuite tout seul.",
   "Waiting for your character's guild.": "En attente de la guilde de votre personnage.",
   "Log in to WoW with the Guilded addon enabled, then type /reload once.": "Connectez-vous à WoW avec l’addon Guilded activé, puis tapez /reload une fois.",
@@ -1386,6 +1387,7 @@
   "Several Discord servers set up your guild {0}. Choose yours on the Sync page, under Advanced: choose server.": "Plusieurs serveurs Discord ont configuré votre guilde {0}. Choisissez le vôtre sur la page Synchronisation, sous Avancé : choisir le serveur.",
   "This companion was confirmed with Discord: choose Sign in with Discord once more to finish.": "Ce compagnon a été confirmé avec Discord : choisissez de nouveau Connexion avec Discord pour terminer.",
   "Your guild {0} isn't set up on Discord yet. Your data waits here; ask an officer to run /setup on your guild's Discord.": "Votre guilde {0} n’est pas encore configurée sur Discord. Vos données attendent ici ; demandez à un officier de lancer /setup sur le Discord de votre guilde.",
+  "Your guild {0} (realm {1}) isn't set up on Discord yet. Your data waits here; ask an officer to run /setup on your guild's Discord.": "Votre guilde {0} (royaume {1}) n’est pas encore configurée sur Discord. Vos données attendent ici ; demandez à un officier de lancer /setup sur le Discord de votre guilde.",
   "Waiting for your character's guild: log in to WoW with the Guilded addon enabled.": "En attente de la guilde de votre personnage : connectez-vous à WoW avec l’addon Guilded activé.",
   "The bot's answer was not understood.": "La réponse du bot n’a pas été comprise.",
   "This Guilded server does not support syncing without sign-in yet. Sign in with Discord instead.": "Ce serveur Guilded ne permet pas encore la synchronisation sans connexion. Connectez-vous plutôt avec Discord."

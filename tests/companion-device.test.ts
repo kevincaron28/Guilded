@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimDevice, DEVICE_LIMITS, deviceFor, handleDeviceUpload, pickServer, registerDevice, windowLimiter, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
+import { claimDevice, DEVICE_LIMITS, deviceFor, handleDeviceUpload, looseKey, pickServer, prismaInstallStore, registerDevice, windowLimiter, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
 import { hashCompanionSecret } from "../src/services/character-pairing.js";
 
 // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): device keys, server by in-game guild, reported data only.
@@ -56,6 +56,53 @@ describe("device registration", () => {
     expect(await deviceFor(store, undefined)).toBeNull();
     devices.get(deviceId)!.revokedAt = new Date();
     expect(await deviceFor(store, deviceSecret)).toBeNull();
+  });
+});
+
+describe("guild names across servers, realms and spellings (9 Nov 2026 live bug)", () => {
+  it("reduces names to letters and digits", () => {
+    expect(looseKey("Québec Gold")).toBe("quebecgold");
+    expect(looseKey("✤Quebec Gold✤")).toBe("quebecgold");
+    expect(looseKey("CAMWOW US2 Realm 8 PvP")).toBe("camwowus2realm8pvp");
+  });
+
+  function fakeDatabase() {
+    return {
+      wowGuild: { findMany: async () => [] },
+      guild: { findMany: async () => [
+        { id: "g-qg", discordId: "1323321076478119967", name: "✤Quebec Gold✤", officerSyncAt: new Date() },
+        { id: "g-other", discordId: "999999999", name: "Vanguard", officerSyncAt: null }
+      ] },
+      character: { findMany: async () => [] }
+    };
+  }
+
+  it("finds the server of Québec Gold for a character on Realm 8 while the guild's home is Realm 2", async () => {
+    const store = prismaInstallStore(fakeDatabase() as never, () => null);
+    const found = await store.candidates("québec gold", "camwow us2 realm 8 pvp", ["blunt cruising"]);
+    expect(found).toHaveLength(1);
+    expect(found[0]).toMatchObject({ guildId: "g-qg", discordId: "1323321076478119967", officerLinked: true });
+  });
+
+  it("matches registered in-game guilds on any realm and tells servers apart by realm, then roster", async () => {
+    const space = (guildId: string, discordId: string, realm: string) => ({ name: "Québec Gold", realm, guildId, scopeGuildId: null, guild: { discordId, officerSyncAt: null }, scope: null });
+    const database = { ...fakeDatabase(), wowGuild: { findMany: async () => [space("a", "1", "CAMWOW US2 Realm 2 PvP"), space("b", "2", "CAMWOW US2 Realm 8 PvP")] }, guild: { findMany: async () => [] } };
+    const found = await prismaInstallStore(database as never, () => null).candidates("québec gold", "camwow us2 realm 8 pvp");
+    expect(found.map((row) => [row.discordId, row.realmMatch])).toEqual([["1", false], ["2", true]]);
+    expect(pickServer(found)).toMatchObject({ pick: { discordId: "2" } });
+    expect(pickServer([{ ...found[0]!, rosterMatch: true }, found[1]!])).toMatchObject({ pick: { discordId: "1" } });
+    expect(pickServer([{ ...found[0]! }, { ...found[1]!, realmMatch: false }])).toHaveProperty("choose");
+  });
+
+  it("syncs an unsigned Blunt Cruising upload to the server through the loosened name", async () => {
+    const { store } = memoryStore();
+    const base = prismaInstallStore(fakeDatabase() as never, () => "✤Quebec Gold✤");
+    const device = (await deviceFor(store, (await registerDevice(store)).deviceSecret))!;
+    const answer = await handleDeviceUpload({ ...store, candidates: base.candidates }, device, {
+      guild: { name: "Québec Gold", realm: "CAMWOW US2 Realm 8 PvP" },
+      characters: [{ name: "Blunt Cruising", race: "Orc" }]
+    });
+    expect(answer).toMatchObject({ status: "synced", server: { discordId: "1323321076478119967", name: "✤Quebec Gold✤" }, guild: { name: "Québec Gold", realm: "CAMWOW US2 Realm 8 PvP" } });
   });
 });
 

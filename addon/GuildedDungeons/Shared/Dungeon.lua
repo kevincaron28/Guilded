@@ -1147,7 +1147,7 @@ local function status()
     local total = 0
     for _ in pairs(d and d.runs or {}) do total = total + 1 end
     local pending = #dungeon.waitingRuns()
-    ns.message(string.format("No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord).", total, pending))
+    ns.message(string.format(L("No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."), total, pending))
     if pending > 0 then
       ns.message(#dungeon.overdueRuns() > 0
         and L("Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out.")

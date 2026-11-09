@@ -99,6 +99,6 @@ export function deviceMessage(summary) {
   if (summary.status === "choose") return `Several Discord servers set up your guild ${summary.guild?.name ?? ""}. Choose yours on the Sync page, under Advanced: choose server.`;
   if (summary.status === "claimed") return "This companion was confirmed with Discord: choose Sign in with Discord once more to finish.";
   return summary.guild
-    ? `Your guild ${summary.guild.name} isn't set up on Discord yet. Your data waits here; ask an officer to run /setup on your guild's Discord.`
+    ? `Your guild ${summary.guild.name}${summary.guild.realm ? ` (realm ${summary.guild.realm})` : ""} isn't set up on Discord yet. Your data waits here; ask an officer to run /setup on your guild's Discord.`
     : "Waiting for your character's guild: log in to WoW with the Guilded addon enabled.";
 }

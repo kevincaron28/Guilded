@@ -82,4 +82,4 @@ About 1 MB for all 27 files. Regenerate with `node docs/plans/app-tcg-art/make-c
 
 - `<id>.webp`: full picture, 640x480. `<id>-window.webp`: the card art window crop, 624x240, used by the card frame when the card has no `artUrl`.
 - About 1 MB for all 18 files. Regenerate with `node docs/plans/app-tcg-art/make-legendaries.mjs <folder with the nine PNGs named by class>`.
-- The neutral Legendaries (121 The Tavern Keeper, 123 Hero of the Hollow) and the four Legendary Standards (147 to 150) have no painting yet.
+- The other two Legendary units (121 The Tavern Keeper, 123 Hero of the Hollow) and the four Legendary Standards (147 to 150) have no painting yet.

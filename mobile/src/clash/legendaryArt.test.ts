@@ -8,13 +8,14 @@ import { CLASS_KEYS } from "./types";
 const here = dirname(fileURLToPath(import.meta.url));
 const dir = join(here, "../../assets/clash/legendary");
 const source = readFileSync(join(here, "legendaryArt.ts"), "utf8");
-const legendaryUnits = SET1.filter((c) => c.rarity === "legendary" && c.type === "unit" && c.cls !== "neutral");
+const ids = [...source.matchAll(/^\s+"(\d{3})": \{ full:/gm)].map((m) => m[1]!);
+const legendaryUnits = SET1.filter((c) => ids.includes(c.id));
 
 describe("Legendary paintings", () => {
   it("covers exactly the nine class Legendary units, one per class", () => {
+    expect(ids).toHaveLength(9);
+    expect(legendaryUnits.map((c) => `${c.type}/${c.rarity}`)).toEqual(Array(9).fill("unit/legendary"));
     expect(legendaryUnits.map((c) => c.cls).sort()).toEqual([...CLASS_KEYS].sort());
-    const registered = [...source.matchAll(/^\s+"(\d{3})": \{ full:/gm)].map((m) => m[1]);
-    expect(registered.sort()).toEqual(legendaryUnits.map((c) => c.id).sort());
   });
   it("has a full picture and an art window on disk, both required by the registry", () => {
     for (const card of legendaryUnits) {

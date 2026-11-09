@@ -20,6 +20,7 @@ export function splitGuildKey(value) {
 }
 
 const MAX_CHARACTERS = 12;
+const MAX_RUNS = 50;
 const label = (value, max) => typeof value === "string" && value.trim() ? value.trim().slice(0, max) : undefined;
 
 /** What an unsigned upload sends: the guild and this PC's characters, nothing else from the saved data. */
@@ -41,7 +42,10 @@ export function deviceUploadBody(full, options = {}) {
     });
     if (characters.length >= MAX_CHARACTERS) break;
   }
-  return { guild: splitGuildKey(full?.wowGuild), characters, ...(options.server ? { server: String(options.server) } : {}) };
+  // Finished dungeon runs, newest first and capped: the bot checks and scores them like any run.
+  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED")
+    .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)).slice(0, MAX_RUNS);
+  return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(options.server ? { server: String(options.server) } : {}) };
 }
 
 const base = (config) => config.uploadUrl;

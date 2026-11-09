@@ -1,7 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { z } from "zod";
-import type { PrismaClient } from "../generated/prisma/client.js";
-import { characterKey } from "../../companion/character-identity.mjs";
+import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
+import { importDungeonRuns } from "./dungeon-import.js";
+import { enqueueDiscordJob } from "./discord-jobs.js";
+import { withEdition } from "./edition-context.js";
+import { gameEditionOf } from "./game-edition.js";
 import { hashCompanionSecret } from "./character-pairing.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 
@@ -9,7 +13,9 @@ import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 // The Windows companion makes a device key on first start and syncs without Discord sign-in. The
 // bot finds the Discord server from the uploading character's in-game guild (as /setup registered
 // it). What such a device sends is only ever "reported": its characters (DeviceCharacter), never a
-// member's characters, the EP/GP ledger, loot, ranks, guild roster or public dungeon runs. A Discord
+// member's characters, the EP/GP ledger, loot, ranks, guild roster or public dungeon runs. Since 9.1.1 it also
+// sends its finished dungeon runs: stored and scored like any run (dungeon-import.ts), only for the in-game
+// guild's server, only when a reported character of the device was in the run, never replacing a stored run. A Discord
 // sign-in in the same companion claims the device; from then on it uploads with the member's own
 // credential through the normal path, and its reported characters become confirmed there.
 //
@@ -27,7 +33,11 @@ export const DEVICE_LIMITS = {
   /** Characters one device may report: a member's alts on one WoW account. */
   charactersPerDevice: 12,
   /** Characters in one upload. */
-  charactersPerUpload: 12
+  charactersPerUpload: 12,
+  /** Dungeon runs in one upload (same cap as a public upload). */
+  runsPerUpload: 50,
+  /** Dungeon runs one device may send per hour, new or repeated. */
+  runsPerDevicePerHour: 300
 } as const;
 
 /** Sliding-window counter kept in memory (a restart forgets it, like the other API limits). */
@@ -58,7 +68,9 @@ export const deviceUploadSchema = z.object({
   characters: z.array(deviceCharacterSchema).max(DEVICE_LIMITS.charactersPerUpload).default([]),
   /** "Advanced: choose server": a Discord server ID among the candidates the bot listed. */
   server: z.string().regex(/^\d{5,25}$/).optional(),
-  deviceName: z.string().max(80).optional()
+  deviceName: z.string().max(80).optional(),
+  /** Finished dungeon runs from the saved file, in the bot's dungeonRunSchema shape (validated when imported). */
+  dungeonRuns: z.array(z.unknown()).max(DEVICE_LIMITS.runsPerUpload).default([])
 });
 export type DeviceUpload = z.infer<typeof deviceUploadSchema>;
 
@@ -97,10 +109,12 @@ export interface DeviceStore {
     characters: { nameKey: string; name: string; realm: string; displayName?: string; className?: string; race?: string; level?: number; gameEdition: string }[]): Promise<void>;
   /** Marks the device claimed by this member; false when it is unknown, revoked or claimed by someone else. */
   claim(deviceId: string, memberId: string, now: Date): Promise<boolean>;
+  /** Stores runs for this Discord server like any import; refs the server already holds are left untouched. */
+  importRuns?(guildId: string, runs: unknown[], now: Date): Promise<{ stored: number; skipped: number }>;
 }
 
 export type DeviceUploadAnswer =
-  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean }
+  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number } }
   | { status: "no-guild"; guild: { name: string; realm: string } | null }
   | { status: "choose"; guild: { name: string; realm: string }; servers: { discordId: string; name: string | null }[] }
   | { status: "claimed" };
@@ -144,7 +158,18 @@ export function pickServer(candidates: readonly ServerCandidate[], chosenDiscord
  * One upload from an unsigned companion. Stores only its reported characters, capped per device;
  * a claimed device is told to use its member credential instead.
  */
-export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date } = {}): Promise<DeviceUploadAnswer> {
+const deviceRunHits = windowLimiter(DEVICE_LIMITS.runsPerDevicePerHour, 3_600_000);
+
+/** Runs a device may send: a party member is a character this device reported (a device cannot post strangers' runs). */
+export function runsOfDevice(raw: unknown[], deviceKeys: ReadonlySet<string>): unknown[] {
+  return raw.filter((run) => {
+    const players = (run as { players?: unknown } | null)?.players;
+    return Array.isArray(players) && players.some((player) => typeof (player as { character?: unknown })?.character === "string"
+      && [...deviceKeys].some((own) => foreverSameName(own, (player as { character: string }).character)));
+  });
+}
+
+export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean } = {}): Promise<DeviceUploadAnswer> {
   if (device.claimedMemberId) return { status: "claimed" };
   const parsed = deviceUploadSchema.safeParse(body);
   if (!parsed.success) throw new DeviceError("This upload is not valid.", 400);
@@ -182,7 +207,15 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   await store.saveUpload(device.id, { guildId: target?.guildId ?? null, chosenGuildId, wowGuild, now }, rows);
   if (!guild || "none" in decision) return { status: "no-guild", guild };
   if ("choose" in decision) return { status: "choose", guild, servers: decision.choose.map((candidate) => ({ discordId: candidate.discordId, name: candidate.serverName })) };
-  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false };
+  let runs: { received: number; stored: number; skipped: number } | undefined;
+  if (upload.dungeonRuns.length && store.importRuns && target) {
+    const limiter = options.runLimiter ?? ((id: string) => deviceRunHits(id, now.getTime()));
+    const allowed: unknown[] = [];
+    for (const run of runsOfDevice(upload.dungeonRuns, known)) { if (!limiter(device.id)) break; allowed.push(run); }
+    const result = allowed.length ? await store.importRuns(target.guildId, allowed, now) : { stored: 0, skipped: 0 };
+    runs = { received: upload.dungeonRuns.length, ...result };
+  }
+  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, ...(runs ? { runs } : {}) };
 }
 
 /**
@@ -194,6 +227,28 @@ export async function claimDevice(store: DeviceStore, device: DeviceRow, memberI
   if (device.claimedMemberId && device.claimedMemberId !== memberId) return false;
   if (device.claimedMemberId === memberId) return true;
   return store.claim(device.id, memberId, now);
+}
+
+type RunTx = Pick<Prisma.TransactionClient, "guild" | "dungeonRun" | "character" | "guildSettings"> & Parameters<typeof importDungeonRuns>[0] & Parameters<typeof enqueueDiscordJob>[0];
+/**
+ * Stores a device's runs inside one transaction. A run ref the server already holds is never touched (no observer merge, no upgrade
+ * of an abandoned copy, nothing of a confirmed member's overwritten); new runs go through the normal import (validity, final boss,
+ * season window, route, presence), linking characters a member already has and leaving the rest as in-guild reported players.
+ */
+export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[], now: Date): Promise<{ stored: number; skipped: number }> {
+  const refOf = (run: unknown) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" ? id : null; };
+  const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
+  const held = new Set((await tx.dungeonRun.findMany({ where: { guildId, runRef: { in: runs.flatMap((run) => refOf(run) ?? []) } }, select: { runRef: true } })).map((row) => row.runRef));
+  const fresh = runs.filter((run) => { const ref = refOf(run); return ref !== null && !held.has(ref); });
+  if (!fresh.length) return { stored: 0, skipped: runs.length };
+  const characters = await tx.character.findMany({ where: { member: { guildId } }, include: { member: true } });
+  const summary = await withEdition(gameEditionOf(guild ?? {}), () => importDungeonRuns(tx, guildId, fresh,
+    characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec, discordId: character.member?.discordUserId ?? null, displayName: character.displayName ?? null })),
+    "companion device", null, now));
+  const stored = summary.results.length;
+  const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dungeonLeaderboardChannelId: true } });
+  if (stored && settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");
+  return { stored, skipped: runs.length - stored };
 }
 
 export function prismaInstallStore(database: PrismaClient, serverName: (discordId: string) => string | null = () => null): DeviceStore {
@@ -254,6 +309,7 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
         }
       });
     },
+    importRuns: (guildId, runs, now) => database.$transaction((tx) => storeDeviceRuns(tx, guildId, runs, now), { timeout: 60_000, maxWait: 15_000 }),
     async claim(deviceId, memberId, now) {
       const done = await database.companionDevice.updateMany({ where: { id: deviceId, revokedAt: null, OR: [{ claimedMemberId: null }, { claimedMemberId: memberId }] }, data: { claimedMemberId: memberId, claimedAt: now } });
       return done.count === 1;

@@ -124,3 +124,39 @@ The nine Champion paintings were repainted in the same look and approved on 9 No
 - `<id>.webp`: full picture, 640x480. `<id>-window.webp`: the card art window crop, 624x240. Regenerate with `node docs/plans/app-tcg-art/make-card-art.mjs <folder of <id>-<slug>.png>` (per-card focus table in the script).
 - **One registry for every card type**: `mobile/src/clash/cardArt.ts` maps set 1 card id to its full picture and window (the nine class Legendaries from `assets/clash/legendary/` and these 22 from `assets/clash/cards/`). `ArtWindow` in `CardFrame.tsx` uses `artUrl` first, then the painting, then the Champion painting for Standards by class, then the letter placeholder. A painted Standard therefore wins over the Champion fallback. `cardArt.test.ts` checks every registered id exists in set 1 and every file exists.
 - **Style rule**: the L9-WoW painted look is the style of the whole game. Every future painting (the other cards, backs, boards) follows it and needs the owner's approval before it is wired in.
+
+## Approved Rare paintings (9 November 2026)
+
+**Owner approved the Rare paintings (review page section R27, "I approve the cards") on 9 November 2026**, in the same L9-WoW painted look. Original art made with the owner's own tools (PNG, kept outside the repo); no Blizzard art. 26 are wired; previews (640x480) are in [`app-tcg-art/cards/`](app-tcg-art/cards/) and the app builds from `mobile/assets/clash/cards/` through the shared registry `mobile/src/clash/cardArt.ts`.
+
+| Card id | Card | Type |
+| --- | --- | --- |
+| 008 | Berserker Chieftain | unit (warrior) |
+| 009 | Unbroken Bulwark | unit (warrior) |
+| 018 | Dawn Avenger | unit (paladin) |
+| 020 | Sunward Marshal | unit (paladin) |
+| 030 | Cave Stalker | unit (hunter) |
+| 031 | Wildheart Beastmaster | unit (hunter) |
+| 043 | Veilmaster | unit (rogue) |
+| 052 | Soul Binder | unit (priest) |
+| 053 | Shadowhymn Confessor | unit (priest) |
+| 063 | Emberbrand Adept | unit (shaman) |
+| 064 | Tempest Spirit | unit (shaman) |
+| 074 | Chronomancer | unit (mage) |
+| 075 | Whiteout Weaver | unit (mage) |
+| 085 | Pact Overseer | unit (warlock) |
+| 086 | Infernal Brute | unit (warlock) |
+| 096 | Treant Matriarch | unit (druid) |
+| 097 | Elder of Lore | unit (druid) |
+| 115 | Duelist of the Third Gate | unit (neutral) |
+| 116 | Priest of the Third Gate | unit (neutral) |
+| 117 | Tank of the Third Gate | unit (neutral) |
+| 124 | Wyrm of the Ashen Peak | unit (mage) |
+| 137 | Ashfall Plain | zone |
+| 138 | Cairn of Kings | zone |
+| 139 | Banner of the Duel | standard |
+| 140 | Flag of the Guild Hall | standard |
+| 142 | Standard of the First Delve | standard |
+
+- **Pending**: 141 Sigil of the Forge is being repainted and is not wired yet; they keep the placeholder until the repaint is approved and added the same way.
+- Built with `node docs/plans/app-tcg-art/make-card-art.mjs <folder>`. The bundle test limit for all paintings is now 10 MB (all painted cards together are about 7.7 MB).

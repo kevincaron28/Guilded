@@ -128,6 +128,24 @@ export function linkedAsLua(account) {
   return name ? `GuildedLinkedAs = ${luaString(name)}\n` : "GuildedLinkedAs = nil\n";
 }
 
+// (9.1.3) What an unsigned (device) companion writes: which dungeon runs the bot holds, so the addon marks them synced,
+// and no Discord link (a link left over from an earlier sign-in must not be claimed any more).
+export function deviceStandingsToLua(data = {}) {
+  const refs = (Array.isArray(data.acceptedRunRefs) ? data.acceptedRunRefs : []).filter((ref) => typeof ref === "string" && ref).slice(0, 1200);
+  const notes = Object.entries(data.runNotes && typeof data.runNotes === "object" ? data.runNotes : {}).filter(([, note]) => typeof note === "string" && note).slice(0, 300);
+  return [
+    "-- Written by the Guilded companion without a Discord sign-in: the dungeon runs the bot holds.",
+    "GuildedLinkedAs = nil",
+    "GuildedDungeonAccepted = {",
+    ...refs.map((ref) => `  ${luaString(ref)},`),
+    "}",
+    "GuildedDungeonNotes = {",
+    ...notes.map(([ref, note]) => `  [${luaString(ref)}] = ${luaString(String(note).slice(0, 80))},`),
+    "}",
+    ""
+  ].join("\n");
+}
+
 // The bot's "ready to promote" list for an OFFICER's addon (Modules/Promotion.lua). Members never receive it.
 export function promotionToLua(promotion) {
   const ready = Array.isArray(promotion?.ready) ? promotion.ready.filter(name => typeof name === "string" && name && !/[\t\r\n]/.test(name)).slice(0, 100) : null;

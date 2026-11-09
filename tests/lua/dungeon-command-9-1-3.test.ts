@@ -83,3 +83,12 @@ describe("French on the character page and /guilded companion", () => {
     expect(line).not.toMatch(/\btes\b|\bton\b|\bta\b/);
   });
 });
+
+describe("/gdungeons with Guilded alone", () => {
+  it("answers (and /gdg too) instead of WoW's unknown-command line, in French", () => {
+    start("frFR", null);
+    s.run(`SlashCmdList["GUILDEDDUNGEONS"]("status")`);
+    expect(say()).toContain("Aucun donjon en cours.");
+    expect(s.run(`return SLASH_GUILDEDDUNGEONS1 .. " " .. SLASH_GUILDEDDUNGEONS2`)).toBe("/gdungeons /gdg");
+  });
+});

@@ -66,7 +66,7 @@ About 1 MB for all 27 files. Regenerate with `node docs/plans/app-tcg-art/make-c
 
 ## Approved Legendary paintings
 
-**Owner approved the "L9-WoW" set (classic online-RPG look) of nine Legendary class unit paintings on 9 November 2026**, over the L9 set. Original art made with the owner's own tools (PNG, kept outside the repo); no Blizzard art. Previews are in [`app-tcg-art/legendary/`](app-tcg-art/legendary/) and the app builds from `mobile/assets/clash/legendary/`, keyed by set 1 card id (`mobile/src/clash/legendaryArt.ts`):
+**Owner approved the "L9-WoW" set (classic online-RPG look) of nine Legendary class unit paintings on 9 November 2026**, over the L9 set. Original art made with the owner's own tools (PNG, kept outside the repo); no Blizzard art. Previews are in [`app-tcg-art/legendary/`](app-tcg-art/legendary/) and the app builds from `mobile/assets/clash/legendary/`, keyed by set 1 card id (now the shared registry `mobile/src/clash/cardArt.ts`):
 
 | Card id | Legendary unit | Class |
 | --- | --- | --- |
@@ -82,7 +82,7 @@ About 1 MB for all 27 files. Regenerate with `node docs/plans/app-tcg-art/make-c
 
 - `<id>.webp`: full picture, 640x480. `<id>-window.webp`: the card art window crop, 624x240, used by the card frame when the card has no `artUrl`.
 - About 1 MB for all 18 files. Regenerate with `node docs/plans/app-tcg-art/make-legendaries.mjs <folder with the nine PNGs named by class>`.
-- The other two Legendary units (121 The Tavern Keeper, 123 Hero of the Hollow) and the four Legendary Standards (147 to 150) have no painting yet.
+- The other six Legendaries (121, 123, 147 to 150) were approved afterwards in the E22 batch below.
 
 ## Art style decision
 
@@ -91,3 +91,36 @@ About 1 MB for all 27 files. Regenerate with `node docs/plans/app-tcg-art/make-c
 ## Approved Champion paintings and card back (9 November 2026)
 
 The nine Champion paintings were repainted in the same look and approved on 9 November 2026; they replace the 8 November set under the same file names (`mobile/assets/clash/champions/`, previews in `app-tcg-art/champions/`), regenerated with `make-champions.mjs`.
+
+## Approved E22 paintings (9 November 2026)
+
+**Owner approved 22 more paintings, the review page pick "E22", on 9 November 2026**: the six Legendary cards outside the class units and sixteen Epics, in the same L9-WoW painted look. Original art made with the owner's own tools (PNG, kept outside the repo); no Blizzard art. They cover every card type: units, spells, gear and Standards. Previews (640x480) are in [`app-tcg-art/cards/`](app-tcg-art/cards/); the app builds from `mobile/assets/clash/cards/`.
+
+| Card id | Card | Type | Rarity |
+| --- | --- | --- | --- |
+| 010 | Warlord of the Pass | unit (warrior) | epic |
+| 021 | Archon of the Sunspire | unit (paladin) | epic |
+| 032 | King of the Marches | unit (hunter) | epic |
+| 044 | Prince of Thieves | unit (rogue) | epic |
+| 055 | Matriarch of the Order | unit (priest) | epic |
+| 065 | Earthmother's Avatar | unit (shaman) | epic |
+| 076 | Meteor Fall | spell (mage) | epic |
+| 087 | Dread Pretender | unit (warlock) | epic |
+| 098 | Archdruid of the Moon | unit (druid) | epic |
+| 121 | The Tavern Keeper | unit (neutral) | legendary |
+| 123 | Hero of the Hollow | unit (neutral) | legendary |
+| 125 | Wandering Dragon | unit (neutral) | epic |
+| 130 | Whirling Blades | spell (neutral) | epic |
+| 132 | Dragonscale Mail | gear (neutral) | epic |
+| 143 | Banner of the Battleground | standard | epic |
+| 144 | Flag of the Chronicle | standard | epic |
+| 145 | Sigil of the Master Artisan | standard | epic |
+| 146 | Standard of the Deep Run | standard | epic |
+| 147 | Banner of the Warlord's Ladder | standard | legendary |
+| 148 | Flag of the Hall of Fame | standard | legendary |
+| 149 | Sigil of the Raid | standard | legendary |
+| 150 | Standard of the Perfect Run | standard | legendary |
+
+- `<id>.webp`: full picture, 640x480. `<id>-window.webp`: the card art window crop, 624x240. Regenerate with `node docs/plans/app-tcg-art/make-card-art.mjs <folder of <id>-<slug>.png>` (per-card focus table in the script).
+- **One registry for every card type**: `mobile/src/clash/cardArt.ts` maps set 1 card id to its full picture and window (the nine class Legendaries from `assets/clash/legendary/` and these 22 from `assets/clash/cards/`). `ArtWindow` in `CardFrame.tsx` uses `artUrl` first, then the painting, then the Champion painting for Standards by class, then the letter placeholder. A painted Standard therefore wins over the Champion fallback. `cardArt.test.ts` checks every registered id exists in set 1 and every file exists.
+- **Style rule**: the L9-WoW painted look is the style of the whole game. Every future painting (the other cards, backs, boards) follows it and needs the owner's approval before it is wired in.

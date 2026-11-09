@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.1.1 — 9 November 2026
+
+The zero-setup companion now finds your guild's Discord by itself and uploads your dungeon runs without signing in. Details: docs/V9_1_1_RELEASE_NOTES.md.
+
+- Companion: the Discord server is matched by normalised guild name (realm is only a hint), the message names guild and realm, "Saved runs ... waiting" is translated (#695).
+- Bot: unsigned device uploads carry dungeon runs, stored and scored like any run (#694); empty dungeon boards explain why (#693).
+- Mobile: Rare card paintings wired in (#692).
+
 ## 9.1.0 — 9 November 2026
 
 The companion no longer needs any setup: install it and it syncs. Details: docs/V9_1_0_RELEASE_NOTES.md.

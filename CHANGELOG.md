@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.0.7 — 9 November 2026
+
+`/ginvite` works again with Guilded Dungeons, and every WoW Forever achievement becomes a badge. Details: docs/V9_0_7_RELEASE_NOTES.md.
+
+- Addon: Guilded Dungeons no longer blocks `/ginvite` and other game slash commands (#655).
+- Addon and companion: every in-game achievement is recorded and shown as a generated badge (#649).
+- Website (already live): the companion installer downloads in one piece from the Guilded server, GitHub as fallback (#653).
+
 ## 9.0.6 — 8 November 2026
 
 Companion downloads from the Guilded website, and an achievement probe for WoW Forever. Details: docs/V9_0_6_RELEASE_NOTES.md.

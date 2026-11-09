@@ -43,7 +43,8 @@ export function deviceUploadBody(full, options = {}) {
     if (characters.length >= MAX_CHARACTERS) break;
   }
   // Finished dungeon runs, newest first and capped: the bot checks and scores them like any run.
-  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED")
+  const acknowledged = options.acknowledged instanceof Set ? options.acknowledged : new Set();
+  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !acknowledged.has(run.id))
     .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)).slice(0, MAX_RUNS);
   return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(options.server ? { server: String(options.server) } : {}) };
 }
@@ -59,11 +60,11 @@ export async function registerDevice(config, signal) {
 }
 
 /** One unsigned upload. The answer says where the data went (or why it waits). */
-export async function uploadAsDevice(config, full, signal) {
+export async function uploadAsDevice(config, full, signal, options = {}) {
   const { response, body } = await requestJson(new URL("/api/v1/device/uploads", base(config)), {
     method: "POST",
     headers: { ...deviceHeaders(config), "content-type": "application/json" },
-    body: JSON.stringify(deviceUploadBody(full, { server: config.deviceServer }))
+    body: JSON.stringify(deviceUploadBody(full, { server: config.deviceServer, acknowledged: options.acknowledged }))
   }, signal);
   return { response, body };
 }

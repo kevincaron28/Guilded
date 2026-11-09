@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
-import { importDungeonRuns } from "./dungeon-import.js";
+import { importDungeonRuns, receiptReason } from "./dungeon-import.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
@@ -111,10 +111,18 @@ export interface DeviceStore {
   claim(deviceId: string, memberId: string, now: Date): Promise<boolean>;
   /** Stores runs for this Discord server like any import; refs the server already holds are left untouched. */
   importRuns?(guildId: string, runs: unknown[], now: Date): Promise<{ stored: number; skipped: number }>;
+  /**
+   * What the server holds for these run refs (9.1.3): receipts and stored runs. The companion writes them to the addon
+   * (GuildedDungeonAccepted/Notes) so it marks the runs synced, as the standings do for a signed-in companion.
+   */
+  receipts?(guildId: string, refs: string[]): Promise<{ runRef: string; reason: string | null }[]>;
 }
 
+/** The runs of one unsigned upload the server now holds, in the shape the signed-in standings use. */
+export interface DeviceRunReceipts { acceptedRunRefs: string[]; runNotes: Record<string, string> }
+
 export type DeviceUploadAnswer =
-  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number } }
+  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number }; runReceipts?: DeviceRunReceipts }
   | { status: "no-guild"; guild: { name: string; realm: string } | null }
   | { status: "choose"; guild: { name: string; realm: string }; servers: { discordId: string; name: string | null }[] }
   | { status: "claimed" };
@@ -215,7 +223,17 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     const result = allowed.length ? await store.importRuns(target.guildId, allowed, now) : { stored: 0, skipped: 0 };
     runs = { received: upload.dungeonRuns.length, ...result };
   }
-  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, ...(runs ? { runs } : {}) };
+  // Every ref this upload carried that the server now holds (stored, a guildmate's copy, refused), so the addon stops waiting.
+  let runReceipts: DeviceRunReceipts | undefined;
+  if (upload.dungeonRuns.length && store.receipts && target) {
+    const refs = [...new Set(upload.dungeonRuns.flatMap((run) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" && id.length <= 80 ? [id] : []; }))];
+    const held = refs.length ? await store.receipts(target.guildId, refs) : [];
+    if (held.length) runReceipts = {
+      acceptedRunRefs: held.map((row) => row.runRef),
+      runNotes: Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []))
+    };
+  }
+  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}) };
 }
 
 /**
@@ -308,6 +326,16 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
           });
         }
       });
+    },
+    async receipts(guildId, refs) {
+      const [receipts, stored] = await Promise.all([
+        database.dungeonRunReceipt.findMany({ where: { guildId, runRef: { in: refs } }, select: { runRef: true, reason: true } }),
+        database.dungeonRun.findMany({ where: { guildId, runRef: { in: refs } }, select: { runRef: true, state: true, invalidReason: true } })
+      ]);
+      // A stored run the device sent again has no receipt of its own: its reason is the run's (not scored, not completed).
+      const byRef = new Map<string, string | null>(stored.map((row) => [row.runRef, receiptReason(row.invalidReason ?? (row.state === "COMPLETED" ? null : "Not completed"))]));
+      for (const row of receipts) byRef.set(row.runRef, row.reason ?? byRef.get(row.runRef) ?? null);
+      return [...byRef].map(([runRef, reason]) => ({ runRef, reason }));
     },
     importRuns: (guildId, runs, now) => database.$transaction((tx) => storeDeviceRuns(tx, guildId, runs, now), { timeout: 60_000, maxWait: 15_000 }),
     async claim(deviceId, memberId, now) {

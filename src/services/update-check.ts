@@ -11,6 +11,8 @@ import { CURRENT_VERSION } from "./version-announce.js";
 // officers once per version. The official hosted bot skips it (its maintainer deploys it), and
 // UPDATE_CHECK=false turns it off.
 const RELEASES_API = "https://api.github.com/repos/kevincaron28/Guilded/releases/latest";
+// Deliberately GitHub: this notice tells self-hosted bot owners about a new bot release, and the release
+// page holds its notes. Members never get this link (members use guilded.kcaron.top downloads).
 const RELEASES_PAGE = "https://github.com/kevincaron28/Guilded/releases/latest";
 
 function parseVersion(text: unknown): number[] | null {

@@ -84,7 +84,7 @@ in an open-raids channel; full Guilded can browse a recent companion snapshot in
 
 ## The companion
 
-A free Windows app, optional for the addon alone but needed for Discord and website features. Get it from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (GitHub direct download as a fallback). Connect your account, choose your saved addon data, then **Sync now** after playing. Export to spreadsheet works without connecting.
+A free Windows app, optional for the addon alone but needed for Discord and website features. Get it from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (direct download from this website as a fallback). Connect your account, choose your saved addon data, then **Sync now** after playing. Export to spreadsheet works without connecting.
 
 - **Wishlist:** your wanted items.
 - **Cores & prices:** core rules, rosters and item prices, for raid leaders.

@@ -78,7 +78,7 @@ Trouvez une guilde, un core permanent ou une place pour une soirée. Le [tableau
 
 ## Le compagnon
 
-Une application Windows gratuite, facultative pour l’addon seul mais nécessaire pour les fonctions Discord et site. Obtenez-la sur le [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (téléchargement direct GitHub en solution de rechange). Connectez votre compte, sélectionnez les données enregistrées de l’addon, puis utilisez **Synchroniser** après avoir joué. L’export vers un tableur fonctionne sans connexion.
+Une application Windows gratuite, facultative pour l’addon seul mais nécessaire pour les fonctions Discord et site. Obtenez-la sur le [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (téléchargement direct depuis ce site en solution de rechange). Connectez votre compte, sélectionnez les données enregistrées de l’addon, puis utilisez **Synchroniser** après avoir joué. L’export vers un tableur fonctionne sans connexion.
 
 - **Liste de souhaits :** vos objets recherchés.
 - **Cores et prix :** règles, rosters et prix des objets, pour les responsables de raid.

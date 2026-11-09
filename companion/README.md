@@ -1,7 +1,7 @@
 # Guilded Companion
 
 Install the Windows app from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9)
-or [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).
+or the [install page](https://guilded.kcaron.top/companion/) on the website.
 Store installations use Store updates and separate protected settings; close the standalone
 companion before switching. The commands below are for local development and CLI use.
 
@@ -136,7 +136,7 @@ The redesigned companion uses the owner's Guilded logo, individual WoW and
 PoE2 pages, guided setup, light/dark themes, personal map history and searchable
 activity. `npm run companion:build` builds the app's interface bundle.
 
-The companion is Windows only (Microsoft Store first, unsigned GitHub download as a
+The companion is Windows only (Microsoft Store first, unsigned direct download from the website as a
 fallback); there is no browser version, and `/companion/` on the website is its
 download page. The WoW addon is still needed. Personal pairing preserves existing device links. Manage and revoke individual devices at `/me/connections`.
 See [install, privacy and build steps](../docs/COMPANION_EXPERIENCE.md).

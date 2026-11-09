@@ -1,6 +1,6 @@
 {
-  "version": "9.1.1",
+  "version": "9.1.2",
   "channel": "release",
-  "notes": "docs/V9_1_1_RELEASE_NOTES.md",
+  "notes": "docs/V9_1_2_RELEASE_NOTES.md",
   "acceptance": "docs/V8_5_0_RELEASE_ACCEPTANCE.md"
 }

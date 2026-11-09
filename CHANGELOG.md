@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.1.2 — 9 November 2026
+
+A clear 3-step companion guide everywhere, and one profession name in every game language. Details: docs/V9_1_2_RELEASE_NOTES.md.
+
+- Addon, website, /help and the CurseForge text: one 3-step guide to install the companion, also at `/guilded companion` and `/gdungeons companion` (#699); the website Start page says the companion needs no sign-in (#701).
+- Professions are stored under one English name, so Cooking and Cuisine no longer split between French and English clients; the bot migration is already live (#702).
+
 ## 9.1.1 — 9 November 2026
 
 The zero-setup companion now finds your guild's Discord by itself and uploads your dungeon runs without signing in. Details: docs/V9_1_1_RELEASE_NOTES.md.

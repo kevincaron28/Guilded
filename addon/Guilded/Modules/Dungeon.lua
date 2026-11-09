@@ -850,6 +850,7 @@ local function onEvent(_, event, ...)
       -- After markSynced: a recovered run is changed, so it must upload again.
       pcall(dungeon.recoverRuns)
       pcall(dungeon.remindWaiting)
+      pcall(dungeon.noteOtherAddonVersion)
       dungeon.replayPending()
       if ns.isOfficer and ns.isOfficer() then send("REQUEST|1", "GUILD") end
     end) end
@@ -1028,6 +1029,24 @@ local function sayCompanionSteps()
   ns.message(util.COMPANION_PAGE)
 end
 
+-- (9.1.3) Guilded and Guilded Dungeons are one product with one version. Side by side at different
+-- versions (an older Guilded Dungeons left behind by an update) Guilded alone records the runs, so
+-- nothing breaks, but say so once per session: the companion updates both, or the member can remove
+-- Guilded Dungeons, which Guilded replaces.
+function dungeon.noteOtherAddonVersion(force)
+  if ns.standalone then return false end
+  local other
+  if C_AddOns and C_AddOns.GetAddOnMetadata then other = select(2, pcall(C_AddOns.GetAddOnMetadata, "GuildedDungeons", "Version")) end
+  if type(other) ~= "string" and GetAddOnMetadata then other = select(2, pcall(GetAddOnMetadata, "GuildedDungeons", "Version")) end
+  local mine = compat.addonVersion()
+  if type(other) ~= "string" or other == "" or other == mine then return false end
+  if dungeon.otherVersionSaid and not force then return false end
+  if dungeon.otherVersionSaid == other and force then return false end
+  dungeon.otherVersionSaid = other
+  ns.message(string.format(L("Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."), other, tostring(mine)))
+  return true
+end
+
 -- Once per session, after login or /reload: runs are waiting and the companion did not deliver them.
 function dungeon.remindWaiting()
   if dungeon.waitingReminded then return false end
@@ -1168,10 +1187,12 @@ local function status()
   end
   local elapsed = run.startedAt and (now() - run.startedAt) or 0
   local kills = 0
-  for _, encounter in ipairs(run.encounters) do if encounter.success then kills = kills + 1 end end
-  ns.message(string.format("%s - %s%s - bosses %d%s - recorder %s", run.name or "?", run.state,
+  for _, encounter in ipairs(type(run.encounters) == "table" and run.encounters or {}) do if encounter.success then kills = kills + 1 end end
+  local recorder = run.recorder or "?"
+  if ns.displayName then recorder = ns.displayName(recorder) or recorder end
+  ns.message(string.format("%s - %s%s - bosses %d%s - recorder %s", run.name or "?", tostring(run.state),
     run.state == "ACTIVE" and string.format(" %d:%02d", math.floor(elapsed / 60), elapsed % 60) or "",
-    kills, run.bossCount and ("/" .. run.bossCount) or "", ns.displayName(run.recorder or "?")))
+    kills, run.bossCount and ("/" .. run.bossCount) or "", tostring(recorder)))
 end
 
 local function check()
@@ -1189,10 +1210,11 @@ local function check()
 end
 
 ns.commandHandlers = ns.commandHandlers or {}
-ns.commandHandlers["dungeon"] = function(args)
+local function handleDungeonCommand(args)
   local action = string.lower(args[1] or "status")
   local d = db()
-  if not d then return end
+  -- (9.1.3) Never silent: a member who types /guilded dungeon always gets a line back.
+  if not d then ns.message(L("Dungeon data is not loaded yet. Try again in a moment, or /reload.")) return end
   if action == "status" then status()
   elseif action == "results" then
     local latest
@@ -1215,6 +1237,15 @@ ns.commandHandlers["dungeon"] = function(args)
   else
     ns.message("/guilded dungeon status | results | start | complete | abandon | check")
   end
+end
+ns.commandHandlers["dungeon"] = function(args)
+  local ok, err = pcall(handleDungeonCommand, args or {})
+  if not ok then
+    -- A failure is said, never swallowed: the member sees it and the diagnostics keep it.
+    if ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "dungeon command: " .. tostring(err)) end
+    ns.message(L("The dungeon command failed. /guilded diag shows the details."))
+  end
+  pcall(dungeon.noteOtherAddonVersion, true)
 end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded dungeon status | results | start | complete | abandon | check - dungeon runs")

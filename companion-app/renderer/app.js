@@ -569,7 +569,11 @@ bind('btnAddProfile', async () => { await changeConnection({ name: $('newProfile
 function linkSkipped() { try { return sessionStorage.getItem('guilded.companion.linkSkipped') === '1'; } catch { return false; } }
 // Setup is done once the member is signed in and syncing has what it needs: a leaderboards-only
 // sign-in, a WoW folder, or WoW turned off.
-function setupDone(config) { return Boolean(config.companionCredential) && (config.personal === true || Boolean(config.watchFile) || config.wowEnabled === false); }
+// (9.1.3) Zero-setup counts as set up: the device key syncs without any sign-in, so the first-run page never opens for it.
+function setupDone(config) {
+  const device = !config.companionCredential && config.device === true && Boolean(config.deviceSecret);
+  return (Boolean(config.companionCredential) || device) && (config.personal === true || Boolean(config.watchFile) || config.wowEnabled === false);
+}
 async function init() {
   if (!api) { toast(T("The companion interface could not load. Please reload or reinstall."),true); return; }
   const all = await api.getAll(); savedConfig = all.config;

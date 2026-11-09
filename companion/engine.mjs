@@ -388,7 +388,10 @@ export function createEngine(initialConfig, hooks = {}) {
     try {
       lastFile = await fileStamp(current.watchFile);
       const full = await readAddonExport(current.watchFile, current.realm);
-      state.syncEvidence = { savedAt: new Date().toISOString(), character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
+      // (9.1.3) The same evidence as a signed-in upload (one revision for saved, sent and received), so the
+      // Sync page shows "Sent" and "Received" instead of "Unknown" after an unsigned sync.
+      const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
+      state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
       const { response, body } = await uploadAsDevice(current, full, controller.signal);
       if (epoch !== generation) return;
       state.botVersion = body.botVersion ?? state.botVersion;
@@ -402,7 +405,7 @@ export function createEngine(initialConfig, hooks = {}) {
       const message = deviceMessage(summary);
       state.lastUpload = { at: new Date().toISOString(), message };
       state.syncPhase = summary?.status === "synced" ? "synced" : "needs-attention";
-      if (summary?.status === "synced") Object.assign(state.syncEvidence, { uploadedAt: state.lastUpload.at, acceptedAt: state.lastUpload.at });
+      if (summary?.status === "synced") Object.assign(state.syncEvidence, { uploadedAt: state.lastUpload.at, uploadedRevision: revision, acceptedAt: state.lastUpload.at, acceptedRevision: revision });
       state.uploads += 1;
       state.uploadError = null;
       failures = 0;
@@ -686,7 +689,12 @@ export function createEngine(initialConfig, hooks = {}) {
   async function startWatching() {
     const epoch = generation;
     const problems = validateConfig(config);
-    if (problems.length > 0) { log("warn", `Not started: ${problems[0]}`); return false; }
+    if (problems.length > 0) {
+      // (9.1.3) Right after an install there is no saved-data file until the first /reload: a calm note, not a warning.
+      if (/^The saved-data file/.test(problems[0])) log("info", "Waiting for your first /reload in WoW: the saved-data file does not exist yet.");
+      else log("warn", `Not started: ${problems[0]}`);
+      return false;
+    }
     if (poeTrackingOn(config)) {
       poe = createPoeEngine(config, {
         onLog: ({ level, message }) => log(level, message),

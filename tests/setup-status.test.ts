@@ -43,6 +43,29 @@ describe("setup checklist", () => {
     expect(setupComplete(setupChecks({ ...done, linkedCharacters: 1, officerSyncAt: null }, "en", now))).toBe(true);
   });
 
+  it("shows how fresh the guild roster is and whose upload refreshed it (9.1)", () => {
+    const now = new Date("2026-11-09T12:00:00Z");
+    const recent = new Date("2026-11-09T08:00:00Z");
+    const row = (facts: Partial<SetupFacts>, lang: "en" | "fr" = "en") => setupChecks({ ...done, ...facts }, lang, now)
+      .find((check) => /^(Guild roster|Liste de guilde)/.test(check.label));
+    // Not shown without WoW sync, nor when the caller did not check.
+    expect(row({ rosterUpdate: null })).toBeUndefined();
+    expect(row({ linkedCharacters: 3 })).toBeUndefined();
+    const stamp = `<t:${Math.floor(recent.getTime() / 1000)}:R>`;
+    expect(row({ linkedCharacters: 3, rosterUpdate: { at: recent, by: "Maude *L*", members: 42 } })).toMatchObject({
+      ok: true, optional: true, label: `Guild roster updated ${stamp} by Maude L's upload (42 members)`
+    });
+    expect(row({ companionPaired: true, rosterUpdate: { at: recent, by: null, members: 5 } }, "fr")!.label).toBe(`Liste de guilde mise à jour ${stamp} (5 membres)`);
+    // Stale: a warning with the date, the reporter and how to fix it.
+    const old = new Date("2026-11-01T12:00:00Z");
+    const stale = row({ linkedCharacters: 3, rosterUpdate: { at: old, by: "Walter", members: 40 } })!;
+    expect(stale).toMatchObject({ ok: false, optional: true, warn: true, label: "Guild roster updated in the last 3 days" });
+    expect(stale.fix).toContain(`Last roster update: <t:${Math.floor(old.getTime() / 1000)}:R>, from Walter's upload.`);
+    expect(stale.fix).toContain("/reload");
+    expect(row({ linkedCharacters: 3, rosterUpdate: null })!.fix).toContain("No member's upload has brought the guild roster yet.");
+    expect(setupComplete(setupChecks({ ...done, linkedCharacters: 3, rosterUpdate: null }, "en", now))).toBe(true);
+  });
+
   it("names the missing roles and how to fix them", () => {
     const checks = setupChecks({ ...done, existingRoleNames: ["Officer"] });
     expect(setupComplete(checks)).toBe(false);

@@ -15,10 +15,11 @@ type Snapshot = { character?: AddonCharacter | null | undefined; alts: readonly 
  */
 export async function linkUploaderCharacters(database: PrismaClient, guildId: string, memberId: string, snapshot: Snapshot) {
   const own = snapshot.character ? characterKey(snapshot.character.name, snapshot.character.realm, gameEditionOf(snapshot.character)) : null;
-  const status = snapshot.character ? await linkPairedCharacter(database, guildId, memberId, snapshot.character) : "missing-character" as const;
+  // The signed-in companion is this member's own: what it uploads is confirmed, not only reported.
+  const status = snapshot.character ? await linkPairedCharacter(database, guildId, memberId, snapshot.character, { confirm: true }) : "missing-character" as const;
   for (const alt of snapshot.alts) {
     if (own && characterKey(alt.name, alt.realm, gameEditionOf(alt)) === own) continue;
-    await linkPairedCharacter(database, guildId, memberId, alt).catch((error: unknown) => console.error("Linking an alt failed", error));
+    await linkPairedCharacter(database, guildId, memberId, alt, { confirm: true }).catch((error: unknown) => console.error("Linking an alt failed", error));
   }
   return status;
 }

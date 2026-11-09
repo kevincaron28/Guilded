@@ -136,7 +136,7 @@ describe("Discord character link commands", () => {
     const linked = interaction("link", { name: "Ray", player: { id: "u2", username: "sam" } });
     await executeCharacter(linked as never);
     expect(mocks.ensureMember).toHaveBeenCalledWith("g1", "u2", "sam");
-    expect(mocks.linkUnclaimed).toHaveBeenCalledWith(expect.anything(), "m2", row);
+    expect(mocks.linkUnclaimed).toHaveBeenCalledWith(expect.anything(), "m2", row, { confirmed: true });
     expect(linked.reply.mock.calls[0]?.[0].content).toContain("Linked **Ray** to sam as an alt");
 
     mocks.autoLink.mockResolvedValue([{ character: "Amy", member: "Amy" }]);

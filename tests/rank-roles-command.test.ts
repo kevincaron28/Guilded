@@ -8,14 +8,15 @@ const mocks = vi.hoisted(() => ({
   },
   hasPermission: vi.fn(() => true),
   context: vi.fn(async (): Promise<{ guildId: string; memberId: string } | null> => ({ guildId: "g1", memberId: "m1" })),
-  sync: vi.fn()
+  sync: vi.fn(),
+  preview: vi.fn(async () => ({ skipped: null, roles: [], lose: 0, changes: 0 }))
 }));
 vi.mock("../src/database.js", () => ({ prisma: mocks.prisma }));
 vi.mock("../src/permissions.js", () => ({ hasPermission: mocks.hasPermission }));
 vi.mock("../src/commands/context.js", () => ({ requireGuildContext: mocks.context }));
-vi.mock("../src/services/rank-roles.js", () => ({ syncRankRoles: mocks.sync }));
+vi.mock("../src/services/rank-roles.js", () => ({ syncRankRoles: mocks.sync, previewRankRoles: mocks.preview, formatRankRolePreview: () => "PREVIEW TEXT" }));
 
-import { executeRankRoles } from "../src/commands/rank-roles.js";
+import { executeRankRoles, handleRankRolesButton } from "../src/commands/rank-roles.js";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -33,6 +34,13 @@ function interaction(sub: string, values: Record<string, unknown> = {}) {
       getRole: () => values["role"] ?? null
     },
     reply: vi.fn(), deferReply: vi.fn(), editReply: vi.fn()
+  };
+}
+
+function button(customId: string) {
+  return {
+    customId, guild: { id: "d1", name: "Guild", roles: { cache: new Map([["gm", { id: "gm" }]]) } }, guildId: "d1", member: { id: "officer" }, user: { id: "officer" },
+    update: vi.fn(), reply: vi.fn()
   };
 }
 
@@ -61,14 +69,38 @@ describe("/mod rankroles", () => {
     await executeRankRoles(managed as never);
     expect(managed.reply.mock.calls[0]?.[0].content).toMatch(/bot role/);
 
+    // 9.1: set previews who would get the role and saves nothing until Confirm.
+    mocks.prisma.guildRankRole.findMany.mockResolvedValue([{ rankIndex: 0, discordRoleId: "old" }, { rankIndex: 3, discordRoleId: "raider" }]);
+    mocks.prisma.guildSettings.findUnique.mockResolvedValue(null);
     const set = interaction("set", { rank: 0, role: { id: "gm", managed: false } });
     await executeRankRoles(set as never);
+    expect(mocks.prisma.guildRankRole.upsert).not.toHaveBeenCalled();
+    expect(mocks.preview).toHaveBeenCalledWith(expect.anything(), set.guild, [{ rankIndex: 3, discordRoleId: "raider" }, { rankIndex: 0, discordRoleId: "gm" }]);
+    const shown = set.editReply.mock.calls[0]?.[0];
+    expect(shown.content).toContain("Preview: rank 0 → <@&gm>");
+    expect(shown.content).toContain("PREVIEW TEXT");
+    expect(JSON.stringify(shown.components)).toContain("rankroles:set:0:gm");
+    expect(JSON.stringify(shown.components)).toContain("rankroles:cancel");
+
+    // Confirm saves it (re-checking the officer role); Cancel changes nothing.
+    const confirm = button("rankroles:set:0:gm");
+    await handleRankRolesButton(confirm as never);
     expect(mocks.prisma.guildRankRole.upsert).toHaveBeenCalledWith({
       where: { guildId_rankIndex: { guildId: "g1", rankIndex: 0 } },
       create: { guildId: "g1", rankIndex: 0, discordRoleId: "gm", createdBy: "officer" },
       update: { discordRoleId: "gm", createdBy: "officer" }
     });
-    expect(set.reply.mock.calls[0]?.[0].content).toContain("Rank 0 now gives <@&gm>");
+    expect(confirm.update.mock.calls[0]?.[0].content).toContain("Rank 0 now gives <@&gm>");
+    mocks.prisma.guildRankRole.upsert.mockClear();
+    const cancel = button("rankroles:cancel");
+    await handleRankRolesButton(cancel as never);
+    expect(cancel.update.mock.calls[0]?.[0].content).toMatch(/Nothing was changed/);
+    mocks.hasPermission.mockReturnValue(false);
+    const stranger = button("rankroles:set:0:gm");
+    await handleRankRolesButton(stranger as never);
+    expect(stranger.reply).toHaveBeenCalledWith(expect.objectContaining({ content: "Only officers can set rank roles." }));
+    expect(mocks.prisma.guildRankRole.upsert).not.toHaveBeenCalled();
+    mocks.hasPermission.mockReturnValue(true);
 
     const removed = interaction("remove", { rank: 0 });
     await executeRankRoles(removed as never);
@@ -81,6 +113,24 @@ describe("/mod rankroles", () => {
     await executeRankRoles(off as never);
     expect(mocks.prisma.guildSettings.upsert).toHaveBeenCalledWith({ where: { guildId: "g1" }, create: { guildId: "g1", rankRolesEnabled: false }, update: { rankRolesEnabled: false } });
     expect(off.reply.mock.calls[0]?.[0].content).toMatch(/off/);
+
+    // 9.1: turning them back on with ranks mapped previews first; Confirm turns them on.
+    mocks.prisma.guildSettings.upsert.mockClear();
+    mocks.prisma.guildSettings.findUnique.mockResolvedValue({ rankRolesEnabled: false });
+    mocks.prisma.guildRankRole.findMany.mockResolvedValue([{ rankIndex: 1, discordRoleId: "officer" }]);
+    const on = interaction("enabled", { on: true });
+    await executeRankRoles(on as never);
+    expect(mocks.prisma.guildSettings.upsert).not.toHaveBeenCalled();
+    expect(on.editReply.mock.calls[0]?.[0].content).toContain("Preview: turning rank roles on");
+    expect(JSON.stringify(on.editReply.mock.calls[0]?.[0].components)).toContain("rankroles:enable");
+    const enable = button("rankroles:enable");
+    await handleRankRolesButton(enable as never);
+    expect(mocks.prisma.guildSettings.upsert).toHaveBeenCalledWith({ where: { guildId: "g1" }, create: { guildId: "g1", rankRolesEnabled: true }, update: { rankRolesEnabled: true } });
+    // Already on: nothing to preview.
+    mocks.prisma.guildSettings.findUnique.mockResolvedValue(null);
+    const already = interaction("enabled", { on: true });
+    await executeRankRoles(already as never);
+    expect(already.reply.mock.calls[0]?.[0].content).toBe("Rank roles are already on.");
 
     mocks.prisma.guildRankRole.findMany.mockResolvedValue([]);
     mocks.prisma.guildSettings.findUnique.mockResolvedValue(null);

@@ -45,7 +45,7 @@ label.check-label{display:flex;align-items:flex-start;gap:10px;margin:16px 0}lab
 textarea{min-height:120px}button,.button{cursor:pointer;border:0;font:inherit}button.link{background:none;color:var(--gold);padding:0;text-decoration:underline}
 .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}.filters button{padding:10px}
 .who{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;justify-content:flex-end;font-size:13px;color:var(--muted);margin:8px 0 0}.who button.link{font-size:13px}
-.notice{background:var(--panel);border-left:3px solid var(--gold);padding:12px 16px;margin:16px 0}.error{border-left-color:#e07a6b}
+.notice{background:var(--panel);border-left:3px solid var(--gold);padding:12px 16px;margin:16px 0}.trust-confirmed{color:#7bc47f}.trust-reported{color:var(--gold)}.error{border-left-color:#e07a6b}
 .code{font:700 28px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;color:var(--gold)}`;
 
 export interface LayoutInput {

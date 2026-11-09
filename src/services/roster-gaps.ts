@@ -3,6 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { displayCharacterName, fullNameBook } from "./character-display.js";
 import { cacheAllMembers } from "./member-cache.js";
 import { officerSyncRecent } from "./officer-sync.js";
+import { characterTrustMap } from "./character-trust.js";
 
 // 8.5 track C1: who is in Discord but not in the WoW guild, who has not linked a character, and which guild
 // characters nobody has claimed. Read-only: it never messages or changes anyone (the "ask them to link" button
@@ -30,6 +31,8 @@ export interface RosterGaps {
   syncFresh: boolean;
   /** Members counted (not bots, not ignored roles). */
   considered: number;
+  /** 9.1: linked characters only reported, not verified (character-trust.ts); omitted = not checked. */
+  reported?: { name: string; displayName: string }[];
 }
 
 /** A name safe to paste after /ginvite (Forever names are "First Last"): no line breaks or backticks. */
@@ -69,7 +72,7 @@ export function planRosterGaps(input: {
   return { notInGuild, noLink, unclaimed, syncFresh: input.syncFresh, considered };
 }
 
-type Db = Pick<PrismaClient, "member" | "unclaimedCharacter" | "guild" | "guildSettings">;
+type Db = Pick<PrismaClient, "member" | "unclaimedCharacter" | "guild" | "guildSettings" | "characterVerifyClaim">;
 
 /** Loads the three lists for one server. Needs the member list (it pages through REST, see member-cache.ts). */
 export async function loadRosterGaps(db: Db, discordGuild: Pick<DiscordGuild, "members" | "memberCount">, guildId: string, edition: string, now = new Date()): Promise<RosterGaps> {
@@ -77,7 +80,7 @@ export async function loadRosterGaps(db: Db, discordGuild: Pick<DiscordGuild, "m
   const [people, unclaimed, guild, settings] = await Promise.all([
     db.member.findMany({
       where: { guildId, status: "ACTIVE", isTest: false },
-      select: { discordUserId: true, characters: { where: { gameEdition: edition }, select: { name: true, displayName: true, isMain: true, guildRankAt: true } } }
+      select: { discordUserId: true, displayName: true, characters: { where: { gameEdition: edition }, select: { id: true, memberId: true, realm: true, gameEdition: true, confirmedAt: true, name: true, displayName: true, isMain: true, guildRankAt: true } } }
     }),
     db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition }, select: { name: true, displayName: true, className: true, level: true, lastSeenAt: true } }),
     db.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }),
@@ -86,10 +89,14 @@ export async function loadRosterGaps(db: Db, discordGuild: Pick<DiscordGuild, "m
   const book = fullNameBook([...people.flatMap((person) => person.characters), ...unclaimed]);
   const characters = people.flatMap((person) => person.characters.map((c) => ({ discordUserId: person.discordUserId, name: displayCharacterName(c, book), isMain: c.isMain, guildRankAt: c.guildRankAt })));
   const members = [...discordGuild.members.cache.values()].map((m) => ({ discordUserId: m.id, displayName: m.displayName, isBot: m.user.bot, roleIds: [...m.roles.cache.keys()] }));
-  return planRosterGaps({
+  const gaps = planRosterGaps({
     members, characters, unclaimed: unclaimed.map((u) => ({ name: displayCharacterName(u, book), className: u.className, level: u.level, lastSeenAt: u.lastSeenAt })),
     ignoredRoleIds: settings?.rosterIgnoredRoleIds ?? [], syncFresh: officerSyncRecent(guild?.officerSyncAt), now
   });
+  const trust = await characterTrustMap(db, guildId, people.flatMap((person) => person.characters)).catch(() => null);
+  if (trust) gaps.reported = people.flatMap((person) => person.characters.filter((c) => trust.get(c.id) === "reported")
+    .map((c) => ({ name: displayCharacterName(c, book), displayName: person.displayName }))).sort((a, b) => a.name.localeCompare(b.name));
+  return gaps;
 }
 
 /** The three lists as Discord text, in English or French; every line capped so the message stays under 2000 characters. */
@@ -105,5 +112,13 @@ export function formatRosterGaps(gaps: RosterGaps, lang: "en" | "fr"): { text: s
   lines.push(...(gaps.noLink.length ? [gaps.noLink.slice(0, 20).map((row) => row.displayName.slice(0, 24)).join(", ") + (gaps.noLink.length > 20 ? ` +${gaps.noLink.length - 20}` : "")] : ["—"]));
   lines.push("", `**${t("In the guild, nobody claimed", "Dans la guilde, personne ne l'a réclamé")}** (${gaps.unclaimed.length})`);
   lines.push(...(gaps.unclaimed.length ? [gaps.unclaimed.slice(0, 20).map((row) => `${row.name}${row.level ? ` ${row.level}` : ""}`).join(", ") + (gaps.unclaimed.length > 20 ? ` +${gaps.unclaimed.length - 20}` : "")] : ["—"]));
+  if (gaps.reported) {
+    // Linked, but only reported: an officer's companion sync or the member's own app upload confirms it.
+    lines.push("", `**${t("Linked, reported but not verified", "Liés, signalés mais non vérifiés")}** (${gaps.reported.length})`);
+    lines.push(gaps.reported.length
+      ? gaps.reported.slice(0, 15).map((row) => `${row.name} (${row.displayName.slice(0, 20)})`).join(", ") + (gaps.reported.length > 15 ? ` +${gaps.reported.length - 15}` : "")
+        + `\n-# ${t("Confirmed when the member syncs with their own Guilded app, an officer links it, or an officer's sync hears their /guilded verify code.", "Confirmé quand le membre synchronise avec sa propre application Guilded, qu'un officier le lie, ou que la synchro d'un officier entend son code /guilded verify.")}`
+      : "—");
+  }
   return { text: lines.join("\n").slice(0, 1900), invites: invites.join("\n") };
 }

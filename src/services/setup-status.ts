@@ -39,6 +39,9 @@ export interface SetupFacts {
   linkedCharacters: number;
   // Last upload from an officer's companion (Guild.officerSyncAt); omitted = not checked.
   officerSyncAt?: Date | null;
+  // 9.1: the newest stored guild roster reading and whose upload brought it (guild-data.ts
+  // rosterFreshness); null = never uploaded, omitted = not checked.
+  rosterUpdate?: { at: Date; by: string | null; members: number } | null;
   // 8.5: only set when nickname sync is on; whether the bot has Manage Nicknames.
   nicknameSyncReady?: boolean;
   // How many members the bot cannot rename because their top role is at or above the bot's (cached members only).
@@ -60,6 +63,12 @@ export interface SetupFacts {
   // null when Discord refused the check (services/command-visibility.ts).
   commandAccess?: { role: string; command: string }[] | null;
 }
+
+/** After this long without a new roster reading, /setup status warns (members log in daily in an active guild). */
+export const ROSTER_STALE_MS = 3 * 86_400_000;
+
+/** A member's display name inside a checklist line: no markdown, no line breaks, short. */
+const plainName = (name: string) => name.replace(/[\p{Cc}*_~`|>\\[\]<@#]/gu, "").replace(/\s+/g, " ").trim().slice(0, 32) || "?";
 
 export interface ChannelFact {
   name: string;
@@ -179,6 +188,23 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       ...(recent ? {} : { warn: true }),
       fix: `${last} ${T("Members who only use the addon (their /guilded verify links, gear, dungeon runs) reach Discord through an officer's companion. An officer: run /character pair, connect the companion with Sign in with Discord, then /reload in WoW and press Sync now.")}`
     });
+  }
+  // 9.1 (docs/JEEVES_COMPARISON.md idea 3): how fresh the guild roster is and whose upload last
+  // refreshed it, so "the only member who uploads stopped playing" shows here instead of going unnoticed.
+  if (facts.rosterUpdate !== undefined && (facts.companionPaired || facts.linkedCharacters > 0)) {
+    const roster = facts.rosterUpdate;
+    const fresh = !!roster && now.getTime() - roster.at.getTime() <= ROSTER_STALE_MS;
+    const when = roster ? `<t:${Math.floor(roster.at.getTime() / 1000)}:R>` : "";
+    const by = roster?.by ? plainName(roster.by) : null;
+    const howTo = T("The roster refreshes whenever a member with the Guilded app logs in or types /reload in WoW. Ask an active member to /reload, or connect one more member's app so it never depends on one person.");
+    checks.push(fresh
+      ? { label: by
+        ? T("Guild roster updated {when} by {name}'s upload ({count} members)", { when, name: by, count: roster!.members })
+        : T("Guild roster updated {when} ({count} members)", { when, count: roster!.members }), ok: true, optional: true, fix: "" }
+      : { label: T("Guild roster updated in the last 3 days"), ok: false, optional: true, warn: true,
+        fix: `${roster
+          ? by ? T("Last roster update: {when}, from {name}'s upload.", { when, name: by }) : T("Last roster update: {when}.", { when })
+          : T("No member's upload has brought the guild roster yet.")} ${howTo}` });
   }
   // Every other channel setup can create: optional, each with how to get it.
   const CHANNEL_LABELS: Record<string, string> = {

@@ -13,6 +13,36 @@ Recettes, carte de guilde, présence, butin et classements EP/GP sont partagés 
 
 [Obtenir Guilded sur CurseForge](https://www.curseforge.com/wow/addons/guilded) · [Guide d’installation](../docs/MEMBER_INSTALL.html#fr)
 
+## Guilded en jeu, en images
+
+Capturé dans WoW Forever (Guilded 9.0.7 et plus). Les fenêtres sont montrées en anglais. Cliquez une image pour l’agrandir.
+
+### Les fenêtres de Guilded
+
+<div class="shot-gallery">
+<figure><a href="/images/addon/01-home.webp"><img src="/images/addon/01-home.webp" alt="Fenêtre Guilded en jeu : Accueil" width="778" height="585" loading="lazy"></a><figcaption><strong>Accueil.</strong> Ce qui se passe maintenant, la vérification de votre équipement et le lien Discord, sur une seule page.</figcaption></figure>
+<figure><a href="/images/addon/02-guild-overview.webp"><img src="/images/addon/02-guild-overview.webp" alt="Fenêtre Guilded en jeu : Aperçu de la guilde" width="778" height="585" loading="lazy"></a><figcaption><strong>Aperçu de la guilde.</strong> Les classes et les niveaux de toute la guilde en un coup d’œil.</figcaption></figure>
+<figure><a href="/images/addon/03-guild-board.webp"><img src="/images/addon/03-guild-board.webp" alt="Fenêtre Guilded en jeu : Tableau de guilde" width="778" height="585" loading="lazy"></a><figcaption><strong>Tableau de guilde.</strong> Les nouvelles des officiers et les sondages ouverts, avec vote depuis le jeu.</figcaption></figure>
+<figure><a href="/images/addon/04-crafting-orders.webp"><img src="/images/addon/04-crafting-orders.webp" alt="Fenêtre Guilded en jeu : Commandes d’artisanat" width="778" height="585" loading="lazy"></a><figcaption><strong>Commandes d’artisanat.</strong> Les demandes d’artisanat publiées depuis Discord que vous pouvez remplir en jeu.</figcaption></figure>
+<figure><a href="/images/addon/05-my-character.webp"><img src="/images/addon/05-my-character.webp" alt="Fenêtre Guilded en jeu : Mon personnage" width="778" height="585" loading="lazy"></a><figcaption><strong>Mon personnage.</strong> Votre vérification d’équipement et vos accès (attunements).</figcaption></figure>
+<figure><a href="/images/addon/06-open-raids.webp"><img src="/images/addon/06-open-raids.webp" alt="Fenêtre Guilded en jeu : Raids ouverts" width="778" height="585" loading="lazy"></a><figcaption><strong>Raids ouverts.</strong> Trouvez un raid qui a de la place pour vous, par royaume et par rôle.</figcaption></figure>
+<figure><a href="/images/addon/07-ready-check.webp"><img src="/images/addon/07-ready-check.webp" alt="Fenêtre Guilded en jeu : Appel de présence" width="778" height="585" loading="lazy"></a><figcaption><strong>Appel de présence.</strong> Qui est prêt pour le raid, avec la vérification des flacons et de la nourriture.</figcaption></figure>
+<figure><a href="/images/addon/08-raid-signup.webp"><img src="/images/addon/08-raid-signup.webp" alt="Fenêtre Guilded en jeu : Inscription au raid" width="778" height="585" loading="lazy"></a><figcaption><strong>Inscription au raid.</strong> Inscrivez-vous aux raids avec le décompte des rôles; Discord affiche la même liste.</figcaption></figure>
+<figure><a href="/images/addon/09-raid.webp"><img src="/images/addon/09-raid.webp" alt="Fenêtre Guilded en jeu : Raid" width="778" height="585" loading="lazy"></a><figcaption><strong>Raid.</strong> Lancez un raid, notez les boss tués et prenez les présences.</figcaption></figure>
+<figure><a href="/images/addon/10-loot.webp"><img src="/images/addon/10-loot.webp" alt="Fenêtre Guilded en jeu : Butin" width="778" height="585" loading="lazy"></a><figcaption><strong>Butin.</strong> Mises et butin pour les officiers qui mènent un raid.</figcaption></figure>
+<figure><a href="/images/addon/11-duels.webp"><img src="/images/addon/11-duels.webp" alt="Fenêtre Guilded en jeu : Duels" width="778" height="585" loading="lazy"></a><figcaption><strong>Duels.</strong> Le classement des duels de la guilde : victoires, défaites et séries.</figcaption></figure>
+<figure><a href="/images/addon/13-info-and-data.webp"><img src="/images/addon/13-info-and-data.webp" alt="Fenêtre Guilded en jeu : Infos et données" width="778" height="585" loading="lazy"></a><figcaption><strong>Infos et données.</strong> L’état de la synchronisation, du relais et des versions, avec les outils d’officier.</figcaption></figure>
+<figure><a href="/images/addon/14-settings.webp"><img src="/images/addon/14-settings.webp" alt="Fenêtre Guilded en jeu : Réglages" width="778" height="585" loading="lazy"></a><figcaption><strong>Réglages.</strong> Activez ou désactivez les modules et lancez les diagnostics.</figcaption></figure>
+</div>
+
+### Chat, appel à l’aide et carte
+
+<div class="shot-gallery shot-gallery-small">
+<figure><a href="/images/addon/15-chat-tab.webp"><img src="/images/addon/15-chat-tab.webp" alt="Fenêtre Guilded en jeu : Onglet de clavardage Guilded" width="369" height="290" loading="lazy"></a><figcaption><strong>Onglet de clavardage Guilded.</strong> Un onglet de clavardage à part pour les messages de Guilded, séparé de Général.</figcaption></figure>
+<figure><a href="/images/addon/16-call-for-help-confirm.webp"><img src="/images/addon/16-call-for-help-confirm.webp" alt="Fenêtre Guilded en jeu : Appel à l’aide" width="343" height="66" loading="lazy"></a><figcaption><strong>Appel à l’aide.</strong> L’appel à l’aide demande d’abord une confirmation, pour ne jamais partir par erreur.</figcaption></figure>
+<figure><a href="/images/addon/17-world-map-guildmate-dots.webp"><img src="/images/addon/17-world-map-guildmate-dots.webp" alt="Fenêtre Guilded en jeu : Les membres sur la carte du monde" width="330" height="251" loading="lazy"></a><figcaption><strong>Les membres sur la carte du monde.</strong> Les membres de la guilde apparaissent en points sur la carte du monde.</figcaption></figure>
+</div>
+
 ## Nouveau dans la 9.0
 
 Ce qui change dans la 9.0, et pourquoi cela vous sert.

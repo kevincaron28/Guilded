@@ -25,7 +25,7 @@ function ChampionBar({ side, seat, lang, lit, onTap, extra }: { side: SideView; 
       {side.armor ? <View style={styles.armorBadge}><Text style={styles.armorText}>{side.armor}</Text></View> : null}
     </Pressable>
     <View style={{ flex: 1 }}>
-      <Text style={styles.champName}>{CLASS_LABEL[side.cls]![lang]}{side.standard ? `  ⚑ ${cardOf(side.standard).name}` : ""}</Text>
+      <Text style={styles.champName}>{CLASS_LABEL[side.cls]![lang]}{side.standard ? `  ⚑ ${cardOf(side.standard, lang).name}` : ""}</Text>
       <Text style={styles.small}>{extra}</Text>
       <View style={styles.pips}>{Array.from({ length: Math.max(side.mana, Math.min(side.turns, 8)) }, (_, i) => <View key={i} style={[styles.pip, i < side.mana && styles.pipFull]} />)}
         <Text style={styles.small}> {side.mana}</Text></View>
@@ -115,7 +115,7 @@ export function MatchView({ api, driver, lang, initial, onExit }: { api: ClashAp
     : view.pending ? w("loot", lang)
     : view.opponentChoosing ? w("choosing", lang)
     : view.yourTurn ? w("pickAttacker", lang) : duel ? w("waitingFor", lang, { name: duel.opponent }) : w("theirTurn", lang));
-  const zone = view.zone ? cardOf(view.zone.card) : null;
+  const zone = view.zone ? cardOf(view.zone.card, lang) : null;
   const powerReady = powersOf(legal).length > 0;
   const power = POWER[view.me.cls]?.[lang] ?? w("power", lang);
 
@@ -133,7 +133,7 @@ export function MatchView({ api, driver, lang, initial, onExit }: { api: ClashAp
         const unit = view.opponent.board[i];
         if (!unit) return <View key={`e${i}`} style={[styles.slot, slotStyle]} />;
         return <Pressable key={unit.uid} onPress={() => tapTarget({ unit: unit.uid })} accessibilityRole="button">
-          <UnitToken unit={unit} card={cardOf(unit.card)} ready={false} picked={false} target={lit.has(targetKey({ unit: unit.uid }))} width={slotW} />
+          <UnitToken lang={lang} unit={unit} card={cardOf(unit.card, lang)} ready={false} picked={false} target={lit.has(targetKey({ unit: unit.uid }))} width={slotW} />
         </Pressable>;
       })}
     </View>
@@ -154,7 +154,7 @@ export function MatchView({ api, driver, lang, initial, onExit }: { api: ClashAp
         if (!unit) return <View key={`m${i}`} style={[styles.slot, slotStyle]} />;
         const ready = attacksOf(legal, unit.uid).length > 0;
         return <Pressable key={unit.uid} onPress={() => tapTarget({ unit: unit.uid }, unit.uid)} accessibilityRole="button">
-          <UnitToken unit={unit} card={cardOf(unit.card)} ready={ready} picked={ui.selection.k === "attacker" && ui.selection.unit === unit.uid} target={lit.has(targetKey({ unit: unit.uid }))} width={slotW} />
+          <UnitToken lang={lang} unit={unit} card={cardOf(unit.card, lang)} ready={ready} picked={ui.selection.k === "attacker" && ui.selection.unit === unit.uid} target={lit.has(targetKey({ unit: unit.uid }))} width={slotW} />
         </Pressable>;
       })}
     </View>
@@ -162,13 +162,13 @@ export function MatchView({ api, driver, lang, initial, onExit }: { api: ClashAp
 
     <Text style={[styles.hint, ui.error && { color: colors.error }]} numberOfLines={2}>{hint}</Text>
     {modes.length ? <View style={styles.modes}>
-      <Text style={styles.small} numberOfLines={3}>{cardOf(view.me.hand[selectedHand!] ?? "").text}</Text>
+      <Text style={styles.small} numberOfLines={3}>{cardOf(view.me.hand[selectedHand!] ?? "", lang).text}</Text>
       {modes.map((mode) => <Pressable key={mode} onPress={() => dispatch({ type: "selectMode", mode })} accessibilityRole="button" style={styles.modeButton}><Text style={styles.modeText}>{w("mode", lang, { n: mode + 1 })}</Text></Pressable>)}
     </View> : null}
 
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hand}>
-      {view.me.hand.map((id, hand) => <Pressable key={`${id}-${hand}`} onPress={() => tapHand(hand)} onLongPress={() => setDetail(id)} accessibilityRole="button" accessibilityLabel={`${cardOf(id).name}, ${cardOf(id).cost} mana`}>
-        <HandCard card={cardOf(id)} playable={playsOf(legal, hand).length > 0 || ui.selection.k === "mulligan"} picked={selectedHand === hand}
+      {view.me.hand.map((id, hand) => <Pressable key={`${id}-${hand}`} onPress={() => tapHand(hand)} onLongPress={() => setDetail(id)} accessibilityRole="button" accessibilityLabel={`${cardOf(id, lang).name}, ${cardOf(id, lang).cost} mana`}>
+        <HandCard lang={lang} card={cardOf(id, lang)} playable={playsOf(legal, hand).length > 0 || ui.selection.k === "mulligan"} picked={selectedHand === hand}
           marked={ui.selection.k === "mulligan" && ui.selection.replace.includes(hand)} />
       </Pressable>)}
     </ScrollView>
@@ -194,13 +194,13 @@ export function MatchView({ api, driver, lang, initial, onExit }: { api: ClashAp
       <View style={styles.backdrop}><View style={styles.sheet}>
         <Text style={styles.sheetTitle}>{w("loot", lang)}</Text>
         <View style={styles.lootRow}>{(view.pending?.options ?? []).map((id, index) => <Pressable key={`${id}-${index}`} onPress={() => void send({ t: "choose", index })} accessibilityRole="button">
-          <CardFace card={cardOf(id)} width={96} />
+          <CardFace lang={lang} card={cardOf(id, lang)} width={96} />
         </Pressable>)}</View>
       </View></View>
     </Modal>
 
     <Modal visible={detail !== null} transparent animationType="fade" onRequestClose={() => setDetail(null)}>
-      <Pressable style={styles.backdrop} onPress={() => setDetail(null)}>{detail ? <CardFace card={cardOf(detail)} width={230} /> : null}</Pressable>
+      <Pressable style={styles.backdrop} onPress={() => setDetail(null)}>{detail ? <CardFace lang={lang} card={cardOf(detail, lang)} width={230} /> : null}</Pressable>
     </Modal>
 
     <Modal visible={over} transparent animationType="fade">

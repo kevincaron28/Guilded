@@ -463,9 +463,9 @@ Notes for reading the table: *Rally* triggers when played from hand; *Last Stand
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 089 | Sapling Guardian | Unit | Common | 1 | 1/2 |  | *Takes root.* |
 | 090 | Thornbark Vest | Gear | Common | 2 | +0/+3 | Equipped unit deals 1 damage to any attacker. | *Hug it.* |
-| 091 | Bear Form Guardian | Unit | Common | 3 | 3/4 | Guard | *Has words with trespassers.* |
+| 091 | Bearskin Guardian | Unit | Common | 3 | 3/4 | Guard | *Has words with trespassers.* |
 | 092 | Spring Bloom | Spell | Common | 3 | - | Mend 5 a friendly character and draw a card. | *Good rain.* |
-| 093 | Wild Growth Sage | Unit | Uncommon | 3 | 2/3 | Rally: draw a card; your next card this turn costs 1 less. | *Patience grows.* |
+| 093 | Overgrowth Sage | Unit | Uncommon | 3 | 2/3 | Rally: draw a card; your next card this turn costs 1 less. | *Patience grows.* |
 | 094 | Grove Keeper | Unit | Common | 4 | 3/3 | Rally: give a friendly unit +2/+2. | *Water and wait.* |
 | 095 | Grove's Fury | Spell | Uncommon | 4 | - | Choose: deal 4 damage to a unit; or give a friendly unit +3/+3. | *Choose a face.* |
 | 096 | Treant Matriarch | Unit | Rare | 5 | 3/4 | Rally: summon two 1/2 Treants with Guard. | *The grove listens.* |
@@ -491,7 +491,7 @@ Notes for reading the table: *Rally* triggers when played from hand; *Last Stand
 | 111 | Ogre Bruiser | Unit | Common | 4 | 5/4 |  | *Thinks slowly, hits fast.* |
 | 112 | Relic Hunter | Unit | Common | 4 | 3/3 | Rally: Loot a card: choose 1 of 3 from your deck. | *Always brings something.* |
 | 113 | Caravan Master | Unit | Uncommon | 4 | 3/3 | At the start of your turn, gain 1 temporary mana. | *Always one more crate.* |
-| 114 | Tomb Raider | Unit | Uncommon | 4 | 3/3 | Swift | *Loves a vault.* |
+| 114 | Crypt Delver | Unit | Uncommon | 4 | 3/3 | Swift | *Loves a vault.* |
 | 115 | Duelist of the Third Gate | Unit | Rare | 4 | 4/2 | Swift. Role: Damage. +2 Attack while you control a Tank and a Healer. | *Hits hardest, falls first.* |
 | 116 | Priest of the Third Gate | Unit | Rare | 4 | 2/3 | Role: Healer. At the end of your turn, Mend 2 each friendly unit. | *Heals through anything.* |
 | 117 | Tank of the Third Gate | Unit | Rare | 4 | 3/4 | Guard. Role: Tank. Your Healer and Damage units gain +1 Health. | *Takes the hit.* |

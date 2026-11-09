@@ -353,33 +353,96 @@ local function showDots()
 end
 
 -- World map: a dot for everyone on the map being viewed (a zone, or its continent).
+--
+-- Taint (9 November 2026, ADDON_ACTION_BLOCKED "Button:SetPassThroughButtons()" in bursts after
+-- duels): the world map's own pins call that function, which the game refuses in combat once the
+-- map's execution is tainted. Guilded used to open the map itself (/guilded map open, Alt-click,
+-- the quick menu), hook WorldMapFrame.OnMapChanged and parent its dots to the map canvas; the
+-- first two run Blizzard's map code from addon code, so the pin pools and map fields it creates
+-- stay tainted for the session. Now Guilded never opens, hooks or calls into the world map: the
+-- dots live on our own overlay (a child of UIParent, clipped to the map's scroll area) and are
+-- anchored to the canvas; OnUpdate notices the map opening, changing or zooming by reading it.
+local function number(object, method)
+  if type(object) ~= "table" or type(object[method]) ~= "function" then return nil end
+  local ok, value = pcall(object[method], object)
+  if ok and type(value) == "number" and not secret(value) then return value end
+  return nil
+end
+
+local function worldOverlay(container)
+  if not map.worldOverlay then
+    local overlay = CreateFrame("Frame", nil, UIParent)
+    if overlay.SetClipsChildren then pcall(overlay.SetClipsChildren, overlay, true) end
+    if overlay.EnableMouse then overlay:EnableMouse(false) end
+    map.worldOverlay = overlay
+  end
+  local overlay = map.worldOverlay
+  if container and overlay.anchoredTo ~= container then
+    overlay:ClearAllPoints()
+    overlay:SetAllPoints(container)
+    overlay.anchoredTo = container
+  end
+  return overlay
+end
+
+local function worldMapShown()
+  local frame = WorldMapFrame
+  if type(frame) ~= "table" or type(frame.IsShown) ~= "function" then return false end
+  local ok, shown = pcall(frame.IsShown, frame)
+  return ok and shown == true
+end
+
 function map.refreshWorldMap()
   local frame = WorldMapFrame
-  local canvas = frame and frame.ScrollContainer and frame.ScrollContainer.Child
-  if not (canvas and frame.IsShown and frame:IsShown() and frame.GetMapID) then return end
+  local container = type(frame) == "table" and frame.ScrollContainer
+  local canvas = type(container) == "table" and container.Child
   local used = 0
-  if showDots() then
-    local okId, viewed = pcall(frame.GetMapID, frame)
-    local width, height = canvas:GetWidth(), canvas:GetHeight()
-    local okScale, scale = pcall(function() return frame.ScrollContainer:GetCanvasScale() end)
-    scale = (okScale and type(scale) == "number" and scale > 0) and scale or 1
-    for _, name in ipairs(okId and viewed and sortedNames() or {}) do
+  if canvas and worldMapShown() and showDots() then
+    local overlay = worldOverlay(container)
+    if type(frame.GetFrameStrata) == "function" and overlay.SetFrameStrata then
+      local ok, strata = pcall(frame.GetFrameStrata, frame)
+      if ok and type(strata) == "string" then overlay:SetFrameStrata(strata) end
+    end
+    local level = number(frame, "GetFrameLevel")
+    if level and overlay.SetFrameLevel then overlay:SetFrameLevel(math.min(level + 1000, 9000)) end
+    local viewed = number(frame, "GetMapID")
+    local width, height = number(canvas, "GetWidth") or 0, number(canvas, "GetHeight") or 0
+    local names = viewed and width > 0 and height > 0 and sortedNames() or {}
+    for _, name in ipairs(names) do
       local member = map.members[name]
       local x, y = map.translate(member.mapId, member.x, member.y, viewed)
       if x then
         used = used + 1
-        local pin = newPin(canvas, map.worldPins, used)
+        local pin = newPin(overlay, map.worldPins, used)
         pin.name = name
-        pin:SetScale(1 / scale)
+        -- Offsets are in the dot's own units: canvas units times (canvas scale / dot scale).
+        local ratio = (number(canvas, "GetEffectiveScale") or 1) / (number(pin, "GetEffectiveScale") or 1)
         pin.icon:SetVertexColor(classColor(member.class))
         pin:ClearAllPoints()
-        pin:SetPoint("CENTER", canvas, "TOPLEFT", x * width * scale, -y * height * scale)
-        if pin.SetFrameStrata then pin:SetFrameStrata("HIGH") end
+        pin:SetPoint("CENTER", canvas, "TOPLEFT", x * width * ratio, -y * height * ratio)
         pin:Show()
       end
     end
+    overlay:Show()
+  elseif map.worldOverlay then
+    map.worldOverlay:Hide()
   end
   hideFrom(map.worldPins, used + 1)
+end
+
+-- What the world map shows right now (open, map, zoom); OnUpdate redraws the dots when it changes.
+local lastWorldMap = {}
+function map.worldMapChanged()
+  local shown = worldMapShown()
+  local frame, mapId, scale = WorldMapFrame, nil, nil
+  if shown then
+    mapId = number(frame, "GetMapID")
+    local canvas = type(frame.ScrollContainer) == "table" and frame.ScrollContainer.Child
+    scale = canvas and number(canvas, "GetEffectiveScale") or nil
+  end
+  if shown == lastWorldMap.shown and mapId == lastWorldMap.mapId and scale == lastWorldMap.scale then return false end
+  lastWorldMap.shown, lastWorldMap.mapId, lastWorldMap.scale = shown, mapId, scale
+  return true
 end
 
 -- Minimap: a dot for everyone close enough to fit on it.
@@ -472,6 +535,15 @@ function map.statusText()
   return table.concat(lines, "\n")
 end
 
+-- The key bound to the world map ("M" by default), for the hint above.
+function map.mapKey()
+  if GetBindingKey then
+    local ok, key = pcall(GetBindingKey, "TOGGLEWORLDMAP")
+    if ok and type(key) == "string" and key ~= "" and not secret(key) then return key end
+  end
+  return "M"
+end
+
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["map"] = function(args)
   local s = settings()
@@ -482,7 +554,9 @@ ns.commandHandlers["map"] = function(args)
     return
   end
   if what == "open" then
-    if ToggleWorldMap and not (WorldMapFrame and WorldMapFrame:IsShown()) then ToggleWorldMap() end
+    -- Never open the world map from addon code: that runs the map's own code tainted, and its pins
+    -- are then blocked in combat for the rest of the session (see refreshWorldMap). Say which key does.
+    if not worldMapShown() then ns.message(string.format(L("Open your world map (%s) to see guildmates."), map.mapKey())) end
     map.requestPositions()
     map.refresh()
     return
@@ -529,6 +603,9 @@ local function onUpdate(_, elapsed)
       map.refreshWorldMap()
     end)
     if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "guild map: " .. tostring(err)) end
+  elseif map.worldMapChanged() then
+    -- The map opened, closed, changed or zoomed: redraw at once (no hook into WorldMapFrame).
+    pcall(map.refreshWorldMap)
   end
   if sinceMinimap >= MINIMAP_REFRESH_SECONDS then
     sinceMinimap = 0
@@ -541,13 +618,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
   local ok, err = pcall(function()
     if event == "PLAYER_LOGIN" then
       ns.comm.register(PREFIX)
+      -- No hooksecurefunc/HookScript on WorldMapFrame: OnUpdate notices map changes instead.
       frame:SetScript("OnUpdate", onUpdate)
-      if WorldMapFrame and hooksecurefunc and WorldMapFrame.OnMapChanged then
-        hooksecurefunc(WorldMapFrame, "OnMapChanged", function() pcall(map.refreshWorldMap) end)
-      end
-      if WorldMapFrame and WorldMapFrame.HookScript then
-        WorldMapFrame:HookScript("OnShow", function() pcall(map.refreshWorldMap) end)
-      end
     elseif event == "PLAYER_ENTERING_WORLD" then
       -- Zoning in or out of an instance: send (or clear) the position soon.
       lastSent.at = -1000

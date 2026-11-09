@@ -25,3 +25,21 @@ describe("addons never replace Blizzard globals (taint)", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// 9 November 2026: "Guilded tried to call Button:SetPassThroughButtons()" after duels. The world map's own
+// pins call it, and the game blocks it in combat once the map's code ran tainted. Addon code must never open
+// the world map, hook its methods, add a data provider or parent frames to its canvas
+// (Modules/GuildMap.lua draws on its own overlay instead).
+describe("addons never run or hook the world map (taint)", () => {
+  const files = [...luaFiles("addon/Guilded"), ...luaFiles("addon/GuildedDungeons")];
+  const banned: Array<[string, RegExp]> = [
+    ["opens the world map", /\b(?:ToggleWorldMap|OpenWorldMap)\s*\(|ShowUIPanel\s*\(\s*WorldMapFrame/],
+    ["hooks WorldMapFrame", /hooksecurefunc\s*\(\s*WorldMapFrame|WorldMapFrame\s*:\s*HookScript/],
+    ["adds a map data provider", /:\s*AddDataProvider\s*\(/],
+    ["parents a frame to the map canvas", /CreateFrame\s*\([^)]*ScrollContainer\.Child/]
+  ];
+  it.each(banned)("no file %s", (_label, pattern) => {
+    const offenders = files.filter((file) => pattern.test(readFileSync(file, "utf8").replace(/--[^\n]*/g, "")));
+    expect(offenders).toEqual([]);
+  });
+});

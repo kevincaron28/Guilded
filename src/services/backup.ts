@@ -81,7 +81,7 @@ async function writeBackup(database: PrismaClient, now: Date, dir: string, keep:
       }
       await write("}}");
       return rows;
-    }, { isolationLevel: "RepeatableRead", timeout: 60_000, maxWait: 15_000 });
+    }, { isolationLevel: "RepeatableRead", timeout: 300_000, maxWait: 15_000 }); // 9 Nov: streaming one table at a time on the 1 GB server outlasts 60 s (P2028)
     gzip.end();
     await done;
     // Publish only a complete file; an interrupted write never appears as a finished backup.

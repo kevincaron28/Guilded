@@ -19,6 +19,13 @@ cleanup, #665 Clash writing pass + French for all 150 cards, #666 announcements 
 characters, rank roles preview, roster freshness), #668 login popup (chat tab no longer opens chat windows; auto-invite hands out a
 `/ginvite` line), #669 runs no longer wait forever (receipts), faster uploads, Store companion can start with Windows.
 
+**Incident overnight (fixed, 06:11-06:45 UTC):** after the 9.0.8 deploy the bot crash-looped ("JavaScript heap out of memory"
+about 4.5 minutes after each start). Cause: the in-process daily backup (3 min after start) built the whole database as one JSON
+string in memory, and each crash restarted it before the backup finished. Fixed by #673 (560 MB heap), #674 (backup streamed
+table by table) and #675 (5-minute backup budget). Verified: no restarts, today's backup saved 07:10 (12,955 rows). **Follow-up:**
+the backup grew from 2.3 MB (8 Nov) to 15 MB (9 Nov): find which table holds the large data (likely stored upload payloads) and
+trim or prune it; also send the Discord member owner a note that the bot was down in short bursts for ~35 minutes.
+
 **Owner's first checks this morning:**
 1. **Review page** (claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58): section **E22**, the 22 new Legendary/Epic paintings, waiting for
    approval (PNGs in `Desktop\guilded-clash-art\batch2-legendary-epic`, mirrored on `D:\GuildedBackups\clash-art`). After approval:

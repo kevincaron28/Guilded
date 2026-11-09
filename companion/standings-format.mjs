@@ -172,6 +172,12 @@ export function standingsToLua(data) {
     "GuildedDungeonAccepted = {",
     ...(data.acceptedRunRefs ?? []).map((ref) => `  ${luaString(ref)},`),
     "}",
+    // 9.0.8: why a received run earned nothing (a copy of a guildmate's run, not completed, ...).
+    "GuildedDungeonNotes = {",
+    ...Object.entries(data.runNotes && typeof data.runNotes === "object" ? data.runNotes : {}).slice(0, 300)
+      .filter(([, note]) => typeof note === "string" && note)
+      .map(([ref, note]) => `  [${luaString(ref)}] = ${luaString(String(note).slice(0, 80))},`),
+    "}",
     "",
     "-- Dungeon points this season (top 10), for the addon's Dungeons tab.",
     ...dungeonBoardToLua(data.dungeonBoard, data.updatedAt),

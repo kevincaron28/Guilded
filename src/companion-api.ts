@@ -564,12 +564,12 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
   const raids = mergeCalendarEvents(botRaids, scheduledEvents);
   const consistent = await prisma.$transaction((transaction) => standingsConsistentReads(transaction as unknown as PrismaClient, guild.id, access.memberId),
     { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
-  const { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs } = consistent;
+  const { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes } = consistent;
   // Shared: the same for every member, so it sets the stamp. Discord events are filtered
   // per member and dungeon/ledger acknowledgements do not change what the addon shows.
   return {
     shared: { accounts, baseGp, board, craftOrders, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
-    personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids, ...(promotion ? { promotion } : {}),
+    personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, raids, ...(promotion ? { promotion } : {}),
       ...(officerInvites ? { officerInvites } : {}),
       bank,
       ...(boardVotes ? { boardVotes } : {}),
@@ -586,17 +586,30 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
 export async function standingsConsistentReads(database: PrismaClient, guildId: string, memberId: string) {
   const baseGp = (await database.guildSettings.findUnique({ where: { guildId } }))?.baseGp ?? 0;
   // Dungeon runs the bot has stored lately, so the addon can mark them as synced (roadmap D3).
-  const acceptedRunRefs = (await database.dungeonRun.findMany({
-    where: { guildId, createdAt: { gte: new Date(Date.now() - 45 * 86_400_000) } },
+  // 9.0.8: plus every ref an upload brought (receipts: copies of a stored run and refused runs too, which
+  // used to wait in the addon forever), the most recently uploaded first so a run still being resent is
+  // always in the list. `runNotes` says in a few words why a run earned nothing.
+  const since = new Date(Date.now() - 45 * 86_400_000);
+  const receiptTable = (database as Partial<Pick<PrismaClient, "dungeonRunReceipt">>).dungeonRunReceipt;
+  const receipts = receiptTable ? await receiptTable.findMany({
+    where: { guildId, seenAt: { gte: since } },
+    select: { runRef: true, reason: true },
+    orderBy: { seenAt: "desc" },
+    take: 1000
+  }) : [];
+  const storedRefs = (await database.dungeonRun.findMany({
+    where: { guildId, createdAt: { gte: since } },
     select: { runRef: true },
     orderBy: { createdAt: "desc" },
     take: 500
   })).map((row) => row.runRef);
+  const acceptedRunRefs = [...new Set([...receipts.map((row) => row.runRef), ...storedRefs])].slice(0, 1200);
+  const runNotes = Object.fromEntries(receipts.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []).slice(0, 300));
   const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
   const acceptedLedgerRefs = await ledgerRefsFor(database, guildId, memberId);
   const acceptedLootRefs = await lootRefsFor(database, guildId);
   const standings = (await createEpgpService(database).getGuildStandings(guildId, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
-  return { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs };
+  return { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes };
 }
 
 // The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.

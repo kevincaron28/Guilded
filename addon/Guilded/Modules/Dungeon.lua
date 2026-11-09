@@ -844,16 +844,23 @@ local function onEvent(_, event, ...)
       for _, p in pairs(d.current.players) do p.knownInside = false end
     end
     ns.comm.register(PREFIX)
+    dungeon.loadedAt = now()
     if C_Timer then C_Timer.After(30, function()
       dungeon.markSynced()
       -- After markSynced: a recovered run is changed, so it must upload again.
       pcall(dungeon.recoverRuns)
+      pcall(dungeon.remindWaiting)
       dungeon.replayPending()
       if ns.isOfficer and ns.isOfficer() then send("REQUEST|1", "GUILD") end
     end) end
     return
   end
   if not d then return end
+  if event == "PLAYER_LOGOUT" then
+    -- Logout and /reload both write the saved file the companion reads (overdueRuns).
+    d.saveBeforeAt, d.lastSaveAt = d.lastSaveAt, now()
+    return
+  end
   if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
     dungeon.markSynced()
     sayHello(false)
@@ -942,17 +949,28 @@ local function onEvent(_, event, ...)
 end
 
 -- ---------------------------------------------------------------------
--- Sync acknowledgement: the companion writes the run ids the bot accepted
+-- Sync acknowledgement: the companion writes the run ids the bot received
 -- into Standings.lua (GuildedDungeonAccepted); mark those synced and
--- forget them after 30 days.
+-- forget them after 30 days. Since 9.0.8 the bot lists every run it received,
+-- including a guildmate's copy of a run it already had and runs it refused,
+-- and GuildedDungeonNotes says in a few words why a run earned nothing.
 -- ---------------------------------------------------------------------
 
 function dungeon.markSynced()
   local d = db()
   if not d then return end
   local accepted = type(GuildedDungeonAccepted) == "table" and GuildedDungeonAccepted or {}
+  local notes = type(GuildedDungeonNotes) == "table" and GuildedDungeonNotes or nil
   for _, id in ipairs(accepted) do
-    if d.runs[id] then d.runs[id].synced = true end
+    local run = d.runs[id]
+    if run then
+      run.synced = true
+      -- Only a companion that writes notes (9.0.8+) may clear one.
+      if notes then
+        local note = notes[id]
+        run.syncNote = type(note) == "string" and note ~= "" and string.sub(string.gsub(note, "|", ""), 1, 80) or nil
+      end
+    end
   end
   local cutoff = now() - KEEP_SYNCED_DAYS * 86400
   local peerCutoff = now() - KEEP_PEER_DAYS * 86400
@@ -968,6 +986,47 @@ function dungeon.markSynced()
       dungeon.stats.pruned = dungeon.stats.pruned + 1
     end
   end
+end
+
+-- (9.0.8) Finished runs no bot has confirmed yet: neither ours (synced) nor a guildmate's (syncedVia).
+function dungeon.waitingRuns()
+  local d = db()
+  local list = {}
+  for _, run in pairs(d and d.runs or {}) do
+    if not run.synced and not run.syncedVia and TERMINAL[run.state] then list[#list + 1] = run end
+  end
+  return list
+end
+
+-- (9.0.8) Runs the companion should already have delivered: saved to disk before the last save
+-- (logout or /reload) with time for the companion to send them and bring the answer back before
+-- this load. The companion answers within a minute, and Standings.lua is only read at load time.
+local COMPANION_GRACE = 5 * 60
+function dungeon.overdueRuns()
+  local d = db()
+  if not d then return {} end
+  local last, before, loadedAt = tonumber(d.lastSaveAt), tonumber(d.saveBeforeAt), tonumber(dungeon.loadedAt) or now()
+  local cutoff
+  if last and loadedAt - last >= COMPANION_GRACE then cutoff = last
+  elseif before and last and last - before >= COMPANION_GRACE then cutoff = before end
+  local list = {}
+  if not cutoff then return list end
+  for _, run in ipairs(dungeon.waitingRuns()) do
+    if (run.endedAt or 0) > 0 and run.endedAt < cutoff then list[#list + 1] = run end
+  end
+  return list
+end
+
+local function L(text) return ns.L and ns.L(text) or text end
+
+-- Once per session, after login or /reload: runs are waiting and the companion did not deliver them.
+function dungeon.remindWaiting()
+  if dungeon.waitingReminded then return false end
+  local overdue = #dungeon.overdueRuns()
+  if overdue == 0 then return false end
+  dungeon.waitingReminded = true
+  ns.message(string.format(L("%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."), overdue))
+  return true
 end
 
 -- (9.0) Every saved run, for the catch-up module (Modules/CatchUp.lua).
@@ -1084,12 +1143,15 @@ local function status()
   local d = db()
   local run = d and d.current
   if not run then
-    local pending, total = 0, 0
-    for _, stored in pairs(d and d.runs or {}) do
-      total = total + 1
-      if not stored.synced then pending = pending + 1 end
-    end
+    local total = 0
+    for _ in pairs(d and d.runs or {}) do total = total + 1 end
+    local pending = #dungeon.waitingRuns()
     ns.message(string.format("No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord).", total, pending))
+    if pending > 0 then
+      ns.message(#dungeon.overdueRuns() > 0
+        and L("Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out.")
+        or L("They go to Discord when you /reload or log out while the Guilded Companion app is running."))
+    end
     return
   end
   local elapsed = run.startedAt and (now() - run.startedAt) or 0
@@ -1146,7 +1208,7 @@ ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded dungeon status | results | start | complete | abandon | check - dungeon runs")
 
 local frame = CreateFrame("Frame")
-for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE",
+for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_LOGOUT", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE",
   "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ENCOUNTER_END", "PLAYER_DEAD", "CHAT_MSG_ADDON" }) do
   compat.registerEvent(frame, event)
 end
@@ -1174,7 +1236,6 @@ if C_Timer and C_Timer.NewTicker then
 end
 
 -- /guilded maptrace on | off: the member's own switch for traced dungeon maps (on by default).
-local function L(text) return ns.L and ns.L(text) or text end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHandlers["maptrace"] = function(args)
   local s = ns.getSettings and ns.getSettings()

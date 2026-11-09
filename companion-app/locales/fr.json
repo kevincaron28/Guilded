@@ -1351,5 +1351,8 @@
   "The first account syncs while World of Warcraft is on.": "Le premier compte se synchronise tant que World of Warcraft est activé.",
   "Sync this account": "Synchroniser ce compte",
   "WoW account {0} syncs again.": "Le compte WoW {0} se synchronise de nouveau.",
-  "WoW account {0} was switched off.": "Le compte WoW {0} a été désactivé."
+  "WoW account {0} was switched off.": "Le compte WoW {0} a été désactivé.",
+  "Windows did not let Guilded Companion change Start with Windows ({0}). Turn Guilded Companion on or off in Windows Settings > Apps > Startup.": "Windows n’a pas laissé Guilded Companion changer le démarrage avec Windows ({0}). Activez ou désactivez Guilded Companion dans Paramètres Windows > Applications > Démarrage.",
+  "Start with Windows is on: Guilded Companion starts when you sign in to Windows, so your runs always reach Discord.": "Démarrage avec Windows activé : Guilded Companion démarre quand vous ouvrez votre session Windows, pour que vos donjons arrivent toujours sur Discord.",
+  "Start with Windows is off ({0}). Turn Guilded Companion on in Windows Settings > Apps > Startup so your runs reach Discord without opening the app.": "Démarrage avec Windows désactivé ({0}). Activez Guilded Companion dans Paramètres Windows > Applications > Démarrage pour que vos donjons arrivent sur Discord sans ouvrir l’application."
 }

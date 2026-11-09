@@ -23,7 +23,9 @@ describe("durable dungeon reset", () => {
     vi.stubEnv("DUNGEON_RUNS_NOT_BEFORE", boundary);
     const tx = {} as Parameters<typeof importDungeonRuns>[0]; // Any database access fails.
     const result = await importDungeonRuns(tx, "guild", [oldRun, { ...oldRun, startedAt: undefined }], [], "owner", null);
-    expect(result).toEqual({ results: [], duplicates: 2, malformed: 0 });
+    expect(result).toMatchObject({ results: [], duplicates: 2, malformed: 0 });
+    // 9.0.8: still acknowledged, so the addon stops counting them as waiting.
+    expect((result.receipts ?? []).map(row => [row.outcome, row.reason])).toEqual([["refused", "Played before the dungeon reset"], ["refused", "Played before the dungeon reset"]]);
   });
   it.each(["personal", "guild"] as const)("cannot republish wiped %s runs", async source => {
     vi.stubEnv("DUNGEON_RUNS_NOT_BEFORE", boundary);

@@ -12,8 +12,10 @@ recognized area events from the selected Client.txt log. It does not inject into
 games, automate gameplay input or require administrator privileges for normal use.
 
 `runFullTrust` is required for the existing desktop file pickers, file watchers,
-addon-file writes and notification-area operation. The package startup task is
-disabled initially. The user manages startup in Windows settings. Store builds
+addon-file writes and notification-area operation. The package startup task ships
+disabled; on first launch the app asks Windows to enable it once (the uploader must
+run for a member's game data to reach Discord), and the "Start with Windows" switch
+or Windows Settings > Apps > Startup turns it off. Store builds
 open Microsoft Store for updates and do not download or execute GitHub installers.
 
 ## Review procedure

@@ -582,8 +582,8 @@ function createTray() {
     { label: T("Refresh in-game standings now"), click: () => void engine.refreshStandings() },
     { type: "separator" },
     {
-      label: T("Start with Windows"), type: "checkbox", enabled: !STORE_PACKAGE, checked: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin,
-      click: (item) => { setAutostart(item.checked); }
+      label: T("Start with Windows"), type: "checkbox", checked: autostartOn(),
+      click: (item) => { void setAutostart(item.checked); }
     },
     { label: T("Quit (stops sending data)"), click: () => { quitting = true; app.quit(); } },
     { label: T("Remove all data and quit..."), click: () => { void removeAllDataAndQuit(); } }
@@ -592,10 +592,43 @@ function createTray() {
   tray.on("right-click", rebuild);
 }
 
-function setAutostart(on) {
-  if (STORE_PACKAGE) return false; // Package startup is managed by Windows, never a Run registry entry.
+// Store build (9.0.8): the package startup task (store-startup.cjs), never a Run registry entry.
+// Its last known state; null until Windows answered.
+let storeStartupOn = null;
+function autostartOn() {
+  return STORE_PACKAGE ? storeStartupOn === true : app.getLoginItemSettings().openAtLogin;
+}
+
+async function setAutostart(on) {
+  if (STORE_PACKAGE) {
+    const startup = require("./store-startup.cjs");
+    const result = await startup.setStoreStartup(!!on);
+    storeStartupOn = result.on;
+    if (result.needsSettings) {
+      // Windows keeps this choice (turned off in Windows settings, or by a policy): open the page where the member decides.
+      pushLog({ time: new Date().toISOString(), level: "warn", message: E("Windows did not let Guilded Companion change Start with Windows ({0}). Turn Guilded Companion on or off in Windows Settings > Apps > Startup.", result.state ?? "no answer") });
+      void startup.openStartupSettings(shell).catch(() => {});
+    }
+    return storeStartupOn;
+  }
   app.setLoginItemSettings({ openAtLogin: !!on, args: ["--hidden"] });
   return app.getLoginItemSettings().openAtLogin;
+}
+
+// The Store build starts with Windows by default too (9.0.8; Store installs before it never could, so
+// they are asked once with their own flag). A member who turned it off in Windows stays off.
+async function storeStartupFirstRun() {
+  const startup = require("./store-startup.cjs");
+  if (!config.storeStartupAsked) {
+    config.storeStartupAsked = true;
+    await saveConfig();
+    const result = await startup.setStoreStartup(true);
+    storeStartupOn = result.on;
+    pushLog({ time: new Date().toISOString(), level: result.on ? "info" : "warn", message: result.on ? E("Start with Windows is on: Guilded Companion starts when you sign in to Windows, so your runs always reach Discord.")
+      : E("Start with Windows is off ({0}). Turn Guilded Companion on in Windows Settings > Apps > Startup so your runs reach Discord without opening the app.", result.state ?? "no answer") });
+  } else {
+    storeStartupOn = startup.isOn(await startup.startupState());
+  }
 }
 
 // "Clean my computer": stop watching, turn off Start with Windows (so the
@@ -760,8 +793,9 @@ app.whenReady().then(async () => {
   if (app.isPackaged && !config.autostartAsked) {
     config.autostartAsked = true;
     await saveConfig();
-    setAutostart(true);
+    if (!STORE_PACKAGE) await setAutostart(true);
   }
+  if (STORE_PACKAGE) void storeStartupFirstRun().catch((error) => pushLog({ level: "error", time: new Date().toISOString(), message: error.message }));
   await engine.start();
   powerMonitor.on("suspend", () => { void engine.suspend().catch(error => pushLog({ level: "error", time: new Date().toISOString(), message: error.message })); });
   powerMonitor.on("resume", () => { void engine.resume().catch(error => pushLog({ level: "error", time: new Date().toISOString(), message: error.message })); });
@@ -817,7 +851,7 @@ app.on("before-quit", event => {
   }
 });
 
-registerIpc("get-all", () => ({ focus: { poeTracking: engineModules.poeTracking === true }, config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: !STORE_PACKAGE && app.getLoginItemSettings().openAtLogin, version: app.getVersion() }));
+registerIpc("get-all", () => ({ focus: { poeTracking: engineModules.poeTracking === true }, config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: autostartOn(), version: app.getVersion() }));
 registerIpc("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
 registerIpc("change-profile", async (_event, choice) => {
   try {

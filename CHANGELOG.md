@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.0.8 — 9 November 2026
+
+Runs stop waiting forever, no more blocked-action popups from the chat tab or the map. Details: docs/V9_0_8_RELEASE_NOTES.md.
+
+- Bot and addon: every received dungeon run is confirmed back, so none stay "waiting to reach Discord"; faster uploads (#669).
+- Addon: the chat tab and auto-invite no longer call protected game functions; map dots on Guilded's own layer (#662, #668).
+- Companion (Store): can start with Windows (#669).
+- Bot: confirmed vs reported characters, rank roles preview, roster freshness in /setup status (#667); French raid application card (#664).
+
 ## 9.0.7 — 9 November 2026
 
 `/ginvite` works again with Guilded Dungeons, and every WoW Forever achievement becomes a badge. Details: docs/V9_0_7_RELEASE_NOTES.md.

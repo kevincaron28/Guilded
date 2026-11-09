@@ -64,7 +64,7 @@ export function addonDownloadUrl(edition, version) {
   return `https://guilded.kcaron.top/downloads/Guilded-v${parts.join(".")}-forever.zip`;
 }
 
-/** The same zip on the GitHub release, or the CurseForge page. */
+/** The same zip on the GitHub release, or the CurseForge page. Deliberate second source: only used when the website lacks this exact version. */
 export function addonDownloadMirror(edition, version) {
   const parts = versionParts(version);
   if (edition !== "forever" || !parts) return ADDON_PAGE;

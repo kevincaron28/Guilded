@@ -15,7 +15,8 @@ local module = {}
 ns.companionLink = module
 
 module.SHORT = "https://guilded.kcaron.top/companion/"
-module.DIRECT = "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe"
+-- The website serves the installer (R2 mirror, then the bot server, then GitHub): members never need GitHub.
+module.DIRECT = "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe"
 local WEEK = 7 * 24 * 3600
 
 local function L(text) return ns.L and ns.L(text) or text end

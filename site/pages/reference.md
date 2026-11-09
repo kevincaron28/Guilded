@@ -192,12 +192,12 @@ everything. Officer rows need the officer rank in your WoW guild.
 ## Windows companion
 
 A small free Windows app. It is optional for the addon and needed for Discord and website
-features. Full steps: [Companion app](https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe).
+features. Full steps: [Companion app](https://guilded.kcaron.top/companion/).
 
 | What | Detail |
 | --- | --- |
 | What it does | Sends your addon's saved data to Discord and the website, and brings standings back into the game |
-| Where to get it | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommended, updates itself) or [GitHub](https://github.com/kevincaron28/Guilded/releases/latest) (unsigned fallback) |
+| Where to get it | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommended, updates itself) or the [direct download](https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe) (unsigned fallback) |
 | Platform | Windows only. No Mac, Linux or browser version |
 | First run | Choose **Sign in with Discord**, pick your server (or public leaderboards only), choose your saved data |
 | After playing | `/reload` in WoW and the companion syncs |

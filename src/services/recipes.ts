@@ -6,6 +6,7 @@ import type { AddonCooldownSet, AddonRecipeSet } from "../integrations/addon.js"
 import { findCharacter } from "./character-match.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
 import type { Lang } from "../i18n.js";
+import { normalizeProfessionName } from "./profession-names.js";
 
 // Who can craft what, and profession cooldowns. The addon reads them when a player opens a
 // profession window (/guilded recipes), shares them with the guild, and the companion's
@@ -39,10 +40,11 @@ export async function applyRecipeData(tx: Tx, guildId: string, input: RecipeImpo
   const dropped = (character: string, realm: string, profession: string, at: Date) => {
     const linked = findCharacter(characters, character, realm) ?? findCharacter(unclaimedSkills, character, realm);
     return !!linked?.professionsUpdatedAt && linked.professionsUpdatedAt >= at
-      && !linked.professions.some((skill) => skill.profession.toLowerCase() === profession.toLowerCase());
+      && !linked.professions.some((skill) => normalizeProfessionName(skill.profession).toLowerCase() === normalizeProfessionName(profession).toLowerCase());
   };
 
-  for (const set of input.recipes) {
+  for (const rawSet of input.recipes) {
+    const set = { ...rawSet, profession: normalizeProfessionName(rawSet.profession) };
     if (dropped(set.character, set.realm, set.profession, set.at)) continue;
     const where = { guildId, character: set.character, realm: set.realm, profession: set.profession };
     const newest = await tx.recipeKnown.aggregate({ where, _max: { scannedAt: true } });
@@ -78,7 +80,8 @@ export async function applyRecipeData(tx: Tx, guildId: string, input: RecipeImpo
     }
   }
 
-  for (const set of input.cooldowns) {
+  for (const rawSet of input.cooldowns) {
+    const set = { ...rawSet, entries: rawSet.entries.map((entry) => ({ ...entry, profession: normalizeProfessionName(entry.profession) })) };
     const where = { guildId, character: set.character, realm: set.realm };
     const newest = await tx.professionCooldown.aggregate({ where, _max: { scannedAt: true } });
     if (newest._max.scannedAt && newest._max.scannedAt >= set.at) continue;

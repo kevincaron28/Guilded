@@ -1,9 +1,10 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { professionSpellings } from "./profession-names.js";
 import type { Lang } from "../i18n.js";
 import { displayCharacterName, fullNameBook } from "./character-display.js";
 import type { ItemDataProvider } from "./item-preview-data.js";
 import { sanitizeName, type WebhookEmbed } from "./item-preview-embed.js";
-import { canonicalProfession, professionName, professionTitle, skillBar } from "./profession-style.js";
+import { canonicalProfession, professionTitle, skillBar } from "./profession-style.js";
 
 // Owner request (7 November 2026): when a member links their profession in the WoW-linked chat channel, the
 // Discord-only preview path (docs/ITEM_PREVIEWS.md) also posts a small card with that character's known recipes, from
@@ -92,7 +93,7 @@ export async function loadProfessionCard(db: Db, guild: { id: string; gameEditio
   const wanted = new Set(names.map(key));
   const known = (person: typeof people[number]) => [person.name, person.displayName ?? "", displayCharacterName(person.name, book)].map(key);
   let matches = people.filter(person => known(person).some(name => wanted.has(name)));
-  const rows = await db.recipeKnown.findMany({ where: { guildId: guild.id, OR: [{ profession: { equals: profession, mode: "insensitive" } }, { profession: { equals: professionName(profession, "fr"), mode: "insensitive" } }] },
+  const rows = await db.recipeKnown.findMany({ where: { guildId: guild.id, OR: professionSpellings(profession).map(spelling => ({ profession: { equals: spelling, mode: "insensitive" as const } })) },
     select: { character: true, itemKey: true, itemName: true }, orderBy: { itemName: "asc" }, take: 5_000 });
   const recipesOf = (person: typeof people[number]) => {
     const names = new Set(known(person));

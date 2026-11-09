@@ -1,4 +1,5 @@
 import type { Guild as DiscordGuild } from "discord.js";
+import { mergeProfessionSkills } from "./profession-names.js";
 import type { PrismaClient, UnclaimedCharacter } from "../generated/prisma/client.js";
 import { createGuildService } from "./guild.js";
 import { nameKey } from "./roster-discovery.js";
@@ -65,7 +66,8 @@ export async function linkUnclaimed(database: Db, memberId: string, unclaimed: U
     ...(unclaimed.spec ? { spec: unclaimed.spec } : {}), ...(unclaimed.level ? { level: unclaimed.level } : {}), ...(unclaimed.race ? { race: unclaimed.race } : {})
   });
   const created = await database.character.findFirst({ where: { memberId, name: unclaimed.name, realm: unclaimed.realm, gameEdition: unclaimed.gameEdition ?? "forever" } });
-  const professions = Array.isArray(unclaimed.professions) ? unclaimed.professions as { name: string; skillLevel: number }[] : [];
+  const professions = mergeProfessionSkills((Array.isArray(unclaimed.professions) ? unclaimed.professions as { name: string; skillLevel: number }[] : [])
+    .filter((profession) => typeof profession?.name === "string" && profession.name.trim() !== "").map((profession) => ({ ...profession, skillLevel: Number(profession.skillLevel) || 0 })));
   if (created) {
     for (const profession of professions) {
       if (!profession?.name) continue;

@@ -1,4 +1,5 @@
 import { guildWhere, currentGuildScope } from "./guild-scope.js";
+import { normalizeProfessionName } from "./profession-names.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
@@ -78,7 +79,8 @@ export function createGuildService(database: PrismaClient) {
       });
     },
 
-    setProfession(characterId: string, profession: string, skillLevel: number) {
+    setProfession(characterId: string, rawProfession: string, skillLevel: number) {
+      const profession = normalizeProfessionName(rawProfession);
       return database.professionSkill.upsert({
         where: { characterId_profession: { characterId, profession } },
         create: { characterId, profession, skillLevel },

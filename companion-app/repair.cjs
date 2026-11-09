@@ -93,7 +93,8 @@ async function runRepair(deps) {
 
   // 3. Sign-in, and 4. the link to the guild's server (companion-me answers both).
   if (!deps.signedIn()) {
-    add("signin", "needs-you", "Not signed in. Press Sign in with Discord.");
+    // Unsigned is a valid state since 9.1.0 (device key, no Discord sign-in): information, never a to-do.
+    add("signin", "ok", "Discord sign-in: optional, not used.");
   } else {
     let me = null;
     try { me = await deps.me(); } catch { me = null; }

@@ -112,6 +112,21 @@ const asset = (name) => path.join(__dirname, "assets", name);
 // Settings at start (9.0): logged, backed up before any migration, restored from a backup when the
 // file is missing, and never overwritten after a failed read (companion-app/config-load.cjs).
 async function loadConfig() {
+  // 9.1.3: a direct-download companion with no settings yet takes over the Store companion's, once.
+  if (!STORE_PACKAGE) {
+    try {
+      require("./store-migrate.cjs").migrateStoreSettings({ userData: app.getPath("userData"), localAppData: process.env.LOCALAPPDATA, appData: process.env.APPDATA,
+        log: (from, files) => pushLog({ time: new Date().toISOString(), level: "info", message: E("Settings, Discord sign-in and WoW folder were copied from the Microsoft Store version ({0}, {1} files). The Store copy was left as it is.", from, files.length) }) });
+    } catch { /* nothing to import */ }
+  }
+  // 9.1.3: a direct-download companion with no settings yet takes over the Store companion's, once.
+  if (!STORE_PACKAGE) {
+    try {
+      const moved = require("./store-migrate.cjs").migrateStoreSettings({ userData: app.getPath("userData"), localAppData: process.env.LOCALAPPDATA, appData: process.env.APPDATA,
+        log: (from, files) => pushLog({ time: new Date().toISOString(), level: "info", message: E("Settings, Discord sign-in and WoW folder were copied from the Microsoft Store version ({0}, {1} files). The Store copy was left as it is.", from, files.length) }) });
+      void moved;
+    } catch { /* nothing to import */ }
+  }
   const loaded = await configLoadModule().loadSavedConfig({
     store: storeConfig, file: configFile(), legacyFile: path.join(app.getPath("userData"), "config.json"),
     isStore: STORE_PACKAGE, defaults: DEFAULTS, version: app.getVersion(),

@@ -4,7 +4,7 @@ import { newLuaSession, type LuaSession } from "./harness.js";
 let session: LuaSession | undefined;
 afterEach(() => { session?.close(); session = undefined; });
 
-function withChatTab(hasWindowApi = true): LuaSession {
+function withChatTab(): LuaSession {
   session = newLuaSession();
   session.run(String.raw`
     LINES = { main = {}, tab = {} }
@@ -14,7 +14,6 @@ function withChatTab(hasWindowApi = true): LuaSession {
     ChatFrame3 = { AddMessage = function(_, text) LINES.tab[#LINES.tab + 1] = text end }
     WINDOW_NAMES = { "General", "Log", nil }
     GetChatWindowInfo = function(i) return WINDOW_NAMES[i] end
-    ${hasWindowApi ? `FCF_OpenNewWindow = function(name) WINDOW_NAMES[3] = name; return ChatFrame3 end` : ""}
     SETTINGS = {}
     NS = { getSettings = function() return SETTINGS end, commandHandlers = {}, commandHelp = {} }
   `);
@@ -24,168 +23,85 @@ function withChatTab(hasWindowApi = true): LuaSession {
 
 const chat = (s: LuaSession, arg: string) => s.run(`NS.commandHandlers["chat"]({ ${JSON.stringify(arg)} })`);
 
+// Every chat-window function Guilded must never call: run from addon code they taint the chat boxes,
+// and the next /reload typed there is refused ("Guilded has been blocked", 9 November 2026).
+const WINDOW_CALLS = String.raw`
+  WINDOW_CALLS = 0
+  for _, n in ipairs({ "FCF_OpenNewWindow", "FCF_Close", "FCF_DockFrame", "FCF_UnDockFrame", "FCF_SelectDockFrame", "FCF_SetWindowName", "ChatFrame_OpenChat" }) do
+    _G[n] = function() WINDOW_CALLS = WINDOW_CALLS + 1 end
+  end
+  for _, f in ipairs({ ChatFrame1, ChatFrame3 }) do
+    for _, m in ipairs({ "Show", "Hide", "HideBase", "SetPoint", "ClearAllPoints" }) do
+      f[m] = function() WINDOW_CALLS = WINDOW_CALLS + 1 end
+    end
+  end
+`;
+
 describe("ChatTab.lua", () => {
   it("does nothing until turned on: the main chat stays in use", () => {
     const s = withChatTab();
     expect(s.run(`return tostring(NS.chatFrame())`)).toBe("nil");
   });
 
-  it("/guilded chat tab opens the tab and routes lines to it; off goes back", () => {
+  it("/guilded chat tab uses the window named Guilded; off goes back to the main chat", () => {
     const s = withChatTab();
+    s.run(`WINDOW_NAMES[3] = "Guilded"`);
     chat(s, "tab");
     expect(s.run(`return tostring(SETTINGS.chatTab)`)).toBe("true");
-    expect(s.run(`return WINDOW_NAMES[3]`)).toBe("Guilded");
     expect(s.run(`return tostring(NS.chatFrame() == ChatFrame3)`)).toBe("true");
     expect(s.run(`return LINES.main[1]`)).toContain("Guilded chat tab");   // the confirmation shows in the main chat
     expect(s.run(`return LINES.tab[1]`)).toContain("This tab shows Guilded");
     chat(s, "off");
     expect(s.run(`return tostring(NS.chatFrame())`)).toBe("nil");
     expect(s.run(`return tostring(SETTINGS.chatTab)`)).toBe("false");
+    expect(s.run(`return LINES.main[#LINES.main]`)).toContain("right-click it and close it");
   });
 
-  it("/guilded chat off closes the Guilded tab instead of leaving it empty", () => {
+  it("without a Guilded window, /guilded chat tab explains how to make one and opens nothing", () => {
     const s = withChatTab();
-    s.run(`CLOSED = nil; FCF_Close = function(frame) CLOSED = frame; WINDOW_NAMES[3] = nil end`);
+    s.run(WINDOW_CALLS);
     chat(s, "tab");
-    chat(s, "off");
-    expect(s.run(`return tostring(CLOSED == ChatFrame3)`)).toBe("true");
-    expect(s.run(`return tostring(WINDOW_NAMES[3])`)).toBe("nil");
-  });
-
-  it("/guilded chat off never closes the main chat window", () => {
-    const s = withChatTab();
-    s.run(`CLOSED = nil; FCF_Close = function(frame) CLOSED = frame end; WINDOW_NAMES[1] = "Guilded"`);
-    chat(s, "off");
-    expect(s.run(`return tostring(CLOSED)`)).toBe("nil");
-  });
-
-  it("reopens the tab after off: a closed window keeps its name but is not used", () => {
-    const s = withChatTab();
-    // As in the game: closing hides the frame and its tab; the name stays.
-    s.run(String.raw`
-      SHOWN = {}
-      ChatFrame3.IsShown = function() return SHOWN.frame == true end
-      ChatFrame3Tab = { IsShown = function() return SHOWN.tab == true end }
-      ChatFrame4 = { AddMessage = function() end, IsShown = function() return false end }
-      ChatFrame4Tab = { IsShown = function() return SHOWN.tab4 == true end }
-      NUM_CHAT_WINDOWS = 4
-      FCF_OpenNewWindow = function(name)
-        if WINDOW_NAMES[3] == nil then WINDOW_NAMES[3] = name; SHOWN.tab = true; return ChatFrame3 end
-        WINDOW_NAMES[4] = name; SHOWN.tab4 = true; return ChatFrame4
-      end
-      FCF_Close = function() SHOWN.tab = false end
-    `);
-    chat(s, "tab");
-    chat(s, "off");
-    expect(s.run(`return WINDOW_NAMES[3]`)).toBe("Guilded");          // name kept, window closed
-    expect(s.run(`return tostring(NS.chatFrame())`)).toBe("nil");
-    chat(s, "tab");
-    expect(s.run(`return tostring(SHOWN.tab4)`)).toBe("true");        // a window really opened
-    s.run(`SETTINGS.chatTab = true`);
-    expect(s.run(`return tostring(NS.chatFrame() == ChatFrame4)`)).toBe("true");
-  });
-
-  it("uses an existing tab named Guilded instead of opening another", () => {
-    const s = withChatTab();
-    s.run(`WINDOW_NAMES[3] = "Guilded"; OPENED = 0; FCF_OpenNewWindow = function() OPENED = OPENED + 1 end`);
-    chat(s, "tab");
-    expect(s.run(`return OPENED`)).toBe("0");
+    expect(s.run(`return WINDOW_CALLS`)).toBe("0");
+    expect(s.run(`return tostring(SETTINGS.chatTab)`)).toBe("true");
+    expect(s.run(`return LINES.main[1]`)).toContain("New Window and name it Guilded");
+    expect(s.run(`return tostring(NS.chatFrame())`)).toBe("nil");                    // main chat meanwhile
+    // The player makes the window: it is used from then on, no command needed.
+    s.run(`WINDOW_NAMES[3] = "Guilded"`);
     expect(s.run(`return tostring(NS.chatFrame() == ChatFrame3)`)).toBe("true");
   });
 
-  it("explains itself when the client cannot open a window", () => {
-    const s = withChatTab(false);
+  it("a closed window keeps its name but is not used", () => {
+    const s = withChatTab();
+    s.run(String.raw`
+      SHOWN = { tab = true }
+      WINDOW_NAMES[3] = "Guilded"
+      ChatFrame3.IsShown = function() return SHOWN.frame == true end
+      ChatFrame3Tab = { IsShown = function() return SHOWN.tab == true end }
+    `);
     chat(s, "tab");
-    expect(s.run(`return tostring(SETTINGS.chatTab)`)).toBe("nil");
-    expect(s.run(`return LINES.main[1]`)).toContain("cannot open a chat tab");
+    expect(s.run(`return tostring(NS.chatFrame() == ChatFrame3)`)).toBe("true");
+    s.run(`SHOWN.tab = false`);                                       // the player closed it
+    expect(s.run(`return tostring(NS.chatFrame())`)).toBe("nil");
   });
 
   it("falls back to the main chat when the tab was closed", () => {
     const s = withChatTab();
+    s.run(`WINDOW_NAMES[3] = "Guilded"`);
     chat(s, "tab");
     s.run(`WINDOW_NAMES[3] = nil`);
     expect(s.run(`return tostring(NS.chatFrame())`)).toBe("nil");
   });
 
-  it("does not open or close chat windows in combat: it waits for PLAYER_REGEN_ENABLED", () => {
+  it("never opens, closes or docks a chat window, whatever the path (login, first run, commands)", () => {
     const s = withChatTab();
-    s.load("Util.lua");
-    s.run(String.raw`
-      COMBAT = true; OPENED = 0; CLOSED_N = 0
-      function InCombatLockdown() return COMBAT end
-      FCF_OpenNewWindow = function(name) OPENED = OPENED + 1; WINDOW_NAMES[3] = name; return ChatFrame3 end
-      FCF_Close = function() CLOSED_N = CLOSED_N + 1; WINDOW_NAMES[3] = nil end
-      NS.message = function() end
-    `);
-    chat(s, "tab");
-    expect(s.run("return OPENED")).toBe("0");
-    expect(s.run("return tostring(SETTINGS.chatTab)")).toBe("nil");
-    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
-    expect(s.run("return OPENED")).toBe("1");
-    expect(s.run("return tostring(SETTINGS.chatTab)")).toBe("true");
-    s.run(`COMBAT = true`);
-    chat(s, "off");
-    expect(s.run("return CLOSED_N")).toBe("0");
-    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
-    expect(s.run("return CLOSED_N")).toBe("1");
-  });
-
-  it("first-run auto-open at login in combat makes no chat-frame call until combat ends", () => {
-    const s = withChatTab();
-    s.run(String.raw`
-      COMBAT = true; OPENED = 0; PROTECTED = 0;
-      function InCombatLockdown() return COMBAT end
-      NS.message = function() end
-      -- Any direct Show/Hide/HideBase/SetPoint on General or the new tab counts as a protected call.
-      for _, f in ipairs({ ChatFrame1, ChatFrame3 }) do
-        for _, m in ipairs({ "Show", "Hide", "HideBase", "SetPoint", "ClearAllPoints" }) do
-          f[m] = function() if COMBAT then PROTECTED = PROTECTED + 1 end end
-        end
-      end
-      FCF_OpenNewWindow = function(name)
-        if COMBAT then PROTECTED = PROTECTED + 1 end
-        OPENED = OPENED + 1; WINDOW_NAMES[3] = name; return ChatFrame3
-      end
-      FCF_DockFrame = function() if COMBAT then PROTECTED = PROTECTED + 1 end end
-    `);
-    s.run(`NS.chatTab.firstRun()`);
-    expect(s.run("return OPENED")).toBe("0");
-    expect(s.run("return PROTECTED")).toBe("0");
-    expect(s.run("return tostring(SETTINGS.chatTab)")).toBe("nil");
-    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
-    expect(s.run("return OPENED")).toBe("1");
-    expect(s.run("return PROTECTED")).toBe("0");
-    expect(s.run("return tostring(SETTINGS.chatTab)")).toBe("true");
-  });
-
-  it("a saved-on tab that is closed is reopened at login only out of combat", () => {
-    const s = withChatTab();
-    s.load("Util.lua");
-    s.run(String.raw`
-      COMBAT = true; OPENED = 0; SETTINGS.chatTab = true
-      function InCombatLockdown() return COMBAT end
-      NS.message = function() end
-      FCF_OpenNewWindow = function(name) OPENED = OPENED + 1; WINDOW_NAMES[3] = name; return ChatFrame3 end
-    `);
-    s.run(`fire_event("PLAYER_LOGIN")`);
-    expect(s.run("return OPENED")).toBe("0");
-    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
-    expect(s.run("return OPENED")).toBe("1");
-  });
-
-  it("never calls Show/Hide/HideBase on ChatFrame1 itself, whatever the path", () => {
-    const s = withChatTab();
-    s.run(String.raw`
-      DIRECT = 0
-      for _, m in ipairs({ "Show", "Hide", "HideBase", "SetPoint" }) do
-        ChatFrame1[m] = function() DIRECT = DIRECT + 1 end
-      end
-      FCF_Close = function() WINDOW_NAMES[3] = nil end
-    `);
+    s.run(WINDOW_CALLS + `SETTINGS.chatTab = true; C_Timer = { After = function(_, fn) fn() end }`);
+    s.run(`fire_event("PLAYER_LOGIN")`);              // saved on, tab missing: no reopen
     chat(s, "tab");
     chat(s, "off");
     chat(s, "tab");
-    s.run(`NS.chatTab.firstRun()`);
-    expect(s.run("return DIRECT")).toBe("0");
+    s.run(`SETTINGS.chatTab = nil; NS.chatTab.firstRun(); fire_event("PLAYER_LOGIN")`);
+    s.run(`WINDOW_NAMES[3] = "Guilded"`);
+    chat(s, "off");
+    expect(s.run("return WINDOW_CALLS")).toBe("0");
   });
 });

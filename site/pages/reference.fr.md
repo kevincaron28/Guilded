@@ -167,7 +167,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | `/guilded localcore` · `setup guild` | Cores de raid et règles de butin sans Discord | Officiers |
 | `/guilded ready` · `consumes` | Qui est prêt dans votre groupe ; qui manque de flacon ou de nourriture | Officiers et chefs de groupe |
 | `/guilded export` · `import softres\|tmb\|history` | Exporter ; importer réserves, TMB ou historique de butin | Officiers |
-| `/guilded invite raid\|missing` · `autoinvite` | Inviter les inscrits au raid ; inviter ceux qui chuchotent | Officiers |
+| `/guilded invite raid\|missing` · `autoinvite` | Inviter les inscrits au raid ; une ligne /ginvite pour ceux qui chuchotent | Officiers |
 | `/guilded recruit` · `welcome` | Liste de recrues potentielles ; chuchoter aux nouveaux membres | Officiers |
 | `/guilded officer list\|add\|remove\|rank` | Qui compte comme officier | Officiers |
 | `/guilded ledgersync` · `bridge` · `rosteradmin` · `sim` | Partager les EP/GP entre officiers ; pont du compagnon ; outils de roster ; raid de test | Officiers |

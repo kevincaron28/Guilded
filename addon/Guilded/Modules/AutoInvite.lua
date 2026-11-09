@@ -1,6 +1,11 @@
 -- Auto-invite by whisper: a player whispers the phrase (default "ginv") to an
--- officer who has it switched on, and gets a guild invite. For recruiting
--- without typing invites by hand. Officers only, off by default.
+-- officer who has it switched on, and the officer gets a ready /ginvite line.
+-- Officers only, off by default.
+--
+-- The whisper is not a click: the guild invite is protected on WoW Forever, and an
+-- addon calling it from a chat event gets "Guilded has been blocked from an action
+-- only available to the Blizzard UI" (ADDON_ACTION_FORBIDDEN). So Guilded never
+-- invites by itself here; the officer types (or pastes) /ginvite.
 --
 --   /guilded autoinvite on [phrase]   start (phrase default "ginv")
 --   /guilded autoinvite off | status
@@ -56,13 +61,7 @@ local function record(auto, name, ok)
   while #auto.log > 20 do table.remove(auto.log, 1) end
 end
 
-local function invite(name)
-  if C_GuildInfo and C_GuildInfo.Invite then return pcall(C_GuildInfo.Invite, name) end
-  if GuildInvite then return pcall(GuildInvite, name) end
-  return false, "no invite function"
-end
-
--- Called for every whisper. Returns true when an invite was sent.
+-- Called for every whisper. Returns true when the officer was told to invite someone.
 function module.onWhisper(text, sender)
   local auto = state()
   if not auto or not auto.enabled then return false end
@@ -77,13 +76,11 @@ function module.onWhisper(text, sender)
   for _, at in ipairs(hourly) do if now - at < 3600 then table.insert(recent, at) end end
   hourly = recent
   if #hourly >= MAX_PER_HOUR then return false end
-  local ok = invite(sender)
   sentAt[name] = now
   table.insert(hourly, now)
-  record(auto, name, ok and true or false)
-  if ok and ns.recruit and ns.recruit.noteInvited then ns.recruit.noteInvited(name) end
-  if ns.message then ns.message(ok and ("Invited " .. name .. " to the guild (they whispered " .. auto.phrase .. ").") or ("Could not invite " .. name .. ".")) end
-  return ok and true or false
+  record(auto, name, true)
+  if ns.message then ns.message(string.format("%s whispered \"%s\". To invite them, type: /ginvite %s", name, auto.phrase, sender)) end
+  return true
 end
 
 local frame = CreateFrame("Frame")
@@ -183,12 +180,12 @@ ns.commandHandlers["autoinvite"] = function(args)
     local phrase = table.concat(args, " ", 2)
     if phrase ~= "" then auto.phrase = phrase end
     auto.enabled = true
-    ns.message("Auto-invite is on: whisper \"" .. auto.phrase .. "\" to you to be invited. Turn it off with /guilded autoinvite off.")
+    ns.message("Auto-invite is on: when someone whispers you \"" .. auto.phrase .. "\", Guilded gives you the /ginvite line. Turn it off with /guilded autoinvite off.")
   elseif action == "off" then
     auto.enabled = false
     ns.message("Auto-invite is off.")
   else
-    ns.message(string.format("Auto-invite is %s, phrase \"%s\". %d recent invite(s).", auto.enabled and "on" or "off", auto.phrase, #auto.log))
+    ns.message(string.format("Auto-invite is %s, phrase \"%s\". %d recent request(s).", auto.enabled and "on" or "off", auto.phrase, #auto.log))
     for i = math.max(1, #auto.log - 4), #auto.log do
       local entry = auto.log[i]
       ns.message(string.format("  %s %s%s", entry.at, entry.name, entry.ok and "" or " (failed)"))
@@ -196,5 +193,5 @@ ns.commandHandlers["autoinvite"] = function(args)
   end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, { officer = true, text = "/guilded autoinvite on [phrase] | off | status - invite players who whisper you the phrase" })
+table.insert(ns.commandHelp, { officer = true, text = "/guilded autoinvite on [phrase] | off | status - get a /ginvite line when someone whispers you the phrase" })
 table.insert(ns.commandHelp, { officer = true, text = "/guilded invite raid | missing - invite everyone signed up for the next raid on Discord" })

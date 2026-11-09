@@ -8,6 +8,33 @@ Guilded supports WoW Forever only (the other editions were removed 7 November) a
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
+## Start here — morning of 9 November 2026 (after the overnight run)
+
+**Released overnight (owner: "Deploy + release 9.0.8"):** 9.0.8 on GitHub (510ed412), CurseForge 9522291/9522292 in review,
+installer on the bot server (sha bdc35611…), site #671, bot deployed after a backup (`guilded-recovery/2026-11-09T06-01-42-885Z`,
+offsite copy verified; migrations `character_confirmed_at` and `dungeon_run_receipts` applied). The owner's PC has the 9.0.8 addons.
+
+**Merged overnight:** #662 map taint, #663 champions + leather card back (CB2, owner pick), #664 French raid card + roadmap
+cleanup, #665 Clash writing pass + French for all 150 cards, #666 announcements wording, #667 Jeeves ideas (confirmed vs reported
+characters, rank roles preview, roster freshness), #668 login popup (chat tab no longer opens chat windows; auto-invite hands out a
+`/ginvite` line), #669 runs no longer wait forever (receipts), faster uploads, Store companion can start with Windows.
+
+**Owner's first checks this morning:**
+1. **Review page** (claude.ai/artifact/PaemMo6CFGqRmAcuFvEZ58): section **E22**, the 22 new Legendary/Epic paintings, waiting for
+   approval (PNGs in `Desktop\guilded-clash-art\batch2-legendary-epic`, mirrored on `D:\GuildedBackups\clash-art`). After approval:
+   add them to the app like #659. 110 set cards still need art (next batches: rares, uncommons, commons).
+2. **In game:** the chat tab is no longer created by Guilded; make a chat window named Guilded once (right-click a tab, New Window).
+   Check that `/guilded dungeon` shows 0 waiting after the companion uploads, and that no "blocked" popup appears after a duel.
+3. **Store:** Submission 13 (9.0.4.0) still certifying; owner said wait. The 9.0.8.0 package build failed on GitHub download 504s
+   (`npm run store:package` in a 510ed412 worktree; identity in `backups/store-identity.json`): rebuild, then submit after 13 passes.
+4. **Owner only:** enable Cloudflare R2 + `GUILDED_DOWNLOAD_MIRROR_URL` (docs/DOWNLOADS_RELIABILITY.md); delete the test server's
+   empty `pvp-groups` channel by hand (the bot has no access to it); Google Play verifications; Season 2 (~18 Nov).
+
+**Overnight PC test results:** 17 screenshots of every Guilded window page in `Desktop\guilded-screenshots-9nov` (for the website
+refresh; not yet on the site). Guild map dots work on the new layer. Relink test not finished: WoW stopped taking mouse clicks
+mid-session (keys still worked); Lebowski Highspirits was entered and uploaded, link not checked. Two-PC checks still need a second
+player.
+
 ## Done 9 November 2026 (coordinator, ~02:30 UTC)
 
 - **9.0.7 published:** GitHub v9.0.7 (30261689), bot deployed after a backup (`guilded-recovery/2026-11-09T02-01-09-371Z`,

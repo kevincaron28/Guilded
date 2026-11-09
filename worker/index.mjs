@@ -249,6 +249,16 @@ export async function hostedDownload(request, env, ctx, url = new URL(request.ur
   return github();
 }
 
+// The Android phone app (APK) lives on the R2 mirror (dl.kcaron.top); this short website address redirects there so the
+// button on the site is one tap on a phone. The bytes never pass through the Worker.
+const ANDROID_APK = /^\/downloads\/(Guilded-Android(?:-\d{1,3}\.\d{1,3}\.\d{1,3}(?:-[a-z]+-\d{1,3})?)?\.apk)$/;
+export function androidDownload(request, url = new URL(request.url)) {
+  const match = ANDROID_APK.exec(url.pathname);
+  if (!match) return null;
+  if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+  return new Response(null, { status: 302, headers: { location: `https://dl.kcaron.top/${match[1]}`, "cache-control": "no-store" } });
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === "OPTIONS" && mobileDevCors(request)) {
@@ -274,6 +284,8 @@ async function route(request, env, ctx) {
     const url = new URL(request.url);
     const download = await hostedDownload(request, env, ctx, url);
     if (download) return download;
+    const apk = androidDownload(request, url);
+    if (apk) return apk;
     // Keep Google's exact verification filename at HTTP 200 despite clean HTML URLs.
     if (/^\/google[a-f0-9]{8,64}\.html$/.test(url.pathname)) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");

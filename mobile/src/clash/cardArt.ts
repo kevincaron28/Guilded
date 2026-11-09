@@ -2,7 +2,7 @@ import type { ImageSourcePropType } from "react-native";
 
 // Painted card art by set 1 card id, for every card type (units, spells, gear, standards). Owner approvals: the nine class
 // Legendary units ("L9-WoW", 9 November 2026, assets in assets/clash/legendary/) and the 22 "E22" paintings (the other six
-// Legendaries and the sixteen Epics, 9 November 2026, assets in assets/clash/cards/); then the 26 Rare paintings (9 November 2026, same folder); docs/plans/APP_TCG_ART.md. Original art
+// Legendaries and the sixteen Epics, 9 November 2026, assets in assets/clash/cards/); then the 27 Rare paintings (9 November 2026, same folder); docs/plans/APP_TCG_ART.md. Original art
 // made with the owner's own tools; bundled as WebP (full 640x480, card art window 624x240). Regenerate with
 // docs/plans/app-tcg-art/make-legendaries.mjs and make-card-art.mjs. Metro needs literal require() paths, so the list is
 // written out; cardArt.test.ts checks it against the files on disk and the set data.
@@ -59,6 +59,7 @@ export const CARD_ART: Record<string, CardArt> = {
   "138": { full: require("../../assets/clash/cards/138.webp"), window: require("../../assets/clash/cards/138-window.webp") },
   "139": { full: require("../../assets/clash/cards/139.webp"), window: require("../../assets/clash/cards/139-window.webp") },
   "140": { full: require("../../assets/clash/cards/140.webp"), window: require("../../assets/clash/cards/140-window.webp") },
+  "141": { full: require("../../assets/clash/cards/141.webp"), window: require("../../assets/clash/cards/141-window.webp") },
   "142": { full: require("../../assets/clash/cards/142.webp"), window: require("../../assets/clash/cards/142-window.webp") },
   "143": { full: require("../../assets/clash/cards/143.webp"), window: require("../../assets/clash/cards/143-window.webp") },
   "144": { full: require("../../assets/clash/cards/144.webp"), window: require("../../assets/clash/cards/144-window.webp") },

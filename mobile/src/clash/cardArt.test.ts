@@ -16,10 +16,10 @@ const dirOf = (id: string): string => {
   return at < 0 ? "" : source.slice(at + marker.length).split("/")[0]!;
 };
 
-// The nine class Legendary units (L9-WoW) plus the 22 E22 and the Rare paintings (141 pending), owner approved 9 November 2026.
+// The nine class Legendary units (L9-WoW) plus the 22 E22 and the 27 Rare paintings, owner approved 9 November 2026.
 const CLASS_LEGENDARY = ["011", "022", "033", "042", "054", "066", "077", "088", "099"];
 const E22 = ["010", "021", "032", "044", "055", "065", "076", "087", "098", "121", "123", "125", "130", "132", "143", "144", "145", "146", "147", "148", "149", "150"];
-const RARE = ["008", "009", "018", "020", "030", "031", "043", "052", "053", "063", "064", "074", "075", "085", "086", "096", "097", "115", "116", "117", "124", "137", "138", "139", "140", "142"];
+const RARE = ["008", "009", "018", "020", "030", "031", "043", "052", "053", "063", "064", "074", "075", "085", "086", "096", "097", "115", "116", "117", "124", "137", "138", "139", "140", "141", "142"];
 
 describe("Painted card art registry", () => {
   it("lists exactly the approved paintings, each once", () => {

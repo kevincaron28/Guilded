@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.1.3 — 9 November 2026
+
+Plug-and-play fixes from the two-PC fresh-install test of 9.1.2. Details: docs/V9_1_3_RELEASE_NOTES.md.
+
+- Both addons (GuildedDungeons too) update by themselves with the companion; the zero-setup companion home, French texts, `/guilded dungeon` never silent, Envoyé/Reçu times, panel drag fix (#705); Start page wording (#706).
+- Unsigned companions: dungeon-run receipts reach the addon end to end, so runs no longer wait forever; the stale Discord link line is cleared; the `/gdungeons` French string (#708).
+- Repair shows sign-in as optional, the uninstaller keeps your data and removes the startup entry, and a website install imports the Store settings (#707).
+
 ## 9.1.2 — 9 November 2026
 
 A clear 3-step companion guide everywhere, and one profession name in every game language. Details: docs/V9_1_2_RELEASE_NOTES.md.

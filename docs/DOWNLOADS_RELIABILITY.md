@@ -64,6 +64,8 @@ If the owner prefers the server first, the same code works with the two blocks s
 
 ## Owner actions
 
+**Done 9 November 2026:** R2 enabled, bucket `guilded-downloads`, custom domain `dl.kcaron.top`, `GUILDED_DOWNLOAD_MIRROR_URL` set (and kept in `wrangler.jsonc`), 9.0.8 installer uploaded under both names. Verified: the website answers 302 to `dl.kcaron.top` and the SHA-256 matches `site/releases.json`. Wrangler on the owner PC is logged in with R2 access for future uploads.
+
 1. Decide whether to enable R2 (needs the Cloudflare dashboard sign-in and possibly a card on file; steps above). Until then the PR changes nothing visible except the versioned-name fallback and the shorter timeout.
 2. After the coordinator deploys the Worker: set `GUILDED_DOWNLOAD_MIRROR_URL`, upload the current installer under both names, then check `https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe` redirects to `dl.kcaron.top` and that the size and SHA-256 match `site/releases.json`.
 3. Add the R2 upload to each release (recipe above).

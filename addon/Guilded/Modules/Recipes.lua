@@ -27,6 +27,15 @@ local MAX_COOLDOWNS = 20
 -- Windows that are not a profession (a hunter's pet training uses the same window as enchanting).
 local NOT_PROFESSIONS = { ["Beast Training"] = true, UNKNOWN = true }
 
+-- One name per profession in every game language (Util.lua): "Cuisine" and "Cooking" are the same row.
+local function canon(name, skillLine)
+  return ns.util and ns.util.professionName and ns.util.professionName(name, skillLine) or name
+end
+-- The profession as the player's own language writes it (Locale.lua).
+local function label(name)
+  return ns.util and ns.util.professionLabel and ns.util.professionLabel(name) or name
+end
+
 local recipes = {}
 ns.recipes = recipes
 
@@ -239,6 +248,7 @@ local function readLegacyWindow(kind)
   if not (api.count and api.info and api.link) then return nil end
   local profession = api.line()
   if type(profession) ~= "string" or profession == "" or NOT_PROFESSIONS[profession] then return nil end
+  profession = canon(profession)
   local total = api.count()
   if not total or total < 1 then return nil end
   local opened = expandAll(api)
@@ -290,6 +300,9 @@ local function readModernWindow()
   if ui.GetBaseProfessionInfo then
     local infoOk, baseInfo = pcall(ui.GetBaseProfessionInfo)
     profession = infoOk and baseInfo and baseInfo.professionName or nil
+    if type(profession) == "string" and profession ~= "" and not NOT_PROFESSIONS[profession] then
+      profession = canon(profession, infoOk and baseInfo and (baseInfo.parentProfessionID or baseInfo.professionID))
+    end
   end
   if type(profession) ~= "string" or profession == "" or NOT_PROFESSIONS[profession] then return nil end
   local result = { profession = profession, keys = {}, names = {}, mats = {}, cooldowns = {} }
@@ -496,6 +509,7 @@ local function onMessage(text, sender)
     if serverTime() - lastReply >= 60 then lastReply = serverTime(); recipes.shareMine() end
   elseif kind == "R" then
     local profession, v, n, total, list = string.match(text, "^R|([^|]+)|(%d+)|(%d+)|(%d+)|(.*)$")
+    profession = profession and canon(profession)
     n, total, v = tonumber(n), tonumber(total), tonumber(v)
     if not (profession and n and total and v) or total < 1 or total > MAX_CHUNKS or n < 1 or n > total then return end
     local id = name .. "|" .. profession
@@ -538,6 +552,7 @@ local function onMessage(text, sender)
   elseif kind == "CDC" then
     local profession = string.match(text, "^CDC|(.+)$")
     if not profession then return end
+    profession = canon(profession)
     local kept = {}
     for _, cooldown in ipairs(b.cooldowns[name] or {}) do
       if cooldown.prof ~= profession then table.insert(kept, cooldown) end
@@ -547,6 +562,7 @@ local function onMessage(text, sender)
   elseif kind == "CD" then
     local profession, readyAt, cooldownName = string.match(text, "^CD|([^|]+)|(%d+)|(.*)$")
     if not profession then return end
+    profession = canon(profession)
     local list = b.cooldowns[name] or {}
     if #list < MAX_COOLDOWNS then
       table.insert(list, { prof = profession, name = cooldownName, readyAt = tonumber(readyAt) })
@@ -750,7 +766,7 @@ function recipes.tooltipLines(id, opts)
     shortNames(group)
     local count = #group
     local countText = count == 1 and L("1 crafter") or string.format(L("%d crafters"), count)
-    local head = "Guilded" .. DOT .. profession .. ": "
+    local head = "Guilded" .. DOT .. label(profession) .. ": "
     if expanded then
       table.insert(lines, { raw = head .. countText })
       for i = 1, math.min(FULL_LIST_MAX, count) do
@@ -802,7 +818,7 @@ local function whoText(query)
   for i = 1, math.min(6, #keys) do
     local crafters = recipes.crafters(keys[i])
     local parts = {}
-    for _, crafter in ipairs(crafters) do table.insert(parts, string.format("%s (%s)", displayName(crafter.name), crafter.profession)) end
+    for _, crafter in ipairs(crafters) do table.insert(parts, string.format("%s (%s)", displayName(crafter.name), label(crafter.profession))) end
     table.insert(lines, nameFor(keys[i]) .. ": " .. (#parts > 0 and table.concat(parts, ", ") or L("nobody known")))
   end
   if #keys > 6 then table.insert(lines, string.format(L("... and %d more matches. Be more specific."), #keys - 6)) end
@@ -818,7 +834,7 @@ local function mineText()
   table.sort(names)
   local lines = {}
   for _, profession in ipairs(names) do
-    table.insert(lines, string.format("%s: %d %s", profession, #mine[profession].keys, L("recipes")))
+    table.insert(lines, string.format("%s: %d %s", label(profession), #mine[profession].keys, L("recipes")))
   end
   local people = 0
   for _ in pairs(b.people) do people = people + 1 end
@@ -876,7 +892,7 @@ function recipes.cooldownLines(onlyMine)
   end)
   local lines = {}
   for _, row in ipairs(rows) do
-    table.insert(lines, string.format("%s - %s (%s): %s", displayName(row.player), row.name, row.prof, duration(row.left)))
+    table.insert(lines, string.format("%s - %s (%s): %s", displayName(row.player), row.name, label(row.prof), duration(row.left)))
   end
   return lines
 end

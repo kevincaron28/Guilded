@@ -480,7 +480,7 @@ function orders.render(view)
       local mark = row.forMe and ("|cff40c0ff" .. L("For you") .. "|r  ") or (not row.canCraft and ("|cff808080" .. L("Not in your recipes") .. "|r  ")) or ""
       line.title:SetText(string.format("%s%dx %s  |cffaaaaaa%s %s|r", mark, tonumber(order.qty) or 1, itemText(order), L("for"), tostring(order.by or "?")))
       line.status:SetText(orders.statusText(row))
-      line.reagents:SetText(row.canCraft and orders.reagentText(order) or (order.prof and order.prof ~= "" and order.prof or ""))
+      line.reagents:SetText(row.canCraft and orders.reagentText(order) or (order.prof and order.prof ~= "" and (ns.util.professionLabel(order.prof) or order.prof) or ""))
       line.note:SetText(order.note and order.note ~= "" and ("\"" .. clip(order.note, 110) .. "\"") or "")
       local view2 = row.view
       line.first.orderId, line.second.orderId = order.id, order.id

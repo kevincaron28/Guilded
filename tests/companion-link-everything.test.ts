@@ -140,7 +140,8 @@ describe("Link everything wiring", () => {
   it("finds saved data only after sign-in and only when it can tell which file is the live one", () => {
     const main = read("companion-app/main.cjs");
     const block = main.slice(main.indexOf('registerIpc("link-find-saved-data"'), main.indexOf('registerIpc("browse-poe-log"'));
-    expect(block).toContain("if (!config.companionCredential)");
+    // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): a device-key install may look too, never one with neither.
+    expect(block).toContain("if (!config.companionCredential && !engineModules.isDeviceMode(config))");
     // The only file, the only WoW Forever file, or (several accounts, docs/plans/MULTI_ACCOUNT.md)
     // the newest one, with the others asked about.
     expect(block).toContain("pickPrimaryAccount(found)");

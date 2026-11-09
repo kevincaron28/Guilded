@@ -26,6 +26,8 @@ function validateIpc(channel, args) {
     if (!["en", "fr"].includes(value)) throw new Error("Unsupported language");
   } else if (channel === "set-autostart" || channel === "set-auto-update" || channel === "set-online") { if (typeof value !== "boolean") fail(); }
   else if (channel === "open-invite") text(value, 120);
+  // Zero-setup companion: "Advanced: choose server", a Discord server ID or "" for automatic.
+  else if (channel === "device-choose-server") { if (typeof value !== "string" || !/^(\d{5,25})?$/.test(value)) fail(); }
   else if (channel === "set-account") { object(value, new Set(["file", "on"])); text(value.file, 1024); if (typeof value.on !== "boolean") fail(); }
   else if (channel === "change-profile") {
     object(value, new Set(["id", "name"]));
@@ -77,6 +79,8 @@ function rendererConfig(config) {
   result.pairingCode = "";
   // Existing UI uses this only as a connected flag; never expose the credential.
   result.companionCredential = config.companionCredential ? "connected" : "";
+  // Zero-setup companion: the device key never reaches the page, only whether there is one.
+  if (config.deviceSecret) result.deviceSecret = "set";
   return result;
 }
 module.exports = { validateIpc, assertSender, rendererConfig };

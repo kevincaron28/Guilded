@@ -8,6 +8,7 @@ import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { formatRosterGaps, inviteLines, loadRosterGaps } from "../services/roster-gaps.js";
 import { DEFAULT_NICKNAME_FORMAT, NICKNAME_FORMAT_HELP, botCanRename, restoreAllNicknames, syncNicknames, validNicknameFormat } from "../services/nickname-sync.js";
 import { asLang } from "../i18n.js";
+import { reportedDeviceCharacters } from "../services/companion-device.js";
 import { guildService, requireGuildContext } from "./context.js";
 
 // Mounted as /officer roster. Officer-only, every reply private. Nothing here messages anyone on its own:
@@ -48,6 +49,7 @@ export async function executeRoster(interaction: ChatInputCommandInteraction): P
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
     const guild = await guildService.ensureGuild(interaction.guild.id, interaction.guild.name);
     const gaps = await loadRosterGaps(prisma, interaction.guild, guildId, guild.gameEdition ?? "forever");
+    gaps.fromCompanions = (await reportedDeviceCharacters(prisma, guildId).catch(() => [])).map((row) => ({ name: row.displayName ?? row.name, level: row.level }));
     const { text, invites } = formatRosterGaps(gaps, lang);
     const buttons: ButtonBuilder[] = [];
     if (invites) buttons.push(new ButtonBuilder().setCustomId(`${ROSTER_BUTTON_PREFIX}invites`).setStyle(ButtonStyle.Primary).setLabel(t("Copy all /ginvite lines", "Copier tous les /ginvite")));

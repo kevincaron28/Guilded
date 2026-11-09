@@ -48,6 +48,10 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const apiMethods = new Map([
   ["/api/v1/addon-imports", ["POST"]],
   ["/api/v1/addon-pairings", ["POST"]],
+  // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): device key, unsigned uploads, claim after sign-in.
+  ["/api/v1/device/register", ["POST"]],
+  ["/api/v1/device/uploads", ["POST"]],
+  ["/api/v1/device/claim", ["POST"]],
   ["/api/v1/public-runs", ["POST"]],
   ["/api/v1/standings", ["GET"]],
   // 8.5: the Google Sheets statistics feed (IMPORTDATA); the key travels in the query and is checked by the bot.
@@ -356,7 +360,7 @@ async function route(request, env, ctx) {
     const methods = api ? apiMethods.get(url.pathname) : web ? ["GET", "HEAD", "POST"] : ["GET", "HEAD"];
     if (!methods.includes(request.method)) return failure(405, "Method not allowed");
     if (api && request.method === "POST") {
-      const pairing = /\/(?:addon-pairings|companion\/sign-in)$/.test(url.pathname);
+      const pairing = /\/(?:addon-pairings|companion\/sign-in|device\/register)$/.test(url.pathname);
       const limiter = pairing ? env.PAIRING_ATTEMPTS : env.API_WRITES;
       if (limiter) {
         // Cloudflare supplies this header; caller-controlled forwarding headers

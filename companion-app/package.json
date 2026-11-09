@@ -87,7 +87,8 @@
           "revoke.mjs",
           "problems.mjs",
           "sync-status.mjs",
-          "error-detail.mjs"
+          "error-detail.mjs",
+          "device-sync.mjs"
         ]
       },
       {

@@ -33,6 +33,8 @@ interface Pending {
   proofHash?: string;
   /** Issues the grant once the proof arrives (Windows app only). */
   issue?: () => Promise<SignInGrant | null>;
+  /** Zero-setup companion: the Guild row its device key syncs to, picked first on the page. */
+  prefer?: string;
 }
 
 export function confirmCode(bytes = randomBytes(6)): string {
@@ -56,19 +58,23 @@ export function createCompanionSignIn(options: { now?: () => number } = {}) {
 
   return {
     /** A new request. requestId is the companion's secret; only its hash is kept. */
-    start(options: { loopback?: unknown } = {}): { requestId: string; confirm: string; expiresAt: Date } | null {
+    start(options: { loopback?: unknown; prefer?: string | null } = {}): { requestId: string; confirm: string; expiresAt: Date } | null {
       sweep();
       if (pending.size >= MAX_PENDING) return null;
       const requestId = randomBytes(32).toString("base64url");
       const confirm = confirmCode();
       const expiresAt = now() + SIGN_IN_LIFETIME_MS;
       const loopback = typeof options.loopback === "number" && Number.isInteger(options.loopback) && options.loopback >= 1024 && options.loopback <= 65535 ? options.loopback : undefined;
-      pending.set(hashCompanionSecret(requestId), { confirm, expiresAt, grant: null, ...(loopback ? { loopback } : {}) });
+      pending.set(hashCompanionSecret(requestId), { confirm, expiresAt, grant: null, ...(loopback ? { loopback } : {}), ...(options.prefer ? { prefer: options.prefer } : {}) });
       return { requestId, confirm, expiresAt: new Date(expiresAt) };
     },
     /** The Windows app's port when it gave one: the page then sends the proof there instead of asking for the code. */
     loopbackFor(requestId: unknown): number | null {
       return find(requestId)?.loopback ?? null;
+    },
+    /** The server the companion's device key already syncs to (a Guild row ID or Discord ID), if any. */
+    preferFor(requestId: unknown): string | null {
+      return find(requestId)?.prefer ?? null;
     },
     /** Internal code lookup; never render this code on the approval page. */
     confirmFor(requestId: unknown): string | null {
@@ -184,7 +190,10 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       if (deps.signIn.loopbackFor(requestId)) return kit.redirect(link("/auth/login", lang, { return: back }));
       return kit.page(401, title, `<h1>${title}</h1><p>${t("Sign in with your Discord account to connect the Guilded companion. Guilded only reads your Discord name and ID.", "Connectez-vous avec votre compte Discord pour relier le compagnon Guilded. Guilded ne lit que votre nom et votre identifiant Discord.")}</p><p><a class="button" href="${link("/auth/login", lang, { return: back })}">${t("Sign in with Discord", "Connexion avec Discord")}</a></p>`, { noindex: true });
     }
-    const servers = await deps.servers(ctx.account.discordUserId);
+    // A zero-setup companion already syncs to one server: that one comes first (and is checked).
+    const prefer = deps.signIn.preferFor(requestId);
+    const listed = await deps.servers(ctx.account.discordUserId);
+    const servers = prefer ? [...listed].sort((a, b) => Number([b.wowGuildId, b.discordId].includes(prefer)) - Number([a.wowGuildId, a.discordId].includes(prefer))) : listed;
     const loopback = deps.signIn.loopbackFor(requestId);
     const needsCode = !loopback;
     if (ctx.request.method === "POST") {

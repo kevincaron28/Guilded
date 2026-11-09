@@ -9,6 +9,7 @@ const require = createRequire(import.meta.url);
 const fr = require("../companion-app/locales/fr.json") as Record<string, string>;
 
 const linked = { companionCredential: "c", wowEnabled: true, watchFile: "D:\\WoW\\_forever_\\WTF\\Account\\A\\SavedVariables\\Guilded.lua" };
+const zeroSetup = { wowEnabled: true, watchFile: linked.watchFile, device: true, deviceSecret: "set" };
 const p = (id: string, data: Record<string, unknown> = {}) => ({ id, data });
 
 describe("the status card", () => {
@@ -62,7 +63,10 @@ describe("the status card", () => {
       { problems: [p("addon-missing")], config: linked }, { problems: [p("addon-wrong-edition")], config: linked }, { problems: [p("addon-outdated")], config: linked },
       { problems: [p("saved-file-not-updated", { moved: true })], config: linked }, { problems: [p("saved-file-missing", { chosen: true })], config: linked },
       { problems: [p("bot-unreachable")], config: linked }, { problems: [p("bot-unreachable", { offline: true })], config: linked }, { problems: [p("upload-rejected")], config: linked },
-      { config: { ...linked, syncEnabled: false }, state: {} }, { config: linked, state: { syncPhase: "uploading" } }, { config: linked, state: { lastUpload: { at: "2026-11-07T12:00:00.000Z" } } }, { config: linked, state: {} }
+      { config: { ...linked, syncEnabled: false }, state: {} }, { config: linked, state: { syncPhase: "uploading" } }, { config: linked, state: { lastUpload: { at: "2026-11-07T12:00:00.000Z" } } }, { config: linked, state: {} },
+      // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): device key, no sign-in.
+      ...["no-guild", "choose", "synced"].flatMap((status) => [{ config: zeroSetup, state: { device: { status, server: "Quebec Gold", guild: { name: "Quebec Gold" } } } }]),
+      { config: zeroSetup, state: { device: { status: "no-guild", guild: null } } }
     ];
     const seen = new Set<string>();
     for (const input of inputs) {

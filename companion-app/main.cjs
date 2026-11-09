@@ -118,6 +118,20 @@ async function loadConfig() {
     log: (level, key, ...values) => { const message = E(key, ...values); pushLog({ time: new Date().toISOString(), level, message }); if (level !== "info") console.warn(message); }
   });
   config = loaded.config;
+  // (9.1.3) Store settings the installer had to set aside (this version already had settings): take them over once.
+  if (!STORE_PACKAGE) {
+    try {
+      const adopt = require("./store-adopt.cjs");
+      const folder = app.getPath("userData");
+      if (adopt.canAdopt({ folder, config })) {
+        const done = adopt.adoptStoreSettings({ folder });
+        pushLog({ time: new Date().toISOString(), level: "warn", message: E("Settings from the Microsoft Store version were taken over ({0}). Restarting once.", done.took.join(", ")) });
+        app.relaunch();
+        app.exit(0);
+        return;
+      }
+    } catch (error) { pushLog({ time: new Date().toISOString(), level: "warn", message: E("The Microsoft Store settings could not be taken over: {0}", error instanceof Error ? error.message : String(error)) }); }
+  }
   if (loaded.source !== "none" || STORE_PACKAGE) return;
   // Carry over the command-line companion's settings when running from the repo.
   if (args.includes("--fresh")) return;
@@ -1568,6 +1582,7 @@ registerIpc("repair", async () => {
     installAddon: () => installAddonNow(),
     diskSpace: () => checkDisk(),
     signedIn: () => Boolean(config.companionCredential),
+    deviceMode: () => config.device === true && typeof config.deviceSecret === "string" && config.deviceSecret.length >= 32,
     me: () => companionMeFetch(),
     syncConfigured: () => engineModules.validateConfig(config).length === 0,
     syncRunning: () => Boolean(engine?.state().running),

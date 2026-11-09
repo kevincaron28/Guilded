@@ -5,7 +5,7 @@ import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
 import { basename, dirname } from "node:path";
 import { readAddonExport } from "./lua-export.mjs";
-import { standingsFileHolds, writeStandings } from "./standings.mjs";
+import { standingsFileHolds, writeDeviceStandings, writeStandings } from "./standings.mjs";
 import { credentialHeaders, checkUrl, requestJson, jsonBody, MAX_UPLOAD_BYTES } from "./request.mjs";
 import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
@@ -375,6 +375,9 @@ export function createEngine(initialConfig, hooks = {}) {
   }
 
   // Zero-setup: this PC's characters and in-game guild only, with the device key (device-sync.mjs).
+  // Run refs the bot has answered for (unsigned uploads): not sent again, written to the addon's Standings.lua.
+  const deviceAccepted = new Set();
+  const deviceNotes = {};
   async function deviceUpload() {
     if (uploading) { queued = true; return; }
     uploading = true;
@@ -392,7 +395,7 @@ export function createEngine(initialConfig, hooks = {}) {
       // Sync page shows "Sent" and "Received" instead of "Unknown" after an unsigned sync.
       const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
       state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
-      const { response, body } = await uploadAsDevice(current, full, controller.signal);
+      const { response, body } = await uploadAsDevice({ ...current, deviceAcceptedRuns: deviceAccepted }, full, controller.signal);
       if (epoch !== generation) return;
       state.botVersion = body.botVersion ?? state.botVersion;
       if (!response.ok) {
@@ -412,6 +415,17 @@ export function createEngine(initialConfig, hooks = {}) {
       state.pendingUpload = false;
       log(summary?.status === "synced" ? "ok" : "warn", message);
       if (summary?.status === "claimed") hooks.onDeviceClaimed?.();
+      // (9.1.3) The bot's answer about this PC's dungeon runs goes to the addon (it marks them synced on the next /reload),
+      // and a Discord link left from an earlier sign-in is cleared.
+      if (summary?.status === "synced") {
+        const answered = Array.isArray(body.runs?.acceptedRunRefs) ? body.runs.acceptedRunRefs : [];
+        for (const ref of answered) deviceAccepted.add(ref);
+        Object.assign(deviceNotes, body.runs?.runNotes && typeof body.runs.runNotes === "object" ? body.runs.runNotes : {});
+        const saved = await writeDeviceStandings(current, { acceptedRunRefs: [...deviceAccepted], runNotes: deviceNotes }, controller.signal);
+        if (saved && answered.length) log("ok", `The bot confirmed ${answered.length} dungeon run(s). They show as synced in WoW after /reload.`);
+        const remaining = (Array.isArray(full.dungeonRuns) ? full.dungeonRuns : []).filter((run) => run?.state === "COMPLETED" && !deviceAccepted.has(run.id)).length;
+        if (answered.length && remaining > 0 && state.running) scheduleUpload(10_000);
+      }
     } catch (error) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);

@@ -19,6 +19,7 @@ const STEPS = ["disk", "settings", "folder", "addon", "signin", "link", "sync"];
  *   diskSpace?: () => { ok: boolean, freeMb: number | null, neededMb: number },
  *   settingsSave?: () => { lastError: { message: string, at: string } | null, lastSavedAt: string | null, stuck: { step: string, seconds: number } | null },
  *   signedIn: () => boolean,
+ *   deviceMode?: () => boolean,
  *   me: () => Promise<any>,
  *   syncConfigured: () => boolean,
  *   syncRunning: () => boolean,
@@ -93,7 +94,9 @@ async function runRepair(deps) {
 
   // 3. Sign-in, and 4. the link to the guild's server (companion-me answers both).
   if (!deps.signedIn()) {
-    add("signin", "needs-you", "Not signed in. Press Sign in with Discord.");
+    // (9.1.3) Syncing with this PC's own key is a complete setup: Discord sign-in is optional, never a to-do.
+    if (deps.deviceMode?.()) add("signin", "ok", "Discord sign-in: optional, not used. Syncing works without it.");
+    else add("signin", "needs-you", "Not signed in. Press Sign in with Discord.");
   } else {
     let me = null;
     try { me = await deps.me(); } catch { me = null; }

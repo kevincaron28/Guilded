@@ -43,7 +43,9 @@ export function deviceUploadBody(full, options = {}) {
     if (characters.length >= MAX_CHARACTERS) break;
   }
   // Finished dungeon runs, newest first and capped: the bot checks and scores them like any run.
-  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED")
+  // (9.1.3) Runs the bot already answered for (options.skip) are not sent again, so older ones get their turn.
+  const skip = options.skip instanceof Set ? options.skip : new Set();
+  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !skip.has(run.id))
     .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)).slice(0, MAX_RUNS);
   return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(options.server ? { server: String(options.server) } : {}) };
 }
@@ -63,7 +65,7 @@ export async function uploadAsDevice(config, full, signal) {
   const { response, body } = await requestJson(new URL("/api/v1/device/uploads", base(config)), {
     method: "POST",
     headers: { ...deviceHeaders(config), "content-type": "application/json" },
-    body: JSON.stringify(deviceUploadBody(full, { server: config.deviceServer }))
+    body: JSON.stringify(deviceUploadBody(full, { server: config.deviceServer, skip: config.deviceAcceptedRuns }))
   }, signal);
   return { response, body };
 }

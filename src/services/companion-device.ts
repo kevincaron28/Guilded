@@ -111,10 +111,12 @@ export interface DeviceStore {
   claim(deviceId: string, memberId: string, now: Date): Promise<boolean>;
   /** Stores runs for this Discord server like any import; refs the server already holds are left untouched. */
   importRuns?(guildId: string, runs: unknown[], now: Date): Promise<{ stored: number; skipped: number }>;
+  /** Which of these run refs this server holds or has a receipt for (9.1.3): what the addon marks "synced" from. */
+  acknowledge?(guildId: string, refs: string[]): Promise<{ accepted: string[]; notes: Record<string, string> }>;
 }
 
 export type DeviceUploadAnswer =
-  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number } }
+  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number; acceptedRunRefs?: string[]; runNotes?: Record<string, string> } }
   | { status: "no-guild"; guild: { name: string; realm: string } | null }
   | { status: "choose"; guild: { name: string; realm: string }; servers: { discordId: string; name: string | null }[] }
   | { status: "claimed" };
@@ -214,6 +216,16 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     for (const run of runsOfDevice(upload.dungeonRuns, known)) { if (!limiter(device.id)) break; allowed.push(run); }
     const result = allowed.length ? await store.importRuns(target.guildId, allowed, now) : { stored: 0, skipped: 0 };
     runs = { received: upload.dungeonRuns.length, ...result };
+    // (9.1.3) Every ref of the upload gets an answer, so none waits forever in the addon: the ones the server holds (new,
+    // copies, refused) and the ones that are not this PC's characters' runs (a guildmate's run the addon got by peer sync).
+    const idOf = (run: unknown) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" ? [id] : []; };
+    const refs = upload.dungeonRuns.flatMap(idOf);
+    const ack = store.acknowledge ? await store.acknowledge(target.guildId, refs) : { accepted: [], notes: {} };
+    const mine = new Set(runsOfDevice(upload.dungeonRuns, known).flatMap(idOf));
+    const accepted = new Set(ack.accepted);
+    const notes: Record<string, string> = { ...ack.notes };
+    for (const ref of refs) if (!mine.has(ref) && !accepted.has(ref)) { accepted.add(ref); notes[ref] = "Not one of this PC's characters"; }
+    runs = { ...runs, acceptedRunRefs: [...accepted].slice(0, 1200), runNotes: notes };
   }
   return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, ...(runs ? { runs } : {}) };
 }
@@ -310,6 +322,15 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
       });
     },
     importRuns: (guildId, runs, now) => database.$transaction((tx) => storeDeviceRuns(tx, guildId, runs, now), { timeout: 60_000, maxWait: 15_000 }),
+    async acknowledge(guildId, refs) {
+      if (!refs.length) return { accepted: [], notes: {} };
+      const stored = await database.dungeonRun.findMany({ where: { guildId, runRef: { in: refs } }, select: { runRef: true } });
+      const receiptTable = (database as Partial<Pick<PrismaClient, "dungeonRunReceipt">>).dungeonRunReceipt;
+      const receipts = receiptTable ? await receiptTable.findMany({ where: { guildId, runRef: { in: refs } }, select: { runRef: true, reason: true } }) : [];
+      const notes: Record<string, string> = {};
+      for (const row of receipts) if (row.reason) notes[row.runRef] = row.reason;
+      return { accepted: [...new Set([...stored.map((row) => row.runRef), ...receipts.map((row) => row.runRef)])], notes };
+    },
     async claim(deviceId, memberId, now) {
       const done = await database.companionDevice.updateMany({ where: { id: deviceId, revokedAt: null, OR: [{ claimedMemberId: null }, { claimedMemberId: memberId }] }, data: { claimedMemberId: memberId, claimedAt: now } });
       return done.count === 1;

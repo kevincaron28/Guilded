@@ -1,4 +1,4 @@
-import { standingsToLua, linkedAsLua } from "./standings-format.mjs";
+import { standingsToLua, linkedAsLua, deviceStandingsToLua } from "./standings-format.mjs";
 export { standingsToLua } from "./standings-format.mjs";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { readSavedText } from "./saved-file.mjs";
@@ -90,4 +90,24 @@ export async function writeStandings(config, signal, options = {}) {
 // empty file it ships, and the bot would keep answering "not modified").
 export async function standingsFileHolds(path, text) {
   try { return withoutStamps(await readFile(path, "utf8")) === withoutStamps(text); } catch { return false; }
+}
+
+// (9.1.3) An unsigned companion has no standings, but the addon still needs the bot's answer about its dungeon runs
+// (and a cleared Discord link). Written like the standings: Guilded's own Standings.lua and the GuildedData copy.
+export async function writeDeviceStandings(config, answer, signal) {
+  if (config.writeStandingsEnabled === false) return null;
+  const path = resolveStandingsPath(config);
+  if (!path) return null;
+  const text = deviceStandingsToLua(answer);
+  try {
+    let current = null;
+    try { current = await readFile(path, "utf8"); } catch { /* first write */ }
+    if (current !== text) {
+      const temporary = `${path}.${process.pid}.tmp`;
+      try { await writeFile(temporary, text, "utf8"); signal?.throwIfAborted(); await rename(temporary, path); }
+      finally { await rm(temporary, { force: true }); }
+    }
+    if (config.dataAddon !== false) { try { await writeDataAddon(path, text, new Date().toISOString(), signal); } catch { signal?.throwIfAborted(); } }
+    return path;
+  } catch { signal?.throwIfAborted(); return null; }
 }

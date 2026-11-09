@@ -1411,5 +1411,8 @@
   "Sign in with Discord (optional)": "Se connecter avec Discord (facultatif)",
   "Waiting for your character's guild: log in to WoW with the Guilded addon enabled, then type /reload once.": "En attente de la guilde de votre personnage : connectez-vous à WoW avec l’addon Guilded activé, puis tapez /reload une fois.",
   "Your characters come from the Guilded addon: log in to WoW, type /reload once, and they are reported here. Signing in with Discord is optional: it confirms them as yours.": "Vos personnages viennent de l’addon Guilded : connectez-vous à WoW, tapez /reload une fois, et ils sont signalés ici. La connexion avec Discord est facultative : elle les confirme comme les vôtres.",
-  "It confirms your characters as yours. Syncing works without it.": "Elle confirme vos personnages comme les vôtres. La synchronisation fonctionne sans."
+  "It confirms your characters as yours. Syncing works without it.": "Elle confirme vos personnages comme les vôtres. La synchronisation fonctionne sans.",
+  "Settings from the Microsoft Store version were taken over ({0}). Restarting once.": "Les réglages de la version Microsoft Store ont été repris ({0}). Redémarrage unique.",
+  "The Microsoft Store settings could not be taken over: {0}": "Les réglages de la version Microsoft Store n’ont pas pu être repris : {0}",
+  "Discord sign-in: optional, not used. Syncing works without it.": "Connexion Discord : facultative, non utilisée. La synchronisation fonctionne sans."
 }

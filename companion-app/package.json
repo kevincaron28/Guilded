@@ -110,7 +110,7 @@
       "perMachine": false,
       "runAfterFinish": true,
       "shortcutName": "Guilded Companion",
-      "deleteAppDataOnUninstall": true,
+      "deleteAppDataOnUninstall": false,
       "include": "installer.nsh"
     }
   },

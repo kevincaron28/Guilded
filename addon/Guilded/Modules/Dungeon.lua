@@ -1247,6 +1247,23 @@ ns.commandHandlers["dungeon"] = function(args)
   end
   pcall(dungeon.noteOtherAddonVersion, true)
 end
+-- (9.1.3) /gdungeons and /gdg answer with Guilded alone (without them WoW says the command does not exist, in
+-- the client's language). The standalone Guilded Dungeons addon loads after this one and takes them over.
+if not ns.standalone and SLASH_GUILDEDDUNGEONS1 == nil then
+  SLASH_GUILDEDDUNGEONS1 = "/gdungeons"
+  SLASH_GUILDEDDUNGEONS2 = "/gdg"
+  SlashCmdList["GUILDEDDUNGEONS"] = function(text)
+    local args = {}
+    for word in string.gmatch(text or "", "%S+") do args[#args + 1] = word end
+    local action = string.lower(args[1] or "")
+    if (action == "score" or action == "lang") and ns.commandHandlers[action] then
+      table.remove(args, 1)
+      ns.commandHandlers[action](args)
+    else
+      ns.commandHandlers["dungeon"](args)
+    end
+  end
+end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded dungeon status | results | start | complete | abandon | check - dungeon runs")
 

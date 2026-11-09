@@ -50,6 +50,7 @@ describe("the bot's answers", () => {
     const synced = deviceSummary({ status: "synced", server: { discordId: "1", name: "Quebec Gold" }, guild: { name: "Quebec Gold", realm: "R" }, characters: 2 });
     expect(deviceMessage(synced)).toBe("Syncing to Quebec Gold (from your guild Quebec Gold). Your characters show as reported until you sign in with Discord.");
     expect(deviceMessage(deviceSummary({ status: "no-guild", guild: { name: "Quebec Gold", realm: "R" } }))).toContain("isn't set up on Discord yet");
+    expect(deviceMessage(deviceSummary({ status: "no-guild", guild: { name: "Québec Gold", realm: "CAMWOW US2 Realm 2 PvP" } }))).toContain("Québec Gold (realm CAMWOW US2 Realm 2 PvP) isn't set up");
     expect(deviceMessage(deviceSummary({ status: "no-guild", guild: null }))).toContain("Waiting for your character's guild");
     expect(deviceSummary({ status: "choose", guild: { name: "G", realm: "R" }, servers: [{ discordId: "1", name: "A" }, { discordId: "2", name: "B" }] })?.servers).toHaveLength(2);
     expect(deviceSummary({ nonsense: true })).toBeNull();

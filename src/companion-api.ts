@@ -106,7 +106,7 @@ import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
 import { createLeaderboardPages, guildDungeonSummary, prismaLeaderboardStore } from "./services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
-import { claimDevice, DEVICE_LIMITS, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
+import { claimDevice, DEVICE_LIMITS, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
@@ -864,8 +864,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           servers: async (discordUserId) => (await signInServers(client, discordUserId)).map((server) => ({ discordId: server.discordId, name: server.name })),
           avatar: async (discordUserId) => client ? (await client.users.fetch(discordUserId)).displayAvatarURL({ size: 64, extension: "png" }) : null,
           async joinTarget(nameKey, realmKey) {
-            const row = await prisma.wowGuild.findFirst({ where: { gameEdition: "forever", nameKey, realmKey }, select: { guild: { select: { discordId: true, page: { select: { inviteUrl: true } } } } } });
-            if (!row || !hostedPilot.allows(row.guild.discordId)) return null;
+            const found = pickServer(await prismaInstallStore(prisma, (discordId) => client?.guilds.cache.get(discordId)?.name ?? null).candidates(nameKey, realmKey));
+            if (!("pick" in found) || !hostedPilot.allows(found.pick.discordId)) return null;
+            const row = { guild: await prisma.guild.findFirst({ where: { discordId: found.pick.discordId, scopeKey: "default" }, select: { discordId: true, page: { select: { inviteUrl: true } } } }) };
+            if (!row.guild) return null;
             const name = client?.guilds.cache.get(row.guild.discordId)?.name ?? null;
             return name ? { discordId: row.guild.discordId, name, inviteUrl: row.guild.page?.inviteUrl ?? null } : null;
           }

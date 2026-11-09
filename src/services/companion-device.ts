@@ -64,17 +64,34 @@ export type DeviceUpload = z.infer<typeof deviceUploadSchema>;
 
 const key = (value: string) => value.normalize("NFC").trim().toLowerCase();
 
+/**
+ * A guild or server name reduced to its letters and digits: no case, accents or decoration. "Québec Gold", "Quebec Gold" and the
+ * Discord server "✤Quebec Gold✤" all become "quebecgold". A realm name gets the same treatment ("CAMWOW US2 Realm 2 PvP").
+ */
+export function looseKey(value: string): string {
+  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
 export interface DeviceRow {
   id: string; guildId: string | null; chosenGuildId: string | null; claimedMemberId: string | null; revokedAt: Date | null; uploads: number;
 }
 /** A Guild row (in-game guild scope) that /setup registered for this WoW guild. */
-export interface ServerCandidate { guildId: string; discordId: string; serverName: string | null; officerLinked: boolean }
+export interface ServerCandidate {
+  guildId: string; discordId: string; serverName: string | null; officerLinked: boolean;
+  /** The registered realm is the uploading guild's realm (a hint only: connected realms differ). */
+  realmMatch?: boolean;
+  /** One of the uploading characters is already in this server's roster. */
+  rosterMatch?: boolean;
+}
 
 export interface DeviceStore {
   create(tokenHash: string, now: Date): Promise<{ id: string }>;
   find(tokenHash: string): Promise<DeviceRow | null>;
-  /** Guild rows for a WoW Forever guild (keys are NFC lowercase), across every Discord server. */
-  candidates(nameKey: string, realmKey: string): Promise<ServerCandidate[]>;
+  /**
+   * Servers that know a WoW Forever guild, across every Discord server: matched by the loosened guild name
+   * (looseKey), any realm. Keys are NFC lowercase; characterKeys are the uploading characters (roster tie-break).
+   */
+  candidates(nameKey: string, realmKey: string, characterKeys?: string[]): Promise<ServerCandidate[]>;
   characterKeys(deviceId: string): Promise<string[]>;
   saveUpload(deviceId: string, data: { guildId: string | null; chosenGuildId: string | null; wowGuild: { key: string; name: string; realm: string } | null; now: Date },
     characters: { nameKey: string; name: string; realm: string; displayName?: string; className?: string; race?: string; level?: number; gameEdition: string }[]): Promise<void>;
@@ -113,9 +130,14 @@ export function pickServer(candidates: readonly ServerCandidate[], chosenDiscord
   const chosen = chosenDiscordId ? candidates.find((candidate) => candidate.discordId === chosenDiscordId || candidate.guildId === chosenDiscordId) : undefined;
   if (chosen) return { pick: chosen };
   if (candidates.length === 1) return { pick: candidates[0]! };
-  const linked = candidates.filter((candidate) => candidate.officerLinked);
-  if (linked.length === 1) return { pick: linked[0]! };
-  return { choose: linked.length ? linked : [...candidates] };
+  // Several servers share the name: narrow by the character's roster, then the guild's home realm, then officer sync.
+  let narrowed: readonly ServerCandidate[] = candidates;
+  for (const test of [(c: ServerCandidate) => c.rosterMatch, (c: ServerCandidate) => c.realmMatch, (c: ServerCandidate) => c.officerLinked]) {
+    const next = narrowed.filter((candidate) => test(candidate));
+    if (next.length === 1) return { pick: next[0]! };
+    if (next.length) narrowed = next;
+  }
+  return { choose: [...narrowed] };
 }
 
 /**
@@ -130,7 +152,8 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   const now = options.now ?? new Date();
   const guild = upload.guild ? { name: upload.guild.name, realm: upload.guild.realm } : null;
   const wowGuild = guild ? { key: `${key(guild.name)}|${key(guild.realm)}`, ...guild } : null;
-  const candidates = guild ? (await store.candidates(key(guild.name), key(guild.realm))).filter((candidate) => options.allows?.(candidate.discordId) ?? true) : [];
+  const characterKeys = upload.characters.map((character) => characterKey(character.name, character.realm, character.gameEdition));
+  const candidates = guild ? (await store.candidates(key(guild.name), key(guild.realm), characterKeys)).filter((candidate) => options.allows?.(candidate.discordId) ?? true) : [];
   // The member's earlier pick sticks until they choose again.
   const remembered = candidates.find((candidate) => candidate.guildId === device.chosenGuildId);
   const chosen = upload.server ?? remembered?.discordId ?? null;
@@ -177,19 +200,43 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
   return {
     create: (tokenHash, now) => database.companionDevice.create({ data: { tokenHash, createdAt: now, lastSeenAt: now }, select: { id: true } }),
     find: (tokenHash) => database.companionDevice.findUnique({ where: { tokenHash }, select: { id: true, guildId: true, chosenGuildId: true, claimedMemberId: true, revokedAt: true, uploads: true } }),
-    async candidates(nameKey, realmKey) {
-      const rows = await database.wowGuild.findMany({
-        where: { gameEdition: "forever", nameKey, realmKey },
-        select: { guildId: true, scopeGuildId: true, guild: { select: { discordId: true, officerSyncAt: true } }, scope: { select: { officerSyncAt: true } } },
-        take: 10
-      });
-      const seen = new Set<string>();
-      return rows.flatMap((row) => {
-        const guildId = row.scopeGuildId ?? row.guildId;
-        if (seen.has(guildId)) return [];
-        seen.add(guildId);
-        return [{ guildId, discordId: row.guild.discordId, serverName: serverName(row.guild.discordId), officerLinked: Boolean((row.scope ?? row.guild).officerSyncAt) }];
-      });
+    async candidates(nameKey, realmKey, characterKeys = []) {
+      // Matched on the loosened guild name, any realm: WoW Forever guilds span connected realms (the character is on
+      // "Realm 8", the guild's home is "Realm 2"), and a server is registered under its own spelling ("✤Quebec Gold✤").
+      const wanted = looseKey(nameKey), realmWanted = looseKey(realmKey);
+      if (!wanted) return [];
+      const [spaces, mains] = await Promise.all([
+        database.wowGuild.findMany({
+          where: { gameEdition: "forever" },
+          select: { name: true, realm: true, guildId: true, scopeGuildId: true, guild: { select: { discordId: true, officerSyncAt: true } }, scope: { select: { officerSyncAt: true } } },
+          take: 2000
+        }),
+        // A server set up without extra in-game guilds is one default Guild row named like the Discord server.
+        database.guild.findMany({ where: { scopeKey: "default", gameEdition: "forever" }, select: { id: true, discordId: true, name: true, officerSyncAt: true }, take: 2000 })
+      ]);
+      const found = new Map<string, ServerCandidate>();
+      const add = (candidate: ServerCandidate) => {
+        const earlier = found.get(candidate.guildId);
+        found.set(candidate.guildId, earlier ? { ...earlier, realmMatch: Boolean(earlier.realmMatch || candidate.realmMatch) } : candidate);
+      };
+      for (const row of spaces) {
+        if (looseKey(row.name) !== wanted) continue;
+        add({ guildId: row.scopeGuildId ?? row.guildId, discordId: row.guild.discordId, serverName: serverName(row.guild.discordId), officerLinked: Boolean((row.scope ?? row.guild).officerSyncAt), realmMatch: looseKey(row.realm) === realmWanted });
+      }
+      for (const row of mains) {
+        const discordName = serverName(row.discordId);
+        if (looseKey(row.name) !== wanted && looseKey(discordName ?? "") !== wanted) continue;
+        add({ guildId: row.id, discordId: row.discordId, serverName: discordName, officerLinked: Boolean(row.officerSyncAt) });
+      }
+      const result = [...found.values()].slice(0, 10);
+      if (result.length > 1 && characterKeys.length) {
+        // Only needed to tell servers apart: does a roster already hold one of these characters?
+        const members = await database.character.findMany({ where: { member: { guildId: { in: result.map((candidate) => candidate.guildId) } } }, select: { name: true, realm: true, gameEdition: true, member: { select: { guildId: true } } }, take: 5000 });
+        const mine = new Set(characterKeys);
+        const holders = new Set(members.filter((character) => mine.has(characterKey(character.name, character.realm, character.gameEdition ?? "forever"))).map((character) => character.member.guildId));
+        for (const candidate of result) if (holders.has(candidate.guildId)) candidate.rosterMatch = true;
+      }
+      return result;
     },
     characterKeys: async (deviceId) => (await database.deviceCharacter.findMany({ where: { deviceId }, select: { nameKey: true } })).map((row) => row.nameKey),
     async saveUpload(deviceId, data, characters) {

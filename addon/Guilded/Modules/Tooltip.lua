@@ -99,11 +99,15 @@ local function decorate(tooltip, fresh)
       tooltip:AddLine("Guilded: " .. line, GOLD_R, GOLD_G, GOLD_B)
     end
   end
-  if tooltip.Show then tooltip:Show() end
+  -- Only the old script hook needs a resize. In a data-processor post-call the game shows the
+  -- tooltip itself; calling Show() from here re-ran Blizzard's tooltip code under Guilded's taint.
+  if not fresh and tooltip.Show then tooltip:Show() end
 end
 module.decorate = decorate
 
-local function clear(tooltip) tooltip.guildedDone = nil end
+-- Cleared with the tooltip: a flag left from an item tooltip made Shift refresh a later unit
+-- tooltip from Guilded's code, which broke on secret values in combat ("tainted by Guilded").
+local function clear(tooltip) tooltip.guildedDone = nil; tooltip.guildedExpandable = nil end
 
 local function hookTooltips()
   if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
@@ -127,11 +131,14 @@ end
 function module.refreshForShift(tooltip)
   tooltip = tooltip or GameTooltip
   if not (tooltip and tooltip.guildedExpandable and tooltip.IsShown and tooltip:IsShown()) then return false end
+  -- Never in combat (tooltips hold secret values there), and only while it still shows an item.
+  if ns.util and ns.util.inCombat and ns.util.inCombat() then return false end
+  if not tooltip.GetItem then return false end
+  local ok, name, link = pcall(tooltip.GetItem, tooltip)
+  if not ok or type(name) ~= "string" or type(link) ~= "string" then return false end
+  if ns.isSecret and (ns.isSecret(name) or ns.isSecret(link)) then return false end
   if tooltip.RefreshData then return pcall(tooltip.RefreshData, tooltip) end
-  if tooltip.GetItem and tooltip.SetHyperlink then
-    local _, link = tooltip:GetItem()
-    if type(link) == "string" then return pcall(tooltip.SetHyperlink, tooltip, link) end
-  end
+  if tooltip.SetHyperlink then return pcall(tooltip.SetHyperlink, tooltip, link) end
   return false
 end
 

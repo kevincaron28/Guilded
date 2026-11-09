@@ -312,6 +312,10 @@ describe("dungeon scores (no bot needed)", () => {
       function UnitIsPlayer() return true end; function UnitName() return "Ann" end
       NS.scores.decorateUnit(tip)`);
     expect(s.run(`return LINES[1]`)).toBe("Guilded season score: 300");
+    // In combat (a duel) the tooltip holds secret values: Guilded leaves it alone.
+    s.run(`LINES = {}; NS.util = NS.util or {}; NS.util.inCombat = function() return true end
+      NS.scores.decorateUnit({ GetUnit = function() return "Ann", "mouseover" end, AddLine = function(_, t) LINES[#LINES + 1] = t end })`);
+    expect(s.run(`return #LINES`)).toBe("0");
   });
 });
 

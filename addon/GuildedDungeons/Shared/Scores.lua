@@ -304,8 +304,11 @@ end
 
 local GOLD_R, GOLD_G, GOLD_B = 0.83, 0.69, 0.22
 
-local function decorateUnit(tooltip)
+-- `fresh` = called by the tooltip data processor, which shows the tooltip itself afterwards.
+local function decorateUnit(tooltip, fresh)
   if not active() or not tooltip or not tooltip.GetUnit then return end
+  -- In combat a unit tooltip holds secret values; leave it to the game.
+  if ns.util and ns.util.inCombat and ns.util.inCombat() then return end
   local ok, _, unit = pcall(tooltip.GetUnit, tooltip)
   if not ok or not unit or (ns.isSecret and ns.isSecret(unit)) then return end
   if UnitIsPlayer and not UnitIsPlayer(unit) then return end
@@ -324,13 +327,13 @@ local function decorateUnit(tooltip)
     tooltip:AddLine(L(role.role) .. ": " .. role.points, 0.8, 0.85, 1)
   end
   if snapshot and snapshot.profile and snapshot.profile.roles then tooltip:AddLine(L("Role scores are separate; unknown roles are not assigned."), 0.7, 0.7, 0.7) end
-  if tooltip.Show then tooltip:Show() end
+  if not fresh and tooltip.Show then tooltip:Show() end
 end
 scores.decorateUnit = decorateUnit
 
 local function hookTooltips()
   if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Unit then
-    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip) pcall(decorateUnit, tooltip) end)
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip) pcall(decorateUnit, tooltip, true) end)
   elseif GameTooltip and GameTooltip.HookScript then
     pcall(GameTooltip.HookScript, GameTooltip, "OnTooltipSetUnit", function(tooltip) pcall(decorateUnit, tooltip) end)
   end

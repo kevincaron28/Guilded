@@ -323,6 +323,14 @@ describe("call for help: only a real attack counts, and the chat line is limited
     expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
     expect(lua.run(`return tostring(NS.callForHelp.attacked())`)).toBe("false");
   });
+  // DUEL_INBOUNDS fires only on walking back into the duel area; a normal duel starts with a request.
+  it("treats a duel as a duel from its request, until it finishes", () => {
+    const lua = setup();
+    lua.run(`ENEMY = { name = "Thug", level = 60 }; fire_event("DUEL_REQUESTED", "Thug")`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    lua.run(`fire_event("DUEL_FINISHED"); CLOCK = CLOCK + 60`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
+  });
   it("ignores an enemy that is not in combat, and hits too far apart", () => {
     const lua = setup();
     lua.run(`ENEMY = { name = "Thug", level = 60 }; function UnitAffectingCombat() return false end`);

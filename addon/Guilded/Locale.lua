@@ -8,6 +8,17 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  -- 9.0.8 waiting dungeon runs and run receipts.
+  ["%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "%d donjon(s) ne sont pas encore arriv\195\169s sur Discord. L'application Guilded Companion est-elle ouverte sur ce PC ? Lancez-la depuis le menu D\195\169marrer de Windows : elle envoie vos donjons quand vous faites /reload ou vous d\195\169connectez.",
+  ["Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "L'application Guilded Companion est-elle ouverte sur ce PC ? Lancez-la depuis le menu D\195\169marrer de Windows : elle envoie vos donjons quand vous faites /reload ou vous d\195\169connectez.",
+  ["They go to Discord when you /reload or log out while the Guilded Companion app is running."] = "Ils partent vers Discord quand vous faites /reload ou vous d\195\169connectez pendant que l'application Guilded Companion est ouverte.",
+  ["Received by Discord. Not scored: %s"] = "Re\195\167u par Discord. Sans points : %s",
+  ["Counted with a guildmate's copy of this run"] = "Compt\195\169 avec la copie d'un membre de la guilde",
+  ["Not completed"] = "Non termin\195\169",
+  ["Played before the dungeon reset"] = "Jou\195\169 avant la remise \195\160 z\195\169ro des donjons",
+  ["Run data could not be read"] = "Donn\195\169es illisibles",
+  ["Outside the season window"] = "Hors de la p\195\169riode de la saison",
+  ["Final boss kill not detected"] = "Boss final non d\195\169tect\195\169",
   ["[Guilded] All clear: %s is safe."] = "[Guilded] Tout est calme : %s est en s\195\169curit\195\169.",
   ["Call for help now?"] = "Appeler \195\160 l'aide maintenant ?",
   ["World PvP this week"] = "PvP mondial cette semaine",
@@ -1014,6 +1025,17 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  -- 9.0.8 waiting dungeon runs and run receipts.
+  ["%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "%d Dungeonlauf/-l\195\164ufe sind noch nicht bei Discord angekommen. L\195\164uft die App Guilded Companion auf diesem PC? Starte sie \195\188ber das Windows-Startmen\195\188: Sie sendet deine L\195\164ufe bei /reload oder beim Ausloggen.",
+  ["Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "L\195\164uft die App Guilded Companion auf diesem PC? Starte sie \195\188ber das Windows-Startmen\195\188: Sie sendet deine L\195\164ufe bei /reload oder beim Ausloggen.",
+  ["They go to Discord when you /reload or log out while the Guilded Companion app is running."] = "Sie gehen bei /reload oder beim Ausloggen an Discord, wenn die App Guilded Companion l\195\164uft.",
+  ["Received by Discord. Not scored: %s"] = "Von Discord empfangen. Keine Punkte: %s",
+  ["Counted with a guildmate's copy of this run"] = "Mit der Kopie eines Gildenmitglieds gez\195\164hlt",
+  ["Not completed"] = "Nicht abgeschlossen",
+  ["Played before the dungeon reset"] = "Vor dem Dungeon-Reset gespielt",
+  ["Run data could not be read"] = "Daten nicht lesbar",
+  ["Outside the season window"] = "Au\195\159erhalb der Saison",
+  ["Final boss kill not detected"] = "Endboss-Sieg nicht erkannt",
   ["[Guilded] All clear: %s is safe."] = "[Guilded] Entwarnung: %s ist in Sicherheit.",
   ["Call for help now?"] = "Jetzt Hilfe rufen?",
   ["World PvP this week"] = "Welt-PvP diese Woche",
@@ -2691,6 +2713,17 @@ local DE = {
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  -- 9.0.8 waiting dungeon runs and run receipts.
+  ["%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "%d recorrido(s) de mazmorra a\195\186n no han llegado a Discord. \194\191Est\195\161 abierta la aplicaci\195\179n Guilded Companion en este PC? In\195\173ciala desde el men\195\186 Inicio de Windows: env\195\173a tus recorridos cuando usas /reload o cierras sesi\195\179n.",
+  ["Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "\194\191Est\195\161 abierta la aplicaci\195\179n Guilded Companion en este PC? In\195\173ciala desde el men\195\186 Inicio de Windows: env\195\173a tus recorridos cuando usas /reload o cierras sesi\195\179n.",
+  ["They go to Discord when you /reload or log out while the Guilded Companion app is running."] = "Se env\195\173an a Discord cuando usas /reload o cierras sesi\195\179n con la aplicaci\195\179n Guilded Companion abierta.",
+  ["Received by Discord. Not scored: %s"] = "Recibido por Discord. Sin puntos: %s",
+  ["Counted with a guildmate's copy of this run"] = "Contado con la copia de un miembro de la hermandad",
+  ["Not completed"] = "No completado",
+  ["Played before the dungeon reset"] = "Jugado antes del reinicio de mazmorras",
+  ["Run data could not be read"] = "Datos ilegibles",
+  ["Outside the season window"] = "Fuera de la temporada",
+  ["Final boss kill not detected"] = "Jefe final no detectado",
   ["[Guilded] All clear: %s is safe."] = "[Guilded] Todo despejado: %s est\195\161 a salvo.",
   ["Call for help now?"] = "\194\191Pedir ayuda ahora?",
   ["World PvP this week"] = "PvP mundial esta semana",

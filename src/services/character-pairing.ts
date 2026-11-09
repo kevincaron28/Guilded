@@ -105,7 +105,8 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
     if (removed) return "removed-by-officer" as const;
     await createSelfCharacter(tx, guildId, memberId, self, confirm);
     return "linked" as const;
-  });
+  // 9.0.8: its own budget. The 5 s default ran out while a big upload's import held the database (P2028, 9 November).
+  }, { timeout: 20_000, maxWait: 10_000 });
 }
 
 // Revokes every credential this member currently has (unlinking them from

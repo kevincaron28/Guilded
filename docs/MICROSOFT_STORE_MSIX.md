@@ -49,9 +49,13 @@ include the Guilded license, branded tiles and English/French resources. The onl
 restricted capability is `runFullTrust`, required by the Electron desktop app.
 
 Packaged installations use Microsoft Store updates. They never fetch or launch
-the GitHub EXE updater. Startup is an initially disabled package startup task,
-managed by the user in Windows settings; the app does not create a registry Run
-entry for a Store installation. The app still works in the tray after launch.
+the GitHub EXE updater. Startup is a package startup task that ships disabled;
+on its first run (9.0.8) the app asks Windows once to enable it
+(`companion-app/store-startup.cjs`, `StartupTask.RequestEnableAsync`) so runs keep
+reaching Discord, and the "Start with Windows" switch turns it on or off. A task
+the user turned off in Windows settings stays off (the app opens Settings > Apps >
+Startup instead). The app never creates a registry Run entry for a Store
+installation. The app still works in the tray after launch.
 
 Store profiles use a separate application-data folder and Windows-backed
 `safeStorage` encryption for configuration, including credentials in all profiles.

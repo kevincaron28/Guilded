@@ -541,7 +541,7 @@ async function init() {
   storePackage = all.storePackage === true;
   $('storeDistribution').hidden = !all.storePackage;
   // Store build: Windows manages startup; "Install updates automatically" is the off switch for the Store self-update (F5).
-  if (all.storePackage) { $('autostartLabel').hidden = true; $('autoUpdateRow').hidden = true; }
+  if (all.storePackage) { $('autoUpdateRow').hidden = true; }
   $('autoUpdate').checked = all.config.autoUpdate !== false;
   $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();

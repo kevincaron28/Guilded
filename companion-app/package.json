@@ -44,7 +44,8 @@
       "link-identity.cjs",
       "repair.cjs",
       "disk-space.cjs",
-      "config-load.cjs"
+      "config-load.cjs",
+      "store-startup.cjs"
     ],
     "extraResources": [
       {

@@ -25,8 +25,8 @@ describe("the standings transaction", () => {
     const { standingsConsistentReads } = await import("../src/companion-api.js");
     const { db, touched } = recordingDb();
     const result = await standingsConsistentReads(db as never, "g1", "m1");
-    expect(Object.keys(result).sort()).toEqual(["acceptedLedgerRefs", "acceptedLootRefs", "acceptedRunRefs", "accounts", "baseGp", "standings"]);
-    const allowed = new Set(["guildSettings", "dungeonRun", "character", "member", "epgpTransaction", "lootAward", "raidAttendance", "raid", "raidCore", "coreMember"]);
+    expect(Object.keys(result).sort()).toEqual(["acceptedLedgerRefs", "acceptedLootRefs", "acceptedRunRefs", "accounts", "baseGp", "runNotes", "standings"]);
+    const allowed = new Set(["guildSettings", "dungeonRun", "dungeonRunReceipt","character", "member", "epgpTransaction", "lootAward", "raidAttendance", "raid", "raidCore", "coreMember"]);
     for (const model of ["guildSettings", "dungeonRun", "character", "lootAward"]) expect(touched.has(model), model).toBe(true);
     expect([...touched].filter((model) => !allowed.has(model))).toEqual([]);
     for (const model of ["poll", "pollVote", "boardPost", "guildBankSnapshot", "bankRequest", "guildBankTarget", "calendarEvent", "dungeonSeason", "lootRule"]) expect(touched.has(model)).toBe(false);

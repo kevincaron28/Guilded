@@ -187,6 +187,7 @@ model Guild {
     discordJobs         DiscordJob[]
     discordEvents       DiscordEventLink[]
   dungeonRuns         DungeonRun[]
+  dungeonRunReceipts  DungeonRunReceipt[]
   dungeonPoints       DungeonPointTransaction[]
   dungeonAchievements DungeonAchievement[]
   warcraftLogsReports WarcraftLogsReport[]
@@ -1698,6 +1699,29 @@ model DungeonRun {
   @@unique([guildId, runRef])
   @@index([guildId, instanceId, valid])
   @@index([guildId, endedAt])
+}
+
+// Every dungeon run ref an upload brought, whatever happened to it (9.0.8): stored, another
+// observer's copy of a stored run, or refused. The standings snapshot sends these refs back so the
+// addon stops counting a run as waiting; `reason` says why a run earned nothing, when it did not.
+model DungeonRunReceipt {
+  id        String   @id @default(cuid())
+  guildId   String
+  runRef    String
+  // stored | copy | refused
+  outcome   String
+  // The run's state in that upload (a copy that comes back COMPLETED after an addon recovery is looked at again).
+  state     String?
+  reason    String?
+  // The stored run this ref is (or is a copy of), when there is one.
+  runId     String?
+  createdAt DateTime @default(now())
+  // Last upload that brought this ref (the snapshot sends the most recently seen first).
+  seenAt    DateTime @default(now())
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, runRef])
+  @@index([guildId, seenAt])
 }
 
 model DungeonRunPlayer {

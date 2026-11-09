@@ -10,6 +10,7 @@ import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 // (backups/quebec-gold-YYYY-MM-DD.json.gz), keeping the newest `keep`.
 // Neon has its own point-in-time restore; this is the local copy you can
 // open, search, or hand to someone if something goes badly wrong.
+// Raw upload payloads of already applied AddonImport rows are NOT included (see addonImportRows).
 
 export const BACKUP_DIR = "backups";
 const PREFIX = "quebec-gold-";
@@ -74,7 +75,7 @@ async function writeBackup(database: PrismaClient, now: Date, dir: string, keep:
       for (const model of Object.values(Prisma.ModelName)) {
         const delegate = (transaction as unknown as Record<string, { findMany: () => Promise<unknown[]> }>)[delegateName(model)];
         if (!delegate?.findMany) continue;
-        const data = await delegate.findMany();
+        const data = model === "AddonImport" ? await addonImportRows(transaction) : await delegate.findMany();
         rows += data.length;
         await write(`${first ? "" : ","}${JSON.stringify(model)}:${JSON.stringify(data, bigintSafe)}`);
         first = false;
@@ -89,6 +90,16 @@ async function writeBackup(database: PrismaClient, now: Date, dir: string, keep:
     for (const old of backupsToDelete([...new Set([...existing, file])], keep)) await rm(join(dir, old), { force: true });
     return { file, rows };
   } finally { await rm(temporary, { force: true }); }
+}
+
+// AddonImport holds raw companion uploads and was ~97% of the backup's JSON (9 Nov 2026). Restoring a
+// guild does not need an applied upload's payload (it is already in the ledger tables, and the bot
+// compacts it on apply), so applied rows are written without it (payload: {"omitted":true}). Rows still
+// waiting for /import apply keep their payload: without it they could not be applied after a restore.
+async function addonImportRows(transaction: Prisma.TransactionClient): Promise<unknown[]> {
+  const applied = await transaction.addonImport.findMany({ where: { status: "APPLIED" }, omit: { payload: true } });
+  const pending = await transaction.addonImport.findMany({ where: { status: { not: "APPLIED" } } });
+  return [...applied.map(row => ({ ...row, payload: { omitted: true } })), ...pending];
 }
 
 const bigintSafe = (_key: string, value: unknown) => typeof value === "bigint" ? value.toString() : value;

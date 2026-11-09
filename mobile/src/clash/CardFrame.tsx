@@ -1,7 +1,7 @@
 import { Image, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { classColor } from "../publicApi";
 import { championArt } from "./championArt";
-import { legendaryArt } from "./legendaryArt";
+import { cardArt } from "./cardArt";
 import type { Lang } from "../i18n";
 import { rulesText } from "./state";
 import { CLASS_LABEL } from "./words";
@@ -27,9 +27,9 @@ const typeLabel = (type: ClashCard["type"], lang: Lang): string => (lang === "fr
 /** The art window: painted art when it exists, else a placeholder in the card's class colour with its initial. */
 export function ArtWindow({ card, height }: { card: Pick<ClashCard, "id" | "name" | "cls" | "artUrl" | "type">; height: number }) {
   if (card.artUrl) return <Image source={{ uri: card.artUrl }} style={[styles.art, { height }]} resizeMode="cover" accessibilityIgnoresInvertColors />;
-  // The nine class Legendary units have their approved painting (9 November 2026).
-  const legendary = card.type === "unit" ? legendaryArt(card.id) : null;
-  if (legendary) return <Image source={legendary.window} style={[styles.art, { height }]} resizeMode="cover" accessibilityIgnoresInvertColors />;
+  // Cards with an approved painting (any type, 9 November 2026) show it; it wins over the champion fallback below.
+  const painted = cardArt(card.id);
+  if (painted) return <Image source={painted.window} style={[styles.art, { height }]} resizeMode="cover" accessibilityIgnoresInvertColors />;
   // Champion (class) cards fall back to the owner-approved painting of their class; set cards keep the placeholder.
   const champion = card.type === "standard" ? championArt(card.cls) : null;
   if (champion) return <Image source={champion.window} style={[styles.art, { height }]} resizeMode="cover" accessibilityIgnoresInvertColors />;

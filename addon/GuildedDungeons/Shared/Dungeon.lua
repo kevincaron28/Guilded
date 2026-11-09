@@ -32,10 +32,14 @@ local CHUNK_BYTES = 200
 local KEEP_SYNCED_DAYS = 30
 
 local compat = ns.compat
-local dungeon = { addonUsers = {}, outbox = {}, incoming = {}, lastHello = 0 }
+local dungeon = { addonUsers = {}, outbox = {}, incoming = {}, lastHello = 0, acked = {},
+  stats = { acksSent = 0, acksHeard = 0, pruned = 0 } }
 ns.dungeon = dungeon
 
 local TERMINAL = { COMPLETED = true, ABANDONED = true, INVALID = true, ERROR = true }
+-- (9.0) Guildmates' runs nobody's bot confirmed are dropped after this long (the bot takes
+-- relayed runs up to 30 days old, so older copies can never reach it).
+local KEEP_PEER_DAYS = 45
 
 local function db()
   local root = ns.getDb and ns.getDb()
@@ -66,7 +70,9 @@ local function flush()
   dungeon.outbox = {}
   for _, message in ipairs(queued) do
     local channel = message.channel == "GROUP" and groupChannel() or message.channel
-    if channel then ns.comm.send(PREFIX, message.text, channel) end
+    -- (9.0) Guild summaries wait until the player is outside: guild messages from inside an
+    -- instance are unreliable, and nobody in the guild needs them before the group leaves.
+    if channel then ns.comm.send(PREFIX, message.text, channel, nil, nil, channel == "GUILD" and "hold-in-instance" or nil) end
   end
 end
 
@@ -184,8 +190,6 @@ local function newRun(instance)
     name = instance.name,
     difficultyId = instance.difficultyId,
     difficultyName = instance.difficultyName,
-    challengeMode = compat.challengeActive(),
-    activeChallenge = compat.challengeInfo(),
     detectedAt = stamp,
     encounters = {},
     players = {},
@@ -203,6 +207,100 @@ local function newRun(instance)
   run.state = "STARTING"
   return run
 end
+
+-- Death positions (9.1): where in the dungeon the group fell, for the death map on the run card.
+-- Each client records its OWN death (position of the player unit) and tells the group with a separate
+-- DPOS message, so older clients that do not know it simply ignore it. Positions are thousandths (0..1000)
+-- of the map, per uiMapID; at most MAX_DEATH_POINTS per run. Unknown positions (indoor maps that return
+-- nothing or 0,0) are never recorded.
+local MAX_DEATH_POINTS = 60
+local function playerPosition()
+  if not (C_Map and C_Map.GetBestMapForUnit and C_Map.GetPlayerMapPosition) then return nil end
+  local okMap, mapId = pcall(C_Map.GetBestMapForUnit, "player")
+  if not okMap or type(mapId) ~= "number" or ns.isSecret(mapId) or mapId <= 0 then return nil end
+  local okPos, position = pcall(C_Map.GetPlayerMapPosition, mapId, "player")
+  if not okPos or type(position) ~= "table" or not position.GetXY then return nil end
+  local okXY, x, y = pcall(position.GetXY, position)
+  if not okXY or type(x) ~= "number" or type(y) ~= "number" or ns.isSecret(x) or ns.isSecret(y) then return nil end
+  if x < 0 or x > 1 or y < 0 or y > 1 or (x == 0 and y == 0) then return nil end
+  return math.floor(x * 1000 + 0.5), math.floor(y * 1000 + 0.5), mapId
+end
+local function addDeathPoint(run, name, x, y, mapId)
+  if type(run) ~= "table" or type(name) ~= "string" then return false end
+  x, y, mapId = tonumber(x), tonumber(y), tonumber(mapId)
+  if not x or not y or not mapId or x < 0 or x > 1000 or y < 0 or y > 1000 or mapId <= 0 or mapId > 100000 then return false end
+  run.deathPoints = run.deathPoints or {}
+  if #run.deathPoints >= MAX_DEATH_POINTS then return false end
+  table.insert(run.deathPoints, { name = name, x = math.floor(x) / 1000, y = math.floor(y) / 1000, map = math.floor(mapId) })
+  return true
+end
+
+-- Traced dungeon maps (9.2): while a run is active inside an instance, a light breadcrumb of where the player walked, so the
+-- bot can draw an accurate outline of each dungeon floor in the same coordinates as the death positions. Positions are snapped
+-- to a TRACE_GRID x TRACE_GRID grid of the floor's map (uiMapID) and kept only as a set of cells per floor: no timestamps, no
+-- order. Short steps between two samples are filled in a straight line (a long jump, a teleport or a floor change never draws a
+-- corridor). At most MAX_TRACE_CELLS per run. Stored as run.trace = { { map = id, cells = "key,key,..." } } (key = cx * grid + cy)
+-- so SavedVariables and the companion read it simply. Only the recorder's own export uploads it; nothing is sent to the group.
+-- On by default; members turn it off with /guilded maptrace off.
+local TRACE_GRID, MAX_TRACE_CELLS, TRACE_SECONDS, TRACE_MAX_STEP = 200, 600, 1.5, 12
+local traceSets, lastTrace = {}, nil
+local function traceOn()
+  local s = ns.getSettings and ns.getSettings()
+  return not (s and (s.dungeonTrace == false or s.mapShare == false))
+end
+local function traceEntry(run, mapId)
+  run.trace = run.trace or {}
+  for _, entry in ipairs(run.trace) do if entry.map == mapId then return entry end end
+  local entry = { map = mapId, cells = "" }
+  table.insert(run.trace, entry)
+  return entry
+end
+local function traceCount(run)
+  local count = 0
+  for _, entry in ipairs(run.trace or {}) do for _ in string.gmatch(entry.cells or "", "%d+") do count = count + 1 end end
+  return count
+end
+local function addTraceCell(run, mapId, cx, cy)
+  if cx < 0 or cy < 0 or cx >= TRACE_GRID or cy >= TRACE_GRID then return false end
+  local id = tostring(run.id) .. ":" .. mapId
+  local set = traceSets[id]
+  local entry = traceEntry(run, mapId)
+  if not set then
+    set = {}
+    for key in string.gmatch(entry.cells or "", "%d+") do set[tonumber(key)] = true end
+    traceSets[id] = set
+  end
+  local key = cx * TRACE_GRID + cy
+  if set[key] then return true end
+  run.traceCount = run.traceCount or traceCount(run)
+  if run.traceCount >= MAX_TRACE_CELLS then return false end
+  set[key] = true
+  entry.cells = entry.cells == "" and tostring(key) or (entry.cells .. "," .. key)
+  run.traceCount = run.traceCount + 1
+  return true
+end
+-- One breadcrumb sample (called by a ticker every TRACE_SECONDS; tests call it directly).
+local function traceSample()
+  local d = db()
+  local run = d and d.current
+  if not run or run.state == "INVALID" or not traceOn() or not (ns.util and ns.util.inInstance and ns.util.inInstance()) then lastTrace = nil; return false end
+  local x, y, mapId = playerPosition()
+  if not x then return false end
+  local cx = math.min(TRACE_GRID - 1, math.floor(x * TRACE_GRID / 1000))
+  local cy = math.min(TRACE_GRID - 1, math.floor(y * TRACE_GRID / 1000))
+  local last = lastTrace
+  if last and last.run == run.id and last.map == mapId then
+    local dx, dy = cx - last.cx, cy - last.cy
+    local steps = math.max(math.abs(dx), math.abs(dy))
+    if steps > 1 and steps <= TRACE_MAX_STEP then
+      for i = 1, steps - 1 do addTraceCell(run, mapId, last.cx + math.floor(dx * i / steps + 0.5), last.cy + math.floor(dy * i / steps + 0.5)) end
+    end
+  end
+  addTraceCell(run, mapId, cx, cy)
+  lastTrace = { run = run.id, map = mapId, cx = cx, cy = cy }
+  return true
+end
+ns.dungeonTrace = { sample = traceSample, grid = TRACE_GRID, maxCells = MAX_TRACE_CELLS, enabled = traceOn }
 
 local function save(run)
   local d = db()
@@ -252,6 +350,16 @@ local function finish(state, reason)
   run.state = state
   run.endedAt = now()
   if state == "COMPLETED" then run.completedBy = reason else run.endReason = reason end
+  -- Kills were recorded but none was recognised as the final boss: leave a trace (game ids and
+  -- boss names only) so an unknown Forever dungeon id or name can be added to Compat.lua.
+  if state == "ABANDONED" and ns.logDiagnostic then
+    local last
+    for _, encounter in ipairs(run.encounters or {}) do if encounter.success and not encounter.kind then last = encounter end end
+    if last then
+      pcall(ns.logDiagnostic, "DUNGEON_FINAL_UNMATCHED", string.format("instance %s (%s) last kill %s %s; abandoned: %s",
+        tostring(run.instanceId), tostring(run.gameEdition), tostring(last.id), tostring(last.name), tostring(reason)))
+    end
+  end
   send(string.format("END|%s|%s|%d|%s", run.id, state, run.endedAt, reason or ""))
   finalize(run)
 end
@@ -340,18 +448,11 @@ serialize = function(run)
     "v=" .. PROTOCOL_VERSION, "av=" .. clean(run.addonVersion), "st=" .. run.state,
     "gb=" .. clean(run.gameBuild or ""), "tr=" .. clean(run.startTrigger or ""),
     "api=" .. tostring(run.interface or ""), "ed=" .. clean(run.gameEdition or ""),
-    "cm=" .. (run.challengeMode and "1" or "0"),
     "i=" .. tostring(run.instanceId or 0), "n=" .. clean(run.name), "d=" .. tostring(run.difficultyId or 0),
     "s=" .. tostring(run.startedAt or 0), "e=" .. tostring(run.endedAt or 0),
     "cb=" .. clean(run.completedBy or run.endReason or ""), "r=" .. clean(run.recorder),
     "enc=" .. table.concat(encounters, ","), "p=" .. table.concat(players, ",")
   }, ";")
-  if run.challenge then
-    local c = run.challenge
-    summary = summary .. ";ch=" .. table.concat({ c.mapId, c.level, c.durationMs, c.timeLimitSec,
-      c.onTime and "1" or "0", c.practiceRun and "1" or "0", c.eligibleForScore and "1" or "0",
-      table.concat(c.affixIds or {}, ",") }, ":")
-  end
   -- Optional fields keep older peers compatible and respect the 20-chunk limit.
   local specs, timeline = {}, {}
   for name, player in pairs(run.players) do
@@ -405,25 +506,11 @@ local function deserialize(id, text)
     id = id, protocolVersion = PROTOCOL_VERSION, addonVersion = fields.av, state = fields.st,
     gameBuild = fields.gb ~= "" and fields.gb or nil, startTrigger = fields.tr ~= "" and fields.tr or nil,
     interface = tonumber(fields.api), gameEdition = fields.ed ~= "" and fields.ed or nil,
-    challengeMode = fields.cm == "1",
     instanceId = tonumber(fields.i), name = fields.n, difficultyId = tonumber(fields.d),
     startedAt = tonumber(fields.s) ~= 0 and tonumber(fields.s) or nil,
     endedAt = tonumber(fields.e) ~= 0 and tonumber(fields.e) or nil,
     recorder = fields.r, encounters = {}, players = {}, reporters = {}
   }
-  if fields.ch and run.gameEdition == "retail" then
-    local map, level, duration, limit, onTime, practice, eligible, affixes = string.match(fields.ch,
-      "^(%d+):(%d+):(%d+):(%d+):([01]):([01]):([01]):([%d,]*)$")
-    if map then
-      run.challenge = { mapId = tonumber(map), level = tonumber(level), durationMs = tonumber(duration),
-        timeLimitSec = tonumber(limit), onTime = onTime == "1", practiceRun = practice == "1",
-        eligibleForScore = eligible == "1", affixIds = {} }
-      for value in string.gmatch(affixes, "%d+") do
-        if #run.challenge.affixIds >= 10 then run.challenge = nil; break end
-        table.insert(run.challenge.affixIds, tonumber(value))
-      end
-    end
-  end
   if fields.st == "COMPLETED" then run.completedBy = fields.cb else run.endReason = fields.cb end
   if run.startedAt and run.endedAt then run.durationSec = run.endedAt - run.startedAt end
   for encounterId in string.gmatch(fields.enc or "", "[^,]+") do
@@ -627,6 +714,12 @@ local function onAddonMessage(text, sender)
       player.addon = true
       player.deaths = math.max(player.deaths or 0, tonumber(count) or 0)
     end
+  elseif kind == "DPOS" then
+    local id, name, x, y, mapId = string.match(text, "^DPOS|([^|]+)|([^|]+)|(%d+)|(%d+)|(%d+)$")
+    name = name and ns.normalizeName(name)
+    local target = (run and run.id == id) and run or (d and d.runs[id or ""])
+    -- Only the player's own death position, only for a player already in that run.
+    if target and name == sender and target.players[name] then addDeathPoint(target, name, x, y, mapId) end
   elseif kind == "END" then
     local id, state, endedAt, reason = string.match(text, "^END|([^|]+)|(%u+)|(%d+)|(.*)$")
     -- Only the run's recorder or the group leader can end the run for everyone, and only
@@ -645,6 +738,16 @@ local function onAddonMessage(text, sender)
     end
   elseif kind == "REQUEST" and ns.isOfficerName and ns.isOfficerName(sender) then
     dungeon.replayPending()
+  elseif kind == "ACK" then
+    -- (9.0) A guildmate whose companion's bot already stored this run: stop replaying it at
+    -- every login. Only our own copy is marked; the bot still dedupes by run id.
+    local id = string.match(text, "^ACK|([^|]+)$")
+    local saved = id and d and d.runs[id]
+    if saved and not saved.synced and not saved.syncedVia then
+      saved.syncedVia = sender
+      saved.syncedViaAt = now()
+      dungeon.stats.acksHeard = dungeon.stats.acksHeard + 1
+    end
   elseif kind == "SUM" then
     local id, index, total, payload = string.match(text, "^SUM|([^|]+)|(%d+)|(%d+)|(.*)$")
     index, total = tonumber(index), tonumber(total)
@@ -671,6 +774,14 @@ local function onAddonMessage(text, sender)
       -- Only someone who was in the run can report it, and not with times in the future.
       if peer and peer.players[sender] and not ns.util.tooFarAhead(peer.endedAt or 0)
         and not ns.util.tooFarAhead(peer.startedAt or 0) then
+        local known = d and d.runs[id]
+        -- (9.0) A replay of a run this PC's bot already stored: say so once, so the sender
+        -- (a Guilded Dungeons-only player, or someone without the companion) stops replaying it.
+        if known and known.synced and not dungeon.acked[id] then
+          dungeon.acked[id] = true
+          dungeon.stats.acksSent = dungeon.stats.acksSent + 1
+          send("ACK|" .. id, "GUILD")
+        end
         storePeerRun(peer, sender)
       end
     end
@@ -734,14 +845,23 @@ local function onEvent(_, event, ...)
       for _, p in pairs(d.current.players) do p.knownInside = false end
     end
     ns.comm.register(PREFIX)
+    dungeon.loadedAt = now()
     if C_Timer then C_Timer.After(30, function()
       dungeon.markSynced()
+      -- After markSynced: a recovered run is changed, so it must upload again.
+      pcall(dungeon.recoverRuns)
+      pcall(dungeon.remindWaiting)
       dungeon.replayPending()
       if ns.isOfficer and ns.isOfficer() then send("REQUEST|1", "GUILD") end
     end) end
     return
   end
   if not d then return end
+  if event == "PLAYER_LOGOUT" then
+    -- Logout and /reload both write the saved file the companion reads (overdueRuns).
+    d.saveBeforeAt, d.lastSaveAt = d.lastSaveAt, now()
+    return
+  end
   if event == "PLAYER_ENTERING_WORLD" or event == "ZONE_CHANGED_NEW_AREA" then
     dungeon.markSynced()
     sayHello(false)
@@ -760,28 +880,6 @@ local function onEvent(_, event, ...)
     if run and run.state == "STARTING" and run.inside then activate() end
   elseif event == "PLAYER_REGEN_ENABLED" then
     flush()
-  elseif event == "CHALLENGE_MODE_START" then
-    local instance = compat.instance()
-    if not instance or instance.type ~= "party" then return end
-    -- Inserting a new key starts a fresh attempt in the same instance.
-    if d.current and d.current.state == "ACTIVE" then finish("ABANDONED", "challenge restarted") end
-    d.current = nil
-    d.completedInstanceId = nil
-    evaluate()
-    if d.current then
-      d.current.challengeMode = true
-      d.current.activeChallenge = compat.challengeInfo()
-      activate(nil, "challenge start")
-    end
-  elseif event == "CHALLENGE_MODE_RESET" then
-    if d.current and d.current.challengeMode then finish("ABANDONED", "challenge reset") end
-  elseif event == "CHALLENGE_MODE_COMPLETED" then
-    local run, instance = d.current, compat.instance()
-    if run and run.challengeMode and run.state == "ACTIVE" and instance
-      and instance.type == "party" and instance.id == run.instanceId then
-      run.challenge = compat.challengeCompletion(run.activeChallenge)
-      finish("COMPLETED", "challenge objectives")
-    end
   elseif event == "ENCOUNTER_START" then
     local encounterId, name = ...
     local run, instance = d.current, compat.instance()
@@ -802,7 +900,7 @@ local function onEvent(_, event, ...)
     if run.state == "STARTING" then activate(nil, "encounter end") end
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), (not ns.isSecret(name)) and name or nil, success == 1)
-    if success == 1 and not run.challengeMode and not compat.challengeActive() and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
+    if success == 1 and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
       or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId)) then
       finish("COMPLETED", "final boss")
     end
@@ -816,23 +914,8 @@ local function onEvent(_, event, ...)
     if not instance or instance.type ~= "party" or instance.id ~= run.instanceId then return end
     if not tonumber(encounterId) then return end
     recordEncounter(run, tonumber(encounterId), name, true)
-    if not run.challengeMode and not compat.challengeActive() and ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
+    if ((run.finalEncounterId and tonumber(encounterId) == run.finalEncounterId)
       or compat.isDungeonFinalBoss(run.instanceId, encounterId, name, run.difficultyId)) then
-      finish("COMPLETED", "final boss")
-    end
-  elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
-    -- Never register or read combat logs on Retail or Forever (restricted APIs).
-    local edition = ns.util.gameEdition()
-    if edition ~= "classic-era" and edition ~= "classic-tbc" and edition ~= "classic-mists" then return end
-    local run, instance = d.current, compat.instance()
-    if not run or run.state ~= "ACTIVE" or not instance or instance.type ~= "party"
-      or instance.id ~= run.instanceId or not CombatLogGetCurrentEventInfo then return end
-    local _, subevent, _, _, _, _, _, guid, name = CombatLogGetCurrentEventInfo()
-    if subevent ~= "UNIT_DIED" or type(guid) ~= "string" then return end
-    local npcId = tonumber(string.match(guid, "^Creature%-%d+%-%d+%-%d+%-%d+%-(%d+)%-"))
-    if not npcId or not ns.dungeonRoutes.knownNpc(run.instanceId, run.difficultyId, npcId) then return end
-    recordEncounter(run, npcId, name, true, "npc")
-    if not run.challengeMode and ns.dungeonRoutes.sourceFinal(run.instanceId, run.difficultyId, nil, npcId) then
       finish("COMPLETED", "final boss")
     end
   elseif event == "PLAYER_DEAD" then
@@ -842,6 +925,10 @@ local function onEvent(_, event, ...)
       run.players[me()] = mine
       mine.addon = true
       mine.deaths = (mine.deaths or 0) + 1
+      local x, y, mapId = playerPosition()
+      if x and addDeathPoint(run, me(), x, y, mapId) then
+        send(string.format("DPOS|%s|%s|%d|%d|%d", run.id, me(), x, y, mapId))
+      end
       save(run)
       send(string.format("DEATH|%s|%s|%d", run.id, me(), mine.deaths))
     end
@@ -849,7 +936,7 @@ local function onEvent(_, event, ...)
     local prefix, text, channel, sender = ...
     if not ns.comm.accept(prefix, text, channel, sender, PREFIX, function(author, delivery)
       local kind = string.match(text, "^(%u+)|")
-      if kind == "SUM" or kind == "REQUEST" then
+      if kind == "SUM" or kind == "REQUEST" or kind == "ACK" then
         return delivery == "GUILD" and ns.comm.authorized(author, "guild")
       end
       return (delivery == "PARTY" or delivery == "RAID" or delivery == "INSTANCE_CHAT")
@@ -863,22 +950,162 @@ local function onEvent(_, event, ...)
 end
 
 -- ---------------------------------------------------------------------
--- Sync acknowledgement: the companion writes the run ids the bot accepted
+-- Sync acknowledgement: the companion writes the run ids the bot received
 -- into Standings.lua (GuildedDungeonAccepted); mark those synced and
--- forget them after 30 days.
+-- forget them after 30 days. Since 9.0.8 the bot lists every run it received,
+-- including a guildmate's copy of a run it already had and runs it refused,
+-- and GuildedDungeonNotes says in a few words why a run earned nothing.
 -- ---------------------------------------------------------------------
 
 function dungeon.markSynced()
   local d = db()
   if not d then return end
   local accepted = type(GuildedDungeonAccepted) == "table" and GuildedDungeonAccepted or {}
+  local notes = type(GuildedDungeonNotes) == "table" and GuildedDungeonNotes or nil
   for _, id in ipairs(accepted) do
-    if d.runs[id] then d.runs[id].synced = true end
+    local run = d.runs[id]
+    if run then
+      run.synced = true
+      -- Only a companion that writes notes (9.0.8+) may clear one.
+      if notes then
+        local note = notes[id]
+        run.syncNote = type(note) == "string" and note ~= "" and string.sub(string.gsub(note, "|", ""), 1, 80) or nil
+      end
+    end
   end
   local cutoff = now() - KEEP_SYNCED_DAYS * 86400
+  local peerCutoff = now() - KEEP_PEER_DAYS * 86400
+  local mine = me()
   for id, run in pairs(d.runs) do
-    if run.synced and (run.endedAt or run.detectedAt or 0) < cutoff then d.runs[id] = nil end
+    local at = run.endedAt or run.detectedAt or 0
+    -- (9.0) A copy a guildmate's bot confirmed (ACK or catch-up) ages out like a synced one; a
+    -- guildmate's run nobody confirmed goes after 45 days. Our own unconfirmed runs stay.
+    local confirmed = run.synced or run.syncedVia
+    local ours = mine and run.players and run.players[mine]
+    if (confirmed and at < cutoff) or (not confirmed and not ours and at < peerCutoff) then
+      d.runs[id] = nil
+      dungeon.stats.pruned = dungeon.stats.pruned + 1
+    end
   end
+end
+
+-- (9.0.8) Finished runs no bot has confirmed yet: neither ours (synced) nor a guildmate's (syncedVia).
+function dungeon.waitingRuns()
+  local d = db()
+  local list = {}
+  for _, run in pairs(d and d.runs or {}) do
+    if not run.synced and not run.syncedVia and TERMINAL[run.state] then list[#list + 1] = run end
+  end
+  return list
+end
+
+-- (9.0.8) Runs the companion should already have delivered: saved to disk before the last save
+-- (logout or /reload) with time for the companion to send them and bring the answer back before
+-- this load. The companion answers within a minute, and Standings.lua is only read at load time.
+local COMPANION_GRACE = 5 * 60
+function dungeon.overdueRuns()
+  local d = db()
+  if not d then return {} end
+  local last, before, loadedAt = tonumber(d.lastSaveAt), tonumber(d.saveBeforeAt), tonumber(dungeon.loadedAt) or now()
+  local cutoff
+  if last and loadedAt - last >= COMPANION_GRACE then cutoff = last
+  elseif before and last and last - before >= COMPANION_GRACE then cutoff = before end
+  local list = {}
+  if not cutoff then return list end
+  for _, run in ipairs(dungeon.waitingRuns()) do
+    if (run.endedAt or 0) > 0 and run.endedAt < cutoff then list[#list + 1] = run end
+  end
+  return list
+end
+
+local function L(text) return ns.L and ns.L(text) or text end
+
+-- Once per session, after login or /reload: runs are waiting and the companion did not deliver them.
+function dungeon.remindWaiting()
+  if dungeon.waitingReminded then return false end
+  local overdue = #dungeon.overdueRuns()
+  if overdue == 0 then return false end
+  dungeon.waitingReminded = true
+  ns.message(string.format(L("%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."), overdue))
+  return true
+end
+
+-- (9.0) Every saved run, for the catch-up module (Modules/CatchUp.lua).
+function dungeon.savedRuns()
+  local d = db()
+  return d and d.runs or {}
+end
+
+-- (9.0) A run a guildmate forwarded during catch-up: stored exactly as if `reporter` (who was
+-- in the run, checked by the caller) had sent it, plus who passed it on. Returns true when new.
+function dungeon.storeForwarded(run, reporter, via)
+  local d = db()
+  if not d or not run or not run.id or not run.players or not run.players[reporter] then return false end
+  local isNew = d.runs[run.id] == nil
+  storePeerRun(run, reporter)
+  if isNew and d.runs[run.id] then d.runs[run.id].forwardedBy = via end
+  if isNew and ns.onDungeonChange then pcall(ns.onDungeonChange) end
+  return isNew
+end
+
+-- Recovery for runs that ended ABANDONED although the client's own ENCOUNTER_END/BOSS_KILL
+-- already recorded the final boss (8.4.4-8.4.6 did not know Forever's final-boss ids: a
+-- Ragefire Chasm run with Bazzalan killed finished as ABANDONED). A run is completed only
+-- from its own saved, timestamped, successful native kill of a boss that today's tables
+-- call final, taken inside the run's own time span. Nothing else is invented: a run with
+-- no such kill stays ABANDONED, and the end time becomes the kill, not the abandon time.
+local RECOVERY_VERSION = 1
+function dungeon.recoverRuns()
+  local d = db()
+  if not d then return 0 end
+  local recovered = 0
+  for _, run in pairs(d.runs) do
+    if run.state == "ABANDONED" and run.startedAt and run.endedAt
+      and run.gameEdition == ns.util.gameEdition() then
+      local final
+      for _, encounter in ipairs(run.encounters or {}) do
+        if encounter.success and not encounter.kind and encounter.source == "native" and tonumber(encounter.id)
+          and tonumber(encounter.at) and encounter.at > run.startedAt and encounter.at <= run.endedAt
+          and ((run.finalEncounterId and tonumber(encounter.id) == run.finalEncounterId)
+            or compat.isDungeonFinalBoss(run.instanceId, encounter.id, encounter.name, run.difficultyId)) then
+          if not final or encounter.at > final.at then final = encounter end
+        end
+      end
+      if final then
+        local abandonedAt = run.endedAt
+        run.state, run.endedAt, run.completedBy = "COMPLETED", final.at, "final boss"
+        run.endReason, run.synced = nil, nil
+        run.recoveredFrom = { state = "ABANDONED", endedAt = abandonedAt, version = RECOVERY_VERSION }
+        run.durationSec = run.endedAt - run.startedAt
+        -- Presence never exceeds the (shorter) run; observed intervals stop at the kill.
+        for _, player in pairs(run.players or {}) do
+          player.presentSec = math.min(player.presentSec or 0, run.durationSec)
+          local seen = player.integrity
+          if seen then
+            local kept, known = {}, 0
+            for _, span in ipairs(seen.knownIntervals or {}) do
+              local from, to = span[1], math.min(span[2], run.endedAt)
+              if from < to then kept[#kept + 1] = { from, to }; known = known + (to - from) end
+            end
+            seen.knownIntervals, seen.knownSec = kept, known
+            seen.unknownSec = math.max(0, math.min(seen.unknownSec or 0, run.durationSec - known))
+          end
+        end
+        if run.durationSec > 0 then
+          recovered = recovered + 1
+          if ns.onDungeonRunFinished then pcall(ns.onDungeonRunFinished, run) end
+        else
+          run.state, run.endedAt, run.completedBy, run.endReason, run.recoveredFrom = "ABANDONED", abandonedAt, nil, "left the dungeon", nil
+          run.durationSec = run.endedAt - run.startedAt
+        end
+      end
+    end
+  end
+  if recovered > 0 then
+    ns.message(string.format("Guilded recovered %d dungeon run(s) whose final boss was killed; they upload with your next sync.", recovered))
+    if ns.onDungeonChange then pcall(ns.onDungeonChange) end
+  end
+  return recovered
 end
 
 -- Retry only our own recent unsynced runs. An officer arriving later can request
@@ -889,7 +1116,7 @@ function dungeon.replayPending()
   local d = db()
   local runs = {}
   for _, run in pairs(d and d.runs or {}) do
-    if not run.synced and run.players and run.players[me()] and TERMINAL[run.state]
+    if not run.synced and not run.syncedVia and run.players and run.players[me()] and TERMINAL[run.state]
       and (run.endedAt or 0) >= now() - 7 * 86400 then runs[#runs + 1] = run end
   end
   table.sort(runs, function(a, b) return (a.endedAt or 0) > (b.endedAt or 0) end)
@@ -917,12 +1144,15 @@ local function status()
   local d = db()
   local run = d and d.current
   if not run then
-    local pending, total = 0, 0
-    for _, stored in pairs(d and d.runs or {}) do
-      total = total + 1
-      if not stored.synced then pending = pending + 1 end
-    end
+    local total = 0
+    for _ in pairs(d and d.runs or {}) do total = total + 1 end
+    local pending = #dungeon.waitingRuns()
     ns.message(string.format("No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord).", total, pending))
+    if pending > 0 then
+      ns.message(#dungeon.overdueRuns() > 0
+        and L("Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out.")
+        or L("They go to Discord when you /reload or log out while the Guilded Companion app is running."))
+    end
     return
   end
   local elapsed = run.startedAt and (now() - run.startedAt) or 0
@@ -979,21 +1209,12 @@ ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, "/guilded dungeon status | results | start | complete | abandon | check - dungeon runs")
 
 local frame = CreateFrame("Frame")
-for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE",
+for _, event in ipairs({ "PLAYER_LOGIN", "PLAYER_LOGOUT", "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE",
   "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "ENCOUNTER_END", "PLAYER_DEAD", "CHAT_MSG_ADDON" }) do
   compat.registerEvent(frame, event)
 end
-local clientEdition = ns.util.gameEdition()
-if clientEdition == "classic-era" or clientEdition == "classic-tbc" or clientEdition == "classic-mists" then
-  compat.registerEvent(frame, "COMBAT_LOG_EVENT_UNFILTERED", true)
-end
--- Do not probe restricted combat-log events on Retail/Forever: even pcall(RegisterEvent) can
--- raise Blizzard's blocked-action popup during addon loading.
 compat.registerEvent(frame, "BOSS_KILL", true)
 compat.registerEvent(frame, "ENCOUNTER_START", true)
-compat.registerEvent(frame, "CHALLENGE_MODE_START", true)
-compat.registerEvent(frame, "CHALLENGE_MODE_RESET", true)
-compat.registerEvent(frame, "CHALLENGE_MODE_COMPLETED", true)
 frame:SetScript("OnEvent", function(...)
   if ns.moduleActive and not ns.moduleActive("dungeon") then return end -- /guilded modules
   local ok, err = pcall(onEvent, ...)
@@ -1007,4 +1228,22 @@ if C_Timer and C_Timer.NewTicker then
     local d = db()
     if d and d.current then pcall(evaluate) end
   end)
+  -- Traced dungeon maps: one breadcrumb sample every TRACE_SECONDS while a run is active.
+  C_Timer.NewTicker(TRACE_SECONDS, function()
+    if ns.moduleActive and not ns.moduleActive("dungeon") then return end
+    local d = db()
+    if d and d.current then pcall(traceSample) end
+  end)
 end
+
+-- /guilded maptrace on | off: the member's own switch for traced dungeon maps (on by default).
+ns.commandHandlers = ns.commandHandlers or {}
+ns.commandHandlers["maptrace"] = function(args)
+  local s = ns.getSettings and ns.getSettings()
+  local word = string.lower(type(args) == "table" and tostring(args[1] or "") or "")
+  if s and (word == "on" or word == "off") then s.dungeonTrace = word == "on" end
+  ns.message(traceOn() and L("Dungeon map tracing is on: in dungeons, Guilded notes the map squares you walk through (no times) to draw the dungeon's map. /guilded maptrace off stops it.")
+    or L("Dungeon map tracing is off. /guilded maptrace on turns it back on."))
+end
+ns.commandHelp = ns.commandHelp or {}
+table.insert(ns.commandHelp, "/guilded maptrace on | off - help draw accurate dungeon maps from the squares you walk through in dungeons (no times); ON by default")

@@ -1,5 +1,6 @@
 import { createEngine } from "./engine.mjs";
-import { savedProfiles } from "./profiles.mjs";
+import { savedProfiles, isBlankProfile } from "./profiles.mjs";
+import { expandAccounts, accountName } from "./wow-accounts.mjs";
 import { resolveStandingsPath } from "./standings.mjs";
 import { resolveAcceptedPath } from "./personal-runs.mjs";
 import { resolve, dirname, basename, join } from "node:path";
@@ -24,16 +25,25 @@ const scope = p => `${p.uploadUrl}|${p.gameEdition || ""}|${p.wowGuildId || `${p
 export function planProfiles(config) {
   const active = config.activeProfile || "default";
   const profiles = savedProfiles(config);
-  const entries = Object.entries(profiles).sort(([a], [b]) => Number(b === active) - Number(a === active));
+  // Each WoW account a connection syncs runs as its own engine (wow-accounts.mjs); the first keeps
+  // the connection's id, so a single-account setup is planned exactly as before.
+  const sorted = Object.entries(profiles).sort(([a], [b]) => Number(b === active) - Number(a === active));
+  const expanded = expandAccounts(sorted);
+  const owner = new Map(expanded.map(([id, , parent]) => [id, parent || id]));
+  const entries = expanded.map(([id, p]) => [id, p]);
+  const on = (id, p) => p.syncEnabled === true || (owner.get(id) === active && p.syncEnabled !== false);
   const writers = new Set();
   const inputs = new Map();
   for (const [id, p] of entries) {
-    if (!(p.syncEnabled === true || (id === active && p.syncEnabled !== false)) || !p.watchFile || p.wowEnabled === false) continue;
+    if (!on(id, p) || !p.watchFile || p.wowEnabled === false) continue;
     const key = pathKey(p.watchFile);
     inputs.set(key, [...(inputs.get(key) || []), p]);
   }
+  // An empty connection (no bot address, never signed in) is left alone, silently, once another
+  // connection is set up: it would only log "Not started" at every retry.
+  const configured = entries.some(([, p]) => !isBlankProfile(p));
   return entries.map(([id, p]) => {
-    const enabled = p.syncEnabled === true || (id === active && p.syncEnabled !== false);
+    const enabled = on(id, p) && !(configured && isBlankProfile(p));
     const peers = inputs.get(pathKey(p.watchFile)) || [];
     // Two guild destinations reading one file need explicit routing. A public
     // connection may share the input with a guild connection by user consent.
@@ -45,7 +55,8 @@ export function planProfiles(config) {
     const write = outputs.every(path => !writers.has(path));
     if (enabled && !ambiguous && p.companionCredential && write) for (const path of outputs) writers.add(path);
     return { id, enabled, error: enabled && ambiguous ? "Shared saved data needs an exact WoW guild name on each guild connection." : null,
-      config: { ...p, writeStandingsEnabled: write, requireWowGuild: !p.personal && guildPeers.some(peer => scope(peer) !== scope(p)) }, name: p.profileName || p.wowGuildName || id, writesStandings: write };
+      config: { ...p, writeStandingsEnabled: write, requireWowGuild: !p.personal && guildPeers.some(peer => scope(peer) !== scope(p)) }, name: p.profileName || p.wowGuildName || owner.get(id), writesStandings: write,
+      ...(owner.get(id) !== id ? { accountOf: owner.get(id) } : {}), account: p.watchFile ? accountName(p.watchFile) : "" };
   });
 }
 
@@ -58,8 +69,13 @@ export function createProfileEngine(initialConfig, hooks = {}, factory = createE
   let started = false;
   let recovery;
   const activeId = () => config.activeProfile || "default";
+  // The selected connection's engines: its first account and any further ones.
+  const activeEngines = () => [...engines].filter(([id]) => id === activeId() || plans.find(p => p.id === id)?.accountOf === activeId()).map(([, engine]) => engine);
+  const accountState = id => { const s = snapshots.get(id); return { running: !!s?.running, lastUpload: s?.lastUpload || null, syncPhase: s?.syncPhase || null, error: s?.uploadError || null }; };
   const state = () => ({ ...(snapshots.get(activeId()) || { running: false }),
-    profiles: plans.map(p => ({ id: p.id, name: p.name, enabled: p.enabled, writesStandings: p.writesStandings, error: p.error || snapshots.get(p.id)?.uploadError || snapshots.get(p.id)?.standingsError || null, running: !!snapshots.get(p.id)?.running, lastUpload: snapshots.get(p.id)?.lastUpload || null })) });
+    // Every WoW account the selected connection syncs (one entry for a single-account setup).
+    accounts: plans.filter(p => (p.accountOf || p.id) === activeId() && p.account).map(p => ({ account: p.account, file: p.config.watchFile, enabled: p.enabled, ...accountState(p.id) })),
+    profiles: plans.filter(p => !p.accountOf).map(p => ({ id: p.id, name: p.name, enabled: p.enabled, writesStandings: p.writesStandings, error: p.error || snapshots.get(p.id)?.uploadError || snapshots.get(p.id)?.standingsError || null, running: !!snapshots.get(p.id)?.running, lastUpload: snapshots.get(p.id)?.lastUpload || null })) });
   const emit = () => hooks.onState?.(state());
   const enqueue = task => { const next = chain.then(task); chain = next.catch(() => {}); return next; };
   async function stopAll() {
@@ -99,7 +115,7 @@ export function createProfileEngine(initialConfig, hooks = {}, factory = createE
     configure: next => enqueue(async () => { await stopAll(); config = next; started = true; return launch(); }),
     suspend: () => enqueue(stopAll),
     resume: () => enqueue(async () => { if (started) { await stopAll(); return launch(); } return false; }),
-    uploadNow: () => engines.get(activeId())?.uploadNow(),
+    uploadNow: () => { const first = engines.get(activeId()); for (const engine of activeEngines()) if (engine !== first) engine.uploadNow(); return first?.uploadNow(); },
     refreshStandings: () => engines.get(activeId())?.refreshStandings()
   };
 }

@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import type { PrismaClient, RaidStatus } from "../generated/prisma/client.js";
 import { formatRaidTime } from "./raid-time.js";
 
@@ -16,7 +17,7 @@ const matches = (query: string, ...fields: (string | null | undefined)[]) => {
 // Which raids make sense for each /raid subcommand.
 export function raidStatusesFor(subcommand: string | null): RaidStatus[] {
   switch (subcommand) {
-    case "signup": case "cancel-signup": case "edit": case "cancel": case "start": return ["PLANNED"];
+    case "cancel-signup": case "edit": case "cancel": case "start": return ["PLANNED"];
     case "end": return ["ACTIVE"];
     case "attendance": case "boss": return ["ACTIVE", "COMPLETED"];
     default: return ["PLANNED", "ACTIVE", "COMPLETED"];
@@ -76,13 +77,11 @@ export async function bankChoices(
     .map((r) => ({ name: clip(`${r.quantity} × ${r.item} — ${r.member.displayName} (${r.status.toLowerCase()})`), value: r.id }));
 }
 
-// claim: open requests from others; done/release: ones I claimed; cancel: mine.
+// done/release: ones I claimed; cancel: mine.
 export async function craftChoices(
   database: Pick<PrismaClient, "craftRequest">, guildId: string, query: string, subcommand: string, memberId: string
 ): Promise<Choice[]> {
-  const where = subcommand === "claim"
-    ? { guildId, status: "OPEN" as const, requesterId: { not: memberId } }
-    : subcommand === "cancel"
+  const where = subcommand === "cancel"
       ? { guildId, status: { in: ["OPEN" as const, "CLAIMED" as const] }, requesterId: memberId }
       : { guildId, status: "CLAIMED" as const, crafterId: memberId };
   const requests = await database.craftRequest.findMany({ where, include: { requester: true }, orderBy: { createdAt: "asc" }, take: 50 });
@@ -110,7 +109,7 @@ export async function applicationChoices(database: Pick<PrismaClient, "applicati
     take: 50
   });
   return applications.filter((a) => matches(query, a.character, a.className, a.id)).slice(0, MAX)
-    .map((a) => ({ name: clip(`${a.character} — ${a.className} ${a.spec} (${a.status.toLowerCase()})`), value: a.id }));
+    .map((a) => ({ name: clip(`${cleanCharacterName(a.character)} — ${a.className} ${a.spec} (${a.status.toLowerCase()})`), value: a.id }));
 }
 
 export async function importChoices(database: Pick<PrismaClient, "addonImport">, guildId: string, query: string): Promise<Choice[]> {

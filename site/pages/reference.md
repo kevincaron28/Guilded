@@ -33,7 +33,7 @@ sub-commands.
 | `/report` `bug` `ping` `stats` | Send a private bug report; check the bot is up; guild activity | Everyone |
 | `/automation` `recap` | Weekly recap by private message (off by default) | Everyone |
 | `/wow` `list` `use` | Choose which in-game guild your commands use | Everyone |
-| `/poe` `pair` `status` `runs` `summary` | Path of Exile 2 mapping journal | Everyone |
+| `/poe` `pair` `status` `runs` `summary` | Path of Exile 2 mapping journal | Everyone | <!--poe-->
 
 ### Raids
 
@@ -68,7 +68,7 @@ sub-commands.
 | Command | What it does | Who |
 | --- | --- | --- |
 | `/dungeon` `leaderboard` `season` `records` `player` `history` | Season rating, fastest clears, a player's runs | Everyone |
-| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Past seasons, scoring rules, dungeon list, Retail keys, this week's team goal | Everyone |
+| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Past seasons, scoring rules, dungeon list, this week's team goal | Everyone |
 | `/dungeon` `group` `alerts` `watch` | Form a group with a voice channel; get pinged for groups that fit you | Everyone |
 | `/officer dungeon` `invalidate` `award` `audit` `config` | Correct a run, adjust guild points, read the point history | Officers |
 | `/organize dungeon-seasons preview` | See the current and next dungeon seasons | Organizers |
@@ -92,8 +92,7 @@ sub-commands.
 | `/mod` `page` `recruit` `leaderboard` `rankroles` | Public guild page, recruitment listing, public leaderboards, rank roles | Officers |
 | `/report` `inactive` `guild` | Inactive members; guild health | Officers |
 | `/organize` | Community seasons, quizzes, honors, lotteries, gaming nights, challenges | Organizers |
-| `/poll` `create` `close` `weekly` | Polls and the weekly question | Officers |
-| `/events` `board` `reminders` `disable` `status` `refresh` | Upcoming Events board and opt-in reminders | Officers |
+| `/poll` `create` `close` `weekly` `news` `board` | Polls, the weekly question, and news and polls on the in-game guild board | Officers |
 | `/participation` `settings` `channels` `claims` `review` `reverse` | Participation settings, nominations and awards | Officers |
 | `/wow` `add` `channel` `roles` | Add an in-game guild; bind a channel; set its roles | Officers |
 | `/poe setup` | Turn PoE2 tracking on or off | Officers |
@@ -148,7 +147,7 @@ everything. Officer rows need the officer rank in your WoW guild.
 | `/guilded chat tab\|off` · `chattags on\|off` | Own chat tab; show an alt's main name | Everyone |
 | `/guilded digest` · `map` · `gbank` · `guildlog` | Changes since last login; guildmates on the map; guild bank; guild log | Everyone |
 | `/guilded dungeon status\|results\|start\|complete\|abandon\|check` | Record and check dungeon runs | Everyone |
-| `/guilded bgcapture on\|off` | Your own battleground result capture | Everyone |
+| `/guilded bgcapture` | Status of your own battleground result capture (always on where supported) | Everyone |
 | `/guilded pugcheck on\|off\|now\|last` | Item level and enchants of non-guild group members | Everyone |
 | `/guilded backup` · `restore` | Copy this guild's saved data as one code, or put it back | Everyone |
 | `/guilded perf` | Record how long Guilded's work takes | Everyone |
@@ -167,7 +166,7 @@ everything. Officer rows need the officer rank in your WoW guild.
 | `/guilded localcore` · `setup guild` | Raid cores and loot rules with no Discord | Officers |
 | `/guilded ready` · `consumes` | Who in your group is ready; who is missing flask or food | Officers and group leaders |
 | `/guilded export` · `import softres\|tmb\|history` | Export data; import soft reserves, TMB or loot history | Officers |
-| `/guilded invite raid\|missing` · `autoinvite` | Invite the signed-up raiders; invite whisperers | Officers |
+| `/guilded invite raid\|missing` · `autoinvite` | Invite the signed-up raiders; a /ginvite line for whisperers | Officers |
 | `/guilded recruit` · `welcome` | Prospect list; whisper new guild members | Officers |
 | `/guilded officer list\|add\|remove\|rank` | Who counts as an officer | Officers |
 | `/guilded ledgersync` · `bridge` · `rosteradmin` · `sim` | Share EP/GP between officers; companion bridge; roster tools; test raid | Officers |
@@ -177,7 +176,7 @@ everything. Officer rows need the officer rank in your WoW guild.
 | Tab | What it shows | Who |
 | --- | --- | --- |
 | Home · My character · Open raids | What is going on, your gear check, raids with room for you | Everyone |
-| Standings · Crafting · Availability | Guild standings, recipes, who is online | Everyone |
+| Standings · Crafting | Guild standings and recipes | Everyone |
 | Ready · Reserves · Loot · Council | Raid-night checks, soft reserves, bids and council answers | Leaders / Everyone / Officers |
 | Raid · Administration · Gear | Run a raid, award EP/GP, item level per member | Officers |
 | Calendar · Local guild · Roster admin · Officer tools | Guild calendar, no-Discord setup, roster tools, log and imports | Officers |
@@ -193,7 +192,7 @@ everything. Officer rows need the officer rank in your WoW guild.
 ## Windows companion
 
 A small free Windows app. It is optional for the addon and needed for Discord and website
-features. Full steps: [Companion app](/companion/).
+features. Full steps: [Companion app](https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe).
 
 | What | Detail |
 | --- | --- |

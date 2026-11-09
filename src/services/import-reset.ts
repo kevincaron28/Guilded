@@ -16,6 +16,8 @@ export function excludeHistoryBeforeReset(snapshot: AddonSnapshot, resetAt: Date
     raids: snapshot.raids.filter(row => after(row.startedAt)),
     loot: snapshot.loot.filter(row => after(row.awardedAt)),
     dungeonRuns: snapshot.dungeonRuns.filter(row => row && typeof row === "object" && "endedAt" in row && after(row.endedAt)),
-    battlegroundReports: snapshot.battlegroundReports.filter(row => after(row.endedAt))
+    battlegroundReports: snapshot.battlegroundReports.filter(row => after(row.endedAt)),
+    duelResults: snapshot.duelResults.filter(row => row && typeof row === "object" && after((row as { at?: unknown }).at)),
+    milestones: snapshot.milestones.filter(row => row && typeof row === "object" && after((row as { at?: unknown }).at))
   };
 }

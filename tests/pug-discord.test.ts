@@ -26,7 +26,7 @@ import { deliverPugNotice, deliverPugPost, pugNoticePayload, pugPostPayload } fr
 import { PugError } from "../src/services/pug-requests.js";
 
 const when = new Date("2026-11-07T20:00:00Z");
-const request = { id: "req1", raidTitle: "Karazhan", scheduledAt: when, expiresAt: when, edition: "classic-tbc", note: "flasks", wantTank: 1, wantHealer: 0, wantDps: 2, guild: { name: "Alpha" } };
+const request = { id: "req1", raidTitle: "Karazhan", scheduledAt: when, expiresAt: when, edition: "forever", note: "flasks", wantTank: 1, wantHealer: 0, wantDps: 2, guild: { name: "Alpha" } };
 const json = (payload: ReturnType<typeof pugPostPayload>) => JSON.stringify({ embeds: payload.embeds?.map(e => ("toJSON" in e ? e.toJSON() : e)), components: payload.components?.map(c => ("toJSON" in c ? c.toJSON() : c)) });
 
 describe("PUG post message", () => {
@@ -36,7 +36,7 @@ describe("PUG post message", () => {
     expect(text).toContain("Alpha");
     expect(text).toContain("America/Toronto");
     expect(text).toContain(`<t:${Math.floor(when.getTime() / 1000)}:F>`);
-    expect(text).toContain("TBC Classic");
+    expect(text).toContain("WoW Forever");
     expect(text).toContain("pugb:s:req1:DPS");
     expect(text).not.toContain("pugb:s:req1:TANK"); // the only tank spot is taken
     expect(text).not.toContain("pugb:s:req1:HEALER"); // none wanted

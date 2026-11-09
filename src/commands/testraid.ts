@@ -1,9 +1,7 @@
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
-import { dungeonAnnouncement } from "../services/dungeon-announce.js";
-import { loadClassEmojis } from "../services/character-display.js";
-import { notifyDungeon } from "../services/notify.js";
+import { announceDungeonRuns } from "../services/import-followup.js";
 import { updateDungeonLeaderboard } from "../services/dungeon-leaderboard.js";
 import { cleanupTestRaids, finishTestRaid, SIM_CHARACTERS, simulateDungeonRun, startTestRaid } from "../services/simulation.js";
 import { dungeonReport } from "./import-apply.js";
@@ -76,10 +74,8 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
       guildId: context.guildId, realm, officerId: interaction.user.id,
       ...(minutes !== null ? { minutes } : {}), deaths: interaction.options.getBoolean("deaths") ?? false
     });
-    const emojis = interaction.guild ? await loadClassEmojis(interaction.guild).catch(() => ({})) : {};
-    const post = dungeonAnnouncement(result.dungeons, "en", emojis);
-    const posted = post ? await notifyDungeon(interaction.guild, (lang) => dungeonAnnouncement(result.dungeons, lang, emojis) ?? post) : false;
-    if (post) await updateDungeonLeaderboard(interaction.guild);
+    const posted = await announceDungeonRuns(interaction.guild, result.dungeons);
+    if (posted) await updateDungeonLeaderboard(interaction.guild);
     await interaction.editReply({
       content: `Simulated a **Test Dungeon** run through the real import.${dungeonReport(result.dungeons)}
 
@@ -104,7 +100,7 @@ export async function executeTestRaid(interaction: ChatInputCommandInteraction):
       content: [
         `Created **${result.raid.title}** \`${result.raid.id}\` with ${result.members} fake raiders (realm ${realm}):`,
         `${result.counts.SIGNED_UP} signed up, ${result.counts.MAYBE} maybe, ${result.counts.WAITLISTED} waitlisted.`,
-        "Try it: `/raid signup` yourself, `/raid cancel-signup`, `/lead edit` caps (waitlist moves up), `/raid roster`, `/lead note`.",
+        "Try it: press a role button on the raid post yourself, `/raid cancel-signup`, `/lead edit` caps (waitlist moves up), `/raid roster`, `/lead note`.",
         "The raid reminder fires 60 minutes before start (if a signup channel is set).",
         `When ready: \`/setup testraid finish raid:${result.raid.id}\` (add \`via_addon:true\` to test the import path). Clean up with \`/setup testraid cleanup\`.`,
         `In game, \`/guilded sim\` uses the same fake names (${SIM_CHARACTERS.slice(0, 3).join(", ")}...) so an addon export matches.`

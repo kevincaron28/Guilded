@@ -86,6 +86,50 @@ describe("Tooltip.lua", () => {
   });
 });
 
+describe("Tooltip.lua crafter lines", () => {
+  it("adds the crafter lines without the Guilded: prefix, wrapping the long one, and refreshes on Shift", () => {
+    const s = withTooltip();
+    s.run(`
+      NS.recipes = {
+        keyFromLink = function() return 555 end,
+        tooltipLines = function() return { { raw = "Guilded - First Aid: 4 crafters" }, { raw = "A, B, C +1 more", wrap = true } }, true end
+      }
+      ADDED, WRAP, REFRESHED = {}, {}, 0
+      TIP = { GetItem = function() return "Plain Sword", "item:555" end, IsShown = function() return true end,
+        RefreshData = function() REFRESHED = REFRESHED + 1 end,
+        AddLine = function(_, text, _, _, _, wrap) ADDED[#ADDED + 1] = text; WRAP[#WRAP + 1] = tostring(wrap) end, Show = function() end }
+      NS.tooltip.decorate(TIP, true)
+    `);
+    expect(s.run(`return table.concat(ADDED, "|")`)).toBe("Guilded - First Aid: 4 crafters|A, B, C +1 more");
+    expect(s.run(`return table.concat(WRAP, "|")`)).toBe("nil|true");
+    expect(s.run(`return tostring(NS.tooltip.refreshForShift(TIP))`)).toBe("true");
+    expect(s.run(`return REFRESHED`)).toBe("1");
+  });
+
+  // 9 Nov 2026: a flag left from an item tooltip made Shift refresh a player tooltip during a duel
+  // from Guilded's code; Blizzard's tooltip code then failed on secret values ("tainted by Guilded").
+  it("never refreshes on Shift in combat, for a tooltip that no longer shows an item, or after it was cleared", () => {
+    const s = withTooltip();
+    s.run(`
+      NS.recipes = {
+        keyFromLink = function() return 555 end,
+        tooltipLines = function() return { { raw = "Guilded - First Aid: 4 crafters" } }, true end
+      }
+      REFRESHED, SHOWN, ITEM = 0, 0, true
+      TIP = { GetItem = function() if ITEM then return "Plain Sword", "item:555" end end, IsShown = function() return true end,
+        RefreshData = function() REFRESHED = REFRESHED + 1 end, AddLine = function() end, Show = function() SHOWN = SHOWN + 1 end }
+      NS.tooltip.decorate(TIP, true)
+    `);
+    // The data processor shows the tooltip itself: no Show() from Guilded.
+    expect(s.run(`return SHOWN`)).toBe("0");
+    s.run(`NS.util = { inCombat = function() return true end }`);
+    expect(s.run(`return tostring(NS.tooltip.refreshForShift(TIP))`)).toBe("false");
+    s.run(`NS.util = nil; ITEM = false`);
+    expect(s.run(`return tostring(NS.tooltip.refreshForShift(TIP))`)).toBe("false");
+    expect(s.run(`return REFRESHED`)).toBe("0");
+  });
+});
+
 describe("Tooltip.lua with the tooltip data processor", () => {
   it("adds the lines every time a tooltip is filled, comparison tooltips included", () => {
     const s = withTooltip();

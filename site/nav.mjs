@@ -44,6 +44,8 @@ export const FOOTER_NAV = [
   { key: "discord", column: "community", href: "https://discord.gg/YjzFwtP64V", en: "Ask on Discord ↗", fr: "Demander sur Discord ↗" },
   { key: "guides", column: "help", href: "/docs/QUICK_START.html", en: "Quick start", fr: "Démarrage rapide" },
   { key: "reference", column: "help", href: "/reference/", en: "Quick reference", fr: "Référence rapide" },
+  { key: "install-steps", column: "help", href: "/guides/install/", en: "Install, step by step", fr: "Installer, pas à pas" },
+  { key: "link-steps", column: "help", href: "/guides/link/", en: "Link your character", fr: "Lier votre personnage" },
   { key: "install", column: "help", href: "/docs/MEMBER_INSTALL.html", en: "Install guide", fr: "Guide d’installation" },
   { key: "setup-help", column: "help", href: "/docs/AI_SETUP_HELP.html", en: "Setup help", fr: "Aide à la configuration" },
   { key: "status", column: "help", href: "/status/", en: "Service status", fr: "État du service" },
@@ -58,17 +60,17 @@ const escape = (text) => String(text).replaceAll("&", "&amp;").replaceAll("<", "
 
 /** @typedef {{ id: string, slug: string, en: string, fr: string }} EditionSection */
 
-/** One website section per WoW edition (29 October 2026): /forever/, /classic-era/, /tbc/, /mists/
- * and /retail/. Each holds the edition's hub page and its own leaderboards, recruitment and player
- * pages (/retail/leaderboards/...). The Cloudflare Worker serves them; `id` is the bot's edition.
+/** The WoW Forever section (/forever/): its hub page and its leaderboards, recruitment and player pages
+ * (/forever/leaderboards/...). Guilded supports WoW Forever only; the other editions' old addresses
+ * (RETIRED_SECTIONS) redirect to it in the Cloudflare Worker. `id` is the bot's edition.
  * @type {EditionSection[]} */
 export const EDITION_SECTIONS = [
-  { id: "forever", slug: "forever", en: "WoW Forever", fr: "WoW Forever" },
-  { id: "classic-era", slug: "classic-era", en: "Classic Era", fr: "Classic Era" },
-  { id: "classic-tbc", slug: "tbc", en: "Burning Crusade Classic", fr: "Burning Crusade Classic" },
-  { id: "classic-mists", slug: "mists", en: "Mists of Pandaria Classic", fr: "Mists of Pandaria Classic" },
-  { id: "retail", slug: "retail", en: "Retail", fr: "Retail" }
+  { id: "forever", slug: "forever", en: "WoW Forever", fr: "WoW Forever" }
 ];
+
+/** Address names of the removed editions' former sections, by edition id. Only the Worker uses them, to
+ * send old links to the WoW Forever section. */
+export const RETIRED_SECTIONS = { "classic-era": "classic-era", "classic-tbc": "tbc", "classic-mists": "mists", retail: "retail" };
 
 /** An edition's section from its id ("classic-tbc") or address name ("tbc"); null when unknown.
  * @param {string | null | undefined} name
@@ -78,12 +80,15 @@ export const editionSection = (name) => EDITION_SECTIONS.find((section) => secti
 // The public data pages that live inside an edition's section.
 const SECTION_PAGE = /^\/(?:leaderboards|recruitment|players)(?:\/|\?|#|$)/;
 
-/** "/retail/leaderboards/guilds/" → the edition and the page inside it ("/leaderboards/guilds/").
+/** "/forever/leaderboards/guilds/" → the edition and the page inside it ("/leaderboards/guilds/"). A removed
+ * edition's old section ("/retail/...") is recognized too, with `retired: true`, so it can be redirected.
  * @param {string} pathname
- * @returns {{ edition: string, slug: string, rest: string } | null} */
+ * @returns {{ edition: string, slug: string, rest: string, retired: boolean } | null} */
 export function splitEditionPath(pathname) {
   const match = /^\/(forever|classic-era|tbc|mists|retail)(\/.*)?$/.exec(pathname);
-  return match ? { edition: editionSection(match[1]).id, slug: match[1], rest: match[2] ?? "" } : null;
+  if (!match) return null;
+  const retired = Object.entries(RETIRED_SECTIONS).find(([, slug]) => slug === match[1]);
+  return { edition: retired ? retired[0] : "forever", slug: match[1], rest: match[2] ?? "", retired: !!retired };
 }
 
 /** Keep the selected WoW edition when navigating between public data pages: leaderboards,
@@ -124,15 +129,12 @@ export function editionSwitchHref(path, edition) {
   return `/${section.slug}/`;
 }
 
-/** The header's "Playing: WoW Forever ▾" switcher, a <details> drop-down that works without
- * scripts. title is the drop-down's label; label(section) and href(section) give each choice.
- * `only`: edition ids to offer (the Forever-first switch, companion/active-editions.mjs); the page's own
- * edition stays listed. Omitted, every edition is offered.
- * @param {{ current: string | null, title: string, label: (section: EditionSection) => string, href: (section: EditionSection) => string, only?: readonly string[] }} options
+/** The header's "Playing: WoW Forever ▾" menu, a <details> drop-down that works without scripts: it links
+ * to the WoW Forever section. title is the drop-down's label; label(section) and href(section) give the link.
+ * @param {{ current: string | null, title: string, label: (section: EditionSection) => string, href: (section: EditionSection) => string }} options
  * @returns {string} */
-export function editionMenu({ current, title, label, href, only }) {
-  const sections = EDITION_SECTIONS.filter((section) => !only || only.includes(section.id) || section.id === current);
-  return `<details class="nav-group edition-menu" data-nav-group="edition"><summary>${title}</summary><div class="nav-menu">${sections.map((section) => `<a href="${escape(href(section))}" data-edition="${section.slug}"${section.id === current ? ' aria-current="true"' : ""}>${label(section)}</a>`).join("")}</div></details>`;
+export function editionMenu({ current, title, label, href }) {
+  return `<details class="nav-group edition-menu" data-nav-group="edition"><summary>${title}</summary><div class="nav-menu">${EDITION_SECTIONS.map((section) => `<a href="${escape(href(section))}" data-edition="${section.slug}"${section.id === current ? ' aria-current="true"' : ""}>${label(section)}</a>`).join("")}</div></details>`;
 }
 
 /** Keep the chosen language across translated pages and bilingual guide sections.

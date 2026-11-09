@@ -59,7 +59,7 @@ const require = createRequire(new URL("../companion-app/package.json", import.me
 const { extractFile } = require("@electron/asar");
 const asar = "dist/companion/win-unpacked/resources/app.asar";
 assert.equal(JSON.parse(extractFile(asar, "package.json").toString()).version, version);
-for (const path of ["main.cjs", "preload.cjs", "detect-wow.cjs", "update-check.cjs", "i18n.cjs", "locales/fr.json", "loot-history-import.cjs", "ipc-security.cjs", "sign-in-loopback.cjs", "renderer/app.js", "renderer/index.html", "renderer/raid-hub.js"]) {
+for (const path of ["main.cjs", "preload.cjs", "detect-wow.cjs", "update-check.cjs", "i18n.cjs", "locales/fr.json", "loot-history-import.cjs", "ipc-security.cjs", "sign-in-loopback.cjs", "renderer/app.js", "renderer/index.html", "renderer/hub.js", "renderer/problems.js"]) {
   assert.deepEqual(extractFile(asar, path), readFileSync(join("companion-app", path)), `Stale packaged companion: ${path}`);
 }
 const companionPackage = JSON.parse(readFileSync("companion-app/package.json", "utf8"));
@@ -77,6 +77,9 @@ const artifacts = [zipPath, dungeonsZipPath, installerPath, notesPath].map(path 
   name: basename(path).replaceAll(" ", "."), localPath: path, bytes: readFileSync(path).length,
   sha256: createHash("sha256").update(readFileSync(path)).digest("hex"),
 }));
+// The stable direct-download link (https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe)
+// needs a fixed-name copy of the installer on every release: same bytes, same checksum.
+artifacts.push({ ...artifacts.find(file => file.localPath === installerPath), name: "Guilded.Companion.Setup.exe" });
 writeFileSync(`dist/Guilded-v${version}-SHA256SUMS.txt`, artifacts.map(file => `${file.sha256}  ${file.name}`).join("\n") + "\n");
 const { sourceCommit, sourceDirty, changedPaths, untrackedPaths } = releaseSource();
 if (process.env.CI) assert.equal(sourceDirty, false, `CI packaging changed source: ${[...changedPaths, ...untrackedPaths].join(", ")}`);

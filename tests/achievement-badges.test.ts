@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+// Turns PoE2 tracking on for this file (see tests/helpers/focus-switches.ts).
+vi.mock("../companion/active-games.mjs", async (original) => (await import("./helpers/focus-switches.js")).poeTrackingOn(await original()));
 import sharp from "sharp";
 import { GLYPHS, GLYPH_BY_ID, badgeInner, badgeLabel, badgeSvg } from "../src/services/achievement-badges.js";
-import { ACHIEVEMENTS } from "../src/services/achievements-catalogue.js";
+import { ACHIEVEMENTS, RETIRED_ACHIEVEMENT_IDS } from "../src/services/achievements-catalogue.js";
 import { achievementsCard } from "../src/services/end-cards.js";
 import { scoreCardPng } from "../src/services/score-card.js";
 
@@ -9,6 +11,11 @@ describe("achievement badge art", () => {
   it("gives every catalogue id a glyph, and every glyph entry maps to an id", () => {
     for (const def of ACHIEVEMENTS) expect(GLYPHS[GLYPH_BY_ID[def.id]!], def.id).toBeTruthy();
     expect(Object.keys(GLYPH_BY_ID).sort()).toEqual(ACHIEVEMENTS.map(def => def.id).sort());
+  });
+  it("has no fallback glyph: every id has its own explicit entry, retired ids have none, and an unknown id refuses to draw", () => {
+    for (const def of ACHIEVEMENTS) expect(Object.hasOwn(GLYPH_BY_ID, def.id), def.id).toBe(true);
+    for (const id of RETIRED_ACHIEVEMENT_IDS) expect(Object.hasOwn(GLYPH_BY_ID, id), id).toBe(false);
+    expect(() => badgeInner({ ...ACHIEVEMENTS[0]!, id: "not-in-the-catalogue" }, true)).toThrow(/no badge glyph/);
   });
   it("tells badges apart: a glyph repeats within a game only across tiers or ranks of one progression", () => {
     const seen = new Map<string, string>();
@@ -31,11 +38,11 @@ describe("achievement badge art", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
   it("is decorative without a label and an image with one; labels exist in English and French", () => {
-    const def = ACHIEVEMENTS[0]!;
+    const def = ACHIEVEMENTS.find(row => row.id === "dungeon-runs-1")!;
     expect(badgeSvg(def, true)).toContain('aria-hidden="true"');
     expect(badgeSvg(def, true, { label: "x" })).toContain('role="img" aria-label="x"');
-    expect(badgeLabel(def, true, "en")).toBe("Getting Started: Bronze, unlocked");
-    expect(badgeLabel(def, false, "fr")).toBe("Premiers pas: Bronze, verrouillé");
+    expect(badgeLabel(def, true, "en")).toBe("First Descent: Bronze, unlocked");
+    expect(badgeLabel(def, false, "fr")).toBe("Première descente: Bronze, verrouillé");
   });
   it("shows locked badges in greys only", () => {
     const locked = badgeInner(ACHIEVEMENTS[0]!, false);
@@ -50,7 +57,7 @@ describe("achievement badge art", () => {
     expect(pips("messages-100")).toBe(1);
     expect(pips("messages-250000")).toBe(10);
     expect(pips("voice-hours-1000")).toBe(8);
-    expect(pips("wow-level-20")).toBe(0);
+    expect(pips("dungeon-runs-1")).toBe(0);
   });
   it("draws on the share card, in both languages", async () => {
     const items = ACHIEVEMENTS.map((def, i) => ({ id: def.id, value: i < 4 ? def.threshold : 1, earnedAt: i < 4 ? new Date("2026-10-20T00:00:00Z") : null }));

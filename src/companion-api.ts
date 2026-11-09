@@ -6,23 +6,27 @@ import { configureMobileDevice } from "./services/mobile-alerts.js";
 import { createWebCommunityBadges } from "./services/web-community-badges.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
-import { GameEditionError, gameEditionOf } from "./services/game-edition.js";
+import { assertForeverEdition, GameEditionError, gameEditionOf } from "./services/game-edition.js";
 import { withEdition } from "./services/edition-context.js";
 import { addonName } from "./services/addon-name.js";
 import { characterKey, realmKey } from "../companion/character-identity.mjs";
 import { relayProfessions } from "./services/profession-relay.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
+import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
+import { companionMe } from "./services/companion-me.js";
+import { albumFor } from "./services/companion-album.js";
+import { applyWorldPvpUpload, parseWorldPvpUpload } from "./services/world-pvp.js";
+import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
+import { liveNewsFeed } from "./services/news-feed.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 import { config } from "./config.js";
 import { createDevicePages, prismaDeviceStore } from "./services/companion-devices.js";
 import { memberLinkStatus } from "./services/link-status.js";
-import { battleNetMeSection, createBattleNetPage, type BattleNetLinking } from "./services/battlenet-page.js";
-import { autoLinkBattleNet, recentBattleNetLinks, undoBattleNetLinks } from "./services/battlenet-autolink.js";
-import { battleNetConfig, discoverAllBattleNet, discoverBattleNet } from "./services/battlenet.js";
-import { prismaBattleNetStore } from "./services/battlenet-store.js";
+import { charactersMeSection, legacyBattleNetRedirect, meCharacterList } from "./services/me-characters.js";
 import { prisma } from "./database.js";
 import { createAddonImportService } from "./services/addon-import.js";
 import { createEpgpService } from "./services/epgp.js";
@@ -34,26 +38,39 @@ import { upcomingRaidsForAddon } from "./services/calendar-sync.js";
 import { publicRaids } from "./services/public-raids.js";
 import { createPlayerProfiles, prismaProfileStore } from "./services/player-profiles.js";
 import { createAchievementsWeb } from "./services/achievements-web.js";
+import { publicPictures } from "./services/public-pictures.js";
 import { createGuildDirectory, prismaGuildDirectoryStore } from "./services/guild-directory.js";
-import { discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
+import { calendarEventsWithin, discordCalendarEvents, mergeCalendarEvents } from "./services/discord-calendar.js";
 import { createAuditService } from "./services/audit.js";
 import { followUpImport } from "./services/import-followup.js";
+import { applyAttempts, applyFailureLogLine, applyWithRetry, classifyApplyFailure, type ApplyFailure } from "./services/import-apply-failure.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
+import { applyGuildmateRelay } from "./services/guildmate-relay.js";
+import { applyGuildData } from "./services/guild-data.js";
+import { applyGuildBank } from "./services/guild-bank.js";
+import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
+import { createBankService } from "./services/bank.js";
+import { applyOrderActions, craftOrdersForAddon, parseAddonOrderActions } from "./services/craft-orders.js";
+import { applyBoardVotes, applyRelayedBoardVotes, boardEnabled, boardForAddon, createBoardService, myBoardVotes, parseAddonBoardPosts, parseAddonBoardVotes } from "./services/guild-board.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
 import { CompanionUnavailable, companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
+import { createPicturePages, prismaPictureStore } from "./services/character-picture.js";
+import { deleteMyData, deleteMyDataByCredential } from "./services/data-deletion.js";
 import { createPersonalCalendar, personalCalendarStore } from "./services/personal-calendar.js";
 import { createOfficerHandover, officerHandoverStore } from "./services/officer-handover.js";
+import { promotionForAddon } from "./services/promotion-feed.js";
 import { raidPlanningStore } from "./services/raid-planning.js";
 import { createRaidPlanning } from "./services/raid-planning-page.js";
 import { readFileSync } from "node:fs";
 import { ZodError } from "zod";
 import { addonCharacterSchema } from "./integrations/addon.js";
 import type { PrismaClient } from "./generated/prisma/client.js";
+import { GAME_ON_HOLD_NOTE, POE_TRACKING_ENABLED } from "../companion/active-games.mjs";
 import { createPoeMappingService, poeAreaName, PoeMappingError } from "./services/poe-mapping.js";
 import { notify } from "./services/notify.js";
 import { allowManageWrite, createCompanionManage, ManageError } from "./services/companion-manage.js";
@@ -69,26 +86,59 @@ import { prismaRosterDashboardStore } from "./services/roster-dashboard-store.js
 import { guildDashboardAccess } from "./services/guild-dashboard-access.js";
 import { prismaAvailabilityStore } from "./services/web-availability-store.js";
 import { createWebAvailability } from "./services/web-availability.js";
+import { createWebLootLists, prismaLootListStore } from "./services/web-loot-lists.js";
 import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
 import { createGuildToolsPages } from "./services/guild-tools-pages.js";
+import { createStatsPage } from "./services/stats-page.js";
+import { createGuildBankPage } from "./services/guild-bank-page.js";
+import { feedAccess, recentSnapshots, statsCsv, MAX_FEED_DAYS } from "./services/stat-snapshots.js";
+import { collectionFor, craftCard, openPack, tcgAllowed, TcgError } from "./services/tcg-store.js";
+import { markSeenInApp } from "./services/tcg-presence.js";
+import { DUEL_ROUTES, handleDuelRoute } from "./services/tcg-duel-api.js";
+import { cancelTrade, confirmTrade, editTrade, getTrade, listTrades, offerTrade, setTradingOff, tradableCards, tradePartners } from "./services/tcg-trade.js";
+import { concedeMatch, getMatch, isAiLevel, isClassKey, listMatches, parseIntent, pveProgress, startMatch, submitIntent } from "./services/tcg-match.js";
+import { createArtisansGallery } from "./services/artisans-gallery.js";
+import { withDeadline } from "./services/blizzard-items.js";
+import { itemData } from "./item-data.js";
+import { postCraftRequest } from "./commands/craft-board.js";
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
-import { createLeaderboardPages, prismaLeaderboardStore } from "./services/public-leaderboard.js";
+import { createLeaderboardPages, guildDungeonSummary, prismaLeaderboardStore } from "./services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
+import { inviteListForAddon, pendingInvites } from "./services/invite-queue.js";
+import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-channel.js";
+import { prelinkInvitedCharacters, tellPrelinked } from "./services/invite-prelink.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
 
+/** After an upload: link the characters people asked to be invited as (invite-prelink.ts), tell them, never fail the upload. */
+async function prelinkAfterUpload(client: Client, database: typeof prisma, guild: { id: string; discordId: string }, seen: Parameters<typeof prelinkInvitedCharacters>[2]): Promise<void> {
+  try {
+    const results = await prelinkInvitedCharacters(database, guild.id, seen);
+    if (!results.length) return;
+    markGuildChanged(guild.id);
+    const language = await database.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
+    await tellPrelinked(client, guild.discordId, language?.language, results);
+  } catch (error) { console.warn("Invite pre-link failed", error); }
+}
+
 function json(response: ServerResponse, status: number, body: unknown): void {
   response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  response.end(JSON.stringify(body));
+}
+
+/** Guild-only answers (the guildmate map): never stored by a cache or proxy. */
+function privateJson(response: ServerResponse, body: unknown): void {
+  response.writeHead(200, { "content-type": "application/json; charset=utf-8", "cache-control": "private, no-store" });
   response.end(JSON.stringify(body));
 }
 
@@ -186,7 +236,17 @@ const auditService = createAuditService(prisma);
 const manage = createCompanionManage(prisma);
 const hub = createCompanionHub(prisma, { baselineAchievements: (guildId) => baselineAchievements(prisma, guildId) });
 // Public guild pages (/g/<slug>/): read-only HTML, no pairing needed.
-const guildPages = createGuildPageServer((slug) => loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id)));
+// A guild that publishes its runs also shows its members' top scores, recent runs and records there.
+const guildPageRuns = prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id));
+const guildPages = createGuildPageServer(async (slug) => {
+  const view = await loadGuildPageView(prisma, slug, (id) => hostedPilot.allows(id));
+  if (view?.dungeonPage && view.guildId) {
+    const guildId = view.guildId;
+    view.dungeons = await withEdition(gameEditionOf({ gameEdition: view.edition ?? "forever" }), async () => guildDungeonSummary(guildPageRuns, guildId, await loadOfficialWindows(prisma)))
+      .catch((error: unknown) => { console.warn("Guild page dungeon section failed:", error); return null; });
+  }
+  return view;
+});
 
 // The website's signed-in pages (/auth/, /recruitment/, /me/, /leaderboards/), served through the Worker.
 async function readForm(request: IncomingMessage, path: string): Promise<string> {
@@ -261,12 +321,32 @@ async function signInGuildCredential(client: Client | undefined, account: { disc
 export function createSiteApp(client?: Client) {
   const rosterStore = prismaRosterDashboardStore(prisma, client, id => hostedPilot.allows(id));
   const roster = createRosterDashboard(rosterStore);
-  const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
+  const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), config.WEB_AVAILABILITY_ENABLED);
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
-  const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows);
-  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb);
+  const gallery = createArtisansGallery({ db: prisma, access: guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), items: withDeadline(itemData, 1_500),
+    post: async (guildId, requestId, askCrafter) => {
+      const record = await prisma.guild.findUnique({ where: { id: guildId }, select: { discordId: true } });
+      const discordGuild = record && client ? await client.guilds.fetch(record.discordId).catch(() => null) : null;
+      return discordGuild ? (await withGuildScope(prisma, guildId, () => postCraftRequest(discordGuild, requestId, askCrafter))).posted : false;
+    } });
+  const openPictures = publicPictures(prisma, id => hostedPilot.allows(id));
+  const achievementsWeb = createAchievementsWeb(prisma, hostedPilot.allows, (discordUserId, own) => openPictures.byAccount(discordUserId, own));
+  const pictures = createPicturePages(prismaPictureStore(prisma), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), {
+    // A "Report this picture" goes to that guild's officer log, with the command that removes it.
+    report: async ({ guildId, characterId, reporter }) => {
+      const character = await prisma.character.findUnique({ where: { id: characterId }, select: { name: true, displayName: true, member: { select: { displayName: true, guild: { select: { discordId: true } } } } } });
+      const discordGuild = character && client ? await client.guilds.fetch(character.member.guild.discordId).catch(() => null) : null;
+      if (!character || !discordGuild) return false;
+      const name = character.displayName ?? character.name;
+      await withGuildScope(prisma, guildId, () => notify(discordGuild, (lang) => lang === "fr"
+        ? `🚩 ${reporter} a signalé l'image du personnage **${name}** (${character.member.displayName}). Pour la retirer : \`/officer character picture action:remove name:${name}\`.`
+        : `🚩 ${reporter} reported the picture of **${name}** (${character.member.displayName}). To remove it: \`/officer character picture action:remove name:${name}\`.`, "officer"));
+      return true;
+    }
+  });
+  const profiles = createPlayerProfiles(prismaProfileStore(prisma, hostedPilot.allows), achievementsWeb, pictures, openPictures);
   const directory = createGuildDirectory(prismaGuildDirectoryStore(prisma, (id) => hostedPilot.allows(id)));
-  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma) });
+  const leaderboards = createLeaderboardPages({ store: prismaLeaderboardStore(prisma, (id) => hostedPilot.allows(id)), personal: personalStore, calendar: () => loadOfficialWindows(prisma), picture: (name, realm) => openPictures.byCharacter(name, realm) });
   const signInPage = companionSignInRoute({
     signIn: companionSignIn,
     servers: (discordUserId) => signInServers(client, discordUserId),
@@ -275,36 +355,32 @@ export function createSiteApp(client?: Client) {
   });
   const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
   const devices = createDevicePages(prismaDeviceStore(prisma));
-  const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
+  const memberData = createMemberData(memberDataStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), discordUserId => deleteMyData(prisma, discordUserId));
   const raidPlanning = createRaidPlanning(raidPlanningStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), client));
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
+  const lootLists = createWebLootLists(prismaLootListStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
-  const battleNetLinking: BattleNetLinking = {
-    discoverAll: discoverAllBattleNet,
-    autoLink: (discordUserId, characters) => autoLinkBattleNet(prisma, discordUserId, characters),
-    recent: discordUserId => recentBattleNetLinks(prisma, discordUserId),
-    undo: discordUserId => undoBattleNetLinks(prisma, discordUserId),
-    status: discordUserId => memberLinkStatus(prisma, discordUserId)
-  };
-  const battleNet = createBattleNetPage(prismaBattleNetStore(prisma), battleNetConfig(config), discoverBattleNet, battleNetLinking);
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, leaderboards.route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
-    meSection({ id: "characters", group: "overview", render: battleNetMeSection(battleNetLinking, battleNetConfig(config)) }),
+    meSection({ id: "characters", group: "overview", render: charactersMeSection(discordUserId => memberLinkStatus(prisma, discordUserId), meCharacterList(prisma)) }),
+    meSection({ id: "pictures", group: "overview", render: pictures.meSection }),
     meSection({ id: "achievements", group: "play", render: achievementsWeb.meSection }),
     meSection({ id: "badges", group: "play", render: badges.meSection }),
     meSection({ id: "availability", group: "play", render: availability.meSection }),
     meSection({ id: "calendar", group: "play", render: personalCalendar.meSection }),
     meSection({ id: "raid-planning", group: "play", render: raidPlanning.meSection }),
+    meSection({ id: "raid-loot", group: "play", render: lootLists.meSection }),
     meSection({ id: "leaderboards", group: "play", render: leaderboards.meSection, fold: { en: "How to connect the companion", fr: "Comment connecter le compagnon" } }),
     meSection({ id: "guild-tools", group: "guild", render: guildTools.meSection }),
+    meSection({ id: "artisans", group: "guild", render: gallery.meSection }),
     meSection({ id: "roster", group: "guild", render: roster.meSection, officer: true, visible: isOfficer }),
     meSection({ id: "handover", group: "guild", render: handover.meSection, officer: true, visible: isOfficer }),
     meSection({ id: "connections", group: "account", render: devices.meSection }),
     meSection({ id: "your-data", group: "account", render: memberData.meSection })
   ];
-  routes.unshift(devices.route, battleNet, memberData.route, personalCalendar.route, handover.route, raidPlanning.route);
+  routes.unshift(pictures.route, devices.route, legacyBattleNetRedirect, memberData.route, personalCalendar.route, handover.route, raidPlanning.route, lootLists.route);
   return createWebApp({
     publicRaids: now => publicRaids(prisma, hostedPilot.allows, now),
     store: prismaWebStore(prisma), auth: webAuthConfig(config), allows: (id) => hostedPilot.allows(id), routes, meSections,
@@ -325,6 +401,53 @@ export function shouldTellApplyFailure(key: string, now = Date.now()): boolean {
   if (applyFailureTold.size > 500) applyFailureTold.clear();
   applyFailureTold.set(key, now);
   return true;
+}
+
+type AutoApplied = { epgp: number; discovered: number; held: number; voided: number; rejected: number };
+interface AutoApplyInput { guildId: string; discordId: string; importId: string; createdBy: string; since: Date; retried: boolean; onApplied?: () => void; client?: Client | undefined }
+
+// Applies a stored upload, then records and follows it up. `onApplied` runs once the import has
+// committed: a later follow-up failure must not be reported as "not applied".
+async function autoApplyImportWith(input: AutoApplyInput): Promise<AutoApplied> {
+  const result = await importService.apply(input.guildId, input.importId, input.createdBy);
+  input.onApplied?.();
+  markGuildChanged(input.guildId);
+  await auditService.record({
+    guildId: input.guildId, actorId: input.createdBy, action: "IMPORT_APPLIED", entityId: input.importId,
+    metadata: { auto: true, ...(input.retried ? { retried: true } : {}), epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
+  });
+  const discordGuild = input.client ? await input.client.guilds.fetch(input.discordId).catch(() => null) : null;
+  await followUpImport(discordGuild, input.guildId, result, { since: input.since });
+  return { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
+}
+
+// Background retries after a transient database failure (P2028 and friends), outside the upload
+// request: the Worker gives up on a request after 20 seconds. One pending retry per import.
+const APPLY_RETRY_DELAYS_MS = [30_000, 120_000] as const;
+const pendingApplyRetries = new Set<string>();
+function retryApplyLaterWith(input: Omit<AutoApplyInput, "retried" | "onApplied"> & { officer: boolean; tellOfficers: (failure: ApplyFailure, attempts: number) => Promise<void> }): void {
+  if (pendingApplyRetries.has(input.importId) || pendingApplyRetries.size > 200) return;
+  pendingApplyRetries.add(input.importId);
+  const startedAt = Date.now();
+  const run = async () => {
+    let committed = false;
+    try {
+      await new Promise<void>((resolve) => setTimeout(resolve, APPLY_RETRY_DELAYS_MS[0]).unref?.());
+      const { attempts } = await applyWithRetry(() => autoApplyImportWith({ ...input, retried: true, onApplied: () => { committed = true; } }),
+        { delaysMs: APPLY_RETRY_DELAYS_MS.slice(1) });
+      console.info(`import-apply-retried import=${input.importId.slice(-8)} attempts=${attempts + 1} ms=${Date.now() - startedAt}`);
+    } catch (error) {
+      if (committed) { console.error("Follow-up of a retried addon import failed", error); return; }
+      const failure = classifyApplyFailure(error);
+      if (failure.reason === "already-applied") return; // the companion's resend got there first
+      const attempts = applyAttempts(error) + 1;
+      console.info(applyFailureLogLine({ guildId: input.guildId, importId: input.importId, failure, attempts, ms: Date.now() - startedAt, officer: input.officer, retriedDuplicate: false }));
+      await input.tellOfficers(failure, attempts).catch((notifyError: unknown) => console.error("Officer notice for a failed import failed", notifyError));
+    } finally {
+      pendingApplyRetries.delete(input.importId);
+    }
+  };
+  void run();
 }
 
 // The references the addon needs back: its own ledger entries the bot has stored (so they stop
@@ -366,52 +489,158 @@ export async function lootRefsFor(database: Pick<PrismaClient, "lootAward">, gui
 // finish inside that, including time spent waiting for a pool connection.
 export const STANDINGS_READ_BUDGET_MS = { query: 15_000, poolWait: 3_000, workerAbort: 20_000 } as const;
 
+/**
+ * One log line per standings request (hotfix 2, 8.5): status, time, bytes, the guild as a short
+ * hash, whether it was a long poll. A client that hangs up first (the companion's or the website
+ * proxy's 20 s limit) is logged as "closed". Never the credential, never the Discord id itself.
+ */
+export function standingsTimingLine(input: { guild: string | null; status: number | "closed"; ms: number; bytes: number; wait: string | null; conditional: boolean }): string {
+  const guild = input.guild ? createHash("sha256").update(input.guild).digest("hex").slice(0, 8) : "none";
+  return `standings guild=${guild} status=${input.status} ms=${Math.round(input.ms)} bytes=${input.bytes} wait=${input.wait ?? 0} conditional=${input.conditional ? 1 : 0}`;
+}
+function logStandingsTiming(request: IncomingMessage, response: ServerResponse, url: URL, startedAt: number): void {
+  let bytes = 0;
+  const end = response.end.bind(response) as (...args: unknown[]) => ServerResponse;
+  (response as unknown as { end: (...args: unknown[]) => ServerResponse }).end = (...args: unknown[]) => {
+    const chunk = args[0];
+    if (typeof chunk === "string") bytes += Buffer.byteLength(chunk);
+    else if (chunk instanceof Uint8Array) bytes += chunk.byteLength;
+    return end(...args);
+  };
+  let logged = false;
+  const log = (status: number | "closed") => {
+    if (logged) return;
+    logged = true;
+    console.info(standingsTimingLine({ guild: url.searchParams.get("guild"), status, ms: Date.now() - startedAt, bytes, wait: url.searchParams.get("wait"),
+      conditional: typeof request.headers["if-none-match"] === "string" || url.searchParams.has("since") }));
+  };
+  response.on("finish", () => log(response.statusCode));
+  response.on("close", () => { if (!response.writableFinished) log("closed"); });
+}
+
+async function officerPromotionFeed(client: Client, guild: { id: string; discordId: string }) {
+  const discordGuild = client.guilds.cache.get(guild.discordId);
+  if (!discordGuild) return null;
+  const edition = (await prisma.guild.findUnique({ where: { id: guild.id }, select: { gameEdition: true } }))?.gameEdition ?? "forever";
+  return Promise.race([promotionForAddon(prisma, discordGuild, guild.id, edition), new Promise<null>((resolve) => setTimeout(() => resolve(null), 4_000))]);
+}
+
 // Read-only EP/GP/PR per linked character and what goes with it. The companion writes it
 // into the addon folder so /guilded standings shows the bot's numbers.
-async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string }, client?: Client): Promise<FeedParts> {
-  const scheduledEvents = await discordCalendarEvents(client, guild.discordId, access.actorId).catch(() => {
+async function standingsParts(guild: { id: string; discordId: string }, access: { memberId: string; actorId: string; officer?: boolean }, client?: Client): Promise<FeedParts> {
+  // Officers only: who the promotion rule says is ready (never in the shared part, never for members).
+  const promotion = access.officer && client ? await officerPromotionFeed(client, guild).catch(() => null) : null;
+  // How each raid core decides loot, with its item prices and own-pool standings. Configuration,
+  // read outside the transaction below: its per-core queries ran the 15 s budget out (P2028, 7 Nov).
+  const lootRead = lootRulesForAddon(prisma, guild.id, async (coreId, coreBaseGp) =>
+    (await createEpgpService(prisma).getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: addonName(row.character, row.realm), ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
+  lootRead.catch(() => undefined);
+  // At most 4 s (hotfix 2): otherwise the member's last known events (discord-calendar.ts).
+  const scheduledEvents = await calendarEventsWithin(() => discordCalendarEvents(client, guild.discordId, access.actorId),
+    `${guild.discordId}:${access.actorId}`).catch(() => {
     console.warn("Discord calendar events could not be fetched; exporting bot raids only.");
     return [];
   });
-  return prisma.$transaction(async (transaction) => {
-    const database = transaction as unknown as PrismaClient;
-    const epgp = createEpgpService(database);
-    const baseGp = (await database.guildSettings.findUnique({ where: { guildId: guild.id } }))?.baseGp ?? 0;
-    // Dungeon runs the bot has stored lately, so the addon can mark them
-    // as synced (roadmap D3).
-    const acceptedRunRefs = (await database.dungeonRun.findMany({
-      where: { guildId: guild.id, createdAt: { gte: new Date(Date.now() - 45 * 86_400_000) } },
-      select: { runRef: true },
-      orderBy: { createdAt: "desc" },
-      take: 500
-    })).map((row) => row.runRef);
-    const dungeonBoard = await addonDungeonBoard(database, guild.id);
-    const nextRaid = await nextRaidRoster(database, guild.id);
-    const items = await itemInsights(database, guild.id).catch(() => []);
-    // How each raid core decides loot, with its item prices and own-pool standings.
-    const loot = await lootRulesForAddon(database, guild.id, async (coreId, coreBaseGp) =>
-      (await epgp.getGuildStandings(guild.id, coreBaseGp, coreId)).map((row) => ({ character: addonName(row.character, row.realm), ...(row.displayName ? { displayName: row.displayName } : {}), main: row.main, ep: row.ep, gp: row.gp })));
-    const botRaids = await upcomingRaidsForAddon(database, guild.id);
-    const raids = mergeCalendarEvents(botRaids, scheduledEvents);
-    const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
-    const acceptedLedgerRefs = await ledgerRefsFor(database, guild.id, access.memberId);
-    const acceptedLootRefs = await lootRefsFor(database, guild.id);
-    const standings = (await epgp.getGuildStandings(guild.id, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
-    // Shared: the same for every member, so it sets the stamp. Discord events are filtered
-    // per member and dungeon/ledger acknowledgements do not change what the addon shows.
-    return {
-      shared: { accounts, baseGp, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
-      personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, raids,
-        publicRaids: { fetchedAt: new Date().toISOString(), raids: await publicRaids(database, hostedPilot.allows) } },
-      stampOnly: { botRaids }
-    };
-  }, { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
+  // Reads that need no snapshot consistency with the standings and ledger: plain client, in
+  // parallel, before the transaction. Inside it they ran the 15 s budget out under load (P2028,
+  // 7 Nov, the same fix as #487 for loot rules). A failing one fails the answer as before
+  // (items keep their empty fallback), so a transient error never writes empty data.
+  const [loot, dungeonBoard, nextRaid, items, botRaids, board, bank, officerInvites, pilotRaids, craftOrders] = await Promise.all([
+    lootRead,
+    addonDungeonBoard(prisma, guild.id),
+    nextRaidRoster(prisma, guild.id),
+    itemInsights(prisma, guild.id).catch(() => []),
+    upcomingRaidsForAddon(prisma, guild.id),
+    // 9.1 in-game guild board (guild-board.ts): news and open polls with counts; small and the same for everyone.
+    boardForAddon(prisma, guild.id),
+    // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
+    bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
+    // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
+    access.officer ? pendingInvites(prisma, guild.id).then(inviteListForAddon) : Promise.resolve(null),
+    publicRaids(prisma, hostedPilot.allows),
+    // Crafting orders in game (craft-orders.ts): Discord craft requests for the addon's Orders page; the same for everyone.
+    craftOrdersForAddon(prisma, guild.id)
+  ]);
+  // 9.1 guild board: this member's own picks on the open polls.
+  const boardVotes = board.enabled ? await myBoardVotes(prisma, guild.id, access.memberId) : null;
+  const raids = mergeCalendarEvents(botRaids, scheduledEvents);
+  const consistent = await prisma.$transaction((transaction) => standingsConsistentReads(transaction as unknown as PrismaClient, guild.id, access.memberId),
+    { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
+  const { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes } = consistent;
+  // Shared: the same for every member, so it sets the stamp. Discord events are filtered
+  // per member and dungeon/ledger acknowledgements do not change what the addon shows.
+  return {
+    shared: { accounts, baseGp, board, craftOrders, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
+    personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, raids, ...(promotion ? { promotion } : {}),
+      ...(officerInvites ? { officerInvites } : {}),
+      bank,
+      ...(boardVotes ? { boardVotes } : {}),
+      publicRaids: { fetchedAt: new Date().toISOString(), raids: pilotRaids } },
+    stampOnly: { botRaids }
+  };
+}
+
+/**
+ * The only reads inside the standings transaction (RepeatableRead): what must agree with each other
+ * in one snapshot, the standings with the base GP and the characters' accounts, and the ledger, loot
+ * and run refs the addon uses to stop resending what the bot has. Everything else is read before.
+ */
+export async function standingsConsistentReads(database: PrismaClient, guildId: string, memberId: string) {
+  const baseGp = (await database.guildSettings.findUnique({ where: { guildId } }))?.baseGp ?? 0;
+  // Dungeon runs the bot has stored lately, so the addon can mark them as synced (roadmap D3).
+  // 9.0.8: plus every ref an upload brought (receipts: copies of a stored run and refused runs too, which
+  // used to wait in the addon forever), the most recently uploaded first so a run still being resent is
+  // always in the list. `runNotes` says in a few words why a run earned nothing.
+  const since = new Date(Date.now() - 45 * 86_400_000);
+  const receiptTable = (database as Partial<Pick<PrismaClient, "dungeonRunReceipt">>).dungeonRunReceipt;
+  const receipts = receiptTable ? await receiptTable.findMany({
+    where: { guildId, seenAt: { gte: since } },
+    select: { runRef: true, reason: true },
+    orderBy: { seenAt: "desc" },
+    take: 1000
+  }) : [];
+  const storedRefs = (await database.dungeonRun.findMany({
+    where: { guildId, createdAt: { gte: since } },
+    select: { runRef: true },
+    orderBy: { createdAt: "desc" },
+    take: 500
+  })).map((row) => row.runRef);
+  const acceptedRunRefs = [...new Set([...receipts.map((row) => row.runRef), ...storedRefs])].slice(0, 1200);
+  const runNotes = Object.fromEntries(receipts.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []).slice(0, 300));
+  const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
+  const acceptedLedgerRefs = await ledgerRefsFor(database, guildId, memberId);
+  const acceptedLootRefs = await lootRefsFor(database, guildId);
+  const standings = (await createEpgpService(database).getGuildStandings(guildId, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
+  return { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes };
+}
+
+// The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.
+async function applyGuildBoardUpload(guildId: string, memberId: string, officer: boolean, snapshot: { boardVotes: unknown[]; boardRelayVotes: unknown[]; boardPosts: unknown[];
+  character?: { name: string; displayName?: string | null | undefined } | undefined }, client?: Client): Promise<boolean> {
+  const own = parseAddonBoardVotes(snapshot.boardVotes);
+  const relayed = parseAddonBoardVotes(snapshot.boardRelayVotes, true);
+  const posts = officer ? parseAddonBoardPosts(snapshot.boardPosts) : [];
+  if (!own.length && !relayed.length && !posts.length) return false;
+  if (!await boardEnabled(prisma, guildId)) return false;
+  const polls = new Set([...await applyBoardVotes(prisma, guildId, memberId, own), ...await applyRelayedBoardVotes(prisma, guildId, memberId, relayed)]);
+  const author = snapshot.character?.displayName || snapshot.character?.name || "Officer";
+  const created = posts.length ? await createBoardService(prisma).fromAddon(guildId, memberId, author, posts) : [];
+  if (client && (polls.size || created.length)) {
+    // Loaded only when needed: the poll command module is not part of the API's start-up.
+    const { postGameNews, syncPollById } = await import("./commands/poll.js");
+    for (const pollId of polls) await syncPollById(client, pollId).catch((error: unknown) => console.warn("Poll refresh after game votes failed", error));
+    for (const post of created) await postGameNews(client, guildId, post).catch((error: unknown) => console.warn("Game news post failed", error));
+  }
+  return polls.size > 0 || created.length > 0;
 }
 
 // `client` lets an upload be applied and announced by the bot itself (auto-apply).
 export function startCompanionApi(client?: Client): ReturnType<typeof createServer> {
+  const autoApplyImport = (input: Omit<AutoApplyInput, "client">) => autoApplyImportWith({ ...input, client });
+  const retryApplyLater = (input: Omit<Parameters<typeof retryApplyLaterWith>[0], "client">) => retryApplyLaterWith({ ...input, client });
   const site = createSiteApp(client);
   const server = createServer(async (request, response) => {
+    const requestStartedAt = Date.now();
     try {
       response.setHeader("cache-control", "no-store");
       response.setHeader("x-content-type-options", "nosniff");
@@ -439,16 +668,43 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         response.end(request.method === "HEAD" ? undefined : page.body);
         return;
       }
+      // 8.5 track G: the Google Sheets feed. The key is in the address (IMPORTDATA cannot send headers); it is never logged
+      // here, and a wrong key answers 404 exactly like a missing feed, with the shared failure counter.
+      if (request.method === "GET" && url.pathname === "/api/v1/stats-feed") {
+        const address = clientAddress(request);
+        if (isLockedOut(address)) { json(response, 429, { error: "Too many failed attempts. Try again in a few minutes." }); return; }
+        const guildId = url.searchParams.get("guild") ?? "";
+        if (!await feedAccess(prisma, guildId, url.searchParams.get("key") ?? "")) { recordFailure(address); json(response, 404, { error: "Not found" }); return; }
+        const csv = statsCsv(await recentSnapshots(prisma, guildId, Number(url.searchParams.get("days")) || MAX_FEED_DAYS));
+        response.writeHead(200, { "content-type": "text/csv; charset=utf-8", "cache-control": "no-store", "referrer-policy": "no-referrer", "x-robots-tag": "noindex" });
+        response.end(csv);
+        return;
+      }
       const isImport = request.method === "POST" && url.pathname === "/api/v1/addon-imports";
       const isPairing = request.method === "POST" && url.pathname === "/api/v1/addon-pairings";
       const isStandings = request.method === "GET" && url.pathname === "/api/v1/standings";
+      if (isStandings) logStandingsTiming(request, response, url, requestStartedAt);
       const isPoeUpload = request.method === "POST" && url.pathname === "/api/v1/poe/visits";
       const isPoeLevels = request.method === "POST" && url.pathname === "/api/v1/poe/levels";
       const isPublicRuns = request.method === "POST" && url.pathname === "/api/v1/public-runs";
       const isPersonalStatus = request.method === "GET" && url.pathname === "/api/v1/companion/personal-status";
+      // Track L: who is signed in, their Guilded servers, and the join invite for their in-game guild.
+      const isCompanionMe = request.method === "GET" && url.pathname === "/api/v1/companion/me";
+      const isAlbum = request.method === "GET" && url.pathname === "/api/v1/companion/achievements";
+      // Guilded Collection (TCG stage 1): the phone's card collection, daily pack and crafting. Signed-in member only.
+      const isCards = (request.method === "GET" && url.pathname === "/api/v1/companion/cards") || (request.method === "POST" && (url.pathname === "/api/v1/companion/cards/open" || url.pathname === "/api/v1/companion/cards/craft"));
+      // Guilded Clash (TCG stage C): matches against the AI or a PvE boss. Signed-in member only; ids travel in the query or body.
+      const clashMethods: Record<string, string> = { start: "POST", match: "GET", intent: "POST", concede: "POST", matches: "GET", pve: "GET",
+        "trade/partners": "GET", "trade/cards": "GET", trades: "GET", trade: "GET", "trade/offer": "POST", "trade/edit": "POST", "trade/confirm": "POST", "trade/cancel": "POST", "trade/settings": "POST", ...DUEL_ROUTES };
+      const clashRoute = url.pathname.startsWith("/api/v1/companion/clash/") ? url.pathname.slice("/api/v1/companion/clash/".length) : null;
+      const isClash = clashRoute !== null && Object.hasOwn(clashMethods, clashRoute) && request.method === clashMethods[clashRoute];
+      // Track M: the phone's guildmate map (guild members only) and the member's own sharing switch.
+      const isMapView = request.method === "GET" && url.pathname === "/api/v1/companion/guild-map";
+      const isMapEdit = request.method === "POST" && url.pathname === "/api/v1/companion/guild-map";
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
       const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
+      const isDeleteData = request.method === "POST" && url.pathname === "/api/v1/companion/delete-my-data";
       const isSignInStart = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in";
       const isSignInPoll = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in/poll";
       const isRenew = request.method === "POST" && url.pathname === "/api/v1/companion/renew";
@@ -459,7 +715,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
-      if (!isRenew && !isMobileDevice && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isManageView && !isManageEdit && !isHubView && !isHubEdit) {
+      if (!isRenew && !isMobileDevice && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
@@ -486,6 +742,18 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, ok ? 200 : 400, ok ? { ok: true } : { error: "A valid companion credential is required." });
         return;
       }
+      if (isDeleteData) {
+        // "Delete my data" from the companion: same erasure as the website, confirmed with the word DELETE.
+        if (!allowCompanionRevocation(address)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const payload = await readBody(request).catch(() => null) as { confirm?: unknown } | null;
+        const done = await deleteMyDataByCredential(prisma, hashCompanionSecret(secret), payload?.confirm);
+        if (done === null) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        if (done === "confirm") { json(response, 400, { error: "Type DELETE to confirm." }); return; }
+        json(response, 200, { ok: true, ...done });
+        return;
+      }
       if (isSignInStart) {
         // Needs the website's Discord sign-in; a bot without it keeps pairing codes only.
         const auth = webAuthConfig(config);
@@ -497,7 +765,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!started) { json(response, 503, { error: "Too many sign-ins in progress. Try again in a few minutes." }); return; }
         const page = new URL("/me/companion", auth.siteUrl);
         page.searchParams.set("request", started.requestId);
-        json(response, 200, { requestId: started.requestId, confirm: started.confirm, expiresAt: started.expiresAt.toISOString(), url: page.href, loopbackAccepted: companionSignIn.loopbackFor(started.requestId) !== null });
+        json(response, 200, { requestId: started.requestId, confirm: started.confirm, expiresAt: started.expiresAt.toISOString(), expiresInSeconds: Math.max(0, Math.round((started.expiresAt.getTime() - Date.now()) / 1000)), url: page.href, loopbackAccepted: companionSignIn.loopbackFor(started.requestId) !== null });
         return;
       }
       if (isSignInPoll) {
@@ -549,6 +817,139 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, 200, { ...result, guildDiscordId: serverId });
         return;
       }
+      if (isCompanionMe) {
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const answer = await companionMe({
+          async accountFor(tokenHash) {
+            const member = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true, displayName: true } } } });
+            if (member) {
+              const web = await prisma.webAccount.findUnique({ where: { discordUserId: member.member.discordUserId }, select: { username: true, displayName: true } });
+              return { discordUserId: member.member.discordUserId, username: web?.username ?? member.member.displayName, displayName: web?.displayName ?? member.member.displayName, personal: false };
+            }
+            const personal = await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true, username: true, displayName: true } } } });
+            return personal ? { ...personal.account, personal: true } : null;
+          },
+          servers: async (discordUserId) => (await signInServers(client, discordUserId)).map((server) => ({ discordId: server.discordId, name: server.name })),
+          avatar: async (discordUserId) => client ? (await client.users.fetch(discordUserId)).displayAvatarURL({ size: 64, extension: "png" }) : null,
+          async joinTarget(nameKey, realmKey) {
+            const row = await prisma.wowGuild.findFirst({ where: { gameEdition: "forever", nameKey, realmKey }, select: { guild: { select: { discordId: true, page: { select: { inviteUrl: true } } } } } });
+            if (!row || !hostedPilot.allows(row.guild.discordId)) return null;
+            const name = client?.guilds.cache.get(row.guild.discordId)?.name ?? null;
+            return name ? { discordId: row.guild.discordId, name, inviteUrl: row.guild.page?.inviteUrl ?? null } : null;
+          }
+        }, { tokenHash: hashCompanionSecret(secret), guild: url.searchParams.get("guild"), realm: url.searchParams.get("realm") });
+        if (!answer) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        json(response, 200, answer);
+        return;
+      }
+      if (isCards) {
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const tokenHash = hashCompanionSecret(secret);
+        const owner = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } })
+          ?? await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
+        const discordUserId = owner ? ("member" in owner ? owner.member.discordUserId : owner.account.discordUserId) : null;
+        if (!discordUserId) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        const lang = url.searchParams.get("lang") === "fr" ? "fr" : "en";
+        const allows = (id: string) => hostedPilot.allows(id);
+        if (!await tcgAllowed(prisma, discordUserId, allows)) { json(response, 403, { error: "The card collection is off for your server, or you are not in a server that has Guilded." }); return; }
+        try {
+          if (request.method === "GET") { json(response, 200, await collectionFor(prisma as never, discordUserId, lang, allows)); return; }
+          if (url.pathname.endsWith("/open")) {
+            if (!allowCompanionRevocation(`cards:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+            json(response, 200, await openPack(prisma as never, discordUserId, lang, allows)); return;
+          }
+          const body = await readBody(request).catch(() => null) as { card?: unknown } | null;
+          if (typeof body?.card !== "string" || body.card.length > 80) { json(response, 400, { error: "card is required." }); return; }
+          json(response, 200, await craftCard(prisma as never, discordUserId, body.card, lang, allows)); return;
+        } catch (error) {
+          if (error instanceof TcgError) { json(response, error.status, { error: error.message }); return; }
+          throw error;
+        }
+      }
+      if (isClash) {
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const tokenHash = hashCompanionSecret(secret);
+        const owner = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } })
+          ?? await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
+        const discordUserId = owner ? ("member" in owner ? owner.member.discordUserId : owner.account.discordUserId) : null;
+        if (!discordUserId) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        const lang = url.searchParams.get("lang") === "fr" ? "fr" : "en";
+        if (!await tcgAllowed(prisma, discordUserId, (id) => hostedPilot.allows(id))) { json(response, 403, { error: "The card game is off for your server, or you are not in a server that has Guilded." }); return; }
+        try {
+          markSeenInApp(discordUserId);
+          if (Object.hasOwn(DUEL_ROUTES, clashRoute)) {
+            if (DUEL_ROUTES[clashRoute] === "POST" && !allowCompanionRevocation(`clash-pvp:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+            const reply = await handleDuelRoute(prisma as never, clashRoute, discordUserId, url.searchParams, () => readBody(request), (id) => hostedPilot.allows(id));
+            json(response, reply.status, reply.body); return;
+          }
+          if (clashRoute.startsWith("trade") || clashRoute === "trades") {
+            const allows = (id: string) => hostedPilot.allows(id);
+            if (clashRoute === "trade/partners") { json(response, 200, await tradePartners(prisma as never, discordUserId, allows)); return; }
+            if (clashRoute === "trade/cards") { json(response, 200, await tradableCards(prisma as never, discordUserId, lang)); return; }
+            if (clashRoute === "trades") { json(response, 200, await listTrades(prisma as never, discordUserId, lang)); return; }
+            if (clashRoute === "trade") {
+              const id = url.searchParams.get("id") ?? "";
+              if (!id || id.length > 40) { json(response, 400, { error: "id is required." }); return; }
+              json(response, 200, await getTrade(prisma as never, discordUserId, id, lang)); return;
+            }
+            if (!allowCompanionRevocation(`clash-trade:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+            const body = await readBody(request).catch(() => null) as { to?: unknown; give?: unknown; want?: unknown; id?: unknown; off?: unknown } | null;
+            if (!body || typeof body !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }
+            if (clashRoute === "trade/settings") {
+              if (typeof body.off !== "boolean") { json(response, 400, { error: "off (true or false) is required." }); return; }
+              json(response, 200, await setTradingOff(prisma as never, discordUserId, body.off)); return;
+            }
+            if (clashRoute === "trade/offer") {
+              if (typeof body.to !== "string" || !body.to || body.to.length > 32) { json(response, 400, { error: "to (a guildmate) is required." }); return; }
+              json(response, 200, await offerTrade(prisma as never, discordUserId, { to: body.to, give: body.give, want: body.want ?? [] }, lang, allows)); return;
+            }
+            if (typeof body.id !== "string" || !body.id || body.id.length > 40) { json(response, 400, { error: "id is required." }); return; }
+            if (clashRoute === "trade/edit") { json(response, 200, await editTrade(prisma as never, discordUserId, body.id, { give: body.give, want: body.want ?? [] }, lang)); return; }
+            if (clashRoute === "trade/confirm") { json(response, 200, await confirmTrade(prisma as never, discordUserId, body.id, lang, allows)); return; }
+            json(response, 200, await cancelTrade(prisma as never, discordUserId, body.id, lang)); return;
+          }
+          if (clashRoute === "matches") { json(response, 200, await listMatches(prisma as never, discordUserId)); return; }
+          if (clashRoute === "pve") { json(response, 200, await pveProgress(prisma as never, discordUserId, lang)); return; }
+          if (clashRoute === "match") {
+            const id = url.searchParams.get("id") ?? "";
+            if (!id || id.length > 40) { json(response, 400, { error: "id is required." }); return; }
+            json(response, 200, await getMatch(prisma as never, discordUserId, id)); return;
+          }
+          if (!allowCompanionRevocation(`clash:${discordUserId}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+          const body = await readBody(request).catch(() => null) as { mode?: unknown; cls?: unknown; level?: unknown; opponent?: unknown; boss?: unknown; id?: unknown; action?: unknown } | null;
+          if (!body || typeof body !== "object") { json(response, 400, { error: "A JSON body is required." }); return; }
+          if (clashRoute === "start") {
+            if ((body.mode !== "ai" && body.mode !== "pve") || !isClassKey(body.cls)) { json(response, 400, { error: "mode (ai or pve) and cls (your class) are required." }); return; }
+            if (body.level !== undefined && !isAiLevel(body.level)) { json(response, 400, { error: "level must be easy, normal or hard." }); return; }
+            if (body.opponent !== undefined && !isClassKey(body.opponent)) { json(response, 400, { error: "opponent must be a class." }); return; }
+            if (body.mode === "pve" && (typeof body.boss !== "string" || body.boss.length > 40)) { json(response, 400, { error: "boss is required for the gauntlet." }); return; }
+            json(response, 200, await startMatch(prisma as never, discordUserId, { mode: body.mode, cls: body.cls, ...(body.level !== undefined ? { level: body.level as never } : {}), ...(body.opponent !== undefined ? { opponentCls: body.opponent as never } : {}), ...(typeof body.boss === "string" ? { boss: body.boss } : {}) })); return;
+          }
+          if (typeof body.id !== "string" || !body.id || body.id.length > 40) { json(response, 400, { error: "id is required." }); return; }
+          if (clashRoute === "concede") { json(response, 200, await concedeMatch(prisma as never, discordUserId, body.id)); return; }
+          const action = parseIntent(body.action);
+          if (!action) { json(response, 400, { error: "action is not a valid move." }); return; }
+          json(response, 200, await submitIntent(prisma as never, discordUserId, body.id, action)); return;
+        } catch (error) {
+          if (error instanceof TcgError) { json(response, error.status, { error: error.message }); return; }
+          throw error;
+        }
+      }
+      if (isAlbum) {
+        // Phone badge album: the signed-in member's own stored achievements (companion-album.ts). Read-only.
+        const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
+        if (typeof secret !== "string" || secret.length < 32 || secret.length > 256) { recordFailure(address); json(response, 401, { error: "Sign in with Discord in the companion first." }); return; }
+        const tokenHash = hashCompanionSecret(secret);
+        const owner = await prisma.companionCredential.findFirst({ where: { tokenHash, revokedAt: null, member: { status: "ACTIVE" } }, select: { member: { select: { discordUserId: true } } } })
+          ?? await prisma.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { account: { select: { discordUserId: true } } } });
+        const discordUserId = owner ? ("member" in owner ? owner.member.discordUserId : owner.account.discordUserId) : null;
+        if (!discordUserId) { recordFailure(address); json(response, 401, { error: "This companion link is no longer valid. Sign in with Discord again." }); return; }
+        json(response, 200, await albumFor(prisma, discordUserId, url.searchParams.get("lang") === "fr" ? "fr" : "en", (id) => hostedPilot.allows(id)));
+        return;
+      }
       if (isPersonalStatus) {
         const secret = request.headers["x-companion-credential"];
         const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
@@ -566,6 +967,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         let gameEdition;
         try {
           gameEdition = gameEditionOf(body?.character ?? {});
+          assertForeverEdition(gameEdition);
         } catch (error) {
           json(response, 409, { error: error instanceof Error ? error.message : "Invalid WoW edition" }); return;
         }
@@ -604,9 +1006,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit || (isMobileDevice && request.method === "POST") ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit || isMapEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || (isMobileDevice && request.method === "GET") ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isMapView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -624,11 +1026,17 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
       }
-      if (isMobileDevice) {
-        const device = request.method === "GET"
-          ? await prisma.mobileDevice.findUnique({ where: { credentialId: (await prisma.companionCredential.findUniqueOrThrow({ where: { tokenHash: hashCompanionSecret(header as string) }, select: { id: true } })).id }, select: { enabled: true } })
-          : await configureMobileDevice(prisma, header as string, payload);
-        json(response, 200, { ok: true, enabled: device?.enabled ?? false });
+      if (isMapView || isMapEdit) {
+        // Signed-in members of this guild only (the credential is bound to it); never public, never cached.
+        if (!access.memberId) { json(response, 403, { error: "Sign in as a member of this guild to see the guild map." }); return; }
+        if (isMapEdit) {
+          const share = (payload as { share?: unknown } | null)?.share;
+          if (typeof share !== "boolean") { json(response, 400, { error: "share must be true or false" }); return; }
+          const done = await setMapSharing(prisma, access.memberId, share);
+          privateJson(response, { ok: true, ...done, map: await guildMapFor(prisma, guild.id, access.memberId) });
+          return;
+        }
+        privateJson(response, await guildMapFor(prisma, guild.id, access.memberId));
         return;
       }
       if (isHubView) {
@@ -690,6 +1098,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, 200, { ok: true, message: result.message, ...(result.rosterCoreId ? { rosterCoreId: result.rosterCoreId } : {}), botVersion: BOT_VERSION });
         return;
       }
+      // Forever-only focus (companion/active-games.mjs): PoE2 is paused. Old companions are told tracking is off
+      // (status) or that it is paused (everything else); nothing is stored and saved data stays untouched.
+      if ((isPoeRecent || isPoeStatus || isPoeLevels || isPoeUpload) && !POE_TRACKING_ENABLED) {
+        if (isPoeStatus) json(response, 200, { enabled: false, paused: true, botVersion: BOT_VERSION });
+        else json(response, 409, { error: GAME_ON_HOLD_NOTE[0], paused: true });
+        return;
+      }
       if (isPoeRecent) {
         const visits = await createPoeMappingService(prisma).recent(guild.id, access.memberId);
         json(response, 200, { visits: visits.map(row => ({ character: row.character, league: row.league, mode: row.mode, areaId: row.areaId, areaName: poeAreaName(row.areaId), areaLevel: row.areaLevel, startedAt: row.startedAt, endedAt: row.endedAt, durationSeconds: row.durationSeconds, endReason: row.endReason })), botVersion: BOT_VERSION }); return;
@@ -730,12 +1145,24 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const createdBy = access.actorId;
       let preview = await importService.preview(guild.id, requestPayload.export, createdBy);
       const uploadStartedAt = new Date();
+      const linkedBefore = pairedMemberId ? await linkedCharacterCount(prisma, pairedMemberId) : 0;
       const pairedCharacterStatus = pairedMemberId
         ? await linkUploaderCharacters(prisma, guild.id, pairedMemberId, preview.snapshot)
         : "unpaired";
+      // First link, and later new characters: one batched DM listing the linked characters (owner decision, 8.5 track F).
+      if (pairedMemberId && client) {
+        const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
+        scheduleLinkedCharacters(client, prisma, { guildDiscordId: guild.discordId, memberId: pairedMemberId, lang: asLang(language?.language), before: linkedBefore });
+      }
       // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
       // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).
       if (access.officer) await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined);
+      // Characters in an officer's roster upload are in the guild: their waiting invite posts get a check mark.
+      if (access.officer && client) {
+        const rosterNames = [preview.snapshot.character, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name, ...(entry.displayName ? [entry.displayName] : [])] : []);
+        void completeInvitesFromRoster(client, prisma, { id: guild.id, discordId: guild.discordId }, rosterNames)
+          .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite check marks failed", error));
+      }
       if (access.officer || pairedMemberId) {
         const verified = await linkVerifiedCharacters(prisma, guild.id, { officer: access.officer, memberId: pairedMemberId }, preview.snapshot.characters)
           .catch((error: unknown) => { console.error("Linking verified characters failed", error); return []; });
@@ -744,9 +1171,84 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           void tellVerified(client, guild.discordId, asLang(language?.language), verified).catch(() => undefined);
         }
       }
+      // 8.5: the game's guild roster, event log and MOTD from any member's upload (guild-data.ts):
+      // members without the addon reach the race board, last seen and roster gaps. Rank only from
+      // officers. No markGuildChanged: none of it is in the standings feed. Never fails the upload.
+      if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
+        await prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
+          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild data upload failed", error); });
+        // The whole guild roster (any member's upload) is now stored: waiting invite requests for those names are done.
+        if (client && preview.snapshot.guildRoster) {
+          void backCheckInvites(client, prisma, { id: guild.id, discordId: guild.discordId })
+            .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite back-check failed", error));
+        }
+      }
+      // 9.1: a member who asked for a guild invite naming a character gets it linked (provisionally) once it is seen in the guild.
+      if (client) {
+        const seen = [preview.snapshot.character, ...preview.snapshot.characters].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+        void prelinkAfterUpload(client, prisma, guild, seen);
+      }
+      // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
+      if (preview.snapshot.guildBank !== undefined) {
+        const bankResult = await prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
+          { timeout: 60_000, maxWait: 15_000 }).catch((error: unknown) => { console.error("Guild bank upload failed", error); return null; });
+        // 9.1: one alert in the log channel for items that just went below their minimum (/bank stock).
+        if (bankResult?.contents && client) void alertLowStock(client, prisma, guild.id).catch((error: unknown) => console.warn("Bank stock alert failed", error));
+      }
+      // 9.1: guild bank requests made in game, only the uploader's own (their pairing), each once.
+      const bankRequests = pairedMemberId ? parseAddonBankRequests(preview.snapshot.bankRequests) : [];
+      if (bankRequests.length && pairedMemberId) {
+        const created = await createBankService(prisma).fromAddon(guild.id, pairedMemberId, bankRequests).catch((error: unknown) => { console.warn("Bank requests from the addon failed", error); return []; });
+        for (const request of created) if (client) await postRequestCard(client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error));
+      }
+      // Crafting orders in game (craft-orders.ts): claims, finishes and give-backs made on the addon's Orders page, the
+      // uploader's own and guildmates' heard in game. Already-reflected actions change nothing, so a resent upload is harmless.
+      if (pairedMemberId) {
+        const own = parseAddonOrderActions(preview.snapshot.craftOrderActions);
+        const relayed = parseAddonOrderActions(preview.snapshot.craftOrderRelayActions, true);
+        const orderChanges = own.length || relayed.length
+          ? await applyOrderActions(prisma, guild.id, pairedMemberId, own, relayed).catch((error: unknown) => { console.warn("Craft order actions from the addon failed", error); return []; })
+          : [];
+        if (orderChanges.length) {
+          markGuildChanged(guild.id);
+          if (client) {
+            // Loaded only when needed, like the poll command module above.
+            const { announceOrderChanges } = await import("./commands/craft-board.js");
+            void announceOrderChanges(client, guild.discordId, orderChanges).catch((error: unknown) => console.warn("Craft order Discord update failed", error));
+          }
+        }
+      }
+      // 9.1 guild board (guild-board.ts): votes made in game, the uploader's own and guildmates' heard in
+      // game; officers' news written in game. Each is idempotent, so a resent upload changes nothing.
+      if (pairedMemberId) {
+        const boardChanged = await applyGuildBoardUpload(guild.id, pairedMemberId, !!access.officer, preview.snapshot, client)
+          .catch((error: unknown) => { console.warn("Guild board upload failed", error); return false; });
+        if (boardChanged) markGuildChanged(guild.id);
+      }
+      // Track M: the uploader's own last-seen positions and calls for help, for the phone map (guild-map.ts).
+      if (pairedMemberId && (preview.snapshot.mapSightings.length || preview.snapshot.helpCalls.length)) {
+        await applyGuildMapUpload(prisma, guild.id, pairedMemberId, parseGuildMapUpload(preview.snapshot.mapSightings, preview.snapshot.helpCalls))
+          .catch((error: unknown) => { console.warn("Guild map upload failed", error); });
+      }
+      // World PvP: this week's counters, capped and checked against the guild's real calls (world-pvp.ts).
+      if (pairedMemberId && preview.snapshot.worldPvp.length) {
+        const worldChanged = await applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUpload(preview.snapshot.worldPvp))
+          .catch((error: unknown) => { console.warn("World PvP upload failed", error); return false; });
+        if (worldChanged) markGuildChanged(guild.id);
+      }
       if (!access.officer) {
+        // Guildmates heard in game (level, class, race, professions): applied to already-linked
+        // characters only, never over newer first-hand data (guildmate-relay.ts). Never fails the upload.
+        if (pairedMemberId) {
+          // No markGuildChanged: levels and professions are not in the standings feed, and a
+          // generation bump per member upload kept the feed from ever finishing (8.5 hotfix).
+          await applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot)
+            .catch((error: unknown) => { console.error("Guildmate relay failed", error); return null; });
+        }
         const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
-        preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned), createdBy);
+        // 9.1: guildmates' recipes, cooldowns and attunements, for characters already linked in this guild.
+        const linkedInGuild = pairedMemberId ? await prisma.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true, gameEdition: true } }) : [];
+        preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned, pairedMemberId ? { uploaderMemberId: pairedMemberId, linked: linkedInGuild } : undefined), createdBy);
       }
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
       const professionRelay = access.officer && !settings?.autoApplyImports
@@ -765,20 +1267,16 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // companion say "waiting for officer review", which a member cannot do.
         if (existing?.status === "PREVIEWED" && (!access.officer || settings?.autoApplyImports)) {
           let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
+          const startedApply = Date.now();
           try {
-            const result = await importService.apply(guild.id, existing.id, createdBy);
-            autoApplied = { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
-            markGuildChanged(guild.id);
-            await auditService.record({
-              guildId: guild.id, actorId: createdBy, action: "IMPORT_APPLIED", entityId: existing.id,
-              metadata: { auto: true, retried: true, epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
-            });
-            const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-            await followUpImport(discordGuild, guild.id, result, { since: uploadStartedAt });
+            autoApplied = await autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: existing.id, createdBy, since: uploadStartedAt, retried: true });
           } catch (error) {
             const already = error instanceof Error && /already been applied/i.test(error.message);
             if (!autoApplied && !already) {
-              const applyError = error instanceof Error && error.message.length < 200 ? error.message : "The bot could not apply this upload (see the server log).";
+              // This path used to log nothing at all.
+              const failure = classifyApplyFailure(error);
+              console.info(applyFailureLogLine({ guildId: guild.id, importId: existing.id, failure, attempts: 1, ms: Date.now() - startedApply, officer: !!access.officer, retriedDuplicate: true }));
+              const applyError = failure.message;
               json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "PREVIEWED", applyError, botVersion: BOT_VERSION, protocolVersion: 2 });
               return;
             }
@@ -801,29 +1299,34 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
       let applyError: string | null = null;
       if (!access.officer || settings?.autoApplyImports) {
+        const startedApply = Date.now();
         let applied = false;
         try {
-          const result = await importService.apply(guild.id, record.id, createdBy);
-          applied = true;
-          markGuildChanged(guild.id);
-          autoApplied = { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
-          await auditService.record({
-            guildId: guild.id, actorId: createdBy, action: "IMPORT_APPLIED", entityId: record.id,
-            metadata: { auto: true, epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
-          });
-          const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-          await followUpImport(discordGuild, guild.id, result, { since: uploadStartedAt });
+          autoApplied = await autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, retried: false,
+            onApplied: () => { applied = true; } });
         } catch (error) {
           // Application and notification are distinct: a committed import stays APPLIED even if follow-up fails.
           console.error("Auto-apply of an addon import failed", error);
           if (!applied) {
-            // Nothing was imported: say so to the uploader and, for a guild upload, to the officers,
-            // instead of leaving it in the server log only. Short messages are ours; anything else
-            // (a database error) is not shown.
-            applyError = error instanceof Error && error.message.length < 200 ? error.message : "The bot could not apply this upload (see the server log).";
-            if (access.officer && shouldTellApplyFailure(`${guild.id}:${applyError}`)) {
+            // Nothing was imported. The reason goes to the server log as readable codes, to the
+            // uploader, and (for a guild upload) to the officers. A transient database failure
+            // (load, a concurrent upload) is retried in the background first and only told
+            // to the officers if the retries fail too.
+            const failure = classifyApplyFailure(error);
+            console.info(applyFailureLogLine({ guildId: guild.id, importId: record.id, failure, attempts: 1, ms: Date.now() - startedApply, officer: !!access.officer, retriedDuplicate: false }));
+            applyError = failure.transient ? `${failure.message} The bot tries again in a minute.` : failure.message;
+            const tellOfficers = async (told: ApplyFailure, attempts: number) => {
+              if (!access.officer || !shouldTellApplyFailure(`${guild.id}:${told.reason}:${told.message}`)) return;
               const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-              await notify(discordGuild, `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${applyError}\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
+              // The reason stays as the classifier wrote it (it matches the server log); the frame is in the guild's language.
+              await notify(discordGuild, settings?.language === "fr"
+                ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${told.message}${attempts > 1 ? ` (${attempts} essais)` : ""} [${told.reason}]\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/import apply id:${record.id}\`.`
+                : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${told.message}${attempts > 1 ? ` (${attempts} tries)` : ""} [${told.reason}]\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
+            };
+            if (failure.transient) {
+              retryApplyLater({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, officer: !!access.officer, tellOfficers });
+            } else {
+              await tellOfficers(failure, 1);
             }
           }
         }

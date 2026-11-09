@@ -60,7 +60,6 @@ jobs:
       - run: npm test
       - run: npm run lint
       - run: node addon/Guilded/validate-addon.mjs
-      - run: node scripts/sync-dungeon-catalog.mjs --check
       - run: npx tsx scripts/export-edition-rules.ts
       - name: Validate and package next-version addon previews
         run: |

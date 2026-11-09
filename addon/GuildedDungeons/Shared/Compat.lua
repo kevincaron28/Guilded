@@ -156,57 +156,6 @@ function compat.inCombat()
   return exists(UnitAffectingCombat) and try("combat", UnitAffectingCombat, "player") and true or false
 end
 
--- A challenge ends when the client confirms all objectives, not on its last boss.
-function compat.challengeActive()
-  local active = C_ChallengeMode and exists(C_ChallengeMode.IsChallengeModeActive)
-    and try("challenge", C_ChallengeMode.IsChallengeModeActive)
-  return not secret(active) and active == true or false
-end
-
-local function challengeNumber(value, minimum, maximum)
-  return not secret(value) and type(value) == "number" and value == math.floor(value)
-    and value >= minimum and value <= maximum and value or nil
-end
-
--- Capture the key before completion clears active data. Never substitute a player's
--- personal best for this attempt's result. The native timer includes death penalties.
-function compat.challengeInfo()
-  if ns.util.gameEdition() ~= "retail" or not C_ChallengeMode then return nil end
-  local mapId = challengeNumber(try("challengeMap", C_ChallengeMode.GetActiveChallengeMapID), 1, 1000000)
-  if not mapId then return nil end
-  local level, affixes = try("challengeKey", C_ChallengeMode.GetActiveKeystoneInfo)
-  level = challengeNumber(level, 1, 100)
-  if not mapId or not level or secret(affixes) or type(affixes) ~= "table" then return nil end
-  local _, _, limit = try("challengeLimit", C_ChallengeMode.GetMapUIInfo, mapId)
-  limit = challengeNumber(limit, 1, 14400)
-  if not limit then return nil end
-  local ids = {}
-  for _, value in ipairs(affixes) do
-    local id = challengeNumber(value, 1, 1000000)
-    if not id or #ids >= 10 then return nil end
-    ids[#ids + 1] = id
-  end
-  table.sort(ids)
-  for i = 2, #ids do if ids[i] == ids[i - 1] then return nil end end
-  return { mapId = mapId, level = level, affixIds = ids, timeLimitSec = limit }
-end
-
-function compat.challengeCompletion(active)
-  if ns.util.gameEdition() ~= "retail" or not C_ChallengeMode or not active then return nil end
-  local info = try("challengeCompletion", C_ChallengeMode.GetChallengeCompletionInfo)
-  if secret(info) or type(info) ~= "table" then return nil end
-  local mapId = challengeNumber(info.mapChallengeModeID, 1, 1000000)
-  local level = challengeNumber(info.level, 1, 100)
-  local duration = challengeNumber(info.time, 1, 14400000)
-  if not mapId or not level or not duration or mapId ~= active.mapId or level ~= active.level then return nil end
-  for _, field in ipairs({ "onTime", "practiceRun", "isEligibleForScore" }) do
-    if secret(info[field]) or type(info[field]) ~= "boolean" then return nil end
-  end
-  return { mapId = mapId, level = level, durationMs = duration, timeLimitSec = active.timeLimitSec,
-    affixIds = active.affixIds, onTime = info.onTime, practiceRun = info.practiceRun,
-    eligibleForScore = info.isEligibleForScore }
-end
-
 -- ---------------------------------------------------------------------
 -- Encounter Journal: which bosses a dungeon has, so the last one can end
 -- the run automatically. Optional: without it, runs end by button.
@@ -220,8 +169,52 @@ local bossCache = {}
 -- Numeric identities work independently of the client's locale.
 local finalBossFallbacks = {
   [36] = 2747,
+  [389] = 2735,  -- Bazzalan, seen in the owner's Ragefire Chasm run of 5 Nov 2026
   [3065] = 3496
 }
+
+-- Forever reports its own encounter ids (Ragefire Chasm 2732-2735, not the Classic Era
+-- 6xx/29xx ids in the sourced catalog), and the ids of most dungeons are not confirmed yet.
+-- A successful final-boss kill is therefore also recognised by NAME inside the matching
+-- instance (English and French, case-insensitive); the instance id comes from the client.
+-- The first run that goes unrecognised is kept in full (see Dungeon.lua recovery) and can
+-- be completed afterwards once its id or name is added here.
+local foreverFinalBossNames = {
+  [389] = { "Bazzalan" },
+  [43]  = { "Mutanus the Devourer", "Mutanus le D\195\169voreur" },
+  [36]  = { "Edwin VanCleef" },
+  [33]  = { "Archmage Arugal", "Archimage Arugal" },
+  [34]  = { "Bazil Thredd" },
+  [48]  = { "Aku'mai" },
+  [129] = { "Amnennar the Coldbringer", "Amnennar le Porte-Froid" },
+  [90]  = { "Mekgineer Thermaplugg", "M\195\169kgin\195\169er Thermaplugg" },
+  [47]  = { "Charlga Razorflank" },
+  [70]  = { "Archaedas" },
+  [3065] = { "Durgen Dirgehammer" },
+  -- Forever-only dungeons, from the community guides of 7 Nov 2026 (no saved run yet; English
+  -- names only until a French client reports them). Ruins of Lordaeron's secret boss Viktor
+  -- the Vile and Dalaran's Lyn the Ignored are optional, so they do not end the run.
+  [2999] = { "Rath'mael" },
+  [2998] = { "Relic Guardian" },
+  [2959] = { "Shade of the Archmage" }
+}
+
+local function lowerName(value)
+  if type(value) ~= "string" or secret(value) then return nil end
+  return (string.lower(value):gsub("^%s+", ""):gsub("%s+$", ""))
+end
+
+local function foreverFinalName(instanceId, name)
+  local wanted, aliases = lowerName(name), foreverFinalBossNames[instanceId]
+  if not wanted or not aliases then return false end
+  for _, alias in ipairs(aliases) do
+    if lowerName(alias) == wanted then return true end
+  end
+  return false
+end
+
+-- Diagnostic for /guilded dungeon check and run recovery.
+function compat.isForeverFinalBossName(instanceId, name) return foreverFinalName(instanceId, name) end
 
 function compat.isDungeonFinalBoss(instanceId, encounterId, name, difficultyId)
   if ns.dungeonRoutes and not secret(encounterId) and not secret(difficultyId)
@@ -231,12 +224,13 @@ function compat.isDungeonFinalBoss(instanceId, encounterId, name, difficultyId)
   -- Scarlet wings share map 189. English/French event names identify their endpoints
   -- (the same names the bot uses to tell the wings apart); unknown names still use the
   -- native journal when available.
-  if (ns.util.isForever() or ns.util.gameEdition() == "classic-era" or ns.util.gameEdition() == "classic-tbc") and instanceId == 189 and not secret(name) and type(name) == "string" then
+  if ns.util.isForever() and instanceId == 189 and not secret(name) and type(name) == "string" then
     local bosses = { ["Bloodmage Thalnos"]=true, ["Mage de sang Thalnos"]=true,
       ["Arcanist Doan"]=true, ["Arcaniste Doan"]=true, ["Herod"]=true, ["H\195\169rode"]=true,
       ["High Inquisitor Whitemane"]=true, ["Grande Inquisitrice Blanchet\195\170te"]=true }
     if bosses[name] then return true end
   end
+  if ns.util.isForever() and foreverFinalName(instanceId, name) then return true end
   local boss = ns.util.isForever() and finalBossFallbacks[instanceId] or nil
   if not boss then return false end
   return not secret(encounterId) and tonumber(encounterId) == boss

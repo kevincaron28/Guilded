@@ -5,7 +5,7 @@ const require = createRequire(import.meta.url);
 const { createLootHistoryConverter } = require("../companion-app/loot-history-import.cjs");
 const { validateIpc } = require("../companion-app/ipc-security.cjs");
 const source = JSON.stringify([{ player: "Amy-Realm", date: "2026/10/29", time: "20:10", id: "a-1", itemID: 19364 }]);
-const options = { source: "rclootcouncil", guild: "Guild", realm: "Realm", edition: "classic-era" };
+const options = { source: "rclootcouncil", guild: "Guild", realm: "Realm", edition: "forever" };
 function setup() {
   const fs = { writeFile: vi.fn().mockResolvedValue(undefined) };
   const readLootImportFile = vi.fn().mockResolvedValue(source);
@@ -24,7 +24,7 @@ describe("desktop loot import", () => {
     expect(fs.writeFile).not.toHaveBeenCalled();
     const save = { token: result.token, characterMap: mapping, allowUnidentified: false };
     expect(await converter.save(save)).toMatchObject({ ok: true });
-    expect(dialog.showMessageBox).toHaveBeenCalledWith(null, expect.objectContaining({ message: "Guild / Realm / classic-era", defaultId: 0 }));
+    expect(dialog.showMessageBox).toHaveBeenCalledWith(null, expect.objectContaining({ message: "Guild / Realm / forever", defaultId: 0 }));
     expect(fs.writeFile).toHaveBeenCalledWith("archive.txt", expect.stringMatching(/^GLH1:/), { flag: "wx", mode: 0o600 });
     expect(await converter.save(save)).toMatchObject({ ok: false });
     expect(fs.writeFile).toHaveBeenCalledTimes(1);
@@ -67,6 +67,7 @@ describe("desktop loot import", () => {
       expect(() => validateIpc("loot-history-save", [{ token: 1, characterMap: mapping, allowUnidentified: false, ...extra }])).toThrow();
     }
     expect(() => validateIpc("loot-history-preview", [{ ...options, path: "private" }])).toThrow();
+    expect(() => validateIpc("loot-history-preview", [{ ...options, edition: "classic-era" }])).toThrow();
     expect(() => validateIpc("loot-history-save", [{ token: -1, characterMap: [], allowUnidentified: "true" }])).toThrow();
   });
 });

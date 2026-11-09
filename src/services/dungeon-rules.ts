@@ -1,6 +1,6 @@
 import { validDungeonKey, validLevelBand, type LevelBand } from "./dungeon-rating.js";
 import { z } from "zod";
-import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
+import { GAME_EDITIONS, gameEditionOf, SUPPORTED_EDITION } from "../../companion/game-edition.mjs";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { challengeEvidenceSchema } from "./challenge-evidence.js";
 import { dungeonIntegritySchema, playerIntegritySchema } from "./dungeon-integrity.js";
@@ -43,6 +43,14 @@ export const dungeonRunSchema = z.object({
     at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional(),
     source: z.enum(["native", "combat-log"]).optional()
   })).max(100).optional().catch(undefined),
+  // 9.1: where group members died, as fractions of a dungeon map (uiMapID). Optional presentation data: never invalidates a run.
+  deathPoints: z.array(z.object({
+    x: z.number().min(0).max(1), y: z.number().min(0).max(1), map: z.number().int().positive().max(100000), character: z.string().max(40).optional()
+  })).max(60).optional().catch(undefined),
+  // Traced dungeon maps (9.2): the uploader's own walked grid cells per floor (key = column * 200 + row), no times. Merged into
+  // the shared per-floor grid on import and never stored with the run; malformed data is dropped, never invalidating a run.
+  mapCells: z.array(z.object({ map: z.number().int().positive().max(100000), cells: z.array(z.number().int().min(0).max(39999)).max(600) }))
+    .max(20).optional().catch(undefined),
   players: z.array(z.object({
     character: z.string().min(1).max(40),
     displayName: z.string().trim().min(1).max(80).optional().catch(undefined),
@@ -149,8 +157,9 @@ export function validateRun(run: DungeonRunInput, now = new Date()): Validation 
   if (duration > MAX_DURATION_SEC) return { ok: false, reason: `too long (${Math.round(duration / 60)} min)` };
   let edition;
   try { edition = gameEditionOf(run); } catch { return { ok: false, reason: "Invalid WoW edition" }; }
-  if (run.challenge && (edition !== "retail" || run.difficultyId !== 8 || run.completedBy !== "challenge objectives"
-    || run.challengeMode !== true)) return { ok: false, reason: "challenge evidence does not match this run" };
+  if (edition !== SUPPORTED_EDITION) return { ok: false, reason: "WoW Forever only" };
+  // WoW Forever has no Mythic+ keystones: keystone evidence (old Retail clients) is never accepted.
+  if (run.challenge) return { ok: false, reason: "Mythic+ keystone runs are not supported" };
   const names = new Set(run.players.map((player) => characterKey(player.character, player.realm, edition)));
   if (names.size !== run.players.length) return { ok: false, reason: "same player listed twice" };
   // A run is only believed from someone who was in it: the recorder, and at least one of

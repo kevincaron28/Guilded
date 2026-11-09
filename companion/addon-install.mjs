@@ -2,15 +2,14 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { editionFromInterface } from "./game-edition.mjs";
 import { savedFileParts } from "./live-folder.mjs";
-import { isFolderOnHold } from "./active-editions.mjs";
+import { isOtherEditionFolder } from "./wow-folder.mjs";
 
-// Wrong-edition install check. Each WoW edition has its own game folder and its own Guilded
-// build (different ## Interface). The client silently skips an addon whose interface it does
-// not accept, so a build for another edition in the folder (for example the TBC build in
-// _forever_) never loads, never saves Guilded.lua, and nothing says why. Read the installed
-// Guilded.toc next to the watched saved file and say so. Folders that do not name one edition
-// (_classic_, _classic_beta_, the install folder itself) are not judged.
-const FOLDER_EDITIONS = { _forever_: "forever", _classic_era_: "classic-era", _retail_: "retail" };
+// Wrong-edition install check. Guilded supports WoW Forever only. The client silently skips an
+// addon whose interface it does not accept, so an old build for another WoW version in _forever_
+// never loads, never saves Guilded.lua, and nothing says why. Read the installed Guilded.toc next
+// to the watched saved file and say so. Folders that do not name an edition (_classic_,
+// _classic_beta_, the install folder itself) are not judged.
+const FOLDER_EDITIONS = { _forever_: "forever" };
 
 /** @param {string} toc @returns {string[]} editions the TOC claims to support */
 export function tocEditions(toc) {
@@ -22,18 +21,19 @@ export function tocEditions(toc) {
 
 /**
  * @param {string} watchFile
- * @returns {Promise<{ status: "ok" | "wrong-edition" | "not-installed" | "unchecked" | "on-hold", expected?: string, installed?: string[], folder?: string }>}
+ * @returns {Promise<{ status: "ok" | "wrong-edition" | "not-installed" | "unchecked" | "other-edition", expected?: string, installed?: string[], folder?: string }>}
  */
 export async function checkInstalledAddon(watchFile) {
   const parts = savedFileParts(watchFile);
-  // A game folder of an edition that is on hold (companion/active-editions.mjs) is not an error:
-  // it is left alone and the app says plainly that support is paused.
-  if (parts && isFolderOnHold(parts.flavor)) return { status: "on-hold", folder: parts.flavor };
+  // A game folder of another WoW version is not an error: it is left alone (Guilded supports WoW Forever only).
+  if (parts && isOtherEditionFolder(parts.flavor)) return { status: "other-edition", folder: parts.flavor };
   const expected = parts ? FOLDER_EDITIONS[parts.flavor.toLowerCase()] : undefined;
   if (!parts || !expected) return { status: "unchecked" };
   const folder = join(parts.root, parts.flavor, "Interface", "AddOns", "Guilded");
   let toc;
   try { toc = await readFile(join(folder, "Guilded.toc"), "utf8"); } catch { return { status: "not-installed", expected, folder }; }
   const installed = tocEditions(toc);
-  return installed.includes(expected) ? { status: "ok", expected, installed, folder } : { status: "wrong-edition", expected, installed, folder };
+  // The version on disk: newer than the one that last saved means WoW still runs the old files.
+  const version = /^##\s*Version:\s*(\d{1,3}\.\d{1,3}\.\d{1,3})\s*$/m.exec(toc)?.[1] ?? null;
+  return installed.includes(expected) ? { status: "ok", expected, installed, folder, version } : { status: "wrong-edition", expected, installed, folder, version };
 }

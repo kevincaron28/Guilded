@@ -2,9 +2,10 @@
 import { createOwnerResources } from "./private-resources.mjs";
 import { localizedAsset } from "./localized-assets.mjs";
 import { editionSection, splitEditionPath } from "../site/nav.mjs";
+import { POE_ENABLED } from "../companion/active-games.mjs";
 
-// Each WoW edition has its own section (/retail/, /retail/leaderboards/...: site/nav.mjs). The
-// visitor's last edition is remembered in this cookie, so /leaderboards/ opens that edition.
+// WoW Forever's section (/forever/, /forever/leaderboards/...: site/nav.mjs). The cookie remembered a
+// visitor's edition when there were several; only Forever is recognized now.
 const EDITION_COOKIE = "guilded_edition";
 function rememberedEdition(request) {
   const match = /(?:^|;\s*)guilded_edition=([a-z-]{1,20})(?:;|$)/.exec(request.headers.get("cookie") ?? "");
@@ -49,6 +50,8 @@ const apiMethods = new Map([
   ["/api/v1/addon-pairings", ["POST"]],
   ["/api/v1/public-runs", ["POST"]],
   ["/api/v1/standings", ["GET"]],
+  // 8.5: the Google Sheets statistics feed (IMPORTDATA); the key travels in the query and is checked by the bot.
+  ["/api/v1/stats-feed", ["GET"]],
   ["/api/v1/poe/visits", ["GET", "POST"]],
   ["/api/v1/poe/levels", ["POST"]],
   ["/api/v1/poe/status", ["GET"]],
@@ -57,6 +60,45 @@ const apiMethods = new Map([
   ["/api/v1/companion/sign-in/poll", ["POST"]],
   ["/api/v1/companion/renew", ["POST"]],
   ["/api/v1/mobile/device", ["GET", "POST"]],
+  // 8.5 Track L: who is signed in and the join invite for the member's in-game guild.
+  ["/api/v1/companion/me", ["GET"]],
+  // Phone badge album: the signed-in member's own achievements (read-only).
+  ["/api/v1/companion/achievements", ["GET"]],
+  // Guilded Collection (phone card game): read, open the daily pack, craft.
+  ["/api/v1/companion/cards", ["GET"]],
+  ["/api/v1/companion/cards/open", ["POST"]],
+  ["/api/v1/companion/cards/craft", ["POST"]],
+  // Guilded Clash matches against the AI and the PvE gauntlet (ids travel in the query string or body).
+  ["/api/v1/companion/clash/start", ["POST"]],
+  ["/api/v1/companion/clash/match", ["GET"]],
+  ["/api/v1/companion/clash/intent", ["POST"]],
+  ["/api/v1/companion/clash/concede", ["POST"]],
+  ["/api/v1/companion/clash/matches", ["GET"]],
+  ["/api/v1/companion/clash/pve", ["GET"]],
+  // Guild-only card trading (ids travel in the query string or body).
+  ["/api/v1/companion/clash/trade/partners", ["GET"]],
+  ["/api/v1/companion/clash/trade/cards", ["GET"]],
+  ["/api/v1/companion/clash/trades", ["GET"]],
+  ["/api/v1/companion/clash/trade", ["GET"]],
+  ["/api/v1/companion/clash/trade/offer", ["POST"]],
+  ["/api/v1/companion/clash/trade/edit", ["POST"]],
+  ["/api/v1/companion/clash/trade/confirm", ["POST"]],
+  ["/api/v1/companion/clash/trade/cancel", ["POST"]],
+  ["/api/v1/companion/clash/trade/settings", ["POST"]],
+  ["/api/v1/companion/clash/challenge", ["POST"]],
+  ["/api/v1/companion/clash/accept", ["POST"]],
+  ["/api/v1/companion/clash/decline", ["POST"]],
+  ["/api/v1/companion/clash/challenge/partners", ["GET"]],
+  ["/api/v1/companion/clash/duels", ["GET"]],
+  ["/api/v1/companion/clash/duel", ["GET"]],
+  ["/api/v1/companion/clash/duel/intent", ["POST"]],
+  ["/api/v1/companion/clash/duel/concede", ["POST"]],
+  ["/api/v1/companion/clash/ranked", ["GET"]],
+  ["/api/v1/companion/clash/ranked/join", ["POST"]],
+  ["/api/v1/companion/clash/ranked/leave", ["POST"]],
+  ["/api/v1/companion/clash/leaderboard", ["GET"]],
+  // Track M phone guildmate map (guild members only, never public) and the member's sharing switch.
+  ["/api/v1/companion/guild-map", ["GET", "POST"]],
   ["/api/v1/manage", ["GET", "POST"]],
   // The Windows companion and the phone app both call this on the public site.
   // Characters, guild rank and reserves live here; the other companion routes were already forwarded.
@@ -140,12 +182,77 @@ function unavailablePage(request, url) {
   } });
 }
 
+// The companion installer. GitHub release downloads returned 504 for hours on 8 November 2026, and streaming it from KV
+// in pieces broke on the free plan (the Worker was cut off mid-download). The bot's server now keeps the installer
+// (Caddy file_server at /downloads/, behind the origin gate) and the Worker hands its response body straight through:
+// no JavaScript runs per chunk, so nothing cuts it off. Range requests pass through, so a browser can resume.
+// If the server cannot be reached or does not have it, the visitor goes to the GitHub release instead.
+const HOSTED_DOWNLOAD = /^\/downloads\/(Guilded\.Companion\.Setup(?:\.\d{1,3}\.\d{1,3}\.\d{1,4})?\.exe)$/;
+const GITHUB_INSTALLER = "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe";
+function mirrorUrl(env) {
+  try {
+    const u = new URL(env.GUILDED_DOWNLOAD_MIRROR_URL ?? "");
+    if (u.protocol === "https:" && !u.username && !u.password && !u.search && !u.hash) return u.origin + u.pathname.replace(/\/+$/, "");
+  } catch { /* not configured */ }
+  return null;
+}
+const PASSED_HEADERS = ["content-length", "content-range", "accept-ranges", "last-modified", "etag"];
+export async function hostedDownload(request, env, ctx, url = new URL(request.url)) {
+  const match = HOSTED_DOWNLOAD.exec(url.pathname);
+  if (!match) return null;
+  if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+  const latest = match[1] === "Guilded.Companion.Setup.exe";
+  // A versioned name falls back to that exact release's asset, never to whatever "latest" is by then.
+  const version = /^Guilded\.Companion\.Setup\.(\d{1,3}\.\d{1,3}\.\d{1,4})\.exe$/.exec(match[1])?.[1];
+  const github = () => new Response(null, { status: 302, headers: { location: version ? `https://github.com/kevincaron28/Guilded/releases/download/v${version}/${match[1]}` : GITHUB_INSTALLER, "cache-control": "no-store" } });
+  const mirrorBase = mirrorUrl(env);
+  if (mirrorBase) {
+    // Optional second copy (Cloudflare R2 on a custom domain: docs/DOWNLOADS_RELIABILITY.md). A short HEAD probe confirms it
+    // has the file; the visitor is then redirected, so the bytes never pass through this Worker.
+    const target = `${mirrorBase}/${match[1]}`;
+    try {
+      const probe = await fetch(target, { method: "HEAD", signal: AbortSignal.timeout(4_000), cf: { cacheTtl: 0, cacheEverything: false } });
+      if (probe.status === 200) return new Response(null, { status: 302, headers: { location: target, "cache-control": "no-store" } });
+    } catch { /* fall through to the server, then GitHub */ }
+  }
+  const headers = new Headers();
+  if (env.GUILDED_ORIGIN_TOKEN) headers.set("x-guilded-origin", env.GUILDED_ORIGIN_TOKEN);
+  for (const name of ["range", "if-none-match", "if-modified-since", "if-range"]) {
+    const value = request.headers.get(name);
+    if (value) headers.set(name, value);
+  }
+  for (const origin of botOrigins(env)) {
+    // Give up on an origin that has not started answering in 8 seconds; once it answers, the download runs as long as it needs.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8_000);
+    try {
+      const upstream = await fetch(`${origin}/downloads/${match[1]}`, { method: request.method, headers, redirect: "manual", signal: controller.signal, cf: { cacheTtl: 0, cacheEverything: false } });
+      clearTimeout(timer);
+      if (![200, 206, 304, 416].includes(upstream.status)) { await upstream.body?.cancel(); continue; }
+      const out = new Headers({
+        "content-type": "application/vnd.microsoft.portable-executable",
+        "content-disposition": `attachment; filename="${match[1]}"`,
+        "cache-control": latest ? "no-cache" : "public, max-age=86400",
+        "x-content-type-options": "nosniff"
+      });
+      for (const name of PASSED_HEADERS) {
+        const value = upstream.headers.get(name);
+        if (value) out.set(name, value);
+      }
+      return new Response(request.method === "HEAD" ? null : upstream.body, { status: upstream.status, headers: out });
+    } catch {
+      clearTimeout(timer);
+    }
+  }
+  return github();
+}
+
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     if (request.method === "OPTIONS" && mobileDevCors(request)) {
       return new Response(null, { status: 204, headers: { ...mobileDevCors(request), "cache-control": "no-store" } });
     }
-    let response = await route(request, env);
+    let response = await route(request, env, ctx);
     // A page inside an edition's section remembers that edition for the next visit.
     const url = new URL(request.url);
     const section = ["kcaron.top", "www.kcaron.top"].includes(url.hostname) ? null : splitEditionPath(url.pathname);
@@ -158,11 +265,13 @@ export default {
   }
 };
 
-async function route(request, env) {
+async function route(request, env, ctx) {
     // Guard every hostname, including workers.dev, before any static fallback.
     const privateResponse = await ownerResources(request, env);
     if (privateResponse) return privateResponse;
     const url = new URL(request.url);
+    const download = await hostedDownload(request, env, ctx, url);
+    if (download) return download;
     // Keep Google's exact verification filename at HTTP 200 despite clean HTML URLs.
     if (/^\/google[a-f0-9]{8,64}\.html$/.test(url.pathname)) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
@@ -209,9 +318,18 @@ async function route(request, env) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
       return new Response(null, { status: 301, headers: { location: "/g/quebec-gold/", "cache-control": "public, max-age=86400" } });
     }
-    // Edition sections: /retail → /retail/ (the hub page); /retail/leaderboards/... is the bot's
-    // /leaderboards/... page with ?edition=retail.
+    // The edition section: /forever → /forever/ (the hub page); /forever/leaderboards/... is the bot's
+    // /leaderboards/... page with ?edition=forever.
     const section = creator ? null : splitEditionPath(url.pathname);
+    // Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md): the removed editions' old addresses
+    // lead permanently to the Forever equivalent. PoE2 pages are held (companion/active-games.mjs): temporary redirect.
+    if (!creator && ["GET", "HEAD"].includes(request.method)) {
+      const held = (target) => new Response(null, { status: 302, headers: { location: target + url.search, "cache-control": "no-store" } });
+      const moved = (target) => new Response(null, { status: 301, headers: { location: target + url.search, "cache-control": "public, max-age=86400" } });
+      if (section?.retired) return moved(`/forever${section.rest || "/"}`);
+      if (/^\/editions\/(classic-era|classic-tbc|classic-mists|retail)\/?$/.test(url.pathname)) return moved("/editions/forever/");
+      if (!POE_ENABLED && /^\/quebec-gold\/poe2\/?$/.test(url.pathname)) return held("/quebec-gold/");
+    }
     if (section && !section.rest) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
       return new Response(null, { status: 301, headers: { location: `/${section.slug}/${url.search}`, "cache-control": "public, max-age=86400" } });
@@ -222,7 +340,8 @@ async function route(request, env) {
     // the filter forms) moves into that edition's section; one without a section goes to the
     // visitor's remembered edition, Forever by default. Files (.json, .xml, .png) are never moved.
     if (!creator && dataPage && ["GET", "HEAD"].includes(request.method) && !/\.[a-z]{2,4}$/.test(pagePath)) {
-      const asked = editionSection(url.searchParams.get("edition"));
+      // Any ?edition= (older links named other editions) means the WoW Forever section.
+      const asked = url.searchParams.has("edition") ? editionSection("forever") : null;
       const destination = asked ?? (section ? null : rememberedEdition(request) ?? editionSection("forever"));
       if (destination && (!section || url.searchParams.has("edition"))) {
         const query = new URLSearchParams(url.search);
@@ -305,7 +424,8 @@ async function route(request, env) {
         target = new URL(origins[attempt % origins.length]);
         target.pathname = pagePath;
         target.search = health || guildPage ? "" : url.search;
-        if (section) target.searchParams.set("edition", section.edition);
+        // A removed edition's old section (a form post; page views were redirected above) is served as WoW Forever.
+        if (section) target.searchParams.set("edition", section.retired ? "forever" : section.edition);
         try {
           upstream = await fetch(target.href, {
             method: request.method, headers, ...(body ? { body } : {}),

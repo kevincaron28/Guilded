@@ -1,6 +1,6 @@
 {
   "name": "guilded-bot",
-  "version": "8.4.3",
+  "version": "9.0.8",
   "private": true,
   "packageManager": "npm@11.13.0",
   "description": "Guild management and addon integration bot for Guilded",
@@ -11,10 +11,11 @@
   "scripts": {
     "build": "tsc --noEmit",
     "dev": "tsx src/main.ts",
-    "start:local": "tsx src/main.ts",
+    "start:local": "node --max-old-space-size=560 --import tsx src/main.ts",
     "companion:app": "npm --prefix companion-app start",
     "companion:watch": "node companion/watcher.mjs",
     "addon:zip": "node scripts/build-addon-zip.mjs",
+    "clash:selfplay": "tsx scripts/clash-selfplay.ts",
     "addon:editions": "node scripts/build-addon-editions.mjs",
     "addon:verify-editions": "node scripts/verify-edition-zips.mjs",
     "dungeons:sync": "node scripts/build-dungeons-addon.mjs",
@@ -38,11 +39,14 @@
     "test:postgres": "node scripts/test-postgres.mjs",
     "release:ledger-check": "node scripts/with-env.mjs tsx scripts/ledger-preflight.mjs",
     "professions:reset": "node scripts/with-env.mjs tsx scripts/reset-professions.ts",
+    "names:forever": "node scripts/with-env.mjs tsx scripts/forever-names.ts",
+    "cleanup:prelaunch": "node scripts/with-env.mjs tsx scripts/prelaunch-cleanup.ts",
     "release:prepare": "node scripts/release-prepare.mjs",
     "companion:build": "node companion-app/make-icon.mjs && node scripts/build-companion-renderer.mjs",
     "worker:build": "npm run site:build && wrangler deploy --dry-run",
     "worker:deploy": "npm run site:build && wrangler deploy",
-    "ledger:compact": "node companion/ledger-compact.mjs"
+    "ledger:compact": "node companion/ledger-compact.mjs",
+    "store:package": "node scripts/store-package.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

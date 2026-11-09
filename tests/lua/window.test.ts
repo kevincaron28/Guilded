@@ -37,7 +37,21 @@ const RICH_FRAMES = String.raw`
     f.SetSize = function(self, width, height) self.width = width; self.height = height end
     f.SetVerticalScroll = function(self, value) self.verticalScroll = value end
     f.GetVerticalScroll = function(self) return rawget(self, "verticalScroll") or 0 end
-    f.ScrollBar = { Show = function(self) self.shown = true end, Hide = function(self) self.shown = false end }
+    -- Like the game's scrollbar: starts with a stale (short) range, clamps to it and snaps to its step,
+    -- and moves its frame when its value changes.
+    f.ScrollBar = {
+      step = 1, max = 0,
+      Show = function(self) self.shown = true end, Hide = function(self) self.shown = false end,
+      SetValueStep = function(self, v) self.step = v end,
+      SetMinMaxValues = function(self, a, b) self.min = a; self.max = b end,
+      GetMinMaxValues = function(self) return self.min or 0, self.max end,
+      SetValue = function(self, v)
+        v = math.max(self.min or 0, math.min(self.max, v))
+        v = math.floor(v / self.step + 0.5) * self.step
+        self.value = v
+        f:SetVerticalScroll(v)
+      end,
+    }
     FRAMES[#FRAMES + 1] = f
     return f
   end
@@ -112,7 +126,7 @@ describe("the tools window (sidebar and Home page)", () => {
   it("gives each officer feature a single menu scope", () => {
     const s = openWindow(1);
     s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
-    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Roster admin,Officer tools");
+    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Guild message,Roster admin,Officer tools");
     s.run(`NS.openGuildPanel(nil, "calendar", "Calendar")`);
     expect(visibleTabs(s)).toBe("Calendar");
   });
@@ -128,7 +142,7 @@ describe("the tools window (sidebar and Home page)", () => {
     s.run(`NS.openGuildPanel(HOST,"calendar","Calendar"); UI.selectTabByName("Calendar"); UI.selectTabByName("Calendar")`);
     expect(s.run(`local p=UI.tabs[UI.currentTab].page; return tostring(#p.points==1 and p.points[1][1]=="TOPLEFT" and p.points[1][2]==UI.guildScroll)`)).toBe("true");
     s.run(`UI.guildScroll.GetHeight=function() return 100 end; NS.openGuildPanel(HOST,"guild","EPGP"); UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll,-1)`);
-    expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("24");
+    expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("48");
   });
 
   it("docks guild pages with the same permissions and restores the full menu", () => {
@@ -275,10 +289,22 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.chat().join("\n")).not.toContain("failed");
   });
 
+  it("Info and data runs the formerly slash-only commands from buttons", () => {
+    const s = openWindow(1);
+    s.run(`CALLED = {}
+      for _, name in ipairs({ "peers", "relay", "professions", "names", "bgcapture", "ledgersync", "bridge", "options", "digest", "chattags", "invites", "promote", "autoinvite", "lootroll", "consumes" }) do
+        NS.commandHandlers[name] = function(args) CALLED[#CALLED + 1] = name .. ":" .. table.concat(args or {}, ",") end
+      end
+      NS.windowState().selectTabByName("Info")`);
+    const labels = ["Who runs which version", "Data relay status", "Sync EP/GP history now", "Interface options", "Daily digest off", "Invite queue", "Pending loot rolls"];
+    for (const label of labels) s.run(`for _, f in ipairs(FRAMES) do if f.text == "${label}" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
+    expect(s.run(`return table.concat(CALLED, ";")`)).toBe("peers:;relay:;ledgersync:now;options:;digest:off;invites:;lootroll:");
+  });
+
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Me,Open raids,Ready,Reserves,Raid,Loot,Council,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Announcements,Info,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Me,Open raids,Reserves,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Reserves,Signups,Duels,Announcements,Info,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {
@@ -293,6 +319,7 @@ describe("the tools window (sidebar and Home page)", () => {
       } end
       NS.showCopyText = function(t) COPIED = t end
       NS.commandHandlers.pug({})
+      NS.windowState().pugRealm:SetText("")
       NS.windowState().refreshPugs()
     `);
     expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Open raids");
@@ -470,5 +497,322 @@ describe("Home shows how fresh the shared data is (6.3)", () => {
     expect(s.run("return tostring(NS.windowState().solidBack.shown)")).toBe("true");
     s.run(`HOST = CreateFrame(); HOST.GetWidth = function() return 800 end; HOST.GetHeight = function() return 600 end; NS.openGuildPanel(HOST)`);
     expect(s.run("return tostring(NS.windowState().solidBack.shown)")).toBe("false");
+  });
+});
+
+describe("in-game UI fixes from the 5 November pass", () => {
+  it("scrolls with a useful step and keeps padding under the last row", () => {
+    const s = openWindow(1);
+    // 24 modules x 22 px + 16 px padding, in a 100 px viewport.
+    expect(s.run("local m = NS.layoutMath; return m.scrollRange(500, 300) .. ':' .. m.SCROLL_STEP .. ':' .. m.SCROLL_PADDING")).toBe("224:48:24");
+    s.run(`UI = NS.windowState(); UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1)`);
+    expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("48");
+    s.run(`for _ = 1, 100 do UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1) end`);
+    expect(s.run("return tostring(UI.moduleScroll:GetVerticalScroll() == NS.layoutMath.scrollRange(#NS.MODULES * 22 + NS.layoutMath.SCROLL_PADDING, 100))")).toBe("true");
+    s.run(`UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, 1000)`);
+    expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("0");
+  });
+
+  it("lets the wheel reach the very end even when the scrollbar's own range is stale or stepped", () => {
+    const s = openWindow(1);
+    s.run(`UI = NS.windowState(); BAR = UI.moduleScroll.ScrollBar`);
+    expect(s.run("return BAR.max")).toBe("0"); // stale: the game has not re-measured yet
+    const end = "NS.layoutMath.scrollRange(#NS.MODULES * 22 + NS.layoutMath.SCROLL_PADDING, 100)";
+    s.run(`for _ = 1, 100 do UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1) end`);
+    expect(s.run(`return tostring(UI.moduleScroll:GetVerticalScroll() == ${end})`)).toBe("true");
+    // One tick moves a useful distance and the bar keeps its step at 1 (no 48 px snapping).
+    expect(s.run("return BAR.step")).toBe("1");
+    s.run(`UI.moduleScroll:SetVerticalScroll(0); BAR:SetValue(0); NS.resetScrollWanted(UI.moduleScroll); UI.moduleScroll:GetScript("OnMouseWheel")(UI.moduleScroll, -1)`);
+    expect(s.run("return UI.moduleScroll:GetVerticalScroll()")).toBe("48");
+  });
+
+  it("prints scroll numbers for /guilded debug scroll without needing /script", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "Availability"); UI = NS.windowState()
+      UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll, -1); NS.commandHandlers.debug({ "scroll" })`);
+    const out = s.chat().join(" | ");
+    expect(out).toContain("scroll debug, page Availability");
+    expect(out).toContain("estimated range=");
+    expect(out).toContain("wheel ticks=1");
+  });
+
+  it("offers the guild message and announcement pages as tabs", () => {
+    const s = openWindow(1);
+    expect(s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`)).toContain("Guild message");
+    expect(s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`)).toContain("Announcements");
+  });
+
+  it("hangs the Modules heading below the help text instead of at a fixed offset", () => {
+    const s = openWindow(5);
+    expect(s.run(`local top; for _, p in ipairs(NS.windowState().moduleScroll.points) do if p[1] == "TOPLEFT" then top = p end end
+      return tostring(top[2] ~= nil and top[3] == "BOTTOMLEFT" and top[5] == -6)`)).toBe("true");
+  });
+
+  it("offers linking on Home, saves a pasted code through the same command, and shows the state", () => {
+    const s = openWindow(5, `function IsInGuild() return true end; GetInventoryItemLink = function() return nil end`);
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    expect(homeText(s, "linkStatus")).toContain("Not linked to Discord yet.");
+    s.run(`UI = NS.windowState(); UI.linkBox:SetText("abcd-efgh"); UI.linkBox:GetScript("OnEnterPressed")(UI.linkBox)`);
+    expect(s.run("return GuildedDB.verifyCode")).toBe("ABCDEFGH");
+    expect(homeText(s, "linkStatus")).toContain("Code saved");
+    // Once the member shows up in the shared standings, the addon knows they are linked.
+    s.run(`NS.getStanding = function() return { ep = 1, gp = 1, pr = 1 } end; NS.windowState().selectTabByName("Home")`);
+    expect(homeText(s, "linkStatus")).toContain("Linked to Discord.");
+  });
+
+  it("hides the link block for guilds without Discord and for players outside a guild", () => {
+    const s = openWindow(5, `function IsInGuild() return false end`);
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    expect(s.run("return tostring(NS.windowState().linkStatus.shown)")).toBe("false");
+  });
+
+  it("no longer sends officers to a Loot tab the guild window does not have", () => {
+    const s = openWindow(1);
+    const labels = s.run(`local out = {}; for _, f in ipairs(FRAMES) do if f.text and f.text ~= "" then out[#out + 1] = f.text end end; return table.concat(out, " ")`);
+    expect(labels).not.toContain("are on the Loot tab");
+    expect(labels).toContain("Loot page of the /guilded window");
+  });
+
+  it("hides the emblem ring while Guilded is shown in the guild window and puts it back after", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); HOST.PortraitContainer = CreateFrame(); HOST.PortraitContainer.shown = true
+      NS.openGuildPanel(HOST, "guild", "EPGP")`);
+    expect(s.run("return tostring(HOST.PortraitContainer.shown)")).toBe("false");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then f.scripts.OnHide() end end`);
+    expect(s.run("return tostring(HOST.PortraitContainer.shown)")).toBe("true");
+  });
+
+  it("hides the Unsent changes block on pages that only read", () => {
+    const s = openWindow(5);
+    s.run(`UI = NS.windowState(); UI.selectTabByName("Open raids")`);
+    expect(s.run("return tostring(UI.sidebarSync.shown)")).toBe("false");
+    s.run(`UI.selectTabByName("Home")`);
+    expect(s.run("return tostring(UI.sidebarSync.shown)")).toBe("true");
+  });
+
+  it("starts Open raids on the player's own realm and hides paging for a single page", () => {
+    const s = openWindow(5, `function GetRealmName() return "Forever" end`);
+    expect(s.run("return NS.windowState().pugRealm:GetText()")).toBe("Forever");
+    s.load("Modules/PublicRaids.lua");
+    s.run(`NS.windowState().refreshPugs()`);
+    expect(s.run("return tostring(NS.windowState().pugPaging[1].shown)")).toBe("false");
+  });
+
+  it("opens the calendar page from its top edge and keeps a Close button that closes both", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "calendar", "Calendar")`);
+    expect(s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then return f.points[1][4] .. "," .. f.points[1][5] end end`)).toBe("4,-4");
+    expect(s.run("return tostring(NS.windowState().closeButton.shown)")).toBe("true");
+  });
+
+  it("hides ring pieces the game names by key, and keeps the panel when Dungeons opens", () => {
+    const s = openWindow(1);
+    s.run(`HOST = CreateFrame(); HOST.GuildEmblemRing = CreateFrame(); HOST.GuildEmblemRing.shown = true
+      NS.openGuildPanel(HOST, "guild", "EPGP")`);
+    expect(s.run("return tostring(HOST.GuildEmblemRing.shown)")).toBe("false");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then f.scripts.OnHide(); PANEL = f end end`);
+    expect(s.run("return tostring(HOST.GuildEmblemRing.shown)")).toBe("true");
+    s.run(`PANEL.shown = true; NS.dungeonScorePanel = { open = function(mode) OPENED = mode end }
+      NS.windowState().selectTabByName("Dungeons")`);
+    expect(s.run("return OPENED .. ':' .. tostring(PANEL.shown)")).toBe("run:true");
+  });
+
+  it("returns to the Guilded panel when the calendar closes, and hides the calendar's own tab meanwhile", () => {
+    const s = openWindow(1);
+    s.run(`NS.guildPanel = NS.guildPanel or {}; NS.guildPanel.calendarTab = CreateFrame(); NS.guildPanel.calendarTab.shown = true
+      HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "EPGP")
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then PANEL = f end end
+      NS.closeGuildPanel(HOST); PANEL.scripts.OnHide(); PANEL.shown = true
+      NS.openGuildPanel(HOST, "calendar", "Calendar")`);
+    expect(s.run("return tostring(NS.guildPanel.calendarTab.shown)")).toBe("false");
+    s.run(`NS.closeGuildPanel(HOST)`);
+    expect(s.run("return tostring(PANEL.shown)")).toBe("true");
+  });
+
+  it("never hides or re-parents the embedded panel in combat: it waits for PLAYER_REGEN_ENABLED", () => {
+    const s = openWindow(1);
+    s.run(String.raw`
+      HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "EPGP")
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then PANEL = f end end
+      COMBAT = false; BLOCKED = 0
+      function InCombatLockdown() return COMBAT end
+      -- Like a protected frame: these calls are refused in combat (ADDON_ACTION_BLOCKED).
+      local realHide, realParent = PANEL.Hide, PANEL.SetParent
+      PANEL.Hide = function(self) if COMBAT then BLOCKED = BLOCKED + 1 return end; self.shown = false; if self.scripts.OnHide then self.scripts.OnHide(self) end end
+      PANEL.SetParent = function(self, parent) if COMBAT then BLOCKED = BLOCKED + 1 return end; self.parent = parent end
+      PANEL.ClearAllPoints = function(self) if COMBAT then BLOCKED = BLOCKED + 1 return end; self.points = {} end
+      PANEL.shown = true
+      COMBAT = true
+      NS.closeGuildPanel(HOST)
+      NS.closeGuildPanel(HOST)
+    `);
+    expect(s.run("return BLOCKED")).toBe("0");
+    expect(s.run("return tostring(PANEL.shown)")).toBe("true");
+    expect(s.run(`return tostring(NS.util.pendingAfterCombat("guilded-panel-close"))`)).toBe("true");
+    // Hiding by other means (Escape) in combat: the re-parenting waits too.
+    s.run(`PANEL.shown = false; PANEL.scripts.OnHide(PANEL)`);
+    expect(s.run("return BLOCKED")).toBe("0");
+    expect(s.run(`return tostring(NS.util.pendingAfterCombat("guilded-panel-restore"))`)).toBe("true");
+    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(s.run("return BLOCKED")).toBe("0");
+    expect(s.run(`return tostring(NS.util.pendingAfterCombat("guilded-panel-close"))`)).toBe("false");
+    expect(s.run("return tostring(PANEL.parent == UIParent)")).toBe("true");
+    expect(s.run("return NS.windowState().scope")).toBe("main");
+  });
+});
+
+describe("minimap button shortcuts (Track E2)", () => {
+  const setup = (rank = 5) => {
+    const s = openWindow(rank);
+    s.run(String.raw`
+      KEYS = {}
+      function IsAltKeyDown() return KEYS.alt == true end
+      function IsShiftKeyDown() return KEYS.shift == true end
+      function IsControlKeyDown() return KEYS.ctrl == true end
+      COMBAT = false
+      function InCombatLockdown() return COMBAT end
+      DONE = {}
+      NS.runCommand = function(text) DONE[#DONE + 1] = text end
+      NS.dungeonScorePanel = { open = function(mode) DONE[#DONE + 1] = "dungeons " .. mode end }
+    `);
+    return s;
+  };
+  const click = (s: LuaSession, button: string, keys = "") =>
+    s.run(`KEYS = { ${keys} }; return NS.minimapClick(${JSON.stringify(button)})`);
+
+  it("routes each click to its action", () => {
+    const s = setup();
+    expect(click(s, "LeftButton")).toBe("window");
+    expect(click(s, "LeftButton", "shift = true")).toBe("dungeons");
+    expect(click(s, "LeftButton", "ctrl = true")).toBe("gear");
+    expect(click(s, "LeftButton", "alt = true")).toBe("map");
+    expect(click(s, "MiddleButton")).toBe("settings");
+    expect(click(s, "RightButton")).toBe("menu");
+    expect(click(s, "RightButton", "shift = true")).toBe("unavailable");
+    s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "sos" end }; COMBAT = true`);
+    expect(click(s, "RightButton", "shift = true")).toBe("help"); // works in combat
+    s.run(`COMBAT = false; table.remove(DONE)`);
+    expect(s.run(`return table.concat(DONE, ",")`)).toBe("dungeons run,inspect,map open");
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Tools"); // middle opened settings
+  });
+
+  it("registers the middle button and lists every shortcut in the tooltip", () => {
+    const s = setup();
+    s.run(`TIP = {}; GameTooltip = { SetOwner = function() end, AddLine = function(_, t) TIP[#TIP + 1] = t end, Show = function() end, Hide = function() end }
+      Guilded_OnAddonCompartmentEnter(nil, UIParent)`);
+    const tip = s.run(`return table.concat(TIP, "|")`);
+    for (const word of ["Left-click", "Right-click: quick menu", "Shift-click", "Ctrl-click: check my gear", "Alt-click", "Middle-click: settings"]) expect(tip).toContain(word);
+  });
+
+  it("does nothing protected in combat, apart from toggling Guilded's own window", () => {
+    const s = setup();
+    s.run(`COMBAT = true`);
+    for (const [button, keys] of ([["RightButton", ""], ["MiddleButton", ""], ["LeftButton", "shift = true"], ["LeftButton", "ctrl = true"], ["LeftButton", "alt = true"]] as [string, string][])) {
+      expect(click(s, button, keys)).toBe("blocked");
+    }
+    expect(s.run(`return #DONE`)).toBe("0");
+  });
+
+  it("hides the click catcher when the menu closes by Escape, so the next click reaches the button", () => {
+    const s = setup();
+    click(s, "RightButton");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
+    expect(s.run(`return tostring(MENU.catcher.shown)`)).toBe("true");
+    // Escape hides the frame through UISpecialFrames; the game then runs its OnHide script.
+    s.run(`MENU:Hide(); MENU.scripts.OnHide(MENU)`);
+    expect(s.run(`return tostring(MENU.catcher.shown)`)).toBe("false");
+    expect(click(s, "LeftButton")).toBe("window");
+  });
+
+  it("the quick menu lists the pages, and only offers Race to 60 when that page exists", () => {
+    const s = setup();
+    click(s, "RightButton");
+    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
+    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("6");
+    expect(s.run(`return MENU.buttons[1].text.text .. "," .. MENU.buttons[6].text.text`)).toBe("Raid signups,Settings");
+    s.run(`NS.windowState().tabs[#NS.windowState().tabs + 1] = { name = "Race to 60" }`);
+    click(s, "RightButton");
+    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("7");
+    s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "help" end }`);
+    click(s, "RightButton");
+    expect(s.run(`return MENU.buttons[#MENU.buttons - 1].text.text`)).toBe("Call for help");
+  });
+});
+
+// 8.5 in-game test (French Forever): the minimap button was missing and /guilded minimap show was silent.
+describe("the minimap button", () => {
+  // A frame that really reports whether it is visible, and a client that rejects the middle button and the highlight texture.
+  const STRICT_CLIENT = String.raw`
+    local make = CreateFrame
+    function CreateFrame(kind, frameName, ...)
+      local f = make(kind, frameName, ...)
+      if frameName == "GuildedMinimapButton" then
+        MINIMAP_BUTTON = f
+        f.IsVisible = function(self) return self.shown end
+        f.RegisterForClicks = function(self, ...)
+          for _, name in ipairs({ ... }) do if name == "MiddleButtonUp" then error("unknown click type") end end
+          self.clicks = { ... }
+        end
+        f.SetHighlightTexture = function() error("no such texture") end
+      end
+      return f
+    end
+  `;
+  const minimap = (s: LuaSession, ...args: string[]) => s.run(`NS.commandHandlers["minimap"]({ ${args.map((a) => JSON.stringify(a)).join(", ")} }); return NS.windowState and "ok" or "ok"`);
+
+  it("is anchored and shown even when the client refuses parts of its setup", () => {
+    const s = openWindow(1, STRICT_CLIENT);
+    expect(s.run(`return tostring(MINIMAP_BUTTON.shown) .. ":" .. #MINIMAP_BUTTON.points .. ":" .. #MINIMAP_BUTTON.clicks`)).toBe("true:1:2");
+  });
+
+  it("always says what show, hide and reset did", () => {
+    const s = openWindow(1, STRICT_CLIENT);
+    minimap(s, "hide");
+    expect(s.chat().join("\n")).toContain("Minimap button hidden");
+    expect(s.run(`return tostring(MINIMAP_BUTTON.shown)`)).toBe("false");
+    minimap(s, "show");
+    expect(s.chat().join("\n")).toContain("Minimap button shown");
+    expect(s.run(`return tostring(MINIMAP_BUTTON.shown) .. ":" .. tostring(GuildedDB.settings.minimapHidden)`)).toBe("true:false");
+    minimap(s, "reset");
+    expect(s.chat().filter((line) => line.includes("Minimap button shown")).length).toBe(2);
+  });
+
+  it("defaults to the lower right, away from the game's own round buttons (9.0.1)", () => {
+    const s = openWindow(1, STRICT_CLIENT);
+    // Button x/y offset from the minimap centre: lower right is positive x, negative y.
+    expect(s.run(`local p = MINIMAP_BUTTON.points[#MINIMAP_BUTTON.points]; return (p[4] > 0 and p[5] < 0) and "lower-right" or (p[4] .. "," .. p[5])`)).toBe("lower-right");
+  });
+
+  it("moves a position saved at the old default once, and keeps a dragged one", () => {
+    const moved = openWindow(1, STRICT_CLIENT + `
+      GuildedDB = { settings = { minimapAngle = math.rad(220) } }`);
+    expect(moved.run(`return tostring(GuildedDB.settings.minimapAngle)`)).toBe("nil");
+    expect(moved.run(`return tostring(GuildedDB.settings.minimapAngleMoved)`)).toBe("true");
+    const custom = openWindow(1, STRICT_CLIENT + `
+      GuildedDB = { settings = { minimapAngle = math.rad(100) } }`);
+    expect(custom.run(`return string.format("%.2f", GuildedDB.settings.minimapAngle)`)).toBe("1.75");
+  });
+
+  it("moves the button onto the screen when the minimap itself is hidden", () => {
+    const s = openWindow(1, STRICT_CLIENT);
+    // Button shows but the game says it is not visible (its parent is hidden).
+    s.run(`MINIMAP_BUTTON.IsVisible = function() return false end`);
+    minimap(s, "show");
+    expect(s.chat().join("\n")).toContain("top right of the screen");
+    expect(s.run(`return MINIMAP_BUTTON.points[1][1]`)).toBe("TOPRIGHT");
+  });
+});
+
+describe("Home page link buttons (8.5 in-game fix)", () => {
+  it("puts Remove code right beside Save code, so a longer translation cannot overlap it", () => {
+    const s = openWindow(1);
+    const anchor = s.run(`local save, remove
+      for _, f in ipairs(FRAMES) do
+        if f.text == "Save code" then save = f end
+        if f.text == "Remove code" then remove = f end
+      end
+      local p = remove.points[#remove.points]
+      return p[1] .. ":" .. p[3] .. ":" .. tostring(p[2] == save) .. ":" .. p[4]`);
+    expect(anchor).toBe("LEFT:RIGHT:true:6");
   });
 });

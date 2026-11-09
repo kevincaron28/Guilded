@@ -32,11 +32,14 @@ export function plainChecks(checks: SetupCheck[]): SetupCheck[] {
 
 const serverAction = z.discriminatedUnion("action", [
   z.object({ action: z.literal("server.language"), value: z.enum(["en", "fr"]) }),
-  z.object({ action: z.literal("server.publicSharing.off") }),
   z.object({ action: z.literal("server.achievements"), on: z.boolean() }),
   z.object({ action: z.literal("server.reminders"), on: z.boolean() }),
   z.object({ action: z.literal("server.weeklyReport"), on: z.boolean() }),
-  z.object({ action: z.literal("server.autoImport"), on: z.boolean() })
+  z.object({ action: z.literal("server.autoImport"), on: z.boolean() }),
+  z.object({ action: z.literal("server.dungeonHighlights"), on: z.boolean() }),
+  z.object({ action: z.literal("server.dailyRecap"), on: z.boolean() }),
+  z.object({ action: z.literal("server.readinessPosts"), on: z.boolean() }),
+  z.object({ action: z.literal("server.activityBoard"), on: z.boolean() })
 ]);
 export type ServerAction = z.infer<typeof serverAction>;
 
@@ -117,12 +120,16 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
       checks: checks ? plainChecks(checks) : null,
       settings: {
         language: settings?.language === "fr" ? "fr" : "en",
-        publicSharing: settings?.publicDungeonRuns ?? false,
+        publicSharing: true,
         achievementAnnounce: settings?.achievementAnnounceEnabled ?? false,
         achievementChannelSet: !!settings?.achievementChannelId,
         reminders: (settings?.raidReminderMinutes ?? 0) > 0,
         weeklyReport: settings?.weeklyReportEnabled ?? false,
         autoImport: settings?.autoApplyImports ?? false,
+        dungeonHighlights: settings?.dungeonHighlightsEnabled ?? true,
+        dailyRecap: settings?.dailyRecapEnabled ?? true,
+        readinessPosts: settings?.readinessPostsEnabled ?? true,
+        activityBoard: settings?.activityBoardEnabled ?? true,
         welcomeDelivery: settings?.welcomeDelivery ?? "CHANNEL",
         welcomeChannelSet: !!settings?.welcomeChannelId
       },
@@ -156,10 +163,6 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
         case "server.language":
           await update({ language: action.value });
           return { message: action.value === "fr" ? "Bot messages are now in French." : "Bot messages are now in English.", audit: { setting: "language", value: action.value } };
-        case "server.publicSharing.off":
-          // Turning sharing on needs the typed consent in Discord (/mod leaderboard); only off is one click.
-          await update({ publicDungeonRuns: false });
-          return { message: "Public sharing is off. New runs will not be published; runs already public stay public.", audit: { setting: "publicDungeonRuns", value: false } };
         case "server.achievements":
           if (action.on) {
             if (!settings.achievementChannelId) throw new ManageError("Pick the channel to post in first: /config achievements announce:true channel:#... in Discord.", 409);
@@ -173,6 +176,18 @@ export function createCompanionHub(database: PrismaClient, hooks: HubHooks = {})
         case "server.weeklyReport":
           await update({ weeklyReportEnabled: action.on });
           return { message: action.on ? "The weekly report is on." : "The weekly report is off.", audit: { setting: "weeklyReportEnabled", value: action.on } };
+        case "server.dungeonHighlights":
+          await update({ dungeonHighlightsEnabled: action.on });
+          return { message: action.on ? "Records and challenges are called out on dungeon run posts." : "Records and challenges are no longer called out (still recorded).", audit: { setting: "dungeonHighlightsEnabled", value: action.on } };
+        case "server.dailyRecap":
+          await update({ dailyRecapEnabled: action.on });
+          return { message: action.on ? "The daily recap is posted every day something happens." : "The daily recap is off.", audit: { setting: "dailyRecapEnabled", value: action.on } };
+        case "server.readinessPosts":
+          await update({ readinessPostsEnabled: action.on });
+          return { message: action.on ? "Readiness posts are on: the daily list and the raid night check before each raid." : "Readiness posts are off. /lead readiness-raid still works.", audit: { setting: "readinessPostsEnabled", value: action.on } };
+        case "server.activityBoard":
+          await update({ activityBoardEnabled: action.on });
+          return { message: action.on ? "The guild activity ladder is on: dungeons, duels and battlegrounds in one board, refreshed every 30 minutes." : "The guild activity ladder is off. The existing message stays; /stats activity still works.", audit: { setting: "activityBoardEnabled", value: action.on } };
         case "server.autoImport":
           await update({ autoApplyImports: action.on });
           return { message: action.on ? "Uploads are applied automatically." : "Officers apply uploads themselves with /import apply.", audit: { setting: "autoApplyImports", value: action.on } };

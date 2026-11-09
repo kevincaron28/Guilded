@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+// These tests exercise the PoE2 module itself, so the Forever-only focus switch (companion/active-games.mjs) is turned on here.
+vi.mock("../companion/active-games.mjs", async (original) => ({ ...(await original<typeof import("../companion/active-games.mjs")>()), POE_TRACKING_ENABLED: true, poeTrackingOn: (config: { poeEnabled?: unknown }) => config.poeEnabled === true }));
 import { once } from "node:events";
 import { allowCompanionRevocation, startCompanionApi, resetFailures } from "../src/companion-api.js";
 import { hashCompanionSecret } from "../src/services/character-pairing.js";

@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
@@ -14,6 +15,11 @@ import { boardLang } from "./craft-board.js";
 import { updateProfessionDirectory } from "../services/profession-directory.js";
 import { OFFER_LIMITS } from "../services/craft-offers.js";
 import { tx } from "../i18n.js";
+import { markGuildChanged } from "../services/standings-feed.js";
+import { resolveItemKey } from "../services/craft-orders.js";
+import { PING_PROFESSIONS, notifyListText } from "./craft-board.js";
+import { craftNotifyList, setCraftNotify } from "../services/craft-channels.js";
+import { craftHistoryLines, loadCrafterStandings, updateCraftLadder } from "../services/craft-ladder.js";
 
 const craftService = createCraftService(prisma);
 
@@ -36,7 +42,6 @@ export const craftCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("who").setDescription("Who in the guild can craft an item (from the addon's profession scan).")
     .addStringOption((o) => o.setName("item").setDescription("Item or enchant (pick from the list, or type part of the name)").setAutocomplete(true).setMaxLength(100).setRequired(true)))
   .addSubcommand((sub) => sub.setName("mine").setDescription("Your open requests and the ones you're crafting."))
-  .addSubcommand((sub) => sub.setName("claim").setDescription("Take a request (you'll craft it).").addStringOption(idOption("from /craft list")))
   .addSubcommand((sub) => sub.setName("done").setDescription("Mark a request you claimed as crafted.").addStringOption(idOption("from /craft mine")))
   .addSubcommand((sub) => sub.setName("release").setDescription("Give a claimed request back to the list.").addStringOption(idOption("from /craft mine")))
   .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel your request.").addStringOption(idOption("from /craft mine")))
@@ -53,7 +58,21 @@ export const craftCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("id").setDescription("Your offer").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("offer-setting").setDescription("Officers: turn crafter offers on or off for this server.")
     .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
-  .addSubcommand((sub) => sub.setName("permissions").setDescription("Officers: put the craft board's permissions right (members talk in posts, only the bot starts them)."));
+  .addSubcommand((sub) => sub.setName("posts-setting").setDescription("Officers: turn the per-profession posts in the craft forum on or off.")
+    .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("orders-setting").setDescription("Officers: show craft requests on the addon's in-game Orders page.")
+    .addBooleanOption((o) => o.setName("enabled").setDescription("On or off").setRequired(true)))
+  .addSubcommand((sub) => sub.setName("permissions").setDescription("Officers: put the craft board's permissions right (members talk in posts, only the bot starts them)."))
+  .addSubcommand((sub) => sub.setName("notify").setDescription("Get pinged when someone asks for a recipe you know.")
+    .addStringOption((o) => o.setName("profession").setDescription("Profession").addChoices(...PING_PROFESSIONS.map((name) => ({ name, value: name }))))
+    .addBooleanOption((o) => o.setName("on").setDescription("On or off (default on)")))
+  .addSubcommand((sub) => sub.setName("notify-setting").setDescription("Officers: craft orders/archive channels, crafter pings, top crafters.")
+    .addBooleanOption((o) => o.setName("orders").setDescription("Orders and archive channels"))
+    .addBooleanOption((o) => o.setName("pings").setDescription("Crafter pings"))
+    .addBooleanOption((o) => o.setName("ladder").setDescription("Top crafters card")))
+  .addSubcommand((sub) => sub.setName("top").setDescription("The guild's top crafters (1 point per finished craft)."))
+  .addSubcommand((sub) => sub.setName("history").setDescription("Crafts someone finished.")
+    .addUserOption((o) => o.setName("member").setDescription("Default: you")));
 
 function describe(request: { item: string; quantity: number; profession: string | null; materialsProvided: boolean; note: string | null }): string {
   return `${request.quantity} × **${request.item}**${request.profession ? ` (${request.profession})` : ""}`
@@ -69,7 +88,7 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
 
   if (subcommand === "who") {
     const query = interaction.options.getString("item", true);
-    await interaction.reply({ content: describeCrafters(query, await findCrafters(prisma, context.guildId, query)), flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: describeCrafters(query, await findCrafters(prisma, context.guildId, query), await boardLang(context.guildId)), flags: MessageFlags.Ephemeral });
     return;
   }
 
@@ -78,6 +97,58 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
     const enabled = interaction.options.getBoolean("enabled", true);
     await offerService.setEnabled(context.guildId, enabled);
     await interaction.reply({ content: enabled ? "Crafter offers are on. Crafters use /craft offer; members answer with the button in the post. Trades happen in game: Guilded never handles gold." : "Crafter offers are off. Existing offers stay readable until they end; nobody can post or answer new ones.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (subcommand === "notify") {
+    const lang = await boardLang(context.guildId);
+    const profession = interaction.options.getString("profession");
+    const list = profession ? await setCraftNotify(prisma, context.guildId, context.memberId, profession, interaction.options.getBoolean("on") ?? true) : await craftNotifyList(prisma, context.memberId);
+    await interaction.reply({ content: `${notifyListText(lang, list)}\n${tx(lang, "You are mentioned only when someone asks for a recipe one of your characters knows, at most once every 30 minutes.")}`, flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if (subcommand === "notify-setting") {
+    if (!isOfficer) throw new Error("Only Officers or Guild Masters can change these.");
+    const lang = await boardLang(context.guildId);
+    const orders = interaction.options.getBoolean("orders");
+    const pings = interaction.options.getBoolean("pings");
+    const ladder = interaction.options.getBoolean("ladder");
+    const data = { ...(orders !== null ? { craftOrdersEnabled: orders } : {}), ...(pings !== null ? { craftPingsEnabled: pings } : {}), ...(ladder !== null ? { craftLadderEnabled: ladder } : {}) };
+    if (Object.keys(data).length) await prisma.guildSettings.updateMany({ where: { guildId: context.guildId }, data });
+    const settings = await prisma.guildSettings.findUnique({ where: { guildId: context.guildId }, select: { craftOrdersEnabled: true, craftPingsEnabled: true, craftLadderEnabled: true } });
+    const on = (value: boolean | undefined) => value === false ? tx(lang, "off") : tx(lang, "on");
+    await interaction.reply({ content: `${tx(lang, "Craft orders and archive channels: {orders}. Crafter pings: {pings}.", { orders: on(settings?.craftOrdersEnabled), pings: on(settings?.craftPingsEnabled) })} ${tx(lang, "Top crafters card: {ladder}.", { ladder: on(settings?.craftLadderEnabled) })}`, flags: MessageFlags.Ephemeral });
+    if (ladder) await updateCraftLadder(prisma, interaction.guild).catch(() => undefined);
+    return;
+  }
+  if (subcommand === "top") {
+    const lang = await boardLang(context.guildId);
+    const { standings, total } = await loadCrafterStandings(prisma, context.guildId);
+    const lines = standings.slice(0, 15).map((row, index) => `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${row.name} — ${row.points} pt · ${row.month} ${tx(lang, "in 30 days")}`);
+    await interaction.reply({ content: lines.length ? `${lines.join("\n")}\n-# ${tx(lang, "{total} finished crafts · 1 point each", { total })}` : tx(lang, "No finished crafts yet."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
+  }
+  if (subcommand === "history") {
+    const lang = await boardLang(context.guildId);
+    const user = interaction.options.getUser("member") ?? interaction.user;
+    const member = await prisma.member.findFirst({ where: { guildId: context.guildId, discordUserId: user.id }, select: { id: true } });
+    const lines = member ? await craftHistoryLines(prisma, context.guildId, member.id, lang) : [];
+    await interaction.reply({ content: lines.length ? lines.join("\n").slice(0, 1900) : tx(lang, "No finished crafts yet."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
+  }
+  if (subcommand === "posts-setting") {
+    if (!isOfficer) throw new Error("Only Officers or Guild Masters can turn the profession posts on or off.");
+    const enabled = interaction.options.getBoolean("enabled", true);
+    await prisma.guildSettings.updateMany({ where: { guildId: context.guildId }, data: { professionPostsEnabled: enabled } });
+    await interaction.reply({ content: enabled ? "The per-profession posts are on: each profession gets one post in the craft forum, edited in place as recipes are scanned." : "The per-profession posts are off. Existing posts stay but are no longer updated.", flags: MessageFlags.Ephemeral });
+    if (enabled) await updateProfessionDirectory(interaction.guild).catch(() => undefined);
+    return;
+  }
+  if (subcommand === "orders-setting") {
+    if (!isOfficer) throw new Error("Only Officers or Guild Masters can turn in-game crafting orders on or off.");
+    const enabled = interaction.options.getBoolean("enabled", true);
+    await prisma.guildSettings.updateMany({ where: { guildId: context.guildId }, data: { craftOrdersInGame: enabled } });
+    markGuildChanged(context.guildId);
+    await interaction.reply({ content: enabled ? "In-game crafting orders are on: crafters with the addon see craft requests on the Orders page of the Guilded window, filtered to their recipes, and can claim and finish them there." : "In-game crafting orders are off. Requests stay on the craft board in Discord only.", flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "offer") {
@@ -134,7 +205,8 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
       profession,
       quantity: interaction.options.getInteger("quantity") ?? 1,
       note: interaction.options.getString("note") ?? undefined,
-      materialsProvided: interaction.options.getBoolean("materials") ?? false
+      materialsProvided: interaction.options.getBoolean("materials") ?? false,
+      itemKey: await resolveItemKey(prisma, context.guildId, interaction.options.getString("item", true)).catch(() => null)
     });
     const crafters = profession ? (await findProfessionHolders(prisma, context.guildId, profession)).slice(0, 5) : [];
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
@@ -142,10 +214,10 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
     await interaction.editReply({
       content: (board.posted ? `Request posted on the craft board: <#${board.threadId}>.` : `Request posted: ${describe(request)}. ID \`${request.id}\`.`)
         + " You'll get a DM when someone claims it."
-        + (crafters.length ? `\nGuild ${profession} crafters: ${crafters.map((c) => `${c.character} (${c.skillLevel})`).join(", ")}` : "")
+        + (crafters.length ? `\nGuild ${profession} crafters: ${crafters.map((c) => `${cleanCharacterName(c.character)} (${c.skillLevel})`).join(", ")}` : "")
     });
     if (interaction.guild && !board.posted) {
-      await postToLogChannel(interaction.guild, `🔨 Craft request from ${interaction.user.username}: ${describe(request)} — /craft claim id:${request.id}`, "craft");
+      await postToLogChannel(interaction.guild, `🔨 Craft request from ${interaction.user.username}: ${describe(request)} — see /craft list`, "craft");
     }
     return;
   }
@@ -165,13 +237,6 @@ export async function executeCraft(interaction: ChatInputCommandInteraction): Pr
   }
 
   const id = interaction.options.getString("id", true).replace(/`/g, "").trim();
-  if (subcommand === "claim") {
-    const request = await craftService.claim(context.guildId, id, context.memberId);
-    await syncCraftPost(interaction.guild, request.id);
-    await interaction.reply({ content: `You claimed ${describe(request)} for ${request.requester.displayName}. \`/craft done id:${request.id}\` when it's made.`, flags: MessageFlags.Ephemeral });
-    await dm(request.requester.discordUserId, `🔨 ${request.crafter?.displayName ?? "A guild crafter"} is crafting your ${describe(request)}.`);
-    return;
-  }
   if (subcommand === "done") {
     const request = await craftService.complete(context.guildId, id, context.memberId, isOfficer);
     await syncCraftPost(interaction.guild, request.id);

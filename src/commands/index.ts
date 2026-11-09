@@ -1,6 +1,5 @@
 import { automationCommand } from "./automation.js";
 import { battlegroundCommand } from "./battleground.js";
-import { gameEventsCommand } from "./game-events.js";
 import { wowCommand } from "./wow.js";
 import { healthCommand, executeHealth } from "./health.js";
 import { profileCommand, executeProfile } from "./profile.js";
@@ -29,6 +28,7 @@ import { coreCommand } from "./core.js";
 import { teamCommand } from "./team.js";
 import { inactiveCommand, executeInactive } from "./inactive.js";
 import { exportCommand, executeExport } from "./export.js";
+import { statsFeedCommand, executeStatsFeed } from "./stats-feed.js";
 import { guildHealthCommand, executeGuildHealth } from "./guild-health.js";
 import { pollCommand } from "./poll.js";
 import { statsCommand, executeStats } from "./stats.js";
@@ -51,10 +51,14 @@ import { PermissionFlagsBits } from "discord.js";
 import { MergedCommand, type AnyCommand } from "./router.js";
 import { BRAND } from "../brand.js";
 import { poeCommand } from "./poe.js";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { participationCommand } from "./participation.js";
 import { executeRecruit, recruitCommand } from "./recruit.js";
 import { executePublicLeaderboard, publicLeaderboardCommand } from "./public-leaderboard.js";
 import { executeRankRoles, rankRolesCommand } from "./rank-roles.js";
+import { executeRoster, rosterCommand } from "./roster.js";
+import { executePromotion, promotionCommand } from "./promotion.js";
+import { executeInvites, invitesCommand } from "./invites.js";
 import { executePug, pugCommand } from "./pug.js";
 import { executePugs, pugsCommand } from "./pug-requests.js";
 
@@ -75,7 +79,7 @@ const setup = new MergedCommand("setup", `${BRAND.name} setup, sync status, rese
 const RAID_LEAD = ["create", "edit", "cancel", "start", "end", "attendance", "attendance-voice", "boss", "note", "award-ep", "fill", "season", "history"];
 const EPGP_OFFICER = ["award-ep", "award-gp", "decay", "reverse"];
 const LOOT_OFFICER = ["auction", "award", "close", "priority"];
-const CHARACTER_OFFICER = ["unclaimed", "link", "autolink"];
+const CHARACTER_OFFICER = ["unclaimed", "link", "autolink", "picture"];
 const COMMUNITY_ORGANIZER = ["start-season", "season-settings", "end-season", "quiz", "close-quiz", "honors-preview", "honors-settings", "badge-settings"];
 const LOTTERY_ORGANIZER = ["create", "confirm", "payments", "close", "cancel"];
 const GAMING_ORGANIZER = ["create", "edit", "attendance", "close", "cancel"];
@@ -119,15 +123,19 @@ const officer = new MergedCommand("officer", "Officers: EPGP, loot, dungeon chal
   { command: lootCommand, handler: executeLoot, as: "loot", only: LOOT_OFFICER },
   { command: dungeonAdminCommand, handler: executeDungeonAdmin, as: "dungeon" },
   { command: characterCommand, handler: executeCharacter, as: "character", only: CHARACTER_OFFICER },
-  { command: exportCommand, handler: executeExport, as: "export" }
+  { command: exportCommand, handler: executeExport, as: "export" },
+  { command: statsFeedCommand, handler: executeStatsFeed, as: "stats" },
+  { command: rosterCommand, handler: executeRoster, as: "roster" },
+  { command: promotionCommand, handler: executePromotion, as: "promotion" }
 ]).setDescriptionLocalizations({ fr: "Officiers : EPGP, butin, défi des donjons, liens de personnages et exports." });
 
-const mod = new MergedCommand("mod", "Officers: moderation, applications, answer channel, web page, recruitment and leaderboards.", [
+const mod = new MergedCommand("mod", "Officers: moderation, applications, answers, web, recruiting.", [
   { command: applicationCommand, handler: executeApplication, as: "application" },
   { command: dniCommand, handler: executeDni, as: "dni" },
   { command: faqCommand, handler: executeFaq, as: "faq" },
   { command: guildPageCommand, handler: executeGuildPage, as: "page" },
   { command: recruitCommand, handler: executeRecruit, as: "recruit" },
+  { command: invitesCommand, handler: executeInvites, as: "invites" },
   { command: rankRolesCommand, handler: executeRankRoles, as: "rankroles" },
   { command: publicLeaderboardCommand, handler: executePublicLeaderboard, as: "leaderboard" }
 ], { command: moderationCommand, handler: executeModeration });
@@ -163,9 +171,9 @@ const organize = new MergedCommand("organize", "Organizers: community seasons, q
 // Top level: the merged parents above, plus the commands main.ts handles itself.
 export const commands: AnyCommand[] = [
   wowCommand,
-  gameEventsCommand, setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
+  setup, configCommand, helpCommand, character, raid, epgp, loot, dungeon, craftCommand,
   bankCommand, applyCommand, pollCommand, report, mod, coreCommand, tagCommand, importer,
-  community, poeCommand, participationCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize
+  community, ...(POE_TRACKING_ENABLED ? [poeCommand] : []), participationCommand, teamCommand, battlegroundCommand, automationCommand, lead, officer, organize
 ];
 
 // Commands whose every subcommand checks a leader role (Raid Leader for /lead, Officer or Guild
@@ -174,7 +182,6 @@ export const commands: AnyCommand[] = [
 // Integrations > Guilded. Those roles are role names, not Discord permissions, so the handlers
 // keep their checks. /lead uses Manage Events so a server can also just give that to Raid Leaders.
 export const HIDDEN_FROM_MEMBERS: Record<string, bigint> = {
-  events: PermissionFlagsBits.ManageGuild,
   setup: PermissionFlagsBits.ManageGuild,
   config: PermissionFlagsBits.ManageGuild,
   mod: PermissionFlagsBits.ManageGuild,

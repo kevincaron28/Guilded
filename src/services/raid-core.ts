@@ -1,6 +1,5 @@
 import { ContainerBuilder, EmbedBuilder, MessageFlags, SectionBuilder, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder, ThumbnailBuilder, escapeMarkdown, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
-import { currentEdition } from "./edition-context.js";
 import { createGuildService } from "./guild.js";
 import { applyToCoreButtonRow } from "./application.js";
 import { officerEntryRow } from "./officer-buttons.js";
@@ -11,10 +10,9 @@ import { openAllCoreChannels, setupCoreDiscord, syncCoreRole } from "./core-chan
 import { assertRealm, requiredRealm } from "./realm-check.js";
 import { weeklyScheduleData } from "./core-weekly-time.js";
 import { CHARACTER_REQUIRED, ownedSignupCharacter } from "./signup-character.js";
-import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter } from "./character-display.js";
+import { CHARACTER_DISPLAY_SELECT, characterDisplayLine, hasStaleGear, loadClassEmojis, staleGearNote, type ClassEmojis, type DisplayCharacter, displayCharacterName } from "./character-display.js";
 import { boundRosterEmbed, clipRosterLines } from "./roster-embed-limits.js";
 import { dpsKind } from "./dps-kind.js";
-import { gameEditionOf } from "./game-edition.js";
 
 // A trial lasts this long unless the officer picks another length (/application trial days:).
 export const DEFAULT_TRIAL_DAYS = 14;
@@ -50,22 +48,9 @@ export function createRaidCoreService(database: Db) {
     return core;
   }
 
-  // One of the member's own linked characters, by name (case does not matter).
-  async function ownCharacter(memberId: string, name: string) {
-    if (currentEdition() !== "forever") {
-      const candidates = await database.character.findMany({ where: { memberId }, select: { member: { select: { guildId: true } } }, take: 1 });
-      if (!candidates[0]) throw new Error("Link your character first with /character.");
-      return ownedSignupCharacter(database, candidates[0].member.guildId, memberId, name);
-    }
-    const character = await database.character.findFirst({ where: { memberId, name: { equals: name.trim(), mode: "insensitive" } } });
-    if (!character) throw new Error(`"${name.trim()}" is not one of that player's linked characters. Link it first with /character.`);
-    return character;
-  }
-
   // A character joining a core must be on the core's realm: the one an officer set, else the
   // one the other members' characters share.
   function checkCoreRealm(core: Awaited<ReturnType<typeof byIdOrName>>, memberId: string, character: { name: string; realm: string }) {
-    if (currentEdition() === "retail" && !core.realm) return;
     const others = core.members.filter(spot => spot.memberId !== memberId);
     assertRealm(character, requiredRealm(core.realm, others.flatMap(spot => [spot.character?.realm, ...spot.backups.map(backup => backup.character.realm)])), core.name);
   }
@@ -153,7 +138,7 @@ export function createRaidCoreService(database: Db) {
       const spot = core.members.find((entry) => entry.memberId === memberId);
       if (!spot) throw new Error(`That player is not in ${core.name}. Add them first.`);
       const character = await ownedSignupCharacter(database, guildId, memberId, characterName);
-      if (spot.characterId === character.id) throw new Error(`${character.name} is already their character in ${core.name}.`);
+      if (spot.characterId === character.id) throw new Error(`${displayCharacterName(character)} is already their character in ${core.name}.`);
       checkCoreRealm(core, memberId, character);
       await database.raidCoreBackup.upsert({
         where: { spotId_characterId: { spotId: spot.id, characterId: character.id } },
@@ -232,8 +217,7 @@ export function createRaidCoreService(database: Db) {
       const core = await database.raidCore?.findUnique?.({ where: { id: coreId }, select: { guildId: true } });
       const settings = core ? await database.guildSettings?.findUnique({ where: { guildId: core.guildId }, select: { characterSignups: true } }) : null;
       const character = settings?.characterSignups && core ? await ownedSignupCharacter(database, core.guildId, memberId, characterName) : characterName?.trim()
-        ? currentEdition() !== "forever" ? await ownCharacter(memberId, characterName)
-          : await database.character.findFirst({ where: { memberId, name: { equals: characterName.trim(), mode: "insensitive" } }, select: { id: true } })
+        ? await database.character.findFirst({ where: { memberId, name: { equals: characterName.trim(), mode: "insensitive" } }, select: { id: true } })
         : null;
       const now = new Date();
       const terms = trial
@@ -306,7 +290,7 @@ type CoreSpot = {
 
 // "Kevin · Thrall" when the spot names the character brought to this core, else just the name.
 export function coreSpotLabel(entry: CoreSpot): string {
-  return entry.character ? `${entry.member.displayName} · ${entry.character.name}` : entry.member.displayName;
+  return entry.character ? `${entry.member.displayName} · ${displayCharacterName(entry.character)}` : entry.member.displayName;
 }
 
 // `guildLootMode` is the guild's raw default (GuildSettings.lootMode); the core's own
@@ -333,7 +317,7 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     const names = spots.map(label).sort((a, b) => a.localeCompare(b));
     const target = { TANK: core.tankLimit, HEALER: core.healerLimit, DPS: core.dpsLimit }[role];
     // DPS: how many play melee and ranged, from each character's spec.
-    const kinds = role === "DPS" ? spots.map((entry) => entry.character ? dpsKind(entry.character.className, entry.character.spec, currentEdition()) : null) : [];
+    const kinds = role === "DPS" ? spots.map((entry) => entry.character ? dpsKind(entry.character.className, entry.character.spec) : null) : [];
     const split = kinds.some(Boolean) ? ` · ${tx(lang, "{melee} melee · {ranged} ranged", { melee: kinds.filter((kind) => kind === "MELEE").length, ranged: kinds.filter((kind) => kind === "RANGED").length })}` : "";
     embed.addFields({ name: `${ROLE_LABEL[role]} (${names.length}${target == null ? "" : `/${target}`})${split}`, value: clipRosterLines(names), inline: true });
   }
@@ -347,7 +331,7 @@ export function coreRosterEmbed(core: CoreForEmbed, guildLootMode?: string | nul
     .sort((a, b) => a.localeCompare(b));
   if (bench.length) embed.addFields({ name: `🪑 ${tx(lang, "Bench")} (${bench.length})`, value: clipRosterLines(bench), inline: false });
   // Other characters players can bring to this core (a healer alt, a second tank...).
-  const backups = core.members.flatMap((entry) => (entry.backups ?? []).map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${backup.character.name}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`))
+  const backups = core.members.flatMap((entry) => (entry.backups ?? []).map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${displayCharacterName(backup.character)}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`))
     .sort((a, b) => a.localeCompare(b));
   if (backups.length) embed.addFields({ name: `🔁 ${tx(lang, "Backup characters")} (${backups.length})`, value: clipRosterLines(backups), inline: false });
   const mains = core.members.length - bench.length - trial.length;
@@ -368,8 +352,6 @@ export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: {
   const emojis = options.emojis ?? {};
   const now = options.now ?? new Date();
   const fr = lang === "fr";
-  // An unknown or missing edition counts as Forever, like the rest of the bot.
-  const edition = gameEditionOf({ gameEdition: options.edition ?? "forever" });
   const label = (entry: CoreSpot) => characterDisplayLine(coreSpotLabel(entry), entry.character, lang, emojis, now);
   const sorted = (lines: string[]) => lines.sort((a, b) => a.localeCompare(b));
 
@@ -405,7 +387,7 @@ export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: {
     const players = mains.filter((entry) => entry.role === role);
     const target = { TANK: core.tankLimit, HEALER: core.healerLimit, DPS: core.dpsLimit }[role];
     // DPS: how many play melee and ranged, from each character's spec (dps-kind.ts), as on the signup card.
-    const kinds = role === "DPS" ? players.map((entry) => entry.character ? dpsKind(entry.character.className, entry.character.spec, edition) : null) : [];
+    const kinds = role === "DPS" ? players.map((entry) => entry.character ? dpsKind(entry.character.className, entry.character.spec) : null) : [];
     const split = kinds.some(Boolean) ? `⚔️ ${tx(lang, "{melee} melee · {ranged} ranged", { melee: kinds.filter((kind) => kind === "MELEE").length, ranged: kinds.filter((kind) => kind === "RANGED").length })}` : "";
     return { heading: badge(ROLE_ICON[role], ROLE_LABELS[lang][role].replace(/^\S+\s/, ""), `${players.length}${target == null ? "" : `/${target}`}`),
       note: split, items: sorted(players.map(label)), separator: "\n" };
@@ -417,7 +399,7 @@ export function coreRosterLayout(core: CoreForEmbed & { id: string }, options: {
   list("🧪", tx(lang, "Trial"), core.members.filter((entry) => entry.trial && !entry.bench).map((entry) => `${label(entry)} (${ROLE_WORD[lang][entry.role]})`));
   list("🪑", tx(lang, "Bench"), core.members.filter((entry) => entry.bench).map((entry) => `${label(entry)} (${ROLE_WORD[lang][entry.role]})`));
   list("🔁", tx(lang, "Backup characters"), core.members.flatMap((entry) => (entry.backups ?? [])
-    .map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${backup.character.name}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`)));
+    .map((backup) => `${characterDisplayLine(`${entry.member.displayName} · ${displayCharacterName(backup.character)}`, backup.character, lang, emojis, now)} (${ROLE_WORD[lang][backup.role]})`)));
 
   const trials = core.members.filter((entry) => entry.trial && !entry.bench).length;
   const benched = core.members.filter((entry) => entry.bench).length;

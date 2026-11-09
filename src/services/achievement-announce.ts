@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { ACHIEVEMENT_CATALOGUE_VERSION, achievementById, TIER_LABEL } from "./achievements-catalogue.js";
+import { ACHIEVEMENT_CATALOGUE_VERSION, RETIRED_ACHIEVEMENT_IDS, achievementById, TIER_LABEL } from "./achievements-catalogue.js";
 import { syncMemberAchievements } from "./achievements.js";
 import { achievementUnlockedCard } from "./end-cards.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
@@ -10,7 +10,7 @@ import { enqueueDiscordJob } from "./discord-jobs.js";
 // Discord job queue (retried and rate-limited there), and marks them announced. A member who hid their web
 // profile is never announced: their rows are marked announced silently. Evaluation never depends on posting.
 
-type Db = Pick<PrismaClient, "guildSettings" | "member" | "memberAchievement" | "webAccount" | "discordJob" | "$transaction">;
+type Db = Pick<PrismaClient, "guildSettings" | "member" | "memberAchievement" | "discordJob" | "$transaction">;
 const MAX_LISTED = 6;
 
 /** Marks everything not yet announced as announced, without posting. Used when announcing is switched on. */
@@ -26,7 +26,7 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
   if (settings.achievementBaselineVersion < ACHIEVEMENT_CATALOGUE_VERSION) return 0;
   const member = await db.member.findFirst({ where: { id: memberId, guildId, status: "ACTIVE", isTest: false }, select: { discordUserId: true, displayName: true } });
   if (!member) return 0;
-  const pending = await db.memberAchievement.findMany({ where: { guildId, memberId, announcedAt: null }, select: { id: true, key: true, earnedAt: true }, orderBy: { earnedAt: "asc" }, take: 200 });
+  const pending = await db.memberAchievement.findMany({ where: { guildId, memberId, announcedAt: null, key: { notIn: [...RETIRED_ACHIEVEMENT_IDS] } }, select: { id: true, key: true, earnedAt: true }, orderBy: { earnedAt: "asc" }, take: 200 });
   // Anniversary achievements arrive for every member on the same day, which the server's anniversary card
   // already celebrates; posting one message per member would flood the channel, so they are recorded quietly.
   const quiet = pending.filter(row => achievementById(row.key)?.metric === "serverAnniversaries");
@@ -34,12 +34,10 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
   const waiting = pending.filter(row => !quiet.includes(row));
   if (!waiting.length) return 0;
   const ids = waiting.map(row => row.id);
-  const account = await db.webAccount.findFirst({ where: { discordUserId: member.discordUserId }, select: { publicProfile: true } });
-  if (account && !account.publicProfile) { await db.memberAchievement.updateMany({ where: { id: { in: ids }, announcedAt: null }, data: { announcedAt: now } }); return 0; }
 
   const lang = settings.language === "fr" ? "fr" : "en";
   const defs = waiting.flatMap(row => { const def = achievementById(row.key); return def ? [def] : []; });
-  const total = await db.memberAchievement.count({ where: { guildId, memberId } });
+  const total = await db.memberAchievement.count({ where: { guildId, memberId, key: { notIn: [...RETIRED_ACHIEVEMENT_IDS] } } });
   const listed = defs.slice(-MAX_LISTED).reverse();
   const lines = listed.map(def => `**${def[lang].name}** (${TIER_LABEL[def.tier][lang]}): ${def[lang].description}`);
   if (defs.length > listed.length) lines.push(lang === "fr" ? `…et ${defs.length - listed.length} autre(s)` : `…and ${defs.length - listed.length} more`);
@@ -65,7 +63,7 @@ export async function announceNewAchievements(db: Db, guildId: string, memberId:
  * Hourly pass: evaluates every active member of guilds that announce (evaluation is otherwise on view only),
  * then queues the celebrations. One member or guild failing never stops the rest.
  */
-export async function sweepAchievementAnnouncements(db: Db & Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal">, now = new Date(), onError: (error: unknown) => void = () => undefined): Promise<number> {
+export async function sweepAchievementAnnouncements(db: Db & Pick<PrismaClient, "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "memberMilestone" | "duelResult" | "craftRequest" | "recipeKnown">, now = new Date(), onError: (error: unknown) => void = () => undefined): Promise<number> {
   let posted = 0;
   const guilds = await db.guildSettings.findMany({ where: { achievementAnnounceEnabled: true, achievementsEnabled: true, achievementChannelId: { not: null } }, select: { guildId: true, achievementBaselineVersion: true }, take: 100 });
   for (const { guildId, achievementBaselineVersion } of guilds) {

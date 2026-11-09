@@ -1,7 +1,7 @@
 {
   "name": "guilded-companion",
   "productName": "Guilded Companion",
-  "version": "8.4.3",
+  "version": "9.0.8",
   "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
   "main": "main.cjs",
   "private": true,
@@ -38,7 +38,14 @@
       "assets/**",
       "package.json",
       "ipc-security.cjs",
-      "sign-in-loopback.cjs"
+      "sign-in-loopback.cjs",
+      "store-update.cjs",
+      "addon-installer.cjs",
+      "link-identity.cjs",
+      "repair.cjs",
+      "disk-space.cjs",
+      "config-load.cjs",
+      "store-startup.cjs"
     ],
     "extraResources": [
       {
@@ -64,6 +71,7 @@
           "dungeon-role.mjs",
           "profiles.mjs",
           "profile-engine.mjs",
+          "wow-accounts.mjs",
           "standings-format.mjs",
           "poe-events.mjs",
           "delta.mjs",
@@ -72,9 +80,14 @@
           "personal-runs-content.mjs",
           "sheet-export.mjs",
           "live-folder.mjs",
+          "saved-folder.mjs",
           "addon-install.mjs",
-          "active-editions.mjs",
-          "revoke.mjs"
+          "wow-folder.mjs",
+          "active-games.mjs",
+          "revoke.mjs",
+          "problems.mjs",
+          "sync-status.mjs",
+          "error-detail.mjs"
         ]
       },
       {

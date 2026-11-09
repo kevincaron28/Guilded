@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import sharp from "sharp";
-import { scoreCardResponse } from "../src/services/score-card.js";
+import { drawable, scoreCardResponse } from "../src/services/score-card.js";
 import { createLeaderboardPages, prismaLeaderboardStore, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
 import { createWebApp } from "../src/services/web-app.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
@@ -69,5 +69,29 @@ describe("shareable dungeon cards", () => {
     const findFirst = vi.fn(async () => null);
     expect(await prismaLeaderboardStore({ publicRun: { findFirst } } as never).run!("rejected")).toBeNull();
     expect(findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "rejected", status: "ACCEPTED", gameEdition: "forever" } }));
+  });
+});
+
+describe("symbols the card font cannot draw", () => {
+  it("drops decorative symbols, emoji and joiners but keeps letters, accents, digits and punctuation", () => {
+    expect(drawable("\u269CQuebec Gold\u269C")).toBe("Quebec Gold");
+    expect(drawable("\u269C Qu\u00E9bec \u269C Gold \u269C")).toBe("Qu\u00E9bec Gold");
+    expect(drawable("Raiders \uD83D\uDD25\uD83D\uDC80 R\u00E9sum\u00E9 \u2764\uFE0F")).toBe("Raiders R\u00E9sum\u00E9");
+    expect(drawable("a\u200Db")).toBe("ab");
+    expect(drawable("Gold \u00B7 Saison 1 \u2013 +3 \u00A9 \u00B0 50% \u2026")).toBe("Gold \u00B7 Saison 1 \u2013 +3 \u00A9 \u00B0 50% \u2026");
+    expect(drawable("\u269C\u269C")).toBe("");
+    // Styled Discord names: the mathematical script letters read as Latin, the trademark sign as TM, the emoji is dropped.
+    expect(drawable("\u{1D4D5}\u{1D4FB}\u{1D4FE}\u{1D4F6}\u{1D4F9}\u{1D502}\u2122\u{1F3B2}")).toBe("FrumpyTM");
+    expect(drawable("\uFF26\uFF52\uFF55 \uFB01n")).toBe("Fru fin");
+  });
+  it("draws a guild title with symbols exactly like the same title without them, on every layout", async () => {
+    const base = { eyebrow: "Roster", subtitle: "12 members", stats: [{ label: "Members", value: "12" }], footer: "Guilded" };
+    const race = [{ name: "Amy", color: "#c79c6e", level: 40, max: 60 }];
+    for (const extra of [{}, { race }]) {
+      const withSymbols = await scoreCardResponse({ ...base, ...extra, title: "\u269CQuebec Gold\u269C" });
+      const plain = await scoreCardResponse({ ...base, ...extra, title: "Quebec Gold" });
+      expect(withSymbols.status).toBe(200);
+      expect(withSymbols.binaryBody).toEqual(plain.binaryBody);
+    }
   });
 });

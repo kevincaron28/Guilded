@@ -131,7 +131,7 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
         const blocked = await tx.characterVerifyClaim.findMany({ where: { guildId, memberId: owner.memberId, nameKey: { in: [key] } } });
         if (blocked.some((claim) => claim.memberId === owner.memberId && (claim.status === "REMOVED" || claim.status === "BLOCKED"))) return null;
         const isMain = (await tx.character.count({ where: { memberId: owner.memberId, isMain: true } })) === 0;
-        const character = await tx.character.update({ where: { id: from.id }, data: { memberId: owner.memberId, isMain } });
+        const character = await tx.character.update({ where: { id: from.id }, data: { memberId: owner.memberId, isMain, confirmedAt: new Date() } });
         for (const [memberId, status] of [[from.memberId, "REMOVED"], [owner.memberId, "LINKED"]] as const) {
           await tx.characterVerifyClaim.upsert({
             where: { guildId_memberId_nameKey: { guildId, memberId, nameKey: key } },
@@ -155,7 +155,7 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
       continue;
     }
     if (!uploader.officer && ++provisional > PROVISIONAL_PER_UPLOAD) continue;
-    if (await linkPairedCharacter(database, guildId, owner.memberId, entry) !== "linked") continue;
+    if (await linkPairedCharacter(database, guildId, owner.memberId, entry, { confirm: uploader.officer }) !== "linked") continue;
     await remember(owner.memberId, key, uploader.officer ? "LINKED" : "PROVISIONAL");
     const created = await database.character.findFirst({ where: { memberId: owner.memberId, name: entry.name, realm: entry.realm, gameEdition: gameEditionOf(entry) }, select: { id: true, isMain: true } });
     linked.push({ id: created?.id ?? "", name: entry.name, realm: entry.realm, memberId: owner.memberId, gameEdition: gameEditionOf(entry), member: { discordUserId: owner.member.discordUserId } });
@@ -182,9 +182,13 @@ export async function tellVerified(client: Client, discordGuildId: string, lang:
   }
   const linked = results.filter((result) => result.status === "linked");
   if (discordGuild && linked.length) {
-    await postToLogChannel(discordGuild, linked.map((result) => `🔗 ${result.name} was linked to <@${result.discordUserId}> by their /guilded verify code`
-      + (result.movedFrom ? ` (an officer's sync moved it from <@${result.movedFrom}>, whose link came from a guildmate's report).`
-        : result.reportedBy ? ` (heard by <@${result.reportedBy}>'s addon; the next officer sync confirms it).` : ".")).join("\n"));
+    await postToLogChannel(discordGuild, linked.map((result) => lang === "fr"
+      ? `🔗 ${result.name} a été lié à <@${result.discordUserId}> par son code /guilded verify`
+        + (result.movedFrom ? ` (la synchronisation d'un officier l'a retiré à <@${result.movedFrom}>, dont le lien venait du rapport d'un membre).`
+          : result.reportedBy ? ` (reçu par l'addon de <@${result.reportedBy}>; la prochaine synchronisation d'un officier le confirme).` : ".")
+      : `🔗 ${result.name} was linked to <@${result.discordUserId}> by their /guilded verify code`
+        + (result.movedFrom ? ` (an officer's sync moved it from <@${result.movedFrom}>, whose link came from a guildmate's report).`
+          : result.reportedBy ? ` (heard by <@${result.reportedBy}>'s addon; the next officer sync confirms it).` : ".")).join("\n"));
   }
 }
 

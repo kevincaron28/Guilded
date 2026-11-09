@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown, type Guild, type MessageCreateOptions } from "discord.js";
 import type { DiscordJob, PrismaClient } from "../generated/prisma/client.js";
 import { hostedPilot } from "../hosted-pilot.js";
@@ -9,7 +10,7 @@ type Lang = "en" | "fr";
 const pt = (lang: Lang, en: string, fr: string) => lang === "fr" ? fr : en;
 
 export const PUG_EDITION_LABEL: Record<string, string> = {
-  forever: "WoW Forever", "classic-era": "Classic Era", "classic-tbc": "TBC Classic", "classic-mists": "Mists of Pandaria Classic", retail: "Retail"
+  forever: "WoW Forever"
 };
 const ROLE_ICON: Record<PugRole, string> = { TANK: "🛡️", HEALER: "💚", DPS: "⚔️" };
 export const pugRoleLabel = (role: string, lang: Lang) => ({ TANK: pt(lang, "Tank", "Tank"), HEALER: pt(lang, "Healer", "Soigneur"), DPS: "DPS" } as Record<string, string>)[role] ?? role;
@@ -104,7 +105,7 @@ export async function deliverPugPost(guild: Guild, db: PrismaClient, job: Discor
 
 /** The single, aggregated message in the requesting guild's raid channel: waiting PUGs, accepted guests, buttons. */
 export function pugNoticePayload(request: RequestView & { status: string }, signups: { id: string; displayName: string; sourceGuild: string | null; characterName: string; characterClass: string | null; role: string; note: string | null; status: string }[], lang: Lang): Pick<MessageCreateOptions, "embeds" | "components" | "allowedMentions"> {
-  const line = (s: (typeof signups)[number]) => `${ROLE_ICON[s.role as PugRole] ?? ""} **${escapeMarkdown(s.characterName)}**${s.characterClass ? ` (${s.characterClass})` : ""} — ${escapeMarkdown(s.displayName)}${s.sourceGuild ? ` · ${escapeMarkdown(s.sourceGuild)}` : ""}${s.note ? `\n> ${escapeMarkdown(s.note)}` : ""}`;
+  const line = (s: (typeof signups)[number]) => `${ROLE_ICON[s.role as PugRole] ?? ""} **${escapeMarkdown(cleanCharacterName(s.characterName))}**${s.characterClass ? ` (${s.characterClass})` : ""} — ${escapeMarkdown(s.displayName)}${s.sourceGuild ? ` · ${escapeMarkdown(s.sourceGuild)}` : ""}${s.note ? `\n> ${escapeMarkdown(s.note)}` : ""}`;
   const pending = signups.filter(s => s.status === "PENDING");
   const accepted = signups.filter(s => s.status === "ACCEPTED");
   const open = openCounts(request, signups);

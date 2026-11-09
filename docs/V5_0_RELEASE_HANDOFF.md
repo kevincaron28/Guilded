@@ -138,7 +138,7 @@ diagnostics and local daily/current-map metrics. No migration or version bump.
 Existing journals remain readable; preserve them if rolling back to an older
 build. Current-patch English/French logs and Windows/PostgreSQL gates remain required.
 
-Audit hardening (2 Oct 2026, branch `fix/audit-hardening`): `docs/AUDIT_HARDENING.md`.
+Audit hardening (2 Oct 2026, branch `fix/audit-hardening`): `docs/archive/AUDIT_HARDENING.md`.
 Imports hold entries they cannot place instead of failing (`/import held`), `/guilded void`,
 awards shared between officers in a raid, transactional decay, restart on uncaught errors and
 data retention. Additive migration `20261101090000_addon_held_entries`; rebuild the addon ZIP

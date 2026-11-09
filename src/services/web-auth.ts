@@ -74,15 +74,16 @@ export function sameOrigin(headers: { origin?: string | undefined; referer?: str
 }
 
 // Where to go after signing in: only this website's own pages, never another address.
-// Public data pages may sit in an edition's section (/retail/leaderboards/: site/nav.mjs).
-const RETURN_PATH = /^\/(?:me|(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:recruitment|leaderboards|players))(?:\/[A-Za-z0-9._~/-]*)?(?:\?[A-Za-z0-9._~=&%+-]*)?$/;
+// Public data pages may sit in the WoW Forever section (/forever/leaderboards/: site/nav.mjs).
+const RETURN_PATH = /^\/(?:me|(?:forever\/)?(?:recruitment|leaderboards|players))(?:\/[A-Za-z0-9._~/-]*)?(?:\?[A-Za-z0-9._~=&%+-]*)?$/;
 export function safeReturnPath(path: string | null | undefined): string {
   return path && path.length <= 300 && RETURN_PATH.test(path) && !path.includes("//") ? path : "/me/";
 }
 
-export function authorizeUrl(auth: WebAuthConfig, state: string): string {
+/** `chooseAccount`: Discord shows the signed-in account with its "Not you?" link (companion "Switch"). */
+export function authorizeUrl(auth: WebAuthConfig, state: string, chooseAccount = false): string {
   const url = new URL("https://discord.com/oauth2/authorize");
-  url.search = new URLSearchParams({ response_type: "code", client_id: auth.clientId, scope: "identify", redirect_uri: `${auth.siteUrl}/auth/callback`, state }).toString();
+  url.search = new URLSearchParams({ response_type: "code", client_id: auth.clientId, scope: "identify", redirect_uri: `${auth.siteUrl}/auth/callback`, state, ...(chooseAccount ? { prompt: "consent" } : {}) }).toString();
   return url.href;
 }
 

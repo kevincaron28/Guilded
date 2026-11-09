@@ -56,7 +56,7 @@ privacy boundaries and the two-client acceptance test.
 | Council.lua | `council` | GuildedLC | Loot council: BiS / upgrade / off-spec answers, ranked for the officers |
 | Dungeon.lua | `dungeon` | GuildedDgn | Dungeon run tracking for the Dungeon Challenge |
 | Calendar.lua | `calendar` | (none) | `/guilded calendar check` |
-| AutoInvite.lua | `autoinvite` | (none) | Officers: `/guilded autoinvite on [phrase]`, guild invite for whoever whispers the phrase (rate limited) |
+| AutoInvite.lua | `autoinvite` | (none) | Officers: `/guilded autoinvite on [phrase]`, a ready `/ginvite` line for whoever whispers the phrase (rate limited; no automatic invite) |
 | SyncNow.lua | `syncnow` | (none) | `/guilded sync`, `/guilded sync auto`: save now / auto-save at safe moments so the companion uploads sooner |
 | History.lua | always on | `GuildedHist` | `/guilded history`: a member's EP/GP and loot history; one officer whose PC has the records whispers it back (`REQ`/`DONE` on GUILD, `ROW` by whisper) |
 | Backup.lua | `backup` | (none) | `/guilded backup` and `/guilded restore [undo]`: this guild's saved data as one `QGBKP1:` code |
@@ -68,7 +68,7 @@ privacy boundaries and the two-client acceptance test.
 | Sim.lua | `sim` | (none) | Test raid / dungeon run for officers |
 | Sync.lua | always on | GuildedSync | Version check, standings, guild module switches. Officers answer `STANDREQ` after 1-5 s and stay quiet when another officer is already sending the same standings |
 | OfficerBridge.lua | always on; officer opt-in | GuildedBridge | Core rules/pools/rosters and upcoming raids from an officer's companion; guild-bound cache and late-login requests. `CAP|2` before `REQ|1` asks for the compact `DATA|2` (printable text as is, other bytes `%XX`); `DATA|1` (hex) still goes to older addons |
-| LedgerSync.lua | always loaded; officer opt-in, in-game-only mode | GuildedLedger | `/guilded ledgersync on`: officers merge their EP/GP ledgers in game (`SUM`, `AUTH`, `DAYS`, `GET`, `E`); see [the sync speed-ups](../../../docs/SYNC_SPEEDUPS_2026-10-15.md). 7.5.0: a client with `C_EncodingUtil` says `CAP\|1\|Z1` before its lists, and a day of entries to such an officer goes as one zlib/base64 batch (`Z\|1\|author\|day\|part\|parts\|chunk`) |
+| LedgerSync.lua, LedgerDigest.lua, LedgerRelay.lua | on by default for members, in-game-only mode | GuildedLedger | Always on (no off switch). Officers supply original awards and reversals. Members can forward recent batches whose SHA-256 digest the recipient received directly from an officer. |
 | GuildMap.lua | `guildmap` | GuildedMap | 5.0: guildmates as dots on the world map and minimap (`P\|map\|x\|y\|class\|level`, `G` = gone, `Q` = rate-limited position refresh); `/guilded map share\|show on\|off` |
 | Scores.lua | `scores` | GuildedScore | 5.0: a dungeon score per player from recorded runs (best run per dungeon), on tooltips; `S\|score\|dungeons`; `/guilded score [player\|top]` |
 | GuildLog.lua | `guildlog` | (none) | 7.5.0: the game's guild event log saved past its short window; `/guilded guildlog` |
@@ -79,6 +79,8 @@ privacy boundaries and the two-client acceptance test.
 | PasteBox.lua | always on | (none) | 7.5.0: the multi-line paste window imports use |
 | LootImports.lua | `imports` | (none) | 7.5.0: softres.it lists into Reserve.lua (`ns.reserve.importEntries`) and That's My BiS priorities onto tooltips |
 | Perf.lua | always loaded; personal opt-in | (none) | 7.5.0: `/guilded perf`, timings of Guilded events and commands plus message-queue depth while on |
+| GameAchievements.lua | `milestones` | (none) | 9.1: records every WoW Forever in-game achievement (category 15425 skipped) as an `ach` milestone with its name and date, silently at the first scan, the newest announced; uploaded with the milestones |
+| Probe.lua | always loaded; read-only | (none) | 9.0.x: `/guilded probe achievements`, lists which achievement APIs this client has and saves a summary in `db.probes.achievements` |
 | Minimap.lua | always on | (none) | Minimap button and tools window |
 
 ## Local guild and loot rolls

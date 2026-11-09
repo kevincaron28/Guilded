@@ -24,6 +24,13 @@ function roll.start(players, bonuses, onWinner, title)
 end
 function roll.receive(name, value, low, high)
   local s = roll.session
+  -- A reserve list from before 8.5 may name a Forever player by first name only; the roll
+  -- carries "First Last". Same character: use the name the session was started with.
+  if s and name and not s.players[name] and ns.util and ns.util.sameCharacter then
+    for player in pairs(s.players) do
+      if ns.util.sameCharacter(player, name) then name = player break end
+    end
+  end
   if not s or not (ns.isOfficer and ns.isOfficer()) or not s.players[name] or s.values[name]
     or low ~= 1 or high ~= 100 or not value or value < 1 or value > 100 then return end
   s.values[name] = value

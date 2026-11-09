@@ -8,15 +8,16 @@ if (!value) throw new Error("TEST_DATABASE_URL required");
 const url = new URL(value);
 if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || url.pathname !== "/guilded_release_test") throw new Error("Disposable local database required");
 const db = createPrismaClient(value), other = createPrismaClient(value);
-const guild = await db.guild.create({ data: { discordId: `bg-${Date.now()}`, name: "BG fixture", gameEdition: "retail" } });
+const guild = await db.guild.create({ data: { discordId: `bg-${Date.now()}`, name: "BG fixture", gameEdition: "forever" } });
 const now = new Date("2030-01-01T12:00:00Z");
-const plan = { version: 1, edition: "retail", realmType: "normal", mode: "blitz", map: "Random", minLevel: 90, maxLevel: 90, faction: "Alliance" };
+// WoW Forever only: no queue-party rule is verified, so a battleground plan can be organized but never started.
+const plan = { version: 1, edition: "forever", realmType: "normal", mode: "blitz", map: "Random", minLevel: 60, maxLevel: 60, faction: "Alliance" };
 const confirmation = { normalRealm: true, faction: "Alliance" };
 try {
   const session = await createBattleground(db, guild.id, { name: "BG duo", plan, channelId: "private", startsAt: new Date("2030-01-01T13:00:00Z"), tanks: 0, healers: 1, dps: 1, durationMinutes: 120 }, now);
   const members = await Promise.all(Array.from({ length: 4 }, (_, n) => db.member.create({ data: {
     guildId: guild.id, discordUserId: `bg-${n}`, displayName: `BG ${n}`, characters: { create: {
-      guildId: guild.id, gameEdition: "retail", name: `BG${n}`, realm: "Test", className: "PRIEST", level: 90,
+      guildId: guild.id, gameEdition: "forever", name: `BG${n}`, realm: "Test", className: "PRIEST", level: 60,
     } },
   }, include: { characters: true } })));
   const first = members[0]!;
@@ -37,11 +38,11 @@ try {
   assert.equal(await db.discordJob.count({ where: { guildId: guild.id } }), 0);
   assert.equal(await db.activitySession.count({ where: { coreId: session.coreId } }), 1);
   // A changed/deleted linked identity is rechecked at start.
-  await db.character.update({ where: { id: first.characters[0]!.id }, data: { level: 89 } });
+  await db.character.update({ where: { id: first.characters[0]!.id }, data: { level: 59 } });
   await assert.rejects(manageSession(db, guild.id, session.id, "start", null, now), /level/);
-  await db.character.update({ where: { id: first.characters[0]!.id }, data: { level: 90 } });
-  await manageSession(db, guild.id, session.id, "start", null, now);
-  await assert.rejects(respondToSession(db, guild.id, session.id, selected.memberId, "CONFIRMED", "DPS", null, now, confirmation), /closed/);
+  await db.character.update({ where: { id: first.characters[0]!.id }, data: { level: 60 } });
+  // A valid lineup still cannot start: queue rules are unverified for WoW Forever.
+  await assert.rejects(manageSession(db, guild.id, session.id, "start", null, now), /Planning only/);
   assert.equal(await db.discordJob.count({ where: { guildId: guild.id } }), 0);
   assert.equal(await db.raid.count({ where: { guildId: guild.id } }), 0);
   assert.equal(await db.epgpTransaction.count({ where: { guildId: guild.id } }), 0);

@@ -1,4 +1,5 @@
 import { access, stat } from "node:fs/promises";
+import { POE_TRACKING_ENABLED, poeTrackingOn } from "./active-games.mjs";
 import { createHash } from "node:crypto";
 import { readSavedText } from "./saved-file.mjs";
 import { watch } from "node:fs";
@@ -10,6 +11,8 @@ import { acknowledgements, pruneAcknowledged } from "./delta.mjs";
 import { createPoeEngine, validatePoeConfig } from "./poe-engine.mjs";
 import { personalSavedFiles, uploadPersonalRuns } from "./personal-runs.mjs";
 import { GAME_EDITIONS } from "./game-edition.mjs";
+import { normalizeSavedPath } from "./saved-folder.mjs";
+import { errorDetail, isTimeout, rememberError } from "./error-detail.mjs";
 
 // The companion's working parts, shared by the command-line watcher
 // (watcher.mjs) and the desktop app (companion-app/). It watches the addon's
@@ -20,14 +23,14 @@ import { GAME_EDITIONS } from "./game-edition.mjs";
 export function validateConfig(config) {
   const problems = [];
   if (config.wowEnabled !== false && !config.watchFile) problems.push(config.personal ? "The saved-data file (GuildedDungeons.lua or Guilded.lua) is not set." : "The saved-data file (Guilded.lua) is not set.");
-  if (config.wowEnabled === false && !config.poeEnabled) problems.push("Enable WoW or PoE2 tracking before starting.");
+  if (config.wowEnabled === false && !poeTrackingOn(config)) problems.push(POE_TRACKING_ENABLED ? "Enable WoW or PoE2 tracking before starting." : "Enable WoW sync before starting.");
   if (!config.uploadUrl) problems.push("The bot address is not set.");
   const linked = typeof config.companionCredential === "string" && config.companionCredential.length >= 32;
   if (!linked) problems.push("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup.");
   // Personal mode (leaderboards only, from Sign in with Discord or a /me/ code) has no guild: only public dungeon runs.
   else if (!config.guildDiscordId && !config.personal) problems.push("The Discord server ID is not set.");
   if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
-  return [...problems, ...validatePoeConfig(config)];
+  return POE_TRACKING_ENABLED ? [...problems, ...validatePoeConfig(config)] : problems;
 }
 
 // Checks the bot address and token without changing anything.
@@ -98,22 +101,32 @@ export async function startSignIn(config, { loopback } = {}) {
     if (!response.ok) return { ok: false, message: describeApiError(response.status, body.error) };
     if (typeof body.requestId !== "string" || typeof body.url !== "string" || typeof body.confirm !== "string") return { ok: false, message: "The bot's sign-in answer was incomplete." };
     const page = checkUrl(body.url);
-    return { ok: true, uploadUrl, requestId: body.requestId, confirm: body.confirm, url: page.href, automatic: !!loopback && body.loopbackAccepted === true };
+    // When the bot forgets the request (20 minutes since 8.5; older bots 10): the window counts down to it.
+    // The bot says how long the request lives (expiresInSeconds, 9.0); counting from this PC's clock
+    // keeps the countdown right even when the PC clock is off. Older bots: their expiresAt.
+    const seconds = Number.isFinite(body.expiresInSeconds) && body.expiresInSeconds > 0 && body.expiresInSeconds <= 3600 ? body.expiresInSeconds : null;
+    const expiresAt = seconds !== null ? new Date(Date.now() + seconds * 1000).toISOString()
+      : typeof body.expiresAt === "string" && Number.isFinite(Date.parse(body.expiresAt)) ? new Date(body.expiresAt).toISOString() : new Date(Date.now() + 10 * 60_000).toISOString();
+    return { ok: true, uploadUrl, requestId: body.requestId, confirm: body.confirm, url: page.href, expiresAt, automatic: !!loopback && body.loopbackAccepted === true };
   } catch (error) {
     return { ok: false, message: describeError(error) };
   }
 }
 
-// Asks every few seconds until the member approves in the browser (or 10 minutes pass).
+// Asks every few seconds until the member approves in the browser, or the request expires: at
+// `expiresAt` (startSignIn's answer), when the bot answers 410 (a bot restart forgets requests), or
+// after `timeoutMs`. An expired answer carries `expired: true` so the app can start a new one.
 // proof: returns what came back through the loopback port (startSignIn's loopback), once it has.
-export async function waitForSignIn(config, requestId, { signal, proof = /** @type {(() => string | undefined) | undefined} */ (undefined), intervalMs = 2_000, timeoutMs = 10 * 60_000, sleep = (ms) => new Promise((done) => setTimeout(done, ms)) } = {}) {
+export async function waitForSignIn(config, requestId, { signal, proof = /** @type {(() => string | undefined) | undefined} */ (undefined), intervalMs = 2_000, timeoutMs = 20 * 60_000, expiresAt = /** @type {string | undefined} */ (undefined), sleep = (ms) => new Promise((done) => setTimeout(done, ms)) } = {}) {
   const uploadUrl = config.uploadUrl?.trim() || HOSTED_UPLOAD_URL;
-  const until = Date.now() + timeoutMs;
+  const deadline = expiresAt ? Date.parse(expiresAt) : NaN;
+  const until = Number.isFinite(deadline) ? Math.min(Date.now() + timeoutMs, deadline + 5_000) : Date.now() + timeoutMs;
   while (Date.now() < until) {
     if (signal?.aborted) return { ok: false, message: "Sign-in cancelled." };
     try {
       const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in/poll", uploadUrl), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ requestId, ...(proof?.() ? { proof: proof() } : {}) }) }, signal, 10_000);
       if (response.status === 200) return { ...pairingResult(config, body), uploadUrl };
+      if (response.status === 410) return { ok: false, expired: true, message: SIGN_IN_EXPIRED };
       if (response.status !== 202) return { ok: false, message: describeApiError(response.status, body.error) };
     } catch (error) {
       if (signal?.aborted) return { ok: false, message: "Sign-in cancelled." };
@@ -122,16 +135,33 @@ export async function waitForSignIn(config, requestId, { signal, proof = /** @ty
     }
     await sleep(intervalMs);
   }
-  return { ok: false, message: "Sign-in timed out. Choose Sign in with Discord again." };
+  return { ok: false, expired: true, message: SIGN_IN_EXPIRED };
 }
+export const SIGN_IN_EXPIRED = "That sign-in expired. Choose Sign in with Discord again.";
 
 // "fetch failed" tells nobody anything: say what to check.
+// Shown in place of "GuildedDB was not found in the SavedVariables file." and a missing file: the
+// addon has not saved yet (or the addon is off).
+export const NOT_SAVED_YET = "Guilded hasn't saved yet: in WoW, make sure the Guilded addon is enabled, then type /reload or log out once.";
+
+export const SERVER_TIMEOUT = "The Guilded server took too long to answer (over 20 s); retrying.";
 export function describeError(error) {
   const text = error instanceof Error ? error.message : String(error);
+  if (/GuildedDB was not found in the SavedVariables file|GuildedDungeonsDB was not found in the SavedVariables file/.test(text) || (/ENOENT|no such file/i.test(text) && /\.lua/i.test(text))) return NOT_SAVED_YET;
+  // Slow, not down: the request ran out of time (a long deploy restart, a busy server).
+  if (isTimeout(error)) return SERVER_TIMEOUT;
   if (/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|timed out|aborted/i.test(text + (error?.cause?.code ?? ""))) {
     return "Could not reach the bot. Is it running, and is the bot address right?";
   }
   return text;
+}
+
+// For the log only (hotfix 2, 8.5): what actually failed under "Could not reach the bot" —
+// the network code (ECONNRESET, UND_ERR_HEADERS_TIMEOUT...) or a timeout/abort — so a support
+// report tells a 20 s timeout from a dropped connection. Nothing secret is in these codes.
+export function errorCodeNote(error) {
+  const code = error?.cause?.code ?? error?.code ?? (error?.name === "TimeoutError" || error?.name === "AbortError" ? error.name : null);
+  return typeof code === "string" && /^[A-Za-z0-9_]{1,40}$/.test(code) ? ` [${code}]` : "";
 }
 
 // The bot doesn't recognize this Discord server ID at all (wrong ID, or the
@@ -158,7 +188,10 @@ const WATCH_RETRY_MS = 5 * 60_000;
 const WATCH_STABLE_MS = 10 * 60_000;
 
 export function createEngine(initialConfig, hooks = {}) {
-  let config = initialConfig;
+  // A file picked inside a character folder (WTF\Account\X\<realm>\<character>\SavedVariables) never holds GuildedDB:
+  // watch the account-level one instead (companion/saved-folder.mjs).
+  const accountLevel = (value) => (value?.watchFile ? { ...value, watchFile: normalizeSavedPath(value.watchFile) } : value);
+  let config = accountLevel(initialConfig);
   let watcher;
   let poe;
   let uploadTimer;
@@ -182,6 +215,7 @@ export function createEngine(initialConfig, hooks = {}) {
   let watchStartedAt = 0;
   let watchGaveUpAt = 0;
   const active = new Set();
+  const reported = new Set();
   const state = {
     running: false,
     watching: null,
@@ -194,6 +228,10 @@ export function createEngine(initialConfig, hooks = {}) {
     retryAt: null,
     uploadError: null,
     standingsError: null,
+    // The last few failures, as small records for the support summary (error-detail.mjs).
+    recentErrors: [],
+    // The addon's guild sync counters from the last save (9.0; support summary only).
+    gameSync: null,
     uploads: 0,
     syncPhase: "waiting-save",
     syncEvidence: {},
@@ -213,6 +251,12 @@ export function createEngine(initialConfig, hooks = {}) {
     }
     const at = new Date().toISOString();
     if (level === "error") state.lastError = { at, message };
+    // A problem that is still the same is said once, not at every retry; a success or a new
+    // start clears it so a later return of the problem is said again.
+    if (level === "error" || level === "warn") {
+      if (reported.has(message)) { hooks.onState?.(snapshot()); return; }
+      reported.add(message);
+    } else if (level === "ok" || /^Watching /.test(message)) reported.clear();
     hooks.onLog?.({ time: at, level, message });
     hooks.onState?.(snapshot());
   };
@@ -259,6 +303,11 @@ export function createEngine(initialConfig, hooks = {}) {
     return result;
   }
 
+  // Support summary: what failed, where and how long it took (no message text, no IDs).
+  const noteError = (operation, error, startedAt) => {
+    state.recentErrors = rememberError(state.recentErrors, errorDetail(operation, error, { startedAt, uploadUrl: config.uploadUrl?.trim() || HOSTED_UPLOAD_URL }));
+  };
+
   // Personal mode: finished dungeon runs to the public leaderboards (personal-runs.mjs).
   async function personalUpload() {
     if (uploading) { queued = true; return; }
@@ -269,6 +318,7 @@ export function createEngine(initialConfig, hooks = {}) {
     state.pendingUpload = true;
     state.syncPhase = "uploading";
     state.retryAt = null;
+    const startedAt = Date.now();
     try {
       lastFile = await savedStamp(current);
       const result = await uploadPersonalRuns(current, controller.signal, evidence => { if (epoch === generation) state.syncEvidence = evidence; });
@@ -287,8 +337,9 @@ export function createEngine(initialConfig, hooks = {}) {
     } catch (error) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
+      noteError("upload", error, startedAt);
       state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
-      log("error", `Upload failed: ${state.uploadError}`);
+      log("error", `Upload failed: ${state.uploadError}${errorCodeNote(error)}`);
       if (error.retryable !== false && state.running) {
         const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
         state.retryAt = new Date(Date.now() + delay).toISOString();
@@ -312,6 +363,7 @@ export function createEngine(initialConfig, hooks = {}) {
     state.pendingUpload = true;
     state.syncPhase = "uploading";
     state.retryAt = null;
+    const startedAt = Date.now();
     try {
     lastFile = await fileStamp(current.watchFile);
     const full = current.watchFile.toLowerCase().endsWith(".lua")
@@ -319,6 +371,12 @@ export function createEngine(initialConfig, hooks = {}) {
       : JSON.parse(await readSavedText(current.watchFile));
     const stamp = await stat(current.watchFile);
     if (`${stamp.mtimeMs}:${stamp.size}` !== lastFile) throw new Error("Saved data changed during reading. Retrying the latest save.");
+    // (9.0) The addon's guild sync counters are for the support summary only, never uploaded,
+    // and they change at every save, so they stay out of the revision too.
+    if (full && typeof full === "object" && "syncStats" in full) {
+      state.gameSync = full.syncStats;
+      delete full.syncStats;
+    }
     const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
     state.syncEvidence = { savedAt: stamp.mtime.toISOString(), savedRevision: revision,
       character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null,
@@ -379,8 +437,9 @@ export function createEngine(initialConfig, hooks = {}) {
     } catch (error) {
       if (epoch !== generation) return;
       state.uploadError = describeError(error);
+      noteError("upload", error, startedAt);
       state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
-      log("error", `Upload failed: ${state.uploadError}`);
+      log("error", `Upload failed: ${state.uploadError}${errorCodeNote(error)}`);
       if (error.retryable !== false && state.running) {
         const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
         state.retryAt = new Date(Date.now() + delay).toISOString();
@@ -444,12 +503,14 @@ export function createEngine(initialConfig, hooks = {}) {
     if (!state.running || refreshing || config.wowEnabled === false || config.personal) return;
     refreshing = true;
     const epoch = generation;
+    const startedAt = Date.now();
     try {
       await fetchStandings(epoch, options);
     } catch (error) {
       if (epoch !== generation) return;
       state.standingsError = describeError(error);
-      log("error", `Standings update failed: ${state.standingsError}`);
+      noteError("standings", error, startedAt);
+      log("error", `Standings update failed: ${state.standingsError}${errorCodeNote(error)}`);
     } finally { refreshing = false; hooks.onState?.(snapshot()); }
   }
 
@@ -482,7 +543,8 @@ export function createEngine(initialConfig, hooks = {}) {
       } catch (error) {
         if (epoch !== generation) return;
         state.standingsError = describeError(error);
-        if (errors === 0) log("error", `Standings update failed: ${state.standingsError}`);
+        noteError("standings", error, startedAt);
+        if (errors === 0) log("error", `Standings update failed: ${state.standingsError}${errorCodeNote(error)}`);
         errors++;
         await sleep(Math.min(300_000, 5_000 * 2 ** Math.min(errors - 1, 6)), epoch);
         continue;
@@ -542,7 +604,7 @@ export function createEngine(initialConfig, hooks = {}) {
     const epoch = generation;
     const problems = validateConfig(config);
     if (problems.length > 0) { log("warn", `Not started: ${problems[0]}`); return false; }
-    if (config.poeEnabled) {
+    if (poeTrackingOn(config)) {
       poe = createPoeEngine(config, {
         onLog: ({ level, message }) => log(level, message),
         onState: next => { state.poe = next; state.botVersion = next.botVersion ?? state.botVersion; hooks.onState?.(snapshot()); }
@@ -611,7 +673,10 @@ export function createEngine(initialConfig, hooks = {}) {
       if (was) log("info", "Stopped."); else hooks.onState?.(snapshot());
     },
     // Apply new settings and restart.
-    async configure(next) { await this.stop(); state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = next; etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
+    // Track L: the signed-in Discord name for the in-game "Linked to Discord as" line; the next
+    // standings fetch writes it (no restart).
+    setLinkedAccount(account) { config = { ...config, discordAccount: account }; etag = null; },
+    async configure(next) { await this.stop(); state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = accountLevel(next); etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
     refreshStandings: () => { const pending = config.personal ? personalUpload() : refreshStandings({ force: true }); track(pending); return pending; }

@@ -302,7 +302,7 @@ The gold casino (wagers, house games, the debt ledger) was removed on purpose: g
 
 Tips: wherever a command asks for a raid, auction, request, or entry, **start
 typing its name and pick it from the list** (no IDs to copy). Raid signup
-posts have buttons, so members rarely need `/raid signup`. Member-facing
+posts have buttons (Tank, Healer, DPS, Maybe, Can't come, Late); there is no `/raid signup` command. Member-facing
 messages follow the language chosen in `/setup start` (English or French).
 
 ### Where things live
@@ -339,7 +339,7 @@ Leader without Manage Events, does not see these commands until a server admin a
 role (Officer and Guild Master; Raid Leader for `/lead`). Giving the Raid Leader role Manage Events
 also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/participation`, `/bank`,
 `/tag` and `/poe` still mix member and leader subcommands and stay visible to everyone
-(`docs/COMMAND_VISIBILITY_PROPOSAL.md`).
+(`docs/archive/COMMAND_VISIBILITY_PROPOSAL.md`).
 
 ### Everyone on Discord
 
@@ -359,7 +359,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/raid wcl check [raid] [url]` | Officers: the private check of a raid's log: who is in the log but not credited (or the reverse), characters not linked to anyone, EP not yet awarded, who came to boss pulls without a flask or food, and deaths. No damage or parse numbers |
 | `/raid wcl list` | The latest Warcraft Logs reports the officers pulled in |
 | `/apply <core> <character> <class> <spec> <experience> <availability> <role> [notes]` | Apply to a raid core, with your raid role (Tank, Healer or DPS). Or press **Apply to `<core>`** on that core's own roster message (raid roster channel): pick your role, then a short form. Officers decide on the card: **Trial** adds you to the core as a trial member (shown apart on the roster) and keeps **Approve** and **Reject** on the card to settle it later; **Approve** makes you a full core member |
-| `/raid signup <raid> <role> [availability]` | Sign up (Tank, Healer, DPS). `availability:Maybe` doesn't take a slot. If your role is full you go on the **waitlist** and get a DM when a slot opens |
+| Raid post **Tank / Healer / DPS / Maybe** buttons | Sign up. **Maybe** doesn't take a slot. If your role is full you go on the **waitlist** (you get a DM if a slot opens) |
 | `/raid cancel-signup <raid>` | Drop out (the next waitlisted player moves up) |
 | Raid post **⏰ Late** button | Mark yourself late (click again to undo); the post shows ⏰ next to your name. Works after the signup deadline too, like Can't come |
 | `/raid worldbuff <buff> <time> [where] [note]` | Classic Era and Forever: announce a world-buff drop (Rallying Cry of the Dragonslayer from Onyxia or Nefarian, Spirit of Zandalar, Warchief's Blessing). Posted in the channel without pings |
@@ -382,7 +382,7 @@ also works. `/help` reminds leaders of this. `/core`, `/team`, `/report`, `/part
 | `/bank request <item> [quantity] [note]` | Ask the guild bank for something; you get a DM when it's handled |
 | `/bank mine` / `/bank cancel <id>` | Your requests / cancel an open one |
 | `/craft request <item> [profession] [quantity] [materials] [note]` | Ask a guild crafter to make something; shows who has that profession |
-| `/craft list [profession]` / `/craft claim <id>` | Crafters: see open requests and take one |
+| `/craft list [profession]` / **I'll craft it** button | Crafters: see open requests, and take one with the button on its craft board post |
 | `/craft permissions` | Officers: put the craft board permissions right (members talk in a request post and press its buttons; only the bot and leadership start posts) |
 | `/craft done <id>` / `release <id>` / `mine` / `cancel <id>` | Finish, give back, see yours, or cancel. The requester gets DMs |
 
@@ -421,7 +421,7 @@ After each import, completed runs and new records are posted once in the dungeon
 
 | Command | What it does |
 | --- | --- |
-| `/lead create <title> <time> [description] [bosses] [core] [preset] [weekly] [tanks] [healers] [dps] [close_hours]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `preset` lists the raids of the selected guild's WoW edition plus generic sizes ([list](docs/raid-loot/RAID_PRESETS_BY_EDITION.md)); it suggests role seats, and explicit seat counts override them. `weekly:true` repeats after ending. `close_hours` closes signups that many hours before the start (Can't come and Late still work). Posts Tank / Healer / DPS / Maybe / Can't come / Late buttons |
+| `/lead create <title> <time> [description] [bosses] [core] [preset] [weekly] [tanks] [healers] [dps] [close_hours]` | Create a raid. Time like `friday 8pm`, `tonight 20:00`, `vendredi 20h`, `2026-10-03 20:00` (your server's timezone). `preset` lists WoW Forever's raids (Barrow Deeps, Hyjal Summit, Onyxia's Lair) plus generic sizes ([raid loot](docs/raid-loot/FOREVER_RAID_LOOT_2026-10-25.md)); it suggests role seats, and explicit seat counts override them. `weekly:true` repeats after ending. `close_hours` closes signups that many hours before the start (Can't come and Late still work). Posts Tank / Healer / DPS / Maybe / Can't come / Late buttons |
 | `/lead edit` / `cancel` / `start` | Manage the raid (raising a cap moves waitlisted players in; `close_hours` sets or, with 0, removes the signup deadline) |
 | `/lead end <raid>` | End the raid and see the **proposed EP** with Approve / Cancel buttons |
 | `/lead award-ep <raid>` | Show the proposed EP again (e.g. after `/import apply` added attendance) |
@@ -486,7 +486,7 @@ Approve, and a raid can never be paid twice.
 | `/mod faq test <question>` | Which answer a question would get |
 | `/mod recruit set open:<true\|false> [core] [classes] [roles] [days] [times] [language] [faction] [realm] [note]` | The guild's listing on guilded.kcaron.top/recruitment/ (or one core's, with `core`). Empty options keep their value; `none` clears a text. Approved servers only. Website applications arrive in the applications channel (or the officer log) with Accept / Decline / Spam |
 | `/mod recruit status` | This server's listings and the public page |
-| `/mod leaderboard share:<true\|false>` | Copy this guild's valid completed dungeon runs to guilded.kcaron.top/leaderboards/ (checked like personal uploads; every 15 minutes) |
+| `/mod leaderboard` | Sharing is always on; shows the window. Copies this guild's valid completed dungeon runs to guilded.kcaron.top/leaderboards/ (checked like personal uploads; every 15 minutes) |
 | `/tag set` / `/tag delete` | Manage saved answers |
 | `/setup selfroles <title> <role1> [role2..5]` | Post a role button panel |
 | `/config view` | Show settings |
@@ -581,18 +581,6 @@ Where a value comes from a fixed list you pick it instead of typing: **class** a
 - **Cancel:** the requester (or an officer) presses **Cancel request**.
 - Finished and cancelled posts get their tag, close and lock by themselves. Members cannot post in the forum; only the bot and officers can, so it stays tidy.
 - If the craft channel is an ordinary text channel (older setups), requests are announced there as before. To switch to the forum: `/config channel disable:true`, then `/setup start` step 3 and "Create them for me".
-
-### Upcoming Events (server administrators)
-
-`/events board`, `/events status`, `/events refresh`, `/events reminders`, `/events disable`:
-Manage Server required. One pinned board per configured channel, separate WoW Forever/PoE2
-sections, regional game filters, and optional reminders for explicitly opted-in game roles.
-No channels or notifications are enabled by deployment. The bot owner's `/guilded-events`
-controls official dates centrally. [Guide and verified sources](docs/GAME_COUNTDOWNS.md).
-
-Événements à venir : `/events board`, `/events status`, `/events refresh`, `/events reminders`,
-`/events disable` (Gérer le serveur requis). Rappels volontaires par rôle de jeu ; aucune
-activation automatique. Seul le propriétaire du bot gère les dates officielles.
 
 ## Optional battleground Discord setup
 

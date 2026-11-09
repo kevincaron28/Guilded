@@ -5,7 +5,8 @@ import { createHash } from "node:crypto";
 import { marked } from "marked";
 import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwitchHref, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../site/nav.mjs";
 import { WOW_EDITIONS, editionCards, editionHubs, editionPages } from "../site/editions.mjs";
-import { ACTIVE_EDITIONS, editionList, isEditionActive } from "../companion/active-editions.mjs";
+import { POE_ENABLED } from "../companion/active-games.mjs";
+import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 import { writeMobileAssociations } from "./mobile-associations.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
@@ -18,7 +19,7 @@ const guideDescriptions = {
   SUPPORT_GUILDED: "Optional coffee support for Guilded. Downloads and hosted access stay free; support never buys approval. English and French information.",
   OWNER_WALKTHROUGH: "Illustrated independent-hosting walkthrough for Guilded owners, with setup prerequisites and checks.",
   QUICK_START: "Choose addon-only play, EPGP or optional Discord sync for Guilded on WoW Forever. English and French quick setup.",
-  MEMBER_INSTALL: `Install Guilded for ${editionList(0)} and connect the optional companion. English and French instructions.`,
+  MEMBER_INSTALL: `Install Guilded for WoW Forever and connect the optional companion. English and French instructions.`,
   EPGP_GUIDE: "Use Guilded EP/GP, core pools, loot methods and standings, with or without Discord. Practical English and French raid workflow.",
   GUILD_OWNER_SETUP: "Configure Guilded roles, permissions and optional Discord synchronization for your own guild.",
   DEPLOY_ORACLE: "Independent Guilded hosting on Ubuntu: prerequisites, installation, maintenance and service checks.",
@@ -40,17 +41,18 @@ let headersFile = readFileSync("site/_headers", "utf8").replace("script-src 'sel
 if (analyticsToken) headersFile = headersFile.replace("connect-src 'self'", "connect-src 'self' https://cloudflareinsights.com");
 writeFileSync(`${out}/_headers`, headersFile);
 // Published provider versions are independent of a local candidate/package bump.
-const { guilded: publishedGuilded } = JSON.parse(readFileSync("site/releases.json", "utf8"));
+const { guilded: publishedGuilded, mobile: publishedMobile } = JSON.parse(readFileSync("site/releases.json", "utf8"));
 const version = publishedGuilded.github.version;
-// Forever-first (companion/active-editions.mjs): the chooser, header menu and downloads offer only the active editions.
-// The Start page's edition buttons come from the Forever-first switch, never from the markdown.
+// The Start page's download button (WoW Forever only), never from the markdown.
 const startEditions = french => {
   const query = french ? "?lang=fr" : "";
-  const buttons = WOW_EDITIONS.filter(edition => isEditionActive(edition.id)).map(edition => `<a class="button secondary" href="/editions/${edition.id}/${query}">${edition.name} <span aria-hidden="true">→</span></a>`).join("");
-  const hardcore = isEditionActive("classic-era") ? (french ? "Hardcore utilise le fichier Classic Era. " : "Hardcore uses the Classic Era file. ") : "";
-  return `<div class="start-editions">${buttons}</div><p class="small">${hardcore}${french ? "Fermez WoW avant d’installer." : "Close WoW before you install."}</p>`;
+  const buttons = WOW_EDITIONS.map(edition => `<a class="button secondary" href="/editions/${edition.id}/${query}">${edition.name} <span aria-hidden="true">→</span></a>`).join("");
+  return `<div class="start-editions">${buttons}</div><p class="small">${french ? "Fermez WoW avant d’installer." : "Close WoW before you install."}</p>`;
 };
-const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", version).replaceAll("{{GUILDED_CURSEFORGE_VERSION}}", publishedGuilded.curseforge.version);
+const renderVersions = content => content.replaceAll("{{GUILDED_VERSION}}", version).replaceAll("{{GUILDED_CURSEFORGE_VERSION}}", publishedGuilded.curseforge.version)
+  .replaceAll("{{COMPANION_DIRECT_URL}}", publishedGuilded.companionDirect.siteUrl ?? publishedGuilded.companionDirect.url).replaceAll("{{COMPANION_DIRECT_VERSION}}", publishedGuilded.companionDirect.version).replaceAll("{{COMPANION_DIRECT_SHA256}}", publishedGuilded.companionDirect.sha256)
+  .replaceAll("{{ANDROID_VERSION}}", publishedMobile.android.version).replaceAll("{{ANDROID_APK_URL}}", publishedMobile.android.apkUrl)
+  .replaceAll("{{ANDROID_RELEASE_URL}}", publishedMobile.android.releaseUrl).replaceAll("{{ANDROID_SHA256}}", publishedMobile.android.sha256);
 // Static pages link relative to the site root (so a project subpath works); bot pages stay absolute.
 const staticHref = prefix => item => item.bot || item.key === "companion" || /^https?:/.test(item.href) ? item.href : prefix + item.href.slice(1);
 const bilingualLabel = ({ en, fr }) => en === fr ? en : `<span data-en="${en}" data-fr="${fr}">${en}</span>`;
@@ -61,7 +63,7 @@ const versionMenu = (path, edition, { french = false, bilingual = false } = {}) 
   const section = editionSection(edition);
   const title = section ? `${label("Playing:", "Je joue à :")} <strong>${label(section.en, section.fr)}</strong>`
     : `<span data-edition-none>${label("Choose your WoW", "Choisir votre WoW")}</span><span data-edition-playing hidden>${label("Playing:", "Je joue à :")} <strong></strong></span>`;
-  return editionMenu({ current: section?.id ?? null, title, label: other => label(other.en, other.fr), href: other => editionSwitchHref(path, other.id), only: ACTIVE_EDITIONS });
+  return editionMenu({ current: section?.id ?? null, title, label: other => label(other.en, other.fr), href: other => editionSwitchHref(path, other.id) });
 };
 const homeNav = versionMenu("/", null, { bilingual: true }) + navLinks({ href: staticHref(""), label: bilingualLabel });
 const homeFooter = footerLinks({ href: staticHref(""), label: bilingualLabel, columnLabel: key => bilingualLabel(FOOTER_COLUMNS[key]), ariaLabel: "Site map" }).replace("<nav ", '<nav data-label-en="Site map" data-label-fr="Plan du site" ');
@@ -74,12 +76,22 @@ cpSync("site/fonts", `${out}/fonts`, { recursive: true });
 // The header logo (88 px, 3 KB instead of the 324 KB original), favicons and the 1200 × 630 link-preview card.
 for (const name of ["logo-88.webp", "favicon.png", "apple-touch-icon.png"]) copyFileSync(`site/brand/${name}`, `${out}/${name}`);
 cpSync("site/images/social", `${out}/images/social`, { recursive: true });
+cpSync("site/images/cards", `${out}/images/cards`, { recursive: true });
+cpSync("site/images/addon", `${out}/images/addon`, { recursive: true });
 cpSync("site/creator", `${out}/creator`, { recursive: true });
+// Guide screenshots (docs/SCREENSHOT_SHOTLIST.md): captured later; until a file exists the page shows a marked placeholder.
+if (existsSync("site/assets")) cpSync("site/assets", `${out}/assets`, { recursive: true });
 writeFileSync(`${out}/creator/index.html`, renderVersions(readFileSync("site/creator/index.html", "utf8")));
 mkdirSync(`${out}/images/showcase`, { recursive: true });
 for (const name of readdirSync("site/images/showcase")) {
   if (/\.(png|jpe?g|webp)$/.test(name)) copyFileSync(`site/images/showcase/${name}`, `${out}/images/showcase/${name}`);
 }
+// The released addon zips, served from this site so a download never depends on GitHub release downloads
+// (GitHub returned 504s for hours on 8 November 2026). Bytes are the published release files; release steps copy them here.
+if (existsSync("site/downloads")) cpSync("site/downloads", `${out}/downloads`, { recursive: true });
+// The companion reads /releases.json before GitHub: the installer's version, size and SHA-256 and the
+// addon zips' SHA-256 (companion-app/update-check.cjs, addon-installer.cjs).
+copyFileSync("site/releases.json", `${out}/releases.json`);
 // Google's public ownership files are curated separately from other local files.
 // They are served on both sites by the existing static asset binding.
 if (existsSync("site/verification")) {
@@ -127,7 +139,9 @@ for (const source of sources) {
 }
 // Public content is explicitly curated; never import guild/database data here.
 
-const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge), ...editionHubs(version, publishedGuilded.curseforge)];
+// Pages of another WoW edition or of a held game (companion/active-games.mjs) are not built; the Worker redirects
+// their old addresses (worker/index.mjs).
+const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge), ...editionHubs(version, publishedGuilded.curseforge)].filter(page => keepPage(page)).map(page => withoutPoe(page));
 // The bot-served public pages too, in each edition's section; published guild pages have their
 // own sitemap, served by the bot.
 const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
@@ -138,14 +152,15 @@ for (const page of pages) {
   const pageText = (en, fr) => bilingual ? `<span data-en="${escape(en)}" data-fr="${escape(fr)}">${en}</span>` : french ? fr : en;
   const descriptionAttributes = bilingual ? ` data-content-en="${escape(page.description)}" data-content-fr="${escape(page.descriptionFr)}"` : '';
   const titleAttributes = bilingual ? ` data-content-en="${escape(page.title)}" data-content-fr="${escape(page.titleFr)}"` : '';
-  const fill = (markdown, fr) => markdown.replaceAll("{{START_EDITIONS}}", startEditions(fr));
+  const fill = (markdown, fr) => renderVersions(stripPoe(markdown)).replaceAll("{{START_EDITIONS}}", startEditions(fr));
   const enBody = page.body ?? marked.parse(fill(readFileSync(`site/pages/${page.source}`, "utf8"), french));
   const body = page.sourceFr ? `<div data-language-copy="en" lang="en">${enBody}</div><div data-language-copy="fr" lang="fr" hidden>${marked.parse(fill(readFileSync(`site/pages/${page.sourceFr}`, "utf8"), true))}</div>` : enBody;
-  const communityNav = french ? `<nav class="community-subnav" aria-label="Dans Quebec Gold">${[['quebec-gold/', 'La communauté'], ['g/quebec-gold/', 'World of Warcraft'], ['quebec-gold/poe2/', 'Path of Exile 2']].map(([path, label]) => `<a href="${prefix}${path}"${page.path === path ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>` : '';
+  const communityLabel = (en, fr) => page.community ? `<span data-en="${en}" data-fr="${fr}">${en}</span>` : fr;
+  const communityNav = french || page.community ? `<nav class="community-subnav" aria-label="${page.community ? 'Quebec Gold' : 'Dans Quebec Gold'}">${[['quebec-gold/', communityLabel('The community', 'La communauté')], ['g/quebec-gold/', 'World of Warcraft'], ...(POE_ENABLED ? [['quebec-gold/poe2/', 'Path of Exile 2']] : [])].map(([path, label]) => `<a href="${prefix}${path}"${page.path === path ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>` : '';
   mkdirSync(`${out}/${page.path}`, { recursive: true });
   writeFileSync(`${out}/${page.path}index.html`, `<!doctype html>
 <html lang="${page.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title${bilingual ? ` data-en="${escape(page.title)}" data-fr="${escape(page.titleFr)}"` : ""}>${escape(page.title)}</title><meta name="description" content="${escape(page.description)}"${descriptionAttributes}><link rel="canonical" href="${origin}/${page.path}">${page.draft ? '<meta name="robots" content="noindex,follow">' : ''}<meta property="og:title" content="${escape(page.title)}"${titleAttributes}><meta property="og:description" content="${escape(page.description)}"${descriptionAttributes}><meta property="og:type" content="website"><meta property="og:url" content="${origin}/${page.path}"><meta property="og:image" content="${origin}/images/social/guilded-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="${prefix}favicon.png" type="image/png"><link rel="apple-touch-icon" href="${prefix}apple-touch-icon.png"><link rel="stylesheet" href="${prefix}design-tokens.css"><link rel="stylesheet" href="${prefix}style.css"><link rel="stylesheet" href="${prefix}atelier.css"><script src="${prefix}site.js" defer></script>${bilingual ? `<script src="${prefix}language.js" type="module"></script>` : ""}</head>
-<body class="site-page ${page.hub ? 'edition-page hub-page' : page.path.startsWith('editions/') ? 'edition-page' : french ? 'community-page' : 'features-page'}"><a class="skip" href="#main">${pageText('Skip to content', 'Aller au contenu')}</a>${siteHeader(prefix, french, page.path.startsWith('editions/') ? 'download' : { 'start/': 'start', 'features/': 'features', 'officers/': 'features' }[page.path] ?? null, bilingual, page.gameEdition, `/${page.path}`)}<main class="guide recruitment" id="main" tabindex="-1">${communityNav}${page.draft ? '<aside class="note"><strong>Aperçu de recrutement</strong><p>Les informations de guilde et le contact public restent à confirmer avant publication.</p></aside>' : ''}${body}</main><footer class="site-footer">${siteFooterCols(prefix, { french, bilingual, edition: page.gameEdition })}<div class="footer-bottom"><a href="${prefix}index.html">Guilded · ${pageText('The product', 'Le produit')}</a><a href="${prefix}quebec-gold/">Quebec Gold · ${pageText('The community', 'La communauté')}</a><a href="https://kcaron.top/">${pageText('By', 'Par')} KCaron ↗</a><a href="https://ko-fi.com/wowguilded">${pageText('Buy me a coffee', 'Offrir un café')} ↗</a><p>${pageText('Independent project, not affiliated with Blizzard Entertainment or Grinding Gear Games.', 'Site indépendant, sans affiliation avec Blizzard Entertainment ou Grinding Gear Games.')}</p></div></footer></body></html>`);
+<body class="site-page ${page.hub ? 'edition-page hub-page' : page.path.startsWith('editions/') ? 'edition-page' : french || page.community ? 'community-page' : 'features-page'}"><a class="skip" href="#main">${pageText('Skip to content', 'Aller au contenu')}</a>${siteHeader(prefix, french, page.path.startsWith('editions/') ? 'download' : { 'start/': 'start', 'features/': 'features', 'officers/': 'features' }[page.path] ?? null, bilingual, page.gameEdition, `/${page.path}`)}<main class="guide recruitment" id="main" tabindex="-1">${communityNav}${page.draft ? '<aside class="note"><strong>Aperçu de recrutement</strong><p>Les informations de guilde et le contact public restent à confirmer avant publication.</p></aside>' : ''}${body}</main><footer class="site-footer">${siteFooterCols(prefix, { french, bilingual, edition: page.gameEdition })}<div class="footer-bottom"><a href="${prefix}index.html">Guilded · ${pageText('The product', 'Le produit')}</a><a href="${prefix}quebec-gold/">Quebec Gold · ${pageText('The community', 'La communauté')}</a><a href="https://kcaron.top/">${pageText('By', 'Par')} KCaron ↗</a><a href="https://ko-fi.com/wowguilded">${pageText('Buy me a coffee', 'Offrir un café')} ↗</a><p>${pageText('Independent project, not affiliated with Blizzard Entertainment or Grinding Gear Games.', 'Site indépendant, sans affiliation avec Blizzard Entertainment ou Grinding Gear Games.')}</p></div></footer></body></html>`);
   if (!page.draft) publicUrls.push(`/${page.path}`);
 }
 writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${origin}${path}</loc></url>`).join('')}</urlset>\n`);

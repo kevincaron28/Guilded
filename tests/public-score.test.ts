@@ -13,8 +13,10 @@ describe("public dungeon score", () => {
     expect(scoreRun(run("a", 1200, [16, 17]))).toEqual({ key: "389", bracket: "15-29", points: 200, penaltyPercent: 0 });
     // Two levels above the 15-18 band: -20%.
     expect(scoreRun(run("b", 1200, [16, 20]))?.points).toBe(160);
-    expect(scoreRun(run("c", 1200, [16, 22]))).toBeNull();
-    expect(scoreRun(run("d", 1200, [14, 16]))).toBeNull();
+    expect(scoreRun(run("c", 1200, [16, 22]))?.points).toBe(120); // leniency: up to 6 over, 10% per level
+    expect(scoreRun(run("c2", 1200, [16, 26]))).toBeNull();
+    expect(scoreRun(run("d", 1200, [14, 16]))?.points).toBe(200); // leniency: up to 3 under the band
+    expect(scoreRun(run("d2", 1200, [10, 16]))).toBeNull();
     expect(scoreRun(run("e", 1200, [16, null as unknown as number]))).toBeNull();
     expect(scoreRun(run("f", 1200, [16], { difficultyId: 1 }))).toBeNull();
     // Scarlet Monastery needs its wing.

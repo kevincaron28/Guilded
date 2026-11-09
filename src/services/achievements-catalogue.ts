@@ -6,11 +6,12 @@
 // Adding one: add a row, keep the id stable forever (it is stored), and add the threshold to the metric's
 // facts if it is a new metric. French text is part of the row, so no separate i18n entry is needed.
 
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 export type AchievementGame = "wow" | "poe2" | "guild";
 export type AchievementTier = "bronze" | "silver" | "gold" | "platinum" | "epic" | "legendary";
 
 /** Bumped whenever rows are added that older data can already satisfy; guilds that announce re-baseline quietly once. */
-export const ACHIEVEMENT_CATALOGUE_VERSION = 5;
+export const ACHIEVEMENT_CATALOGUE_VERSION = 9;
 
 /**
  * What is measured:
@@ -24,6 +25,12 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 5;
  * - raidClears: those raids where every boss was marked defeated.
  * - activeDays: distinct days with recorded Discord participation (messages, reactions or voice).
  * - dungeonVariety: distinct dungeons completed (the first completion of each).
+ * - professionsMastered: distinct professions at skill 300 on characters of that edition (def.edition).
+ * - professionFirsts: professions in which the member was the first of the guild to reach skill 300 while their addon was watching.
+ * - rareRecipes: recipes only this member's characters know in the guild (needs recipe data from at least three crafters).
+ * - craftsDone: craft-board requests the member completed for another member.
+ * - gameAchievement: a WoW Forever in-game achievement the member's addon reported (generated rows, see "Generated rows" below;
+ *   never in ACHIEVEMENTS, so the evaluator never awards them: they are stored from the addon's own record).
  * - professionSkill: the highest profession skill among the member's synced characters.
  * - poeLevel: the highest PoE2 character level the member's own client log reported.
  * - poeMaps: distinct PoE2 map instances the member's companion recorded.
@@ -32,11 +39,15 @@ export const ACHIEVEMENT_CATALOGUE_VERSION = 5;
  *   counter and the season participation record is used, so earlier tracked activity still counts.
  * - communityPoints: points earned on the guild's community leaderboards (awards minus reversals).
  * - epEarned: effort points (EP) the raid ledger awarded.
+ * - honorableKills: the member's lifetime honorable kills, as their own addon reported (milestones the companion uploads).
+ * - duelStreak: the longest run of counted duel wins in a row.
+ * - beatTopDuelist: 1 once the member has a counted win over the guild's current #1 duelist (who needs 3+ wins).
+ * - duelWins: duels the member won against another member of the guild (counted duels only, see services/duels.ts).
  * - mvpWeeks: weeks the member was named MVP of the week (the community honors record).
  * - serverAnniversaries: server anniversaries (the Discord server's birthday, from its creation date) that came
  *   while the member was on the server. The member's start is when Guilded first recorded them.
  */
-export type AchievementMetric = "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries";
+export type AchievementMetric = "gameAchievement" | "wowLevel" | "wowMaxLevel" | "dungeonRuns" | "dungeonVariety" | "professionSkill" | "raidsAttended" | "raidClears" | "activeDays" | "poeLevel" | "poeMaps" | "wowEditionLevel" | "wowEditionCap" | "wowEditionProfession" | "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "duelStreak" | "beatTopDuelist" | "professionsMastered" | "professionFirsts" | "rareRecipes" | "craftsDone";
 
 export interface AchievementText { name: string; description: string }
 export interface AchievementDef {
@@ -57,19 +68,24 @@ export interface AchievementDef {
 
 // Level caps per WoW edition (checked 2 Nov 2026): WoW Forever is fixed at 60 (growth is horizontal), Era 60,
 // TBC 70, Mists Classic and Retail (Midnight) 90. Anything not listed counts as 60. PoE2 caps at 100.
-export const WOW_LEVEL_CAP: Record<string, number> = { forever: 60, "classic-era": 60, "classic-tbc": 70, "classic-mists": 90, retail: 90 };
+// WoW Forever's level cap. Earned rows of other editions stay in the database, retired (RETIRED_ACHIEVEMENT_IDS).
+export const WOW_LEVEL_CAP: Record<string, number> = { forever: 60 };
 export const wowLevelCap = (edition: string | null | undefined) => WOW_LEVEL_CAP[edition ?? "forever"] ?? 60;
 
-export type WowEdition = "forever" | "classic-era" | "classic-tbc" | "classic-mists" | "retail";
-export const WOW_EDITIONS: readonly WowEdition[] = ["forever", "classic-era", "classic-tbc", "classic-mists", "retail"];
+export type WowEdition = "forever";
+export const WOW_EDITIONS: readonly WowEdition[] = ["forever"];
 /** `label` heads the website section; `short` prefixes the achievement names. */
 export const EDITION_LABEL: Record<WowEdition, { en: string; fr: string; short: string }> = {
-  forever: { en: "WoW Forever", fr: "WoW Forever", short: "Forever" }, "classic-era": { en: "Classic Era", fr: "Classic Era", short: "Era" },
-  "classic-tbc": { en: "TBC Classic", fr: "TBC Classic", short: "TBC" }, "classic-mists": { en: "Mists Classic", fr: "Mists Classic", short: "Mists" },
-  retail: { en: "Retail", fr: "Retail", short: "Retail" }
+  forever: { en: "WoW Forever", fr: "WoW Forever", short: "Forever" }
 };
+/**
+ * Editions whose achievements are in the catalogue (version 7: WoW Forever only). The other editions keep their level
+ * caps and labels above, and their ids are in RETIRED_ACHIEVEMENT_IDS. To bring one back, add it here AND remove its ids
+ * from the retired list (docs/FOREVER_ONLY_FOCUS.md).
+ */
+export const CATALOGUE_EDITIONS: readonly WowEdition[] = ["forever"];
 // Highest profession skill per edition (Forever and Era 300, TBC 375, Mists 600). Retail's skill is per expansion, so it has no profession rows.
-const PROFESSION_STEPS: Partial<Record<WowEdition, number[]>> = { forever: [150, 300], "classic-era": [150, 300], "classic-tbc": [150, 300, 375], "classic-mists": [150, 300, 450, 600] };
+const PROFESSION_STEPS: Partial<Record<WowEdition, number[]>> = { forever: [75, 150, 225, 300] };
 /** Two rows share a progression (and a "next" slot) only if they share this key. */
 export const ladderKey = (def: AchievementDef) => `${def.metric}:${def.edition ?? ""}`;
 
@@ -120,6 +136,14 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
     [1, "bronze", "MVP of the Week", "MVP de la semaine"], [3, "silver", "Triple Threat", "Triple menace"], [5, "gold", "Perennial MVP", "MVP perpétuel"],
     [10, "platinum", "Ten-Time MVP", "MVP dix fois"], [25, "epic", "Dynasty", "Dynastie"]
   ], (n, fr) => fr ? `Être nommé MVP de la semaine ${n} ${plural(n, "fois", "fois")}.` : `Be named MVP of the week ${n} ${plural(n, "time", "times")}.`),
+  ...ladder("honorable-kills", "honorableKills", [
+    [1, "bronze", "First Blood", "Premier sang"], [100, "silver", "Honor Seeker", "Chercheur d'honneur"], [500, "gold", "Warmonger", "Belliciste"],
+    [1000, "epic", "Thousand Fallen", "Mille vaincus"]
+  ], (n, fr) => fr ? `Obtenir ${grouped(n, true)} ${plural(n, "mise à mort honorable", "mises à mort honorables")} (JcJ).` : `Score ${grouped(n, false)} honorable ${plural(n, "kill", "kills")} in PvP.`),
+  ...ladder("duel-wins", "duelWins", [
+    [1, "bronze", "First Duel Won", "Premier duel gagné"], [10, "silver", "Duelist", "Duelliste"], [50, "gold", "Blademaster", "Maître d'armes"],
+    [100, "epic", "Duel Champion", "Champion des duels"]
+  ], (n, fr) => fr ? `Gagner ${grouped(n, true)} ${plural(n, "duel", "duels")} contre des membres de la guilde.` : `Win ${grouped(n, false)} ${plural(n, "duel", "duels")} against guild members.`),
   ...ladder("anniversary", "serverAnniversaries", [
     [1, "bronze", "Anniversary Guest", "Invité d'anniversaire"], [2, "silver", "Two Candles", "Deux chandelles"], [3, "gold", "Triple Toast", "Triple toast"],
     [5, "platinum", "High Five", "Haut les cinq"], [10, "legendary", "Decade Strong", "Une décennie ensemble"]
@@ -129,7 +153,7 @@ const ACTIVITY_LADDERS: AchievementDef[] = [
 const tierFor = (value: number, cap: number): AchievementTier => value >= cap ? "epic" : value / cap >= 0.7 ? "gold" : value / cap >= 0.4 ? "silver" : "bronze";
 
 /** Per edition: a level step every 10 levels up to that edition's cap (so none is unreachable), the cap, three characters at it, and profession steps. */
-const EDITION_ACHIEVEMENTS: AchievementDef[] = WOW_EDITIONS.flatMap(edition => {
+const EDITION_ACHIEVEMENTS: AchievementDef[] = CATALOGUE_EDITIONS.flatMap(edition => {
   const cap = WOW_LEVEL_CAP[edition]!, { short } = EDITION_LABEL[edition], label = EDITION_LABEL[edition];
   const base = { game: "wow" as const, edition };
   const levels: number[] = [];
@@ -154,22 +178,35 @@ const EDITION_ACHIEVEMENTS: AchievementDef[] = WOW_EDITIONS.flatMap(edition => {
   return rows;
 });
 
-// The first WoW rows ignored the edition, so a level 60 on Retail earned "Sixty and Counting". They are replaced by the edition rows.
-const LEGACY_IDS = new Set(["wow-level-20", "wow-level-40", "wow-level-60", "wow-level-80", "wow-max-level", "wow-max-level-3", "profession-150", "profession-300"]);
+/**
+ * Professions in WoW Forever beyond the skill steps: mastering several, being first in the guild, rare recipes and crafting
+ * for guildmates (docs/plans/FOREVER_ACHIEVEMENTS.md). Skill steps themselves are the `wow-forever-profession-N` rows above.
+ */
+const PROFESSION_ACHIEVEMENTS: AchievementDef[] = [
+  ...[[2, "gold", "Master of Two Trades", "Maître de deux métiers", "two"], [4, "epic", "Master of Many Trades", "Maître de nombreux métiers", "four"]].map(([n, tier, en, fr, word], i): AchievementDef => ({
+    id: `wow-forever-masters-${n}`, game: "wow", edition: "forever", tier: tier as AchievementTier, metric: "professionsMastered", threshold: n as number, rank: i + 1,
+    en: { name: `Forever: ${en}`, description: `Reach skill 300 in ${word} different professions on WoW Forever characters.` },
+    fr: { name: `Forever : ${fr}`, description: `Atteindre la compétence 300 dans ${n === 2 ? "deux" : "quatre"} métiers différents avec des personnages WoW Forever.` }
+  })),
+  ...[[1, "epic", "First to Three Hundred", "Premier à trois cents"], [3, "legendary", "Guild Pioneer of the Trades", "Pionnier des métiers de la guilde"]].map(([n, tier, en, fr], i): AchievementDef => ({
+    id: `wow-forever-first-300-${n}`, game: "wow", edition: "forever", tier: tier as AchievementTier, metric: "professionFirsts", threshold: n as number, rank: i + 1,
+    en: { name: `Forever: ${en}`, description: n === 1 ? "Be the first in the guild to reach skill 300 in a profession." : `Be the first in the guild to reach skill 300 in ${n} professions.` },
+    fr: { name: `Forever : ${fr}`, description: n === 1 ? "Être le premier de la guilde à atteindre la compétence 300 dans un métier." : `Être le premier de la guilde à atteindre la compétence 300 dans ${n} métiers.` }
+  })),
+  ...[[1, "silver", "Rare Pattern", "Patron rare"], [5, "gold", "Pattern Hoarder", "Collectionneur de patrons"], [15, "epic", "Keeper of Lost Recipes", "Gardien des recettes perdues"]].map(([n, tier, en, fr], i): AchievementDef => ({
+    id: `wow-forever-rare-recipes-${n}`, game: "wow", edition: "forever", tier: tier as AchievementTier, metric: "rareRecipes", threshold: n as number, rank: i + 1,
+    en: { name: `Forever: ${en}`, description: `Know ${n === 1 ? "a recipe" : `${n} recipes`} that no other guild crafter has learned.` },
+    fr: { name: `Forever : ${fr}`, description: `Connaître ${n === 1 ? "une recette" : `${n} recettes`} qu'aucun autre artisan de la guilde n'a apprise${n === 1 ? "" : "s"}.` }
+  }))
+];
+
+const CRAFT_LADDER: AchievementDef[] = ladder("crafts-done", "craftsDone", [
+  [1, "bronze", "First Commission", "Première commande"], [5, "bronze", "Helping Hands", "Mains serviables"], [10, "silver", "Guild Artisan", "Artisan de la guilde"],
+  [25, "silver", "Trusted Crafter", "Artisan de confiance"], [50, "gold", "Master Provider", "Fournisseur émérite"], [100, "platinum", "Workshop of the Guild", "Atelier de la guilde"],
+  [250, "epic", "Legend of the Forge", "Légende de la forge"]
+], (n, fr) => fr ? `Réaliser ${grouped(n, true)} ${plural(n, "commande", "commandes")} pour des membres de la guilde au tableau d'artisanat.` : `Complete ${grouped(n, false)} ${plural(n, "craft", "crafts")} for guildmates on the craft board.`);
 
 const BASE_ACHIEVEMENTS: AchievementDef[] = [
-  // WoW: the original edition-less rows (legacy), replaced by EDITION_ACHIEVEMENTS.
-  def("wow-level-20", "wow", "bronze", "wowLevel", 20, ["Getting Started", "Reach level 20 on a character."], ["Premiers pas", "Atteindre le niveau 20 avec un personnage."]),
-  def("wow-level-40", "wow", "silver", "wowLevel", 40, ["Seasoned Adventurer", "Reach level 40 on a character."], ["Aventurier aguerri", "Atteindre le niveau 40 avec un personnage."]),
-  def("wow-level-60", "wow", "gold", "wowLevel", 60, ["Sixty and Counting", "Reach level 60 on a character."], ["Soixante et plus", "Atteindre le niveau 60 avec un personnage."]),
-  def("wow-level-80", "wow", "epic", "wowLevel", 80, ["Veteran of Azeroth", "Reach level 80 on a character."], ["Vétéran d'Azeroth", "Atteindre le niveau 80 avec un personnage."]),
-  def("wow-max-level", "wow", "gold", "wowMaxLevel", 1, ["Maximum Level", "Reach the level cap of your WoW edition."], ["Niveau maximum", "Atteindre le niveau maximum de votre édition de WoW."]),
-  def("wow-max-level-3", "wow", "epic", "wowMaxLevel", 3, ["Army of Alts", "Have three characters at the level cap."], ["Armée de rerolls", "Avoir trois personnages au niveau maximum."]),
-
-  // Professions (skill 300 is the Era and Forever cap; later editions go higher).
-  def("profession-150", "wow", "bronze", "professionSkill", 150, ["Journeyman Artisan", "Reach skill 150 in a profession."], ["Artisan compagnon", "Atteindre la compétence 150 dans un métier."]),
-  def("profession-300", "wow", "gold", "professionSkill", 300, ["Master Artisan", "Reach skill 300 in a profession."], ["Maître artisan", "Atteindre la compétence 300 dans un métier."]),
-
   // Guild dungeon runs.
   def("dungeon-runs-1", "guild", "bronze", "dungeonRuns", 1, ["First Descent", "Complete a guild dungeon run."], ["Première descente", "Terminer un donjon de guilde."]),
   def("dungeon-runs-10", "guild", "bronze", "dungeonRuns", 10, ["Dungeon Regular", "Complete 10 guild dungeon runs."], ["Habitué des donjons", "Terminer 10 donjons de guilde."]),
@@ -177,6 +214,10 @@ const BASE_ACHIEVEMENTS: AchievementDef[] = [
   def("dungeon-runs-50", "guild", "gold", "dungeonRuns", 50, ["Dungeon Veteran", "Complete 50 guild dungeon runs."], ["Vétéran des donjons", "Terminer 50 donjons de guilde."]),
   def("dungeon-runs-100", "guild", "epic", "dungeonRuns", 100, ["Centurion of the Depths", "Complete 100 guild dungeon runs."], ["Centurion des profondeurs", "Terminer 100 donjons de guilde."]),
 
+  def("dungeon-variety-1", "guild", "bronze", "dungeonVariety", 1, ["First Dungeon Clear", "Complete your first dungeon with the guild."], ["Premier donjon terminé", "Terminer votre premier donjon avec la guilde."]),
+  def("dungeon-variety-10", "guild", "gold", "dungeonVariety", 10, ["Dungeon Collector", "Complete 10 different dungeons with the guild."], ["Collectionneur de donjons", "Terminer 10 donjons différents avec la guilde."]),
+  def("duel-streak-5", "guild", "gold", "duelStreak", 5, ["Unbeaten", "Win 5 guild duels in a row."], ["Invaincu", "Gagner 5 duels de guilde d'affilée."]),
+  def("duel-beat-top", "guild", "epic", "beatTopDuelist", 1, ["Giant Slayer", "Beat the guild's top duelist in a duel."], ["Tueur de géant", "Battre le meilleur duelliste de la guilde en duel."]),
   def("dungeon-variety-5", "guild", "silver", "dungeonVariety", 5, ["Dungeon Explorer", "Complete 5 different dungeons with the guild."], ["Explorateur de donjons", "Terminer 5 donjons différents avec la guilde."]),
 
   // Guild raids: attendance an officer recorded, and full clears.
@@ -194,28 +235,65 @@ const BASE_ACHIEVEMENTS: AchievementDef[] = [
   def("active-days-30", "guild", "silver", "activeDays", 30, ["Pillar of the Community", "Be active in the guild's Discord on 30 different days."], ["Pilier de la communauté", "Être actif sur le Discord de la guilde pendant 30 jours différents."]),
   def("active-days-100", "guild", "gold", "activeDays", 100, ["Heart of the Guild", "Be active in the guild's Discord on 100 different days."], ["Cœur de la guilde", "Être actif sur le Discord de la guilde pendant 100 jours différents."]),
 
-  // Path of Exile 2, from the member's own companion (client log).
-  def("poe2-level-75", "poe2", "silver", "poeLevel", 75, ["Seasoned Exile", "Reach level 75 in Path of Exile 2."], ["Exilé aguerri", "Atteindre le niveau 75 dans Path of Exile 2."]),
-  def("poe2-level-90", "poe2", "gold", "poeLevel", 90, ["Exile Ascendant", "Reach level 90 in Path of Exile 2."], ["Exilé ascendant", "Atteindre le niveau 90 dans Path of Exile 2."]),
-  def("poe2-level-99", "poe2", "epic", "poeLevel", 99, ["On the Brink", "Reach level 99 in Path of Exile 2."], ["Au bord du sommet", "Atteindre le niveau 99 dans Path of Exile 2."]),
-  def("poe2-level-100", "poe2", "epic", "poeLevel", 100, ["Pinnacle of Wraeclast", "Reach level 100 in Path of Exile 2."], ["Sommet de Wraeclast", "Atteindre le niveau 100 dans Path of Exile 2."]),
-  def("poe2-maps-100", "poe2", "silver", "poeMaps", 100, ["Cartographer", "Clear 100 maps in Path of Exile 2."], ["Cartographe", "Parcourir 100 cartes dans Path of Exile 2."]),
-  def("poe2-maps-500", "poe2", "gold", "poeMaps", 500, ["Master Cartographer", "Clear 500 maps in Path of Exile 2."], ["Maître cartographe", "Parcourir 500 cartes dans Path of Exile 2."]),
-
   // Discord activity, community points and EP: long progressions (see ACTIVITY_LADDERS above).
   ...ACTIVITY_LADDERS,
 
   // WoW per edition (levels, level cap, profession skill).
-  ...EDITION_ACHIEVEMENTS
+  ...EDITION_ACHIEVEMENTS,
+
+  // Professions: mastery, guild firsts, rare recipes and crafting for guildmates.
+  ...PROFESSION_ACHIEVEMENTS,
+  ...CRAFT_LADDER
 ];
 
-/** Every row, legacy included (ids are stored forever, so lookups and the badge art cover all of them). */
-export const ACHIEVEMENTS: readonly AchievementDef[] = BASE_ACHIEVEMENTS.map(row => LEGACY_IDS.has(row.id) ? { ...row, legacy: true } : row);
-/** What can still be earned: the catalogue without the legacy rows. */
-export const ACTIVE_ACHIEVEMENTS: readonly AchievementDef[] = ACHIEVEMENTS.filter(row => !row.legacy);
+/**
+ * Achievement ids that left the catalogue in version 7 (only WoW Forever and guild rows remain). Never reuse one. Rows
+ * already earned stay in `MemberAchievement` (history, and the way back), but nothing that is not in ACHIEVEMENTS is
+ * evaluated, announced, counted or shown, whatever the edition or game switches say.
+ */
+export const RETIRED_ACHIEVEMENT_IDS: readonly string[] = [
+  // The edition-less WoW rows (replaced by the per-edition rows in catalogue 6).
+  "wow-level-20", "wow-level-40", "wow-level-60", "wow-level-80", "wow-max-level", "wow-max-level-3", "profession-150", "profession-300",
+  // Path of Exile 2 (levels, maps).
+  "poe2-level-75", "poe2-level-90", "poe2-level-99", "poe2-level-100", "poe2-maps-100", "poe2-maps-500",
+  // Classic Era.
+  "wow-classic-era-level-10", "wow-classic-era-level-20", "wow-classic-era-level-30", "wow-classic-era-level-40", "wow-classic-era-level-50", "wow-classic-era-level-60", "wow-classic-era-alts-3", "wow-classic-era-profession-150", "wow-classic-era-profession-300",
+  // TBC Classic.
+  "wow-classic-tbc-level-10", "wow-classic-tbc-level-20", "wow-classic-tbc-level-30", "wow-classic-tbc-level-40", "wow-classic-tbc-level-50", "wow-classic-tbc-level-60", "wow-classic-tbc-level-70", "wow-classic-tbc-alts-3", "wow-classic-tbc-profession-150", "wow-classic-tbc-profession-300", "wow-classic-tbc-profession-375",
+  // Mists Classic.
+  "wow-classic-mists-level-10", "wow-classic-mists-level-20", "wow-classic-mists-level-30", "wow-classic-mists-level-40", "wow-classic-mists-level-50", "wow-classic-mists-level-60", "wow-classic-mists-level-70", "wow-classic-mists-level-80", "wow-classic-mists-level-90", "wow-classic-mists-alts-3", "wow-classic-mists-profession-150", "wow-classic-mists-profession-300", "wow-classic-mists-profession-450", "wow-classic-mists-profession-600",
+  // Retail.
+  "wow-retail-level-10", "wow-retail-level-20", "wow-retail-level-30", "wow-retail-level-40", "wow-retail-level-50", "wow-retail-level-60", "wow-retail-level-70", "wow-retail-level-80", "wow-retail-level-90", "wow-retail-alts-3"
+];
+
+/** Every achievement a member can see or earn. Retired ids (above) are not in it, so no surface can show them. */
+export const ACHIEVEMENTS: readonly AchievementDef[] = BASE_ACHIEVEMENTS;
+/** What can still be earned (everything in the catalogue; kept as its own name for the surfaces that mean "earnable"). */
+export const ACTIVE_ACHIEVEMENTS: readonly AchievementDef[] = ACHIEVEMENTS;
 
 const BY_ID = new Map(ACHIEVEMENTS.map(row => [row.id, row]));
-export const achievementById = (id: string): AchievementDef | undefined => BY_ID.get(id);
+
+// ----- Generated rows: WoW Forever's in-game achievements --------------------------------------------------------------
+// Members' addons report the achievements their characters earned (milestone kind "ach"); the names arrive with the report and are
+// kept in GameAchievement, so there is no list to maintain here. A generated row is `forever-ach-<game id>`, game "wow", edition
+// "forever", one step (threshold 1); its tier follows the points the client showed. The registry below is filled from the database
+// (services/game-achievements.ts) and read by achievementById, so every surface that looks a row up by id finds it.
+const GENERATED = new Map<string, AchievementDef>();
+export const GENERATED_ACHIEVEMENT_PREFIX = "forever-ach-";
+export const isGeneratedAchievementId = (id: string) => id.startsWith(GENERATED_ACHIEVEMENT_PREFIX);
+/** The tier of an in-game achievement from its points (the client's own scale: 5, 10, 25, 50 ...). */
+export const tierForPoints = (points: number): AchievementTier => points >= 100 ? "legendary" : points >= 50 ? "epic" : points >= 25 ? "platinum" : points >= 10 ? "gold" : points >= 5 ? "silver" : "bronze";
+export function generatedAchievement(row: { achievementId: number; name: string; description: string; categoryName: string; points: number }): AchievementDef {
+  const text = { name: row.name, description: row.description || (row.categoryName ? row.categoryName : "WoW Forever") };
+  return { id: `${GENERATED_ACHIEVEMENT_PREFIX}${row.achievementId}`, game: "wow", tier: tierForPoints(row.points), metric: "gameAchievement", threshold: 1, edition: "forever", en: text, fr: text };
+}
+/** Replaces the generated rows (the whole list, as loaded). The names are the client's own language, so English and French are the same text. */
+export function setGeneratedAchievements(rows: readonly Parameters<typeof generatedAchievement>[0][]): void {
+  GENERATED.clear();
+  for (const row of rows) { const def = generatedAchievement(row); GENERATED.set(def.id, def); }
+}
+export const generatedAchievements = (): AchievementDef[] => [...GENERATED.values()];
+export const achievementById = (id: string): AchievementDef | undefined => BY_ID.get(id) ?? GENERATED.get(id);
 export const TIER_COLOR: Record<AchievementTier, string> = { bronze: "#cd7f32", silver: "#c9d1d9", gold: "#ffd100", platinum: "#7fe3f5", epic: "#c56cf0", legendary: "#ff6a2e" };
 export const TIER_LABEL: Record<AchievementTier, { en: string; fr: string }> = {
   bronze: { en: "Bronze", fr: "Bronze" }, silver: { en: "Silver", fr: "Argent" }, gold: { en: "Gold", fr: "Or" },
@@ -226,3 +304,9 @@ export const GAME_LABEL: Record<AchievementGame, { en: string; fr: string }> = {
 };
 /** Where a row is listed: its WoW edition if it has one, else its game. */
 export const groupLabel = (def: AchievementDef, lang: "en" | "fr") => def.edition ? EDITION_LABEL[def.edition][lang] : GAME_LABEL[def.game][lang];
+
+/**
+ * Forever-only focus (companion/active-games.mjs): a PoE2 row is shown only while PoE2 tracking is on. The data
+ * is never deleted; turning ACTIVE_TRACKING back on makes rows that are still in the catalogue show again.
+ */
+export const achievementGameVisible = (def: Pick<AchievementDef, "game">, tracking = POE_TRACKING_ENABLED) => def.game !== "poe2" || tracking;

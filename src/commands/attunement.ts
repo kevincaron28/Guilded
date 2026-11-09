@@ -1,3 +1,4 @@
+import { displayCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { createAttunementService } from "../services/attunement.js";
@@ -43,5 +44,5 @@ export async function executeAttunement(interaction: ChatInputCommandInteraction
   const name = interaction.options.getString("name", true);
   const completed = interaction.options.getBoolean("completed") ?? true;
   await attunementService.set(character.id, name, completed, "discord");
-  await interaction.reply({ content: `Recorded ${name} as ${completed ? "completed" : "not completed"} for ${character.name}.`, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: `Recorded ${name} as ${completed ? "completed" : "not completed"} for ${displayCharacterName(character)}.`, flags: MessageFlags.Ephemeral });
 }

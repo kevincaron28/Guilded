@@ -1,4 +1,5 @@
 import { badgeInner } from "./achievement-badges.js";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { ACTIVE_ACHIEVEMENTS, TIER_COLOR, TIER_LABEL, achievementById, groupLabel, ladderKey, type AchievementDef, type AchievementGame, type AchievementTier } from "./achievements-catalogue.js";
 import type { RaidReport } from "./raid-report.js";
 import { formatDuration } from "./raid-report.js";
@@ -20,7 +21,7 @@ export function raidEndCard(report: RaidReport, lang: Lang = "en"): ScoreCard {
     stats: [
       { label: t("Bosses defeated", "Boss vaincus"), value: report.bossesPlanned > 0 ? `${report.bossesKilled}/${report.bossesPlanned}` : String(report.bossesKilled), accent: cleared ? "green" : "gold", note: cleared ? t("Full clear", "Raid complété") : report.bossesKilled ? t("Partial clear", "Complété en partie") : t("No kills recorded", "Aucune victoire notée") },
       { label: t("Raiders", "Raiders"), value: String(report.raiders), note: report.late ? t(`${report.late} late`, `${report.late} en retard`) : t("All on time", "Tous à l'heure") },
-      { label: t("Duration", "Durée"), value: formatDuration(report.durationMinutes), note: report.absent ? t(`${report.absent} absent`, `${report.absent} absents`) : undefined }
+      { label: t("Duration", "Durée"), value: formatDuration(report.durationMinutes), note: report.absent ? t(`${report.absent} absent`, report.absent === 1 ? "1 absent" : `${report.absent} absents`) : undefined }
     ],
     rowsLabel: lootRows.length ? t("Top loot", "Meilleur butin") : t("Bosses defeated", "Boss vaincus"), rows: lootRows.length ? lootRows : bossRows,
     badges: [
@@ -89,10 +90,10 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
     ],
     rowsLabel: earned.length ? t("Latest achievements", "Derniers succès") : t("Closest to unlocking", "Les plus proches"), rows: shown,
     badges: [
-      { text: `PoE2 ${count("poe2")}`, tone: "muted" },
+      ...(POE_TRACKING_ENABLED ? [{ text: `PoE2 ${count("poe2")}`, tone: "muted" as const }] : []),
       ...(next ? [{ text: t(`Next: ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`, `Prochain : ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`), tone: "ok" as const }] : [])
     ],
-    footer: t("Earned from synced characters, runs, raid attendance and your own PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et de votre journal PoE2 · Aucun point · guilded.kcaron.top")
+    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and your own PoE2 log" : ""} · No points · guilded.kcaron.top`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et de votre journal PoE2" : ""} · Aucun point · guilded.kcaron.top`)
   };
 }
 
@@ -119,12 +120,22 @@ export function serverAnniversaryCard(input: ServerAnniversaryCardInput, lang: L
 
 const UNLOCK_CARD_MAX = 8;
 
+/**
+ * The name a celebration card leads with. Server nicknames often read "Character (Discord name)": past 24 characters the
+ * part in brackets is dropped, so the character name stays large instead of being shrunk and cut.
+ */
+export function cardName(name: string): string {
+  const trimmed = name.trim(), bracket = /^(.+?)\s*\([^()]*\)$/.exec(trimmed);
+  return bracket && [...trimmed].length > 24 ? bracket[1]!.trim() : trimmed;
+}
+
 /** The card for a celebration post: the achievements just unlocked (newest first, up to eight, then a count), with their badges. */
 export function achievementUnlockedCard(name: string, ids: string[], totalEarned: number, lang: Lang = "en"): ScoreCard {
   const t = pick(lang);
+  name = cardName(name);
   const defs = ids.flatMap(id => { const def = achievementById(id); return def ? [def] : []; });
   const newest = defs.slice().reverse(), shown = newest.slice(0, UNLOCK_CARD_MAX);
-  const total = ACTIVE_ACHIEVEMENTS.length, percent = Math.round((totalEarned / Math.max(1, total)) * 100);
+  const total = Math.max(ACTIVE_ACHIEVEMENTS.length, totalEarned), percent = Math.round((totalEarned / Math.max(1, total)) * 100);
   const tierCounts = (Object.keys(TIER_COLOR) as AchievementTier[]).flatMap(tier => { const count = defs.filter(def => def.tier === tier).length; return count ? [{ label: TIER_LABEL[tier][lang], color: TIER_COLOR[tier], count }] : []; });
   return {
     eyebrow: t("Guilded · Achievement unlocked", "Guilded · Succès débloqué"), title: name,
@@ -140,6 +151,6 @@ export function achievementUnlockedCard(name: string, ids: string[], totalEarned
     unlocksMore: newest.length - shown.length, moreLabel: t("more", "autres"),
     progress: { label: t("Achievements unlocked", "Succès débloqués"), value: totalEarned, max: total, note: lang === "fr" ? `${percent} % du catalogue` : `${percent}% of the catalogue` },
     tierCounts,
-    footer: t("Earned from synced characters, runs, raid attendance and the PoE2 log · No points · guilded.kcaron.top", "Obtenus à partir des personnages synchronisés, donjons, présences aux raids et du journal PoE2 · Aucun point · guilded.kcaron.top")
+    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and the PoE2 log" : ""} · No points · guilded.kcaron.top`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et du journal PoE2" : ""} · Aucun point · guilded.kcaron.top`)
   };
 }

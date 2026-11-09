@@ -41,6 +41,20 @@ const slash = (s: LuaSession, line: string) => s.run(`SlashCmdList["GUILDED"](${
 const sentCount = (s: LuaSession) => Number(s.run("return #SENT"));
 
 describe("whisper addresses (WoW Forever)", () => {
+  it("uses the live rank of the addressed character for ledger trust on connected realms", () => {
+    const s = loggedIn([]);
+    s.run(`
+      names = {"Sam-Other", "Sam-TestRealm", "Kev"}
+      ranks = {1, 4, 1}
+      GetNumGuildMembers = function() return #names end
+      GetGuildRosterInfo = function(i) return names[i], "", ranks[i] end
+      GuildedDB.settings.officers.Sam = true
+    `);
+    expect(s.run('return NS.ledgerPeerRole("Sam-Other")')).toBe("officer");
+    expect(s.run('return NS.ledgerPeerRole("Sam-TestRealm")')).toBe("member");
+    expect(s.run('return tostring(NS.ledgerPeerRole("Sam-Unrelated"))')).toBe("nil");
+    expect(s.run('ranks[1] = 4; return NS.ledgerPeerRole("Sam-Other")')).toBe("member");
+  });
   it("whispers a player by the sender text the game gave, not the bare first name", () => {
     const s = loggedIn(["Locale.lua", "Modules/Council.lua"], RAID);
     expect(s.run(`return NS.util.address("Ann")`)).toBe("Ann");
@@ -117,6 +131,25 @@ describe("paced addon messages (ns.comm)", () => {
     expect(s.run(`return tostring(NS.comm.pending("QThrottle"))`)).toBe("1");
     s.run(`GetTime = function() return 30 end; NS.comm.send("QThrottle", "second", "GUILD")`);
     expect(s.run("return SENT[1].text .. ',' .. SENT[2].text")).toBe("first,second");
+  });
+
+  it("keeps the normal throttle budget and permanent refusals for lockdown-retry packets", () => {
+    const s = loggedIn([]);
+    s.run(`
+      local now, code = 0, 11
+      GetTime = function() return now end
+      C_Timer.After = function(_, fn) retry = fn end
+      C_ChatInfo.SendAddonMessage = function() return code end
+      NS.comm.send("QRecovery", "first", "GUILD", nil, nil, "retry-lockdown")
+      for i = 1, 8 do now = now + 5; retry() end
+      code = 3
+      for i = 1, 5 do now = now + 5; retry() end
+      code = 10
+      now = now + 5
+      NS.comm.send("QRecovery", "second", "GUILD", nil, nil, "retry-lockdown")
+    `);
+    expect(s.run(`local d = NS.comm.status("QRecovery")
+      return d.throttled .. ":" .. d.abandoned .. ":" .. d.refused .. ":" .. d.queued`)).toBe("5:1:1:0");
   });
 
   it("rejects over-long messages instead of sending a corrupted partial packet", () => {

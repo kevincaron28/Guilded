@@ -7,8 +7,11 @@ import { adjustPoints, describeConfig, invalidateRun, pointHistory } from "../se
 import { formatDuration, sharedDungeonConfig } from "../services/dungeon-rules.js";
 import { describeEvidence, provisionalSeasonEmbed, recalibrationEvidence } from "../services/dungeon-bracket-season.js";
 import { postToLogChannel } from "../services/housekeeping.js";
+import { runCredit } from "../services/dungeon-held-credit.js";
 import { findPlayer } from "../services/player-search.js";
-import { requireGuildContext } from "./context.js";
+import { explainDungeonRuns } from "../services/dungeon-explain.js";
+import { asLang, tx } from "../i18n.js";
+import { guildService, requireGuildContext } from "./context.js";
 
 const auditService = createAuditService(prisma);
 
@@ -28,10 +31,11 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("audit").setDescription("Point history of a member or a run")
     .addUserOption((o) => o.setName("member").setDescription("Discord member"))
     .addStringOption((o) => o.setName("character").setDescription("Or a character name"))
-    .addStringOption((o) => o.setName("run").setDescription("Or one run (pick from the list)").setAutocomplete(true)))
+    .addStringOption((o) => o.setName("run").setDescription("Or one run (pick from the list)").setAutocomplete(true))
+    .addBooleanOption((o) => o.setName("why").setDescription("Explain why runs do or do not count")))
   .addSubcommand((sub) => sub.setName("config").setDescription("View the fixed dungeon participation rules for all guilds"))
-  .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview shared season targets (read only)"))
-  .addSubcommand(sub => sub.setName("recalibrate").setDescription("Review timed-run evidence for future shared rules (read only)")
+  .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview shared season targets"))
+  .addSubcommand(sub => sub.setName("recalibrate").setDescription("Timed-run evidence for future rules")
     .addStringOption(o => o.setName("route").setDescription("Route (pick from the list)").setAutocomplete(true).setRequired(true)));
 
 async function memberFromOptions(interaction: ChatInputCommandInteraction, guildId: string) {
@@ -51,8 +55,9 @@ async function memberFromOptions(interaction: ChatInputCommandInteraction, guild
 export async function executeDungeonAdmin(interaction: ChatInputCommandInteraction): Promise<void> {
   const context = await requireGuildContext(interaction);
   if (!context) return;
+  const lang = asLang((await guildService.getSettings(context.guildId))?.language);
   if (!interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
-    await interaction.reply({ content: "Only officers can use /officer dungeon.", flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: tx(lang, "Only officers can use /officer dungeon."), flags: MessageFlags.Ephemeral });
     return;
   }
   const subcommand = interaction.options.getSubcommand();
@@ -60,7 +65,7 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
   if (subcommand === "target"
     || subcommand === "config" && ["rule", "points", "weekly", "dungeon_master"].some(name => interaction.options.get(name) !== null)
     || subcommand === "recalibrate" && interaction.options.get("minutes") !== null) {
-    await interaction.reply({ content: "Dungeon scoring settings are locked for all guilds. Season targets, level bands and penalties are shared and frozen. Changes wait for a future shared season; existing scores and history are preserved.", flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    await interaction.reply({ content: tx(lang, "Dungeon scoring settings are locked for all guilds. Season targets, level bands and penalties are shared and frozen. Changes wait for a future shared season; existing scores and history are preserved."), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
   }
   const actor = interaction.user.id;
@@ -86,17 +91,29 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     reply = `${amount > 0 ? "Gave" : "Took"} ${Math.abs(amount)} dungeon point(s) ${amount > 0 ? "to" : "from"} ${member.displayName}: ${reason}`;
     await log(reply, { memberId: member.id, amount, reason });
   } else if (subcommand === "audit") {
+    if (interaction.options.getBoolean("why")) {
+      const blocks = await explainDungeonRuns(prisma, context.guildId, { run: interaction.options.getString("run"), character: interaction.options.getString("character") });
+      await interaction.reply({ content: blocks.join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      return;
+    }
     const member = await memberFromOptions(interaction, context.guildId);
     const runRef = interaction.options.getString("run");
     const rows = await pointHistory(prisma, context.guildId, { ...(member ? { memberId: member.id } : {}), ...(runRef ? { runRef } : {}) });
-    reply = rows.length
+    const credit = runRef ? await runCredit(prisma, context.guildId, runRef) : null;
+    reply = (credit ? `${credit}
+
+` : "") + (rows.length
       ? rows.map((row) => {
         const by = row.source.startsWith("rule:") ? "auto" : `<@${row.createdBy}>`;
         return `<t:${Math.floor(row.createdAt.getTime() / 1000)}:d> **${row.member.displayName}** ${row.amount > 0 ? "+" : ""}${row.amount} — ${row.reason} · ${row.source} · ${by}`;
       }).join("\n")
-      : "No dungeon points recorded for that yet.";
+      : tx(lang, "No dungeon points recorded yet. Pick a member, character or run, or add why:true to see why a run scored as it did."));
   } else if (subcommand === "config") {
     reply = `Dungeon scoring settings are locked for all guilds. These shared participation rules apply to new awards; existing points stay. Season targets, level bands and penalties are shared and frozen. See /dungeon rules for the active season.\n\n${describeConfig(sharedDungeonConfig(), new Map())}`;
+  } else if (subcommand === "why") {
+    const blocks = await explainDungeonRuns(prisma, context.guildId, { run: interaction.options.getString("run"), character: interaction.options.getString("character") });
+    await interaction.reply({ content: blocks.join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+    return;
   } else if (subcommand === "bracket-preview") {
     await interaction.reply({ embeds: [provisionalSeasonEmbed()], flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
     return;
@@ -105,7 +122,7 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
     reply = describeEvidence(await recalibrationEvidence(prisma, context.guildId, key));
   } else {
     // Seasons follow the bot owner's calendar (/guilded-season); officers no longer start them.
-    reply = "Dungeon seasons are set by the Guilded owner for every guild. See them with `/organize dungeon-seasons preview`.";
+    reply = tx(lang, "Dungeon seasons are set by the Guilded owner for every guild. See them with `/organize dungeon-seasons preview`.");
   }
   await interaction.reply({ content: reply.slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
   if (["award", "invalidate"].includes(subcommand)) {

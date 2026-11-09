@@ -1,9 +1,11 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
-import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, WOW_EDITIONS, ladderKey } from "./achievements-catalogue.js";
+import { loadGeneratedAchievements } from "./game-achievements.js";
+import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, achievementById, generatedAchievements, achievementGameVisible, EDITION_LABEL, GAME_LABEL, TIER_COLOR, TIER_LABEL, WOW_EDITIONS, ladderKey } from "./achievements-catalogue.js";
 import { badgeLabel, badgeSvg } from "./achievement-badges.js";
 import { storedAchievements, syncMemberAchievements } from "./achievements.js";
 import { achievementsCard } from "./end-cards.js";
-import { scoreCardResponse } from "./score-card.js";
+import { scoreCardResponse, type ScoreCard } from "./score-card.js";
+import type { PublicPicture } from "./public-pictures.js";
 import { escapeHtml, link } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
 
@@ -11,10 +13,19 @@ import type { WebContext, WebRoute } from "./web-app.js";
 // public player page. The public page shows what is already stored; only the signed-in owner's /me/
 // view evaluates (and records) newly earned ones. Guilds the site does not serve are never included.
 
-type Db = Pick<PrismaClient, "webAccount" | "guildSettings" | "member" | "memberAchievement" | "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal">;
+type Db = Pick<PrismaClient, "webAccount" | "guildSettings" | "member" | "memberAchievement" | "character" | "professionSkill" | "dungeonRunPlayer" | "raidAttendance" | "communityParticipationDay" | "poeLevelReached" | "poeMapVisit" | "communityPoint" | "communityHonorAward" | "epgpTransaction" | "memberActivityTotal" | "memberMilestone" | "duelResult" | "craftRequest" | "recipeKnown">;
 export interface AchievementProgress { earnedAt: Date | null; value: number }
 
-export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) => boolean) {
+/** The member's character picture for the share image: Public only on the public card, any of theirs on their own /me/ card. */
+export type SharePortrait = (discordUserId: string, own: boolean) => Promise<PublicPicture | null>;
+
+export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) => boolean, portrait?: SharePortrait) {
+  async function withPortrait(card: ScoreCard, discordUserId: string, own: boolean): Promise<ScoreCard> {
+    const face = portrait ? await portrait(discordUserId, own).catch(() => null) : null;
+    return face ? { ...card, portrait: face.thumb.toString("base64") } : card;
+  }
+  /** Every catalogue row with its progress, plus the generated in-game rows the account earned. */
+  const cardItems = (data: Map<string, AchievementProgress>) => [...ACHIEVEMENTS, ...generatedAchievements().filter(def => data.get(def.id)?.earnedAt)].map(def => ({ id: def.id, ...(data.get(def.id) ?? { earnedAt: null, value: 0 }) }));
   const imagePath = (accountId: string) => `/players/${encodeURIComponent(accountId)}/achievements.png`;
 
   async function members(discordUserId: string) {
@@ -27,15 +38,18 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
   /** Merged across the account's guilds: the earliest date, the highest value. `evaluate` records new ones. */
   async function progress(discordUserId: string, evaluate: boolean, now: Date): Promise<Map<string, AchievementProgress>> {
     const owned = await members(discordUserId);
+    await loadGeneratedAchievements(db);
     const merged = new Map<string, AchievementProgress>(ACHIEVEMENTS.map(def => [def.id, { earnedAt: null, value: 0 }]));
     const fold = (id: string, earnedAt: Date | null, value: number) => {
-      const prev = merged.get(id)!;
+      // A generated in-game achievement is listed once earned (nothing is known of the ones nobody reported).
+      const prev = merged.get(id) ?? (earnedAt && achievementById(id)?.metric === "gameAchievement" ? { earnedAt: null, value: 0 } : undefined);
+      if (!prev) return; // a retired id (still stored, never shown)
       merged.set(id, { earnedAt: earnedAt && (!prev.earnedAt || earnedAt < prev.earnedAt) ? earnedAt : prev.earnedAt, value: Math.max(prev.value, value) });
     };
     if (evaluate) {
       for (const member of owned) for (const row of (await syncMemberAchievements(db, member.guildId, member.id, now)).results) fold(row.def.id, row.earned ? row.earnedAt : null, row.value);
     } else {
-      for (const [id, at] of await storedAchievements(db, { memberIds: owned.map(row => row.id) })) fold(id, at, ACHIEVEMENTS.find(def => def.id === id)?.threshold ?? 0);
+      for (const [id, at] of await storedAchievements(db, { memberIds: owned.map(row => row.id) })) fold(id, at, achievementById(id)?.threshold ?? 0);
     }
     return merged;
   }
@@ -68,7 +82,8 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     const { t, lang } = ctx;
     const row = (id: string) => data.get(id) ?? { earnedAt: null, value: 0 };
     // Legacy rows (replaced by the per-edition ones) are listed only when already earned.
-    const listed = ACHIEVEMENTS.filter(def => !def.legacy || row(def.id).earnedAt);
+    const inGame = generatedAchievements().filter(def => row(def.id).earnedAt);
+    const listed = [...ACHIEVEMENTS, ...inGame].filter(def => !def.legacy || row(def.id).earnedAt);
     const earned = listed.filter(def => row(def.id).earnedAt).length;
     const track = "height:6px;border-radius:3px;background:rgba(128,128,128,.28);overflow:hidden";
     const bar = (def: (typeof ACHIEVEMENTS)[number], value: number) => `<div style="${track}" role="progressbar" aria-valuemin="0" aria-valuemax="${def.threshold}" aria-valuenow="${Math.min(value, def.threshold)}"><div style="height:100%;width:${Math.round(Math.min(value / def.threshold, 1) * 100)}%;background:${TIER_COLOR[def.tier]}"></div></div>`;
@@ -90,7 +105,7 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
       return `<h4 style="margin:0 0 4px">${escapeHtml(def[lang].name)}</h4><p><strong>${t("How to earn", "Comment l'obtenir")}:</strong> ${escapeHtml(def[lang].description)}</p><p><strong>${t("Tier", "Niveau")}:</strong> ${TIER_LABEL[def.tier][lang]}</p>${edition}${state}`;
     };
     const section = (title: string, defs: readonly (typeof ACHIEVEMENTS)[number][]) => {
-      const visible = defs.filter(def => listed.includes(def));
+      const visible = defs.filter(def => listed.includes(def) && achievementGameVisible(def));
       if (!visible.length) return "";
       const done = visible.filter(def => row(def.id).earnedAt).length;
       const ordered = [...visible.filter(def => row(def.id).earnedAt), ...visible.filter(def => !row(def.id).earnedAt)];
@@ -101,21 +116,20 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
       return `<h3>${escapeHtml(title)} <small>(${done}/${visible.length})</small></h3><div class="ach-grid">${tiles}</div>`;
     };
     const wow = (GAME_LABEL.wow)[lang];
-    return TILE_STYLE + `<p>${t(`${earned} of ${listed.length} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity totals and your own PoE2 log), never self-reported, and they give no points. Tap or hover a badge for details.`, `${earned} sur ${listed.length} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, totaux d'activité Discord et votre journal PoE2), jamais déclarés, et ne donnent aucun point. Touchez ou survolez un badge pour les détails.`)}</p>${nextUp}`
+    return TILE_STYLE + `<p>${t(`${earned} of ${listed.length} unlocked. Achievements are worked out from data Guilded already recorded (synced characters, dungeon runs, raid attendance, Discord activity totals), never self-reported, and they give no points. Tap or hover a badge for details.`, `${earned} sur ${listed.length} débloqués. Les succès sont calculés à partir de données déjà enregistrées par Guilded (personnages synchronisés, donjons, présences aux raids, totaux d'activité Discord), jamais déclarés, et ne donnent aucun point. Touchez ou survolez un badge pour les détails.`)}</p>${nextUp}`
       + WOW_EDITIONS.map(edition => section(`${wow} · ${EDITION_LABEL[edition][lang]}`, ACHIEVEMENTS.filter(def => def.edition === edition))).join("")
-      + section(`${wow} · ${t("earlier achievements", "anciens succès")}`, ACHIEVEMENTS.filter(def => def.game === "wow" && !def.edition))
-      + section(GAME_LABEL.guild[lang], ACHIEVEMENTS.filter(def => def.game === "guild"))
-      + section(GAME_LABEL.poe2[lang], ACHIEVEMENTS.filter(def => def.game === "poe2"));
+      + section(`${wow} · ${EDITION_LABEL.forever[lang]} · ${t("in-game achievements", "succès du jeu")}`, inGame)
+      + section(GAME_LABEL.guild[lang], ACHIEVEMENTS.filter(def => def.game === "guild"));
   }
 
   const route: WebRoute = async (ctx, kit) => {
     const match = /^\/players\/([a-z0-9]{20,40})\/achievements\.png$/.exec(ctx.request.path);
     if (!match) return null;
     if (ctx.request.method !== "GET" && ctx.request.method !== "HEAD") return kit.page(405, "Method not allowed", "");
-    const account = await db.webAccount.findUnique({ where: { id: match[1]! }, select: { discordUserId: true, username: true, displayName: true, publicProfile: true } });
-    if (!account?.publicProfile) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
+    const account = await db.webAccount.findUnique({ where: { id: match[1]! }, select: { discordUserId: true, username: true, displayName: true } });
+    if (!account) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
     const data = await progress(account.discordUserId, false, ctx.now);
-    return scoreCardResponse(achievementsCard(account.displayName ?? account.username, ACHIEVEMENTS.map(def => ({ id: def.id, ...data.get(def.id)! })), ctx.lang), ctx.request.method === "HEAD");
+    return scoreCardResponse(await withPortrait(achievementsCard(account.displayName ?? account.username, cardItems(data), ctx.lang), account.discordUserId, false), ctx.request.method === "HEAD");
   };
 
   return {
@@ -133,11 +147,10 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
     /** On /me/: evaluates the signed-in member's data and records what is newly earned. */
     async meSection(ctx: WebContext): Promise<string> {
       if (!ctx.account) return "";
-      const account = await db.webAccount.findUnique({ where: { id: ctx.account.id }, select: { discordUserId: true, publicProfile: true } });
+      const account = await db.webAccount.findUnique({ where: { id: ctx.account.id }, select: { discordUserId: true } });
       if (!account) return "";
       const data = await progress(account.discordUserId, true, ctx.now);
       return `<h2 id="achievements">${ctx.t("My achievements", "Mes succès")}</h2><p><img src="${link(`/me/achievements.png`, ctx.lang)}" alt="${ctx.t("Achievements share card", "Carte de partage des succès")}" width="600" height="315" loading="lazy" style="max-width:100%;height:auto"></p>${list(ctx, data, true)}`
-        + (account.publicProfile ? "" : `<p>${ctx.t("Your profile is hidden, so these are not shown publicly.", "Votre profil est masqué : ces succès ne sont pas affichés publiquement.")}</p>`);
     },
     /** The signed-in owner's own card image, evaluated fresh. */
     ownerRoute: (async (ctx, kit) => {
@@ -146,7 +159,7 @@ export function createAchievementsWeb(db: Db, allows: (discordGuildId: string) =
       const account = await db.webAccount.findUnique({ where: { id: ctx.account.id }, select: { discordUserId: true, username: true, displayName: true } });
       if (!account) return kit.page(404, ctx.t("Not found", "Introuvable"), "", { noindex: true });
       const data = await progress(account.discordUserId, true, ctx.now);
-      return scoreCardResponse(achievementsCard(account.displayName ?? account.username, ACHIEVEMENTS.map(def => ({ id: def.id, ...data.get(def.id)! })), ctx.lang), ctx.request.method === "HEAD");
+      return scoreCardResponse(await withPortrait(achievementsCard(account.displayName ?? account.username, cardItems(data), ctx.lang), account.discordUserId, true), ctx.request.method === "HEAD");
     }) as WebRoute
   };
 }

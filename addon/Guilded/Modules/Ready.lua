@@ -201,13 +201,13 @@ function module.gearText(nowSeconds)
   for _, row in ipairs(module.gearRows(now)) do
     local parts = {}
     if row.level and row.level > 0 then table.insert(parts, string.format(L("level %d"), row.level)) end
-    table.insert(parts, string.format(L("item level %s"), row.itemLevel and tostring(row.itemLevel) or "?"))
+    table.insert(parts, string.format(L("item level %s"), row.itemLevel and tostring(row.itemLevel) or "n/a"))
     if row.missing > 0 then table.insert(parts, "|cffff6060" .. string.format(L("%d missing"), row.missing) .. "|r") end
     if row.enchants ~= "" then table.insert(parts, "|cffff6060" .. L("no enchant") .. ": " .. row.enchants .. "|r") end
     if row.durability < 50 then table.insert(parts, "|cffff6060" .. string.format(L("durability %d%%"), row.durability) .. "|r") end
     local days = row.at and math.floor((now - row.at) / 86400) or nil
     if days then table.insert(parts, days < 1 and L("today") or string.format(L("%d d ago"), days)) end
-    table.insert(lines, "|cffffd100" .. row.name .. "|r  " .. table.concat(parts, " \194\183 "))
+    table.insert(lines, "|cffffd100" .. (ns.displayName and ns.displayName(row.name) or row.name) .. "|r  " .. table.concat(parts, " \194\183 "))
   end
   return #lines > 0 and table.concat(lines, "\n") or L("Nobody has shared a gear check yet. Each member's Guilded shares theirs after a gear change or /reload.")
 end
@@ -395,21 +395,6 @@ function module.assess(name, unit, inRaid, entry, live, connected, extra)
     need("weapon", "no weapon enchant", "weapon enchant ends in %d min")
     need("augment", "no augment rune")
     need("vantus", "no vantus rune")
-    -- Raid buffs: only the ones somebody in the group can actually give.
-    local held = (liveFacts and liveFacts.buffs) or (consumableFacts and consumableFacts.buffs)
-    local data = ns.consumableData
-    local buffs = data and data.activeRaidBuffs and data.activeRaidBuffs()
-    if held and buffs and extra.providers and ns.util and ns.util.gameEdition() == "retail" then
-      local lacking = {}
-      for _, buff in ipairs(buffs) do
-        local provider = buff.class and extra.providers[buff.class]
-        for _, class in ipairs(buff.classes or {}) do if extra.providers[class] then provider = true end end
-        if not buff.optional and provider and not held[buff.key] then table.insert(lacking, L(buff.label)) end
-      end
-      learned = true
-      cells.buffs = cellFor(#lacking == 0, module.setting("buffs") == true)
-      if #lacking > 0 and module.setting("buffs") == true then add(L("no raid buff") .. ": " .. table.concat(lacking, ", ")) end
-    end
   end
 
   if liveKnown then row.source = entry and "addon+live" or "live"

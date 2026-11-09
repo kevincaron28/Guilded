@@ -1,4 +1,3 @@
-import { currentEdition } from "../services/edition-context.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { CORE_RAID_SIZES, coreComposition, planningOptions } from "../services/core-planning.js";
@@ -22,7 +21,6 @@ export async function editCoreComposition(i: ButtonInteraction, guildId: string,
   await i.editReply({ content: "Taille ou modèle / Size or preset. Les rôles proposés sont modifiables / Suggested roles are editable.", components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
     new StringSelectMenuBuilder().setCustomId(pickerId).setPlaceholder("Taille du raid / Raid size").setMinValues(1).setMaxValues(1)
       .addOptions(CORE_RAID_SIZES.map(size => ({ label: `${size} joueurs / players`, value: String(size), default: core.raidSize === size })))
-      .addOptions(currentEdition() === "retail" ? [{label:"Flexible (10–30)",value:"custom"}] : [])
       .addOptions(raidPresetsForEdition().map(p => ({ label: `${p.name} (${p.raidSize})`, value: `preset:${p.id}`, description: `${p.tankLimit} tanks / ${p.healerLimit} healers / ${p.dpsLimit} DPS — editable / modifiable` })))
   )] });
   const message = await i.fetchReply();

@@ -5,6 +5,7 @@ import { asLootMode, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_HELP_FR, LOOT_MOD
 import { breadcrumbs, SHARE_CARD, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
 import { gameEditionOf } from "./game-edition.js";
 import { editionHref } from "../../site/nav.mjs";
+import type { GuildDungeonSummary } from "./public-leaderboard.js";
 
 // A guild's public page at /g/<slug>/ (docs/GUILD_PAGES_DESIGN.md). Read-only, no scripts, and
 // only what officers turned on. Names are character names, never Discord users or IDs.
@@ -56,6 +57,10 @@ export interface GuildPageView {
   dungeonPage?: string | null;
   /** The guild's WoW edition: the header's version switcher and links follow it. */
   edition?: string;
+  /** Internal id, used only to load `dungeons`; never rendered or sent as JSON. */
+  guildId?: string;
+  /** Members' top scores, recent runs and records, when the guild publishes its runs (public-leaderboard.ts). */
+  dungeons?: GuildDungeonSummary | null;
 }
 
 // The published page for `slug`, or null (unknown, unpublished, or its server is not allowed).
@@ -119,7 +124,7 @@ export async function loadGuildPageView(database: PrismaClient, slug: string, al
   const edition = gameEditionOf(page.guild);
   return {
     slug: page.slug, name: page.guild.name, language: settings?.language === "fr" ? "fr" : "en", indexable: page.indexable,
-    intro: page.intro, sections, cores, edition,
+    intro: page.intro, sections, cores, edition, guildId: page.guild.id,
     recruitment: on("recruitment") && (page.recruitment || page.inviteUrl) ? { text: page.recruitment, inviteUrl: page.inviteUrl } : null,
     dungeonPage: settings?.publicDungeonRuns ? editionHref(`/leaderboards/guild/${encodeURIComponent(page.guild.id)}`, edition) : null
   };
@@ -158,6 +163,19 @@ export function renderGuildPage(view: GuildPageView): string {
     view.dungeonPage ? `<a class="button ghost" href="${escapeHtml(`${view.dungeonPage}?lang=${view.language}`)}">${t("Dungeon scores", "Scores de donjon")}</a>` : ""
   ].filter(Boolean);
   if (actions.length) parts.push(`<p class="actions">${actions.join("")}</p>`);
+  // Public boards: only what the guild already publishes (its opt-in dungeon runs page and the duel board under it).
+  if (view.dungeonPage) {
+    const board = (path: string) => escapeHtml(`${view.dungeonPage}${path}?lang=${view.language}`);
+    parts.push(`<h2>${t("Public boards", "Tableaux publics")}</h2><div class="cards">`
+      + `<div class="card"><h3>${t("Dungeon season", "Saison de donjons")}</h3><p class="muted">${t("Members' best runs, season and weekly scores.", "Meilleurs runs des membres, scores de saison et de la semaine.")}</p><p><a href="${board("")}">${t("Open the dungeon board →", "Ouvrir le tableau de donjons →")}</a></p></div>`
+      + `<div class="card"><h3>${t("Duels", "Duels")}</h3><p class="muted">${t("Counted guild duels, wins and streaks.", "Duels de guilde comptés, victoires et séries.")}</p><p><a href="${board("/duels")}">${t("Open the duel board →", "Ouvrir le tableau de duels →")}</a></p></div></div>`);
+  }
+  if (view.dungeons && (view.dungeons.top.length || view.dungeons.recent.length)) parts.push(dungeonSection(view, view.dungeons));
+  if (view.recruitment?.inviteUrl) {
+    parts.push(`<h2>${t("How to join", "Comment nous rejoindre")}</h2><ol><li>${t("Join the guild's Discord with the button above.", "Rejoignez le Discord de la guilde avec le bouton ci-dessus.")}</li>`
+      + `<li>${t("Post your full character name (first and last name) in the guild invite channel.", "Publiez le nom complet de votre personnage (prénom et nom) dans le salon d'invitation de la guilde.")}</li>`
+      + `<li>${t("An officer invites you in game.", "Un officier vous invite en jeu.")}</li></ol>`);
+  }
   if (on("cores") && view.cores.length) {
     parts.push(`<h2>${t("Raid cores and times", "Cores de raid et horaires")}</h2><div class="cards">${view.cores.map((core) => `<div class="card"><h3>${escapeHtml(core.name)}</h3>`
       + (core.schedule ? `<p>${escapeHtml(core.schedule)} <span class="tag">(${escapeHtml(core.timezone)})</span></p>` : `<p class="muted">${t("Schedule to be announced", "Horaire à venir")}</p>`)
@@ -208,7 +226,31 @@ ${SITE_HEADER_STYLE}</style></head><body>${siteHeader(view.language, `/g/${view.
     + `<footer class="site-foot">${siteFooterNav(view.language, view.edition)}<p class="foot-note">${t("Guild page made with", "Page de guilde créée avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;
 }
 
+// Members' top scores, recent public runs and records this season (only for guilds that publish their runs).
+const CLASS_CSS = `.c-warrior{color:#c69b6d}.c-paladin{color:#f48cba}.c-hunter{color:#aad372}.c-rogue{color:#fff468}.c-priest{color:#fff}.c-shaman{color:#2a8cff}.c-mage{color:#3fc7eb}.c-warlock{color:#8788ee}.c-druid{color:#ff7c0a}.c-deathknight{color:#c41e3a}.c-monk{color:#00ff98}.c-demonhunter{color:#a330c9}.c-evoker{color:#33937f}`;
+function dungeonSection(view: GuildPageView, d: GuildDungeonSummary): string {
+  const fr = view.language === "fr";
+  const t = (en: string, frText: string) => (fr ? frText : en);
+  const to = (path: string) => escapeHtml(`${editionHref(path, view.edition ?? "forever")}?lang=${view.language}`);
+  const slug = (name: string | null) => (name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  const table = (head: string[], rows: string[], numeric: number[]) => `<div class="table-wrap"><table><thead><tr>${head.map((h, i) => `<th${numeric.includes(i) ? ' class="num"' : ""}>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`;
+  const top = d.top.length ? `<h3>${t("Top characters", "Meilleurs personnages")}</h3>` + table(["#", t("Character", "Personnage"), t("Levels", "Niveaux"), t("Score", "Score")],
+    d.top.map((row, i) => `<tr><td>${i + 1}</td><td><a class="c-${slug(row.className)}" href="${to(row.path)}">${escapeHtml(row.name)}</a> <span class="tag">${escapeHtml(row.realm)}</span></td><td>${escapeHtml(row.bracket.replace("-", "–"))}</td><td class="num">${row.points}</td></tr>`), [3]) : "";
+  const recent = d.recent.length ? `<h3>${t("Recent runs", "Essais récents")}</h3>` + table([t("Date", "Date"), t("Dungeon", "Donjon"), t("Time", "Temps"), t("Score", "Score")],
+    d.recent.map((run) => `<tr><td>${run.date}</td><td><a href="${to(run.path)}">${escapeHtml(run.dungeon)}</a></td><td class="num">${escapeHtml(run.time)}</td><td class="num">${run.points ?? "–"}</td></tr>`), [2, 3]) : "";
+  const records = d.records.length ? `<h3>${t("Guild records", "Records de la guilde")}</h3>` + table([t("Dungeon", "Donjon"), t("Best time", "Meilleur temps"), t("Date", "Date")],
+    d.records.map((run) => `<tr><td><a href="${to(run.path)}">${escapeHtml(run.dungeon)}</a></td><td class="num">${escapeHtml(run.time)}</td><td>${run.date}</td></tr>`), [1]) : "";
+  return `<h2>${t("Dungeons", "Donjons")} · ${escapeHtml(fr ? d.season.fr : d.season.en)}</h2><style>${CLASS_CSS}</style>${top}${recent}${records}`
+    + (view.dungeonPage ? `<p><a href="${escapeHtml(`${view.dungeonPage}?lang=${view.language}`)}">${t("All members' scores →", "Scores de tous les membres →")}</a></p>` : "");
+}
+
 const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found · Guilded</title><style>${PAGE_STYLE}</style></head><body><main><h1>Page not found</h1><p class="muted">This guild page does not exist or is not published. / Cette page de guilde n'existe pas ou n'est pas publiée.</p><p><a href="/recruitment/guilds/">Guilds / Guildes</a> · <a href="https://guilded.kcaron.top/">Guilded</a></p></main></body></html>`;
+
+/** The public page as data for the phone app: only what renderGuildPage shows (no Discord ids, no invite unless published). */
+export function guildPageJson(view: GuildPageView) {
+  return { slug: view.slug, name: view.name, language: view.language, intro: view.intro, edition: view.edition ?? null, sections: view.sections,
+    recruitment: view.recruitment, dungeonPage: view.dungeonPage ?? null, cores: view.cores, dungeons: view.dungeons ?? null };
+}
 
 export interface PageResponse { status: number; headers: Record<string, string>; body: string }
 
@@ -222,7 +264,7 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
   const ttlMs = options.ttlMs ?? 5 * 60_000;
   const maxEntries = options.maxEntries ?? 200;
   const now = options.now ?? Date.now;
-  const cache = new Map<string, { at: number; html: string | null }>();
+  const cache = new Map<string, { at: number; html: string | null; json: string | null }>();
   const security = { "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'", "referrer-policy": "strict-origin-when-cross-origin", "x-content-type-options": "nosniff" };
   const server = { forget(slug?: string) { if (slug) cache.delete(slug); else cache.clear(); } };
   pageServers.add(server);
@@ -231,19 +273,22 @@ export function createGuildPageServer(load: (slug: string) => Promise<GuildPageV
     async respond(method: string, pathname: string): Promise<PageResponse | null> {
       if (pathname !== "/g" && !pathname.startsWith("/g/")) return null;
       if (method !== "GET" && method !== "HEAD") return { status: 405, headers: { ...security, allow: "GET, HEAD" }, body: "" };
-      const match = /^\/g\/([^/]+)(\/?)$/.exec(pathname);
+      // The phone app's read of the same public page: JSON of what the page already shows (cores, rosters, rankings).
+      const asJson = /^\/g\/([^/]+)\/guild\.json$/.exec(pathname);
+      const match = asJson ? [asJson[0], asJson[1]!, "/"] : /^\/g\/([^/]+)(\/?)$/.exec(pathname);
       if (!match || !isPageSlug(match[1]!)) return html(404, NOT_FOUND, 60);
       if (!match[2]) return { status: 301, headers: { ...security, location: `/g/${match[1]}/`, "cache-control": "public, max-age=3600" }, body: "" };
       const slug = match[1]!;
       let entry = cache.get(slug);
       if (!entry || now() - entry.at >= ttlMs) {
         const view = await load(slug);
-        entry = { at: now(), html: view ? renderGuildPage(view) : null };
+        entry = { at: now(), html: view ? renderGuildPage(view) : null, json: view ? JSON.stringify(guildPageJson(view)) : null };
         cache.delete(slug);
         cache.set(slug, entry);
         while (cache.size > maxEntries) cache.delete(cache.keys().next().value!);
       }
-      return entry.html ? html(200, entry.html, 300) : html(404, NOT_FOUND, 60);
+      if (asJson) return entry.json ? { status: 200, headers: { ...security, "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=300", "access-control-allow-origin": "*" }, body: entry.json } : { status: 404, headers: { ...security, "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=60" }, body: '{"error":"Not found"}' };
+            return entry.html ? html(200, entry.html, 300) : html(404, NOT_FOUND, 60);
     },
     forget: server.forget
   };

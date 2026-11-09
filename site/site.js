@@ -81,7 +81,7 @@ document.addEventListener('keydown', event => {
 });
 
 // The header's version switcher outside an edition's pages: show the visitor's remembered WoW
-// version (the guilded_edition cookie the website sets in /forever/, /retail/...).
+// version (the guilded_edition cookie the website sets in /forever/).
 const remembered = /(?:^|;\s*)guilded_edition=([a-z-]{1,20})/.exec(document.cookie)?.[1];
 for (const menu of document.querySelectorAll('.edition-menu')) {
   const choice = remembered && menu.querySelector(`a[data-edition="${remembered}"]`);
@@ -149,4 +149,14 @@ if (live) {
       board.parentElement.querySelector('[data-status-meta]').textContent = `Checked ${new Date().toLocaleTimeString()}.`;
     });
   }
+}
+
+// Guide screenshots that are not captured yet (docs/SCREENSHOT_SHOTLIST.md): show the marked placeholder, never a broken image.
+for (const image of document.querySelectorAll('img.guide-shot-img')) {
+  const figure = image.closest('figure.guide-shot');
+  const missing = () => figure?.classList.add('shot-missing');
+  const present = () => figure?.classList.remove('shot-missing');
+  image.addEventListener('error', missing);
+  image.addEventListener('load', present);
+  if (image.complete && image.naturalWidth === 0 && image.currentSrc) missing();
 }

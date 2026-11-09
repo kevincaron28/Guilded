@@ -1,3 +1,4 @@
+import { armoryAnchor } from "./armory-link.js";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { characterPath, runPath, leaderRun, PUBLIC_RUN_SELECT, type LeaderRun } from "./public-leaderboard.js";
 import { scoreRun, publicRules } from "./public-score.js";
@@ -6,11 +7,14 @@ import { formatDuration } from "./dungeon-rules.js";
 import { currentEdition } from "./edition-context.js";
 import { classLabel, roleLabel, ROLES } from "./recruitment.js";
 import { CLASSES } from "../wow-data.js";
-import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 import { escapeHtml, link, options } from "./web-layout.js";
 import type { WebContext, WebRoute } from "./web-app.js";
+import { pictureUrl, type PictureVisibility } from "./character-picture.js";
+import type { PublicPictureLookup } from "./public-pictures.js";
 
-export interface ProfileCharacter { name: string; gameEdition?: string; displayName?: string | null; realm: string; source: "guild" | "companion" }
+/** 9.1: a guild character's picture (character-picture.ts). Shown only to viewers allowed by its visibility. */
+export interface ProfilePicture { characterId: string; guildId: string; version: number; visibility: PictureVisibility }
+export interface ProfileCharacter { name: string; gameEdition?: string; displayName?: string | null; realm: string; source: "guild" | "companion"; isMain?: boolean; picture?: ProfilePicture }
 export interface PlayerProfile { id: string; name: string; public: boolean; characters: ProfileCharacter[]; runs: LeaderRun[] }
 /** One card on /players/: a public profile, shown by its character (never its Discord name). */
 export interface PlayerRow { id: string; character: string; realm: string; className: string | null; role: string | null; level: number | null; guild: string | null; sortKey: string }
@@ -19,7 +23,6 @@ export interface ProfileStore {
   /** Up to PAGE_SIZE + 1 rows after the cursor (the extra row says there is a next page). */
   list(filters: PlayerFilters, after: { sortKey: string; id: string } | null): Promise<PlayerRow[]>;
   get(id: string): Promise<PlayerProfile | null>;
-  visibility(id: string, visible: boolean): Promise<void>;
 }
 
 // Server-side limits for /players/: one fixed page size and short filter texts.
@@ -55,7 +58,7 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
     // only) and the ones their companion uploaded. Each account shows once, with its best match (main
     // first); cards sort by character name and page by cursor, so deep pages cost no more than the first.
     async list(filters, after) {
-      const servers = (await database.guild.findMany({ select: { discordId: true }, distinct: ["discordId"], take: 5_000 })).map((row) => row.discordId).filter(allows);
+      const servers = (await database.guild.findMany({ where: { isTestServer: false }, select: { discordId: true }, distinct: ["discordId"], take: 5_000 })).map((row) => row.discordId).filter(allows);
       const conditions = [Prisma.sql`"gameEdition" = ${filters.edition}`];
       if (filters.q) conditions.push(Prisma.sql`lower(character) LIKE ${likePattern(filters.q)}`);
       if (filters.realm) conditions.push(Prisma.sql`lower(realm) = ${filters.realm.toLowerCase()}`);
@@ -71,11 +74,10 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
           JOIN "Member" m ON m."discordUserId" = wa."discordUserId" AND m.status = 'ACTIVE' AND m."isTest" = false
           JOIN "Character" c ON c."memberId" = m.id
           JOIN "Guild" g ON g.id = m."guildId"
-          WHERE wa."publicProfile" = true AND g."discordId" = ANY(${servers})
+          WHERE g."discordId" = ANY(${servers})
           UNION ALL
           SELECT wa.id, COALESCE(wc."displayName", wc.name), wc.realm, NULL, wc."gameEdition", NULL, NULL, false, NULL
           FROM "WebAccount" wa JOIN "WebCharacter" wc ON wc."accountId" = wa.id
-          WHERE wa."publicProfile" = true
         ), best AS (
           SELECT DISTINCT ON (id) id, character, realm, "className", role, level, guild, lower(character) AS "sortKey"
           FROM chars WHERE ${Prisma.join(conditions, " AND ")}
@@ -85,16 +87,24 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
     },
     async get(id) {
       const account = await database.webAccount.findUnique({ where: { id }, select: {
-        id: true, discordUserId: true, username: true, displayName: true, publicProfile: true, characters: { select: { name: true, displayName: true, realm: true, gameEdition: true }, take: 100 }
+        id: true, discordUserId: true, username: true, displayName: true, characters: { select: { name: true, displayName: true, realm: true, gameEdition: true }, take: 100 }
       } });
       if (!account) return null;
       const linked = await database.character.findMany({
         where: { member: { discordUserId: account.discordUserId, status: "ACTIVE" } },
-        select: { name: true, displayName: true, realm: true, gameEdition: true, member: { select: { guild: { select: { discordId: true } } } } }, take: 100
+        select: { id: true, name: true, displayName: true, realm: true, gameEdition: true, isMain: true,
+          member: { select: { guildId: true, guild: { select: { discordId: true, settings: { select: { characterPicturesEnabled: true } } } } } },
+          picture: { select: { version: true, visibility: true, status: true } } },
+        orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 100
       });
+      const pictureOf = (c: (typeof linked)[number]): ProfilePicture | undefined => c.picture?.status === "ok" && c.member.guild.settings?.characterPicturesEnabled !== false
+        ? { characterId: c.id, guildId: c.member.guildId, version: c.picture.version, visibility: c.picture.visibility === "public" ? "public" : "guild" } : undefined;
       const characters: ProfileCharacter[] = [];
       for (const char of [
-        ...linked.filter(c => allows(c.member.guild.discordId)).map(c => ({ name: c.name, gameEdition: c.gameEdition, displayName: c.displayName, realm: c.realm, source: "guild" as const })),
+        ...linked.filter(c => allows(c.member.guild.discordId)).map(c => {
+          const picture = pictureOf(c);
+          return { name: c.name, gameEdition: c.gameEdition, displayName: c.displayName, realm: c.realm, source: "guild" as const, isMain: c.isMain, ...(picture ? { picture } : {}) };
+        }),
         ...account.characters.map(c => ({ ...c, source: "companion" as const }))
       ]) {
         if (char.realm && !characters.some(c => c.name.toLowerCase() === char.name.toLowerCase() && c.realm.toLowerCase() === char.realm.toLowerCase() && gameEditionOf(c) === gameEditionOf(char))) characters.push(char);
@@ -107,9 +117,8 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
         } } })) },
         orderBy: [{ endedAt: "desc" }, { id: "asc" }], take: 50, select: PUBLIC_RUN_SELECT
       }) : [];
-      return { id: account.id, name: account.displayName ?? account.username, public: account.publicProfile, characters, runs: runs.map(leaderRun) };
+      return { id: account.id, name: account.displayName ?? account.username, public: true, characters, runs: runs.map(leaderRun) };
     },
-    async visibility(id, visible) { await database.webAccount.update({ where: { id }, data: { publicProfile: visible } }); }
   };
 }
 
@@ -117,7 +126,7 @@ export function prismaProfileStore(database: PrismaClient, allows: (id: string) 
 export function profileDescription(profile: PlayerProfile, t: (en: string, fr: string) => string): string {
   let best: { points: number; dungeon: string } | null = null;
   for (const run of profile.runs) {
-    const score = scoreRun(run, publicRules(gameEditionOf(run)));
+    const score = scoreRun(run, publicRules());
     if (score && (!best || score.points > best.points)) best = { points: score.points, dungeon: run.dungeonName };
   }
   const chars = profile.characters.length;
@@ -129,13 +138,45 @@ export function profileDescription(profile: PlayerProfile, t: (en: string, fr: s
 
 export interface ProfileAchievements { publicSection(ctx: WebContext, accountId: string): Promise<string>; imagePath(accountId: string): string }
 
-export function createPlayerProfiles(store: ProfileStore, achievements?: ProfileAchievements): { route: WebRoute; meSection(ctx: WebContext): Promise<string> } {
+/**
+ * Character pictures on profiles (9.1): a public picture shows to anyone; a guild picture only to signed-in members of
+ * that guild (and its owner). `isMember` is character-picture.ts's cached check.
+ */
+export interface ProfilePictures { isMember(discordUserId: string, guildId: string): Promise<boolean> }
+
+export function createPlayerProfiles(store: ProfileStore, achievements?: ProfileAchievements, pictures?: ProfilePictures, cardPictures?: Pick<PublicPictureLookup, "forCards">): { route: WebRoute; meSection(ctx: WebContext): Promise<string> } {
   const path = (id: string) => `/players/${encodeURIComponent(id)}`;
+  /** The profile with only the pictures this viewer may see. */
+  async function visibleTo(ctx: WebContext, profile: PlayerProfile, own: boolean): Promise<PlayerProfile> {
+    const characters = await Promise.all(profile.characters.map(async char => {
+      if (!char.picture) return char;
+      const allowed = pictures && (own || char.picture.visibility === "public"
+        || (ctx.account ? await pictures.isMember(ctx.account.discordUserId, char.picture.guildId).catch(() => false) : false));
+      if (allowed) return char;
+      const rest = { ...char };
+      delete rest.picture;
+      return rest;
+    }));
+    return { ...profile, characters };
+  }
+  function hero(ctx: WebContext, profile: PlayerProfile, own: boolean): string {
+    const { t, lang } = ctx;
+    const main = profile.characters.find(char => char.picture);
+    if (!main?.picture) return "";
+    const name = main.displayName || main.name;
+    // Signed-in viewers can report someone else's picture to that guild's officers.
+    const report = !own && ctx.account && ctx.csrf
+      ? `<form method="post" action="${link("/players/pictures/report", lang)}"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf)}"><input type="hidden" name="character" value="${escapeHtml(main.picture.characterId)}"><button type="submit" class="link">${t("Report this picture", "Signaler cette image")}</button></form>`
+      : "";
+    return `<figure class="character-picture"><img src="${escapeHtml(pictureUrl(main.picture.characterId, main.picture.version))}" alt="${escapeHtml(t(`Picture of ${name}`, `Image de ${name}`))}" width="200" style="max-width:200px;height:auto;border-radius:10px">`
+      + `<figcaption>${escapeHtml(name)}${main.picture.visibility === "guild" ? ` · <span class="tag">${t("Guild only", "Guilde seulement")}</span>` : ""}</figcaption>${report}</figure>`;
+  }
   function details(ctx: WebContext, profile: PlayerProfile): string {
     const { t, lang } = ctx;
-    const characters = profile.characters.map(char => `<li><a href="${link(characterPath({ character: char.name, realm: char.realm }), lang, { edition: char.gameEdition ?? "forever" })}">${escapeHtml(char.displayName || char.name)}</a> · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
+    const thumb = (char: ProfileCharacter) => char.picture ? `<img src="${escapeHtml(pictureUrl(char.picture.characterId, char.picture.version, "thumb"))}" alt="" width="32" height="32" style="border-radius:50%;vertical-align:middle;margin-right:6px">` : "";
+    const characters = profile.characters.map(char => `<li>${thumb(char)}<a href="${link(characterPath({ character: char.name, realm: char.realm }), lang, { edition: char.gameEdition ?? "forever" })}">${escapeHtml(char.displayName || char.name)}</a>${armoryAnchor(char, t)} · ${escapeHtml(char.realm)} <span class="tag">${char.source === "guild" ? t("Linked in Discord", "Lié dans Discord") : t("Companion character", "Personnage du compagnon")}</span></li>`).join("");
     const runs = profile.runs.map(run => {
-      const score = scoreRun(run, publicRules(gameEditionOf(run)));
+      const score = scoreRun(run, publicRules());
       return `<tr><td><a href="${link(runPath(run.runId), lang, { edition: run.gameEdition ?? "forever" })}">${escapeHtml(run.dungeonName)}</a></td><td>${run.endedAt.toISOString().slice(0, 10)}</td><td>${formatDuration(run.durationSec)}</td><td>${score ? `${score.points}` : "—"}</td><td>${run.confirmations >= 2 ? t("Party confirmed", "Confirmé par le groupe") : t("One upload", "Un envoi")}</td></tr>`;
     }).join("");
     return `<h2>${t("Characters", "Personnages")}</h2>${characters ? `<ul>${characters}</ul>` : `<p>${t("No linked characters yet. Link a character in your guild's Discord, or upload a completed run with your personal companion.", "Aucun personnage lié. Liez un personnage dans le Discord de votre guilde ou envoyez un donjon terminé avec votre compagnon personnel.")}</p>`}`
@@ -145,13 +186,6 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
   const route: WebRoute = async (ctx, kit) => {
     const { t, lang } = ctx;
     const target = ctx.request.path;
-    if (target === "/me/profile" && ctx.request.method === "POST") {
-      if (!ctx.account) return kit.signInPrompt();
-      const visible = ctx.form?.get("public");
-      if (visible !== "true" && visible !== "false") return kit.page(400, "Invalid visibility", "");
-      await store.visibility(ctx.account.id, visible === "true");
-      return kit.redirect(link("/me/", lang, { done: "profile-saved" }));
-    }
     if (target === "/players" || target === "/players/") {
       if (ctx.request.method === "POST") return kit.page(405, "Method not allowed", "");
       const query = ctx.request.query;
@@ -159,6 +193,8 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
       const after = decodeCursor(query.get("after"));
       const rows = await store.list(filters, after);
       const shown = rows.slice(0, PAGE_SIZE);
+      // Public pictures only: this page is the same for every viewer.
+      const faces = cardPictures ? await cardPictures.forCards(shown) : new Map<string, { characterId: string; version: number }>();
       // Links keep the filters; "after" moves to the next page.
       const keep = { q: filters.q || null, realm: filters.realm, class: filters.className, role: filters.role, guild: filters.guild, edition: filters.edition === "forever" ? null : filters.edition };
       const any = { value: "", label: t("Any", "Tous") };
@@ -168,9 +204,9 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
         + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
         + `<div><label for="realm">${t("Realm", "Royaume")}</label><input id="realm" name="realm" maxlength="${TEXT_MAX}" value="${escapeHtml(filters.realm ?? "")}"></div>`
         + `<div><label for="guild">${t("Guild", "Guilde")}</label><input id="guild" name="guild" maxlength="${TEXT_MAX}" value="${escapeHtml(filters.guild ?? "")}"></div>`
-        + `<div><label for="edition">WoW</label><select id="edition" name="edition">${options(GAME_EDITIONS.map((value) => ({ value, label: value })), filters.edition)}</select></div>`
         + `<div><button class="button" type="submit">${t("Search", "Rechercher")}</button></div></form>`;
-      const card = (row: PlayerRow) => `<article class="card"><h2><a href="${link(path(row.id), lang)}">${escapeHtml(row.character)}</a></h2>`
+      const face = (row: PlayerRow) => { const picture = faces.get(row.id); return picture ? `<img src="${escapeHtml(pictureUrl(picture.characterId, picture.version, "thumb"))}" alt="" width="40" height="40" loading="lazy" style="border-radius:50%;vertical-align:middle;margin-right:8px">` : ""; };
+      const card = (row: PlayerRow) => `<article class="card"><h2>${face(row)}<a href="${link(path(row.id), lang)}">${escapeHtml(row.character)}</a></h2>`
         + `<p class="tag">${escapeHtml([row.className && classLabel(row.className, lang), row.role && roleLabel(row.role, lang), row.level ? `${t("level", "niveau")} ${row.level}` : null, row.realm, row.guild].filter(Boolean).join(" · "))}</p></article>`;
       return kit.page(200, t("Players", "Joueurs"), `<h1>${t("Guilded players", "Joueurs Guilded")}</h1><p>${t("Public player profiles: characters, dungeon runs and scores. Each player shows once, by their character.", "Profils publics : personnages, donjons et scores. Chaque joueur apparaît une fois, par son personnage.")}</p>`
         + form
@@ -181,22 +217,23 @@ export function createPlayerProfiles(store: ProfileStore, achievements?: Profile
     const match = /^\/players\/([a-z0-9]{20,40})\/?$/.exec(target);
     if (!match) return null;
     if (ctx.request.method === "POST") return kit.page(405, "Method not allowed", "");
-    const profile = await store.get(match[1]!);
-    if (!profile?.public) return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Profile unavailable", "Profil indisponible")}</h1>`, { noindex: true });
+    const stored = await store.get(match[1]!);
+    if (!stored?.public) return kit.page(404, t("Not found", "Introuvable"), `<h1>${t("Profile unavailable", "Profil indisponible")}</h1>`, { noindex: true });
+    const own = ctx.account?.id === stored.id, profile = await visibleTo(ctx, stored, own);
     const badges = achievements ? await achievements.publicSection(ctx, profile.id) : "";
-    return kit.page(200, profile.name, `<h1>${escapeHtml(profile.name)}</h1>${badges}${details(ctx, profile)}`, { description: profileDescription(profile, ctx.t), ...(badges && achievements ? { shareImage: achievements.imagePath(profile.id) } : {}) });
+    return kit.page(200, profile.name, `<h1>${escapeHtml(profile.name)}</h1>${hero(ctx, profile, own)}${badges}${details(ctx, profile)}`, { description: profileDescription(profile, ctx.t), ...(badges && achievements ? { shareImage: achievements.imagePath(profile.id) } : {}) });
   };
   return {
     route,
     async meSection(ctx) {
       if (!ctx.account) return "";
-      const profile = await store.get(ctx.account.id);
-      if (!profile) return "";
+      const stored = await store.get(ctx.account.id);
+      if (!stored) return "";
+      const profile = await visibleTo(ctx, stored, true);
       const { t, lang } = ctx;
-      return `<h2>${t("Your player profile", "Votre profil joueur")}</h2><p>${t("Profiles are public by default: display name, linked characters and public runs. Pairing codes and application messages stay private. Hiding this profile does not remove character results from public leaderboards.", "Les profils sont publics par défaut : nom affiché, personnages liés et donjons publics. Les codes et messages de candidature restent privés. Masquer ce profil ne retire pas les résultats des classements publics.")}</p>`
-        + (profile.public ? `<p><a href="${link(path(profile.id), lang)}">${t("View your public profile", "Voir votre profil public")}</a></p>` : `<p>${t("Your profile is hidden.", "Votre profil est masqué.")}</p>`)
-        + `<form method="post" action="/me/profile"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="public" value="${profile.public ? "false" : "true"}"><button class="button">${profile.public ? t("Hide my profile", "Masquer mon profil") : t("Make my profile public", "Rendre mon profil public")}</button></form>`
-        + details(ctx, profile);
+      return `<h2>${t("Your player profile", "Votre profil joueur")}</h2><p>${t("Everything is shared: your display name, linked characters, badges and public runs appear on your public profile and the leaderboards. Pairing codes and application messages stay private.", "Tout est partagé : votre nom affiché, vos personnages liés, vos badges et vos donjons publics apparaissent sur votre profil public et les classements. Les codes et messages de candidature restent privés.")}</p>`
+        + `<p><a href="${link(path(profile.id), lang)}">${t("View your public profile", "Voir votre profil public")}</a></p>`
+        + hero(ctx, profile, true) + details(ctx, profile);
     }
   };
 }

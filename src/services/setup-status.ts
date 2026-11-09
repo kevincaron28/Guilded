@@ -6,14 +6,14 @@ import { officerSyncRecent } from "./officer-sync.js";
 
 export function publicSharingNotice(settings: { publicDungeonRuns?: boolean; publicDungeonRunsSince?: Date | null }, lang: Lang = "en"): string {
   const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
-  if (!settings.publicDungeonRuns) return T("**Public dungeon sharing: OFF.** Officers can enable it with `/mod leaderboard share:true`. Runs already public stay public.");
+  // Sharing is always on (owner decision, 7 November 2026); an old "off" flag is ignored. Only "Delete my data" removes a member.
   const window = settings.publicDungeonRunsSince
     ? T("Only runs started since {since}; older imports stay private.", { since: `<t:${Math.ceil(settings.publicDungeonRunsSince.getTime() / 1000)}:f>` })
     : T("Eligible saved runs from the last 30 days are included.");
   return [
     T("**Public dungeon sharing: ON.** Anyone can see eligible runs at https://guilded.kcaron.top/leaderboards/: all recorded party members' character names/realms, class, role, level, times, deaths and scores, including non-guild players."),
     window,
-    T("Turn it off below or with `/mod leaderboard share:false`. This stops new publication; runs already public stay public.")
+    T("Members can erase their own data any time with “Delete my data” on the Guilded website.")
   ].join("\n");
 }
 
@@ -39,6 +39,17 @@ export interface SetupFacts {
   linkedCharacters: number;
   // Last upload from an officer's companion (Guild.officerSyncAt); omitted = not checked.
   officerSyncAt?: Date | null;
+  // 9.1: the newest stored guild roster reading and whose upload brought it (guild-data.ts
+  // rosterFreshness); null = never uploaded, omitted = not checked.
+  rosterUpdate?: { at: Date; by: string | null; members: number } | null;
+  // 8.5: only set when nickname sync is on; whether the bot has Manage Nicknames.
+  nicknameSyncReady?: boolean;
+  // How many members the bot cannot rename because their top role is at or above the bot's (cached members only).
+  nicknameBlockedMembers?: number;
+  // True when the last community honors role sync was refused by Discord (the bot role is below the honor roles).
+  honorRolesBlocked?: boolean;
+  // Board channels (standings, ladders, leaderboards, recaps) where members can still write or start threads.
+  openBoardChannels?: string[];
   // The pinned group finder message is the pre-4.6 button, not the current menu.
   dungeonSignupGuideOutdated?: boolean;
   // Every other channel setup can create (field name -> state), shown as optional rows.
@@ -52,6 +63,12 @@ export interface SetupFacts {
   // null when Discord refused the check (services/command-visibility.ts).
   commandAccess?: { role: string; command: string }[] | null;
 }
+
+/** After this long without a new roster reading, /setup status warns (members log in daily in an active guild). */
+export const ROSTER_STALE_MS = 3 * 86_400_000;
+
+/** A member's display name inside a checklist line: no markdown, no line breaks, short. */
+const plainName = (name: string) => name.replace(/[\p{Cc}*_~`|>\\[\]<@#]/gu, "").replace(/\s+/g, " ").trim().slice(0, 32) || "?";
 
 export interface ChannelFact {
   name: string;
@@ -118,6 +135,26 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       optional: true,
       fix: T("My role must be above \"{name}\": Server Settings > Roles, drag my role higher.", { name: role.name })
     })),
+    ...(facts.nicknameSyncReady === undefined ? [] : [{
+      label: T("Nickname sync permission"),
+      ok: facts.nicknameSyncReady && !facts.nicknameBlockedMembers,
+      optional: true,
+      fix: facts.nicknameSyncReady
+        ? T("My role is below {count} member(s)' top role, so I can't rename them. Server Settings > Roles: drag my role above the member ranks.", { count: facts.nicknameBlockedMembers ?? 0 })
+        : T("Give the bot role the \"Manage Nicknames\" permission, above the members it should rename.")
+    }]),
+    ...(facts.openBoardChannels === undefined ? [] : [{
+      label: T("Board channels read-only"),
+      ok: facts.openBoardChannels.length === 0,
+      optional: true,
+      fix: T("Members can still write in {channels}. Press \"Lock board channels\" on this checklist: they can still react, only the bot posts.", { channels: facts.openBoardChannels.map((id) => `<#${id}>`).join(", ") })
+    }]),
+    ...(facts.honorRolesBlocked ? [{
+      label: T("Community honor roles"),
+      ok: false,
+      optional: true,
+      fix: T("I can't give the honor roles because my role is below them. Server Settings > Roles: drag the Guilded role above the honor roles. I retry every 15 minutes.")
+    }] : []),
     {
       label: T("EPGP point values (base GP set)"),
       ok: facts.epgpConfigured,
@@ -152,16 +189,41 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
       fix: `${last} ${T("Members who only use the addon (their /guilded verify links, gear, dungeon runs) reach Discord through an officer's companion. An officer: run /character pair, connect the companion with Sign in with Discord, then /reload in WoW and press Sync now.")}`
     });
   }
+  // 9.1 (docs/JEEVES_COMPARISON.md idea 3): how fresh the guild roster is and whose upload last
+  // refreshed it, so "the only member who uploads stopped playing" shows here instead of going unnoticed.
+  if (facts.rosterUpdate !== undefined && (facts.companionPaired || facts.linkedCharacters > 0)) {
+    const roster = facts.rosterUpdate;
+    const fresh = !!roster && now.getTime() - roster.at.getTime() <= ROSTER_STALE_MS;
+    const when = roster ? `<t:${Math.floor(roster.at.getTime() / 1000)}:R>` : "";
+    const by = roster?.by ? plainName(roster.by) : null;
+    const howTo = T("The roster refreshes whenever a member with the Guilded app logs in or types /reload in WoW. Ask an active member to /reload, or connect one more member's app so it never depends on one person.");
+    checks.push(fresh
+      ? { label: by
+        ? T("Guild roster updated {when} by {name}'s upload ({count} members)", { when, name: by, count: roster!.members })
+        : T("Guild roster updated {when} ({count} members)", { when, count: roster!.members }), ok: true, optional: true, fix: "" }
+      : { label: T("Guild roster updated in the last 3 days"), ok: false, optional: true, warn: true,
+        fix: `${roster
+          ? by ? T("Last roster update: {when}, from {name}'s upload.", { when, name: by }) : T("Last roster update: {when}.", { when })
+          : T("No member's upload has brought the guild roster yet.")} ${howTo}` });
+  }
   // Every other channel setup can create: optional, each with how to get it.
   const CHANNEL_LABELS: Record<string, string> = {
     coreChannelId: T("Raid roster channel"), readinessChannelId: T("Raid readiness channel"),
-    craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), attendanceChannelId: T("Raid attendance channel"), guideChannelId: T("Bot guide channel"), answerChannelId: T("Bot FAQ channel"),
-    dungeonChannelId: T("Dungeon runs channel"), weeklyReportChannelId: T("WoW weekly report channel")
+    craftChannelId: T("Craft board channel"), applicationChannelId: T("Applications channel"), attendanceChannelId: T("Raid attendance channel"), guideChannelId: T("Bot guide channel"),
+    dungeonChannelId: T("Dungeon runs channel"), weeklyReportChannelId: T("WoW weekly report channel"), inviteChannelId: T("Guild invites channel")
   };
   for (const entry of facts.extraChannels ?? []) {
     const label = CHANNEL_LABELS[entry.field];
     if (!label) continue;
     checks.push(channelCheck(lang, label, entry.fact, true, T("Optional: press \"Create missing channels\", or pick an existing channel with the menu below.")));
+  }
+  // 9.1: the crafting extras (orders, archive, top crafters) share one row, so the checklist stays within Discord's limit.
+  const CRAFT_EXTRAS: Record<string, string> = { craftOrdersChannelId: T("Craft orders channel"), craftArchiveChannelId: T("Craft archive channel"), craftLadderChannelId: T("Top crafters channel") };
+  const extras = (facts.extraChannels ?? []).filter((entry) => CRAFT_EXTRAS[entry.field]);
+  if (extras.length) {
+    const missing = extras.filter((entry) => !entry.fact?.exists || !entry.fact.botCanPost).map((entry) => CRAFT_EXTRAS[entry.field]!);
+    checks.push({ label: T("Crafting orders, archive and top crafters channels"), ok: !missing.length, optional: true,
+      fix: missing.length ? `${missing.join(", ")}: ${T("Optional: press \"Create missing channels\", or pick an existing channel with the menu below.")}` : "" });
   }
   if (facts.community) {
     checks.push({
@@ -186,13 +248,7 @@ export function setupChecks(facts: SetupFacts, lang: Lang = "en", now = new Date
         : `${T("Hidden from: {list}.", { list: blocked.map((entry) => `${entry.role} → /${entry.command}`).join(", ") })} ${howTo}`
     });
   }
-  const answerFact = (facts.extraChannels ?? []).find((entry) => entry.field === "answerChannelId")?.fact;
-  if (answerFact && facts.messageContentIntent === false) {
-    checks.push({
-      label: T("Bot FAQ can read messages"), ok: false, optional: true, warn: true,
-      fix: T("Turn on MESSAGE_CONTENT_INTENT=true in the bot's .env and the Message Content switch in the Discord Developer Portal.")
-    });
-  }
+  // The #bot-faq answer channel was retired in 9.0: it is neither listed nor counted any more.
   // The bot's messages: missing (❌-style, optional) or out of date (⚠️), fixed by one button.
   const MESSAGE_LABELS: Record<string, string> = {
     botGuide: T("Pinned bot guide"), installPost: T("Pinned install post"), craftGuide: T("Pinned craft board guide"), welcomePanel: T("Pinned welcome panel"), leaderboard: T("Dungeon leaderboard message")

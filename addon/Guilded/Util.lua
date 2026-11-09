@@ -39,8 +39,8 @@ function util.dungeonRole(value)
   return nil
 end
 
--- Forever's second UnitName result is a surname, not a realm. Keep the old
--- accounting keys; full names are presentation data and never ledger IDs.
+-- Forever's second UnitName result is a surname, not a realm. Since 8.5 Forever keys are the
+-- full "First Last" (see util.characterKey); never treat the surname as a realm.
 function util.isForever()
   if not GetBuildInfo then return false end
   local ok, _, _, _, interface = pcall(GetBuildInfo)
@@ -53,19 +53,14 @@ function util.clientInterface()
   if ok and not isSecret(api) and type(api) == "number" then return api end
 end
 
+-- Guilded supports WoW Forever only. Any other client is "unknown": nothing edition-specific runs,
+-- and the bot refuses its uploads. Old saved data may still carry other edition names.
 function util.gameEdition()
-  local api = util.clientInterface()
-  if not api then return "unknown" end
-  if api == 16001 then return "forever" end
-  if api >= 11500 and api < 11600 then return "classic-era" end
-  if api >= 20500 and api < 20600 then return "classic-tbc" end
-  if api >= 50500 and api < 50600 then return "classic-mists" end
-  if api >= 120000 and api < 130000 then return "retail" end
-  return "unknown"
+  return util.clientInterface() == 16001 and "forever" or "unknown"
 end
 
--- Blizzard characters are identified by name AND realm. Forever's legacy
--- keys intentionally remain first names; its second UnitName value is a surname.
+-- Blizzard characters are identified by name AND realm; Forever characters by "First Last"
+-- (its second UnitName value is a surname, and its realm labels are unreliable).
 function util.realmKey(realm)
   if type(realm) ~= "string" or isSecret(realm) then return "" end
   return (realm:gsub("%s+", ""))
@@ -80,30 +75,236 @@ function util.localRealm()
   return ""
 end
 
+-- WoW Forever characters have a first AND a last name, and one player's alts often share the
+-- first name ("Lebowski Holyroller", "Lebowski Greenleaf"). Since 8.5 a Forever key is the full
+-- "First Last" (each word capitalized); before, it was the first word only, so such alts shared
+-- one ledger account, roster row and Discord character. A first name alone (old saved data, an
+-- older guildmate's addon, a bot row from before the fix, a typed command) resolves to the full
+-- name only when exactly one known character has that first name; otherwise it stays as is and
+-- Modules/ForeverNames.lua lists it for an officer.
+local function capitalized(word)
+  return word:sub(1, 1):upper() .. word:sub(2):lower()
+end
+
+local fullNames, fullNamesSeeded = {}, false -- lower(first) -> { [full] = true }
+local seedFullNames
+function util.learnFullName(full)
+  if type(full) ~= "string" or isSecret(full) then return end
+  local first = full:match("^(%S+) %S+$")
+  if not first then return end
+  seedFullNames()
+  local key = first:lower()
+  fullNames[key] = fullNames[key] or {}
+  fullNames[key][full] = true
+end
+
+-- Full names this PC already knows from saved data (roster, guildmates heard, own characters).
+seedFullNames = function()
+  local db = ns.getDb and ns.getDb()
+  if type(db) ~= "table" or fullNamesSeeded == db then return end
+  -- Another guild's saved data (or the first call): its own names only.
+  fullNames, fullNamesSeeded = {}, db
+  for _, tableName in ipairs({ "roster", "peerRoster", "myCharacters", "displayNames" }) do
+    for key, value in pairs(type(db[tableName]) == "table" and db[tableName] or {}) do
+      if type(key) == "string" then util.learnFullName(util.characterKey(key)) end
+      if type(value) == "string" then util.learnFullName(util.characterKey(value))
+      elseif type(value) == "table" and type(value.displayName) == "string" then util.learnFullName(util.characterKey(value.displayName)) end
+    end
+  end
+end
+-- After a guild switch or in tests: forget and re-read.
+function util.resetFullNames() fullNames, fullNamesSeeded = {}, false end
+
+-- The one full name known for a first name, or nil (none, or several: ambiguous).
+function util.fullNameFor(first)
+  if type(first) ~= "string" then return nil end
+  seedFullNames()
+  local found
+  for full in pairs(fullNames[first:lower()] or {}) do
+    if found then return nil end
+    found = full
+  end
+  return found
+end
+-- Every known full name sharing this first name (for the officer's list of ambiguous keys).
+function util.fullNamesFor(first)
+  seedFullNames()
+  local list = {}
+  for full in pairs(fullNames[(first or ""):lower()] or {}) do table.insert(list, full) end
+  table.sort(list)
+  return list
+end
+
 function util.characterKey(name, realm)
   if type(name) ~= "string" or isSecret(name) then return nil end
   if isSecret(realm) then return nil end
   name = name:match("^%s*(.-)%s*$")
+  -- Missing build information is the old client/test contract: first names only.
+  if util.isForever() then
+    local base = name:match("^([^%-]+)%-") or name
+    local first, last = base:match("^(%S+)%s+(%S+)")
+    first = first or base:match("^(%S+)")
+    if not first or first == "" then return nil end
+    first = capitalized(first)
+    if last then
+      local full = first .. " " .. capitalized(last)
+      util.learnFullName(full)
+      return full
+    end
+    return util.fullNameFor(first) or first
+  end
   local first, suffix = name:match("^([^%-%s]+)%-(.+)$")
   first = first or name:match("^([^%-%s]+)")
   if not first or first == "" then return nil end
-  first = first:sub(1, 1):upper() .. first:sub(2):lower()
-  -- Missing build information is the old client/test contract.
-  if util.isForever() or not util.clientInterface() then return first end
+  first = capitalized(first)
+  if not util.clientInterface() then return first end
   realm = util.realmKey(suffix or (realm ~= "" and realm) or util.localRealm())
   return realm ~= "" and (first .. "-" .. realm:lower()) or first
+end
+
+-- Saved data from before 8.5 keyed Forever characters by first name. After each roster load
+-- (the roster lists every guild member's full name, so "only one Lebowski" is a fact and not a
+-- guess from partial data), a first-name key moves to the one full name known for it. Descriptive tables
+-- (roster, digests heard, recipes...) merge into an existing full-name entry, newest first.
+-- Accounting tables (EP/GP, reserves) never merge: if both keys exist, or several characters
+-- share the first name, the old key stays untouched and is listed for an officer
+-- (db.nameMigration.flagged, /guilded names). Nothing is ever deleted without a new home.
+local NAME_TABLES = {
+  { path = { "roster" } }, { path = { "peerRoster" } }, { path = { "readiness" } },
+  { path = { "displayNames" } }, { path = { "myCharacters" } }, { path = { "attunements" } },
+  { path = { "crafterSeen" } }, { path = { "recipeBook", "people" } }, { path = { "recipeBook", "cooldowns" } },
+  { path = { "recipeBook", "cooldownAt" } }, { path = { "scores", "bests" } }, { path = { "scores", "board" } },
+  { path = { "relay", "carriers" } }, { path = { "settings", "officers" } },
+  { path = { "epgp" }, accounting = true }, { path = { "reserves", "entries" }, accounting = true },
+  { path = { "reserves", "plus" }, accounting = true }
+}
+
+local function tableAt(db, path)
+  local node = db
+  for _, step in ipairs(path) do
+    if type(node) ~= "table" then return nil end
+    node = node[step]
+  end
+  return type(node) == "table" and node or nil
+end
+
+function util.migrateForeverNames(db)
+  if not util.isForever() or type(db) ~= "table" then return { moved = 0, flagged = 0 } end
+  db.nameMigration = type(db.nameMigration) == "table" and db.nameMigration or {}
+  local state = db.nameMigration
+  state.flagged = type(state.flagged) == "table" and state.flagged or {}
+  local moved, flagged = 0, 0
+  for _, spec in ipairs(NAME_TABLES) do
+    local where = table.concat(spec.path, ".")
+    local entries = tableAt(db, spec.path)
+    local keys = {}
+    for key in pairs(entries or {}) do
+      if type(key) == "string" and not key:find(" ", 1, true) and not key:find("-", 1, true) then table.insert(keys, key) end
+    end
+    table.sort(keys)
+    for _, key in ipairs(keys) do
+      local flagKey = where .. ":" .. key
+      local full = util.fullNameFor(key)
+      local value = entries[key]
+      if full and entries[full] == nil then
+        entries[full], entries[key] = value, nil
+        state.flagged[flagKey] = nil
+        moved = moved + 1
+      elseif full and not spec.accounting and type(value) == "table" and type(entries[full]) == "table" then
+        for field, old in pairs(value) do
+          local current = entries[full][field]
+          -- The roster scan just created the full-name row: the old row knows the real first sighting.
+          if current == nil or ((field == "firstSeen" or field == "joinedAt") and type(old) == "string"
+            and type(current) == "string" and old < current) then entries[full][field] = old end
+        end
+        entries[key] = nil
+        state.flagged[flagKey] = nil
+        moved = moved + 1
+      elseif full and not spec.accounting and type(value) ~= "table" then
+        entries[key] = nil -- a string/flag already present under the full name
+        moved = moved + 1
+      elseif full or #util.fullNamesFor(key) > 1 then
+        local candidates = full and { full } or util.fullNamesFor(key)
+        if not state.flagged[flagKey] then flagged = flagged + 1 end
+        state.flagged[flagKey] = { table = where, key = key, candidates = candidates,
+          reason = full and "both" or "shared first name" }
+      end
+    end
+  end
+  return { moved = moved, flagged = flagged }
+end
+
+-- Lines for /guilded names: first-name keys an officer must sort out by hand.
+function util.nameMigrationLines(db)
+  local lines = {}
+  for _, entry in pairs(type(db) == "table" and type(db.nameMigration) == "table" and db.nameMigration.flagged or {}) do
+    if type(entry) == "table" then
+      table.insert(lines, string.format("%s %s -> %s (%s)", tostring(entry.table), tostring(entry.key),
+        table.concat(type(entry.candidates) == "table" and entry.candidates or {}, " / "), tostring(entry.reason)))
+    end
+  end
+  table.sort(lines)
+  return lines
+end
+
+-- The first name of a key ("Lebowski" for "Lebowski Holyroller"); the key itself elsewhere.
+function util.firstName(key)
+  if type(key) ~= "string" then return nil end
+  return key:match("^(%S+) ") or key
+end
+
+-- Two names are the same character: equal keys, or (an older addon or saved row that knew only
+-- the first name) one is a bare first name and the other a full name starting with it.
+function util.sameCharacter(a, b)
+  local ka, kb = util.characterKey(a or ""), util.characterKey(b or "")
+  if not ka or not kb then return false end
+  if ka == kb then return true end
+  if not util.isForever() then return false end
+  local short, long = ka, kb
+  if ka:find(" ", 1, true) then short, long = kb, ka end
+  return not short:find(" ", 1, true) and long:find(" ", 1, true) ~= nil and util.firstName(long) == short
+end
+
+-- (9.0) The key under which `map` holds this character: the exact key, or, while saved data from
+-- an 8.4 companion or guildmate still uses first names, the one key that is the same character
+-- (util.sameCharacter). Like the bot's transitional rule, a first name counts only when it is not
+-- shared: two matching keys, or two known full names for that first name, mean no match.
+function util.findCharacterKey(map, name)
+  if type(map) ~= "table" or type(name) ~= "string" then return nil end
+  if map[name] ~= nil then return name end
+  if not util.isForever() then return nil end
+  local found
+  for key in pairs(map) do
+    if type(key) == "string" and util.sameCharacter(key, name) then
+      if found then return nil end
+      found = key
+    end
+  end
+  if not found then return nil end
+  if #util.fullNamesFor(util.firstName(found:find(" ", 1, true) and found or name)) > 1 then return nil end
+  return found
 end
 
 function util.unitKey(unit)
   local fn = (not util.isForever() and UnitFullName) or UnitName
   if not fn then return nil end
-  local ok, first, realm = pcall(fn, unit)
+  local ok, first, second = pcall(fn, unit)
   if not ok then return nil end
-  return util.characterKey(first, util.isForever() and nil or realm)
+  if util.isForever() then
+    -- Forever's second UnitName value is the surname, not a realm.
+    if type(first) == "string" and not isSecret(first) and not first:find(" ", 1, true)
+      and type(second) == "string" and not isSecret(second) and second:match("^%S+$") then
+      return util.characterKey(first .. " " .. second)
+    end
+    return util.characterKey(first)
+  end
+  return util.characterKey(first, second)
 end
 
+-- A name without its realm. On Forever that keeps "First Last".
 function util.bareName(name)
   if type(name) ~= "string" or isSecret(name) then return nil end
+  if util.isForever() then return (name:match("^([^%-]+)") or name):match("^%s*(.-)%s*$") end
   return name:match("^([^%-%s]+)") or name
 end
 
@@ -224,6 +425,47 @@ function util.hideWindow(frame)
   local name = frame.GetName and frame:GetName()
   if name and UIPanelWindows and UIPanelWindows[name] and HideUIPanel then HideUIPanel(frame) else frame:Hide() end
 end
+
+-- Combat lockdown: the game refuses Show/Hide/SetParent/SetPoint on protected frames (and on
+-- anything anchored to or parented under one, like our panel inside the guild window) while
+-- the player is in combat, and logs ADDON_ACTION_BLOCKED. util.afterCombat(key, fn) runs fn
+-- now out of combat; in combat it queues fn (one slot per key, the latest wins) for
+-- PLAYER_REGEN_ENABLED and tells the player once. Returns true when it deferred.
+local pendingAfterCombat, pendingOrder, combatNoticeShown, combatWatcher = {}, {}, false, nil
+function util.inCombat()
+  if type(InCombatLockdown) ~= "function" then return false end
+  local ok, value = pcall(InCombatLockdown)
+  return ok and value == true
+end
+local function runAfterCombat()
+  local order = pendingOrder
+  local actions = pendingAfterCombat
+  pendingOrder, pendingAfterCombat = {}, {}
+  for _, key in ipairs(order) do
+    local fn = actions[key]
+    if fn then
+      local ok, err = pcall(fn)
+      if not ok then diag("LUA_ERROR", "after combat " .. tostring(key) .. ": " .. tostring(err)) end
+    end
+  end
+end
+function util.afterCombat(key, fn, quiet)
+  if not util.inCombat() then fn() return false end
+  if pendingAfterCombat[key] == nil then pendingOrder[#pendingOrder + 1] = key end
+  pendingAfterCombat[key] = fn
+  if not combatWatcher and CreateFrame then
+    combatWatcher = CreateFrame("Frame")
+    combatWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+    combatWatcher:SetScript("OnEvent", function() runAfterCombat() end)
+  end
+  if not combatNoticeShown and not quiet and ns.message then
+    combatNoticeShown = true
+    pcall(ns.message, ns.L and ns.L("Guilded will finish this after combat.") or "Guilded will finish this after combat.")
+  end
+  return true
+end
+-- For tests: whether anything is waiting for combat to end.
+function util.pendingAfterCombat(key) return pendingAfterCombat[key] ~= nil end
 
 function util.serverTime()
   if GetServerTime then
@@ -355,6 +597,15 @@ ns.comm = comm
 local BURST, PER_SECOND, MAX_TRIES = 8, 1, 5
 local MAX_QUEUED = 1024
 local INTERACTIVE_RESERVE = 16
+local LOCKDOWN_RETRY_SECONDS = 5
+local INSTANCE_RETRY_SECONDS = 10
+-- Inside a 5-player dungeon, raid, battleground, arena or scenario (IsInInstance's type).
+local HELD_INSTANCES = { party = true, raid = true, pvp = true, arena = true, scenario = true }
+function util.inInstance()
+  if type(IsInInstance) ~= "function" then return false end
+  local ok, inside, kind = pcall(IsInInstance)
+  return ok and inside == true and HELD_INSTANCES[kind or ""] == true
+end
 -- SendAddonMessage result codes (Enum.SendAddonMessageResult) that mean "try again".
 local THROTTLED = { [3] = true, [8] = true }
 local buckets = {}
@@ -396,11 +647,17 @@ local pump
 local function schedule(prefix, b)
   if b.scheduled or not (C_Timer and C_Timer.After) then return end
   b.scheduled = true
-  C_Timer.After(1 / PER_SECOND, function() b.scheduled = false; pump(prefix) end)
+  local delay = math.max(1 / PER_SECOND, (b.retryAt or 0) - b.at)
+  C_Timer.After(delay, function() b.scheduled = false; pump(prefix) end)
 end
 
 pump = function(prefix)
   local b = bucket(prefix)
+  if b.retryAt and b.at < b.retryAt then
+    schedule(prefix, b)
+    return
+  end
+  b.retryAt = nil
   while b.queue[1] and b.tokens >= 1 do
     -- Only explicitly independent traffic may bypass bulk transfers. Keep FIFO
     -- inside each lane, with one bulk packet after four interactive packets.
@@ -411,6 +668,13 @@ pump = function(prefix)
       for i, candidate in ipairs(b.queue) do if not candidate.interactive then index = i break end end
     end
     local item = b.queue[index]
+    if item.holdInInstance and util.inInstance() then
+      -- Background sync waits outside; FIFO order and the guard are kept for the retry.
+      b.retryAt = b.at + INSTANCE_RETRY_SECONDS
+      b.lastResult, b.lastCode = "held", nil
+      b.results.held = (b.results.held or 0) + 1
+      break
+    end
     local allowed = true
     if item.guard then
       local ok, value = pcall(item.guard)
@@ -421,7 +685,15 @@ pump = function(prefix)
       b.results.cancelled = b.results.cancelled + 1
     else
       local status, code = rawSend(prefix, item.text, item.channel, item.target)
+      -- Lockdown may outlast a combat encounter. Keep ordered, replay-safe data
+      -- queued without using its throttle retries or probing on each enqueue.
+      if code == 11 and item.retryLockdown then
+        b.retryAt = b.at + LOCKDOWN_RETRY_SECONDS
+        b.lastResult, b.lastCode = "lockdown", code
+        break
+      end
       b.results[status] = b.results[status] + 1
+      if status == "sent" then b.results.bytes = (b.results.bytes or 0) + #item.text end
       b.lastResult, b.lastCode = status, code
       if status == "throttled" then
         b.tokens = 0
@@ -446,6 +718,9 @@ end
 -- FIFO within each lane: leave all snapshot headers/chunks/end markers on the
 -- default lane. Only independent, latency-sensitive messages opt into interactive.
 -- Optional guard is rechecked before every attempt, including throttled retries.
+-- "retry-lockdown" uses the bulk FIFO and retains packets through AddOnMessageLockdown.
+-- "hold-in-instance" does the same and also waits while the player is inside a dungeon, raid,
+-- battleground or arena (guild messages are unreliable there), for background sync only.
 -- A false result or error discards the packet without consuming a send token.
 function comm.send(prefix, text, channel, target, guard, priority)
   if not channel then return false end
@@ -462,7 +737,9 @@ function comm.send(prefix, text, channel, target, guard, priority)
     if b.results.overflow == 1 then diag("SEND", prefix .. ": message queue full; retry sync later") end
     return false
   end
-  table.insert(b.queue, { text = text, channel = channel, target = target, guard = guard, interactive = priority == "interactive" })
+  local hold = priority == "hold-in-instance"
+  table.insert(b.queue, { text = text, channel = channel, target = target, guard = guard,
+    interactive = priority == "interactive", retryLockdown = hold or priority == "retry-lockdown", holdInInstance = hold })
   pump(prefix)
   return true
 end
@@ -485,6 +762,21 @@ function comm.status(prefix)
     queued = b and #b.queue or 0, lastResult = b and b.lastResult or nil,
     lastCode = b and b.lastCode or nil
   }
+end
+
+-- (9.0) This session's addon traffic, all prefixes together (for /guilded sync stats):
+-- messages sent and their bytes, messages held inside instances, and what Transport.lua
+-- counted as received from guildmates' Guilded addons.
+comm.received = comm.received or { count = 0, bytes = 0 }
+function comm.totals()
+  local out = { sent = 0, bytes = 0, held = 0, queued = 0, received = comm.received.count, receivedBytes = comm.received.bytes }
+  for _, b in pairs(buckets) do
+    out.sent = out.sent + (b.results.sent or 0)
+    out.bytes = out.bytes + (b.results.bytes or 0)
+    out.held = out.held + (b.results.held or 0)
+    out.queued = out.queued + #b.queue
+  end
+  return out
 end
 
 -- Registers an addon message prefix with whichever API this client has.

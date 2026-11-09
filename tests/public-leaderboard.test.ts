@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createLeaderboardPages, GUILD_COUNT, rankCharacters, rankGuilds, readLeaderFilters, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
+import { createLeaderboardPages, filterGuildOverview, GUILD_COUNT, guildDungeonSummary, guildOverview, pageNumbers, rankCharacters, rankGuilds, readGuildOverviewFilters, readLeaderFilters, type GuildStats, type LeaderboardStore, type LeaderRun } from "../src/services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCode, personalAccess, type PersonalStore } from "../src/services/personal-pairing.js";
 import { createWebApp, type WebRequest, type WebResponse } from "../src/services/web-app.js";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
@@ -92,6 +92,31 @@ describe("guild rankings", () => {
   });
 });
 
+describe("guild leaderboard table", () => {
+  const stats = (guildId: string, extra: Partial<GuildStats> = {}): GuildStats => ({ guildId, faction: null, realm: null, members: 0, linked: 0, levelled: 0, at60: 0, levelSum: 0, duels: 0, ...extra });
+  it("lists every guild with its best bracket score, runs and the dungeon records its members hold", () => {
+    const qg = { id: "g1", name: "Québec Gold" }, vg = { id: "g2", name: "Vanguard" }, empty = { id: "g3", name: "Empty" };
+    const fast = leaderRun("fast", 1200, [player("Kev", "Warrior", "TANK")]);
+    const slow = leaderRun("slow", 1500, [player("Zed", "Rogue", "DPS")]);
+    const entries = [{ guild: qg, runs: [fast], roster: ["kev"] }, { guild: vg, runs: [slow], roster: ["zed"] }, { guild: empty, runs: [], roster: [] }];
+    const rows = guildOverview(entries, rankGuilds(entries), [stats("g1", { faction: "ALLIANCE", realm: "Doomhowl", members: 10, at60: 2, levelled: 4, levelSum: 200 }), stats("g2", { faction: "HORDE", members: 30 })], [fast, slow]);
+    expect(rows.map((r) => `${r.guild.id}:${r.points !== null}:${r.runs}:${r.records}`)).toEqual(["g1:true:1:1", "g2:true:1:0", "g3:false:0:0"]);
+    const base = readGuildOverviewFilters(new URLSearchParams(""));
+    expect(base).toEqual({ q: "", faction: null, realm: null, sort: "score", page: 1 });
+    expect(filterGuildOverview(rows, base).map((r) => r.guild.id)).toEqual(["g1", "g2", "g3"]);
+    expect(filterGuildOverview(rows, { ...base, sort: "members" }).map((r) => r.guild.id)).toEqual(["g2", "g1", "g3"]);
+    expect(filterGuildOverview(rows, readGuildOverviewFilters(new URLSearchParams("q=quebec")))).toHaveLength(1);
+    expect(filterGuildOverview(rows, readGuildOverviewFilters(new URLSearchParams("faction=horde"))).map((r) => r.guild.id)).toEqual(["g2"]);
+    expect(filterGuildOverview(rows, readGuildOverviewFilters(new URLSearchParams("realm=doomhowl"))).map((r) => r.guild.id)).toEqual(["g1"]);
+    expect(readGuildOverviewFilters(new URLSearchParams("sort=hack&page=-3&faction=elf"))).toMatchObject({ sort: "score", page: 1, faction: null });
+  });
+  it("numbers pages around the current one", () => {
+    expect(pageNumbers(1, 1)).toEqual([1]);
+    expect(pageNumbers(5, 10)).toEqual([1, null, 3, 4, 5, 6, 7, null, 10]);
+    expect(pageNumbers(1, 4)).toEqual([1, 2, 3, 4]);
+  });
+});
+
 describe("leaderboard and personal pages", () => {
   function setup(extra: LeaderRun[] = []) {
     const runs = [leaderRun("a", 1500), leaderRun("b", 1300, [player("Kev", "Warrior", "TANK"), player("<b>Bad</b>", "Mage", "DPS")], { confirmations: 2 })];
@@ -103,7 +128,8 @@ describe("leaderboard and personal pages", () => {
       async characterRuns(character) { return all.filter((run) => run.players.some((p) => p.character.toLowerCase() === character.toLowerCase())); },
       async guilds() { return [{ id: "g1", name: "Quebec Gold", slug: "quebec-gold" }]; },
       async guildRuns(guildId) { return guildId === "g1" ? runs : []; },
-      async guildRoster(guildId) { return guildId === "g1" ? ["kev", "amy"] : []; }
+      async guildRoster(guildId) { return guildId === "g1" ? ["kev", "amy"] : []; },
+      async guildStats(ids) { return ids.map((guildId) => ({ guildId, faction: "ALLIANCE", realm: "Doomhowl", members: 12, linked: 9, levelled: 8, at60: 3, levelSum: 400, duels: 7 })); }
     };
     const personal = memoryPersonalStore();
     const pages = createLeaderboardPages({ store, personal: personal.store, now: () => NOW });
@@ -120,7 +146,7 @@ describe("leaderboard and personal pages", () => {
     return { request, personal };
   }
 
-  it("renders native Retail keys and respects player filters without mixing fastest clears", async () => {
+  it("keeps a stored Retail keystone run readable, with no keystone board or rating (WoW Forever only)", async () => {
     const challenge = { mapId: 249, level: 10, affixIds: [3, 9], durationMs: 645123, timeLimitSec: 1980,
       onTime: true, practiceRun: false, eligibleForScore: true };
     const native = leaderRun("native-run", 600, [{ ...player("Native", "Warrior", "TANK"), presentSec: 600 }], {
@@ -128,15 +154,11 @@ describe("leaderboard and personal pages", () => {
       evidence: { startedAt: new Date(NOW.getTime() - 1200000), completedBy: "challenge objectives", encounters: [] } });
     const { request } = setup([native]);
     const page = await request("GET", "/leaderboards/?edition=retail");
-    expect(page.body).toContain("10:45.123");
-    expect(page.body).toContain("Highest key finished in time");
-    expect(page.body).toContain("affixes");
-    expect(page.body).toContain("345.0");
-    expect(page.body).toContain("Contributing runs");
+    expect(page.status).toBe(200);
+    expect(page.body).not.toContain("Highest key finished in time");
+    expect(page.body).not.toContain("Guilded Mythic+ rating");
     const character=await request("GET","/leaderboards/character/Native-Doomhowl?edition=retail");
-    expect(character.body).toContain("345.0");
-    expect(character.body).toContain("Provisional Guilded Mythic+ rating");
-    expect((await request("GET", "/leaderboards/?edition=retail&class=Priest")).body).not.toContain("10:45.123");
+    expect(character.body).not.toContain("Provisional Guilded Mythic+ rating");
     expect(rankCharacters([native], { className: null, role: null, confirmed: false })).toEqual([]);
     const detail = await request("GET", "/leaderboards/run/native-run?edition=retail");
     expect(detail.status).toBe(200);
@@ -158,6 +180,22 @@ describe("leaderboard and personal pages", () => {
     expect(summary.body).not.toMatch(/Kev|Amy|Bad/);
     const board = await request("GET", "/leaderboards/?lang=fr");
     expect(board.body).toContain("<summary>Comment les scores sont calculés</summary>");
+  });
+
+  // The phone app's boards: public display names and scores only, same ratings as the site.
+  it("serves the phone boards as JSON with the public ratings", async () => {
+    const { request } = setup();
+    const boards = await request("GET", "/leaderboards/boards.json?lang=en");
+    expect(boards.status).toBe(200);
+    expect(boards.headers["content-type"]).toContain("application/json");
+    const data = JSON.parse(boards.body) as { season: string; brackets: { key: string; characters: { rank: number; points: number }[]; guilds: { rank: number; id: string }[] }[] };
+    expect(typeof data.season).toBe("string");
+    expect(data.brackets.length).toBeGreaterThan(0);
+    for (const bracket of data.brackets) {
+      expect(bracket.characters.length).toBeLessThanOrEqual(10);
+      expect(bracket.characters.map((c) => c.rank)).toEqual(bracket.characters.map((_, i) => i + 1));
+    }
+    expect((await request("POST", "/leaderboards/boards.json")).status).not.toBe(200);
   });
 
   it("lists dungeons, ranks a dungeon and shows a character page", async () => {
@@ -213,7 +251,7 @@ describe("leaderboard and personal pages", () => {
     const guilds = await request("GET", "/leaderboards/guilds/?lang=fr");
     expect(guilds.status).toBe(200);
     expect(guilds.body).toContain("Classement des guildes");
-    expect(guilds.body).toMatch(/<td>1<\/td><td><a href="\/forever\/leaderboards\/guild\/g1\?lang=fr">Quebec Gold<\/a>/);
+    expect(guilds.body).toMatch(/<td><span class="medal m1" aria-label="#1">1<\/span><\/td><td(?: class="wrap")?><a href="\/forever\/leaderboards\/guild\/g1\?lang=fr">Quebec Gold<\/a>/);
     expect(guilds.body).toContain('href="/g/quebec-gold/"');
     expect(guilds.body).toContain('class="crumbs"');
     const season = await request("GET", "/leaderboards/guild/g1/");
@@ -225,6 +263,41 @@ describe("leaderboard and personal pages", () => {
     expect(guild.body).toContain("Quebec Gold");
     expect(guild.body).toContain(">Kev<");
     expect((await request("GET", "/leaderboards/guild/nope")).status).toBe(404);
+  });
+
+  it("shows the guild table, character rankings with medals and a run page with its party", async () => {
+    const { request } = setup();
+    const guilds = await request("GET", "/leaderboards/guilds/?lang=en");
+    expect(guilds.body).toContain("All guilds");
+    expect(guilds.body).toContain('class="fac-alliance"');
+    expect(guilds.body).toContain('<td class="num">12</td>');
+    expect(guilds.body).toContain("Gear score is not shown");
+    expect(guilds.body).toContain('name="faction"');
+    expect((await request("GET", "/leaderboards/guilds/?q=nothing")).body).toContain("No guild matches these filters.");
+    const ranking = await request("GET", "/leaderboards/characters/?lang=en");
+    expect(ranking.status).toBe(200);
+    expect(ranking.body).toContain("Character rankings");
+    expect(ranking.body).toContain('class="medal m1"');
+    expect(ranking.body).toContain('href="/forever/leaderboards/run/');
+    expect(ranking.body).not.toContain("<b>Bad</b>");
+    expect((await request("GET", "/leaderboards/characters/?class=Priest")).body).not.toContain('class="char c-warrior"');
+    const run = await request("GET", "/leaderboards/run/b?lang=en");
+    expect(run.status).toBe(200);
+    expect(run.body).toContain("Party");
+    expect(run.body).toContain('class="run-card"');
+    expect(run.body).toContain('class="tiles"');
+    expect(run.body).not.toContain("<b>Bad</b>");
+  });
+
+  it("summarises a guild's top characters, recent runs and records for its page", async () => {
+    const runs = [leaderRun("a", 1500), leaderRun("b", 1300, [player("Kev", "Warrior", "TANK"), player("Pug", "Mage", "DPS")])];
+    const store: LeaderboardStore = { async runs() { return runs; }, async characterRuns() { return []; }, async guilds() { return []; },
+      async guildRuns() { return runs; }, async guildRoster() { return ["kev"]; } };
+    const summary = await guildDungeonSummary(store, "g1", undefined, NOW);
+    expect(summary.top.map((row) => row.name)).toEqual(["Kev"]);
+    expect(summary.recent).toHaveLength(2);
+    expect(summary.records).toHaveLength(1);
+    expect(summary.records[0]!.time).toBe("21:40");
   });
 
   it("gives a signed-in player a one-time companion code", async () => {

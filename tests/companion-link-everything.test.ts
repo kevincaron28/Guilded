@@ -32,7 +32,7 @@ describe("companion Link everything status", () => {
   });
   it("tells each missing step its next action", () => {
     const signedIn = { companionCredential: "personal" };
-    expect(byId(linkSteps(signedIn, {}, hubWith({ battleNet: false })), "characters").next).toMatch(/Find my saved data/);
+    expect(byId(linkSteps(signedIn, {}, hubWith({ battleNet: false })), "characters").next).toMatch(/Find my addon data/);
     expect(byId(linkSteps({ ...signedIn, watchFile: "g.lua" }, {}, hubWith({ battleNet: false })), "characters").next).toMatch(/\/reload/);
     expect(byId(linkSteps({ ...signedIn, watchFile: "g.lua" }, { lastUpload: {} }, hubWith({ battleNet: false })), "characters").next).toMatch(/\/character claim/);
   });
@@ -71,10 +71,18 @@ describe("companion Link everything status", () => {
     for (const word of [/token/i, /oauth/i, /credential/i]) expect(page).not.toMatch(word);
     expect(read("companion/link-everything.mjs").replace(/\/\/.*$/gm, "")).not.toMatch(/token|oauth|credential"/i);
   });
-  it("does not ask leaderboards-only connections to prove characters", () => {
+  it("leaderboards only: says no guild server yet, never that everything is linked (8.5 fresh-PC test)", () => {
     const view = linkSteps({ companionCredential: "personal", personal: true }, {}, null);
     expect(byId(view, "characters").required).toBe(false);
-    expect(view.complete).toBe(true);
+    expect(view.complete).toBe(false);
+    expect(byId(view, "discord").label).toBe("Signed in for public dungeon rankings only");
+    expect(byId(view, "characters")).toMatchObject({ state: "todo", label: "No guild server yet" });
+    expect(byId(view, "characters").next).toMatch(/not in a Discord server that uses Guilded yet/);
+  });
+  it("never reports complete with no character linked", () => {
+    for (const config of [{ companionCredential: "c", watchFile: "g.lua" }, { companionCredential: "c", personal: true }]) {
+      expect(linkSteps(config, { lastUpload: {} }, hubWith({ battleNet: true }, 0)).complete).toBe(false);
+    }
   });
   it("has a French string for every status text", () => {
     const scenarios = [
@@ -106,15 +114,15 @@ describe("Link everything wiring", () => {
   it("every id the page script uses exists in the page", () => {
     const html = read("companion-app/renderer/index.html");
     const script = read("companion-app/renderer/link-everything.js") + read("companion-app/renderer/app.js");
-    for (const id of ["page-link", "linkList", "linkAllDone", "linkSummary", "linkResult", "btnLinkSignIn", "btnLinkFind", "btnLinkCheck", "btnLinkBattleNet", "btnLinkDevices", "btnLinkSkip", "linkSignInWaiting", "linkSignInCode", "linkSignInCodeLine", "linkSignInLink", "btnLinkSignInCancel", "linkChars", "linkCharCount", "linkCharsEmpty", "btnLinkSync", "btnLinkUnlink", "btnLinkDiscord", "linkCharsPanel", "linkActionsPanel"]) {
+    for (const id of ["page-link", "linkList", "linkAllDone", "linkResult", "btnLinkSignIn", "btnLinkFind", "btnLinkCheck", "btnLinkBattleNet", "btnLinkDevices", "btnLinkSkip", "linkSignInWaiting", "linkSignInCode", "linkSignInCodeLine", "linkSignInTimeLeft", "btnLinkSignInReopen", "btnLinkSignInCancel", "linkChars", "linkCharCount", "linkCharsEmpty", "btnLinkSync", "btnLinkUnlink", "btnLinkDiscord", "linkCharsPanel", "linkActionsPanel"]) {
       expect(html, id).toContain(`id="${id}"`);
       if (id !== "page-link") expect(script, id).toContain(id);
     }
-    expect(html).toContain('data-page="link"');
+    expect(html).toContain('data-go="link"'); // Settings > Run setup again (the menu entry left in redesign PR 2)
   });
   it("re-running a linked step is a harmless no-op", () => {
     const app = read("companion-app/renderer/app.js"), link = read("companion-app/renderer/link-everything.js");
-    expect(app).toMatch(/view === 'link' && savedConfig\.companionCredential\) \{ ui\.say\(T\("Already linked, nothing to do\."\)/);
+    expect(app).toMatch(/view === 'link' && savedConfig\.companionCredential && !savedConfig\.personal\) \{ ui\.say\(T\("Already linked, nothing to do\."\)/);
     expect(link.match(/Already linked, nothing to do\./g)?.length).toBeGreaterThanOrEqual(2);
   });
   it("opens the Discord server only for a numeric server id", () => {
@@ -133,8 +141,9 @@ describe("Link everything wiring", () => {
     const main = read("companion-app/main.cjs");
     const block = main.slice(main.indexOf('registerIpc("link-find-saved-data"'), main.indexOf('registerIpc("browse-poe-log"'));
     expect(block).toContain("if (!config.companionCredential)");
-    // The only file, or the only WoW Forever file; otherwise the member chooses.
-    expect(block).toContain("pickSavedVariables(found)");
+    // The only file, the only WoW Forever file, or (several accounts, docs/plans/MULTI_ACCOUNT.md)
+    // the newest one, with the others asked about.
+    expect(block).toContain("pickPrimaryAccount(found)");
     expect(block).toContain("if (!chosen)");
     // A missing, beta or stale watched file is looked for again instead of "already linked".
     expect(block).toContain("!current.candidate");

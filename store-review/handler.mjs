@@ -50,7 +50,7 @@ export async function reviewRequest(request, env, storage, now = Date.now()) {
       const secret = token(); const digest = await hash(secret);
       // Re-pairing replaces the prior session, so stored state stays bounded.
       await storage.put('session', { digest, generation, expiresAt: Math.min(until, now + 86_400_000), imported: false });
-      return json(200, { companionCredential: secret, guildDiscordId: REVIEW_GUILD, gameEdition: 'retail', wowGuildName: 'Guilded Review Sandbox' });
+      return json(200, { companionCredential: secret, guildDiscordId: REVIEW_GUILD, gameEdition: 'forever', wowGuildName: 'Guilded Review Sandbox' });
     }
     const supplied = request.headers.get('x-companion-credential') ?? '';
     if (supplied.length !== 64) return json(401, { error: 'Pair with the private review code.' });
@@ -59,7 +59,7 @@ export async function reviewRequest(request, env, storage, now = Date.now()) {
     if (!session || session.digest !== digest || session.generation !== generation || session.expiresAt <= now) return json(401, { error: 'Review session expired or revoked. Pair again.' });
     if (request.method === 'GET' && url.pathname === '/api/v1/standings') {
       if (url.searchParams.get('guild') !== REVIEW_GUILD) return json(403, { error: 'This connection can access only the review guild.' });
-      return json(200, { protocolVersion: 2, botVersion: '7.5.0', gameEdition: 'retail', features: [], updatedAt: new Date(now).toISOString(), baseGp: 100,
+      return json(200, { protocolVersion: 2, botVersion: '7.5.0', gameEdition: 'forever', features: [], updatedAt: new Date(now).toISOString(), baseGp: 100,
         wowGuildName: 'Guilded Review Sandbox', standings: [{ character: 'Reviewmage', realm: 'Review Realm', displayName: 'Reviewmage (synthetic)', className: 'MAGE', ep: session.imported ? 100 : 0, gp: 0 }] });
     }
     if (request.method === 'POST' && url.pathname === '/api/v1/companion/logout') {

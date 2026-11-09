@@ -1,5 +1,5 @@
 import { currentEdition, withEdition } from "./edition-context.js";
-import { GAME_EDITIONS, gameEditionOf } from "../../companion/game-edition.mjs";
+import { gameEditionOf } from "../../companion/game-edition.mjs";
 import { CLASSES } from "../wow-data.js";
 import {
   authorizeUrl, checkCsrf, clearCookie, csrfToken, exchangeCode, hashToken, newToken, parseCookies, readStateCookie, safeReturnPath,
@@ -56,7 +56,8 @@ export const isWebPath = (path: string) => path.length <= 200 && PATHS.test(path
 const ID = /^[a-z0-9]{20,40}$/;
 const MAX_FORM = 16_000;
 // Review CSV is capped at 8,000 decoded characters; allow URL-encoded UTF-8 names.
-export const webFormLimit = (path: string) => path === "/me/raid-plans" ? 250_000 : path === "/me/roster/review" ? 80_000 : MAX_FORM;
+// A character picture arrives as a base64 data URL (character-picture.ts), under the Worker's 1 MB body cap.
+export const webFormLimit = (path: string) => path === "/me/raid-plans" ? 250_000 : path === "/me/roster/review" ? 80_000 : path === "/me/pictures/upload" ? 1_000_000 : MAX_FORM;
 
 export function createWebApp(deps: WebAppDeps) {
   const now = deps.now ?? (() => new Date());
@@ -127,7 +128,7 @@ export function createWebApp(deps: WebAppDeps) {
     if (path === "/auth/login") {
       if (!deps.auth) return kit.signInPrompt();
       const state = newToken();
-      return kit.redirect(authorizeUrl(deps.auth, state), [stateCookie(deps.auth, state, safeReturnPath(request.query.get("return")), ctx.now)]);
+      return kit.redirect(authorizeUrl(deps.auth, state, request.query.get("switch") === "1"), [stateCookie(deps.auth, state, safeReturnPath(request.query.get("return")), ctx.now)]);
     }
     if (path === "/auth/callback") {
       if (!deps.auth) return kit.signInPrompt();
@@ -201,7 +202,7 @@ export function createWebApp(deps: WebAppDeps) {
   function filterForm(ctx: WebContext, filters: Filters): string {
     const { t, lang } = ctx;
     const any = { value: "", label: t("Any", "Tous") };
-    return `<form class="filters" method="get" action="/recruitment/"><input type="hidden" name="lang" value="${lang}"><div><label for="edition">WoW</label><select name="edition" id="edition">${options(GAME_EDITIONS.map(value => ({value,label:value})),currentEdition())}</select></div>`
+    return `<form class="filters" method="get" action="/recruitment/"><input type="hidden" name="lang" value="${lang}">`
       + `<div><label for="kind">${t("Show", "Afficher")}</label><select id="kind" name="kind">${options([{ value: "all", label: t("Everything", "Tout") }, { value: "guild", label: t("Guilds", "Guildes") }, { value: "core", label: t("Raid cores", "Cores de raid") }, { value: "raids", label: t("Open raid spots", "Places de raid") }, { value: "players", label: t("Players", "Joueurs") }], filters.kind)}</select></div>`
       + `<div><label for="class">${t("Class", "Classe")}</label><select id="class" name="class">${options([any, ...CLASSES.map((name) => ({ value: name, label: classLabel(name, lang) }))], filters.className)}</select></div>`
       + `<div><label for="role">${t("Role", "Rôle")}</label><select id="role" name="role">${options([any, ...ROLES.map((role) => ({ value: role, label: roleLabel(role, lang) }))], filters.role)}</select></div>`
@@ -365,10 +366,11 @@ export function createWebApp(deps: WebAppDeps) {
       + `<section class="me-sec" id="sec-looking"><h3 id="looking-for-a-guild">${t("Looking for a guild", "Je cherche une guilde")}</h3><details class="me-fold"${error ? " open" : ""}><summary>${card ? t("Edit my card", "Modifier ma fiche") : t("Create my card", "Créer ma fiche")}</summary>${cardForm}</details></section>`;
     const overviewOwn = `<p id="my-week">${t("My week: use", "Ma semaine : utilisez")} <code>/report stats personal:true</code> ${t("in your guild’s Discord for a private recap of the last complete week.", "dans le Discord de votre guilde pour un récapitulatif privé de la dernière semaine complète.")}</p>`;
     const quick = [
-      { href: "/me/battlenet", en: "Link a character", fr: "Lier un personnage" },
+      { href: "#characters", en: "Link a character", fr: "Lier un personnage" },
       { href: "#achievements", en: "My achievements", fr: "Mes succès" },
       { href: "/me/availability", en: "Set availability", fr: "Ma disponibilité" },
       { href: "/me/calendar", en: "My next raid", fr: "Mon prochain raid" },
+      { href: "/me/reserves", en: "Reserves and wishlist", fr: "Réserves et souhaits" },
       { href: "/companion/", en: "My sync", fr: "Ma synchronisation" }
     ];
     const body = [

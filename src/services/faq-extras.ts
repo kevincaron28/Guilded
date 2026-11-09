@@ -1,4 +1,5 @@
 import type { Lang } from "../i18n.js";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { foldText, wordFits } from "./answers.js";
 
 // Free, deterministic product answers, a default FAQ seed and an unanswered-question log for the
@@ -11,8 +12,8 @@ const POE2_ANSWER: Bilingual = {
   fr: "**Compagnon Path of Exile 2** : lance le compagnon Guilded (application bureau) pendant que tu joues. Il lit le journal Client.txt de PoE2, note tes zones et niveaux pour ton journal et les envoie au bot. Jumelle-le d'abord avec `/character pair`, puis consulte `/poe` pour ton journal."
 };
 const PAIRING_ANSWER: Bilingual = {
-  en: "**Linking and pairing**: run `/character pair` in Discord. **No companion:** copy the `/guilded verify` line it shows and paste it in WoW chat once; all your characters link by themselves at the next guildmate's companion sync, and you get a DM. **Companion:** choose **Sign in with Discord** in it, then press **Connect** on the page that opens; nothing to type. Each player has their own connection; there is no shared upload token. Stopped working? Sign in again (companions older than 7.2: `/character pair` also gives a one-time code).",
-  fr: "**Lien et jumelage** : lance `/character pair` dans Discord. **Sans compagnon :** copie la ligne `/guilded verify` affichée et colle-la une fois dans le chat de WoW; tous tes personnages se lient tout seuls à la prochaine synchro d'un compagnon de la guilde, et tu reçois un MP. **Avec le compagnon :** choisis **Sign in with Discord**, puis appuie sur **Relier** sur la page qui s'ouvre; rien à taper. Chaque joueur a sa propre connexion; il n'y a pas de jeton partagé. Ça ne marche plus? Reconnecte-toi (compagnons plus anciens que 7.2 : `/character pair` donne aussi un code à usage unique)."
+  en: "**Linking and pairing**: run `/character pair` in Discord. **No companion:** copy the `/guilded verify` line it shows and paste it in WoW chat once; all your characters link by themselves at the next guildmate's companion sync, and you get a DM. **Companion:** choose **Sign in with Discord** in it, then press **Connect** on the page that opens; nothing to type. Each player has their own connection; there is no shared upload token. Stopped working? Sign in again (companions older than 7.2: `/character pair` also gives a one-time code). Need the companion? Get it from the Microsoft Store, or use the direct download that updates itself: https://guilded.kcaron.top/companion/",
+  fr: "**Lien et jumelage** : lance `/character pair` dans Discord. **Sans compagnon :** copie la ligne `/guilded verify` affichée et colle-la une fois dans le chat de WoW; tous tes personnages se lient tout seuls à la prochaine synchro d'un compagnon de la guilde, et tu reçois un MP. **Avec le compagnon :** choisis **Sign in with Discord**, puis appuie sur **Relier** sur la page qui s'ouvre; rien à taper. Chaque joueur a sa propre connexion; il n'y a pas de jeton partagé. Ça ne marche plus? Reconnecte-toi (compagnons plus anciens que 7.2 : `/character pair` donne aussi un code à usage unique). Il te faut le compagnon ? Prends-le sur le Microsoft Store, ou le téléchargement direct qui se met à jour seul : https://guilded.kcaron.top/companion/?lang=fr"
 };
 const SYNC_ANSWER: Bilingual = {
   en: "**Data not syncing?** 1) Make sure the companion is running and paired (`/character pair`). 2) In WoW, `/reload` or log out so SavedVariables are written to disk. 3) Check the companion shows no error and your addon version matches the bot (`/help`). 4) Wait a minute and try `/profile`. Still stuck? Ask an officer to run `/setup system`.",
@@ -20,6 +21,7 @@ const SYNC_ANSWER: Bilingual = {
 };
 
 export function looksLikePoe2Question(text: string): boolean {
+  if (!POE_TRACKING_ENABLED) return false; // Forever-only focus (companion/active-games.mjs)
   return /\b(poe ?2|poe|path of exile)\b/.test(foldText(text)) && /\b(companion|compagnon|diary|journal|client txt|log|upload|track|sync|install|pair|pairing|jumel\w*|overlay)\b/.test(foldText(text));
 }
 export const poe2Answer = (lang: Lang): string => pick(POE2_ANSWER, lang);
@@ -76,7 +78,7 @@ const SEEDS: Seed[] = [
 ];
 
 export function defaultFaqEntries(lang: Lang): { triggers: string[]; answer: string }[] {
-  return SEEDS.map((seed) => ({ triggers: lang === "fr" ? seed.triggers.fr : seed.triggers.en, answer: pick(seed.answer, lang) }));
+  return SEEDS.filter((seed) => POE_TRACKING_ENABLED || seed.answer !== POE2_ANSWER).map((seed) => ({ triggers: lang === "fr" ? seed.triggers.fr : seed.triggers.en, answer: pick(seed.answer, lang) }));
 }
 
 // Entries whose trigger set already exists are skipped, so importing twice adds nothing.

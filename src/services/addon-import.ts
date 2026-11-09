@@ -1,3 +1,4 @@
+import { creditHeldRunPlayers } from "./dungeon-held-credit.js";
 import { withEdition } from "./edition-context.js";
 import { assertAddonGuildScope } from "./addon-scope.js";
 import { createHash } from "node:crypto";
@@ -7,8 +8,9 @@ import { deriveReadinessStatus } from "./readiness.js";
 import { applyAddonLoot, applyRaidAttendance, touchLastSeen } from "./raid-import.js";
 import { importDungeonRuns } from "./dungeon-import.js";
 import { importBattlegroundReports } from "./battleground-records.js";
+import { importDuelResults, importMilestones } from "./duels.js";
 import { applyDiscoveredCharacters } from "./roster-discovery.js";
-import { findCharacter } from "./character-match.js";
+import { findCharacter, ledgerOwner } from "./character-match.js";
 import { applyReserves } from "./reserves.js";
 import { applyAddonItemPrices } from "./item-values.js";
 import { syncProfessionSnapshot } from "./profession-snapshot.js";
@@ -17,12 +19,13 @@ import { planCalendarSync } from "./calendar-sync.js";
 import { createSelfCharacter } from "./character-pairing.js";
 import { excludeHistoryBeforeReset } from "./import-reset.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { planSignupAnswers } from "./signup-answers.js";
 import { queueCharacterDisplayRefresh } from "./character-display-refresh.js";
 import { assertSnapshotEdition, gameEditionOf } from "./game-edition.js";
 
 // Why a row is waiting (see AddonHeldEntry). Every reason clears by itself once the cause is
 // fixed, because each upload carries the whole ledger again; a dismissed row is never imported.
-export type HeldReason = "UNLINKED" | "NO_CORE" | "UNKNOWN_POOL" | "NO_CORE_RAID";
+export type HeldReason = "UNLINKED" | "NO_CORE" | "UNKNOWN_POOL" | "NO_CORE_RAID" | "SHARED_FIRST_NAME";
 export interface HeldRow { kind: "EPGP" | "DKP" | "LOOT"; sourceRef: string; character: string; reason: HeldReason; detail: string }
 const signed = (value: number) => `${value >= 0 ? "+" : ""}${value}`;
 
@@ -75,17 +78,14 @@ export function createAddonImportService(database: PrismaClient) {
     },
 
     async record(guildId: string, snapshot: AddonSnapshot, checksum: string, createdBy: string, pairedMemberId?: string) {
-      // BG consent is independent of officer import access. Do not retain a BG
-      // payload in staging when its authenticated reporter has not opted in.
-      const persist = async (tx: Pick<Prisma.TransactionClient, "addonImport" | "battlegroundConsent" | "character" | "member">) => {
+      // Keep only the authenticated reporter's own battleground reports (their paired member and characters).
+      const persist = async (tx: Pick<Prisma.TransactionClient, "addonImport" | "character" | "member">) => {
         let battlegroundReports: AddonSnapshot["battlegroundReports"] = [];
         if (pairedMemberId && snapshot.battlegroundReports.length) {
-          const consent = await tx.battlegroundConsent.findUnique({ where: { memberId: pairedMemberId } });
           const member = await tx.member.findFirst({ where: { id: pairedMemberId, guildId, status: "ACTIVE" }, select: { id: true } });
-          if (member && consent?.capture && consent.guildId === guildId) {
+          if (member) {
             const own = await tx.character.findMany({ where: { guildId, memberId: pairedMemberId } });
-            battlegroundReports = snapshot.battlegroundReports.filter(row => row.endedAt * 1000 >= consent.consentedAt.getTime()
-              && own.some(c => c.gameEdition === row.edition && findCharacter([c], row.character, row.realm, row.edition)));
+            battlegroundReports = snapshot.battlegroundReports.filter(row => own.some(c => c.gameEdition === row.edition && findCharacter([c], row.character, row.realm, row.edition)));
           }
         }
         return tx.addonImport.create({
@@ -120,7 +120,7 @@ export function createAddonImportService(database: PrismaClient) {
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
-        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
+        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, duelBoardEnabled: true, duelBoardChannelId: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
         const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true, wowSpace: { select: { name: true, realm: true } } } });
@@ -139,7 +139,7 @@ export function createAddonImportService(database: PrismaClient) {
         // freed since, and only now being applied.)
         const self = snapshot.character;
         if (imported.pairedMemberId && self?.class && !findCharacter(characters, self.name, self.realm)) {
-          const linked = await createSelfCharacter(tx, guildId, imported.pairedMemberId, self);
+          const linked = await createSelfCharacter(tx, guildId, imported.pairedMemberId, self, true);
           characters.push({ ...linked, member: await tx.member.findUniqueOrThrow({ where: { id: linked.memberId } }) });
         }
 
@@ -182,7 +182,8 @@ export function createAddonImportService(database: PrismaClient) {
         for (const item of snapshot.transactions) {
           const sourceRef = ledgerRef(item);
           if (alreadyImported.has(sourceRef) || dismissedDkp.has(sourceRef)) { skipped++; continue; }
-          const character = findCharacter(characters, item.character, item.realm);
+          const character = ledgerOwner(characters, item.character, item.realm);
+          if (character === "shared") { held.push({ kind: "DKP", sourceRef, character: item.character, reason: "SHARED_FIRST_NAME", detail: `${signed(item.amount)} DKP - ${item.reason}` }); continue; }
           if (!character) { held.push({ kind: "DKP", sourceRef, character: item.character, reason: "UNLINKED", detail: `${signed(item.amount)} DKP - ${item.reason}` }); continue; }
           alreadyImported.add(sourceRef);
           importedRefs.push(sourceRef);
@@ -233,7 +234,9 @@ export function createAddonImportService(database: PrismaClient) {
           const hold = (reason: HeldReason) => held.push({ kind: "EPGP", sourceRef, character: item.character, reason, detail });
           if (item.coreId && !validPoolIds.has(item.coreId)) { hold("UNKNOWN_POOL"); continue; }
           if (settings?.coreLootOnly && !item.coreId) { hold("NO_CORE"); continue; }
-          const character = findCharacter(characters, item.character, item.realm);
+          // WoW Forever, 8.5: a pre-8.5 first name goes to the member when all its characters are theirs.
+          const character = ledgerOwner(characters, item.character, item.realm);
+          if (character === "shared") { hold("SHARED_FIRST_NAME"); continue; }
           if (!character) { hold("UNLINKED"); continue; }
           alreadyImported.add(sourceRef);
           importedRefs.push(sourceRef);
@@ -377,6 +380,12 @@ export function createAddonImportService(database: PrismaClient) {
         const calendarPlan = await planCalendarSync(tx, guildId, snapshot.calendarEvents,
           characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId })));
 
+        // Raid answers given in game (Signups page): only for the exporter's own characters, applied after
+        // this commits. The latest change wins per member (services/signup-answers).
+        const own = [...(snapshot.character ? [snapshot.character] : []), ...snapshot.alts].map(character => ({ name: character.name, realm: character.realm }));
+        const signupJobs = planSignupAnswers(snapshot.signupAnswers.filter(answer => findCharacter(own, answer.character, answer.realm)),
+          characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId })));
+
         // In-game raid presence -> Discord raid attendance (best effort, like
         // readiness: an unmatched raid or character doesn't block the import).
         const raids = await applyRaidAttendance(tx, guildId, snapshot.raids, characters, appliedBy);
@@ -400,9 +409,15 @@ export function createAddonImportService(database: PrismaClient) {
           const cleared = [...importedRefs, ...loot.recordedRefs].filter((ref) => knownHeld.some((row) => row.sourceRef === ref && !row.dismissedAt));
           if (cleared.length) await heldStore.deleteMany({ where: { guildId, dismissedAt: null, sourceRef: { in: cleared } } });
         }
+        // Guildmates who linked since their run was stored get their credit now (held credit).
+        await creditHeldRunPlayers(tx, guildId, characters, appliedBy);
         const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
-          characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec })), appliedBy, importId);
+          characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec, discordId: character.member?.discordUserId ?? null, displayName: (character as { displayName?: string | null }).displayName ?? null })), appliedBy, importId);
         const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);
+        // Duels and milestones come only from a paired member's own companion (never an officer's whole-guild upload).
+        const guildEdition = gameEditionOf(guild ?? {});
+        const duels = await importDuelResults(tx, guildId, guildEdition, imported.pairedMemberId, characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId, level: character.level })), snapshot.duelResults);
+        const milestones = await importMilestones(tx, guildId, guildEdition, imported.pairedMemberId, characters.filter((character) => character.memberId === imported.pairedMemberId), snapshot.milestones);
 
         await tx.addonImport.update({
           where: { id: imported.id },
@@ -411,6 +426,7 @@ export function createAddonImportService(database: PrismaClient) {
         // The import and its public refresh requests commit together. A process crash
         // between commit and followUpImport cannot leave the display stale forever.
         if (settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");
+        if (duels.recorded && settings?.duelBoardEnabled && settings.duelBoardChannelId) await enqueueDiscordJob(tx, guildId, "duel-board", "DUEL_BOARD");
         if (settings?.craftChannelId) await enqueueDiscordJob(tx, guildId, "professions", "PROFESSIONS");
         if (settings?.characterSignups && (readinessSnapshots.length || discovery.refreshed)) {
           const ids = new Set(readinessSnapshots.map(row => row.characterId));
@@ -420,9 +436,10 @@ export function createAddonImportService(database: PrismaClient) {
           }
           await queueCharacterDisplayRefresh(tx, guildId, [...ids]);
         }
+        if (signupJobs.length) await enqueueDiscordJob(tx, guildId, `signup-answers:${imported.id}`, "SIGNUP_ANSWERS", { answers: JSON.parse(JSON.stringify(signupJobs)) });
         if (calendarPlan.matches.length) await enqueueDiscordJob(tx, guildId, `calendar:${imported.id}`, "CALENDAR", { plan: JSON.parse(JSON.stringify(calendarPlan)) });
         return {
-          import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, battlegrounds, skipped,
+          import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, battlegrounds, duels, milestones, skipped,
           voided, held: { rows: held, fresh: newlyHeld.length }, rejected: snapshot.rejected, unchangedSections
         };
         });

@@ -4,7 +4,7 @@
 
 Easiest: the [Start here page](https://guilded.kcaron.top/start/) walks you through the same three steps.
 
-1. **Install the addon (required).** [Choose your WoW edition](https://guilded.kcaron.top/editions/) (Hardcore uses Classic Era). Close WoW first, then copy the `Guilded` folder into that game's `Interface/AddOns`. The addon works alone, without Discord.
+1. **Install the addon (required).** [Get the WoW Forever addon](https://guilded.kcaron.top/editions/forever/). Close WoW first, then copy the `Guilded` folder into that game's `Interface/AddOns`. The addon works alone, without Discord.
 2. **Get the companion (optional, Windows only).** It sends your saved game data to Discord and the website. [Latest from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or the [direct GitHub download](https://github.com/kevincaron28/Guilded/releases/latest) (unsigned: Windows may warn you).
 3. **Sign in with Discord.** One click on [My Guilded](https://guilded.kcaron.top/me/), and in the companion if you use it. Pairing and sync are then automatic. A new companion opens on **Link everything**: one list shows Discord, Battle.net (optional; WoW Forever characters may not appear there) and your characters, each with its next step. After you sign in, the companion finds your saved data when one account has it and proves your characters from it, with no code to type. Skip it any time; `/guilded verify` in game and the website keep working.
 
@@ -26,7 +26,7 @@ Need help? See [installation](MEMBER_INSTALL.md), [dungeons](DUNGEONS_GUIDE.md),
 
 Le plus simple : la [page Commencer ici](https://guilded.kcaron.top/start/?lang=fr) suit les trois mêmes étapes.
 
-1. **Installez l’addon (obligatoire).** [Choisissez votre édition de WoW](https://guilded.kcaron.top/editions/?lang=fr) (Hardcore utilise Classic Era). Fermez WoW, puis copiez le dossier `Guilded` dans `Interface/AddOns` de ce jeu. L’addon fonctionne seul, sans Discord.
+1. **Installez l’addon (obligatoire).** [Obtenez l’addon WoW Forever](https://guilded.kcaron.top/editions/forever/?lang=fr). Fermez WoW, puis copiez le dossier `Guilded` dans `Interface/AddOns` de ce jeu. L’addon fonctionne seul, sans Discord.
 2. **Obtenez le compagnon (facultatif, Windows seulement).** Il envoie vos données de jeu enregistrées vers Discord et le site. [Dernière version du Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), ou le [téléchargement direct GitHub](https://github.com/kevincaron28/Guilded/releases/latest) (non signé : Windows peut vous avertir).
 3. **Connectez-vous avec Discord.** Un clic sur [Mon Guilded](https://guilded.kcaron.top/me/?lang=fr), et dans le compagnon si vous l’utilisez. Le lien et la synchronisation sont ensuite automatiques.
 

@@ -88,16 +88,14 @@ describe("guild map", () => {
     s.run(`MY.x = 0.45; ADVANCE(5); NS.guildMap.tick()`);
     expect(sentText(s)).toContain("P|1429|4500|6000");
     s.run(`MY.instance = true; ADVANCE(5); NS.guildMap.tick()`);
-    expect(sentText(s).split(",").pop()).toBe("GuildedMap:G");
   });
 
-  it("stops sharing when you turn it off, and says so", () => {
+  it("has no sharing switch: the position is always shared, and the old command only says so", () => {
     const s = withMap();
     s.run(`NS.guildMap.tick(); NS.commandHandlers["map"]({ "share", "off" })`);
-    expect(sentText(s).split(",").pop()).toBe("GuildedMap:G");
     s.run(`SENT = {}; ADVANCE(60); NS.guildMap.tick()`);
-    expect(sentText(s)).toBe("");
-    expect(s.chat().join("\n")).toContain("no longer shared");
+    expect(sentText(s)).toContain("GuildedMap:P|");
+    expect(s.chat().join("\n")).toContain("always shared");
   });
 
   it("keeps guildmates' positions, lists them with their zone, and drops them when they leave", () => {
@@ -176,14 +174,14 @@ describe("guild map", () => {
     expect(s.run(`return tostring(NS.guildMap.translate(1429,.5,.5,99))`)).toBe("nil");
   });
 
-  it("requests fresh positions and rate limits requests and replies, respecting privacy", () => {
+  it("requests fresh positions and rate limits requests and replies, and answering every guildmate", () => {
     const s = withMap();
     s.run(`NS.guildMap.requestPositions(); NS.guildMap.requestPositions()`);
     expect(sentText(s).split(",").filter((x) => x === "GuildedMap:Q")).toHaveLength(1);
     s.run(`SENT = {}; NS.guildMap.receive("Q", "Ann"); NS.guildMap.receive("Q", "Bob")`);
     expect(sentText(s).split(",")).toHaveLength(1);
-    s.run(`SETTINGS.mapShare = false; ADVANCE(11); SENT = {}; NS.guildMap.receive("Q", "Ann")`);
-    expect(sentText(s)).toBe("");
+    s.run(`ADVANCE(11); SENT = {}; NS.guildMap.receive("Q", "Ann")`);
+    expect(sentText(s)).toContain("GuildedMap:P|");
   });
 
   it("keeps the update loop available when enabled after login", () => {
@@ -314,6 +312,10 @@ describe("dungeon scores (no bot needed)", () => {
       function UnitIsPlayer() return true end; function UnitName() return "Ann" end
       NS.scores.decorateUnit(tip)`);
     expect(s.run(`return LINES[1]`)).toBe("Guilded season score: 300");
+    // In combat (a duel) the tooltip holds secret values: Guilded leaves it alone.
+    s.run(`LINES = {}; NS.util = NS.util or {}; NS.util.inCombat = function() return true end
+      NS.scores.decorateUnit({ GetUnit = function() return "Ann", "mouseover" end, AddLine = function(_, t) LINES[#LINES + 1] = t end })`);
+    expect(s.run(`return #LINES`)).toBe("0");
   });
 });
 

@@ -34,7 +34,7 @@ suivent sont ses sous-commandes.
 | `/report` `bug` `ping` `stats` | Envoyer un rapport de bogue privé ; vérifier que le bot répond ; activité de la guilde | Tout le monde |
 | `/automation` `recap` | Récapitulatif hebdomadaire en message privé (désactivé par défaut) | Tout le monde |
 | `/wow` `list` `use` | Choisir la guilde en jeu utilisée par vos commandes | Tout le monde |
-| `/poe` `pair` `status` `runs` `summary` | Journal de cartes de Path of Exile 2 | Tout le monde |
+| `/poe` `pair` `status` `runs` `summary` | Journal de cartes de Path of Exile 2 | Tout le monde | <!--poe-->
 
 ### Raids
 
@@ -69,7 +69,7 @@ suivent sont ses sous-commandes.
 | Commande | Ce qu’elle fait | Qui |
 | --- | --- | --- |
 | `/dungeon` `leaderboard` `season` `records` `player` `history` | Cote de saison, meilleurs temps, parcours d’un joueur | Tout le monde |
-| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Saisons passées, règles de pointage, liste des donjons, clés Retail, objectif d’équipe de la semaine | Tout le monde |
+| `/dungeon` `archive` `hall-of-fame` `rules` `catalog` `keystones` `together` | Saisons passées, règles de pointage, liste des donjons, objectif d’équipe de la semaine | Tout le monde |
 | `/dungeon` `group` `alerts` `watch` | Former un groupe avec un canal vocal ; être prévenu des groupes qui vous conviennent | Tout le monde |
 | `/officer dungeon` `invalidate` `award` `audit` `config` | Corriger une partie, ajuster les points de guilde, lire l’historique | Officiers |
 | `/organize dungeon-seasons preview` | Voir les saisons de donjon en cours et à venir | Organisateurs |
@@ -93,8 +93,7 @@ suivent sont ses sous-commandes.
 | `/mod` `page` `recruit` `leaderboard` `rankroles` | Page publique de la guilde, recrutement, classements publics, rôles de rang | Officiers |
 | `/report` `inactive` `guild` | Membres inactifs ; santé de la guilde | Officiers |
 | `/organize` | Saisons communautaires, quiz, palmarès, loteries, soirées de jeu, défis | Organisateurs |
-| `/poll` `create` `close` `weekly` | Sondages et question de la semaine | Officiers |
-| `/events` `board` `reminders` `disable` `status` `refresh` | Tableau des événements à venir et rappels facultatifs | Officiers |
+| `/poll` `create` `close` `weekly` `news` `board` | Sondages, question de la semaine, nouvelles et sondages sur le tableau de guilde en jeu | Officiers |
 | `/participation` `settings` `channels` `claims` `review` `reverse` | Réglages de participation, nominations et récompenses | Officiers |
 | `/wow` `add` `channel` `roles` | Ajouter une guilde en jeu ; lier un canal ; régler ses rôles | Officiers |
 | `/poe setup` | Activer ou suspendre le suivi PoE2 | Officiers |
@@ -149,7 +148,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | `/guilded chat tab\|off` · `chattags on\|off` | Onglet de discussion à part ; afficher le nom du principal d’un reroll | Tout le monde |
 | `/guilded digest` · `map` · `gbank` · `guildlog` | Changements depuis la dernière connexion ; guildmates sur la carte ; banque de guilde ; journal de guilde | Tout le monde |
 | `/guilded dungeon status\|results\|start\|complete\|abandon\|check` | Enregistrer et vérifier les parties de donjon | Tout le monde |
-| `/guilded bgcapture on\|off` | Capture de vos propres résultats de champ de bataille | Tout le monde |
+| `/guilded bgcapture` | État de la capture de vos résultats de champ de bataille (toujours active si prise en charge) | Tout le monde |
 | `/guilded pugcheck on\|off\|now\|last` | Niveau d’objet et enchantements des joueurs hors guilde de votre groupe | Tout le monde |
 | `/guilded backup` · `restore` | Copier les données de la guilde en un code, ou les remettre | Tout le monde |
 | `/guilded perf` | Mesurer le temps de travail de Guilded | Tout le monde |
@@ -168,7 +167,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | `/guilded localcore` · `setup guild` | Cores de raid et règles de butin sans Discord | Officiers |
 | `/guilded ready` · `consumes` | Qui est prêt dans votre groupe ; qui manque de flacon ou de nourriture | Officiers et chefs de groupe |
 | `/guilded export` · `import softres\|tmb\|history` | Exporter ; importer réserves, TMB ou historique de butin | Officiers |
-| `/guilded invite raid\|missing` · `autoinvite` | Inviter les inscrits au raid ; inviter ceux qui chuchotent | Officiers |
+| `/guilded invite raid\|missing` · `autoinvite` | Inviter les inscrits au raid ; une ligne /ginvite pour ceux qui chuchotent | Officiers |
 | `/guilded recruit` · `welcome` | Liste de recrues potentielles ; chuchoter aux nouveaux membres | Officiers |
 | `/guilded officer list\|add\|remove\|rank` | Qui compte comme officier | Officiers |
 | `/guilded ledgersync` · `bridge` · `rosteradmin` · `sim` | Partager les EP/GP entre officiers ; pont du compagnon ; outils de roster ; raid de test | Officiers |
@@ -178,7 +177,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | Onglet | Ce qu’il montre | Qui |
 | --- | --- | --- |
 | Home · My character · Open raids | Ce qui se passe, votre équipement, les raids avec de la place | Tout le monde |
-| Standings · Crafting · Availability | Classements, recettes, qui est en ligne | Tout le monde |
+| Standings · Crafting | Classements et recettes | Tout le monde |
 | Ready · Reserves · Loot · Council | Vérifications de soirée de raid, réserves, mises et réponses du conseil | Chefs / Tout le monde / Officiers |
 | Raid · Administration · Gear | Mener un raid, donner des EP/GP, niveau d’objet par membre | Officiers |
 | Calendar · Local guild · Roster admin · Officer tools | Calendrier, configuration sans Discord, outils de roster, journal et imports | Officiers |
@@ -194,7 +193,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 ## Compagnon Windows
 
 Une petite application Windows gratuite. Facultative pour l’addon, requise pour les fonctions
-Discord et le site. Toutes les étapes : [Application compagnon](/companion/).
+Discord et le site. Toutes les étapes : [Application compagnon](https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe).
 
 | Quoi | Détail |
 | --- | --- |

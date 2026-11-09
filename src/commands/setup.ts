@@ -27,8 +27,15 @@ import { config } from "../config.js";
 import { classLeaderRoleName, hasPermission, isPermissionRole, permissionRoleNames, roleNamesFor, type Permission } from "../permissions.js";
 import { CLASSES } from "../wow-data.js";
 import { commandVisibility } from "../services/command-visibility.js";
+import { inviteChannelCandidates, pickInviteChannel } from "../services/invite-extras.js";
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
+import { rosterFreshness } from "../services/guild-data.js";
+import { blockedMemberCount, botCanRename } from "../services/nickname-sync.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { openBoardChannels } from "../services/board-permissions.js";
+import { honorRolesBlocked } from "../services/community-honors.js";
+import { deleteWhosWhoPost, hasWhosWhoPost } from "../services/whos-who-board.js";
+import { archiveForRetire, deleteRetiredChannel, forgetRetirePlan, isManagedChannel, retirePlan } from "../services/channel-retire.js";
 import { sendWelcome, welcomeDelivery } from "../services/housekeeping.js";
 import { ensureWelcomePanel, MAX_ONBOARDING_ROLES, rulesGateActive } from "../services/onboarding.js";
 import { isValidTimeZone } from "../services/raid-time.js";
@@ -37,7 +44,7 @@ import { ensureDungeonSignupGuide } from "../services/dungeon-guide.js";
 import { ensureAllCoresDiscord } from "../services/raid-core.js";
 import { botMessageFacts, ensureBotGuide, gettingStartedPost, updateBotMessages } from "../services/bot-messages.js";
 import { dungeonGuideState, LFG_ROLE_NAMES } from "../services/dungeon-guide.js";
-import { guideText as craftGuideText } from "./craft-board.js";
+import { guideButtons as craftGuideButtons, guideText as craftGuideText } from "./craft-board.js";
 import { asLang, tx, type Lang } from "../i18n.js";
 import { CATEGORY_NAMES, isSetupLeftover, categoryNames, channelNames, channelSpec, type Access, type CategoryKey, type ChannelField } from "../setup-names.js";
 import { forgetAnswerSettings } from "./faq.js";
@@ -45,8 +52,11 @@ import { BRAND } from "../brand.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { LITE_SETUP_STEPS, LITE_SUMMARY } from "./lite.js";
 import { boardTagNames, postBoardGuide } from "./craft-board.js";
-import { ensureBattlegroundSetup, BG_SETUP_PARTS, BG_SETUP_FIELDS } from "../services/battleground-setup.js";
+import { ensureRaceBoard } from "../services/race-board.js";
+import { boardChannelIds, repairBoardPermissions } from "../services/board-permissions.js";
+import { ensureBattlegroundSetup, ensurePvpModule, BG_SETUP_PARTS, BG_SETUP_FIELDS } from "../services/battleground-setup.js";
 import { communitySetupState, ensureCommunitySetup } from "../services/community-setup.js";
+import { channelIsGone, clearDanglingChannels } from "../services/dangling-channels.js";
 
 // Guided first-time setup. One private message that walks an admin through
 // seven steps with buttons and dropdowns only (no IDs, no typing):
@@ -83,8 +93,25 @@ const STEP_TITLES = [
 const LAST_STEP = 7;
 // The checklist's "use an existing channel for…" choice, until the channel is picked (per guild).
 const pendingField = new Map<string, ChannelField>();
+// "Retire an old channel": picking (true) until a channel is chosen and archived; then confirming (retirePlan).
+const retiring = new Set<string>();
+// 9.0.2: the retired Who's who post. An officer presses the offer button, then confirms or keeps it (per guild).
+const whosAsk = new Set<string>();
 const SUMMARY_STEP = 8;
 const BG_SETUP_STEP = 9;
+// Wizard messages that still have a live collector. A click on any other `setup:` message (the bot restarted,
+// or the wizard timed out) gets an "expired" reply from main.ts instead of Discord's "This interaction failed".
+const liveWizardMessages = new Set<string>();
+export const isLiveSetupMessage = (messageId: string): boolean => liveWizardMessages.has(messageId);
+
+/** Saved channel ids whose channel was deleted are cleared, so setup treats them as not set (retired #bot-faq included). */
+async function pruneDanglingChannels(guild: DiscordGuild, guildId: string): Promise<void> {
+  const settings = await guildService.getSettings(guildId);
+  if (!settings) return;
+  const cleared = await clearDanglingChannels(guild, settings as unknown as Record<string, unknown>,
+    (data) => guildService.updateSettings(guildId, data as Parameters<typeof guildService.updateSettings>[1]));
+  if (cleared.includes("answerChannelId")) forgetAnswerSettings(guild.id);
+}
 
 // Common choices; anything else can be set with /config timezone.
 const TIMEZONES: [string, string][] = [
@@ -104,6 +131,9 @@ const TIMEZONES: [string, string][] = [
 
 async function channelFact(guild: DiscordGuild, channelId: string | null | undefined): Promise<ChannelFact | null> {
   if (!channelId) return null;
+  // A channel Discord says is gone counts as not set; any other failure keeps the old "can't see it" fact.
+  const gone = await channelIsGone(guild, channelId);
+  if (gone) return null;
   const channel = await guild.channels.fetch(channelId).catch(() => null);
   if (!channel) return { name: "deleted-channel", exists: false, botCanPost: false };
   const me = guild.members.me;
@@ -153,14 +183,18 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     dungeonLeaderboardChannel: await channelFact(guild, settings.dungeonLeaderboardChannelId),
     welcomeChannel: welcomeDelivery(settings) === "DM" ? null : await channelFact(guild, settings.welcomeChannelId),
     autoRoles,
+    ...(await openBoardChannels(guild, prisma, guildId).then((open) => ({ openBoardChannels: open })).catch(() => ({}))),
+    ...(honorRolesBlocked(guildId) ? { honorRolesBlocked: true } : {}),
+    ...(settings.nicknameSyncEnabled !== false ? { nicknameSyncReady: botCanRename(guild), nicknameBlockedMembers: blockedMemberCount(guild) } : {}),
     epgpConfigured: settings.baseGp > 0,
     remindersOn: settings.raidReminderMinutes > 0,
     weeklyReportOn: settings.weeklyReportEnabled,
     companionPaired: (await prisma.companionCredential.count({ where: { revokedAt: null, member: { guildId, status: "ACTIVE" } } })) > 0,
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     officerSyncAt: (await prisma.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }))?.officerSyncAt ?? null,
+    ...(await rosterFreshness(prisma, guildId).then((rosterUpdate) => ({ rosterUpdate })).catch(() => ({}))),
     dungeonSignupGuideOutdated: guideState === "outdated",
-    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "answerChannelId", "dungeonChannelId", "weeklyReportChannelId"] as const)
+    extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "craftLadderChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "dungeonChannelId", "weeklyReportChannelId", "inviteChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),
     messageContentIntent: config.MESSAGE_CONTENT_INTENT,
     community: await communitySetupState(prisma, guildId).catch(() => null),
@@ -230,8 +264,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       ),
       new ActionRowBuilder<ButtonBuilder>().addComponents(
         button("next", T("Start ▶"), ButtonStyle.Primary),
-        button("jump-summary", T("Just show me the checklist")),
-        button("public-sharing-off", T("Turn public sharing off"), ButtonStyle.Secondary, !settings.publicDungeonRuns)
+        button("jump-summary", T("Just show me the checklist"))
       )
     );
   }
@@ -273,6 +306,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
   }
 
   if (step === 2) {
+    // Rows of the removed countdown boards stay in the database; their channels can be retired from here.
+    const oldCountdownChannels = (await (async () => prisma.gameEventBoard.findMany({ where: { guildId }, select: { channelId: true }, take: 5 }))().catch(() => [])).map((row) => row.channelId).filter((id) => guild.channels.cache.has(id));
     embed.setDescription([
       T("Already have channels for these? **Pick them from the menus below** — nothing gets created or moved. Don't have them yet? Skip the menus and press **\"Create the missing ones for me\"**: I'll make only the ones you haven't picked (the log channel will be private to officers), sorted into tidy categories."),
       "",
@@ -281,7 +316,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("📜 **Raid reports and loot logs** — each raid core has its own, in the core's category (`/core setup` makes them). There is no server-wide one."),
       T("🔒 **Officer log** (WoW guild officers) — joins/leaves, moderation, bank and craft requests: {channel}", { channel: channelLabel(lang, settings.logChannelId) }),
       T("📖 **Bot guide** — the getting-started guide, pinned; also where update notices post: {channel} (\"Create the missing ones for me\" makes this one too, or pick it later with `/config channel`)", { channel: channelLabel(lang, settings.guideChannelId) }),
-      T("💬 **Bot FAQ** — members ask questions and the bot answers automatically: {channel}", { channel: channelLabel(lang, settings.answerChannelId) }),
+      ...(oldCountdownChannels.length ? [T("⏳ **Countdowns** were removed from Guilded. To remove the old {channels}, press **Retire an old channel** below and pick it: its messages are saved to a file first and nothing is deleted until you confirm.", { channels: oldCountdownChannels.map((id) => `<#${id}>`).join(", ") })] : []),
+      ...(settings.answerChannelId ? [T("💬 **Bot FAQ** is retired and no longer created. To remove the old {channel}, press **Retire an old channel** below and pick it: its messages are saved to a file first and nothing is deleted until you confirm.", { channel: channelLabel(lang, settings.answerChannelId) })] : []),
       T("🎉 **Community** — activities, leaderboard and chat, with a first season and participation rewards already on, plus a private **Discord admin** channel for community reviews (separate from the WoW officer channels). (\"Create the missing ones for me\" makes these too.)")
     ].join("\n"));
     const select = (id: string, placeholder: string) => new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(
@@ -438,13 +474,13 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
   if (step === BG_SETUP_STEP) {
     const fr = lang === "fr";
     embed.setTitle(fr ? "JcJ — module facultatif" : "Battlegrounds — optional module").setDescription(fr
-      ? "Installer/réparer crée uniquement les salons manquants et actualise les panneaux statiques. Les salons existants gardent leurs accès et leur historique. Sans Gérer les salons, choisissez trois salons ci-dessous. Aucun enregistrement, consentement, classement ou envoi automatique activé."
-      : "Install/repair creates only missing channels and updates static panels. Existing channels retain access and history. Without Manage Channels, select three existing channels below. No capture, consent, ranking or automatic posting is enabled.");
+      ? "Installer/réparer crée uniquement les salons manquants et actualise les panneaux statiques. Les salons existants gardent leurs accès et leur historique. Sans Gérer les salons, choisissez les salons ci-dessous. Aucun enregistrement, consentement, classement ou envoi automatique activé."
+      : "Install/repair creates only missing channels and updates static panels. Existing channels retain access and history. Without Manage Channels, select the existing channels below. No capture, consent, ranking or automatic posting is enabled.");
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("bg-install", fr ? "Installer / réparer les panneaux" : "Install / repair panels", ButtonStyle.Success),
       button("jump-summary", fr ? "Retour" : "Back")));
     for (const part of BG_SETUP_PARTS) {
-      const label = part === "groups" ? (fr ? "Groupes" : "Groups") : part === "results" ? (fr ? "Résultats privés" : "Private results") : (fr ? "Statistiques" : "Statistics");
+      const label = part === "groups" ? (fr ? "Groupes" : "Groups") : part === "results" ? (fr ? "Résultats privés" : "Private results") : part === "duels" ? (fr ? "Classement des duels" : "Duel ladder") : (fr ? "Statistiques et classement CdB" : "Statistics and battleground ladder");
       embed.addFields({ name: label, value: channelLabel(lang, settings[BG_SETUP_FIELDS[part].channel]) });
       components.push(new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder()
         .setCustomId(`setup:bg-select-${part}`).setPlaceholder(`${label} — ${fr ? "utiliser un salon existant" : "use an existing channel"}`)
@@ -455,7 +491,9 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
   if (step === SUMMARY_STEP) {
     const checks = setupChecks(await gatherFacts(guild, guildId, settings), lang);
     const done = setupComplete(checks);
-    const missingChannels = ALL_CHANNELS.filter((field) => !settings[field]).length;
+    // 8.5: with the PvP module and race board on (the defaults), its missing channels count too, so the button still works when every core channel exists.
+    const missingPvp = settings.pvpModuleEnabled ? BG_SETUP_PARTS.filter((part) => !settings[BG_SETUP_FIELDS[part].channel]).length : 0;
+    const missingChannels = ALL_CHANNELS.filter((field) => !settings[field]).length + missingPvp + (settings.raceBoardEnabled && !settings.raceBoardChannelId ? 1 : 0);
     await guild.roles.fetch();
     const missingRoles = REQUIRED_ROLES.filter((permission) => !guild.roles.cache.some((role) => isPermissionRole(permission, role))).length;
     embed.setDescription([
@@ -478,7 +516,8 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
     // (bot-created names) — to link an existing channel instead, use /config.
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("create-all-channels", missingChannels ? T("Create missing channels ({count})", { count: missingChannels }) : T("All channels exist"), ButtonStyle.Success, missingChannels === 0),
-      button("create-roles", missingRoles ? T("Create missing roles ({count})", { count: missingRoles }) : T("All roles exist"), ButtonStyle.Success, missingRoles === 0)
+      button("create-roles", missingRoles ? T("Create missing roles ({count})", { count: missingRoles }) : T("All roles exist"), ButtonStyle.Success, missingRoles === 0),
+      button("lock-boards", T("Lock board channels"), ButtonStyle.Secondary)
     ));
     components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
       button("update-messages", T("Update bot messages"), ButtonStyle.Success),
@@ -488,8 +527,16 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       button("create-community", T("Set up community"))
     ));
     // Link an existing channel instead of creating one: pick which, then the channel.
-    const pending = pendingField.get(guildId);
-    components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
+    const plan = retirePlan(guildId);
+    const pending = plan || retiring.has(guildId) ? undefined : pendingField.get(guildId);
+    if (plan) {
+      components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
+        button("retire-confirm", T("Delete #{name} for good", { name: plan.name }).slice(0, 80), ButtonStyle.Danger),
+        button("retire-cancel", T("Keep it"), ButtonStyle.Secondary)));
+    } else if (retiring.has(guildId)) {
+      components.push(new ActionRowBuilder<ChannelSelectMenuBuilder>().addComponents(new ChannelSelectMenuBuilder()
+        .setCustomId("setup:retire-pick").setPlaceholder(T("Pick the old channel to archive and retire")).setChannelTypes(ChannelType.GuildText).setMinValues(1).setMaxValues(1)));
+    } else components.push(new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
       .setCustomId("setup:pick-field").setPlaceholder(T("Use an existing channel for..."))
       .addOptions([...ALL_CHANNELS].map((field) => ({
         label: `#${channelSpec(field, lang).name}`.slice(0, 100), value: field,
@@ -501,12 +548,17 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
         .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement, ...(pending === "craftChannelId" ? [ChannelType.GuildForum] : []))
         .setMinValues(1).setMaxValues(1)));
     }
-    components.push(new ActionRowBuilder<ButtonBuilder>().addComponents(
-      button("restart", T("Go through setup again")),
-      button("bg-open", lang === "fr" ? "JcJ (facultatif)" : "Battlegrounds (optional)"),
-      button("close", T("Close"), ButtonStyle.Primary),
-      button("public-sharing-off", T("Turn public sharing off"), ButtonStyle.Secondary, !settings.publicDungeonRuns)
-    ));
+    components.push(whosAsk.has(guildId) && hasWhosWhoPost(settings)
+      ? new ActionRowBuilder<ButtonBuilder>().addComponents(
+        button("whos-confirm", T("Delete the old Who's who post"), ButtonStyle.Danger),
+        button("whos-keep", T("Keep it"), ButtonStyle.Secondary))
+      : new ActionRowBuilder<ButtonBuilder>().addComponents(
+        button("restart", T("Go through setup again")),
+        button("bg-open", lang === "fr" ? "JcJ (facultatif)" : "Battlegrounds (optional)"),
+        button("close", T("Close"), ButtonStyle.Primary),
+        button("retire", T("Retire an old channel"), ButtonStyle.Secondary, Boolean(plan) || retiring.has(guildId)),
+        ...(hasWhosWhoPost(settings) ? [button("whos-ask", T("Old Who's who post"), ButtonStyle.Secondary)] : [])
+      ));
   }
 
   if (note) embed.addFields({ name: T("Last action"), value: note.slice(0, 1000) });
@@ -573,14 +625,15 @@ async function createMissingRoles(guild: DiscordGuild, lang: Lang): Promise<stri
   return created.length ? tx(lang, "Created roles: {roles}. Now give them to your officers.", { roles: created.join(", ") }) : tx(lang, "All roles already existed.");
 }
 
-export const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId", "answerChannelId"];
-const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId"];
+export const CORE_CHANNELS: ChannelField[] = ["notifyChannelId", "raidSignupChannelId", "logChannelId", "guideChannelId"];
+const RAIDTEAM_CHANNELS: ChannelField[] = ["readinessChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "craftLadderChannelId", "applicationChannelId", "attendanceChannelId", "weeklyReportChannelId", "inviteChannelId"];
 const DUNGEON_CHANNELS: ChannelField[] = ["dungeonLeaderboardChannelId", "dungeonSignupChannelId", "dungeonChannelId"];
 // Every channel field /setup can create. Also used by /setup uninstall to find what to remove.
 export const ALL_CHANNELS: ChannelField[] = [...CORE_CHANNELS, ...RAIDTEAM_CHANNELS, ...DUNGEON_CHANNELS];
 // Server-wide raid log, loot log and roster channel: no longer created or offered (each core has
-// its own). Kept so /setup uninstall still finds the ones an earlier version made.
-export const RETIRED_CHANNELS: ChannelField[] = ["raidLogChannelId", "lootChannelId", "coreChannelId"];
+// its own), and the #bot-faq answer channel (9.0: unused, no longer created). Kept so /setup uninstall still finds the
+// ones an earlier version made; "Retire an old channel" archives and deletes #bot-faq after a confirmation.
+export const RETIRED_CHANNELS: ChannelField[] = ["raidLogChannelId", "lootChannelId", "coreChannelId", "answerChannelId"];
 // Managed when explicitly enabled, but not created or counted as missing by general setup.
 export const OPTIONAL_CHANNELS: ChannelField[] = ["pugChannelId"];
 
@@ -753,7 +806,8 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
   const update: Partial<Record<ChannelField, string>> = {};
   for (const field of missing) {
     const spec = channelSpec(field, lang);
-    let overwrites = overwritesFor(guild, spec.access, spec.category === "guild");
+    // The invite channel is in the WoW category but stays open to everyone who wants in (no game-role gate).
+    let overwrites = overwritesFor(guild, spec.access, spec.category === "guild" || field === "inviteChannelId");
     if (field === "weeklyReportChannelId" && settings?.raidSignupChannelId) {
       const source = await guild.channels.fetch(settings.raidSignupChannelId);
       if (!source || !("permissionOverwrites" in source)) throw new Error("Raid signup permissions unavailable; WoW report access was not broadened.");
@@ -764,15 +818,18 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
     // Follow the server's own layout: next to the group's other channels, behind its game role.
     const layout = spec.category === "guild" ? null : serverLayout(guild, { ...settings, ...update }, spec.category, field);
     const gateRoles = currentGuildScope()?.memberRoleId ? [currentGuildScope()!.memberRoleId!] : layout?.gateRoleIds ?? [];
-    if (gateRoles.length && overwrites && spec.access !== "officers" && spec.access !== "leaders") {
+    if (gateRoles.length && overwrites && spec.access !== "officers" && spec.access !== "leaders" && field !== "inviteChannelId") {
       overwrites = withGameGate(overwrites, guild.roles.everyone.id, gateRoles);
     }
     const ownCategory = layout?.categoryId ? guild.channels.cache.get(layout.categoryId) : undefined;
     const existing = !currentGuildScope()?.permissionRoles && guild.channels.cache.find(candidate => candidate.type === ChannelType.GuildText
       && isSetupLeftover(field, candidate.name, candidate.parentId ? guild.channels.cache.get(candidate.parentId)?.name : undefined));
-    const category = existing && spec.category !== "guild" ? null
+    // The guild-invite channel is adopted whatever its category, and its permissions stay the server's own.
+    const adopted = field === "inviteChannelId" && !currentGuildScope()?.permissionRoles
+      ? (() => { const kept = pickInviteChannel(inviteChannelCandidates(guild)); return kept ? guild.channels.cache.get(kept.id) : undefined; })() : undefined;
+    const category = adopted || (existing && spec.category !== "guild") ? null
       : ownCategory?.type === ChannelType.GuildCategory ? ownCategory : await ensureCategory(guild, spec.category, lang);
-    const channel = existing || (spec.forum
+    const channel = existing || adopted || (spec.forum
       ? await guild.channels.create({
         name: spec.name, type: ChannelType.GuildForum, topic: spec.topic, parent: category!.id,
         availableTags: boardTagNames(lang).map((name) => ({ name })),
@@ -782,6 +839,15 @@ export async function createSectionChannels(guild: DiscordGuild, guildId: string
         name: spec.name, type: ChannelType.GuildText, topic: spec.topic, parent: category!.id,
         ...(overwrites ? { permissionOverwrites: overwrites } : {})
       }));
+    if (adopted?.type === ChannelType.GuildText && adopted.topic !== spec.topic) await adopted.setTopic(spec.topic, `${BRAND.name} /setup`).catch((error: unknown) => guidedFor(`<#${adopted.id}>`, error));
+    // An existing invite channel is MOVED into the WoW category (never duplicated), unless the admin keeps it in a category of their own.
+    if (adopted?.type === ChannelType.GuildText) {
+      const parent = adopted.parentId ? guild.channels.cache.get(adopted.parentId) : undefined;
+      if (!parent || SETUP_CATEGORY_NAMES.has(parent.name)) {
+        const target = ownCategory?.type === ChannelType.GuildCategory ? ownCategory : await ensureCategory(guild, spec.category, lang);
+        if (adopted.parentId !== target.id) await adopted.setParent(target.id, { lockPermissions: false, reason: `${BRAND.name} /setup` }).catch((error: unknown) => guidedFor(`<#${adopted.id}>`, error));
+      }
+    }
     // Recovered guide/FAQ/signup channels belong to setup too; reapply their
     // documented access so a reused guide cannot keep stale write permissions.
     if (existing && overwrites && "permissionOverwrites" in existing) {
@@ -872,8 +938,11 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
   // walking back through every step.
   let step = interaction.options.getBoolean("status") ? SUMMARY_STEP : 0;
   let note = "";
+  // Retired and deleted channels (#bot-faq) are forgotten before the first screen is drawn.
+  await pruneDanglingChannels(guild, guildId).catch((error: unknown) => console.warn("Setup: could not clear deleted channel ids", error));
   await interaction.editReply(await renderStep(step, guild, guildId, note));
   const message = await interaction.fetchReply();
+  liveWizardMessages.add(message.id);
   const collector = message.createMessageComponentCollector({
     time: 15 * 60_000,
     filter: (i) => i.user.id === interaction.user.id
@@ -898,6 +967,8 @@ export async function executeSetup(interaction: ChatInputCommandInteraction): Pr
     }
     try {
       note = "";
+      // A channel deleted while the wizard was open must not stay "set" on the next screen.
+      await pruneDanglingChannels(guild, guildId).catch(() => undefined);
       const lang = await currentLang();
       const T = (english: string, vars: Record<string, string | number> = {}) => tx(lang, english, vars);
       // The community section comes with the channels by default; a failure there never hides
@@ -938,7 +1009,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
         } else if (action === "create-channels") note = await withCommunity(await createSectionChannels(guild, guildId, CORE_CHANNELS, lang));
         else if (action === "create-raidteam-channels") note = await createSectionChannels(guild, guildId, RAIDTEAM_CHANNELS, lang);
         else if (action === "create-dungeon-channels") note = await createSectionChannels(guild, guildId, DUNGEON_CHANNELS, lang);
-        else if (action === "create-all-channels") note = await withCommunity(await createSectionChannels(guild, guildId, ALL_CHANNELS, lang));
+        else if (action === "create-all-channels") note = [await withCommunity(await createSectionChannels(guild, guildId, ALL_CHANNELS, lang)), await ensurePvpModule(guild, prisma, guildId, lang, i.user.id), await ensureRaceBoard(guild, guildId, lang), await repairBoardPermissions(guild, prisma, guildId, lang).catch(() => "")].filter(Boolean).join("\n");
         else if (action === "create-community") note = await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id);
         else if (action === "dungeon-guide") {
           const settings = await guildService.getSettings(guildId);
@@ -966,7 +1037,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
                 if (forum?.type !== ChannelType.GuildForum) return;
                 const pinned = (await forum.threads.fetchActive().catch(() => null))?.threads.find((thread) => thread.flags.has("Pinned"));
                 const starter = pinned ? await pinned.fetchStarterMessage().catch(() => null) : null;
-                if (starter?.editable) { if (starter.content !== craftGuideText(lang)) await starter.edit({ content: craftGuideText(lang) }); }
+                if (starter?.editable) { if (starter.content !== craftGuideText(lang)) await starter.edit({ content: craftGuideText(lang), components: craftGuideButtons(lang) }); }
                 else if (!pinned) await postBoardGuide(forum, lang);
               },
               leaderboard: () => updateDungeonLeaderboard(guild),
@@ -984,11 +1055,53 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           note = created.length
             ? T("Created {roles}. Offer them in the welcome role buttons (step 5) so members can opt in to group finder pings.", { roles: created.join(", ") })
             : T("All LFG ping roles already exist.");
+        } else if (action === "retire") {
+          retiring.add(guildId); forgetRetirePlan(guildId);
+          note = T("Pick the old channel. Its messages are saved to a file first, and nothing is deleted until you confirm.");
+        } else if (i.isChannelSelectMenu() && action === "retire-pick") {
+          const channelId = i.values[0];
+          const settings = await guildService.getSettings(guildId);
+          // 9.0: the retired #bot-faq answer channel may be picked; the bot stops answering there once it is archived.
+          const retiringFaq = Boolean(channelId) && channelId === settings?.answerChannelId;
+          const channel = channelId ? await guild.channels.fetch(channelId).catch(() => null) : null;
+          if (!channel || channel.type !== ChannelType.GuildText) note = T("Pick a text channel.");
+          else if (!retiringFaq && isManagedChannel(settings as Record<string, unknown> | null, channel.id)) note = T("<#{id}> is a channel Guilded uses, so it cannot be retired here.", { id: channel.id });
+          else {
+            const destination = settings?.logChannelId ? await guild.channels.fetch(settings.logChannelId).catch(() => null) : null;
+            const target = destination?.isTextBased() && "send" in destination ? destination : i.channel && "send" in i.channel ? i.channel : null;
+            if (!target) note = T("There is no officer log channel to keep the archive in. Run the full setup first.");
+            else {
+              const made = await archiveForRetire(guild, channel, target);
+              retiring.delete(guildId);
+              if (retiringFaq) { await guildService.updateSettings(guildId, { answerChannelId: null }); forgetAnswerSettings(guild.id); }
+              note = T("Saved {count} messages of #{name} to a file in <#{where}>. Press the red button to delete the channel for good, or Keep it.", { count: made.archived, name: made.name, where: made.archiveChannelId });
+            }
+          }
+        } else if (action === "retire-cancel") {
+          retiring.delete(guildId); forgetRetirePlan(guildId);
+          note = T("Kept the channel. The archive file stays where it was posted.");
+        } else if (action === "lock-boards") {
+          note = (await repairBoardPermissions(guild, prisma, guildId, lang).catch(() => "")) || T("Board channels are already read-only for members.");
+        } else if (action === "whos-ask") {
+          whosAsk.add(guildId);
+          note = T("The Who's who post was retired: mains and alts now show on the roster card, in /character and on the guild page. Press the red button to delete the old message, or Keep it. Nothing is deleted until you confirm.");
+        } else if (action === "whos-keep") {
+          whosAsk.delete(guildId);
+          note = T("Kept the old Who's who post. It is no longer updated.");
+        } else if (action === "whos-confirm") {
+          whosAsk.delete(guildId);
+          const outcome = await deleteWhosWhoPost(guild);
+          note = outcome.ok ? T("Deleted the old Who's who post.") : T("Nothing was deleted: {reason}", { reason: outcome.message });
+        } else if (action === "retire-confirm") {
+          retiring.delete(guildId);
+          const outcome = await deleteRetiredChannel(guild, await guildService.getSettings(guildId) as Record<string, unknown> | null, `${BRAND.name} /setup retire, confirmed by ${i.user.tag}`);
+          note = outcome.ok ? T("Deleted #{name}. Its {count} messages are in the archive file.", { name: outcome.name ?? "", count: outcome.archived ?? 0 }) : T("Nothing was deleted: {reason}", { reason: outcome.message });
         } else if (i.isChannelSelectMenu() && action === "ch-pick") {
           const field = pendingField.get(guildId);
           const channelId = i.values[0];
           if (field && channelId) {
             await guildService.updateSettings(guildId, { [field]: channelId });
+            if (boardChannelIds({ [field]: channelId }).length) await repairBoardPermissions(guild, prisma, guildId, lang).catch(() => "");
             if (field === "answerChannelId") forgetAnswerSettings(guild.id);
             pendingField.delete(guildId);
             note = T("Saved <#{id}>.", { id: channelId });
@@ -1085,9 +1198,6 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           const on = (settings?.raidReminderMinutes ?? 0) > 0;
           await guildService.updateSettings(guildId, { raidReminderMinutes: on ? 0 : 60 });
           note = on ? T("Raid reminders off.") : T("Raid reminders on: signed-up players get pinged 60 minutes before start.");
-        } else if (action === "public-sharing-off") {
-          await guildService.updateSettings(guildId, { publicDungeonRuns: false });
-          note = T("Public sharing is off. New runs will not be published; runs already public stay public.");
         } else if (action === "auto-import") {
           const current = await guildService.getSettings(guildId);
           await guildService.updateSettings(guildId, { autoApplyImports: !current?.autoApplyImports });
@@ -1121,12 +1231,14 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
     // Ack the click immediately (Discord allows 3 seconds) regardless of how
     // long this click's turn in the queue takes to come up; the visible
     // message update always goes through `interaction.editReply` below, once
-    // it's this click's turn.
-    void i.deferUpdate().catch(() => undefined);
+    // it's this click's turn. Nothing runs before this line, and every button,
+    // menu and step change takes this path: slow work only ever happens in handleClick.
+    if (!i.deferred && !i.replied) void i.deferUpdate().catch((error: unknown) => console.warn(`Setup click ${i.customId} was not acknowledged`, error));
     queue = queue.then(() => handleClick(i, action)).catch((error: unknown) => console.error("Setup click failed", error));
   }));
 
   collector.on("end", bindGuildScope(async (_collected, reason) => {
+    liveWizardMessages.delete(message.id);
     if (reason === "closed") return;
     await interaction.editReply({ content: tx(await currentLang().catch(() => "en" as Lang), "Setup timed out after 15 minutes — your choices are saved. Run `/setup start` to continue."), embeds: [], components: [] }).catch(() => undefined);
   }));
@@ -1157,7 +1269,7 @@ export async function logSetupStatus(guilds: Iterable<DiscordGuild>): Promise<vo
       const checks = setupChecks(await gatherFacts(guild, record.id, settings));
       const missing = checks.filter((check) => !check.ok && !check.optional);
       if (missing.length === 0) console.info(`Setup complete for "${guild.name}".`);
-      else console.warn(`Setup not finished for "${guild.name}" (${missing.map((check) => check.label).join("; ")}). Run /setup start in Discord.`);
+      else console.info(`Setup not finished for "${guild.name}" (${missing.map((check) => check.label).join("; ")}). Run /setup start in Discord.`);
     } catch (error) {
       console.warn(`Could not check setup for "${guild.name}": ${error instanceof Error ? error.message : String(error)}`);
     }

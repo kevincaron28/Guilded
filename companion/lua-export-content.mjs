@@ -159,7 +159,9 @@ export function parseAddonExportText(text, realm) {
   // they're converted into readiness entries with synthesized findings
   // instead of real gear data — this is what lets one officer's export
   // carry a readiness picture for the whole online guild, not just themselves.
-  const peerReadiness = Object.entries(database.peerRoster ?? {}).map(([character, entry]) => {
+  // (9.0) A digest a guildmate forwarded during catch-up (Modules/CatchUp.lua) is old news for
+  // readiness: it still feeds the character list below, never a readiness row.
+  const peerReadiness = Object.entries(database.peerRoster ?? {}).filter(([, entry]) => entry?.forwarded !== true).map(([character, entry]) => {
     const professions = digestProfessions(entry.professions);
     const findings = [];
     if ((entry.missing ?? 0) > 0) {
@@ -209,6 +211,8 @@ export function parseAddonExportText(text, realm) {
       professionsComplete: entry.professionsComplete === true,
       ...(entry.professionsAt ? { professionsAt: iso(entry.professionsAt) } : {}),
       professions: digestProfessions(entry.professions),
+      // When this addon heard their digest (provenance: the bot prefers newer, first-hand data).
+      ...(Number.isFinite(Number(entry.seenAt)) && Number(entry.seenAt) > 0 ? { observedAt: iso(entry.seenAt) } : {}),
       // Their /guilded verify code: the bot links this character to whoever owns the code.
       ...(typeof entry.verify === "string" && /^[A-Z]{8}$/.test(entry.verify) ? { verify: entry.verify } : {})
     }));
@@ -257,6 +261,14 @@ export function parseAddonExportText(text, realm) {
 
   const dungeonRuns = exportDungeonRuns(database, realm);
   const battlegroundReports = exportBattlegroundReports(database);
+  const duelResults = exportDuelResults(database);
+  const milestones = exportMilestones(database);
+  const guildData = exportGuildData(database);
+  const guildBank = exportGuildBank(database);
+  const guildBoard = exportGuildBoard(database);
+  const craftOrders = exportCraftOrders(database);
+  const guildMap = exportGuildMap(database);
+  const worldPvp = exportWorldPvp(database);
 
   // Soft reserves (addon Modules/Reserve.lua): the whole list, replaced in Discord when newer.
   const reserves = buildReserves(database.reserves, realm);
@@ -274,6 +286,17 @@ export function parseAddonExportText(text, realm) {
         .filter((invite) => invite?.name && ["ACCEPTED", "TENTATIVE", "DECLINED"].includes(invite.status))
         .slice(0, 200)
         .map((invite) => ({ character: String(invite.name), realm, status: String(invite.status) }))
+    }));
+
+  // Raid answers given in game (addon Modules/RaidSignup.lua): Sign up / Tentative / Can't per raid.
+  const signupAnswers = Object.entries(database.signupAnswers ?? {})
+    .filter(([raidId, answer]) => /^[a-zA-Z0-9_-]{1,80}$/.test(String(raidId)) && answer?.name && Number(answer.at) > 0
+      && ["ACCEPTED", "TENTATIVE", "DECLINED"].includes(answer.status))
+    .slice(0, 100)
+    .map(([raidId, answer]) => ({
+      raidId: String(raidId), character: String(answer.name), realm, status: String(answer.status),
+      ...(["TANK", "HEALER", "DPS"].includes(answer.role) ? { role: String(answer.role) } : {}),
+      at: new Date(Number(answer.at) * 1000).toISOString()
     }));
 
   // Who can craft what, and profession cooldowns (addon Modules/Recipes.lua).
@@ -297,7 +320,8 @@ export function parseAddonExportText(text, realm) {
     }));
   const exportKeys = Object.keys(database.exports ?? {}).sort();
   const exportedAt = exportKeys.at(-1) ?? new Date().toISOString();
-  return normalizeExportIdentities({
+  const syncStats = exportSyncStats(database);
+  const identities = normalizeExportIdentities({
     source: "Guilded",
     ...edition,
     exportedAt,
@@ -335,11 +359,35 @@ export function parseAddonExportText(text, realm) {
     ...(recipeData.recipes.length ? { recipes: recipeData.recipes, recipeNames: recipeData.recipeNames } : {}),
     ...(recipeData.cooldowns.length ? { cooldowns: recipeData.cooldowns } : {}),
     ...(calendarEvents.length ? { calendarEvents } : {}),
+    ...(signupAnswers.length ? { signupAnswers } : {}),
     raids,
     loot,
     dungeonRuns,
-    ...(battlegroundReports.length ? { battlegroundReports } : {})
+    ...(battlegroundReports.length ? { battlegroundReports } : {}),
+    ...(duelResults.length ? { duelResults } : {}),
+    ...(milestones.length ? { milestones } : {}),
+    ...guildData,
+    ...guildBank,
+    ...guildBoard,
+    ...craftOrders,
+    ...guildMap,
+    ...worldPvp
   }, edition.gameEdition, realm);
+  return syncStats ? { ...identities, syncStats } : identities;
+}
+
+// Guild sync counters (addon Modules/CatchUp.lua, 9.0): numbers and two dates, never names. The
+// companion shows them in its support summary and does not upload them (engine.mjs).
+export function exportSyncStats(database) {
+  const saved = database?.syncStats;
+  if (!saved || typeof saved !== "object") return null;
+  const count = (v) => Number.isSafeInteger(v) && v >= 0 && v < 1e12 ? v : 0;
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const fields = ["sent", "bytes", "received", "receivedBytes", "held", "relayedIn", "relayedOut", "rounds", "acksSent", "acksHeard"];
+  const stats = Object.fromEntries(fields.map((field) => [field, count(saved[field])]));
+  if (epoch(saved.since)) stats.since = new Date(saved.since * 1000).toISOString();
+  if (epoch(saved.lastCatchUpAt)) stats.lastCatchUpAt = new Date(saved.lastCatchUpAt * 1000).toISOString();
+  return stats;
 }
 
 // Private self-reports only: whitelist the protocol rather than forwarding arbitrary
@@ -353,7 +401,7 @@ export function exportBattlegroundReports(database) {
   const integer = (v, min, max) => Number.isSafeInteger(v) && v >= min && v <= max;
   return Object.values(d.reports).filter(r => r && r.version === 1 && r.edition === edition
     && r.adapter === `${edition}-postmatch-v1` && r.realmType === "normal" && r.postmatch === true && r.consent === true
-    && text(r.character, 80) && text(r.realm, 100) && d.consents?.[`${r.character}-${r.realm}`] === true
+    && text(r.character, 80) && text(r.realm, 100)
     && typeof r.reportId === "string" && /^[a-zA-Z0-9_:-]{8,100}$/.test(r.reportId)
     && ["casual", "rated", "blitz"].includes(r.mode) && text(r.bracket, 30)
     && integer(r.mapId, 1, 1000000) && integer(r.endedAt, 1, 4102444800)
@@ -365,6 +413,231 @@ export function exportBattlegroundReports(database) {
       mapId: r.mapId, bracket: r.bracket, endedAt: r.endedAt, durationSeconds: r.durationSeconds,
       outcome: r.outcome, presence: r.presence, reloaded: r.reloaded, postmatch: true, consent: true
     }));
+}
+
+// Guild duels the addon recorded (Modules/Duels.lua): who beat whom and when, nothing else. The bot checks that
+// both are guild members and that the uploader is one of them. Whitelisted field by field.
+export function exportDuelResults(database) {
+  const results = database?.duels?.results;
+  if (!results || typeof results !== "object") return [];
+  // eslint-disable-next-line no-control-regex
+  const name = (v) => typeof v === "string" && v.length > 0 && v.length <= 80 && !/[|\u0000-\u001f]/.test(v);
+  return Object.values(results)
+    .filter((r) => r && name(r.winner) && name(r.loser) && r.winner !== r.loser && Number.isSafeInteger(r.at) && r.at > 0 && r.at < 4102444800
+      && (r.reason === "knockout" || r.reason === "retreat"))
+    .sort((a, b) => b.at - a.at).slice(0, 200)
+    .map((r) => ({ winner: r.winner, loser: r.loser, at: r.at, reason: r.reason }));
+}
+
+// The guild bank (addon Modules/GuildBank.lua, 9.0): the last contents and gold, the gold history
+// and the game's item and money logs. Whitelisted field by field (docs/GUILD_BANK_LEDGER.md).
+export function exportGuildBank(database) {
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const name = (v) => typeof v === "string" && v.length > 0 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
+  const kind = (v) => typeof v === "string" && /^[A-Za-z]{1,20}$/.test(v);
+  const copper = (v) => Number.isSafeInteger(v) && v >= 0 && v < 1e13;
+  const label = (v, max) => typeof v === "string" && v.trim() ? v.trim().replace(/[|\p{Cc}]/gu, " ").slice(0, max) : undefined;
+  const bank = {};
+  const snap = database?.guildBank;
+  if (snap && typeof snap === "object" && snap.tabs && typeof snap.tabs === "object") {
+    const at = typeof snap.at === "string" ? Date.parse(snap.at) : NaN;
+    const tabs = Object.entries(snap.tabs).flatMap(([tab, info]) => {
+      const index = Math.trunc(Number(tab));
+      if (!Number.isInteger(index) || index < 1 || index > 8 || !info || typeof info !== "object") return [];
+      const items = Object.entries(info.items ?? {}).flatMap(([id, item]) => {
+        const itemId = Math.trunc(Number(id)), count = Math.trunc(Number(item?.count));
+        const quality = Number.isInteger(item?.q) && item.q >= 0 && item.q <= 7 ? { q: item.q } : {};
+        return itemId > 0 && count > 0 ? [{ id: itemId, name: label(item?.name, 100) ?? `Item ${itemId}`, count: Math.min(count, 1_000_000), ...quality }] : [];
+      }).slice(0, 200);
+      return [{ tab: index, name: label(info.name, 40) ?? `Tab ${index}`, items }];
+    });
+    if (Number.isFinite(at) && tabs.length) bank.contents = { at: Math.floor(at / 1000), ...(copper(snap.money) ? { money: snap.money } : {}), tabs };
+  }
+  const log = database?.guildBankLog;
+  const list = (value) => Object.values(value ?? {});
+  const gold = list(log?.gold).filter((p) => p && epoch(p.at) && copper(p.money)).map((p) => ({ at: p.at, money: p.money })).slice(-400);
+  if (gold.length) bank.gold = gold;
+  const items = list(log?.items).filter((l) => l && kind(l.type) && name(l.name) && Number.isInteger(l.item) && l.item > 0 && epoch(Math.trunc(Number(l.at))))
+    .map((l) => ({ type: l.type, name: l.name, itemId: l.item, ...(label(l.itemName, 100) ? { itemName: label(l.itemName, 100) } : {}),
+      count: Math.max(1, Math.min(1_000_000, Math.trunc(Number(l.count)) || 1)), ...(Number.isInteger(l.tab) ? { tab: l.tab } : {}),
+      ...(Number.isInteger(l.tab2) ? { tab2: l.tab2 } : {}), at: Math.trunc(Number(l.at)) }))
+    .sort((a, b) => b.at - a.at).slice(0, 1000);
+  if (items.length) bank.itemLog = items;
+  const money = list(log?.money).filter((l) => l && kind(l.type) && name(l.name) && copper(l.amount) && epoch(Math.trunc(Number(l.at))))
+    .map((l) => ({ type: l.type, name: l.name, amount: l.amount, at: Math.trunc(Number(l.at)) })).sort((a, b) => b.at - a.at).slice(0, 1000);
+  if (money.length) bank.moneyLog = money;
+  // 9.1: requests made in game (/guilded gbank request), this member's own; the bot keeps each ref once.
+  const requests = list(database?.bankRequests).filter((r) => r && typeof r.ref === "string" && /^[A-Za-z0-9-]{6,40}$/.test(r.ref) && label(r.item, 100))
+    .map((r) => ({ ref: r.ref, item: label(r.item, 100), ...(Number.isSafeInteger(r.itemId) && r.itemId > 0 ? { itemId: r.itemId } : {}),
+      count: Math.max(1, Math.min(1000, Math.trunc(Number(r.count)) || 1)) })).slice(0, 10);
+  return { ...(Object.keys(bank).length ? { guildBank: bank } : {}), ...(requests.length ? { bankRequests: requests } : {}) };
+}
+
+// The in-game guild board (addon Modules/GuildBoard.lua, 9.1): this member's votes waiting for the bot,
+// guildmates' votes heard in game (members without the companion) and officers' news written in game.
+// The addon numbers options from 1; the bot from 0. Whitelisted field by field.
+export function exportGuildBoard(database) {
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const pollId = (v) => typeof v === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(v);
+  const name = (v) => typeof v === "string" && v.length > 0 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
+  const picksOf = (v) => {
+    const list = Array.isArray(v) ? v : v && typeof v === "object" ? Object.values(v) : [];
+    const picks = list.map((p) => Math.trunc(Number(p))).filter((p) => p >= 1 && p <= 25).map((p) => p - 1);
+    return [...new Set(picks)].sort((a, b) => a - b);
+  };
+  const board = database?.board && typeof database.board === "object" ? database.board : {};
+  const votes = Object.entries(board.votes ?? {}).filter(([id, v]) => pollId(id) && v && epoch(v.at))
+    .map(([id, v]) => ({ poll: id, picks: picksOf(v.picks), at: v.at })).slice(0, 50);
+  const heard = Object.values(board.heard ?? {}).filter((v) => v && pollId(v.poll) && epoch(v.at) && name(v.name))
+    .sort((a, b) => b.at - a.at).slice(0, 200).map((v) => ({ poll: v.poll, picks: picksOf(v.picks), at: v.at, name: v.name }));
+  const posts = Object.values(board.posts ?? {}).filter((p) => p && typeof p.ref === "string" && /^[A-Za-z0-9-]{6,40}$/.test(p.ref) && typeof p.text === "string" && epoch(p.at))
+    .slice(0, 5).map((p) => ({ ref: p.ref, text: p.text.replace(/[|\p{Cc}]/gu, " ").trim().slice(0, 500), at: p.at }));
+  return { ...(votes.length ? { boardVotes: votes } : {}), ...(heard.length ? { boardRelayVotes: heard } : {}), ...(posts.length ? { boardPosts: posts } : {}) };
+}
+
+// Crafting orders in game (addon Modules/CraftOrders.lua, docs/plans/CRAFTING_ORDERS.md): this player's own
+// claims, finishes and give-backs (db.craftOrders.actions, one per order) and guildmates' heard on GUILD
+// (db.craftOrders.heard, with the sender as the game reported it). Whitelisted field by field.
+export function exportCraftOrders(database) {
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const orderId = (v) => typeof v === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(v);
+  const name = (v) => typeof v === "string" && v.trim().length > 1 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
+  const action = (v) => v === "claim" || v === "done" || v === "release";
+  const state = database?.craftOrders && typeof database.craftOrders === "object" ? database.craftOrders : {};
+  const row = (v) => v && orderId(v.order) && action(v.action) && name(v.character) && epoch(v.at);
+  const own = Object.values(state.actions ?? {}).filter(row).sort((a, b) => a.at - b.at).slice(-30)
+    .map((v) => ({ order: v.order, action: v.action, character: v.character, at: v.at }));
+  const heard = Object.values(state.heard ?? {}).filter((v) => row(v) && name(v.name)).sort((a, b) => b.at - a.at).slice(0, 100)
+    .map((v) => ({ order: v.order, action: v.action, character: v.character, at: v.at, name: v.name }));
+  return { ...(own.length ? { craftOrderActions: own } : {}), ...(heard.length ? { craftOrderRelayActions: heard } : {}) };
+}
+
+// Track M phone map (addon Modules/GuildMap.lua and Modules/CallForHelp.lua): this player's own
+// last-seen outdoor positions (db.mapSeen, one per character, plus a short db.mapTrail) and their own
+// calls for help (db.helpCalls). Whitelisted field by field; the bot keeps them only for the uploader
+// and only while they share (src/services/guild-map.ts).
+export function exportGuildMap(database) {
+  const text = (v, max) => typeof v === "string" && v.trim() ? v.trim().replace(/[|\p{Cc}]/gu, " ").slice(0, max) : undefined;
+  const share = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 1 ? Math.round(v * 10000) / 10000 : undefined;
+  const id = (v) => Number.isInteger(v) && v > 0 && v < 100000 ? v : undefined;
+  const at = (v) => Number.isInteger(v) && v > 1_600_000_000 && v < 4_000_000_000 ? v : undefined;
+  const place = (row) => {
+    const out = {};
+    const mapId = id(row.m), x = share(row.x), y = share(row.y);
+    if (mapId && x !== undefined && y !== undefined) Object.assign(out, { mapId, x, y });
+    const continentId = id(row.c), cx = share(row.cx), cy = share(row.cy);
+    if (out.mapId && continentId && cx !== undefined && cy !== undefined) Object.assign(out, { continentId, cx, cy, ...(text(row.cn, 60) ? { continent: text(row.cn, 60) } : {}) });
+    return out;
+  };
+  const sightings = new Map();
+  const add = (character, row) => {
+    const name = text(character, 80), when = row && at(row.at), zone = row && text(row.z, 60);
+    if (!name || !when || !zone) return;
+    const where = place(row);
+    if (!where.mapId) return;
+    const key = `${name}|${when}`;
+    if (!sightings.has(key)) sightings.set(key, { character: name, zone, ...where, at: when });
+  };
+  for (const [character, row] of Object.entries(database?.mapSeen ?? {})) add(character, row);
+  for (const row of Object.values(database?.mapTrail ?? {})) if (row && typeof row === "object") add(row.n, row);
+  const mapSightings = [...sightings.values()].sort((a, b) => a.at - b.at).slice(-60);
+  const helpCalls = Object.values(database?.helpCalls ?? {}).flatMap((row) => {
+    if (!row || typeof row !== "object") return [];
+    const ref = typeof row.id === "string" && /^[A-Za-z0-9-]{1,40}$/.test(row.id) ? row.id : undefined;
+    const character = text(row.n, 80), when = at(row.at);
+    if (!ref || !character || !when) return [];
+    const attackers = Object.values(row.a ?? {}).flatMap((a) => {
+      const name = a && text(a.n, 40);
+      if (!name) return [];
+      const level = Number.isInteger(a.l) && a.l >= 0 && a.l <= 100 ? { level: a.l } : {};
+      return [{ name, ...(text(a.c, 20) ? { class: text(a.c, 20) } : {}), ...level }];
+    }).slice(0, 3);
+    return [{ ref, character, zone: text(row.z, 60) ?? "", ...(text(row.sz, 60) ? { subzone: text(row.sz, 60) } : {}), ...place(row),
+      attackers, at: when, ...(at(row.clr) ? { clearedAt: at(row.clr) } : {}) }];
+  }).sort((a, b) => a.at - b.at).slice(-10);
+  return { ...(mapSightings.length ? { mapSightings } : {}), ...(helpCalls.length ? { helpCalls } : {}) };
+}
+
+// World PvP counters (addon Modules/WorldPvP.lua, db.worldPvp): this week's kills, defends and calls answered, and the last
+// 30 kills (victim and time only, for the repeat-victim cap). Deaths stay on the player's PC. The bot caps and checks them
+// (src/services/world-pvp.ts).
+export function exportWorldPvp(database) {
+  const state = database?.worldPvp;
+  const week = state?.week;
+  const count = (v) => Number.isInteger(v) && v >= 0 && v <= 1_000_000 ? v : 0;
+  if (!state || typeof state !== "object" || !week || typeof week !== "object" || !Number.isInteger(state.weekKey) || state.weekKey < 0) return {};
+  const recent = Object.values(state.recent ?? {}).flatMap((row) => {
+    const n = row && typeof row.n === "string" ? row.n.replace(/[|\p{Cc}]/gu, " ").trim().slice(0, 40) : "";
+    return n && Number.isInteger(row.at) && row.at > 1_600_000_000 && row.at < 4_000_000_000 ? [{ n, at: row.at, ...(row.d === 1 ? { d: 1 } : {}) }] : [];
+  }).slice(-30);
+  const kills = count(week.kills), defends = count(week.defends), responded = count(week.responded);
+  if (!kills && !defends && !responded) return {};
+  return { worldPvp: [{ weekKey: state.weekKey, kills, defends, responded, recent }] };
+}
+
+// What the game shows every member about the whole guild (addon Modules/GuildSnapshot.lua and
+// Modules/GuildLog.lua): the roster with levels, classes, ranks and last online, the guild event
+// log, the MOTD and info text. Whitelisted field by field; notes are never read by the addon.
+export function exportGuildData(database) {
+  const out = {};
+  const name = (v) => typeof v === "string" && v.length > 0 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
+  const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
+  const snap = database?.guildSnapshot;
+  if (snap && typeof snap === "object" && epoch(snap.at) && snap.members && typeof snap.members === "object") {
+    const members = Object.entries(snap.members).filter(([key, m]) => name(key) && m && typeof m === "object").slice(0, 1000).map(([key, m]) => ({
+      name: key,
+      ...(Number.isInteger(m.level) && m.level >= 1 && m.level <= 100 ? { level: m.level } : {}),
+      ...(typeof m.class === "string" && /^[A-Z]{1,20}$/.test(m.class) ? { class: m.class } : {}),
+      ...(typeof m.rankName === "string" && m.rankName.trim() ? { rankName: m.rankName.trim().slice(0, 60) } : {}),
+      ...(Number.isInteger(m.rankIndex) && m.rankIndex >= 0 && m.rankIndex < 20 ? { rankIndex: m.rankIndex } : {}),
+      online: m.online === true,
+      ...(epoch(m.lastOnline) ? { lastOnline: m.lastOnline } : {})
+    }));
+    if (members.length) out.guildRoster = { at: snap.at, complete: snap.complete === true, members };
+    const text = (v, max) => typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined;
+    if (text(snap.motd, 255) !== undefined || text(snap.info, 1000) !== undefined) {
+      out.guildInfo = { at: epoch(snap.textAt) ? snap.textAt : snap.at, ...(text(snap.motd, 255) !== undefined ? { motd: text(snap.motd, 255) } : {}), ...(text(snap.info, 1000) !== undefined ? { info: text(snap.info, 1000) } : {}) };
+    }
+  }
+  const kinds = new Set(["invite", "join", "promote", "demote", "remove", "quit"]);
+  const events = Object.values(database?.guildLog?.events ?? {})
+    .filter((e) => e && kinds.has(e.type) && name(e.p1) && (e.p2 === undefined || e.p2 === null || name(e.p2)) && epoch(Math.trunc(Number(e.at))))
+    .map((e) => ({ type: e.type, actor: e.p1, ...(name(e.p2) ? { target: e.p2 } : {}), ...(typeof e.rank === "string" && e.rank.trim() ? { rank: e.rank.trim().slice(0, 60) } : {}), at: Math.trunc(Number(e.at)) }))
+    .sort((a, b) => b.at - a.at).slice(0, 500);
+  if (events.length) out.guildEvents = events;
+  return out;
+}
+
+// The text of an in-game achievement row (kind "ach"): name, description, category and points as the client showed them.
+const clean = (value, max) => typeof value === "string" ? value.replace(/\p{Cc}/gu, " ").replace(/\s+/g, " ").trim().slice(0, max) : "";
+function achievementText(row) {
+  const out = {};
+  const label = clean(row.label, 80), desc = clean(row.desc, 200), category = clean(row.category, 60);
+  if (label) out.label = label;
+  if (desc) out.desc = desc;
+  if (category) out.category = category;
+  if (Number.isSafeInteger(row.points) && row.points >= 0 && row.points <= 1000) out.points = row.points;
+  return out;
+}
+
+// Personal milestones (Modules/Milestones.lua): level steps, first dungeon clears, honorable kills, duel wins. Own characters
+// only, numbers and dates; the Discord echo is the server's own opt-in, never decided here.
+export function exportMilestones(database) {
+  const chars = database?.milestones?.chars;
+  if (!chars || typeof chars !== "object") return [];
+  const out = [];
+  for (const entry of Object.values(chars)) {
+    if (!entry || typeof entry.name !== "string" || !entry.name || entry.name.length > 80 || typeof entry.log !== "object" || !entry.log) continue;
+    for (const row of Object.values(entry.log)) {
+      if (!row || !["level", "dungeon", "hk", "duel", "prof", "ach"].includes(row.kind) || typeof row.ref !== "string"
+        || !/^[a-z]{2,10}:[A-Za-z0-9_-]{1,30}$/.test(row.ref) || !Number.isSafeInteger(row.value) || row.value < 0 || row.value > 1000000
+        || !Number.isSafeInteger(row.at) || row.at <= 0 || row.at >= 4102444800) continue;
+      const extra = row.kind === "ach" ? achievementText(row) : {};
+      if (row.kind === "ach" && !extra.label) continue; // an in-game achievement without its name cannot become a badge
+      out.push({ character: entry.name, realm: typeof entry.realm === "string" ? entry.realm.slice(0, 100) : "", kind: row.kind, ref: row.ref, value: row.value, at: row.at, ...extra });
+    }
+  }
+  return out.sort((a, b) => b.at - a.at).slice(0, 600);
 }
 
 // The character's rank in the WoW guild the saved data belongs to: { guildRankName, guildRankIndex }
@@ -500,6 +773,26 @@ export function exportDungeonRuns(database, realm, options = {}) {
           ...(Number.isInteger(encounter.at) && encounter.at > 0 ? { at: encounter.at } : {}),
           ...(Number.isInteger(encounter.startedAt) && encounter.startedAt > 0 ? { startedAt: encounter.startedAt } : {}) }];
       }),
+      // Death positions (9.1): fractions of a map, per uiMapID, at most 60 per run; anything out of range is dropped.
+      ...(run.deathPoints ? { deathPoints: Object.values(run.deathPoints).slice(0, 60).flatMap(point => {
+        if (!point || typeof point !== "object") return [];
+        const x = Number(point.x), y = Number(point.y), map = Number(point.map);
+        if (!(x >= 0 && x <= 1 && y >= 0 && y <= 1) || !Number.isInteger(map) || map <= 0 || map > 100000) return [];
+        return [{ x: Math.round(x * 1000) / 1000, y: Math.round(y * 1000) / 1000, map, ...(typeof point.name === "string" && point.name ? { character: point.name.slice(0, 40) } : {}) }];
+      }) } : {}),
+      // Traced dungeon maps (9.2): the recorder's own breadcrumb, snapped grid cells per uiMapID ("key,key,..." strings in the
+      // SavedVariables, key = column * 200 + row). No times. At most 20 floors and 600 cells; anything malformed is dropped.
+      ...(run.trace ? (() => {
+        let budget = 600;
+        const mapCells = Object.values(run.trace).slice(0, 20).flatMap(entry => {
+          const map = Number(entry?.map);
+          if (!Number.isInteger(map) || map <= 0 || map > 100000 || typeof entry.cells !== "string" || budget <= 0) return [];
+          const cells = [...new Set(entry.cells.split(",").filter(Boolean).map(Number).filter(key => Number.isInteger(key) && key >= 0 && key < 40000))].slice(0, budget);
+          budget -= cells.length;
+          return cells.length ? [{ map, cells }] : [];
+        });
+        return mapCells.length ? { mapCells } : {};
+      })() : {}),
       reporters: Object.keys(run.reporters ?? {}).length || 1,
       // Who reported it, so the bot can check at least one of them was in the run.
       ...(run.reporters && Object.keys(run.reporters).length ? { reporterNames: Object.keys(run.reporters).slice(0, 10) } : {}),

@@ -32,12 +32,10 @@ describe("provisional own-character BG capture", () => {
     lua.run(`COMPLETE = false; fire_event("PVP_MATCH_ACTIVE"); NEXT_ID = DB.battleground.active["Kev-Realm"].reportId; COMPLETE = true; fire_event("PVP_MATCH_COMPLETE")`);
     expect(lua.run(`return tostring(DB.battleground.reports[NEXT_ID].premadeNonce)`)).toBe("nil");
   });
-  it.each(["off", "reload", "invalid", "disabled"])("does not attach a premade hint after %s", scenario => {
+  it.each(["reload", "invalid"])("does not attach a premade hint after %s", scenario => {
     const lua = setup();
-    if (scenario !== "disabled") lua.run(`NS.commandHandlers.bgcapture("on normal")`);
     const code = scenario === "invalid" ? "bad/code" : "Shared:Code_123";
     lua.run(`NS.commandHandlers.bgcapture("premade ${code}")`);
-    if (scenario === "off") lua.run(`NS.commandHandlers.bgcapture("off")`);
     if (scenario === "reload") lua.run(`fire_event("PLAYER_LOGIN")`);
     lua.run(`NS.commandHandlers.bgcapture("on normal"); fire_event("PVP_MATCH_ACTIVE"); COMPLETE = true; fire_event("PVP_MATCH_COMPLETE")`);
     expect(lua.run(`for _,r in pairs(DB.battleground.reports) do return tostring(r.premadeNonce) end`)).toBe("nil");
@@ -73,25 +71,25 @@ describe("provisional own-character BG capture", () => {
       expect(lua.run(`return tostring(DB.battleground.consents["Kev-Realm"])`)).toBe("nil");
     }
     lua.run(`C_PvP.IsRatedMap = function() return false end`);
-    // Hardcore exists on Era: unknown Hardcore status is never assumed normal there, but is on clients without Hardcore.
-    lua.run(`EDITION = "classic-era"; C_GameRules = nil; DB.battleground = nil; NS.commandHandlers.bgcapture("on normal")`);
-    expect(lua.run(`return tostring(DB.battleground.consents["Kev-Realm"])`)).toBe("nil");
-    lua.run(`EDITION = "retail"; HARDCORE = true; C_GameRules = { IsHardcoreActive = function() return HARDCORE end }; NS.commandHandlers.bgcapture("on normal")`);
-    expect(lua.run(`return tostring(DB.battleground.consents["Kev-Realm"])`)).toBe("nil");
+    // WoW Forever only: an old edition name (from saved data or a stale namespace) captures nothing.
+    for (const edition of ["classic-era", "classic-tbc", "classic-mists", "retail"]) {
+      lua.run(`EDITION = "${edition}"; HARDCORE = false; C_GameRules = { IsHardcoreActive = function() return HARDCORE end }; DB.battleground = nil; NS.commandHandlers.bgcapture("on normal")`);
+      expect(lua.run(`return tostring(DB.battleground.consents["Kev-Realm"])`)).toBe("nil");
+    }
     lua.run(`EDITION = "forever"; C_GameRules = {IsHardcoreActive = function() return false end}; NS.commandHandlers.bgcapture("on normal"); fire_event("PVP_MATCH_ACTIVE"); COMPLETE = true; DURATION = "SECRET"; fire_event("PVP_MATCH_COMPLETE")`);
     expect(lua.run(count)).toBe("0");
   });
-  it.each(["forever", "classic-era", "classic-tbc", "classic-mists", "retail"])("captures its own report on %s with that edition's adapter", edition => {
+  it("captures its own report on WoW Forever with the Forever adapter", () => {
     const lua = setup();
-    lua.run(`EDITION = "${edition}"; ${edition === "classic-tbc" || edition === "classic-mists" || edition === "retail" ? "C_GameRules = nil;" : ""} NS.commandHandlers.bgcapture("on normal"); fire_event("PVP_MATCH_ACTIVE"); COMPLETE = true; ACTIVE = false; DURATION = 600; CLOCK = CLOCK + 600; fire_event("PVP_MATCH_COMPLETE")`);
+    lua.run(`EDITION = "forever"; NS.commandHandlers.bgcapture("on normal"); fire_event("PVP_MATCH_ACTIVE"); COMPLETE = true; ACTIVE = false; DURATION = 600; CLOCK = CLOCK + 600; fire_event("PVP_MATCH_COMPLETE")`);
     expect(lua.run(count)).toBe("1");
-    expect(lua.run(`for _,r in pairs(DB.battleground.reports) do return r.edition .. "|" .. r.adapter end`)).toBe(`${edition}|${edition}-postmatch-v1`);
+    expect(lua.run(`for _,r in pairs(DB.battleground.reports) do return r.edition .. "|" .. r.adapter end`)).toBe("forever|forever-postmatch-v1");
   });
-  it("revocation prevents completion and backfill remains labelled", () => {
+  it("has no revocation: the old off command changes nothing and capture keeps going", () => {
     const lua = setup();
-    lua.run(`NS.commandHandlers.bgcapture("on normal"); fire_event("PLAYER_ENTERING_WORLD"); COMPLETE = true; DURATION = 90; fire_event("PVP_MATCH_COMPLETE")`);
+    lua.run(`fire_event("PLAYER_ENTERING_WORLD"); COMPLETE = true; DURATION = 90; fire_event("PVP_MATCH_COMPLETE")`);
     expect(lua.run(`for _,r in pairs(DB.battleground.reports) do return r.presence end`)).toBe("backfill");
-    lua.run(`NS.commandHandlers.bgcapture("off"); fire_event("PVP_MATCH_ACTIVE"); fire_event("PVP_MATCH_COMPLETE")`);
-    expect(lua.run(count)).toBe("1");
+    lua.run(`NS.commandHandlers.bgcapture("off"); COMPLETE = false; fire_event("PVP_MATCH_ACTIVE"); COMPLETE = true; fire_event("PVP_MATCH_COMPLETE")`);
+    expect(lua.run(count)).toBe("2");
   });
 });

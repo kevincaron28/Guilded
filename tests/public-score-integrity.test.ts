@@ -50,7 +50,7 @@ describe("public runs rank like guild seasons on the same evidence", () => {
     expect(rateRun(manual.site, rules)).toEqual({ score: null, reason: "Automatic final-boss completion required" });
     expect(guildPoints(manual.guild, rules)).toEqual({ Kev: null, Amy: null });
     // Level 16 at the end, but 14 when the run started: below the 15-18 band.
-    const levelled = bothShapes({ members: [kev, { name: "Amy", level: 16, minLevel: 14 }] });
+    const levelled = bothShapes({ members: [kev, { name: "Amy", level: 16, minLevel: 10 }] });
     expect(rateRun(levelled.site, rules).reason).toBe("Below level range");
     expect(guildPoints(levelled.guild, rules)).toEqual({ Kev: null, Amy: null });
     // A Scarlet wing needs its last boss killed inside the run.
@@ -65,11 +65,11 @@ describe("public runs rank like guild seasons on the same evidence", () => {
     expect(rateRun(bothShapes({ instanceId: 2437, members: [kev] }).site, rules).reason).toBe("Route not rated yet");
   });
 
-  it("counts a run only for players present 80% of it, in both", () => {
-    const { guild, site } = bothShapes({ members: [kev, { ...amy, presentSec: 500 }] });
+  it("counts a run only for players present half of it, in both", () => {
+    const { guild, site } = bothShapes({ members: [kev, { ...amy, presentSec: 300 }] });
     expect(calculateDungeonRating([guild], rules).map((row) => row.name)).toEqual(["Kev"]);
     expect(characterScores([site], rules).map((row) => row.player.character)).toEqual(["Kev"]);
-    expect(rateRun(site, rules, site.players[1]).reason).toBe("Presence under 80%");
+    expect(rateRun(site, rules, site.players[1]).reason).toBe("Presence under 50%");
     // The run itself still ranks (top runs), for the players who earned it.
     expect(rateRun(site, rules).score?.points).toBe(240);
   });
@@ -140,7 +140,7 @@ describe("official seasons freeze their public rules", () => {
 describe("leaderboard store reads whole histories", () => {
   it("returns every run past 5,000 rows, newest first for a character", async () => {
     const rows = Array.from({ length: 12_003 }, (_, i) => ({ id: `run${String(i).padStart(6, "0")}`, instanceId: 389, routeKey: "389", difficultyId: 0, dungeonName: "Ragefire Chasm",
-      durationSec: 1000 + (i % 500), startedAt: new Date(START.getTime() - i * 60_000), endedAt: new Date(START.getTime() - i * 60_000 + 1_000_000), deaths: 0, bracket: "15-29",
+      durationSec: 1000 + (i % 500), startedAt: new Date(START.getTime() - i * 60_000), endedAt: new Date(START.getTime() - i * 400_000 + 1_000_000), deaths: 0, bracket: "15-29",
       season: "2026-Q4", confirmations: 1, evidenceVersion: i % 2, completedBy: "final boss", encounters: [],
       players: [{ character: "Kev", realm: "Doomhowl", className: null, role: null, level: 16, minLevel: 16, presentSec: 1000 }] }));
     const queries: { take: number; cursor?: { id: string } }[] = [];

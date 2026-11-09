@@ -74,8 +74,10 @@ end
 local function lookup(name)
   local s = standings()
   name = ns.normalizeName(name)
-  if not s or not name then return nil end
-  return s.players[name]
+  if not s or not name or type(s.players) ~= "table" then return nil end
+  -- (9.0) Full Forever names, or a unique first name from older saved standings.
+  local key = ns.util.findCharacterKey(s.players, name)
+  return key and s.players[key] or nil
 end
 
 local function after(seconds, fn)
@@ -102,6 +104,8 @@ local function encodePlayers(players)
 end
 
 local shareItems -- defined below, next to the item tooltip data
+local lastItemShare, itemReplyScheduled = nil, false
+local heardItemStamp, heardItemAt
 
 local function shareStandings()
   local s = standings()
@@ -144,6 +148,8 @@ function shareItems()
   local d = db()
   local s = standings()
   if not d or not d.items or not s or not s.updatedAt then return end
+  if d.items.updatedAt ~= s.updatedAt then return end
+  lastItemShare = time()
   local chunks, current = {}, ""
   for _, entry in ipairs(encodeItems(d.items.list)) do
     if current ~= "" and string.len(current) + string.len(entry) + 1 > CHUNK_BYTES then
@@ -153,6 +159,7 @@ function shareItems()
     current = current == "" and entry or (current .. ";" .. entry)
   end
   if current ~= "" then table.insert(chunks, current) end
+  if #chunks == 0 and next(d.items.list or {}) == nil then chunks[1] = "" end
   for i, chunk in ipairs(chunks) do
     send(string.format("ITEM|%s|%d|%d|%s", s.updatedAt, i, #chunks, chunk), "GUILD")
   end
@@ -195,6 +202,7 @@ local function receiveItemChunk(text, sender)
   if not fromGuild(sender) then return end
   -- A date in the future would make this copy "newest" forever.
   if ns.util.tooFarAhead(updatedAt) then return end
+  heardItemStamp, heardItemAt = updatedAt, time()
   local d = db()
   if not d or (d.items and d.items.updatedAt and not newerThanMine(d.items, updatedAt, sender)) then return end
   if not incomingItems or incomingItems.updatedAt ~= updatedAt then
@@ -616,6 +624,14 @@ end
 
 local started = false
 
+function ns.requestGuildSnapshots()
+  local s, d = standings(), db()
+  send("STANDREQ|" .. ((s and s.updatedAt) or "0"), "GUILD")
+  if s and s.updatedAt and (not d.items or d.items.updatedAt ~= s.updatedAt) then
+    send("ITEMREQ|" .. s.updatedAt, "GUILD")
+  end
+end
+
 local function onEvent(_, event, ...)
   if event == "PLAYER_ENTERING_WORLD" then
     if started then return end
@@ -626,8 +642,7 @@ local function onEvent(_, event, ...)
     -- Wait for the guild channel to be ready before talking on it.
     after(STARTUP_DELAY_SECONDS, function()
       send("VERSION|" .. myVersion, "GUILD")
-      local s = standings()
-      send("STANDREQ|" .. ((s and s.updatedAt) or "0"), "GUILD")
+      ns.requestGuildSnapshots()
       local g = guildModules()
       send("MODSREQ|" .. ((g and g.updatedAt) or 0), "GUILD")
       -- Fresh standings from the companion are shared by whoever brought them.
@@ -663,6 +678,19 @@ local function onEvent(_, event, ...)
         -- Officers answer within a few seconds; members only if nobody answered before them.
         local delay = ns.isOfficer() and 1 + math.random() * REPLY_JITTER or MEMBER_DELAY + math.random() * MEMBER_JITTER
         if C_Timer and C_Timer.After then C_Timer.After(delay, reply) else reply() end
+      end
+    elseif kind == "ITEMREQ" and channel == "GUILD" and fromGuild(sender) then
+      local stamp = text:match("^ITEMREQ|(.+)$")
+      local d = db()
+      if stamp and d and d.items and d.items.updatedAt == stamp and not itemReplyScheduled
+        and (not lastItemShare or time() - lastItemShare >= SHARE_COOLDOWN_SECONDS) then
+        itemReplyScheduled = true
+        after(1 + math.random() * REPLY_JITTER, function()
+          itemReplyScheduled = false
+          if d == db() and d.items and d.items.updatedAt == stamp
+            and not (heardItemStamp == stamp and time() - heardItemAt < STALLED_SECONDS)
+            and (not lastItemShare or time() - lastItemShare >= SHARE_COOLDOWN_SECONDS) then shareItems() end
+        end)
       end
     elseif kind == "STAND" then
       receiveChunk(text, sender)

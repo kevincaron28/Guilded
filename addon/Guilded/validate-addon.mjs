@@ -3,17 +3,14 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { validateCombatLog } from "../../scripts/validate-combat-log.mjs";
+import { validateMixinHooks } from "../../scripts/validate-mixin-hooks.mjs";
 
 const root = new URL(".", import.meta.url);
 const rootPath = fileURLToPath(root);
 const toc = readFileSync(new URL("Guilded.toc", root), "utf8");
-// Current clients as of 3 Nov 2026. Forever's live interface is still the beta
-// number 16001 until launch-day GetBuildInfo(); the others are Era, TBC, Mists, Retail.
-const interfaceLine = /^## Interface:\s*(.+)$/m.exec(toc)?.[1] ?? "";
-const listed = interfaceLine.split(",").map((value) => value.trim());
-for (const api of ["16001", "11509", "20506", "50504", "120105"]) {
-  if (!listed.includes(api)) throw new Error(`TOC interface list is missing ${api}`);
-}
+// Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md); its client is 16001.
+const interfaceLine = (/^## Interface:\s*(.+)$/m.exec(toc)?.[1] ?? "").trim();
+if (interfaceLine !== "16001") throw new Error(`TOC must list only WoW Forever's interface 16001, not "${interfaceLine}"`);
 if (!toc.includes("## SavedVariables:")) {
   throw new Error("TOC is missing SavedVariables metadata");
 }
@@ -51,7 +48,7 @@ if (!utilSource.includes("SendAddonMessage")) throw new Error("Util.lua must sen
 // available to the Blizzard UI" popup on load.
 for (const file of ["Core.lua", "Modules/LootRoll.lua"]) {
   const source = readFileSync(new URL(file, root), "utf8");
-  validateCombatLog(source.replaceAll("\r\n", "\n"), file === "Modules/Dungeon.lua");
+  validateCombatLog(source.replaceAll("\r\n", "\n"));
 }
 if (!core.includes("GuildedDB")) {
   throw new Error("Core.lua does not reference its SavedVariables database");
@@ -72,12 +69,19 @@ for (const file of addonFiles) {
   const source = readFileSync(new URL(file, root), "utf8");
   // Reject event-name literals too: registration through compat.registerEvent
   // or a table-driven loop is just as restricted as a direct RegisterEvent call.
-  validateCombatLog(source.replaceAll("\r\n", "\n"), file === "Modules/Dungeon.lua");
+  validateCombatLog(source.replaceAll("\r\n", "\n"));
 }
 for (const file of addonFiles) {
   if (file === "Util.lua") continue;
   const source = readFileSync(new URL(file, root), "utf8");
   if (/SendAddonMessage\(/.test(source)) throw new Error(`${file} calls SendAddonMessage directly; use ns.comm.send (Util.lua)`);
+  validateMixinHooks(source, file);
+  // GuildSetMOTD is Blizzard-UI only (ADDON_ACTION_FORBIDDEN): Modules/GuildMotd.lua is a reminder + copy box.
+  if (/\b(GuildSetMOTD|SetMOTD)\s*\(/.test(source)) throw new Error(`${file} calls GuildSetMOTD; WoW does not let addons set the MOTD (see Modules/GuildMotd.lua)`);
+  if (file === "Modules/GuildMotd.lua") {
+    const code = source.split(/\r?\n/).filter(line => !/^\s*--/.test(line)).join("\n");
+    if (/GuildSetMOTD|SetMOTD|ChatFrame_OpenChat|DEFAULT_CHAT_FRAME|\beditBox\b|ChatEdit/.test(code)) throw new Error("GuildMotd.lua must not touch the chat box or any MOTD function (tainted chat text is blocked)");
+  }
 }
 // Addon message prefixes are limited to 16 characters.
 for (const file of addonFiles) {
@@ -109,6 +113,11 @@ if (luaparse) {
     }
   }
 }
+
+// Blizzard loads a binding header once; a repeat raises "Binding header ... loaded more than once".
+const bindingsXml = readFileSync(new URL("Bindings.xml", root), "utf8");
+const bindingHeaders = [...bindingsXml.matchAll(/header="([^"]+)"/g)].map((m) => m[1]);
+if (new Set(bindingHeaders).size !== bindingHeaders.length) throw new Error("Bindings.xml repeats a binding header; only the first binding in a group may carry it");
 
 console.log("Guilded addon static validation passed.");
 // The standalone dungeon addon is built from these files: check it with them.

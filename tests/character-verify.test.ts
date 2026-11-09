@@ -216,7 +216,7 @@ describe("telling the member", () => {
     expect(send.mock.calls[0]![1].content).toContain("comme ton principal");
     expect(send.mock.calls[1]![1].content).toContain("déjà lié à quelqu'un d'autre sur **Quebec Gold**");
     // Only the new link reaches the officers' log (postToLogChannel never pings).
-    expect(logged).toHaveBeenCalledWith(discordGuild, "🔗 Ray was linked to <@user-ray> by their /guilded verify code.");
+    expect(logged).toHaveBeenCalledWith(discordGuild, "🔗 Ray a été lié à <@user-ray> par son code /guilded verify.");
   });
 
   it("tells officers who reported a provisional link, and the member an officer's sync moved it from", async () => {

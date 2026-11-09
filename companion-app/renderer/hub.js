@@ -3,7 +3,17 @@
   if (!api?.hubView) return;
   const $ = id => document.getElementById(id);
   const T = (key, ...args) => window.companionLanguage.t(key, ...args);
-  let data = null, offline = false, savedAt = '', error = '', loading = false, saving = false, generation = 0;
+  let data = null, offline = false, savedAt = '', error = '', personal = false, loading = false, saving = false, generation = 0;
+  // A short outage (the bot restarting during a deploy): say so, count down and load again by itself.
+  let retryAt = 0, retryAttempt = 0, retryTimer = null, retryTick = null;
+  const M = value => window.companionLanguage.message(value);
+  function scheduleRetry() {
+    clearTimeout(retryTimer); clearInterval(retryTick);
+    const seconds = window.guildedSignIn.retryDelaySeconds(retryAttempt++);
+    retryAt = Date.now() + seconds * 1000;
+    retryTimer = setTimeout(() => { clearInterval(retryTick); retryAt = 0; void load(); }, seconds * 1000);
+  }
+  function clearRetry() { clearTimeout(retryTimer); clearInterval(retryTick); retryAt = 0; retryAttempt = 0; }
   const el = (tag, props = {}, ...children) => {
     const node = document.createElement(tag);
     for (const [key, value] of Object.entries(props)) {
@@ -23,33 +33,19 @@
     try {
       const result = await api.hubView(window.companionLanguage.language);
       if (request !== generation) return;
-      if (result.ok) { data = result.data; offline = !!result.offline; savedAt = result.savedAt || ''; error = ''; }
+      personal = result.personal === true;
+      if (result.ok) { data = result.data; offline = !!result.offline; savedAt = result.savedAt || ''; error = ''; document.dispatchEvent(new CustomEvent('companion-hub-data', { detail: data })); }
       else { data = null; offline = false; error = result.error || T('Connect a guild account to see your characters and server.'); }
+      // Offline copy or no answer because the bot is unreachable: try again by itself.
+      if ((offline || (!result.ok && window.guildedSignIn.isUnreachable(result.error))) && result.unreachable !== false) scheduleRetry(); else clearRetry();
     } catch (e) { if (request === generation) { data = null; error = e.message; } }
     finally { if (request === generation) { loading = false; render(); } }
   }
 
-  // The one status line on Home: connected or not, last refresh, and what to do next.
-  function nextStep() {
-    if (!data) return T('Next: connect your Discord account in Sync & setup.');
-    const todo = (data.server?.checks || []).filter(c => !c.ok && !c.optional).length;
-    if (todo) return T('Next: {0} setup item(s) need an officer. Open Server.', todo);
-    if (!data.characters.length) return T('Next: save in WoW and sync, so your characters appear here.');
-    return T('You are all set.');
-  }
-  function renderStatus() {
-    const node = $('hubStatus'); if (!node) return;
-    let line;
-    if (data && !offline) line = T('Connected to {0} · updated {1}', data.guild.name, when(data.updatedAt));
-    else if (data) line = T('Not connected: showing the data saved on {0}', when(savedAt));
-    else line = error ? T('Not connected: {0}', error) : T('Not connected yet.');
-    node.textContent = `${line} · ${nextStep()}`;
-    node.hidden = false;
-  }
 
   function renderCharacters() {
     const host = $('charactersContent'); host.replaceChildren();
-    if (!data) { host.append(text(error || T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
+    if (!data) { host.append(text(error ? M(error) : T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
     if (offline) host.append(text(T('Not connected: showing the data saved on {0}', when(savedAt)), 'result bad'));
     if (!data.characters.length) { host.append(text(T('No character is linked to you yet. Save in WoW and sync, or use /character pair in Discord.'))); return; }
     const groups = new Map();
@@ -70,21 +66,6 @@
     }
   }
 
-  function renderReserves() {
-    const host = $('reservesContent'); host.replaceChildren();
-    if (!data) { host.append(text(error || T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
-    const r = data.reserves;
-    const modes = r.cores.filter(c => c.lootMode === 'RESERVE');
-    host.append(el('article', { class: 'panel' }, el('h2', { text: T('Where to reserve') }),
-      text(T('Soft reserves are kept in the game addon by your raid leader (/guilded reserve) and reach Discord when the companion uploads. To keep your reserves from being overwritten, reserve in game; this page shows the list.')),
-      modes.length ? text(T('Cores using soft reserves: {0}', modes.map(c => `${c.name} (${T('{0} per player', c.reservesPerPlayer)})`).join(', '))) : text(T('No raid core uses soft reserves right now.'))));
-    if (!r.list || !r.list.active) { host.append(text(T('No soft-reserve list is open. An officer starts one in game with /guilded reserve open.'))); return; }
-    host.append(el('article', { class: 'panel' },
-      el('div', { class: 'section-title' }, el('h2', { text: r.list.title || T('Soft reserves') }), el('span', { class: 'pill', text: r.list.open ? T('Open') : T('Locked') })),
-      text(T('{0} per player · synced {1}', r.list.perPlayer, when(r.list.syncedAt))),
-      text(T('Your reserves: {0}', r.mineCount)),
-      r.items.length ? el('ul', { class: 'edit-list' }, ...r.items.map(i => el('li', { class: 'edit-row' }, el('strong', { text: i.itemName + (i.mine ? ' ★' : '') }), el('span', { text: i.characters.join(', ') })))) : text(T('Nobody has reserved yet.'))));
-  }
 
   async function change(payload) {
     if (saving) return; saving = true; $('serverContent').inert = true;
@@ -109,7 +90,7 @@
   function renderServer() {
     const host = $('serverContent'); host.replaceChildren();
     $('serverNav').hidden = !(data && data.me.officer);
-    if (!data) { host.append(text(error || T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
+    if (!data) { host.append(text(error ? M(error) : T('Connect a guild account to see your characters and server.'), 'result bad')); return; }
     if (!data.me.officer) { host.append(text(T('Only officers and guild masters can see this page.'))); return; }
     if (offline) { host.append(text(T('Not connected: showing the data saved on {0}', when(savedAt)), 'result bad')); return; }
     const s = data.server;
@@ -129,10 +110,6 @@
         ? T('Opt-in. When on, the bot posts one public message in your achievements channel when a member unlocks something. Members who hide their profile are skipped. Nothing is posted while this is off, and what members already earned is not announced.')
         : T('Opt-in. First pick the channel in Discord with /config achievements announce:true channel:#..., then turn it on here.'),
         x.achievementAnnounce, x.achievementChannelSet ? { action: 'server.achievements', on: true } : null, { action: 'server.achievements', on: false }),
-      toggle(T('Public dungeon sharing'), x.publicSharing
-        ? T('On: eligible dungeon runs, including non-guild party members, can be seen on the public leaderboards. Turning it off stops new publication; runs already public stay public.')
-        : T('Off. To turn it on, an officer confirms it in Discord with /mod leaderboard share:true, where the details are shown first.'),
-        x.publicSharing, null, { action: 'server.publicSharing.off' }),
       toggle(T('Raid reminders'), T('Signed-up players are pinged 60 minutes before a raid starts.'), x.reminders, { action: 'server.reminders', on: true }, { action: 'server.reminders', on: false }),
       toggle(T('Weekly guild report'), T('Posts a weekly summary in the announcements channel.'), x.weeklyReport, { action: 'server.weeklyReport', on: true }, { action: 'server.weeklyReport', on: false }),
       toggle(T('Apply uploads automatically'), T('When on, what a companion uploads is applied and announced right away. When off, officers apply uploads with /import apply.'), x.autoImport, { action: 'server.autoImport', on: true }, { action: 'server.autoImport', on: false }),
@@ -140,13 +117,15 @@
         text(x.welcomeChannelSet || x.welcomeDelivery === 'DM' ? T('The welcome message is set up. Change it in Discord with /setup start, step 5.') : T('Not set up. Run /setup start in Discord, step 5.'))));
   }
 
-  function render() { renderStatus(); renderCharacters(); renderReserves(); renderServer(); }
+  function render() { renderCharacters(); renderServer(); }
 
-  for (const id of ['charactersReload', 'reservesReload', 'serverReload']) $(id).addEventListener('click', () => { loading = false; void load(); });
-  document.querySelectorAll('[data-page="characters"],[data-page="reserves"],[data-page="server"]').forEach(b => b.addEventListener('click', () => void load()));
+  for (const id of ['charactersReload', 'serverReload']) $(id).addEventListener('click', () => { loading = false; void load(); });
+  document.querySelectorAll('[data-page="characters"],[data-page="server"]').forEach(b => b.addEventListener('click', () => void load()));
   document.addEventListener('companion-language', () => { if (!saving) render(); });
   document.addEventListener('companion-connection-changing', () => { generation++; loading = false; saving = false; data = null; error = ''; render(); });
   document.addEventListener('companion-connection-changed', () => { loading = false; void load(); });
+  // (9.0) A sign-in made the "Not connected: connect your Discord account first" line out of date.
+  document.addEventListener('companion-signed-in', () => { generation++; loading = false; error = ''; void load(); });
   render();
   void load();
 })();

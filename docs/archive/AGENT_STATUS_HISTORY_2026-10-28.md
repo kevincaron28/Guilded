@@ -4,7 +4,7 @@ Archived October 28, 2026. These records describe their dates, not current deplo
 
 > 7.5.1 (27 October 2026): Claude finished Codex's dungeon-current-v2 work (Codex out of capacity) and
 > released it with PR #241's loot/site fixes at Kevin's request; Season 1 stays current-v1. See
-> docs/V7_5_1_RELEASE_NOTES.md. PUBLISHED from 7f2b3d9: Oracle healthy on 7.5.1 (three migrations,
+> docs/archive/releases/V7_5_1_RELEASE_NOTES.md. PUBLISHED from 7f2b3d9: Oracle healthy on 7.5.1 (three migrations,
 > backups first), GitHub v7.5.1 with all 21 assets hash-verified, all ten CurseForge files uploaded
 > (CDN hashes match; approval pending when recorded). Evidence: backups/release-7.5.1/.
 >
@@ -24,7 +24,7 @@ Archived October 28, 2026. These records describe their dates, not current deplo
 > captured and removed with its temporary certificate. WACK completed with WARNING,
 > not a clean pass. See docs/store-submission/LOCAL_VALIDATION_2026-10-26.md.
 > Version chosen by Kevin via the shared coordination notes. Public/live remains 7.4.0.
-> Read docs/V7_5_0_RELEASE_NOTES.md and docs/STORE_HANDOFF_2026-10-26.md.
+> Read docs/archive/releases/V7_5_0_RELEASE_NOTES.md and docs/STORE_HANDOFF_2026-10-26.md.
 >
 > Local release-gap work (26 October): read docs/archive/RELEASE_GAP_WORK_2026-10-26.md.
 > Branch codex/release-gap-completion adds audited main/alt apply, participation,
@@ -81,41 +81,41 @@ Archived October 28, 2026. These records describe their dates, not current deplo
 > 7.3.1 (22 October 2026): raid readiness requires level 60 and flags old checks; companion Update now
 > repair (a companion on 7.2.0/7.3.0 needs one manual install). Live on the bot and GitHub; CurseForge
 > has 7.3.0. Pre-release audit and recommendations: docs/archive/PRE_RELEASE_AUDIT_2026-10-22.md.
-> 7.3.0 (20 October 2026): safe-exit dungeon result card in both addons, optional cross-guild raid vacancies and companion browser, public player profiles and dungeon setup guide. See docs/V7_3_0_RELEASE_NOTES.md for deployment and pending real-client acceptance.
+> 7.3.0 (20 October 2026): safe-exit dungeon result card in both addons, optional cross-guild raid vacancies and companion browser, public player profiles and dungeon setup guide. See docs/archive/releases/V7_3_0_RELEASE_NOTES.md for deployment and pending real-client acceptance.
 > 7.2.1 (20 October 2026): leaderboards-only companions read GuildedDungeons.lua AND Guilded.lua
 > (companion/personal-runs.mjs); pool of 8 DB connections (src/database.ts); /health "commands" and
 > deploy/update.sh stops when Discord refuses them; error reports carry their origin; official
-> seasons (/guilded-season) (docs/V7_2_1_RELEASE_NOTES.md).
+> seasons (/guilded-season) (docs/archive/releases/V7_2_1_RELEASE_NOTES.md).
 > 7.2.0 (19 October 2026): companion Sign in with Discord (/me/companion, src/services/companion-signin.ts),
-> one-click Update now (companion-app/update-check.cjs), one site menu in site/nav.mjs (docs/V7_2_0_RELEASE_NOTES.md).
+> one-click Update now (companion-app/update-check.cjs), one site menu in site/nav.mjs (docs/archive/releases/V7_2_0_RELEASE_NOTES.md).
 > 7.1.0 (19 October 2026): monthly dungeon seasons (/organize dungeon-seasons), weekly/monthly boards,
-> Raider.IO-style leaderboards; weekly reset Tuesday 15:00 UTC (docs/V7_1_0_RELEASE_NOTES.md).
+> Raider.IO-style leaderboards; weekly reset Tuesday 15:00 UTC (docs/archive/releases/V7_1_0_RELEASE_NOTES.md).
 > 7.0.0 (19 October 2026): web sign-in and recruitment (/mod recruit), public dungeon leaderboards
 > (/mod leaderboard), standalone Guilded Dungeons addon (addon/GuildedDungeons; after editing Guilded's
 > shared dungeon Lua run `npm run dungeons:sync`), companion personal mode and CSV export, /officer export,
 > startable provisional all-level season. /officer is the largest command: 3,431 of Discord's 4,000
 > characters on 21 October 2026 (/character 3,346; the size test fails above 3,900). Put new
-> officer subcommands elsewhere (docs/V7_0_0_RELEASE_NOTES.md).
+> officer subcommands elsewhere (docs/archive/releases/V7_0_0_RELEASE_NOTES.md).
 > 6.7.0 (18 October 2026): members see only their commands; leader and officer tools under /lead,
-> /officer, /organize; Integrations-visibility warning in /setup (docs/V6_7_0_RELEASE_NOTES.md).
+> /officer, /organize; Integrations-visibility warning in /setup (docs/archive/releases/V6_7_0_RELEASE_NOTES.md).
 > 6.6.0 (18 October 2026): Guilded Lite for unapproved hosted servers, dungeon rules v6 with level
-> brackets (not active), `/guilded sheet` spreadsheet copy, Ko-fi links (docs/V6_6_0_RELEASE_NOTES.md).
+> brackets (not active), `/guilded sheet` spreadsheet copy, Ko-fi links (docs/archive/releases/V6_6_0_RELEASE_NOTES.md).
 > 6.5.2 (18 October 2026): update prompts (companion banner, self-hosted bot notice; migration
-> 20261118090000_update_notice), pairing code shown first (docs/V6_5_2_RELEASE_NOTES.md).
-> 6.5.1 (17 October 2026): companions connect with the pairing code alone (docs/V6_5_1_RELEASE_NOTES.md).
+> 20261118090000_update_notice), pairing code shown first (docs/archive/releases/V6_5_2_RELEASE_NOTES.md).
+> 6.5.1 (17 October 2026): companions connect with the pairing code alone (docs/archive/releases/V6_5_1_RELEASE_NOTES.md).
 > 6.5.0 (17 October 2026): raid-night tools, member EP/GP history, core planning (bot; migration
-> 20261117090000_core_planning) (docs/V6_5_0_RELEASE_NOTES.md).
+> 20261117090000_core_planning) (docs/archive/releases/V6_5_0_RELEASE_NOTES.md).
 > 6.4.0 (17 October 2026): guided guild setup, raid summary, level-aware gear check; party games only
-> in Guilded Games (docs/V6_4_0_RELEASE_NOTES.md). G9 with Games passed on two PCs; companion 6.3.1->6.3.2 upgrade passed.
+> in Guilded Games (docs/archive/releases/V6_4_0_RELEASE_NOTES.md). G9 with Games passed on two PCs; companion 6.3.1->6.3.2 upgrade passed.
 > 6.3.2 (17 October 2026): in-game polish pass, guided Local guild page, quieter readiness sync
-> (docs/V6_3_2_RELEASE_NOTES.md). Two-PC: chat tab, member SR+ and the rest of G1 pass.
+> (docs/archive/releases/V6_3_2_RELEASE_NOTES.md). Two-PC: chat tab, member SR+ and the rest of G1 pass.
 > Not run in game: G6-G8 (dungeon runs), G10 (French client), the 6.1.2 parts of G2/G12.
-> 6.3.1 (16 October 2026): Forever whisper fix; G9 and the guild map pass (docs/V6_3_1_RELEASE_NOTES.md).
+> 6.3.1 (16 October 2026): Forever whisper fix; G9 and the guild map pass (docs/archive/releases/V6_3_1_RELEASE_NOTES.md).
 > G1 and G2 pass (night run).
 > On WoW Forever never whisper a bare first name: use the sender text or `ns.util.address(name)`.
 > 6.3.0 (16 October 2026): guild-wide sync and the fixes from the first two-PC in-game check
-> (docs/V6_3_0_RELEASE_NOTES.md; results in docs/V6_2_GAME_ACCEPTANCE.md).
-> 6.2.1 (16 October 2026) patches 6.2.0: guild pages, bug inbox, sync fixes (docs/V6_2_1_RELEASE_NOTES.md).
+> (docs/archive/releases/V6_3_0_RELEASE_NOTES.md; results in docs/V6_2_GAME_ACCEPTANCE.md).
+> 6.2.1 (16 October 2026) patches 6.2.0: guild pages, bug inbox, sync fixes (docs/archive/releases/V6_2_1_RELEASE_NOTES.md).
 > 6.2.0 Release (16 October 2026): the owner released 6.2.0 (standalone guilds, November
 > scoring preparation, companion sync from PR #84) before its real-client checks. Those
 > checks in `docs/V6_2_GAME_ACCEPTANCE.md` are post-release follow-up. Release record:

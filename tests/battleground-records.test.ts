@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Prisma, PrismaClient } from "../src/generated/prisma/client.js";
 import { battlegroundReportSchema } from "../src/services/battleground-record-schema.js";
-import { battlegroundHistory, battlegroundStats, correctBattlegroundReport, importBattlegroundReports, setBattlegroundConsent } from "../src/services/battleground-records.js";
+import { battlegroundHistory, battlegroundStats, correctBattlegroundReport, importBattlegroundReports } from "../src/services/battleground-records.js";
 
 const now = new Date("2026-11-05T12:00:00Z");
 const report = { version: 1, reportId: "own-report-001", adapter: "forever-postmatch-v1", edition: "forever",
@@ -27,7 +27,7 @@ function fixture() {
         && arg.where.OR.some(k => k.id === r["id"] || k.reportId === r["reportId"])) ?? null),
       findMany: vi.fn(async (arg: { where: { premadeNonce?: string } }) => typeof arg.where.premadeNonce === "string"
         ? records.filter(r => r["premadeNonce"] === arg.where.premadeNonce && consent.capture).map(r => ({ ...r, member: { battlegroundConsent: consent } })) : records),
-      groupBy: vi.fn(async () => consent.guildStats ? ["win", "loss", "draw", "unknown"].map(outcome => ({ outcome, _count: { _all: records.filter(r => r["status"] === "PROVISIONAL" && r["outcome"] === outcome).length } })) : []),
+      groupBy: vi.fn(async () => ["win", "loss", "draw", "unknown"].map(outcome => ({ outcome, _count: { _all: records.filter(r => r["status"] === "PROVISIONAL" && r["outcome"] === outcome).length } }))),
       create: vi.fn(async (arg: { data: Record<string, unknown> }) => { const row = { id: `id-${records.length}`, ...arg.data }; records.push(row); return row; }),
       update: vi.fn(async (arg: { where: { id: string }; data: object }) => Object.assign(records.find(r => r["id"] === arg.where.id)!, arg.data)),
       updateMany: vi.fn(async (arg: { where: { premadeNonce?: string; id?: { in: string[] } }; data: object }) => {
@@ -41,13 +41,10 @@ function fixture() {
 }
 
 describe("BG private reporter ingestion", () => {
-  it("rejects unauthenticated, nonconsenting, foreign-guild and other-character evidence", async () => {
+  it("rejects unauthenticated, foreign-guild and other-character evidence", async () => {
     const f = fixture();
     expect((await importBattlegroundReports(f.tx, "g", null, [report], now)).rejected).toBe(1);
     expect(f.raw.battlegroundConsent.findUnique).not.toHaveBeenCalled();
-    f.consent.capture = false;
-    expect((await importBattlegroundReports(f.tx, "g", "m", [report], now)).rejected).toBe(1);
-    f.consent.capture = true;
     await expect(importBattlegroundReports(f.tx, "other-guild", "m", [report], now)).rejects.toThrow("membership");
     expect((await importBattlegroundReports(f.tx, "g", "m", [{ ...report, character: "SomeoneElse" }], now)).rejected).toBe(1);
     expect(f.records).toHaveLength(0);
@@ -85,12 +82,9 @@ describe("BG private reporter ingestion", () => {
     expect(f.records[0]?.["status"]).toBe("WITHDRAWN");
     expect(f.records[0]?.["correctionReason"]).toBe("Wrong result");
   });
-  it("requires fresh consent for new capture after pause and scopes private history", async () => {
+  it("needs no consent switch (everything is shared) and scopes private history", async () => {
     const f = fixture();
-    await expect(setBattlegroundConsent(f.db, "g", "m", { capture: false, guildStats: true })).rejects.toThrow("Enable capture");
-    await setBattlegroundConsent(f.db, "g", "m", { capture: false, guildStats: false }, now);
-    await setBattlegroundConsent(f.db, "g", "m", { capture: true, guildStats: false }, now);
-    expect((await importBattlegroundReports(f.tx, "g", "m", [report], now)).rejected).toBe(1);
+    expect((await importBattlegroundReports(f.tx, "g", "m", [report], now)).recorded).toBe(1);
     await battlegroundHistory(f.db, "g", "m", report.reportId);
     expect(f.raw.battlegroundReport.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: {
       guildId: "g", memberId: "m", OR: [{ id: report.reportId }, { reportId: report.reportId }] }, take: 1 }));
@@ -98,12 +92,11 @@ describe("BG private reporter ingestion", () => {
   it("separates provisional evidence from verified stats and requires edition/season scope", async () => {
     const f = fixture(); await importBattlegroundReports(f.tx, "g", "m", [report], now);
     const scope = { edition: "forever", startsAt: new Date("2026-11-04T00:00:00Z"), endsAt: now, mode: "casual", bracket: "60" };
-    expect((await battlegroundStats(f.db, "g", scope)).participations).toBe(0);
-    f.consent.guildStats = true;
+    expect((await battlegroundStats(f.db, "g", scope)).participations).toBe(1);
     const stats = await battlegroundStats(f.db, "g", scope);
     expect(stats).toMatchObject({ matches: 0, verifiedMatches: null, wins: 1, winRate: 1, provisionalReports: 1, knownOutcomes: 1 });
     expect(f.raw.battlegroundReport.groupBy).toHaveBeenLastCalledWith(expect.objectContaining({ where: expect.objectContaining({ guildId: "g", gameEdition: "forever", mode: "casual", bracket: "60",
-      member: { guildId: "g", status: "ACTIVE", battlegroundConsent: { is: { guildId: "g", capture: true, guildStats: true } } } }) }));
+      member: { guildId: "g", status: "ACTIVE" } }) }));
     await correctBattlegroundReport(f.db, "g", "m", report.reportId, "Incorrect");
     expect((await battlegroundStats(f.db, "g", scope)).participations).toBe(0);
     await expect(battlegroundStats(f.db, "g", { ...scope, edition: "retail" })).rejects.toThrow("scope");

@@ -1,9 +1,13 @@
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
+import { seasonLabel } from "./season-label.js";
 import { dungeonRole } from "../../companion/dungeon-role.mjs";
 import { integrityStartReason, integrityPresence, integrityRole, integrityRuleWindowReason, withIntegrityWindow } from "./dungeon-integrity.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { foreverNameMatches, foreverSameName } from "../../companion/character-identity.mjs";
+import { displayCharacterName, loadFullNameBook } from "./character-display.js";
+import { currentEdition } from "./edition-context.js";
 import type { Lang } from "../i18n.js";
-import { bracketForLevel, nativeCompletionReason, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
+import { bracketForLevel, leniencyOf, nativeCompletionReason, novemberDungeonKey, resolveNovemberRoute, routeTargetAt, validBracketedRules, validNovemberRules,
   type BracketedRules, type DungeonBracket, type NovemberRules } from "./dungeon-november-rules.js";
 
 // Version 1 remains readable forever. New seasons use a frozen version 3 copy.
@@ -85,8 +89,13 @@ export interface BossRecord { id: number; name: string; durationSec: number; run
 export interface RatingRun {
   competitionData?: unknown; difficultyId?: number; startedAt?: Date | null; endedAt?: Date | null; createdAt?: Date | null; completedBy?: string | null;
   instanceId: number; durationSec: number | null; dungeonName?: string; runRef?: string;
-  players: { character?: string; memberId: string | null; role?: string | null; presentSec: number; member: { displayName: string } | null }[];
+  /** Levels read from the guild roster for players whose run record has none (lowercase character name). */
+  rosterLevels?: Record<string, number>;
+  players: { character?: string; memberId: string | null; role?: string | null; presentSec: number; member: { displayName: string } | null; inGuild?: boolean }[];
 }
+/** Rating rows of a guildmate with no linked member are keyed by character under this prefix. */
+export const UNLINKED_RATING_PREFIX = "char:";
+export const isUnlinkedRating = (memberId: string) => memberId.startsWith(UNLINKED_RATING_PREFIX);
 export function speedPoints(seconds: number, target: number | null): number {
   return target ? Math.round(20 * Math.max(0, Math.min(1, (target - seconds) / (0.3 * target)))) : 0;
 }
@@ -95,20 +104,35 @@ export function timeRating(seconds: number, target: number | null): number {
   return target && seconds > 0 ? Math.max(50, Math.min(400, Math.round(200 * target / seconds))) : 0;
 }
 // Version 6 lets a participant be up to `allowance` levels above the band, for a penalty.
-export function competitionReason(run: RatingRun, band: LevelBand | undefined, allowance = 0): string | undefined {
+export function competitionReason(run: RatingRun, band: LevelBand | undefined, allowance = 0, belowAllowance = 0): string | undefined {
   if (!band) return "Level range not configured";
   if (run.difficultyId !== band.difficultyId) return "Different difficulty";
-  const data = run.competitionData as { players?: { name: string; level: number | null; minLevel: number | null }[] } | null;
-  if (!Array.isArray(data?.players) || data.players.length !== run.players.length || !data.players.length) return "Party levels unknown";
-  const seen = new Set<string>();
-  for (const p of data.players) {
-    if (!p || typeof p.name !== "string" || seen.has(p.name) || !run.players.some(r => r.character === p.name)
-      || !Number.isInteger(p.level) || !Number.isInteger(p.minLevel) || p.minLevel! < 1 || p.level! > 100 || p.minLevel! > p.level!) return "Party levels unknown";
-    seen.add(p.name);
-  }
-  if (data.players.some(p => p.level! > band.max + allowance)) return "Overlevel carry";
-  if (data.players.some(p => p.minLevel! < band.min)) return "Below level range";
+  // A player whose level is not recorded no longer sinks the run: they are left out of the level
+  // check (and out of the rating, see calculateDungeonRating); only a run with NO known level fails.
+  const known = knownLevels(run);
+  if (!known.length) return "Party levels unknown";
+  if (known.some(p => p.level > band.max + allowance)) return "Overlevel carry";
+  if (known.some(p => p.minLevel < band.min - belowAllowance)) return "Below level range";
   return undefined;
+}
+interface KnownLevel { name: string; level: number; minLevel: number }
+/** Party members of this run with a valid recorded level; anyone else is "unknown". */
+function knownLevels(run: RatingRun): KnownLevel[] {
+  const data = run.competitionData as { players?: { name: string; level: number | null; minLevel: number | null }[] } | null;
+  if (!Array.isArray(data?.players)) return [];
+  const seen = new Set<string>();
+  const out: KnownLevel[] = [];
+  for (const p of data.players) {
+    if (!p || typeof p.name !== "string" || seen.has(p.name) || !run.players.some(r => r.character === p.name)) continue;
+    seen.add(p.name);
+    if (!Number.isInteger(p.level) || !Number.isInteger(p.minLevel) || p.minLevel! < 1 || p.level! > 100 || p.minLevel! > p.level!) continue;
+    out.push({ name: p.name, level: p.level!, minLevel: p.minLevel! });
+  }
+  return out;
+}
+/** Whether this character's own level is recorded in the run. */
+export function levelRecorded(run: RatingRun, character: string): boolean {
+  return knownLevels(run).some(p => p.name === character);
 }
 /** Levels the highest participant is above the band (0 when none is); call after competitionReason. */
 export function overlevelBy(run: RatingRun, band: LevelBand): number {
@@ -126,8 +150,8 @@ export function completionReason(completedBy: string | null | undefined): string
   return completedBy === "final boss" ? undefined : "Automatic final-boss completion required";
 }
 /** A participant earns a ranked run only when inside it for 80% of its time. */
-export function presentEnough(presentSec: number, durationSec: number): boolean {
-  return Number.isFinite(presentSec) && presentSec >= durationSec * DUNGEON_RATING_RULES.minimumPresence;
+export function presentEnough(presentSec: number, durationSec: number, minimum: number = DUNGEON_RATING_RULES.minimumPresence): boolean {
+  return Number.isFinite(presentSec) && presentSec >= durationSec * minimum;
 }
 /** Version 6: the run's route from boss evidence, why it is unranked (if it is), its over-level penalty and target. */
 export function playerIntegrityOf(run: RatingRun, character?: string): unknown {
@@ -147,9 +171,18 @@ export function bracketedVerdict(run: RatingRun, rules: BracketedRules): ReturnT
     ? !run.startedAt || !run.endedAt || !Array.isArray(data?.players) || !Array.isArray(data?.encounters)
       ? "Current evidence required by this season" : completionReason(run.completedBy)
     : undefined;
-  const reason = strictReason ?? currentEvidenceReason ?? route.reason ?? (!rules.targets[route.key] ? "Participation-only route" : competitionReason(run, band, rules.overlevelPenalty.maxLevels));
-  return { ...route, ...(reason ? { reason } : {}), penaltyPercent: !reason && band ? overlevelBy(run, band) * rules.overlevelPenalty.percentPerLevel : 0,
-    targetSec: routeTargetAt(rules, route.key, run.endedAt) ?? null };
+  const base = strictReason ?? currentEvidenceReason ?? route.reason ?? (!rules.targets[route.key] ? "Participation-only route" : competitionReason(run, band, leniencyOf(rules).overLevels, leniencyOf(rules).belowLevels));
+  // Scoring model 2 (inactive unless the season's rules carry it): a minimum party, and level differences priced into the target.
+  const scoring = rules.scoring;
+  const partySize = Array.isArray(data?.players) ? (data.players as unknown[]).length : run.players.length;
+  const reason = base ?? (scoring && partySize < scoring.minParty ? "Party too small" : undefined);
+  const target = routeTargetAt(rules, route.key, run.endedAt) ?? null;
+  if (scoring && !reason && band && target) {
+    const below = Math.max(0, ...knownLevels(run).map(p => band.min - p.minLevel));
+    const factor = Math.max(0.5, 1 - scoring.timePerLevel * overlevelBy(run, band) + scoring.timePerLevel * below);
+    return { ...route, penaltyPercent: 0, targetSec: Math.round(target * factor) };
+  }
+  return { ...route, ...(reason ? { reason } : {}), penaltyPercent: !reason && band ? overlevelBy(run, band) * rules.overlevelPenalty.percentPerLevel : 0, targetSec: target };
 }
 function bossRecords(run: RatingRun): BossRecord[] {
   const data = run.competitionData as { encounters?: unknown[] } | null;
@@ -182,19 +215,34 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
     const penaltyPercent = verdict?.penaltyPercent ?? 0;
     const bosses = timed && !reason && targets[key] ? bossRecords(run) : [];
     for (const player of run.players) {
-      if (!player.memberId || !player.member || !player.character?.trim() || !presentEnough(player.presentSec, run.durationSec)) continue;
+      if (!player.character?.trim() || !presentEnough(player.presentSec, run.durationSec, brackets ? leniencyOf(brackets).presence : undefined)) continue;
+      // A guildmate the addon flagged but nobody has linked yet (or one without the addon) is rated by
+      // character, full Forever name included; linking later re-keys the same stored row to the member.
+      const unlinked = !player.memberId && player.inGuild === true && timed;
+      if (!unlinked && (!player.memberId || !player.member)) continue;
+      const memberId = unlinked ? UNLINKED_RATING_PREFIX + player.character.trim().toLowerCase() : player.memberId!;
+      // A player with no recorded level is left out of the rating, not the run. A level read later
+      // from the guild roster only qualifies them while it still sits inside the route's band.
+      let ownOver = 0;
+      if (timed && !reason && !levelRecorded(run, player.character)) {
+        const rosterLevel = run.rosterLevels?.[player.character.trim().toLowerCase()];
+        const band = brackets?.levelBands[key];
+        if (!brackets || !band || !rosterLevel || rosterLevel < band.min || rosterLevel > band.max + brackets.overlevelPenalty.maxLevels) continue;
+        ownOver = Math.max(0, rosterLevel - band.max) * brackets.overlevelPenalty.percentPerLevel;
+      }
+      const playerPenalty = Math.max(penaltyPercent, ownOver);
       if (brackets?.evidencePolicy === "current-v2" && (reason || !integrityPresence(playerIntegrityOf(run, player.character), run.durationSec, run.startedAt ? run.startedAt.getTime()/1000 : undefined))) continue;
       // Version 6: the character's level during this run picks the bracket. A ranked
       // run already kept every participant inside the route's band, so it agrees with the route.
       // A ranked run (penalised or not) belongs to its route's bracket; anything else to the player's level.
       const bracket = brackets ? reason ? runBracket(run, player.character, brackets, brackets.routeBracket[key]) : brackets.brackets.find(b => b.key === brackets.routeBracket[key]) : undefined;
       if (brackets && !bracket) continue;
-      const identity = ratingCharacterKey(player.memberId, player.character) + (bracket ? `/${bracket.key}` : "");
-      const member = members.get(identity) ?? { memberId: player.memberId, name: player.character.trim(), ...(bracket ? { bracket } : {}), bests: new Map<string, DungeonRatingDetail>() };
+      const identity = ratingCharacterKey(memberId, player.character) + (bracket ? `/${bracket.key}` : "");
+      const member = members.get(identity) ?? { memberId, name: player.character.trim(), ...(bracket ? { bracket } : {}), bests: new Map<string, DungeonRatingDetail>() };
       const targetSec = verdict ? verdict.targetSec : targets[key] ?? null;
       const speedBonus = timed ? 0 : speedPoints(run.durationSec, targetSec);
-      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5 | 6, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : penalized(timeRating(run.durationSec, targetSec), targetSec ? penaltyPercent : 0) : 100 + speedBonus,
-        ...(penaltyPercent && targetSec ? { penaltyPercent } : {}),
+      const detail: DungeonRatingDetail = { ...(timed ? { ratingVersion: version as 3 | 4 | 5 | 6, dungeonKey: key, ...(reason || !targetSec ? { unrankedReason: reason ?? "Target not calibrated" } : {}), bosses: [] } : {}), instanceId: run.instanceId, name: route?.route?.name ?? (key.startsWith("189:") ? `Scarlet Monastery: ${key.split(":")[1]}` : run.dungeonName ?? `#${run.instanceId}`), points: timed ? reason ? 0 : penalized(timeRating(run.durationSec, targetSec), targetSec ? playerPenalty : 0) : 100 + speedBonus,
+        ...(playerPenalty && targetSec ? { penaltyPercent: playerPenalty } : {}),
         speedBonus, durationSec: run.durationSec, targetSec, runRef: run.runRef ?? "" };
       const previous = member.bests.get(key);
       const bossBests = new Map((previous?.bosses ?? []).map(b => [b.id, b]));
@@ -208,7 +256,7 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       members.set(identity, member);
     }
   }
-  return [...members.values()].map(member => {
+  return mergeFirstNameMembers([...members.values()]).map(member => {
     const details = [...member.bests.values()].sort((a, b) => a.instanceId - b.instanceId || (a.dungeonKey ?? "").localeCompare(b.dungeonKey ?? ""));
     const counted = bestEightKeys(details, member.bracket?.bestCount);
     if (bestEight) for (const detail of details) detail.counted = counted.has(detail.dungeonKey!);
@@ -217,6 +265,36 @@ export function calculateDungeonRating(runs: RatingRun[], rules?: unknown): Rati
       ...(rules !== undefined ? { details } : {}), ...(member.bracket ? { bracket: member.bracket.key, bestCount: member.bracket.bestCount } : {}) };
   }).sort((a, b) => b.points - a.points || a.name.localeCompare(b.name) || a.memberId.localeCompare(b.memberId)
     || (a.bracket ?? "").localeCompare(b.bracket ?? ""));
+}
+interface RatingMember { memberId: string; name: string; bracket?: DungeonBracket; bests: Map<string, DungeonRatingDetail> }
+/**
+ * One row per character even when a first-name copy ("El", from an older addon or a pre-8.5 row) and a full-name copy
+ * ("El Pirata") both exist, as on the race board (race-board.ts mergeFirstNames). A bare row joins the single full-name row
+ * of its bracket that it extends, only when that is unambiguous and both belong to the same member (or one is unlinked);
+ * the best result per route is kept, so the merged row never scores less than either part.
+ */
+export function mergeFirstNameMembers<T extends RatingMember>(list: T[]): T[] {
+  const full = list.filter(m => m.name.includes(" "));
+  const absorbed = new Set<T>();
+  for (const bare of list) {
+    if (bare.name.includes(" ")) continue;
+    const same = full.filter(f => f.bracket?.key === bare.bracket?.key && foreverSameName(f.name, bare.name));
+    const target = same[0];
+    if (same.length !== 1 || !target) continue;
+    const bareUnlinked = isUnlinkedRating(bare.memberId), targetUnlinked = isUnlinkedRating(target.memberId);
+    if (bare.memberId !== target.memberId && !bareUnlinked && !targetUnlinked) continue;
+    if (targetUnlinked && !bareUnlinked) target.memberId = bare.memberId;
+    for (const [key, detail] of bare.bests) {
+      const have = target.bests.get(key);
+      const better = !have || detail.points > have.points || detail.points === have.points
+        && (detail.durationSec < have.durationSec || detail.durationSec === have.durationSec && detail.runRef < have.runRef);
+      const bosses = new Map([...(have?.bosses ?? []), ...(detail.bosses ?? [])].map(b => [b.id, b] as const));
+      for (const b of [...(have?.bosses ?? []), ...(detail.bosses ?? [])]) if (b.durationSec < bosses.get(b.id)!.durationSec) bosses.set(b.id, b);
+      target.bests.set(key, { ...(better ? detail : have!), bosses: [...bosses.values()].sort((a, b) => a.id - b.id) });
+    }
+    absorbed.add(bare);
+  }
+  return list.filter(m => !absorbed.has(m));
 }
 // The bracket of the character's own level in this run. Without a recorded
 // level, the run is placed in its route's bracket (where it is unranked anyway).
@@ -285,7 +363,7 @@ function validFrozenRoles(row: RatingRow): boolean {
     && row.roles.every(r => r && dungeonRole(r.role) && Number.isInteger(r.points) && r.points >= 0 && r.points <= row.points
       && Array.isArray(r.details) && (r.details.length === 0 ? r.points === 0 : validDetails({ ...row, ...r, dungeons: r.details.length })));
 }
-export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, guildId: string,
+export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun"> & Partial<Pick<PrismaClient, "character" | "guildRosterEntry">>, guildId: string,
   season: { id: string; startsAt: Date; endsAt?: Date | null; status: string; ratingRules?: unknown; finalRating?: unknown }, instanceId: number | null = null, includeRoles = false): Promise<RatingRow[]> {
   if (!hasDungeonRating(season.ratingRules)) return [];
   if (season.status === "ENDED") {
@@ -305,21 +383,83 @@ export async function dungeonRating(database: Pick<PrismaClient, "dungeonRun">, 
     ...(instanceId !== null ? { instanceId } : {})
   }, select: { competitionData: true, difficultyId: true, startedAt: true, endedAt: true, createdAt: true, completedBy: true, instanceId: true, dungeonName: true, runRef: true, durationSec: true, players: {
     ...(!timed ? { where: { member: { guildId } } } : {}),
-    select: { character: true, memberId: true, role: true, presentSec: true, member: { select: { displayName: true, guildId: true } } }
+    select: { character: true, memberId: true, role: true, presentSec: true, inGuild: true, member: { select: { displayName: true, guildId: true } } }
   } } });
-  const eligible = timed ? runs.map(run => ({ ...run, players: run.players.map(p => ({ ...p,
-    member: p.member?.guildId === guildId ? p.member : null })) })) : runs;
+  // The guild roster (any paired member's upload) gives levels the run record lacks and the full
+  // "First Last" names; both are optional, so callers without those tables keep working.
+  const roster = timed && database.guildRosterEntry
+    ? await database.guildRosterEntry.findMany({ where: { guildId, gameEdition: currentEdition(), inGuild: true }, select: { name: true, level: true } }) : [];
+  const eligible = timed ? runs.map(run => {
+    const rosterLevels: Record<string, number> = {};
+    for (const p of run.players) {
+      const found = p.character && !levelRecorded({ ...run, players: run.players.map(q => ({ ...q, member: null })) }, p.character)
+        ? foreverNameMatches(roster, p.character, (r: { name: string }) => r.name)[0] as { level: number | null } | undefined : undefined;
+      if (found?.level) rosterLevels[p.character.trim().toLowerCase()] = found.level;
+    }
+    return { ...run, rosterLevels, players: run.players.map(p => ({ ...p, member: p.member?.guildId === guildId ? p.member : null })) };
+  }) : runs;
   const rules = validBracketedRules(season.ratingRules) ? withIntegrityWindow(season.ratingRules, season.startsAt, season.endsAt) : season.ratingRules;
-  return includeRoles && validBracketedRules(rules) ? ratingWithRoles(eligible, rules) : calculateDungeonRating(eligible, rules);
+  const rows = includeRoles && validBracketedRules(rules) ? ratingWithRoles(eligible, rules) : calculateDungeonRating(eligible, rules);
+  return timed ? mergeSameNameRows(await withFullNames(database, guildId, rows, roster.map(r => r.name), runs.flatMap(run => run.players.map(p => p.character)))) : rows;
+}
+
+/**
+ * One row per character after names are resolved. Rows are keyed by member + stored name, so a first-name copy and a full-name
+ * copy of the same player, or a linked and an unlinked copy ("El Pirata" twice at 148 and 147), come out as two rows with the same
+ * shown name. Rows with the same name and bracket join: always for a full "First Last" name (one character), and for a bare name
+ * only for the same member or an unlinked copy. The best result per route is kept and the counted routes are chosen again, so the
+ * merged row never scores less than either part (same rule as mergeFirstNameMembers).
+ */
+export function mergeSameNameRows<T extends RatingRow>(rows: T[]): T[] {
+  const out: T[] = [];
+  const changed = new Set<T>();
+  for (const row of rows) {
+    const name = (row.character ?? row.name).trim().toLowerCase();
+    const target = out.find(other => (other.character ?? other.name).trim().toLowerCase() === name && other.bracket === row.bracket
+      && (name.includes(" ") || other.memberId === row.memberId || isUnlinkedRating(other.memberId) || isUnlinkedRating(row.memberId))
+      && other.details && row.details && [...other.details, ...row.details].every(d => typeof d.dungeonKey === "string"));
+    if (!target) { out.push(row); continue; }
+    const best = new Map<string, DungeonRatingDetail>();
+    for (const detail of [...target.details!, ...row.details!]) {
+      const have = best.get(detail.dungeonKey!);
+      if (!have || detail.points > have.points || detail.points === have.points
+        && (detail.durationSec < have.durationSec || detail.durationSec === have.durationSec && detail.runRef < have.runRef)) best.set(detail.dungeonKey!, detail);
+    }
+    const details = [...best.values()].sort((a, b) => a.instanceId - b.instanceId || (a.dungeonKey ?? "").localeCompare(b.dungeonKey ?? ""));
+    const version = details.find(d => d.ratingVersion === 4 || d.ratingVersion === 5 || d.ratingVersion === 6)?.ratingVersion;
+    const counted = version !== undefined ? bestEightKeys(details, target.bestCount ?? row.bestCount ?? 8) : null;
+    if (counted) for (const detail of details) detail.counted = counted.has(detail.dungeonKey!);
+    if (isUnlinkedRating(target.memberId) && !isUnlinkedRating(row.memberId)) target.memberId = row.memberId;
+    target.details = details;
+    target.dungeons = details.length;
+    target.points = details.reduce((sum, d) => sum + (counted && !d.counted ? 0 : d.points), 0);
+    changed.add(target);
+  }
+  return changed.size ? out.sort((a, b) => b.points - a.points || a.name.localeCompare(b.name) || a.memberId.localeCompare(b.memberId) || (a.bracket ?? "").localeCompare(b.bracket ?? "")) : out;
+}
+
+/** Shows each rated character by its full Forever name (linked Character first, then the roster, then the runs' own names). */
+export async function withFullNames<T extends { name: string; character?: string }>(database: Partial<Pick<PrismaClient, "character">>, guildId: string,
+  rows: T[], rosterNames: readonly string[] = [], runNames: readonly (string | undefined)[] = []): Promise<T[]> {
+  if (!rows.length) return rows;
+  const linked = database.character ? await database.character.findMany({ where: { member: { guildId } }, select: { name: true, displayName: true } }) : [];
+  const tiers = [linked.flatMap(c => [c.displayName, c.name]), rosterNames, runNames];
+  // Last: the guild's name book, which also knows the full names the public runs carry.
+  const book = await loadFullNameBook(database as never, guildId);
+  return rows.map(row => {
+    const name = displayCharacterName(row.character ?? row.name, ...tiers, book);
+    return { ...row, name, ...(row.character !== undefined ? { character: name } : {}) };
+  });
 }
 
 /** Keep the whole party for eligibility; only award the selected character's recorded role. */
 export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules): RatingRow[] {
   const roles = ["TANK", "HEALER", "DAMAGER"].map(role => ({ role, rows: calculateDungeonRating(runs.map(run => ({ ...run,
-    players: run.players.map(p => ({ ...p, member: (rules.evidencePolicy === "current-v2" ? integrityRole(playerIntegrityOf(run, p.character)) : dungeonRole(p.role)) === dungeonRole(role) ? p.member : null })) })), rules) }));
+    players: run.players.map(p => { const match = (rules.evidencePolicy === "current-v2" ? integrityRole(playerIntegrityOf(run, p.character)) : dungeonRole(p.role)) === dungeonRole(role);
+      return { ...p, member: match ? p.member : null, inGuild: match && p.inGuild === true }; }) })), rules) }));
   return calculateDungeonRating(runs, rules).map(row => {
     const levels = runs.flatMap(run => {
-      if (!run.players.some(p => p.memberId === row.memberId && p.character === row.character)) return [];
+      if (!run.players.some(p => (p.memberId ?? (isUnlinkedRating(row.memberId) ? UNLINKED_RATING_PREFIX + (p.character ?? "").trim().toLowerCase() : null)) === row.memberId && foreverSameName(p.character ?? "", row.character ?? ""))) return [];
       const metadata = run.competitionData as { players?: { name: string; level?: number }[] } | null;
       return metadata?.players?.filter(p => p.name === row.character && Number.isInteger(p.level)).map(p => p.level!) ?? [];
     });
@@ -330,6 +470,7 @@ export function ratingWithRoles(runs: RatingRun[], rules: BracketedRules): Ratin
   });
 }
 export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: unknown = DUNGEON_RATING_RULES, bracket?: string): EmbedBuilder {
+  seasonName = seasonLabel(seasonName, lang);
   if (validBracketedRules(rules)) return bracketRatingEmbed(rows, seasonName, lang, rules, bracket);
   const fr = lang === "fr";
   const speed = hasDungeonRating(rules) && (rules as { version: number }).version === 2;
@@ -343,8 +484,7 @@ export function ratingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, r
         : "Per-character rating: each alt has its own best runs. Equal ratings share a rank.")];
   if (timed) lines.push(fr ? "200 à la cible, 50–400 par donjon. Cibles figées. Sans cible : calibration, 0 point."
     : "200 at target, 50–400 per dungeon. Fixed targets. No target: calibrating, 0 points.");
-  if (timed) lines.push(fr ? "Arrondi(200 × cible ÷ durée). Somme des meilleurs scores seulement; répétitions non cumulées. Détails : `/dungeon rules`."
-    : "Round(200 × target ÷ duration). Sum of best scores only; repeats do not stack. Details: `/dungeon rules`.");
+  if (timed) lines.splice(1, 0, howToScore(fr));
   if (bestEight) lines.push(fr
     ? "**Bêta : les 8 meilleurs donjons/ailes distincts comptent.** Tous les participants doivent rester niveau 30. 1 600 à la cible; maximum 3 200. La couverture au-delà de 8 reste visible, sans points supplémentaires."
     : "**Beta: your best 8 distinct dungeons/wings count.** All participants must remain level 30. 1,600 at target; maximum 3,200. Coverage beyond 8 remains visible without extra points.");
@@ -371,21 +511,27 @@ const rankLine = (rows: RatingRow[], row: RatingRow, fr: boolean) => {
   return `${rank === 1 ? "🏅" : `${rank}.`} **${escapeMarkdown(row.name).slice(0, 100)}** · **${row.points}** · ${scored} ${fr ? "parcours classé(s)" : "ranked route(s)"}`;
 };
 /** Shown while a provisional all-level season still has a route on its starting target. */
+/** The first thing a member reads on the dungeon board: how to score, in plain words. The exact formula is in /dungeon rules. */
+export const howToScore = (fr: boolean) => fr
+  ? "**Pour marquer :** termine le donjon le plus vite possible, tue le boss final, et fais la plus grande partie du parcours avec des membres de la guilde. Ton meilleur temps par donjon compte; refaire plus lentement ne fait rien perdre. Le calcul exact : `/dungeon rules`."
+  : "**To score:** finish the dungeon as fast as you can, kill the final boss, and spend most of the run with guildmates. Your best time per dungeon counts; a slower repeat costs nothing. The exact formula: `/dungeon rules`.";
 export const provisionalNote = (fr: boolean) => fr
   ? "⚠️ **Cibles provisoires** : des recommandations en attendant de vrais chronos. Cibles communes à toutes les guildes et figées pour la saison; les ajustements attendent une future saison."
   : "⚠️ **Provisional targets**: recommendations until real timed runs exist. Targets are shared by all guilds and frozen for the season; adjustments wait for a future season.";
+/** The footer states the presence rule the season actually applies (80% strict, 50% with leniency). */
+const footerText = (fr: boolean, rules: BracketedRules) => { const pct = Math.round(leniencyOf(rules).presence * 100);
+  return fr ? `Boss final détecté + présence ≥ ${pct} %. Points de participation séparés.` : `Detected final boss + ≥${pct}% presence. Participation points are separate.`; };
 const bracketLabel = (b: DungeonBracket, fr: boolean) => b.min === b.max ? `${fr ? "Niveau" : "Level"} ${b.min}` : `${fr ? "Niveaux" : "Levels"} ${b.min}–${b.max}`;
 // One bracket in full, or (no bracket chosen) the top five of every bracket.
 function bracketRatingEmbed(rows: RatingRow[], seasonName: string, lang: Lang, rules: BracketedRules, key?: string): EmbedBuilder {
   const fr = lang === "fr";
   const chosen = rules.brackets.find(b => b.key === key);
-  const lines = [fr ? "**Score de vitesse par tranche de niveaux · meilleure tentative par parcours**" : "**Dungeon-time rating by level bracket · best result per route**",
-    fr ? "Arrondi(200 × cible ÷ durée), 50–400 avant pénalité, puis nouvel arrondi. Un parcours classé reste dans la tranche du parcours, même avec un dépassement de niveau autorisé. Détails : `/dungeon rules`."
-      : "Round(200 × target ÷ duration), 50–400 before penalty, then round again. A ranked run stays in its route's bracket, including allowed overlevel players. Details: `/dungeon rules`.",
-    fr ? `Groupe au-dessus de la plage : −${rules.overlevelPenalty.percentPerLevel} % par niveau du plus haut participant, jusqu’à ${rules.overlevelPenalty.maxLevels} niveaux; au-delà, transport : 0.`
-      : `Group above the band: −${rules.overlevelPenalty.percentPerLevel}% per level of the highest participant, up to ${rules.overlevelPenalty.maxLevels} levels; beyond that it is a carry: 0.`];
+  const lines = [howToScore(fr),
+    fr ? "**Score de vitesse par tranche de niveaux · meilleure tentative par parcours**" : "**Dungeon-time rating by level bracket · best result per route**",
+    fr ? `Un groupe plus haut que la tranche gagne moins (−${rules.overlevelPenalty.percentPerLevel} % par niveau en trop, jusqu’à ${rules.overlevelPenalty.maxLevels}); au-delà, c’est un transport : 0.`
+      : `A group above the bracket earns less (−${rules.overlevelPenalty.percentPerLevel}% per level over, up to ${rules.overlevelPenalty.maxLevels}); beyond that it is a carry: 0.`];
   if (rules.provisionalTargets) lines.unshift(provisionalNote(fr));
-  const embed = new EmbedBuilder().setColor(0x8b5cf6).setFooter({ text: fr ? "Boss final détecté + présence ≥ 80 %. Points de participation séparés." : "Detected final boss + ≥80% presence. Participation points are separate." });
+  const embed = new EmbedBuilder().setColor(0x8b5cf6).setFooter({ text: footerText(fr, rules) });
   if (chosen) {
     const own = rows.filter(row => row.bracket === chosen.key);
     lines.push(fr ? `**${bracketLabel(chosen, true)} : vos ${chosen.bestCount} meilleurs parcours distincts comptent.**` : `**${bracketLabel(chosen, false)}: your best ${chosen.bestCount} distinct routes count.**`);

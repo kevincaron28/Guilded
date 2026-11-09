@@ -30,7 +30,7 @@ function setup() {
 }
 describe("opt-in availability and local observations", () => {
   it.each([
-    'P.configure("share","off")', 'GUILD="Beta"', 'EDITION="classic-era"',
+    'P.configure("share","off")', 'GUILD="Beta"', 'EDITION="unknown"',
     'COMBAT=true', 'ACTIVE=false', 'P.configure("status","busy")',
     'P.configure("role","tank")', 'InCombatLockdown=nil', 'ADVANCE(5)',
   ])("discards a throttled status before retry when its context changes: %s", change => {
@@ -45,29 +45,26 @@ describe("opt-in availability and local observations", () => {
     s.run('ADVANCE(1);RETRY()');
     expect(s.run('return ATTEMPTS..":"..NS.comm.pending("GuildedFree")')).toBe("1:0");
   });
-  it("retries a still-current status but discards queued keys when separate consent is revoked", () => {
+  it("retries a still-current status", () => {
     const s = setup(); s.load("Util.lua");
-    s.run(`NS.util.gameEdition=function() return EDITION end; EDITION="retail"; ATTEMPTS=0; THROTTLE=true;
+    s.run(`NS.util.gameEdition=function() return EDITION end; ATTEMPTS=0; THROTTLE=true;
       C_Timer.After=function(_,fn) RETRY=fn end;
       C_ChatInfo={SendAddonMessage=function(_,text) ATTEMPTS=ATTEMPTS+1;if THROTTLE then return 3 end;SENT[#SENT+1]=text;return 0 end};
-      C_MythicPlus={GetOwnedKeystoneChallengeMapID=function() return 42 end,GetOwnedKeystoneLevel=function() return 12 end};
       P.configure("share","on");ADVANCE(1);THROTTLE=false;RETRY()`);
-    expect(s.run('return ATTEMPTS..":"..SENT[1]')).toBe("2:1|retail|F|ANY");
-    s.run('ADVANCE(5);THROTTLE=true;P.configure("keys","on");P.configure("keys","off");ADVANCE(1);THROTTLE=false;RETRY()');
-    expect(s.run('return ATTEMPTS..":"..#SENT..":"..NS.comm.pending("GuildedFree")')).toBe("3:1:0");
+    expect(s.run('return ATTEMPTS..":"..SENT[1]')).toBe("2:1|forever|F|ANY");
   });
-  it.each(['InCombatLockdown=nil','InCombatLockdown=function() error("hidden") end','InCombatLockdown=function() return "SECRET" end'])("does not share availability or read keys when combat state is unknown: %s", change => {
-    const s=setup();s.run('EDITION="retail"; KEY_CALLS=0; C_MythicPlus={GetOwnedKeystoneLevel=function() KEY_CALLS=KEY_CALLS+1;return 12 end,GetOwnedKeystoneChallengeMapID=function() KEY_CALLS=KEY_CALLS+1;return 42 end}');s.run(change);
-    s.run('P.configure("share","on");P.configure("keys","on");P.tick();P.myKey()');
-    expect(s.run('return P.myStatus()..":"..#SENT..":"..KEY_CALLS')).toBe('U:0:0');
+  it.each(['InCombatLockdown=nil','InCombatLockdown=function() error("hidden") end','InCombatLockdown=function() return "SECRET" end'])("does not share availability when combat state is unknown: %s", change => {
+    const s=setup();s.run(change);
+    s.run('P.configure("share","on");P.tick()');
+    expect(s.run('return P.myStatus()..":"..#SENT')).toBe('U:0');
   });
 
   it("filters report views without changing peers or observation totals", () => {
     const s = setup();
-    s.run(`EDITION = "retail"; P.configure("observe", "on"); P.receive("1|retail|F|TANK|42|12", "Arden-Realm", "GUILD"); P.receive("1|retail|B|HEALER", "Mira-Realm", "GUILD")`);
-    expect(s.run(`return #P.rows({ free = true, role = "TANK", name = "arden", minKey = 10 })`)).toBe("1");
-    expect(s.run(`return #P.rows({ minKey = 13 }) .. ":" .. #P.rows({ role = "HEALER", free = true }) .. ":" .. #P.rows()`)).toBe("0:0:2");
-    expect(s.run(`return P.describe({ name = "%" })`)).not.toContain("Arden-Realm");
+    s.run(`P.configure("observe", "on"); P.receive("1|forever|F|TANK", "Arden River", "GUILD"); P.receive("1|forever|B|HEALER", "Mira Stone", "GUILD")`);
+    expect(s.run(`return #P.rows({ free = true, role = "TANK", name = "arden" })`)).toBe("1");
+    expect(s.run(`return #P.rows({ role = "HEALER", free = true }) .. ":" .. #P.rows()`)).toBe("0:2");
+    expect(s.run(`return P.describe({ name = "%" })`)).not.toContain("Arden River");
   });
   it("shows full recorded names only for the active guild and edition, without claiming live alts", () => {
     const s = setup();
@@ -113,29 +110,15 @@ describe("opt-in availability and local observations", () => {
     const s = setup();
     s.run(`P.configure("share", "on"); P.receive("1|forever|F|DPS", "Arden River", "GUILD"); GUILD = "Beta"; P.tick()`);
     expect(s.run(`return #P.rows() .. ":" .. #SENT`)).toBe("0:1");
-    expect(s.run(`EDITION = "retail"; P.tick(); return #SENT`)).toBe("1");
+    expect(s.run(`EDITION = "unknown"; P.tick(); return #SENT`)).toBe("1");
     expect(s.run(`GUILD = nil; return P.describe()`)).toContain("Join a guild");
   });
-  it("preserves realm distinctions in Blizzard editions", () => {
+  it("has no Mythic+ key sharing: never reads key APIs and refuses old Retail key packets", () => {
     const s = setup();
-    expect(s.run(`EDITION = "retail"; P.configure("observe", "on"); P.receive("1|retail|F|DPS", "Arden-A", "GUILD"); P.receive("1|retail|F|DPS", "Arden-B", "GUILD"); return #P.rows()`)).toBe("2");
-  });
-  it("shares owned keys only with separate Retail consent and clears the key when consent is withdrawn", () => {
-    const s = setup();
-    s.run(`EDITION = "retail"; C_MythicPlus = { GetOwnedKeystoneChallengeMapID = function() return 123 end, GetOwnedKeystoneLevel = function() return 12 end }; P.configure("share", "on")`);
-    expect(s.run(`return SENT[1]`)).toBe("1|retail|F|ANY");
-    expect(s.run(`ADVANCE(5); P.configure("keys", "on"); return SENT[2]`)).toBe("1|retail|F|ANY|123|12");
-    expect(s.run(`return tostring(P.receive("1|retail|F|HEALER|123|12", "Arden-Realm", "GUILD")) .. ":" .. P.rows()[1].keyLevel`)).toBe("true:12");
-    expect(s.run(`ADVANCE(5); P.configure("keys", "off"); return SENT[3]`)).toBe("1|retail|F|ANY");
-    expect(s.run(`P.receive("1|retail|F|HEALER", "Arden-Realm", "GUILD"); return tostring(P.rows()[1].keyLevel)`)).toBe("nil");
-  });
-  it("never reads Mythic Plus APIs on Classic/Forever or guesses missing, hidden or invalid key values", () => {
-    const s = setup();
-    expect(s.run(`C_MythicPlus = { GetOwnedKeystoneLevel = function() error("must not read") end }; P.configure("share", "on"); return tostring(P.configure("keys", "on")) .. ":" .. tostring(P.myKey())`)).toBe("false:nil");
+    expect(s.run(`C_MythicPlus = { GetOwnedKeystoneLevel = function() error("must not read") end, GetOwnedKeystoneChallengeMapID = function() error("must not read") end }; P.configure("share", "on"); return tostring(P.configure("keys", "on")) .. ":" .. SENT[1]`)).toBe("false:1|forever|F|ANY");
+    s.run(`P.configure("observe", "on")`);
     expect(s.run(`return tostring(P.receive("1|forever|F|DPS|123|12", "Arden River", "GUILD"))`)).toBe("false");
-    expect(s.run(`EDITION = "retail"; P.configure("share", "on"); P.configure("keys", "on"); C_MythicPlus.GetOwnedKeystoneChallengeMapID = function() return "SECRET" end; return tostring(P.myKey())`)).toBe("nil");
-    expect(s.run(`C_MythicPlus.GetOwnedKeystoneChallengeMapID = function() return 123 end; C_MythicPlus.GetOwnedKeystoneLevel = function() return 0 / 0 end; return tostring(P.myKey())`)).toBe("nil");
-    expect(s.run(`return tostring(P.receive("1|retail|F|DPS|0|12", "Arden-Realm", "GUILD"))`)).toBe("false");
+    expect(s.run(`return tostring(P.receive("1|retail|F|DPS", "Arden River", "GUILD"))`)).toBe("false");
   });
   it("keeps sample pacing across module reloads", () => {
     const s = setup(); s.run(`P.configure("observe", "on")`);

@@ -119,6 +119,36 @@ export function publicScoreToLua(board) {
     ...(board ? [`GuildedDungeonsPublicScore.character = ${luaString(board.character)}`, `GuildedDungeonsPublicScore.realm = ${luaString(board.realm)}`] : [])].join("\n") + "\n";
 }
 
+// In game, "Linked to Discord as <name>" once after the first sync (Modules/CompanionLink.lua,
+// 8.5 Track L). The companion adds this line for its own signed-in account; only a plain name goes in.
+export function linkedAsLua(account) {
+  const raw = account && (account.displayName || account.username);
+  const plain = (char) => char.charCodeAt(0) >= 32 && char !== '"' && char !== "\\" && char !== "|";
+  const name = typeof raw === "string" ? Array.from(raw).filter(plain).join("").trim().slice(0, 40) : "";
+  return name ? `GuildedLinkedAs = ${luaString(name)}\n` : "GuildedLinkedAs = nil\n";
+}
+
+// The bot's "ready to promote" list for an OFFICER's addon (Modules/Promotion.lua). Members never receive it.
+export function promotionToLua(promotion) {
+  const ready = Array.isArray(promotion?.ready) ? promotion.ready.filter(name => typeof name === "string" && name && !/[\t\r\n]/.test(name)).slice(0, 100) : null;
+  if (!ready) return ["GuildedPromotion = nil"];
+  const linked = Array.isArray(promotion.linked) ? promotion.linked.filter(name => typeof name === "string" && name && !/[\t\r\n]/.test(name)).slice(0, 200) : [];
+  const iso = typeof promotion.updatedAt === "string" && !Number.isNaN(Date.parse(promotion.updatedAt)) ? luaString(promotion.updatedAt) : "nil";
+  const days = Number.isInteger(promotion.minDays) && promotion.minDays >= 0 && promotion.minDays <= 3650 ? promotion.minDays : "nil";
+  return [
+    "GuildedPromotion = {",
+    `  updatedAt = ${iso}, fromRank = ${typeof promotion.fromRank === "string" ? luaString(promotion.fromRank.slice(0, 40)) : "nil"}, minDays = ${days},`,
+    "  ready = {",
+    ...ready.map(name => `    ${luaString(name)},`),
+    "  },",
+    // Every linked character at the starting rank: the officer client promotes these (Modules/OfficerNotes.lua).
+    "  linked = {",
+    ...linked.map(name => `    ${luaString(name)},`),
+    "  }",
+    "}"
+  ];
+}
+
 export function standingsToLua(data) {
   const rows = data.standings.map((row) =>
     `    { name = ${luaString(row.character)}, ${row.displayName ? `displayName = ${luaString(row.displayName)}, ` : ""}ep = ${Math.trunc(row.ep)}, gp = ${Math.trunc(row.gp)}, main = ${row.main ? "true" : "false"}, account = ${luaString(data.accounts?.[row.character] ?? "")} },`
@@ -142,6 +172,12 @@ export function standingsToLua(data) {
     "GuildedDungeonAccepted = {",
     ...(data.acceptedRunRefs ?? []).map((ref) => `  ${luaString(ref)},`),
     "}",
+    // 9.0.8: why a received run earned nothing (a copy of a guildmate's run, not completed, ...).
+    "GuildedDungeonNotes = {",
+    ...Object.entries(data.runNotes && typeof data.runNotes === "object" ? data.runNotes : {}).slice(0, 300)
+      .filter(([, note]) => typeof note === "string" && note)
+      .map(([ref, note]) => `  [${luaString(ref)}] = ${luaString(String(note).slice(0, 80))},`),
+    "}",
     "",
     "-- Dungeon points this season (top 10), for the addon's Dungeons tab.",
     ...dungeonBoardToLua(data.dungeonBoard, data.updatedAt),
@@ -156,13 +192,16 @@ export function standingsToLua(data) {
     "-- Upcoming Discord raids (next three weeks): the addon can make in-game calendar events from them.",
     ...((data.raids ?? []).length ? [
       "GuildedRaids = {",
-      ...data.raids.map((raid) => `  { id = ${luaString(raid.id)}, title = ${luaString(raid.title)}, at = ${luaString(raid.at)}, core = ${luaString(raid.core ?? "")}, note = ${luaString(raid.note ?? "")} },`),
+      ...data.raids.map((raid) => `  { id = ${luaString(raid.id)}, title = ${luaString(raid.title)}, at = ${luaString(raid.at)}, core = ${luaString(raid.core ?? "")}, note = ${luaString(raid.note ?? "")}${raidSignupsToLua(raid.signups)} },`),
       "}"
     ] : ["GuildedRaids = nil"]),
     "",
     "-- How each raid core decides loot: the system, set item prices, own-pool standings.",
     ...publicRaidsToLua(data.publicRaids),
     ...lootToLua(data.loot),
+    "",
+    "-- Officers only: who the bot says is ready to promote (the in-game Ready to promote panel).",
+    ...promotionToLua(data.promotion),
     "",
     "-- The next raid's signed-up players (main characters), for /guilded invite raid.",
     ...(data.nextRaid ? [
@@ -172,8 +211,86 @@ export function standingsToLua(data) {
       ...(data.nextRaid.maybe ?? []).map((name) => `  ${luaString(name)},`),
       "} }"
     ] : ["GuildedNextRaid = nil"]),
+    "",
+    "-- 9.1 guild bank: the guild's last contents (from any member who opened it), items below their",
+    "-- minimum, and this member's own requests (Modules/GuildBank.lua).",
+    ...guildBankToLua(data.bank),
+    "",
+    "-- 9.1 in-game guild board: officers' news and the open polls with counts, and this member's own",
+    "-- picks (Modules/GuildBoard.lua). Options and picks are numbered from 1 here, from 0 on the bot.",
+    ...guildBoardToLua(data.board, data.boardVotes, data.updatedAt),
+    "",
+    "-- Crafting orders in game: Discord craft requests for the Orders page (Modules/CraftOrders.lua).",
+    ...craftOrdersToLua(data.craftOrders, data.updatedAt),
+    "",
+    "-- Officers only: names waiting for a guild invite (full Forever names), for the addon's To invite panel.",
+    ...(Array.isArray(data.officerInvites) ? [
+      `GuildedInvites = { fetchedAt = ${luaString(data.updatedAt ?? "")}, names = {`,
+      ...data.officerInvites.slice(0, 30).map((row) => `  { name = ${luaString(row.name)}, at = ${luaString(row.at ?? "")} },`),
+      "} }"
+    ] : ["GuildedInvites = nil"]),
     ""
   ].join("\n");
+}
+
+// The in-game guild board: at most 5 news posts and 5 polls of 25 options; off when officers turned it off.
+export function guildBoardToLua(board, mine, updatedAt) {
+  if (!board || typeof board !== "object") return ["GuildedBoard = nil"];
+  const at = luaString(typeof updatedAt === "string" ? updatedAt : "");
+  if (board.enabled === false) return [`GuildedBoard = { at = ${at}, off = true }`];
+  const int = (v) => Math.trunc(Number(v) || 0);
+  const epochOrNil = (v) => Number.isSafeInteger(v) && v > 0 ? String(v) : "nil";
+  const news = (Array.isArray(board.news) ? board.news : []).slice(0, 5).filter((n) => n && typeof n.id === "string" && typeof n.text === "string")
+    .map((n) => `  { id = ${luaString(n.id)}, at = ${epochOrNil(n.at)}, by = ${luaString(n.by ?? "")}, text = ${luaString(n.text)}${typeof n.ref === "string" ? `, ref = ${luaString(n.ref)}` : ""} },`);
+  const polls = (Array.isArray(board.polls) ? board.polls : []).slice(0, 5).filter((p) => p && typeof p.id === "string" && Array.isArray(p.opts) && p.opts.length >= 2)
+    .map((p) => {
+      const opts = p.opts.slice(0, 25);
+      const picks = (Array.isArray(mine?.[p.id]) ? mine[p.id] : []).filter((i) => Number.isInteger(i) && i >= 0 && i < opts.length).map((i) => i + 1);
+      return `  { id = ${luaString(p.id)}, q = ${luaString(p.q ?? "")}, max = ${Math.max(1, int(p.max))}, total = ${int(p.total)}, at = ${epochOrNil(p.at)}, closes = ${epochOrNil(p.closes)}, `
+        + `opts = { ${opts.map((o) => luaString(o)).join(", ")} }, counts = { ${opts.map((_, i) => int(p.counts?.[i])).join(", ")} }, mine = { ${picks.join(", ")} } },`;
+    });
+  return [`GuildedBoard = { at = ${at}, news = {`, ...news, "}, polls = {", ...polls, "} }"];
+}
+
+// Crafting orders: at most 50 (open, claimed, and done in the last day); off when officers turned them off.
+export function craftOrdersToLua(orders, updatedAt) {
+  if (!orders || typeof orders !== "object") return ["GuildedOrders = nil"];
+  const at = luaString(typeof updatedAt === "string" ? updatedAt : "");
+  if (orders.enabled === false) return [`GuildedOrders = { at = ${at}, off = true }`];
+  const int = (v) => Math.trunc(Number(v) || 0);
+  const epochOrNil = (v) => Number.isSafeInteger(v) && v > 0 ? String(v) : "nil";
+  const text = (v) => luaString(typeof v === "string" ? v : "");
+  const rows = (Array.isArray(orders.orders) ? orders.orders : []).slice(0, 50)
+    .filter((o) => o && typeof o.id === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(o.id) && ["OPEN", "CLAIMED", "DONE"].includes(o.status))
+    .map((o) => `  { id = ${luaString(o.id)}, key = ${Number.isSafeInteger(o.key) && o.key !== 0 ? o.key : "nil"}, item = ${text(o.item)}, qty = ${Math.max(1, int(o.qty))}, `
+      + `prof = ${text(o.prof)}, status = ${luaString(o.status)}, by = ${text(o.by)}, crafter = ${text(o.crafter)}, character = ${text(o.character)}, asked = ${text(o.asked)}, `
+      + `mats = ${o.mats === true ? "true" : "false"}, note = ${text(o.note)}, at = ${epochOrNil(o.at)}, claimedAt = ${epochOrNil(o.claimedAt)}, doneAt = ${epochOrNil(o.doneAt)} },`);
+  return [`GuildedOrders = { at = ${at}, orders = {`, ...rows, "} }"];
+}
+
+// The guild bank for the addon: at most 400 items, 30 low rows and 15 requests; nothing when absent.
+export function guildBankToLua(bank) {
+  if (!bank || typeof bank !== "object") return ["GuildedBank = nil"];
+  const int = (v) => Math.trunc(Number(v) || 0);
+  const items = (Array.isArray(bank.items) ? bank.items : []).slice(0, 400).filter((i) => i && Number.isInteger(i.id) && i.id > 0)
+    .map((i) => `  { id = ${i.id}, name = ${luaString(i.name ?? "")}, count = ${int(i.count)}, tab = ${luaString(i.tab ?? "")}${Number.isInteger(i.q) ? `, q = ${i.q}` : ""} },`);
+  const low = (Array.isArray(bank.low) ? bank.low : []).slice(0, 30).filter((r) => r && Number.isInteger(r.itemId))
+    .map((r) => `  { itemId = ${r.itemId}, itemName = ${luaString(r.itemName ?? "")}, have = ${int(r.have)}, min = ${int(r.min)} },`);
+  const requests = (Array.isArray(bank.requests) ? bank.requests : []).slice(0, 15).filter((r) => r && typeof r.item === "string")
+    .map((r) => `  { ref = ${luaString(r.ref ?? "")}, item = ${luaString(r.item)}, count = ${int(r.count)}, status = ${luaString(String(r.status ?? "PENDING").replace(/[^A-Z]/g, ""))}, at = ${int(r.at)} },`);
+  return [
+    `GuildedBank = { at = ${Number.isInteger(bank.at) ? bank.at : "nil"}, money = ${Number.isSafeInteger(bank.money) ? bank.money : "nil"}, open = ${Number.isInteger(bank.open) ? bank.open : "nil"}, items = {`,
+    ...items, "}, low = {", ...low, "}, requests = {", ...requests, "} }"
+  ];
+}
+
+// Who is down for a raid (bot raids only): { name, role T/H/D, class, status S/M/W, unix time }, at most 40.
+export function raidSignupsToLua(signups) {
+  if (!Array.isArray(signups) || signups.length === 0) return "";
+  const rows = signups.slice(0, 40)
+    .filter((row) => row && typeof row.name === "string" && row.name)
+    .map((row) => `{ ${luaString(row.name)}, ${luaString(["T", "H", "D"].includes(row.role) ? row.role : "D")}, ${luaString(String(row.class ?? "").replace(/[^A-Z]/g, ""))}, ${luaString(["S", "M", "W"].includes(row.status) ? row.status : "S")}, ${Math.trunc(Number(row.at) || 0)} }`);
+  return rows.length ? `, signups = { ${rows.join(", ")} }` : "";
 }
 
 // Public summary only: never copy signups, character names or officer notes into this feed.

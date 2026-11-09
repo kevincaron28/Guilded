@@ -23,11 +23,9 @@ function setup() {
 }
 
 describe("guild-only dungeon scores", () => {
-  it("does not invent Classic dungeon cards for Retail without a season catalog", () => {
+  it("lists Forever's known dungeons without a season catalog", () => {
     const s = setup();
-    s.run('NS.util.gameEdition=function() return "retail" end; DB.dungeonBoard=nil');
-    expect(s.run('return #NS.dungeonScorePanel.model("Tester").cards')).toBe("0");
-    s.run('NS.util.gameEdition=function() return "forever" end');
+    s.run('NS.util.gameEdition=function() return "forever" end; DB.dungeonBoard=nil');
     expect(Number(s.run('return #NS.dungeonScorePanel.model("Tester").cards'))).toBeGreaterThan(0);
   });
   it("validates model 4 totals from only the best eight routes while retaining coverage", () => {
@@ -106,7 +104,7 @@ describe("guild-only dungeon scores", () => {
     expect(s.run('return tostring(PANE.runView:IsShown() and PANE==NS.dungeonScorePanel.pane)')).toBe("true");
     s.run('NS.dungeonScorePanel.open("season"); PANE.rankingToggle:GetScript("OnClick")()');
     expect(s.run('return tostring(PANE.guildRanking and PANE.rankings:IsShown() and not PANE.runView:IsShown())')).toBe("true");
-    expect(s.run('return PANE.rankings.text')).toContain("Tester - 100");
+    expect(s.run('return NS.dungeonScorePanel.boardText(PANE)')).toContain("Tester - 100");
     s.run('LFGBrowseFrame:Show()');
     expect(s.run('return tostring(not PANE:IsShown() and not TAB.checked and not LFGListingFrame:IsShown() and LFGBrowseFrame:IsShown())')).toBe("true");
     expect(s.run('return NATIVE_SHOWS')).toBe("1");

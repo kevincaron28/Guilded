@@ -142,7 +142,10 @@ export const addonCharacterSchema = z.object({
   guildRankName: z.string().trim().min(1).max(60).optional(),
   guildRankIndex: z.number().int().min(0).max(19).optional(),
   // The member's /guilded verify code this guildmate's digest carried (services/character-verify).
-  verify: z.string().max(40).optional()
+  verify: z.string().max(40).optional(),
+  // 8.5: when the uploader's addon heard this guildmate's own digest (provenance for relayed data,
+  // services/guildmate-relay). Absent for the uploader's own characters and from older companions.
+  observedAt: z.coerce.date().optional()
 });
 
 // Result of the officer's last /guilded consumes group scan.
@@ -217,6 +220,19 @@ export const addonCalendarEventSchema = z.object({
 
 export type AddonCalendarEvent = z.infer<typeof addonCalendarEventSchema>;
 
+// A raid answer the member gave in game (Sign up / Tentative / Can't on the Signups page, 9.0).
+// `at` is when they clicked: the newer of this and the Discord signup wins (services/signup-answers).
+export const addonSignupAnswerSchema = z.object({
+  raidId: z.string().min(1).max(80).regex(/^[a-zA-Z0-9_-]+$/),
+  character: z.string().min(1),
+  realm: z.string().min(1),
+  status: z.enum(["ACCEPTED", "TENTATIVE", "DECLINED"]),
+  role: z.enum(["TANK", "HEALER", "DPS"]).optional(),
+  at: z.coerce.date()
+});
+
+export type AddonSignupAnswer = z.infer<typeof addonSignupAnswerSchema>;
+
 export type AddonCharacter = z.infer<typeof addonCharacterSchema>;
 
 // An item price an officer set in game (Modules/Loot.lua, when /guilded drop had none).
@@ -247,6 +263,7 @@ export const addonSnapshotSchema = z.object({
   consumeScan: addonConsumeScanSchema.optional(),
   reserves: addonReservesSchema.optional(),
   calendarEvents: z.array(addonCalendarEventSchema).max(100).default([]),
+  signupAnswers: z.array(addonSignupAnswerSchema).max(100).default([]),
   recipes: z.array(addonRecipeSetSchema).max(400).default([]),
   recipeNames: z.record(z.string(), z.string().max(100)).default({}),
   cooldowns: z.array(addonCooldownSetSchema).max(300).default([]),
@@ -260,6 +277,35 @@ export const addonSnapshotSchema = z.object({
   // so a single malformed run can't reject the whole import.
   dungeonRuns: z.array(z.unknown()).max(500).default([]),
   battlegroundReports: z.array(battlegroundReportSchema).max(100).default([]),
+  // Guild duels and personal milestones (8.4.5). Each row is validated on apply (services/duels), so one
+  // malformed row never rejects the upload.
+  duelResults: z.array(z.unknown()).max(200).default([]),
+  milestones: z.array(z.unknown()).max(600).default([]),
+  // 8.5 guild data (services/guild-data.ts): the game's guild roster, event log and info text.
+  // Validated row by row on apply, so one odd row never rejects the upload.
+  guildRoster: z.object({ at: z.number().int().positive(), complete: z.boolean().default(false), members: z.array(z.unknown()).max(1000).default([]) }).optional(),
+  guildEvents: z.array(z.unknown()).max(500).default([]),
+  guildInfo: z.object({ at: z.number().int().positive(), motd: z.string().max(255).optional(), info: z.string().max(1000).optional() }).optional(),
+  // 9.0 guild bank ledger: validated piece by piece on apply (services/guild-bank.ts).
+  guildBank: z.unknown().optional(),
+  // 9.1 guild bank requests made in game (Modules/GuildBank.lua): the member's own, applied with
+  // their pairing only. Validated row by row on apply (services/guild-bank-member.ts).
+  bankRequests: z.array(z.unknown()).max(20).default([]),
+  // 9.1 in-game guild board (Modules/GuildBoard.lua): the member's own votes, guildmates' votes their
+  // addon heard in game, and officers' news written in game. Validated row by row (services/guild-board.ts).
+  boardVotes: z.array(z.unknown()).max(50).default([]),
+  boardRelayVotes: z.array(z.unknown()).max(200).default([]),
+  boardPosts: z.array(z.unknown()).max(10).default([]),
+  // Crafting orders in game (Modules/CraftOrders.lua): the member's own claims, finishes and give-backs, and
+  // guildmates' heard on GUILD. Validated row by row on apply (services/craft-orders.ts).
+  craftOrderActions: z.array(z.unknown()).max(60).default([]),
+  craftOrderRelayActions: z.array(z.unknown()).max(200).default([]),
+  // Track M phone map (services/guild-map.ts): the uploader's own last-seen positions and calls for help.
+  // Validated row by row on apply, with their pairing only.
+  mapSightings: z.array(z.unknown()).max(100).default([]),
+  helpCalls: z.array(z.unknown()).max(20).default([]),
+  // World PvP counters for the current raid week (services/world-pvp.ts): one block, validated on apply.
+  worldPvp: z.array(z.unknown()).max(2).default([]),
   // Rows left out because they were malformed (see parseAddonSnapshot); the rest still imports.
   rejected: z.array(z.object({ section: z.string().max(40), label: z.string().max(120), reason: z.string().max(200) })).max(MAX_REJECTED).default([])
 });
@@ -272,7 +318,7 @@ export type AddonSnapshot = z.infer<typeof addonSnapshotSchema>;
 const ROW_SCHEMAS = {
   transactions: addonTransactionSchema, epgpTransactions: addonEpgpTransactionSchema, readiness: addonReadinessSchema,
   attunements: addonAttunementSchema, raids: addonRaidSchema, loot: addonLootSchema, characters: addonCharacterSchema,
-  alts: addonCharacterSchema, itemPrices: addonItemPriceSchema, calendarEvents: addonCalendarEventSchema,
+  alts: addonCharacterSchema, itemPrices: addonItemPriceSchema, calendarEvents: addonCalendarEventSchema, signupAnswers: addonSignupAnswerSchema,
   recipes: addonRecipeSetSchema, cooldowns: addonCooldownSetSchema, battlegroundReports: battlegroundReportSchema
 } as const;
 
@@ -299,6 +345,13 @@ export function parseAddonSnapshot(payload: unknown): AddonSnapshot {
       }
       return false;
     });
+  }
+  // Guild data (8.5) is extra: a malformed block is left out, never the whole upload.
+  for (const section of ["guildRoster", "guildInfo"] as const) {
+    if (cleaned[section] !== undefined && !addonSnapshotSchema.shape[section].safeParse(cleaned[section]).success) {
+      delete cleaned[section];
+      if (rejected.length < MAX_REJECTED) rejected.push({ section, label: section, reason: "malformed, left out" });
+    }
   }
   if (rejected.length) cleaned["rejected"] = rejected;
   const parsed = addonSnapshotSchema.parse(cleaned);

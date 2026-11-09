@@ -51,7 +51,7 @@ export function provisionalSeasonRules(plan: readonly PlannedRoute[] = BRACKET_P
   const waiting = plan.filter(r => !included.includes(r)).map(r => ({ id: r.id,
     reason: r.mapKey ? `Bracket ${r.bracket} is not in this season` : NO_MAP }));
   const rules = createBracketedDungeonRules({ routes: included.map(r => provisionalRoute(r, names.get(r.id) ?? r.id)), brackets,
-    provisional: { plan: PROVISIONAL_PLAN_ID, waiting } });
+    provisional: { plan: PROVISIONAL_PLAN_ID, waiting }, leniency: 1 });
   return { rules, plan: included, waiting, leftOut: left };
 }
 

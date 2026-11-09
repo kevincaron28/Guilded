@@ -2,7 +2,6 @@
 // Officer/admin replies stay in English. Placeholders look like {name}.
 
 import { FR_TEXT } from "./i18n-fr.js";
-import { editionList } from "../companion/active-editions.mjs";
 
 export type Lang = "en" | "fr";
 
@@ -24,7 +23,7 @@ const STRINGS = {
   "signup.benchFree": { en: "Bench available ({count})", fr: "Remplaçants disponibles ({count})" },
   "signup.openSpots": { en: "Open spots: anyone in the guild can sign up to fill", fr: "Places libres : tout membre de la guilde peut s'inscrire pour compléter" },
   "signup.waitlist": { en: "Waitlist (in order)", fr: "Liste d'attente (en ordre)" },
-  "signup.footer.open": { en: "Click a button below to sign up, or use /raid signup.", fr: "Cliquez un bouton ci-dessous pour vous inscrire, ou utilisez /raid signup." },
+  "signup.footer.open": { en: "Click a button below to sign up.", fr: "Cliquez un bouton ci-dessous pour vous inscrire." },
   "signup.footer.closed": { en: "Raid ID: {id}", fr: "ID du raid : {id}" },
   "signup.localTime": { en: "Local time", fr: "Heure locale" },
   "signup.lock": { en: "Signups lock {hours} h before the start ({when}).", fr: "Les inscriptions ferment {hours} h avant le début ({when})." },
@@ -76,7 +75,7 @@ const STRINGS = {
   "fill.any": { en: "any role", fr: "tous les rôles" },
   "fill.missing": { en: "{count} core member(s) have not signed up yet: anyone in the guild can fill in.", fr: "{count} membre(s) du core ne sont pas encore inscrits : tout membre de la guilde peut compléter." },
   "fill.link": { en: "Sign up here: {link}", fr: "Inscrivez-vous ici : {link}" },
-  "fill.command": { en: "Sign up with /raid signup.", fr: "Inscrivez-vous avec /raid signup." },
+  "fill.command": { en: "Sign up with the buttons on the raid post.", fr: "Inscrivez-vous avec les boutons de l'annonce du raid." },
   "fill.bench": { en: "Bench, you're up:", fr: "Remplaçants, c'est votre tour :" },
   "reply.clash": { en: "⚠️ You are also signed up for **{raid}** at {time}, close to this one. Cancel one if you can't do both.", fr: "⚠️ Vous êtes aussi inscrit à **{raid}** à {time}, proche de celui-ci. Annulez-en un si vous ne pouvez pas faire les deux." },
   "reply.waitlisted": { en: "{role} is full, so you're on the **waitlist**. You'll get a DM if a spot opens.", fr: "{role} est complet : vous êtes sur la **liste d'attente**. Vous recevrez un message privé si une place se libère." },
@@ -171,6 +170,16 @@ const STRINGS = {
   "onboard.button.pair": { en: "🔗 Link my WoW character", fr: "🔗 Lier mon personnage WoW" },
   "onboard.button.steps": { en: "✅ First steps", fr: "✅ Premiers pas" },
   "onboard.button.accept": { en: "I have read and accept the rules", fr: "J'ai lu et j'accepte les règles" },
+  "onboard.button.chat": { en: "💬 WoW chat ↔ Discord", fr: "💬 Chat WoW ↔ Discord" },
+  "onboard.panel.chat": { en: "💬 **WoW chat ↔ Discord** — how guild chat reaches Discord, and how to link your character.", fr: "💬 **Chat WoW ↔ Discord** — comment le chat de guilde arrive sur Discord, et comment lier ton personnage." },
+  "onboard.chat.guide": {
+    en: "**Guild chat and Discord**\n1) **Blizzard's own link:** if your guild's leader connected the guild to this Discord with Blizzard's guild Discord integration, guild chat can show up in a Discord channel. Ask an officer where it is. Blizzard's link does not know which Discord member you are.\n2) **Tell Guilded who you are** so your name, gear and stats show up with you here. Easiest: ask for your guild invite with the **Request a guild invite** button (or type your full character name in <#{channel}>). When your character joins the guild and a guildmate's addon or companion sees it, I link it to you and send you one message. Already in the guild? Use `/character pair` and paste the `/guilded verify` line in WoW chat once.\nNot your character? `/character unlink`.",
+    fr: "**Chat de guilde et Discord**\n1) **Le lien de Blizzard :** si le chef de ta guilde a relié la guilde à ce Discord avec l'intégration Discord de guilde de Blizzard, le chat de guilde peut apparaître dans un salon Discord. Demande à un officier où il se trouve. Le lien de Blizzard ne sait pas qui tu es sur Discord.\n2) **Dis à Guilded qui tu es** pour que ton nom, ton équipement et tes stats apparaissent avec toi ici. Le plus simple : demande ton invitation de guilde avec le bouton **Demander une invitation de guilde** (ou écris le nom complet de ton personnage dans <#{channel}>). Quand ton personnage rejoint la guilde et qu'un addon ou un compagnon de guildien le voit, je le lie à toi et je t'envoie un message. Déjà dans la guilde ? Utilise `/character pair` et colle la ligne `/guilded verify` dans le chat WoW une fois.\nCe n'est pas ton personnage ? `/character unlink`."
+  },
+  "onboard.chat.guideNoChannel": {
+    en: "**Guild chat and Discord**\n1) **Blizzard's own link:** if your guild's leader connected the guild to this Discord with Blizzard's guild Discord integration, guild chat can show up in a Discord channel. Ask an officer where it is. Blizzard's link does not know which Discord member you are.\n2) **Tell Guilded who you are** so your name, gear and stats show up with you here: use `/character pair` and paste the `/guilded verify` line in WoW chat once.\nNot your character? `/character unlink`.",
+    fr: "**Chat de guilde et Discord**\n1) **Le lien de Blizzard :** si le chef de ta guilde a relié la guilde à ce Discord avec l'intégration Discord de guilde de Blizzard, le chat de guilde peut apparaître dans un salon Discord. Demande à un officier où il se trouve. Le lien de Blizzard ne sait pas qui tu es sur Discord.\n2) **Dis à Guilded qui tu es** pour que ton nom, ton équipement et tes stats apparaissent avec toi ici : utilise `/character pair` et colle la ligne `/guilded verify` dans le chat WoW une fois.\nCe n'est pas ton personnage ? `/character unlink`."
+  },
   "onboard.panel.title": { en: "👋 Start here", fr: "👋 Commence ici" },
   "onboard.panel.intro": {
     en: "Welcome to **{guild}**! These buttons answer privately: only you see the replies.",
@@ -212,7 +221,6 @@ const STRINGS = {
     fr: "Je n'ai pas pu modifier {roles} : un officier doit placer mon rôle au-dessus (Paramètres du serveur > Rôles)."
   },
   "onboard.gone": { en: "That isn't offered here anymore. Ask an officer.", fr: "Ce n'est plus offert ici. Demande à un officier." },
-  "pair.bnetButton": { en: "Connect Battle.net", fr: "Connecter Battle.net" },
   "pair.statusTitle": { en: "Where you stand", fr: "Où tu en es" },
   "pair.title": { en: "🔗 Your WoW characters", fr: "🔗 Tes personnages WoW" },
   "pair.linked": { en: "✅ **Already linked to your Discord account on this server:**", fr: "✅ **Déjà liés à ton compte Discord sur ce serveur :**" },
@@ -238,6 +246,67 @@ const STRINGS = {
     en: "✅ **{name}** is now linked to your Discord account on **{server}** as {kind} (your `/guilded verify` code). Not your character? Use `/character unlink` there.",
     fr: "✅ **{name}** est maintenant lié à ton compte Discord sur **{server}** comme {kind} (ton code `/guilded verify`). Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
   },
+  // 8.5 track F / ROADMAP 5: the linked-characters DM and its button (companion-link-dm.ts).
+  "invite.prelinked": {
+    en: "✅ **{name}** joined **{server}** and is now linked to your Discord account as {kind}, because you asked for that invite. Not your character? Use `/character unlink` there.",
+    fr: "✅ **{name}** a rejoint **{server}** et est maintenant lié à ton compte Discord comme {kind}, parce que tu as demandé cette invitation. Ce n'est pas ton personnage ? Utilise `/character unlink` là-bas."
+  },
+  "invite.notify.people": {
+    en: "{mentions} — **{name}** is asking for a guild invite and you look online in game (any guild member can invite).",
+    fr: "{mentions} — **{name}** demande une invitation de guilde et tu sembles en ligne dans le jeu (tout membre de la guilde peut inviter)."
+  },
+  "invite.done.note": {
+    en: "✅ **{name}** joined the guild. Welcome!",
+    fr: "✅ **{name}** a rejoint la guilde. Bienvenue!"
+  },
+  "invite.notify.role": {
+    en: "{role} — **{name}** is asking for a guild invite. Nobody who can invite is known to be online in game right now.",
+    fr: "{role} — **{name}** demande une invitation de guilde. Personne pouvant inviter n'est connu en ligne dans le jeu pour le moment."
+  },
+  "linked.first": {
+    en: "✅ You're linked on **{server}**. Your Guilded companion proved these characters are yours, so there is nothing more to do:",
+    fr: "✅ Tu es lié sur **{server}**. Ton compagnon Guilded a prouvé que ces personnages sont à toi, il n'y a donc plus rien à faire :"
+  },
+  "linked.added": {
+    en: "✅ New on **{server}**: {names} now linked to you. All your linked characters:",
+    fr: "✅ Nouveau sur **{server}** : {names} maintenant lié(s) à toi. Tous tes personnages liés :"
+  },
+  "linked.hint": {
+    en: "Not yours? Use `/character unlink` on the server. `/character list` shows this list any time.",
+    fr: "Pas à toi ? Utilise `/character unlink` sur le serveur. `/character list` affiche cette liste en tout temps."
+  },
+  "linked.button": { en: "My linked characters", fr: "Mes personnages liés" },
+  "linked.level": { en: "level {level}", fr: "niveau {level}" },
+  "linked.main": { en: "main", fr: "principal" },
+  "linked.more": { en: "… and {count} more", fr: "… et {count} de plus" },
+  "linked.none": {
+    en: "You have no linked characters yet. Open the Guilded companion, or use `/character pair` on the server.",
+    fr: "Tu n'as pas encore de personnage lié. Ouvre le compagnon Guilded, ou utilise `/character pair` sur le serveur."
+  },
+  // 8.5 batch 3 (#13/#14): the guild-invite channel (invite-channel.ts).
+  "invite.hint": {
+    en: "I could not read a full character name. Write it as **First Last** (WoW Forever names have both), for example `Lebowski Holyroller`. This message disappears in a moment.",
+    fr: "Je n'ai pas pu lire un nom de personnage complet. Écris-le comme **Prénom Nom** (les noms de WoW Forever ont les deux), par exemple `Lebowski Holyroller`. Ce message disparaît dans un instant."
+  },
+  "invite.dm": {
+    en: "Welcome to **{server}**! To be invited to the guild in game, post your **full character name** (first and last name) in <#{channel}>. An officer will invite you, and I will put a ✅ on your message when it is done.",
+    fr: "Bienvenue sur **{server}** ! Pour être invité dans la guilde en jeu, écris le **nom complet de ton personnage** (prénom et nom) dans <#{channel}>. Un officier t'invitera, et je mettrai un ✅ sur ton message quand ce sera fait."
+  },
+  "invite.button": { en: "Request a guild invite", fr: "Demander une invitation de guilde" },
+  "invite.modalTitle": { en: "Guild invite", fr: "Invitation de guilde" },
+  "invite.modalLabel": { en: "Full character name (First Last)", fr: "Nom complet du personnage (Prénom Nom)" },
+  "invite.invalid": {
+    en: "That does not look like a full character name. Write it as **First Last**, for example `Lebowski Holyroller`.",
+    fr: "Ça ne ressemble pas à un nom de personnage complet. Écris-le comme **Prénom Nom**, par exemple `Lebowski Holyroller`."
+  },
+  "invite.confirmed": {
+    en: "✅ Your request is in <#{channel}>. An officer will invite you in game, and a ✅ will appear on it when it is done.",
+    fr: "✅ Ta demande est dans <#{channel}>. Un officier t'invitera en jeu, et un ✅ apparaîtra dessus quand ce sera fait."
+  },
+  "invite.duplicate": { en: "You already asked for this character, so nothing was added. An officer will get to it.", fr: "Tu as déjà demandé pour ce personnage, rien n'a été ajouté. Un officier s'en occupera." },
+  "invite.doneButton": { en: "✅ Invited / joined", fr: "✅ Invité / a joint la guilde" },
+  "invite.doneOfficers": { en: "Only officers can mark an invite as done.", fr: "Seuls les officiers peuvent marquer une invitation comme faite." },
+  "invite.unavailable": { en: "Guild invites are not open on this server right now. Ask an officer.", fr: "Les invitations de guilde ne sont pas ouvertes sur ce serveur pour le moment. Demande à un officier." },
   "verify.moved": {
     en: "**{name}** was unlinked from your Discord account on **{server}**: an officer's Guilded heard another member's `/guilded verify` code from that character. If it is yours, ask an officer.",
     fr: "**{name}** a été délié de ton compte Discord sur **{server}** : le Guilded d'un officier a reçu le code `/guilded verify` d'un autre membre depuis ce personnage. S'il est à toi, demande à un officier."
@@ -248,8 +317,8 @@ const STRINGS = {
   },
   "pair.optionalTitle": { en: "Optional: sync with the Windows companion", fr: "Facultatif : synchroniser avec le compagnon Windows" },
   "pair.optional": {
-    en: "Want to sync saved data and download standings? Press **Connect optional companion**, install the free Windows companion (Microsoft Store first) and choose **Sign in with Discord**, then press **Connect** on the page that opens. Nothing to type. The companion is Windows-only and optional for the addon alone. You keep your linked characters.",
-    fr: "Tu veux synchroniser tes données et télécharger les classements ? Appuie sur **Connecter le compagnon (facultatif)**, installe le compagnon Windows gratuit (Microsoft Store d'abord) et choisis **Connexion avec Discord**, puis appuie sur **Relier** sur la page qui s'ouvre. Rien à taper. Le compagnon fonctionne sous Windows seulement et reste facultatif pour l'addon seul. Tes personnages liés restent liés."
+    en: "Want to sync saved data and download standings? Press **Connect optional companion**, install the free Windows companion (Microsoft Store first, or the direct download that updates itself at https://guilded.kcaron.top/companion/) and choose **Sign in with Discord**, then press **Connect** on the page that opens. Nothing to type. The companion is Windows-only and optional for the addon alone. You keep your linked characters.",
+    fr: "Tu veux synchroniser tes données et télécharger les classements ? Appuie sur **Connecter le compagnon (facultatif)**, installe le compagnon Windows gratuit (Microsoft Store d'abord, ou le téléchargement direct qui se met à jour seul sur https://guilded.kcaron.top/companion/?lang=fr) et choisis **Connexion avec Discord**, puis appuie sur **Relier** sur la page qui s'ouvre. Rien à taper. Le compagnon fonctionne sous Windows seulement et reste facultatif pour l'addon seul. Tes personnages liés restent liés."
   },
   "pair.connectOptional": { en: "Connect optional companion", fr: "Connecter le compagnon (facultatif)" },
   "pair.addAlts": {
@@ -300,12 +369,12 @@ const STRINGS = {
     fr: "**Compagnon facultatif :** `/character pair` ouvre les instructions. Choisis **Sign in with Discord**, puis la bonne guilde/édition. Utilise un profil de connexion par guilde. Synchronise ton principal, puis tes alts avec ce profil; aucun nouveau jumelage pour chaque alt."
   },
   "guide.installShort": {
-    en: "**Install Guilded**\n1. Get the matching file at https://guilded.kcaron.top/#start (" + editionList(0) + "). Close WoW and extract `Guilded` into the active client's `Interface\\AddOns` folder. Check `Interface\\AddOns\\Guilded\\Guilded.toc`.\n2. Enable the addon, enter the game and `/reload`. **In-game only** works without Discord. Guilded Dungeons is the separate dungeon-only addon.\n3. To connect, `/character pair` shows your private instructions. In the Windows companion choose **Sign in with Discord**, then the right guild/edition. Select that client's SavedVariables and addon folders; keep a separate profile for each guild. Sync your main first, then alts.\n4. For several guilds in one Discord, `/wow list` and `/wow use` select the context; channel bindings take priority. Preserve Forever first/last names and Blizzard realm names from the addon. Never share pairing codes.",
-    fr: "**Installer Guilded**\n1. Prends le bon fichier sur https://guilded.kcaron.top/#start (" + editionList(1) + "). Ferme WoW et décompresse `Guilded` dans `Interface\\AddOns` du client utilisé. Vérifie `Interface\\AddOns\\Guilded\\Guilded.toc`.\n2. Active l'addon, entre en jeu et fais `/reload`. **En jeu uniquement** fonctionne sans Discord. Guilded Dungeons est l'addon séparé pour les donjons.\n3. Pour connecter, `/character pair` donne les instructions privées. Dans le compagnon Windows, choisis **Sign in with Discord**, puis la bonne guilde/édition. Sélectionne les dossiers SavedVariables et addon de ce client; garde un profil par guilde. Synchronise ton principal, puis tes alts.\n4. Avec plusieurs guildes dans un Discord, `/wow list` et `/wow use` choisissent le contexte; les salons associés ont priorité. Garde les prénoms/noms Forever et les royaumes Blizzard fournis par l'addon. Ne partage jamais tes codes."
+    en: "**Install Guilded**\n1. Get the matching file at https://guilded.kcaron.top/#start (WoW Forever). Close WoW and extract `Guilded` into the active client's `Interface\\AddOns` folder. Check `Interface\\AddOns\\Guilded\\Guilded.toc`.\n2. Enable the addon, enter the game and `/reload`. **In-game only** works without Discord. Guilded Dungeons is the separate dungeon-only addon.\n3. To connect, `/character pair` shows your private instructions. In the Windows companion choose **Sign in with Discord**, then the right guild/edition. Select that client's SavedVariables and addon folders; keep a separate profile for each guild. Sync your main first, then alts.\n4. For several guilds in one Discord, `/wow list` and `/wow use` select the context; channel bindings take priority. Preserve Forever first/last names and Blizzard realm names from the addon. Never share pairing codes.",
+    fr: "**Installer Guilded**\n1. Prends le bon fichier sur https://guilded.kcaron.top/#start (WoW Forever). Ferme WoW et décompresse `Guilded` dans `Interface\\AddOns` du client utilisé. Vérifie `Interface\\AddOns\\Guilded\\Guilded.toc`.\n2. Active l'addon, entre en jeu et fais `/reload`. **En jeu uniquement** fonctionne sans Discord. Guilded Dungeons est l'addon séparé pour les donjons.\n3. Pour connecter, `/character pair` donne les instructions privées. Dans le compagnon Windows, choisis **Sign in with Discord**, puis la bonne guilde/édition. Sélectionne les dossiers SavedVariables et addon de ce client; garde un profil par guilde. Synchronise ton principal, puis tes alts.\n4. Avec plusieurs guildes dans un Discord, `/wow list` et `/wow use` choisissent le contexte; les salons associés ont priorité. Garde les prénoms/noms Forever et les royaumes Blizzard fournis par l'addon. Ne partage jamais tes codes."
   },
   "guide.body": {
-    en: "**Start with Discord** — accept the rules and pick your games with the welcome buttons. `/help` lists the commands available to your roles. WoW linking and companion sync are optional.\n\n**New here? Three steps: [guilded.kcaron.top/start](https://guilded.kcaron.top/start/)**\n1) Install the addon for your WoW version (required). 2) Optional: the Windows companion, latest from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9). 3) Sign in with Discord.\n\n**Install the matching WoW edition**\n" + editionList(0, undefined, ["and", "et"]) + " is available for now (the other WoW versions are on hold and come back later). Choose the file on {url}, or use [edition downloads](https://guilded.kcaron.top/editions/). Close WoW. Extract `Guilded` into the active client's `Interface\\AddOns`; check `Guilded\\Guilded.toc` is inside it. Enable the addon, choose **In-game only** in `/guilded setup` and `/reload`. For dungeon tools only, choose **Guilded Dungeons**. Keep your SavedVariables when updating.\n\n**Choose your guild, then link characters**\nA Discord server can host several WoW guilds/editions. `/wow list` shows them; `/wow use` selects yours. An associated channel takes priority. `/character pair` gives a `/guilded verify …` line for WoW chat; an online officer's addon and companion relay the link. Manual option: `/guilded character` → Discord `/character import` → **code**, main first, leaving **main** unset. Check `/character list`. Keep Forever's first and last name and Blizzard's realm-qualified names exactly as exported.\n\n**Optional companion: Discord sign-in**\n{companion} Or install the Windows companion from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (direct GitHub download as a fallback; it is unsigned and Windows may warn). It is Windows-only. In **Connection & setup**, choose **Sign in with Discord**, then the exact guild/edition. Select that client's SavedVariables and addon folders. Add a separate connection profile per guild/edition; enabled desktop profiles keep syncing in the background. Sync your main first, then alts using the same profile. Older companions or independently hosted bots can still use the private pairing code. Keep credentials private.\n\n**Play and share**\nUse raid signup buttons and `/dungeon leaderboard`. Public dungeon sharing is optional; ratings and benchmarks are provisional. `/report bug` reports a problem.",
-    fr: "**Commence par Discord** — accepte les règles et choisis tes jeux avec les boutons d'accueil. `/help` montre les commandes de tes rôles. Le lien WoW et la synchronisation du compagnon sont facultatifs.\n\n**Nouveau ? Trois étapes : [guilded.kcaron.top/start](https://guilded.kcaron.top/start/?lang=fr)**\n1) Installe l'addon de ta version de WoW (obligatoire). 2) Facultatif : le compagnon Windows, dernière version du [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9). 3) Connecte-toi avec Discord.\n\n**Installe la bonne édition de WoW**\n" + editionList(1, undefined, ["and", "et"]) + " est disponible pour le moment (les autres versions de WoW sont en pause et reviendront plus tard). Choisis le fichier sur {url}, ou les [téléchargements par édition](https://guilded.kcaron.top/editions/?lang=fr). Ferme WoW. Décompresse `Guilded` dans `Interface\\AddOns` du client utilisé; vérifie la présence de `Guilded\\Guilded.toc`. Active l'addon, choisis **En jeu uniquement** dans `/guilded setup`, puis `/reload`. Pour les donjons seulement, choisis **Guilded Dungeons**. Garde tes SavedVariables lors des mises à jour.\n\n**Choisis ta guilde, puis lie tes personnages**\nUn Discord peut accueillir plusieurs guildes/éditions WoW. `/wow list` les affiche; `/wow use` choisit la tienne. Un salon associé a priorité. `/character pair` donne une ligne `/guilded verify …` à coller dans WoW; l'addon et le compagnon d'un officier connecté transmettent le lien. Option manuelle : `/guilded character` → `/character import` → **code** dans Discord, principal d'abord, en laissant **main** vide. Vérifie `/character list`. Garde les prénoms et noms Forever et les noms avec royaume Blizzard tels qu'exportés.\n\n**Compagnon facultatif : connexion Discord**\n{companion} Ou installe le compagnon Windows depuis le [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (téléchargement direct GitHub en solution de rechange; non signé, Windows peut avertir). Il fonctionne sous Windows seulement. Dans **Connection & setup**, choisis **Sign in with Discord**, puis la bonne guilde/édition. Sélectionne les dossiers SavedVariables et addon de ce client. Ajoute un profil par guilde/édition; les profils Windows activés continuent de synchroniser en arrière-plan. Synchronise ton principal, puis tes alts avec ce profil. Les anciens compagnons ou bots hébergés séparément peuvent encore utiliser un code privé. Garde tes accès pour toi.\n\n**Joue et partage**\nUtilise les boutons d'inscription aux raids et `/dungeon leaderboard`. Le partage public des donjons est facultatif; les scores et cibles restent provisoires. `/report bug` signale un problème."
+    en: "**Start with Discord** — accept the rules and pick your games with the welcome buttons. `/help` lists the commands available to your roles. WoW linking and companion sync are optional.\n\n**New here? Three steps: [guilded.kcaron.top/start](https://guilded.kcaron.top/start/)** (step by step: [install](https://guilded.kcaron.top/guides/install/) · [link](https://guilded.kcaron.top/guides/link/))\n1) Install the addon for your WoW version (required). 2) Optional: the Windows companion, latest from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) or the [direct download that updates itself](https://guilded.kcaron.top/companion/). 3) Sign in with Discord.\n\n**Install Guilded for WoW Forever**\nGuilded supports WoW Forever only. Get the file on {url}, or from the [download page](https://guilded.kcaron.top/editions/). Close WoW. Extract `Guilded` into the active client's `Interface\\AddOns`; check `Guilded\\Guilded.toc` is inside it. Enable the addon, choose **In-game only** in `/guilded setup` and `/reload`. For dungeon tools only, choose **Guilded Dungeons**. Keep your SavedVariables when updating.\n\n**Choose your guild, then link characters**\nA Discord server can host several WoW guilds/editions. `/wow list` shows them; `/wow use` selects yours. An associated channel takes priority. `/character pair` gives a `/guilded verify …` line for WoW chat; an online officer's addon and companion relay the link. Manual option: `/guilded character` → Discord `/character import` → **code**, main first, leaving **main** unset. Check `/character list`. Keep Forever's first and last name and Blizzard's realm-qualified names exactly as exported.\n\n**Optional companion: Discord sign-in**\n{companion} Or install the Windows companion from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (direct GitHub download as a fallback; it is unsigned and Windows may warn). It is Windows-only. In **Connection & setup**, choose **Sign in with Discord**, then the exact guild/edition. Select that client's SavedVariables and addon folders. Add a separate connection profile per guild/edition; enabled desktop profiles keep syncing in the background. Sync your main first, then alts using the same profile. Older companions or independently hosted bots can still use the private pairing code. Keep credentials private.\n\n**Play and share**\nUse raid signup buttons and `/dungeon leaderboard`. Public dungeon sharing is optional; ratings and benchmarks are provisional. `/report bug` reports a problem.",
+    fr: "**Commence par Discord** — accepte les règles et choisis tes jeux avec les boutons d'accueil. `/help` montre les commandes de tes rôles. Le lien WoW et la synchronisation du compagnon sont facultatifs.\n\n**Nouveau ? Trois étapes : [guilded.kcaron.top/start](https://guilded.kcaron.top/start/?lang=fr)** (pas à pas : [installer](https://guilded.kcaron.top/guides/install/?lang=fr) · [lier](https://guilded.kcaron.top/guides/link/?lang=fr))\n1) Installe l'addon de ta version de WoW (obligatoire). 2) Facultatif : le compagnon Windows, dernière version du [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) ou le [téléchargement direct qui se met à jour seul](https://guilded.kcaron.top/companion/?lang=fr). 3) Connecte-toi avec Discord.\n\n**Installe Guilded pour WoW Forever**\nGuilded prend en charge WoW Forever uniquement. Prends le fichier sur {url}, ou sur la [page de téléchargement](https://guilded.kcaron.top/editions/?lang=fr). Ferme WoW. Décompresse `Guilded` dans `Interface\\AddOns` du client utilisé; vérifie la présence de `Guilded\\Guilded.toc`. Active l'addon, choisis **En jeu uniquement** dans `/guilded setup`, puis `/reload`. Pour les donjons seulement, choisis **Guilded Dungeons**. Garde tes SavedVariables lors des mises à jour.\n\n**Choisis ta guilde, puis lie tes personnages**\nUn Discord peut accueillir plusieurs guildes/éditions WoW. `/wow list` les affiche; `/wow use` choisit la tienne. Un salon associé a priorité. `/character pair` donne une ligne `/guilded verify …` à coller dans WoW; l'addon et le compagnon d'un officier connecté transmettent le lien. Option manuelle : `/guilded character` → `/character import` → **code** dans Discord, principal d'abord, en laissant **main** vide. Vérifie `/character list`. Garde les prénoms et noms Forever et les noms avec royaume Blizzard tels qu'exportés.\n\n**Compagnon facultatif : connexion Discord**\n{companion} Ou installe le compagnon Windows depuis le [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (téléchargement direct GitHub en solution de rechange; non signé, Windows peut avertir). Il fonctionne sous Windows seulement. Dans **Connection & setup**, choisis **Sign in with Discord**, puis la bonne guilde/édition. Sélectionne les dossiers SavedVariables et addon de ce client. Ajoute un profil par guilde/édition; les profils Windows activés continuent de synchroniser en arrière-plan. Synchronise ton principal, puis tes alts avec ce profil. Les anciens compagnons ou bots hébergés séparément peuvent encore utiliser un code privé. Garde tes accès pour toi.\n\n**Joue et partage**\nUtilise les boutons d'inscription aux raids et `/dungeon leaderboard`. Le partage public des donjons est facultatif; les scores et cibles restent provisoires. `/report bug` signale un problème."
   },
 
   // Help

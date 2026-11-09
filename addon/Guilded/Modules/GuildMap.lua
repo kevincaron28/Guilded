@@ -2,7 +2,7 @@
 -- minimap, with their name, level and zone on hover.
 --
 --   /guilded map                  who is where (and your settings)
---   /guilded map share on|off     send your position to the guild (default on)
+--   (your position is always sent to the guild: there is no sharing switch)
 --   /guilded map show on|off      show guildmates' dots (default on)
 --
 -- Each client sends its own map position to the guild channel (prefix GuildedMap) every few
@@ -11,11 +11,21 @@
 -- message then clears your dot for everyone. Dots fade after 90 s without news.
 --
 -- All map APIs are optional: a client without one of them just shows fewer dots.
+--
+-- Phone map (Track M): the player's own last outdoor position per character (db.mapSeen, every
+-- 30 s) and a short trail (db.mapTrail, one point per 10 minutes, 7 days, at most 40) are saved
+-- for this member's companion to upload. Only signed-in members of the same guild see them in the
+-- phone app; a member who turns sharing off there has them deleted on the bot.
 local addonName, ns = ...
 ns = ns or {}
 
 local PREFIX = "GuildedMap"
 local SEND_MOVING_SECONDS = 5
+local SAVE_SECONDS = 30
+local TRAIL_SECONDS = 600
+local TRAIL_MAX = 40
+local TRAIL_KEEP_SECONDS = 7 * 86400
+local CONTINENT_MAP_TYPE = 2 -- Enum.UIMapType.Continent
 local SEND_IDLE_SECONDS = 30
 local EXPIRE_SECONDS = 90
 -- Moving less than this share of the map is "standing still".
@@ -32,6 +42,7 @@ ns.guildMap = map
 -- Session-only counters: diagnose a one-way connection without saving chat or coordinates.
 local received = { messages = 0, positions = 0, ignored = 0, last = "none" }
 local lastTickAt, lastPositionQueuedAt
+local lastSavedAt, lastTrailAt = -1000, -1000
 
 local function active() return not ns.moduleActive or ns.moduleActive("guildmap") end
 local function secret(value) return ns.isSecret and ns.isSecret(value) end
@@ -45,7 +56,7 @@ local function L(text) return ns.L and ns.L(text) or text end
 local function settings()
   local s = ns.getSettings and ns.getSettings()
   if not s then return nil end
-  if s.mapShare == nil then s.mapShare = true end
+  s.mapShare = true -- always on: there is no sharing option any more
   if s.mapShow == nil then s.mapShow = true end
   return s
 end
@@ -163,6 +174,7 @@ function map.tick()
   if not s or not s.mapShare or (ns.compat and ns.compat.inCombat()) then return end
   local mapId, x, y = map.myPosition()
   if not mapId then sayGone(); return end
+  pcall(map.remember, mapId, x, y)
   local now = clock()
   local moved = lastSent.mapId ~= mapId or math.abs(x - (lastSent.x or 0)) > MOVE_THRESHOLD or math.abs(y - (lastSent.y or 0)) > MOVE_THRESHOLD
   local wait = moved and SEND_MOVING_SECONDS or SEND_IDLE_SECONDS
@@ -226,6 +238,61 @@ local function zoneName(mapId)
   return "?"
 end
 
+-- The continent a zone map sits on (walking up its parent maps), and its name; nil when unknown.
+function map.continentOf(mapId)
+  if not (C_Map and C_Map.GetMapInfo) then return nil end
+  local current, steps = mapId, 0
+  local continentType = (Enum and Enum.UIMapType and Enum.UIMapType.Continent) or CONTINENT_MAP_TYPE
+  while type(current) == "number" and current > 0 and steps < 8 do
+    local ok, info = pcall(C_Map.GetMapInfo, current)
+    if not ok or type(info) ~= "table" then return nil end
+    if info.mapType == continentType then
+      local name = type(info.name) == "string" and not secret(info.name) and info.name or nil
+      return current, name
+    end
+    current, steps = info.parentMapID, steps + 1
+  end
+  return nil
+end
+
+local function round4(value) return math.floor(value * 10000 + 0.5) / 10000 end
+local function serverTime()
+  if GetServerTime then
+    local ok, value = pcall(GetServerTime)
+    if ok and type(value) == "number" then return value end
+  end
+  return time()
+end
+
+-- Saves where this character is (at most every 30 s) for the companion to upload; returns the row.
+function map.remember(mapId, x, y, force)
+  local db = ns.getDb and ns.getDb()
+  local name = ns.playerName and ns.playerName()
+  if type(db) ~= "table" or type(name) ~= "string" or name == "" or type(mapId) ~= "number" then return nil end
+  local now = clock()
+  if not force and now - lastSavedAt < SAVE_SECONDS then return nil end
+  lastSavedAt = now
+  local row = { m = mapId, z = zoneName(mapId), x = round4(x), y = round4(y), at = serverTime() }
+  local continent, continentName = map.continentOf(mapId)
+  if continent then
+    local cx, cy = map.translate(mapId, x, y, continent)
+    if cx and cy then row.c, row.cn, row.cx, row.cy = continent, continentName, round4(cx), round4(cy) end
+  end
+  db.mapSeen = type(db.mapSeen) == "table" and db.mapSeen or {}
+  db.mapSeen[name] = row
+  if force or now - lastTrailAt >= TRAIL_SECONDS then
+    lastTrailAt = now
+    local kept, oldest = {}, row.at - TRAIL_KEEP_SECONDS
+    for _, point in ipairs(type(db.mapTrail) == "table" and db.mapTrail or {}) do
+      if type(point) == "table" and (tonumber(point.at) or 0) >= oldest then kept[#kept + 1] = point end
+    end
+    kept[#kept + 1] = { n = name, m = row.m, z = row.z, x = row.x, y = row.y, c = row.c, cn = row.cn, cx = row.cx, cy = row.cy, at = row.at }
+    while #kept > TRAIL_MAX do table.remove(kept, 1) end
+    db.mapTrail = kept
+  end
+  return row
+end
+
 local function classColor(class)
   local colors = (CUSTOM_CLASS_COLORS or RAID_CLASS_COLORS)
   local c = class and colors and colors[class]
@@ -273,39 +340,109 @@ local function sortedNames()
   return names
 end
 
+-- Inside a dungeon, raid, battleground or arena the game hides positions: no dots at all there.
+function map.inInstance()
+  if not IsInInstance then return false end
+  local ok, inside = pcall(IsInInstance)
+  return ok and inside == true
+end
+
 local function showDots()
   local s = settings()
-  return active() and s and s.mapShow
+  return active() and s and s.mapShow and not map.inInstance()
 end
 
 -- World map: a dot for everyone on the map being viewed (a zone, or its continent).
+--
+-- Taint (9 November 2026, ADDON_ACTION_BLOCKED "Button:SetPassThroughButtons()" in bursts after
+-- duels): the world map's own pins call that function, which the game refuses in combat once the
+-- map's execution is tainted. Guilded used to open the map itself (/guilded map open, Alt-click,
+-- the quick menu), hook WorldMapFrame.OnMapChanged and parent its dots to the map canvas; the
+-- first two run Blizzard's map code from addon code, so the pin pools and map fields it creates
+-- stay tainted for the session. Now Guilded never opens, hooks or calls into the world map: the
+-- dots live on our own overlay (a child of UIParent, clipped to the map's scroll area) and are
+-- anchored to the canvas; OnUpdate notices the map opening, changing or zooming by reading it.
+local function number(object, method)
+  if type(object) ~= "table" or type(object[method]) ~= "function" then return nil end
+  local ok, value = pcall(object[method], object)
+  if ok and type(value) == "number" and not secret(value) then return value end
+  return nil
+end
+
+local function worldOverlay(container)
+  if not map.worldOverlay then
+    local overlay = CreateFrame("Frame", nil, UIParent)
+    if overlay.SetClipsChildren then pcall(overlay.SetClipsChildren, overlay, true) end
+    if overlay.EnableMouse then overlay:EnableMouse(false) end
+    map.worldOverlay = overlay
+  end
+  local overlay = map.worldOverlay
+  if container and overlay.anchoredTo ~= container then
+    overlay:ClearAllPoints()
+    overlay:SetAllPoints(container)
+    overlay.anchoredTo = container
+  end
+  return overlay
+end
+
+local function worldMapShown()
+  local frame = WorldMapFrame
+  if type(frame) ~= "table" or type(frame.IsShown) ~= "function" then return false end
+  local ok, shown = pcall(frame.IsShown, frame)
+  return ok and shown == true
+end
+
 function map.refreshWorldMap()
   local frame = WorldMapFrame
-  local canvas = frame and frame.ScrollContainer and frame.ScrollContainer.Child
-  if not (canvas and frame.IsShown and frame:IsShown() and frame.GetMapID) then return end
+  local container = type(frame) == "table" and frame.ScrollContainer
+  local canvas = type(container) == "table" and container.Child
   local used = 0
-  if showDots() then
-    local okId, viewed = pcall(frame.GetMapID, frame)
-    local width, height = canvas:GetWidth(), canvas:GetHeight()
-    local okScale, scale = pcall(function() return frame.ScrollContainer:GetCanvasScale() end)
-    scale = (okScale and type(scale) == "number" and scale > 0) and scale or 1
-    for _, name in ipairs(okId and viewed and sortedNames() or {}) do
+  if canvas and worldMapShown() and showDots() then
+    local overlay = worldOverlay(container)
+    if type(frame.GetFrameStrata) == "function" and overlay.SetFrameStrata then
+      local ok, strata = pcall(frame.GetFrameStrata, frame)
+      if ok and type(strata) == "string" then overlay:SetFrameStrata(strata) end
+    end
+    local level = number(frame, "GetFrameLevel")
+    if level and overlay.SetFrameLevel then overlay:SetFrameLevel(math.min(level + 1000, 9000)) end
+    local viewed = number(frame, "GetMapID")
+    local width, height = number(canvas, "GetWidth") or 0, number(canvas, "GetHeight") or 0
+    local names = viewed and width > 0 and height > 0 and sortedNames() or {}
+    for _, name in ipairs(names) do
       local member = map.members[name]
       local x, y = map.translate(member.mapId, member.x, member.y, viewed)
       if x then
         used = used + 1
-        local pin = newPin(canvas, map.worldPins, used)
+        local pin = newPin(overlay, map.worldPins, used)
         pin.name = name
-        pin:SetScale(1 / scale)
+        -- Offsets are in the dot's own units: canvas units times (canvas scale / dot scale).
+        local ratio = (number(canvas, "GetEffectiveScale") or 1) / (number(pin, "GetEffectiveScale") or 1)
         pin.icon:SetVertexColor(classColor(member.class))
         pin:ClearAllPoints()
-        pin:SetPoint("CENTER", canvas, "TOPLEFT", x * width * scale, -y * height * scale)
-        if pin.SetFrameStrata then pin:SetFrameStrata("HIGH") end
+        pin:SetPoint("CENTER", canvas, "TOPLEFT", x * width * ratio, -y * height * ratio)
         pin:Show()
       end
     end
+    overlay:Show()
+  elseif map.worldOverlay then
+    map.worldOverlay:Hide()
   end
   hideFrom(map.worldPins, used + 1)
+end
+
+-- What the world map shows right now (open, map, zoom); OnUpdate redraws the dots when it changes.
+local lastWorldMap = {}
+function map.worldMapChanged()
+  local shown = worldMapShown()
+  local frame, mapId, scale = WorldMapFrame, nil, nil
+  if shown then
+    mapId = number(frame, "GetMapID")
+    local canvas = type(frame.ScrollContainer) == "table" and frame.ScrollContainer.Child
+    scale = canvas and number(canvas, "GetEffectiveScale") or nil
+  end
+  if shown == lastWorldMap.shown and mapId == lastWorldMap.mapId and scale == lastWorldMap.scale then return false end
+  lastWorldMap.shown, lastWorldMap.mapId, lastWorldMap.scale = shown, mapId, scale
+  return true
 end
 
 -- Minimap: a dot for everyone close enough to fit on it.
@@ -392,10 +529,19 @@ function map.statusText()
     L("Counts are since /reload. Client acceptance does not confirm delivery to another player."),
     L("Both players need Guilded and map sharing enabled. Minimap dots show nearby players only.")
   }
-  if not active() or not s.mapShare or not s.mapShow then
-    table.insert(lines, L("Use /guilded modules on guildmap, /guilded map share on and /guilded map show on."))
+  if not active() or not s.mapShow then
+    table.insert(lines, L("Use /guilded modules on guildmap and /guilded map show on."))
   end
   return table.concat(lines, "\n")
+end
+
+-- The key bound to the world map ("M" by default), for the hint above.
+function map.mapKey()
+  if GetBindingKey then
+    local ok, key = pcall(GetBindingKey, "TOGGLEWORLDMAP")
+    if ok and type(key) == "string" and key ~= "" and not secret(key) then return key end
+  end
+  return "M"
 end
 
 ns.commandHandlers = ns.commandHandlers or {}
@@ -408,17 +554,15 @@ ns.commandHandlers["map"] = function(args)
     return
   end
   if what == "open" then
-    if ToggleWorldMap and not (WorldMapFrame and WorldMapFrame:IsShown()) then ToggleWorldMap() end
+    -- Never open the world map from addon code: that runs the map's own code tainted, and its pins
+    -- are then blocked in combat for the rest of the session (see refreshWorldMap). Say which key does.
+    if not worldMapShown() then ns.message(string.format(L("Open your world map (%s) to see guildmates."), map.mapKey())) end
     map.requestPositions()
     map.refresh()
     return
   end
-  if (what == "share" or what == "show") and (value == "on" or value == "off") then
-    if what == "share" then
-      s.mapShare = value == "on"
-      if not s.mapShare then sayGone() else lastSent.at = -1000; map.tick() end
-      ns.message(s.mapShare and L("Your position is shared with the guild.") or L("Your position is no longer shared."))
-    else
+  if what == "show" and (value == "on" or value == "off") then
+    do
       s.mapShow = value == "on"
       if s.mapShow then map.requestPositions() end
       map.refresh()
@@ -427,12 +571,12 @@ ns.commandHandlers["map"] = function(args)
     return
   end
   map.requestPositions()
-  ns.message(string.format(L("Guild map: sharing %s, dots %s. /guilded map share on|off, /guilded map show on|off"),
-    s.mapShare and L("on") or L("off"), s.mapShow and L("on") or L("off")))
+  ns.message(string.format(L("Guild map: your position is always shared, dots %s. /guilded map show on|off"),
+    s.mapShow and L("on") or L("off")))
   for line in string.gmatch(map.listText(), "[^\n]+") do ns.message("  " .. line) end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded map - guildmates on your world map and minimap (share on|off, show on|off)")
+table.insert(ns.commandHelp, "/guilded map - guildmates on your world map and minimap (show on|off; your position is always shared)")
 
 -- ---------------------------------------------------------------------
 -- Events and timers
@@ -459,6 +603,9 @@ local function onUpdate(_, elapsed)
       map.refreshWorldMap()
     end)
     if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "guild map: " .. tostring(err)) end
+  elseif map.worldMapChanged() then
+    -- The map opened, closed, changed or zoomed: redraw at once (no hook into WorldMapFrame).
+    pcall(map.refreshWorldMap)
   end
   if sinceMinimap >= MINIMAP_REFRESH_SECONDS then
     sinceMinimap = 0
@@ -471,16 +618,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
   local ok, err = pcall(function()
     if event == "PLAYER_LOGIN" then
       ns.comm.register(PREFIX)
+      -- No hooksecurefunc/HookScript on WorldMapFrame: OnUpdate notices map changes instead.
       frame:SetScript("OnUpdate", onUpdate)
-      if WorldMapFrame and hooksecurefunc and WorldMapFrame.OnMapChanged then
-        hooksecurefunc(WorldMapFrame, "OnMapChanged", function() pcall(map.refreshWorldMap) end)
-      end
-      if WorldMapFrame and WorldMapFrame.HookScript then
-        WorldMapFrame:HookScript("OnShow", function() pcall(map.refreshWorldMap) end)
-      end
     elseif event == "PLAYER_ENTERING_WORLD" then
       -- Zoning in or out of an instance: send (or clear) the position soon.
       lastSent.at = -1000
+      -- Pins vanish at once inside an instance and come back when you leave it.
+      map.refresh()
       map.requestPositions()
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]

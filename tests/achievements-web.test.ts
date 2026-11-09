@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+// Turns the Forever-only focus switches on for this file (see tests/helpers/focus-switches.ts).
+vi.mock("../companion/active-games.mjs", async (original) => (await import("./helpers/focus-switches.js")).poeTrackingOn(await original()));
 const sync = vi.hoisted(() => vi.fn());
 vi.mock("../src/services/achievements.js", async (original) => ({ ...(await original<typeof import("../src/services/achievements.js")>()), syncMemberAchievements: sync }));
 import { createAchievementsWeb } from "../src/services/achievements-web.js";
-import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, EDITION_LABEL, WOW_EDITIONS } from "../src/services/achievements-catalogue.js";
+import { ACHIEVEMENTS, ACTIVE_ACHIEVEMENTS, RETIRED_ACHIEVEMENT_IDS } from "../src/services/achievements-catalogue.js";
 import type { WebContext, WebKit } from "../src/services/web-app.js";
 
 const kit = {
@@ -28,10 +30,13 @@ const allows = (id: string) => id === "d1";
 
 describe("achievements on the website", () => {
   it("shows stored achievements on a public player page, earliest date winning, only for allowed guilds", async () => {
-    const web = createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows);
+    const db = fakeDb({ publicProfile: true });
+    const web = createAchievementsWeb(db as never, allows);
     const html = await web.publicSection(ctx("/players/x"), "a".repeat(24));
-    // The stored "wow-level-20" is a legacy row: listed because it was earned, on top of the active catalogue.
-    expect(html).toContain(`2 of ${ACTIVE_ACHIEVEMENTS.length + 1} unlocked`);
+    // The stored "wow-level-20" is retired: it stays in the database but is neither listed nor counted.
+    expect(html).toContain(`1 of ${ACTIVE_ACHIEVEMENTS.length} unlocked`);
+    expect(html).not.toContain("Getting Started");
+    expect(db.memberAchievement.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ key: { notIn: [...RETIRED_ACHIEVEMENT_IDS] } }) }));
     expect(html).toContain("Unlocked 2026-10-21");
     expect(html).toContain("achievements.png");
     expect(html).not.toContain("Locked ·");
@@ -54,18 +59,30 @@ describe("achievements on the website", () => {
   });
   it("is bilingual", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x", "fr"), "a".repeat(24));
-    expect(html).toContain(`2 sur ${ACTIVE_ACHIEVEMENTS.length + 1} débloqués`);
-    expect(html).toContain("Premiers pas");
+    expect(html).toContain(`1 sur ${ACTIVE_ACHIEVEMENTS.length} débloqués`);
+    expect(html).toContain("Première descente");
   });
-  it("serves the card image only for a public profile", async () => {
-    const hidden = createAchievementsWeb(fakeDb({ publicProfile: false }) as never, allows);
-    expect((await hidden.route(ctx(`/players/${"a".repeat(24)}/achievements.png`), kit))?.status).toBe(404);
+  it("serves the card image for every known profile (no hide option)", async () => {
     const missing = createAchievementsWeb(fakeDb(null) as never, allows);
     expect((await missing.route(ctx(`/players/${"a".repeat(24)}/achievements.png`), kit))?.status).toBe(404);
     const visible = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).route(ctx(`/players/${"a".repeat(24)}/achievements.png`), kit);
     expect(visible?.status).toBe(200);
     expect(visible?.headers["content-type"]).toBe("image/png");
     expect(visible?.binaryBody?.subarray(1, 4).toString()).toBe("PNG");
+  });
+  it("draws the member's character picture on the share image: Public only on the public card, any of theirs on their own", async () => {
+    const { default: sharp } = await import("sharp");
+    const thumb = await sharp({ create: { width: 128, height: 128, channels: 3, background: "#3366cc" } }).webp().toBuffer();
+    const portrait = vi.fn(async () => ({ characterId: "c1", version: 1, thumb }));
+    const path = `/players/${"a".repeat(24)}/achievements.png`;
+    const drawn = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows, portrait).route(ctx(path), kit);
+    expect(portrait).toHaveBeenLastCalledWith("u1", false);
+    const plain = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).route(ctx(path), kit);
+    expect(Buffer.compare(drawn!.binaryBody!, plain!.binaryBody!)).not.toBe(0);
+    const none = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows, async () => null).route(ctx(path), kit);
+    expect(none!.binaryBody).toEqual(plain!.binaryBody);
+    await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows, portrait).ownerRoute(ctx("/me/achievements.png", "en", { id: "a".repeat(24) } as WebContext["account"]), kit);
+    expect(portrait).toHaveBeenLastCalledWith("u1", true);
   });
   it("ignores other paths", async () => {
     const web = createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows);
@@ -74,17 +91,17 @@ describe("achievements on the website", () => {
     expect((await web.ownerRoute(ctx("/me/achievements.png"), kit))?.status).toBe(401);
     expect(await web.meSection(ctx("/me/"))).toBe("");
   });
-  it("catalogue is large enough to list by game", () => { expect(ACHIEVEMENTS.length).toBe(135); expect(ACTIVE_ACHIEVEMENTS.length).toBe(127); });
-  it("groups WoW achievements by edition, hides unearned legacy rows and lists an earned one separately", async () => {
+  it("catalogue is large enough to list by game", () => { expect(ACHIEVEMENTS.length).toBe(105); expect(ACTIVE_ACHIEVEMENTS.length).toBe(105); });
+  it("lists WoW Forever and guild achievements only, never a retired or other-edition row", async () => {
     const html = await createAchievementsWeb(fakeDb({ publicProfile: true }) as never, allows).publicSection(ctx("/players/x"), "a".repeat(24));
     const heads = [...html.matchAll(/<h3>([^<]*?) <small>/g)].map(match => match[1]);
-    expect(heads).toEqual([...WOW_EDITIONS.map(edition => `World of Warcraft · ${EDITION_LABEL[edition].en}`), "World of Warcraft · earlier achievements", "Guild", "Path of Exile 2"]);
+    expect(heads).toEqual(["World of Warcraft · WoW Forever", "Guild"]);
     expect(html).toContain("Forever: Level 60 (Max)");
-    expect(html).not.toContain("Veteran of Azeroth");
-    expect(html).toContain("Getting Started");
+    expect(html).not.toMatch(/Veteran of Azeroth|Retail|TBC|Exile|Cartographer/);
+    expect(html).toContain("First Descent");
   });
   it("makes every tile expandable with no script: a checkbox, its label and a details panel with the full information", async () => {
-    sync.mockResolvedValue({ results: ACHIEVEMENTS.map(def => ({ def, earned: def.id === "dungeon-runs-1", earnedAt: def.id === "dungeon-runs-1" ? new Date("2026-10-21T00:00:00Z") : null, value: def.id === "wow-classic-tbc-level-70" ? 41 : 0 })) });
+    sync.mockResolvedValue({ results: ACHIEVEMENTS.map(def => ({ def, earned: def.id === "dungeon-runs-1", earnedAt: def.id === "dungeon-runs-1" ? new Date("2026-10-21T00:00:00Z") : null, value: def.id === "wow-forever-level-60" ? 41 : 0 })) });
     const db = fakeDb({ publicProfile: true });
     const owner = { id: "a".repeat(24) } as WebContext["account"];
     const html = await createAchievementsWeb(db as never, allows).publicSection(ctx("/players/x", "en", owner), "a".repeat(24));
@@ -94,11 +111,11 @@ describe("achievements on the website", () => {
     expect(html.match(/<input type="checkbox" class="ach-t"/g)?.length).toBe(tiles.length);
     expect(html.match(/class="ach-more"/g)?.length).toBe(tiles.length);
     // Every checkbox has an accessible name and points at its panel, and each label points at its checkbox.
-    expect(html).toContain(`id="ach-wow-classic-tbc-level-70" aria-controls="ach-wow-classic-tbc-level-70-more" aria-label="TBC: Level 70 (Max): Epic, Locked · 41/70"`);
-    expect(html).toContain(`for="ach-wow-classic-tbc-level-70"`);
+    expect(html).toContain(`id="ach-wow-forever-level-60" aria-controls="ach-wow-forever-level-60-more" aria-label="Forever: Level 60 (Max): Epic, Locked · 41/60"`);
+    expect(html).toContain(`for="ach-wow-forever-level-60"`);
     expect(html).toContain("How to earn:");
     expect(html).toContain("only characters of this edition count");
-    expect(html).toContain("Progress: 41/70");
+    expect(html).toContain("Progress: 41/60");
     expect(html).toContain("run /achievements");
     expect(html).toContain("(hover:hover)");
     expect(html).toContain(":focus-visible");

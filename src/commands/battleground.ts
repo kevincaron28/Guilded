@@ -1,4 +1,4 @@
-import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, StringSelectMenuBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
+import { ActionRowBuilder, AttachmentBuilder, ButtonBuilder, ButtonStyle, ChannelType, EmbedBuilder, escapeMarkdown, MessageFlags, ModalBuilder, PermissionFlagsBits, SlashCommandBuilder, TextInputBuilder, TextInputStyle, type ButtonInteraction, type ChatInputCommandInteraction, type ModalSubmitInteraction, type StringSelectMenuInteraction } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext } from "./context.js";
@@ -6,11 +6,16 @@ import { createBattleground } from "../services/battleground-organization.js";
 import { manageSession, respondToSession, sessionInclude } from "../services/activity-core.js";
 import { requireTeamChannel, teamLanguage, teamSessionEmbed } from "../services/activity-core-discord.js";
 import { Prisma, type RaidRole } from "../generated/prisma/client.js";
-import { battlegroundHistory, battlegroundStats, correctBattlegroundReport, setBattlegroundConsent } from "../services/battleground-records.js";
+import { battlegroundHistory, battlegroundStats, correctBattlegroundReport } from "../services/battleground-records.js";
 import { battlegroundPrivacyHelp, battlegroundRecordPanel, battlegroundResultCard, battlegroundSetupHelp } from "./battleground-record-ui.js";
 import { currentGuildScope } from "../services/guild-scope.js";
 import { battlegroundEndCard } from "../services/end-cards.js";
 import { scoreCardPng } from "../services/score-card.js";
+import { duelLeaderboard, percent, streakText } from "../services/duels.js";
+import { updateDuelBoard } from "../services/duel-board.js";
+import { updateBgLadder } from "../services/bg-ladder.js";
+import { loadPvpGroups, pvpGroupLine } from "../services/pvp-group.js";
+import { createPvpGroupFromModal, PVP_FORM_ACTION, pvpGroupModal, showPvpLooking } from "./pvp-group.js";
 
 export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDescription("Battleground planning")
   .setDescriptionLocalizations({ fr: "Organisation des champs de bataille" })
@@ -47,13 +52,21 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
   .addSubcommand(s => s.setName("correct").setDescription("Withdraw my incorrect report; retain correction history").setDescriptionLocalizations({ fr: "Retirer mon rapport erroné en conservant la correction" })
     .addStringOption(o => o.setName("report").setDescription("My report ID").setRequired(true).setMaxLength(160))
     .addStringOption(o => o.setName("reason").setDescription("Reason for withdrawal").setRequired(true).setMinLength(3).setMaxLength(240)))
-  .addSubcommand(s => s.setName("privacy").setDescription("Choose personal capture and guild-statistics consent").setDescriptionLocalizations({ fr: "Choisir la collecte personnelle et les statistiques de guilde" })
-    .addBooleanOption(o => o.setName("capture").setDescription("Allow my paired Companion to submit my postmatch reports").setRequired(true))
-    .addBooleanOption(o => o.setName("guild-stats").setDescription("Allow my eligible reports in guild statistics; requires capture").setRequired(true)))
   .addSubcommand(s => s.setName("stats").setDescription("Opt-in guild participation reports, explicitly provisional").setDescriptionLocalizations({ fr: "Participations de guilde avec accord, explicitement provisoires" })
     .addStringOption(o => o.setName("mode").setDescription("Format").setRequired(true).addChoices(...["casual", "rated", "blitz"].map(value => ({ name: value, value }))))
     .addStringOption(o => o.setName("bracket").setDescription("Reported API bracket identifier from /bg result").setRequired(true).setMaxLength(20))
     .addIntegerOption(o => o.setName("season").setDescription("Season number; defaults to current").setMinValue(1)))
+  .addSubcommand(s => s.setName("duels").setDescription("Guild duel leaderboard: wins, losses, win rate and streak").setDescriptionLocalizations({ fr: "Classement des duels de la guilde" }))
+  .addSubcommand(s => s.setName("duel-board").setDescription("Officers: keep a live duel board in the duel ladder channel").setDescriptionLocalizations({ fr: "Officiers : tableau des duels en direct dans le salon des statistiques JcJ" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn the live board on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le tableau" }).setRequired(true)))
+  .addSubcommand(s => s.setName("bg-ladder").setDescription("Officers: the battleground ladder message in the ladder channel (on by default)").setDescriptionLocalizations({ fr: "Officiers : classement des champs de bataille dans le salon du classement (activé par défaut)" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn the battleground ladder on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le classement" }).setRequired(true)))
+  .addSubcommand(s => s.setName("world-pvp").setDescription("Officers: world PvP (kills, defends) on the ladder message (on by default)").setDescriptionLocalizations({ fr: "Officiers : JcJ en monde ouvert sur le classement (activé par défaut)" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn world PvP on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le JcJ en monde ouvert" }).setRequired(true)))
+  .addSubcommand(s => s.setName("pvp-module").setDescription("Officers: include the PvP channels (groups, results, ladder) in /setup").setDescriptionLocalizations({ fr: "Officiers : inclure les salons JcJ (groupes, résultats, classement) dans /setup" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn the PvP channels on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver les salons JcJ" }).setRequired(true)))
+  .addSubcommand(s => s.setName("group-finder").setDescription("Officers: one group finder channel for dungeons and PvP (on by default)").setDescriptionLocalizations({ fr: "Officiers : une seule recherche de groupe pour donjons et JcJ (activé par défaut)" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Merge PvP groups into the group finder, or keep them in the PvP groups channel").setDescriptionLocalizations({ fr: "Fusionner les groupes JcJ dans la recherche de groupe, ou les garder dans leur salon" }).setRequired(true)))
   .addSubcommand(s => s.setName("setup").setDescription("Officer setup instructions; changes no channels or permissions").setDescriptionLocalizations({ fr: "Guide officiers, sans modification de salons ou permissions" }));
 
 type BgInteraction = ChatInputCommandInteraction | ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction;
@@ -90,15 +103,49 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
   if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if (sub === "setup" && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if ((sub === "setup" || sub === "duel-board" || sub === "pvp-module" || sub === "group-finder" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if (sub === "bg-ladder") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { bgLadderEnabled: enabled } });
+    const posted = enabled ? await updateBgLadder(i.guild) : false;
+    await i.editReply({ content: enabled
+      ? t(`Battleground ladder ${posted ? "posted" : "on; it appears once the ladder channel exists (/setup)"}. It is edited in place, separate from the duel ladder.`, `Classement des champs de bataille ${posted ? "publié" : "activé; il apparaîtra quand le salon du classement existera (/setup)"}. Il est modifié sur place, distinct de celui des duels.`)
+      : t("Battleground ladder off. The existing message stays; delete it if you wish.", "Classement des champs de bataille désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "world-pvp") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { worldPvpEnabled: enabled } });
+    const posted = await updateBgLadder(i.guild);
+    await i.editReply({ content: enabled
+      ? t(`World PvP on${posted ? "" : "; it appears on the next ladder refresh"}. It is a second panel on the battleground ladder message. Deaths are never shown.`, `JcJ en monde ouvert activé${posted ? "" : "; il apparaîtra au prochain rafraîchissement du classement"}. C'est un second panneau sur le message du classement des champs de bataille. Les morts ne sont jamais affichées.`)
+      : t("World PvP off. It disappears from the ladder message on the next refresh; members' counters are kept.", "JcJ en monde ouvert désactivé. Il disparaît du message à la prochaine mise à jour; les compteurs des membres sont conservés."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "pvp-module") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { pvpModuleEnabled: enabled } });
+    await i.editReply({ content: enabled
+      ? t("PvP channels on (the default). Run /setup and press Create missing channels: it adds one PvP category (groups, results, ladder) and adopts battleground channels you already have. Nothing is posted until then.", "Salons JcJ activés (par défaut). Lancez /setup et appuyez sur Créer les salons manquants : une catégorie JcJ (groupes, résultats, classement) est ajoutée et vos salons de champs de bataille existants sont repris. Rien n'est publié avant.")
+      : t("PvP channels off. Existing channels and boards stay as they are.", "Salons JcJ désactivés. Les salons et tableaux existants restent en place."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "group-finder") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { unifiedGroupFinder: enabled } });
+    await i.editReply({ content: enabled
+      ? t("One group finder on (the default). The pinned button asks dungeon, battleground, arena or world PvP and every post goes to the group finder channel. /setup stops creating the PvP groups channel; an existing one stays and can be archived.", "Recherche de groupe unique activée (par défaut). Le bouton épinglé demande donjon, champ de bataille, arène ou JcJ en monde ouvert et chaque message va dans le salon de recherche de groupe. /setup ne crée plus le salon des groupes JcJ; celui qui existe reste et peut être archivé.")
+      : t("One group finder off. The pinned button posts dungeons only; PvP groups are posted in the PvP groups channel, as before.", "Recherche de groupe unique désactivée. Le bouton épinglé ne publie que des donjons; les groupes JcJ restent dans leur salon, comme avant."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "duel-board") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    const settings = await prisma.guildSettings.findUniqueOrThrow({ where: { guildId: ctx.guildId }, select: { duelBoardChannelId: true } });
+    if (enabled && !settings.duelBoardChannelId) { await i.editReply({ content: t("The duel ladder channel does not exist yet: run /setup and press Create missing channels.", "Le salon du classement des duels n'existe pas encore : lancez /setup et appuyez sur Créer les salons manquants.") }); return; }
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { duelBoardEnabled: enabled } });
+    const posted = enabled ? await updateDuelBoard(i.guild) : false;
+    await i.editReply({ content: enabled
+      ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.duelBoardChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${settings.duelBoardChannelId}>. Il est modifié sur place, jamais republié.`)
+      : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+  }
   if (sub === "setup" || sub === "privacy-help") {
     await i.editReply({ content: sub === "setup" ? battlegroundSetupHelp(fr) : battlegroundPrivacyHelp(fr), allowedMentions: { parse: [] } }); return;
-  }
-  if (sub === "privacy") {
-    const capture = command?.options.getBoolean("capture", true) ?? false;
-    const guildStats = command?.options.getBoolean("guild-stats", true) ?? false;
-    await setBattlegroundConsent(prisma, ctx.guildId, ctx.memberId, { capture, guildStats });
-    await i.editReply({ content: `${t("Saved", "Enregistré")} — ${t("capture", "collecte")}: ${capture ? "ON" : "OFF"}; ${t("guild statistics", "statistiques de guilde")}: ${guildStats ? "ON" : "OFF"}.\n${battlegroundPrivacyHelp(fr)}`, allowedMentions: { parse: [] } }); return;
   }
   if (sub === "history" || sub === "result") {
     const rows = await battlegroundHistory(prisma, ctx.guildId, ctx.memberId, sub === "result" ? text("report", true) : undefined);
@@ -113,7 +160,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       await i.editReply({ embeds: [embed], ...(png ? { files: [new AttachmentBuilder(png, { name: "match.png" })] } : {}), allowedMentions: { parse: [] } }); return;
     }
     const description = rows.length ? rows.map(row => `${escapeMarkdown(row.id)} · ${escapeMarkdown(row.gameEdition)} · ${escapeMarkdown(row.mode)} · ${escapeMarkdown(row.bracket)}\n<t:${Math.floor(row.endedAt.getTime() / 1000)}:f> · ${row.outcome} · ${row.status}`).join("\n\n")
-      : t("No personal reports. /bg privacy chooses consent; the paired Companion uploads eligible postmatch reports.", "Aucun rapport personnel. /bg privacy définit votre accord; le Compagnon lié importe les rapports admissibles après match.");
+      : t("No personal reports. The paired Companion uploads your postmatch reports automatically.", "Aucun rapport personnel. Le Compagnon lié importe vos rapports après match automatiquement.");
     await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("My recent reports (up to 25)", "Mes rapports récents (25 maximum)")).setDescription(description.slice(0, 4000))
       .setFooter({ text: t("Private · /bg result report:<ID> · /bg correct report:<ID> reason:<reason>", "Privé · /bg result report:<ID> · /bg correct report:<ID> reason:<motif>") })], allowedMentions: { parse: [] } }); return;
   }
@@ -124,7 +171,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   if (sub === "stats") {
     const mode = text("mode"), bracket = text("bracket");
     if (!mode || !bracket) {
-      await i.editReply({ content: t("Choose one format and the reported API bracket identifier shown in /bg result: /bg stats mode:casual bracket:<identifier>. This is not a verified level range. The current guild edition and season apply; use season:<number> for an earlier season. Formats and brackets are never mixed.", "Choisissez un format et l'identifiant de bracket rapporté par l'API dans /bg result : /bg stats mode:casual bracket:<identifiant>. Ce n'est pas une tranche de niveaux vérifiée. L'édition de guilde et la saison actuelle s'appliquent; season:<numéro> choisit une saison antérieure. Les formats et brackets ne sont jamais mélangés."), allowedMentions: { parse: [] } }); return;
+      await i.editReply({ content: t("The battleground ladder in the PvP stats channel updates by itself, by battleground and level bracket. For one format only: `/bg stats mode:casual bracket:<bracket>` (the bracket is shown by `/bg result`); add `season:<number>` for an earlier season.", "Le classement des champs de bataille du salon des statistiques JcJ se met à jour tout seul, par champ de bataille et tranche de niveaux. Pour un seul format : `/bg stats mode:casual bracket:<tranche>` (la tranche est affichée par `/bg result`); ajoute `season:<numéro>` pour une saison passée."), allowedMentions: { parse: [] } }); return;
     }
     const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
     const now = new Date();
@@ -142,12 +189,21 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
         { name: t("Reported win rate", "Taux de victoire rapporté"), value: stats.winRate === null ? "—" : `${(stats.winRate * 100).toFixed(1)}%`, inline: true },
         { name: t("Known-outcome sample / unknown", "Échantillon connu / résultat inconnu"), value: `${stats.wins + stats.losses + stats.draws} / ${stats.unknownOutcomes}`, inline: true },
         { name: t("Verified unique matches", "Matchs uniques vérifiés"), value: t("Unavailable: adapters and cross-reporter identity are not verified.", "Indisponibles : adaptateurs et identité entre rapporteurs non validés.") })
-      .setFooter({ text: t("Opted-in reports only; withdrawn/conflicting reports excluded. Provisional, not official or ranked. No MMR, skill score or competitive points.", "Rapports consentants seulement; retraits et conflits exclus. Provisoire, sans classement officiel. Aucun MMR, score de talent ou point compétitif.") })], allowedMentions: { parse: [] } }); return;
+      .setFooter({ text: t("Withdrawn/conflicting reports excluded. Provisional, not official or ranked. No MMR, skill score or competitive points.", "Retraits et conflits exclus. Provisoire, sans classement officiel. Aucun MMR, score de talent ou point compétitif.") })], allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "duels") {
+    // Counted duels between this guild's members, reported by their own companions (services/duels.ts). Public in the guild; no points.
+    const guild = await prisma.guild.findUniqueOrThrow({ where: { id: ctx.guildId }, select: { gameEdition: true } });
+    const { standings, duels } = await duelLeaderboard(prisma, ctx.guildId, guild.gameEdition, { limit: 15 });
+    const lines = standings.map((row, index) => `**${index + 1}.** ${escapeMarkdown(row.name)} — ${row.score} pts · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} (${percent(row.winRate)}) · ${streakText(row.streak)}`);
+    await i.editReply({ embeds: [new EmbedBuilder().setTitle(t("Guild duel leaderboard", "Classement des duels de la guilde"))
+      .setDescription(lines.length ? lines.join("\n") : t("No duel recorded yet. Duel a guildmate with the Guilded addon and companion on.", "Aucun duel enregistré. Affrontez un membre de la guilde avec l'addon et le compagnon Guilded."))
+      .setFooter({ text: t(`${duels} counted duels · ${guild.gameEdition} · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · at most 5 per pair per day count · no rewards`, `${duels} duels comptés · ${guild.gameEdition} · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour au maximum · aucune récompense`) })], allowedMentions: { parse: [] } }); return;
   }
   if (sub === "panel") {
     await i.editReply({ components: [battlegroundPanel(fr, ctx.guildId), battlegroundRecordPanel(fr, ctx.guildId)], embeds: [new EmbedBuilder().setTitle(t("Battlegrounds", "Champs de bataille")).setDescription(t(
-      "Create: /bg create\nJoin: /bg upcoming → /bg join\nMy groups: /bg mine\nDetails: /bg view\nLeave: /bg leave\n\nMy results: /bg history · Privacy: /bg privacy\nGuild statistics: /bg stats\nPrivate planning and opt-in reports. No automatic posts or awards. Unverified queue formats cannot start; provisional reports are excluded from verified statistics.",
-      "Créer : /bg create\nRejoindre : /bg upcoming → /bg join\nMes groupes : /bg mine\nDétails : /bg view\nQuitter : /bg leave\n\nMes résultats : /bg history · Confidentialité : /bg privacy\nStatistiques de guilde : /bg stats\nPlanification privée et rapports avec accord. Aucun message automatique ni récompense. Les formats non vérifiés ne démarrent pas; les rapports provisoires restent hors des statistiques vérifiées."))] });
+      "Create: /bg create\nJoin: /bg upcoming → /bg join\nMy groups: /bg mine\nDetails: /bg view\nLeave: /bg leave\n\nMy results: /bg history\nGuild statistics: /bg stats\nPrivate planning; reports are shared. No automatic posts or awards. Unverified queue formats cannot start; provisional reports are excluded from verified statistics.",
+      "Créer : /bg create\nRejoindre : /bg upcoming → /bg join\nMes groupes : /bg mine\nDétails : /bg view\nQuitter : /bg leave\n\nMes résultats : /bg history\nStatistiques de guilde : /bg stats\nPlanification privée; les rapports sont partagés. Aucun message automatique ni récompense. Les formats non vérifiés ne démarrent pas; les rapports provisoires restent hors des statistiques vérifiées."))] });
     return;
   }
   if (sub === "create") {
@@ -177,10 +233,12 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       try { await requireTeamChannel(i.guild, session.core.channelId, actor); visible.push(session); } catch { /* private/deleted channel */ }
       if (visible.length === 5) break;
     }
-    await i.editReply(visible.length ? { embeds: [new EmbedBuilder().setTitle(t("Upcoming groups", "Groupes à venir")).setDescription(visible.map(s => `${escapeMarkdown(s.core.name)} · <t:${Math.floor(s.scheduledAt.getTime() / 1000)}:F>\n/bg view session:${s.id}`).join("\n\n"))], allowedMentions: { parse: [] } }
+    // The PvP group finder's posts (kind PVP) come first: they are what members join with the buttons.
+    const finder = (await loadPvpGroups(prisma, ctx.guildId, i.guild.id, sub === "mine" ? ctx.memberId : null)).slice(0, 5).map(group => pvpGroupLine(group, fr ? "fr" : "en"));
+    await i.editReply(visible.length || finder.length ? { embeds: [new EmbedBuilder().setTitle(t("Upcoming groups", "Groupes à venir")).setDescription([...finder, ...visible.map(s => `${escapeMarkdown(s.core.name)} · <t:${Math.floor(s.scheduledAt.getTime() / 1000)}:F>\n/bg view session:${s.id}`)].join("\n\n").slice(0, 4000))], allowedMentions: { parse: [] } }
       : { content: sub === "mine"
-        ? t("You have not joined any upcoming groups. Use Upcoming to find one, then /bg join.", "Vous n'avez rejoint aucun groupe à venir. Utilisez À venir pour en trouver un, puis /bg join.")
-        : t("No upcoming groups you can access yet. Leaders can start one with /bg create.", "Aucun groupe à venir accessible pour le moment. Les responsables peuvent en créer un avec /bg create.") });
+        ? t("You have not joined any groups. Press Who's looking to find one, or Create to start your own.", "Vous n'avez rejoint aucun groupe. Appuyez sur Qui cherche pour en trouver un, ou sur Créer pour lancer le vôtre.")
+        : t("No open groups yet. Press Create to start one; leaders can also plan a session with /bg create.", "Aucun groupe ouvert pour le moment. Appuyez sur Créer pour en lancer un ; les responsables peuvent aussi planifier une séance avec /bg create.") });
     return;
   }
   const id = text("session", true);
@@ -201,7 +259,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
 export const BG_PREFIX = "bgui:";
 export function battlegroundPanel(fr: boolean, guildId: string) {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    ...[["create", fr ? "Créer" : "Create"], ["join", fr ? "Rejoindre" : "Join"], ["mine", fr ? "Mes groupes" : "My groups"], ["upcoming", fr ? "À venir" : "Upcoming"]].map(([id, label]) =>
+    ...[["create", fr ? "Créer" : "Create"], ["looking", fr ? "Qui cherche" : "Who's looking"], ["mine", fr ? "Mes groupes" : "My groups"], ["upcoming", fr ? "À venir" : "Upcoming"]].map(([id, label]) =>
       new ButtonBuilder().setCustomId(`${BG_PREFIX}${guildId}:${id}`).setLabel(label!).setStyle(ButtonStyle.Secondary)));
 }
 
@@ -248,6 +306,8 @@ export function battlegroundFormInput(i: Pick<ModalSubmitInteraction, "customId"
 
 export async function handleBattlegroundComponent(i: ButtonInteraction | ModalSubmitInteraction | StringSelectMenuInteraction) {
   const action = i.customId.split(":").slice(2).join(":");
+  if (i.isModalSubmit() && action === PVP_FORM_ACTION) { await createPvpGroupFromModal(i); return; }
+  if (i.isButton() && action === "looking") { await showPvpLooking(i); return; }
   if (i.isModalSubmit()) { await executeBattleground(i, battlegroundFormInput(i)); return; }
   if (i.isButton() && ["mine", "upcoming", "history", "stats", "privacy-help", "setup"].includes(action)) {
     await executeBattleground(i, { action: action }); return;
@@ -258,16 +318,9 @@ export async function handleBattlegroundComponent(i: ButtonInteraction | ModalSu
   await requireTeamChannel(i.guild, i.channelId, actor);
   const fr = await teamLanguage(prisma, ctx.guildId);
   if (i.isButton() && action === "join") { await i.showModal(battlegroundJoinModal(fr, ctx.guildId)); return; }
+  // Create is the PvP group finder: any member, one post per group (like the dungeon finder). Scheduled sessions stay on /bg create.
+  if (i.isButton() && action === "create") { await i.showModal(pvpGroupModal(fr, ctx.guildId)); return; }
   if (!hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if (i.isButton() && action === "create") {
-    await i.reply({ flags: MessageFlags.Ephemeral, content: fr
-      ? "Choisissez le format et la faction. Ce choix confirme un royaume normal (sans Hardcore). Le salon actuel définit l'accès au groupe. Aucun message public ne sera envoyé."
-      : "Choose format and faction. This confirms a normal realm (not Hardcore). The current channel defines group access. No public post will be sent.",
-    components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder().setCustomId(`${BG_PREFIX}${ctx.guildId}:format`)
-      .setPlaceholder(fr ? "Format · faction · royaume normal" : "Format · faction · normal realm")
-      .addOptions(...["casual", "rated", "blitz"].flatMap(mode => ["Alliance", "Horde"].map(faction => ({ label: `${mode} · ${faction}`, value: `${mode}:${faction}` })))))] });
-    return;
-  }
   if (i.isStringSelectMenu() && action === "format") {
     const match = /^(casual|rated|blitz):(Alliance|Horde)$/.exec(i.values[0] ?? "");
     if (!match) throw new Error("Invalid BG format / Format JcJ invalide.");

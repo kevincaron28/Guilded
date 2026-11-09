@@ -1,5 +1,4 @@
-import { initializeCommunityBadgeHistory, communityBadgeShelf, configureCommunityBadges, setCommunityBadgeSharing } from "../services/community-badges.js";
-import { memberBadgeShelves } from "../services/community-badge-policy.js";
+import { initializeCommunityBadgeHistory, communityBadgeShelf, configureCommunityBadges } from "../services/community-badges.js";
 import { badgeLabel, COMMUNITY_MILESTONE_LABEL } from "../services/community-badge-rules.js";
 import { deliverCommunityBadges } from "../services/community-badge-delivery.js";
 import { guildWhere } from "../services/guild-scope.js";
@@ -9,8 +8,9 @@ import { prisma } from "../database.js";
 import { asLang, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
+import { POE_ENABLED } from "../../companion/active-games.mjs";
 import { createCommunityService } from "../services/community.js";
-import { challengeRules, COMMUNITY_GAME_LABELS, COMMUNITY_GAMES, COMMUNITY_REWARDS, communityGameLabel, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
+import { challengeRules, COMMUNITY_GAME_LABELS, offeredCommunityGames, COMMUNITY_REWARDS, communityGameLabel, eventRules, lotteryRules, quizRules } from "../services/community-rules.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { eventVenue } from "../services/scheduled-events.js";
 import { accessibleCommunityActivities, assertCommunityChannelAudience, communityAccess as access, resolveCommunitySeason, canAccessCommunity } from "../services/community-access.js";
@@ -40,7 +40,7 @@ const viewCommands = (builder: SlashCommandSubcommandsOnlyBuilder) => builder
 
 export const lotteryCommand = viewCommands(new SlashCommandBuilder().setName("lottery").setDescription("Free, activity points or in-game currency lotteries").setDescriptionLocalizations({ fr: "Loteries" })
   .addSubcommand(sub => dateOption(titleOption(seasonOption(sub.setName("create").setDescription("Create lottery").setDescriptionLocalizations({ fr: "Créer une loterie" }))), "ends")
-    .addStringOption(o => o.setName("mode").setDescription("Ticket type").setDescriptionLocalizations({ fr: "Type de billet" }).setRequired(true).addChoices({ name: "Free / Gratuit", value: "FREE" }, { name: "Activity points / Points", value: "POINTS" }, { name: "WoW gold / Or WoW", value: "WOW_GOLD" }, { name: "PoE currency / Monnaie PoE", value: "POE_CURRENCY" }))
+    .addStringOption(o => o.setName("mode").setDescription("Ticket type").setDescriptionLocalizations({ fr: "Type de billet" }).setRequired(true).addChoices({ name: "Free / Gratuit", value: "FREE" }, { name: "Activity points / Points", value: "POINTS" }, { name: "WoW gold / Or WoW", value: "WOW_GOLD" }, ...(POE_ENABLED ? [{ name: "PoE currency / Monnaie PoE", value: "POE_CURRENCY" }] : [])))
     .addStringOption(o => o.setName("prize").setDescription("Prize per winner").setDescriptionLocalizations({ fr: "Lot par gagnant" }).setRequired(true).setMaxLength(250))
     .addIntegerOption(o => o.setName("cost").setDescription("Price per ticket").setDescriptionLocalizations({ fr: "Prix du billet" }).setMinValue(1).setMaxValue(1_000_000))
     .addStringOption(o => o.setName("currency").setDescription("e.g. gold, Divine Orb").setDescriptionLocalizations({ fr: "Monnaie" }).setMaxLength(80))
@@ -78,7 +78,7 @@ export const challengeCommand = viewCommands(new SlashCommandBuilder().setName("
 
 export const communityCommand = new SlashCommandBuilder().setName("community").setDescription("Seasons, leaderboards, dice and quizzes").setDescriptionLocalizations({ fr: "Saisons et jeux" })
   .addSubcommand(sub => sub.setName("start-season").setDescription("Start a season").setDescriptionLocalizations({ fr: "Démarrer une saison" })
-    .addStringOption(o => o.setName("game").setDescription("Game").setDescriptionLocalizations({ fr: "Jeu" }).setRequired(true).addChoices(...COMMUNITY_GAMES.map(value => ({ name: COMMUNITY_GAME_LABELS[value].en, name_localizations: { fr: COMMUNITY_GAME_LABELS[value].fr }, value }))))
+    .addStringOption(o => o.setName("game").setDescription("Game").setDescriptionLocalizations({ fr: "Jeu" }).setRequired(true).addChoices(...offeredCommunityGames().map(value => ({ name: COMMUNITY_GAME_LABELS[value].en, name_localizations: { fr: COMMUNITY_GAME_LABELS[value].fr }, value }))))
     .addStringOption(o => o.setName("name").setDescription("Theme; defaults to month").setDescriptionLocalizations({ fr: "Thème; mois par défaut" }).setMaxLength(80))
     .addRoleOption(o => o.setName("role").setDescription("Game role; required outside Discord").setDescriptionLocalizations({ fr: "Rôle du jeu" })))
   .addSubcommand(sub => seasonOption(sub.setName("season-settings").setDescription("Rename or route announcements").setDescriptionLocalizations({ fr: "Nom et salon des annonces" }))
@@ -101,8 +101,7 @@ export const communityCommand = new SlashCommandBuilder().setName("community").s
     .addIntegerOption(o => o.setName("correct").setDescription("Correct answer: 1=A, 2=B, 3=C, 4=D").setDescriptionLocalizations({ fr: "Bonne réponse" }).setRequired(true).setMinValue(1).setMaxValue(4)))
   .addSubcommand(sub => ref(sub.setName("close-quiz").setDescription("Close a quiz").setDescriptionLocalizations({ fr: "Fermer un quiz" })))
   .addSubcommand(sub => seasonOption(sub.setName("badges").setDescription("Season badge shelf").setDescriptionLocalizations({ fr: "Badges de saison" }), false)
-    .addUserOption(o => o.setName("player").setDescription("Member").setDescriptionLocalizations({ fr: "Membre" }))
-    .addBooleanOption(o => o.setName("share").setDescription("Share your season shelf with its members").setDescriptionLocalizations({ fr: "Partager tes badges avec les membres de cette saison" })))
+    .addUserOption(o => o.setName("player").setDescription("Member").setDescriptionLocalizations({ fr: "Membre" })))
   .addSubcommand(sub => seasonOption(sub.setName("badge-settings").setDescription("Milestone celebrations").setDescriptionLocalizations({ fr: "Célébrations des paliers" }))
     .addBooleanOption(o => o.setName("enabled").setDescription("Enable future celebrations").setDescriptionLocalizations({ fr: "Activer les futures célébrations" }).setRequired(true))
     .addChannelOption(o => o.setName("channel").setDescription("Same audience as season").setDescriptionLocalizations({ fr: "Même public que la saison" }).addChannelTypes(ChannelType.GuildText).setRequired(true)))
@@ -146,18 +145,12 @@ export async function executeCommunity(interaction: ChatInputCommandInteraction)
   if (sub === "badges") {
     const target = interaction.options.getUser("player")?.id ?? actor;
     await access(guild, target, current!);
-    const shared = interaction.options.getBoolean("share");
-    if (shared !== null) {
-      await setCommunityBadgeSharing(prisma, current!.id, actor, target, shared);
-    }
     await initializeCommunityBadgeHistory(prisma, context.guildId, current!.id);
     const badges = await communityBadgeShelf(prisma, current!.id, actor, target);
-    if (!badges) content = say(lang, "This member has not shared this season's shelf.", "Ce membre n'a pas partagé ses badges pour cette saison.");
+    if (!badges) content = say(lang, "Season not found.", "Saison introuvable.");
     else content = say(lang, "Season badges", "Badges de saison") + " · " + COMMUNITY_MILESTONE_LABEL + "\n" +
       (badges.map(badge => badgeLabel(badge.code, lang) + " · " + (badge.earnedAt ? badge.earnedAt.toISOString().slice(0, 10) : say(lang, "Historical; date unknown", "Historique; date inconnue"))).join("\n") || say(lang, "No badges recorded yet.", "Aucun badge enregistré.")) + "\n\n" +
-      (memberBadgeShelves(guild.id)
-        ? say(lang, "Cosmetic only. Shelves are visible to members who can access this season. Sharing cannot be turned off here. Archives: select a season. Private proof and public profiles are unchanged.", "Décoratifs seulement. Les collections sont visibles aux membres ayant accès à cette saison. Le partage ne peut pas être désactivé ici. Archives : choisis une saison. Les preuves privées et les profils publics restent inchangés.")
-        : say(lang, "Cosmetic only. Private by default. share:true shares only this season's shelf with members who can access it; share:false hides it again. Archives: select a season.", "Décoratifs seulement. Privés par défaut. share:true partage les badges de cette saison avec les membres qui y ont accès; share:false les masque. Archives : choisis une saison."));
+      say(lang, "Cosmetic only. Shelves are visible to members who can access this season, and everything is shared. Archives: select a season.", "Décoratifs seulement. Les collections sont visibles aux membres ayant accès à cette saison, et tout est partagé. Archives : choisis une saison.");
   } else if (sub === "badge-settings") {
     const channelId = interaction.options.getChannel("channel", true).id;
     await validateCommunityDestination(guild, current!, channelId, actor);

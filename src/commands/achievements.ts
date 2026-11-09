@@ -21,7 +21,7 @@ async function render(guildId: string, memberId: string, name: string, fr: boole
   const embed = new EmbedBuilder().setTitle(`⚜️ ${t("Achievements", "Succès")} · ${name}`.slice(0, 256))
     .setDescription((earned.length
       ? earned.sort((a, b) => b.earnedAt!.getTime() - a.earnedAt!.getTime()).slice(0, 12).map(row => `**${row.def[fr ? "fr" : "en"].name}** — ${row.def[fr ? "fr" : "en"].description} <t:${Math.floor(row.earnedAt!.getTime() / 1000)}:d>${view.newlyEarned.includes(row.def.id) ? ` ✨ ${t("new", "nouveau")}` : ""}`).join("\n")
-      : t("No achievements yet. They are earned from synced characters, dungeon runs, raid attendance and your PoE2 log.", "Aucun succès pour l'instant. Ils s'obtiennent avec les personnages synchronisés, les donjons, les présences aux raids et votre journal PoE2.")).slice(0, 4000))
+      : t(`No achievements yet. They are earned from synced characters, dungeon runs, raid attendance.`, `Aucun succès pour l'instant. Ils s'obtiennent avec les personnages synchronisés, les donjons, les présences aux raids.`)).slice(0, 4000))
     .setFooter({ text: `${earned.length}/${view.results.length} · ${t("computed from recorded data, no points", "calculé à partir des données enregistrées, sans points")} · ${t("Full list", "Liste complète")}: guilded.kcaron.top/me/` });
   if (png) embed.setImage("attachment://achievements.png");
   return { embed, png, view };
@@ -81,11 +81,6 @@ export async function handleAchievementShare(i: ButtonInteraction): Promise<void
   if ((settings && !settings.achievementsEnabled) || !target) {
     await reply(t("Achievements are not available for this member.", "Les succès ne sont pas disponibles pour ce membre."));
     return;
-  }
-  // Another member's card is shared only when their profile is not hidden.
-  if (target.discordUserId !== i.user.id) {
-    const account = await prisma.webAccount.findFirst({ where: { discordUserId: target.discordUserId }, select: { publicProfile: true } });
-    if (account && !account.publicProfile) { await reply(t("That member keeps their profile hidden.", "Ce membre garde son profil masqué.")); return; }
   }
   lastShared.set(i.user.id, now);
   if (lastShared.size > 500) for (const [user, at] of lastShared) if (now - at > SHARE_COOLDOWN_MS) lastShared.delete(user);

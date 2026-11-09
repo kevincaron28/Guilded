@@ -1,9 +1,9 @@
-## Interface: 16001, 11509, 20506, 50504, 120105
+## Interface: 16001
 ## Title: Guilded
 ## Notes: Raid attendance, EPGP and four loot systems, soft reserves, recipes, guild calendar, gear checks, guild map, dungeon scores for WoW Forever
 ## Notes-frFR: Presences de raid, EPGP et quatre systemes de butin, reserves, recettes, calendrier de guilde, verification d'equipement, carte de guilde, scores de donjon pour WoW Forever
 ## Author: Kevin Caron
-## Version: 8.4.3
+## Version: 9.0.8
 ## IconTexture: Interface\AddOns\Guilded\Media\GuildedLogo
 ## Category: Raid
 ## AddonCompartmentFunc: Guilded_OnAddonCompartmentClick
@@ -24,7 +24,11 @@ Standings.lua
 Modules\LootRoll.lua
 Modules\Sync.lua
 Modules\OfficerBridge.lua
+Modules\LedgerDigest.lua
+Modules\LedgerRelay.lua
 Modules\LedgerSync.lua
+Modules\GuildRelay.lua
+Modules\GuildSnapshot.lua
 Modules\Sim.lua
 Modules\Bidding.lua
 Modules\Council.lua
@@ -33,17 +37,20 @@ Modules\LocalGuild.lua
 Modules\Reserve.lua
 Modules\Recipes.lua
 Modules\Calendar.lua
+Modules\RaidSignup.lua
 Modules\PublicRaids.lua
 Modules\RaidBuffCatalog.lua
 Modules\ConsumableData.lua
 Modules\Consumables.lua
 Modules\Digest.lua
+Modules\CompanionLink.lua
 Modules\API.lua
 Modules\Backup.lua
 Modules\History.lua
 Modules\SyncNow.lua
 Modules\AutoInvite.lua
 Modules\Dungeon.lua
+Modules\CatchUp.lua
 Modules\Battleground.lua
 Modules\RunResults.lua
 Modules\SeasonSync.lua
@@ -52,21 +59,37 @@ Modules\ChatTab.lua
 Modules\Attunements.lua
 Modules\Ready.lua
 Modules\GuildMap.lua
+Modules\CallForHelp.lua
+Modules\LevelPartners.lua
+Modules\WorldPvP.lua
+Modules\GuildOverview.lua
+Modules\GuildBoard.lua
+Modules\CraftOrders.lua
 Modules\Presence.lua
 Modules\ClientTools.lua
 Modules\RosterTools.lua
 Modules\GRMMigration.lua
 Modules\RosterAdmin.lua
+Modules\RosterProfessions.lua
+Modules\Promotion.lua
+Modules\OfficerNotes.lua
+Modules\InviteQueue.lua
 Modules\Scores.lua
+Modules\Milestones.lua
+Modules\GameAchievements.lua
+Modules\Duels.lua
 Modules\SeasonDetails.lua
+Modules\DungeonStats.lua
 Modules\DungeonScorePanel.lua
 Modules\Perf.lua
+Modules\Probe.lua
 Modules\GuildLog.lua
 Modules\Recruit.lua
 Modules\ChatTags.lua
 Modules\GuildBank.lua
 Modules\PugCheck.lua
 Modules\PasteBox.lua
+Modules\GuildMotd.lua
 Modules\LootImports.lua
 Modules\LootHistoryImport.lua
 Modules\Minimap.lua

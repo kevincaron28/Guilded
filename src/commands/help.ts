@@ -2,6 +2,7 @@ import { EmbedBuilder, SlashCommandBuilder, type ChatInputCommandInteraction, ty
 import { asLang, t, type Lang } from "../i18n.js";
 import { hasPermission } from "../permissions.js";
 import { guildService } from "./context.js";
+import { POE_TRACKING_ENABLED } from "../../companion/active-games.mjs";
 import { CURRENT_VERSION } from "../services/version-announce.js";
 
 // Short, rank-aware command list in the guild's language: everyone sees the
@@ -10,21 +11,26 @@ export const helpCommand = new SlashCommandBuilder()
   .setName("help")
   .setDescription("What can I do here? Lists the commands you can use.");
 
+// Forever-only focus (companion/active-games.mjs): lines about a switched-off game are not listed.
+export const visibleLines = (lines: string[], poe = POE_TRACKING_ENABLED): string[] => poe ? lines : lines.filter(line => !line.includes("`/poe "));
+
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
     en: [
-      "**New here? https://guilded.kcaron.top/start/** — 1) install the addon for your WoW version (required) · 2) optional Windows companion, [latest from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) · 3) Sign in with Discord",
+      "**New here? https://guilded.kcaron.top/start/** — 1) install the addon for your WoW version (required) · 2) optional Windows companion, [latest from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) or the [direct download that updates itself](https://guilded.kcaron.top/companion/) · 3) Sign in with Discord",
       "The addon works alone. The optional companion uses **Sign in with Discord** and links your characters by itself (no code). A character missing? `/character claim` and pick it; `/character list` checks them",
       "`/wow list` · `/wow use` — choose your guild; channel bindings take priority. Keep Forever first/last names and Blizzard realms from the addon",
       "`/character add` — link a character by hand, or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
-      "Raid posts have buttons to sign up (or use `/raid signup`)",
+      "Raid posts have buttons to sign up",
       "`/epgp balance` · `/epgp leaderboard` · `/character profile` · `/character achievements` · `/character who <name>`",
       "`/raid progress` · `/raid report` · `/report stats` · `/loot history`",
       "`/loot bid` — bid GP on a Discord loot auction",
       "`/character wishlist add` · `/character profession set` · `/character profession who <prof>`",
-      "`/bank request` — ask the guild bank · `/craft request` — ask a crafter",
+      "`/bank search` · `/bank request` — search and ask the guild bank · `/craft request` — ask a crafter",
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — dungeon challenge · `/dungeon group` — form a group with its own voice channel · `/dungeon alerts` — get pinged for groups you fit",
-      "`/bg privacy` · `/bg history` — optional private battleground records from your paired companion; nothing is posted or awarded automatically",
+      "`/bg history` · `/bg duels` — your battleground records (paired companion; nothing is awarded automatically), duels and ladder",
+      "Guild chat milestones are on by default; turn them off with `/guilded announce off`",
+      "In game: call for help (Shift+right-click the minimap button), levelling partners and raid sign-up",
       "`/character readiness me` — your latest gear check from the addon",
       "`/team list` · `/team sessions` · `/team respond` — weekly dungeon and PvP cores; confirm for each session",
       "`/apply` — apply to a raid core (or press **Apply** on that core's own roster post in the raid roster channel)",
@@ -36,20 +42,22 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
     ],
     fr: [
-      "**Nouveau ? https://guilded.kcaron.top/start/?lang=fr** — 1) installez l'addon de votre version de WoW (obligatoire) · 2) compagnon Windows facultatif, [dernière version du Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) · 3) Sign in with Discord",
+      "**Nouveau ? https://guilded.kcaron.top/start/?lang=fr** — 1) installez l'addon de votre version de WoW (obligatoire) · 2) compagnon Windows facultatif, [dernière version du Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) ou le [téléchargement direct qui se met à jour seul](https://guilded.kcaron.top/companion/?lang=fr) · 3) Sign in with Discord",
       "L'addon fonctionne seul. Le compagnon facultatif utilise **Sign in with Discord** et lie tes personnages tout seul (aucun code). Il en manque un ? `/character claim` et choisis-le; `/character list` les affiche",
       "`/wow list` · `/wow use` — choisir sa guilde; les salons associés ont priorité. Gardez les prénoms/noms Forever et les royaumes Blizzard de l'addon",
       "`/character add` — liez un personnage manuellement, ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",
-      "Les annonces de raid ont des boutons pour s'inscrire (ou `/raid signup`)",
+      "Les annonces de raid ont des boutons pour s'inscrire",
       "`/epgp balance` · `/epgp leaderboard` · `/character profile` · `/character achievements` · `/character who <nom>`",
       "`/raid progress` · `/raid report` · `/report stats` · `/loot history`",
       "`/loot bid` — miser des GP sur une enchère Discord",
       "`/character wishlist add` · `/character profession set` · `/character profession who <métier>`",
-      "`/bank request` — demander à la banque de guilde · `/craft request` — demander à un artisan",
+      "`/bank search` · `/bank request` — chercher et demander à la banque de guilde · `/craft request` — demander à un artisan",
       "`/dungeon leaderboard` · `/dungeon records` · `/dungeon player` — défi des donjons · `/dungeon group` — former un groupe avec son salon vocal · `/dungeon alerts` — être mentionné pour les groupes qui vous conviennent",
-      "`/bg privacy` · `/bg history` — rapports de champ de bataille privés et facultatifs du compagnon lié; rien n'est publié ni attribué automatiquement",
+      "`/bg history` · `/bg duels` — champs de bataille (compagnon lié; rien n'est attribué), duels et classement",
+      "Jalons de guilde en clavardage activés; coupez-les avec `/guilded announce off`",
+      "En jeu : appel à l'aide (Maj + clic droit sur la minicarte), partenaires de niveau, inscription aux raids",
       "`/character readiness me` — votre dernière vérification d'équipement (addon)",
-      "`/team list` · `/team sessions` · `/team respond` — cores hebdomadaires de donjon et JcJ; confirmez chaque séance",
+      "`/team list` · `/team sessions` · `/team respond` — cores donjon et JcJ; confirmez chaque séance",
       "`/apply` — postuler à un core de raid (ou appuyez sur **Postuler** sur le message du core dans le salon des cores de raid)",
       "`/report bug` — signaler un bug ou un problème avec le bot",
       "`/community seasons` · `/community leaderboard` · `/community wallet` · `/community dice` — saisons, classements et dé quotidien",
@@ -92,7 +100,8 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/officer loot auction` · `/officer loot close` · `/import apply` · `/import held` (addon data)",
       "`/setup testraid start` — fake raid to try everything, `/setup testraid cleanup` after · `/setup system status` — sync and delivery status",
       "`/officer dungeon` — invalidate a run, adjust points, view locked rules",
-      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — answer channel · `/tag set` · `/setup selfroles`",
+      "An officer's guild-wide off switch for chat milestones wins over members' settings",
+      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — answers · `/tag set` · `/setup selfroles`",
       "`/lead wcl-report url:` — pull a Warcraft Logs report into the raid history",
       "`/report inactive` · `/report guild` · `/poll create` · `/officer loot award` (loot council)",
       "`/officer export table:` — CSV for Excel or Google Sheets: standings, EPGP ledger, loot, attendance or roster (only you see it)",
@@ -103,18 +112,19 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
     ],
     fr: [
       "`/setup start` — configuration guidée et liste de vérification · `/config` — tous les réglages",
-      "Les membres ne voient pas `/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import` ni `/poll`. Un officier sans « Gérer le serveur » non plus : autorisez-y le rôle Officier dans Paramètres du serveur → Intégrations → Guilded",
+      "Les membres ne voient pas `/officer`, `/organize`, `/setup`, `/config`, `/mod`, `/import` ni `/poll`. Officier sans « Gérer le serveur » non plus : autorisez le rôle dans Paramètres → Intégrations → Guilded",
       "`/officer loot auction` · `/officer loot close` · `/import apply` · `/import held` (données de l'addon)",
-      "`/setup testraid start` — faux raid pour tout essayer, puis `/setup testraid cleanup` · `/setup system status` — état de la synchronisation et des publications",
+      "`/setup testraid start` — faux raid pour tout essayer, puis `/setup testraid cleanup` · `/setup system status` — état de la synchro",
       "`/officer dungeon` — annuler un donjon, ajuster les points, consulter les règles fixes",
-      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — salon des réponses · `/tag set` · `/setup selfroles`",
+      "Le réglage d'un officier pour couper les jalons l'emporte",
+      "`/bank list` / `handle` · `/mod application list` · `/mod` · `/mod faq` — réponses · `/tag set` · `/setup selfroles`",
       "`/lead wcl-report url:` — importer un rapport Warcraft Logs dans l'historique des raids",
       "`/report inactive` · `/report guild` · `/poll create` · `/officer loot award` (conseil de loot)",
-      "`/officer export table:` — fichier CSV pour Excel ou Google Sheets : classement, registre EPGP, butin, présences ou effectif (vous seul le voyez)",
+      "`/officer export table:` — CSV pour Excel ou Sheets : classement, registre EPGP, butin, présences ou effectif (vous seul)",
       "`/organize start-season` · `/organize lottery create` · `/organize gaming create` · `/organize challenge create` · `/organize quiz` — organiser les activités",
-      "`/events board` · `/events reminders` · `/events status` — événements à venir ; Gérer le serveur requis, rappels volontaires",
-      "`/organize honors-preview` · `/organize honors-settings` — aperçu du MVP de la semaine; activation, début de semaine, notification",
-      "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — couverture des gains, réglages et entraide"
+      "`/events board` · `/events reminders` · `/events status` — événements à venir; Gérer le serveur requis",
+      "`/organize honors-preview` · `/organize honors-settings` — aperçu du MVP de la semaine et réglages",
+      "`/participation settings` · `/participation channels` · `/participation claims` · `/participation review` · `/participation reverse` — couverture des gains, réglages, entraide"
     ]
   }
 };
@@ -150,10 +160,10 @@ export async function executeHelp(interaction: ChatInputCommandInteraction): Pro
   const member = interaction.member as GuildMember | null;
   const can = (permission: Parameters<typeof hasPermission>[1]) => !!member && hasPermission(member, permission);
   const embed = new EmbedBuilder().setTitle(t(lang, "help.title")).setColor(0xd4af37);
-  addSection(embed, t(lang, "help.everyone"), LINES.everyone[lang]);
-  if (can("raidLeader")) addSection(embed, t(lang, "help.raidLeaders"), LINES.raidLeader[lang]);
-  if (can("dkpOfficer")) addSection(embed, t(lang, "help.epgpOfficers"), LINES.dkpOfficer[lang]);
-  if (can("officer")) addSection(embed, t(lang, "help.officers"), LINES.officer[lang]);
+  addSection(embed, t(lang, "help.everyone"), visibleLines(LINES.everyone[lang]));
+  if (can("raidLeader")) addSection(embed, t(lang, "help.raidLeaders"), visibleLines(LINES.raidLeader[lang]));
+  if (can("dkpOfficer")) addSection(embed, t(lang, "help.epgpOfficers"), visibleLines(LINES.dkpOfficer[lang]));
+  if (can("officer")) addSection(embed, t(lang, "help.officers"), visibleLines(LINES.officer[lang]));
   embed.setDescription(t(lang, "help.support"));
   embed.setFooter({ text: `Guilded ${CURRENT_VERSION} · ${t(lang, "help.footer")}` });
   await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });

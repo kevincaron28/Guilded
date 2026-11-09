@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+// These tests exercise the PoE2 module itself, so the Forever-only focus switch (companion/active-games.mjs) is turned on here.
+vi.mock("../companion/active-games.mjs", async (original) => ({ ...(await original<typeof import("../companion/active-games.mjs")>()), POE_TRACKING_ENABLED: true, poeTrackingOn: (config: { poeEnabled?: unknown }) => config.poeEnabled === true }));
 import { appendFileSync, mkdtempSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import * as fsPromises from "node:fs/promises";
 import { tmpdir } from "node:os";

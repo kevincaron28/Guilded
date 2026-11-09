@@ -1,8 +1,21 @@
 # Guilded privacy / Confidentialité
 
-Last updated / Dernière mise à jour : 4 November / novembre 2026.
+Last updated / Dernière mise à jour : 9 November / novembre 2026.
 
 ## English
+
+**Everything is shared.** From Guilded 8.5 there are no privacy or sharing settings. When you install Guilded and
+connect your characters, everything it records about them is shared by design: your stats, levels, gear and
+professions, achievements and badges, dungeon runs and scores, battleground results, duel results, map position
+in the addon, the race to 60 and the leaderboards, in your guild and on the public leaderboards and player
+profiles of guilded.kcaron.top. Do not install or connect Guilded if you do not want that. The one control left is
+**Delete my data** (below).
+
+One exception is the **guild map in the phone app** (owner decision, 6 November 2026): your companion uploads where
+your own characters were last seen outdoors (zone, map point and time, kept 28 days) and your own calls for help (kept
+7 days). Only signed-in members of your guild see them; they are never public. It is on by default; the **Share my
+position** switch on the phone's Map tab turns it off and deletes every stored position of yours, and officers can turn
+the map off for the server (`/officer roster map`). Delete my data removes them too.
 
 This notice describes Guilded Mobile for Android, Guilded Companion, the Guilded website and the project-hosted
 Guilded service operated by Kevin Caron (Guilded). A guild using its own server has
@@ -57,17 +70,21 @@ using Discord's identify permission. Guilded does not ask for your Discord
 password. Guild membership and roles are checked for protected features.
 Authentication cookies maintain website sessions; the current session lifetime
 is up to 30 days. A `guilded_edition` cookie remembers the WoW version you last
-viewed on the website (for example `retail`) for up to a year; it holds nothing else. Technical requests and error records may contain connection
+viewed on the website (`forever`) for up to a year; it holds nothing else. Technical requests and error records may contain connection
 metadata and the context needed to operate, troubleshoot and protect the service.
 
-Where configured, optional Battle.net linking asks Blizzard for account identity
-and WoW character access. An unconfirmed character preview stays in server memory
-for up to ten minutes. Only confirmed character selections are retained, with
-Battle.net account ID/BattleTag, character and realm IDs, names, region, edition,
-account main choice and verification time. These selections are private and do
-not publish alts or change guild permissions. Blizzard access tokens are discarded
-after discovery. Disconnect Battle.net in your account to delete its private
-selection; existing guild records and retained backups follow their normal rules.
+Optional Battle.net linking was removed on 7 November 2026 (Guilded supports WoW Forever
+only, and Blizzard's profile API has no WoW Forever characters). Character selections confirmed
+before then are kept privately, unused: Battle.net account ID/BattleTag, character and realm IDs,
+names, region, edition, account main choice and verification time. They never published alts or
+changed guild permissions. **Delete my data** removes them; retained backups follow their normal rules.
+
+Character pictures are optional. A picture you pick for a character on My page is shrunk by
+your browser; Guilded keeps only a re-encoded 512 px copy and a small thumbnail, without the
+file's metadata (camera, location). It is shown on that character's cards and pages to your
+guild only, or also on public pages if you choose Public. You can change or remove it at any
+time; officers can remove it or turn pictures off for their server. Cards already posted in
+Discord keep the picture they were drawn with. **Delete my data** removes your pictures.
 
 Companion connections have separate credentials and device names. Manage or
 revoke them under your account's Connections page. Enabled Windows profiles keep
@@ -96,12 +113,23 @@ Microsoft handles Store installation and updates. External services have their
 own privacy notices. Data may be processed outside your country.
 
 Guild records are shown according to guild roles and feature permissions.
-Public profiles and leaderboards have separate sharing controls. Content posted
+Profiles, badges, statistics and leaderboards are shared by default and there is
+no switch to turn that off; private items such as pairing codes, application
+messages and credentials are never shared. Content posted
 to Discord or a public page can be copied by people with access. Guilded uses
 authentication, access checks and HTTPS for its hosted service. Configure a
 trusted HTTPS endpoint when using a separately hosted server.
 
 ### Choices, access and deletion
+
+**Delete my data.** Sign in on the Guilded website, open My data (`/me/data`) and press
+**Delete my data** (type DELETE to confirm). This removes your website account (profile, recruitment card,
+Battle.net selection, devices and sign-ins), your guild characters and what hangs off them, and your
+personal records (battleground reports, achievements, milestones, recap schedule, alerts, availability,
+pairing and companion credentials, badge shelves). Your Discord ID and name on guild member rows are replaced
+by "Deleted member"; points, loot and raid attendance stay in each guild's history under that name, because other
+members' records depend on them. Backups and Discord messages already posted are not changed (see Retention).
+You can also ask through the support contact below.
 
 Pause tracking, disable an optional game connection, or quit the companion to
 stop its ongoing tracking. Removing locally saved app data leaves your game files
@@ -142,6 +170,20 @@ guild exports in public channels. This notice will be updated when data practice
 change.
 
 ## Français
+
+**Tout est partagé.** À partir de Guilded 8.5, il n'y a aucun réglage de confidentialité ni de partage. Lorsque vous
+installez Guilded et reliez vos personnages, tout ce qu'il enregistre à leur sujet est partagé par conception : vos
+statistiques, niveaux, équipement et métiers, succès et badges, donjons et scores, résultats de champs de bataille,
+résultats de duels, position sur la carte dans l'addon, la course au 60 et les classements, dans votre guilde et
+sur les classements et profils publics de guilded.kcaron.top. N'installez pas et ne reliez pas Guilded si vous ne
+le souhaitez pas. Le seul contrôle restant est **Supprimer mes données** (ci-dessous).
+
+Une exception : la **carte de la guilde dans l'appli mobile** (décision du propriétaire, 6 novembre 2026). Votre
+compagnon envoie où vos propres personnages ont été vus dehors pour la dernière fois (zone, point sur la carte et heure,
+gardés 28 jours) et vos propres appels à l'aide (gardés 7 jours). Seuls les membres connectés de votre guilde les voient ;
+ils ne sont jamais publics. C'est activé par défaut ; l'interrupteur **Partager ma position** de l'onglet Carte le coupe
+et efface toutes vos positions gardées, et les officiers peuvent couper la carte pour le serveur
+(`/officer roster map`). Supprimer mes données les efface aussi.
 
 Le bilan hebdomadaire facultatif conserve votre horaire, fuseau, heures de silence,
 choix actif/inactif et dernier résultat d'envoi. Un MP Discord est envoyé seulement
@@ -200,19 +242,25 @@ d'affichage disponible, via la permission identify. Guilded ne demande pas votre
 mot de passe Discord. Les accès et rôles de guilde sont vérifiés. Des témoins
 d'authentification maintiennent les sessions web, actuellement jusqu'à 30 jours.
 Un témoin `guilded_edition` retient la version de WoW consultée en dernier sur le site
-(par exemple `retail`) pendant au plus un an; il ne contient rien d'autre.
+(`forever`) pendant au plus un an; il ne contient rien d'autre.
 Les requêtes techniques et erreurs peuvent contenir les métadonnées de connexion
 et le contexte nécessaires au fonctionnement, au dépannage et à la protection.
 
-Si elle est configurée, la connexion Battle.net facultative demande à Blizzard
-l'identité du compte et l'accès aux personnages WoW. Un aperçu non confirmé reste
-en mémoire sur le serveur pendant dix minutes au maximum. Seuls les personnages
-confirmés sont conservés, avec l'identifiant Battle.net et le BattleTag, les noms
-et identifiants des personnages et royaumes, la région, l'édition, le choix du
-principal du compte et la date de vérification. Cette sélection privée ne publie
-pas les alts et ne modifie pas les permissions de guilde. Les jetons Blizzard sont
-supprimés après la recherche. Déconnectez Battle.net dans votre compte pour effacer
-sa sélection privée; les données de guilde et sauvegardes suivent leurs règles habituelles.
+La connexion Battle.net facultative a été retirée le 7 novembre 2026 (Guilded prend en charge
+WoW Forever uniquement, et l'API de profils de Blizzard ne connaît pas les personnages WoW Forever).
+Les sélections confirmées avant cette date sont conservées en privé, sans être utilisées :
+l'identifiant Battle.net et le BattleTag, les noms et identifiants des personnages et royaumes, la
+région, l'édition, le choix du principal du compte et la date de vérification. Elles n'ont jamais
+publié les alts ni modifié les permissions de guilde. **Supprimer mes données** les efface; les
+sauvegardes conservées suivent leurs règles habituelles.
+
+Les images de personnage sont facultatives. Une image choisie pour un personnage dans Ma page
+est réduite par votre navigateur; Guilded ne garde qu'une copie réencodée de 512 px et une
+vignette, sans les métadonnées du fichier (appareil, lieu). Elle apparaît sur les cartes et
+pages de ce personnage pour votre guilde seulement, ou aussi sur les pages publiques si vous
+choisissez Public. Vous pouvez la changer ou la retirer en tout temps; les officiers peuvent la
+retirer ou désactiver les images pour leur serveur. Les cartes déjà publiées dans Discord gardent
+l'image avec laquelle elles ont été dessinées. **Supprimer mes données** efface vos images.
 
 Chaque connexion compagnon possède son propre identifiant d'accès et nom d'appareil.
 La page Connexions de votre compte permet de les gérer ou révoquer. Les profils
@@ -242,13 +290,24 @@ fournisseurs. Discord gère la connexion et les messages; Microsoft gère le Sto
 et ses mises à jour. Leurs politiques s'appliquent également. Le traitement peut
 avoir lieu hors de votre pays.
 
-La visibilité suit les rôles et permissions. Les profils et classements publics
-disposent de contrôles de partage distincts. Les publications Discord ou publiques
+La visibilité suit les rôles et permissions. Les profils, badges, statistiques et
+classements sont partagés par défaut, sans réglage pour l'éviter; les éléments
+privés (codes d'appairage, messages de candidature, identifiants) ne sont jamais
+partagés. Les publications Discord ou publiques
 peuvent être copiées par leurs lecteurs. Le service hébergé utilise HTTPS,
 l'authentification et des contrôles d'accès. Pour un hébergement autonome,
 configurez une adresse HTTPS de confiance.
 
 ### Choix, accès et suppression
+
+**Supprimer mes données.** Connectez-vous au site Guilded, ouvrez Mes données (`/me/data`) et appuyez sur
+**Supprimer mes données** (tapez DELETE pour confirmer). Cela supprime votre compte du site (profil, fiche de
+recrutement, sélection Battle.net, appareils et connexions), vos personnages de guilde et leurs dépendances, et vos
+données personnelles (rapports JcJ, succès, jalons, bilans, alertes, disponibilité, identifiants d'appairage et du
+compagnon, badges). Votre identifiant et votre nom Discord sur les fiches de membre sont remplacés par « Deleted
+member »; les points, le butin et les présences de raid restent dans l'historique de chaque guilde sous ce nom, car
+les dossiers des autres membres en dépendent. Les sauvegardes et les messages Discord déjà publiés ne sont pas
+modifiés (voir Durées de conservation). Vous pouvez aussi la demander au contact ci-dessous.
 
 Suspendez le suivi, désactivez une connexion facultative ou quittez le compagnon
 pour arrêter le suivi actif. Supprimer les données locales ne supprime ni vos

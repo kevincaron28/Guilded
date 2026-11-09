@@ -569,7 +569,7 @@ function recipes.crafters(key)
   for player, professions in pairs(b.people) do
     for profession, entry in pairs(professions) do
       for _, known in ipairs(entry.keys) do
-        if known == key then table.insert(found, { name = player, profession = profession }) break end
+        if known == key then table.insert(found, { name = player, profession = profession, seen = entry.v }) break end
       end
     end
   end
@@ -598,14 +598,198 @@ local function keysNamed(text)
   return keys
 end
 
-function recipes.tooltipLines(id)
-  local found = recipes.crafters(id)
-  if #found == 0 then return {} end
-  local parts = {}
-  for i = 1, math.min(4, #found) do
-    table.insert(parts, string.format("%s (%s)", displayName(found[i].name), found[i].profession))
+-- ---------------------------------------------------------------------
+-- Item tooltip: who can craft it. Setting: off | compact (default) | full.
+--   compact  "Guilded (dot) First Aid: 4 crafters" and up to 3 names (you, then online, then the
+--            most recently shared); more than 6 crafters shows only the count.
+--   Shift    held (or mode full): every crafter on its own line with online status.
+-- ---------------------------------------------------------------------
+local TOOLTIP_MODES = { off = true, compact = true, full = true }
+local COMPACT_NAMES = 3      -- names shown on the compact line
+local COUNT_ONLY_ABOVE = 6   -- more crafters than this: count only, until Shift
+local COMPACT_LINE_MAX = 64   -- characters: a compact line with last-seen notes stays one line
+local FULL_LIST_MAX = 40     -- lines in the Shift list
+local DOT = " \194\183 "     -- middle dot, written as bytes: the addon files stay ASCII
+
+recipes.MODE_WORD = { off = "Off", compact = "Compact", full = "Full" }
+recipes.MODES = { "off", "compact", "full" }
+
+function recipes.tooltipMode()
+  local s = ns.getSettings and ns.getSettings()
+  local mode = s and s.tooltipCrafters
+  return TOOLTIP_MODES[mode] and mode or "compact"
+end
+
+function recipes.setTooltipMode(mode)
+  mode = string.lower(tostring(mode or ""))
+  local s = ns.getSettings and ns.getSettings()
+  if not (TOOLTIP_MODES[mode] and s) then return false end
+  s.tooltipCrafters = mode
+  return true
+end
+
+-- Guildmates online right now, and when the others were last seen (a few seconds' cache:
+-- tooltips are built often). `seen[name]` is a unix time from GetGuildRosterLastOnline.
+local onlineCache, seenCache, onlineAt
+local MAX_SEEN = 600
+local function onlineSet()
+  local stamp = GetTime and GetTime() or 0
+  if onlineCache and onlineAt == stamp then return onlineCache, seenCache end
+  local set, seen = {}, {}
+  local now = time and time() or 0
+  if GetNumGuildMembers and GetGuildRosterInfo then
+    for i = 1, math.min(GetNumGuildMembers() or 0, 1000) do
+      local rosterName, _, _, _, _, _, _, _, online = GetGuildRosterInfo(i)
+      if rosterName then
+        local name = ns.normalizeName and ns.normalizeName(rosterName) or rosterName
+        if name then
+          if online then
+            set[name] = true
+            seen[name] = now
+          elseif GetGuildRosterLastOnline then
+            local years, months, days, hours = GetGuildRosterLastOnline(i)
+            if type(years) == "number" then
+              local hoursAgo = (((years or 0) * 365 + (months or 0) * 30 + (days or 0)) * 24) + (hours or 0)
+              seen[name] = now - hoursAgo * 3600
+            end
+          end
+        end
+      end
+    end
   end
-  return { L("Crafted by") .. " " .. table.concat(parts, ", ") .. (#found > 4 and (" +" .. (#found - 4)) or "") }
+  onlineCache, seenCache, onlineAt = set, seen, stamp
+  return set, seen
+end
+
+-- Remembers when crafters were last seen (SavedVariables), so the tooltip still has an answer
+-- while the roster is not loaded. `read` is when the roster was read.
+local function rememberSeen(names, seen)
+  local d = ns.getDb and ns.getDb()
+  if not d then return end
+  d.crafterSeen = type(d.crafterSeen) == "table" and d.crafterSeen or {}
+  local now = time and time() or 0
+  local count = 0
+  for _ in pairs(d.crafterSeen) do count = count + 1 end
+  for _, name in ipairs(names) do
+    if seen[name] then
+      if not d.crafterSeen[name] then count = count + 1 end
+      if count <= MAX_SEEN then d.crafterSeen[name] = { at = seen[name], read = now } end
+    end
+  end
+end
+
+-- "online", or how long ago in a few characters: 5h, 3d, 2w, 4mo, 1y. nil when unknown.
+function recipes.lastSeenText(name, online, seenAt)
+  if online then return L("online") end
+  if type(seenAt) ~= "number" then
+    local d = ns.getDb and ns.getDb()
+    local cached = d and type(d.crafterSeen) == "table" and d.crafterSeen[name]
+    seenAt = cached and cached.at
+  end
+  if type(seenAt) ~= "number" then return nil end
+  local age = math.max(0, (time and time() or 0) - seenAt)
+  local hours = math.floor(age / 3600)
+  if hours < 1 then return L("<1h") end
+  if hours < 24 then return string.format(L("%dh"), hours) end
+  local days = math.floor(hours / 24)
+  if days < 14 then return string.format(L("%dd"), days) end
+  if days < 60 then return string.format(L("%dw"), math.floor(days / 7)) end
+  if days < 365 then return string.format(L("%dmo"), math.floor(days / 30)) end
+  return string.format(L("%dy"), math.floor(days / 365))
+end
+
+local function shiftHeld() return IsShiftKeyDown and IsShiftKeyDown() and true or false end
+
+-- First names only, unless two crafters share one (then the full names).
+local function shortNames(group)
+  local counts = {}
+  for _, crafter in ipairs(group) do
+    local first = string.lower(string.match(crafter.shown, "^(%S+)") or crafter.shown)
+    counts[first] = (counts[first] or 0) + 1
+  end
+  for _, crafter in ipairs(group) do
+    local first = string.match(crafter.shown, "^(%S+)") or crafter.shown
+    crafter.short = counts[string.lower(first)] > 1 and crafter.shown or first
+  end
+end
+
+-- Lines for the tooltip: { raw = "text", wrap = bool } entries (Tooltip.lua adds no prefix to
+-- these). Second result: true when holding Shift would show more than is shown now.
+function recipes.tooltipLines(id, opts)
+  opts = opts or {}
+  local mode = opts.mode or recipes.tooltipMode()
+  local found = recipes.crafters(id)
+  if mode == "off" or #found == 0 then return {}, false end
+  local expanded = mode == "full" or (opts.shift ~= nil and opts.shift) or (opts.shift == nil and shiftHeld())
+  local me = ns.playerName and ns.playerName()
+  local online, seen = onlineSet()
+  local seenNames = {}
+  local groups, order = {}, {}
+  for _, crafter in ipairs(found) do
+    if not groups[crafter.profession] then
+      groups[crafter.profession] = {}
+      table.insert(order, crafter.profession)
+    end
+    crafter.shown = displayName(crafter.name)
+    crafter.me = crafter.name == me
+    crafter.online = crafter.me or online[crafter.name] == true
+    crafter.seenAt = seen[crafter.name]
+    table.insert(seenNames, crafter.name)
+    table.insert(groups[crafter.profession], crafter)
+  end
+  rememberSeen(seenNames, seen)
+  local lines, hidden = {}, false
+  for _, profession in ipairs(order) do
+    local group = groups[profession]
+    table.sort(group, function(x, y)
+      if x.me ~= y.me then return x.me end
+      if x.online ~= y.online then return x.online end
+      if (x.seen or 0) ~= (y.seen or 0) then return (x.seen or 0) > (y.seen or 0) end
+      return x.name < y.name
+    end)
+    shortNames(group)
+    local count = #group
+    local countText = count == 1 and L("1 crafter") or string.format(L("%d crafters"), count)
+    local head = "Guilded" .. DOT .. profession .. ": "
+    if expanded then
+      table.insert(lines, { raw = head .. countText })
+      for i = 1, math.min(FULL_LIST_MAX, count) do
+        local crafter = group[i]
+        local label = crafter.me and (crafter.shown .. " (" .. L("you") .. ")") or crafter.shown
+        local state = crafter.online and ("|cff40ff40" .. L("online") .. "|r") or ("|cff9d9d9d" .. L("offline") .. "|r")
+        local ago = not crafter.online and recipes.lastSeenText(crafter.name, false, crafter.seenAt)
+        if ago then state = state .. " |cff9d9d9d(" .. ago .. ")|r" end
+        table.insert(lines, { raw = "  " .. label .. " - " .. state })
+      end
+      if count > FULL_LIST_MAX then table.insert(lines, { raw = "  +" .. (count - FULL_LIST_MAX) .. " " .. L("more") }) end
+    else
+      local names, plain = {}, {}
+      for i = 1, math.min(COMPACT_NAMES, count) do
+        local crafter = group[i]
+        local base = crafter.me and L("you") or crafter.short
+        local ago = not crafter.me and recipes.lastSeenText(crafter.name, crafter.online, crafter.seenAt)
+        table.insert(plain, base)
+        table.insert(names, ago and (base .. " (" .. ago .. ")") or base)
+      end
+      local more = count - #names
+      local tail = more > 0 and (" +" .. more .. " " .. L("more")) or ""
+      -- "last seen" must not make the tooltip taller: when the annotated names would no longer
+      -- fit on one line, show the plain names.
+      local annotated = table.concat(names, ", ") .. tail
+      local nameText = (#head + #annotated <= COMPACT_LINE_MAX) and annotated or (table.concat(plain, ", ") .. tail)
+      if count <= COMPACT_NAMES then
+        table.insert(lines, { raw = head .. nameText, wrap = true })
+      elseif count <= COUNT_ONLY_ABOVE then
+        table.insert(lines, { raw = head .. countText })
+        table.insert(lines, { raw = nameText, wrap = true })
+        hidden = true
+      else
+        table.insert(lines, { raw = head .. countText })
+        hidden = true
+      end
+    end
+  end
+  return lines, hidden
 end
 
 local function whoText(query)
@@ -766,6 +950,14 @@ ns.commandHandlers["recipes"] = function(args)
     local query = table.concat(args, " ")
     if query == "" then ns.message("Usage: /guilded recipes mats <item link> [count]") return end
     ns.message(matsText(query, count))
+  elseif action == "tooltip" then
+    local mode = string.lower(args[1] or "")
+    if recipes.setTooltipMode(mode) then
+      ns.message(string.format(L("Item tooltips: crafters %s."), L(recipes.MODE_WORD[mode])))
+      if ns.options and ns.options.refresh then pcall(ns.options.refresh) end
+    else
+      ns.message(string.format(L("Item tooltips: crafters %s."), L(recipes.MODE_WORD[recipes.tooltipMode()])) .. " /guilded recipes tooltip off | compact | full")
+    end
   elseif action == "share" then
     local sent = recipes.shareMine()
     ns.message(sent > 0 and L("Sending your recipes to the guild.") or L("Open your profession windows once so Guilded can read your recipes."))

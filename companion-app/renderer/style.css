@@ -6,3 +6,67 @@
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
 .edit-list{display:flex;flex-direction:column;gap:8px;margin:14px 0}.edit-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.edit-row input,.edit-row select{margin-top:0;width:auto;flex:1 1 140px;min-width:0}.edit-row input.number{flex:0 0 96px}.edit-row select.narrow{flex:0 0 110px}.edit-row .grow{flex:2 1 180px;font-weight:600;overflow-wrap:anywhere}.edit-row .tag{font-size:11px;font-weight:400;color:var(--muted)}.edit-row button{flex:0 0 auto}.add-row{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}.check{display:flex;align-items:center;gap:6px;margin:0;flex:0 0 auto}.check input{width:auto;flex:0 0 auto}.sub-row{margin-left:18px;font-size:12px;color:var(--muted)}textarea{font:inherit;width:100%;border:1px solid var(--line);border-radius:7px;color:var(--text);background:var(--bg);padding:11px 12px;margin-top:12px;resize:vertical}.section-title select{width:auto;min-width:200px;margin-top:0}
 dialog#diagnosticPreview{width:min(640px,calc(100vw - 32px));max-height:85vh;overflow:auto;background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:12px;padding:24px}dialog#diagnosticPreview::backdrop{background:#0009}#diagnosticContent{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+
+/* Forever-only focus: PoE2 tracking is hidden unless the app says it is on (companion/active-games.mjs). */
+body.poe-off .poe-only{display:none!important}
+/* 8.5 track F: Problems panel, Advanced settings, WoW account choice */
+.problem-alert{display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:3px 10px 3px 4px;border-radius:999px;border:1px solid #e57a7466;background:#e57a7418;color:var(--red);font-size:12px;font-weight:700}.problem-alert>span:first-child{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#d93a32;color:#fff;font-size:14px;font-weight:800}.problem-alert:hover{background:#e57a7428;border-color:var(--red)}
+.problem-card{border-left:3px solid var(--red)}.problem-card h2{font-size:17px}.problem-card h3{font-size:13px;margin-top:16px;color:var(--muted)}.problem-card .help-list{margin:6px 0 0}.problem-detail{font-size:13px;padding:10px 12px;border-radius:7px;background:var(--bg);overflow-wrap:anywhere}
+.report-text{font:11px/1.5 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;background:var(--bg);border-radius:7px;padding:12px;color:var(--muted)}
+details.advanced-panel{margin-top:0;padding-top:24px}details.advanced-panel>summary{font-size:15px;font-weight:650;color:var(--text)}.advanced-group{border-top:1px solid var(--line);padding-top:18px;margin-top:20px}.advanced-group h3{font-size:15px}.advanced-group>.muted{font-size:12px}
+.account-choice{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--bg)}.account-option{margin:8px 0 0;font-weight:500;color:var(--text)}.account-option input{width:16px;height:16px;accent-color:var(--gold)}
+
+/* Link everything wizard (8.5 Track L) */
+.wizard-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; list-style: none; padding: 0; margin: 0 0 12px; counter-reset: step; }
+.wizard-steps li { counter-increment: step; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-weight: 600; opacity: .7; }
+.wizard-steps li::before { content: counter(step) ". "; }
+.wizard-steps li.current { opacity: 1; border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold) inset; }
+.wizard-steps li.done { opacity: 1; color: var(--green); }
+.wizard-steps li.done::before { content: "\2713  "; }
+.wizard-identity { display: flex; align-items: center; gap: 10px; margin: 6px 0 12px; }
+.wizard-identity img { border-radius: 50%; }
+.wizard-identity button { margin-left: auto; }
+.wizard-diagnose { margin-top: 12px; }
+.wizard-diagnose summary { cursor: pointer; font-weight: 600; }
+.diagnostics { list-style: none; padding: 0; margin: 8px 0; }
+.diagnostics li { padding: 4px 0; }
+.diagnostics li.ok::before { content: "\2713  "; color: var(--green); }
+.diagnostics li.bad::before { content: "\2717  "; color: var(--red); }
+.diagnostics li .fix { display: block; margin-left: 1.4em; opacity: .85; font-size: .92em; }
+.success-screen { text-align: center; padding: 28px 20px; }
+.success-mark { font-size: 56px; line-height: 1; margin: 0; color: var(--green); }
+.success-text { font-size: 18px; }
+.login-location { opacity: .85; }
+.diagnostics li.fixed::before { content: "\2713  "; color: var(--gold); }
+.repair-dialog { min-width: min(560px, 92vw); }
+.repair-dialog .diagnostics li { padding: 6px 0; }
+.nav-web-label { margin-top: 10px; }
+
+/* Home: the companion version panel (installed, latest, the one thing to do). */
+.version-panel { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.version-panel h2 { margin: 2px 0 4px; }
+.version-panel .actions { flex-shrink: 0; }
+
+/* Home: the Sync status card (redesign PR 1). One state, one button. */
+.account-ask { margin: 6px 0; }
+.account-list, .account-lines { list-style: none; padding: 0; margin: 8px 0; }
+.account-list li { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+.account-lines li { font-size: .92em; opacity: .85; }
+.account-ask .status-actions { display: flex; gap: 8px; }
+.status-card { display: flex; align-items: flex-start; gap: 16px; padding: 20px 22px; border-radius: 14px; border: 1px solid var(--line, rgba(255,255,255,.12)); background: var(--panel, rgba(255,255,255,.04)); margin: 4px 0 6px; }
+.status-card .status-dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; background: #8a8170; }
+.status-card[data-tone="ok"] .status-dot { background: #5fbf7a; }
+.status-card[data-tone="busy"] .status-dot { background: #d9b45a; animation: status-pulse 1.4s ease-in-out infinite; }
+.status-card[data-tone="warn"] .status-dot { background: #e0a43a; }
+.status-card[data-tone="bad"] .status-dot { background: #e0605a; }
+.status-card .status-body { flex: 1; min-width: 0; }
+.status-card h2 { margin: 0 0 6px; font-size: 1.35rem; }
+.status-card p { margin: 0 0 4px; }
+.status-card .status-actions { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+.status-line { margin: 0 0 14px 2px; color: var(--muted, #b9ae99); }
+@keyframes status-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .status-card[data-tone="busy"] .status-dot { animation: none; } }
+@media (max-width: 720px) { .status-card { flex-wrap: wrap; } .status-card .status-actions { flex-direction: row; align-items: center; } }
+
+/* Menu (redesign PR 2): PoE2 sits under Tools when it is shown. */
+.nav.nav-sub { padding-left: 34px; font-size: .95em; }

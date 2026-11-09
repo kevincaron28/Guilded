@@ -114,6 +114,48 @@ local function operation(row, action, value)
   if action == "demote" then return api.Demote or GuildDemote, { name } end
   if action == "kick" then return api.Uninvite or GuildUninvite, { name } end
 end
+-- Actions the game refused. WoW Forever blocks addons from editing guild notes, even on a
+-- click (8 Nov 2026: "Guilded has been blocked from an action only available to the Blizzard
+-- UI"). Any other refusal (ADDON_ACTION_BLOCKED/FORBIDDEN right after a request) is remembered
+-- per client build, so the popup shows at most once and Guilded stops asking.
+local function actionClass(action)
+  if action == "public" or action == "officer" then return "note" end
+  if action == "kick" then return "kick" end
+  return "rank"
+end
+local function clientBuild()
+  if type(GetBuildInfo) ~= "function" then return "?" end
+  local ok, _, build = pcall(GetBuildInfo)
+  return ok and not secret(build) and tostring(build or "?") or "?"
+end
+local function blockedTable()
+  local db = ns.getDb and ns.getDb()
+  if type(db) ~= "table" then return nil end
+  db.rosterBlocked = type(db.rosterBlocked) == "table" and db.rosterBlocked or {}
+  return db.rosterBlocked
+end
+function tools.isBlocked(action)
+  local class = actionClass(action)
+  if class == "note" and ns.util and ns.util.gameEdition and ns.util.gameEdition() == "forever" then return true end
+  local blocked = blockedTable()
+  return blocked ~= nil and blocked[class] ~= nil and blocked[class] == clientBuild()
+end
+function tools.blockedMessage(action)
+  if actionClass(action) == "note" then return "WoW does not let addons edit guild notes on this client. Edit them in the guild roster." end
+  return "WoW refused this action for addons on this client. Do it from the guild roster."
+end
+-- Core calls this on ADDON_ACTION_BLOCKED/FORBIDDEN naming Guilded. Returns true when it was ours.
+function tools.onBlocked()
+  local last = tools.lastCall
+  if not last or now() - last.at > 2 or now() < last.at then return false end
+  tools.lastCall = nil
+  local blocked = blockedTable(); if blocked then blocked[last.class] = clientBuild() end
+  local p = tools.plan
+  if p and p.pending then
+    p.pending.record.status = "blocked"; p.pending.item.status = "blocked"; p.pending = nil; p.confirmed = false
+  end
+  return true
+end
 local function makePlan(entries)
   if tools.plan and tools.plan.pending then return nil, "Wait for the pending operation to be verified." end
   local snapshot, err = tools.snapshot(); if not snapshot then return nil, err end
@@ -193,6 +235,7 @@ function tools.step()
   if snapshot.actor.key ~= p.actor or snapshot.actor.guid ~= p.actorGuid or snapshot.layout ~= p.layout then p.confirmed = false; return false, "Officer identity or guild ranks changed." end
   while p.rows[p.cursor] and p.rows[p.cursor].status == "unchanged" do p.cursor = p.cursor + 1 end
   local item = p.rows[p.cursor]; if not item then return false, "Plan complete." end
+  if tools.isBlocked(item.action) then item.status = "blocked"; p.confirmed = false; return false, tools.blockedMessage(item.action) end
   local current = snapshot.rows[item.key]
   if not current or current.guid ~= item.guid or current.rank ~= item.beforeRank or beforeValue(current, item.action) ~= item.before or not permitted(item.action, current, snapshot) then
     item.status = "Roster changed; preview again."; p.confirmed = false; return false, item.status
@@ -205,6 +248,7 @@ function tools.step()
   store.audit[#store.audit + 1] = record
   while #store.audit > 200 do table.remove(store.audit, 1) end
   item.status = "requested"; p.pending = { item = item, record = record, generation = tools.generation, at = now() }
+  tools.lastCall = { class = actionClass(item.action), at = now() }
   local ok = pcall(fn, unpack(args))
   if not ok then record.status = "failed"; item.status = "failed"; p.pending = nil; p.confirmed = false; return false, "The game rejected the request. Preview again." end
   tools.requestRoster()

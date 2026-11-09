@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import { publicRules } from "./public-score.js";
 import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
@@ -109,7 +110,7 @@ export async function startSeason(database: Db, guildId: string, name: string, e
     const top = ending ? await leaderboard(tx, guildId, "season", null, Math.max(count, 1)) : [];
     const rated = ending && hasDungeonRating(ending.ratingRules) ? await dungeonRating(tx, guildId, ending, null, true) : null;
     const competition = rated ?? top;
-    const champions = competition.filter((row) => row.points > 0 && row.points === competition[0]?.points);
+    const champions = competition.filter((row) => !row.memberId.startsWith("char:") && row.points > 0 && row.points === competition[0]?.points);
     const ended = await tx.dungeonSeason.findMany({ where: { guildId, status: "ACTIVE" } });
     if (ending) {
       for (const champion of champions) {
@@ -162,7 +163,7 @@ export async function finalizeClosingSeasons(database: Db, now = new Date(), all
       const rules = await tx.guildSettings.findUnique({ where: { guildId: season.guildId }, select: { dungeonConfig: true } });
       const best = new Map<string, number>();
       for (const row of rating) best.set(row.bracket ?? "all", Math.max(best.get(row.bracket ?? "all") ?? 0, row.points));
-      for (const champion of rating.filter(row=>row.points > 0 && row.points === best.get(row.bracket ?? "all"))) {
+      for (const champion of rating.filter(row=>!row.memberId.startsWith("char:") && row.points > 0 && row.points === best.get(row.bracket ?? "all"))) {
         const key = `seasonChampion:${season.id}`;
         await tx.dungeonAchievement.upsert({ where: { guildId_memberId_key: { guildId: season.guildId, memberId: champion.memberId, key } },
           create: { guildId: season.guildId, memberId: champion.memberId, key, seasonId: season.id }, update: {} });
@@ -190,7 +191,7 @@ export async function runChoices(database: Pick<PrismaClient, "dungeonRun">, gui
     .map((run) => {
       const time = run.durationSec !== null && run.state === "COMPLETED" ? formatDuration(run.durationSec) : run.state.toLowerCase();
       const date = run.endedAt ? run.endedAt.toISOString().slice(0, 10) : "";
-      const text = `${run.valid ? "" : "✗ "}${run.dungeonName} ${time} · ${run.players.map((player) => player.character).join(", ")} · ${date}`;
+      const text = `${run.valid ? "" : "✗ "}${run.dungeonName} ${time} · ${run.players.map((player) => cleanCharacterName(player.character)).join(", ")} · ${date}`;
       return { name: text.length > 100 ? `${text.slice(0, 99)}…` : text, value: run.runRef };
     });
 }

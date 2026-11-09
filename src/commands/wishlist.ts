@@ -1,3 +1,4 @@
+import { displayCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { createWishlistService, PRIORITY_LABELS } from "../services/wishlist.js";
@@ -31,7 +32,7 @@ export async function executeWishlist(interaction: ChatInputCommandInteraction):
     const entries = await wishlistService.whoWants(context.guildId, itemName);
     await interaction.reply({
       content: entries.length
-        ? [`Wanted by ${entries.length}:`, ...entries.map((entry) => `${PRIORITY_LABELS[entry.priority] ?? entry.priority} - ${entry.character.name} (${entry.character.className})`)].join("\n")
+        ? [`Wanted by ${entries.length}:`, ...entries.map((entry) => `${PRIORITY_LABELS[entry.priority] ?? entry.priority} - ${displayCharacterName(entry.character)} (${entry.character.className})`)].join("\n")
         : "Nobody has that item on their wishlist.",
       flags: MessageFlags.Ephemeral
     });
@@ -48,7 +49,7 @@ export async function executeWishlist(interaction: ChatInputCommandInteraction):
     await interaction.reply({
       content: entries.length
         ? entries.map((entry) => `${PRIORITY_LABELS[entry.priority] ?? entry.priority}: ${entry.itemName}`).join("\n")
-        : `${character.name} has no wishlist items.`,
+        : `${displayCharacterName(character)} has no wishlist items.`,
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -57,9 +58,9 @@ export async function executeWishlist(interaction: ChatInputCommandInteraction):
   const itemName = interaction.options.getString("item", true);
   if (subcommand === "add") {
     const entry = await wishlistService.add(character.id, itemName, interaction.options.getInteger("priority") ?? 2);
-    await interaction.reply({ content: `Added ${entry.itemName} to ${character.name}'s wishlist (${PRIORITY_LABELS[entry.priority]}).`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Added ${entry.itemName} to ${displayCharacterName(character)}'s wishlist (${PRIORITY_LABELS[entry.priority]}).`, flags: MessageFlags.Ephemeral });
     return;
   }
   await wishlistService.remove(character.id, itemName);
-  await interaction.reply({ content: `Removed ${itemName.trim()} from ${character.name}'s wishlist.`, flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: `Removed ${itemName.trim()} from ${displayCharacterName(character)}'s wishlist.`, flags: MessageFlags.Ephemeral });
 }

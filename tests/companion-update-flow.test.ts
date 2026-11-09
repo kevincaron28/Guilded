@@ -24,7 +24,7 @@ function harness(latest: unknown, locale = 'en', windowsStore = false) {
       app: { requestSingleInstanceLock: () => true, whenReady: () => new Promise(() => {}), on: vi.fn(), getVersion: () => "7.2.0", getLocale: () => locale, getPath: () => "C:/fake", setPath: vi.fn(), quit },
       ipcMain: { handle: (name: string, callback: () => Promise<{ ok: boolean }>) => handlers.set(name, () => (callback as (...args: unknown[]) => Promise<{ ok: boolean }>)(event)) },
       shell: { openExternal }, Notification: { isSupported: () => false }
-    } : id === "./ipc-security.cjs" ? require("../companion-app/ipc-security.cjs") : id === "./store-config.cjs" ? require("../companion-app/store-config.cjs") : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./detect-wow.cjs" ? {} : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
+    } : id === "./ipc-security.cjs" ? require("../companion-app/ipc-security.cjs") : id === "./store-config.cjs" ? require("../companion-app/store-config.cjs") : id === "./i18n.cjs" ? i18n : id === "./update-check.cjs" ? updates : id === "./detect-wow.cjs" ? {} : id === "./link-identity.cjs" ? require("../companion-app/link-identity.cjs") : id === "./disk-space.cjs" ? require("../companion-app/disk-space.cjs") : id === "node:fs" ? { mkdirSync: vi.fn(), writeFileSync: vi.fn() } : require(id),
     process: { argv: [], windowsStore }, __dirname: fileURLToPath(new URL("../companion-app/", import.meta.url)), setTimeout: timers, setInterval: vi.fn(), console
   };
   runInNewContext(readFileSync("companion-app/main.cjs", "utf8") + `
@@ -86,14 +86,23 @@ describe("companion updater handoff", () => {
     await success;
     expect(nextChild.unref).toHaveBeenCalledOnce();
   });
-  it.each(["download-page", "installing"])("shows the actual %s outcome in the button", async action => {
+  // Update now lives in Home's version panel (#511); the old hidden banner button is gone (redesign PR 5).
+  it.each([["download-page", "The download page opened."], ["installing", "Installing Guilded Companion 9.1.0."]])("shows the actual %s outcome in the version panel", async (action, message) => {
     const source = readFileSync("companion-app/renderer/app.js", "utf8");
-    const block = source.slice(source.indexOf("bind('btnUpdate'"), source.indexOf("api.onUpdateProgress"));
-    const button = { textContent: "Update now" };
+    const block = source.slice(source.indexOf("bind('btnVersionAction'"), source.indexOf("bind('btnVersionCheck'"));
+    const nodes: Record<string, { textContent: string; className: string; dataset: Record<string, string> }> = {};
+    const node = (id: string) => (nodes[id] ??= { textContent: "", className: "", dataset: {} });
     let click: () => Promise<void> = async () => {};
-    runInNewContext(block, { T: (key: string, ...values: unknown[]) => i18n.translate('en', key, ...values), bind: (_id: string, fn: () => Promise<void>) => { click = fn; }, $: () => button, toast: vi.fn(), api: { installUpdate: async () => ({ ok: true, action }) } });
+    let seenWhileWaiting = "";
+    runInNewContext(block, {
+      T: (key: string, ...values: unknown[]) => i18n.translate('en', key, ...values), M: (value: string) => value,
+      bind: (_id: string, fn: () => Promise<void>) => { click = fn; }, $: node, versionInfo: { action: "update-now" }, refreshVersion: async () => {},
+      api: { installUpdate: async () => { seenWhileWaiting = node("btnVersionAction").textContent; return { ok: true, action, message }; } }
+    });
     await click();
-    expect(button.textContent).toBe(action === "installing" ? "Installing…" : "Update now");
+    expect(seenWhileWaiting).toBe("Checking update…");
+    expect(node("versionResult")).toMatchObject({ textContent: message, className: "result ok" });
+    expect(node("btnVersionAction").dataset["busy"]).toBeUndefined();
   });
 });
 
@@ -101,7 +110,8 @@ describe("companion updater handoff", () => {
 it("keeps MSIX updates in Microsoft Store even when GitHub advertises an EXE", async () => {
   const h = harness({ version: "7.3.0", installer }, "en", true);
   expect(await h.handlers.get("install-update")!()).toMatchObject({ ok: true, action: "store" });
-  expect(h.openExternal).toHaveBeenCalledWith("ms-windows-store://downloadsandupdates");
+  // (9.0.x) Straight to the Guilded Companion listing, not the Store's general Downloads page.
+  expect(h.openExternal).toHaveBeenCalledWith("ms-windows-store://pdp/?ProductId=9N680XX3QFL9");
   expect(h.updates.fetchLatestRelease).not.toHaveBeenCalled();
   expect(h.updates.downloadInstaller).not.toHaveBeenCalled();
   expect(h.updates.launchInstaller).not.toHaveBeenCalled();

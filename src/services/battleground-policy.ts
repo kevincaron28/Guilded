@@ -18,13 +18,9 @@ export function readBattlegroundPlan(value: unknown): BattlegroundPlan | null {
   return value == null ? null : battlegroundPlanSchema.parse(value);
 }
 
-export function battlegroundQueuePolicy(plan: BattlegroundPlan) {
-  // Blizzard's published Blitz rules permit solo/duo, with a healer in a duo.
-  // This is the queue-party size, not the eight-person match team capacity.
-  // https://worldofwarcraft.blizzard.com/en-gb/news/24119590
-  if (plan.edition === "retail" && plan.mode === "blitz") {
-    return { review: "blitz-duo-2026-10-30", partyLimit: 2, healerRequired: true } as const;
-  }
+// Queue-party rules per mode. WoW Forever has none yet (Retail's Blitz duo rule was removed with Retail).
+export function battlegroundQueuePolicy(plan: BattlegroundPlan): { review: string; partyLimit: number; healerRequired: boolean } | null {
+  void plan;
   return null;
 }
 

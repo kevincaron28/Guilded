@@ -8,7 +8,6 @@ import type {
   RaidRole
 } from "../generated/prisma/client.js";
 import { ownedSignupCharacter } from "./signup-character.js";
-import { currentEdition } from "./edition-context.js";
 import { assertRealm, requiredRealm } from "./realm-check.js";
 import { SIGNUP_CHARACTER_SELECT } from "./character-display.js";
 import { raidPreset } from "./raid-presets.js";
@@ -32,9 +31,9 @@ const KIND_SELECT = {
   member: { select: { characters: { where: { isMain: true }, take: 1, select: { className: true, spec: true } } } }
 } as const;
 type KindRow = { spec: string | null; character: { className: string; spec: string | null } | null; member: { characters: { className: string; spec: string | null }[] } };
-export function signupDpsKind(row: KindRow, edition = currentEdition()): DpsKind | null {
+export function signupDpsKind(row: KindRow): DpsKind | null {
   const character = row.character ?? row.member.characters[0] ?? null;
-  return character ? dpsKind(character.className, signupSpec(row, character), edition) : null;
+  return character ? dpsKind(character.className, signupSpec(row, character)) : null;
 }
 
 export interface CreateRaidInput {
@@ -97,10 +96,8 @@ export function createRaidService(database: PrismaClient) {
   async function raidRealm(raid: { id: string; coreId: string | null }, memberId: string, tx: RaidDb = database): Promise<string | null> {
     if (raid.coreId) {
       const core = await tx.raidCore?.findUnique({ where: { id: raid.coreId }, select: { realm: true, members: { where: { memberId: { not: memberId } }, select: { character: { select: { realm: true } } } } } });
-      if (currentEdition() === "retail") return core?.realm?.trim() || null;
       return core ? requiredRealm(core.realm, core.members.map(spot => spot.character?.realm)) : null;
     }
-    if (currentEdition() === "retail") return null;
     const signups = await tx.raidSignup.findMany({ where: { raidId: raid.id, memberId: { not: memberId }, status: { not: "CANCELLED" }, characterRealm: { not: null } }, select: { characterRealm: true } });
     return requiredRealm(null, signups.map(signup => signup.characterRealm));
   }
@@ -319,7 +316,7 @@ export function createRaidService(database: PrismaClient) {
         let kindFull = false;
         if (status === "SIGNED_UP" && role === "DPS" && (raid.meleeLimit != null || raid.rangedLimit != null)) {
           const own = character ?? await tx.character.findFirst({ where: { memberId, isMain: true }, select: { className: true, spec: true } });
-          kind = own ? dpsKind(own.className, signupSpec({ spec }, own), currentEdition()) : null;
+          kind = own ? dpsKind(own.className, signupSpec({ spec }, own)) : null;
           const room = kind ? (await dpsKindRoom(raid, tx, memberId))[kind] : null;
           kindFull = room !== null && room <= 0;
         }
@@ -371,11 +368,10 @@ export function createRaidService(database: PrismaClient) {
         if (!signup || signup.status === "CANCELLED") throw new Error("Sign up for this raid first, then choose your spec.");
         const character = signup.character ?? signup.member.characters[0] ?? null;
         if (!character) throw new Error("Link your character first (/character pair), so Guilded knows your class.");
-        const edition = currentEdition();
-        const chosen = specName ? specsForRole(character.className, signup.role, edition).find(spec => spec.name === specName) : null;
+        const chosen = specName ? specsForRole(character.className, signup.role).find(spec => spec.name === specName) : null;
         if (specName && !chosen) throw new Error("That spec does not fit your class and role for this raid.");
-        const before = signupDpsKind(signup, edition);
-        const after = signupDpsKind({ ...signup, spec: chosen?.name ?? null }, edition);
+        const before = signupDpsKind(signup);
+        const after = signupDpsKind({ ...signup, spec: chosen?.name ?? null });
         if (signup.status === "SIGNED_UP" && signup.role === "DPS" && after && after !== before) {
           const room = (await dpsKindRoom(raid, tx, memberId))[after];
           if (room !== null && room <= 0) throw new DpsKindFullError(after);

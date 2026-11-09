@@ -1,5 +1,126 @@
 # Changelog
 
+## 9.0.8 — 9 November 2026
+
+Runs stop waiting forever, no more blocked-action popups from the chat tab or the map. Details: docs/V9_0_8_RELEASE_NOTES.md.
+
+- Bot and addon: every received dungeon run is confirmed back, so none stay "waiting to reach Discord"; faster uploads (#669).
+- Addon: the chat tab and auto-invite no longer call protected game functions; map dots on Guilded's own layer (#662, #668).
+- Companion (Store): can start with Windows (#669).
+- Bot: confirmed vs reported characters, rank roles preview, roster freshness in /setup status (#667); French raid application card (#664).
+
+## 9.0.7 — 9 November 2026
+
+`/ginvite` works again with Guilded Dungeons, and every WoW Forever achievement becomes a badge. Details: docs/V9_0_7_RELEASE_NOTES.md.
+
+- Addon: Guilded Dungeons no longer blocks `/ginvite` and other game slash commands (#655).
+- Addon: no Lua error or blocked actions after a duel (tooltips are left alone in combat; call for help knows a duel) (#657).
+- Addon and companion: every in-game achievement is recorded and shown as a generated badge (#649).
+- Website (already live): the companion installer downloads in one piece from the Guilded server, GitHub as fallback (#653).
+
+## 9.0.6 — 8 November 2026
+
+Companion downloads from the Guilded website, and an achievement probe for WoW Forever. Details: docs/V9_0_6_RELEASE_NOTES.md.
+
+- Companion: checks for updates, downloads its installer and installs the addon from the Guilded website first, with GitHub as the fallback. Every file is checked against its SHA-256.
+- Addon: `/guilded probe achievements` shows which achievement information WoW Forever gives addons (read-only).
+- Bot (already live): Guilded Clash (the card game: collection, packs, AI and PvE matches, guild-only trading, friendly and ranked player-vs-player), clearer board channels, standings answers within 17 s.
+
+## 9.0.5 — 8 November 2026
+
+Fix for the login popup on WoW Forever, plus the bot updates live since 9.0.4. Details: docs/V9_0_5_RELEASE_NOTES.md.
+
+- Addon: no more "Guilded has been blocked from an action only available to the Blizzard UI" at login. WoW Forever does not let addons edit guild notes, so the officer auto notes stop trying, and any guild action the game refuses is not retried.
+- Bot (already live): the dungeon score on each run card, and one group finder for dungeons and PvP (pick Dungeon, Battleground, Arena or World PvP first).
+
+## 9.0.4 — 8 November 2026
+
+Fixes from the first in-game check of 9.0.3 and the night after it. Details: docs/V9_0_4_RELEASE_NOTES.md.
+
+- Addon: no more "Guilded has been blocked from an action only available to the Blizzard UI" at login (the guild roster professions tooltip no longer hooks a Blizzard mixin).
+- Companion: several WoW accounts on one PC sync by themselves, after one "is it yours too?" question; a line per account and a switch for each.
+- Bot (already live): character pictures on cards and profiles, record cards, polished cards and French text, item previews that always link, the WoW role button fix, clearer addon-import failures with retries, and deploy guards so an update can no longer freeze the server.
+
+## 9.0.3 — 7 November 2026
+
+Guilded is now WoW Forever only, plus fixes from the day after 9.0.2. Details: docs/V9_0_3_RELEASE_NOTES.md.
+
+- Addon: loads on WoW Forever only (other versions' code removed; saved data still read), world PvP stats feed the new board.
+- Companion: syncs WoW Forever only, with a clear message for other game folders.
+- Bot (already live): world PvP board on the PvP ladder, any online guild member tagged for invite requests and joins detected from the roster, correct roles on dungeon cards, plain-letter names on cards, Forever-only commands and website, steadier deploys.
+
+## 9.0.2 — 7 November 2026
+
+New addon and companion features, plus a day of bot updates. Details: docs/V9_0_2_RELEASE_NOTES.md.
+
+- Addon: dungeon stats screens (per-dungeon detail, guild comparison, boss splits), in-game crafting orders page, world PvP stats (`/guilded worldpvp`), traced dungeon maps (`/guilded maptrace`), profession milestones, guild overview panel and board, clearer dungeon window, window-close fix, and no more false "Under attack?" offers.
+- Companion: redesigned (Settings page, plain words, officer Server page), sets itself up on first start, Update now button, and the installer replaces a Microsoft Store install while keeping its settings.
+- Bot: guild activity ladder, Top crafters ladder and craft history, craft order channels with opt-in crafter pings, duel scoring by level difference, PvP finder card, 24h rank arrows on ladder cards, read-only board channels, rookie of the week, profession badges, invite-channel pre-linking, and the countdowns feature removed.
+- Server: deploys run at low priority so the bot keeps answering during an update.
+
+## 9.0.1 — 7 November 2026
+
+Fixes and polish after 9.0.0. Details: docs/V9_0_1_RELEASE_NOTES.md.
+
+- Addon: guild snapshot error fixed, companion download window, roster admin window, Info and data tab, officer notes with professions and EP,GP, join greeting, recipe/cooldown/attunement relay, one name standard.
+- Bot: one dungeon card per run, Profession Details hang fixed, nickname sync, race to 60 cards and Hall of Fame edits, linked-characters message, Delete my data, Season 1 leniency.
+- New Forever final bosses, minimap button spot, chat tab retry, death heat map positions.
+- Companion installer closes a running companion by itself.
+- Website pages, a public page per guild, and deploy cleanup.
+
+## 9.0.0 — 6 November 2026
+
+The 8.5 work ships as 9.0, tracked in ROADMAP.md as tracks A-K plus the owner batches. Every new
+feature is on by default in every server, with officer and member off switches.
+
+- Achievements and badges cleanup (A); a race to 60 board with a Hall of Fame, duel and
+  battleground ladders and PvP channels (B).
+- Roster and membership: who's-missing, character names, nickname sync and a roster visual (C);
+  the Artisans' Gallery and crafter "last seen" (D).
+- Addon quality of life: Guilded chat tab on by default, a minimap button that is always placed,
+  localized login line and popup fixes (E).
+- Companion: setup and Repair, simpler settings that cannot hang on save, sign-in Reopen, easier
+  linking (F, L).
+- Server and guild statistics (G); armory spike (I); call for help in world PvP, a PvP finder and
+  levelling partners (J).
+- Addon-only members still sync: guild roster, bank and event sync, in-game raid sign-up (K);
+  a recruiting kit and the first-link Discord DM.
+
+Protocol remains 2. The Store companion ships as 9.0.0.0.
+
+## 8.4.7 — 6 November 2026
+
+Forever dungeon runs now complete and count: the addon recognises Forever final bosses
+(previously only Deadmines and Hall of Thanes), and at login it recovers saved runs that were
+marked abandoned but hold a native final-boss kill. The directly downloaded companion now
+updates itself silently, and every release carries a fixed-name `Guilded.Companion.Setup.exe`
+for a stable download link. Protocol remains 2. See [release notes](docs/V8_4_7_RELEASE_NOTES.md).
+
+## 8.4.6 — 6 November 2026
+
+Guildmates share the ledger with each other (on by default; `/guilded ledgersync off` turns
+it off), a live duel board in the PvP stats channel, the companion always watches the
+account-level saved-data folder (fixing members whose companion watched a character folder),
+no more blocked actions in combat, a compact "Crafted by" tooltip, and a Forever-only focus:
+other WoW editions are hidden and PoE2 tracking is removed from the companion and
+achievements (the PoE2 Discord community stays). Protocol remains 2. See [release notes](docs/V8_4_6_RELEASE_NOTES.md).
+
+## 8.4.5 — 5 November 2026
+
+Milestone announcements in guild chat (on by default; `/guilded announce off` turns them
+off), new achievements, the duel leaderboard (Duels tab, Discord and website), a guild
+message assistant (WoW does not let addons set the message of the day, so it is copy and
+paste), and Availability and scroll fixes in the addon windows. The companion needs the new
+build for the new achievements. Protocol remains 2. See [release notes](docs/V8_4_5_RELEASE_NOTES.md).
+
+## 8.4.4 — 5 November 2026
+
+WoW Forever launch-week release. Linking is automatic (no codes to type, with a clearer
+linking prompt), Forever guilds on synced realms share one guild key, Forever is the default
+edition, the companion detects the live Forever saved data on its own, crafters can offer
+crafts from the craft board (off by default), and item previews are off by default. The addon
+windows get a round of in-game layout fixes. Protocol remains 2. See [release notes](docs/V8_4_4_RELEASE_NOTES.md).
+
 ## 8.4.3 — 4 November 2026
 
 WoW Forever launch fixes for the companion: "Find my saved data" now switches a
@@ -44,7 +165,7 @@ Opt-in weekly questions, private recap schedules and approved vacancy alerts;
 private battleground planning; clearer Home, edition navigation, leaderboards
 and EN/FR member guides. Web sync remains available alongside automatic Windows
 sync. Candidate validation and publication are pending; protocol remains 2.
-See [release notes](docs/V8_3_0_RELEASE_NOTES.md).
+See [release notes](docs/archive/releases/V8_3_0_RELEASE_NOTES.md).
 
 ## 8.2.0 — 30 October 2026 candidate
 
@@ -54,7 +175,7 @@ onboarding, reviewed community features and truthful companion sync evidence.
 Includes isolated test pools, safer provisional character corrections, retry and
 scope fixes, Retail catalog/result-card corrections and translated layout polish.
 Protocol remains 2. Final publication is pending; existing provider bytes remain
-intact. See [release notes](docs/V8_2_0_RELEASE_NOTES.md).
+intact. See [release notes](docs/archive/releases/V8_2_0_RELEASE_NOTES.md).
 
 ## 8.1.0 — Candidate for 4 November 2026
 
@@ -63,7 +184,7 @@ in-game preview and typed confirmation, persistent local history, deduplication,
 filtering and last-batch undo. Live awards and EP/GP remain unchanged. Includes
 clearer raid signup cards, public-origin reliability and the overflow-safe private
 bug inbox. Protocol stays 2. This candidate is not published or deployed;
-8.0.2 downloads remain intact. See [candidate notes](docs/V8_1_0_RELEASE_NOTES.md).
+8.0.2 downloads remain intact. See [candidate notes](docs/archive/releases/V8_1_0_RELEASE_NOTES.md).
 
 ## 8.0.2 — 28 October 2026
 
@@ -71,7 +192,7 @@ Safety patch from the final 8.0.1 audit: in-game spreadsheet exports keep
 formula-like text literal while preserving numeric cells and saved data.
 Participation status aggregates in PostgreSQL instead of loading a season's
 whole point ledger. Existing 8.0.1 downloads remain intact; protocol stays 2.
-See [release notes](docs/V8_0_2_RELEASE_NOTES.md).
+See [release notes](docs/archive/releases/V8_0_2_RELEASE_NOTES.md).
 
 ## 8.0.1 — 28 October 2026
 
@@ -80,7 +201,7 @@ GRM, privacy and error messages. French wording/accents and missing labels are
 reviewed; formatting-slot guards cover padded timers and all language catalogues.
 Store-signed Windows installation and certificate-chain verification are recorded.
 Existing protocol, data, scores and permissions are preserved.
-See [release notes](docs/V8_0_1_RELEASE_NOTES.md).
+See [release notes](docs/archive/releases/V8_0_1_RELEASE_NOTES.md).
 
 ## 8.0.0 — 28 October 2026
 
@@ -89,7 +210,7 @@ validation, versioned Retail overtime credit, authenticated origin isolation, se
 French indexing, accessibility refinements and Core presentation extraction. Includes typed
 Discord confirmation, encrypted Windows profiles, bounded files/queues, clearer signup
 errors, resolved leaderboard names and Microsoft Store links.
-See [release notes](docs/V8_0_0_RELEASE_NOTES.md) and [publication gates](docs/V8_0_LAUNCH_READINESS.md).
+See [release notes](docs/archive/releases/V8_0_0_RELEASE_NOTES.md) and [publication gates](docs/archive/releases/V8_0_LAUNCH_READINESS.md).
 
 ## 7.5.1 — 27 October 2026
 
@@ -97,7 +218,7 @@ Loot follows the original rules (EPGP priority floor, decay rounding up and reac
 reversal floor, full standby EP, minimum-EP bid order, weekly SR+), the guild page shows the same loot
 text as Discord, a Guilds directory and player search on the website, Codex's dungeon evidence and
 award reconciliation (Season 1 stays on current-v1) and a private preview for `/report bug`.
-See [release notes](docs/V7_5_1_RELEASE_NOTES.md).
+See [release notes](docs/archive/releases/V7_5_1_RELEASE_NOTES.md).
 
 ## 7.5.0 — 26 October 2026 (release candidate)
 
@@ -113,7 +234,7 @@ In game, a new Officer tools page adds a guild event log, guild bank snapshots, 
 prospect list and welcome whisper, softres.it and That's My BiS imports and a pug gear
 check; also main names in chat, compressed officer ledger sync, a speed recorder and
 an optional consumable penalty on group EP awards.
-See [release notes](docs/V7_5_0_RELEASE_NOTES.md).
+See [release notes](docs/archive/releases/V7_5_0_RELEASE_NOTES.md).
 
 ## 7.4.0 — 25 October 2026
 
@@ -121,13 +242,13 @@ Roster and guild dashboards, guarded native bulk actions, GRM local history migr
 edition buff coverage and opt-in presence/key tools. Integrates Claude walkthrough/loot
 work and fixes core permissions, stale editors, character paging, atomic backup changes
 and import privacy. Protocol 2; game/client checks remain pending.
-See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
+See [release notes](docs/archive/releases/V7_4_0_RELEASE_NOTES.md).
 
 ## 7.3.2 Release — 25 October 2026
 
 - Owner authorized publication before unavailable game/two-PC tests; those remain follow-up.
 - Complete multi-edition connected product, 135 provisional dungeon routes and an eight-map
-  Raider.IO-inspired Guilded Mythic+ rating. See docs/V7_3_2_RELEASE_NOTES.md.
+  Raider.IO-inspired Guilded Mythic+ rating. See docs/archive/releases/V7_3_2_RELEASE_NOTES.md.
 
 - Pre-launch features (candidate only): editable raid seat presets in `/lead create`
   and core Size & roles; Components V2 for new raid signup posts with existing post
@@ -184,7 +305,7 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
 
 - Raid reports require level 60, distinguish levelling from gear problems, flag checks older than 24 hours, and use the current command link.
 - Companion updates retain installer details arriving after the bot version, retry lookup on click, and distinguish a browser download from an installer handoff. Launch errors allow retry without closing the app.
-- See [release notes](docs/V7_3_1_RELEASE_NOTES.md).
+- See [release notes](docs/archive/releases/V7_3_1_RELEASE_NOTES.md).
 
 - Linking without a companion: `/character pair` and the welcome button show one line,
   `/guilded verify ABCD-EFGH`, to paste in WoW chat once. Every character on that WoW account
@@ -204,7 +325,7 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
   the public leaderboards with both addons installed; setup explains each connection and leads with
   Sign in with Discord (nothing to type) on the companion, My page and Discord; 8 database
   connections and a calmer startup; deploys stop when Discord refuses the commands; error reports
-  say where they happened ([notes](docs/V7_2_1_RELEASE_NOTES.md)).
+  say where they happened ([notes](docs/archive/releases/V7_2_1_RELEASE_NOTES.md)).
 - Dungeon seasons follow one calendar set by the bot owner (`/guilded-season`, home server only):
   Season 1 starts 4 November 2026 at 3 PM Pacific and runs until the owner starts the next one
   (a big patch, or after 2-3 months). Every guild and the public leaderboards follow it; officers
@@ -215,14 +336,14 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
 
 - Companion: Sign in with Discord replaces pairing codes (codes stay as a fallback), one-click
   Update now in the Windows app, setup says addon-only guilds need nothing; website: one menu on
-  every page and a calmer home page ([notes](docs/V7_2_0_RELEASE_NOTES.md)).
+  every page and a calmer home page ([notes](docs/archive/releases/V7_2_0_RELEASE_NOTES.md)).
 
 ## 7.1.0 Release — 19 October 2026
 
 - Monthly dungeon seasons from the 4 November release (`/organize dungeon-seasons`), weekly and
   monthly leaderboards in Discord (`/dungeon leaderboard period:`) and in the addon (Week / Month
   switch), and Raider.IO-style public leaderboards with character and guild pages
-  ([notes](docs/V7_1_0_RELEASE_NOTES.md)).
+  ([notes](docs/archive/releases/V7_1_0_RELEASE_NOTES.md)).
 
 ## 7.0.0 Release — 19 October 2026
 
@@ -233,7 +354,7 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
   Export to spreadsheet button. `/report export` moved to `/officer export`.
 - A provisional all-level dungeon season can be previewed, started and recalibrated
   (`/officer dungeon bracket-preview|bracket-start|recalibrate`). Ko-fi links everywhere
-  ([notes](docs/V7_0_0_RELEASE_NOTES.md)).
+  ([notes](docs/archive/releases/V7_0_0_RELEASE_NOTES.md)).
 
 ## 6.7.0 Release — 18 October 2026
 
@@ -241,7 +362,7 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
   subcommands moved to `/lead`, `/officer` and `/organize` (for example `/raid create` →
   `/lead create`, `/epgp decay` → `/officer epgp decay`). Leaders without Manage Events or
   Manage Server need a one-time Integrations setting; `/setup` and `/system status` warn
-  when a role can't see them ([notes](docs/V6_7_0_RELEASE_NOTES.md)).
+  when a role can't see them ([notes](docs/archive/releases/V6_7_0_RELEASE_NOTES.md)).
 
 ## 6.6.0 Release — 18 October 2026
 
@@ -254,7 +375,7 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
 - Addon: `/guilded sheet standings|loot|attendance|raids|dungeons` and a Copy for Excel button
   copy tables to paste into Excel or Google Sheets.
 - Ko-fi support link in `/help`, the companion and the addon's Settings page; roadmap updated
-  ([notes](docs/V6_6_0_RELEASE_NOTES.md)).
+  ([notes](docs/archive/releases/V6_6_0_RELEASE_NOTES.md)).
 
 ## 6.5.2 Release — 18 October 2026
 
@@ -277,7 +398,7 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
 
 - Raid-night tools: templates, notes, attendance from the core roster, undo, raid discard and
   `/guilded raids`; members see their EP/GP and loot history without Discord
-  ([notes](docs/V6_5_0_RELEASE_NOTES.md)).
+  ([notes](docs/archive/releases/V6_5_0_RELEASE_NOTES.md)).
 - Core setup/edit now offers raid size and tank/healer/DPS targets, weekday selection,
   a launch date and a 1–90 day planning window with preview before saving. Future
   launch raids can be prepared immediately; new raids inherit core signup limits.
@@ -288,13 +409,13 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
 ## 6.4.0 Release — 17 October 2026
 
 - Guided in-game guild setup (`/guilded setup guild`), end-of-raid summary (`/guilded summary`),
-  level-aware gear checks (`/guilded slots level`) and season freshness ([notes](docs/V6_4_0_RELEASE_NOTES.md)).
+  level-aware gear checks (`/guilded slots level`) and season freshness ([notes](docs/archive/releases/V6_4_0_RELEASE_NOTES.md)).
 - Party games only in the Guilded Games addon; roll-off fixes found with both addons installed.
 - Bot: current discord.js pinned-message API (no startup warning).
 
 ## 6.3.2 Release — 17 October 2026
 
-- Addon polish from a full in-game pass ([notes](docs/V6_3_2_RELEASE_NOTES.md)): the login gear
+- Addon polish from a full in-game pass ([notes](docs/archive/releases/V6_3_2_RELEASE_NOTES.md)): the login gear
   check no longer shares "10 empty slots", the chat tab closes and reopens properly, members see
   SR+, Escape and Close work on the game windows Guilded opens, and `/guilded` opens the window.
 - Local guild page as three numbered steps with explanations and feedback for new officers.
@@ -303,20 +424,20 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
 ## 6.3.1 Release — 16 October 2026
 
 - WoW Forever: whispers use the name the game gave, so the version notice, the guild's module
-  settings for members and the loot council list arrive ([notes](docs/V6_3_1_RELEASE_NOTES.md)).
+  settings for members and the loot council list arrive ([notes](docs/archive/releases/V6_3_1_RELEASE_NOTES.md)).
 - In game: soft-reserve roll-off (G9) and the guild map pass on two PCs.
 
 ## 6.3.0 Release — 16 October 2026
 
 - Guild-wide sync: any member relays newer standings, item data and dungeon boards; Home shows
-  how fresh they are ([notes](docs/V6_3_0_RELEASE_NOTES.md)).
+  how fresh they are ([notes](docs/archive/releases/V6_3_0_RELEASE_NOTES.md)).
 - Fixes from the first two-PC in-game check: ledger sync in both directions, guild join without
   `/reload`, WoW Forever full names, backup and restore between PCs, in-game-only standings.
 - Recent dungeon runs show their date and season; French interface fixes.
 
 ## 6.2.1 Release — 16 October 2026
 
-- Guild web pages at `/g/<name>/`, managed by officers with `/mod page` ([notes](docs/V6_2_1_RELEASE_NOTES.md)).
+- Guild web pages at `/g/<name>/`, managed by officers with `/mod page` ([notes](docs/archive/releases/V6_2_1_RELEASE_NOTES.md)).
 - Setup follows the server's own categories and game role; per-core officers-only attendance
   channels; the shared raid roster channel is retired.
 - `/report bug` gives a reference and reaches the developer; `npm run bugs` writes the inbox.
@@ -327,7 +448,7 @@ See [release notes](docs/V7_4_0_RELEASE_NOTES.md).
 ## 6.2.0 Release — 16 October 2026
 
 - Released at the owner's direction; real-client checks continue as follow-up
-  ([checklist](docs/V6_2_GAME_ACCEPTANCE.md), [notes](docs/V6_2_RELEASE_NOTES.md)).
+  ([checklist](docs/V6_2_GAME_ACCEPTANCE.md), [notes](docs/archive/releases/V6_2_RELEASE_NOTES.md)).
 - Addon-only guild management: local cores, rosters, record-keeper backup handover.
 - Faster, lighter companion sync, `GuildedData` recovery folder, compact officer bridge,
   and optional officer ledger sharing for in-game-only guilds.

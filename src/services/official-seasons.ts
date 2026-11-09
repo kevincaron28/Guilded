@@ -5,7 +5,6 @@ import { addedRules, publicRules, readRuleSnapshot, snapshotRules, type PublicRu
 import { currentEdition } from "./edition-context.js";
 import { currentIntegrityPolicy } from "./dungeon-integrity.js";
 import { lockDungeonCalendar } from "./dungeon-calendar-lock.js";
-import { addCalendarMonths, readPeriodMetadata } from "./official-periods.js";
 
 // The bot-wide dungeon season calendar (7.3, owner 20 October 2026: "only I control when a season
 // starts and ends ... the first real season starting November 4th, then we change season when a
@@ -100,32 +99,6 @@ export async function freezeSeasonRules(database: Db, now: Date, current: Bracke
 
 export class SeasonCalendarError extends Error {}
 
-/** Continue only the explicitly authorized Era quarterly calendar. Official
- * Retail/TBC/Mists boundaries remain unset until separately reviewed. */
-export async function ensureQuarterlyCalendar(database: Db, now = new Date()): Promise<number> {
-  if (currentEdition() !== "classic-era") return 0;
-  const latest = await database.officialSeason.findFirst({ where: { gameEdition: "classic-era" }, orderBy: { startsAt: "desc" } });
-  const metadata = readPeriodMetadata(readRuleSnapshot(latest?.rules)?.calendar);
-  if (!latest || latest.startsAt > now || metadata?.kind !== "guilded-quarterly" || metadata.months !== 3) return 0;
-  return mutateCalendar(database, now, async (tx, lockedNow) => {
-    let last = await tx.officialSeason.findFirst({ where: { gameEdition: "classic-era" }, orderBy: { startsAt: "desc" } });
-    if (!last || last.startsAt > lockedNow) return 0;
-    const snapshot = readRuleSnapshot(last.rules);
-    const calendar = readPeriodMetadata(snapshot?.calendar);
-    if (!snapshot || calendar?.kind !== "guilded-quarterly" || calendar.months !== 3) return 0;
-    let created = 0;
-    while (last.startsAt <= lockedNow) {
-      if (created >= 24) throw new SeasonCalendarError("Quarterly calendar has more than six years to recover; review it manually.");
-      const startsAt = addCalendarMonths(last.startsAt);
-      const nextNumber: number = last.number + 1;
-      last = await tx.officialSeason.create({ data: { gameEdition: "classic-era", number: nextNumber, name: `Guilded Era Season ${nextNumber} (NA)`, startsAt,
-        createdBy: "guilded-quarterly", rules: { ...snapshotRules(snapshot.rules, lockedNow), calendar: { ...calendar, guildedActivation: startsAt.toISOString() } } as unknown as Prisma.InputJsonValue } });
-      created++;
-    }
-    return created;
-  });
-}
-
 /** Install reviewed routes for the next season without rewriting historical scores. */
 export async function configureNextSeasonRules(database: Db, input: unknown, now = new Date()): Promise<number> {
   const data = input as { gameEdition?: unknown } | null;
@@ -137,7 +110,7 @@ export async function configureNextSeasonRules(database: Db, input: unknown, now
   return mutateCalendar(database,now,async (database,now)=>{
   const next = await database.officialSeason.findFirst({ where: { gameEdition: currentEdition(), startsAt: { gt: now } }, orderBy: { startsAt: "asc" }, select: { id: true } });
   if (!next) throw new SeasonCalendarError("Schedule this edition's next season first.");
-  const changed = await database.officialSeason.updateMany({ where: { id: next.id, gameEdition: currentEdition(), startsAt: { gt: new Date(Math.max(now.getTime(), Date.now())) } }, data: { rules: snapshotRules(rules, now) as unknown as Prisma.InputJsonValue } });
+  const changed = await database.officialSeason.updateMany({ where: { id: next.id, gameEdition: currentEdition(), startsAt: { gt: new Date(Math.max(now.getTime(), Date.now())) } }, data: { rules: snapshotRules(rules, now, true) as unknown as Prisma.InputJsonValue } });
   if (changed.count !== 1) throw new SeasonCalendarError("The season has started. Schedule the next season to change its rules.");
   return rules.routes.length;
   });

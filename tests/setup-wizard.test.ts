@@ -45,13 +45,13 @@ describe("setup wizard screens", () => {
       expect(summary.components.length).toBeLessThanOrEqual(5);
       expect(summary.components.flatMap(r => r.toJSON().components).some(c => "custom_id" in c && c.custom_id === "setup:bg-open")).toBe(true);
       const optional = await renderStep(9, guild as never, "g1", "");
-      expect(optional.components).toHaveLength(4);
-      expect(optional.components.flatMap(r => r.toJSON().components).filter(c => "custom_id" in c && c.custom_id.startsWith("setup:bg-select-"))).toHaveLength(3);
+      expect(optional.components).toHaveLength(5);
+      expect(optional.components.flatMap(r => r.toJSON().components).filter(c => "custom_id" in c && c.custom_id.startsWith("setup:bg-select-"))).toHaveLength(4);
       for (const row of [...summary.components, ...optional.components]) expect(row.components.length).toBeLessThanOrEqual(5);
     }
     settings.language = "en";
   });
-  it("shows the public audience, cutoff and opt-out on the welcome screen and checklist in both languages", async () => {
+  it("shows the public audience and cutoff on the welcome screen and checklist in both languages, with no off button", async () => {
     settings.publicDungeonRuns = true;
     settings.publicDungeonRunsSince = new Date("2026-11-10T12:00:00Z");
     try {
@@ -61,18 +61,12 @@ describe("setup wizard screens", () => {
           const screen = await renderStep(step, guild as never, "g1", "");
           const description = screen.embeds[0]!.toJSON().description!;
           expect(description).toContain("https://guilded.kcaron.top/leaderboards/");
-          expect(description).toContain("/mod leaderboard share:false");
           expect(description).toContain("<t:1794312000:f>");
           expect(description).toContain(language === "fr" ? "hors guilde" : "non-guild players");
           expect(description).toContain(language === "fr" ? "anciens imports restent privés" : "older imports stay private");
-          const off = screen.components.flatMap(row => row.toJSON().components).find(c => "custom_id" in c && c.custom_id === "setup:public-sharing-off");
-          expect(off).toMatchObject({ disabled: false });
+          expect(screen.components.flatMap(row => row.toJSON().components).find(c => "custom_id" in c && c.custom_id === "setup:public-sharing-off")).toBeUndefined();
         }
       }
-      settings.publicDungeonRuns = false;
-      const screen = await renderStep(0, guild as never, "g1", "");
-      expect(screen.embeds[0]!.toJSON().description).toContain("DÉSACTIVÉ");
-      expect(screen.components.flatMap(row => row.toJSON().components).find(c => "custom_id" in c && c.custom_id === "setup:public-sharing-off")).toMatchObject({ disabled: true });
     } finally {
       settings.language = "en";
       settings.publicDungeonRuns = false;
@@ -80,32 +74,27 @@ describe("setup wizard screens", () => {
     }
   });
 
-  it("saves an opt-out when the setup button is clicked and redraws the private state", async () => {
-    settings.publicDungeonRuns = true;
+  it("saves the member role picked in the step 6 select and acknowledges the click at once", async () => {
     const listeners = new Map<string, (...args: never[]) => void>();
     const collector = { on: (event: string, handler: (...args: never[]) => void) => listeners.set(event, handler) };
     vi.mocked(requireGuildContext).mockResolvedValue({ guildId: "g1", memberId: "m1" } as never);
-    vi.mocked(guildService.updateSettings).mockImplementation((_id, data) => {
-      settings.publicDungeonRuns = data.publicDungeonRuns!;
-      return Promise.resolve(settings) as never;
-    });
+    vi.mocked(guildService.updateSettings).mockResolvedValue(settings as never);
     const editReply = vi.fn<(payload: { embeds: { data: { description: string } }[] }) => Promise<void>>(async () => undefined);
+    const deferUpdate = vi.fn(async () => undefined);
     try {
       await executeSetup({ guild, guildId: "discord", user: { id: "owner" }, member: { permissions: { has: () => true } },
         options: { getBoolean: () => false }, deferReply: vi.fn(), editReply,
         fetchReply: async () => ({ createMessageComponentCollector: () => collector }) } as never);
-      listeners.get("collect")!({ customId: "setup:public-sharing-off", user: { id: "owner" }, deferUpdate: async () => undefined,
-        isChannelSelectMenu: () => false, isRoleSelectMenu: () => false, isStringSelectMenu: () => false } as never);
+      listeners.get("collect")!({ customId: "setup:role-member", user: { id: "owner" }, values: ["r1"], deferUpdate,
+        isChannelSelectMenu: () => false, isRoleSelectMenu: () => true, isStringSelectMenu: () => false } as never);
+      expect(deferUpdate).toHaveBeenCalledTimes(1);
       await vi.waitFor(() => expect(editReply).toHaveBeenCalledTimes(2));
-      expect(guildService.updateSettings).toHaveBeenCalledWith("g1", { publicDungeonRuns: false });
-      expect(editReply.mock.calls[1]![0].embeds[0]!.data.description).toContain("sharing: OFF");
+      expect(guildService.updateSettings).toHaveBeenCalledWith("g1", { memberRoleId: "r1" });
     } finally {
-      settings.publicDungeonRuns = false;
       vi.mocked(guildService.updateSettings).mockReset();
       vi.mocked(requireGuildContext).mockReset();
     }
   });
-
   it("every step builds a payload Discord will accept", async () => {
     for (let step = 0; step <= 8; step++) {
       const screen = await renderStep(step, guild as never, "g1", step === 2 ? "Saved <#c1>." : "");
@@ -144,7 +133,7 @@ describe("setup wizard screens", () => {
   it("the checklist step offers to create every missing channel and role in one click", async () => {
     const screen = await renderStep(8, guild as never, "g1", "");
     const labels = screen.components.flatMap((row) => row.toJSON().components.map((c) => (c as { label?: string }).label));
-    expect(labels).toContain("Create missing channels (12)");
+    expect(labels).toContain("Create missing channels (15)");
     expect(labels).toContain("Create missing roles (3)");
   });
 

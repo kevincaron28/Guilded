@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { cleanDeviceName, hashCompanionSecret } from "./character-pairing.js";
+import { noteCredentialUse } from "./credential-use.js";
 
 // Personal companion codes (7.0): a signed-in website account pairs the Guilded companion
 // without a guild, to send its own dungeon runs to the public leaderboards. Same rules as
@@ -62,6 +63,7 @@ export function prismaPersonalStore(database: PrismaClient): PersonalStore {
     },
     async credentialAccount(tokenHash) {
       const row = await database.webCompanionCredential.findFirst({ where: { tokenHash, revokedAt: null }, select: { accountId: true, account: { select: { username: true } } } });
+      if (row) noteCredentialUse(database.webCompanionCredential as never, tokenHash);
       return row ? { accountId: row.accountId, username: row.account.username } : null;
     },
     async revokeCredentials(accountId) { await database.webCompanionCredential.updateMany({ where: { accountId, revokedAt: null }, data: { revokedAt: new Date() } }); },

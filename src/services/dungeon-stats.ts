@@ -6,6 +6,7 @@ import { validBracketedRules } from "./dungeon-november-rules.js";
 import { weekSeason, weekWindow } from "./dungeon-periods.js";
 import { participationDungeonKey, participationMode, participationRecordEligible, type ParticipationRun } from "./dungeon-participation.js";
 import { snapshotGuidance } from "./dungeon-snapshot-guidance.js";
+import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 
 // Read-only views of the dungeon challenge (roadmap D5): leaderboards,
 // records, a player's page, recent runs and the season. Invalidated runs
@@ -47,14 +48,20 @@ export async function pointsFilter(database: Pick<PrismaClient, "dungeonSeason">
   return where;
 }
 
-export async function leaderboard(database: Db, guildId: string, period: Period, instanceId: number | null, limit = 10, now = new Date(), seasonId?: string): Promise<LeaderRow[]> {
+export async function leaderboard(database: Db & Partial<Pick<PrismaClient, "character" | "unclaimedCharacter" | "guildRosterEntry">>, guildId: string, period: Period, instanceId: number | null, limit = 10, now = new Date(), seasonId?: string): Promise<LeaderRow[]> {
   const where = await pointsFilter(database, guildId, period, now, seasonId);
   if (instanceId !== null) where.run = { ...(where.run as object | undefined), instanceId };
   const grouped = await database.dungeonPointTransaction.groupBy({
     by: ["memberId"], where, _sum: { amount: true }, orderBy: { _sum: { amount: "desc" } }, take: limit + 5
   });
   const members = await database.member.findMany({ where: { id: { in: grouped.map((row) => row.memberId) } }, select: { id: true, displayName: true } });
-  const names = new Map(members.map((member) => [member.id, member.displayName]));
+  // Owner rule: people are shown by their character's full name; the Discord name follows in parentheses.
+  const mains = database.character ? await database.character.findMany({ where: { memberId: { in: grouped.map(row => row.memberId) } },
+    orderBy: [{ isMain: "desc" }, { createdAt: "asc" }], select: { memberId: true, name: true, displayName: true } }) : [];
+  const book = await loadFullNameBook(database, guildId);
+  const mainOf = new Map<string, string>();
+  for (const character of mains) if (!mainOf.has(character.memberId)) mainOf.set(character.memberId, displayCharacterName(character, book));
+  const names = new Map(members.map((member) => [member.id, characterWithMember(mainOf.get(member.id), member.displayName)] as const));
   return grouped
     .map((row) => ({ memberId: row.memberId, name: names.get(row.memberId) ?? "?", points: row._sum.amount ?? 0 }))
     .filter((row) => row.points > 0)
@@ -196,15 +203,15 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
   const totals = await database.dungeonPointTransaction.groupBy({
     by: ["seasonId", "memberId"], where: { guildId, seasonId: { in: selected.filter(season => !ratingRows.has(season.id) && finalRows(season.finalStandings) === null).map(season => season.id) } }, _sum: { amount: true }
   });
-  const ids = [...new Set([...totals.map(row => row.memberId), ...selected.flatMap(season => (ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.map(row => row.memberId) ?? [])])];
+  const ids = [...new Set([...totals.map(row => row.memberId), ...selected.flatMap(season => (ratingRows.get(season.id) ?? finalRows(season.finalStandings))?.filter(row => !row.memberId.startsWith("char:")).map(row => row.memberId) ?? [])])];
   const [members, characters] = await Promise.all([
     database.member.findMany({ where: { guildId, id: { in: ids } }, select: { id: true, displayName: true } }),
     database.character.findMany({ where: { member: { guildId }, memberId: { in: ids } },
-      orderBy: [{ isMain: "desc" }, { createdAt: "asc" }], select: { memberId: true, name: true } })
+      orderBy: [{ isMain: "desc" }, { createdAt: "asc" }], select: { memberId: true, name: true, displayName: true } })
   ]);
   const names = new Map(members.map(member => [member.id, member.displayName]));
   const mainName = new Map<string, string>();
-  for (const character of characters) if (!mainName.has(character.memberId)) mainName.set(character.memberId, character.name);
+  for (const character of characters) if (!mainName.has(character.memberId)) mainName.set(character.memberId, character.displayName?.trim() || character.name);
   const boards = selected.map(season => ({
     id: season.id, season: season.name, status: season.status,
     // ISO UTC; the addon labels each recent run with the season whose dates contain it.
@@ -237,6 +244,16 @@ export async function addonDungeonBoard(database: Db & Pick<PrismaClient, "chara
 }
 
 // "1. Kev — 240" lines with medals for the top three.
+/**
+ * "Character (Discord name)", the owner's naming rule, without doubled brackets: a server nickname that already ends in
+ * brackets ("Maxle (class)") loses them. The Discord name is left out only when it is the character's name itself.
+ */
+export function characterWithMember(character: string | undefined, memberName: string): string {
+  if (!character) return memberName;
+  const member = memberName.replace(/\s*\([^()]*\)\s*$/, "").trim() || memberName.trim();
+  return member.normalize("NFKC").toLowerCase() === character.normalize("NFKC").toLowerCase() ? character : `${character} (${member})`;
+}
+
 export function formatLeaderboard(rows: LeaderRow[]): string {
   const medals = ["🥇", "🥈", "🥉"];
   return rows.map((row, index) => `${medals[index] ?? `${index + 1}.`} **${row.name}** — ${row.points}`).join("\n");

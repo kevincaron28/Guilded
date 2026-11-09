@@ -98,11 +98,111 @@ function module.switches()
       set = function(on) run(on and "chat tab" or "chat off") end
     },
     {
+      label = L("Guild events in the Guilded tab: joins"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("join") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("join", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: leaves"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("leave") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("leave", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: removals"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("kick") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("kick", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: promotions"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("promote") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("promote", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: demotions"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("demote") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("demote", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: coming online"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("online") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("online", on) end end
+    },
+    {
+      label = L("Guild events in the Guilded tab: going offline"),
+      get = function() return ns.chatTab and ns.chatTab.eventEnabled("offline") or false end,
+      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("offline", on) end end
+    },
+    {
+      label = L("Online and offline lines: officers only"),
+      get = function() return ns.chatTab and ns.chatTab.officersOnlyPresence() or false end,
+      set = function(on) local s = settings(); if s then s.chatEventsOfficersOnly = on and true or nil end end
+    },
+    {
+      label = L("Weekly reminder to get the Windows companion"),
+      get = function() return ns.companionLink and ns.companionLink.enabled() or false end,
+      set = function(on) run(on and "companion on" or "companion off") end
+    },
+    {
       label = L("Show what changed since my last login"),
       get = function() local d = db(); return not (d and d.digest and d.digest.enabled == false) end,
       set = function(on) run(on and "digest on" or "digest off") end
     },
+    -- Who can craft an item, on its tooltip: Off / Compact / Full (a button that cycles).
+    {
+      label = L("Item tooltips: who can craft it"),
+      cycle = function()
+        local r = ns.recipes
+        local mode = r and r.tooltipMode and r.tooltipMode() or "compact"
+        return L(r and r.MODE_WORD and r.MODE_WORD[mode] or "Compact")
+      end,
+      next = function() local r = ns.recipes; if not r then return end
+        local order, current = r.MODES, r.tooltipMode()
+        for i, mode in ipairs(order) do if mode == current then r.setTooltipMode(order[i % #order + 1]) return end end
+        r.setTooltipMode("compact")
+      end
+    },
+    -- Milestone announcements in guild chat: OFF until the player turns them on (8.4.5).
+    {
+      label = L("Announce my milestones in guild chat"),
+      get = function() return ns.milestones and ns.milestones.enabled() or false end,
+      set = function(on) run(on and "milestones on" or "milestones off") end
+    },
+    {
+      label = L("Milestones: level 10, 20..."),
+      get = function() return ns.milestones and ns.milestones.enabled("level") or false end,
+      set = function(on) run("milestones level " .. (on and "on" or "off")) end
+    },
+    {
+      label = L("Milestones: first dungeon clears"),
+      get = function() return ns.milestones and ns.milestones.enabled("dungeon") or false end,
+      set = function(on) run("milestones dungeon " .. (on and "on" or "off")) end
+    },
+    {
+      label = L("Milestones: honorable kills"),
+      get = function() return ns.milestones and ns.milestones.enabled("hk") or false end,
+      set = function(on) run("milestones hk " .. (on and "on" or "off")) end
+    },
+    {
+      label = L("Milestones: duel wins"),
+      get = function() return ns.milestones and ns.milestones.enabled("duel") or false end,
+      set = function(on) run("milestones duel " .. (on and "on" or "off")) end
+    },
+    {
+      label = L("Milestones: profession skill"),
+      get = function() return ns.milestones and ns.milestones.enabled("prof") or false end,
+      set = function(on) run("milestones prof " .. (on and "on" or "off")) end
+    },
   }
+  -- Officer clients: the jobs they do on their own (Modules/OfficerNotes.lua), each with its own off switch.
+  if ns.isOfficer and ns.isOfficer() and ns.officerNotes then
+    for _, key in ipairs(ns.officerNotes.KEYS) do
+      table.insert(list, {
+        label = L(ns.officerNotes.LABELS[key]),
+        get = function() return ns.officerNotes.enabled(key) end,
+        set = function(on) ns.officerNotes.set(key, on) end
+      })
+    end
+  end
   -- One switch per optional module, just for you (officers still use /guilded modules guild).
   for _, entry in ipairs(ns.MODULES or {}) do
     local key = entry.key
@@ -121,10 +221,15 @@ local panel, category, boxes
 local function refresh()
   if not boxes then return end
   for _, box in ipairs(boxes) do
+    if box.switch.cycle then
+      local ok, text = pcall(box.switch.cycle)
+      box:SetText(ok and text or "")
+    else
     local ok, value = pcall(box.switch.get)
     box:SetChecked(ok and value and true or false)
     if box.state and box.switch.module and ns.moduleStateText then
       box.state:SetText(ns.moduleStateText(box.switch.module))
+    end
     end
   end
 end
@@ -158,16 +263,25 @@ local function build()
   scroll:SetScrollChild(list)
   boxes = {}
   local y = -6
+  local headed = false
   for index, switch in ipairs(module.switches()) do
-    if index == 4 then
+    if switch.module and not headed then
+      headed = true
       local header = list:CreateFontString(nil, "ARTWORK", "GameFontNormal")
       header:SetPoint("TOPLEFT", 16, y - 6)
       header:SetText(L("Optional parts (a part turned back on starts after /reload)"))
       y = y - 26
     end
-    local box = CreateFrame("CheckButton", nil, list, "UICheckButtonTemplate")
-    box:SetSize(24, 24)
-    box:SetPoint("TOPLEFT", 16, y)
+    local box
+    if switch.cycle then
+      box = CreateFrame("Button", nil, list, "UIPanelButtonTemplate")
+      box:SetSize(90, 22)
+      box:SetPoint("TOPLEFT", 18, y - 1)
+    else
+      box = CreateFrame("CheckButton", nil, list, "UICheckButtonTemplate")
+      box:SetSize(24, 24)
+      box:SetPoint("TOPLEFT", 16, y)
+    end
     box.switch = switch
     local label = list:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
     label:SetPoint("LEFT", box, "RIGHT", 4, 0)
@@ -177,7 +291,11 @@ local function build()
       box.state:SetPoint("LEFT", label, "RIGHT", 8, 0)
     end
     box:SetScript("OnClick", function(self)
-      pcall(self.switch.set, self:GetChecked() and true or false)
+      if self.switch.cycle then
+        pcall(self.switch.next)
+      else
+        pcall(self.switch.set, self:GetChecked() and true or false)
+      end
       refresh()
     end)
     table.insert(boxes, box)

@@ -9,7 +9,7 @@ import { communitySeasonLabel } from "./community-display.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 import { dateAfter, dayStart, participationDay, participationWeek } from "./participation-rules.js";
-import { monthlyRookie, rookieMemberLookup, ROOKIE_ROLE, type MonthlyRookie, type RookieMemberLookup } from "./monthly-rookie.js";
+import { monthlyRookie, rookieMemberLookup, ROOKIE_ROLE, WEEKLY_ROOKIE_ROLE, weeklyRookie, type MonthlyRookie, type RookieMemberLookup } from "./monthly-rookie.js";
 import { weekStart as resetWeekStart } from "./dungeon-rules.js";
 import { cacheAllMembers } from "./member-cache.js";
 
@@ -226,7 +226,8 @@ export async function ensureCommunityHonors(guild: Guild, database: PrismaClient
   const monthRoleIds: string[] = [];
   for (let i = 0; i < 3; i++) monthRoleIds.push(await role(stored[i], [HONOR_ROLES.en.month[i]!, HONOR_ROLES.fr.month[i]!], ROLE_COLORS.month[i]!));
   const rookieRoleId = await role(current?.rookieRoleId, [ROOKIE_ROLE.en, ROOKIE_ROLE.fr], 0x2ecc71);
-  const data = { channelId: channel.id, weeklyRoleId, monthRoleIds, rookieRoleId };
+  const weeklyRookieRoleId = await role(current?.weeklyRookieRoleId, [WEEKLY_ROOKIE_ROLE.en, WEEKLY_ROOKIE_ROLE.fr], 0x2ecc71);
+  const data = { channelId: channel.id, weeklyRoleId, monthRoleIds, rookieRoleId, weeklyRookieRoleId };
   await database.communityHonors.upsert({ where: { guildId }, create: { guildId, ...data }, update: { ...data, rolesPending: true } });
   return created;
 }
@@ -269,11 +270,12 @@ async function weekRecap(tx: Db, guildId: string, window: { start: Date; end: Da
 type Db = Prisma.TransactionClient;
 
 // Everything a weekly post shows, for a finished week or (preview) the week so far.
-async function summarizeWeek(tx: Db, guildId: string, window: { start: Date; end: Date }, timezone: string) {
+async function summarizeWeek(tx: Db, guildId: string, window: { start: Date; end: Date }, timezone: string, lookup?: RookieMemberLookup) {
   const rows = await tx.communityPoint.findMany({ where: { season: { guildId, ...PUBLIC_DISCORD }, createdAt: { gte: window.start, lt: window.end } }, select: { userId: true, kind: true, amount: true } });
   const board = standings(rows);
   const mvps = weeklyMvps(board);
-  return { board, mvps, rookie: null, recap: await weekRecap(tx, guildId, window, timezone, board) };
+  const rookie = lookup ? await weeklyRookie(tx, guildId, window.end, board, lookup) : null;
+  return { board, mvps, rookie, recap: await weekRecap(tx, guildId, window, timezone, board) };
 }
 
 // MVP titles per member, including the current week when it is not saved yet.
@@ -318,11 +320,14 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
   const previewMode = weekMode(existing.weekStart);
   const dueWeek = honorsWeekDue(now, previewZone, existing.week, previewMode);
   let names: Names = new Map();
+  const weekJoins = new Map<string, Date | null>();
   if (dueWeek && existing.weeklyEnabled !== false) {
     const window = honorsWindow(dueWeek, previewZone, previewMode);
     // Same summary the post prints. names3 keeps the rookie even when they are
     // outside the top 3; every tied MVP is named in the congratulations line.
-    const preview = await summarizeWeek(database, guildId, window, previewZone);
+    const base = await summarizeWeek(database, guildId, window, previewZone);
+    for (const row of base.board.filter(row => row.points > 0).slice(0, 50)) weekJoins.set(row.userId, await memberLookup(row.userId));
+    const preview = { ...base, rookie: await weeklyRookie(database as never, guildId, window.end, base.board, async id => weekJoins.get(id) ?? null) };
     const ids = new Set([...names3(preview), ...preview.mvps]);
     if (ids.size) names = await lookup([...ids]);
   }
@@ -346,15 +351,16 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
     const week = honorsWeekDue(now, timezone, honors.week, mode);
     if (week && honors.weeklyEnabled === false) {
       // Turned off: the role is freed and nothing is announced or recorded.
-      await tx.communityHonors.update({ where: { guildId }, data: { week, weeklyHolderIds: [], rolesPending: true } });
+      await tx.communityHonors.update({ where: { guildId }, data: { week, weeklyHolderIds: [], weeklyRookieHolderId: null, rolesPending: true } });
       result.week = week;
     } else if (week) {
-      const summary = await summarizeWeek(tx, guildId, honorsWindow(week, timezone, mode), timezone);
+      const summary = await summarizeWeek(tx, guildId, honorsWindow(week, timezone, mode), timezone, async id => weekJoins.get(id) ?? null);
       const { board, mvps, rookie, recap } = summary;
       const points = new Map(board.map(row => [row.userId, row.points]));
-      await tx.communityHonors.update({ where: { guildId }, data: { week, weeklyHolderIds: mvps, rolesPending: true } });
+      await tx.communityHonors.update({ where: { guildId }, data: { week, weeklyHolderIds: mvps, weeklyRookieHolderId: rookie?.userId ?? null, rolesPending: true } });
       await tx.communityHonorAward.createMany({ skipDuplicates: true, data: [
-        ...mvps.map(userId => ({ guildId, kind: "WEEK", period: week, userId, points: points.get(userId) ?? null }))
+        ...mvps.map(userId => ({ guildId, kind: "WEEK", period: week, userId, points: points.get(userId) ?? null })),
+        ...(rookie ? [{ guildId, kind: "ROOKIE", period: week, userId: rookie.userId, points: rookie.points }] : [])
       ] });
       // A silent week only frees the role; there is nothing to announce.
       if (honors.channelId && Object.values(recap).some(Boolean)) {
@@ -429,6 +435,7 @@ export async function syncCommunityHonorRoles(guild: Guild, database: PrismaClie
   const roles = strings(honors.monthRoleIds), holders = ids(honors.monthHolderIds, 3);
   for (let i = 0; i < 3; i++) plan.push([roles[i] ?? null, holders[i]!]);
   plan.push([honors.rookieRoleId ?? null, honors.rookieHolderId ? [honors.rookieHolderId] : []]);
+  plan.push([honors.weeklyRookieRoleId ?? null, honors.weeklyRookieHolderId ? [honors.weeklyRookieHolderId] : []]);
   const reason = `${BRAND.name}: community honors`;
   await cacheAllMembers(guild);
   for (const [roleId, wanted] of plan) {
@@ -457,10 +464,44 @@ export async function runCommunityHonors(guild: Guild, database: PrismaClient, g
       ?? await guild.roles.create({ name: ROOKIE_ROLE[asLang(settings?.language)], colors: { primaryColor: 0x2ecc71 }, permissions: [], mentionable: false, reason: "Guilded: monthly rookie recognition" });
     await database.communityHonors.update({ where: { guildId }, data: { rookieRoleId: role.id, rolesPending: true } });
   }
+  // Existing installations adopt the weekly rookie role the same way (on with the weekly honors).
+  const weeklyCurrent = await database.communityHonors.findUnique({ where: { guildId } });
+  if (weeklyCurrent && !weeklyCurrent.weeklyRookieRoleId) {
+    const settings = await database.guildSettings.findUnique({ where: { guildId }, select: { language: true } });
+    const roles = await guild.roles.fetch();
+    const role = roles.find(role => Object.values(WEEKLY_ROOKIE_ROLE).includes(role.name))
+      ?? await guild.roles.create({ name: WEEKLY_ROOKIE_ROLE[asLang(settings?.language)], colors: { primaryColor: 0x2ecc71 }, permissions: [], mentionable: false, reason: "Guilded: weekly rookie recognition" });
+    await database.communityHonors.update({ where: { guildId }, data: { weeklyRookieRoleId: role.id, rolesPending: true } });
+  }
   await advanceCommunityHonors(database, guildId, now, discordNames(guild), rookieMemberLookup(guild));
   const honors = await database.communityHonors.findUnique({ where: { guildId } });
   if (!honors?.rolesPending || now.getTime() - (lastSyncAttempt.get(guildId) ?? 0) < 15 * 60_000) return;
   lastSyncAttempt.set(guildId, now.getTime());
-  await syncCommunityHonorRoles(guild, database, honors);
-  lastSyncAttempt.delete(guildId);
+  if (await trySyncHonorRoles(guild, database, honors, now)) lastSyncAttempt.delete(guildId);
 }
+
+/** Runs the role sync; a Discord permission refusal is warned once a day and retried, anything else is thrown. True when it worked. */
+export async function trySyncHonorRoles(guild: Guild, database: PrismaClient, honors: CommunityHonors, now = new Date()): Promise<boolean> {
+  const guildId = honors.guildId;
+  try {
+    await syncCommunityHonorRoles(guild, database, honors);
+    honorRolesBlockedAt.delete(guildId);
+    return true;
+  } catch (error) {
+    // Missing Permissions / Access: the Guilded role sits below the honor roles. rolesPending stays set so it retries.
+    if (!isPermissionError(error)) throw error;
+    const lastWarned = honorRolesWarnedAt.get(guildId) ?? 0;
+    honorRolesBlockedAt.set(guildId, now.getTime());
+    if (!lastWarned || now.getTime() - lastWarned >= 24 * 60 * 60_000) {
+      honorRolesWarnedAt.set(guildId, now.getTime());
+      console.warn(`Community honors: cannot update roles in guild ${guildId} (Discord ${(error as { code: number }).code}); move the Guilded role above the honor roles. Retrying every 15 minutes.`);
+    }
+    return false;
+  }
+}
+
+const isPermissionError = (error: unknown): boolean => typeof error === "object" && error !== null && "code" in error && [50013, 50001].includes((error as { code: number }).code);
+const honorRolesBlockedAt = new Map<string, number>();
+const honorRolesWarnedAt = new Map<string, number>();
+/** True while the last honor role sync in this guild was refused by Discord (the /setup checklist shows the fix). */
+export const honorRolesBlocked = (guildId: string): boolean => honorRolesBlockedAt.has(guildId);

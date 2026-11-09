@@ -17,17 +17,16 @@ import { executeRaidHistory, executeRaidSeason } from "./raid-season.js";
 import { bossProgress } from "../services/progress.js";
 import { parseRaidTime } from "../services/raid-time.js";
 import { asLang, t, type Lang } from "../i18n.js";
-import { createRaidService, DpsKindFullError, SignupsClosedError, type SignupAvailability } from "../services/raid.js";
+import { createRaidService, DpsKindFullError, SignupsClosedError } from "../services/raid.js";
 import { coreSpotLabel, createRaidCoreService } from "../services/raid-core.js";
 import { buildSignupEmbed, openKindSpots, openSpots } from "../services/signup-embed.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { BRAND } from "../brand.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
-import { SIGNUP_CHARACTER_SELECT, loadClassEmojis } from "../services/character-display.js";
+import { SIGNUP_CHARACTER_SELECT, loadClassEmojis, cleanCharacterName, displayCharacterName } from "../services/character-display.js";
 import { signupLayout } from "../services/signup-layout.js";
 import { dpsKind, signupSpec, specsForRole } from "../services/dps-kind.js";
-import { currentEdition } from "../services/edition-context.js";
 import { signupDpsKind } from "../services/raid.js";
 import { officerEntryButton } from "../services/officer-buttons.js";
 import { voiceAttendancePlan, voiceAttendanceSummary } from "../services/voice-attendance.js";
@@ -85,19 +84,6 @@ export const raidCommand = new SlashCommandBuilder()
     .addStringOption((o) => o.setName("message").setDescription("Optional extra text").setMaxLength(300)))
   .addSubcommand((sub) => sub.setName("cancel").setDescription("Cancel a raid.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true)))
-  .addSubcommand((sub) => sub.setName("signup").setDescription("Sign up for a raid.")
-    .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true))
-    .addStringOption((o) => o.setName("role").setDescription("Your role for this raid").setRequired(true)
-      .addChoices(
-        { name: "Tank", value: "TANK" },
-        { name: "Healer", value: "HEALER" },
-        { name: "DPS", value: "DPS" }
-      ))
-    .addStringOption((o) => o.setName("availability").setDescription("Available (default) or Maybe")
-      .addChoices(
-        { name: "Available", value: "AVAILABLE" },
-        { name: "Maybe", value: "MAYBE" }
-      )))
   .addSubcommand((sub) => sub.setName("cancel-signup").setDescription("Cancel your raid signup.")
     .addStringOption((o) => o.setName("raid").setDescription("Raid (start typing its name)").setAutocomplete(true).setRequired(true)))
   .addSubcommand((sub) => sub.setName("status").setDescription("View raid status.")
@@ -169,12 +155,12 @@ async function specMenu(raidId: string, memberId: string, lang: Lang): Promise<A
     select: { role: true, status: true, spec: true, character: { select: { className: true, spec: true } }, member: { select: { characters: { where: { isMain: true }, take: 1, select: { className: true, spec: true } } } } } });
   const character = signup?.character ?? signup?.member.characters[0] ?? null;
   if (!signup || signup.status === "CANCELLED" || !character) return [];
-  const specs = specsForRole(character.className, signup.role, currentEdition());
+  const specs = specsForRole(character.className, signup.role);
   if (specs.length < 2) return [];
   const name = (spec: { name: string; french: string }) => lang === "fr" ? spec.french : spec.name;
   const own = specs.find(spec => spec.name === character.spec);
   const kindWord = (spec: (typeof specs)[number]) => {
-    const kind = dpsKind(character.className, spec.name, currentEdition());
+    const kind = dpsKind(character.className, spec.name);
     return signup.role === "DPS" && kind ? t(lang, `role.${kind}` as const) : t(lang, `role.${signup.role}` as const);
   };
   return [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(new StringSelectMenuBuilder()
@@ -210,8 +196,7 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
     // A core raid shows the character each core member brings to this core ("Kevin · Thrall").
     const coreLabel = new Map(core?.members.map((m) => [m.memberId, coreSpotLabel(m)]) ?? []);
     const label = (signup: { memberId: string; characterName: string | null; member: { displayName: string } }) =>
-      signup.characterName ? `${signup.characterName} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName;
-    const edition = currentEdition();
+      signup.characterName ? `${cleanCharacterName(signup.characterName)} · ${signup.member.displayName}` : coreLabel.get(signup.memberId) ?? signup.member.displayName;
     const input = {
       lang, raid, classEmojis: await loadClassEmojis(discordGuild),
       signups: everyone.map((signup) => {
@@ -219,12 +204,12 @@ export async function syncSignupEmbed(discordGuild: DiscordGuild, guildId: strin
         // A spec picked for this raid replaces the character's own spec (icon and melee/ranged).
         const character = owned ? { ...owned, spec: signupSpec(signup, owned) } : null;
         return { memberId: signup.memberId, characterId: signup.characterId, character, displayName: label(signup), role: signup.role, status: signup.status, late: signup.late,
-          kind: signup.role === "DPS" ? signupDpsKind({ spec: signup.spec, character, member: signup.member }, edition) : null };
+          kind: signup.role === "DPS" ? signupDpsKind({ spec: signup.spec, character, member: signup.member }) : null };
       }),
       core: core ? { name: core.name, members: core.members.map((m) => {
         const character = m.character?.memberId === m.memberId ? m.character : null;
         return { memberId: m.memberId, characterId: m.characterId, character, backupCharacterIds: m.backups.map(backup => backup.characterId), displayName: coreSpotLabel(m), role: m.role, bench: m.bench,
-          kind: m.role === "DPS" && character ? dpsKind(character.className, character.spec, edition) : null };
+          kind: m.role === "DPS" && character ? dpsKind(character.className, character.spec) : null };
       }) } : undefined
     };
     const embed = buildSignupEmbed(input);
@@ -386,31 +371,6 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
   }
 
   const raidId = interaction.options.getString("raid", true);
-  if (subcommand === "signup") {
-    const role = interaction.options.getString("role", true) as RaidRole;
-    const availability = (interaction.options.getString("availability") ?? "AVAILABLE") as SignupAvailability;
-    const settings = await guildService.getSettings(context.guildId);
-    const character = settings?.characterSignups ? await pickSignupCharacter(interaction, context.guildId, context.memberId) : null;
-    if (settings?.characterSignups && !character) return;
-    if (!interaction.replied && !interaction.deferred) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    const signup = await raidService.signup(raidId, context.guildId, context.memberId, role, availability, character?.id, true).catch(async (error: unknown) => {
-      if (!(error instanceof SignupsClosedError)) throw error;
-      await interaction.editReply({ content: closedText(asLang(settings?.language), error), components: [] });
-      return null;
-    });
-    if (!signup) return;
-    await tellBumped(interaction.client, signup.bumped);
-    await tellPromoted(interaction, signup.promoted);
-    if (interaction.guild) await syncSignupEmbed(interaction.guild, context.guildId, raidId);
-    const replies: Record<string, string> = {
-      SIGNED_UP: `You are signed up as ${roleLabel[role]}.`,
-      MAYBE: `You are marked as **maybe** (${roleLabel[role]}). Sign up again as Available to take a slot.`,
-      WAITLISTED: `${roleLabel[role]} slots are full, so you're on the **waitlist**. You'll get a DM if a slot opens.`
-    };
-    const lang = asLang((await guildService.getSettings(context.guildId))?.language);
-    await interaction.editReply({ content: (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup recorded.") + await clashNote(raidId, context.guildId, context.memberId, lang), components: await specMenu(raidId, context.memberId, lang) });
-    return;
-  }
   if (subcommand === "fill") {
     await postFillCall(interaction, context.guildId, raidId);
     return;
@@ -467,7 +427,7 @@ export async function executeRaid(interaction: ChatInputCommandInteraction): Pro
     const kindLabel = { MELEE: "melee", RANGED: "ranged" } as const;
     await interaction.reply({ content: roster.length ? roster.map((signup) => {
       const kind = kinds.get(signup.id);
-      return `• ${signup.characterName ? signup.characterName : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}${kind ? ` (${kindLabel[kind]})` : ""}${signup.late ? " ⏰ late" : ""}`;
+      return `• ${signup.characterName ? cleanCharacterName(signup.characterName) : signup.member.displayName} (<@${signup.member.discordUserId}>) — ${roleLabel[signup.role]}${kind ? ` (${kindLabel[kind]})` : ""}${signup.late ? " ⏰ late" : ""}`;
     }).join("\n") : "No members are signed up.", flags: MessageFlags.Ephemeral });
     return;
   }
@@ -692,7 +652,7 @@ export async function handleRaidSignupButton(interaction: ButtonInteraction): Pr
         MAYBE: t(lang, "reply.maybe", { role: roleText }),
         WAITLISTED: t(lang, "reply.waitlisted", { role: roleText })
       };
-      content = (character ? `**${character.name} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
+      content = (character ? `**${displayCharacterName(character)} — ${character.realm}** : ` : "") + (replies[signup.status] ?? "Signup saved.") + await clashNote(raidId, guild.id, member.id, lang);
       components = await specMenu(raidId, member.id, lang);
     }
   }

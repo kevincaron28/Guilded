@@ -1,8 +1,11 @@
+import { cleanCharacterName } from "./character-display.js";
 import { pilotGuildScope } from "../hosted-pilot.js";
 import type { Client } from "discord.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { AddonCooldownSet, AddonRecipeSet } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
+import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
+import type { Lang } from "../i18n.js";
 
 // Who can craft what, and profession cooldowns. The addon reads them when a player opens a
 // profession window (/guilded recipes), shares them with the guild, and the companion's
@@ -105,7 +108,7 @@ export async function applyRecipeData(tx: Tx, guildId: string, input: RecipeImpo
 export interface CrafterMatch {
   itemKey: number;
   itemName: string;
-  crafters: { character: string; profession: string; member: string | null }[];
+  crafters: { character: string; profession: string; member: string | null; lastSeen: Date | null }[];
 }
 
 export async function findCrafters(database: Db, guildId: string, query: string): Promise<CrafterMatch[]> {
@@ -116,23 +119,25 @@ export async function findCrafters(database: Db, guildId: string, query: string)
     : { guildId, itemName: { contains: text, mode: "insensitive" } };
   const rows = await database.recipeKnown.findMany({ where, orderBy: [{ itemName: "asc" }, { character: "asc" }], take: 400 });
   if (rows.length === 0) return [];
-  const characters = await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, member: { select: { displayName: true } } } });
+  const characters = await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, lastSeenAt: true, member: { select: { displayName: true } } } });
   const byItem = new Map<number, CrafterMatch>();
   for (const row of rows) {
     const match = byItem.get(row.itemKey) ?? { itemKey: row.itemKey, itemName: row.itemName, crafters: [] };
     const linked = findCharacter(characters, row.character, row.realm);
-    match.crafters.push({ character: row.character, profession: row.profession, member: linked?.member.displayName ?? null });
+    match.crafters.push({ character: row.character, profession: row.profession, member: linked?.member.displayName ?? null, lastSeen: lastSeenOf(linked?.lastSeenAt, row.scannedAt) });
     byItem.set(row.itemKey, match);
   }
+  // Recently seen crafters first (the sort is stable, so ties keep the name order).
+  for (const match of byItem.values()) match.crafters.sort((a, b) => byLastSeen(a.lastSeen, b.lastSeen));
   return [...byItem.values()];
 }
 
-export function describeCrafters(query: string, matches: CrafterMatch[]): string {
+export function describeCrafters(query: string, matches: CrafterMatch[], lang: Lang = "en", now: Date = new Date()): string {
   if (matches.length === 0) {
     return `Nobody is known to craft "${query.trim()}". Only players with the addon who opened their profession window show up, and it reaches Discord when the companion uploads.`;
   }
   const lines = matches.slice(0, 8).map((match) => {
-    const who = match.crafters.map((crafter) => `${crafter.character}${crafter.member && crafter.member.toLowerCase() !== crafter.character.toLowerCase() ? ` (${crafter.member})` : ""} · ${crafter.profession}`);
+    const who = match.crafters.map((crafter) => `${cleanCharacterName(crafter.character)}${crafter.member && crafter.member.toLowerCase() !== crafter.character.toLowerCase() ? ` (${crafter.member})` : ""} · ${crafter.profession} · ${lang === "fr" ? "vu" : "seen"} ${lastSeenText(crafter.lastSeen, lang, now)}`);
     return `• **${match.itemName}** — ${who.join(", ")}`;
   });
   if (matches.length > 8) lines.push(`…and ${matches.length - 8} more matches. Type more of the name.`);
@@ -169,7 +174,7 @@ export async function describeCooldowns(database: Db, guildId: string, options: 
   }
   const lines = shown.map((row) => {
     const when = row.readyAt <= now ? "**ready**" : `<t:${Math.floor(row.readyAt.getTime() / 1000)}:R>`;
-    return `• ${row.character} — ${row.name} (${row.profession}): ${when}`;
+    return `• ${cleanCharacterName(row.character)} — ${row.name} (${row.profession}): ${when}`;
   });
   const text = `**Profession cooldowns**\n${lines.join("\n")}`;
   return text.length > 1900 ? `${text.slice(0, 1890)}\n…` : text;
@@ -194,7 +199,7 @@ export async function runCooldownPings(client: Client, database: PrismaClient, n
     if (!owner) continue;
     marked.push(row.id);
     const lines = perUser.get(owner.member.discordUserId) ?? [];
-    lines.push(`• ${row.character} — ${row.name} (${row.profession}) is ready`);
+    lines.push(`• ${cleanCharacterName(row.character)} — ${row.name} (${row.profession}) is ready`);
     perUser.set(owner.member.discordUserId, lines);
   }
   // Mark first so a Discord hiccup can never cause repeated messages.

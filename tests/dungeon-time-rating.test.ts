@@ -34,14 +34,19 @@ describe("dungeon-time competition", () => {
     expect(timeRating(seconds, 1800)).toBe(points);
     expect(calculateDungeonRating([run(seconds)], rules)[0]?.points).toBe(points);
   });
-  it("checks outside-guild carriers and unknown levels without deleting their runs", () => {
-    for (const [level, reason] of [[60, "Overlevel carry"], [null, "Party levels unknown"], [10, "Below level range"]] as const) {
+  it("checks outside-guild carriers without deleting their runs; an unknown level leaves out that player only", () => {
+    for (const [level, reason] of [[60, "Overlevel carry"], [10, "Below level range"]] as const) {
       const rows = calculateDungeonRating([run(600, level)], rules);
       expect(rows[0]).toMatchObject({ points: 0, details: [expect.objectContaining({ unrankedReason: reason, bosses: [] })] });
       expect(frozenRating(rows)).toEqual(rows);
     }
+    // The guest's level is not recorded: the run still counts for the member whose level is.
+    for (const guestLevel of [null]) expect(calculateDungeonRating([run(600, guestLevel)], rules)[0]).toMatchObject({ points: 400 });
     const incomplete = run(); incomplete.competitionData = { players: [{ name: "Member", level: 20, minLevel: 20 }] };
-    expect(calculateDungeonRating([incomplete], rules)[0]?.points).toBe(0);
+    expect(calculateDungeonRating([incomplete], rules)[0]?.points).toBe(240);
+    // With nobody's level recorded the run stays unranked.
+    const blind = run(); blind.competitionData = { players: [], encounters: [] };
+    expect(calculateDungeonRating([blind], rules)[0]?.points).toBe(0);
   });
   it("keeps fastest eligible boss records independently of best full-run score", () => {
     const slower = run(1800); slower.runRef = "slower";

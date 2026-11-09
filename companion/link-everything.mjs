@@ -5,6 +5,7 @@
 // Wording is everyday words only: a step is either "linked as ..." or "not linked yet" with one action.
 
 export const ALREADY_LINKED = 'Already linked, nothing to do.';
+export const NOT_IN_A_GUILD_SERVER = "Signed in, but you're not in a Discord server that uses Guilded yet. Join your guild's Discord, then press Link to my guild.";
 
 /** @param {any} [config] @param {any} [state] @param {any} [hub] */
 export function linkSteps(config = {}, state = {}, hub = null) {
@@ -18,7 +19,7 @@ export function linkSteps(config = {}, state = {}, hub = null) {
 
   steps.push({
     id: 'discord', required: true, state: discord ? 'done' : 'todo',
-    label: discord ? (server ? 'Discord linked to {0}' : 'Discord linked') : 'Discord not linked yet',
+    label: discord ? (personal ? 'Signed in for public dungeon rankings only' : server ? 'Discord linked to {0}' : 'Discord linked') : 'Discord not linked yet',
     args: discord && server ? [server] : [],
     next: discord ? null : 'Press “Sign in with Discord”. Your browser opens; choose your server and press Connect.'
   });
@@ -35,15 +36,17 @@ export function linkSteps(config = {}, state = {}, hub = null) {
 
   let proof;
   if (!discord) proof = { state: 'waiting', label: 'Characters not found yet', next: 'Sign in with Discord first.' };
-  else if (personal) proof = { state: 'optional', label: 'Characters (not needed for leaderboards only)', next: 'Your finished runs are sent without a guild, so no character check is needed.' };
+  // Leaderboards only usually means the Discord account is in no server that uses Guilded yet (the
+  // sign-in page picks it when there is none). Say so, and never "everything is linked" (8.5 fresh-PC test).
+  else if (personal) proof = { state: 'todo', label: 'No guild server yet', next: NOT_IN_A_GUILD_SERVER };
   else if (characters) proof = { state: 'done', label: '{0} character(s) linked', args: [characters], next: null };
-  else if (!wowFile) proof = { state: 'todo', label: 'Characters not found yet', next: 'Press Find my saved data, then log in to WoW once and we will find your characters.' };
+  else if (!wowFile) proof = { state: 'todo', label: 'Characters not found yet', next: 'Press Find my addon data, then log in to WoW once and we will find your characters.' };
   else if (!state.lastUpload) proof = { state: 'todo', label: 'Characters not found yet', next: 'Log in to WoW once and we will find your characters. Type /reload or log out so your data is saved.' };
   else proof = { state: 'todo', label: 'Characters not found yet', next: 'Sent, but no character matched yet. Press Check my characters in a minute; if it stays empty, open Discord, type /character claim and pick yours.' };
   steps.push({ id: 'characters', required: !personal, args: [], ...proof });
 
   const required = steps.filter(step => step.required);
-  const complete = required.every(step => step.state === 'done');
+  const complete = !personal && required.every(step => step.state === 'done');
   const nextStep = steps.find(step => step.required && step.state !== 'done') || null;
   return { steps, complete, nextStep, firstRun: !discord };
 }

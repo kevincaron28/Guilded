@@ -27,13 +27,14 @@ function ns.slash(text)
     table.remove(args, 1)
     ns.commandHandlers[action](args)
   else
-    ns.message("/gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto")
+    ns.message(ns.L("Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"))
   end
 end
 
 SLASH_GUILDEDDUNGEONS1 = "/gdungeons"
 SLASH_GUILDEDDUNGEONS2 = "/gdg"
-SlashCmdList = SlashCmdList or {}
+-- Never assign the SlashCmdList global itself (not even `SlashCmdList = SlashCmdList or {}`): that taints it, and
+-- every Blizzard slash command typed afterwards (/ginvite, ...) is blocked as "only available to the Blizzard UI".
 SlashCmdList["GUILDEDDUNGEONS"] = function(text) ns.slash(text) end
 
 local frame = CreateFrame("Frame")

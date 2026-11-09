@@ -35,7 +35,7 @@ catalogs are preserved. Blizzard CDN assets are verified before upload.
 References: [Discord application emoji documentation](https://docs.discord.com/developers/resources/emoji)
 and [Blizzard's Dévoration specialization announcement](https://worldofwarcraft.blizzard.com/fr-fr/news/24235744/plongez-au-c%C5%93ur-de-la-nouvelle-sp%C3%A9cialisation-de-chasseur-et-chasseuse-de-d%C3%A9mons-d%C3%A9voration).
 
-The addon retains Retail specialization detection and now exports Classic's
+The addon still reads the client's specialization when it offers one, and exports the
 unique talent tree with the most spent points. Zero points or tied trees
 remain unknown. Talent changes refresh the character block, owned-character
 export and paced readiness broadcast. Install the rebuilt addon, preserving
@@ -61,8 +61,8 @@ and backup precede deployment. Real-client gates remain separate.
 ## Melee and ranged DPS (29 October 2026)
 
 `src/services/dps-kind.ts` sorts each class and spec into tank, healer, melee or
-ranged for the guild's WoW edition. Survival Hunters are melee on Retail only and
-ranged everywhere else. A tank or healer spec signed up as DPS falls back to the
+ranged with WoW Forever's specs (Guilded supports WoW Forever only). Survival Hunters
+are ranged. A tank or healer spec signed up as DPS falls back to the
 class's usual damage kind; Druids and Shamans with no damage spec stay unknown and
 are listed under "DPS · spec unknown". A signup without a character uses the
 member's main character.

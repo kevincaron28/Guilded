@@ -1,6 +1,6 @@
 import { readdir, stat } from "node:fs/promises";
 import { join, sep } from "node:path";
-import { isFolderOnHold } from "./active-editions.mjs";
+import { isOtherEditionFolder } from "./wow-folder.mjs";
 
 // Launch-day check (WoW Forever goes live on 4 November 2026). The companion watches the exact
 // saved file the player picked, and every tested install points into the beta client
@@ -41,6 +41,24 @@ async function modifiedMs(path) {
   try { const info = await stat(path); return info.isFile() ? info.mtimeMs : null; } catch { return null; }
 }
 
+// Problems panel (companion/problems.mjs): WoW writes every addon's saved file in the same second
+// on /reload or logout. The newest other addon file in the watched folder tells whether the game
+// saved there since Guilded last did. Guilded's own files and backups are left out.
+const OWN_FILES = /^guilded(?:dungeons)?\.lua$/i;
+async function othersSavedMs(watchFile) {
+  const folder = String(watchFile).replace(/[\\/][^\\/]*$/, "");
+  if (!folder || folder === watchFile) return null;
+  let names;
+  try { names = await readdir(folder); } catch { return null; }
+  let newest = null;
+  for (const name of names) {
+    if (!/\.lua$/i.test(name) || OWN_FILES.test(name)) continue;
+    const ms = await modifiedMs(join(folder, name));
+    if (ms !== null && (newest === null || ms > newest)) newest = ms;
+  }
+  return newest;
+}
+
 async function subfolders(path) {
   try { return (await readdir(path, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name); }
   catch { return []; }
@@ -53,7 +71,8 @@ async function subfolders(path) {
 export async function checkSavedFile(watchFile, { now = Date.now(), ignore = /** @type {string[]} */ ([]) } = {}) {
   const watchedMs = watchFile ? await modifiedMs(watchFile) : null;
   const stale = watchedMs !== null && now - watchedMs >= STALE_AFTER_MS;
-  const result = { changedAt: watchedMs === null ? null : new Date(watchedMs).toISOString(), stale, candidate: null };
+  const othersMs = watchFile ? await othersSavedMs(watchFile) : null;
+  const result = { changedAt: watchedMs === null ? null : new Date(watchedMs).toISOString(), stale, candidate: null, othersChangedAt: othersMs === null ? null : new Date(othersMs).toISOString() };
   const parts = savedFileParts(watchFile);
   if (!parts) return result;
   const fromBeta = isBeta(parts.flavor);
@@ -64,8 +83,8 @@ export async function checkSavedFile(watchFile, { now = Date.now(), ignore = /**
   const found = [];
   for (const game of games) {
     if (samePath(game.name, parts.flavor) || isBeta(game.name)) continue;
-    // Never offer another edition's file while that edition is on hold (companion/active-editions.mjs).
-    if (isFolderOnHold(game.name)) continue;
+    // Never offer another WoW version's file: Guilded supports WoW Forever only.
+    if (isOtherEditionFolder(game.name)) continue;
     const accounts = join(game.path, "WTF", "Account");
     for (const account of await subfolders(accounts)) {
       const path = join(accounts, account, "SavedVariables", parts.file);

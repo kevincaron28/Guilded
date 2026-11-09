@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "../services/character-display.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { createAuditService } from "../services/audit.js";
 import { prisma } from "../database.js";
@@ -22,7 +23,9 @@ const WHY: Record<string, { en: string; fr: string }> = {
   UNLINKED: { en: "character not linked to a member (`/officer character link`)", fr: "personnage non lié à un membre (`/officer character link`)" },
   NO_CORE: { en: "no raid core was chosen (`/guilded void` it, then award again after `/guilded core <name>`)", fr: "aucun core choisi (`/guilded void`, puis redonne après `/guilded core <nom>`)" },
   UNKNOWN_POOL: { en: "its raid core was deleted or has no point pool", fr: "son core a été supprimé ou n'a pas de pool de points" },
-  NO_CORE_RAID: { en: "no core raid matched yet (imports after `/guilded end`)", fr: "aucun raid de core trouvé (s'importe après `/guilded end`)" }
+  NO_CORE_RAID: { en: "no core raid matched yet (imports after `/guilded end`)", fr: "aucun raid de core trouvé (s'importe après `/guilded end`)" },
+  // WoW Forever, 8.5: a pre-8.5 first name ("Lebowski") whose characters belong to several members.
+  SHARED_FIRST_NAME: { en: "WoW Forever first name shared by several members' characters: link that name to the right member (`/officer character link`)", fr: "prénom WoW Forever partagé par les personnages de plusieurs membres : lie ce nom au bon membre (`/officer character link`)" }
 };
 
 export async function executeImportHeld(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -52,10 +55,10 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
     });
     await interaction.reply({
       content: dismiss
-        ? (fr ? `Entrée retirée : **${row.character}** ${row.detail}. Elle ne sera jamais importée (\`/import held restore:${wanted}\` pour revenir en arrière).`
-          : `Dismissed: **${row.character}** ${row.detail}. It will never be imported (\`/import held restore:${wanted}\` to undo).`)
-        : (fr ? `Entrée rétablie : **${row.character}** ${row.detail}. La prochaine synchronisation la réessaie.`
-          : `Restored: **${row.character}** ${row.detail}. The next sync tries it again.`),
+        ? (fr ? `Entrée retirée : **${cleanCharacterName(row.character)}** ${row.detail}. Elle ne sera jamais importée (\`/import held restore:${wanted}\` pour revenir en arrière).`
+          : `Dismissed: **${cleanCharacterName(row.character)}** ${row.detail}. It will never be imported (\`/import held restore:${wanted}\` to undo).`)
+        : (fr ? `Entrée rétablie : **${cleanCharacterName(row.character)}** ${row.detail}. La prochaine synchronisation la réessaie.`
+          : `Restored: **${cleanCharacterName(row.character)}** ${row.detail}. The next sync tries it again.`),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -72,7 +75,7 @@ export async function executeImportHeld(interaction: ChatInputCommandInteraction
     return;
   }
   const lines = waiting.slice(0, MAX_SHOWN).map((row) =>
-    `\`${codeOf(row.id)}\` **${row.character}** ${row.detail.slice(0, 80)} — ${(WHY[row.reason] ?? { en: row.reason, fr: row.reason })[fr ? "fr" : "en"]}`);
+    `\`${codeOf(row.id)}\` **${cleanCharacterName(row.character)}** ${row.detail.slice(0, 80)} — ${(WHY[row.reason] ?? { en: row.reason, fr: row.reason })[fr ? "fr" : "en"]}`);
   const head = fr
     ? `**${waiting.length} entrée(s) de l'addon en attente.** Elles s'importent seules dès que la cause est réglée; \`/import held dismiss:<code>\` en retire une pour de bon.`
     : `**${waiting.length} addon entr${waiting.length === 1 ? "y is" : "ies are"} on hold.** Each imports by itself once its cause is fixed; \`/import held dismiss:<code>\` drops one for good.`;

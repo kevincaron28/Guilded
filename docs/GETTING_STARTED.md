@@ -1,7 +1,6 @@
 # Get started with Guilded
 
-Guilded connects an addon for WoW Forever, Classic Era/Hardcore, Burning Crusade
-Classic, Mists Classic or Retail, your guild's Discord bot, and a companion that
+Guilded connects an addon for WoW Forever, your guild's Discord bot, and a companion that
 transfers saved game data. The addon also works without Discord.
 
 Start with the [quick setup checklist](QUICK_START.md).

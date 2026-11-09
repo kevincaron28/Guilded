@@ -10,7 +10,6 @@ import { publicRouteKey, readRuleSnapshot } from "./public-score.js";
 import { gameEditionOf } from "./game-edition.js";
 import { characterKey, characterReference } from "../../companion/character-identity.mjs";
 import { challengesAgree, readChallenge, type ChallengeEvidence } from "./challenge-evidence.js";
-import { encounterKey } from "./dungeon-encounter-identity.js";
 import { observationReport, reconcileParticipation } from "./dungeon-observations.js";
 
 // Public dungeon runs (7.0, roadmap request 6). Personal companions and opted-in guilds send
@@ -96,7 +95,9 @@ export type RunEvidence = Pick<RunSummary, "instanceId" | "difficultyId" | "rout
   players: (Omit<RunSummary["players"][number], "presentSec"> & { presentSec: number | null })[];
 };
 const playerKey = (player: { character: string; realm: string }) => `${key(player.character)}@${key(player.realm)}`;
-const containsKills = (a: RunEvidence, b: RunEvidence, edition: string) => b.encounters.every(kill => a.encounters.some(other => encounterKey(other,a,edition) === encounterKey(kill,b,edition)));
+// One boss per id; old Classic NPC-death kills (kind "npc") keep their own namespace.
+const encounterKey = (e: { id: number; kind?: "npc" }) => `${e.kind ?? "encounter"}:${e.id}`;
+const containsKills = (a: RunEvidence, b: RunEvidence) => b.encounters.every(kill => a.encounters.some(other => encounterKey(other) === encounterKey(kill)));
 function observationOf(summary: RunEvidence, edition: string) {
   const data = summary.integrity as { run?: unknown; players?: { character:string;realm:string;observation?:unknown }[] } | null;
   return observationReport(data?.run, summary.players.map(p=>({...p,integrity:data?.players?.find(q=>playerKey(q)===playerKey(p))?.observation})),
@@ -171,9 +172,9 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
     if (!oldObservation && !newObservation && old.presentSec !== null && (Math.abs(old.presentSec - player.presentSec) > PUBLIC_LIMITS.agreeDurationSec
       || (old.presentSec >= 0.8 * stored.durationSec) !== (player.presentSec >= 0.8 * incoming.durationSec))) return false;
   }
-  if (!observed && !containsKills(stored, incoming, incoming.gameEdition) && !containsKills(incoming, stored, incoming.gameEdition)) return false;
+  if (!observed && !containsKills(stored, incoming) && !containsKills(incoming, stored)) return false;
   for (const kill of incoming.encounters) {
-    const old = stored.encounters.find(e => encounterKey(e,stored,incoming.gameEdition) === encounterKey(kill,incoming,incoming.gameEdition));
+    const old = stored.encounters.find(e => encounterKey(e) === encounterKey(kill));
     if (old?.at !== undefined && kill.at !== undefined && Math.abs(old.at - kill.at) > PUBLIC_LIMITS.agreeDurationSec) return false;
   }
   if (stored.completedBy && incoming.completedBy && stored.completedBy !== incoming.completedBy
@@ -185,7 +186,7 @@ export function agrees(stored: RunEvidence, incoming: RunSummary): boolean {
 export function evidenceUpgrade(stored: RunEvidence, incoming: RunSummary): boolean {
   if (!agrees(stored, incoming) || stored.durationSec !== incoming.durationSec
     || stored.startedAt.getTime() !== incoming.startedAt.getTime() || stored.endedAt.getTime() !== incoming.endedAt.getTime()
-    || stored.players.length !== incoming.players.length || !containsKills(incoming, stored,incoming.gameEdition)) return false;
+    || stored.players.length !== incoming.players.length || !containsKills(incoming, stored)) return false;
   if (stored.players.some(old => !incoming.players.some(p => playerKey(p) === playerKey(old)
     && (old.level === null || p.level === old.level) && (old.minLevel === null || p.minLevel === old.minLevel)
     && (!dungeonRole(old.role) || dungeonRole(p.role) === dungeonRole(old.role)) && (old.presentSec === null || p.presentSec === old.presentSec)))) return false;
@@ -307,6 +308,10 @@ function rawRevision(value: unknown): unknown {
   delete data["previousRevisions"];return data;
 }
 
+// An upload transaction takes two advisory locks and reads the run, its uploads and the season calendar before it writes, and the 1 GB server
+// can be slow under load. Prisma's 5 s default timed out (P2028, saved error V2HP78CX); the agreement checks must stay inside the locks, so the
+// budget is raised instead of moving reads out (the same budget as the other lock-protected upload transactions).
+export const PUBLIC_RUN_TX = { timeout: 60_000, maxWait: 15_000 } as const;
 export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>new Date()): PublicRunStore {
   const select = { id: true, status: true, gameEdition: true, instanceId: true, difficultyId: true, routeKey: true, durationSec: true, startedAt: true, endedAt: true,
     evidenceVersion: true, integrity: true, completedBy: true, encounters: true, challenge: true, players: true, uploads: { select: { uploaderKey: true, reporters: true, evidence: true, historyOnly: true } } } as const;
@@ -337,7 +342,7 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
           evidence:{...uploadEvidence(summary) as Prisma.InputJsonObject,canonicalEligible:!historyOnly,admittedAt:admittedAt.toISOString()} } }
       } });
       return {historyOnly};
-      });
+      }, PUBLIC_RUN_TX);
     },
     async addUpload(runId, uploader, summary) {
       return database.$transaction(async tx => {
@@ -393,7 +398,7 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
             players: { deleteMany: {}, create: promoted.players } } : {})
         } });
         return { agree, duplicate: false };
-      });
+      }, PUBLIC_RUN_TX);
     },
     uploadsSince: (uploaderKey, since) => database.publicRunUpload.count({ where: { uploaderKey, createdAt: { gte: since } } }),
     async storedRefs(uploaderKey, gameEdition = "forever") {
@@ -406,7 +411,7 @@ export function prismaPublicRunStore(database: PrismaClient, clock:()=>Date=()=>
 // Sharing-enabled guilds (GuildSettings.publicDungeonRuns): their valid completed runs, as the bot
 // already stored and checked them, go through the same public checks under "guild:<id>".
 export async function publishGuildRuns(database: PrismaClient, store: PublicRunStore = prismaPublicRunStore(database), now = new Date()): Promise<number> {
-  const guilds = await database.guildSettings.findMany({ where: { publicDungeonRuns: true }, select: { guildId: true, publicDungeonRunsSince: true, guild: { select: { gameEdition: true } } } });
+  const guilds = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { isTestServer: false } }, select: { guildId: true, publicDungeonRunsSince: true, guild: { select: { gameEdition: true } } } });
   let published = 0;
   for (const { guildId, publicDungeonRunsSince, guild } of guilds) {
     const gameEdition = gameEditionOf(guild ?? {});

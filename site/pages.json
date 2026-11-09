@@ -28,9 +28,11 @@
     "path": "features/",
     "title": "Guilded features — addon, Windows companion and Discord",
     "description": "Use Guilded in game, sync WoW standings with the Windows companion, edit wishlists and explore your personal PoE2 mapping journal.",
+    "descriptionNoPoe": "Use Guilded in game, sync WoW standings with the Windows companion and edit wishlists.",
     "lang": "en",
     "draft": false,
-    "descriptionFr": "Utilisez Guilded en jeu, synchronisez les classements WoW avec le compagnon Windows, modifiez vos souhaits et consultez votre journal PoE2."
+    "descriptionFr": "Utilisez Guilded en jeu, synchronisez les classements WoW avec le compagnon Windows, modifiez vos souhaits et consultez votre journal PoE2.",
+    "descriptionFrNoPoe": "Utilisez Guilded en jeu, synchronisez les classements WoW avec le compagnon Windows et modifiez vos souhaits."
   },
   {
     "source": "officers.md",
@@ -64,18 +66,45 @@
   },
   {
     "source": "quebec-gold.md",
+    "sourceFr": "quebec-gold.fr.md",
+    "community": true,
     "path": "quebec-gold/",
-    "title": "Quebec Gold — communauté francophone WoW et PoE2",
-    "description": "Quebec Gold : WoW Forever et Path of Exile 2, en français à l'heure de Montréal. Découvrez la communauté et rejoignez notre Discord.",
-    "lang": "fr",
+    "title": "Quebec Gold — French-speaking WoW community",
+    "titleFr": "Quebec Gold — communauté francophone WoW et PoE2",
+    "description": "Quebec Gold: a French-speaking WoW Forever guild on Montréal time. Meet the community, see how to join and what members get with Guilded.",
+    "descriptionFr": "Quebec Gold : WoW Forever et Path of Exile 2, en français à l'heure de Montréal. Découvrez la communauté et rejoignez notre Discord.",
+    "lang": "en",
     "draft": false
   },
   {
     "source": "poe2.md",
+    "requiresGame": "poe2",
     "path": "quebec-gold/poe2/",
     "title": "Quebec Gold — communauté francophone Path of Exile 2",
     "description": "Retrouvez Quebec Gold sur Path of Exile 2 à chaque nouvelle ligue : communauté francophone, heure de Montréal et contact Discord.",
     "lang": "fr",
+    "draft": false
+  },
+  {
+    "source": "guide-install.md",
+    "sourceFr": "guide-install.fr.md",
+    "path": "guides/install/",
+    "title": "Install Guilded — step-by-step guide",
+    "titleFr": "Installer Guilded — guide pas à pas",
+    "description": "Step-by-step: install the Guilded addon from CurseForge and the free Windows companion from the Microsoft Store, then open it for the first time.",
+    "descriptionFr": "Pas à pas : installez l’addon Guilded depuis CurseForge et le compagnon Windows gratuit depuis le Microsoft Store, puis ouvrez-le une première fois.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-link.md",
+    "sourceFr": "guide-link.fr.md",
+    "path": "guides/link/",
+    "title": "Link your character — step-by-step guide",
+    "titleFr": "Lier votre personnage — guide pas à pas",
+    "description": "Step-by-step: sign in with Discord in the companion, type /reload, see that you are linked, use /guilded verify without the companion, and link a second character.",
+    "descriptionFr": "Pas à pas : connectez-vous avec Discord dans le compagnon, tapez /reload, vérifiez le lien, utilisez /guilded verify sans compagnon et liez un deuxième personnage.",
+    "lang": "en",
     "draft": false
   }
 ]

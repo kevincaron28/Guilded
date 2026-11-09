@@ -2,14 +2,14 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { battlegroundPrivacyHelp, battlegroundRecordPanel, battlegroundResultCard, battlegroundSetupHelp } from "../src/commands/battleground-record-ui.js";
 
 const mocks = vi.hoisted(() => ({
-  consent: vi.fn(), history: vi.fn(), correct: vi.fn(), stats: vi.fn(), context: vi.fn(),
+  history: vi.fn(), correct: vi.fn(), stats: vi.fn(), context: vi.fn(),
   officer: vi.fn(), language: vi.fn(), season: vi.fn(), guild: vi.fn(),
 }));
 vi.mock("../src/database.js", () => ({ prisma: { officialSeason: { findFirst: mocks.season }, guild: { findUniqueOrThrow: mocks.guild } } }));
 vi.mock("../src/commands/context.js", () => ({ requireGuildContext: mocks.context }));
 vi.mock("../src/permissions.js", () => ({ hasPermission: mocks.officer }));
 vi.mock("../src/services/activity-core-discord.js", () => ({ teamLanguage: mocks.language, requireTeamChannel: vi.fn(), teamSessionEmbed: vi.fn() }));
-vi.mock("../src/services/battleground-records.js", () => ({ setBattlegroundConsent: mocks.consent, battlegroundHistory: mocks.history, correctBattlegroundReport: mocks.correct, battlegroundStats: mocks.stats }));
+vi.mock("../src/services/battleground-records.js", () => ({ battlegroundHistory: mocks.history, correctBattlegroundReport: mocks.correct, battlegroundStats: mocks.stats }));
 import { battlegroundCommand, executeBattleground, handleBattlegroundComponent } from "../src/commands/battleground.js";
 import { runInGuildScope } from "../src/services/guild-scope.js";
 
@@ -65,10 +65,10 @@ describe("private BG records navigation", () => {
     await expect(runInGuildScope({ guild: { id: "scoped-guild" } as never, memberRoleId: "required-role" }, () => executeBattleground(i as never))).rejects.toThrow(/Current guild member role required/);
     expect(mocks.history).not.toHaveBeenCalled();
   });
-  it("persists only explicit privacy choices for the authenticated member", async () => {
-    const i = interaction("privacy", { capture: false, "guild-stats": false });
-    await executeBattleground(i as never);
-    expect(mocks.consent).toHaveBeenCalledWith(expect.anything(), "scoped-guild", "own-member", { capture: false, guildStats: false });
+  it("has no privacy subcommand any more (everything is shared)", async () => {
+    const { battlegroundCommand } = await import("../src/commands/battleground.js");
+    const names = (battlegroundCommand.toJSON().options ?? []).map((o: { name: string }) => o.name);
+    expect(names).not.toContain("privacy");
   });
   it("withdraws only the caller's report through the scoped correction service", async () => {
     const i = interaction("correct", { report: "db-report", reason: "Wrong match" });
@@ -77,7 +77,6 @@ describe("private BG records navigation", () => {
   });
   it("refuses setup to ordinary members without mutating any Discord configuration", async () => {
     await expect(executeBattleground(interaction("setup") as never)).rejects.toThrow(/Officer required/);
-    expect(mocks.consent).not.toHaveBeenCalled();
     mocks.officer.mockReturnValue(true);
     const i = interaction("setup"); await executeBattleground(i as never);
     expect(i.editReply.mock.calls[0]![0].content).toContain("changes no channels");
@@ -103,8 +102,8 @@ describe("private BG records navigation", () => {
     const i = { ...interaction("stats"), customId: "bgui:scoped-guild:stats", isChatInputCommand: () => false, isModalSubmit: () => false, isButton: () => true };
     await handleBattlegroundComponent(i as never);
     expect(mocks.stats).not.toHaveBeenCalled();
-    expect(i.editReply.mock.calls[0]![0].content).toContain("Formats and brackets are never mixed");
-    expect(i.editReply.mock.calls[0]![0].content).toContain("not a verified level range");
+    expect(i.editReply.mock.calls[0]![0].content).toContain("For one format only: `/bg stats mode:casual bracket:<bracket>`");
+    expect(i.editReply.mock.calls[0]![0].content).not.toMatch(/API|verified level range/);
     expect(i.editReply.mock.calls[0]![0].content).not.toContain("10-19");
   });
   it("makes conflicts reviewable without enabling mentions or unbounded text", () => {

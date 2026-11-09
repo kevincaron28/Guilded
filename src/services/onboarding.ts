@@ -31,6 +31,9 @@ const guildService = createGuildService(prisma);
 // Exported so tests can stub settings lookups.
 export const onboardingGuildService = guildService;
 
+import { findWowRoleId } from "./invite-channel.js";
+import { requestInviteRow } from "./invite-request.js";
+
 export const ONBOARD_PREFIX = "onboard:";
 export const MAX_ONBOARDING_ROLES = 25;
 const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
@@ -38,7 +41,7 @@ const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
 const NUDGE_UNTIL_MS = 72 * 60 * 60 * 1000;
 const NUDGES_PER_RUN = 25;
 
-type Action = "rules" | "accept" | "games" | "pick" | "pair" | "companion" | "paircode" | "steps";
+type Action = "rules" | "accept" | "games" | "pick" | "pair" | "chat" | "companion" | "paircode" | "steps";
 const customId = (action: Action, discordGuildId: string) => `${ONBOARD_PREFIX}${action}:${discordGuildId}`;
 
 type StepSettings = Pick<GuildSettings, "welcomeRoleIds" | "rulesChannelId">;
@@ -63,6 +66,7 @@ export function onboardingButtons(settings: StepSettings, discordGuildId: string
   if (settings.rulesChannelId) add("rules", "onboard.button.rules", ButtonStyle.Primary);
   if (settings.welcomeRoleIds.length > 0) add("games", "onboard.button.games", ButtonStyle.Primary);
   add("pair", "onboard.button.pair", ButtonStyle.Secondary);
+  add("chat", "onboard.button.chat", ButtonStyle.Secondary);
   add("steps", "onboard.button.steps", ButtonStyle.Success);
   return row;
 }
@@ -84,7 +88,7 @@ export function welcomePanel(settings: StepSettings, discordGuild: Pick<DiscordG
   const lines = [t(lang, "onboard.panel.intro", { guild: discordGuild.name }), ""];
   if (settings.rulesChannelId) lines.push(t(lang, "onboard.panel.rules", { channel: `<#${settings.rulesChannelId}>` }));
   if (settings.welcomeRoleIds.length > 0) lines.push(t(lang, "onboard.panel.games"));
-  lines.push(t(lang, "onboard.panel.pair"), t(lang, "onboard.panel.steps"));
+  lines.push(t(lang, "onboard.panel.pair"), t(lang, "onboard.panel.chat"), t(lang, "onboard.panel.steps"));
   return {
     embeds: [new EmbedBuilder().setTitle(t(lang, "onboard.panel.title")).setColor(0xd4af37).setDescription(lines.join("\n"))],
     components: [onboardingButtons(settings, discordGuild.id, lang)]
@@ -275,13 +279,23 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
     const progress = { ...await loadProgress(guild.id, settings, member), games: picked.length > 0 };
     const lines = [picked.length ? t(lang, "onboard.games.saved", { roles: picked.map((role) => `**${role.name}**`).join(", ") }) : t(lang, "onboard.games.none")];
     if (failed.length) lines.push(t(lang, "onboard.games.failed", { roles: failed.join(", ") }));
-    await interaction.editReply({ content: `${lines.join("\n")}\n\n${await checklist(progress)}`, components: [buttons()] });
+    // Picked World of Warcraft and the server has an invite channel: offer the one-click guild invite request.
+    const wowRoleId = findWowRoleId(discordGuild.roles.cache.values(), settings.inviteWowRoleId);
+    const inviteRow = wowRoleId && held.has(wowRoleId) && settings.inviteChannelId && settings.inviteQueueEnabled
+      ? [requestInviteRow(lang, discordGuild.id)] : [];
+    await interaction.editReply({ content: `${lines.join("\n")}\n\n${await checklist(progress)}`, components: [buttons(), ...inviteRow] });
     return;
   }
 
   if (action === "pair" || action === "companion") {
     const record = await guildService.ensureMember(guild.id, member.id, member.user.username);
     await interaction.editReply(await characterLinkPrompt(prisma, guild.id, record.id, discordGuild.id, lang, action === "companion" ? "companion" : "addon"));
+  }
+  if (action === "chat") {
+    const text = settings.inviteChannelId && settings.inviteQueueEnabled
+      ? t(lang, "onboard.chat.guide", { channel: settings.inviteChannelId })
+      : t(lang, "onboard.chat.guideNoChannel");
+    await interaction.editReply({ content: text, components: [buttons()], allowedMentions: { parse: [] } });
   }
   if (action === "paircode") {
     // Companions older than 7.2 only: one code, made on request so no other prompt replaces it.

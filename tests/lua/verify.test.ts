@@ -87,3 +87,52 @@ describe("an officer's addon hearing the code", () => {
     expect(snapshot.characters.map((row) => [row.name, row.verify])).toEqual([["Amy", "ABCDEFGH"], ["Bob", undefined]]);
   });
 });
+
+describe("the code is repeated while nobody has heard it", () => {
+  const timers = (s: LuaSession) => s.run(`local n = 0; for _, t in ipairs(TIMERS) do if t.delay == 300 then n = n + 1 end end; return n`);
+  const fire = (s: LuaSession) => s.run(`local t; for i, x in ipairs(TIMERS) do if x.delay == 300 then t = table.remove(TIMERS, i); break end end; SENT = {}; if t then t.fn() end`);
+  function withTimers(): LuaSession {
+    const s = loggedIn();
+    s.run(`TIMERS = {}; C_Timer = { After = function(delay, fn) TIMERS[#TIMERS + 1] = { delay = delay, fn = fn } end }`);
+    return s;
+  }
+
+  it("sends the digest with the code every five minutes through the paced queue", () => {
+    const s = withTimers();
+    s.run(`SlashCmdList["GUILDED"]("verify ABCD-EFGH")`);
+    expect(timers(s)).toBe("1");
+    fire(s);
+    expect(lastDigest(s)).toContain("|V:ABCDEFGH");
+    expect(lastDigest(s).length).toBeLessThanOrEqual(255);
+    // And again later, so an officer who logs in after the first broadcasts still hears it.
+    expect(timers(s)).toBe("1");
+    fire(s);
+    expect(lastDigest(s)).toContain("|V:ABCDEFGH");
+  });
+
+  it("stops once the code is removed", () => {
+    const s = withTimers();
+    s.run(`SlashCmdList["GUILDED"]("verify ABCD-EFGH")`);
+    s.run(`SlashCmdList["GUILDED"]("verify off")`);
+    fire(s);
+    expect(lastDigest(s)).toBe("");
+    expect(timers(s)).toBe("0");
+  });
+
+  it("stops once the member appears in the shared standings (confirmed)", () => {
+    const s = withTimers();
+    s.run(`SlashCmdList["GUILDED"]("verify ABCD-EFGH")`);
+    s.run(`NS.getStanding = function() return { ep = 1, gp = 1, pr = 1 } end`);
+    fire(s);
+    expect(lastDigest(s)).toBe("");
+    expect(timers(s)).toBe("0");
+    expect(s.run("return tostring(NS.verifyStatus().linked)")).toBe("true");
+  });
+
+  it("starts again after a reload when a code is saved", () => {
+    const s = withTimers();
+    s.run(`GuildedDB.verifyCode = "ABCDEFGH"; fire_event("PLAYER_LOGIN")`);
+    expect(timers(s)).toBe("1");
+    expect(s.run("return tostring(NS.verifyStatus().pending)")).toBe("true");
+  });
+});

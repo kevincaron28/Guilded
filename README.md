@@ -1,7 +1,6 @@
 # Guilded
 
-Raid and guild management for **WoW Forever, Classic Era/Hardcore, Burning Crusade Classic,
-Mists Classic and Retail**: an in-game addon, a Discord bot and a small
+Raid and guild management for **WoW Forever**: an in-game addon, a Discord bot and a small
 Windows companion app that connects the two (optional for the addon alone, needed for Discord and website features; Windows only).
 Free for noncommercial use ([license](LICENSE)).
 
@@ -15,12 +14,11 @@ Free for noncommercial use ([license](LICENSE)).
 Every in-game and Discord command, and who can run it, is in [COMMANDS.md](COMMANDS.md).
 What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
-Latest release: **8.4.3**, WoW Forever launch fixes for the companion (it now finds and
-switches to the live Forever saved-data file, and flags a wrong-edition addon). 8.4.2 fixed a
-startup crash and polished the Link everything screen (8.4.1 added that screen, the redesigned owner console, quick
-reference page, achievement cards and guild rank). See the
-[release notes](docs/V8_4_3_RELEASE_NOTES.md) and [acceptance checklist](docs/V8_4_3_RELEASE_ACCEPTANCE.md).
-CurseForge downloads are 8.4.2; the Microsoft Store companion updates separately (8.4.1.0 is live; do not rely on it, 8.4.2 fixes its startup crash).
+Latest release: **8.4.7**: Forever dungeon runs now complete and count (and runs you already did with a
+final-boss kill are recovered after updating), and the directly downloaded companion now updates itself.
+8.4.6 added member ledger sync, the live duel board and the Forever-only focus. See the
+[release notes](docs/V8_4_7_RELEASE_NOTES.md) and [acceptance checklist](docs/V8_4_7_RELEASE_ACCEPTANCE.md).
+Check each channel for its version: the Microsoft Store companion updates separately after certification.
 
 ## Quick start
 
@@ -34,11 +32,10 @@ CurseForge downloads are 8.4.2; the Microsoft Store companion updates separately
 - **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 8.4.3** (4 November 2026, protocol 2). [Release notes](docs/V8_4_3_RELEASE_NOTES.md) and [acceptance record](docs/V8_4_3_RELEASE_ACCEPTANCE.md).
-Supports Forever, Classic Era/Hardcore, TBC Anniversary, Mists Classic and Retail
-across the addon, Discord bot and companion, including several guilds in one Discord.
-Use the edition-specific ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).
-The unsuffixed ZIP is the Forever build.
+**Current version: 9.0.8** (9 November 2026, protocol 2). See the [changelog](CHANGELOG.md).
+Supports WoW Forever across the addon, Discord bot and companion, including several guilds in one Discord.
+Use the Forever ZIP from [GitHub Releases](https://github.com/kevincaron28/Guilded/releases/latest).
+The other WoW editions were removed on 7 November 2026 ([details](docs/FOREVER_ONLY_FOCUS.md)); their stored data stays readable.
 
 The owner authorized release before the unavailable Forever two-PC tests.
 [Game checks remain pending follow-up](docs/archive/V7_5_0_GAME_CHECKLIST.md); benchmarks are provisional.

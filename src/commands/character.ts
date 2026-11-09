@@ -1,4 +1,5 @@
-import { characterName } from "../services/character-display.js";
+import { armoryMarkdown } from "../services/armory-link.js";
+import { characterName, displayCharacterName, loadFullNameBook, cleanCharacterName } from "../services/character-display.js";
 import { selectedCharacter } from "../services/character-match.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
@@ -12,6 +13,9 @@ import { CLASSES } from "../wow-data.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { blockVerifiedCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
+import { removePictureByOfficer } from "../services/character-picture.js";
+import { characterTrustMap, REPORTED_HINT, trustSuffix } from "../services/character-trust.js";
+import { addRaceSubcommand, executeRace } from "./race.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
@@ -55,8 +59,15 @@ export const characterCommand = new SlashCommandBuilder()
     .setName("autolink")
     .setDescription("Link reported characters named like a Discord member."))
   .addSubcommand((subcommand) => subcommand
+    .setName("picture")
+    .setDescription("Remove a picture; pictures on/off")
+    .addStringOption((option) => option.setName("action").setDescription("Action").setRequired(true)
+      .addChoices({ name: "remove", value: "remove" }, { name: "off", value: "off" }, { name: "on", value: "on" }))
+    .addStringOption((option) => option.setName("name").setDescription("Character").setAutocomplete(true)))
+  .addSubcommand((subcommand) => subcommand
     .setName("list")
-    .setDescription("List your linked characters."));
+    .setDescription("List your linked characters."))
+  .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
 
 // The realm most of the guild's characters use, so nobody types it.
 async function defaultRealm(guildId: string): Promise<string> {
@@ -77,12 +88,17 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     await interaction.editReply(await characterLinkPrompt(prisma, context.guildId, context.memberId, interaction.guildId!, asLang(settings?.language), "companion"));
     return;
   }
+  if (subcommand === "race") { await executeRace(interaction, context); return; }
   if (subcommand === "list") {
     const characters = await guildService.listCharacters(context.memberId);
+    const book = await loadFullNameBook(prisma, context.guildId);
+    const trust = await characterTrustMap(prisma, context.guildId, characters);
+    const reported = characters.some((character) => trust.get(character.id) === "reported");
     await interaction.reply({
       content: characters.length === 0
         ? "You have no linked characters."
-        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${characterName(character)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}`).join("\n"),
+        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${displayCharacterName(character, book)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}${armoryMarkdown(character) ? ` · ${armoryMarkdown(character)}` : ""}${trustSuffix(trust.get(character.id))}`).join("\n")
+          + (reported ? `\n-# ${REPORTED_HINT}` : ""),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -120,25 +136,47 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     });
     return;
   }
-  if (["unclaimed", "link", "autolink"].includes(subcommand)) {
+  if (["unclaimed", "link", "autolink", "picture"].includes(subcommand)) {
     if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
       await interaction.reply({ content: "Only Officers and Guild Masters can do that.", flags: MessageFlags.Ephemeral });
       return;
     }
     if (subcommand === "unclaimed") {
       const rows = await prisma.unclaimedCharacter.findMany({ where: { guildId: context.guildId }, orderBy: { name: "asc" }, take: 60 });
+      const book = await loadFullNameBook(prisma, context.guildId);
       await interaction.reply({
         content: rows.length
-          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${characterName(row)} — ${row.realm} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1950)
+          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${displayCharacterName(row, book)} — ${row.realm} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1950)
           : "Every character the addons reported is linked.",
         flags: MessageFlags.Ephemeral
       });
       return;
     }
+    if (subcommand === "picture") {
+      const action = interaction.options.getString("action", true);
+      if (action === "on" || action === "off") {
+        await prisma.guildSettings.update({ where: { guildId: context.guildId }, data: { characterPicturesEnabled: action === "on" } });
+        if (interaction.guild) await postToLogChannel(interaction.guild, `${interaction.user.username} turned character pictures ${action}.`);
+        await interaction.reply({ content: action === "on"
+          ? "Character pictures are on: members pick one on their Guilded page (My page > Character pictures), and cards show it."
+          : "Character pictures are off for this server: cards and pages stop showing them. Stored pictures are kept; turn them on again to show them.", flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const wanted = interaction.options.getString("name")?.trim();
+      if (!wanted) throw new Error("Pick the character whose picture to remove.");
+      const character = selectedCharacter(await prisma.character.findMany({ where: { member: { guildId: context.guildId } }, include: { member: true } }), wanted);
+      if (!character) throw new Error(`No linked character called "${wanted}".`);
+      const removed = await removePictureByOfficer(prisma, context.guildId, character.id, context.memberId);
+      if (removed && interaction.guild) await postToLogChannel(interaction.guild, `${interaction.user.username} removed the picture of ${characterName(character)} (${character.member.displayName}).`);
+      await interaction.reply({ content: removed
+        ? `Removed the picture of **${characterName(character)}**. New cards no longer show it; cards already posted keep it. ${character.member.displayName} can pick another one.`
+        : `${characterName(character)} has no picture.`, flags: MessageFlags.Ephemeral });
+      return;
+    }
     if (subcommand === "autolink") {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
       const linked = await autoLinkUnclaimed(interaction.guild!, prisma, context.guildId);
-      await interaction.editReply({ content: linked.length ? `Linked ${linked.map((row) => `${row.character} to ${row.member}`).join(", ")}.` : "Nothing matched by name (a Discord nickname must be the character's name, e.g. \"Ray\" or \"[GOLD] Ray\"). Each owner can pick theirs with /character claim; /officer character link does it for them." });
+      await interaction.editReply({ content: linked.length ? `Linked ${linked.map((row) => `${cleanCharacterName(row.character)} to ${row.member}`).join(", ")}.` : "Nothing matched by name (a Discord nickname must be the character's name, e.g. \"Ray\" or \"[GOLD] Ray\"). Each owner can pick theirs with /character claim; /officer character link does it for them." });
       return;
     }
     const wanted = interaction.options.getString("name", true).trim();
@@ -146,7 +184,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     if (!row) throw new Error(`No unclaimed character called "${wanted}".`);
     const user = interaction.options.getUser("player", true);
     const target = await guildService.ensureMember(context.guildId, user.id, user.username);
-    const outcome = await linkUnclaimed(prisma, target.id, row);
+    const outcome = await linkUnclaimed(prisma, target.id, row, { confirmed: true });
     await interaction.reply({ content: `Linked **${characterName(row)}** to ${user.username} as ${outcome.isMain ? "their main" : "an alt"}.`, flags: MessageFlags.Ephemeral });
     return;
   }

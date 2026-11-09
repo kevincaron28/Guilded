@@ -16,11 +16,10 @@ describe("BG staging and retained-data privacy", () => {
     expect(JSON.stringify(parsed)).not.toContain("Secret opponent");
     expect(excludeHistoryBeforeReset(parsed, new Date("2026-11-06T00:00:00Z")).battlegroundReports).toHaveLength(0);
   });
-  it("retains no BG staging data for officer imports or missing server consent", async () => {
+  it("retains no BG staging data for officer imports or for a member that is not active in the guild", async () => {
     const create = vi.fn(async () => ({}));
-    const consent = { capture: false, guildId: "g", consentedAt: new Date("2026-11-04T00:00:00Z") };
-    const db = { addonImport: { create }, battlegroundConsent: { findUnique: vi.fn(async () => consent) },
-      member: { findFirst: vi.fn(async () => ({ id: "paired-member" })) }, $executeRaw: vi.fn(async () => 1),
+    const db = { addonImport: { create }, character: { findMany: vi.fn(async () => []) },
+      member: { findFirst: vi.fn(async () => null) }, $executeRaw: vi.fn(async () => 1),
       $transaction: async (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> => fn(db) };
     const service = createAddonImportService(db as never), snapshot = parseAddonSnapshot(payload([report]));
     await service.record("g", snapshot, "checksum", "officer");
@@ -28,10 +27,9 @@ describe("BG staging and retained-data privacy", () => {
     await service.record("g", snapshot, "checksum", "actor", "paired-member");
     expect(create).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ payload: expect.objectContaining({ battlegroundReports: [] }) }) }));
   });
-  it("only stages owned characters after explicit consent in the paired guild", async () => {
+  it("stages only the paired member's own characters, with no consent switch", async () => {
     const create = vi.fn(async () => ({}));
-    const consent = { capture: true, guildId: "g", consentedAt: new Date("2026-11-04T00:00:00Z") };
-    const db = { addonImport: { create }, battlegroundConsent: { findUnique: vi.fn(async () => consent) },
+    const db = { addonImport: { create },
       character: { findMany: vi.fn(async () => [{ id: "c", name: "Player", realm: "Forever", gameEdition: "forever" }]) },
       member: { findFirst: vi.fn(async () => ({ id: "paired-member" })) }, $executeRaw: vi.fn(async () => 1),
       $transaction: async (fn: (tx: unknown) => Promise<unknown>): Promise<unknown> => fn(db) };
@@ -40,8 +38,5 @@ describe("BG staging and retained-data privacy", () => {
     expect(create).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ payload: expect.objectContaining({ battlegroundReports: [report] }) }) }));
     expect(db.character.findMany).toHaveBeenCalledWith({ where: { guildId: "g", memberId: "paired-member" } });
     expect(db.$executeRaw).toHaveBeenCalled();
-    consent.guildId = "foreign";
-    await service.record("g", snapshot, "checksum", "actor", "paired-member");
-    expect(create).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ payload: expect.objectContaining({ battlegroundReports: [] }) }) }));
   });
 });

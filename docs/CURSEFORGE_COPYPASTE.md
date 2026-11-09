@@ -79,13 +79,13 @@ See the file list for the current release and verified client version. English a
 ## Guild life
 
 * **Crafters:** recipes and cooldowns shared automatically; `/guilded recipes who <item>` finds who can make it.
-* **Guild map:** guildmates on your map and minimap, with a privacy switch.
+* **Guild map:** guildmates on your map and minimap. Everything Guilded records is shared: there are no privacy switches, only a **Delete my data** request on the website.
 * **Copy for Excel:** `/guilded sheet` copies standings, loot, attendance, raids or dungeons to paste into a spreadsheet.
 * One window with a Home page, a Guilded chat tab, modules you can switch off, and backup, restore and undo per guild.
 
 ## Optional: Discord bot and website
 
-* **Hosted Discord bot:** [add it](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718703631440) and run `/setup start`. Guilded Lite (setup, help, bug reports, dungeon groups, basic signups) works right away; approval unlocks addon sync, EP/GP, seasons and the guild page. Approval can be automatic when the host enables it and the server meets its activity requirements. You can also host your own.
+* **Hosted Discord bot:** [add it](https://discord.com/oauth2/authorize?client_id=1552633893587394590&scope=bot+applications.commands&integration_type=0&permissions=2269718837849168) and run `/setup start`. Guilded Lite (setup, help, bug reports, dungeon groups, basic signups) works right away; approval unlocks addon sync, EP/GP, seasons and the guild page. Approval can be automatic when the host enables it and the server meets its activity requirements. You can also host your own.
 * Raid signups with roles, waitlist and cores; standings, wishlists, polls, Warcraft Logs and weekly reports in Discord.
 * **Website:** a [recruitment board](https://guilded.kcaron.top/recruitment/) with applications that arrive in Discord, open raid spots from other guilds, and public [player profiles](https://guilded.kcaron.top/players/).
 * **Companion** (browser, or Windows for automatic sync): Sign in with Discord, Sync now, and Export to spreadsheet.

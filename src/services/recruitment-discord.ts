@@ -1,3 +1,4 @@
+import { cleanCharacterName } from "./character-display.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags, type ButtonInteraction, type Client, type GuildMember } from "discord.js";
 import { hasPermission } from "../permissions.js";
 import { notifyInteractive } from "./notify.js";
@@ -43,11 +44,11 @@ export async function postWebApplication(client: Client | undefined, view: Decis
 function answerText(view: DecisionView, status: "ACCEPTED" | "DECLINED"): string {
   const where = `${view.guildName}${view.coreName ? ` · ${view.coreName}` : ""}`;
   if (status === "ACCEPTED") {
-    return `🎉 **${where}** accepted your application for ${view.character}. An officer will contact you.${view.inviteUrl ? ` Their Discord: ${view.inviteUrl}` : ""}\n`
-      + `🎉 **${where}** a accepté votre candidature pour ${view.character}. Un officier vous contactera.${view.inviteUrl ? ` Leur Discord : ${view.inviteUrl}` : ""}`;
+    return `🎉 **${where}** accepted your application for ${cleanCharacterName(view.character)}. An officer will contact you.${view.inviteUrl ? ` Their Discord: ${view.inviteUrl}` : ""}\n`
+      + `🎉 **${where}** a accepté votre candidature pour ${cleanCharacterName(view.character)}. Un officier vous contactera.${view.inviteUrl ? ` Leur Discord : ${view.inviteUrl}` : ""}`;
   }
-  return `**${where}** declined your application for ${view.character} this time. Other guilds are recruiting: https://guilded.kcaron.top/recruitment/\n`
-    + `**${where}** a refusé votre candidature pour ${view.character} cette fois-ci. D'autres guildes recrutent : https://guilded.kcaron.top/recruitment/?lang=fr`;
+  return `**${where}** declined your application for ${cleanCharacterName(view.character)} this time. Other guilds are recruiting: https://guilded.kcaron.top/recruitment/\n`
+    + `**${where}** a refusé votre candidature pour ${cleanCharacterName(view.character)} cette fois-ci. D'autres guildes recrutent : https://guilded.kcaron.top/recruitment/?lang=fr`;
 }
 
 export async function handleWebApplicationButton(interaction: ButtonInteraction, store: WebStore, now = new Date()): Promise<void> {

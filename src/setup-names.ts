@@ -7,7 +7,7 @@ import type { Lang } from "./i18n.js";
 
 export type ChannelField = "pugChannelId" | "notifyChannelId" | "raidSignupChannelId" | "raidLogChannelId" | "logChannelId"
   | "dungeonLeaderboardChannelId" | "dungeonSignupChannelId" | "dungeonChannelId"
-  | "lootChannelId" | "craftChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "attendanceChannelId" | "guideChannelId" | "answerChannelId" | "weeklyReportChannelId";
+  | "lootChannelId" | "craftChannelId" | "craftOrdersChannelId" | "craftArchiveChannelId" | "craftLadderChannelId" | "readinessChannelId" | "coreChannelId" | "applicationChannelId" | "attendanceChannelId" | "guideChannelId" | "answerChannelId" | "weeklyReportChannelId" | "inviteChannelId";
 
 // Access: "open" everyone talks; "readonly" everyone reads, only the bot and
 // leadership post (signup channels are read-only too: people use the buttons);
@@ -61,12 +61,18 @@ const ACCESS: Record<ChannelField, { access: Access; category: CategoryKey; foru
   dungeonLeaderboardChannelId: { access: "readonly", category: "dungeon" },
   dungeonChannelId: { access: "readonly", category: "dungeon" },
   craftChannelId: { access: "board", category: "craft", forum: true },
+  // 9.1 (owner, 7 November 2026): the open requests at a glance, and the finished ones.
+  craftOrdersChannelId: { access: "readonly", category: "craft" },
+  craftArchiveChannelId: { access: "readonly", category: "craft" },
+  craftLadderChannelId: { access: "readonly", category: "craft" },
   logChannelId: { access: "officers", category: "officers" },
   readinessChannelId: { access: "leaders", category: "officers" },
   applicationChannelId: { access: "officers", category: "officers" },
   attendanceChannelId: { access: "officers", category: "officers" },
   answerChannelId: { access: "open", category: "guild" },
-  guideChannelId: { access: "pinned", category: "guild" }
+  guideChannelId: { access: "pinned", category: "guild" },
+  // WoW category (roadmap 16): members who want in the guild are WoW players.
+  inviteChannelId: { access: "open", category: "raid" }
 };
 
 const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> = {
@@ -79,15 +85,19 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     coreChannelId: { name: "raid-roster", topic: "Raid core rosters: core members get signup priority" },
     raidLogChannelId: { name: "raid-logs", topic: "Raid summaries and Warcraft Logs, posted after each raid" },
     lootChannelId: { name: "loot-log", topic: "Loot awards and EP/GP changes" },
-    dungeonSignupChannelId: { name: "group-finder", topic: "Dungeon groups: post with the pinned button; join as tank, healer or DPS. PvP and leveling use their dedicated channels" },
+    dungeonSignupChannelId: { name: "group-finder", topic: "Dungeon and PvP groups: post with the pinned button (dungeon, battleground, arena or world PvP); join as tank, healer or DPS. Leveling uses its own channel" },
     dungeonLeaderboardChannelId: { name: "dungeon-leaderboard", topic: "Dungeon challenge standings, updated automatically" },
     dungeonChannelId: { name: "dungeon-runs", topic: "Completed dungeon runs and new records" },
     craftChannelId: { name: "craft-board", topic: "Craft requests: press Request a craft in the pinned post. Crafters filter by profession tag and press I'll craft it." },
+    craftOrdersChannelId: { name: "craft-orders", topic: "Open craft requests at a glance, one line each, updated when a crafter takes or finishes one. Ask on the craft board." },
+    craftArchiveChannelId: { name: "craft-archive", topic: "Finished and cancelled craft requests." },
+    craftLadderChannelId: { name: "top-crafters", topic: "The guild's top crafters: one point per finished craft, updated after each one." },
     logChannelId: { name: "officer-log", topic: "WoW officer log: joins, moderation, bank and craft requests (Discord community reviews go to the Discord admin channel)" },
     readinessChannelId: { name: "raid-readiness", topic: "Who is ready for raid night: gear and consumable checks (officers and raid leaders only)" },
     attendanceChannelId: { name: "raid-attendance", topic: "Who was present, late, benched or absent at each raid (officers only), posted with the raid report" },
     applicationChannelId: { name: "raid-applications", topic: "New recruitment applications (officers only): decide on each card, or use /mod application list|view|approve|reject|trial" },
-    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" }
+    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "How Guilded works, and what's new when it updates" },
+    inviteChannelId: { name: "guild-invites", topic: "Want in the guild? Write your full in-game character name here (first and last name, for example Lebowski Holyroller). An officer will invite you in game, and the bot adds a ✅ when it is done." }
   },
   fr: {
     pugChannelId: { name: "raids-ouverts", topic: "Places de raid des autres guildes Guilded. Rejoignez le Discord hôte et utilisez son inscription. /raid pug board" },
@@ -98,15 +108,19 @@ const TEXT: Record<Lang, Record<ChannelField, { name: string; topic: string }>> 
     coreChannelId: { name: "cores-de-raid", topic: "Compositions des cores de raid : les membres du core ont la priorité aux inscriptions" },
     raidLogChannelId: { name: "rapports-raid", topic: "Résumés de raid et Warcraft Logs, publiés après chaque raid" },
     lootChannelId: { name: "butin", topic: "Butin attribué et changements d'EP/GP" },
-    dungeonSignupChannelId: { name: "recherche-de-groupe", topic: "Groupes de donjon : publiez avec le bouton épinglé; rejoignez comme tank, soigneur ou DPS. JcJ et leveling : salons dédiés" },
+    dungeonSignupChannelId: { name: "recherche-de-groupe", topic: "Groupes de donjon et de JcJ : publiez avec le bouton épinglé (donjon, champ de bataille, arène ou JcJ en monde ouvert); rejoignez comme tank, soigneur ou DPS. Le leveling a son salon" },
     dungeonLeaderboardChannelId: { name: "classement-donjons", topic: "Classement du défi des donjons, mis à jour automatiquement" },
     dungeonChannelId: { name: "donjons-termines", topic: "Donjons terminés et nouveaux records" },
     craftChannelId: { name: "tableau-artisanat", topic: "Demandes d'artisanat : appuyez sur Demander un craft dans le message épinglé. Les artisans filtrent par métier et appuient sur Je le fabrique." },
+    craftOrdersChannelId: { name: "commandes-artisanat", topic: "Les demandes d'artisanat ouvertes d'un coup d'œil, une ligne chacune, mises à jour quand un artisan en prend ou en termine une. Demandez sur le tableau d'artisanat." },
+    craftArchiveChannelId: { name: "archive-artisanat", topic: "Demandes d'artisanat terminées et annulées." },
+    craftLadderChannelId: { name: "meilleurs-artisans", topic: "Les meilleurs artisans de la guilde : un point par commande terminée, mis à jour après chacune." },
     logChannelId: { name: "journal-officiers", topic: "Journal des officiers WoW : arrivées, modération, banque et demandes d'artisanat (les validations de la communauté Discord vont au salon admin Discord)" },
     readinessChannelId: { name: "preparation-raid", topic: "Qui est prêt pour la soirée de raid : gear et consommables (officiers et chefs de raid seulement)" },
     attendanceChannelId: { name: "presences-raid", topic: "Présents, retards, banc et absents de chaque raid (officiers seulement), publié avec le rapport de raid" },
     applicationChannelId: { name: "candidatures-raid", topic: "Nouvelles candidatures de recrutement (officiers seulement) : décidez sur chaque carte, ou utilisez /mod application list|view|approve|reject|trial" },
-    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Commence ici : utiliser Guilded, installer l’addon WoW et connecter le compagnon" }
+    guideChannelId: { name: `${BRAND.channelPrefix}-guide`, topic: "Commence ici : utiliser Guilded, installer l’addon WoW et connecter le compagnon" },
+    inviteChannelId: { name: "invitation-guilde", topic: "Envie de joindre la guilde ? Écris ici le nom complet de ton personnage en jeu (prénom et nom, par exemple Lebowski Holyroller). Un officier t’invitera en jeu et le bot ajoute un ✅ quand c’est fait." }
   }
 };
 
@@ -117,6 +131,8 @@ export function channelSpec(field: ChannelField, lang: Lang): ChannelSpec {
 // Every name the bot has ever given this channel (either language).
 // Names used by earlier versions still count (the group finder was "dungeon-signups").
 const LEGACY_NAMES: Partial<Record<ChannelField, string[]>> = { guideChannelId: [`${BRAND.channelPrefix}-addon`], raidSignupChannelId: ["raid-inscription", "raid-inscriptions"], dungeonSignupChannelId: ["dungeon-signups", "inscriptions-donjon"] };
+/** Every channel field /setup knows (the guard test checks member-facing text against their names). */
+export const CHANNEL_FIELDS = Object.keys(TEXT.en) as ChannelField[];
 export const channelNames = (field: ChannelField): string[] => [TEXT.en[field].name, TEXT.fr[field].name, ...(LEGACY_NAMES[field] ?? [])];
 export const categoryNames = (key: CategoryKey): string[] => [...new Set([
   CATEGORY_NAMES.en[key], CATEGORY_NAMES.fr[key], ...(key === "guild" ? ["⚜️ Guild", "⚜️ Guilde"] : key === "raid" ? ["⚔️ Raids"] : [])
@@ -136,4 +152,13 @@ export function isSetupLeftover(field: ChannelField, name: string, parentName: s
 export const BG_SETUP_NAMES = {
   en: { category: "🏴 Battlegrounds", groups: "battleground-groups", results: "battleground-results", stats: "battleground-statistics" },
   fr: { category: "🏴 Champs de bataille", groups: "groupes-jcj", results: "resultats-jcj", stats: "statistiques-jcj" }
+} as const;
+
+// 8.5 track B2: the PvP category `/setup` creates when an officer switches the PvP module on. New channels use these names;
+// channels already named like BG_SETUP_NAMES (or saved in the settings) are adopted instead of duplicated. `stats` is the
+// battleground ladder channel (it also holds the statistics panel); `duels` is the separate duel ladder channel. The two
+// ladders never share a channel or points. `legacyStats` are earlier 8.5 names that are still adopted.
+export const PVP_SETUP_NAMES = {
+  en: { category: "⚔️ PvP", groups: "pvp-groups", results: "pvp-results", stats: "bg-ladder", duels: "duel-ladder", legacyStats: "pvp-ladder" },
+  fr: { category: "⚔️ JcJ", groups: "groupes-pvp", results: "resultats-pvp", stats: "classement-cdb", duels: "classement-duels", legacyStats: "classement-pvp" }
 } as const;

@@ -1,6 +1,29 @@
 import { gameEditionOf } from "./game-edition.mjs";
 
 export const realmKey = value => String(value ?? "").normalize("NFC").replace(/\s+/g, "").toLowerCase();
+
+const bareLower = value => String(value ?? "").split("-")[0].trim().replace(/\s+/g, " ").normalize("NFC").toLowerCase();
+/**
+ * WoW Forever names during the 8.5 move from first-name keys to full "First Last" names: the
+ * same name, or one side is a bare first name (an older addon, a row stored before the fix)
+ * and the other a full name starting with it. Callers accept the loose match only when it is
+ * the single candidate (see foreverNameMatches).
+ */
+export function foreverSameName(a, b) {
+  const x = bareLower(a), y = bareLower(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const [short, long] = x.includes(" ") ? [y, x] : [x, y];
+  return !short.includes(" ") && long.includes(" ") && long.startsWith(`${short} `);
+}
+/** Items whose name is exactly `name`; failing that, the single loose (first-name) match, or none. */
+export function foreverNameMatches(items, name, nameOf = item => item.name) {
+  const wanted = bareLower(name);
+  const exact = items.filter(item => bareLower(nameOf(item)) === wanted);
+  if (exact.length) return exact;
+  const loose = items.filter(item => foreverSameName(nameOf(item), name));
+  return loose.length === 1 ? loose : [];
+}
 export function characterReference(name, realm, edition = "forever") {
   if (edition === "forever") return { character: String(name), realm: String(realm) };
   const match = String(name).match(/^([^\s-]+)-(.+)$/);

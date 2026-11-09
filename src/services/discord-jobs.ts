@@ -7,7 +7,7 @@ import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE";
+export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "ACTIVITY_BOARD" | "WHOS_WHO_BOARD" | "RACE_BOARD" | "BG_LADDER" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "SIGNUP_ANSWERS" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -53,8 +53,7 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const { deliverRaidReminder } = await import("./reminders.js");
     await deliverRaidReminder(guild, prisma, job);
   } else if (job.kind === "GAME_EVENT_BOARD" || job.kind === "GAME_EVENT_REMINDER") {
-    const { deliverGameEvent } = await import("./game-events-discord.js");
-    await deliverGameEvent(guild, prisma, job);
+    // Countdowns were removed (9.0.2). A job queued before the update finishes without posting anything.
   } else if (["TEAM_ROSTER", "TEAM_SESSION", "TEAM_REMINDER"].includes(job.kind)) {
     const { deliverTeamPost } = await import("./activity-core-discord.js");
     await deliverTeamPost(guild, prisma, job.guildId, job.kind, String(payload[job.kind === "TEAM_ROSTER" ? "coreId" : "sessionId"] ?? ""));
@@ -67,6 +66,20 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
   } else if (job.kind === "DUNGEON_BOARD") {
     const { updateDungeonLeaderboard } = await import("./dungeon-leaderboard.js");
     if (!await updateDungeonLeaderboard(guild, true)) throw new Error("Board unavailable");
+  } else if (job.kind === "DUEL_BOARD") {
+    const { updateDuelBoard } = await import("./duel-board.js");
+    if (!await updateDuelBoard(guild, true)) throw new Error("Duel board unavailable");
+  } else if (job.kind === "ACTIVITY_BOARD") {
+    const { updateActivityBoard } = await import("./guild-activity.js");
+    if (!await updateActivityBoard(guild, true)) throw new Error("Activity board unavailable");
+  } else if (job.kind === "WHOS_WHO_BOARD") {
+    // Retired in 9.0.2: a job queued before the update finishes quietly and posts nothing.
+  } else if (job.kind === "BG_LADDER") {
+    const { updateBgLadder } = await import("./bg-ladder.js");
+    if (!await updateBgLadder(guild, true)) throw new Error("Battleground ladder unavailable");
+  } else if (job.kind === "RACE_BOARD") {
+    const { updateRaceBoard } = await import("./race-board.js");
+    if (!await updateRaceBoard(guild, true)) throw new Error("Race board unavailable");
   } else if (job.kind === "PROFESSIONS") {
     const { updateProfessionDirectory } = await import("./profession-directory.js");
     if (!await updateProfessionDirectory(guild, true)) throw new Error("Directory unavailable");
@@ -94,6 +107,12 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const summary = await runCalendarPlan(prisma, job.guildId, { ...plan, matches: plan.matches.filter(match => eligible.has(match.raidId)), unmatched: plan.unmatched.map(event => ({ ...event, startsAt: new Date(event.startsAt) })) });
     for (const raidId of summary.changedRaidIds) await enqueueDiscordJob(prisma, job.guildId, `raid:${raidId}`, "RAID_POST", { raidId });
     if (summary.failed) throw new Error("Calendar signup retry required");
+  } else if (job.kind === "SIGNUP_ANSWERS") {
+    // Raid answers given in game: the latest change per member wins, then the Discord signup post is refreshed.
+    const { applySignupAnswers } = await import("./signup-answers.js");
+    const answers = Array.isArray(payload["answers"]) ? payload["answers"] as unknown as import("./signup-answers.js").SignupAnswerJob[] : [];
+    const summary = await applySignupAnswers(prisma, job.guildId, answers);
+    for (const raidId of summary.changedRaidIds) await enqueueDiscordJob(prisma, job.guildId, `raid:${raidId}`, "RAID_POST", { raidId });
   } else if (job.kind === "COMMUNITY_POST") {
     const { publishCommunityActivity } = await import("../commands/community.js");
     await publishCommunityActivity(guild, job.guildId, String(payload["activityId"] ?? ""));
@@ -129,8 +148,15 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       // Don't deliver yesterday's failed summary alongside today's message.
       const timezone = typeof payload["timezone"] === "string" ? payload["timezone"] : "America/Toronto";
       if (payload["day"] !== participationDay(new Date(), timezone)) return;
-      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { readinessChannelId: true } });
-      if (!settings?.readinessChannelId) return;
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { readinessChannelId: true, readinessPostsEnabled: true } });
+      if (!settings?.readinessChannelId || !settings.readinessPostsEnabled) return;
+      channelId = settings.readinessChannelId;
+    } else if (route === "raidCheck") {
+      // 9.1 raid night check: re-checked at delivery (switch, channel, and the raid still planned and not long past).
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { readinessChannelId: true, readinessPostsEnabled: true } });
+      if (!settings?.readinessChannelId || !settings.readinessPostsEnabled) return;
+      const raid = await prisma.raid.findFirst({ where: { id: String(payload["raidId"] ?? ""), guildId: job.guildId }, select: { status: true, scheduledAt: true } });
+      if (!raid || raid.status !== "PLANNED" || raid.scheduledAt.getTime() < Date.now() - 60 * 60_000) return;
       channelId = settings.readinessChannelId;
     } else if (route === "achievements") {
       // Re-checked at delivery: switching announcements off (or the channel) takes effect for queued posts too.
@@ -154,17 +180,20 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     }
     const channel = await guild.channels.fetch(channelId);
     if (!channel?.isTextBased()) throw new Error("Channel unavailable");
-    // Discord only retains nonce deduplication briefly. A visible footer is also checked
-    // after a crash so a delayed retry can reuse the already posted announcement.
-    const marker = `Guilded delivery ${job.id}`;
+    // Discord only retains nonce deduplication briefly, so the post also carries the job id, checked after a crash so a
+    // delayed retry never posts twice. Until 9.0.5 it sat in the footer ("Guilded delivery <id>", seen by members); it
+    // now sits in the link of an embed without a title, which Discord does not show. Old footers still match.
+    const marker = `Guilded delivery ${job.id}`, link = deliveryLink(job.id);
     const recent = await channel.messages.fetch({ limit: 100 });
-    if (recent.some(message => message.author.id === guild.client.user?.id && message.embeds.some(embed => embed.footer?.text.includes(marker)))) return;
+    if (recent.some(message => message.author.id === guild.client.user?.id && message.embeds.some(embed => embed.footer?.text.includes(marker) || embed.url === link))) return;
     const message = payload["message"] as MessageCreateOptions;
     const embeds = (message.embeds ?? []).map(embed => new EmbedBuilder("toJSON" in embed ? embed.toJSON() : embed));
     if (!embeds.length) embeds.push(new EmbedBuilder().setDescription(message.content || "Guilded update"));
     const last = embeds[embeds.length - 1]!;
-    const footer = last.data.footer?.text;
-    last.setFooter({ text: footer ? `${footer.slice(0, 1900)} · ${marker}` : marker });
+    // An embed without a title keeps its link invisible; with titles everywhere, an extra empty-looking embed would
+    // show, so the last one gets the link and its title simply links to the website.
+    const carrier = embeds.find(embed => !embed.data.title && !embed.data.url) ?? embeds.find(embed => !embed.data.url) ?? last;
+    if (!carrier.data.url) carrier.setURL(link);
     // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
     const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
     // An optional card is drawn here from its stored definition; without an image the post still goes out.
@@ -175,15 +204,22 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const { withDiscordMember } = await import("./card-member.js");
       cardDefinition = await withDiscordMember(guild, cardDefinition, payload["cardMember"]);
     }
+    // 9.1: members' character pictures (a database read, best effort): the dungeon party's thumbs, or the member's own picture.
+    if (cardDefinition) {
+      const { withCardPictures } = await import("./card-pictures.js");
+      cardDefinition = await withCardPictures(prisma, job.guildId, cardDefinition, typeof payload["cardMember"] === "string" ? payload["cardMember"] : undefined);
+    }
     const card = cardDefinition ? await scoreCardPng(cardDefinition).catch(() => null) : null;
     if (card) last.setImage("attachment://card.png");
     await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" })] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
   } else throw new Error("Unknown job type");
 }
 
+/** The invisible marker a delivered post carries: the website address with the job id. */
+export const deliveryLink = (jobId: string) => `https://guilded.kcaron.top/?delivery=${encodeURIComponent(jobId)}`;
+
 let running = false;
 const DELIVERY_BATCH_SIZE = 25;
-const COUNTDOWN_BATCH_SIZE = 5;
 const DELIVERY_BATCH_BUDGET_MS = 20_000;
 export async function runDiscordJobs(client: Client): Promise<void> {
   if (running) return;
@@ -191,12 +227,7 @@ export async function runDiscordJobs(client: Client): Promise<void> {
   try {
     const now = new Date();
     const query = { orderBy: { nextAttemptAt: "asc" as const }, include: { guild: { select: { discordId: true as const } } } };
-    // Countdown cosmetics must never displace reminders, roster changes or loot
-    // announcements. Serve those first; at most five countdowns use spare slots.
-    // GAME_EVENT_BOARD edits one pinned message. Milestone hype rides that edit.
-    const jobs = await prisma.discordJob.findMany({ ...query, where: { ...available(now), ...pilotGuildScope, kind: { not: "GAME_EVENT_BOARD" } }, take: DELIVERY_BATCH_SIZE });
-    if (jobs.length < DELIVERY_BATCH_SIZE) jobs.push(...await prisma.discordJob.findMany({ ...query,
-      where: { ...available(now), ...pilotGuildScope, kind: "GAME_EVENT_BOARD" }, take: Math.min(COUNTDOWN_BATCH_SIZE, DELIVERY_BATCH_SIZE - jobs.length) }));
+    const jobs = await prisma.discordJob.findMany({ ...query, where: { ...available(now), ...pilotGuildScope }, take: DELIVERY_BATCH_SIZE });
     for (const job of jobs) {
       // Finish an in-flight delivery normally; do not start another after the
       // budget is spent. The next tick resumes pending jobs, with fresh content.

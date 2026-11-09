@@ -3,8 +3,10 @@
 In-game only is the default. Officers type `/guilded setup guild` (or press "Set up my guild"
 in `/guilded setup`) to open Guild tools > Local guild, which walks through three steps:
 create a raid core, choose how loot is given, add your raiders. All local cores share guild
-EP/GP. Officers can share awards as they happen with `/guilded ledgersync on`; Backup and
-Restore hand the whole copy to another officer.
+EP/GP. Ledger sharing between guildmates is on by default in In-game only guilds; there is no off switch.
+Members who heard the officer announce a batch can fetch it from another member later, even
+after the officer logs off. Use `/guilded sync peers` to request missing data while online.
+Backup and Restore hand the whole copy to another officer.
 The restore preview lists local cores/rosters and can be undone.
 
 Party games moved to the optional GuildedGames addon (/ggames). Only the host
@@ -234,7 +236,7 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 
 ## Version 2.2 additions
 
-- **`/guilded autoinvite`** (officers): players whisper a phrase (default `ginv`) and get a guild invite. Off by default, rate limited (one invite per name per hour, 15 per hour), never in combat, skips known guild members.
+- **`/guilded autoinvite`** (officers): when a player whispers the phrase (default `ginv`), the officer gets the ready `/ginvite` line (WoW Forever does not let an addon send a guild invite without a click). Off by default, rate limited (one line per name per hour, 15 per hour), never in combat, skips known guild members.
 - **TBC Anniversary:** the TOC now lists interface `20506` next to Forever's `16001`, so the same download loads on both. Anniversary-specific behaviour is untested.
 
 ## Version 2.3 additions
@@ -248,7 +250,7 @@ presence, loot, and dungeon runs. An officer reviews and applies it with
 - **The casino is gone.** No wagers, no house games, no debt ledger, no trade settlement. Party games are only in the separate Guilded Games addon (/ggames). Old casino saved data is ignored.
 - **Item tooltips** (module `tooltip`): hover an item that someone wishlisted in Discord (`/character wishlist`) or that was awarded before and you get up to three gold lines: who wants it, what it usually costs in GP, and your own PR and rank. The data comes from the bot with the standings and is shared with the guild the same way; items with no data show nothing. `/guilded modules off tooltip` turns it off.
 - **Ready page** (in the window, and `/guilded ready`; officers and group leaders only, meaning guild officers plus the leader or an assistant of the current raid or party): who in your raid or party is ready. Each player is Ready, Issues, Not ready or No data, worst first, with the reason. It uses what each player's addon shared (gear, enchants, durability, flask, food) plus a live look at their buffs, so a player without the addon still shows flask and food. `ready ask` asks every addon in the group to check itself again; `ready post` posts the result to raid or party chat. Flask and food count only in a raid group.
-- **Guilded chat tab** (module `chattab`): `/guilded chat tab` opens a chat window named Guilded and sends the addon's own lines there (bid results, sync status, answers to commands), so raid chat stays clean. `/guilded chat off` puts them back in the main chat and closes the Guilded tab. Raid, party and whisper messages are never moved.
+- **Guilded chat tab** (module `chattab`): the addon's own lines (bid results, sync status, answers to commands) go to a chat window named Guilded, so raid chat stays clean. Make the window yourself (right-click a chat tab, New Window, name it Guilded): Guilded never opens or closes chat windows, because doing that from addon code makes the next `/reload` typed in chat fail with "blocked from an action". `/guilded chat off` puts the lines back in the main chat. Raid, party and whisper messages are never moved.
 - **Send to Discord** (the button in the window, and a small banner officers get when data is waiting) reloads the UI so the companion can upload sooner; logging out also saves. The game only allows a reload from your own click, so it never happens by itself; `/guilded sync` reminds you to type `/reload`.
 - **The standings line says why** it has no number: not arrived yet, the bot has nobody linked yet, or this character is not linked.
 - **A new tools window.** A sidebar with grouped pages (Overview, Raid night, Fun and runs, System) instead of a row of tabs, a **Home** page that answers "what is going on and is my data on Discord?", tooltips saying what each page is for, a page title, the Player field only where it is used, and a permanent **Send to Discord** button.

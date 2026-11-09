@@ -1,9 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { Collection } from "discord.js";
-const mocks = vi.hoisted(() => ({ address: vi.fn(), planned: vi.fn(), calendar: vi.fn(), settings: vi.fn() }));
+const mocks = vi.hoisted(() => ({ address: vi.fn(), planned: vi.fn(), calendar: vi.fn(), settings: vi.fn(), answers: vi.fn() }));
 vi.mock("../src/database.js", () => ({ prisma: { guild: { findFirst: async () => ({ id: "guild", discordId: "server", scopeKey: "default", gameEdition: "forever" }) }, raid: { findMany: mocks.planned }, guildSettings: { findUnique: mocks.settings } } }));
 vi.mock("../src/services/notify.js", () => ({ resolveNotifyAddress: mocks.address }));
 vi.mock("../src/services/calendar-sync.js", () => ({ runCalendarPlan: mocks.calendar }));
+vi.mock("../src/services/signup-answers.js", () => ({ applySignupAnswers: mocks.answers }));
 import { dispatchDiscordJob } from "../src/services/discord-jobs.js";
 
 beforeEach(() => vi.resetAllMocks());
@@ -45,6 +46,15 @@ it("drops cancelled raids from a persisted calendar plan instead of retrying for
   expect(mocks.calendar.mock.calls[0]?.[2].matches).toEqual([]);
 });
 
+it("applies the raid answers members gave in game for this guild only", async () => {
+  mocks.answers.mockResolvedValue({ applied: 1, unchanged: 0, failed: 0, changedRaidIds: [] });
+  const answers = [{ raidId: "r1", memberId: "m1", status: "ACCEPTED", role: "TANK", at: "2026-11-10T12:00:00.000Z" }];
+  await dispatchDiscordJob({} as never, { ...job({ answers }), kind: "SIGNUP_ANSWERS" } as never);
+  expect(mocks.answers).toHaveBeenCalledWith(expect.anything(), "guild", answers);
+  await dispatchDiscordJob({} as never, { ...job({ answers: "nonsense" }), kind: "SIGNUP_ANSWERS" } as never);
+  expect(mocks.answers).toHaveBeenLastCalledWith(expect.anything(), "guild", []);
+});
+
 it("notifies nobody unless a job names its users, and only valid user IDs", async () => {
   const d = discord();
   await dispatchDiscordJob(d.guild as never, job({ channelId: "fame", message: { content: "⭐ Bravo" } }) as never);
@@ -65,4 +75,21 @@ it("draws a stored card when a queued message is delivered and still posts witho
   const plain = discord();
   await dispatchDiscordJob(plain.guild as never, job({ route: "raidLog", channelId: "raid-logs", message: { embeds: [{ title: "Report" }] } }) as never);
   expect(plain.send.mock.calls[0]![0].files).toBeUndefined();
+});
+
+it("keeps the delivery id out of the footer members read, and still skips a post it already made", async () => {
+  mocks.address.mockResolvedValue({ guildId: "guild", channelId: "c" });
+  const d = discord();
+  await dispatchDiscordJob(d.guild as never, job({ route: "officer", channelId: "c", message: { embeds: [{ description: "Bilan du jour", footer: { text: "Un bilan par jour" } }] } }) as never);
+  const sent = d.send.mock.calls[0]![0].embeds[0].data;
+  expect(sent.footer.text).toBe("Un bilan par jour");
+  expect(JSON.stringify(sent.footer)).not.toContain("delivery");
+  expect(sent.url).toBe("https://guilded.kcaron.top/?delivery=delivery");
+  // A retry after a crash finds the post by that invisible link, or by the footer posts carried before 9.0.5.
+  for (const embed of [{ url: "https://guilded.kcaron.top/?delivery=delivery" }, { footer: { text: "Un bilan · Guilded delivery delivery" } }]) {
+    const again = discord();
+    again.fetch.mockResolvedValue({ isTextBased: () => true, messages: { fetch: async () => new Collection([["m", { author: { id: "bot" }, embeds: [embed] }]]) }, send: again.send } as never);
+    await dispatchDiscordJob(again.guild as never, job({ route: "officer", channelId: "c", message: { embeds: [{ description: "x" }] } }) as never);
+    expect(again.send).not.toHaveBeenCalled();
+  }
 });

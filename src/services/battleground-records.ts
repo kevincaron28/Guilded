@@ -11,23 +11,6 @@ async function requireMember(tx: Pick<Tx, "member">, guildId: string, memberId: 
   if (!member) throw new Error("Current guild membership required / Appartenance actuelle requise.");
 }
 
-export async function setBattlegroundConsent(db: PrismaClient, guildId: string, memberId: string,
-  input: { capture: boolean; guildStats: boolean }, now = new Date()) {
-  if (input.guildStats && !input.capture) throw new Error("Enable capture before statistics / Activez la capture avant les statistiques.");
-  return db.$transaction(async tx => {
-    await lock(tx, guildId); await requireMember(tx, guildId, memberId);
-    const prior = await tx.battlegroundConsent.findUnique({ where: { memberId } });
-    if (!input.capture && prior?.capture) {
-      const reports = await tx.battlegroundReport.findMany({ where: { guildId, memberId, premadeNonce: { not: null } }, select: { premadeNonce: true } });
-      const nonces = reports.flatMap(r => r.premadeNonce ? [r.premadeNonce] : []);
-      if (nonces.length) await tx.battlegroundReport.updateMany({ where: { guildId, premadeNonce: { in: nonces } }, data: { corroborated: false } });
-    }
-    const consentedAt = input.capture && !prior?.capture ? now : prior?.consentedAt ?? now;
-    return tx.battlegroundConsent.upsert({ where: { memberId },
-      create: { guildId, memberId, ...input, consentedAt }, update: { ...input, consentedAt } });
-  });
-}
-
 /** Caller supplies the credential's paired member, never a payload identity. Runs inside the import transaction. */
 export async function importBattlegroundReports(tx: Tx, guildId: string, pairedMemberId: string | null | undefined,
   rows: unknown[], now = new Date()) {
@@ -36,8 +19,6 @@ export async function importBattlegroundReports(tx: Tx, guildId: string, pairedM
   if (!pairedMemberId) return { ...result, rejected: rows.length };
   await lock(tx, guildId);
   await requireMember(tx, guildId, pairedMemberId);
-  const consent = await tx.battlegroundConsent.findUnique({ where: { memberId: pairedMemberId } });
-  if (!consent?.capture || consent.guildId !== guildId) return { ...result, rejected: rows.length };
   const guild = await tx.guild.findUniqueOrThrow({ where: { id: guildId }, select: { gameEdition: true } });
   const characters = await tx.character.findMany({ where: { memberId: pairedMemberId, guildId, gameEdition: guild.gameEdition } });
   let recent = await tx.battlegroundReport.count({ where: { guildId, memberId: pairedMemberId, createdAt: { gte: new Date(now.getTime() - 86400000) } } });
@@ -46,8 +27,7 @@ export async function importBattlegroundReports(tx: Tx, guildId: string, pairedM
     if (!parsed.success) { result.rejected++; continue; }
     const report = parsed.data;
     const character = findCharacter(characters, report.character, report.realm, report.edition);
-    if (!character || report.edition !== guild.gameEdition || !validBattlegroundReportTime(report, now)
-      || report.endedAt * 1000 < consent.consentedAt.getTime()) { result.rejected++; continue; }
+    if (!character || report.edition !== guild.gameEdition || !validBattlegroundReportTime(report, now)) { result.rejected++; continue; }
     const fingerprint = battlegroundReportFingerprint(report);
     const key = { guildId, memberId: pairedMemberId, reportId: report.reportId };
     const prior = await tx.battlegroundReport.findUnique({ where: { guildId_memberId_reportId: key } });
@@ -64,7 +44,7 @@ export async function importBattlegroundReports(tx: Tx, guildId: string, pairedM
         await tx.battlegroundReport.update({ where: { id: prior.id }, data: {
           status: prior.status === "WITHDRAWN" ? "WITHDRAWN" : "CONFLICT", conflictFingerprint: fingerprint, conflictSummary, corroborated: false } });
         if (prior.premadeNonce) await tx.battlegroundReport.updateMany({ where: { guildId, id: { not: prior.id }, premadeNonce: prior.premadeNonce, status: { not: "WITHDRAWN" } },
-          data: { status: "CONFLICT", corroborated: false, conflictSummary: "Another consenting reporter changed evidence for this premade nonce; no verified association." } });
+          data: { status: "CONFLICT", corroborated: false, conflictSummary: "Another reporter changed evidence for this premade nonce; no verified association." } });
         result.conflicts++;
       }
       continue;
@@ -80,9 +60,8 @@ export async function importBattlegroundReports(tx: Tx, guildId: string, pairedM
       // An explicit per-match premade nonce is a correlation hint, never a verified
       // game ID. Require independent characters plus compatible observations.
       const candidates = await tx.battlegroundReport.findMany({ where: { guildId, premadeNonce: report.premadeNonce,
-        status: { not: "WITHDRAWN" }, member: { guildId, status: "ACTIVE", battlegroundConsent: { is: { guildId, capture: true } } } },
-        include: { member: { select: { battlegroundConsent: { select: { consentedAt: true } } } } }, take: 101 });
-      const peers = candidates.filter(p => p.member.battlegroundConsent && p.endedAt >= p.member.battlegroundConsent.consentedAt);
+        status: { not: "WITHDRAWN" }, member: { guildId, status: "ACTIVE" } }, take: 101 });
+      const peers = candidates;
       const compatible = candidates.length <= 100 && peers.every(p => p.status !== "CONFLICT"
         && p.gameEdition === report.edition && p.mapId === report.mapId && p.mode === report.mode
         && p.bracket === report.bracket && p.outcome === report.outcome
@@ -131,12 +110,12 @@ export async function battlegroundStats(db: PrismaClient, guildId: string,
     || scope.endsAt <= scope.startsAt) throw new Error("Invalid guild season scope / Période de guilde invalide.");
   const where = { guildId, gameEdition: scope.edition, ...(scope.mode ? { mode: scope.mode } : {}),
     ...(scope.bracket ? { bracket: scope.bracket } : {}), endedAt: { gte: scope.startsAt, lt: scope.endsAt },
-    member: { guildId, status: "ACTIVE" as const, battlegroundConsent: { is: { guildId, capture: true, guildStats: true } } } };
+    member: { guildId, status: "ACTIVE" as const, } };
   const groups = await db.battlegroundReport.groupBy({ by: ["outcome"], where: { ...where, status: "PROVISIONAL" }, _count: { _all: true } });
   const count = (outcome: string) => groups.find(row => row.outcome === outcome)?._count._all ?? 0;
   const wins = count("win"), losses = count("loss"), draws = count("draw"), unknownOutcomes = count("unknown");
   const knownOutcomes = wins + losses + draws, participations = knownOutcomes + unknownOutcomes;
-  // These count consenting player reports, not unique games or competitive rating.
+  // These count player reports, not unique games or competitive rating.
   // Corroboration does not turn an unaccepted adapter into verified game evidence.
   return { matches: 0, verifiedMatches: null, participations, wins, losses, draws, unknownOutcomes, knownOutcomes,
     winRate: knownOutcomes ? wins / knownOutcomes : null, provisionalReports: participations };

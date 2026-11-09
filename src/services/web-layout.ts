@@ -1,6 +1,6 @@
 import { PAGE_STYLE } from "./guild-page.js";
 import { currentEdition } from "./edition-context.js";
-import { EDITION_SECTIONS, editionHref } from "../../site/nav.mjs";
+import { editionHref } from "../../site/nav.mjs";
 import { SHARE_CARD, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
 
 // Shared HTML for the bot-served website pages (/recruitment/, /me/, /leaderboards/). Plain
@@ -45,7 +45,7 @@ label.check-label{display:flex;align-items:flex-start;gap:10px;margin:16px 0}lab
 textarea{min-height:120px}button,.button{cursor:pointer;border:0;font:inherit}button.link{background:none;color:var(--gold);padding:0;text-decoration:underline}
 .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}.filters button{padding:10px}
 .who{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;justify-content:flex-end;font-size:13px;color:var(--muted);margin:8px 0 0}.who button.link{font-size:13px}
-.notice{background:var(--panel);border-left:3px solid var(--gold);padding:12px 16px;margin:16px 0}.error{border-left-color:#e07a6b}
+.notice{background:var(--panel);border-left:3px solid var(--gold);padding:12px 16px;margin:16px 0}.trust-confirmed{color:#7bc47f}.trust-reported{color:var(--gold)}.error{border-left-color:#e07a6b}
 .code{font:700 28px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;color:var(--gold)}`;
 
 export interface LayoutInput {
@@ -82,7 +82,3 @@ export function layout(input: LayoutInput): string {
 export const options = (values: readonly { value: string; label: string }[], selected: string | null | undefined) =>
   values.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === (selected ?? "") ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
 
-/** A filter form's WoW version choice, with readable names; the Worker moves the chosen
- * ?edition= into that edition's section (/retail/leaderboards/). */
-export const editionSelect = (lang: Lang) => `<div><label for="edition">${tr(lang)("WoW version", "Version de WoW")}</label><select id="edition" name="edition">`
-  + `${options(EDITION_SECTIONS.map((section) => ({ value: section.id, label: section[lang] })), currentEdition())}</select></div>`;

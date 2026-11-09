@@ -1,7 +1,7 @@
 import type { PrismaClient } from "../src/generated/prisma/client.js";
 import { describe, expect, it, vi } from "vitest";
 import {
-  checkInviteUrl, createGuildPageServer, editGuildPage, isPageSlug, loadGuildPageView, parseSections, renderGuildPage, slugFromName,
+  checkInviteUrl, createGuildPageServer, editGuildPage, guildPageJson, isPageSlug, loadGuildPageView, parseSections, renderGuildPage, slugFromName,
   type GuildPageView
 } from "../src/services/guild-page.js";
 
@@ -64,6 +64,31 @@ describe("guild page rendering", () => {
     expect(renderGuildPage(view())).not.toContain("Dungeon scores");
   });
 
+  it("shows the guild's top characters, recent runs and records when it publishes its runs", () => {
+    const dungeons = { season: { en: "Season 1", fr: "Saison 1" },
+      top: [{ name: "Kev <b>", realm: "Doomhowl", className: "Warrior", bracket: "15-29", points: 185, path: "/leaderboards/character/Kev-Doomhowl" }],
+      recent: [{ dungeon: "Ragefire Chasm", time: "21:40", date: "2026-11-10", points: 185, path: "/leaderboards/run/b" }],
+      records: [{ dungeon: "Ragefire Chasm", time: "21:40", date: "2026-11-10", path: "/leaderboards/run/b" }] };
+    const html = renderGuildPage(view({ dungeonPage: "/leaderboards/guild/g1", dungeons, edition: "forever", guildId: "secret-id" }));
+    expect(html).toContain("Top characters");
+    expect(html).toContain("Guild records");
+    expect(html).toContain('class="c-warrior" href="/forever/leaderboards/character/Kev-Doomhowl?lang=en"');
+    expect(html).toContain("Kev &lt;b&gt;");
+    expect(html).not.toContain("secret-id");
+    expect(guildPageJson(view({ guildId: "secret-id" }))).not.toHaveProperty("guildId");
+    expect(renderGuildPage(view())).not.toContain("Top characters");
+  });
+
+  it("lists only the boards the guild already publishes, and the join steps when it has an invite", () => {
+    const fr = renderGuildPage(view({ language: "fr", dungeonPage: "/leaderboards/guild/g1", recruitment: { text: null, inviteUrl: "https://discord.gg/abc" } }));
+    expect(fr).toContain("Tableaux publics");
+    expect(fr).toContain('href="/leaderboards/guild/g1/duels?lang=fr"');
+    expect(fr).toContain("Comment nous rejoindre");
+    const closed = renderGuildPage(view({ recruitment: null }));
+    expect(closed).not.toContain("Public boards");
+    expect(closed).not.toContain("How to join");
+  });
+
   // Quebec Gold's cores use EPGP priority; the page once called it an officer-made list (27 Oct 2026).
   const lootCore = (lootMode: string, over: object = {}) => [{ ...view().cores[0]!, lootMode, roster: [], ranking: [], ...over }];
 
@@ -102,6 +127,19 @@ describe("guild page server", () => {
     expect((await pages.respond("POST", "/g/quebec-gold/"))!.status).toBe(405);
     expect((await pages.respond("GET", "/g/Quebec_Gold/"))!.status).toBe(404);
     expect((await pages.respond("GET", "/g/quebec-gold/admin"))!.status).toBe(404);
+  });
+
+  it("serves the published page as JSON for the phone app and 404s an unknown slug", async () => {
+    const pages = createGuildPageServer(async (slug) => (slug === "quebec-gold" ? view() : null));
+    const ok = (await pages.respond("GET", "/g/quebec-gold/guild.json"))!;
+    expect(ok.status).toBe(200);
+    expect(ok.headers["content-type"]).toContain("application/json");
+    const data = JSON.parse(ok.body) as { slug: string; cores: unknown[] };
+    expect(data.slug).toBe("quebec-gold");
+    expect(Array.isArray(data.cores)).toBe(true);
+    expect(ok.body).not.toContain("discordId");
+    expect((await pages.respond("GET", "/g/nobody/guild.json"))!.status).toBe(404);
+    expect((await pages.respond("POST", "/g/quebec-gold/guild.json"))!.status).toBe(405);
   });
 
   it("keeps a rendered copy so repeat visits do not reach the database", async () => {

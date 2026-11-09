@@ -8,7 +8,7 @@ import { novemberRulesFixture, novemberFixtures } from "./fixtures/november-rout
 interface StoredPlayer { character: string; memberId: string | null; deaths: number | null }
 interface StoredRun {
   id: string; runRef: string; instanceId: number; difficultyId: number; state: string; valid: boolean;
-  invalidReason: string | null; startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: StoredPlayer[];
+  invalidReason: string | null; startedAt: Date | null; endedAt: Date | null; durationSec: number | null; players: StoredPlayer[]; competitionData?: Record<string, unknown>;
 }
 
 function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: string; ratingRules?: unknown } = { id: "season-1", startsAt: new Date(0), ratingRules: ratingService.createDungeonRatingRules({}, 3, { "36": { min: 15, max: 25, difficultyId: 1 } }) }) {
@@ -41,6 +41,13 @@ function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: s
         const run = { ...data, id: `run-${runs.length + 1}`, players: data.players.create };
         runs.push(run);
         return run;
+      },
+      update: async ({ where, data }: { where: { id: string }; data: Partial<StoredRun> & { players?: { create: StoredPlayer[] } } }) => {
+        const run = runs.find(row => row.id === where.id)!;
+        const { players, ...fields } = data;
+        Object.assign(run, fields);
+        if (players) run.players = players.create;
+        return run;
       }
     },
     dungeonAchievement: {
@@ -48,6 +55,7 @@ function fakeTx(season: { id: string; startsAt?: Date; endsAt?: Date; status?: s
       create: async ({ data }: { data: { memberId: string; key: string; runId: string } }) => { achievements.push(data); return data; }
     },
     dungeonPointTransaction: {
+      findMany: async ({ where }: { where: { runId: string } }) => points.filter(row => row.runId === where.runId),
       create: async ({ data }: { data: { memberId: string; amount: number; source: string; runId: string } }) => {
         points.push(data);
         return data;
@@ -186,6 +194,7 @@ describe("importDungeonRuns", () => {
     const carry = await importDungeonRuns(tx, "g1", [run("carry", { players: carryPlayers, endedAt: start + 600 })], characters, "officer", null, now);
     expect(carry.results[0]?.playerDetails?.[0]).toMatchObject({ participationMode: "helper", points: 50 });
     expect(carry.results[0]?.guildRecord).toBe(false);
+    expect(carry.results[0]?.guildRank).toBeUndefined();
     expect(points.every(p => p.source === "rule:completion")).toBe(true);
     expect(points.find(p => p.memberId === "m-kev")).toMatchObject({ amount: 50 });
     const later = start + 3600;
@@ -290,6 +299,71 @@ describe("importDungeonRuns", () => {
     expect(points).toHaveLength(0);
   });
 
+  it("upgrades a run stored as ABANDONED when the recovered COMPLETED copy arrives, once", async () => {
+    const { tx, runs, points } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("recovered", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", endedAt: start + 3000 })],
+      characters, "officer", "imp1", now);
+    expect(runs[0]).toMatchObject({ state: "ABANDONED", durationSec: 3000 });
+    expect(points).toHaveLength(0);
+    const second = await importDungeonRuns(tx, "g1", [run("recovered")], characters, "officer", "imp2", now);
+    expect(second.duplicates).toBe(0);
+    expect(second.results[0]).toMatchObject({ state: "COMPLETED", durationSec: 1500 });
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ state: "COMPLETED", durationSec: 1500, valid: true });
+    expect(points.length).toBeGreaterThan(0);
+    // A COMPLETED run is final: the same id again changes nothing and awards nothing more.
+    const before = points.length;
+    const third = await importDungeonRuns(tx, "g1", [run("recovered", { endedAt: start + 1400 })], characters, "officer", "imp3", now);
+    expect(third.duplicates).toBe(1);
+    expect(runs[0]).toMatchObject({ durationSec: 1500 });
+    expect(points.length).toBe(before);
+    // An abandoned copy never downgrades or replaces a stored run either.
+    await importDungeonRuns(tx, "g1", [run("recovered", { state: "ABANDONED" })], characters, "officer", "imp4", now);
+    expect(runs[0]?.state).toBe("COMPLETED");
+  });
+
+  it("says why a run earned nothing without naming players", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    try {
+      const { tx } = fakeTx();
+      await importDungeonRuns(tx, "g1", [run("left-early", { state: "ABANDONED", instanceId: 389, name: "Ragefire Chasm", gameEdition: "forever", completedBy: undefined, endReason: "left the dungeon" }),
+        { id: "broken", instanceId: 389 }], characters, "officer", "imp1", now);
+      const lines = info.mock.calls.map(call => String(call[0]));
+      expect(lines.some(line => line.includes("not completed (ABANDONED)") && line.includes("instance 389") && line.includes("edition forever"))).toBe(true);
+      expect(lines.some(line => line.includes("malformed") && line.includes("instance 389"))).toBe(true);
+      expect(lines.join(" ")).not.toMatch(/Kev|Bob|left-early|broken/);
+    } finally { info.mockRestore(); }
+  });
+
+  it("ranks a clear among the guild's earlier record-eligible clears of the route", async () => {
+    const { tx } = fakeTx();
+    const first = await importDungeonRuns(tx, "g1", [run("rank-a")], characters, "officer", null, now);
+    expect(first.results[0]?.guildRank).toEqual({ rank: 1, of: 1 });
+    const later = start + 3600;
+    const faster = await importDungeonRuns(tx, "g1", [run("rank-b", { startedAt: later, endedAt: later + 1200 })], characters, "officer", null, now);
+    expect(faster.results[0]).toMatchObject({ guildRecord: true, guildRank: { rank: 1, of: 2 } });
+    const last = start + 7200;
+    const slower = await importDungeonRuns(tx, "g1", [run("rank-c", { startedAt: last, endedAt: last + 1800 })], characters, "officer", null, now);
+    expect(slower.results[0]).toMatchObject({ guildRecord: false, guildRank: { rank: 3, of: 3 } });
+  });
+
+  it("merges walked map cells into the shared per-floor grid and never stores them with the run", async () => {
+    const { tx, runs } = fakeTx();
+    const grid: Record<number, { cells: Record<string, number> }> = {};
+    Object.assign(tx, { dungeonMapGrid: {
+      findUnique: async ({ where }: { where: { mapId: number } }) => grid[where.mapId] ?? null,
+      upsert: async ({ where, create, update }: { where: { mapId: number }; create: { cells: Record<string, number> }; update: { cells: Record<string, number> } }) =>
+        (grid[where.mapId] = grid[where.mapId] ? { ...grid[where.mapId], cells: update.cells } : create)
+    } });
+    const summary = await importDungeonRuns(tx, "g1", [run("traced", { mapCells: [{ map: 291, cells: [1, 2, 3] }] })], characters, "officer", null, now);
+    expect(grid[291]).toMatchObject({ cells: { 1: 1, 2: 1, 3: 1 } });
+    expect(JSON.stringify(runs)).not.toContain("mapCells");
+    expect(summary.results[0]).not.toHaveProperty("mapCells");
+    // A simulation run never feeds the shared grid.
+    await importDungeonRuns(tx, "g1", [run("SIM-1790000000-abcde", { mapCells: [{ map: 292, cells: [4] }] })], characters, "officer", null, now);
+    expect(grid[292]).toBeUndefined();
+  });
+
   it("gives no points for abandoned runs", async () => {
     const { tx, points } = fakeTx();
     const summary = await importDungeonRuns(tx, "g1", [run("left", { state: "ABANDONED" })], characters, "officer", "imp1", now);
@@ -351,3 +425,55 @@ describe("dungeon achievements", () => {
   expect(result.results[0]?.points).toBe(0);
   expect(points).toHaveLength(0);
  });
+
+describe("observer copies of one run", () => {
+  const party = ["Hulke Hogan", "Maxle Druide", "Xaldin", "Shawir", "Crashing Pally"];
+  const known = party.map((name) => ({ name, realm: "Forever", memberId: `m-${name.split(" ")[0]!.toLowerCase()}` }));
+  const reported = (id: string, names: string[], shift: number, length: number) => run(id, { startedAt: start + shift, endedAt: start + shift + length,
+    players: names.map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: length, inGuild: true, level: 20, minLevel: 20 })) });
+  const copies = () => [
+    reported("QG-Hulke", ["Hulke Hogan", "Maxle Druide", "Xaldin Xaldin", "Shawir Forever", "Crashing"], 0, 5225),
+    reported("QG-Maxle", ["Hulke", "Maxle Druide", "Xaldin", "Shawir", "Crashing Pally"], 40, 5177),
+    reported("QG-Crashing", ["Hulke Hogan", "Maxle Druide", "Xaldin Xaldin", "Shawir Forever", "Crashing Pally"], 75, 5809)
+  ];
+  it("stores three observer copies uploaded separately as one run and posts it once", async () => {
+    const { tx, runs } = fakeTx();
+    const results = [];
+    for (const copy of copies()) results.push(...(await importDungeonRuns(tx, "g1", [copy], known, "officer", null, now)).results);
+    expect(runs).toHaveLength(1);
+    expect(results).toHaveLength(1);
+    expect(new Set(runs[0]!.players.map((player) => player.character)).size).toBe(5);
+    expect(results[0]!.players).toHaveLength(5);
+  });
+  it("does the same when all three copies arrive in one upload", async () => {
+    const { tx, runs } = fakeTx();
+    const summary = await importDungeonRuns(tx, "g1", copies(), known, "officer", null, now);
+    expect(runs).toHaveLength(1);
+    expect(summary.results).toHaveLength(1);
+    expect(summary.duplicates).toBe(2);
+  });
+  it("keeps genuinely separate runs apart: another dungeon, or the same one hours later", async () => {
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [copies()[0]!, { ...copies()[1]!, instanceId: 37 }, reported("QG-later", party, 3 * 3600, 5000)], known, "officer", null, now);
+    expect(runs).toHaveLength(3);
+  });
+  it("needs two matching players: a different crew in the same window is a different run", async () => {
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [copies()[0]!, reported("QG-other", ["Hulke Hogan", "Zed", "Liz", "Amy", "Bob"], 60, 5000)], known, "officer", null, now);
+    expect(runs).toHaveLength(2);
+  });
+});
+
+describe("death positions", () => {
+  it("are stored with the run and returned for the card; runs without them are unchanged", async () => {
+    const { tx, runs } = fakeTx();
+    const points = [{ x: 0.2, y: 0.4, map: 9, character: "Kev" }];
+    const summary = await importDungeonRuns(tx, "g1", [run("with-points", { deathPoints: points })], characters, "officer", null, now);
+    expect(summary.results[0]?.deathPoints).toEqual(points);
+    expect(runs[0]).toMatchObject({ competitionData: { deathPoints: points } });
+    const plain = fakeTx();
+    const result = await importDungeonRuns(plain.tx, "g1", [run("no-points")], characters, "officer", null, now);
+    expect(result.results[0]).not.toHaveProperty("deathPoints");
+    expect(plain.runs[0]!.competitionData).not.toHaveProperty("deathPoints");
+  });
+});

@@ -1,5 +1,5 @@
 import type { AchievementDef, AchievementGame, AchievementMetric, AchievementTier, WowEdition } from "./achievements-catalogue.js";
-import { ACHIEVEMENTS, TIER_LABEL } from "./achievements-catalogue.js";
+import { ACHIEVEMENTS, TIER_LABEL, achievementGameVisible } from "./achievements-catalogue.js";
 
 // Badge artwork for the achievements, generated as SVG from this one module (original shapes, no game
 // or publisher artwork). Tier picks the frame shape and metal, the game picks the colours of the centre
@@ -49,32 +49,54 @@ export const GLYPHS = {
   sparkle: `<path d="M12 2c1 5 3 8 8 10-5 2-7 5-8 10-1-5-3-8-8-10 5-2 7-5 8-10z"/>`,
   coin: `<circle cx="12" cy="12" r="9"/><path d="M12 6.500v11M9.500 9.500c0-2 5-2 5 0s-5 2-5 4.500 5 2.500 5 .5"/>`,
   bolt: `<path d="M13 2L5 14h6l-1 8 8-12h-6z"/>`,
+  duel: `<path d="M4 4l9 9M20 4l-9 9M11 15l-2 2 1.500 1.500M13 15l2 2-1.500 1.500M12 21v-3"/><path d="M3 20l3-3M21 20l-3-3"/><circle cx="12" cy="10" r="1.200" fill="currentColor"/>`,
+  medal: `<circle cx="12" cy="15" r="6"/><path d="M8 3l4 7 4-7M12 12l1 2h2l-1.500 1.300.5 2-2-1.200-2 1.200.5-2L9 14h2z"/>`,
   cake: `<path d="M4 20h16v-6H4zM4 14c2 2 4 2 4 0 0 2 4 2 4 0 0 2 4 2 4 0 0 2 4 2 4 0M12 11V8M12 3c1 1.500 1 2.500 0 3.500-1-1-1-2 0-3.500z"/>`
 } as const;
 export type GlyphName = keyof typeof GLYPHS;
 
 // Long progressions share one glyph per metric; the tier frame and the rank pips tell the steps apart.
-const LADDER_GLYPH: Partial<Record<AchievementMetric, GlyphName>> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake" };
+// Every ladder metric is listed here on purpose: a new ladder without a glyph fails to compile (and the test below).
+type LadderMetric = "messagesSent" | "voiceHours" | "reactionsGiven" | "reactionsReceived" | "communityPoints" | "epEarned" | "mvpWeeks" | "serverAnniversaries" | "honorableKills" | "duelWins" | "craftsDone";
+const LADDER_GLYPH: Record<LadderMetric, GlyphName> = { messagesSent: "bubble", voiceHours: "mic", reactionsGiven: "smile", reactionsReceived: "sparkle", communityPoints: "coin", epEarned: "bolt", mvpWeeks: "trophy", serverAnniversaries: "cake", honorableKills: "medal", duelWins: "duel", craftsDone: "hammer" };
 const SINGLE_GLYPH: Record<string, GlyphName> = {
-  "wow-level-20": "chevron1", "wow-level-40": "chevron2", "wow-level-60": "chevron3", "wow-level-80": "chevron4",
-  "wow-max-level": "star", "wow-max-level-3": "stars",
-  "profession-150": "hammer", "profession-300": "anvil",
   "dungeon-runs-1": "door", "dungeon-runs-10": "key", "dungeon-runs-25": "torch", "dungeon-runs-50": "swords", "dungeon-runs-100": "crown",
-  "dungeon-variety-5": "compass",
+  "dungeon-variety-1": "map", "dungeon-variety-5": "compass", "dungeon-variety-10": "gem", "duel-streak-5": "ascend", "duel-beat-top": "orb",
   "raids-1": "banner", "raids-5": "shield", "raids-10": "horn", "raids-25": "tower", "raids-50": "trophy",
   "raid-clears-1": "sword", "raid-clears-5": "skull", "raid-clears-10": "flame",
-  "active-days-7": "speech", "active-days-30": "calendar", "active-days-100": "heart",
-  "poe2-level-75": "gem", "poe2-level-90": "orb", "poe2-level-99": "ascend", "poe2-level-100": "sun",
-  "poe2-maps-100": "map", "poe2-maps-500": "pin"
+  "active-days-7": "speech", "active-days-30": "calendar", "active-days-100": "heart"
 };
 /** One glyph per achievement id. The test suite requires every catalogue id to appear here. */
-const EDITION_LEVEL_GLYPH: Record<WowEdition, GlyphName> = { forever: "flame", "classic-era": "shield", "classic-tbc": "gem", "classic-mists": "tower", retail: "crown" };
-const editionGlyph = (def: AchievementDef): GlyphName => def.metric === "wowEditionCap" ? "stars" : def.metric === "wowEditionProfession" ? "anvil" : EDITION_LEVEL_GLYPH[def.edition!];
+const EDITION_LEVEL_GLYPH: Record<WowEdition, GlyphName> = { forever: "flame" };
+const editionGlyph = (def: AchievementDef): GlyphName => def.metric === "wowEditionCap" ? "stars" : def.metric === "professionsMastered" ? "crown" : def.metric === "professionFirsts" ? "trophy" : def.metric === "rareRecipes" ? "gem" : def.metric === "wowEditionProfession" ? (def.threshold >= 300 ? "anvil" : "hammer") : EDITION_LEVEL_GLYPH[def.edition!];
+const ladderGlyph = (def: AchievementDef): GlyphName => {
+  const glyph = (LADDER_GLYPH as Partial<Record<AchievementMetric, GlyphName>>)[def.metric];
+  if (!glyph) throw new Error(`Achievement ${def.id} has no badge glyph: add its metric to LADDER_GLYPH or its id to SINGLE_GLYPH`);
+  return glyph;
+};
 export const GLYPH_BY_ID: Record<string, GlyphName> = {
   ...SINGLE_GLYPH,
   ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.edition).map(def => [def.id, editionGlyph(def)])),
-  ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.rank && !def.edition).map(def => [def.id, LADDER_GLYPH[def.metric] ?? "star"]))
+  ...Object.fromEntries(ACHIEVEMENTS.filter(def => def.rank && !def.edition && !(def.id in SINGLE_GLYPH)).map(def => [def.id, ladderGlyph(def)]))
 };
+
+/**
+ * Generated rows (in-game Forever achievements, no fixed list) pick a glyph from their text: a keyword in the name or description first
+ * (dungeon, raid, honor ...), else one of a fixed set chosen by the id, so the same achievement always draws the same badge.
+ */
+const GENERATED_KEYWORDS: [RegExp, GlyphName][] = [
+  [/dungeon|instance|spelunk|deadmines|stockade|caverns|depths/i, "door"], [/raid|boss|hyjal|onyxia|barrow/i, "banner"], [/duel/i, "duel"],
+  [/honor|rank|pvp|battleground|warsong|arathi|alterac|kill/i, "swords"], [/explor|zone|discover|journey/i, "compass"], [/quest/i, "map"],
+  [/alchemy|potion/i, "orb"], [/blacksmith|engineer|forge|smith/i, "anvil"], [/enchant|tailor|leather|skinning|herb|mining|cooking|fishing|first aid|profession|skill/i, "hammer"],
+  [/reputation|exalted|renown|faction/i, "banner"], [/gold|coin|money|wealth/i, "coin"], [/level|class|druid|hunter|mage|paladin|priest|rogue|shaman|warlock|warrior/i, "star"]
+];
+const GENERATED_POOL: GlyphName[] = ["star", "gem", "compass", "banner", "shield", "torch", "map", "key", "crown", "orb", "horn", "tower", "sword", "flame", "medal", "sparkle"];
+export function generatedGlyph(def: Pick<AchievementDef, "id" | "en">): GlyphName {
+  const text = `${def.en.name} ${def.en.description}`;
+  for (const [pattern, glyph] of GENERATED_KEYWORDS) if (pattern.test(text)) return glyph;
+  const n = Number(/(\d+)$/.exec(def.id)?.[1] ?? 0);
+  return GENERATED_POOL[n % GENERATED_POOL.length]!;
+}
 
 // Frame outlines on a 64x64 grid, one per tier: circle, hexagon, shield, octagon, spiked star, sunburst.
 const spiked = Array.from({ length: 16 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 8, d = i % 2 ? 24.500 : 30.500; return `${(32 + d * Math.cos(a)).toFixed(1)},${(32 + d * Math.sin(a)).toFixed(1)}`; }).join(" ");
@@ -99,16 +121,15 @@ const METAL: Record<AchievementTier, [string, string, string, string]> = {
 const GAME: Record<AchievementGame, { plate: [string, string]; glyph: string }> = {
   wow: { plate: ["#24518a", "#0c1c36"], glyph: "#ffd45c" }, guild: { plate: ["#1f5a34", "#0b2214"], glyph: "#8ff0a0" }, poe2: { plate: ["#661616", "#240606"], glyph: "#ff8a4a" }
 };
-// Each WoW edition has its own centre-plate colour and glyph colour, so a Forever badge never reads as a Retail one.
+// WoW Forever's centre-plate colour and glyph colour.
 const EDITION_ACCENT: Record<WowEdition, { plate: [string, string]; glyph: string }> = {
-  forever: { plate: ["#4a2f9a", "#150b36"], glyph: "#d2c4ff" }, "classic-era": { plate: ["#7a5420", "#2e1c07"], glyph: "#ffd990" },
-  "classic-tbc": { plate: ["#1f7a2e", "#082a0f"], glyph: "#b4ff8a" }, "classic-mists": { plate: ["#0f7364", "#05302a"], glyph: "#8ff5df" },
-  retail: { plate: ["#24518a", "#0c1c36"], glyph: "#ffd45c" }
+  forever: { plate: ["#4a2f9a", "#150b36"], glyph: "#d2c4ff" }
 };
 const LOCKED = { metal: ["#4a4f58", "#33373e", "#24272c", "#181a1e"], plate: ["#16181c", "#0b0c0e"], glyph: "#5e6268" };
 
 /** The badge's elements on a 64x64 grid (no outer svg), with ids unique to this def and state. */
-export function badgeInner(def: AchievementDef, earned: boolean): string {
+export function badgeInner(def: AchievementDef, earned: boolean, tracking?: boolean): string {
+  if (!achievementGameVisible(def, tracking)) return ""; // PoE2 badges follow the tracking switch (data is kept)
   const id = `ab-${def.id}-${earned ? "e" : "l"}`;
   const [m0, m1, m2, edge] = earned ? METAL[def.tier] : (LOCKED.metal as [string, string, string, string]);
   const accent = def.edition ? EDITION_ACCENT[def.edition] : GAME[def.game];
@@ -119,7 +140,9 @@ export function badgeInner(def: AchievementDef, earned: boolean): string {
   const gem = def.tier === "epic" || def.tier === "legendary" ? `<circle cx="32" cy="6.500" r="3.200" fill="${earned ? (def.tier === "epic" ? "#ff5ad0" : "#5ae6ff") : "#2a2d33"}" stroke="${edge}" stroke-width="1"/>` : "";
   // Rank pips (one per step of a long progression) under the glyph, so steps in the same tier look different.
   const pips = def.rank ? Array.from({ length: Math.min(def.rank, 10) }, (_, i) => `<circle cx="${(32 + (i - (Math.min(def.rank!, 10) - 1) / 2) * 3.200).toFixed(1)}" cy="49.500" r="1.100" fill="${glyph}"${earned ? "" : ` opacity=".7"`}/>`).join("") : "";
-  const body = GLYPHS[GLYPH_BY_ID[def.id] ?? "star"];
+  const glyphName = GLYPH_BY_ID[def.id] ?? (def.metric === "gameAchievement" ? generatedGlyph(def) : undefined);
+  if (!glyphName) throw new Error(`Achievement ${def.id} has no badge glyph`);
+  const body = GLYPHS[glyphName];
   return `<defs><linearGradient id="${id}-m" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${m0}"/><stop offset=".5" stop-color="${m1}"/><stop offset="1" stop-color="${m2}"/></linearGradient>`
     + `<linearGradient id="${id}-p" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${p0}"/><stop offset="1" stop-color="${p1}"/></linearGradient></defs>`
     + `<g fill="url(#${id}-m)" stroke="${edge}" stroke-width="2">${frame}</g>`
@@ -132,11 +155,12 @@ export function badgeInner(def: AchievementDef, earned: boolean): string {
  * A standalone badge. With `label` it is an image with that accessible name; without, it is decorative
  * (aria-hidden), for lists that already carry the name and status in text.
  */
-export function badgeSvg(def: AchievementDef, earned: boolean, options: { size?: number; label?: string } = {}): string {
+export function badgeSvg(def: AchievementDef, earned: boolean, options: { size?: number; label?: string; tracking?: boolean } = {}): string {
+  if (!achievementGameVisible(def, options.tracking)) return "";
   const size = options.size ?? 64;
   const name = options.label === undefined ? ` aria-hidden="true" focusable="false"` : ` role="img" aria-label="${escapeAttr(options.label)}"`;
   const title = options.label === undefined ? "" : `<title>${escapeAttr(options.label)}</title>`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}"${name}>${title}${badgeInner(def, earned)}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="${size}" height="${size}"${name}>${title}${badgeInner(def, earned, options.tracking)}</svg>`;
 }
 
 /** Accessible name in both languages, e.g. "Dungeon Regular: Bronze, unlocked". */

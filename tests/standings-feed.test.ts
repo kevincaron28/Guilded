@@ -27,6 +27,32 @@ describe("standings feed", () => {
     feed.clear();
   });
 
+  it("still answers when writes keep landing during every read, under the previous stamp (8.5 hotfix)", async () => {
+    let clock = 1_800_000_000_000;
+    const feed = createStandingsFeed({ now: () => clock });
+    const warn = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const first = await feed.get({ guildId: "g", memberKey: "a", header, compose: async () => parts([{ ep: 10 }]) });
+    const stamp = JSON.parse(first.body!).updatedAt;
+    clock += 60_000;
+    // Every read is overtaken by a member upload (the relay bumped the generation on each one).
+    const busy = vi.fn(async () => { feed.markChanged("g"); return parts([{ ep: 20 }]); });
+    const answer = await feed.get({ guildId: "g", memberKey: "b", header, compose: busy });
+    expect(answer.status).toBe(200);
+    expect(JSON.parse(answer.body!)).toMatchObject({ standings: [{ ep: 20 }], updatedAt: stamp });
+    expect(busy).toHaveBeenCalledTimes(3);
+    // Never stamped as newer, logged once, and the next undisturbed read moves the stamp.
+    await feed.get({ guildId: "g", memberKey: "c", header, compose: busy });
+    expect(warn).toHaveBeenCalledTimes(1);
+    clock += 60_000;
+    const settled = await feed.get({ guildId: "g", memberKey: "b", header, compose: async () => parts([{ ep: 20 }]) });
+    expect(JSON.parse(settled.body!).updatedAt > stamp).toBe(true);
+    // With no earlier stamp at all, the fallback uses the epoch rather than "now".
+    const fresh = createStandingsFeed();
+    const cold = await fresh.get({ guildId: "h", memberKey: "a", header, compose: async () => { fresh.markChanged("h"); return parts([]); } });
+    expect(JSON.parse(cold.body!).updatedAt).toBe(new Date(0).toISOString());
+    warn.mockRestore(); feed.clear(); fresh.clear();
+  });
+
   it("builds once, then answers from the cache and with 304 for the same ETag", async () => {
     const feed = createStandingsFeed();
     const compose = vi.fn(async () => parts([{ character: "Kev", ep: 10, gp: 5 }]));

@@ -27,6 +27,7 @@ import { communityChoices } from "../services/community-choices.js";
 import { worldBuffDropChoices } from "./world-buffs.js";
 import { dniChoices } from "./do-not-invite.js";
 import { raidPresetChoices } from "../services/raid-presets.js";
+import { bankItemChoices } from "./bank.js";
 
 // Routes every autocomplete request (see setAutocomplete(true) on ID
 // options) to the right list. Must answer within 3 seconds, so any error
@@ -67,6 +68,12 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         ? await prisma.poll.findMany({ where: { guildId: guild.id, closed: false, question: { contains: query, mode: "insensitive" } }, orderBy: { createdAt: "desc" }, take: 25 })
         : [];
       choices = polls.map(poll => ({ name: `${poll.question} (${poll.options.length})`.slice(0, 100), value: poll.id }));
+    } else if (command === "poll" && focused.name === "remove") {
+      // 9.1 guild board: officers pick the news post to take down.
+      const posts = interaction.member && hasPermission(interaction.member as GuildMember, "officer")
+        ? await prisma.boardPost.findMany({ where: { guildId: guild.id, removedAt: null, body: { contains: query, mode: "insensitive" } }, orderBy: { createdAt: "desc" }, take: 25 })
+        : [];
+      choices = posts.map(post => ({ name: `${post.createdAt.toISOString().slice(0, 10)} · ${post.body}`.slice(0, 100), value: post.id }));
     } else if (command === "faq" && focused.name === "entry") {
       choices = await faqChoices(guild.id, query);
     } else if (focused.name === "race") {
@@ -122,6 +129,8 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       });
     } else if (focused.name === "auction") {
       choices = await auctionChoices(prisma, guild.id, query);
+    } else if (command === "bank" && focused.name === "item") {
+      choices = await bankItemChoices(guild.id, query, !!interaction.member && hasPermission(interaction.member as GuildMember, "officer"));
     } else if (command === "bank" && focused.name === "id") {
       // Officers handling requests see everyone's; members see their own.
       const officer = subcommand === "handle" && !!interaction.member && hasPermission(interaction.member as GuildMember, "officer");
@@ -148,7 +157,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
     } else if (command === "character" && focused.name === "name" && (subcommand === "claim" || subcommand === "link")) {
       const rows = await prisma.unclaimedCharacter.findMany({ where: { guildId: guild.id, name: { contains: query, mode: "insensitive" } }, orderBy: { name: "asc" }, take: 25 });
       choices = rows.map((row) => ({ name: `${characterName(row)} — ${row.realm} - ${row.className}${row.level ? ` ${row.level}` : ""}`.slice(0, 100), value: currentEdition() === "forever" ? row.name : row.id }));
-    } else if (command === "character" && focused.name === "name" && subcommand === "unlink") {
+    } else if (command === "character" && focused.name === "name" && (subcommand === "unlink" || subcommand === "picture")) {
       const rows = await prisma.character.findMany({
         where: { member: { guildId: guild.id }, name: { contains: query, mode: "insensitive" } },
         include: { member: true }, orderBy: { name: "asc" }, take: 25

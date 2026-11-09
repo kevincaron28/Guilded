@@ -19,6 +19,7 @@ local MAX_ADDON_MESSAGE = 255
 local PEER_LEDGER_SECONDS = 12 * 60 * 60
 local MAX_PEER_LEDGER = 500
 local db
+local ledgerRoster
 local activeRaid
 
 local function L(text) return ns.L and ns.L(text) or text end
@@ -60,8 +61,7 @@ local function normalizeName(name)
   if ns.util and ns.util.characterKey then return ns.util.characterKey(name) end
   if type(name) ~= "string" or isSecret(name) then return nil end
   name = string.match(name, "^%s*(.-)%s*$")
-  -- Legacy accounting key. Forever surnames are preserved separately for display;
-  -- changing this key would orphan existing points, attendance and source refs.
+  -- Fallback only (Util.lua normally answers): the pre-8.5 first-name key.
   name = string.match(name, "^([^%-%s]+)") or name
   if name == "" then return nil end
   return string.upper(string.sub(name, 1, 1)) .. string.lower(string.sub(name, 2))
@@ -444,12 +444,14 @@ function ns.effectiveStanding(rawName, coreId)
       if core.id == coreId then players, baseGp = core.players, core.baseGp or 0; break end
     end
   end
-  local baseline = players and players[name]
+  -- (9.0) Older standings may still hold this character under its first name only.
+  local baselineKey = players and util.findCharacterKey(players, name)
+  local baseline = baselineKey and players[baselineKey]
   local ep, gp = baseline and baseline.ep or 0, baseline and baseline.gp or 0
   local accepted = db and db.acceptedLedgerRefs or {}
   for character, account in pairs(db and db.epgp or {}) do
     local other = players and players[character]
-    local sameAccount = character == name or (baseline and baseline.account and other and other.account == baseline.account)
+    local sameAccount = character == name or character == baselineKey or (baseline and baseline.account and other and other.account == baseline.account)
     if sameAccount then
       for _, entry in ipairs(account.ledger or {}) do
         local samePool = (entry.coreId or "") == (coreId or "")
@@ -935,14 +937,22 @@ local function showCharacterExport(text, title)
   exportTitle = title or exportTitle
   if exportFrame and exportFrame.titleText then exportFrame.titleText:SetText(exportTitle) end
   if not exportFrame then
-    exportFrame = CreateFrame("Frame", "GuildedCharacterExport", UIParent)
+    exportFrame = CreateFrame("Frame", "GuildedCharacterExport", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
     exportFrame:SetSize(520, 110)
     exportFrame:SetPoint("CENTER")
     exportFrame:SetFrameStrata("DIALOG")
     exportFrame:EnableMouse(true)
+    exportFrame:SetMovable(true)
+    exportFrame:RegisterForDrag("LeftButton")
+    exportFrame:SetScript("OnDragStart", exportFrame.StartMoving)
+    exportFrame:SetScript("OnDragStop", exportFrame.StopMovingOrSizing)
+    if exportFrame.SetClampedToScreen then exportFrame:SetClampedToScreen(true) end
+    if exportFrame.SetBackdrop then exportFrame:SetBackdrop({ bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background", edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 32, edgeSize = 32, insets = { left = 8, right = 8, top = 8, bottom = 8 } }) end
     local background = exportFrame:CreateTexture(nil, "BACKGROUND")
-    background:SetAllPoints()
+    background:SetPoint("TOPLEFT", exportFrame, "TOPLEFT", 8, -8)
+    background:SetPoint("BOTTOMRIGHT", exportFrame, "BOTTOMRIGHT", -8, 8)
     background:SetColorTexture(0, 0, 0, 0.85)
+    if UISpecialFrames then table.insert(UISpecialFrames, "GuildedCharacterExport") end
     local title = exportFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     title:SetPoint("TOP", 0, -10)
     title:SetText(exportTitle)
@@ -960,7 +970,7 @@ local function showCharacterExport(text, title)
     local close = CreateFrame("Button", nil, exportFrame, "UIPanelButtonTemplate")
     close:SetSize(80, 22)
     close:SetPoint("BOTTOM", 0, 10)
-    close:SetText("Close")
+    close:SetText(ns.L and ns.L("Close") or "Close")
     close:SetScript("OnClick", function() exportFrame:Hide() end)
     exportFrame.box = box
     exportFrame.scroll = scroll
@@ -1141,23 +1151,11 @@ local READINESS_SLOTS = {
 -- Equipment slots where a missing enchant is worth flagging. Officers can
 -- turn the check off or set the level it starts at with /guilded enchants.
 local ENCHANTABLE = { Chest = true, Legs = true, Feet = true, Wrist = true, Hands = true, MainHand = true }
-local edition = ns.util.gameEdition()
-local DEFAULT_ENCHANT_MIN_LEVEL = (edition == "retail" or edition == "classic-mists") and 90 or edition == "classic-tbc" and 70 or 60
-if edition == "retail" then
-  ENCHANTABLE = { Head = true, Shoulder = true, Chest = true, Legs = true, Feet = true, Finger0 = true, Finger1 = true, MainHand = true }
-elseif edition == "classic-mists" then
-  ENCHANTABLE.Back, ENCHANTABLE.Shoulder = true, true
-elseif edition == "classic-tbc" then
-  ENCHANTABLE.Back, ENCHANTABLE.Head, ENCHANTABLE.Shoulder = true, true, true
-end
+-- WoW Forever's level cap is 60.
+local DEFAULT_ENCHANT_MIN_LEVEL = 60
 -- Below this level an empty head or shoulder slot is normal (levelling gear), so empty slots are
 -- only a note there, not "Not ready". /guilded slots level <n> changes it (1 = always count).
 local DEFAULT_SLOT_MIN_LEVEL = DEFAULT_ENCHANT_MIN_LEVEL
-if edition ~= "forever" then
-  table.insert(READINESS_SLOTS, { 15, "Back" })
-  table.insert(READINESS_SLOTS, { 11, "Finger0" })
-  table.insert(READINESS_SLOTS, { 12, "Finger1" })
-end
 -- Read-only for other modules (Modules/PugCheck.lua checks other players with the same rules).
 ns.gearSlots, ns.enchantableSlots = READINESS_SLOTS, ENCHANTABLE
 
@@ -1168,6 +1166,40 @@ local GEAR_WAIT_SECONDS, GEAR_WAIT_TRIES = 5, 4
 local AUTO_DIGEST_HEARTBEAT = 600
 local lastAutoDigest, lastAutoDigestAt = nil, 0
 local inspectReadiness
+
+-- /guilded verify, kept audible. The code rides in the guild digest, but the digest only goes out
+-- when something changes (and a 10-minute heartbeat while events fire): if no guildmate's
+-- companion is online at that moment, nobody hears it. While a code is saved and the member is
+-- not yet confirmed, the digest is sent again every VERIFY_RESEND_SECONDS. It goes through
+-- ns.comm.send like every digest, so the queue and the per-prefix throttle still apply, and it
+-- stops by itself once the code is removed or the member shows up in the shared standings.
+local VERIFY_RESEND_SECONDS = 300
+local verifyLoopOn = false
+local function verifyLinked()
+  if ns.isInGameOnly and ns.isInGameOnly() then return false end
+  if not ns.getStanding then return false end
+  local ok, row = pcall(ns.getStanding, playerName())
+  return ok and row ~= nil and row ~= false
+end
+-- What the window shows: { hasCode, pending (code saved, not confirmed yet), linked }.
+ns.verifyStatus = function()
+  local hasCode = db ~= nil and validVerifyCode(db.verifyCode) ~= nil
+  local linked = verifyLinked()
+  return { hasCode = hasCode, linked = linked, pending = hasCode and not linked }
+end
+local function scheduleVerifyResend()
+  if verifyLoopOn or not (C_Timer and C_Timer.After) then return end
+  verifyLoopOn = true
+  C_Timer.After(VERIFY_RESEND_SECONDS, function()
+    verifyLoopOn = false
+    if not db or not validVerifyCode(db.verifyCode) or verifyLinked() then return end
+    if IsInGuild and IsInGuild() and not (InCombatLockdown and InCombatLockdown()) then
+      inspectReadiness(true, "GUILD")
+    end
+    scheduleVerifyResend()
+  end)
+end
+ns.scheduleVerifyResend = scheduleVerifyResend
 local function noGearVisible()
   for _, slot in ipairs(READINESS_SLOTS) do
     if GetInventoryItemLink("player", slot[1]) or (GetInventoryItemID and GetInventoryItemID("player", slot[1])) then return false end
@@ -1439,6 +1471,12 @@ end
 -- and listed only with /guilded diag all, so a Guilded problem is not lost among them.
 local function showDiagnostics(args)
   showIdentity()
+  -- WoW Forever, 8.5: legacy first-name keys (EP/GP accounts first) an officer still has to assign.
+  local legacy = ns.util.nameMigrationLines and ns.util.nameMigrationLines(db) or {}
+  if #legacy > 0 then
+    message(string.format(L("%d saved entries still use a first name only:"), #legacy))
+    for index = 1, math.min(5, #legacy) do message(legacy[index]) end
+  end
   if (ns.ignoredMessages or 0) > 0 then
     message(string.format("%d addon message(s) from other players were ignored this session (informational only).", ns.ignoredMessages))
   end
@@ -1484,6 +1522,7 @@ local function officerCommand(args)
     message("You are " .. (isOfficer() and "" or "NOT ") .. "an officer for this addon.")
     return
   end
+  if action == "auto" and ns.officerNotes then ns.officerNotes.command(args); return end
   if not isGuildMaster() then message("Only the guild master can change officer settings."); return end
   if action == "add" or action == "remove" then
     local name = normalizeName(args[3])
@@ -1497,7 +1536,7 @@ local function officerCommand(args)
     db.settings.officerRanks[rank] = on == "on" or nil
     message("Guild rank index " .. rank .. " is " .. (on == "on" and "now" or "no longer") .. " an officer rank.")
   else
-    message("Usage: /guilded officer list | add <name> | remove <name> | rank <index> on|off")
+    message("Usage: /guilded officer list | add <name> | remove <name> | rank <index> on|off | auto status|professions|epgp|promote|greet|all on|off")
   end
 end
 
@@ -1505,6 +1544,7 @@ end
 -- plain strings (everyone) or { officer = true, text = "..." }.
 local function showHelp()
   local officer = isOfficer()
+  message("|cffffd100Everyday|r")
   message("/guilded menu (or click the minimap coin) | inspect | status | roster | standings [player] | diag | version")
   message("/guilded attune <key> [clear] - mark your own attunement")
   message("/guilded snapshot [label] | list - record who is in the group right now (officers)")
@@ -1515,6 +1555,7 @@ local function showHelp()
   message("/guilded character - copy a line to link this character in Discord (/character import)")
   message("/guilded sheet standings|loot|attendance|raids|dungeons - copy a table to paste into Excel or Google Sheets")
   if officer then
+    message("|cffffd100Officer|r")
     message("Officer: /guilded start [title] | end | attendance <name>|group|seen [PRESENT|ABSENT|LATE] | boss <name> | summary (what the raid recorded, to copy)")
     message("Officer: /guilded note <text> | template save <name> [title] | template list | attendance roster | raid discard | undo (takes back your last award)")
     message("/guilded raids [n] - recent raids, one line each, to copy | raids report [n] - each player's attendance, loot and EP")
@@ -1522,6 +1563,7 @@ local function showHelp()
     message("Officer: /guilded loot <name> <item> [cost] | export | attune <player> <key> [clear] | officer list|add|remove|rank")
     message("Officer: /guilded void [player] - take back the newest EP/GP entry you made (for that player); Discord reverses it")
   end
+  message("|cffffd100More|r")
   for _, line in pairs(ns.commandHelp or {}) do
     local text = type(line) == "table" and line.text or line
     -- Lines for a module that is off are left out ("/guilded casino ..." -> casino).
@@ -1539,6 +1581,16 @@ end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHelp = ns.commandHelp or {}
 
+-- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
+-- name on their own. Nothing is changed here; an officer moves or merges them by hand.
+ns.commandHandlers["names"] = function()
+  local lines = ns.util.nameMigrationLines and ns.util.nameMigrationLines(db) or {}
+  if #lines == 0 then message(L("Every saved character uses its full name.")) return end
+  message(string.format(L("%d saved entries still use a first name only:"), #lines))
+  for index = 1, math.min(20, #lines) do message(lines[index]) end
+end
+table.insert(ns.commandHelp, "/guilded names - saved entries still filed under a first name shared by several characters (WoW Forever)")
+
 -- Optional modules. Each can be turned off for yourself (/guilded modules off
 -- casino) or for the whole guild by an officer (/guilded modules guild off
 -- casino; shared through Modules/Sync.lua). Core (raids, EPGP, loot, gear
@@ -1555,10 +1607,10 @@ ns.MODULES = {
   { key = "reserve", name = "Soft reserves", desc = "reserve items for a raid, see who reserved what", commands = { "reserve", "res" } },
   { key = "recipes", name = "Recipes and cooldowns", desc = "who can craft what, profession cooldowns", commands = { "recipes", "cooldowns" } },
   { key = "dungeon", name = "Dungeons", desc = "dungeon run tracking and points", commands = { "dungeon" } },
-  { key = "battleground", name = "Battleground capture", desc = "opt-in provisional own-character postmatch capture", commands = { "bgcapture" } },
+  { key = "battleground", name = "Battleground capture", desc = "provisional own-character postmatch capture (always on where supported)", commands = { "bgcapture" } },
   { key = "calendar", name = "Calendar", desc = "guild calendar check", commands = { "calendar" } },
   { key = "syncnow", name = "Send to Discord", desc = "a Send to Discord button and reminder so the companion uploads sooner", commands = { "sync" } },
-  { key = "autoinvite", name = "Auto-invite", desc = "guild invite when someone whispers a phrase", commands = { "autoinvite", "invite" } },
+  { key = "autoinvite", name = "Auto-invite", desc = "a /ginvite line when someone whispers a phrase", commands = { "autoinvite", "invite" } },
   { key = "backup", name = "Backup and restore", desc = "copy this guild's saved data as one code", commands = { "backup", "restore" } },
   { key = "digest", name = "Login digest", desc = "what changed since your last login", commands = { "digest" } },
   { key = "chattab", name = "Guilded chat tab", desc = "Guilded's own lines in a separate chat tab", commands = { "chat" } },
@@ -1573,6 +1625,10 @@ ns.MODULES = {
   { key = "chattags", name = "Main names in chat", desc = "the main's name next to an alt in guild and officer chat", commands = { "chattags" } },
   { key = "guildbank", name = "Guild bank snapshot", desc = "what the guild bank held when it was last opened", commands = { "gbank" } },
   { key = "pugcheck", name = "Pug gear check", desc = "item level and missing enchants of group members from outside the guild", commands = { "pugcheck" } },
+  { key = "milestones", name = "Milestone announcements", desc = "level, first dungeon clear, honorable kills and duel wins in guild chat, if you turn them on", commands = { "milestones", "announce" } },
+  { key = "raidsignup", name = "Raid sign-up", desc = "sign up for guild raids in game, with role and class counts", commands = { "signups" } },
+  { key = "worldpvp", name = "World PvP stats", desc = "open-world kills, deaths, defends and calls for help, for the PvP ladder", commands = { "worldpvp", "wpvp" } },
+  { key = "duels", name = "Guild duels", desc = "duel results between guildmates and a leaderboard", commands = { "duels" } },
   { key = "imports", name = "Loot imports", desc = "softres.it lists and That's My BiS priorities", commands = { "import", "tmb" } },
 }
 local MODULE_ALIASES = { map = "guildmap", score = "scores", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables",
@@ -1758,6 +1814,7 @@ local function command(text)
       local code = verifyCodeFrom(table.concat(args, "", 2))
       if code then
         db.verifyCode = code
+        scheduleVerifyResend()
         message(L("Saved. All your characters on this WoW account will link to your Discord by themselves the next time a guildmate's Guilded companion syncs, and Discord will message you. Nothing else to do, also for your alts."))
         inspectReadiness(true, "GUILD")
       else
@@ -1852,8 +1909,10 @@ local function handlePeerReadiness(text, sender, channel)
   if parts[1] ~= "READINESS" or not parts[2] then return end
   -- A client may only report its own character; otherwise anyone could
   -- overwrite a guildmate's readiness in every officer's export.
-  local name = normalizeName(parts[2])
-  if not name or name ~= normalizeName(sender) then return end
+  -- (8.5) An older addon names a Forever character by first name only: still the sender's own
+  -- digest when the first name matches; it is kept under the sender's full name.
+  local name = normalizeName(sender)
+  if not name or not ns.util.sameCharacter(parts[2], sender) then return end
   -- The guild channel only carries guildmates; in a raid or party a pug's digest would end
   -- up in every officer's export (and the bot would "discover" them), so only members count.
   if channel ~= "GUILD" and not isGuildMember(name) then return end
@@ -1946,23 +2005,60 @@ local function guildHomeRealm()
   return nil
 end
 
--- Returns the guild key, and the key older versions built from this character's own realm.
+-- Forever realm names arrive both with spaces ("CAMWOW US2 Realm 2 PvP", GetRealmName) and
+-- without ("CAMWOWUS2Realm2PvP", the home realm from GetGuildInfo): keys always use the compact form.
+local function compactRealm(realm)
+  return (string.gsub(realm, "%s+", ""))
+end
+
+-- Returns the guild key, the key built from this character's own realm (same form), and that key
+-- as older versions wrote it (spaces kept). The fourth result is whether the home realm is known:
+-- on Forever a missing home realm may only mean the guild info has not arrived yet.
 local function currentGuildKey()
   if not (IsInGuild and IsInGuild()) then return nil end
   local guildName = GetGuildInfo and GetGuildInfo("player")
   if type(guildName) ~= "string" or guildName == "" or isSecret(guildName) then return nil end
   local realm = (ns.compat and ns.compat.identity().realm) or (GetRealmName and GetRealmName()) or ""
-  return guildName .. "-" .. (guildHomeRealm() or realm), guildName .. "-" .. realm
+  local rawOwn = guildName .. "-" .. realm
+  local home = guildHomeRealm()
+  if ns.util.isForever() then
+    return guildName .. "-" .. compactRealm(home or realm), guildName .. "-" .. compactRealm(realm), rawOwn, home ~= nil
+  end
+  return guildName .. "-" .. (home or realm), rawOwn, rawOwn, home ~= nil
 end
 ns.currentGuildKey = currentGuildKey
 
 -- Returns "recorded", "same", "switched" or nil (guild not known yet / no guild).
+-- (The Lua test harness sets GUILDED_TEST_HOME_WAIT so ordinary tests do not wait.)
+local HOME_WAIT_SECONDS = rawget(_G, "GUILDED_TEST_HOME_WAIT") or 20
+local homeWaitStart, homeWaitOver
+local function homeNow() return (GetServerTime and GetServerTime()) or time() end
+local function guildPart(text) return (string.match(text, "^(.*)%-[^%-]*$")) or text end
+-- Never merged between guild keys: points are only ever owned by the key that earned them.
+local function isLedgerField(field)
+  return field == "epgp" or field == "dkp" or string.find(string.lower(tostring(field)), "ledger", 1, true) ~= nil
+end
+
 local function resolveGuildData()
   if not db then return nil end
-  local key, ownRealmKey = currentGuildKey()
+  local key, ownRealmKey, rawOwnKey, homeKnown = currentGuildKey()
   if not key then return nil end
   local edition = ns.util.gameEdition()
   local oldEdition = db.guildEdition or edition
+  -- Saved before the realm was written without spaces: the same key, spelled the old way.
+  if edition == "forever" and oldEdition == edition and db.guildKey and db.guildKey ~= key
+    and compactRealm(db.guildKey) == key then
+    db.guildKey = key
+  end
+  -- Forever: the guild's home realm may not have arrived with the guild name. Until it does (or
+  -- a short wait is over), do not file anything under this character's own realm, which would
+  -- strand the data for characters on the guild's own segment. Nothing is lost meanwhile: the
+  -- data sits at the root of the saved file and only gets its guild label once settled.
+  if edition == "forever" and not homeKnown and db.guildKey ~= key and not homeWaitOver then
+    homeWaitStart = homeWaitStart or homeNow()
+    if homeNow() - homeWaitStart < HOME_WAIT_SECONDS then return nil end
+    homeWaitOver = true
+  end
   -- Settled on this guild for the session. A later guild or realm change
   -- (common on launch day, and not always followed by /reload) still swaps.
   if guildResolved and db.guildKey == key and oldEdition == edition then return nil end
@@ -1981,14 +2077,13 @@ local function resolveGuildData()
   db.otherGuilds = db.otherGuilds or {}
   -- Saved before the guild's home realm was used: the key was built from this character's own
   -- realm, which is the same guild name, so only the realm part moves. Nothing is parked.
-  if edition == "forever" and oldEdition == edition and old == ownRealmKey and key ~= ownRealmKey and not db.otherGuilds[key] then
+  if edition == "forever" and oldEdition == edition and (old == ownRealmKey or old == rawOwnKey) and key ~= ownRealmKey and not db.otherGuilds[key] then
     db.guildKey = key
     db.guildEdition = edition
     return "rekeyed"
   end
   -- Only an explicitly recorded Forever realm alias can rename a scope.
   -- Matching guild names alone never establish identity across realms.
-  local function guildPart(text) return (string.match(text, "^(.*)%-[^%-]*$")) or text end
   local aliases = db.settings and db.settings.guildRealmAliases
   if edition == "forever" and oldEdition == edition and type(aliases) == "table" and aliases[old] == key
     and guildPart(old) == guildPart(key) and not db.otherGuilds[key] then
@@ -2005,6 +2100,24 @@ local function resolveGuildData()
   db.otherGuilds[storageKey(old, oldEdition)] = parked
   local incoming = db.otherGuilds[storageKey(key, edition)]
   db.otherGuilds[storageKey(key, edition)] = nil
+  -- The data saved under this character's own realm (a first load before the home realm was
+  -- known) belongs to the same guild: copy what the home data does not already have into it,
+  -- once. Points are never merged; they stay under the old key.
+  local mergedFields
+  if incoming and edition == "forever" and oldEdition == edition and guildPart(old) == guildPart(key)
+    and (old == ownRealmKey or old == rawOwnKey) and not parked.mergedIntoHome then
+    mergedFields = 0
+    for field, value in pairs(parked) do
+      local have = incoming[field]
+      local empty = have == nil or (type(have) == "table" and next(have) == nil)
+      if field ~= "settings" and field ~= "mergedIntoHome" and not isLedgerField(field) and empty
+        and not (type(value) == "table" and next(value) == nil) then
+        incoming[field] = value
+        mergedFields = mergedFields + 1
+      end
+    end
+    parked.mergedIntoHome = key
+  end
   local restored = false
   if incoming then
     for field, value in pairs(incoming) do db[field] = value end
@@ -2013,6 +2126,10 @@ local function resolveGuildData()
   db.guildKey = key
   db.guildEdition = edition
   ensureDb()
+  if mergedFields then
+    message(string.format("Saved data under %s was merged into %s (%d sections). EP/GP stays under the old name. /reload is recommended.", old, key, mergedFields))
+    return "merged"
+  end
   message(string.format("Guild changed: now using the saved data for %s (%s). Data for %s is kept and comes back if you play there. /reload is recommended.",
     key, restored and "restored" or "new", old))
   return "switched"
@@ -2040,7 +2157,7 @@ end
 -- Joining a guild mid-session: GetGuildInfo stays empty for a few seconds after
 -- PLAYER_GUILD_UPDATE, and no roster update may follow until the guild window is opened, so
 -- the guild was only picked up after a /reload. Try again now and a few times after.
-local GUILD_RETRY_SECONDS = { 2, 5, 15 }
+local GUILD_RETRY_SECONDS = { 2, 5, 15, 25 }
 local function resolveGuildSoon()
   local function try()
     if db and resolveGuildData() then noteMyCharacter(db.character) end
@@ -2069,11 +2186,13 @@ local function onEvent(_, event, ...)
       logDiagnostic(pending.kind, pending.detail, pending.foreign)
     end
     pendingDiagnostics = {}
+    if validVerifyCode(db.verifyCode) then scheduleVerifyResend() end
     return
   end
   if not db then return end
   if event == "PLAYER_ENTERING_WORLD" then
-    resolveGuildData()
+    -- On Forever the home realm can arrive after the guild name: retry for a bit.
+    if ns.util.isForever() then resolveGuildSoon() else resolveGuildData() end
     db.character = collectCharacter()
     noteMyCharacter(db.character)
     maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS)
@@ -2101,8 +2220,10 @@ local function onEvent(_, event, ...)
     if activeRaid then recordPresence() end
     if inRaidGroup() then maybeAutoSync(AUTO_SYNC_RAID_INTERVAL_SECONDS) end
   elseif event == "PLAYER_GUILD_UPDATE" then
+    ledgerRoster = nil
     resolveGuildSoon()
   elseif event == "GUILD_ROSTER_UPDATE" then
+    ledgerRoster = nil
     -- Before anything is added to the roster: make sure it is the right guild's data.
     if resolveGuildData() then noteMyCharacter(db.character) end
     local count = GetNumGuildMembers and GetNumGuildMembers() or 0
@@ -2126,6 +2247,14 @@ local function onEvent(_, event, ...)
           and type(rosterRankIndex) == "number" and rosterRankIndex >= 0 and rosterRankIndex < 20 then
           entry.rankName, entry.rankIndex = string.sub(rosterRankName, 1, 60), rosterRankIndex
         end
+      end
+    end
+    -- Forever (8.5): first-name keys from older saved data move to the full name the roster
+    -- just listed, before anyone is marked as having left (Util.lua, util.migrateForeverNames).
+    if count > 0 and ns.util.migrateForeverNames then
+      local okMigrate, result = pcall(ns.util.migrateForeverNames, db)
+      if okMigrate and result.flagged > 0 and isOfficer() then
+        message(string.format(L("%d saved entries use a first name shared by several characters. /guilded names lists them."), result.flagged))
       end
     end
     -- A full roster that no longer lists someone means they left. Nothing is concluded from
@@ -2180,6 +2309,8 @@ local function onEvent(_, event, ...)
     local blockedAddon, blockedFunction = ...
     logDiagnostic(event, string.format("%s tried to call %s", tostring(blockedAddon), tostring(blockedFunction)),
       blockedAddon ~= addonName)
+    -- A refused guild action is never retried on this client build (see RosterTools).
+    if blockedAddon == addonName and ns.rosterTools and ns.rosterTools.onBlocked then pcall(ns.rosterTools.onBlocked) end
   elseif event == "UI_ERROR_MESSAGE" then
     -- Fallback net in case the blocked-action popup surfaces as a generic UI
     -- error toast instead of ADDON_ACTION_BLOCKED/FORBIDDEN -- log it only
@@ -2252,6 +2383,36 @@ ns.inspectReadiness = inspectReadiness
 ns.isOfficer = isOfficer
 ns.isOfficerName = isOfficerName
 ns.isGuildMember = isGuildMember
+-- Ledger whispers carry balances. Verify the full character address against the live
+-- roster; two characters on connected realms can share the same short name.
+ns.ledgerPeerRole = function(address)
+  if not db or not GetNumGuildMembers or not GetGuildRosterInfo then return nil end
+  local realm = (GetNormalizedRealmName and GetNormalizedRealmName()) or GetRealmName()
+  local function qualified(name)
+    if type(name) ~= "string" or isSecret(name) then return nil end
+    return string.find(name, "-", 1, true) and name or (realm and name .. "-" .. realm:gsub("%s+", ""))
+  end
+  local wanted, short = qualified(address), normalizeName(address)
+  if not wanted or not short then return nil end
+  local count = GetNumGuildMembers()
+  if not ledgerRoster or ledgerRoster.count ~= count then
+    ledgerRoster = { count = count, rows = {}, shortCounts = {} }
+    for i = 1, count do
+      local name = GetGuildRosterInfo(i)
+      local full, key = qualified(name), normalizeName(name)
+      if full and key then
+        ledgerRoster.rows[full] = i
+        ledgerRoster.shortCounts[key] = (ledgerRoster.shortCounts[key] or 0) + 1
+      end
+    end
+  end
+  local row = ledgerRoster.rows[wanted]
+  if not row then return nil end
+  local name, _, rank = GetGuildRosterInfo(row)
+  if qualified(name) ~= wanted or rank == nil or isSecret(rank) then return nil end
+  if db.settings.officerRanks[rank] or (ledgerRoster.shortCounts[short] == 1 and db.settings.officers[short]) then return "officer" end
+  return "member"
+end
 ns.runCommand = command
 ns.getSettings = function() return db and db.settings end
 -- A setup preference, not a permission or a replacement for existing guild data.

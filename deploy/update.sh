@@ -22,6 +22,12 @@ fi
 exec 9>"${APP}.update.lock"
 flock -n 9 || { echo "Another update or recovery is in progress."; exit 1; }
 
+# The install and build share a small server with the running bot. At normal priority they starved it
+# (database queries timed out mid-deploy, 7 November 2026), so this run and everything it starts yield
+# CPU and disk to the bot. The restarted bot is started by systemd, at its own normal priority.
+renice -n 19 -p $$ >/dev/null 2>&1 || true
+ionice -c 3 -p $$ >/dev/null 2>&1 || true
+
 say "Checking the server checkout"
 git config --global --add safe.directory "$SRC" >/dev/null 2>&1 || true
 BRANCH="$(sudo -u "$WHO" git -C "$SRC" branch --show-current)"
@@ -43,12 +49,34 @@ sudo -u "$WHO" git -C "$SRC" merge --ff-only origin/main
 AFTER="$(sudo -u "$WHO" git -C "$SRC" rev-parse --short HEAD)"
 if [ "$BEFORE" = "$AFTER" ]; then echo "Already on the newest code ($AFTER)."; else echo "Updated $BEFORE -> $AFTER"; sudo -u "$WHO" git -C "$SRC" log -10 --oneline "$BEFORE..$AFTER"; fi
 
+# Sourced only now, after the checkout was updated, so this run uses its own version of the helpers.
+source "$SRC/deploy/application-update.sh"
+
+# Holding the lock: no other run can be preparing a staging directory, so leftovers are safe to remove.
+remove_stale_staging "$APP" || true
+
+# Preparing needs room for a full copy of the application and its dependencies. Stop before any change
+# if there is not enough, after pruning old saved applications (see ensure_free_disk).
+MIN_FREE_KB=$((3 * 1024 * 1024))
+say "Checking free disk space"
+if ! ensure_free_disk "$APP" "$MIN_FREE_KB"; then
+  echo "Not enough free disk space to prepare the update. The running bot was not touched."
+  echo "Free space under $(dirname "$APP") (for example by removing old files), then run this again."
+  exit 1
+fi
+
 say "Preparing dependencies and the companion interface bundle outside the running application"
 command -v rsync >/dev/null || apt-get install -y rsync
-source "$SRC/deploy/application-update.sh"
 if ! prepare_application "$SRC" "$APP" guilded; then
+  if [ -z "${STAGED_APP:-}" ]; then
+    STAGE_NOTE="No staging directory was created."
+  elif discard_own_staging "$STAGED_APP"; then
+    STAGE_NOTE="This run's private staging directory was removed."
+  else
+    STAGE_NOTE="Could not remove this run's staging directory: ${STAGED_APP:-not created}."
+  fi
   echo "Preparation failed; the running application was not replaced or stopped."
-  echo "Inspect the private staging directory: ${STAGED_APP:-not created}"
+  echo "$STAGE_NOTE"
   exit 1
 fi
 say "Stopping the bot and activating the prepared application"
@@ -61,12 +89,26 @@ chmod 700 "$PREVIOUS_APP"
 cp -p /etc/systemd/system/guilded.service "$PREVIOUS_APP/.recovery-service"
 echo "Saved application for code recovery: $PREVIOUS_APP"
 
-# A changed service file needs systemd to reload it.
+# Keep the three newest saved applications. The service is already stopped, so a failure here must not stop the script.
+prune_previous_applications "$APP" 3 || echo "Could not prune old saved applications; free space manually if needed."
 
-if ! cmp -s "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service; then
+# A changed service file (memory ceiling, OOM protection, restart policy) is installed before the bot starts
+# again. The new file is written beside the old one and moved into place in one step. If systemd rejects it,
+# the previous file (saved above as .recovery-service) goes back, so the bot still starts with what it had.
+UNIT=/etc/systemd/system/guilded.service
+if ! cmp -s "$APP/deploy/guilded.service" "$UNIT"; then
   say "Service file changed"
-  cp "$APP/deploy/guilded.service" /etc/systemd/system/guilded.service
-  systemctl daemon-reload
+  UNIT_NEW="$(mktemp /etc/systemd/system/.guilded.service.XXXXXXXX)" || UNIT_NEW=""
+  if [ -n "$UNIT_NEW" ] && install -m 644 "$APP/deploy/guilded.service" "$UNIT_NEW" && mv -f "$UNIT_NEW" "$UNIT"; then
+    if ! systemctl daemon-reload; then
+      echo "systemd did not accept the new service file; restoring the previous one."
+      cp -p "$PREVIOUS_APP/.recovery-service" "$UNIT" || echo "Could not restore $UNIT: copy $PREVIOUS_APP/.recovery-service back by hand."
+      systemctl daemon-reload || true
+    fi
+  else
+    rm -f "${UNIT_NEW:-}"
+    echo "Could not install the new service file; the previous one stays in place."
+  fi
 fi
 
 # The Caddy config is the repository's deploy/Caddyfile with this server's hostname filled in.

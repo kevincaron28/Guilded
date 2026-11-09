@@ -114,7 +114,8 @@ describe("raid reports and loot logs live in each core's category", () => {
     expect(ALL_CHANNELS).not.toContain("raidLogChannelId");
     expect(ALL_CHANNELS).not.toContain("lootChannelId");
     expect(ALL_CHANNELS).not.toContain("coreChannelId");
-    expect(RETIRED_CHANNELS).toEqual(["raidLogChannelId", "lootChannelId", "coreChannelId"]);
+    // 9.0 also retires #bot-faq (answerChannelId); uninstall still finds an old one.
+    expect(RETIRED_CHANNELS).toEqual(["raidLogChannelId", "lootChannelId", "coreChannelId", "answerChannelId"]);
     expect(ALL_CHANNELS).toContain("attendanceChannelId");
     const choices = JSON.stringify(configCommand.toJSON());
     expect(choices).not.toContain("raid-log-channel");

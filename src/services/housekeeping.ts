@@ -7,7 +7,10 @@ import { createGuildService } from "./guild.js";
 import { isPermissionRole, type Permission } from "../permissions.js";
 import { currentGuildScope } from "./guild-scope.js";
 import { asLang, t } from "../i18n.js";
+import { linkedCharactersRow } from "./companion-link-dm.js";
 import { onboardingButtons, rulesGateActive, rulesPending, rulesPrompt } from "./onboarding.js";
+import { findWowRoleId } from "./invite-channel.js";
+import { selfRoleProblem } from "./selfrole.js";
 
 const guildService = createGuildService(prisma);
 // Exported so tests can stub settings lookups.
@@ -132,7 +135,7 @@ export async function sendWelcome(discordGuild: DiscordGuild, member: GuildMembe
   const delivery = welcomeDelivery(settings);
   const message = buildWelcomeMessage(settings, discordGuild, { id: member.id, username: member.user.username });
   if (delivery !== "CHANNEL") {
-    result.dm = await member.send(message).then(() => true).catch(() => false);
+    result.dm = await member.send({ ...message, components: [...message.components, linkedCharactersRow(asLang(settings.language))] }).then(() => true).catch(() => false);
   }
   if ((delivery !== "DM" || !result.dm) && settings.welcomeChannelId) {
     const channel = await discordGuild.channels.fetch(settings.welcomeChannelId).catch(() => null);
@@ -148,29 +151,37 @@ export async function sendWelcome(discordGuild: DiscordGuild, member: GuildMembe
 // Clicks on the role buttons of a welcome message sent before the game menu existed: toggles that role for
 // whoever clicked. Only roles still listed in the welcome settings are
 // honoured, so an old message can't hand out a role that was removed.
+// The click is acknowledged before any Discord or database call: answering after them could miss Discord's
+// 3-second window ("This interaction failed", error 10062) even though the role was given, and members then
+// clicked again, which toggled the game role straight back off (owner report, 7 November 2026).
 export async function handleWelcomeRoleButton(interaction: ButtonInteraction): Promise<void> {
   const [discordGuildId, roleId] = interaction.customId.slice(WELCOME_ROLE_PREFIX.length).split(":");
   if (!discordGuildId || !roleId) return;
   if (!hostedPilot.allows(discordGuildId)) { await interaction.reply({ content: PILOT_DENIED, flags: MessageFlags.Ephemeral }); return; }
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   const discordGuild = await interaction.client.guilds.fetch(discordGuildId).catch(() => null);
   if (!discordGuild) {
-    await interaction.reply({ content: "I'm no longer in that server.", flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: "I'm no longer in that server." });
     return;
   }
-  const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
-  const settings = await guildService.getSettings(guild.id);
+  // A slow or failing database must not cost a member their game role: the role checks below still apply.
+  const loaded = await (async () => {
+    const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
+    return { guild, settings: await guildService.getSettings(guild.id) };
+  })().catch((error: unknown) => { console.error("Welcome role button: settings unavailable", error); return null; });
+  const settings = loaded?.settings ?? null;
   const role = await discordGuild.roles.fetch(roleId).catch(() => null);
-  if (!settings?.welcomeRoleIds.includes(roleId) || !role) {
-    await interaction.reply({ content: "That choice isn't offered anymore. Ask an officer.", flags: MessageFlags.Ephemeral });
+  if (!role || !welcomeRoleOffered(settings, discordGuild, role)) {
+    await interaction.editReply({ content: "That choice isn't offered anymore. Ask an officer." });
     return;
   }
   const member = await discordGuild.members.fetch(interaction.user.id).catch(() => null);
   if (!member) {
-    await interaction.reply({ content: `You're not in ${discordGuild.name} anymore.`, flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: `You're not in ${discordGuild.name} anymore.` });
     return;
   }
-  if (await rulesPending(guild.id, settings, member.id)) {
-    await interaction.reply({ ...rulesPrompt(settings, discordGuild.id, asLang(settings.language), true), flags: MessageFlags.Ephemeral });
+  if (loaded && settings && await rulesPending(loaded.guild.id, settings, member.id).catch(() => false)) {
+    await interaction.editReply(rulesPrompt(settings, discordGuild.id, asLang(settings.language), true));
     return;
   }
   const had = member.roles.cache.has(role.id);
@@ -178,11 +189,23 @@ export async function handleWelcomeRoleButton(interaction: ButtonInteraction): P
     if (had) await member.roles.remove(role, "Welcome role button");
     else await member.roles.add(role, "Welcome role button");
   } catch {
-    await interaction.reply({ content: `I couldn't change "${role.name}". An officer needs to move my role above it (Server Settings > Roles).`, flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: `I couldn't change "${role.name}". An officer needs to move my role above it (Server Settings > Roles).` });
     return;
   }
-  const lang = asLang(settings.language);
-  await interaction.reply({ content: t(lang, had ? "welcome.removed" : "welcome.added", { role: role.name }), flags: MessageFlags.Ephemeral });
+  const lang = asLang(settings?.language);
+  await interaction.editReply({ content: t(lang, had ? "welcome.removed" : "welcome.added", { role: role.name }) });
+}
+
+// A welcome button's role is honoured when the settings still offer it, or when it is the server's World of Warcraft
+// role (owner report, 7 November 2026: WoW picks failed). Either way the role must be harmless to self-assign.
+export function welcomeRoleOffered(
+  settings: Pick<GuildSettings, "welcomeRoleIds" | "inviteWowRoleId"> | null,
+  discordGuild: Pick<DiscordGuild, "id"> & { roles: { cache: { values(): Iterable<{ id: string; name: string }> } } },
+  role: { id: string; name: string; managed: boolean; permissions: { bitfield: bigint } }
+): boolean {
+  if (selfRoleProblem({ id: role.id, managed: role.managed, permissions: role.permissions.bitfield }, discordGuild.id)) return false;
+  if (settings?.welcomeRoleIds.includes(role.id)) return true;
+  return findWowRoleId(discordGuild.roles.cache.values(), settings?.inviteWowRoleId) === role.id;
 }
 
 export async function handleMemberLeave(discordGuild: DiscordGuild, member: GuildMember | PartialGuildMember): Promise<void> {

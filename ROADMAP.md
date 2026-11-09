@@ -8,6 +8,42 @@ Guilded supports WoW Forever only (the other editions were removed 7 November) a
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
+## Start here — 10 November 2026
+
+**Released 9 November (evening):** 9.1.1, 9.1.2 and 9.1.3. All three are on GitHub (9.1.3 is the latest release), on CurseForge (in review) and on the website through the R2 mirror. The bot runs 9.1.3 (e888d38b) after a backup (`guilded-recovery/2026-11-09T21-35-22-052Z`, offsite copy made).
+- **9.1.1:** the zero-setup companion finds the guild's Discord by name, and unsigned companions upload dungeon runs (#694, #695).
+- **9.1.2:** clear companion download steps in the addon, `/guilded companion`, the website and `/help` (#699, #701). Professions are stored under one English name, so Cooking and Cuisine are one profession; the migration is applied (#702).
+- **9.1.3:** fixes from a fresh-install test on two PCs (#705-#708).
+  - The addons, Guilded Dungeons included, update by themselves when WoW is closed.
+  - The home and Repair screens treat Discord sign-in as optional.
+  - French texts are fixed.
+  - `/guilded dungeon` is never silent, and the sent and received times show.
+  - Unsigned devices get run receipts back.
+  - The stale "Linked to Discord as" line is gone.
+  - The Officer tools drag error is fixed.
+  - The uninstaller keeps your data and removes the startup entry.
+  - Store-era settings are imported when switching to the website installer.
+  - The Start page wording is fixed.
+
+**Merged, not released:** #712 (`/gdungeons` and `/gdg` work with Guilded alone, answers for guildmates' runs in unsigned uploads, an end-to-end receipts test). It includes bot changes, so it ships as **9.1.4** with a bot deploy.
+
+**Tomorrow, in order:**
+1. **Second-PC retest of 9.1.3. Owner: test only on the second PC.** The owner reopens the "In-game test sync messaging" Remote Control session there; it went offline. Check:
+   - self-update to 9.1.3 and the automatic addon update
+   - French screens, and Repair showing sign-in as an info line
+   - sync: sent and received times appear, and the 10 unsynced runs (baseline) drop to 0; no "Meo Gratton" line
+   - Officer tools drag
+   - uninstall keeps `%APPDATA%\Guilded Companion` and removes the Run entry; then reinstall
+2. **Release 9.1.4:** #712 plus any fixes from step 1.
+3. **Store:** the 9.1.2.0 package is built; build 9.1.3.0 or 9.1.4.0 and submit the newest after Submission 13 passes.
+4. **CurseForge description:** paste `docs/marketing/curseforge-description.md` into both projects by hand once 9.1.3 is approved.
+5. **Backup size:** check the 10 Nov 07:10 daily backup (15 MB on 9 Nov, before #679).
+
+**Waiting for the owner:**
+- **Google Play:** the drafts are saved (listings EN/FR, privacy policy, no ads, data safety, an empty Alpha track). The owner ticks Sign in details, Target audience and Content ratings, and still owns Firebase, `EXPO_TOKEN`, the 12 testers, and a phone test of the preview APK before #345 merges. Notes: `android-ON-HOLD-9-nov.md` in the shared notes folder.
+- **Season 2:** around 18 November.
+- **Card art (Guilded Clash): on hold** (owner, 9 Nov). R27 is complete and in the app (#692, #697). U32 has 12 of 32 painted; resume at 060 Spirit Link, then the 60 commons (C60).
+
 ## Start here — morning of 9 November 2026 (after the overnight run)
 
 **Released overnight (owner: "Deploy + release 9.0.8"):** 9.0.8 on GitHub (510ed412), CurseForge 9522291/9522292 in review,

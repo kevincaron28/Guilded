@@ -228,10 +228,13 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   if (upload.dungeonRuns.length && store.receipts && target) {
     const refs = [...new Set(upload.dungeonRuns.flatMap((run) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" && id.length <= 80 ? [id] : []; }))];
     const held = refs.length ? await store.receipts(target.guildId, refs) : [];
-    if (held.length) runReceipts = {
-      acceptedRunRefs: held.map((row) => row.runRef),
-      runNotes: Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []))
-    };
+    const acceptedRunRefs = held.map((row) => row.runRef);
+    const runNotes: Record<string, string> = Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []));
+    // A guildmate's run the addon got by peer sync (none of this PC's characters in it) is refused for good: say so, so it stops waiting.
+    const idOf = (run: unknown) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" ? [id] : []; };
+    const mine = new Set(runsOfDevice(upload.dungeonRuns, known).flatMap(idOf));
+    for (const ref of refs) if (!mine.has(ref) && !acceptedRunRefs.includes(ref)) { acceptedRunRefs.push(ref); runNotes[ref] = "Not one of this PC's characters"; }
+    if (acceptedRunRefs.length) runReceipts = { acceptedRunRefs, runNotes };
   }
   return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}) };
 }

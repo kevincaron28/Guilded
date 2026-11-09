@@ -14,6 +14,7 @@ import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { blockVerifiedCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
 import { removePictureByOfficer } from "../services/character-picture.js";
+import { characterTrustMap, REPORTED_HINT, trustSuffix } from "../services/character-trust.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
 
 export const characterCommand = new SlashCommandBuilder()
@@ -91,10 +92,13 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   if (subcommand === "list") {
     const characters = await guildService.listCharacters(context.memberId);
     const book = await loadFullNameBook(prisma, context.guildId);
+    const trust = await characterTrustMap(prisma, context.guildId, characters);
+    const reported = characters.some((character) => trust.get(character.id) === "reported");
     await interaction.reply({
       content: characters.length === 0
         ? "You have no linked characters."
-        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${displayCharacterName(character, book)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}${armoryMarkdown(character) ? ` · ${armoryMarkdown(character)}` : ""}`).join("\n"),
+        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${displayCharacterName(character, book)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}${armoryMarkdown(character) ? ` · ${armoryMarkdown(character)}` : ""}${trustSuffix(trust.get(character.id))}`).join("\n")
+          + (reported ? `\n-# ${REPORTED_HINT}` : ""),
       flags: MessageFlags.Ephemeral
     });
     return;
@@ -180,7 +184,7 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     if (!row) throw new Error(`No unclaimed character called "${wanted}".`);
     const user = interaction.options.getUser("player", true);
     const target = await guildService.ensureMember(context.guildId, user.id, user.username);
-    const outcome = await linkUnclaimed(prisma, target.id, row);
+    const outcome = await linkUnclaimed(prisma, target.id, row, { confirmed: true });
     await interaction.reply({ content: `Linked **${characterName(row)}** to ${user.username} as ${outcome.isMain ? "their main" : "an alt"}.`, flags: MessageFlags.Ephemeral });
     return;
   }

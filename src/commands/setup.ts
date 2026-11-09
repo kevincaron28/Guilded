@@ -29,6 +29,7 @@ import { CLASSES } from "../wow-data.js";
 import { commandVisibility } from "../services/command-visibility.js";
 import { inviteChannelCandidates, pickInviteChannel } from "../services/invite-extras.js";
 import { formatChecks, publicSharingNotice, setupChecks, setupComplete, type ChannelFact, type SetupFacts } from "../services/setup-status.js";
+import { rosterFreshness } from "../services/guild-data.js";
 import { blockedMemberCount, botCanRename } from "../services/nickname-sync.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { openBoardChannels } from "../services/board-permissions.js";
@@ -191,6 +192,7 @@ export async function gatherFacts(guild: DiscordGuild, guildId: string, settings
     companionPaired: (await prisma.companionCredential.count({ where: { revokedAt: null, member: { guildId, status: "ACTIVE" } } })) > 0,
     linkedCharacters: await prisma.character.count({ where: { member: { guildId, isTest: false } } }),
     officerSyncAt: (await prisma.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }))?.officerSyncAt ?? null,
+    ...(await rosterFreshness(prisma, guildId).then((rosterUpdate) => ({ rosterUpdate })).catch(() => ({}))),
     dungeonSignupGuideOutdated: guideState === "outdated",
     extraChannels: await Promise.all((["readinessChannelId", "craftChannelId", "craftOrdersChannelId", "craftArchiveChannelId", "craftLadderChannelId", "applicationChannelId", "attendanceChannelId", "guideChannelId", "dungeonChannelId", "weeklyReportChannelId", "inviteChannelId"] as const)
       .map(async (field) => ({ field, fact: await channelFact(guild, settings[field]) }))),

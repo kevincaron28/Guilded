@@ -7,6 +7,7 @@ import { guildService, requireGuildContext } from "./context.js";
 import { canonicalClass, displayCharacterName } from "../services/character-display.js";
 import { canonicalSpecialization } from "../wow-specializations.js";
 import { specRole } from "../services/dps-kind.js";
+import { characterTrustMap, REPORTED_HINT, trustSuffix } from "../services/character-trust.js";
 
 const epgpService = createEpgpService(prisma);
 const meritService = createMeritService(prisma);
@@ -30,6 +31,7 @@ export async function executeWho(interaction: ChatInputCommandInteraction): Prom
     epgpService.getStanding(found.member.id, settings?.baseGp ?? 0),
     meritService.getAttendanceRates(context.guildId)
   ]);
+  const trust = await characterTrustMap(prisma, context.guildId, found.characters);
   const lines = found.characters.map((character) => {
     const professions = character.professions.map((skill) => `${skill.profession} ${skill.skillLevel}`).join(", ");
     const seen = character.lastSeenAt ? ` · seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : "";
@@ -39,13 +41,13 @@ export async function executeWho(interaction: ChatInputCommandInteraction): Prom
     const role = spec ? specRole(spec) : null;
     const kind = role === "MELEE" ? "(melee)" : role === "RANGED" ? "(ranged)" : null;
     const details = [character.level ? `${character.level}` : null, character.race, character.className, character.spec, kind].filter(Boolean).join(" ");
-    return `${character.isMain ? "⭐" : "•"} **${displayCharacterName(character)}** — ${details}${professions ? ` — ${professions}` : ""}${seen}`;
+    return `${character.isMain ? "⭐" : "•"} **${displayCharacterName(character)}** — ${details}${professions ? ` — ${professions}` : ""}${seen}${trustSuffix(trust.get(character.id))}`;
   });
   const rate = rates.get(found.member.id);
   await interaction.reply({
     embeds: [new EmbedBuilder()
       .setTitle(`⚜️ ${found.member.displayName}`)
-      .setDescription(lines.join("\n").slice(0, 3900))
+      .setDescription(lines.join("\n").slice(0, 3600) + ([...trust.values()].includes("reported") ? `\n-# ${REPORTED_HINT}` : ""))
       .addFields(
         { name: "EP / GP / PR", value: `${standing.ep} / ${standing.gp} / ${standing.pr.toFixed(3)}`, inline: true },
         { name: "Attendance (30 days)", value: rate === undefined ? "no raids recorded" : `${Math.round(rate * 100)}%`, inline: true },

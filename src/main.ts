@@ -71,6 +71,7 @@ import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX }
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
 import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
+import { RANK_ROLES_BUTTON_PREFIX, handleRankRolesButton } from "./commands/rank-roles.js";
 import { sweepAchievementAnnouncements } from "./services/achievement-announce.js";
 import { sweepServerAnniversaries } from "./services/server-anniversary.js";
 import { executePoll, handlePollButton, handleWeeklyQuestionButton, POLL_PREFIX, WEEKLY_QUESTION_PREFIX } from "./commands/poll.js";
@@ -901,6 +902,13 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       const content = error instanceof Error && error.message.length < 200 ? error.message : "Could not update the group.";
       if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     }
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(RANK_ROLES_BUTTON_PREFIX)) {
+    await handleRankRolesButton(interaction).catch((error: unknown) => {
+      reportInteractionError("Rank roles preview", interaction, error);
+      if (!interaction.replied) void interaction.reply({ content: "That didn't work, try again.", flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    });
     return;
   }
   if (interaction.isButton() && interaction.customId.startsWith(ROSTER_BUTTON_PREFIX)) {

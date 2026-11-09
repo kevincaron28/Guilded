@@ -1,8 +1,42 @@
-import { MessageFlags, SlashCommandBuilder, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, SlashCommandBuilder, type ButtonInteraction, type ChatInputCommandInteraction, type GuildMember } from "discord.js";
 import { prisma } from "../database.js";
 import { hasPermission } from "../permissions.js";
-import { syncRankRoles } from "../services/rank-roles.js";
+import { formatRankRolePreview, previewRankRoles, syncRankRoles } from "../services/rank-roles.js";
 import { requireGuildContext } from "./context.js";
+
+export const RANK_ROLES_BUTTON_PREFIX = "rankroles:";
+
+const confirmRow = (action: string) => new ActionRowBuilder<ButtonBuilder>().addComponents(
+  new ButtonBuilder().setCustomId(`${RANK_ROLES_BUTTON_PREFIX}${action}`).setStyle(ButtonStyle.Success).setLabel("Confirm"),
+  new ButtonBuilder().setCustomId(`${RANK_ROLES_BUTTON_PREFIX}cancel`).setStyle(ButtonStyle.Secondary).setLabel("Cancel"));
+
+/** Confirm or Cancel under a rank roles preview. Re-checks the clicker's officer role; saves only on Confirm. */
+export async function handleRankRolesButton(interaction: ButtonInteraction): Promise<void> {
+  const done = (content: string) => interaction.update({ content, components: [], allowedMentions: { parse: [] } });
+  if (!interaction.guild || !interaction.member || !hasPermission(interaction.member as GuildMember, "officer")) {
+    await interaction.reply({ content: "Only officers can set rank roles.", flags: MessageFlags.Ephemeral });
+    return;
+  }
+  const [, action, rankText, roleId] = interaction.customId.split(":");
+  if (action === "cancel") { await done("Cancelled. Nothing was changed."); return; }
+  const context = await requireGuildContext(interaction);
+  if (!context) return;
+  const guildId = context.guildId;
+  if (action === "enable") {
+    await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, rankRolesEnabled: true }, update: { rankRolesEnabled: true } });
+    await done("Rank roles are on. Members get their role within the hour, or run **/mod rankroles sync apply:true**.");
+    return;
+  }
+  const rank = Number(rankText);
+  const role = roleId ? interaction.guild.roles.cache.get(roleId) : undefined;
+  if (action !== "set" || !Number.isInteger(rank) || rank < 0 || rank > 19 || !role) { await done("That role no longer exists. Run /mod rankroles set again."); return; }
+  await prisma.guildRankRole.upsert({
+    where: { guildId_rankIndex: { guildId, rankIndex: rank } },
+    create: { guildId, rankIndex: rank, discordRoleId: role.id, createdBy: interaction.user.id },
+    update: { discordRoleId: role.id, createdBy: interaction.user.id }
+  });
+  await done(`Rank ${rank} now gives <@&${role.id}>. Members get it within the hour, or run **/mod rankroles sync**. Only mapped roles are ever added or removed.`);
+}
 
 // Mounted as /mod rankroles. Officer-only, every reply private.
 export const rankRolesCommand = new SlashCommandBuilder()
@@ -33,12 +67,18 @@ export async function executeRankRoles(interaction: ChatInputCommandInteraction)
     const rank = interaction.options.getInteger("rank", true);
     const role = interaction.options.getRole("role", true);
     if (role.id === interaction.guildId || role.managed) { await reply("Pick a normal role, not @everyone or a bot role."); return; }
-    await prisma.guildRankRole.upsert({
-      where: { guildId_rankIndex: { guildId, rankIndex: rank } },
-      create: { guildId, rankIndex: rank, discordRoleId: role.id, createdBy: interaction.user.id },
-      update: { discordRoleId: role.id, createdBy: interaction.user.id }
+    if (!interaction.guild) return;
+    // 9.1: show who would get the role first; nothing is saved until the officer confirms.
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const current = await prisma.guildRankRole.findMany({ where: { guildId }, select: { rankIndex: true, discordRoleId: true } });
+    const links = [...current.filter((link) => link.rankIndex !== rank), { rankIndex: rank, discordRoleId: role.id }];
+    const preview = await previewRankRoles(prisma, interaction.guild, links);
+    const enabled = (await prisma.guildSettings.findUnique({ where: { guildId }, select: { rankRolesEnabled: true } }))?.rankRolesEnabled !== false;
+    await interaction.editReply({
+      content: (`**Preview: rank ${rank} → <@&${role.id}>.** Nothing is saved until you press Confirm.\n${formatRankRolePreview(preview, rank)}`
+        + (enabled ? "" : "\nRank roles are off: confirming saves the mapping, but nothing changes until you turn them on.")).slice(0, 1990),
+      components: [confirmRow(`set:${rank}:${role.id}`)], allowedMentions: { parse: [] }
     });
-    await reply(`Rank ${rank} now gives <@&${role.id}>. Members get it within the hour, or run **/mod rankroles sync**. Only mapped roles are ever added or removed.`);
     return;
   }
   if (sub === "remove") {
@@ -49,6 +89,23 @@ export async function executeRankRoles(interaction: ChatInputCommandInteraction)
   }
   if (sub === "enabled") {
     const on = interaction.options.getBoolean("on", true);
+    if (on && interaction.guild) {
+      // 9.1: turning them back on with ranks mapped shows who would get which role, then waits for Confirm.
+      const [settings, links] = await Promise.all([
+        prisma.guildSettings.findUnique({ where: { guildId }, select: { rankRolesEnabled: true } }),
+        prisma.guildRankRole.findMany({ where: { guildId }, select: { rankIndex: true, discordRoleId: true } })
+      ]);
+      if (settings?.rankRolesEnabled !== false) { await reply("Rank roles are already on."); return; }
+      if (links.length) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        const preview = await previewRankRoles(prisma, interaction.guild, links);
+        await interaction.editReply({
+          content: `**Preview: turning rank roles on.** Nothing changes until you press Confirm.\n${formatRankRolePreview(preview)}`.slice(0, 1990),
+          components: [confirmRow("enable")], allowedMentions: { parse: [] }
+        });
+        return;
+      }
+    }
     await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, rankRolesEnabled: on }, update: { rankRolesEnabled: on } });
     await reply(on ? "Rank roles are on." : "Rank roles are off. Nothing is added or removed.");
     return;

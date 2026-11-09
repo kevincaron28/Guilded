@@ -6,6 +6,7 @@ import { prismaDeviceStore } from "./companion-devices.js";
 import { escapeHtml as h, link, SECURITY_HEADERS } from "./web-layout.js";
 import { checkCsrf, sameOrigin } from "./web-auth.js";
 import { DELETE_CONFIRM_WORD, type DeletionSummary } from "./data-deletion.js";
+import { characterTrustMap, trustLabel, type CharacterTrust } from "./character-trust.js";
 
 export function memberDataStore(database: PrismaClient, access: GuildDashboardAccess) {
   return async (account: WebAccountView) => {
@@ -14,7 +15,7 @@ export function memberDataStore(database: PrismaClient, access: GuildDashboardAc
     const [devices, characters, signups, recapSchedules, battlegroundReports] = await Promise.all([
       prismaDeviceStore(database).list(account),
       database.character.findMany({ where: { member: { discordUserId: account.discordUserId, guildId: { in: ids } } },
-        select: { name: true, realm: true, gameEdition: true, isMain: true, member: { select: { guildId: true } } }, take: 101, orderBy: { id: "asc" } }),
+        select: { id: true, memberId: true, name: true, realm: true, gameEdition: true, isMain: true, confirmedAt: true, member: { select: { guildId: true } } }, take: 101, orderBy: { id: "asc" } }),
       database.raidSignup.findMany({ where: { member: { discordUserId: account.discordUserId, guildId: { in: ids } }, raid: { isTest: false, guildId: { in: ids } } },
         select: { status: true, role: true, signedUpAt: true, raid: { select: { title: true, scheduledAt: true, guildId: true } } },
         take: 101, orderBy: { signedUpAt: "desc" } }),
@@ -24,10 +25,16 @@ export function memberDataStore(database: PrismaClient, access: GuildDashboardAc
         select: { guildId: true, reportId: true, gameEdition: true, mode: true, mapId: true, bracket: true, endedAt: true,
           outcome: true, presence: true, status: true, correctionReason: true }, orderBy: { endedAt: "desc" }, take: 101 })
     ]);
+    // "Reported, not verified" per character (character-trust.ts), one claim lookup per guild.
+    const trust = new Map<string, CharacterTrust>();
+    for (const guildId of new Set(characters.map((row) => row.member.guildId))) {
+      const rows = characters.filter((row) => row.member.guildId === guildId);
+      for (const [id, value] of await characterTrustMap(database, guildId, rows)) trust.set(id, value);
+    }
     return { guilds, recapSchedules,
       battlegroundReports: battlegroundReports.slice(0, 100),
       devices: devices.map(({ name, kind, scope, createdAt }) => ({ name, kind, scope, createdAt })),
-      characters: characters.slice(0, 100).map(({ member, ...character }) => ({ ...character, guildId: member.guildId })),
+      characters: characters.slice(0, 100).map((row) => ({ name: row.name, realm: row.realm, gameEdition: row.gameEdition, isMain: row.isMain, guildId: row.member.guildId, trust: trust.get(row.id) ?? "reported" as CharacterTrust })),
       recentSignups: signups.slice(0, 100), limited: characters.length > 100 || signups.length > 100 || battlegroundReports.length > 100 };
   };
 }
@@ -75,7 +82,9 @@ export function createMemberData(load: (account: WebAccountView) => Promise<Snap
         + `<h2>${t("Devices", "Appareils")} (${data.devices.length})</h2><p><a href="${link("/me/connections", lang)}">${t("Review and manage individual connections", "Vérifier et gérer chaque connexion")}</a> · <a href="${link("/me/battlenet", lang)}">Battle.net</a></p>`
         + `<h2>${t("Private recap delivery", "Envoi du bilan privé")}</h2><p>${t("Manage or pause in your guild: /automation recap. Automatic delivery is off unless you opt in.", "Gérez ou suspendez dans votre guilde : /automation recap. L'envoi automatique est désactivé sans votre accord.")}</p><ul>${data.recapSchedules.map(row => `<li>${h(data.guilds.find(g => g.id === row.guildId)?.name ?? row.guildId)} · ${row.enabled ? "ON" : "OFF"} · ${h(row.status)}</li>`).join("") || `<li>${t("No recurring recap configured.", "Aucun bilan récurrent configuré.")}</li>`}</ul>`
         + `<h2>${t("Battleground reports", "Rapports JcJ")}</h2><p>${t("Everything is shared: review /bg history and withdraw incorrect evidence with /bg correct. Up to 100 recent own reports are included in this export.", "Tout est partagé : consultez /bg history et retirez une preuve erronée avec /bg correct. Jusqu'à 100 rapports récents sont inclus dans cette exportation.")}</p>`
-        + `<h2>${t("My linked guild characters", "Mes personnages liés en guilde")}</h2><ul>${data.characters.map(row => `<li>${h(row.name)} · ${h(row.realm)} · ${h(row.gameEdition)} · ${h(data.guilds.find(guild => guild.id === row.guildId)?.name ?? row.guildId)}</li>`).join("") || `<li>${t("No visible linked characters. Membership may be unavailable; retry when Discord is reachable.", "Aucun personnage lié visible. L'appartenance peut être indisponible; réessayez lorsque Discord est accessible.")}</li>`}</ul>`
+        + `<h2>${t("My linked guild characters", "Mes personnages liés en guilde")}</h2>`
+        + `<p>${t("Confirmed: your own Guilded app uploaded it, or an officer linked or confirmed it. Reported, not verified: someone typed it in, it matched by name, or a guildmate's addon reported it; your next sync with the Guilded app confirms it.", "Confirmé : votre propre application Guilded l'a envoyé, ou un officier l'a lié ou confirmé. Signalé, non vérifié : quelqu'un l'a saisi, il a été reconnu par son nom, ou l'addon d'un membre l'a signalé ; votre prochaine synchronisation avec l'application Guilded le confirme.")}</p>`
+        + `<ul>${data.characters.map(row => `<li>${h(row.name)} · ${h(row.realm)} · ${h(row.gameEdition)} · ${h(data.guilds.find(guild => guild.id === row.guildId)?.name ?? row.guildId)} · <span class="${row.trust === "confirmed" ? "trust-confirmed" : "trust-reported"}">${h(trustLabel(row.trust ?? "reported", lang))}</span></li>`).join("") || `<li>${t("No visible linked characters. Membership may be unavailable; retry when Discord is reachable.", "Aucun personnage lié visible. L'appartenance peut être indisponible; réessayez lorsque Discord est accessible.")}</li>`}</ul>`
         + `<h2>${t("My recent raid signup history", "Mon historique récent d’inscriptions")}</h2><ul>${data.recentSignups.map(row => `<li>${h(row.raid.title)} · ${h(row.raid.scheduledAt.toISOString())} · ${h(signupStatus(row.status))} · ${h(role(row.role))}</li>`).join("") || `<li>${t("No visible raid signups.", "Aucune inscription visible.")}</li>`}</ul>`
         + `<h2>${t("Export and retention", "Exportation et conservation")}</h2><p>${t("Download the records displayed here (up to 100 characters and 100 recent signups). This is a visible-data summary, not a complete archive or recovery backup.", "Téléchargez les données affichées ici (jusqu’à 100 personnages et 100 inscriptions récentes). Ce résumé des données visibles n’est ni une archive complète ni une sauvegarde de récupération.")}</p>`
         + (data.limited ? `<p class="notice">${t("More records exist than this view includes.", "D’autres données existent au-delà de cette vue.")}</p>` : "")

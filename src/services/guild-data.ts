@@ -200,3 +200,27 @@ export async function dateRanksFromLog(tx: Pick<Tx, "guildEventEntry" | "charact
   }
   return dated;
 }
+
+export interface RosterFreshness {
+  /** When the newest stored roster reading was taken in game. */
+  at: Date;
+  /** Display name of the member whose upload brought it (null: unknown or since left). */
+  by: string | null;
+  /** Characters that reading lists in the guild. */
+  members: number;
+}
+
+/**
+ * How fresh the stored guild roster is and whose upload last refreshed it (/setup status, 9.1,
+ * docs/JEEVES_COMPARISON.md idea 3). Null when no upload ever brought a roster.
+ */
+export async function rosterFreshness(database: { guildRosterEntry: Pick<Prisma.TransactionClient["guildRosterEntry"], "findFirst" | "count">; member: Pick<Prisma.TransactionClient["member"], "findUnique"> },
+  guildId: string, edition = "forever"): Promise<RosterFreshness | null> {
+  const newest = await database.guildRosterEntry.findFirst({ where: { guildId, gameEdition: edition }, orderBy: [{ observedAt: "desc" }, { inGuild: "desc" }], select: { observedAt: true, reportedById: true } });
+  if (!newest) return null;
+  const [members, reporter] = await Promise.all([
+    database.guildRosterEntry.count({ where: { guildId, gameEdition: edition, inGuild: true } }),
+    newest.reportedById ? database.member.findUnique({ where: { id: newest.reportedById }, select: { displayName: true } }) : null
+  ]);
+  return { at: newest.observedAt, by: reporter?.displayName ?? null, members };
+}

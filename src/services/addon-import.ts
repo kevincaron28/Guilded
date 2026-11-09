@@ -139,7 +139,7 @@ export function createAddonImportService(database: PrismaClient) {
         // freed since, and only now being applied.)
         const self = snapshot.character;
         if (imported.pairedMemberId && self?.class && !findCharacter(characters, self.name, self.realm)) {
-          const linked = await createSelfCharacter(tx, guildId, imported.pairedMemberId, self);
+          const linked = await createSelfCharacter(tx, guildId, imported.pairedMemberId, self, true);
           characters.push({ ...linked, member: await tx.member.findUniqueOrThrow({ where: { id: linked.memberId } }) });
         }
 

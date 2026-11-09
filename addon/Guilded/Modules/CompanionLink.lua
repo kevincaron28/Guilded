@@ -77,7 +77,7 @@ local popup
 function module.openCopyWindow()
   if not popup then
     popup = CreateFrame("Frame", "GuildedCompanionCopy", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    popup:SetSize(500, 150)
+    popup:SetSize(500, 210)
     popup:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
     popup:SetFrameStrata("DIALOG")
     if UISpecialFrames then table.insert(UISpecialFrames, "GuildedCompanionCopy") end
@@ -102,6 +102,10 @@ function module.openCopyWindow()
     popup.box:SetSize(450, 20)
     popup.box:SetPoint("TOPLEFT", popup, "TOPLEFT", 26, -86)
     popup.box:SetAutoFocus(false)
+    popup.steps = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    popup.steps:SetPoint("TOPLEFT", popup, "TOPLEFT", 26, -116)
+    popup.steps:SetWidth(450)
+    popup.steps:SetJustifyH("LEFT")
     popup.box:SetScript("OnTextChanged", function(self, user)
       if user and self:GetText() ~= module.DIRECT then self:SetText(module.DIRECT); self:HighlightText() end
     end)
@@ -113,6 +117,7 @@ function module.openCopyWindow()
     close:SetScript("OnClick", function() popup:Hide() end)
   end
   popup.box:SetText(module.DIRECT)
+  popup.steps:SetText(table.concat(module.steps(), "\n"))
   popup:Show()
   popup.box:SetFocus()
   popup.box:HighlightText()
@@ -121,6 +126,11 @@ end
 
 function module.text()
   return L("Guilded companion (Windows): sends your data to Discord and brings standings, raids and signups into the game.")
+end
+
+-- The three steps, one chat line each (shared text: Util.lua).
+function module.steps()
+  return ns.util and ns.util.companionSteps and ns.util.companionSteps() or {}
 end
 
 -- Says the reminder in chat when it is due. Returns true when it spoke.
@@ -134,6 +144,7 @@ function module.remind(force)
   end
   d.companionRemindedAt = clock()
   ns.message(module.text() .. " " .. module.SHORT)
+  for _, line in ipairs(module.steps()) do ns.message(line) end
   ns.message(L("Open Guilded > Home to copy the link. Turn this reminder off: /guilded companion off"))
   return true
 end
@@ -147,6 +158,7 @@ ns.commandHandlers["companion"] = function(args)
     local name = module.linkedAs()
     if name then ns.message(module.linkedLine(name)) end
     ns.message(module.text())
+    for _, line in ipairs(module.steps()) do ns.message(line) end
     ns.message(module.SHORT)
     ns.message(module.DIRECT)
   end

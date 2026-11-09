@@ -81,7 +81,10 @@ describe("the waiting-runs reminder", () => {
     seed("old", 7200);
     s.run(`GuildedDB.dungeon.lastSaveAt = CLOCK - 3600`);
     expect(s.run(`return tostring(NS.dungeon.remindWaiting())`)).toBe("true");
-    expect(chat()).toContain("1 dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC?");
+    const said = chat();
+    expect(said).toContain("1 dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC?");
+    expect(said).toContain("3) Keep it open");
+    expect(said).toContain("guilded.kcaron.top/companion/");
     expect(s.run(`return tostring(NS.dungeon.remindWaiting())`)).toBe("false");
     expect(chat()).toBe("");
   });

@@ -499,3 +499,12 @@ form { margin: 22px 0 0; }
 .start-step details { margin-top: 12px; }
 .shot-soon { display: none; }
 .guide-shot.shot-missing .shot-soon { display: inline; font-weight: 700; }
+
+/* In-game screenshot galleries on the features page (EN and FR). */
+.shot-gallery { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 20px 0 32px; }
+.shot-gallery figure { margin: 0; min-width: 0; }
+.shot-gallery a { display: block; }
+.shot-gallery img { width: 100%; height: auto; display: block; border: 1px solid #4b4d38; border-radius: 8px; background: #111; }
+.shot-gallery figcaption { margin-top: 8px; font-size: 13px; line-height: 1.5; color: #c2cab7; }
+.shot-gallery-small { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+@media (max-width: 700px) { .shot-gallery, .shot-gallery-small { grid-template-columns: minmax(0, 1fr); } .shot-gallery-small img { max-width: 420px; } }

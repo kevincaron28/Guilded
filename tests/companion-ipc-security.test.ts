@@ -30,6 +30,8 @@ describe("desktop IPC boundary", () => {
     const source = { companionCredential: "private", uploadToken: "old-private", pairingCode: "private-code", profiles: { other: { companionCredential: "other-private" } }, realm: "Test" };
     expect(rendererConfig(source)).toEqual({ companionCredential: "connected", pairingCode: "", realm: "Test" });
     expect(source.companionCredential).toBe("private");
+    // Zero-setup companion: the device key never reaches the page, only that there is one.
+    expect(rendererConfig({ deviceSecret: "k".repeat(43), device: true })).toEqual({ deviceSecret: "set", device: true, companionCredential: "", pairingCode: "" });
   });
   it("accepts WoW Forever GRM imports only and rejects oversized edits", () => {
     expect(() => validateIpc("convert-grm", [{ guild: "Test", realm: "Realm", edition: "forever", includePrivate: false }])).not.toThrow();

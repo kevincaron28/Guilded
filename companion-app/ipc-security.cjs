@@ -80,7 +80,7 @@ function rendererConfig(config) {
   // Existing UI uses this only as a connected flag; never expose the credential.
   result.companionCredential = config.companionCredential ? "connected" : "";
   // Zero-setup companion: the device key never reaches the page, only whether there is one.
-  result.deviceSecret = config.deviceSecret ? "set" : "";
+  if (config.deviceSecret) result.deviceSecret = "set";
   return result;
 }
 module.exports = { validateIpc, assertSender, rendererConfig };

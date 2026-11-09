@@ -14,6 +14,7 @@ import { syncApprovedMemberRoles } from "../services/housekeeping.js";
 import { notifyInteractive, resolveNotifyChannel } from "../services/notify.js";
 import { hasPermission } from "../permissions.js";
 import { requireGuildContext, guildService } from "./context.js";
+import { asLang, type Lang } from "../i18n.js";
 import { CLASSES } from "../wow-data.js";
 import { pickSignupCharacter } from "./signup-character-picker.js";
 import { ownedSignupCharacter } from "../services/signup-character.js";
@@ -61,33 +62,43 @@ function isOfficer(interaction: ChatInputCommandInteraction): boolean {
 
 type ApplicationCard = {
   id: string; character: string; className: string; spec: string; experience: string; availability: string;
-  notes?: string | null; role?: RaidRole | null; core: { name: string } | null; coreId?: string | null;
+  notes?: string | null; role?: RaidRole | null; core: { name: string } | null; coreId?: string | null; guildId?: string;
 };
 
 const DECISION_COLOR: Record<ApplicationStatus, number> = {
   [ApplicationStatus.PENDING]: 0xd4af37, [ApplicationStatus.TRIAL]: 0x5865f2,
   [ApplicationStatus.APPROVED]: 0x2ecc71, [ApplicationStatus.REJECTED]: 0xe74c3c
 };
-const DECISION_LABEL: Record<ApplicationStatus, string> = {
-  [ApplicationStatus.PENDING]: "", [ApplicationStatus.TRIAL]: "🧪 Moved to trial",
-  [ApplicationStatus.APPROVED]: "✅ Approved", [ApplicationStatus.REJECTED]: "❌ Rejected"
+const DECISION_LABEL: Record<Lang, Record<ApplicationStatus, string>> = {
+  en: { [ApplicationStatus.PENDING]: "", [ApplicationStatus.TRIAL]: "🧪 Moved to trial", [ApplicationStatus.APPROVED]: "✅ Approved", [ApplicationStatus.REJECTED]: "❌ Rejected" },
+  fr: { [ApplicationStatus.PENDING]: "", [ApplicationStatus.TRIAL]: "🧪 Passée à l'essai", [ApplicationStatus.APPROVED]: "✅ Approuvée", [ApplicationStatus.REJECTED]: "❌ Refusée" }
+};
+// Labels of the card posted in the applications channel (kept here, not in tx(), so the card follows the server language).
+const CARD_TEXT: Record<Lang, Record<"title" | "from" | "classSpec" | "role" | "core" | "general" | "experience" | "availability" | "notes" | "decision" | "by" | "id", string>> = {
+  en: { title: "Application", from: "From", classSpec: "Class / Spec", role: "Role", core: "Core", general: "General", experience: "Experience", availability: "Availability", notes: "Notes", decision: "Decision", by: "by", id: "Application id" },
+  fr: { title: "Candidature", from: "De", classSpec: "Classe / Spécialisation", role: "Rôle", core: "Groupe de raid", general: "Général", experience: "Expérience", availability: "Disponibilités", notes: "Notes", decision: "Décision", by: "par", id: "Id de candidature" }
 };
 
-function applicationEmbed(app: ApplicationCard, applicantId: string, decision?: { status: ApplicationStatus; by: string }): EmbedBuilder {
+export function applicationEmbed(app: ApplicationCard, applicantId: string, decision?: { status: ApplicationStatus; by: string }, lang: Lang = "en"): EmbedBuilder {
+  const c = CARD_TEXT[lang];
   const embed = new EmbedBuilder().setColor(decision ? DECISION_COLOR[decision.status] : DECISION_COLOR.PENDING)
-    .setTitle(`📋 Application — ${cleanCharacterName(app.character)}`)
-    .setDescription(`From <@${applicantId}>`)
+    .setTitle(`📋 ${c.title} — ${cleanCharacterName(app.character)}`)
+    .setDescription(`${c.from} <@${applicantId}>`)
     .addFields(
-      { name: "Class / Spec", value: `${app.className} / ${app.spec}`, inline: true },
-      { name: "Role", value: app.role ? ROLE_TEXT[app.role] : "—", inline: true },
-      { name: "Core", value: app.core?.name ?? "General", inline: true },
-      { name: "Experience", value: app.experience.slice(0, 500) },
-      { name: "Availability", value: app.availability.slice(0, 500) }
+      { name: c.classSpec, value: `${app.className} / ${app.spec}`, inline: true },
+      { name: c.role, value: app.role ? ROLE_TEXT[app.role] : "—", inline: true },
+      { name: c.core, value: app.core?.name ?? c.general, inline: true },
+      { name: c.experience, value: app.experience.slice(0, 500) },
+      { name: c.availability, value: app.availability.slice(0, 500) }
     );
-  if (app.notes) embed.addFields({ name: "Notes", value: app.notes.slice(0, 500) });
-  if (decision) embed.addFields({ name: "Decision", value: `${DECISION_LABEL[decision.status]} by <@${decision.by}>` });
-  else embed.setFooter({ text: `Application id ${app.id}` });
+  if (app.notes) embed.addFields({ name: c.notes, value: app.notes.slice(0, 500) });
+  if (decision) embed.addFields({ name: c.decision, value: `${DECISION_LABEL[lang][decision.status]} ${c.by} <@${decision.by}>` });
+  else embed.setFooter({ text: `${c.id} ${app.id}` });
   return embed;
+}
+
+async function cardLang(guildId: string | undefined): Promise<Lang> {
+  return guildId ? asLang((await guildService.getSettings(guildId).catch(() => null))?.language) : "en";
 }
 
 // What a decision does beyond the application itself: Trial puts the applicant in the core as
@@ -116,8 +127,9 @@ async function applyDecision(
 // (/application list|view|approve|reject|trial), e.g. if the card scrolled
 // out of view.
 export async function announceApplication(guild: DiscordGuild | null, applicantId: string, application: ApplicationCard): Promise<void> {
+  const lang = await cardLang(application.guildId);
   const message = await notifyInteractive(guild, () => ({
-    embeds: [applicationEmbed(application, applicantId)],
+    embeds: [applicationEmbed(application, applicantId, undefined, lang)],
     components: applicationDecisionRows(application.id)
   }), "application", application.coreId ?? null);
   if (message) await applicationService.setCardMessage(application.id, message.id);
@@ -136,6 +148,7 @@ async function syncApplicationCard(
 ): Promise<void> {
   if (!guild || !application.cardMessageId) return;
   try {
+    const lang = await cardLang(application.guildId);
     // The card is in the core's own channel, or in the common one (posted before the core had a channel).
     let message = null;
     for (const coreId of application.coreId ? [application.coreId, null] : [null]) {
@@ -145,7 +158,7 @@ async function syncApplicationCard(
     }
     if (!message?.editable) return;
     await message.edit({
-      embeds: [applicationEmbed(application, application.member.discordUserId, { status, by })],
+      embeds: [applicationEmbed(application, application.member.discordUserId, { status, by }, lang)],
       components: applicationDecisionRows(application.id, status)
     });
   } catch (error) {
@@ -260,7 +273,7 @@ async function handleApplyDecision(interaction: ButtonInteraction, decision: str
   try {
     const updated = await applicationService.transition(guild.id, id, status, interaction.user.id);
     await interaction.update({
-      embeds: [applicationEmbed(application, application.member.discordUserId, { status: updated.status, by: interaction.user.id })],
+      embeds: [applicationEmbed(application, application.member.discordUserId, { status: updated.status, by: interaction.user.id }, await cardLang(guild.id))],
       components: applicationDecisionRows(application.id, updated.status)
     });
     await applyDecision(interaction.guild, guild.id, application, status, status === ApplicationStatus.TRIAL ? { days: DEFAULT_TRIAL_DAYS, sponsorId: interaction.user.id } : null);

@@ -1041,15 +1041,15 @@ Reserved**: reuse ideas only, never code, text, layout, art or the name. Guilded
 beats it on loot/EPGP, crafting, the Discord bot, linking, dungeon scores, duels and the guild map.
 Worth adopting, most useful first:
 
-1. **Events with RSVP in game:** sign up / tentative from the in-game calendar with role and class
+1. **Built (9.0.0):** **Events with RSVP in game:** sign up / tentative from the in-game calendar with role and class
    counts, mirrored to the existing Discord raid signups (we have signups; the in-game side is thin).
-2. **Recruiting kit:** recruit records, editable interview questions, recruiting posts with a shared
+2. **Built (9.0.0):** **Recruiting kit:** recruit records, editable interview questions, recruiting posts with a shared
    guild cooldown, building on `/mod recruit` and the officer Prospects window.
-3. **Levelling partners:** "near your level and zone" list with a whisper button (folded into B1).
-4. **In-game guild board** for officer posts and polls, mirrored from Discord polls. Built 7 November
+3. **Built (9.0.0):** **Levelling partners:** "near your level and zone" list with a whisper button (folded into B1).
+4. **Built (#508):** **In-game guild board** for officer posts and polls, mirrored from Discord polls. Built 7 November
    2026 (`docs/GUILD_BOARD.md`): Guild board page, `/poll news`, `/poll board`, votes from the game.
-5. **Per-guild module switches** set by officers (extend the announce off switch).
-6. **Short class notes** labelled confirmed or early advice (low priority, content upkeep).
+5. **Done (9.0 rule 5):** **Per-guild module switches** set by officers (extend the announce off switch). Every 9.0 feature has officer and member off switches.
+6. **Short class notes** labelled confirmed or early advice (not planned, low priority, content upkeep).
 
 ### Track I — WoW Forever armory (spike first; requested 6 November 2026)
 
@@ -1289,7 +1289,7 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
 
 ## Carried over (still open from 8.4)
 
-- **8.4.7 distribution** (GitHub v8.4.7 and the bot at `06f12f1` are live):
+- **8.4.7 distribution** — obsolete (9.0.x was released everywhere; see the 8 November completeness audit). Old notes, kept for history:
   - CurseForge: upload the `Guilded-v8.4.7-forever.zip` (project 1712677, display name
     "Guilded 8.4.7 (WoW Forever)") and `GuildedDungeons-v8.4.7-forever.zip` (1754138). Both are in
     `C:\Users\Kev\Desktop\guilded-release-8.4.7\`. Game version 1.60.1 only, release type Release.
@@ -1298,7 +1298,7 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
     `release-8-4-6` memory note.
   - Site pointer PR #388 (releases.json → 8.4.7): its Cloudflare preview build failed; rerun, then merge.
   - Existing direct-download companions need one manual update to reach the self-updating 8.4.7.
-- **Dungeons:** unknown Forever final bosses log `DUNGEON_FINAL_UNMATCHED`. Add their ids as they
+- **Dungeons:** the unknown final bosses are done (#491). Old note: unknown Forever final bosses log `DUNGEON_FINAL_UNMATCHED`. Add their ids as they
   appear. For 8.5 the owner leans toward **dungeon Season 2 on current-v2 rules** (Season 1 stays
   current-v1; the level-60 Best 8 is implemented but inactive). This needs a decision on the start
   date before it is built.
@@ -1313,10 +1313,10 @@ Québec Gold server and checks each one live. Opt-in switches stay off for every
   ([backlog](docs/archive/UI_FIX_BACKLOG_2026-11-05.md)); Forever live acceptance; dungeon G6-G8 and
   French client G10 ([6.2 game acceptance](docs/V6_2_GAME_ACCEPTANCE.md)).
 - **Microsoft Store:** confirm which version has certified before claiming status.
-- **Commands:** done 7 November: `/raid signup` and `/craft claim` removed (the raid post's role buttons and the craft post's
+- **Commands:** DONE 7 November: `/raid signup` and `/craft claim` removed (the raid post's role buttons and the craft post's
   **I'll craft it** button do the same work); `/community lottery join` was already gone (lottery tickets use the post's buttons).
   A craft request made while no craft board is set up has no post and so no claim button: set the board up first.
-- **Public page per guild** ([design](docs/GUILD_PAGES_DESIGN.md)): officers choose what is public.
+- **Public page per guild** ([design](docs/GUILD_PAGES_DESIGN.md)): DONE (#485, #522); officers choose what is public.
 - **Android app** (`mobile/`): the Expo/EAS project is linked (`ddda073f-f6bb-4e04-8a78-7ac343e03864`,
   account kevincaron28) and preview APK 0.2.0 is published (GitHub pre-release `mobile-v0.2.0-preview`,
   linked on /companion/), with OTA updates on channel `preview`. Still open: merge PR #345 (server

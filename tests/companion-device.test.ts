@@ -1,0 +1,168 @@
+import { describe, expect, it } from "vitest";
+import { claimDevice, DEVICE_LIMITS, deviceFor, handleDeviceUpload, pickServer, registerDevice, windowLimiter, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
+import { hashCompanionSecret } from "../src/services/character-pairing.js";
+
+// Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): device keys, server by in-game guild, reported data only.
+
+function memoryStore(candidates: Record<string, ServerCandidate[]> = {}) {
+  const devices = new Map<string, DeviceRow & { tokenHash: string; wowGuildKey?: string }>();
+  const characters = new Map<string, Map<string, Record<string, unknown>>>();
+  let next = 0;
+  const store: DeviceStore = {
+    async create(tokenHash) { const id = `d${++next}`; devices.set(id, { id, tokenHash, guildId: null, chosenGuildId: null, claimedMemberId: null, revokedAt: null, uploads: 0 }); return { id }; },
+    async find(tokenHash) { return [...devices.values()].find((row) => row.tokenHash === tokenHash) ?? null; },
+    async candidates(nameKey, realmKey) { return candidates[`${nameKey}|${realmKey}`] ?? []; },
+    async characterKeys(deviceId) { return [...(characters.get(deviceId)?.keys() ?? [])]; },
+    async saveUpload(deviceId, data, rows) {
+      const device = devices.get(deviceId)!;
+      Object.assign(device, { guildId: data.guildId, chosenGuildId: data.chosenGuildId, uploads: device.uploads + 1, ...(data.wowGuild ? { wowGuildKey: data.wowGuild.key } : {}) });
+      const map = characters.get(deviceId) ?? new Map();
+      for (const row of rows) map.set(row.nameKey, { ...map.get(row.nameKey), ...row });
+      characters.set(deviceId, map);
+    },
+    async claim(deviceId, memberId) {
+      const device = devices.get(deviceId);
+      if (!device || device.revokedAt || (device.claimedMemberId && device.claimedMemberId !== memberId)) return false;
+      device.claimedMemberId = memberId;
+      return true;
+    }
+  };
+  return { store, devices, characters };
+}
+
+const quebec: ServerCandidate = { guildId: "g-qg", discordId: "111111111", serverName: "Quebec Gold", officerLinked: true };
+const copycat: ServerCandidate = { guildId: "g-copy", discordId: "222222222", serverName: "Copycat", officerLinked: false };
+const upload = (extra: Record<string, unknown> = {}) => ({
+  guild: { name: "Quebec Gold", realm: "CAMWOW US2 Realm 2 PvP" },
+  characters: [{ name: "Lebowski Holyroller", class: "PALADIN", level: 14, race: "Human" }],
+  ...extra
+});
+
+describe("device registration", () => {
+  it("hands the key out once and keeps only its hash", async () => {
+    const { store, devices } = memoryStore();
+    const { deviceSecret, deviceId } = await registerDevice(store);
+    expect(deviceSecret.length).toBeGreaterThanOrEqual(40);
+    expect(devices.get(deviceId)!.tokenHash).toBe(hashCompanionSecret(deviceSecret));
+    expect(JSON.stringify([...devices.values()])).not.toContain(deviceSecret);
+    expect((await deviceFor(store, deviceSecret))?.id).toBe(deviceId);
+  });
+
+  it("refuses short, unknown and revoked keys", async () => {
+    const { store, devices } = memoryStore();
+    const { deviceSecret, deviceId } = await registerDevice(store);
+    expect(await deviceFor(store, "short")).toBeNull();
+    expect(await deviceFor(store, "x".repeat(43))).toBeNull();
+    expect(await deviceFor(store, undefined)).toBeNull();
+    devices.get(deviceId)!.revokedAt = new Date();
+    expect(await deviceFor(store, deviceSecret)).toBeNull();
+  });
+});
+
+describe("server from the in-game guild", () => {
+  it("picks the only server, prefers the officer-linked one, otherwise asks", () => {
+    expect(pickServer([])).toEqual({ none: true });
+    expect(pickServer([copycat])).toEqual({ pick: copycat });
+    expect(pickServer([copycat, quebec])).toEqual({ pick: quebec });
+    const other = { ...quebec, guildId: "g-other", discordId: "333333333", serverName: "Other" };
+    expect(pickServer([quebec, other])).toEqual({ choose: [quebec, other] });
+    expect(pickServer([quebec, other], "333333333")).toEqual({ pick: other });
+    // A pick that is not a candidate is ignored.
+    expect(pickServer([copycat, quebec], "999999999")).toEqual({ pick: quebec });
+  });
+
+  it("syncs to the server that set up the guild, and stores the characters as reported", async () => {
+    const { store, characters } = memoryStore({ "quebec gold|camwow us2 realm 2 pvp": [quebec] });
+    const { deviceSecret } = await registerDevice(store);
+    const device = (await deviceFor(store, deviceSecret))!;
+    const answer = await handleDeviceUpload(store, device, upload());
+    expect(answer).toEqual({ status: "synced", server: { discordId: "111111111", name: "Quebec Gold" }, guild: { name: "Quebec Gold", realm: "CAMWOW US2 Realm 2 PvP" }, characters: 1, claimed: false });
+    expect([...characters.get(device.id)!.values()][0]).toMatchObject({ name: "Lebowski Holyroller", className: "Paladin", level: 14 });
+  });
+
+  it("keeps the data pending when no server set up the guild yet", async () => {
+    const { store, devices } = memoryStore();
+    const device = (await deviceFor(store, (await registerDevice(store)).deviceSecret))!;
+    expect(await handleDeviceUpload(store, device, upload())).toMatchObject({ status: "no-guild", guild: { name: "Quebec Gold" } });
+    expect(devices.get(device.id)!.guildId).toBeNull();
+    expect(await handleDeviceUpload(store, device, upload({ guild: null }))).toEqual({ status: "no-guild", guild: null });
+  });
+
+  it("asks when two unlinked servers registered the guild, then remembers the member's choice", async () => {
+    const twin = { ...copycat, guildId: "g-twin", discordId: "444444444", serverName: "Twin" };
+    const { store, devices } = memoryStore({ "quebec gold|camwow us2 realm 2 pvp": [copycat, twin] });
+    const device = (await deviceFor(store, (await registerDevice(store)).deviceSecret))!;
+    expect(await handleDeviceUpload(store, device, upload())).toMatchObject({ status: "choose", servers: [{ discordId: "222222222" }, { discordId: "444444444" }] });
+    expect(await handleDeviceUpload(store, device, upload({ server: "444444444" }))).toMatchObject({ status: "synced", server: { name: "Twin" } });
+    expect(devices.get(device.id)!.chosenGuildId).toBe("g-twin");
+    expect(await handleDeviceUpload(store, { ...devices.get(device.id)! }, upload())).toMatchObject({ status: "synced", server: { name: "Twin" } });
+  });
+
+  it("leaves out servers that are not allowed (Guilded Lite)", async () => {
+    const { store } = memoryStore({ "quebec gold|camwow us2 realm 2 pvp": [quebec] });
+    const device = (await deviceFor(store, (await registerDevice(store)).deviceSecret))!;
+    expect(await handleDeviceUpload(store, device, upload(), { allows: () => false })).toMatchObject({ status: "no-guild" });
+  });
+});
+
+describe("abuse limits", () => {
+  it("caps the characters one device may report", async () => {
+    const { store, characters } = memoryStore({ "quebec gold|camwow us2 realm 2 pvp": [quebec] });
+    const device = (await deviceFor(store, (await registerDevice(store)).deviceSecret))!;
+    const many = (from: number) => Array.from({ length: DEVICE_LIMITS.charactersPerUpload }, (_, i) => ({ name: `Alt Number${from + i}` }));
+    await handleDeviceUpload(store, device, upload({ characters: many(0) }));
+    await handleDeviceUpload(store, device, upload({ characters: many(100) }));
+    expect(characters.get(device.id)!.size).toBe(DEVICE_LIMITS.charactersPerDevice);
+    // Known characters still update after the cap.
+    await handleDeviceUpload(store, device, upload({ characters: [{ name: "Alt Number0", level: 30 }] }));
+    expect(characters.get(device.id)!.get("alt number0")).toMatchObject({ level: 30 });
+  });
+
+  it("refuses too many characters at once, other editions and bad names", async () => {
+    const { store } = memoryStore();
+    const device = (await deviceFor(store, (await registerDevice(store)).deviceSecret))!;
+    const tooMany = Array.from({ length: DEVICE_LIMITS.charactersPerUpload + 1 }, (_, i) => ({ name: `Alt ${i}` }));
+    await expect(handleDeviceUpload(store, device, upload({ characters: tooMany }))).rejects.toMatchObject({ status: 400 });
+    await expect(handleDeviceUpload(store, device, upload({ characters: [{ name: "Ann", gameEdition: "retail" }] }))).rejects.toMatchObject({ status: 400 });
+    await expect(handleDeviceUpload(store, device, upload({ characters: [{ name: "Bad|Name" }] }))).rejects.toMatchObject({ status: 400 });
+  });
+
+  it("ignores unknown fields: an unsigned upload carries no ledger, loot, ranks or runs", async () => {
+    const { store, characters } = memoryStore({ "quebec gold|camwow us2 realm 2 pvp": [quebec] });
+    const device = (await deviceFor(store, (await registerDevice(store)).deviceSecret))!;
+    await handleDeviceUpload(store, device, upload({ epgpTransactions: [{ amount: 9999 }], loot: [{}], guildRoster: [{ rank: "GM" }], runs: [{}] }));
+    const stored = [...characters.get(device.id)!.values()][0]!;
+    expect(Object.keys(stored).sort()).toEqual(["className", "gameEdition", "level", "name", "nameKey", "race", "realm"]);
+  });
+
+  it("counts per key within the hour", () => {
+    const allow = windowLimiter(2, 3_600_000);
+    expect(allow("ip", 0)).toBe(true);
+    expect(allow("ip", 1)).toBe(true);
+    expect(allow("ip", 2)).toBe(false);
+    expect(allow("other", 2)).toBe(true);
+    expect(allow("ip", 3_600_001)).toBe(true);
+  });
+});
+
+describe("claim after a Discord sign-in", () => {
+  it("makes the device the member's and stops its unsigned uploads", async () => {
+    const { store } = memoryStore({ "quebec gold|camwow us2 realm 2 pvp": [quebec] });
+    const secret = (await registerDevice(store)).deviceSecret;
+    const device = (await deviceFor(store, secret))!;
+    expect(await claimDevice(store, device, "member-1")).toBe(true);
+    const claimed = (await deviceFor(store, secret))!;
+    expect(claimed.claimedMemberId).toBe("member-1");
+    // Its next upload is told to use the member credential (the normal path confirms the characters).
+    expect(await handleDeviceUpload(store, claimed, upload())).toEqual({ status: "claimed" });
+    expect(await claimDevice(store, claimed, "member-1")).toBe(true);
+  });
+
+  it("never lets a second account take a claimed device", async () => {
+    const { store } = memoryStore();
+    const secret = (await registerDevice(store)).deviceSecret;
+    await claimDevice(store, (await deviceFor(store, secret))!, "member-1");
+    expect(await claimDevice(store, (await deviceFor(store, secret))!, "member-2")).toBe(false);
+    expect((await deviceFor(store, secret))!.claimedMemberId).toBe("member-1");
+  });
+});

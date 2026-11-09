@@ -106,6 +106,7 @@ import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
 import { createLeaderboardPages, guildDungeonSummary, prismaLeaderboardStore } from "./services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
+import { claimDevice, DEVICE_LIMITS, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
@@ -272,6 +273,13 @@ export function allowPublicUpload(accountId: string, now = Date.now()): boolean 
   if (publicUploads.size > 5_000) publicUploads.delete(publicUploads.keys().next().value!);
   return true;
 }
+
+// Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): device keys without Discord sign-in, rate-limited
+// per IP and per device. Their uploads only ever store reported characters (companion-device.ts).
+const deviceRegistrations = windowLimiter(DEVICE_LIMITS.registrationsPerIpPerHour, 3_600_000);
+const deviceUploadsPerDevice = windowLimiter(DEVICE_LIMITS.uploadsPerDevicePerHour, 3_600_000);
+const deviceUploadsPerIp = windowLimiter(DEVICE_LIMITS.uploadsPerIpPerHour, 3_600_000);
+const deviceHeader = (request: IncomingMessage) => headerOf(request, "x-companion-device");
 
 // The companion's "Sign in with Discord" (7.2): pending requests, shared by the page and the API.
 const companionSignIn = createCompanionSignIn();
@@ -713,13 +721,44 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       // The companion's hub: my characters, reserves and (officers) the server page.
       const isHubView = request.method === "GET" && url.pathname === "/api/v1/hub";
       const isHubEdit = request.method === "POST" && url.pathname === "/api/v1/hub";
-      if (!isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
+      // Zero-setup companion: register a device key, upload as that device, claim it after a sign-in.
+      const isDeviceRegister = request.method === "POST" && url.pathname === "/api/v1/device/register";
+      const isDeviceUpload = request.method === "POST" && url.pathname === "/api/v1/device/uploads";
+      const isDeviceClaim = request.method === "POST" && url.pathname === "/api/v1/device/claim";
+      if (!isDeviceRegister && !isDeviceUpload && !isDeviceClaim && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
       const address = clientAddress(request);
       if (isLockedOut(address)) {
         json(response, 429, { error: "Too many failed attempts. Try again in a few minutes." });
+        return;
+      }
+      if (isDeviceRegister || isDeviceUpload || isDeviceClaim) {
+        const devices = prismaInstallStore(prisma, (discordId) => client?.guilds.cache.get(discordId)?.name ?? null);
+        if (isDeviceRegister) {
+          if (!deviceRegistrations(address)) { json(response, 429, { error: "Too many new companions from this network. Try again later." }); return; }
+          json(response, 200, await registerDevice(devices));
+          return;
+        }
+        const device = await deviceFor(devices, deviceHeader(request));
+        if (!device) { recordFailure(address); json(response, 401, { error: "This companion's device key is not known. Restart the companion to get a new one." }); return; }
+        if (isDeviceClaim) {
+          // Both the device key and the member's own credential from a Discord sign-in in the same app.
+          if (!allowCompanionRevocation(`device-claim:${address}`)) { json(response, 429, { error: "Too many requests. Try again in a minute." }); return; }
+          const memberId = await memberForCredential(prisma, headerOf(request, "x-companion-credential"));
+          if (!memberId) { recordFailure(address); json(response, 401, { error: "Sign in with Discord first." }); return; }
+          const ok = await claimDevice(devices, device, memberId);
+          json(response, ok ? 200 : 409, ok ? { ok: true } : { error: "This companion was already confirmed by another Discord account." });
+          return;
+        }
+        if (!deviceUploadsPerDevice(device.id) || !deviceUploadsPerIp(address)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
+        try {
+          json(response, 200, { ...await handleDeviceUpload(devices, device, await readBody(request), { allows: (id) => hostedPilot.allows(id) }), botVersion: BOT_VERSION });
+        } catch (error) {
+          if (error instanceof DeviceError) { json(response, error.status, { error: error.message }); return; }
+          throw error;
+        }
         return;
       }
       if (isLogout) {
@@ -751,7 +790,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!allowSignInStart(address)) { json(response, 429, { error: "Too many sign-in attempts. Try again later." }); return; }
         // The Windows app's 127.0.0.1 port (8.1): approval then needs no typed code (companion-signin.ts).
         const startPayload = await readBody(request).catch(() => null) as { loopback?: unknown } | null;
-        const started = companionSignIn.start({ loopback: startPayload?.loopback });
+        // A zero-setup companion sends its device key: the page then puts the server it syncs to first.
+        const signInDevice = await deviceFor(prismaInstallStore(prisma), deviceHeader(request)).catch(() => null);
+        const started = companionSignIn.start({ loopback: startPayload?.loopback, prefer: signInDevice?.guildId ?? null });
         if (!started) { json(response, 503, { error: "Too many sign-ins in progress. Try again in a few minutes." }); return; }
         const page = new URL("/me/companion", auth.siteUrl);
         page.searchParams.set("request", started.requestId);

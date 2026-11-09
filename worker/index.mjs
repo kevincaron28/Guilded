@@ -214,7 +214,12 @@ export async function hostedDownload(request, env, ctx, url = new URL(request.ur
     const target = `${mirrorBase}/${match[1]}`;
     try {
       const probe = await fetch(target, { method: "HEAD", signal: AbortSignal.timeout(4_000), cf: { cacheTtl: 0, cacheEverything: false } });
-      if (probe.status === 200) return new Response(null, { status: 302, headers: { location: target, "cache-control": "no-store" } });
+      if (probe.status === 200) {
+        // The mirror's edge keeps a fixed name (Guilded.Companion.Setup.exe) for hours, so a new release would still serve the old
+        // file. The object's ETag in the query gives each new file its own cache key (R2 ignores the query).
+        const tag = (probe.headers.get("etag") ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 64);
+        return new Response(null, { status: 302, headers: { location: tag ? `${target}?e=${tag}` : target, "cache-control": "no-store" } });
+      }
     } catch { /* fall through to the server, then GitHub */ }
   }
   const headers = new Headers();

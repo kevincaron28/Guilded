@@ -1976,14 +1976,23 @@ refresh = function()
 
   local snapshot = db.readiness[me]
   if snapshot then
+    -- (9.1.3) The findings are stored (and sent to officers) in English; the window says them in the player's language.
+    local function findingText(finding)
+      local text = finding.message or ""
+      local list = string.match(text, "^Empty slots %(normal while levelling%): (.-)%.$")
+      if list then return string.format(L("Empty slots (normal while levelling): %s."), list) end
+      list = string.match(text, "^Missing enchants: (.-)%.$")
+      if list then return string.format(L("Missing enchants: %s."), list) end
+      return L(text)
+    end
     local problems = {}
     for _, finding in ipairs(snapshot.findings or {}) do
-      if finding.severity ~= "INFO" then table.insert(problems, finding.message) end
+      if finding.severity ~= "INFO" then table.insert(problems, findingText(finding)) end
     end
     -- Notes that are not problems (empty slots while levelling) are shown greyed below.
     local notes = {}
     for _, finding in ipairs(snapshot.findings or {}) do
-      if finding.code == "EMPTY_SLOTS_LOW_LEVEL" then table.insert(notes, "|cff999999" .. finding.message .. "|r") end
+      if finding.code == "EMPTY_SLOTS_LOW_LEVEL" then table.insert(notes, "|cff999999" .. findingText(finding) .. "|r") end
     end
     ui.gearInfo:SetText(string.format(L("Last check: %s%s\n%s"), statusWord(snapshot.status),
       snapshot.itemLevel and string.format(L("   Item level %s"), snapshot.itemLevel) or "",
@@ -2164,7 +2173,8 @@ local function buildPanel()
   panel:SetClampedToScreen(true)
   panel:EnableMouse(true)
   panel:RegisterForDrag("LeftButton")
-  panel:SetScript("OnDragStart", panel.StartMoving)
+  -- Docked in the guild window the panel is not movable: a drag must do nothing, not raise "Frame is not movable".
+  panel:SetScript("OnDragStart", function(self) if self:IsMovable() then self:StartMoving() end end)
   panel:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     -- Where you left it is where it opens next time.

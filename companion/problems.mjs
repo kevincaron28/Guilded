@@ -92,7 +92,7 @@ const ms = (iso) => (typeof iso === "string" && Number.isFinite(Date.parse(iso))
  *     addon?: { status: string, expected?: string, installed?: string[], version?: string | null } } | null,
  *   update?: { version: string, installer?: unknown } | null,
  *   version?: string, store?: boolean, autoUpdate?: boolean, updateAttempts?: number,
- *   wowRunning?: boolean, online?: boolean,
+ *   wowRunning?: boolean, online?: boolean, addonUpdateFailed?: boolean,
  *   diskSpace?: { ok: boolean, freeMb: number | null, neededMb: number } | null,
  *   settingsSave?: { failed: boolean, stuck: boolean, step?: string | null } | null
  * }} input
@@ -133,8 +133,14 @@ export function companionProblems(input = {}) {
     if (addon?.status === "not-installed") add("addon-missing", { expected: addon.expected ?? null });
     else if (addon?.status === "wrong-edition") add("addon-wrong-edition", { expected: addon.expected ?? null, installed: (addon.installed ?? []).join(", ") || null });
     // Older than this companion: the matching Forever build is one click away (Update addon).
-    else if (addon?.status === "ok" && addon.expected === "forever" && addon.version && newerVersion(input.version, addon.version)) {
-      add("addon-outdated", { installed: addon.version, current: versionParts(input.version)?.join(".") ?? null });
+    else if (addon?.status === "ok" && addon.expected === "forever") {
+      // (9.1.3) Guilded and every Guilded addon installed beside it (GuildedDungeons) must match this companion.
+      const old = [addon.version, ...(Array.isArray(addon.extras) ? addon.extras.map((extra) => extra?.version) : [])]
+        .filter((value) => value && newerVersion(input.version, value));
+      // The companion updates the addons by itself (right away, or as soon as WoW closes): only an update
+      // that failed, or automatic updates switched off, is a problem the member has to act on.
+      const byItself = input.autoUpdate !== false && input.addonUpdateFailed !== true;
+      if (old.length && !byItself) add("addon-outdated", { installed: old[0], current: versionParts(input.version)?.join(".") ?? null });
     }
   }
   const addonBroken = problems.has("addon-missing") || problems.has("addon-wrong-edition");

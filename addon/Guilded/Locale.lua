@@ -301,7 +301,7 @@ local FR = {
   ["Raid sign-up is turned off."] = "L'inscription aux raids est d\195\169sactiv\195\169e.",
   ["Use the number from /guilded signups."] = "Utilise le num\195\169ro de /guilded signups.",
   ["Get the Windows companion (select a link, Ctrl+C):"] = "Obtenir le compagnon Windows (s\195\169lectionner un lien, Ctrl+C) :",
-  ["Guilded companion (Windows): sends your data to Discord and brings standings, raids and signups into the game."] = "Compagnon Guilded (Windows) : envoie tes donn\195\169es \195\160 Discord et am\195\168ne classement, raids et inscriptions dans le jeu.",
+  ["Guilded companion (Windows): sends your data to Discord and brings standings, raids and signups into the game."] = "Compagnon Guilded (Windows) : envoie vos donn\195\169es \195\160 Discord et am\195\168ne classement, raids et inscriptions dans le jeu.",
   ["Open Guilded > Home to copy the link. Turn this reminder off: /guilded companion off"] = "Ouvre Guilded > Accueil pour copier le lien. D\195\169sactiver ce rappel : /guilded companion off",
   ["Companion reminder off."] = "Rappel du compagnon d\195\169sactiv\195\169.",
   ["Companion reminder on (at most once a week)."] = "Rappel du compagnon activ\195\169 (au plus une fois par semaine).",
@@ -5254,3 +5254,13 @@ FR["Cooking"] = "Cuisine"
 FR["First Aid"] = "Premiers soins"
 FR["Fishing"] = "P\195\170che"
 FR["Archaeology"] = "Arch\195\169ologie"
+
+-- (9.1.3) Real-client findings on a French client: readiness notes, the dungeon command and mixed versions.
+FR["No off-hand item equipped (expected when using a two-handed weapon)."] = "Aucun objet en main gauche (normal avec une arme \195\160 deux mains)."
+FR["Empty slots (normal while levelling): %s."] = "Emplacements vides (normal en montant de niveau) : %s."
+FR["Missing enchants: %s."] = "Enchantements manquants : %s."
+FR["No flask or elixir active."] = "Aucun flacon ni \195\169lixir actif."
+FR["No food buff active."] = "Aucun bonus de nourriture actif."
+FR["Dungeon data is not loaded yet. Try again in a moment, or /reload."] = "Les donn\195\169es de donjon ne sont pas encore charg\195\169es. R\195\169essayez dans un instant, ou faites /reload."
+FR["The dungeon command failed. /guilded diag shows the details."] = "La commande de donjon a \195\169chou\195\169. /guilded diag montre les d\195\169tails."
+FR["Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."] = "Guilded Dungeons %s est install\195\169 \195\160 c\195\180t\195\169 de Guilded %s. Guilded enregistre vos donjons ; mettez Guilded Dungeons \195\160 jour avec le Guilded Companion (ou retirez-le)."

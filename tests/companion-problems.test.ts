@@ -27,7 +27,10 @@ describe("companion problem checks", () => {
 
   it("addon older than the companion: offer Update addon", () => {
     const older = { ...fine, addon: { ...fine.addon, version: "8.4.6" } };
-    expect(companionProblems({ config: linked, savedFile: older, version: "8.5.0" })).toEqual([{ id: "addon-outdated", data: { installed: "8.4.6", current: "8.5.0" } }]);
+    // (9.1.3) The companion updates the addon by itself (right away, or when WoW closes): a problem only when that is off or failed.
+    expect(ids({ config: linked, savedFile: older, version: "8.5.0" })).toEqual([]);
+    expect(companionProblems({ config: linked, savedFile: older, version: "8.5.0", autoUpdate: false })).toEqual([{ id: "addon-outdated", data: { installed: "8.4.6", current: "8.5.0" } }]);
+    expect(ids({ config: linked, savedFile: older, version: "8.5.0", addonUpdateFailed: true })).toEqual(["addon-outdated"]);
     expect(ids({ config: linked, savedFile: older, version: "8.4.6" })).toEqual([]);
     expect(ids({ config: linked, savedFile: { ...older, addon: { ...older.addon, expected: "retail", installed: ["retail"] } }, version: "8.5.0" })).toEqual([]);
   });

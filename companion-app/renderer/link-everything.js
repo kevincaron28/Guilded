@@ -35,17 +35,19 @@
     $('linkCharCount').textContent = rows.length ? T('{0} character(s) linked', rows.length) : '';
     $('linkChars').hidden = !rows.length; $('linkCharsEmpty').hidden = rows.length > 0 || !config.companionCredential || config.personal === true;
     const signedIn = Boolean(config.companionCredential);
+    // Zero-setup (9.1.0): syncing with the device key. Discord sign-in is an optional extra here.
+    const device = !signedIn && config.device === true && Boolean(config.deviceSecret) && config.wowEnabled !== false;
     // Leaderboards only (often: not in a server that uses Guilded yet): sign in again to reach the guild.
     const personal = signedIn && config.personal === true;
     $('btnLinkSignIn').hidden = signedIn && !personal;
-    $('btnLinkSignIn').textContent = personal ? T('Link to my guild') : T('Sign in with Discord');
-    $('btnLinkFind').hidden = !signedIn;
-    $('btnLinkCheck').hidden = !signedIn;
+    $('btnLinkSignIn').textContent = personal ? T('Link to my guild') : device ? T('Sign in with Discord (optional)') : T('Sign in with Discord');
+    $('btnLinkFind').hidden = !signedIn && !device;
+    $('btnLinkCheck').hidden = !signedIn && !device;
     $('btnLinkBattleNet').disabled = !signedIn;
-    $('linkCharsPanel').hidden = !signedIn; $('linkActionsPanel').hidden = !signedIn;
-    $('btnLinkSync').hidden = !signedIn; $('btnLinkUnlink').hidden = !signedIn;
+    $('linkCharsPanel').hidden = !signedIn; $('linkActionsPanel').hidden = !signedIn && !device;
+    $('btnLinkSync').hidden = !signedIn && !device; $('btnLinkUnlink').hidden = !signedIn;
     $('btnLinkDiscord').hidden = !signedIn || !config.guildDiscordId;
-    $('btnLinkSkip').hidden = signedIn;
+    $('btnLinkSkip').hidden = signedIn || device;
     renderWizard();
   }
 
@@ -68,7 +70,7 @@
       $('btnJoinServer').hidden = join.kind !== 'invite';
       $('btnJoinServer').textContent = T('Join {0}', join.server || '');
       $('btnJoinServer').dataset.invite = join.inviteUrl || '';
-      $('btnJoinContinue').hidden = join.kind === 'invite' || join.kind === 'joined';
+      $('btnJoinContinue').hidden = join.kind !== 'ask' && join.kind !== 'unknown';
       // Joined since: continue by itself, once (the browser opens with the server chosen).
       if (join.kind === 'joined' && !autoLinked) { autoLinked = true; $('btnLinkSignIn').click(); }
       if (join.kind === 'invite') watchJoin(); else stopJoinWatch();
@@ -113,7 +115,7 @@
   async function runAutoStep(wizard) {
     if (autoRunning) return;
     const visible = !$('page-link').hidden && document.visibilityState === 'visible';
-    const step = window.guildedLinkWizard.autoStep(wizard, { ...autoDone(), visible, signInBusy: !$('linkSignInWaiting').hidden });
+    const step = window.guildedLinkWizard.autoStep(wizard, { ...autoDone(), visible, signInBusy: !$('linkSignInWaiting').hidden, zeroSetup: config.zeroSetupOff !== true && config.personal !== true && config.wowEnabled !== false });
     if (!step) return;
     autoRunning = true;
     try {

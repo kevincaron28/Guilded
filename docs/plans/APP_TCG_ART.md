@@ -63,3 +63,23 @@ Follow `APP_TCG.md` option 2: the data tables, the server-authoritative pack, da
 - `<class>-portrait.webp`: 192x192 square, the Champion portrait in a match.
 
 About 1 MB for all 27 files. Regenerate with `node docs/plans/app-tcg-art/make-champions.mjs <folder with the nine PNGs>` (the per-class face focus table is in the script). The set cards (units, spells and so on) keep the class-coloured placeholder until their art is approved.
+
+## Approved Legendary paintings
+
+**Owner approved the "L9-WoW" set (classic online-RPG look) of nine Legendary class unit paintings on 9 November 2026**, over the L9 set. Original art made with the owner's own tools (PNG, kept outside the repo); no Blizzard art. Previews are in [`app-tcg-art/legendary/`](app-tcg-art/legendary/) and the app builds from `mobile/assets/clash/legendary/`, keyed by set 1 card id (`mobile/src/clash/legendaryArt.ts`):
+
+| Card id | Legendary unit | Class |
+| --- | --- | --- |
+| 011 | Last Shield of the Vale | warrior |
+| 022 | Avatar of Aegis | paladin |
+| 033 | Ancient Stag-Spirit | hunter |
+| 042 | Nightblade Legend | rogue |
+| 054 | Resurrected Saint | priest |
+| 066 | Storm Colossus | shaman |
+| 077 | Archmage of the Tower | mage |
+| 088 | Void Sovereign | warlock |
+| 099 | Elder Tree Spirit | druid |
+
+- `<id>.webp`: full picture, 640x480. `<id>-window.webp`: the card art window crop, 624x240, used by the card frame when the card has no `artUrl`.
+- About 1 MB for all 18 files. Regenerate with `node docs/plans/app-tcg-art/make-legendaries.mjs <folder with the nine PNGs named by class>`.
+- The other two Legendary units (121 The Tavern Keeper, 123 Hero of the Hollow) and the four Legendary Standards (147 to 150) have no painting yet.

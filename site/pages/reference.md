@@ -166,7 +166,7 @@ everything. Officer rows need the officer rank in your WoW guild.
 | `/guilded localcore` · `setup guild` | Raid cores and loot rules with no Discord | Officers |
 | `/guilded ready` · `consumes` | Who in your group is ready; who is missing flask or food | Officers and group leaders |
 | `/guilded export` · `import softres\|tmb\|history` | Export data; import soft reserves, TMB or loot history | Officers |
-| `/guilded invite raid\|missing` · `autoinvite` | Invite the signed-up raiders; invite whisperers | Officers |
+| `/guilded invite raid\|missing` · `autoinvite` | Invite the signed-up raiders; a /ginvite line for whisperers | Officers |
 | `/guilded recruit` · `welcome` | Prospect list; whisper new guild members | Officers |
 | `/guilded officer list\|add\|remove\|rank` | Who counts as an officer | Officers |
 | `/guilded ledgersync` · `bridge` · `rosteradmin` · `sim` | Share EP/GP between officers; companion bridge; roster tools; test raid | Officers |

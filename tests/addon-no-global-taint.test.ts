@@ -43,3 +43,51 @@ describe("addons never run or hook the world map (taint)", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// 9 November 2026: a plain /reload showed "Guilded has been blocked from an action only available to the Blizzard
+// UI" (ADDON_ACTION_FORBIDDEN, "Guilded tried to call UNKNOWN()"). The Guilded chat tab reopened its chat window
+// at login with FCF_OpenNewWindow; run from addon code, the chat windows' shared state is left tainted and the
+// next slash command typed in the chat box runs tainted, so the (protected) reload was refused.
+// Protected and chat-window functions: some are never called from addon code, the rest only from the files listed,
+// where a button click (or a command the officer typed) runs them. A new caller must be added here on purpose.
+describe("protected calls only where the player's click runs them (taint)", () => {
+  const files = [...luaFiles("addon/Guilded"), ...luaFiles("addon/GuildedDungeons")];
+  const source = (file: string) => readFileSync(file, "utf8").replace(/--[^\n]*/g, "");
+  const rel = (file: string) => file.split("\\").join("/");
+  const never: Array<[string, RegExp]> = [
+    ["opens, closes or docks chat windows", /\bFCF_(?:OpenNewWindow|Close|DockFrame|UnDockFrame|SelectDockFrame|SetWindowName|ResetChatWindows)\b/],
+    ["activates a chat box", /\bChatEdit_(?:ActivateChat|DeactivateChat|SetLastActiveWindow)\b/],
+    ["reloads the UI itself (only the secure /reload macro button may)", /\bReloadUI\s*\(|\bC_UI\.Reload\b/],
+    ["sets the guild message of the day", /\b(?:GuildSetMOTD|C_GuildInfo\.SetMOTD)\b/],
+    ["runs macro text from addon code", /\bRunMacroText\b/]
+  ];
+  it.each(never)("no file %s", (_label, pattern) => {
+    expect(files.filter((file) => pattern.test(source(file))).map(rel)).toEqual([]);
+  });
+
+  const allowed: Array<[string, RegExp, string[]]> = [
+    ["guild invites", /\b(?:C_GuildInfo\.Invite|GuildInvite)\b/, [
+      "addon/Guilded/Modules/InviteQueue.lua"   // the Invite button of the "To invite" window
+    ]],
+    ["party invites", /\bInviteUnit\b/, [
+      "addon/Guilded/Modules/AutoInvite.lua",   // /guilded invite raid, typed by the officer
+      "addon/Guilded/Modules/CallForHelp.lua",  // Invite buttons on the call-for-help banner
+      "addon/Guilded/Modules/LevelPartners.lua" // Invite button
+    ]],
+    ["guild rank, kick and note changes", /\b(?:GuildPromote|GuildDemote|GuildUninvite|GuildRosterSetPublicNote|GuildRosterSetOfficerNote|SetGuildMemberRank|SetGuildRankOrder|RemoveFromGuild)\b/, [
+      "addon/Guilded/Modules/RosterTools.lua"   // roster admin, confirmed per click; refusals remembered per build
+    ]],
+    ["opening the chat box", /\bChatFrame_(?:SendTell|OpenChat|ReplyTell)\b/, [
+      "addon/Guilded/Modules/LevelPartners.lua" // Whisper button
+    ]]
+  ];
+  it.each(allowed)("%s only from the click-driven files", (_label, pattern, files_) => {
+    expect(files.filter((file) => pattern.test(source(file))).map(rel).sort()).toEqual([...files_].sort());
+  });
+
+  it("the auto-invite whisper handler hands out /ginvite instead of inviting", () => {
+    const text = source("addon/Guilded/Modules/AutoInvite.lua");
+    expect(text).not.toMatch(/\b(?:C_GuildInfo\.Invite|GuildInvite)\b/);
+    expect(text).toContain("/ginvite");
+  });
+});

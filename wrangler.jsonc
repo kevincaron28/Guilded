@@ -25,8 +25,6 @@
   ],
   "previews": {},
   "keep_vars": true,
-  // Plain (non-secret) settings, kept in the config so deploys stay in sync with the dashboard (9 Nov 2026).
-  // GUILDED_DOWNLOAD_MIRROR_URL: the free R2 copy of the installer (docs/DOWNLOADS_RELIABILITY.md).
   "vars": {
     "GUILDED_DOWNLOAD_MIRROR_URL": "https://dl.kcaron.top",
     "GUILDED_ORIGIN_URL": "https://bot.kcaron.top"

@@ -63,10 +63,10 @@ describe("the download page", () => {
 
   it("leads with the plug-and-play download and three plain steps", () => {
     expect(en.indexOf("Download for Windows")).toBeLessThan(en.indexOf("apps.microsoft.com"));
-    expect(en).toContain("## Install in three steps");
+    expect(en).toContain("## Sync with Discord in 3 steps");
     expect(en).toContain("There is nothing to choose: it installs and opens the companion by itself.");
-    expect(en).toContain("The companion finds World of Warcraft on any drive, installs or updates the Guilded addon, and opens Discord in your browser");
-    expect(fr).toContain("## Installer en trois étapes");
+    expect(en).toContain("The companion finds World of Warcraft on any drive, installs or updates the Guilded addon, and picks your guild's Discord server from your in-game guild");
+    expect(fr).toContain("## Synchroniser avec Discord en 3 étapes");
     expect(fr).toContain("Il n’y a rien à choisir : il s’installe et ouvre le compagnon tout seul.");
   });
 

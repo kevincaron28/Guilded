@@ -1020,6 +1020,15 @@ end
 
 local function L(text) return ns.L and ns.L(text) or text end
 
+-- (9.1) The three companion steps and the page link, one chat line each, for members who have no
+-- companion running (also in the standalone Guilded Dungeons addon, which has no Home page).
+local function sayCompanionSteps()
+  local util = ns.util
+  if not (util and util.companionSteps) then return end
+  for _, line in ipairs(util.companionSteps()) do ns.message(line) end
+  ns.message(util.COMPANION_PAGE)
+end
+
 -- Once per session, after login or /reload: runs are waiting and the companion did not deliver them.
 function dungeon.remindWaiting()
   if dungeon.waitingReminded then return false end
@@ -1027,6 +1036,7 @@ function dungeon.remindWaiting()
   if overdue == 0 then return false end
   dungeon.waitingReminded = true
   ns.message(string.format(L("%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."), overdue))
+  sayCompanionSteps()
   return true
 end
 
@@ -1149,9 +1159,11 @@ local function status()
     local pending = #dungeon.waitingRuns()
     ns.message(string.format(L("No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."), total, pending))
     if pending > 0 then
-      ns.message(#dungeon.overdueRuns() > 0
+      local overdue = #dungeon.overdueRuns() > 0
+      ns.message(overdue
         and L("Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out.")
         or L("They go to Discord when you /reload or log out while the Guilded Companion app is running."))
+      if overdue then sayCompanionSteps() end
     end
     return
   end

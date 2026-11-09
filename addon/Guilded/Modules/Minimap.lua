@@ -1040,12 +1040,15 @@ local function buildToolsPage(page)
   if ns.companionLink then
     at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -282)
     at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -282)
+    local steps = at(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), page, 0, -308)
+    steps:SetWidth(PAGE_WIDTH - 40)
+    steps:SetJustifyH("LEFT")
   end
 
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -316)
+    "GameFontHighlightSmall"), page, 0, -366)
   help:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
@@ -1479,7 +1482,7 @@ local function buildHomePage(page)
   ui.linkStatus = linkWidget(below(newLabel(page, "", "GameFontHighlightSmall"), 0, -158))
   ui.linkStatus:SetWidth(PAGE_WIDTH)
   local howTo = linkWidget(below(newLabel(page,
-    "Easiest: open the Guilded Windows app and press Sign in with Discord. No app? In Discord use /character pair, then paste the code below (it is the same as /guilded verify CODE).",
+    "Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below.",
     "GameFontDisableSmall"), 0, -176))
   howTo:SetWidth(PAGE_WIDTH)
   ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -222), "Code from /character pair"))
@@ -1504,6 +1507,9 @@ local function buildHomePage(page)
     below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -262)
     below(copyBox(page, ns.companionLink.SHORT, 250), 6, -282)
     below(copyBox(page, ns.companionLink.DIRECT, 250), 270, -282)
+    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -312)
+    steps:SetWidth(PAGE_WIDTH)
+    steps:SetJustifyH("LEFT")
   end
 end
 

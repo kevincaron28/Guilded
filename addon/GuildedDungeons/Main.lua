@@ -23,11 +23,16 @@ function ns.slash(text)
     ns.commandHandlers["dungeon"]({ action })
   elseif action == "score" and not args[2] and ns.dungeonScorePanel then
     ns.dungeonScorePanel.open("season")
+  elseif action == "companion" then
+    -- The three steps to get runs to Discord (the standalone addon has no Home page to show them).
+    for _, line in ipairs(ns.util.companionSteps()) do ns.message(line) end
+    ns.message(ns.util.COMPANION_PAGE)
+    ns.message(ns.util.COMPANION_DOWNLOAD)
   elseif (action == "score" or action == "lang") and ns.commandHandlers[action] then
     table.remove(args, 1)
     ns.commandHandlers[action](args)
   else
-    ns.message(ns.L("Commands: /gdungeons status | results | start | complete | abandon | check | score | lang en|fr|auto"))
+    ns.message(ns.L("Commands: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto"))
   end
 end
 

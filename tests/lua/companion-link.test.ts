@@ -51,6 +51,20 @@ describe("companion link and weekly reminder", () => {
     expect(s.run(`return tostring(NS.companionLink.remind())`)).toBe("true");
   });
 
+  it("says the three steps in the reminder and the command, with the install facts", () => {
+    const s = withLink();
+    s.run(`NS.companionLink.remind()`);
+    let out = s.run(`return table.concat(MSGS, "|")`);
+    expect(out).toContain("1) Download it");
+    expect(out).toContain("2) Run the installer");
+    expect(out).toContain("3) Keep it open");
+    expect(out).toContain("Signing in with Discord is optional");
+    s.run(`MSGS = {}; NS.commandHandlers["companion"]({})`);
+    out = s.run(`return table.concat(MSGS, "|")`);
+    expect(out).toContain("Microsoft Store");
+    expect(out).toContain("1) Download it");
+  });
+
   it("the bare command shows both links", () => {
     const s = withLink();
     s.run(`NS.commandHandlers["companion"]({})`);

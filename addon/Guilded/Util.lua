@@ -30,6 +30,21 @@ end
 -- ---------------------------------------------------------------------
 local util = ns.util or {}
 ns.util = util
+
+-- The companion (Windows app that sends your data to Discord), in the same three steps everywhere
+-- members look: Home, /guilded companion, the login reminder and the "runs waiting" notice.
+-- Zero setup since 9.1.0: it finds WoW and the Discord server by itself; signing in is optional.
+util.COMPANION_PAGE = "https://guilded.kcaron.top/companion/"
+util.COMPANION_DOWNLOAD = "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe"
+function util.companionSteps()
+  local function L(text) return ns.L and ns.L(text) or text end
+  return {
+    L("Sync with Discord in 3 steps (Windows only):"),
+    L("1) Download it: copy the link, or search \"Guilded Companion\" in the Microsoft Store."),
+    L("2) Run the installer. It finds WoW and your guild's Discord server by itself."),
+    L("3) Keep it open (it starts with Windows). Signing in with Discord is optional."),
+  }
+end
 -- Dungeon roles have one canonical spelling; old snapshots/native APIs use DAMAGER.
 function util.dungeonRole(value)
   if type(value) ~= "string" or isSecret(value) then return nil end

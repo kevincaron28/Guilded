@@ -29,11 +29,13 @@ SHA-256 du fichier : `{{ANDROID_SHA256}}`. Vous pouvez le comparer à la somme d
 
 Le compagnon fonctionne **sous Windows seulement**. Il n’existe pas de version Mac ou Linux, ni de version dans le navigateur.
 
-## Installer en trois étapes
+## Synchroniser avec Discord en 3 étapes
 
-1. **Téléchargez.** [Télécharger pour Windows]({{COMPANION_DIRECT_URL}}). Le lien donne toujours la version la plus récente.
+1. **Téléchargez.** [Télécharger pour Windows]({{COMPANION_DIRECT_URL}}), ou cherchez **Guilded Companion** dans le Microsoft Store. Le lien donne toujours la version la plus récente.
 2. **Lancez-le.** Ouvrez le fichier téléchargé. Windows peut indiquer qu’il « a protégé votre PC » : choisissez **Informations complémentaires → Exécuter quand même** (l’installateur est gratuit et n’est pas signé). Il n’y a rien à choisir : il s’installe et ouvre le compagnon tout seul.
-3. **Laissez la configuration faire le reste.** Le compagnon trouve World of Warcraft sur n’importe quel disque, installe ou met à jour l’addon Guilded et ouvre Discord dans votre navigateur : choisissez le serveur de votre guilde et appuyez sur **Relier**. Après votre prochain `/reload` dans WoW (ou à la déconnexion), il synchronise tout seul et continue depuis la zone de notification.
+3. **Laissez-le ouvert.** Il démarre avec Windows et reste dans la zone de notification. Le compagnon trouve World of Warcraft sur n’importe quel disque, installe ou met à jour l’addon Guilded et choisit le serveur Discord de votre guilde d’après votre guilde en jeu. Après votre prochain `/reload` dans WoW (ou à la déconnexion), il synchronise tout seul.
+
+**La connexion avec Discord est facultative.** Tant que vous ne vous connectez pas, vos personnages sont affichés comme signalés par votre PC ; appuyez sur **Se connecter avec Discord** dans le compagnon pour les confirmer et débloquer votre page personnelle et les messages Discord.
 
 C’est tout. Le compagnon **se met à jour tout seul** : les nouvelles versions se téléchargent en arrière-plan et s’installent quand vous le quittez ou le redémarrez, ou tout de suite avec **Mettre à jour** dans son Accueil.
 

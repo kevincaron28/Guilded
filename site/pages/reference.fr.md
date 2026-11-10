@@ -9,6 +9,17 @@ d’officier aux membres. Nouveau ? [Commencer ici](/start/).
 
 **Aller à :** [Bot Discord](#bot-discord) · [Addon WoW](#addon-wow) · [Compagnon Windows](#compagnon-windows)
 
+<div class="ref-tools" data-ref-tools>
+<label>Recherche <input type="search" data-ref-search placeholder="Commande" aria-label="Chercher une commande"></label>
+<div class="ref-chips">
+<button type="button" data-role="" aria-pressed="true">Tous</button>
+<button type="button" data-role="Tout le monde">Tout le monde</button>
+<button type="button" data-role="Officier">Officiers</button>
+<button type="button" data-role="Chef de raid">Chefs de raid</button>
+<button type="button" data-role="Admin">Admin</button>
+</div>
+</div>
+
 ## Bot Discord
 
 Tapez `/` dans Discord et choisissez la commande. Chaque ligne est une commande ; les mots qui

@@ -172,6 +172,29 @@ if (live) {
   }
 }
 
+// Quick reference: search and role chips filter the command tables. The full list stays in the HTML.
+const refTools = document.querySelector('[data-ref-tools]');
+if (refTools) {
+  const search = refTools.querySelector('[data-ref-search]');
+  const rows = [...document.querySelectorAll('main table tbody tr')];
+  const applyRefFilter = () => {
+    const query = search.value.trim().toLowerCase();
+    const role = refTools.querySelector('[data-role][aria-pressed="true"]')?.dataset.role ?? '';
+    for (const row of rows) {
+      const text = row.textContent.toLowerCase();
+      const who = (row.lastElementChild?.textContent ?? '').toLowerCase();
+      row.hidden = (query !== '' && !text.includes(query)) || (role !== '' && !who.includes(role.toLowerCase()));
+    }
+  };
+  search.addEventListener('input', applyRefFilter);
+  for (const button of refTools.querySelectorAll('[data-role]')) {
+    button.addEventListener('click', () => {
+      for (const other of refTools.querySelectorAll('[data-role]')) other.setAttribute('aria-pressed', String(other === button));
+      applyRefFilter();
+    });
+  }
+}
+
 // Guide screenshots that are not captured yet (docs/SCREENSHOT_SHOTLIST.md): show the marked placeholder, never a broken image.
 for (const image of document.querySelectorAll('img.guide-shot-img')) {
   const figure = image.closest('figure.guide-shot');

@@ -5,7 +5,7 @@ import worker from "../worker/index.mjs";
 // probe of the creator domain was mistaken for a Guilded outage). guilded.kcaron.top is the Guilded
 // website; kcaron.top is the creator domain, which serves only its own page and static files, so Guilded's
 // data pages are 404 there by design. The asset store answers like production: unknown files are 404.
-const ASSET_FILES = new Set(["/", "/forever/", "/editions/", "/editions/forever/", "/companion/", "/creator/"]);
+const ASSET_FILES = new Set(["/", "/forever/", "/editions/", "/editions/forever/", "/download/", "/companion/", "/creator/"]);
 const env = { ASSETS: { fetch: vi.fn(async (request: Request) => {
   const path = new URL(request.url).pathname.replace(/index\.html$/, "");
   return ASSET_FILES.has(path) ? new Response(`asset ${path}`) : new Response("", { status: 404 });
@@ -20,7 +20,8 @@ describe("public addresses keep answering", () => {
     const expected: [string, number, string | null][] = [
       ["/", 200, null], ["/forever/", 200, null], ["/forever/leaderboards/", 200, null],
       ["/leaderboards/", 302, "/forever/leaderboards/"], ["/players/", 302, "/forever/players/"],
-      ["/g/quebec-gold/", 200, null], ["/editions/", 301, "/editions/forever/"], ["/editions/?lang=fr", 301, "/editions/forever/?lang=fr"], ["/editions/forever/", 200, null],
+      ["/g/quebec-gold/", 200, null], ["/editions/", 301, "/download/"], ["/editions/?lang=fr", 301, "/download/?lang=fr"],
+      ["/editions/forever/", 200, null], ["/download/", 200, null],
       ["/retail/", 301, "/forever/"], ["/tbc/leaderboards/", 301, "/forever/leaderboards/"],
       ["/editions/retail/", 301, "/editions/forever/"], ["/companion/x", 301, "/companion/"], ["/health", 200, null]
     ];

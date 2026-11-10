@@ -2,15 +2,17 @@ import { localizedHref } from '../site/nav.mjs';
 import { decodeHTML } from 'entities';
 
 /** Static-page redirects applied before an asset is read.
- * /editions/ is the old one-card chooser; the downloads are on /editions/forever/.
- * Old PoE2 and Diablo community pages now live on the Quebec Gold page.
+ * /editions/ is the old one-card chooser; the downloads are on /download/.
+ * /editions/forever/ stays a real page. Old PoE2 and Diablo pages live on Quebec Gold.
  * Query (including ?lang=) is kept. worker/index.mjs is left to the mobile-launch PR.
  * @param {URL} url
  * @returns {string | null}
  */
 export function staticRedirect(url) {
   if (/^\/quebec-gold\/(?:poe2|diablo)\/?$/.test(url.pathname)) return `/quebec-gold/${url.search}`;
-  if (url.pathname === "/editions" || url.pathname === "/editions/") return `/editions/forever/${url.search}`;
+  // Only the old one-card chooser. /editions/forever/ stays a real page: the Worker already
+  // sends removed-edition addresses there in one hop (worker/index.mjs, owned by PR #345).
+  if (url.pathname === "/editions" || url.pathname === "/editions/") return `/download/${url.search}`;
   return null;
 }
 

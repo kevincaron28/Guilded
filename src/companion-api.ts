@@ -44,6 +44,7 @@ import { followUpImport } from "./services/import-followup.js";
 import { applyAttempts, applyFailureLogLine, applyWithRetry, classifyApplyFailure, type ApplyFailure } from "./services/import-apply-failure.js";
 import { exchangeCharacterPairingCode, findPairingServer, hashCompanionSecret, issueMemberCredential } from "./services/character-pairing.js";
 import { linkVerifiedCharacters, tellVerified } from "./services/character-verify.js";
+import { tellLinkConflicts } from "./services/link-conflict-dm.js";
 import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { applyGuildData } from "./services/guild-data.js";
 import { applyGuildBank } from "./services/guild-bank.js";
@@ -1203,6 +1204,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
           void tellVerified(client, guild.discordId, asLang(language?.language), verified).catch(() => undefined);
         }
+      }
+      // Two members and one character (the uploader's own characters above, or a verify code): stronger
+      // proof moved it, or it waits for an officer. Both members and the officer log hear it once.
+      if ((access.officer || pairedMemberId) && client) {
+        const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
+        void tellLinkConflicts(client, prisma, { id: guild.id, discordId: guild.discordId }, asLang(language?.language));
       }
       // 8.5: the game's guild roster, event log and MOTD from any member's upload (guild-data.ts):
       // members without the addon reach the race board, last seen and roster gaps. Rank only from

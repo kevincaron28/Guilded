@@ -102,10 +102,35 @@ export function createPrismaClient(url = process.env["DATABASE_URL"]): PrismaCli
   // Execution: Prisma's 5s default failed short transactions (pairing, invite pre-link, dungeon import)
   // with P2028 while the small server was busy right after a restart (8 Nov 2026), so the default is 15s,
   // like SHORT_TRANSACTION. Callers that set their own timeout (public runs: 60s) keep it.
-  return new PrismaClient({ adapter, transactionOptions: {
+  const client = new PrismaClient({ adapter, transactionOptions: {
     maxWait: settings.connectionTimeoutMillis || DEFAULT_TIMEOUT_SECONDS * 1000,
     timeout: DEFAULT_TRANSACTION_TIMEOUT_MS
   } });
+  // Only the arguments of character reads change, so the client keeps PrismaClient's shape
+  // (transactions included: they inherit the extension).
+  return client.$extends({ query: { character: {
+    findMany: ({ args, query }) => query(hideDetached(args)),
+    findFirst: ({ args, query }) => query(hideDetached(args)),
+    findFirstOrThrow: ({ args, query }) => query(hideDetached(args)),
+    count: ({ args, query }) => query(hideDetached(args)),
+    aggregate: ({ args, query }) => query(hideDetached(args)),
+    groupBy: ({ args, query }) => query(hideDetached(args))
+  } } }) as unknown as PrismaClient;
+}
+
+const mentionsDetached = (where: unknown): boolean => Array.isArray(where) ? where.some(mentionsDetached)
+  : typeof where === "object" && where !== null && !(where instanceof Date)
+    && Object.entries(where).some(([key, value]) => key === "detachedAt" || mentionsDetached(value));
+
+/**
+ * /character unlink keeps the row (character-move.ts): an unlinked character sits under the server's
+ * holding member with detachedAt set. Every list, search and count of characters leaves those rows
+ * out unless its `where` names detachedAt itself (DETACHED, WITH_DETACHED). Lookups by id are untouched.
+ */
+export function hideDetached<T extends { where?: unknown } | undefined>(args: T): T {
+  const where = args?.where;
+  if (mentionsDetached(where)) return args;
+  return { ...args, where: where && Object.keys(where).length ? { AND: [where, { detachedAt: null }] } : { detachedAt: null } } as T;
 }
 
 export const prisma = createPrismaClient();

@@ -1,6 +1,7 @@
 import { guildWhere, currentGuildScope } from "./guild-scope.js";
 import { normalizeProfessionName } from "./profession-names.js";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
+import { reattachDetached, type LinkEvidence } from "./character-move.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { PILOT_DENIED } from "./pilot-policy.js";
 
@@ -52,6 +53,8 @@ export function createGuildService(database: PrismaClient) {
       level?: number;
       race?: string;
       isMain: boolean;
+      /** What proves the link (character-move.ts). Typed in, claimed or matched by name unless said otherwise. */
+      linkEvidence?: LinkEvidence;
     }) {
       const owner = await database.member.findUniqueOrThrow({ where: { id: input.memberId }, select: { guildId: true, guild: { select: { gameEdition: true } } } });
       const gameEdition = input.gameEdition ?? owner.guild.gameEdition;
@@ -62,10 +65,24 @@ export function createGuildService(database: PrismaClient) {
           data: { isMain: false }
         });
       }
+      // A character that was unlinked before comes back as the same row, with its history.
+      const back = await reattachDetached(database as unknown as Prisma.TransactionClient, owner.guildId, input.memberId, { name: input.name, realm: input.realm, gameEdition }, input.linkEvidence ?? "named");
+      if (back) {
+        return database.character.update({
+          where: { id: back.character.id },
+          data: {
+            ...(input.displayName ? { displayName: input.displayName } : {}),
+            className: input.className,
+            ...(input.spec ? { spec: input.spec } : {}), ...(input.level ? { level: input.level } : {}), ...(input.race?.trim() ? { race: input.race.trim() } : {}),
+            isMain: input.isMain || back.character.isMain
+          }
+        });
+      }
       return database.character.create({
         data: {
           memberId: input.memberId,
           guildId: owner.guildId,
+          linkEvidence: input.linkEvidence ?? "named",
           name: input.name,
           gameEdition,
           ...(input.displayName ? { displayName: input.displayName } : {}),

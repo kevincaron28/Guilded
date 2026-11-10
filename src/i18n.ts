@@ -279,6 +279,36 @@ const STRINGS = {
   "linked.level": { en: "level {level}", fr: "niveau {level}" },
   "linked.main": { en: "main", fr: "principal" },
   "linked.more": { en: "… and {count} more", fr: "… et {count} de plus" },
+  // Linking audit T3: two members and one character (link-conflict-dm.ts). {proof} is one of linkmove.proof.*.
+  "linkmove.proof.named": { en: "a name (typed, claimed or matched)", fr: "un nom (tapé, réclamé ou reconnu)" },
+  "linkmove.proof.companion": { en: "their own Guilded app", fr: "sa propre application Guilded" },
+  "linkmove.proof.heard": { en: "a `/guilded verify` code heard in game by a guildmate's addon", fr: "un code `/guilded verify` entendu en jeu par l'addon d'un coéquipier" },
+  "linkmove.proof.officer": { en: "an officer", fr: "un officier" },
+  "linkmove.gained": {
+    en: "🔁 **{name}** is now linked to you on **{server}**. It was linked to another member; your proof ({proof}) is stronger than theirs ({other}), so it moved with its history. Not your character? Press the button and it goes back.",
+    fr: "🔁 **{name}** est maintenant lié à toi sur **{server}**. Il était lié à un autre membre; ta preuve ({proof}) est plus forte que la sienne ({other}), il a donc été transféré avec son historique. Ce n'est pas ton personnage ? Appuie sur le bouton et il retourne d'où il vient."
+  },
+  "linkmove.lost": {
+    en: "🔁 **{name}** was moved from you to another member on **{server}**: their proof ({proof}) is stronger than yours ({other}). Nothing was deleted. If it is yours, press the button: you get it back and an officer decides.",
+    fr: "🔁 **{name}** a été transféré de toi à un autre membre sur **{server}** : sa preuve ({proof}) est plus forte que la tienne ({other}). Rien n'a été supprimé. S'il est à toi, appuie sur le bouton : tu le récupères et un officier tranche."
+  },
+  "linkmove.queued": {
+    en: "⚖️ **{name}** is already linked to another member on **{server}**, with the same kind of proof as yours ({proof}). Nothing changed. The officers were told and will decide.",
+    fr: "⚖️ **{name}** est déjà lié à un autre membre sur **{server}**, avec le même genre de preuve que la tienne ({proof}). Rien n'a changé. Les officiers ont été avisés et vont trancher."
+  },
+  "linkmove.weaker": {
+    en: "**{name}** is already linked to another member on **{server}** with stronger proof ({other}) than yours ({proof}), so it stays there. If it is yours, paste your `/guilded verify` line in game with that character, or ask an officer.",
+    fr: "**{name}** est déjà lié à un autre membre sur **{server}** avec une preuve plus forte ({other}) que la tienne ({proof}), il reste donc là. S'il est à toi, colle ta ligne `/guilded verify` en jeu avec ce personnage, ou demande à un officier."
+  },
+  "linkmove.notMine": { en: "Not mine, undo", fr: "Pas à moi, annuler" },
+  "linkmove.mine": { en: "It is mine, undo", fr: "Il est à moi, annuler" },
+  "linkmove.undone": { en: "Done: **{name}** went back to the member who had it. It will not be linked to you again by itself.", fr: "C'est fait : **{name}** est retourné au membre qui l'avait. Il ne sera plus lié à toi automatiquement." },
+  "linkmove.contested": { en: "Done: **{name}** is linked to you again. The officers were told and will decide who keeps it.", fr: "C'est fait : **{name}** est de nouveau lié à toi. Les officiers ont été avisés et vont décider qui le garde." },
+  "linkmove.tooLate": { en: "This can no longer be undone here (it was already undone, unlinked or decided by an officer). Ask an officer.", fr: "Ça ne peut plus être annulé ici (déjà annulé, délié ou décidé par un officier). Demande à un officier." },
+  "linkmove.logMoved": { en: "🔁 {name} moved from <@{from}> to <@{to}>: stronger proof ({proof} over {other}). History kept; both were told and can undo.", fr: "🔁 {name} transféré de <@{from}> à <@{to}> : preuve plus forte ({proof} contre {other}). Historique conservé; les deux ont été avisés et peuvent annuler." },
+  "linkmove.logQueued": { en: "⚖️ {name} is linked to <@{from}> and <@{to}> claims it with the same proof ({proof}). Nothing changed: decide with `/officer character move`.", fr: "⚖️ {name} est lié à <@{from}> et <@{to}> le réclame avec la même preuve ({proof}). Rien n'a changé : tranchez avec `/officer character move`." },
+  "linkmove.logUndone": { en: "↩️ <@{to}> said {name} is not theirs: it went back to <@{from}>.", fr: "↩️ <@{to}> a dit que {name} n'est pas à lui : il est retourné à <@{from}>." },
+  "linkmove.logContested": { en: "⚖️ <@{from}> took {name} back after it moved to <@{to}> on stronger proof. It stays with <@{from}> until an officer decides with `/officer character move`.", fr: "⚖️ <@{from}> a repris {name} après son transfert à <@{to}> sur une preuve plus forte. Il reste à <@{from}> jusqu'à ce qu'un officier tranche avec `/officer character move`." },
   "linked.none": {
     en: "You have no linked characters yet. Open the Guilded companion, or use `/character pair` on the server.",
     fr: "Tu n'as pas encore de personnage lié. Ouvre le compagnon Guilded, ou utilise `/character pair` sur le serveur."
@@ -307,10 +337,6 @@ const STRINGS = {
   "invite.doneButton": { en: "✅ Invited / joined", fr: "✅ Invité / a joint la guilde" },
   "invite.doneOfficers": { en: "Only officers can mark an invite as done.", fr: "Seuls les officiers peuvent marquer une invitation comme faite." },
   "invite.unavailable": { en: "Guild invites are not open on this server right now. Ask an officer.", fr: "Les invitations de guilde ne sont pas ouvertes sur ce serveur pour le moment. Demande à un officier." },
-  "verify.moved": {
-    en: "**{name}** was unlinked from your Discord account on **{server}**: an officer's Guilded heard another member's `/guilded verify` code from that character. If it is yours, ask an officer.",
-    fr: "**{name}** a été délié de ton compte Discord sur **{server}** : le Guilded d'un officier a reçu le code `/guilded verify` d'un autre membre depuis ce personnage. S'il est à toi, demande à un officier."
-  },
   "verify.taken": {
     en: "**{name}** sent your `/guilded verify` code, but it is already linked to someone else on **{server}**. Ask an officer to move it to you.",
     fr: "**{name}** a envoyé ton code `/guilded verify`, mais il est déjà lié à quelqu'un d'autre sur **{server}**. Demande à un officier de te le transférer."

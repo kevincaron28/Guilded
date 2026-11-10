@@ -4,8 +4,13 @@ import { MessageFlags } from "discord.js";
 const mocks = vi.hoisted(() => ({
   prisma: {
     character: { findMany: vi.fn(), delete: vi.fn() },
-    unclaimedCharacter: { findMany: vi.fn(), findFirst: vi.fn() }
+    unclaimedCharacter: { findMany: vi.fn(), findFirst: vi.fn() },
+    characterLinkConflict: { findMany: vi.fn(async () => [] as unknown[]) },
+    member: { findMany: vi.fn(async () => [] as unknown[]) },
+    $transaction: vi.fn(async (run: (tx: unknown) => unknown) => run("tx"))
   },
+  detach: vi.fn(),
+  officerMove: vi.fn(),
   hasPermission: vi.fn(() => true),
   context: vi.fn(async () => ({ guildId: "g1", memberId: "m1" })),
   block: vi.fn(),
@@ -13,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   claim: vi.fn(),
   linkUnclaimed: vi.fn(),
   autoLink: vi.fn(),
-  ensureMember: vi.fn(async () => ({ id: "m2" }))
+  ensureMember: vi.fn(async () => ({ id: "m2x" }))
 }));
 vi.mock("../src/database.js", () => ({ prisma: mocks.prisma }));
 vi.mock("../src/permissions.js", async (importOriginal) => {
@@ -28,6 +33,10 @@ vi.mock("../src/services/character-verify.js", async (importOriginal) => {
 vi.mock("../src/services/character-autolink.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/services/character-autolink.js")>();
   return { ...actual, claimCharacter: mocks.claim, linkUnclaimed: mocks.linkUnclaimed, autoLinkUnclaimed: mocks.autoLink };
+});
+vi.mock("../src/services/character-move.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/services/character-move.js")>();
+  return { ...actual, detachCharacter: mocks.detach, officerMoveCharacter: mocks.officerMove };
 });
 vi.mock("../src/services/housekeeping.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/services/housekeeping.js")>();
@@ -45,6 +54,9 @@ beforeEach(() => {
   mocks.context.mockResolvedValue({ guildId: "g1", memberId: "m1" });
   mocks.block.mockResolvedValue(undefined);
   mocks.log.mockResolvedValue(undefined);
+  mocks.prisma.$transaction.mockImplementation(async (run: (tx: unknown) => unknown) => run("tx"));
+  mocks.prisma.characterLinkConflict.findMany.mockResolvedValue([]);
+  mocks.prisma.member.findMany.mockResolvedValue([]);
 });
 
 function interaction(sub: string, values: Record<string, unknown> = {}) {
@@ -62,11 +74,54 @@ function interaction(sub: string, values: Record<string, unknown> = {}) {
 }
 
 describe("Discord character link commands", () => {
+  it("lets an officer move a linked or an unlinked character to another member, and lists what waits for them", async () => {
+    mocks.prisma.character.findMany.mockResolvedValue([kev, { ...ray, id: "c9", name: "Old Ray", detachedAt: new Date(), member: { displayName: "Unlinked characters" } }]);
+    mocks.officerMove.mockResolvedValue({ character: { isMain: false }, fromMemberId: "m2", wasDetached: false });
+    const move = interaction("move", { name: "Kevchar", player: { id: "u9", username: "sam" } });
+    await executeCharacter(move as never);
+    expect(mocks.officerMove).toHaveBeenCalledWith(expect.anything(), "c2", "m2x");
+    expect(move.reply.mock.calls[0]?.[0].content).toContain("Moved **Kevchar** from Kev to sam as an alt");
+    expect(mocks.log).toHaveBeenCalledWith(move.guild, "rayuser moved Kevchar from Kev to sam (history kept).");
+
+    const back = interaction("move", { name: "Old Ray", player: { id: "u9", username: "sam" } });
+    await executeCharacter(back as never);
+    expect(mocks.officerMove).toHaveBeenLastCalledWith(expect.anything(), "c9", "m2x");
+    expect(back.reply.mock.calls[0]?.[0].content).toContain("from the unlinked characters to sam");
+
+    // Already theirs: nothing to do.
+    mocks.officerMove.mockClear();
+    mocks.ensureMember.mockResolvedValueOnce({ id: "m2" });
+    const same = interaction("move", { name: "Kevchar", player: { id: "u2", username: "kev" } });
+    await executeCharacter(same as never);
+    expect(mocks.officerMove).not.toHaveBeenCalled();
+    await expect(executeCharacter(interaction("move", { name: "Nobody", player: { id: "u9", username: "sam" } }) as never)).rejects.toThrow(/No character called/);
+
+    mocks.hasPermission.mockReturnValue(false);
+    const denied = interaction("move", { name: "Kevchar", player: { id: "u9", username: "sam" } });
+    await executeCharacter(denied as never);
+    expect(denied.reply).toHaveBeenCalledWith(expect.objectContaining({ content: "Only Officers and Guild Masters can do that." }));
+
+    mocks.hasPermission.mockReturnValue(true);
+    mocks.prisma.unclaimedCharacter.findMany.mockResolvedValue([]);
+    mocks.prisma.character.findMany.mockResolvedValue([{ name: "Old Ray", displayName: null }]);
+    mocks.prisma.characterLinkConflict.findMany.mockResolvedValue([{ ownerMemberId: "m1", claimantMemberId: "m2", character: { name: "Shared", displayName: null } }]);
+    mocks.prisma.member.findMany.mockResolvedValue([{ id: "m1", discordUserId: "111" }, { id: "m2", discordUserId: "222" }]);
+    const list = interaction("unclaimed");
+    await executeCharacter(list as never);
+    const content = list.reply.mock.calls[0]?.[0].content as string;
+    expect(content).toContain("Shared: linked to <@111>, claimed by <@222>");
+    expect(content).toContain("/officer character move");
+    expect(content).toContain("**Unlinked, history kept:** Old Ray");
+  });
+
   it("lets a member unlink their own character and blocks the verify code from linking it back", async () => {
     mocks.prisma.character.findMany.mockResolvedValue([ray]);
     const interactionOwn = interaction("unlink", { name: "Ray" });
     await executeCharacter(interactionOwn as never);
-    expect(mocks.prisma.character.delete).toHaveBeenCalledWith({ where: { id: "c1" } });
+    // Detached, never deleted: the history stays with the row.
+    expect(mocks.detach).toHaveBeenCalledWith("tx", "c1");
+    expect(mocks.prisma.character.delete).not.toHaveBeenCalled();
+    expect(interactionOwn.reply.mock.calls[0]?.[0].content).toContain("Nothing was deleted");
     expect(mocks.block).toHaveBeenCalledWith(expect.anything(), "g1", "m1", "Ray", "Forever", "forever", false);
     expect(mocks.log).toHaveBeenCalledWith(interactionOwn.guild, expect.stringContaining("unlinked their character"));
     expect(interactionOwn.reply.mock.calls[0]?.[0].content).toContain("Unlinked **Ray**");
@@ -123,6 +178,7 @@ describe("Discord character link commands", () => {
 
     mocks.hasPermission.mockReturnValue(true);
     mocks.prisma.unclaimedCharacter.findMany.mockResolvedValue([]);
+    mocks.prisma.character.findMany.mockResolvedValue([]);
     const empty = interaction("unclaimed");
     await executeCharacter(empty as never);
     expect(empty.reply.mock.calls[0]?.[0].content).toMatch(/Every character the addons reported is linked/);
@@ -136,7 +192,7 @@ describe("Discord character link commands", () => {
     const linked = interaction("link", { name: "Ray", player: { id: "u2", username: "sam" } });
     await executeCharacter(linked as never);
     expect(mocks.ensureMember).toHaveBeenCalledWith("g1", "u2", "sam");
-    expect(mocks.linkUnclaimed).toHaveBeenCalledWith(expect.anything(), "m2", row, { confirmed: true });
+    expect(mocks.linkUnclaimed).toHaveBeenCalledWith(expect.anything(), "m2x", row, { confirmed: true });
     expect(linked.reply.mock.calls[0]?.[0].content).toContain("Linked **Ray** to sam as an alt");
 
     mocks.autoLink.mockResolvedValue([{ character: "Amy", member: "Amy" }]);

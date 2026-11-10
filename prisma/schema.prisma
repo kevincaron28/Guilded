@@ -210,6 +210,7 @@ model Guild {
   characterPairings   CharacterPairing[]
   characterVerifyCodes  CharacterVerifyCode[]
   characterVerifyClaims CharacterVerifyClaim[]
+  characterLinkConflicts CharacterLinkConflict[]
   communitySeasons    CommunitySeason[]
   communitySeasonCounters CommunitySeasonCounter[]
   poeMapVisits        PoeMapVisit[]
@@ -555,6 +556,17 @@ model Character {
   // member's: their own signed-in companion uploaded it, or an officer linked it. Null = only reported
   // (typed in, matched by name, a guildmate's addon heard their /guilded verify code, an invite request).
   confirmedAt        DateTime?
+  // Linking audit T3 (docs/plans/LINKING_AUDIT_2026-11-10.md): what proved this link, weakest to
+  // strongest: named (typed, claimed, name match, invite request) < companion (the member's own
+  // companion) < heard (a guildmate's addon heard their /guilded verify code) < officer. Null on rows
+  // from before: character-move.ts derives it from confirmedAt and the verify claim.
+  linkEvidence       String?
+  // /character unlink detaches instead of deleting: the row moves to the server's hidden holding
+  // member (character-move.ts) with its history, and comes back on relink or an officer's move.
+  // database.ts hides detached rows from ordinary character reads.
+  detachedAt         DateTime?
+  detachedFromMemberId String?
+  linkConflicts      CharacterLinkConflict[]
   // 8.5: the pre-8.5 Forever first name this row had before it took its full "First Last" name
   // (owner backfill scripts/forever-names.ts, or the member's own upload). Never a key.
   legacyName         String?
@@ -2239,6 +2251,30 @@ model CharacterVerifyClaim {
   member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, memberId, nameKey])
+}
+
+// Two members and one character (character-move.ts). MOVED: stronger proof took it (both got a DM
+// with an undo). OPEN: equal proof, waiting for an officer (/officer character move). WEAKER: the
+// claimant's proof is weaker, they were told once. UNDONE and RESOLVED are closed.
+model CharacterLinkConflict {
+  id               String    @id @default(cuid())
+  guildId          String
+  characterId      String
+  // Who had the character when the claim arrived, and who claimed it.
+  ownerMemberId    String
+  claimantMemberId String
+  ownerEvidence    String
+  claimantEvidence String
+  status           String
+  // Null until the members and the officer log were told.
+  notifiedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  guild            Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  character        Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, claimantMemberId])
+  @@index([guildId, status])
 }
 
 model CompanionCredential {

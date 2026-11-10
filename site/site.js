@@ -92,6 +92,27 @@ for (const menu of document.querySelectorAll('.edition-menu')) {
   menu.querySelector('[data-edition-none]').hidden = true;
 }
 
+// One version on the home page. The date and the CurseForge lag note come from /releases.json
+// (site/release-line.mjs). The file ids themselves are updated separately.
+const releaseNote = document.querySelector('[data-release-note]');
+if (releaseNote) {
+  fetch('/releases.json', { headers: { accept: 'application/json' } })
+    .then(response => response.ok ? response.json() : null)
+    .then(data => {
+      const version = data?.guilded?.github?.version;
+      const curseforge = data?.guilded?.curseforge?.version;
+      const verifiedAt = data?.verifiedAt;
+      if (typeof version !== 'string' || !version) return;
+      const versionNode = releaseNote.querySelector('[data-release-version]');
+      if (versionNode) versionNode.textContent = version;
+      const dateNode = releaseNote.querySelector('[data-release-date]');
+      if (dateNode && typeof verifiedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(verifiedAt)) dateNode.textContent = verifiedAt;
+      const lag = releaseNote.querySelector('[data-release-lag]');
+      if (lag) lag.hidden = !(typeof curseforge === 'string' && curseforge !== '' && curseforge !== version);
+    })
+    .catch(() => { /* the printed version still stands */ });
+}
+
 // "This week on Guilded" and each edition hub's leaderboard: public numbers from the bot
 // (summary.json, no player names). Those numbers stay hidden when they cannot load, e.g. in the
 // static preview; the hub's links to the full leaderboard still work.

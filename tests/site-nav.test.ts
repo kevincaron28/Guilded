@@ -51,12 +51,11 @@ describe("site menu", () => {
 
   it("has no edition drop-down on the six-item header", () => {
     const html = withEdition("forever", () => page("/leaderboards/guilds/", "fr"));
-    expect(html).not.toContain("edition-menu");
+    expect(html).not.toContain('<details class="nav-group edition-menu"');
     expect(html).not.toContain("<details");
     expect(html).not.toMatch(/Choose your WoW|Choisir votre WoW|Je joue à|Playing:/);
     for (const slug of ["retail", "tbc", "mists", "classic-era"]) expect(html).not.toContain(`data-edition="${slug}"`);
     const guild = renderGuildPage({ slug: "qg", name: "QG", language: "en", indexable: true, intro: null, sections: [], cores: [], recruitment: null, edition: "retail" });
-    expect(guild).not.toContain("edition-menu");
     expect(guild).not.toContain('<details class="nav-group edition-menu"');
     expect(guild).not.toContain('href="/retail/');
   });

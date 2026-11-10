@@ -58,6 +58,12 @@ The earlier 6.x instructions are retained in Git history.
 Download the actual public assets and compare SHA-256 values with the accepted manifest.
 Test links as a signed-out visitor. Update `site/releases.json` only with the versions and
 URLs actually available on each provider; CurseForge approval may trail GitHub.
+
+After every upload, update the `curseforge` block in `site/releases.json` with the new
+public file ids before the site treats that CurseForge version as current. Check the
+public file page, or `https://api.cfwidget.com/1712677` (Guilded) and
+`https://api.cfwidget.com/1754138` (Guilded Dungeons). The Forever edition page prints
+those file links only when `curseforge.version` equals `guilded.github.version`.
 Check both addon listings, the website download buttons, the companion update lookup and
 the install guide. Keep the previous release and private recovery records available.
 

@@ -196,6 +196,27 @@ if (refTools) {
   }
 }
 
+// Guide hub search. The full list stays in the HTML; this only hides rows that miss the query.
+function guideMatches(text, query) {
+  const needle = query.trim().toLowerCase();
+  return needle === "" || text.toLowerCase().includes(needle);
+}
+for (const input of document.querySelectorAll("[data-guide-search]")) {
+  const list = document.querySelector("[data-guide-list]");
+  const empty = document.querySelector("[data-guide-empty]");
+  if (!list) continue;
+  const apply = () => {
+    let shown = 0;
+    for (const item of list.querySelectorAll("[data-guide]")) {
+      const hit = guideMatches(item.textContent, input.value);
+      item.hidden = !hit;
+      if (hit) shown += 1;
+    }
+    if (empty) empty.hidden = shown > 0;
+  };
+  input.addEventListener("input", apply);
+}
+
 // Guide screenshots that are not captured yet (docs/SCREENSHOT_SHOTLIST.md): show the marked placeholder, never a broken image.
 for (const image of document.querySelectorAll('img.guide-shot-img')) {
   const figure = image.closest('figure.guide-shot');

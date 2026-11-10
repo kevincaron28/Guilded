@@ -530,3 +530,8 @@ form { margin: 22px 0 0; }
 .phone-gallery figcaption { margin-top: 8px; font-size: 12px; line-height: 1.45; color: #c2cab7; }
 @media (max-width: 900px) { .phone-gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .phone-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+
+.guide-tools { margin: 16px 0 8px; }
+.guide-tools input { min-height: 44px; width: min(100%, 420px); margin-left: 8px; padding: 8px 12px; border: 1px solid var(--line, #494d40); border-radius: 6px; background: transparent; color: inherit; }
+[data-guide-empty] { color: var(--muted, #aab5ba); }
+@media print { .guide-tools, [data-guide-empty] { display: none; } }

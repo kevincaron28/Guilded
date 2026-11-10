@@ -484,10 +484,16 @@ end
 function util.pendingAfterCombat(key) return pendingAfterCombat[key] ~= nil end
 
 -- Invites. On WoW Forever the invite API (GuildInvite, C_GuildInfo.Invite, InviteUnit) is refused to addon code
--- even from a click ("Guilded has been blocked from an action only available to the Blizzard UI"). A *secure*
--- button whose click runs the macro "/ginvite First Last" (guild) or "/invite First Last" (party) is allowed:
--- the click is the player's own. util.inviteMacro builds that line; util.inviteButton makes the button.
--- Secure attributes cannot change in combat, so setInvite() defers the change with util.afterCombat.
+-- even from a click ("Guilded has been blocked from an action only available to the Blizzard UI"). A secure
+-- button running the macro "/ginvite First Last" is refused as well: the owner's taint log of 10 November 2026
+-- shows "An action was blocked because of taint from (null) - Invite()" through RunMacroText, with no addon
+-- taint at all. A line the addon puts in the chat box is refused too, even after the player types in it ("blocked
+-- because of taint from Guilded - Invite()": the chat box's text counts as the addon's; owner tests, same day).
+-- Only a line the player typed or pasted is accepted. So the Invite button shows "/ginvite First Last" (guild)
+-- or "/invite First Last" (party) selected in Guilded's copy box: Ctrl+C, then paste it in chat and press Enter.
+-- util.inviteMacro builds that line; util.inviteButton makes the button (a plain button: no secure frame).
+-- Never write to the game's chat box here (ChatFrame_OpenChat, SetText, Insert).
+
 function util.inviteMacro(kind, name)
   if type(name) ~= "string" or isSecret(name) then return nil end
   name = name:match("^%s*(.-)%s*$")
@@ -495,54 +501,32 @@ function util.inviteMacro(kind, name)
   return (kind == "party" and "/invite " or "/ginvite ") .. name
 end
 
--- kind: "guild" or "party". The returned button has button.setInvite(name) (out-of-combat refresh of the macro) and
--- button.macroName() (the name its macro invites right now), and runs onClick(name) after the click (PostClick: no
--- protected calls there). Created in combat it is a plain button that prints the line to type instead.
+-- kind: "guild" or "party". The returned button has button.setInvite(name), button.inviteName() (the name it
+-- invites right now) and button.inviteLine() (the chat line). A click shows the line in the copy box and says to
+-- copy and paste it (or, without a copy box, which line to type), then runs onClick(name, shown).
 function util.inviteButton(parent, kind, text, width, height, onClick)
-  local isPlain, macroName, wantedMacro = false, nil, nil
-  local function plain()
-    isPlain = true
-    return CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-  end
-  local button
-  if util.inCombat() then button = plain()
-  else
-    local ok, made = pcall(CreateFrame, "Button", nil, parent, "SecureActionButtonTemplate,UIPanelButtonTemplate")
-    button = ok and made or plain()
-  end
+  local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   if width and button.SetWidth then button:SetWidth(width) end
   if height and button.SetHeight then button:SetHeight(height) end
   if button.SetText then button:SetText(text) end
-  -- Newer clients fire secure clicks on the key-down or key-up edge depending on a setting.
-  if not isPlain and button.RegisterForClicks then button:RegisterForClicks("AnyUp", "AnyDown") end
-  if not isPlain and button.SetAttribute then button:SetAttribute("type", "macro") end
-  function button.macroName() return macroName end
+  local line, target
+  function button.inviteName() return target end
+  function button.inviteLine() return line end
   function button.setInvite(name)
     -- Forever names are "First Last" (no realm); the roster may append "-Realm", which /ginvite does not need.
-    local target = type(name) == "string" and util.isForever() and util.bareName(name) or name
-    local macro = util.inviteMacro(kind, target)
-    wantedMacro = macro
-    if isPlain or not button.SetAttribute then return end
-    util.afterCombat("inviteButton:" .. tostring(button), function()
-      button:SetAttribute("macrotext", macro or "")
-      macroName = macro and target or nil
-    end, true)
+    local bare = type(name) == "string" and util.isForever() and util.bareName(name) or name
+    line = util.inviteMacro(kind, bare)
+    target = line and bare or nil
   end
-  local lastAt
-  local function clicked()
-    -- Registered for both edges, so a click reports twice: act once.
-    local now = GetTime and GetTime() or 0
-    if lastAt and now - lastAt < 0.4 then return end
-    lastAt = now
-    if isPlain then
-      if wantedMacro and ns.message then
-        ns.message(string.format(ns.L and ns.L("In combat: type %s to invite them.") or "In combat: type %s to invite them.", wantedMacro))
-      end
-      return
+  local function tr(textKey) return ns.L and ns.L(textKey) or textKey end
+  button:SetScript("OnClick", function()
+    if not line then return end
+    local shown = type(ns.showCopyText) == "function" and (pcall(ns.showCopyText, line, tr("Copy with Ctrl+C, then paste in chat"))) or false
+    if ns.message then
+      ns.message(string.format(shown and tr("Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.") or tr("Type %s to invite them."), line))
     end
-    if macroName and onClick then onClick(macroName) end
-  end
-  if button.HookScript then button:HookScript("PostClick", clicked) end
+    if onClick then onClick(target, shown) end
+  end)
   return button
 end
 

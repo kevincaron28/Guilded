@@ -71,11 +71,10 @@ function module.partners()
   return list
 end
 
--- The Invite button is a secure button running "/invite First Last" (util.inviteButton): the party invite API is
--- refused to addon code on some clients. This runs after its click and only says what was sent.
+-- The Invite button shows "/invite First Last" in the copy box (util.inviteButton, which also says to copy and paste it):
+-- the party invite API is refused to addon code on WoW Forever. This runs after its click.
 function module.invited(name)
   if not name or name == "" then return false end
-  say(string.format(L("Sent /invite %s. The game's own message tells you if it did not work."), name))
   return true
 end
 

@@ -2453,9 +2453,8 @@ local DE = {
   ["%d waiting for a guild invite."] = "%d warten auf eine Gildeneinladung.",
   ["Nobody is waiting for a guild invite."] = "Niemand wartet auf eine Gildeneinladung.",
   ["%d waiting for a guild invite. Open them with /guilded invites."] = "%d warten auf eine Gildeneinladung. \195\150ffne die Liste mit /guilded invites.",
-  ["Sent /ginvite %s. The game's own message tells you if it did not work."] = "/ginvite %s gesendet. Das Spiel meldet selbst, wenn es nicht geklappt hat.",
-  ["Sent /invite %s. The game's own message tells you if it did not work."] = "/invite %s gesendet. Das Spiel meldet selbst, wenn es nicht geklappt hat.",
-  ["In combat: type %s to invite them."] = "Im Kampf: Tippe %s, um den Spieler einzuladen.",
+  ["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Kopiere %s (Strg+C), f\195\188ge es im Chatfeld ein (Strg+V) und dr\195\188cke Enter.",
+  ["Copy with Ctrl+C, then paste in chat"] = "Mit Strg+C kopieren, dann im Chat einf\195\188gen",  ["Type %s to invite them."] = "Tippe %s, um den Spieler einzuladen.",
   ["The game would not send the invite. Invite them by hand."] = "Das Spiel hat die Einladung nicht gesendet. Lade den Spieler von Hand ein.",
   ["Your rank cannot invite to the guild."] = "Dein Rang kann nicht in die Gilde einladen.",
   ["Rule: rank %s for %d+ days."] = "Regel: Rang %s seit %d+ Tagen.",
@@ -4173,9 +4172,8 @@ local ES = {
   ["%d waiting for a guild invite."] = "%d esperan una invitaci\195\179n a la hermandad.",
   ["Nobody is waiting for a guild invite."] = "Nadie espera una invitaci\195\179n a la hermandad.",
   ["%d waiting for a guild invite. Open them with /guilded invites."] = "%d esperan una invitaci\195\179n a la hermandad. Abre la lista con /guilded invites.",
-  ["Sent /ginvite %s. The game's own message tells you if it did not work."] = "/ginvite %s enviado. El propio juego avisa si no funcion\195\179.",
-  ["Sent /invite %s. The game's own message tells you if it did not work."] = "/invite %s enviado. El propio juego avisa si no funcion\195\179.",
-  ["In combat: type %s to invite them."] = "En combate: escribe %s para invitarlo.",
+  ["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Copia %s (Ctrl+C), p\195\169galo en tu cuadro de chat (Ctrl+V) y pulsa Intro.",
+  ["Copy with Ctrl+C, then paste in chat"] = "Copia con Ctrl+C y pega en el chat",  ["Type %s to invite them."] = "Escribe %s para invitarlo.",
   ["The game would not send the invite. Invite them by hand."] = "El juego no envi\195\179 la invitaci\195\179n. Invita al jugador a mano.",
   ["Your rank cannot invite to the guild."] = "Tu rango no puede invitar a la hermandad.",
   ["Rule: rank %s for %d+ days."] = "Regla: rango %s durante %d+ d\195\173as.",
@@ -5122,9 +5120,8 @@ FR["invited"] = "invit\195\169"
 FR["%d waiting for a guild invite."] = "%d en attente d'une invitation de guilde."
 FR["Nobody is waiting for a guild invite."] = "Personne n'attend d'invitation de guilde."
 FR["%d waiting for a guild invite. Open them with /guilded invites."] = "%d en attente d'une invitation de guilde. Ouvre la liste avec /guilded invites."
-FR["Sent /ginvite %s. The game's own message tells you if it did not work."] = "/ginvite %s envoy\195\169. Le jeu indique lui-m\195\170me si \195\167a n'a pas march\195\169."
-FR["Sent /invite %s. The game's own message tells you if it did not work."] = "/invite %s envoy\195\169. Le jeu indique lui-m\195\170me si \195\167a n'a pas march\195\169."
-FR["In combat: type %s to invite them."] = "En combat : tape %s pour l'inviter."
+FR["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Copie %s (Ctrl+C), colle-le dans ta zone de discussion (Ctrl+V) et appuie sur Entr\195\169e."
+FR["Copy with Ctrl+C, then paste in chat"] = "Copie avec Ctrl+C, puis colle dans le chat"FR["Type %s to invite them."] = "Tape %s pour l'inviter."
 FR["The game would not send the invite. Invite them by hand."] = "Le jeu n'a pas envoy\195\169 l'invitation. Invite le joueur \195\160 la main."
 FR["Your rank cannot invite to the guild."] = "Ton rang ne peut pas inviter dans la guilde."
 FR["Promotion requested. Wait for the roster to confirm it before the next one."] = "Promotion demand\195\169e. Attendez que la liste la confirme avant la suivante."

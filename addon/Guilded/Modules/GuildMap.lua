@@ -369,6 +369,9 @@ local function number(object, method)
   return nil
 end
 
+local STRATA_RANK = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6, FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
+local OVERLAY_FRAME_LEVEL = 9000
+
 local function worldOverlay(container)
   if not map.worldOverlay then
     local overlay = CreateFrame("Frame", nil, UIParent)
@@ -399,12 +402,18 @@ function map.refreshWorldMap()
   local used = 0
   if canvas and worldMapShown() and showDots() then
     local overlay = worldOverlay(container)
-    if type(frame.GetFrameStrata) == "function" and overlay.SetFrameStrata then
-      local ok, strata = pcall(frame.GetFrameStrata, frame)
-      if ok and type(strata) == "string" then overlay:SetFrameStrata(strata) end
+    -- Above everything the map draws: its own pins and the explored-area art sit at frame levels in
+    -- the thousands, so "map level + 1000" left the dots underneath (10 November 2026: dots on the
+    -- minimap but not on the world map). At least HIGH, as the dots were before the overlay.
+    if overlay.SetFrameStrata then
+      local strata = "HIGH"
+      if type(frame.GetFrameStrata) == "function" then
+        local ok, value = pcall(frame.GetFrameStrata, frame)
+        if ok and type(value) == "string" and (STRATA_RANK[value] or 0) > STRATA_RANK.HIGH then strata = value end
+      end
+      overlay:SetFrameStrata(strata)
     end
-    local level = number(frame, "GetFrameLevel")
-    if level and overlay.SetFrameLevel then overlay:SetFrameLevel(math.min(level + 1000, 9000)) end
+    if overlay.SetFrameLevel then overlay:SetFrameLevel(OVERLAY_FRAME_LEVEL) end
     local viewed = number(frame, "GetMapID")
     local width, height = number(canvas, "GetWidth") or 0, number(canvas, "GetHeight") or 0
     local names = viewed and width > 0 and height > 0 and sortedNames() or {}

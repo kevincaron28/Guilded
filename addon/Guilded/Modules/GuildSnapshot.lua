@@ -22,6 +22,14 @@ ns.guildSnapshot = snapshot
 
 local function clock() return (GetServerTime and GetServerTime()) or (time and time()) or 0 end
 local function secret(value) return ns.isSecret and ns.isSecret(value) end
+local function inCombat()
+  if ns.compat and ns.compat.inCombat then return ns.compat.inCombat() and true or false end
+  if type(InCombatLockdown) == "function" then
+    local ok, value = pcall(InCombatLockdown)
+    return ok and value == true
+  end
+  return false
+end
 local function text(value, limit)
   if type(value) ~= "string" or secret(value) then return nil end
   value = value:gsub("[%c|]", " "):gsub("^%s+", ""):gsub("%s+$", "")
@@ -71,11 +79,20 @@ function snapshot.read(force)
     local okShow, value = pcall(GetGuildRosterShowOffline)
     if okShow and value == false then showsOffline = false end
   end
-  local motdFn = GetGuildRosterMOTD or (C_GuildInfo and C_GuildInfo.GetMOTD)
-  local okMotd, motd = pcall(function() return motdFn and motdFn() end)
-  local okInfo, info = pcall(function() return GetGuildInfoText and GetGuildInfoText() end)
+  -- WoW Forever refuses the MOTD and guild information reads to addons in combat ("Guilded tried to
+  -- call UNKNOWN()" twice per roster update, taint log of 10 November 2026). In combat the texts of
+  -- the last snapshot are kept; the next read out of combat refreshes them.
+  local motdText, infoText, textAt
+  if inCombat() then
+    if type(saved) == "table" then motdText, infoText, textAt = saved.motd, saved.info, saved.textAt end
+  else
+    local motdFn = GetGuildRosterMOTD or (C_GuildInfo and C_GuildInfo.GetMOTD)
+    local okMotd, motd = pcall(function() return motdFn and motdFn() end)
+    local okInfo, info = pcall(function() return GetGuildInfoText and GetGuildInfoText() end)
+    motdText, infoText, textAt = okMotd and text(motd, 255) or nil, okInfo and text(info, 1000) or nil, now
+  end
   local result = { at = now, count = count, complete = showsOffline and count <= MAX_MEMBERS, members = members,
-    motd = okMotd and text(motd, 255) or nil, info = okInfo and text(info, 1000) or nil, textAt = now }
+    motd = motdText, info = infoText, textAt = textAt }
   db.guildSnapshot = result
   return result
 end

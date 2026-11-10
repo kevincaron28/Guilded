@@ -61,15 +61,15 @@ describe("protected calls only where the player's click runs them (taint)", () =
     ["sets the guild message of the day", /\b(?:GuildSetMOTD|C_GuildInfo\.SetMOTD)\b/],
     ["runs macro text from addon code", /\bRunMacroText\b/],
     // 9 November 2026: the guild invite API is forbidden to addon code on WoW Forever even from a click ("Guilded tried to
-    // call UNKNOWN()"). Every Invite button is a secure macro button (ns.util.inviteButton: "/ginvite First Last").
-    ["calls the guild invite API (use ns.util.inviteButton, a secure /ginvite macro button)", /\b(?:C_GuildInfo\.Invite|GuildInvite)\b/]
+    // call UNKNOWN()"). Every Invite button shows "/ginvite First Last" in the copy box (ns.util.inviteButton); the player pastes it in chat.
+    ["calls the guild invite API (use ns.util.inviteButton, which shows the /ginvite line in the copy box)", /\b(?:C_GuildInfo\.Invite|GuildInvite)\b/]
   ];
   it.each(never)("no file %s", (_label, pattern) => {
     expect(files.filter((file) => pattern.test(source(file))).map(rel)).toEqual([]);
   });
 
   const allowed: Array<[string, RegExp, string[]]> = [
-    // Party invites: the Invite buttons (call for help, levelling partners) are secure /invite macro buttons now.
+    // Party invites: the Invite buttons (call for help, levelling partners) show the /invite line in the copy box (ns.util.inviteButton).
     ["party invites", /\bInviteUnit\b/, [
       "addon/Guilded/Modules/AutoInvite.lua"    // /guilded invite raid, typed by the officer
     ]],
@@ -84,7 +84,7 @@ describe("protected calls only where the player's click runs them (taint)", () =
     expect(files.filter((file) => pattern.test(source(file))).map(rel).sort()).toEqual([...files_].sort());
   });
 
-  it("every guild or party Invite button is a secure macro button from ns.util.inviteButton", () => {
+  it("every guild or party Invite button is a plain button from ns.util.inviteButton that shows the line in the copy box", () => {
     const buttons: Array<[string, string]> = [
       ["addon/Guilded/Modules/InviteQueue.lua", '"guild"'],
       ["addon/Guilded/Modules/CallForHelp.lua", '"party"'],
@@ -94,10 +94,23 @@ describe("protected calls only where the player's click runs them (taint)", () =
       expect(source(file), file).toContain("ns.util.inviteButton(");
       expect(source(file), file).toContain(kind);
     }
+    // SyncNow.lua legitimately keeps a secure /reload macro button, so the checks are scoped to Util.lua's inviteButton.
     const util = source("addon/Guilded/Util.lua");
-    expect(util).toContain('"SecureActionButtonTemplate,UIPanelButtonTemplate"');
-    expect(util).toContain('SetAttribute("type", "macro")');
     expect(util).toContain('"/ginvite "');
+    expect(util).toContain('"/invite "');
+    expect(util).not.toContain("openChatLine");
+    const start = util.indexOf("function util.inviteButton(");
+    expect(start).toBeGreaterThan(-1);
+    const end = util.slice(start).search(/\r?\nend\r?\n/);
+    expect(end).toBeGreaterThan(-1);
+    const invite = util.slice(start, start + end);
+    expect(invite).toContain('"UIPanelButtonTemplate"');
+    expect(invite).toContain("ns.showCopyText");
+    expect(invite).not.toContain("OpenChat");
+    expect(invite).not.toContain("SecureActionButtonTemplate");
+    expect(invite).not.toContain('SetAttribute("macrotext"');
+    expect(invite).not.toContain('SetAttribute("type"');
+    expect(util).not.toMatch(/SetAttribute\("macrotext"/);
   });
 
   it("the auto-invite whisper handler hands out /ginvite instead of inviting", () => {

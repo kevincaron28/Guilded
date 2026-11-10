@@ -16,11 +16,13 @@ function setup(level = 30) {
     function InviteUnit(name) INVITES[#INVITES + 1] = name end
     IN_COMBAT = false
     function InCombatLockdown() return IN_COMBAT end
+    COPIED = {}; TITLES = {}; OPENED = {}
+    -- Spy: an Invite click must never open the game chat box (the Whisper button uses ChatFrame_SendTell).
+    function ChatFrame_OpenChat(line) OPENED[#OPENED + 1] = line end
     local make = CreateFrame
     CreateFrame = function(kind, name, parent, template)
       local f = make(kind, name, parent, template)
-      f.template = template; f.attrs = {}
-      f.SetAttribute = function(self, k, v) self.attrs[k] = v end
+      f.template = template
       return f
     end
     function ChatFrame_SendTell(name) TELLS[#TELLS + 1] = name end
@@ -34,6 +36,7 @@ function setup(level = 30) {
     function GetGuildRosterInfo(i) local r = ROSTER[i]; return r[1], "Member", 3, r[2], r[3], r[4], "", "", r[5], 0, r[3] end
     NS = { util = {}, commandHandlers = {}, commandHelp = {},
       message = function(text) MSGS[#MSGS + 1] = text end,
+      showCopyText = function(text, title) COPIED[#COPIED + 1] = text; TITLES[#TITLES + 1] = title end,
       isSecret = function() return false end,
       playerName = function() return "Kev" end,
       normalizeName = function(n) return n and (n:match("^[^-]+")) end }`);
@@ -78,28 +81,53 @@ describe("levelling partners", () => {
     expect(s!.run(`return tostring(NS.levelPartners.refresh())`)).toBe("6");
   });
 
+  // The Invite buttons (frames with setInvite/inviteLine; the test frames answer any method, so rawget) and their lines.
+  const buttons = `local function buttons() local t = {} for _, f in ipairs(FRAMES) do if rawget(f, "inviteLine") then t[#t + 1] = f end end return t end `;
+  const lines = () => s!.run(buttons + `local t = {} for _, f in ipairs(buttons()) do local l = f.inviteLine() if l then t[#t + 1] = l end end table.sort(t) return table.concat(t, "|")`);
+  const click = (line: string) => s!.run(buttons + `for _, f in ipairs(buttons()) do if f.inviteLine() == "${line}" then f.scripts.OnClick(f) return end end error("no button for ${line}")`);
+
   it("whispers and invites only on a click", () => {
     setup();
     expect(msgs()).toBe("");
     expect(s!.run(`return tostring(NS.levelPartners.whisper("Bo-Realm"))`)).toBe("true");
     expect(s!.run(`return table.concat(TELLS, ",")`)).toBe("Bo-Realm");
+    expect(msgs()).toBe("");
+    // invited() only runs after the button's click: it prints and shows nothing by itself.
     expect(s!.run(`return tostring(NS.levelPartners.invited("Bo"))`)).toBe("true");
-    expect(msgs()).toContain("Sent /invite Bo.");
+    expect(msgs()).toBe("");
+    expect(s!.run(`return #COPIED`)).toBe("0");
+    s!.run(`NS.levelPartners.open()`);
+    click("/invite Bo");
+    expect(s!.run(`return #COPIED .. COPIED[1]`)).toBe("1/invite Bo");
+    expect(s!.run(`return TITLES[1]`)).toBe("Copy with Ctrl+C, then paste in chat");
+    expect(s!.run(`return #OPENED`)).toBe("0");
+    expect(msgs()).toBe("Copy /invite Bo (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.");
     expect(s!.run(`return table.concat(INVITES, ",")`)).toBe("");   // the invite API is never called from addon code
   });
 
-  it("makes every Invite button a secure /invite macro button, refreshed only out of combat", () => {
+  it("tells the player which line to type when there is no copy box", () => {
+    setup();
+    s!.run(`NS.showCopyText = nil; NS.levelPartners.open()`);
+    click("/invite Cy");
+    expect(msgs()).toBe("Type /invite Cy to invite them.");
+    expect(s!.run(`return #OPENED`)).toBe("0");
+    expect(s!.run(`return table.concat(INVITES, ",")`)).toBe("");
+  });
+
+  it("makes every Invite button a plain /invite button that shows the copy box, rows refreshed after combat", () => {
     setup();
     s!.run(`NS.levelPartners.open()`);
-    const macros = () => s!.run(`local t = {} for _, f in ipairs(FRAMES) do if type(f.attrs) == "table" and f.attrs.macrotext and f.attrs.macrotext ~= "" then t[#t + 1] = f.attrs.macrotext end end table.sort(t) return table.concat(t, "|")`);
-    expect(macros()).toBe("/invite Ann|/invite Bo|/invite Cy|/invite Eve|/invite Gus|/invite Hal");
-    expect(s!.run(`local n = 0 for _, f in ipairs(FRAMES) do if type(f.attrs) == "table" and type(f.template) == "string" and f.template:find("SecureActionButtonTemplate") and f.attrs.type == "macro" then n = n + 1 end end return n`)).toBe("6");
+    expect(lines()).toBe("/invite Ann|/invite Bo|/invite Cy|/invite Eve|/invite Gus|/invite Hal");
+    expect(s!.run(buttons + `local n, bad = 0, 0 for _, f in ipairs(buttons()) do if f.inviteLine() then n = n + 1 if f.template ~= "UIPanelButtonTemplate" then bad = bad + 1 end end end return n .. ":" .. bad`)).toBe("6:0");
     s!.run(`IN_COMBAT = true; ROSTER[3][1] = "Zed-Realm"`);
     s!.run(`NS.levelPartners.refresh()`);
-    expect(macros()).toContain("/invite Bo");
+    expect(lines()).toContain("/invite Bo");
+    click("/invite Bo");   // plain buttons: a click in combat still shows the copy box
+    expect(s!.run(`return COPIED[#COPIED]`)).toBe("/invite Bo");
+    expect(s!.run(`return #OPENED`)).toBe("0");
     s!.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
-    expect(macros()).toContain("/invite Zed");
-    expect(macros()).not.toContain("/invite Bo");
+    expect(lines()).toContain("/invite Zed");
+    expect(lines()).not.toContain("/invite Bo");
   });
 
   it("registers /guilded partners and translates", () => {

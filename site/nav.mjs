@@ -129,12 +129,11 @@ export function editionSwitchHref(path, edition) {
   return `/${section.slug}/`;
 }
 
-/** The header's "Playing: WoW Forever ▾" menu, a <details> drop-down that works without scripts: it links
- * to the WoW Forever section. title is the drop-down's label; label(section) and href(section) give the link.
- * @param {{ current: string | null, title: string, label: (section: EditionSection) => string, href: (section: EditionSection) => string }} options
+/** Guilded is WoW Forever only, so the header has no "Choose your WoW" / "Playing" drop-down.
+ * Callers may still pass the old menu options; they are ignored.
  * @returns {string} */
-export function editionMenu({ current, title, label, href }) {
-  return `<details class="nav-group edition-menu" data-nav-group="edition"><summary>${title}</summary><div class="nav-menu">${EDITION_SECTIONS.map((section) => `<a href="${escape(href(section))}" data-edition="${section.slug}"${section.id === current ? ' aria-current="true"' : ""}>${label(section)}</a>`).join("")}</div></details>`;
+export function editionMenu() {
+  return "";
 }
 
 /** Keep the chosen language across translated pages and bilingual guide sections.

@@ -5,17 +5,17 @@
 // (`cta`) is the one button. Everything else (officers, companion, status, Discord...) sits in the
 // footer columns below, which every page shows.
 
-/** @typedef {{ key: string, href: string, en: string, fr: string, bot?: boolean, cta?: boolean }} NavItem */
+/** @typedef {{ key: string, href: string, en: string, fr: string, bot?: boolean, cta?: boolean, icon?: boolean }} NavItem */
 
 /** @type {NavItem[]} */
 export const SITE_NAV = [
-  { key: "start", href: "/start/", en: "Start here", fr: "Commencer ici" },
-  { key: "features", href: "/features/", en: "Features", fr: "Fonctions" },
+  { key: "download", href: "/download/", en: "Download", fr: "Télécharger", cta: true },
+  { key: "guide", href: "/start/", en: "Guide", fr: "Guide" },
+  { key: "reference", href: "/reference/", en: "Quick reference", fr: "Référence rapide" },
   { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
-  // The guild directory sits under /recruitment/ because the Cloudflare Worker already forwards it.
-  { key: "guilds", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true },
-  { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true },
-  { key: "download", href: "/download/", en: "Download", fr: "Télécharger", cta: true }
+  // Community boards are served by the bot under the Forever section.
+  { key: "community", href: "/recruitment/guilds/", en: "Community", fr: "Communauté", bot: true },
+  { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true, icon: true }
 ];
 
 /** @typedef {{ key: string, href: string, en: string, fr: string, column: string, bot?: boolean }} FooterItem */
@@ -145,11 +145,13 @@ export function localizedHref(href, lang) {
   if (/(?:^|\/)docs\/(?:QUICK_START|MEMBER_INSTALL|DUNGEONS_GUIDE|EPGP_GUIDE|HOSTED_PILOT|SUPPORT_GUILDED)(?:\.html)?$/.test(path)) {
     return base + (hash && hash !== "fr" ? `#${hash}` : lang === "fr" ? "#fr" : "");
   }
-  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?(?:features|officers)\/|(?:.*\/)?editions\/(?:[a-z-]+\/)?|\/companion\/|\/(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:leaderboards|recruitment|players)(?:\/.*)?|\/me(?:\/.*)?|(?:.*\/)?(?:forever|classic-era|tbc|mists|retail)\/)$/.test(path)) return href;
+  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?(?:features|officers|start|download|reference|guide|community)\/|(?:.*\/)?editions\/(?:[a-z-]+\/)?|\/companion\/|\/(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:leaderboards|recruitment|players)(?:\/.*)?|\/me(?:\/.*)?|(?:.*\/)?(?:forever|classic-era|tbc|mists|retail)\/)$/.test(path)) return href;
   const query = new URLSearchParams(search);
   query.set("lang", lang);
   return `${path}?${query}${hash ? `#${hash}` : ""}`;
 }
+
+const accountIcon = `<svg class="nav-account-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.4-3 3.8-4.5 7-4.5S17.6 16 19 19"/></svg>`;
 
 /**
  * The menu as HTML: one plain link per entry, no drop-downs; the `cta` entry is the button.
@@ -159,7 +161,11 @@ export function localizedHref(href, lang) {
  * @returns {string}
  */
 export function navLinks({ label, href = (item) => item.href, current = null }) {
-  return SITE_NAV.map((item) => `<a href="${escape(href(item))}"${item.cta ? ' class="nav-cta"' : ""}${item.key === current ? ' aria-current="page"' : ""}>${label(item)}</a>`).join("");
+  return SITE_NAV.map((item) => {
+    const currentAttr = item.key === current ? ' aria-current="page"' : "";
+    if (item.icon) return `<a class="nav-account" href="${escape(href(item))}"${currentAttr} aria-label="${escape(label(item))}">${accountIcon}</a>`;
+    return `<a href="${escape(href(item))}"${item.cta ? ' class="nav-cta"' : ""}${currentAttr}>${label(item)}</a>`;
+  }).join("");
 }
 
 /**

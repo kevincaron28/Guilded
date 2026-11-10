@@ -45,7 +45,7 @@ const escape = (text: string) => text.replaceAll("&", "&amp;").replaceAll('"', "
 
 /** The current menu entry for a path, so the page is marked in the menu. Guild pages and recruitment belong to Find a guild. */
 export function currentSection(path: string): string | null {
-  if (/^\/(?:recruitment|g)\//.test(path)) return "guilds";
+  if (/^\/(?:recruitment|g)\//.test(path)) return "community";
   if (/^\/me\//.test(path)) return "my-guilded";
   return /^\/leaderboards\//.test(path) ? "leaderboards" : null;
 }

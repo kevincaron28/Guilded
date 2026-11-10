@@ -56,7 +56,7 @@ describe("guild directory page", () => {
     expect(page.body).toContain("2 cores de raid : Les Aggros Anonyme, Les Pulliticiens");
     expect(page.body).toContain("/recruitment/apply/l1");
     expect(page.body).toContain("/leaderboards/guild/g2");
-    expect(page.body).toContain('aria-current="page">Trouver une guilde</a>');
+    expect(page.body).toContain('aria-current="page">Communauté</a>');
     expect(store.guilds).toHaveBeenCalledWith("forever");
   });
 

@@ -15,7 +15,7 @@ export const SITE_NAV = [
   // The guild directory sits under /recruitment/ because the Cloudflare Worker already forwards it.
   { key: "guilds", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true },
   { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true },
-  { key: "download", href: "/editions/", en: "Get the addon", fr: "Obtenir l’addon", cta: true }
+  { key: "download", href: "/editions/forever/", en: "Get the addon", fr: "Obtenir l’addon", cta: true }
 ];
 
 /** @typedef {{ key: string, href: string, en: string, fr: string, column: string, bot?: boolean }} FooterItem */

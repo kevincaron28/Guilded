@@ -20,7 +20,7 @@ describe("public addresses keep answering", () => {
     const expected: [string, number, string | null][] = [
       ["/", 200, null], ["/forever/", 200, null], ["/forever/leaderboards/", 200, null],
       ["/leaderboards/", 302, "/forever/leaderboards/"], ["/players/", 302, "/forever/players/"],
-      ["/g/quebec-gold/", 200, null], ["/editions/", 200, null], ["/editions/forever/", 200, null],
+      ["/g/quebec-gold/", 200, null], ["/editions/", 301, "/editions/forever/"], ["/editions/?lang=fr", 301, "/editions/forever/?lang=fr"], ["/editions/forever/", 200, null],
       ["/retail/", 301, "/forever/"], ["/tbc/leaderboards/", 301, "/forever/leaderboards/"],
       ["/editions/retail/", 301, "/editions/forever/"], ["/companion/x", 301, "/companion/"], ["/health", 200, null]
     ];

@@ -74,7 +74,7 @@ describe("site menu", () => {
   });
 
   it("has a Community entry, current on the guild directory and on guild pages", () => {
-    expect(page("/recruitment/guilds/", "fr")).toContain('href="/forever/recruitment/guilds/?lang=fr" aria-current="page">Communauté</a>');
+    expect(page("/recruitment/guilds/", "fr")).toContain('href="/community/?lang=fr" aria-current="page">Communauté</a>');
     expect(page("/recruitment/guilds/", "fr")).not.toContain('href="/forever/recruitment/?lang=fr" aria-current');
     expect(currentSection("/g/quebec-gold/")).toBe("community");
     expect(currentSection("/recruitment/")).toBe("community");

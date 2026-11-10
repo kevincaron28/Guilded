@@ -22,7 +22,7 @@
   --kc-content-width: 1180px;
 }
 @font-face { font-family: Inter; font-style: normal; font-weight: 400 700; font-display: swap; src: url("fonts/inter-latin.woff2") format("woff2"); }
-@font-face { font-family: "Source Serif 4"; font-style: italic; font-weight: 400; font-display: swap; src: url("fonts/source-serif-latin.ttf") format("truetype"); }
+@font-face { font-family: "Source Serif 4"; font-style: italic; font-weight: 400; font-display: swap; src: url("fonts/source-serif-latin.woff2") format("woff2"); }
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 3px solid var(--kc-focus); outline-offset: 4px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto !important; } *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
 @media (forced-colors: active) { :where(button, input, select, textarea, .button, .stage) { border: 1px solid ButtonText !important; } }

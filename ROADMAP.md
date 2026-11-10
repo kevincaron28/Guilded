@@ -1,5 +1,7 @@
 # Guilded roadmap
 
+> **Work queue:** ideas, research and Claude-ready specs live in [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md).
+
 ## Current stage — 7 November 2026
 
 Guilded **9.1.5** (fix release on 9.1.4: run trust, confirmed characters) (tracks A-K and the owner batches below). The previous release is 9.1.4. Branch and doc names keep "8.5".

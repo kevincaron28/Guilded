@@ -23,19 +23,11 @@ _Empty. Add one line per idea: date, idea._
 
 ## Researched (waiting for Kevin's decision)
 
-Summary only. Specs stay in the plan. Awaiting Kevin's go-ahead before either phase moves to Ready for Claude. Decisions (b), (c) and (f) in `docs/redesign/REDESIGN_PLAN_2026-11-10.md` already apply: drop `/forever/` from leaderboard and community URLs with 301s from the old URLs; French pages move to a `/fr/` folder (replacing `?lang=fr` long term, with 301s); PoE2 and Diablo leave the website and the companion (Ready item P1) and are not part of the new IA.
-
-### Phase 1 — new structure (R1.1–R1.7)
-- Source: `docs/redesign/REDESIGN_PLAN_2026-11-10.md` §10 Phase 1
-- **Summary:** R1.1 download hub at `/download/`; R1.2 header cut to six items; R1.3 guide consolidation (one fact, one page) with the §6 one-hop 301 map; R1.4 searchable quick reference; R1.5 leaderboards v2 (tabs, GET filters, mobile cards) on the URLs from decision (b), not under `/forever/`; R1.6 bilingual URLs as a `/fr/` folder per decision (c), not a leftover `?lang=fr` choice; R1.7 turn Cloudflare Web Analytics on (decision (d); token from Kevin). Do not carry `/quebec-gold/poe2/` or any Diablo page forward (decision (f)).
-- **Status:** awaiting Kevin's go-ahead.
-
-### Phase 2 — polish and growth (R2.1–R2.7)
-- Source: `docs/redesign/REDESIGN_PLAN_2026-11-10.md` §10 Phase 2
-- **Summary:** R2.1 community hub (recruitment, guilds and players moved off `/forever/`, per decision (b); Quebec Gold card only — no PoE2 or Diablo, decision (f)); R2.2 home rebuild; R2.3 one shared stylesheet for the static site and bot pages; R2.4 docs search once the Guide exists; R2.5 player and guild page polish; R2.6 mobile app page when Android leaves preview or iOS exists; R2.7 Playwright visual regression in CI. French URLs in this phase use `/fr/` (decision (c)). Each item still needs the plan's Goal / Files / Acceptance write-up when Kevin approves it.
-- **Status:** awaiting Kevin's go-ahead.
+_Empty._
 
 ## Ready for Claude
+
+Website redesign (CF1, R0–R2, P1) is being built by Grok Bot — Claude: do not pick these up; avoid editing site/ files they touch without checking open PRs.
 
 Priority order. Source: Grok Bot's read-only security review of main@8b073f5d, 10 Nov 2026 (`docs/security/SECURITY_REVIEW_2026-11-10.md` once added; summary below).
 
@@ -125,7 +117,8 @@ kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **PR:** one PR, with a test.
 
 ### CF1: Sync site CurseForge pointer to live 9.1.5 files and keep it in sync (High, Approved by Kevin 10 Nov 2026)
-- **Owner:** Claude
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
 - **Priority:** High
 - Source: Kevin, 10 Nov 2026. CurseForge already has public 9.1.5 Forever releases (Guilded file 9543886, Guilded Dungeons file 9543887, uploaded 10 Nov). `site/releases.json` still says `curseforge.version` 9.0.3 and links files 9496250 and 9496251, which are 9.0.2 files. That block has not been updated since PR #610. Uploads are done manually with `scripts/curseforge-upload.mjs` on Kevin's PC. There is no CI uploader.
 - **Spec:** (1) In `site/releases.json`, set `guilded.curseforge.version` to `9.1.5`, `guilded.curseforge.editions.forever.guilded` to `https://www.curseforge.com/wow/addons/guilded/files/9543886`, `guilded.curseforge.editions.forever.dungeons` to `https://www.curseforge.com/wow/addons/guilded-dungeons/files/9543887`, and top-level `verifiedAt` to `2026-11-10`. Leave the github, companion and zip fields alone (`guilded.github`, `guilded.companionDirect`, `guilded.addonZips`, `guilded.microsoftStore`, and `guilded.curseforge.url` / `stage`). The Forever edition page only prints those CurseForge links when `curseforge.version` equals the site version (`site/editions.mjs`), so the version and the two file URLs change together. (2) In `docs/RELEASE_CURSEFORGE.md`, add a required step: after every upload, update the curseforge block with the new public file IDs. Check the public file page, or `https://api.cfwidget.com/1712677` (Guilded) and `https://api.cfwidget.com/1754138` (Guilded Dungeons). (3) Optional: `scripts/curseforge-upload.mjs` may print the new file ids and a ready-to-paste `releases.json` snippet. Do not change upload behavior or game version `1.60.1`. Do not add a CI uploader. Never print the token.
@@ -133,7 +126,8 @@ kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **PR:** one PR, with a test.
 
 ### R0.1. Remove single-edition leftovers (Quick win, Approved by Kevin 10 Nov 2026)
-- **Owner:** Claude
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
 - **Priority:** Quick win
 - Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
 - **Spec:** No "Choose your WoW" menu and no "edition/every version" wording.
@@ -142,7 +136,8 @@ kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **PR:** one PR, with a test.
 
 ### R0.2. "Get the addon" goes straight to the downloads (Quick win, Approved by Kevin 10 Nov 2026)
-- **Owner:** Claude
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
 - **Priority:** Quick win
 - Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
 - **Spec:** 2 clicks max from home to CurseForge or the zip.
@@ -151,7 +146,8 @@ kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **PR:** one PR, with a test.
 
 ### R0.3. Hide zero metrics (Quick win, Approved by Kevin 10 Nov 2026)
-- **Owner:** Claude
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
 - **Priority:** Quick win
 - Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
 - **Spec:** Never show "0 … this week" as a headline.
@@ -160,7 +156,8 @@ kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **PR:** one PR, with a test.
 
 ### R0.4. Leaderboard readability pass (Quick win, Approved by Kevin 10 Nov 2026)
-- **Owner:** Claude
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
 - **Priority:** Quick win
 - Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
 - **Spec:** Data first, no clipping, less noise.
@@ -169,7 +166,8 @@ kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **PR:** one PR, with a test.
 
 ### R0.5. Footer and install-link cleanup (Quick win, Approved by Kevin 10 Nov 2026)
-- **Owner:** Claude
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
 - **Priority:** Quick win
 - Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
 - **Spec:** One install path.
@@ -178,7 +176,8 @@ kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **PR:** one PR, with a test.
 
 ### R0.6. Version line (Quick win, Approved by Kevin 10 Nov 2026)
-- **Owner:** Claude
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
 - **Priority:** Quick win
 - Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
 - **Spec:** One version users can trust. CurseForge file IDs and `curseforge.version` belong to CF1; leave that pointer sync to CF1.
@@ -187,7 +186,8 @@ kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **PR:** one PR, with a test.
 
 ### R0.7. Fonts (Quick win, Approved by Kevin 10 Nov 2026)
-- **Owner:** Claude
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
 - **Priority:** Quick win
 - Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
 - **Spec:** Lighter first load.
@@ -196,10 +196,165 @@ kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **PR:** one PR, with a test.
 
 ### P1: Remove PoE2 and Diablo from website and companion (Approved by Kevin 10 Nov 2026)
-- **Owner:** Claude
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
 - Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md (decision (f))
 - **Spec:** Remove site pages, nav and sitemap entries, and companion UI, code paths and assets, for PoE2 and Diablo. Keep Discord bot channels and roles untouched. 301 old URLs, including `/quebec-gold/poe2/` and any Diablo or PoE2 pages, to the Quebec Gold page.
 - **Acceptance:** no PoE2 or Diablo strings in the site build or companion UI; Discord bot behaviour unchanged; tests pass.
+- **PR:** one PR, with a test.
+
+### R1.1. Download hub (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** High
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §5.2 and §6
+- **Spec:** `/download/` is the one download page (§5.2). Addon: CurseForge primary, direct zip with version, size and SHA-256, Guilded Dungeons as the lighter option, one folder hint, link to the install guide; SHA-256, GitHub mirror and release notes collapsed. Companion: Windows visitors see Microsoft Store primary and the unsigned exe secondary; everyone else sees "The companion is Windows-only. The addon works without it." with no fake button. Discord bot: Add to Discord, plus what Lite includes. Phone: Android APK with size, SHA-256 and a preview label; iOS "not yet available". "What's new" reads from `site/releases.json`. The page works with JS off. Decision (a): canonical `https://kcaron.top/download/`; `www.kcaron.top` and `guilded.kcaron.top` 301 to that URL. Do not 301 kcaron.top product paths onto guilded.kcaron.top (that fights (a) and loops with the SEO2 proposal). Decision (b): `/forever/` 301s to `/` in one hop. One-hop 301s from `/editions/`, `/editions/forever/` and `/companion/` to `/download/` (`/companion/` may land on `/download/#companion`). This replaces the R0.2 interim redirect; do not chain through `/editions/forever/`. Decision (e): CurseForge version and file IDs come from CF1. Decision (f): no PoE2 or Diablo download or copy. Decision (c): the French page is `/fr/download/`.
+- **Files:** `site/pages/download.md` and `site/pages/download.fr.md` (or a template in `scripts/build-site.mjs`), `site/releases.json`, `site/site.js`, `wrangler.jsonc` (`run_worker_first`), `worker/index.mjs`.
+- **Acceptance:** CurseForge, zip, Dungeons, Store, exe, APK and the bot invite are on the page with version, size and SHA-256 from `site/releases.json`; a Windows UA sees Store primary and any other UA sees the Windows-only note; the page works with JS off; each retired URL 301s once to the final kcaron.top URL; no PoE2 or Diablo strings; the sitemap lists only the final URL.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R1.2. Navigation to 6 items (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** High
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §4
+- **Spec:** Header is the Home logo, Download, Guide, Quick reference, Leaderboards, Community, the My Guilded icon, EN|FR, and one primary "Download (free)" button to `/download/`. The same header on static pages and bot pages. The mobile menu lists the same six items. Decision (b): Leaderboards and Community do not point at `/forever/`. Decision (c): EN|FR keeps the same page under `/fr/<same-slug>/`, not `?lang=fr`. Decision (f): no PoE2 or Diablo item. No "Choose your WoW" menu.
+- **Files:** `site/nav.mjs`, `src/services/web-layout.ts`.
+- **Acceptance:** static and bot headers match on desktop and in the mobile menu; six items plus My Guilded and EN|FR; the language switcher lands on the same path under `/fr/`; no edition drop-down and no PoE2 or Diablo link.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R1.3. Guide consolidation (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** High
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §4, §5.5 and §6
+- **Spec:** Build the §4 Guide tree, one fact per page: `/guide/`, `/guide/start/`, `/guide/install/` (the only install page), `/guide/companion/`, `/guide/link-character/`, `/guide/dungeons/`, `/guide/officers/` (automation as a section), `/guide/epgp/`, `/guide/discord-bot/`, `/guide/self-host/` plus `/guide/self-host/ubuntu/`, `/guide/troubleshooting/`. Sidebar, breadcrumb and prev/next; on mobile the sidebar is a "Guide menu". Per §6, also move privacy to `/privacy/` and support to `/support/`. One-hop 301s for the §6 guide and doc rows, including `/features/` → `/`, `/start/` and `/docs/QUICK_START` → `/guide/start/`, `/guides/install/` → `/guide/install/`, `/docs/MEMBER_INSTALL` → `/guide/install/`, `/guides/link/` → `/guide/link-character/`, `/officers/` → `/guide/officers/`, `/docs/AUTOMATION_QUICK_START` → `/guide/officers/#automation`, `/docs/EPGP_GUIDE` → `/guide/epgp/`, `/docs/DUNGEONS_GUIDE` → `/guide/dungeons/`, `/docs/GUILD_OWNER_SETUP` and `/docs/OWNER_WALKTHROUGH` → `/guide/self-host/`, `/docs/DEPLOY_ORACLE` → `/guide/self-host/ubuntu/`, `/docs/AI_SETUP_HELP` → `/guide/troubleshooting/#ask-ai`, `/docs/PRIVACY` → `/privacy/`, `/docs/SUPPORT_GUILDED` → `/support/`. `/docs/HOSTED_PILOT`: the player-facing part is public at `/guide/discord-bot/`; host-owner budget and launch checks stay in repo docs only. Decision (a): canonicals use `https://kcaron.top`. Decision (c): French is `/fr/` plus the same slug, and French blocks come out of English pages. Decision (f): no PoE2 page. Self-hosting stays on the public guide (see (g)).
+- **Files:** `site/pages/guide/*.md` (EN/FR pairs) taken from the current docs and guide pages, `scripts/build-site.mjs` (sidebar, breadcrumb, prev/next), `worker/index.mjs` (the §6 301 map for these rows).
+- **Acceptance:** install-folder instructions exist on exactly one page; "companion is optional" appears on at most Download, Guide start and Companion; every guide and doc redirect in §6 returns 301 in one hop; `/guide/self-host/` and `/guide/self-host/ubuntu/` are public; French URLs are `/fr/` plus the same slug; the site build fails on a broken internal link; the sitemap lists only final URLs.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R1.4. Quick reference v2 (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** High
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §5.3
+- **Spec:** Rebuild `/reference/` as the §5.3 cheat sheet. Sticky search ("/" focuses it), surface tabs In game / Discord / Companion, role chips Everyone / Raid leader / Officer / Admin, a "Most used" card of about 10 commands, one row per command (copy button, one-line description, who-badge, anchor) with sub-commands as chips, the `<required>` `[optional]` legend once, keybind and main-window cards, and print CSS for two pages. The full list renders with JS off; JS only filters. Decision (a): canonical `https://kcaron.top/reference/`. Decision (c): a complete French page at `/fr/reference/`. Decision (f): do not add PoE2 or Diablo commands.
+- **Files:** `site/reference.json` (rendered from today's `site/pages/reference.md` by `scripts/build-site.mjs`), `site/site.js`.
+- **Acceptance:** search, surface tabs and role chips work; each command has an anchor and a copy button; print CSS fits on 2 A4/Letter pages; the full list is visible with JS off; `/fr/reference/` is complete.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R1.5. Leaderboards v2 (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** High
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §5.4
+- **Spec:** Leaderboards live at `/leaderboards/` (decision (b)), not under `/forever/`. §5.4: sticky "Season 1 leaderboards" header, season pill, and a "How scores work" link to `/guide/dungeons/#scores`. Tabs: Characters (default), Guilds, Dungeon records, This week. Filter bar auto-applies with GET params (shareable; plain form fallback): bracket 15–29 or 30–44, one table at a time; role All/Tank/Healer/DPS; class; dungeon; period; name search. Desktop columns: rank, character (class colour, guild under the name), role icon, score, routes (n/5), last run. Sticky header, 25 rows per page. No per-row "WoW Forever" and no capitals class column. Mobile: card rows, no sideways scroll. Signed-in: a pinned "You" row. An empty tab is one sentence plus a "how to get on the board" link, never a 0 metric. Privacy line under the table. One-hop 301s: `/forever/leaderboards/` → `/leaderboards/`, `/forever/leaderboards/guilds/` → `/leaderboards/?tab=guilds`. This replaces SEO4's interim `/leaderboards/` → `/forever/leaderboards/` redirect; do not chain. Decision (a): canonical `https://kcaron.top/leaderboards/` (and `guilded.kcaron.top` 301s there). Decision (c): hreflang `fr` is `https://kcaron.top/fr/leaderboards/`, not `?lang=fr`. No Accept-Language switch. Decision (f): no PoE2 or Diablo board.
+- **Files:** `src/services/public-leaderboard.ts`, `src/services/community-leaderboard.ts`, `src/services/web-layout.ts`, `src/services/web-app.ts`, `worker/index.mjs`.
+- **Acceptance:** tabs and the filter bar match §5.4; filters are GET URLs; sticky header; mobile card rows; 25 per page; canonical and hreflang as above; `curl -sI https://guilded.kcaron.top/forever/leaderboards/` → 301 `https://kcaron.top/leaderboards/` in one hop; Playwright screenshots at 390 and 1280 attached to the PR.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R1.6. Bilingual URLs (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** High
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §8 and decision (c)
+- **Spec:** French pages move to a `/fr/` folder. This replaces `?lang=fr`: 301 each `?lang=fr` URL to the matching `/fr/` path in one hop, and 301 `?lang=en` to the clean English URL. Same-name slugs, not translated ones (`/fr/download/`, not `/fr/telecharger/`). Every indexable page is one language, with a self-canonical on `https://kcaron.top`, hreflang `en`, `fr` and `x-default`, and a switcher that keeps the same page. Indexable URLs do not change with Accept-Language. Decision (a): `www.kcaron.top` and `guilded.kcaron.top` 301 to the same path on kcaron.top. Do not 301 kcaron.top product paths to guilded.kcaron.top. Take French blocks out of English docs and English blocks out of French pages. A page that is French-only says so and has no empty English twin. Decision (f): PoE2 has no language version; `/quebec-gold/poe2/` 301s to the Quebec Gold page (P1).
+- **Files:** `scripts/build-site.mjs`, `worker/localized-assets.mjs`, `worker/index.mjs`, `src/services/web-layout.ts`.
+- **Acceptance:** every indexable page has exactly one language, a self-canonical on kcaron.top, and the hreflang trio; the switcher keeps the page; `?lang=fr` 301s to `/fr/` plus the same slug; no Accept-Language switch on an indexable URL; `curl -sI https://guilded.kcaron.top/fr/download/` → 301 `https://kcaron.top/fr/download/`.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R1.7. Analytics on (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** High
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §9 and decision (d)
+- **Spec:** Turn Cloudflare Web Analytics on (cookie-free). Kevin's beacon token goes in `site/analytics.json`. Do not invent a token and do not commit a fake one. An empty token omits the beacon. The beacon loads on static pages only. The site build updates CSP to allow it. `/privacy/` (and `/fr/privacy/`, decision (c)) says the site uses cookie-free Cloudflare Web Analytics. Decision (a): those canonicals stay on kcaron.top.
+- **Files:** `site/analytics.json`, `scripts/build-site.mjs` (CSP and the beacon snippet), the privacy page under `site/pages/`.
+- **Acceptance:** with a token set, the beacon is on static HTML and absent from bot and API responses, and CSP allows that host; with an empty token, no beacon and no request to a placeholder host; the privacy page names Cloudflare Web Analytics.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R2.1. Community hub (Medium, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** Medium
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §4 and §6
+- **Spec:** `/community/` plus `/community/recruitment/`, `/community/guilds/` and `/community/players/`. Decision (b): move those sections off `/forever/` and 301 `/forever/recruitment/`, `/forever/recruitment/guilds/` and `/forever/players/` to the new paths in one hop. `/g/<slug>/` stays. The hub has a Quebec Gold card only. Decision (f): no PoE2 or Diablo card, link or copy; those old URLs 301 to the Quebec Gold page (P1). Decision (a): canonicals on `https://kcaron.top`, and `guilded.kcaron.top` 301s to the same path. Decision (c): French is `/fr/community/...` with the same slugs.
+- **Files:** `src/services/web-app.ts`, `src/services/recruitment.ts`, `src/services/guild-directory.ts`, `src/services/player-profiles.ts`, `src/services/guild-page.ts`, `worker/index.mjs`, `site/nav.mjs`.
+- **Acceptance:** recruitment, guilds and players answer on the new paths; each old `/forever/` community URL 301s once to the new kcaron.top URL; the hub shows a Quebec Gold card and no PoE2 or Diablo link; `/g/quebec-gold/` still resolves; French uses `/fr/` plus the same slug.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R2.2. Home rebuild (Medium, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** Medium
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §5.1
+- **Spec:** Rebuild `/` to §5.1, keeping the headline "Less organizing. More playing." One value line, primary "Download free", a text link to `/leaderboards/` (decision (b)), one version and date from CF1 (decision (e): one number, not two), and one screenshot. Three pillars, "Pick your path" (Player → `/guide/start/`, Officer → `/guide/officers/`, Server owner → `/guide/discord-bot/`), a live top-3 strip only when the numbers are above zero, four FAQs, then the footer. Remove the edition card, the "Built for WoW Forever" block, the duplicate CTA bar and a second version number. Decision (f): no PoE2 or Diablo block. Decision (a): canonical `https://kcaron.top/`. Decision (c): the French home is `/fr/` with the same structure.
+- **Files:** `site/index.html`, `site/site.js`, `scripts/build-site.mjs`, `site/nav.mjs`.
+- **Acceptance:** the H1 is "Less organizing. More playing."; the page shows one version and date; the live strip is hidden at zero and shows the top 3 plus the top guild when above zero; no edition card and no PoE2 or Diablo block; the leaderboard link is `/leaderboards/`; `/fr/` is the French home.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R2.3. Shared component CSS (Medium, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** Medium
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §7
+- **Spec:** One stylesheet, shared by the static site and bot pages, using the §7 tokens (palette, type scale, spacing, three button styles, 44px tap height, the listed components). Keep the current dark colours, focus ring, reduced-motion and forced-colours rules. Inter for UI; Source Serif only as the woff2 accent from R0.7. Static and bot pages must use the same token values. Decision (f): no PoE2 or Diablo styling. Visual only; do not change page behaviour.
+- **Files:** `site/design-tokens.css`, the shared stylesheet emitted by `scripts/build-site.mjs`, `src/services/web-layout.ts`.
+- **Acceptance:** a test fails if the static site and `web-layout.ts` disagree on the token values; home and leaderboards still render at 390 and 1280; tap targets that are buttons are at least 44px.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R2.4. Docs search (Medium, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** Medium
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §10 Phase 2 (R2.4)
+- **Spec:** Static search over the Guide once R1.3 has landed (Pagefind or an index built by `scripts/build-site.mjs`). Index the public guide, including `/guide/self-host/` and `/guide/self-host/ubuntu/`. Decision (c): a French index covers `/fr/guide/` with the same slugs. Decision (f): the index has no PoE2 or Diablo URL. The guide stays readable with JS off.
+- **Files:** `scripts/build-site.mjs`, `site/site.js`, `site/pages/guide/`.
+- **Acceptance:** a query for a guide heading returns that page; self-host pages are in the results; `/fr/guide/` has its own index; JS off still shows the guide; no PoE2 or Diablo URL is indexed.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R2.5. Player and guild page polish (Medium, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** Medium
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §10 Phase 2 (R2.5)
+- **Spec:** Polish public player pages and `/g/<slug>/`: score history, the route list, and a recruitment card only when that guild is recruiting. After R2.1 the directory is `/community/players/` (decision (b)); do not link `/forever/players/`. Guild URLs stay `/g/<slug>/`. Decision (a): canonicals on kcaron.top. Decision (c): French uses `/fr/` plus the same slug. Decision (f): no PoE2 or Diablo block on these pages.
+- **Files:** `src/services/player-profiles.ts`, `src/services/guild-page.ts`, `src/services/public-leaderboard.ts`, `src/services/web-layout.ts`.
+- **Acceptance:** a player page shows score history and routes; a recruiting guild shows a recruitment card and a non-recruiting guild does not show an empty one; the HTML has no `/forever/` link; tests cover both guild states.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R2.6. Mobile app page (Medium, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** Medium
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §10 Phase 2 (R2.6)
+- **Spec:** Publish a mobile-app page, linked from `/download/`, only once Android leaves preview or an iOS build exists. Until then do not add the page and do not invent store URLs; the R1.1 preview APK block stays. When it ships, show version, size and SHA-256 from `site/releases.json`. Drop the preview label only for a build that has actually left preview, and show iOS only when a real iOS build is listed. Decision (a): canonical on kcaron.top. Decision (c): French is `/fr/` plus the same slug. Decision (f): no PoE2 or Diablo app.
+- **Files:** a new page under `site/pages/` (EN/FR pair), `site/releases.json`, `scripts/build-site.mjs`.
+- **Acceptance:** while Android is still preview and no iOS build is listed, the page is absent and `/download/` still marks the APK as preview. When `site/releases.json` lists a non-preview Android build or a real iOS build, the page returns 200 with that version and no fake store button.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
+- **PR:** one PR, with a test.
+
+### R2.7. Visual regression in CI (Medium, Approved by Kevin 10 Nov 2026)
+- **Owner:** Grok Bot (cloud agent)
+- **Status:** In progress
+- **Priority:** Medium
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md §10 Phase 2 (R2.7)
+- **Spec:** On each PR, Playwright compares screenshots of six key pages (home, download, guide, reference, leaderboards, community) at 390 and 1280. The home shot includes the kept headline "Less organizing. More playing." Also shoot `/fr/download/` so a same-name `/fr/` slug miss fails the job (decisions (c) and (g)). Decision (a): the paths are the kcaron.top paths. Decision (f): no PoE2 or Diablo page in the set.
+- **Files:** `.github/workflows/quality.yml` (or a workflow next to it), a Playwright spec under `tests/`.
+- **Acceptance:** the job is green on an unchanged tree; it fails when one of those screenshots changes past the agreed diff; the six pages and `/fr/download/` are in the set.
+- **Open question (g):** defaults (Kevin can override): keep the headline "Less organizing. More playing."; keep self-hosting guides public under `/guide/`; keep same-name slugs under `/fr/`.
 - **PR:** one PR, with a test.
 
 ## In progress

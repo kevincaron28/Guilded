@@ -74,18 +74,13 @@ describe("PoE2 surfaces follow the active-games switch", () => {
     expect(achievementGameVisible(poeDef, poeTrackingEnabled(["poe2"]))).toBe(true);
     expect(ACHIEVEMENTS.every(def => achievementGameVisible(def))).toBe(true);
   });
-  it("the companion keeps PoE2 markup gated behind poe-only, off by default, and showPage refuses the page", () => {
-    const html = read("companion-app/renderer/index.html"), app = read("companion-app/renderer/app.js"), css = read("companion-app/renderer/style.css");
-    expect(html).toContain('<body class="poe-off">');
-    expect(css).toContain("body.poe-off .poe-only{display:none!important}");
-    for (const marker of ['data-page="poe"', 'id="page-poe"', 'id="poeSettings"', 'id="poeEnabled"']) { // the Home game card left with redesign PR 5
-      const at = html.indexOf(marker);
-      expect(at, marker).toBeGreaterThan(-1);
-      const open = html.lastIndexOf("<", at), tag = html.slice(open, html.indexOf(">", at));
-      const wrapper = marker.startsWith('id="poeEnabled"') ? html.slice(html.lastIndexOf("<label", at), at) : tag;
-      expect(wrapper, marker).toContain("poe-only");
-    }
+  it("the companion UI has no PoE2 or Diablo screen, and a stale PoE2 tab stays on Sync", () => {
+    const html = read("companion-app/renderer/index.html"), app = read("companion-app/renderer/app.js");
+    expect(html).not.toMatch(/PoE2|Path of Exile|Diablo/);
+    for (const marker of ['data-page="poe"', 'id="page-poe"', 'id="poeSettings"', 'id="poeEnabled"']) expect(html, marker).not.toContain(marker);
+    // The page is gone. showPage still refuses the old name so tab=poe cannot open a blank screen.
     expect(app).toMatch(/POE_PAGES\.has\(name\) && document\.body\.classList\.contains\('poe-off'\)/);
+    expect(app).toContain("!document.getElementById('page-' + name)");
     expect(app).toContain('classList.toggle("poe-off", !all?.focus?.poeTracking)');
   });
 });

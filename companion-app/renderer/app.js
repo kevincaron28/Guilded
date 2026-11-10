@@ -36,7 +36,8 @@ function ago(iso) {
 }
 const POE_PAGES = new Set(['poe']); // pages that exist only while PoE2 tracking is on (companion/active-games.mjs)
 function showPage(name) {
-  if (!names[name] || (POE_PAGES.has(name) && document.body.classList.contains('poe-off'))) name = 'status';
+  // PoE2 has no screen in the companion. A stale tab=poe, or any missing page, stays on Sync.
+  if (!names[name] || !document.getElementById('page-' + name) || (POE_PAGES.has(name) && document.body.classList.contains('poe-off'))) name = 'status';
   const selectedNav = document.querySelector(`.nav[data-page="${name}"]`);
   if (selectedNav?.closest('details')) selectedNav.closest('details').open = true;
   document.querySelectorAll('.page').forEach(page => page.hidden = page.id !== `page-${name}`);
@@ -57,11 +58,12 @@ async function action(button, task) {
   try { return await task(); } catch (error) { toast(error.message || T("This action could not be completed."),true); }
   finally { button.disabled = false; delete button.dataset.busy; if (lastSnapshot) renderState(lastSnapshot); }
 }
-const bind = (id, task) => $(id).addEventListener('click', event => action(event.currentTarget, task));
-const readForm = () => ({...Object.fromEntries(fields.map(id => [id,$(id).value.trim()])), wowEnabled:$('wowEnabled').checked, poeEnabled:$('poeEnabled').checked, syncEnabled:$('syncEnabled').checked});
+const bind = (id, task) => { const el = $(id); if (el) el.addEventListener('click', event => action(event.currentTarget, task)); };
+const fieldValue = id => $(id)?.value.trim() ?? '';
+const readForm = () => ({...Object.fromEntries(fields.map(id => [id, fieldValue(id)])), wowEnabled:$('wowEnabled').checked, poeEnabled:$('poeEnabled')?.checked === true, syncEnabled:$('syncEnabled').checked});
 const say = (message, ok) => { $('formResult').textContent = M(message); $('formResult').className = `result ${ok ? 'ok' : 'bad'}`; };
-function gameFields() { $('wowSettings').hidden = !$('wowEnabled').checked; $('poeSettings').hidden = !$('poeEnabled').checked; }
-['wowEnabled','poeEnabled'].forEach(id => $(id).addEventListener('change',gameFields));
+function gameFields() { if ($('wowSettings')) $('wowSettings').hidden = !$('wowEnabled').checked; if ($('poeSettings') && $('poeEnabled')) $('poeSettings').hidden = !$('poeEnabled').checked; }
+['wowEnabled','poeEnabled'].forEach(id => { const el = $(id); if (el) el.addEventListener('change', gameFields); });
 function pill(id, text, level) { $(id).textContent = text; $(id).className = `pill ${level || ''}`; }
 // The version panel (owner request, 7 November): what is installed, what is out, and the one thing
 // to do, in plain words (update-check.cjs versionStatus decides the state).
@@ -485,6 +487,7 @@ bind('btnCheckUpdate',async () => {
   finally { $('btnCheckUpdate').textContent = T("Check for updates"); }
 });
 bind('btnHistory',async () => {
+  if (!$('poeHistory')) return;
   if (!savedConfig.companionCredential) { showPage('settings'); toast(T("Connect your Discord account first.")); return; }
   const visits = await api.getPoeRuns();
   if (!visits.length) { toast(T("No map observations saved yet.")); return; }
@@ -542,10 +545,10 @@ async function changeConnection(choice) {
   finally { document.dispatchEvent(new CustomEvent('companion-connection-changed')); }
   if (!result.ok) { toast(languageUI.message(result.message), true); await renderProfiles(); return; }
   const all = await api.getAll(); savedConfig = all.config;
-  for (const id of fields) $(id).value = all.config[id] ?? '';
+  for (const id of fields) { const el = $(id); if (el) el.value = all.config[id] ?? ''; }
   $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false;
-  $('poeEnabled').checked = all.config.poeEnabled === true;
-  $('poeMode').value = all.config.poeMode || 'STANDARD';
+  if ($('poeEnabled')) $('poeEnabled').checked = all.config.poeEnabled === true;
+  if ($('poeMode')) $('poeMode').value = all.config.poeMode || 'STANDARD';
   gameFields(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
   await renderProfiles(); toast(languageUI.message(result.message));
 }
@@ -579,13 +582,13 @@ async function init() {
   const all = await api.getAll(); savedConfig = all.config;
   await renderProfiles();
   if (!languageUI.explicit && ['en','fr'].includes(all.language)) languageUI.set(all.language, false);
-  for (const id of fields) $(id).value = all.config[id] ?? '';
+  for (const id of fields) { const el = $(id); if (el) el.value = all.config[id] ?? ''; }
   storePackage = all.storePackage === true;
   $('storeDistribution').hidden = !all.storePackage;
   // Store build: Windows manages startup; "Install updates automatically" is the off switch for the Store self-update (F5).
   if (all.storePackage) { $('autoUpdateRow').hidden = true; }
   $('autoUpdate').checked = all.config.autoUpdate !== false;
-  $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false; $('poeEnabled').checked = all.config.poeEnabled === true; $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
+  $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false; if ($('poeEnabled')) $('poeEnabled').checked = all.config.poeEnabled === true; if ($('poeMode')) $('poeMode').value = all.config.poeMode || 'STANDARD'; $('autostart').checked = all.autostart; $('version').textContent = `Version ${all.version}`;
   configurePresentation();
   gameFields(); entries = all.logs.slice(-300); renderLogs(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
   showUsedPages(null);

@@ -8,11 +8,34 @@ import { decodeHTML } from 'entities';
  * @param {URL} url
  * @returns {string | null}
  */
+const GUIDE_REDIRECTS = {
+  "/start": "/guide/start/",
+  "/start/": "/guide/start/",
+  "/features": "/",
+  "/features/": "/",
+  "/officers": "/guide/officers/",
+  "/officers/": "/guide/officers/",
+  "/guides/install": "/guide/install/",
+  "/guides/install/": "/guide/install/",
+  "/guides/link": "/guide/link-character/",
+  "/guides/link/": "/guide/link-character/",
+  "/docs/QUICK_START": "/guide/start/",
+  "/docs/QUICK_START.html": "/guide/start/",
+  "/docs/MEMBER_INSTALL": "/guide/install/",
+  "/docs/MEMBER_INSTALL.html": "/guide/install/",
+  "/docs/DUNGEONS_GUIDE": "/guide/dungeons/",
+  "/docs/DUNGEONS_GUIDE.html": "/guide/dungeons/",
+  "/docs/EPGP_GUIDE": "/guide/epgp/",
+  "/docs/EPGP_GUIDE.html": "/guide/epgp/"
+};
+
 export function staticRedirect(url) {
   if (/^\/quebec-gold\/(?:poe2|diablo)\/?$/.test(url.pathname)) return `/quebec-gold/${url.search}`;
-  // Only the old one-card chooser. /editions/forever/ stays a real page: the Worker already
-  // sends removed-edition addresses there in one hop (worker/index.mjs, owned by PR #345).
+  // /editions/forever/ stays a real page: the Worker already sends removed-edition addresses there
+  // in one hop (worker/index.mjs, owned by PR #345).
   if (url.pathname === "/editions" || url.pathname === "/editions/") return `/download/${url.search}`;
+  const guide = GUIDE_REDIRECTS[url.pathname];
+  if (guide) return `${guide}${url.search}`;
   return null;
 }
 

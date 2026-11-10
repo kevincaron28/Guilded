@@ -11,6 +11,103 @@
     "draft": false
   },
   {
+    "source": "guide.md",
+    "sourceFr": "guide.fr.md",
+    "path": "guide/",
+    "title": "Guilded guide",
+    "titleFr": "Guide Guilded",
+    "description": "Pick a path: player, officer or the person hosting the bot. Each page does one job.",
+    "descriptionFr": "Choisissez un parcours : joueur, officier ou la personne qui héberge le bot. Chaque page fait une seule chose.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-start.md",
+    "sourceFr": "guide-start.fr.md",
+    "path": "guide/start/",
+    "title": "Get started with Guilded",
+    "titleFr": "Commencer avec Guilded",
+    "description": "Three steps for a player: install the addon, play, and add the companion only if you want Discord or the website.",
+    "descriptionFr": "Trois étapes pour un joueur : installer l’addon, jouer, et ajouter le compagnon seulement pour Discord ou le site.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-install.md",
+    "sourceFr": "guide-install.fr.md",
+    "path": "guide/install/",
+    "title": "Install the Guilded addon",
+    "titleFr": "Installer l’addon Guilded",
+    "description": "The one install page: close WoW and put the addon folder in the right place.",
+    "descriptionFr": "La seule page d’installation : fermez WoW et placez le dossier de l’addon au bon endroit.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-companion.md",
+    "path": "guide/companion/",
+    "title": "Guilded companion",
+    "description": "The Windows companion is optional for the addon and needed for Discord and the website.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-link.md",
+    "path": "guide/link-character/",
+    "title": "Link your character",
+    "description": "Connect a character to Discord after the addon is installed.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-dungeons.md",
+    "path": "guide/dungeons/",
+    "title": "Dungeons and scores",
+    "description": "How dungeon runs get onto the Guilded leaderboards.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-officers.md",
+    "path": "guide/officers/",
+    "title": "Guilded for officers",
+    "description": "Set up EP/GP, loot and raids for your guild.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-epgp.md",
+    "path": "guide/epgp/",
+    "title": "EP/GP and loot",
+    "description": "How effort points and gear points work in Guilded.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-discord.md",
+    "path": "guide/discord-bot/",
+    "title": "Add the Discord bot",
+    "description": "Add the free hosted Guilded bot to a Discord server.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-self-host.md",
+    "path": "guide/self-host/",
+    "title": "Host your own Guilded bot",
+    "description": "Public notes for running the Guilded bot yourself. The hosted bot is enough for most guilds.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-troubleshooting.md",
+    "path": "guide/troubleshooting/",
+    "title": "Guilded troubleshooting",
+    "description": "What to check when the addon, companion or leaderboard does not do what you expect.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "start.md",
     "sourceFr": "start.fr.md",
     "path": "start/",

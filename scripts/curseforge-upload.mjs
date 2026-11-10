@@ -42,6 +42,7 @@ const uploads = [
   { projectId: 1754138, file: `GuildedDungeons-v${version}-forever.zip`, displayName: undefined },
 ];
 
+const uploadedIds = [];
 const token = readEnvToken();
 if (!token) {
   console.error("CURSEFORGE_API_TOKEN is missing. Create one at https://legacy.curseforge.com/account/api-tokens and add it to .env.local.");
@@ -85,5 +86,21 @@ for (const u of uploads) {
     process.exit(1);
   }
   console.log(`Uploaded ${u.file}: ${body}`);
+  try {
+    const id = JSON.parse(body).id;
+    if (id) uploadedIds.push({ projectId: u.projectId, id });
+  } catch { /* the id is also on the public file page */ }
 }
 console.log(dryRun ? "Dry run only: nothing uploaded." : "Done. CurseForge reviews new files before they appear publicly.");
+const byProject = Object.fromEntries(uploadedIds.map(row => [row.projectId, row.id]));
+const snippet = {
+  version,
+  editions: {
+    forever: {
+      guilded: `https://www.curseforge.com/wow/addons/guilded/files/${byProject[1712677] ?? "<guilded-file-id>"}`,
+      dungeons: `https://www.curseforge.com/wow/addons/guilded-dungeons/files/${byProject[1754138] ?? "<dungeons-file-id>"}`
+    }
+  }
+};
+console.log("After the files are public, put this in site/releases.json under guilded.curseforge (check https://api.cfwidget.com/1712677 and https://api.cfwidget.com/1754138):");
+console.log(JSON.stringify(snippet, null, 2));

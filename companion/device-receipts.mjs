@@ -14,6 +14,7 @@ import { linkedMapLua } from "./standings-format.mjs";
 
 const MAX_REFS = 1200;
 const MAX_NOTES = 300;
+const MAX_PENDING = 100;
 const luaString = (value) => `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/[\r\n]/g, " ")}"`;
 const unquote = (text) => text.replace(/\\(["\\])/g, "$1");
 const QUOTED = String.raw`"((?:[^"\\]|\\.)*)"`;
@@ -25,7 +26,9 @@ export function parseDeviceReceipts(text) {
   const block = (name) => new RegExp(String.raw`${name} = \{([\s\S]*?)\n\}`).exec(text)?.[1] ?? "";
   for (const match of block("GuildedDungeonAccepted").matchAll(new RegExp(String.raw`^\s*${QUOTED},\s*$`, "gm"))) refs.push(unquote(match[1]));
   for (const match of block("GuildedDungeonNotes").matchAll(new RegExp(String.raw`^\s*\[${QUOTED}\] = ${QUOTED},\s*$`, "gm"))) notes[unquote(match[1])] = unquote(match[2]);
-  return { refs, notes };
+  const pending = {};
+  for (const match of block("GuildedDungeonPending").matchAll(new RegExp(String.raw`^\s*\[${QUOTED}\] = ${QUOTED},\s*$`, "gm"))) pending[unquote(match[1])] = unquote(match[2]);
+  return { refs, notes, pending };
 }
 
 /** The note a 9.1.3 bot gave a guildmate's run it refused from this PC: no bot holds that run, so it is no receipt. */
@@ -40,10 +43,14 @@ export function mergeDeviceReceipts(previous, answer) {
   const notes = { ...(previous?.notes ?? {}) };
   for (const ref of fresh) delete notes[ref]; // The bot's latest word on a run replaces an older note.
   for (const [ref, note] of Object.entries(answer?.runNotes && typeof answer.runNotes === "object" ? answer.runNotes : {})) if (typeof note === "string" && note) notes[ref] = note.slice(0, 80);
-  return { refs, notes: Object.fromEntries(Object.entries(notes).filter(([ref]) => refs.includes(ref)).slice(0, MAX_NOTES)) };
+  // Runs the bot received but does not count yet (waiting for a second player's addon): shown by the addon, never "synced".
+  const pending = { ...(previous?.pending ?? {}) };
+  for (const ref of refs) delete pending[ref];
+  for (const [ref, note] of Object.entries(answer?.pendingRunNotes && typeof answer.pendingRunNotes === "object" ? answer.pendingRunNotes : {})) if (typeof note === "string" && note && !refs.includes(ref)) pending[ref] = note.slice(0, 80);
+  return { refs, notes: Object.fromEntries(Object.entries(notes).filter(([ref]) => refs.includes(ref)).slice(0, MAX_NOTES)), pending: Object.fromEntries(Object.entries(pending).slice(-MAX_PENDING)) };
 }
 
-export function deviceReceiptsToLua({ refs, notes, reported }, updatedAt) {
+export function deviceReceiptsToLua({ refs, notes, pending, reported }, updatedAt) {
   return [
     "-- Written by the Guilded companion for an unsigned (zero-setup) PC. Overwritten automatically; edits here are lost.",
     "-- This PC is not signed in with Discord, so any earlier \"Linked to Discord as ...\" line no longer applies.",
@@ -56,6 +63,9 @@ export function deviceReceiptsToLua({ refs, notes, reported }, updatedAt) {
     "}",
     "GuildedDungeonNotes = {",
     ...Object.entries(notes).map(([ref, note]) => `  [${luaString(ref)}] = ${luaString(note)},`),
+    "}",
+    "GuildedDungeonPending = {",
+    ...Object.entries(pending ?? {}).map(([ref, note]) => `  [${luaString(ref)}] = ${luaString(note)},`),
     "}",
     ""
   ].join("\n");

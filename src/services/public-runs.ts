@@ -420,6 +420,8 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
     const rows = await database.dungeonRun.findMany({
       where: {
         guildId, valid: true, state: "COMPLETED",
+        // Runs only anonymous companions vouch for (trust "device"/"witnessed") stay on the guild boards (docs/plans/RUN_TRUST_2026-11-10.md).
+        trust: null,
         endedAt: { gte: new Date(now.getTime() - PUBLIC_LIMITS.maxAgeDays * 86_400_000) },
         ...(publicDungeonRunsSince ? { startedAt: { gte: publicDungeonRunsSince } } : {})
       },

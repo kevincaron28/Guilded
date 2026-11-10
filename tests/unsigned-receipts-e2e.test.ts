@@ -186,13 +186,31 @@ describe("the addon and an unsigned companion", () => {
 });
 
 describe("runs that are not this PC's", () => {
-  it("answers a guildmate's run with a reason instead of leaving it waiting", async () => {
+  it("gives a guildmate's run no receipt: no bot holds it, so nobody may be told it is delivered", async () => {
     const database = fakeDatabase();
     const store = botStore(database);
     const body = { guild: { name: "Quebec Gold", realm: "R" }, characters: [{ name: "Meo", realm: "" }], dungeonRuns: [
       { id: "QG-OTHER", protocolVersion: 1, state: "COMPLETED", instanceId: 90, name: "Gnomeregan", difficultyId: 0, startedAt: START, endedAt: START + 2700, encounters: [], players: [{ character: "Zed", realm: "", presentSec: 2700, inGuild: true }] }
     ] };
     const answer = await handleDeviceUpload(store, device, body, { now, allows: () => true, runLimiter: () => true });
-    expect(answer).toMatchObject({ status: "synced", runReceipts: { acceptedRunRefs: ["QG-OTHER"], runNotes: { "QG-OTHER": "Not one of this PC's characters" } } });
+    expect(answer).toMatchObject({ status: "synced", runs: { received: 1, stored: 0, skipped: 0 } });
+    expect(answer).not.toHaveProperty("runReceipts");
+    expect(database.runs).toHaveLength(0);
+    // Once a signed-in guildmate's companion stored it, the same upload is answered with the real receipt.
+    database.runs.push({ runRef: "QG-OTHER", guildId: "g1", state: "COMPLETED", invalidReason: null });
+    expect(await handleDeviceUpload(store, device, body, { now, allows: () => true, runLimiter: () => true })).toMatchObject({ runReceipts: { acceptedRunRefs: ["QG-OTHER"], runNotes: {} } });
+  });
+
+  it("the companion sends only runs this PC's characters played", () => {
+    const run = (id: string, names: string[]) => ({ id, state: "COMPLETED", endedAt: START, players: names.map((character) => ({ character })) });
+    const body = deviceUploadBody({ wowGuild: "Quebec Gold-R", character: { name: "Meo Gratton" }, alts: [{ name: "Zed" }],
+      dungeonRuns: [run("mine", ["Meo Gratton", "Bob"]), run("first-name", ["Meo"]), run("alt", ["Zed"]), run("guildmate", ["Bob", "Amy"]), { id: "broken", state: "COMPLETED" }] });
+    expect((body.dungeonRuns as { id: string }[]).map((entry) => entry.id).sort()).toEqual(["alt", "first-name", "mine"]);
+  });
+
+  it("forgets a 9.1.3 refusal kept as a receipt", () => {
+    const note = "Not one of this PC's characters";
+    const merged = mergeDeviceReceipts({ refs: ["kept", "refused"], notes: { refused: note, kept: "Not completed" } }, { acceptedRunRefs: ["new", "refused-again"], runNotes: { "refused-again": note } });
+    expect(merged).toEqual({ refs: ["new", "kept"], notes: { kept: "Not completed" } });
   });
 });

@@ -1,4 +1,5 @@
 import { requestJson } from "./request.mjs";
+import { foreverSameName } from "./character-identity.mjs";
 
 // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md). Without a Discord sign-in, the companion
 // syncs with a device key it gets on first start (kept in its encrypted settings). It sends only
@@ -43,8 +44,12 @@ export function deviceUploadBody(full, options = {}) {
     if (characters.length >= MAX_CHARACTERS) break;
   }
   // Finished dungeon runs, newest first and capped: the bot checks and scores them like any run.
+  // Only runs one of this PC's characters played (9.1.4): the bot refuses a guildmate's run from an unsigned PC, so
+  // sending it only took a place in the upload. It waits in the saved file for a signed-in companion.
   const acknowledged = options.acknowledged instanceof Set ? options.acknowledged : new Set();
-  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !acknowledged.has(run.id))
+  const played = (run) => Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string"
+    && characters.some(own => foreverSameName(own.name, player.character)));
+  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !acknowledged.has(run.id) && played(run))
     .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)).slice(0, MAX_RUNS);
   return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(options.server ? { server: String(options.server) } : {}) };
 }

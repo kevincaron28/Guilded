@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.1.6 — 10 November 2026
+
+Guild sync and invite fixes from the owner's in-game problem log. Details: docs/V9_1_6_RELEASE_NOTES.md.
+
+- Guild sync messages no longer exceed the game's 255-byte limit (standings chunks were silently dropped) (#731).
+- `/guilded invite raid` shows copyable `/invite` lines and no longer calls the invite API (#731).
+- Guild message-of-the-day reads are guarded in combat (#731).
+- The "To invite" window shows the game's real answer per row (not found, already in a guild, declined, joined), keeps one row per requester, and has a Remove button (#731).
+
 ## 9.1.5 — 10 November 2026
 
 Run trust and confirmed characters. Details: docs/V9_1_5_RELEASE_NOTES.md.

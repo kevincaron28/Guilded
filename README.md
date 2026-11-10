@@ -32,7 +32,7 @@ Check each channel for its version: the Microsoft Store companion updates separa
 - **Optional Windows companion:** install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9), or use the standalone installer from the [website](https://guilded.kcaron.top/companion/). Store installations update through Microsoft Store. Check the version offered by each channel.
 - **Want an AI to guide you:** copy a [setup or troubleshooting prompt](docs/AI_SETUP_HELP.md).
 
-**Current version: 9.1.5** (10 November 2026, protocol 2). See the [changelog](CHANGELOG.md).
+**Current version: 9.1.6** (10 November 2026, protocol 2). See the [changelog](CHANGELOG.md).
 Supports WoW Forever across the addon, Discord bot and companion, including several guilds in one Discord.
 Use the Forever ZIP from the [download page](https://guilded.kcaron.top/editions/).
 The other WoW editions were removed on 7 November 2026 ([details](docs/FOREVER_ONLY_FOCUS.md)); their stored data stays readable.

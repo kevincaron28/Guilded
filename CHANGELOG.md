@@ -1,5 +1,15 @@
 # Changelog
 
+## 9.1.5 — 10 November 2026
+
+Run trust and confirmed characters. Details: docs/V9_1_5_RELEASE_NOTES.md.
+
+- Unsigned companions also send runs that guildmates' addons relayed, so one companion carries addon-only members' runs (#725).
+- A run counts with a roster/linked party member or a second PC agreeing; `/guilded dungeon` shows "received by Discord, not counted yet: reason" (#725).
+- During Season 1, anonymous-only runs still count, marked as device runs; this turns off when Season 2 starts (#726).
+- "Confirmed" needs the member's own companion plus the guild roster or a heard verify code; nicknames follow confirmed mains only (#724).
+- The bot side of all three is already live.
+
 ## 9.1.4 — 10 November 2026
 
 Linking and dungeon fixes after the 9.1.3 retest. Details: docs/V9_1_4_RELEASE_NOTES.md.

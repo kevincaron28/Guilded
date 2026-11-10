@@ -22,6 +22,7 @@ import { enqueueDiscordJob } from "./discord-jobs.js";
 import { planSignupAnswers } from "./signup-answers.js";
 import { queueCharacterDisplayRefresh } from "./character-display-refresh.js";
 import { assertSnapshotEdition, gameEditionOf } from "./game-edition.js";
+import { characterKey } from "../../companion/character-identity.mjs";
 
 // Why a row is waiting (see AddonHeldEntry). Every reason clears by itself once the cause is
 // fixed, because each upload carries the whole ledger again; a dismissed row is never imported.
@@ -148,7 +149,11 @@ export function createAddonImportService(database: PrismaClient) {
         // is a safety net for e.g. a name that was owned by someone else then,
         // freed since, and only now being applied.)
         const self = snapshot.character;
-        if (imported.pairedMemberId && self?.class && !findCharacter(characters, self.name, self.realm)) {
+        // Not for a character this member unlinked or an officer took from them: an unlink sticks.
+        const declined = imported.pairedMemberId && self ? await tx.characterVerifyClaim.findFirst({
+          where: { guildId, memberId: imported.pairedMemberId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)), status: { in: ["BLOCKED", "REMOVED"] } }, select: { id: true }
+        }) : null;
+        if (imported.pairedMemberId && self?.class && !declined && !findCharacter(characters, self.name, self.realm)) {
           const linked = await createSelfCharacter(tx, guildId, imported.pairedMemberId, self, true);
           characters.push({ ...linked, member: await tx.member.findUniqueOrThrow({ where: { id: linked.memberId } }) });
         }

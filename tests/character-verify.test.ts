@@ -11,7 +11,8 @@ import {
 
 // In-memory persistence boundary; the verify and pairing services are real.
 function newGuild() {
-  const characters: { id: string; name: string; realm: string; memberId: string; isMain: boolean; member?: unknown }[] = [];
+  const characters: { id: string; name: string; realm: string; memberId: string; isMain: boolean; member?: unknown; linkEvidence?: string }[] = [];
+  const conflicts: { characterId: string; claimantMemberId: string; status: string }[] = [];
   const codes: { guildId: string; memberId: string; code: string }[] = [];
   const claims: { guildId: string; memberId: string; nameKey: string; status: string }[] = [];
   const users: Record<string, string> = { ray: "user-ray", kev: "user-kev", sam: "user-sam" };
@@ -19,6 +20,7 @@ function newGuild() {
     character: {
       findMany: vi.fn(async () => characters.map((row) => ({ ...row, member: { discordUserId: users[row.memberId] } }))),
       findFirst: vi.fn(async ({ where }) => characters.find((row) => row.memberId === where.memberId && row.name === where.name) ?? null),
+      findUnique: vi.fn(async ({ where }) => characters.find((row) => row.id === where.id) ?? null),
       count: vi.fn(async ({ where }) => characters.filter((row) => row.memberId === where.memberId && (!where.isMain || row.isMain)).length),
       create: vi.fn(async ({ data }) => { const row = { id: `character-${characters.length}`, ...data }; characters.push(row); return row; }),
       update: vi.fn(async ({ where, data }) => Object.assign(characters.find((row) => row.id === where.id)!, data)),
@@ -38,6 +40,7 @@ function newGuild() {
     characterVerifyClaim: {
       findFirst: vi.fn(async ({ where }) => claims.find((row) => row.guildId === where.guildId && row.memberId === where.memberId && row.nameKey === where.nameKey && row.status === where.status) ?? null),
       findMany: vi.fn(async ({ where }) => claims.filter((row) => row.guildId === where.guildId && where.nameKey.in.includes(row.nameKey))),
+      deleteMany: vi.fn(),
       upsert: vi.fn(async ({ where, create, update }) => {
         const key = where.guildId_memberId_nameKey;
         const found = claims.find((row) => row.guildId === key.guildId && row.memberId === key.memberId && row.nameKey === key.nameKey);
@@ -46,11 +49,16 @@ function newGuild() {
         return create;
       })
     },
+    // The proof-order record of two members claiming one character (character-move.ts).
+    characterLinkConflict: {
+      findUnique: vi.fn(async ({ where }) => conflicts.find((row) => row.characterId === where.characterId_claimantMemberId.characterId && row.claimantMemberId === where.characterId_claimantMemberId.claimantMemberId) ?? null),
+      upsert: vi.fn(async ({ create }) => { conflicts.push(create); return create; })
+    },
     professionSkill: { upsert: vi.fn() },
     unclaimedCharacter: { deleteMany: vi.fn() }
   };
   const database = { ...db, $transaction: async (callback: (tx: typeof db) => unknown) => callback(db) };
-  return { db, database: database as never, characters, claims };
+  return { db, database: database as never, characters, claims, conflicts };
 }
 
 const officer = { officer: true };
@@ -118,9 +126,9 @@ describe("linking from an officer's upload", () => {
     expect(guild.characters).toEqual([]);
   });
 
-  it("never takes a character linked to someone else, and says so only once", async () => {
+  it("never takes a character an officer linked to someone else, and says so only once", async () => {
     const guild = newGuild();
-    guild.characters.push({ id: "taken", name: "Ray", realm: "Forever", memberId: "kev", isMain: true });
+    guild.characters.push({ id: "taken", name: "Ray", realm: "Forever", memberId: "kev", isMain: true, linkEvidence: "officer" });
     const code = await verifyCodeFor(guild.database, "guild", "ray");
     expect(await linkVerifiedCharacters(guild.database, "guild", officer, peer("Ray", code)))
       .toEqual([{ discordUserId: "user-ray", name: "Ray", status: "taken", isMain: false }]);
@@ -185,12 +193,31 @@ describe("linking from a member's upload", () => {
     expect(guild.claims.find((claim) => claim.memberId === "ray")!.status).toBe("REMOVED");
   });
 
-  it("never takes a linked character and says nothing about it", async () => {
+  it("never takes a character held on equal or stronger proof: it goes to the officers instead", async () => {
     const guild = newGuild();
-    guild.characters.push({ id: "taken", name: "Ray", realm: "Forever", memberId: "kev", isMain: true });
+    guild.characters.push({ id: "taken", name: "Ray", realm: "Forever", memberId: "kev", isMain: true, linkEvidence: "heard" });
+    guild.characters.push({ id: "officer", name: "Ray Alt", realm: "Forever", memberId: "kev", isMain: false, linkEvidence: "officer" });
     const code = await verifyCodeFor(guild.database, "guild", "ray");
-    expect(await linkVerifiedCharacters(guild.database, "guild", member, peer("Ray", code))).toEqual([]);
+    expect(await linkVerifiedCharacters(guild.database, "guild", member, [...peer("Ray", code), ...peer("Ray Alt", code)])).toEqual([]);
+    expect(guild.characters.map((row) => row.memberId)).toEqual(["kev", "kev"]);
     expect(guild.claims).toEqual([]);
+    expect(guild.conflicts.map((row) => [row.characterId, row.status])).toEqual([["taken", "OPEN"], ["officer", "WEAKER"]]);
+  });
+
+  it("a code heard by a guildmate's addon takes a character held on weaker proof, keeping the row", async () => {
+    const guild = newGuild();
+    guild.characters.push({ id: "squatted", name: "Ray", realm: "Forever", memberId: "kev", isMain: true, linkEvidence: "companion" });
+    const code = await verifyCodeFor(guild.database, "guild", "ray");
+    expect(await linkVerifiedCharacters(guild.database, "guild", member, peer("Ray", code)))
+      .toEqual([{ discordUserId: "user-ray", name: "Ray", status: "linked", isMain: true, movedFrom: "user-kev" }]);
+    expect(guild.characters).toMatchObject([{ id: "squatted", memberId: "ray", linkEvidence: "heard" }]);
+    expect(guild.conflicts).toMatchObject([{ status: "MOVED", ownerEvidence: "companion", claimantEvidence: "heard" }]);
+    // The same code in the member's own saved file is only as good as their companion: equal, so it waits.
+    const other = newGuild();
+    other.characters.push({ id: "squatted", name: "Ray", realm: "Forever", memberId: "kev", isMain: true, linkEvidence: "companion" });
+    const own = await verifyCodeFor(other.database, "guild", "sam");
+    expect(await linkVerifiedCharacters(other.database, "guild", member, peer("Ray", own))).toEqual([]);
+    expect(other.conflicts).toMatchObject([{ status: "OPEN" }]);
   });
 
   it("links at most five guildmates' characters per upload", async () => {
@@ -219,7 +246,7 @@ describe("telling the member", () => {
     expect(logged).toHaveBeenCalledWith(discordGuild, "🔗 Ray a été lié à <@user-ray> par son code /guilded verify.");
   });
 
-  it("tells officers who reported a provisional link, and the member an officer's sync moved it from", async () => {
+  it("tells officers who reported a provisional link, and leaves a moved character to the move DM with its undo", async () => {
     logged.mockClear();
     const send = vi.fn().mockResolvedValue(undefined);
     const discordGuild = { id: "server", name: "Quebec Gold" };
@@ -228,11 +255,10 @@ describe("telling the member", () => {
       { discordUserId: "user-ray", name: "Ray", status: "linked", isMain: true, reportedBy: "user-sam" },
       { discordUserId: "user-kev", name: "Kevchar", status: "linked", isMain: false, movedFrom: "user-ray" }
     ]);
-    expect(send.mock.calls.map((call) => call[0])).toEqual(["user-ray", "user-kev", "user-ray"]);
-    expect(send.mock.calls[2]![1].content).toContain("**Kevchar** was unlinked from your Discord account");
+    expect(send.mock.calls.map((call) => call[0])).toEqual(["user-ray"]);
     const log = logged.mock.calls[0]![1] as string;
     expect(log).toContain("heard by <@user-sam>'s addon");
-    expect(log).toContain("moved it from <@user-ray>");
+    expect(log).not.toContain("Kevchar");
   });
 
   it("never throws when Discord is unreachable", async () => {

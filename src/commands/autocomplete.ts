@@ -1,3 +1,4 @@
+import { WITH_DETACHED } from "../services/character-move.js";
 import type { AutocompleteInteraction, GuildMember } from "discord.js";
 import { currentEdition } from "../services/edition-context.js";
 import { addonName } from "../services/addon-name.js";
@@ -163,6 +164,13 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
         include: { member: true }, orderBy: { name: "asc" }, take: 25
       });
       choices = rows.map((row) => ({ name: `${characterName(row)} — ${row.realm} - ${row.className}${row.isMain ? " (main)" : ""} · ${row.member.displayName}`.slice(0, 100), value: row.id }));
+    } else if (command === "character" && focused.name === "name" && subcommand === "move") {
+      // Linked characters and unlinked ones whose history is kept (character-move.ts).
+      const rows = await prisma.character.findMany({
+        where: { member: { guildId: guild.id }, name: { contains: query, mode: "insensitive" }, ...WITH_DETACHED },
+        include: { member: true }, orderBy: { name: "asc" }, take: 25
+      });
+      choices = rows.map((row) => ({ name: `${characterName(row)} — ${row.className} · ${row.detachedAt ? "unlinked" : row.member.displayName}`.slice(0, 100), value: row.id }));
     } else if (command === "import-apply" && focused.name === "id") {
       choices = await importChoices(prisma, guild.id, query);
     }

@@ -124,6 +124,18 @@ Prisma 7 (see `docs/PRISMA_7_UPGRADE.md`):
   (pool size, timeouts, the Aiven CA in `sslcert`) that node-postgres would misread. The CLI
   reads the URL from `prisma.config.ts`.
 
+Character links (linking audit T3, 10 November 2026; `src/services/character-move.ts`):
+
+- **Unlink detaches, it does not delete.** An unlinked character keeps its row and history under the
+  server's hidden holding member (`detached-<guildId>`, LEFT, isTest) with `detachedAt` set.
+  `createPrismaClient()` hides those rows from every `character` list, search and count; a query that
+  must see them names `detachedAt` in its `where` (`DETACHED`, `WITH_DETACHED`). Lookups by id and
+  nested reads through other tables are not filtered. Test fakes do not have this filter.
+- **Never change `Character.memberId` by hand.** Use `moveCharacter(tx, id, toMemberId, reason)`: it
+  keeps the id, hands over the main flag, records the proof (`linkEvidence`: named < companion <
+  heard < officer) and updates both members' verify claims. New characters go through
+  `guildService.addCharacter` or `createSelfCharacter`, which bring a detached row back.
+
 ## No database or Discord access from here
 
 Cloud sandboxes may not reach production Aiven or Discord and may have no

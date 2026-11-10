@@ -45,6 +45,8 @@ export async function deleteMyData(database: PrismaClient, discordUserId: string
     await tx.characterVerifyClaim.deleteMany({ where: own });
     await tx.companionCredential.deleteMany({ where: own });
     const characters = await tx.character.deleteMany({ where: own });
+    // Characters this member unlinked are kept under the holding member (character-move.ts): theirs to delete too.
+    await tx.character.deleteMany({ where: { detachedFromMemberId: { in: memberIds }, detachedAt: { not: null } } });
     for (const { id } of members) {
       // The id keeps the (guildId, discordUserId) pair unique and can never match a real Discord account.
       await tx.member.update({ where: { id }, data: { discordUserId: `deleted-${id}`, displayName: DELETED_MEMBER_NAME, status: "LEFT" } });

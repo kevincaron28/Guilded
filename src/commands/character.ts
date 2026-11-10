@@ -16,6 +16,7 @@ import { asLang, t } from "../i18n.js";
 import { removePictureByOfficer } from "../services/character-picture.js";
 import { characterTrustMap, REPORTED_HINT, trustSuffix } from "../services/character-trust.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
+import { detachCharacter, isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
@@ -49,15 +50,20 @@ export const characterCommand = new SlashCommandBuilder()
     .addStringOption((option) => option.setName("name").setDescription("The character").setAutocomplete(true).setRequired(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("unclaimed")
-    .setDescription("Characters the addons reported that nobody has linked yet."))
+    .setDescription("Unlinked characters and conflicts."))
   .addSubcommand((subcommand) => subcommand
     .setName("link")
-    .setDescription("Link a reported character to a Discord member.")
-    .addStringOption((option) => option.setName("name").setDescription("The character").setAutocomplete(true).setRequired(true))
-    .addUserOption((option) => option.setName("player").setDescription("Who it belongs to").setRequired(true)))
+    .setDescription("Link a reported character to a member.")
+    .addStringOption((option) => option.setName("name").setDescription("Character").setAutocomplete(true).setRequired(true))
+    .addUserOption((option) => option.setName("player").setDescription("Owner").setRequired(true)))
+  .addSubcommand((subcommand) => subcommand
+    .setName("move")
+    .setDescription("Move a character, history kept.")
+    .addStringOption((option) => option.setName("name").setDescription("Character").setAutocomplete(true).setRequired(true))
+    .addUserOption((option) => option.setName("player").setDescription("New owner").setRequired(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("autolink")
-    .setDescription("Link reported characters named like a Discord member."))
+    .setDescription("Link characters named like a member."))
   .addSubcommand((subcommand) => subcommand
     .setName("picture")
     .setDescription("Remove a picture; pictures on/off")
@@ -120,7 +126,9 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     if (!isOwn && !(interaction.member && hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer"))) {
       throw new Error(`${characterName(character)} is linked to ${character.member.displayName}. Only Officers and Guild Masters can unlink someone else's character.`);
     }
-    await prisma.character.delete({ where: { id: character.id } });
+    // Detached, not deleted (owner decision, 10 November 2026): pictures, wishlist, professions and the
+    // rest of its history stay with the row and come back when it is linked again or an officer moves it.
+    await prisma.$transaction((tx) => detachCharacter(tx, character.id));
     // The /guilded verify code that character keeps repeating in game must not link it back.
     // An officer unlinking someone else's character is a correction: their companion uploads must
     // not relink it either. Only this character is affected; their devices stay connected.
@@ -131,12 +139,12 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
         : `${interaction.user.username} unlinked ${characterName(character)} from ${character.member.displayName}.`);
     }
     await interaction.reply({
-      content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their uploads won't relink it; an officer can still link it to anyone`}. If the addon reports it again, it will show up as unclaimed until it's linked again.`,
+      content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their uploads won't relink it; an officer can still move it to anyone (\`/officer character move\`)`}. Nothing was deleted: its history comes back when it is linked again. If the addon reports it again, it will show up as unclaimed until then.`,
       flags: MessageFlags.Ephemeral
     });
     return;
   }
-  if (["unclaimed", "link", "autolink", "picture"].includes(subcommand)) {
+  if (["unclaimed", "link", "move", "autolink", "picture"].includes(subcommand)) {
     if (!interaction.member || !hasPermission(interaction.member as Parameters<typeof hasPermission>[0], "officer")) {
       await interaction.reply({ content: "Only Officers and Guild Masters can do that.", flags: MessageFlags.Ephemeral });
       return;
@@ -144,10 +152,38 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     if (subcommand === "unclaimed") {
       const rows = await prisma.unclaimedCharacter.findMany({ where: { guildId: context.guildId }, orderBy: { name: "asc" }, take: 60 });
       const book = await loadFullNameBook(prisma, context.guildId);
-      await interaction.reply({
-        content: rows.length
-          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${displayCharacterName(row, book)} — ${row.realm} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1950)
+      // The officer queue: two members claim one character with the same proof. And what was unlinked, history kept.
+      const queue = await prisma.characterLinkConflict.findMany({ where: { guildId: context.guildId, status: "OPEN" }, include: { character: { select: { name: true, displayName: true } } }, orderBy: { createdAt: "asc" }, take: 15 });
+      const people = queue.length ? await prisma.member.findMany({ where: { id: { in: queue.flatMap((row) => [row.ownerMemberId, row.claimantMemberId]) } }, select: { id: true, discordUserId: true } }) : [];
+      const mention = (memberId: string) => { const member = people.find((row) => row.id === memberId); return member && !isHoldingMember(member) ? `<@${member.discordUserId}>` : "someone"; };
+      const detached = await prisma.character.findMany({ where: { member: { guildId: context.guildId }, ...DETACHED }, select: { name: true, displayName: true }, orderBy: { name: "asc" }, take: 30 });
+      const parts = [
+        rows.length
+          ? `**${rows.length} unclaimed:** ${rows.map((row) => `${displayCharacterName(row, book)} — ${row.realm} (${row.className}${row.level ? ` ${row.level}` : ""})`).join(", ")}\nOwners: \`/character claim\`. Officers: \`/officer character link\` or \`/officer character autolink\`.`.slice(0, 1200)
           : "Every character the addons reported is linked.",
+        ...(queue.length ? [`**Waiting for you (two members, same proof):** ${queue.map((row) => `${characterName(row.character)}: linked to ${mention(row.ownerMemberId)}, claimed by ${mention(row.claimantMemberId)}`).join("; ")}\nDecide with \`/officer character move\`.`.slice(0, 450)] : []),
+        ...(detached.length ? [`**Unlinked, history kept:** ${detached.map((row) => characterName(row)).join(", ")}`.slice(0, 280)] : [])
+      ];
+      await interaction.reply({ content: parts.join("\n\n"), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      return;
+    }
+    if (subcommand === "move") {
+      const wanted = interaction.options.getString("name", true).trim();
+      const character = selectedCharacter(await prisma.character.findMany({ where: { member: { guildId: context.guildId }, ...WITH_DETACHED }, include: { member: true } }), wanted);
+      if (!character) throw new Error(`No character called "${wanted}" is linked or was unlinked here. For one the addons reported and nobody linked, use /officer character link.`);
+      const user = interaction.options.getUser("player", true);
+      if (user.bot) throw new Error("A bot cannot own a character.");
+      const target = await guildService.ensureMember(context.guildId, user.id, user.username);
+      if (!character.detachedAt && character.memberId === target.id) {
+        await interaction.reply({ content: `**${characterName(character)}** is already linked to ${user.username}.`, flags: MessageFlags.Ephemeral });
+        return;
+      }
+      const moved = await officerMoveCharacter(prisma, character.id, target.id);
+      if (!moved) throw new Error(`${characterName(character)} is gone. /officer character unclaimed shows what can be linked.`);
+      const from = character.detachedAt ? "the unlinked characters" : character.member.displayName;
+      if (interaction.guild) await postToLogChannel(interaction.guild, `${interaction.user.username} moved ${characterName(character)} from ${from} to ${user.username} (history kept).`);
+      await interaction.reply({
+        content: `Moved **${characterName(character)}** from ${from} to ${user.username} as ${moved.character.isMain ? "their main" : "an alt"}. Its history came with it${character.detachedAt ? "" : `, and ${character.member.displayName}'s uploads and verify code won't take it back`}.`,
         flags: MessageFlags.Ephemeral
       });
       return;

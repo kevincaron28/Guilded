@@ -141,6 +141,8 @@ const world = vi.hoisted(() => {
         return row;
       }
     },
+    // Two members and one character (character-move.ts): recorded, never silent.
+    characterLinkConflict: { findUnique: async () => null, upsert: async () => ({}) },
     unclaimedCharacter: {
       async findMany({ where }: { where: { guildId: string } }) {
         return unclaimed.filter((row) => row["guildId"] === where.guildId);

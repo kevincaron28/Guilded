@@ -36,6 +36,15 @@ describe("built site links", () => {
     expect(html).toContain('id="companion"');
     expect(html).not.toMatch(/\{\{[A-Z_]+\}\}/);
     expect(readFileSync("dist/site/sitemap.xml", "utf8")).toContain("https://guilded.kcaron.top/download/");
+    expect(readFileSync("dist/site/sitemap.xml", "utf8")).toContain("https://guilded.kcaron.top/guide/install/");
+    const installPages = [];
+    for (const file of htmlFiles("dist/site")) {
+      if (!readFileSync(file, "utf8").includes("Interface/AddOns")) continue;
+      const urlPath = `/${file.slice("dist/site/".length)}`.replace(/index\.html$/, "");
+      if (staticRedirect(new URL(urlPath, "https://guilded.kcaron.top"))) continue;
+      installPages.push(urlPath);
+    }
+    expect(installPages.filter(path => !path.startsWith("/guide/install"))).toEqual([]);
   });
 
   it("points every local link at a page, a file, a redirect or a bot route", () => {

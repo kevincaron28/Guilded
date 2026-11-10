@@ -10,7 +10,7 @@
 /** @type {NavItem[]} */
 export const SITE_NAV = [
   { key: "download", href: "/download/", en: "Download", fr: "Télécharger", cta: true },
-  { key: "guide", href: "/start/", en: "Guide", fr: "Guide" },
+  { key: "guide", href: "/guide/", en: "Guide", fr: "Guide" },
   { key: "reference", href: "/reference/", en: "Quick reference", fr: "Référence rapide" },
   { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
   // Community boards are served by the bot under the Forever section.

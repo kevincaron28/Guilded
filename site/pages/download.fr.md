@@ -5,7 +5,7 @@
 <h2 id="addon">1. L’addon</h2>
 <p>Obligatoire. Outils de guilde, EP/GP, butin et donjons pour WoW Forever. Version <strong>{{GUILDED_VERSION}}</strong>.</p>
 <div class="actions"><a class="button" href="https://www.curseforge.com/wow/addons/guilded">Obtenir sur CurseForge <span aria-hidden="true">↗</span></a><a class="button secondary" href="https://github.com/kevincaron28/Guilded/releases/download/v{{GUILDED_VERSION}}/Guilded-v{{GUILDED_VERSION}}-forever.zip">Zip direct <span aria-hidden="true">↓</span></a></div>
-<p>Fermez WoW, puis extrayez le dossier dans <code>Interface/AddOns</code>. <a href="/guides/install/">Guide d’installation →</a></p>
+<p><a href="/guide/install/">Guide d’installation →</a></p>
 <p>Seulement les donjons ? <a href="https://www.curseforge.com/wow/addons/guilded-dungeons">Guilded Dungeons sur CurseForge</a> ou le <a href="https://github.com/kevincaron28/Guilded/releases/download/v{{GUILDED_VERSION}}/GuildedDungeons-v{{GUILDED_VERSION}}-forever.zip">zip plus léger</a>.</p>
 <p class="small">Notes et sommes de contrôle : <a href="https://github.com/kevincaron28/Guilded/releases/tag/v{{GUILDED_VERSION}}">v{{GUILDED_VERSION}} ↗</a></p>
 

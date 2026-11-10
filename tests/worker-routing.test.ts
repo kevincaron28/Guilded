@@ -119,7 +119,7 @@ describe("unified website and companion", () => {
 
   it("serves the website locally without forwarding credentials", async () => {
     const upstream = vi.fn(); vi.stubGlobal("fetch", upstream);
-    const response = await worker.fetch(new Request(base + "/docs/QUICK_START", { headers: { authorization: "Bearer private" } }), env);
+    const response = await worker.fetch(new Request(base + "/docs/PRIVACY", { headers: { authorization: "Bearer private" } }), env);
     expect(await response.text()).toBe("website");
     expect(upstream).not.toHaveBeenCalled();
   });

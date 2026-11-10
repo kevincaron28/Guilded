@@ -5,7 +5,7 @@
 <h2 id="addon">1. The addon</h2>
 <p>Required. Guild tools, EP/GP, loot and dungeon runs for WoW Forever. Version <strong>{{GUILDED_VERSION}}</strong>.</p>
 <div class="actions"><a class="button" href="https://www.curseforge.com/wow/addons/guilded">Get it on CurseForge <span aria-hidden="true">↗</span></a><a class="button secondary" href="https://github.com/kevincaron28/Guilded/releases/download/v{{GUILDED_VERSION}}/Guilded-v{{GUILDED_VERSION}}-forever.zip">Direct .zip <span aria-hidden="true">↓</span></a></div>
-<p>Close WoW, then extract the folder into <code>Interface/AddOns</code>. <a href="/guides/install/">Install guide →</a></p>
+<p><a href="/guide/install/">Install guide →</a></p>
 <p>Dungeon runs only? <a href="https://www.curseforge.com/wow/addons/guilded-dungeons">Guilded Dungeons on CurseForge</a> or the <a href="https://github.com/kevincaron28/Guilded/releases/download/v{{GUILDED_VERSION}}/GuildedDungeons-v{{GUILDED_VERSION}}-forever.zip">lighter zip</a>. Install one or both.</p>
 <p class="small">Release notes and checksums: <a href="https://github.com/kevincaron28/Guilded/releases/tag/v{{GUILDED_VERSION}}">v{{GUILDED_VERSION}} ↗</a></p>
 

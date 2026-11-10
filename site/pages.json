@@ -11,6 +11,17 @@
     "draft": false
   },
   {
+    "source": "community.md",
+    "sourceFr": "community.fr.md",
+    "path": "community/",
+    "title": "Guilded community",
+    "titleFr": "Communauté Guilded",
+    "description": "Find a guild, open raid spots, player profiles and Quebec Gold.",
+    "descriptionFr": "Trouver une guilde, des places de raid, des profils de joueurs et Quebec Gold.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "guide.md",
     "sourceFr": "guide.fr.md",
     "path": "guide/",

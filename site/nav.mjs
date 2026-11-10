@@ -14,7 +14,7 @@ export const SITE_NAV = [
   { key: "reference", href: "/reference/", en: "Quick reference", fr: "Référence rapide" },
   { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
   // Community boards are served by the bot under the Forever section.
-  { key: "community", href: "/recruitment/guilds/", en: "Community", fr: "Communauté", bot: true },
+  { key: "community", href: "/community/", en: "Community", fr: "Communauté" },
   { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true, icon: true }
 ];
 

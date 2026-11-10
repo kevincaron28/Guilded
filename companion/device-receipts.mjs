@@ -27,10 +27,15 @@ export function parseDeviceReceipts(text) {
   return { refs, notes };
 }
 
+/** The note a 9.1.3 bot gave a guildmate's run it refused from this PC: no bot holds that run, so it is no receipt. */
+export const NOT_THIS_PC = "Not one of this PC's characters";
+
 /** Newest answer first; a ref stays acknowledged until the list is full. */
 export function mergeDeviceReceipts(previous, answer) {
-  const fresh = Array.isArray(answer?.acceptedRunRefs) ? answer.acceptedRunRefs.filter((ref) => typeof ref === "string" && ref) : [];
-  const refs = [...new Set([...fresh, ...(previous?.refs ?? [])])].slice(0, MAX_REFS);
+  const answerNotes = answer?.runNotes && typeof answer.runNotes === "object" ? answer.runNotes : {};
+  const refused = (ref, held) => (held ?? {})[ref] === NOT_THIS_PC;
+  const fresh = (Array.isArray(answer?.acceptedRunRefs) ? answer.acceptedRunRefs.filter((ref) => typeof ref === "string" && ref) : []).filter((ref) => !refused(ref, answerNotes));
+  const refs = [...new Set([...fresh, ...(previous?.refs ?? []).filter((ref) => !refused(ref, previous?.notes))])].slice(0, MAX_REFS);
   const notes = { ...(previous?.notes ?? {}) };
   for (const ref of fresh) delete notes[ref]; // The bot's latest word on a run replaces an older note.
   for (const [ref, note] of Object.entries(answer?.runNotes && typeof answer.runNotes === "object" ? answer.runNotes : {})) if (typeof note === "string" && note) notes[ref] = note.slice(0, 80);

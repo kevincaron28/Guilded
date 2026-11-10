@@ -224,16 +224,15 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     runs = { received: upload.dungeonRuns.length, ...result };
   }
   // Every ref this upload carried that the server now holds (stored, a guildmate's copy, refused), so the addon stops waiting.
+  // A guildmate's run the addon got by peer sync (none of this PC's characters in it) is not stored and gets NO receipt
+  // (9.1.4): a receipt marks the run synced in the addon, which then tells its author "my bot has your run" (ACK) and the
+  // author stops replaying it, so a run no bot held looked delivered. It stays unconfirmed for a signed-in companion.
   let runReceipts: DeviceRunReceipts | undefined;
   if (upload.dungeonRuns.length && store.receipts && target) {
     const refs = [...new Set(upload.dungeonRuns.flatMap((run) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" && id.length <= 80 ? [id] : []; }))];
     const held = refs.length ? await store.receipts(target.guildId, refs) : [];
     const acceptedRunRefs = held.map((row) => row.runRef);
     const runNotes: Record<string, string> = Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []));
-    // A guildmate's run the addon got by peer sync (none of this PC's characters in it) is refused for good: say so, so it stops waiting.
-    const idOf = (run: unknown) => { const id = (run as { id?: unknown } | null)?.id; return typeof id === "string" ? [id] : []; };
-    const mine = new Set(runsOfDevice(upload.dungeonRuns, known).flatMap(idOf));
-    for (const ref of refs) if (!mine.has(ref) && !acceptedRunRefs.includes(ref)) { acceptedRunRefs.push(ref); runNotes[ref] = "Not one of this PC's characters"; }
     if (acceptedRunRefs.length) runReceipts = { acceptedRunRefs, runNotes };
   }
   return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}) };

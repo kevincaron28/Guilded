@@ -40,6 +40,10 @@ local TERMINAL = { COMPLETED = true, ABANDONED = true, INVALID = true, ERROR = t
 -- (9.0) Guildmates' runs nobody's bot confirmed are dropped after this long (the bot takes
 -- relayed runs up to 30 days old, so older copies can never reach it).
 local KEEP_PEER_DAYS = 45
+local REPLAY_DAYS = 30
+local REPLAY_RUNS = 10
+-- The note a 9.1.3 bot gave an unsigned companion for a guildmate's run it refused (see markSynced).
+local NOT_THIS_PC = "Not one of this PC's characters"
 
 local function db()
   local root = ns.getDb and ns.getDb()
@@ -753,6 +757,9 @@ local function onAddonMessage(text, sender)
     index, total = tonumber(index), tonumber(total)
     if not id or not index or not total or total < 1 or total > 20 or index < 1 or index > total then return end
     if #id > 120 then return end
+    -- Guilded Dungeons takes a party member's summary of a run it recorded itself; it keeps no
+    -- copies of guildmates' other runs (no catch-up module there to pass them on).
+    if ns.standalone and not (d and d.runs[id]) then return end
     local count, senderCount = 0, 0
     for bufferKey, buffer in pairs(dungeon.incoming) do
       if not buffer.at or now() - buffer.at > 60 then dungeon.incoming[bufferKey] = nil
@@ -963,13 +970,19 @@ function dungeon.markSynced()
   if not d then return end
   local accepted = type(GuildedDungeonAccepted) == "table" and GuildedDungeonAccepted or {}
   local notes = type(GuildedDungeonNotes) == "table" and GuildedDungeonNotes or nil
+  -- (9.1.4) A 9.1.3 unsigned companion listed a guildmate's run it could not upload as received.
+  -- No bot holds it: it is not synced, and nobody may be told it is (ACK, catch-up). Undo the
+  -- marks saved then (the updated companion no longer lists those runs), and never set one again.
+  for _, run in pairs(d.runs) do
+    if run.syncNote == NOT_THIS_PC then run.synced, run.syncNote = nil, nil end
+  end
   for _, id in ipairs(accepted) do
     local run = d.runs[id]
-    if run then
+    local note = notes and notes[id]
+    if run and note ~= NOT_THIS_PC then
       run.synced = true
       -- Only a companion that writes notes (9.0.8+) may clear one.
       if notes then
-        local note = notes[id]
         run.syncNote = type(note) == "string" and note ~= "" and string.sub(string.gsub(note, "|", ""), 1, 80) or nil
       end
     end
@@ -990,12 +1003,28 @@ function dungeon.markSynced()
   end
 end
 
+-- A run one of this PC's characters played (the character logged in, or one Guilded saw log in here).
+local function playedHere(run)
+  local players = type(run.players) == "table" and run.players or {}
+  if players[me()] then return true end
+  local d = ns.getDb and ns.getDb()
+  for _, info in pairs(d and type(d.myCharacters) == "table" and d.myCharacters or {}) do
+    local name = type(info) == "table" and ns.normalizeName(info.name)
+    if name and players[name] then return true end
+  end
+  return false
+end
+
 -- (9.0.8) Finished runs no bot has confirmed yet: neither ours (synced) nor a guildmate's (syncedVia).
+-- (9.1.4) A companion without Discord sign-in (GuildedCompanion.mode = "device") uploads only runs
+-- this PC's characters played, so a guildmate's run is not waiting on this PC: it stays unconfirmed
+-- for a signed-in guildmate's companion, and is not counted here.
 function dungeon.waitingRuns()
   local d = db()
   local list = {}
+  local deviceOnly = type(GuildedCompanion) == "table" and GuildedCompanion.mode == "device"
   for _, run in pairs(d and d.runs or {}) do
-    if not run.synced and not run.syncedVia and TERMINAL[run.state] then list[#list + 1] = run end
+    if not run.synced and not run.syncedVia and TERMINAL[run.state] and (not deviceOnly or playedHere(run)) then list[#list + 1] = run end
   end
   return list
 end
@@ -1139,6 +1168,8 @@ end
 
 -- Retry only our own recent unsynced runs. An officer arriving later can request
 -- them; the server's run id makes a repeated upload idempotent.
+-- (9.1.4) 30 days and 10 runs (were 7 and 5): the bot takes a guildmate's relayed run up to 30
+-- days old (guildmate-relay.ts), and a run no guildmate heard in its first week was lost for good.
 function dungeon.replayPending()
   if dungeon.lastReplay and now() - dungeon.lastReplay < 60 then return end
   dungeon.lastReplay = now()
@@ -1146,10 +1177,10 @@ function dungeon.replayPending()
   local runs = {}
   for _, run in pairs(d and d.runs or {}) do
     if not run.synced and not run.syncedVia and run.players and run.players[me()] and TERMINAL[run.state]
-      and (run.endedAt or 0) >= now() - 7 * 86400 then runs[#runs + 1] = run end
+      and (run.endedAt or 0) >= now() - REPLAY_DAYS * 86400 then runs[#runs + 1] = run end
   end
   table.sort(runs, function(a, b) return (a.endedAt or 0) > (b.endedAt or 0) end)
-  for index = 1, math.min(5, #runs) do
+  for index = 1, math.min(REPLAY_RUNS, #runs) do
     local run = runs[index]
     local summary = serialize(run)
     local total = math.ceil(#summary / CHUNK_BYTES)

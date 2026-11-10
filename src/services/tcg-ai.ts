@@ -33,15 +33,24 @@ function unitValue(s: MatchState, p: Side, u: UnitState): number {
   if (has("drain")) v += 1.2;
   if (has("twin")) v += atk * 0.8;
   if (has("swift")) v += 0.5;
+  // A Swift unit that just arrived can still attack this turn: worth part of its Attack now (the search is one move deep).
+  if (has("swift") && s.active === p && u.since === s.turn && u.attacks === 0 && !u.chilled) v += atk * 0.8;
   if (u.chilled && s.active !== p) v -= atk * 0.4;
   const card = cardOf(u.card);
-  if (card.endTurn || card.startTurn) v += 1.5;
-  if (card.aura) v += 1.5;
-  if (card.lastStand) v += 1;
+  if (!u.quiet) {
+    if (card.endTurn || card.startTurn) v += 1.5;
+    if (card.aura) v += 1.5;
+    if (card.lastStand) v += 1;
+  }
+  // Gear effects (Thorns, Last Stand draws, spell triggers) are worth more than the stats the search sees.
+  if (u.gear && u.gearOn) v += 1;
   return v;
 }
 
-const handValue = (ids: readonly string[]): number => ids.reduce((sum, id) => { const c = cardOf(id); return sum + (c.bag ? 0.5 : 0.6 * (2 * c.cost + 1) + 0.4); }, 0);
+/** What a card in hand is worth. Below what the same card is worth on the board, so the AI plays its cards (with 0.6 it held
+ *  Gear, cheap Swift units and Dread Pretender forever: the 10 November balance review). */
+export const HAND_WEIGHT = 0.45;
+const handValue = (ids: readonly string[]): number => ids.reduce((sum, id) => { const c = cardOf(id); return sum + (c.bag ? 0.5 : HAND_WEIGHT * (2 * c.cost + 1) + 0.4); }, 0);
 
 /** Scores a state for one player: higher is better for `me`. Hard also fears the opponent's next attack. */
 export function evaluate(s: MatchState, me: Side, level: AiLevel = "normal"): number {

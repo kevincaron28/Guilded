@@ -45,6 +45,26 @@ describe("GuildSnapshot.lua", () => {
       .toBe("Lebowski Greenleaf|Lebowski Holyroller");
   });
 
+  // 10 November 2026 taint log: WoW Forever blocks the MOTD and info reads in combat.
+  it("does not read the MOTD or guild information in combat, and keeps the last texts", () => {
+    const lua = setup();
+    lua.run(`TEXT_READS = 0; COMBAT = false
+      local motd, info = GetGuildRosterMOTD, GetGuildInfoText
+      function GetGuildRosterMOTD() TEXT_READS = TEXT_READS + 1 return motd() end
+      function GetGuildInfoText() TEXT_READS = TEXT_READS + 1 return info() end
+      function InCombatLockdown() return COMBAT end
+      NS.guildSnapshot.read(true)`);
+    expect(value(`TEXT_READS`)).toBe("2");
+    lua.run(`COMBAT = true; CLOCK = CLOCK + 120; NS.guildSnapshot.read(true)`);
+    expect(value(`TEXT_READS`)).toBe("2");
+    expect(value(`DB.guildSnapshot.motd`)).toBe("Raid Friday 8 pm");
+    expect(value(`DB.guildSnapshot.textAt`)).toBe("1800000000");
+    expect(value(`DB.guildSnapshot.at`)).toBe("1800000120");
+    lua.run(`COMBAT = false; CLOCK = CLOCK + 120; NS.guildSnapshot.read(true)`);
+    expect(value(`TEXT_READS`)).toBe("4");
+    expect(value(`DB.guildSnapshot.textAt`)).toBe("1800000240");
+  });
+
   it("keeps every member's level, class, rank and last online, but never notes", () => {
     const lua = setup();
     lua.run(`fire_event("GUILD_ROSTER_UPDATE")`);

@@ -85,7 +85,9 @@ describe("site menu", () => {
   it("keeps French across the product, guide and public-page navigation", () => {
     const html = page("/leaderboards/", "fr");
     expect(html).toContain('href="/features/?lang=fr"');
-    expect(html).toContain('href="/docs/QUICK_START.html#fr"');
+    expect(html).toContain('href="/guides/install/"');
+    expect(html).not.toContain("QUICK_START");
+    expect(html).not.toContain("MEMBER_INSTALL");
     expect(html).toContain('href="/editions/?lang=fr"');
     expect(html).toContain('href="/officers/?lang=fr"');
     expect(html).toContain('href="/forever/?lang=fr"');
@@ -113,6 +115,17 @@ describe("site menu", () => {
     expect(html.match(/class="nav-cta"/g)).toHaveLength(1);
     expect(html).toContain('<a href="/leaderboards/" aria-current="page">Leaderboards</a>');
     expect(html.match(/aria-current/g)).toHaveLength(1);
+  });
+
+  it("keeps Help to the one install path", () => {
+    const help = FOOTER_NAV.filter((item) => item.column === "help");
+    expect(help.map((item) => [item.en, item.href])).toEqual([
+      ["Install guide", "/guides/install/"],
+      ["Quick reference", "/reference/"],
+      ["Setup help", "/docs/AI_SETUP_HELP.html"],
+      ["Service status", "/status/"]
+    ]);
+    expect(FOOTER_NAV.some((item) => /QUICK_START|MEMBER_INSTALL/.test(item.href))).toBe(false);
   });
 
   it("puts every other destination in the footer columns, in both languages", () => {

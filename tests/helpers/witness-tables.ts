@@ -14,11 +14,12 @@ const matches = (row: Row, where: Row): boolean => Object.entries(where).every((
 });
 
 /** In-memory DungeonRunWitness and GuildRosterEntry tables for the run trust path (run-trust.ts, storeDeviceRuns). */
-export function witnessTables(rosterNames: string[] = []) {
+export function witnessTables(rosterNames: string[] = [], seasonNumbers: number[] = [1]) {
   const witnesses: Row[] = [];
   return {
     witnesses,
     tables: {
+      officialSeason: { findMany: async () => seasonNumbers.map((number) => ({ number })) },
       guildRosterEntry: { findMany: async () => rosterNames.map((nameKey) => ({ nameKey })) },
       dungeonRunWitness: {
         findMany: async ({ where }: { where: Row }) => witnesses.filter((row) => matches(row, where)),

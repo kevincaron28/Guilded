@@ -3,7 +3,7 @@ import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
 import { firstNameKey, importDungeonRuns, receiptReason, saveRunReceipts } from "./dungeon-import.js";
-import { anchored, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
+import { anchored, countsDeviceOnlyRuns, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
@@ -270,7 +270,7 @@ export async function claimDevice(store: DeviceStore, device: DeviceRow, memberI
   return store.claim(device.id, memberId, now);
 }
 
-type RunTx = Pick<Prisma.TransactionClient, "guild" | "dungeonRun" | "character" | "guildSettings" | "dungeonRunWitness" | "guildRosterEntry"> & Parameters<typeof importDungeonRuns>[0] & Parameters<typeof enqueueDiscordJob>[0];
+type RunTx = Pick<Prisma.TransactionClient, "officialSeason" | "guild" | "dungeonRun" | "character" | "guildSettings" | "dungeonRunWitness" | "guildRosterEntry"> & Parameters<typeof importDungeonRuns>[0] & Parameters<typeof enqueueDiscordJob>[0];
 const DEVICE_SOURCE = "companion device";
 const COPY_REASON = "Counted with a guildmate's copy of this run";
 const epoch = (date: Date | null | undefined) => date ? Math.floor(date.getTime() / 1000) : null;
@@ -303,6 +303,8 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   const mine = new Map(mineRows.map((row) => [row.runRef, row] as const));
   const knownNames = [...roster.map((row) => row.nameKey), ...characters.map((character) => character.name.toLowerCase())];
   const linked = characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec, discordId: character.member?.discordUserId ?? null, displayName: character.displayName ?? null }));
+  const started = await tx.officialSeason.findMany({ where: { gameEdition: gameEditionOf(guild ?? {}), startsAt: { lte: now } }, select: { number: true } });
+  const allowDeviceOnly = countsDeviceOnlyRuns(started.map((season) => season.number));
   let waiting = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "pending" } });
   let storedToday = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
   const pending: Record<string, string> = {};
@@ -348,7 +350,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
       continue;
     }
     const others = await othersNear(print);
-    const decision = decide(statement, others.map(statementOfRow), { anchored: anchored(raw, knownNames), storedToday, nowSec });
+    const decision = decide(statement, others.map(statementOfRow), { anchored: anchored(raw, knownNames), storedToday, nowSec, allowDeviceOnly });
     if ("expire" in decision) {
       await saveRunReceipts(tx, guildId, [{ runRef: ref, outcome: "refused", reason: decision.expire, runId: null }], now);
       await record(ref, raw, statement, { status: "expired", reason: decision.expire, decided: true });

@@ -416,12 +416,14 @@ export async function publishGuildRuns(database: PrismaClient, store: PublicRunS
   for (const { guildId, publicDungeonRunsSince, guild } of guilds) {
     const gameEdition = gameEditionOf(guild ?? {});
     const uploaderKey = `guild:${guildId}`;
+    const season2Start = (await database.officialSeason.findFirst({ where: { gameEdition, number: { gte: 2 }, startsAt: { lte: now } }, orderBy: { startsAt: "asc" }, select: { startsAt: true } }))?.startsAt;
     const known = new Set(await store.storedRefs(uploaderKey, gameEdition));
     const rows = await database.dungeonRun.findMany({
       where: {
         guildId, valid: true, state: "COMPLETED",
-        // Runs only anonymous companions vouch for (trust "device"/"witnessed") stay on the guild boards (docs/plans/RUN_TRUST_2026-11-10.md).
-        trust: null,
+        // From Season 2 on, runs only anonymous companions vouch for (trust "device"/"witnessed") stay on the guild boards
+        // (docs/plans/RUN_TRUST_2026-11-10.md). Season 1 publishes them like any run.
+        ...(season2Start ? { OR: [{ trust: null }, { endedAt: { lt: season2Start } }] } : {}),
         endedAt: { gte: new Date(now.getTime() - PUBLIC_LIMITS.maxAgeDays * 86_400_000) },
         ...(publicDungeonRunsSince ? { startedAt: { gte: publicDungeonRunsSince } } : {})
       },

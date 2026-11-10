@@ -1,9 +1,23 @@
 import { localizedHref } from '../site/nav.mjs';
 import { decodeHTML } from 'entities';
 
+/** Old PoE2 and Diablo community pages now live on the Quebec Gold page.
+ * @param {URL} url
+ * @returns {string | null}
+ */
+export function staticRedirect(url) {
+  if (/^\/quebec-gold\/(?:poe2|diablo)\/?$/.test(url.pathname)) return `/quebec-gold/${url.search}`;
+  return null;
+}
+
 // Translate the authored bilingual markup before sending HTML to crawlers and
 // browsers. User-generated bot pages retain their own server-side translations.
 export async function localizedAsset(request, env) {
+  const url = new URL(request.url);
+  if (request.method === "GET" || request.method === "HEAD") {
+    const location = staticRedirect(url);
+    if (location) return new Response(null, { status: 301, headers: { location, "cache-control": "public, max-age=86400" } });
+  }
   const response = await env.ASSETS.fetch(request);
   const language = new URL(request.url).searchParams.get('lang');
   if (!['en', 'fr'].includes(language) || !response.headers.get('content-type')?.startsWith('text/html')) return response;

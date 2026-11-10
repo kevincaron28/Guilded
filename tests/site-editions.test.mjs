@@ -22,6 +22,7 @@ describe('edition-specific downloads', () => {
     for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(home).not.toContain(`edition-card edition-${other}`);
     expect(home).not.toMatch(/Choose your WoW|Choisir votre WoW|every version|choose your edition|Choisir votre édition/i);
     expect(home).not.toContain('class="edition-menu"');
+    expect(home).not.toContain('data-nav-group="edition"');
     expect(home).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
 
@@ -130,6 +131,7 @@ describe('edition hubs', () => {
     for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(html).not.toContain(`-${other}.zip`);
     expect(html).not.toContain('class="edition-menu"');
     expect(html).not.toMatch(/Choose your WoW|Choisir votre WoW|Je joue à/i);
+    expect(html).not.toContain('data-nav-group="edition"');
     expect(html).not.toContain('undefined');
     expect(html.includes('id="dates-title"')).toBe(edition.id === 'forever');
   });

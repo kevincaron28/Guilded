@@ -151,6 +151,8 @@ export function localizedHref(href, lang) {
   return `${path}?${query}${hash ? `#${hash}` : ""}`;
 }
 
+const accountIcon = `<svg class="nav-account-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.4-3 3.8-4.5 7-4.5S17.6 16 19 19"/></svg>`;
+
 /**
  * The menu as HTML: one plain link per entry, no drop-downs; the `cta` entry is the button.
  * label(item) gives the link text; href(item) the address (defaults to item.href); current is the
@@ -158,8 +160,6 @@ export function localizedHref(href, lang) {
  * @param {{ label: (item: NavItem) => string, href?: (item: NavItem) => string, current?: string | null }} options
  * @returns {string}
  */
-const accountIcon = `<svg class="nav-account-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.4-3 3.8-4.5 7-4.5S17.6 16 19 19"/></svg>`;
-
 export function navLinks({ label, href = (item) => item.href, current = null }) {
   return SITE_NAV.map((item) => {
     const currentAttr = item.key === current ? ' aria-current="page"' : "";

@@ -185,6 +185,30 @@ describe("greeting", () => {
     s.run('NS.officerNotes.command({"officer","auto","greet","off"}); fire_event("CHAT_MSG_SYSTEM", "Xia has joined the guild.")');
     expect(s.run("return #SAID")).toBe("2");
   });
+  // 10 November 2026 taint log: WoW Forever blocks the welcome line. One refusal is remembered per client build.
+  it("stops greeting after the game refuses the line, says so once, and tries again after greet on", () => {
+    setup(); only(["greet"]);
+    s.run('function GetBuildInfo() return "1.0", BUILD end BUILD = "70862"');
+    s.run('fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild.")');
+    expect(s.run("return #SAID")).toBe("1");
+    // A block long after a send is not the greeting's.
+    s.run("CLOCK = (CLOCK or 0) + 10");
+    expect(s.run("return tostring(NS.officerNotes.onBlocked()) .. tostring(NS.officerNotes.greetBlocked())")).toBe("falsefalse");
+    s.run('MESSAGES = {}; fire_event("CHAT_MSG_SYSTEM", "Yan has joined the guild.")');
+    expect(s.run("return #SAID")).toBe("2");
+    expect(s.run("return tostring(NS.officerNotes.onBlocked()) .. tostring(NS.officerNotes.greetBlocked())")).toBe("truetrue");
+    expect(s.run("return table.concat(MESSAGES, '|')")).toContain("will not greet new members");
+    expect(s.run("return tostring(NS.officerNotes.onBlocked())")).toBe("false"); // counted once
+    s.run('fire_event("CHAT_MSG_SYSTEM", "Xia has joined the guild.")');
+    expect(s.run("return #SAID")).toBe("2");
+    // A new client build, or greet on, gives it a new try.
+    s.run('BUILD = "70900"; fire_event("CHAT_MSG_SYSTEM", "Wes has joined the guild.")');
+    expect(s.run("return #SAID")).toBe("3");
+    s.run('BUILD = "70862"');
+    expect(s.run("return tostring(NS.officerNotes.greetBlocked())")).toBe("true");
+    s.run('NS.officerNotes.set("greet", true); fire_event("CHAT_MSG_SYSTEM", "Val has joined the guild.")');
+    expect(s.run("return #SAID")).toBe("4");
+  });
   it("is silent for non-officers, for yourself, and when another officer already greeted", () => {
     setup(); only(["greet"]);
     s.run('OFFICER=false; fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild.")');

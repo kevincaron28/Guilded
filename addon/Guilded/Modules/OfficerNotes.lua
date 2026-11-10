@@ -46,6 +46,7 @@ end
 function module.set(key, on)
   local s = state(); if not s or not KEY_SET[key] then return false end
   s.off[key] = (not on) and true or nil
+  if key == "greet" and on then s.greetBlocked = nil end -- a remembered refusal (see sendGuild) gets a new try
   return true
 end
 local function record(kind, name, detail)
@@ -245,15 +246,39 @@ local function markGreeted(name)
   end
 end
 
+-- WoW Forever refuses a guild chat line an addon sends on its own (taint log of 10 November 2026: "An action was
+-- blocked because of taint from Guilded" at this send, twice, after members joined). The first refusal is remembered
+-- per client build: Guilded then stops greeting (no more blocked calls) and says so once to the officer.
+-- `/guilded officer auto greet on` forgets it, for a new try.
+local function clientBuild()
+  if type(GetBuildInfo) ~= "function" then return "?" end
+  local ok, _, build = pcall(GetBuildInfo)
+  return ok and not (ns.isSecret and ns.isSecret(build)) and tostring(build or "?") or "?"
+end
+function module.greetBlocked()
+  local s = state()
+  return s ~= nil and s.greetBlocked ~= nil and s.greetBlocked == clientBuild()
+end
+local lastGuildSend
 local function sendGuild(text)
   local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
-  if type(send) ~= "function" then return false end
+  if type(send) ~= "function" or module.greetBlocked() then return false end
+  lastGuildSend = clock()
   return pcall(send, text, "GUILD")
+end
+-- Core calls this on ADDON_ACTION_BLOCKED/FORBIDDEN naming Guilded. Returns true when it was the greeting.
+function module.onBlocked()
+  local at = clock()
+  if not lastGuildSend or at - lastGuildSend > 2 or at < lastGuildSend then return false end
+  lastGuildSend = nil
+  local s = state(); if s then s.greetBlocked = clientBuild() end
+  if ns.message then ns.message(L("WoW does not let addons post in guild chat on this client: Guilded will not greet new members for you.")) end
+  return true
 end
 
 -- One officer welcomes: each waits a few seconds, and whoever goes first tells the others.
 function module.onJoined(name)
-  if not module.enabled("greet") or not (ns.isOfficer and ns.isOfficer()) then return false end
+  if not module.enabled("greet") or module.greetBlocked() or not (ns.isOfficer and ns.isOfficer()) then return false end
   if ns.playerName and bare(name) == ns.playerName() then return false end
   if module.greeted(name) then return false end
   local function go()

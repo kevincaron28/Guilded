@@ -33,8 +33,9 @@ describe("the menu", () => {
 
   it("names each page the same way in the breadcrumb, in English and French", () => {
     expect(app).toMatch(/const names = \{status:'Sync',link:'Link everything',characters:'Guild',/);
-    expect(app).toMatch(/wow:'Tools',poe:'PoE2 mapping',settings:'Settings',/);
-    for (const key of ["Sync", "Guild", "Server", "Tools", "Settings", "Run setup again", "Help & privacy", "Activity", "PoE2 mapping", "Link everything"]) expect(fr[key], key).toBeTruthy();
+    expect(app).toMatch(/wow:'Tools',settings:'Settings',/);
+    expect(app).not.toContain("PoE2 mapping");
+    for (const key of ["Sync", "Guild", "Server", "Tools", "Settings", "Run setup again", "Help & privacy", "Activity", "Link everything"]) expect(fr[key], key).toBeTruthy();
   });
 });
 

@@ -82,6 +82,14 @@
         </article>
         <article class="panel"><h2>From game to guild</h2><ol class="steps"><li><span>01</span><div><strong>Save your latest character data</strong><p>Use /guilded sync, /reload or log out with the Guilded addon enabled.</p></div></li><li><span>02</span><div><strong>Send it to your Discord community</strong><p id="wowStep2">The companion notices the saved-file change and sends your export.</p></div></li><li><span>03</span><div><strong>Bring fresh standings back in game</strong><p id="wowStep3">The companion updates Standings.lua. Use /reload to load the latest standings.</p></div></li></ol></article>
       </section>
+      <section id="page-characters" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">WHO YOU PLAY</p><h1>My characters</h1><p class="subtitle">Your characters, the guild each one is in, and the raid core each one belongs to.</p></div><button class="secondary" id="charactersReload">Reload</button></div>
+        <div id="charactersContent"></div>
+      </section>
+      <section id="page-server" class="page" hidden>
+        <div class="page-heading"><div><p class="eyebrow">OFFICERS</p><h1>Server</h1><p class="subtitle">What is ready on your Discord server, and the main switches, in plain words.</p></div><button class="secondary" id="serverReload">Reload</button></div>
+        <p class="guild-warning notice" role="alert" hidden></p><p id="serverNotice" role="status"></p><div id="serverContent"></div>
+      </section>
       <section id="page-settings" class="page" hidden>
         <div class="page-heading"><div><p class="eyebrow">MAKE IT YOURS</p><h1>Settings</h1><p class="subtitle">Your Discord account, your WoW folder and how the companion runs.</p></div><div class="actions"><span id="pairBadge" class="pill">Discord not linked</span><button id="btnRunSetup" type="button" data-go="link">Run setup again</button></div></div>
           <form id="form" autocomplete="off">

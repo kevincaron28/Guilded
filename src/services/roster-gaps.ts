@@ -74,7 +74,7 @@ export function planRosterGaps(input: {
   return { notInGuild, noLink, unclaimed, syncFresh: input.syncFresh, considered };
 }
 
-type Db = Pick<PrismaClient, "member" | "unclaimedCharacter" | "guild" | "guildSettings" | "characterVerifyClaim">;
+type Db = Pick<PrismaClient, "member" | "unclaimedCharacter" | "guild" | "guildSettings" | "characterVerifyClaim" | "guildRosterEntry">;
 
 /** Loads the three lists for one server. Needs the member list (it pages through REST, see member-cache.ts). */
 export async function loadRosterGaps(db: Db, discordGuild: Pick<DiscordGuild, "members" | "memberCount">, guildId: string, edition: string, now = new Date()): Promise<RosterGaps> {
@@ -82,7 +82,7 @@ export async function loadRosterGaps(db: Db, discordGuild: Pick<DiscordGuild, "m
   const [people, unclaimed, guild, settings] = await Promise.all([
     db.member.findMany({
       where: { guildId, status: "ACTIVE", isTest: false },
-      select: { discordUserId: true, displayName: true, characters: { where: { gameEdition: edition }, select: { id: true, memberId: true, realm: true, gameEdition: true, confirmedAt: true, name: true, displayName: true, isMain: true, guildRankAt: true } } }
+      select: { discordUserId: true, displayName: true, characters: { where: { gameEdition: edition }, select: { id: true, memberId: true, realm: true, gameEdition: true, confirmedAt: true, linkEvidence: true, name: true, displayName: true, isMain: true, guildRankAt: true } } }
     }),
     db.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition }, select: { name: true, displayName: true, className: true, level: true, lastSeenAt: true } }),
     db.guild.findUnique({ where: { id: guildId }, select: { officerSyncAt: true } }),

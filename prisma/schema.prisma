@@ -552,9 +552,10 @@ model Character {
   // character from the guild digest, and that guildmate's Member id ("reported by a guildmate").
   relayedAt          DateTime?
   relayedById        String?
-  // 9.1 (docs/JEEVES_COMPARISON.md idea 1): when something trusted confirmed this character is the
-  // member's: their own signed-in companion uploaded it, or an officer linked it. Null = only reported
-  // (typed in, matched by name, a guildmate's addon heard their /guilded verify code, an invite request).
+  // 9.1 (docs/JEEVES_COMPARISON.md idea 1): when the member's own signed-in companion first uploaded
+  // this character, or an officer linked it. Null = typed in, matched by name, heard by a guildmate's
+  // addon, or named in an invite request. Linking audit T8: the companion alone no longer makes it
+  // "confirmed"; character-trust.ts also wants the guild roster or a heard verify code to agree.
   confirmedAt        DateTime?
   // Linking audit T3 (docs/plans/LINKING_AUDIT_2026-11-10.md): what proved this link, weakest to
   // strongest: named (typed, claimed, name match, invite request) < companion (the member's own

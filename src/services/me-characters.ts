@@ -7,11 +7,11 @@ import { characterTrustMap, trustLabel, type CharacterTrust } from "./character-
 export interface MeCharacter { name: string; isMain: boolean; trust: CharacterTrust }
 
 /** The member's own linked characters (at most 25), each confirmed or only reported (character-trust.ts). */
-export function meCharacterList(database: Pick<PrismaClient, "character" | "characterVerifyClaim">) {
+export function meCharacterList(database: Pick<PrismaClient, "character" | "characterVerifyClaim" | "guildRosterEntry">) {
   return async (discordUserId: string): Promise<MeCharacter[]> => {
     const rows = await database.character.findMany({
       where: { member: { discordUserId, status: { not: "LEFT" } } },
-      select: { id: true, memberId: true, name: true, displayName: true, realm: true, gameEdition: true, isMain: true, confirmedAt: true, member: { select: { guildId: true } } },
+      select: { id: true, memberId: true, name: true, displayName: true, realm: true, gameEdition: true, isMain: true, confirmedAt: true, linkEvidence: true, member: { select: { guildId: true } } },
       orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 25
     });
     const trust = new Map<string, CharacterTrust>();
@@ -35,7 +35,7 @@ export function charactersMeSection(status: (discordUserId: string) => Promise<L
     const list = characters ? await characters(ctx.account.discordUserId).catch(() => []) : [];
     const items = list.map((row) => `<li>${row.isMain ? "⭐ " : ""}${escapeHtml(row.name)} · <span class="${row.trust === "confirmed" ? "trust-confirmed" : "trust-reported"}">${escapeHtml(trustLabel(row.trust, ctx.lang))}</span></li>`).join("");
     const note = list.some((row) => row.trust === "reported")
-      ? `<p>${t("Reported, not verified: typed in, matched by name, or reported by a guildmate's addon. Your next sync with the Guilded app (or an officer) confirms it.", "Signalé, non vérifié : saisi, reconnu par son nom, ou signalé par l'addon d'un membre. Votre prochaine synchronisation avec l'application Guilded (ou un officier) le confirme.")}</p>`
+      ? `<p>${t("Reported, not verified. A character is confirmed once your own Guilded app has synced it and the guild roster agrees (or a guildmate's addon heard your /guilded verify line), or when an officer links it.", "Signalé, non vérifié. Un personnage est confirmé quand votre propre application Guilded l'a synchronisé et que la liste de la guilde le confirme (ou que l'addon d'un coéquipier a entendu votre ligne /guilded verify), ou quand un officier le lie.")}</p>`
       : "";
     return `<h2>${t("Your characters", "Vos personnages")}</h2><p>${lines}</p>${items ? `<ul>${items}</ul>${note}` : ""}`;
   };

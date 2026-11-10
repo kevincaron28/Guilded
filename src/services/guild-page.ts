@@ -214,7 +214,7 @@ export function renderGuildPage(view: GuildPageView): string {
         + "</tbody></table></div>");
     }
   }
-  if (view.recruitment?.text) parts.push(`<h2>${t("Recruitment", "Recrutement")}</h2>${paragraphs(view.recruitment.text)}`);
+  if (view.recruitment?.text) parts.push(`<aside class="card recruitment-card"><h2>${t("Recruitment", "Recrutement")}</h2>${paragraphs(view.recruitment.text)}</aside>`);
   const description = escapeHtml((view.intro ?? t(`${view.name}: raid cores, times and rankings.`, `${view.name} : cores de raid, horaires et classements.`)).replace(/\s+/g, " ").slice(0, 160));
   return `<!doctype html><html lang="${view.language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${name} · Guilded</title><meta name="description" content="${description}">${view.indexable ? "" : '<meta name="robots" content="noindex">'}`

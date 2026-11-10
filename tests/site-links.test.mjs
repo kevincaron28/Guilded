@@ -66,15 +66,10 @@ describe("built site links", () => {
     expect(missing).toEqual([]);
   });
 
-  it("sends static French sitemap addresses to the same page under /fr/", () => {
+  it("lists French static pages under /fr/ in the sitemap", () => {
     const sitemap = readFileSync("dist/site/sitemap.xml", "utf8");
-    const french = [...sitemap.matchAll(/<loc>https:\/\/guilded\.kcaron\.top([^<]+)\?lang=fr<\/loc>/g)].map(match => match[1]);
-    expect(french.length).toBeGreaterThan(0);
-    const data = /^\/(?:forever|leaderboards|recruitment|players|companion)(?:\/|$)/;
-    const stuck = french.filter(path => !data.test(path)).flatMap(path => {
-      const dest = staticRedirect(new URL(`https://guilded.kcaron.top${path}?lang=fr`));
-      return dest?.startsWith("/fr") ? [] : [`${path} -> ${dest}`];
-    });
-    expect(stuck).toEqual([]);
+    expect(sitemap).toContain("https://guilded.kcaron.top/fr/guide/");
+    expect(sitemap).toContain("https://guilded.kcaron.top/fr/download/");
+    expect(sitemap).not.toContain("https://guilded.kcaron.top/guide/?lang=fr");
   });
 });

@@ -176,10 +176,17 @@ function languageAlternates(directory) {
     const canonical = /<link rel="canonical" href="([^"]+)"/.exec(html)?.[1];
     if (beacon && !path.includes("/creator/") && !html.includes("cloudflareinsights")) { html = html.replace("</head>", `${beacon}</head>`); writeFileSync(path, html); }
     if (!canonical || !html.includes('data-fr=')) continue;
-    const french = new URL(canonical); french.searchParams.set('lang', 'fr');
+    const french = new URL(canonical);
+    if (canonical.startsWith(origin)) {
+      let path = french.pathname;
+      if (path !== "/" && !path.endsWith("/") && !path.endsWith(".html")) path += "/";
+      french.pathname = path === "/" ? "/fr/" : `/fr${path}`;
+      french.search = "";
+    } else french.searchParams.set("lang", "fr");
     html = html.replace('</head>', `<link rel="alternate" hreflang="en" href="${escape(canonical)}"><link rel="alternate" hreflang="fr" href="${escape(french.href)}"><link rel="alternate" hreflang="x-default" href="${escape(canonical)}"></head>`);
     writeFileSync(path, html);
-    if (canonical.startsWith(origin) && !publicUrls.includes(french.pathname + french.search)) publicUrls.push(french.pathname + french.search);
+    const frenchLoc = french.pathname + french.search;
+    if (canonical.startsWith(origin) && !publicUrls.includes(frenchLoc)) publicUrls.push(frenchLoc);
   }
 }
 languageAlternates(out);

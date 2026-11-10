@@ -33,7 +33,7 @@ describe('edition-specific downloads', () => {
     const html = page('editions/forever/index.html');
     const downloads = [...html.matchAll(/href="(https:\/\/github\.com\/[^" ]+\.zip)"/g)].map(match => match[1]);
     expect(downloads).toEqual(['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-forever.zip`));
-    expect(html).toContain('href="https://guilded.kcaron.top/editions/forever/?lang=fr"');
+    expect(html).toContain('hreflang="fr" href="https://guilded.kcaron.top/fr/editions/forever/"');
     expect(html).toContain('data-fr="Installer dans le bon dossier de jeu"');
     expect(html).toContain('https://apps.microsoft.com/detail/9N680XX3QFL9');
     for (const path of ['/leaderboards/', '/recruitment/', '/players/']) expect(html).toContain(`href="/forever${path}"`);
@@ -41,7 +41,7 @@ describe('edition-specific downloads', () => {
     if (curseforge.version === published) for (const url of Object.values(curseforge.editions?.forever ?? {})) expect(html).toContain(`href="${url}"`);
     expect(html).not.toContain('undefined');
     const sitemap = page('sitemap.xml');
-    expect(sitemap).toContain('https://guilded.kcaron.top/editions/forever/?lang=fr');
+    expect(sitemap).toContain('https://guilded.kcaron.top/fr/editions/forever/');
     expect(sitemap).toContain('https://guilded.kcaron.top/editions/forever/</loc>');
     for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(sitemap).not.toContain(`/editions/${other}/`);
   });
@@ -75,7 +75,7 @@ describe('website refresh', () => {
     for (const path of ['officers']) {
       const html = page(`${path}/index.html`);
       expect(html).toContain(`<link rel="canonical" href="https://guilded.kcaron.top/${path}/">`);
-      expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/${path}/?lang=fr"`);
+      expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/fr/${path}/"`);
       expect(html).toContain('data-language-copy="fr"');
       expect(html).toContain('<nav class="footer-cols"');
       expect(html).not.toContain('<details class="nav-group has-current"');
@@ -122,7 +122,7 @@ describe('edition hubs', () => {
     const { slug } = editionSection(edition.id);
     const html = page(`${slug}/index.html`);
     expect(html).toContain(`<link rel="canonical" href="https://guilded.kcaron.top/${slug}/">`);
-    expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/${slug}/?lang=fr"`);
+    expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/fr/${slug}/"`);
     expect(html).toContain(`data-live-summary="/${slug}/leaderboards/summary.json"`);
     const board = html.indexOf('class="live-strip hub-board"');
     expect(board).toBeGreaterThan(0);

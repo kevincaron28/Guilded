@@ -10,6 +10,9 @@ import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
 const origin = "https://guilded.kcaron.top";
+if (POE_ENABLED) {
+  // Held games are not linked from the community pages.
+}
 const guideDescriptions = {
   AUTOMATION_QUICK_START: "Optional member and officer automation: setup, status and stopping delivery. English and French.",
   PRIVACY: "Guilded privacy: data, permissions, retention and private support requests. English and French.",
@@ -156,7 +159,7 @@ for (const page of pages) {
   const enBody = page.body ?? marked.parse(fill(readFileSync(`site/pages/${page.source}`, "utf8"), french));
   const body = page.sourceFr ? `<div data-language-copy="en" lang="en">${enBody}</div><div data-language-copy="fr" lang="fr" hidden>${marked.parse(fill(readFileSync(`site/pages/${page.sourceFr}`, "utf8"), true))}</div>` : enBody;
   const communityLabel = (en, fr) => page.community ? `<span data-en="${en}" data-fr="${fr}">${en}</span>` : fr;
-  const communityNav = french || page.community ? `<nav class="community-subnav" aria-label="${page.community ? 'Quebec Gold' : 'Dans Quebec Gold'}">${[['quebec-gold/', communityLabel('The community', 'La communauté')], ['g/quebec-gold/', 'World of Warcraft'], ...(POE_ENABLED ? [['quebec-gold/poe2/', 'Path of Exile 2']] : [])].map(([path, label]) => `<a href="${prefix}${path}"${page.path === path ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>` : '';
+  const communityNav = french || page.community ? `<nav class="community-subnav" aria-label="${page.community ? 'Quebec Gold' : 'Dans Quebec Gold'}">${[['quebec-gold/', communityLabel('The community', 'La communauté')], ['g/quebec-gold/', 'World of Warcraft']].map(([path, label]) => `<a href="${prefix}${path}"${page.path === path ? ' aria-current="page"' : ''}>${label}</a>`).join('')}</nav>` : '';
   mkdirSync(`${out}/${page.path}`, { recursive: true });
   writeFileSync(`${out}/${page.path}index.html`, `<!doctype html>
 <html lang="${page.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title${bilingual ? ` data-en="${escape(page.title)}" data-fr="${escape(page.titleFr)}"` : ""}>${escape(page.title)}</title><meta name="description" content="${escape(page.description)}"${descriptionAttributes}><link rel="canonical" href="${origin}/${page.path}">${page.draft ? '<meta name="robots" content="noindex,follow">' : ''}<meta property="og:title" content="${escape(page.title)}"${titleAttributes}><meta property="og:description" content="${escape(page.description)}"${descriptionAttributes}><meta property="og:type" content="website"><meta property="og:url" content="${origin}/${page.path}"><meta property="og:image" content="${origin}/images/social/guilded-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="${prefix}favicon.png" type="image/png"><link rel="apple-touch-icon" href="${prefix}apple-touch-icon.png"><link rel="stylesheet" href="${prefix}design-tokens.css"><link rel="stylesheet" href="${prefix}style.css"><link rel="stylesheet" href="${prefix}atelier.css"><script src="${prefix}site.js" defer></script>${bilingual ? `<script src="${prefix}language.js" type="module"></script>` : ""}</head>

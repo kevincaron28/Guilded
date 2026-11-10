@@ -60,6 +60,14 @@ describe("the invite queue", () => {
     expect(await pendingInvites(database as never, "other")).toEqual([]);
   });
 
+  it("keeps one row per requester: a corrected spelling or a second name replaces the earlier post", async () => {
+    const database = fakeDatabase();
+    const by = (name: string, messageId: string, user: string) =>
+      recordInviteRequest(database as never, { guildId: "g1", parsed: parseInviteName(name)!, discordUserId: user, channelId: "c1", messageId });
+    await by("Ashlash Labash", "m1", "asker"); await by("Hunty Dumbty", "m2", "other"); await by("Aslash Labash", "m3", "asker");
+    expect((await pendingInvites(database as never, "g1")).map((row) => row.displayName)).toEqual(["Hunty Dumbty", "Aslash Labash"]);
+  });
+
   it("a roster upload completes every waiting post of that name, and only that guild's", async () => {
     const database = fakeDatabase();
     await post(database, "Amy Archer", "m1"); await post(database, "Amy Archer", "m2"); await post(database, "Bob Brewer", "m3"); await post(database, "Amy Archer", "m4", "g2");

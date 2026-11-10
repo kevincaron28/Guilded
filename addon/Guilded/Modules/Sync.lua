@@ -18,6 +18,13 @@ ns = ns or {}
 
 local PREFIX = "GuildedSync"
 local CHUNK_BYTES = 220
+-- WoW refuses an addon message over 255 bytes. The STAND header ("STAND|<20-char stamp>|<baseGp>|i|n|") is
+-- up to ~40 bytes, so a full 220-byte chunk reached 259 and was dropped (owner's log, 10 November 2026).
+-- Each chunk's budget is what is left of 255 after the worst-case header.
+local MAX_MESSAGE_BYTES = 255
+local function chunkBudget(worstHeader)
+  return math.min(CHUNK_BYTES, MAX_MESSAGE_BYTES - string.len(worstHeader))
+end
 local STARTUP_DELAY_SECONDS = 20
 local SHARE_COOLDOWN_SECONDS = 60
 -- Chunks follow each other about a second apart; a sender silent this long has stopped.
@@ -114,8 +121,9 @@ local function shareStandings()
   if heardStamp and heardStamp >= s.updatedAt and time() - heardAt < SHARE_COOLDOWN_SECONDS then return end
   lastShareAt = time()
   local chunks, current = {}, ""
+  local budget = chunkBudget(string.format("STAND|%s|%d|99|99|", s.updatedAt, s.baseGp or 0))
   for _, entry in ipairs(encodePlayers(s.players)) do
-    if current ~= "" and string.len(current) + string.len(entry) + 1 > CHUNK_BYTES then
+    if current ~= "" and string.len(current) + string.len(entry) + 1 > budget then
       table.insert(chunks, current)
       current = ""
     end
@@ -132,13 +140,13 @@ end
 -- Item tooltip data (who wishlisted an item, what it usually costs) travels next to the
 -- standings: ITEM|<updatedAt>|<i>|<total>|key~gp~awards~wishTotal~Name:prio,Name:prio;...
 -- The bot keeps keys and names free of the separators.
-local function encodeItems(list)
+local function encodeItems(list, budget)
   local entries = {}
   for key, item in pairs(list or {}) do
     local wish = {}
     for _, w in ipairs(item.wish or {}) do table.insert(wish, string.format("%s:%d", w[1], w[2] or 2)) end
     local entry = string.format("%s~%s~%d~%d~%s", key, item.gp and tostring(item.gp) or "", item.n or 0, item.wn or 0, table.concat(wish, ","))
-    if string.len(entry) <= CHUNK_BYTES then table.insert(entries, entry) end
+    if string.len(entry) <= budget then table.insert(entries, entry) end
   end
   table.sort(entries)
   return entries
@@ -151,8 +159,9 @@ function shareItems()
   if d.items.updatedAt ~= s.updatedAt then return end
   lastItemShare = time()
   local chunks, current = {}, ""
-  for _, entry in ipairs(encodeItems(d.items.list)) do
-    if current ~= "" and string.len(current) + string.len(entry) + 1 > CHUNK_BYTES then
+  local budget = chunkBudget(string.format("ITEM|%s|99|99|", s.updatedAt))
+  for _, entry in ipairs(encodeItems(d.items.list, budget)) do
+    if current ~= "" and string.len(current) + string.len(entry) + 1 > budget then
       table.insert(chunks, current)
       current = ""
     end

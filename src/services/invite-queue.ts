@@ -45,7 +45,12 @@ export async function recordInviteRequest(database: Database, input: NewInvite) 
 export async function pendingInvites(database: Database, guildId: string, limit = 50) {
   const rows = await database.inviteRequest.findMany({ where: { guildId, status: "PENDING" }, orderBy: { createdAt: "asc" }, take: 500 });
   const seen = new Set<string>();
-  return rows.filter((row) => !seen.has(row.nameKey) && seen.add(row.nameKey)).slice(0, limit);
+  const byName = rows.filter((row) => !seen.has(row.nameKey) && seen.add(row.nameKey));
+  // One row per requester: a second post (a corrected spelling or another name) replaces their earlier one, so a
+  // typo ("Aslash Labash" after "Ashlash Labash") never stays beside the fix. Owner report 10 Nov 2026.
+  const latest = new Map<string, string>();
+  for (const row of byName) latest.set(row.discordUserId, row.id);
+  return byName.filter((row) => latest.get(row.discordUserId) === row.id).slice(0, limit);
 }
 
 export interface InvitedRow { id: string; channelId: string; messageId: string; displayName: string; notifyMessageId?: string | null }

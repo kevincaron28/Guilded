@@ -125,14 +125,15 @@ describe("AutoInvite.lua: invite the raid from Discord signups", () => {
     expect(s.chat().join("\n")).toContain("2 signed up for Molten Core but not in your group: Bob, Cy");
   });
 
-  it("invites only the missing players, spaced out, and says so", () => {
+  it("lists /invite lines for only the missing players and never calls the invite API", () => {
     const s = withRaid();
-    s.run(`TIMERS = {}; C_Timer = { After = function(_, fn) TIMERS[#TIMERS + 1] = fn end }`);
     invite(s, "raid");
-    expect(s.run(`return table.concat(PARTY_INVITED, ",")`)).toBe("Bob");       // the first goes at once
-    s.run(`for _, fn in ipairs(TIMERS) do fn() end`);
-    expect(s.run(`return table.concat(PARTY_INVITED, ",")`)).toBe("Bob,Cy");
-    expect(s.chat().join("\n")).toContain("Inviting 2 of 3 signed up for Molten Core");
+    expect(s.run(`return #PARTY_INVITED`)).toBe("0");
+    const text = s.chat().join(" ");
+    expect(text).toContain("2 of 3 signed up for Molten Core are not in your group");
+    expect(text).toContain("/invite Bob");
+    expect(text).toContain("/invite Cy");
+    expect(text).not.toContain("/invite Amy");
   });
 
   it("explains when there is no roster, when everyone is here, and to non-officers", () => {
@@ -146,5 +147,24 @@ describe("AutoInvite.lua: invite the raid from Discord signups", () => {
     s.run(`NS.isOfficer = function() return false end`);
     invite(s, "raid");
     expect(s.chat().join("\n")).toContain("Only officers can invite the raid");
+  });
+});
+
+describe("AutoInvite.lua never calls the invite API (WoW Forever: \"Guilded tried to call Invite()\")", () => {
+  it("/guilded invite raid lists /invite lines instead of calling InviteUnit", () => {
+    const s = withAutoInvite();
+    s.run(`
+      CALLED = 0
+      C_PartyInfo = { InviteUnit = function() CALLED = CALLED + 1 end }
+      InviteUnit = function() CALLED = CALLED + 1 end
+      NS.groupMembers = function() return { "Kev" } end
+      GuildedNextRaid = { title = "MC", players = { { name = "Amy Smith" }, { name = "Bob Jones" } } }
+      NS.commandHandlers["invite"]({ "raid" })
+    `);
+    expect(s.run(`return CALLED`)).toBe("0");
+    const text = s.chat().join("\n");
+    expect(text).toContain("/invite Amy Smith");
+    expect(text).toContain("/invite Bob Jones");
+    s.close();
   });
 });

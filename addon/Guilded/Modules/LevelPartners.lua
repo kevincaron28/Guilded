@@ -71,7 +71,7 @@ function module.partners()
   return list
 end
 
--- The Invite button puts "/invite First Last" in the chat box (util.inviteButton, which also says to press Enter):
+-- The Invite button shows "/invite First Last" in the copy box (util.inviteButton, which also says to copy and paste it):
 -- the party invite API is refused to addon code on WoW Forever. This runs after its click.
 function module.invited(name)
   if not name or name == "" then return false end

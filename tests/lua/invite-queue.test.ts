@@ -19,13 +19,14 @@ function withQueue(officer = true): LuaSession {
     CLOCK = 0
     function InCombatLockdown() return IN_COMBAT end
     function GetTime() CLOCK = CLOCK + 1; return CLOCK end
-    OPENED = {}
+    COPIED = {}; TITLES = {}; OPENED = {}
     -- The Invite buttons (frames inviteButton gave setInvite/inviteLine to), in row order.
     function INVITES()
       local t = {}
       for _, f in ipairs(FRAMES) do if rawget(f, "inviteLine") then t[#t + 1] = f end end
       return t
     end
+    -- Spy: an Invite click must never touch the game chat box.
     function ChatFrame_OpenChat(line) OPENED[#OPENED + 1] = line end
     local make = CreateFrame
     CreateFrame = function(kind, name, parent, template)
@@ -42,6 +43,7 @@ function withQueue(officer = true): LuaSession {
     NS = {
       isOfficer = function() return ${officer} end,
       getDb = function() return DB end,
+      showCopyText = function(text, title) COPIED[#COPIED + 1] = text; TITLES[#TITLES + 1] = title end,
       message = function(text) CHAT = CHAT or {}; CHAT[#CHAT + 1] = text end,
       commandHandlers = {}, commandHelp = {}
     }
@@ -69,25 +71,28 @@ describe("InviteQueue.lua", () => {
     expect(lines(s)).toBe("/ginvite Amy Archer|/ginvite Bob Brewer");
     expect(s.run(String.raw`local n, bad = 0, 0 for _, f in ipairs(INVITES()) do n = n + 1 if f.template ~= "UIPanelButtonTemplate" or rawget(f, "attrs") then bad = bad + 1 end end return n .. ":" .. bad`)).toBe("12:0");
     expect(s.run(String.raw`local t = {} for _, f in ipairs(INVITES()) do t[#t + 1] = tostring(f.inviteName()) end return table.concat(t, "|", 1, 2)`)).toBe("Amy Archer|Bob Brewer");
-    // Nothing is put in the chat box and nothing sent until the officer clicks.
-    expect(s.run("return #OPENED")).toBe("0");
+    // Nothing is shown or sent until the officer clicks.
+    expect(s.run("return #COPIED .. #OPENED")).toBe("00");
     expect(s.run("return #SENT")).toBe("0");
   });
-  it("puts the line in the chat box on a click, marks the row invited and says to press Enter", () => {
+  it("shows the line in the copy box on a click, marks the row invited and says to paste it and press Enter", () => {
     const s = withQueue();
     s.run("NS.inviteQueue.open()");
     click(s, 1);
-    expect(s.run("return #OPENED .. OPENED[1]")).toBe("1/ginvite Amy Archer");
-    expect(s.run("return CHAT[#CHAT]")).toBe("/ginvite Amy Archer is in your chat box: press Enter to send it.");
+    expect(s.run("return #COPIED .. COPIED[1]")).toBe("1/ginvite Amy Archer");
+    expect(s.run("return TITLES[1]")).toBe("Copy with Ctrl+C, then paste in chat");
+    expect(s.run("return #OPENED")).toBe("0");
+    expect(s.run("return CHAT[#CHAT]")).toBe("Copy /ginvite Amy Archer (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.");
     expect(s.run("return #CHAT")).toBe("1");
     expect(s.run(String.raw`return tostring(NS.inviteQueue.list()[1].sent ~= nil)`)).toBe("true");
     expect(s.run("return #SENT")).toBe("0");
   });
-  it("says which line to type when the chat box cannot be opened", () => {
+  it("says which line to type when there is no copy box", () => {
     const s = withQueue();
-    s.run("ChatFrame_OpenChat = nil; NS.inviteQueue.open()");
+    s.run("NS.showCopyText = nil; NS.inviteQueue.open()");
     click(s, 2);
     expect(s.run("return CHAT[#CHAT]")).toBe("Type /ginvite Bob Brewer to invite them.");
+    expect(s.run("return #OPENED")).toBe("0");
     expect(s.run("return #CHAT")).toBe("1");
     // The click is still remembered, and the invite API is still never called.
     expect(s.run(String.raw`return tostring(NS.inviteQueue.list()[2].sent ~= nil)`)).toBe("true");
@@ -97,16 +102,17 @@ describe("InviteQueue.lua", () => {
     const s = withQueue();
     s.run("NS.inviteQueue.open()");
     s.run("IN_COMBAT = true");
-    // The button is plain (no secure frame): a click in combat still fills the chat box.
+    // The button is plain (no secure frame): a click in combat still shows the copy box.
     click(s, 1);
-    expect(s.run("return OPENED[1]")).toBe("/ginvite Amy Archer");
+    expect(s.run("return COPIED[1]")).toBe("/ginvite Amy Archer");
     s.run(String.raw`GuildedInvites.names[1].name = "Cat Carter"`);
     s.run("NS.inviteQueue.refresh()");
     expect(lines(s)).toBe("/ginvite Amy Archer|/ginvite Bob Brewer");
     s.run(String.raw`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
     expect(lines(s)).toBe("/ginvite Cat Carter|/ginvite Bob Brewer");
     click(s, 1);
-    expect(s.run("return OPENED[#OPENED]")).toBe("/ginvite Cat Carter");
+    expect(s.run("return COPIED[#COPIED]")).toBe("/ginvite Cat Carter");
+    expect(s.run("return #OPENED")).toBe("0");
   });
   it("builds the window after combat when opened in combat", () => {
     const s = withQueue();

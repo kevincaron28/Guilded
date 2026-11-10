@@ -16,8 +16,9 @@ function setup(level = 30) {
     function InviteUnit(name) INVITES[#INVITES + 1] = name end
     IN_COMBAT = false
     function InCombatLockdown() return IN_COMBAT end
-    CHATBOX = {}
-    function ChatFrame_OpenChat(line) CHATBOX[#CHATBOX + 1] = line end
+    COPIED = {}; TITLES = {}; OPENED = {}
+    -- Spy: an Invite click must never open the game chat box (the Whisper button uses ChatFrame_SendTell).
+    function ChatFrame_OpenChat(line) OPENED[#OPENED + 1] = line end
     local make = CreateFrame
     CreateFrame = function(kind, name, parent, template)
       local f = make(kind, name, parent, template)
@@ -35,6 +36,7 @@ function setup(level = 30) {
     function GetGuildRosterInfo(i) local r = ROSTER[i]; return r[1], "Member", 3, r[2], r[3], r[4], "", "", r[5], 0, r[3] end
     NS = { util = {}, commandHandlers = {}, commandHelp = {},
       message = function(text) MSGS[#MSGS + 1] = text end,
+      showCopyText = function(text, title) COPIED[#COPIED + 1] = text; TITLES[#TITLES + 1] = title end,
       isSecret = function() return false end,
       playerName = function() return "Kev" end,
       normalizeName = function(n) return n and (n:match("^[^-]+")) end }`);
@@ -90,26 +92,29 @@ describe("levelling partners", () => {
     expect(s!.run(`return tostring(NS.levelPartners.whisper("Bo-Realm"))`)).toBe("true");
     expect(s!.run(`return table.concat(TELLS, ",")`)).toBe("Bo-Realm");
     expect(msgs()).toBe("");
-    // invited() only runs after the button's click: it prints and opens nothing by itself.
+    // invited() only runs after the button's click: it prints and shows nothing by itself.
     expect(s!.run(`return tostring(NS.levelPartners.invited("Bo"))`)).toBe("true");
     expect(msgs()).toBe("");
-    expect(s!.run(`return #CHATBOX`)).toBe("0");
+    expect(s!.run(`return #COPIED`)).toBe("0");
     s!.run(`NS.levelPartners.open()`);
     click("/invite Bo");
-    expect(s!.run(`return #CHATBOX .. CHATBOX[1]`)).toBe("1/invite Bo");
-    expect(msgs()).toBe("/invite Bo is in your chat box: press Enter to send it.");
+    expect(s!.run(`return #COPIED .. COPIED[1]`)).toBe("1/invite Bo");
+    expect(s!.run(`return TITLES[1]`)).toBe("Copy with Ctrl+C, then paste in chat");
+    expect(s!.run(`return #OPENED`)).toBe("0");
+    expect(msgs()).toBe("Copy /invite Bo (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.");
     expect(s!.run(`return table.concat(INVITES, ",")`)).toBe("");   // the invite API is never called from addon code
   });
 
-  it("tells the player which line to type when the chat box cannot be opened", () => {
+  it("tells the player which line to type when there is no copy box", () => {
     setup();
-    s!.run(`ChatFrame_OpenChat = nil; NS.levelPartners.open()`);
+    s!.run(`NS.showCopyText = nil; NS.levelPartners.open()`);
     click("/invite Cy");
     expect(msgs()).toBe("Type /invite Cy to invite them.");
+    expect(s!.run(`return #OPENED`)).toBe("0");
     expect(s!.run(`return table.concat(INVITES, ",")`)).toBe("");
   });
 
-  it("makes every Invite button a plain /invite button that fills the chat box, rows refreshed after combat", () => {
+  it("makes every Invite button a plain /invite button that shows the copy box, rows refreshed after combat", () => {
     setup();
     s!.run(`NS.levelPartners.open()`);
     expect(lines()).toBe("/invite Ann|/invite Bo|/invite Cy|/invite Eve|/invite Gus|/invite Hal");
@@ -117,8 +122,9 @@ describe("levelling partners", () => {
     s!.run(`IN_COMBAT = true; ROSTER[3][1] = "Zed-Realm"`);
     s!.run(`NS.levelPartners.refresh()`);
     expect(lines()).toContain("/invite Bo");
-    click("/invite Bo");   // plain buttons: a click in combat still fills the chat box
-    expect(s!.run(`return CHATBOX[#CHATBOX]`)).toBe("/invite Bo");
+    click("/invite Bo");   // plain buttons: a click in combat still shows the copy box
+    expect(s!.run(`return COPIED[#COPIED]`)).toBe("/invite Bo");
+    expect(s!.run(`return #OPENED`)).toBe("0");
     s!.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
     expect(lines()).toContain("/invite Zed");
     expect(lines()).not.toContain("/invite Bo");

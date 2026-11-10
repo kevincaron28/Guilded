@@ -486,15 +486,12 @@ function util.pendingAfterCombat(key) return pendingAfterCombat[key] ~= nil end
 -- even from a click ("Guilded has been blocked from an action only available to the Blizzard UI"). A secure
 -- button running the macro "/ginvite First Last" is refused as well: the owner's taint log of 10 November 2026
 -- shows "An action was blocked because of taint from (null) - Invite()" through RunMacroText, with no addon
--- taint at all. What the game accepts is the line sent from the player's own chat box, also when something
--- else put it there (owner test, same day). So the Invite button puts "/ginvite First Last" (guild) or
--- "/invite First Last" (party) in the chat box and the player presses Enter. util.inviteMacro builds that
--- line; util.inviteButton makes the button (a plain button: no secure frame, nothing deferred in combat).
-function util.openChatLine(line)
-  local open = (ChatFrameUtil and ChatFrameUtil.OpenChat) or ChatFrame_OpenChat
-  if type(line) ~= "string" or type(open) ~= "function" then return false end
-  return (pcall(open, line))
-end
+-- taint at all. A line the addon puts in the chat box is refused too, even after the player types in it ("blocked
+-- because of taint from Guilded - Invite()": the chat box's text counts as the addon's; owner tests, same day).
+-- Only a line the player typed or pasted is accepted. So the Invite button shows "/ginvite First Last" (guild)
+-- or "/invite First Last" (party) selected in Guilded's copy box: Ctrl+C, then paste it in chat and press Enter.
+-- util.inviteMacro builds that line; util.inviteButton makes the button (a plain button: no secure frame).
+-- Never write to the game's chat box here (ChatFrame_OpenChat, SetText, Insert).
 
 function util.inviteMacro(kind, name)
   if type(name) ~= "string" or isSecret(name) then return nil end
@@ -504,8 +501,8 @@ function util.inviteMacro(kind, name)
 end
 
 -- kind: "guild" or "party". The returned button has button.setInvite(name), button.inviteName() (the name it
--- invites right now) and button.inviteLine() (the chat line). A click puts the line in the chat box, says to press
--- Enter (or, when the chat box cannot be opened, which line to type), then runs onClick(name, opened).
+-- invites right now) and button.inviteLine() (the chat line). A click shows the line in the copy box and says to
+-- copy and paste it (or, without a copy box, which line to type), then runs onClick(name, shown).
 function util.inviteButton(parent, kind, text, width, height, onClick)
   local button = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   if width and button.SetWidth then button:SetWidth(width) end
@@ -523,11 +520,11 @@ function util.inviteButton(parent, kind, text, width, height, onClick)
   local function tr(textKey) return ns.L and ns.L(textKey) or textKey end
   button:SetScript("OnClick", function()
     if not line then return end
-    local opened = util.openChatLine(line)
+    local shown = type(ns.showCopyText) == "function" and (pcall(ns.showCopyText, line, tr("Copy with Ctrl+C, then paste in chat"))) or false
     if ns.message then
-      ns.message(string.format(opened and tr("%s is in your chat box: press Enter to send it.") or tr("Type %s to invite them."), line))
+      ns.message(string.format(shown and tr("Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.") or tr("Type %s to invite them."), line))
     end
-    if onClick then onClick(target, opened) end
+    if onClick then onClick(target, shown) end
   end)
   return button
 end

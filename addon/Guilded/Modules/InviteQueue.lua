@@ -46,7 +46,7 @@ function module.list()
   return out
 end
 
--- The Invite button puts "/ginvite First Last" in the chat box (util.inviteButton) and the officer presses Enter: the
+-- The Invite button shows "/ginvite First Last" in the copy box (util.inviteButton) for the officer to paste in chat: the
 -- guild invite API and macro buttons are both refused on WoW Forever. This only checks the officer's rank.
 function module.canInvite()
   if not officer() then return false, L("Current officer access is required.") end
@@ -54,13 +54,13 @@ function module.canInvite()
   return true
 end
 
--- Called after the Invite button's click (the line is in the chat box, not sent yet). Remembers the click so the row
+-- Called after the Invite button's click (the line is in the copy box, not sent yet). Remembers the click so the row
 -- shows "(invited)"; the game prints its own error when the name is wrong. util.inviteButton says what to do in chat.
 function module.markInvited(name)
   if type(name) ~= "string" or name == "" or name:find("%c") then return false, L("Unknown or ambiguous character.") end
   local d = db()
   if d then d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}; d.inviteSent[key(name)] = nowSeconds() end
-  return true, string.format(L("%s is in your chat box: press Enter to send it."), "/ginvite " .. name)
+  return true, string.format(L("Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."), "/ginvite " .. name)
 end
 
 function module.text()

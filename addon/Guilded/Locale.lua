@@ -2453,9 +2453,7 @@ local DE = {
   ["Nobody is waiting for a guild invite."] = "Niemand wartet auf eine Gildeneinladung.",
   ["%d waiting for a guild invite. Open them with /guilded invites."] = "%d warten auf eine Gildeneinladung. \195\150ffne die Liste mit /guilded invites.",
   ["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Kopiere %s (Strg+C), f\195\188ge es im Chatfeld ein (Strg+V) und dr\195\188cke Enter.",
-  ["Copy with Ctrl+C, then paste in chat"] = "Mit Strg+C kopieren, dann im Chat einf\195\188gen",
-  ["WoW does not let addons post in guild chat on this client: Guilded will not greet new members for you."] = "WoW l\195\164sst Addons auf diesem Client nicht im Gildenchat schreiben: Guilded begr\195\188\195\159t neue Mitglieder nicht f\195\188r dich.",
-  ["Type %s to invite them."] = "Tippe %s, um den Spieler einzuladen.",
+  ["Copy with Ctrl+C, then paste in chat"] = "Mit Strg+C kopieren, dann im Chat einf\195\188gen",  ["Type %s to invite them."] = "Tippe %s, um den Spieler einzuladen.",
   ["The game would not send the invite. Invite them by hand."] = "Das Spiel hat die Einladung nicht gesendet. Lade den Spieler von Hand ein.",
   ["Your rank cannot invite to the guild."] = "Dein Rang kann nicht in die Gilde einladen.",
   ["Rule: rank %s for %d+ days."] = "Regel: Rang %s seit %d+ Tagen.",
@@ -4174,9 +4172,7 @@ local ES = {
   ["Nobody is waiting for a guild invite."] = "Nadie espera una invitaci\195\179n a la hermandad.",
   ["%d waiting for a guild invite. Open them with /guilded invites."] = "%d esperan una invitaci\195\179n a la hermandad. Abre la lista con /guilded invites.",
   ["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Copia %s (Ctrl+C), p\195\169galo en tu cuadro de chat (Ctrl+V) y pulsa Intro.",
-  ["Copy with Ctrl+C, then paste in chat"] = "Copia con Ctrl+C y pega en el chat",
-  ["WoW does not let addons post in guild chat on this client: Guilded will not greet new members for you."] = "WoW no permite a los addons escribir en el chat de hermandad en este cliente: Guilded no saludar\195\161 a los nuevos miembros por ti.",
-  ["Type %s to invite them."] = "Escribe %s para invitarlo.",
+  ["Copy with Ctrl+C, then paste in chat"] = "Copia con Ctrl+C y pega en el chat",  ["Type %s to invite them."] = "Escribe %s para invitarlo.",
   ["The game would not send the invite. Invite them by hand."] = "El juego no envi\195\179 la invitaci\195\179n. Invita al jugador a mano.",
   ["Your rank cannot invite to the guild."] = "Tu rango no puede invitar a la hermandad.",
   ["Rule: rank %s for %d+ days."] = "Regla: rango %s durante %d+ d\195\173as.",
@@ -5124,9 +5120,7 @@ FR["%d waiting for a guild invite."] = "%d en attente d'une invitation de guilde
 FR["Nobody is waiting for a guild invite."] = "Personne n'attend d'invitation de guilde."
 FR["%d waiting for a guild invite. Open them with /guilded invites."] = "%d en attente d'une invitation de guilde. Ouvre la liste avec /guilded invites."
 FR["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Copie %s (Ctrl+C), colle-le dans ta zone de discussion (Ctrl+V) et appuie sur Entr\195\169e."
-FR["Copy with Ctrl+C, then paste in chat"] = "Copie avec Ctrl+C, puis colle dans le chat"
-FR["WoW does not let addons post in guild chat on this client: Guilded will not greet new members for you."] = "WoW ne laisse pas les addons \195\169crire dans le chat de guilde sur ce client : Guilded n'accueillera pas les nouveaux membres \195\160 ta place."
-FR["Type %s to invite them."] = "Tape %s pour l'inviter."
+FR["Copy with Ctrl+C, then paste in chat"] = "Copie avec Ctrl+C, puis colle dans le chat"FR["Type %s to invite them."] = "Tape %s pour l'inviter."
 FR["The game would not send the invite. Invite them by hand."] = "Le jeu n'a pas envoy\195\169 l'invitation. Invite le joueur \195\160 la main."
 FR["Your rank cannot invite to the guild."] = "Ton rang ne peut pas inviter dans la guilde."
 FR["Promotion requested. Wait for the roster to confirm it before the next one."] = "Promotion demand\195\169e. Attendez que la liste la confirme avant la suivante."

@@ -46,7 +46,6 @@ end
 function module.set(key, on)
   local s = state(); if not s or not KEY_SET[key] then return false end
   s.off[key] = (not on) and true or nil
-  if key == "greet" and on then s.greetBlocked = nil end -- a remembered refusal (see sendGuild) gets a new try
   return true
 end
 local function record(kind, name, detail)
@@ -246,46 +245,62 @@ local function markGreeted(name)
   end
 end
 
--- WoW Forever refuses a guild chat line an addon sends on its own (taint log of 10 November 2026: "An action was
--- blocked because of taint from Guilded" at this send, twice, after members joined). The first refusal is remembered
--- per client build: Guilded then stops greeting (no more blocked calls) and says so once to the officer.
--- `/guilded officer auto greet on` forgets it, for a new try.
-local function clientBuild()
-  if type(GetBuildInfo) ~= "function" then return "?" end
-  local ok, _, build = pcall(GetBuildInfo)
-  return ok and not (ns.isSecret and ns.isSecret(build)) and tostring(build or "?") or "?"
-end
-function module.greetBlocked()
-  local s = state()
-  return s ~= nil and s.greetBlocked ~= nil and s.greetBlocked == clientBuild()
+-- The game sometimes refuses the welcome line (taint log of 10 November 2026: "An action was blocked because of
+-- taint from Guilded" at this send, twice, after members joined), while the milestone lines, sent the same way but
+-- only out of combat, do go out. So the welcome waits while chat is locked (combat, or the game's chat lockdown),
+-- and a refused line is tried again a few times instead of being lost. Nothing is remembered between sessions.
+module.GREET_RETRY_SECONDS = 20
+module.GREET_MAX_TRIES = 6
+local function chatLocked()
+  if ns.compat and ns.compat.inCombat and ns.compat.inCombat() then return true end
+  if type(InCombatLockdown) == "function" then
+    local ok, value = pcall(InCombatLockdown)
+    if ok and value == true then return true end
+  end
+  local lockdown = C_ChatInfo and C_ChatInfo.InChatMessagingLockdown
+  if type(lockdown) == "function" then
+    local ok, value = pcall(lockdown)
+    if ok and value == true then return true end
+  end
+  return false
 end
 local lastGuildSend
-local function sendGuild(text)
+-- True when the line was handed to the game (which may still refuse it: see onBlocked).
+local function sendGuild(item)
   local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
-  if type(send) ~= "function" or module.greetBlocked() then return false end
-  lastGuildSend = clock()
-  return pcall(send, text, "GUILD")
+  if type(send) ~= "function" or chatLocked() then return false end
+  lastGuildSend = { at = clock(), item = item }
+  local ok, err = pcall(send, item.text, "GUILD")
+  return ok and err ~= false
 end
--- Core calls this on ADDON_ACTION_BLOCKED/FORBIDDEN naming Guilded. Returns true when it was the greeting.
+local function greetLater(item)
+  item.tries = (item.tries or 0) + 1
+  if item.tries > module.GREET_MAX_TRIES or not (C_Timer and C_Timer.After) then return false end
+  C_Timer.After(module.GREET_RETRY_SECONDS, function()
+    if module.enabled("greet") and not sendGuild(item) then greetLater(item) end
+  end)
+  return true
+end
+-- Core calls this on ADDON_ACTION_BLOCKED/FORBIDDEN naming Guilded. Returns true when it was the welcome line.
 function module.onBlocked()
-  local at = clock()
-  if not lastGuildSend or at - lastGuildSend > 2 or at < lastGuildSend then return false end
+  local last, at = lastGuildSend, clock()
+  if not last or at - last.at > 2 or at < last.at then return false end
   lastGuildSend = nil
-  local s = state(); if s then s.greetBlocked = clientBuild() end
-  if ns.message then ns.message(L("WoW does not let addons post in guild chat on this client: Guilded will not greet new members for you.")) end
+  greetLater(last.item)
   return true
 end
 
 -- One officer welcomes: each waits a few seconds, and whoever goes first tells the others.
 function module.onJoined(name)
-  if not module.enabled("greet") or module.greetBlocked() or not (ns.isOfficer and ns.isOfficer()) then return false end
+  if not module.enabled("greet") or not (ns.isOfficer and ns.isOfficer()) then return false end
   if ns.playerName and bare(name) == ns.playerName() then return false end
   if module.greeted(name) then return false end
   local function go()
     if module.greeted(name) or not module.enabled("greet") then return end
     markGreeted(name)
     if ns.comm and IsInGuild and IsInGuild() then ns.comm.send(PREFIX, "GREETED|1|" .. name, "GUILD") end
-    sendGuild(module.greetingText(name))
+    local item = { text = module.greetingText(name) }
+    if not sendGuild(item) then greetLater(item) end
   end
   local wait = 3 + (math.random and math.random() * 5 or 0)
   if C_Timer and C_Timer.After then C_Timer.After(wait, go) else go() end

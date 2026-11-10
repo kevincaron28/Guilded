@@ -2319,7 +2319,7 @@ local function onEvent(_, event, ...)
       blockedAddon ~= addonName)
     -- A refused guild action is never retried on this client build (see RosterTools).
     if blockedAddon == addonName and ns.rosterTools and ns.rosterTools.onBlocked then pcall(ns.rosterTools.onBlocked) end
-    -- A refused guild welcome is never retried on this client build either (see OfficerNotes).
+    -- A refused guild welcome is tried again a little later (see OfficerNotes).
     if blockedAddon == addonName and ns.officerNotes and ns.officerNotes.onBlocked then pcall(ns.officerNotes.onBlocked) end
   elseif event == "UI_ERROR_MESSAGE" then
     -- Fallback net in case the blocked-action popup surfaces as a generic UI

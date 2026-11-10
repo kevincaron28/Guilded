@@ -33,6 +33,9 @@ local ATTACK_CONFIRM_SECONDS = 10
 local ATTACK_QUIET_SECONDS = 30     -- hits closer than this belong to the same attack: no second offer
 local ATTACK_WINDOW_SECONDS = 60    -- a guild chat line may follow an attack seen this recently
 local ZONE_LINE_COOLDOWN = 300      -- at most one guild chat line per zone in this time
+-- A duel request nobody accepts (declined, out of range, timed out) may never fire DUEL_FINISHED: it stops
+-- counting as a duel after this long, so a real attack right after it still offers the button.
+local DUEL_REQUEST_SECONDS = 60
 local MAX_MATES = 5
 local MATE_REFRESH_SECONDS = 5
 -- Phone map (Track M): the member's own calls, saved for their companion to upload as map pins.
@@ -52,7 +55,8 @@ local lastPosition       -- { mapId, x, y, at }: the last position known before 
 local hits = {}          -- recent hits on me from an enemy player (times)
 local lastHitAt          -- the last confirmed hit
 local attackedAt         -- the last time an attack by an enemy player was confirmed
-local dueling = false    -- a duel is in progress: those hits are friendly
+local duelAskedAt        -- a duel was asked for (by me or of me) at this time; counts for DUEL_REQUEST_SECONDS unless it starts
+local duelStarted = false -- the countdown ran or I walked back in: a duel is in progress until DUEL_FINISHED
 local lineAt             -- when the last guild chat line was posted
 local zoneLineAt = {}    -- zone -> when a guild chat line about it was last posted
 
@@ -150,6 +154,15 @@ local function inInstance()
   local ok, inside = pcall(IsInInstance)
   return ok and inside == true
 end
+
+-- A duel: started (countdown) until it finishes, or just asked for and not yet older than DUEL_REQUEST_SECONDS.
+local function isDueling()
+  if duelStarted then return true end
+  return duelAskedAt ~= nil and now() - duelAskedAt <= DUEL_REQUEST_SECONDS
+end
+local function duelAsked() duelAskedAt, hits = now(), {} end
+local function duelBegan() duelStarted, duelAskedAt, hits = true, nil, {} end
+local function duelEnded() duelStarted, duelAskedAt, hits = false, nil, {} end
 
 -- My position now, or the last one known before combat.
 local function position()
@@ -563,7 +576,7 @@ end
 -- within 10 s (not a duel, not in an instance); then the button shows for 20 s, once per attack
 -- (hits less than 30 s apart are the same attack). Never sends.
 function module.noteDamage(amount)
-  if inInstance() or dueling then return false end
+  if inInstance() or isDueling() then return false end
   if type(amount) == "number" and not secret(amount) and amount <= 0 then return false end
   if not module.scan() then return false end
   local t = now()
@@ -763,7 +776,7 @@ register("DUEL_OUTOFBOUNDS")
 register("DUEL_FINISHED")
 register("PLAYER_ENTERING_WORLD")
 -- I asked for the duel: hooksecurefunc only watches StartDuel and taints nothing.
-if hooksecurefunc and StartDuel then pcall(hooksecurefunc, "StartDuel", function() dueling, hits = true, {} end) end
+if hooksecurefunc and StartDuel then pcall(hooksecurefunc, "StartDuel", duelAsked) end
 
 local sinceTick = 0
 local matesAt = 0
@@ -793,10 +806,12 @@ frame:SetScript("OnEvent", function(_, event, ...)
       frame:SetScript("OnUpdate", onUpdate)
     elseif event == "UNIT_COMBAT" then
       if args[1] == "player" and args[2] == "WOUND" then module.noteDamage(args[4]) end
-    elseif event == "DUEL_REQUESTED" or event == "DUEL_COUNTDOWN" or event == "DUEL_INBOUNDS" or event == "DUEL_OUTOFBOUNDS" then
-      dueling, hits = true, {}
+    elseif event == "DUEL_REQUESTED" then
+      if not duelStarted then duelAsked() end
+    elseif event == "DUEL_COUNTDOWN" or event == "DUEL_INBOUNDS" or event == "DUEL_OUTOFBOUNDS" then
+      duelBegan()
     elseif event == "DUEL_FINISHED" or event == "PLAYER_ENTERING_WORLD" then
-      dueling, hits = false, {}
+      duelEnded()
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]
       if secret(prefix) or prefix ~= PREFIX then return end

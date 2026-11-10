@@ -23,7 +23,17 @@ _Empty. Add one line per idea: date, idea._
 
 ## Researched (waiting for Kevin's decision)
 
-_Empty._
+Summary only. Specs stay in the plan. Awaiting Kevin's go-ahead before either phase moves to Ready for Claude. Decisions (b), (c) and (f) in `docs/redesign/REDESIGN_PLAN_2026-11-10.md` already apply: drop `/forever/` from leaderboard and community URLs with 301s from the old URLs; French pages move to a `/fr/` folder (replacing `?lang=fr` long term, with 301s); PoE2 and Diablo leave the website and the companion (Ready item P1) and are not part of the new IA.
+
+### Phase 1 — new structure (R1.1–R1.7)
+- Source: `docs/redesign/REDESIGN_PLAN_2026-11-10.md` §10 Phase 1
+- **Summary:** R1.1 download hub at `/download/`; R1.2 header cut to six items; R1.3 guide consolidation (one fact, one page) with the §6 one-hop 301 map; R1.4 searchable quick reference; R1.5 leaderboards v2 (tabs, GET filters, mobile cards) on the URLs from decision (b), not under `/forever/`; R1.6 bilingual URLs as a `/fr/` folder per decision (c), not a leftover `?lang=fr` choice; R1.7 turn Cloudflare Web Analytics on (decision (d); token from Kevin). Do not carry `/quebec-gold/poe2/` or any Diablo page forward (decision (f)).
+- **Status:** awaiting Kevin's go-ahead.
+
+### Phase 2 — polish and growth (R2.1–R2.7)
+- Source: `docs/redesign/REDESIGN_PLAN_2026-11-10.md` §10 Phase 2
+- **Summary:** R2.1 community hub (recruitment, guilds and players moved off `/forever/`, per decision (b); Quebec Gold card only — no PoE2 or Diablo, decision (f)); R2.2 home rebuild; R2.3 one shared stylesheet for the static site and bot pages; R2.4 docs search once the Guide exists; R2.5 player and guild page polish; R2.6 mobile app page when Android leaves preview or iOS exists; R2.7 Playwright visual regression in CI. French URLs in this phase use `/fr/` (decision (c)). Each item still needs the plan's Goal / Files / Acceptance write-up when Kevin approves it.
+- **Status:** awaiting Kevin's go-ahead.
 
 ## Ready for Claude
 
@@ -71,14 +81,15 @@ H1 in `docs/seo/SEO_AUDIT_2026-11-10.md` (HTTP 500) is a false alarm, already co
 ### SEO1. Worker-localize French `?lang=fr` for /start/, /docs/*, /guides/*, /reference/, /quebec-gold/ (High, Approved by Kevin 10 Nov 2026)
 - **Owner:** Claude
 - Source: docs/seo/SEO_AUDIT_2026-11-10.md (H2)
-- **Spec:** In `wrangler.jsonc` `assets.run_worker_first`, keep the existing entries (including `/quebec-gold/cores` and `/quebec-gold/wow`) and add `/docs`, `/docs/*`, `/guides`, `/guides/*`, `/start`, `/start/`, `/reference`, `/reference/`, `/quebec-gold`, `/quebec-gold/`, `/quebec-gold/*`, `/status`, `/status/`. `worker/localized-assets.mjs` then rewrites those HTML pages for `?lang=fr` (no separate change there if every public HTML page already goes through it): `html lang`, visible copy, title, description, canonical and `og:url`. The FR URL's canonical and `og:url` are the FR URL (with `?lang=fr`). hreflang `en` / `fr` / `x-default` stay and still point at the two language URLs. Optional in the same change: also rewrite `<script type="application/ld+json">` language / `inLanguage` / description when a French block exists.
+- Interim fix; long-term French moves to /fr/ folder per redesign Phase 1 — keep changes compatible.
+- **Spec:** In `wrangler.jsonc` `assets.run_worker_first`, keep the existing entries (including `/quebec-gold/cores` and `/quebec-gold/wow`) and add `/docs`, `/docs/*`, `/guides`, `/guides/*`, `/start`, `/start/`, `/reference`, `/reference/`, `/quebec-gold`, `/quebec-gold/`, `/quebec-gold/*` except `/quebec-gold/poe2` and `/quebec-gold/poe2/`, `/status`, `/status/`. `/quebec-gold/poe2/` is out of scope (removed in P1). `worker/localized-assets.mjs` then rewrites those HTML pages for `?lang=fr` (no separate change there if every public HTML page already goes through it): `html lang`, visible copy, title, description, canonical and `og:url`. The FR URL's canonical and `og:url` are the FR URL (with `?lang=fr`). hreflang `en` / `fr` / `x-default` stay and still point at the two language URLs. Optional in the same change: also rewrite `<script type="application/ld+json">` language / `inLanguage` / description when a French block exists.
 - **Acceptance:** For each of `/start/?lang=fr`, `/docs/QUICK_START?lang=fr`, `/docs/PRIVACY?lang=fr`, `/guides/install/?lang=fr`, `/guides/link/?lang=fr`, `/quebec-gold/?lang=fr`, `/reference/?lang=fr`: HTTP 200, `Content-Language: fr`, `<html lang="fr">`; `<link rel="canonical">` and `og:url` are the FR URL (with `?lang=fr`); `<title>` and meta description are French (`data-content-fr` applied); `[data-language-copy="fr"]` is not `hidden` and `[data-language-copy="en"]` is `hidden`; hreflang en / fr / x-default still present and still pointing at the two language URLs; curl with the Googlebot UA matches the browser UA. English URLs (no `lang`, or `lang=en`) are unchanged.
 - **PR:** one PR, with a test.
 
 ### SEO2. One canonical host: 301 www.kcaron.top to apex, and canonical tags so kcaron.top and guilded.kcaron.top don't duplicate each other (High, Approved by Kevin 10 Nov 2026)
 - **Owner:** Claude
 - Source: docs/seo/SEO_AUDIT_2026-11-10.md (H3)
-- Kevin to confirm which host is primary for Guilded pages before merge; default proposal per audit.
+- Decision: kcaron.top is primary (Kevin, 10 Nov 2026).
 - **Spec:** In `worker/index.mjs` `route()`, early, before asset or bot handling. (1) `www.kcaron.top` → 301 `https://kcaron.top` plus pathname and search (`/` stays `/`). (2) On `guilded.kcaron.top`, `/creator`, `/creator/` and `/creator/index.html` → 301 `https://kcaron.top/` (keep `?lang=` if present). (3) On `kcaron.top` or `www.kcaron.top`, a Guilded product path (`/features`, `/start`, `/docs`, `/guides`, `/officers`, `/companion`, `/editions`, `/forever`, `/reference`, `/status`, `/quebec-gold`, `/g/`, and the rest of that set) → 301 the same path on `https://guilded.kcaron.top`. Keep serving `/`, `/robots.txt`, `/sitemap.xml`, `/support` and the Google verification file on kcaron.top. Canonical tags name that primary host so kcaron.top and guilded.kcaron.top do not both look indexable for the same page (apex for the creator homepage, `guilded.kcaron.top` for Guilded pages under the default proposal). (4) Rewrite `site/creator/index.html` so the creator homepage is clearly "K Caron Projects / Kevin Caron" (title, H1, description, JSON-LD `WebSite` / `Person`) and links to Guilded as a product. (5) `www.guilded.kcaron.top`: leave it unpublished, or add it in `wrangler.jsonc` and 301 it to `https://guilded.kcaron.top`. Do not leave it as a TLS error if it will be typed or linked.
 - **Acceptance:** `curl -sSI https://www.kcaron.top/` → 301 `Location: https://kcaron.top/`. `curl -sSI https://www.kcaron.top/?lang=fr` → 301 `https://kcaron.top/?lang=fr`. `curl -sSI https://guilded.kcaron.top/creator/` → 301 `https://kcaron.top/`. `curl -sSI https://kcaron.top/features/` → 301 `https://guilded.kcaron.top/features/`. `https://kcaron.top/` and `https://guilded.kcaron.top/` remain 200, with clearly different titles, H1s and descriptions. The kcaron.top sitemap still lists only `https://kcaron.top/` and `https://kcaron.top/?lang=fr`.
 - **PR:** one PR, with a test.
@@ -111,6 +122,84 @@ Sitemap: https://guilded.kcaron.top/recruitment/guilds/sitemap.xml
 
 kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
 - **Acceptance:** `curl -sSI https://guilded.kcaron.top/leaderboards/` → 301 `Location: /forever/leaderboards/` (or the absolute HTTPS equivalent), one hop. `curl -sSI https://guilded.kcaron.top/forever/leaderboards` → 301 `Location: /forever/leaderboards/`, one hop, no `?edition=`. `curl -sSI https://guilded.kcaron.top/start` → 301 (not 307) to `/start/`. `curl -sSI https://guilded.kcaron.top/docs/PRIVACY.html` → 301 to `/docs/PRIVACY`. Every `<loc>` in both sitemaps returns 200 (after one 301 at most), has a matching self-canonical, and is not `noindex`. `lastmod` is present and not in the future. `curl -s https://guilded.kcaron.top/robots.txt` contains those Disallows; `/me/` and `/health` are blocked and public pages stay allowed.
+- **PR:** one PR, with a test.
+
+### CF1: Sync site CurseForge pointer to live 9.1.5 files and keep it in sync (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- **Priority:** High
+- Source: Kevin, 10 Nov 2026. CurseForge already has public 9.1.5 Forever releases (Guilded file 9543886, Guilded Dungeons file 9543887, uploaded 10 Nov). `site/releases.json` still says `curseforge.version` 9.0.3 and links files 9496250 and 9496251, which are 9.0.2 files. That block has not been updated since PR #610. Uploads are done manually with `scripts/curseforge-upload.mjs` on Kevin's PC. There is no CI uploader.
+- **Spec:** (1) In `site/releases.json`, set `guilded.curseforge.version` to `9.1.5`, `guilded.curseforge.editions.forever.guilded` to `https://www.curseforge.com/wow/addons/guilded/files/9543886`, `guilded.curseforge.editions.forever.dungeons` to `https://www.curseforge.com/wow/addons/guilded-dungeons/files/9543887`, and top-level `verifiedAt` to `2026-11-10`. Leave the github, companion and zip fields alone (`guilded.github`, `guilded.companionDirect`, `guilded.addonZips`, `guilded.microsoftStore`, and `guilded.curseforge.url` / `stage`). The Forever edition page only prints those CurseForge links when `curseforge.version` equals the site version (`site/editions.mjs`), so the version and the two file URLs change together. (2) In `docs/RELEASE_CURSEFORGE.md`, add a required step: after every upload, update the curseforge block with the new public file IDs. Check the public file page, or `https://api.cfwidget.com/1712677` (Guilded) and `https://api.cfwidget.com/1754138` (Guilded Dungeons). (3) Optional: `scripts/curseforge-upload.mjs` may print the new file ids and a ready-to-paste `releases.json` snippet. Do not change upload behavior or game version `1.60.1`. Do not add a CI uploader. Never print the token.
+- **Acceptance:** `https://kcaron.top/creator/` shows CurseForge 9.1.5, and the Forever edition page links the 9.1.5 files (9543886 and 9543887). Tests pass.
+- **PR:** one PR, with a test.
+
+### R0.1. Remove single-edition leftovers (Quick win, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- **Priority:** Quick win
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
+- **Spec:** No "Choose your WoW" menu and no "edition/every version" wording.
+- **Files:** `site/nav.mjs` (`editionMenu`, version switcher), `scripts/build-site.mjs` (`versionMenu`), `site/index.html`, `src/services/web-layout.ts`.
+- **Acceptance:** header on static and bot pages has no edition drop-down; `grep -ri "every version\|choose your edition\|Choose your WoW"` in built `dist/site` and bot HTML returns nothing (EN and FR equivalents too); site tests pass.
+- **PR:** one PR, with a test.
+
+### R0.2. "Get the addon" goes straight to the downloads (Quick win, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- **Priority:** Quick win
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
+- **Spec:** 2 clicks max from home to CurseForge or the zip.
+- **Files:** `site/nav.mjs` (`SITE_NAV` cta href → `/editions/forever/`), `worker/index.mjs` (301 `/editions/` → `/editions/forever/`, keep `?lang`).
+- **Acceptance:** `curl -sI https://guilded.kcaron.top/editions/` → 301 to `/editions/forever/`; header button lands on a page whose first screen shows the CurseForge and zip buttons at 1280 and 390 px.
+- **PR:** one PR, with a test.
+
+### R0.3. Hide zero metrics (Quick win, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- **Priority:** Quick win
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
+- **Spec:** Never show "0 … this week" as a headline.
+- **Files:** `site/index.html` + `site/site.js` (live strip), `site/editions.mjs` (Forever hub), `src/services/public-leaderboard.ts` ("Top runs this week" block).
+- **Acceptance:** with 0 weekly runs the home strip and the weekly block are hidden or replaced by one sentence + link; with >0 they render as today.
+- **PR:** one PR, with a test.
+
+### R0.4. Leaderboard readability pass (Quick win, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- **Priority:** Quick win
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
+- **Spec:** Data first, no clipping, less noise.
+- **Files:** `src/services/public-leaderboard.ts`, `src/services/web-layout.ts` (CSS).
+- **Acceptance:** brackets shown one at a time with a 15–29 / 30–44 switch (or stacked full width); no "WoW Forever" text inside rows; class shown once (colour + text, not capitals); privacy line moved below the table; at 390 px no table needs sideways scroll and the first ranking row is within 900 px of the top; at 1280 px no column is cut off (Playwright screenshot check).
+- **PR:** one PR, with a test.
+
+### R0.5. Footer and install-link cleanup (Quick win, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- **Priority:** Quick win
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
+- **Spec:** One install path.
+- **Files:** `site/nav.mjs` (`FOOTER_NAV`).
+- **Acceptance:** footer Help column has at most 4 links (Install guide → `/guides/install/`, Quick reference, Setup help, Status); "Quick start" and "Install guide (MEMBER_INSTALL)" removed from nav (pages still reachable).
+- **PR:** one PR, with a test.
+
+### R0.6. Version line (Quick win, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- **Priority:** Quick win
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
+- **Spec:** One version users can trust. CurseForge file IDs and `curseforge.version` belong to CF1; leave that pointer sync to CF1.
+- **Files:** `site/index.html`, `site/releases.json`, `scripts/build-site.mjs`.
+- **Acceptance:** home shows one version + date; if CurseForge lags, a small note "CurseForge updates can take a day" instead of two numbers (depends on Kevin's answer). Decision (e): CurseForge is supposed to be current. CF1 records that the public files are already 9.1.5 and only the site pointer is stale, so the lag note applies only when the two versions still differ after CF1.
+- **PR:** one PR, with a test.
+
+### R0.7. Fonts (Quick win, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- **Priority:** Quick win
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md
+- **Spec:** Lighter first load.
+- **Files:** `site/fonts/`, `site/design-tokens.css`.
+- **Acceptance:** Source Serif shipped as woff2; total font bytes on cold home load at least 40% lower than today's 536 KB of font files; no visual change in screenshots.
+- **PR:** one PR, with a test.
+
+### P1: Remove PoE2 and Diablo from website and companion (Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- Source: docs/redesign/REDESIGN_PLAN_2026-11-10.md (decision (f))
+- **Spec:** Remove site pages, nav and sitemap entries, and companion UI, code paths and assets, for PoE2 and Diablo. Keep Discord bot channels and roles untouched. 301 old URLs, including `/quebec-gold/poe2/` and any Diablo or PoE2 pages, to the Quebec Gold page.
+- **Acceptance:** no PoE2 or Diablo strings in the site build or companion UI; Discord bot behaviour unchanged; tests pass.
 - **PR:** one PR, with a test.
 
 ## In progress

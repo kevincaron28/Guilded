@@ -48,6 +48,17 @@ describe('edition-specific downloads', () => {
     expect(forever.body).not.toContain('https://example.invalid/old-file');
   });
 
+  it('shows the CurseForge and zip links in the first download section', () => {
+    const html = page('editions/forever/index.html');
+    const download = html.indexOf('id="download-title"');
+    const install = html.indexOf('id="install-title"');
+    expect(download).toBeGreaterThan(0);
+    expect(download).toBeLessThan(install);
+    expect(html).toContain('https://www.curseforge.com/wow/addons/guilded');
+    expect(html).toContain('https://www.curseforge.com/wow/addons/guilded-dungeons');
+    expect(html).toMatch(/href="(?:\/downloads\/Guilded-v|https:\/\/github.com\/kevincaron28\/Guilded\/releases\/download\/)/);
+  });
+
   it('routes edition pages through the Worker for server-rendered French', () => {
     const config = JSON.parse(readFileSync('wrangler.jsonc', 'utf8'));
     expect(config.assets.run_worker_first).toEqual(expect.arrayContaining(['/editions', '/editions/*']));

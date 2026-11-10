@@ -23,6 +23,9 @@ describe('edition-specific downloads', () => {
     expect(home).not.toMatch(/Choose your WoW|Choisir votre WoW|every version|choose your edition|Choisir votre édition/i);
     expect(home).not.toContain('class="edition-menu"');
     expect(home).not.toContain('data-nav-group="edition"');
+    expect(home).toContain('href="/download/"');
+    expect(home).toContain('href="/guide/start/"');
+    expect(home).not.toMatch(/every version|choose your edition|Choisir votre édition/i);
     expect(home).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
 

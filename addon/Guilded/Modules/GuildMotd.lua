@@ -150,7 +150,12 @@ end
 -- Game API (all optional: a client without them just reports it)
 -- ---------------------------------------------------------------------
 
+-- WoW Forever refuses guild reads (MOTD, guild info, CanEditMOTD) to addons in combat: "Guilded tried to call
+-- UNKNOWN()" in the owner's log of 10 November 2026. Nothing here reads the guild in combat.
+local function inCombat() return InCombatLockdown and InCombatLockdown() and true or false end
+
 local function canEdit()
+  if inCombat() then return nil end
   local fn = CanEditMOTD or (C_GuildInfo and C_GuildInfo.CanEditMOTD)
   if type(fn) ~= "function" then return nil end
   local ok, value = pcall(fn)
@@ -159,13 +164,13 @@ local function canEdit()
 end
 
 local function current()
+  if inCombat() then return nil end
   local fn = GetGuildRosterMOTD or (C_GuildInfo and C_GuildInfo.GetMOTD)
   if type(fn) ~= "function" then return nil end
   local ok, value = pcall(fn)
   if ok and type(value) == "string" then return value end
 end
 
-local function inCombat() return InCombatLockdown and InCombatLockdown() and true or false end
 local function myName() return ns.playerName and ns.playerName() or "?" end
 
 -- ---------------------------------------------------------------------
@@ -372,6 +377,7 @@ function motd.tick()
   if not cfg or not cfg.enabled then return status("off") end
   if IsInGuild and not IsInGuild() then return status("noguild") end
   if not (ns.isOfficer and ns.isOfficer()) then return status("notofficer") end
+  if inCombat() then return motd.status or status("off") end
   local can = canEdit()
   if can == nil then return status("noapi") end
   if not can then return status("cannot") end

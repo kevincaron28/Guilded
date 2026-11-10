@@ -227,3 +227,18 @@ describe("automatic guild message of the day", () => {
     expect(s.run("return tostring(CFG.enabled)")).toBe("true");
   });
 });
+
+// Taint guard: WoW Forever refuses guild reads to addons in combat ("Guilded tried to call UNKNOWN()", 10 Nov 2026).
+describe("GuildMotd.lua reads nothing from the guild in combat", () => {
+  it("never calls GetGuildRosterMOTD or CanEditMOTD while in combat", () => {
+    const s = setup();
+    s.run(`COMBAT = true; CALLS = 0
+      GetGuildRosterMOTD = function() CALLS = CALLS + 1; return MOTD end
+      CanEditMOTD = function() CALLS = CALLS + 1; return true end
+      CFG.enabled = true; CFG.confirmed = "old message"
+      M.tick(); M.checkManualEdit(CFG); M.confirm(CFG)`);
+    expect(s.run("return CALLS")).toBe("0");
+    s.run("COMBAT = false; M.tick()");
+    expect(Number(s.run("return CALLS"))).toBeGreaterThan(0);
+  });
+});

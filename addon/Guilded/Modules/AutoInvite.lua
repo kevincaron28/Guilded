@@ -106,14 +106,6 @@ end)
 -- (the Discord signups the companion wrote into Standings.lua).
 -- ---------------------------------------------------------------------
 
-local INVITE_SPACING_SECONDS = 0.6
-
-local function partyInvite(name)
-  if C_PartyInfo and C_PartyInfo.InviteUnit then return pcall(C_PartyInfo.InviteUnit, name) end
-  if InviteUnit then return pcall(InviteUnit, name) end
-  return false, "no invite function"
-end
-
 local function nextRaid()
   local raid = GuildedNextRaid
   if type(raid) ~= "table" or type(raid.players) ~= "table" then return nil end
@@ -142,19 +134,20 @@ local function inviteRaid()
   end
   if inCombat then ns.message("Not while you are in combat.") return end
   if #missing == 0 then ns.message("Everyone signed up for " .. tostring(raid.title) .. " is already in your group.") return end
-  ns.message(string.format("Inviting %d of %d signed up for %s: %s", #missing, #raid.players, tostring(raid.title), table.concat(missing, ", ")))
-  local failed = {}
-  for index, name in ipairs(missing) do
-    local function go()
-      local ok = partyInvite(name)
-      if not ok then table.insert(failed, name) end
-      if index == #missing and #failed > 0 then
-        ns.message("The game would not invite: " .. table.concat(failed, ", ") .. ". Invite them by hand.")
-      end
-    end
-    if C_Timer and C_Timer.After and index > 1 then C_Timer.After((index - 1) * INVITE_SPACING_SECONDS, go) else go() end
+  -- The game refuses Invite()/InviteUnit to addon code on WoW Forever ("Guilded tried to call Invite()", owner's
+  -- log of 10 November 2026), so Guilded lists the /invite lines for the officer to paste, never calling it.
+  local lines = {}
+  for _, name in ipairs(missing) do
+    local bare = ns.util.isForever() and ns.util.bareName(name) or name
+    local line = ns.util.inviteMacro("party", bare)
+    if line then table.insert(lines, line) end
   end
-  ns.message("Invites sent. If the group turns into more than 5, convert it to a raid (right-click yourself in the portrait menu).")
+  ns.message(string.format("%d of %d signed up for %s are not in your group. Paste each line in chat (Ctrl+V, Enter):", #missing, #raid.players, tostring(raid.title)))
+  for _, line in ipairs(lines) do ns.message("  " .. line) end
+  if lines[1] and type(ns.showCopyText) == "function" then
+    pcall(ns.showCopyText, table.concat(lines, "\n"), "Copy with Ctrl+C, then paste in chat")
+  end
+  ns.message("If the group turns into more than 5, convert it to a raid (right-click yourself in the portrait menu).")
 end
 
 ns.commandHandlers = ns.commandHandlers or {}

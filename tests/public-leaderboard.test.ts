@@ -260,6 +260,10 @@ describe("leaderboard and personal pages", () => {
     expect(home.body.indexOf('id="season"')).toBeGreaterThan(scoreAt);
     expect(home.body.indexOf("Your player profile is public by default")).toBeGreaterThan(scoreAt);
     expect(home.body).toContain("table.rank-cards");
+    expect(home.body).toContain('rel="canonical" href="https://guilded.kcaron.top/leaderboards/"');
+    expect(home.body).toContain('hreflang="fr" href="https://guilded.kcaron.top/leaderboards/?lang=fr"');
+    expect(home.body).toContain(">This week</a>");
+    expect(home.body).toContain("position:sticky");
     expect(home.body).toContain("overflow-x:visible");
     expect(home.body).toContain('href="/forever/leaderboards/guilds/?');
     const guilds = await request("GET", "/leaderboards/guilds/?lang=fr");

@@ -413,6 +413,7 @@ table.dense td,table.dense th{padding:5px 8px;font-size:14px;white-space:nowrap}
 .fac-alliance{color:#6fa8ff}.fac-horde{color:#ff6b5e}.pager{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:14px 0}.pager a,.pager span{min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:6px;padding:0 8px;text-decoration:none}.pager .on{background:var(--gold);color:#111;border-color:var(--gold)}.pager .gap{border:0}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:16px 0}.tile{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px}.tile .k{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}.tile .v{font-size:22px;font-weight:700}
 .run-card{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--line)}.best-runs a{margin-right:6px}
+thead th{position:sticky;top:0;background:var(--bg);z-index:1}
 .bracket-switch{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 12px}.bracket-switch a{min-height:44px;display:inline-flex;align-items:center;padding:0 14px;border:1px solid var(--line);border-radius:6px;text-decoration:none;color:var(--text)}.bracket-switch a.on{background:var(--gold);color:#111;border-color:var(--gold)}
 .class-name{font-weight:600}
 @media(max-width:480px){.table-wrap{overflow-x:visible}table.rank-cards,table.rank-cards tbody,table.rank-cards tr,table.rank-cards td{display:block;width:auto;white-space:normal}table.rank-cards thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}table.rank-cards tr{border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin:0 0 8px}table.rank-cards td{border:0;padding:2px 0}table.rank-cards td.num{text-align:left}}</style>`;
@@ -592,9 +593,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   // Characters | Guilds: the two rankings, like Raider.IO's top tabs.
   const views = (ctx: WebContext, active: "characters" | "guilds" | "rankings", filters: LeaderFilters) => `<nav class="tabs views" aria-label="${ctx.t("Rankings", "Classements")}">`
-    + `<a class="${active === "characters" ? "on" : ""}" href="${link("/leaderboards/", ctx.lang, { season: filters.season, period: filters.week ? "week" : null })}">${ctx.t("Overview", "Aperçu")}</a>`
+    + `<a class="${active === "characters" && !filters.week ? "on" : ""}" href="${link("/leaderboards/", ctx.lang, { season: filters.season })}">${ctx.t("Overview", "Aperçu")}</a>`
     + `<a class="${active === "rankings" ? "on" : ""}" href="${link("/leaderboards/characters/", ctx.lang, { season: filters.season, period: filters.week ? "week" : null, bracket: filters.bracket })}">${ctx.t("Characters", "Personnages")}</a>`
-    + `<a class="${active === "guilds" ? "on" : ""}" href="${link("/leaderboards/guilds/", ctx.lang, { season: filters.season, period: filters.week ? "week" : null })}">${ctx.t("Guilds", "Guildes")}</a></nav>`;
+    + `<a class="${active === "guilds" ? "on" : ""}" href="${link("/leaderboards/guilds/", ctx.lang, { season: filters.season, period: filters.week ? "week" : null })}">${ctx.t("Guilds", "Guildes")}</a>`
+    + `<a class="${active === "characters" && filters.week ? "on" : ""}" href="${link("/leaderboards/", ctx.lang, { period: "week" })}">${ctx.t("This week", "Cette semaine")}</a></nav>`;
   const guildRuns = (id: string, period: PublicPeriod) => cached(`g:${id}:${period.id}:${period.from?.getTime() ?? ""}`, () => deps.store.guildRuns(id, { from: period.from, to: period.to }));
   async function guildEntries(period: PublicPeriod) {
     const guilds = await cached("guilds", () => deps.store.guilds());
@@ -666,7 +668,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   }
 
   // /leaderboards/characters/: every rated character of one bracket, ranked, 50 per page (class, role and realm filters).
-  const CHARACTERS_PER_PAGE = 50;
+  const CHARACTERS_PER_PAGE = 25;
   async function charactersBoard(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
     const { periods, filters, period } = await pageFilters(ctx);

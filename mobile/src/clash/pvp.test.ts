@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClashClient, duelAsMatch, duelDriver, parseDuelResponse, parseLadder, parseRankedStatus } from "./api";
 import { MockClash, sampleRank } from "./mock";
 import {
-  attentionCount, bucketDuels, busyOpponents, challengeReducer, challengeStart, divisionPips, filterPartners, formatLeft, ladderRows, lossesCostStars, msUntil,
+  attentionCount, bucketDuels, clockNow, formatClock, busyOpponents, challengeReducer, challengeStart, divisionPips, filterPartners, formatLeft, ladderRows, lossesCostStars, msUntil,
   rankedReducer, rankedStart, urgent
 } from "./pvp";
 import type { DuelInfo, LadderBoard, RankedStatus } from "./types";
@@ -251,5 +251,19 @@ describe("sample duels", () => {
     const lost = await api.duelConcede(id);
     expect(lost.ranked).toMatchObject({ rated: true, starsDelta: 0 });
     expect((await api.leaderboard("friendly")).weekStart).not.toBeNull();
+  });
+});
+
+describe("live match clocks", () => {
+  it("shows m:ss and ticks only the clock of the player who must act", () => {
+    expect(formatClock(150_000)).toBe("2:30");
+    expect(formatClock(7_200)).toBe("0:08");
+    expect(formatClock(-5)).toBe("0:00");
+    const deadline = new Date(1_000_000 + 60_000).toISOString();
+    // The turn clock (60 s) started at 1,000,000; 20 s later the acting player has 20 s less on a 2:30 clock.
+    expect(clockNow(150_000, true, deadline, 60, 1_020_000)).toBe(130_000);
+    expect(clockNow(150_000, false, deadline, 60, 1_020_000)).toBe(150_000);
+    // With less than a turn left, the deadline is the clock itself.
+    expect(clockNow(30_000, true, new Date(1_030_000).toISOString(), 60, 1_010_000)).toBe(20_000);
   });
 });

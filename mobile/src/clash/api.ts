@@ -176,7 +176,8 @@ export function parseDuelInfo(raw: unknown): DuelInfo | null {
     you: { id: str(you?.id) ?? "", cls: str(you?.cls) ?? "" },
     opponent: { id: str(opponent?.id) ?? "", name: str(opponent?.name) ?? "A guildmate", cls: str(opponent?.cls) },
     season: str(d.season), round: num(d.round), version: num(d.version), turnSeconds: num(d.turnSeconds, 86_400), turnDeadlineAt: str(d.turnDeadlineAt),
-    expiresAt: str(d.expiresAt), createdAt: str(d.createdAt) ?? "", finishedAt: str(d.finishedAt), rated: d.rated === true
+    expiresAt: str(d.expiresAt), createdAt: str(d.createdAt) ?? "", finishedAt: str(d.finishedAt), rated: d.rated === true,
+    clocks: clocksOf(obj(d.clocks))
   };
 }
 
@@ -243,6 +244,10 @@ export function parseLadder(body: unknown): Ladder {
 }
 
 /** A duel drawn on the match screen: the same projection, with the opponent's name and the ranked result. */
+function clocksOf(c: Record<string, unknown> | null): DuelInfo["clocks"] {
+  return c && typeof c.you === "number" && typeof c.opponent === "number" ? { you: c.you, opponent: c.opponent } : null;
+}
+
 export function duelAsMatch(res: DuelResponse): MatchResponse | null {
   if (!res.view) return null;
   const d = res.duel;
@@ -250,7 +255,7 @@ export function duelAsMatch(res: DuelResponse): MatchResponse | null {
   return {
     match: { id: d.id, kind: "ai", aiLevel: "normal", boss: null, status, reason: d.reason, round: d.round, version: d.version, turnSeconds: d.turnSeconds,
       turnDeadlineAt: d.turnDeadlineAt, createdAt: d.createdAt, finishedAt: d.finishedAt, rewards: res.rewards ? { dust: res.rewards.dust, packs: res.rewards.packs } : null,
-      duel: { kind: d.kind, opponent: d.opponent.name, live: d.live, ranked: res.ranked } },
+      duel: { kind: d.kind, opponent: d.opponent.name, live: d.live, ranked: res.ranked, clocks: d.clocks } },
     view: res.view, events: res.events, rewards: res.rewards
   };
 }

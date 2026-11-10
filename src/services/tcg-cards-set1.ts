@@ -229,8 +229,9 @@ cards.push({ id: "loot-bag", name: "Loot Bag", type: "spell", rarity: "common", 
 
 // ---- the owner's 8 November decision: three neutral cards per class move into the class columns ----
 const MOVED: Record<ClassKey, [string, string, string]> = {
-  warrior: ["111", "118", "131"], paladin: ["110", "123", "132"], hunter: ["106", "112", "127"],
-  rogue: ["104", "114", "126"], priest: ["101", "105", "128"], shaman: ["103", "119", "122"],
+  // Owner, 10 November 2026: Battered Shield (131) and Stone Golem (119) swapped so Shaman has a Gear for Emberbrand Adept.
+  warrior: ["111", "118", "119"], paladin: ["110", "123", "132"], hunter: ["106", "112", "127"],
+  rogue: ["104", "114", "126"], priest: ["101", "105", "128"], shaman: ["103", "131", "122"],
   mage: ["102", "124", "130"], warlock: ["109", "120", "129"], druid: ["100", "108", "113"]
 };
 const moved = new Map<string, ClassKey>();

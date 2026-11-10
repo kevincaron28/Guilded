@@ -209,28 +209,29 @@ describe("concede and timeout", () => {
     expect(stateHash(replayRow(row as never))).toBe(row.stateHash);
   });
 
-  it("forfeits a match whose turn clock ran out, when it is read or played, and replays still match", async () => {
+  it("ends the turn when the clock runs out, forfeits on the third miss in a row, and replays still match", async () => {
     const h = fakeDb();
     const a = await startMatch(h.db, USER, { mode: "ai", cls: "warrior" }, NOW, 11);
     const b = await startMatch(h.db, USER, { mode: "ai", cls: "warrior" }, NOW, 12);
     const late = new Date(NOW.getTime() + TURN_SECONDS * 1000 + 1);
     const read = await getMatch(h.db, USER, a.match.id, late);
-    expect(read.match.status).toBe("lost");
-    expect(read.match.reason).toBe("timeout");
-    const played = await submitIntent(h.db, USER, b.match.id, { t: "end" }, late);
-    expect(played.match.status).toBe("lost");
-    expect(played.match.reason).toBe("timeout");
+    expect(read.match.status).toBe("active");
+    expect(read.view.yourTurn).toBe(true);
+    expect((h.matches.get(a.match.id)!.actions as Action[])).toContainEqual({ t: "timeout" });
+    const gone = await getMatch(h.db, USER, b.match.id, new Date(NOW.getTime() + 3 * TURN_SECONDS * 1000 + 1));
+    expect(gone.match.status).toBe("lost");
+    expect(gone.match.reason).toBe("timeout");
     for (const id of [a.match.id, b.match.id]) { const row = h.matches.get(id)!; expect(stateHash(replayRow(row as never))).toBe(row.stateHash); }
     // On time is fine.
     const c = await startMatch(h.db, USER, { mode: "ai", cls: "warrior" }, NOW, 13);
     expect((await getMatch(h.db, USER, c.match.id, new Date(NOW.getTime() + 1000))).match.status).toBe("active");
   });
 
-  it("lists matches newest first and forfeits overdue ones", async () => {
+  it("lists matches newest first and settles missed clocks", async () => {
     const h = fakeDb();
     await startMatch(h.db, USER, { mode: "ai", cls: "warrior" }, NOW, 21);
     await startMatch(h.db, USER, { mode: "ai", cls: "rogue" }, NOW, 22);
-    const list = await listMatches(h.db, USER, new Date(NOW.getTime() + TURN_SECONDS * 1000 + 5));
+    const list = await listMatches(h.db, USER, new Date(NOW.getTime() + 3 * TURN_SECONDS * 1000 + 5));
     expect(list.matches).toHaveLength(2);
     expect(list.matches.every(m => m.status === "lost")).toBe(true);
     expect((await listMatches(h.db, "nobody", NOW)).matches).toEqual([]);
@@ -299,7 +300,7 @@ describe("rewards are granted once", () => {
     const day2 = new Date(NOW.getTime() + 86_400_000);
     const a = await startMatch(h.db, USER, { mode: "pve", cls: "warrior", boss: "boss-1" }, NOW, 300);
     await submitIntent(h.db, USER, a.match.id, await setUpWin(h, a.match.id), NOW);
-    const b = await startMatch(h.db, USER, { mode: "pve", cls: "warrior", boss: "boss-1" }, day2, 301);
+    const b = await startMatch(h.db, USER, { mode: "pve", cls: "warrior", boss: "boss-1" }, day2, 302);
     const res = await submitIntent(h.db, USER, b.match.id, await setUpWin(h, b.match.id, day2), day2);
     expect(res.rewards!.dust).toBe(20);
     expect(h.accounts.get(USER)!.dust).toBe(40);

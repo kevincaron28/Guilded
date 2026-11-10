@@ -25,7 +25,7 @@ export interface Boss {
 export const GAUNTLET: readonly Boss[] = [
   {
     id: "boss-1", name: "The Emberdeep Brute", flavour: "He found the chasm warm and decided to stay.", cls: "warrior", level: "easy", zone: "133", health: 16,
-    deck: ["001", "001", "002", "002", "003", "003", "004", "004", "005", "005", "006", "006", "007", "007", "008", "008", "009", "009", "111", "111", "118", "118", "131", "131"],
+    deck: ["001", "001", "002", "002", "003", "003", "004", "004", "005", "005", "006", "006", "007", "007", "008", "008", "009", "009", "111", "111", "118", "118", "119", "119"],
     reward: { dust: 20, packs: 0 }
   },
   {

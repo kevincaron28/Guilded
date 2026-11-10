@@ -1,7 +1,7 @@
 import { randomInt } from "node:crypto";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { starterDeck } from "./tcg-cards-set1.js";
-import { actor, apply, applyMut, cloneState, createMatch, IllegalAction, replay, round, stateHash } from "./tcg-engine.js";
+import { actor, apply, applyMut, cloneState, createMatch, IllegalAction, MAX_TIMEOUTS, replay, round, stateHash } from "./tcg-engine.js";
 import type { Action, DeckList, MatchEvent, MatchState } from "./tcg-engine-types.js";
 import { Conflict, countPlay, isClassKey, planReward, playerView, type MatchRewards, type PlayerView, type Settlement } from "./tcg-match.js";
 import { onlineInApp, onlineInGame } from "./tcg-presence.js";
@@ -16,14 +16,19 @@ import { sharedGuild } from "./tcg-trade.js";
 // - a friendly challenge between two guildmates (same server only), live (60 second turns) or asynchronous (24 hours a turn),
 //   no rewards beyond the daily quest credit;
 // - a ranked match from the waiting room, across every server that hosts the bot (the global ladder), monthly seasons, a hidden
-//   Glicko-2 rating for matchmaking and visible stars for the rank, with the match rewards of section 5.
+//   Glicko-2 rating for matchmaking and visible stars for the rank. Ranked is live since 10 November 2026.
 // Seat 0 is userA (the challenger, or whoever queued first) and seat 1 is userB. Each player only ever receives their own
 // projection (`playerView(state, seat)`): never the opponent's hand, either deck order or the random state. A match is stored as
-// seed + decks + the ordered action log and replays to the same state hash. A player who does not move before the turn clock runs
-// out forfeits the next time the match, or the opponent's list, is read; leaving a match is a forfeit, never a free exit.
+// seed + decks + the ordered action log and replays to the same state hash. Clocks (owner, 10 November 2026): a missed turn clock
+// plays the safe default for that player and the third miss in a row forfeits; a live match also has a 2:30 match clock per
+// player, and when one runs out the match ends on Health lost. Overdue clocks are settled the next time the match, or a list
+// of matches, is read. Leaving a match is a forfeit, never a free exit.
 
 export const TURN_SECONDS = 86_400;
 export const LIVE_TURN_SECONDS = 60;
+/** A live match's clock (owner, 10 November 2026): each seat has 2:30 for the whole match, running only while it must act.
+ *  When either clock runs out the match ends on Health lost, so a live match never lasts more than 5 minutes of play. */
+export const MATCH_CLOCK_MS = 150_000;
 export const CHALLENGE_TTL_MS = 24 * 3_600_000;
 export const LIVE_CHALLENGE_TTL_MS = 2 * 60_000;
 export const QUEUE_TTL_MS = 15 * 60_000;
@@ -46,7 +51,7 @@ interface DuelRow {
   id: string; kind: string; guildId: string | null; userA: string; userB: string; clsA: string; clsB: string | null; live: boolean; status: string; season: string;
   seed: number; deckA: unknown; deckB: unknown; actions: unknown; state: unknown; stateHash: string; winner: number | null; reason: string | null;
   spellsA: number; zonesA: number; spellsB: number; zonesB: number; counted: boolean; rated: boolean; flags: unknown; result: unknown;
-  turnSeconds: number; turnDeadlineAt: Date | null; expiresAt: Date | null; lastActionAt: Date; version: number; createdAt: Date; startedAt: Date | null; finishedAt: Date | null;
+  turnSeconds: number; turnDeadlineAt: Date | null; clockA: number | null; clockB: number | null; expiresAt: Date | null; lastActionAt: Date; version: number; createdAt: Date; startedAt: Date | null; finishedAt: Date | null;
 }
 interface RatingRow { discordUserId: string; season: string; rating: number; rd: number; vol: number; stars: number; wins: number; losses: number; streak: number; games: number; version: number }
 
@@ -65,6 +70,8 @@ export interface DuelInfo {
   you: { id: string; cls: string };
   opponent: { id: string; name: string; cls: string | null; onlineInApp: boolean; onlineInGame?: boolean };
   season: string | null; round: number; version: number; turnSeconds: number; turnDeadlineAt: string | null; expiresAt: string | null;
+  /** Live matches: milliseconds left on each match clock when the match last changed; null for asynchronous matches. */
+  clocks: { you: number; opponent: number } | null;
   createdAt: string; finishedAt: string | null; rated: boolean;
 }
 export interface DuelResponse { duel: DuelInfo; view: PlayerView | null; events: MatchEvent[]; rewards: MatchRewards | null; ranked: RankedChange | null }
@@ -88,6 +95,7 @@ function infoOf(row: DuelRow, userId: string, names: Names): DuelInfo {
     you: { id: userId, cls: mine }, opponent: { id: otherId, name: names.get(otherId) ?? "A guildmate", cls: otherCls, onlineInApp: onlineInApp(otherId) },
     season: row.kind === "ranked" ? row.season : null, round: state ? round(state) : 0, version: row.version, turnSeconds: row.turnSeconds,
     turnDeadlineAt: row.turnDeadlineAt?.toISOString() ?? null, expiresAt: row.expiresAt?.toISOString() ?? null,
+    clocks: row.clockA !== null && row.clockA !== undefined && row.clockB !== null && row.clockB !== undefined ? { you: seat === 0 ? row.clockA : row.clockB, opponent: seat === 0 ? row.clockB : row.clockA } : null,
     createdAt: row.createdAt.toISOString(), finishedAt: row.finishedAt?.toISOString() ?? null, rated: row.rated
   };
 }
@@ -213,15 +221,41 @@ async function planEnd(tx: Tx, row: DuelRow, state: MatchState, spells: [number,
   };
 }
 
-interface Commit { row: DuelRow; state: MatchState; log: Action[]; spells: [number, number]; zones: [number, number]; events: MatchEvent[]; endReason?: string }
+interface Commit {
+  row: DuelRow; state: MatchState; log: Action[]; spells: [number, number]; zones: [number, number]; events: MatchEvent[]; endReason?: string;
+  /** Match clocks after this change (default: the row's, charged up to `at`), and when the change happened (default: now). */
+  clocks?: Clocks; at?: Date;
+}
+
+type Clocks = [number | null, number | null];
+const clocksOf = (row: Pick<DuelRow, "clockA" | "clockB">): Clocks => [row.clockA ?? null, row.clockB ?? null];
+/** Charges the time since the last change to the seat that had to act, on a live match's clock. */
+function charged(clocks: Clocks, before: MatchState, from: Date, at: Date): Clocks {
+  if (before.phase === "over") return clocks;
+  const seat = actor(before);
+  const left = clocks[seat];
+  if (left === null) return clocks;
+  const out: Clocks = [clocks[0], clocks[1]];
+  out[seat] = Math.max(0, left - Math.max(0, at.getTime() - from.getTime()));
+  return out;
+}
+/** When the seat that must act runs out of time: its turn clock, or sooner when its match clock has less left. */
+function deadlineOf(turnSeconds: number, clocks: Clocks, state: MatchState, from: Date): Date {
+  let ms = turnSeconds * 1000;
+  const left = clocks[actor(state)];
+  if (left !== null) ms = Math.min(ms, left);
+  return new Date(from.getTime() + ms);
+}
 
 /** Stores the new state and log with a compare-and-set on the version. When the duel ended, rewards and ratings are settled in the same transaction, once. */
 async function commit(tx: Tx, userId: string, c: Commit, now: Date): Promise<DuelResponse> {
   const { row, state } = c;
   const over = state.phase === "over";
+  const at = c.at ?? now;
+  const clocks = c.clocks ?? charged(clocksOf(row), stateOf(row), row.lastActionAt, at);
   const data: Record<string, unknown> = {
     state, actions: c.log, stateHash: stateHash(state), spellsA: c.spells[0], spellsB: c.spells[1], zonesA: c.zones[0], zonesB: c.zones[1],
-    lastActionAt: now, version: row.version + 1, turnDeadlineAt: over ? null : new Date(now.getTime() + row.turnSeconds * 1000)
+    lastActionAt: at, version: row.version + 1, clockA: clocks[0], clockB: clocks[1], turnDeadlineAt: over ? null : deadlineOf(row.turnSeconds, clocks, state, at)
   };
   let end: DuelEnd | null = null;
   if (over) {
@@ -237,16 +271,28 @@ async function commit(tx: Tx, userId: string, c: Commit, now: Date): Promise<Due
   return reply(tx, { ...row, ...data } as DuelRow, userId, c.events);
 }
 
-/** The player whose turn it is forfeits an active duel whose turn clock ran out. Returns the settled response, or null when it is not overdue. */
+/** Settles missed clocks of an active duel (design 2.9, owner 10 November 2026). A missed turn clock plays the safe default
+ *  for the seat that must act (keep the hand, first Loot option, end the turn) and the third in a row forfeits; an empty match
+ *  clock (live) ends the match on Health lost. Each miss is settled from the deadline of the one before. Returns the settled
+ *  response, or null when nothing is overdue. */
 async function forfeitIfOverdue(tx: Tx, row: DuelRow, userId: string, now: Date): Promise<DuelResponse | null> {
   if (row.status !== "active" || !row.turnDeadlineAt || row.turnDeadlineAt.getTime() > now.getTime()) return null;
   const state = cloneState(stateOf(row));
   const log = [...actionsOf(row)];
   const events: MatchEvent[] = [];
-  const action: Action = { t: "concede", p: actor(state) };
-  log.push(action);
-  applyMut(state, action, events);
-  return commit(tx, userId, { row, state, log, spells: [row.spellsA, row.spellsB], zones: [row.zonesA, row.zonesB], events, endReason: "timeout" }, now);
+  const playing = (): boolean => state.phase !== "over";
+  let clocks = clocksOf(row);
+  let from = row.lastActionAt;
+  let deadline = row.turnDeadlineAt;
+  for (let i = 0; i < 2 * MAX_TIMEOUTS && playing() && deadline.getTime() <= now.getTime(); i++) {
+    clocks = charged(clocks, state, from, deadline);
+    const action: Action = clocks[actor(state)] === 0 ? { t: "timeUp" } : { t: "timeout" };
+    log.push(action);
+    applyMut(state, action, events);
+    from = deadline;
+    if (playing()) deadline = deadlineOf(row.turnSeconds, clocks, state, from);
+  }
+  return commit(tx, userId, { row, state, log, spells: [row.spellsA, row.spellsB], zones: [row.zonesA, row.zonesB], events, clocks, at: from, ...(state.reason === "timeout" ? { endReason: "timeout" } : {}) }, now);
 }
 
 /** A pending challenge past its expiry becomes expired. Returns the updated row (unchanged when it is not due). */
@@ -255,6 +301,13 @@ async function expireIfDue(tx: Tx, row: DuelRow, now: Date): Promise<DuelRow> {
   const saved = await tx.tcgDuel.updateMany({ where: { id: row.id, version: row.version, status: "pending" }, data: { status: "expired", version: row.version + 1 } });
   if (saved.count !== 1) throw new Conflict();
   return { ...row, status: "expired", version: row.version + 1 };
+}
+
+/** The clocks of a match that starts now: live matches get the 2:30 match clock on each seat. Ranked matches are live
+ *  since 10 November 2026 (both players are in the waiting room when they are paired). */
+function clockStart(live: boolean, turnSeconds: number, state: MatchState, now: Date): { clockA: number | null; clockB: number | null; turnDeadlineAt: Date } {
+  const clocks: Clocks = live ? [MATCH_CLOCK_MS, MATCH_CLOCK_MS] : [null, null];
+  return { clockA: clocks[0], clockB: clocks[1], turnDeadlineAt: deadlineOf(turnSeconds, clocks, state, now) };
 }
 
 function startState(seed: number, clsA: string, clsB: string): { state: MatchState; deckA: DeckList; deckB: DeckList } {
@@ -306,7 +359,7 @@ export async function acceptChallenge(db: DuelDb, userId: string, id: string, cl
     const { state, deckA, deckB } = startState(seed, row.clsA, cls);
     const data = {
       status: "active", clsB: cls, seed, deckA: deckA as never, deckB: deckB as never, state: state as never, stateHash: stateHash(state), actions: [] as never,
-      startedAt: now, lastActionAt: now, expiresAt: null, turnDeadlineAt: new Date(now.getTime() + row.turnSeconds * 1000), version: row.version + 1
+      startedAt: now, lastActionAt: now, expiresAt: null, version: row.version + 1, ...clockStart(row.live, row.turnSeconds, state, now)
     };
     const saved = await tx.tcgDuel.updateMany({ where: { id, version: row.version, status: "pending" }, data });
     if (saved.count !== 1) throw new Conflict();
@@ -458,9 +511,9 @@ async function tryMatch(tx: Tx, me: QueueRow, now: Date, seed: number): Promise<
     }
     const { state, deckA, deckB } = startState(seed, first.cls, second.cls);
     const row = await tx.tcgDuel.create({ data: {
-      kind: "ranked", userA: first.discordUserId, userB: second.discordUserId, clsA: first.cls, clsB: second.cls, live: false, status: "active", season: seasonKey(now),
+      kind: "ranked", userA: first.discordUserId, userB: second.discordUserId, clsA: first.cls, clsB: second.cls, live: true, status: "active", season: seasonKey(now),
       seed, deckA: deckA as never, deckB: deckB as never, state: state as never, stateHash: stateHash(state), actions: [] as never,
-      turnSeconds: TURN_SECONDS, turnDeadlineAt: new Date(now.getTime() + TURN_SECONDS * 1000), startedAt: now, lastActionAt: now
+      turnSeconds: LIVE_TURN_SECONDS, startedAt: now, lastActionAt: now, ...clockStart(true, LIVE_TURN_SECONDS, state, now)
     } }) as DuelRow;
     return row;
   }

@@ -3,7 +3,7 @@ import { chooseAction } from "../src/services/tcg-ai.js";
 import { actor } from "../src/services/tcg-engine.js";
 import type { MatchState } from "../src/services/tcg-engine-types.js";
 import { stateHash } from "../src/services/tcg-engine.js";
-import { acceptChallenge, challenge, concedeDuel, declineChallenge, duelPartners, getDuel, joinRanked, leaderboard, leaveRanked, listDuels, pollDuel, rankedStatus, replayDuel, submitDuelIntent, CHALLENGE_TTL_MS, LIVE_CHALLENGE_TTL_MS, LIVE_TURN_SECONDS, MAX_ACTIVE_DUELS, MAX_OPEN_CHALLENGES, QUEUE_TTL_MS, TURN_SECONDS, type DuelDb } from "../src/services/tcg-duel.js";
+import { acceptChallenge, challenge, concedeDuel, declineChallenge, duelPartners, getDuel, joinRanked, leaderboard, leaveRanked, listDuels, pollDuel, rankedStatus, replayDuel, submitDuelIntent, CHALLENGE_TTL_MS, LIVE_CHALLENGE_TTL_MS, LIVE_TURN_SECONDS, MAX_ACTIVE_DUELS, MAX_OPEN_CHALLENGES, MATCH_CLOCK_MS, QUEUE_TTL_MS, TURN_SECONDS, type DuelDb } from "../src/services/tcg-duel.js";
 import { forgetPresence, markSeenInApp, ONLINE_APP_MS } from "../src/services/tcg-presence.js";
 import { applyStars, glicko2, LEGEND_STARS, queueWindow, rankOf, rolloverRating, seasonKey, startStars, weekStart } from "../src/services/tcg-rating.js";
 
@@ -471,43 +471,69 @@ describe("a duel between two members", () => {
 });
 
 describe("turn clocks and forfeits", () => {
-  it("forfeits the player whose turn it is once the clock runs out, whoever looks first, and only once", async () => {
+  const lastAction = (w: World, id: string) => (w.duel(id)["actions"] as unknown[]).slice(-1)[0];
+
+  it("plays the safe default for a missed turn clock, forfeits on the third miss in a row, whoever looks first, and only once", async () => {
     const w = world();
     const { id } = await startFriendly(w);
     const state = w.duel(id)["state"] as MatchState;
     const stuck = actor(state) === 0 ? "u1" : "u2", other = stuck === "u1" ? "u2" : "u1";
     expect((await getDuel(w.db, other, id, later(TURN_SECONDS * 1000 - 1000))).duel.status).toBe("active");
-    const settled = await getDuel(w.db, other, id, later(TURN_SECONDS * 1000 + 1000));
+    // First miss: the opening hand is kept and the match goes on.
+    const first = await getDuel(w.db, other, id, later(TURN_SECONDS * 1000 + 1000));
+    expect(first.duel.status).toBe("active");
+    expect(lastAction(w, id)).toEqual({ t: "timeout" });
+    expect(actor(w.duel(id)["state"] as MatchState)).not.toBe(stuck === "u1" ? 0 : 1);
+    // Nobody plays: misses alternate (stuck: mulligan, turn 1, turn 3; other: mulligan, turn 2). The stuck player's third forfeits.
+    const settled = await getDuel(w.db, other, id, later(5 * TURN_SECONDS * 1000 + 1000));
     expect(settled.duel).toMatchObject({ status: "won", reason: "timeout" });
-    const mine = await getDuel(w.db, stuck, id, later(TURN_SECONDS * 1000 + 2000));
+    const mine = await getDuel(w.db, stuck, id, later(5 * TURN_SECONDS * 1000 + 2000));
     expect(mine.duel).toMatchObject({ status: "lost", reason: "timeout" });
     const logs = w.t.tcgLog.rows.length, version = w.duel(id)["version"];
-    await getDuel(w.db, other, id, later(3 * TURN_SECONDS * 1000));
+    await getDuel(w.db, other, id, later(9 * TURN_SECONDS * 1000));
     expect(w.t.tcgLog.rows).toHaveLength(logs);
     expect(w.duel(id)["version"]).toBe(version);
   });
 
-  it("a move sent after the clock ran out is not played: the late player forfeits", async () => {
+  it("a move sent after the clock ran out is not played: the missed turn is settled first", async () => {
     const w = world();
     const { id } = await startFriendly(w);
     const state = w.duel(id)["state"] as MatchState;
     const stuck = actor(state) === 0 ? "u1" : "u2";
     const res = await submitDuelIntent(w.db, stuck, id, chooseAction(state, "normal"), later(TURN_SECONDS * 1000 + 5000));
-    expect(res.duel).toMatchObject({ status: "lost", reason: "timeout" });
-    expect((w.duel(id)["actions"] as unknown[]).slice(-1)[0]).toEqual({ t: "concede", p: stuck === "u1" ? 0 : 1 });
+    expect(res.duel).toMatchObject({ status: "active", yourTurn: false });
+    expect(lastAction(w, id)).toEqual({ t: "timeout" });
   });
 
-  it("a live match runs a 60 second clock that restarts after every move", async () => {
+  it("a live match runs a 60 second turn clock and a 2:30 match clock per player", async () => {
     const w = world();
     const { id } = await startFriendly(w, "u1", "u2", { live: true });
     expect(w.duel(id)["turnSeconds"]).toBe(LIVE_TURN_SECONDS);
+    expect([w.duel(id)["clockA"], w.duel(id)["clockB"]]).toEqual([MATCH_CLOCK_MS, MATCH_CLOCK_MS]);
     const state = w.duel(id)["state"] as MatchState;
     const mover = actor(state) === 0 ? "u1" : "u2";
     const t1 = later(50_000);
     const moved = await submitDuelIntent(w.db, mover, id, chooseAction(state, "normal"), t1);
     expect(new Date(moved.duel.turnDeadlineAt!).getTime()).toBe(t1.getTime() + 60_000);
+    expect(moved.duel.clocks).toEqual({ you: MATCH_CLOCK_MS - 50_000, opponent: MATCH_CLOCK_MS });
     expect((await getDuel(w.db, "u1", id, later(100_000))).duel.status).toBe("active");
-    expect((await getDuel(w.db, "u1", id, later(50_000 + 61_000))).duel.status).not.toBe("active");
+    await getDuel(w.db, "u1", id, later(50_000 + 61_000));
+    expect(lastAction(w, id)).toEqual({ t: "timeout" });
+  });
+
+  it("ends a live match on Health lost when a match clock runs out", async () => {
+    const w = world();
+    const { id } = await startFriendly(w, "u1", "u2", { live: true });
+    const row = w.duel(id);
+    const state = row["state"] as MatchState;
+    const seat = actor(state);
+    // Seat `seat` has 5 seconds left and has lost 3 Health; the other seat lost none.
+    row[seat === 0 ? "clockA" : "clockB"] = 5000;
+    row["turnDeadlineAt"] = later(5000);
+    state.players[seat].hp -= 3;
+    const done = await getDuel(w.db, "u1", id, later(6000));
+    expect(done.duel).toMatchObject({ status: seat === 0 ? "lost" : "won", reason: "time" });
+    expect(lastAction(w, id)).toEqual({ t: "timeUp" });
   });
 
   it("settles overdue matches and expired challenges when the list is read", async () => {
@@ -516,7 +542,8 @@ describe("turn clocks and forfeits", () => {
     markSeenInApp("u3", NOW);
     const pending = await challenge(w.db, "u1", { to: "u3", cls: "rogue", live: true }, allows, NOW);
     const out = await listDuels(w.db, "u1", later(TURN_SECONDS * 1000 + 1000));
-    expect(out.duels.find(d => d.id === id)!.status).toMatch(/won|lost/);
+    expect(out.duels.find(d => d.id === id)!.status).toBe("active");
+    expect(lastAction(w, id)).toEqual({ t: "timeout" });
     expect(out.duels.find(d => d.id === pending.duel.id)!.status).toBe("expired");
   });
 });
@@ -741,13 +768,14 @@ describe("a ranked match", () => {
     expect((await joinRanked(w.db, "u3", "rogue", dec, 2)).standing).toMatchObject({ stars: 0, games: 0 });
   });
 
-  it("an overdue ranked turn is a forfeit and still rates", async () => {
+  it("plays ranked live: 60 second turns, 2:30 match clocks, and an abandoned match ends on time and still rates", async () => {
     const w = world();
     const id = await rankedPair(w);
-    const stuck = actor(w.duel(id)["state"] as MatchState) === 0 ? "u1" : "u2";
-    const done = await getDuel(w.db, stuck === "u1" ? "u2" : "u1", id, later(TURN_SECONDS * 1000 + 10_000));
-    expect(done.duel).toMatchObject({ status: "won", reason: "timeout", rated: true });
-    expect(w.t.tcgRating.rows.find(r => r["discordUserId"] === (stuck === "u1" ? "u2" : "u1"))!["wins"]).toBe(1);
+    expect(w.duel(id)).toMatchObject({ live: true, turnSeconds: LIVE_TURN_SECONDS, clockA: MATCH_CLOCK_MS, clockB: MATCH_CLOCK_MS });
+    // Nobody moves: missed 60 second turns use up both 2:30 clocks before a third miss in a row, so the clock ends it, a draw on Health.
+    const done = await getDuel(w.db, "u1", id, later(10 * 60_000));
+    expect(done.duel).toMatchObject({ status: "draw", reason: "time", rated: true });
+    expect(w.t.tcgRating.rows.filter(r => r["games"] === 1)).toHaveLength(2);
   });
 });
 

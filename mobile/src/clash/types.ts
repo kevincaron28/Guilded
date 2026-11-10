@@ -67,7 +67,7 @@ export interface MatchInfo {
   round: number; version: number; turnSeconds: number; turnDeadlineAt: string | null; createdAt: string; finishedAt: string | null;
   rewards: { dust: number; packs: number } | null;
   /** Set when this is a two-human duel (#644) shown on the match screen. */
-  duel?: { kind: DuelKind; opponent: string; live: boolean; ranked: RankedChange | null };
+  duel?: { kind: DuelKind; opponent: string; live: boolean; ranked: RankedChange | null; clocks: DuelClocks | null };
 }
 export interface MatchEvent { t: string; [key: string]: unknown }
 export interface MatchRewards { dust: number; packs: number; overflowDust: number; questsCompleted: string[]; packProgress: number; won: boolean }
@@ -100,10 +100,12 @@ export interface DuelInfo {
   seat: 0 | 1; yourTurn: boolean;
   you: { id: string; cls: string };
   opponent: { id: string; name: string; cls: string | null };
-  season: string | null; round: number; version: number; turnSeconds: number; turnDeadlineAt: string | null; expiresAt: string | null;
+  season: string | null; round: number; version: number; turnSeconds: number; turnDeadlineAt: string | null; expiresAt: string | null; clocks: DuelClocks | null;
   createdAt: string; finishedAt: string | null; rated: boolean;
 }
 /** `view` is null while a challenge is pending, declined or expired (no match was dealt). */
+/** A live match's clocks (2:30 each), in milliseconds, as of the match's last change. */
+export interface DuelClocks { you: number; opponent: number }
 export interface DuelResponse { duel: DuelInfo; view: PlayerView | null; events: MatchEvent[]; rewards: MatchRewards | null; ranked: RankedChange | null }
 export interface Partner { discordUserId: string; name: string }
 export interface ChallengeInput { to: string; cls: ClassKey; live: boolean }

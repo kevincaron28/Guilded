@@ -588,18 +588,37 @@ function endTurn(x: X): void {
   emit(x, "endTurn", { p });
   settle(x);
   if (s.phase === "over") return;
-  if (s.turn >= R.drawRound * 2) {
-    // Health lost, Armor counting as Health: fair when a PvE boss starts with more Health.
-    const total = (q: PlayerState) => q.hp + q.armor - q.maxHp;
-    const lead = total(s.players[0]) - total(s.players[1]);
-    s.phase = "over";
-    s.winner = R.capRule === "health" && lead !== 0 ? (lead > 0 ? 0 : 1) : "draw";
-    s.reason = "round-cap";
-    emit(x, "over", { winner: s.winner });
-    return;
-  }
+  if (s.turn >= R.drawRound * 2) { endOnHealth(x, "round-cap", R.capRule === "health"); return; }
   s.active = other(p);
   startTurn(x);
+}
+
+/** Ends the match on Health lost (Armor counting as Health, fair when a PvE boss starts with more Health); equal is a draw. */
+function endOnHealth(x: X, reason: string, byHealth = true): void {
+  const s = x.s;
+  const total = (q: PlayerState) => q.hp + q.armor - q.maxHp;
+  const lead = total(s.players[0]) - total(s.players[1]);
+  s.phase = "over";
+  s.winner = byHealth && lead !== 0 ? (lead > 0 ? 0 : 1) : "draw";
+  s.reason = reason;
+  emit(x, "over", { winner: s.winner });
+}
+
+/** Missed turn clocks in a row that forfeit the match (design 2.9). */
+export const MAX_TIMEOUTS = 3;
+
+/** The turn clock ran out for whoever must act: the safe default is played for them (keep the opening hand, take the first
+ *  Loot option, or end the turn). The third miss in a row forfeits. */
+function doTimeout(x: X): void {
+  const s = x.s;
+  const p = actor(s);
+  const pl = s.players[p];
+  pl.timeouts = (pl.timeouts ?? 0) + 1;
+  emit(x, "timeout", { p, n: pl.timeouts });
+  if (pl.timeouts >= MAX_TIMEOUTS) { s.phase = "over"; s.winner = other(p); s.reason = "timeout"; emit(x, "over", { winner: s.winner }); return; }
+  if (s.phase === "mulligan") doMulligan(x, { t: "mulligan", replace: [] });
+  else if (s.pending.length) doChoose(x, { t: "choose", index: 0 });
+  else endTurn(x);
 }
 
 // ---- legal actions ----
@@ -840,6 +859,8 @@ function doChoose(x: X, a: Extract<Action, { t: "choose" }>): void {
 export function applyMut(s: MatchState, a: Action, ev: MatchEvent[] = []): MatchEvent[] {
   const x: X = { s, ev, settling: false, frenzyQ: [] };
   if (s.phase === "over") return ev;
+  // A move the player made themselves ends a run of missed clocks.
+  if (a.t === "mulligan" || a.t === "play" || a.t === "attack" || a.t === "power" || a.t === "choose" || a.t === "end") s.players[actor(s)].timeouts = 0;
   switch (a.t) {
     case "mulligan": doMulligan(x, a); break;
     case "play": payAndPlay(x, a); break;
@@ -850,6 +871,8 @@ export function applyMut(s: MatchState, a: Action, ev: MatchEvent[] = []): Match
     case "concede":
       s.phase = "over"; s.winner = other(a.p); s.reason = "concede"; emit(x, "over", { winner: s.winner });
       break;
+    case "timeout": doTimeout(x); break;
+    case "timeUp": endOnHealth(x, "time"); break;
   }
   return ev;
 }
@@ -859,7 +882,7 @@ export class IllegalAction extends Error {}
 /** Validates against the legal actions, then applies to a copy. Concede is always allowed. */
 export function apply(s: MatchState, a: Action): { state: MatchState; events: MatchEvent[] } {
   if (s.phase === "over") throw new IllegalAction("The match is over.");
-  if (a.t !== "concede") {
+  if (a.t !== "concede" && a.t !== "timeout" && a.t !== "timeUp") {
     const key = actionKey(a);
     if (!legalActions(s).some(l => actionKey(l) === key)) throw new IllegalAction(`Illegal action: ${key}`);
   }

@@ -6,7 +6,7 @@ import { colors } from "../ui";
 import type { ClashApi, MatchDriver } from "./api";
 import { championArt } from "./championArt";
 import { CardFace, HandCard, STONE, UnitToken } from "./CardFrame";
-import { formatLeft, msUntil, urgent } from "./pvp";
+import { clockNow, formatClock, formatLeft, msUntil, urgent } from "./pvp";
 import {
   attacksOf, canEnd, cardOf, immediate, initialMatchUi, matchUiReducer, modesOf, playsOf, powersOf, resolveTap, targetKey, targetsFor, type Selection
 } from "./state";
@@ -79,6 +79,11 @@ export function MatchView({ api, driver, lang, initial, onExit }: { api: ClashAp
     return () => clearInterval(timer);
   }, [duel, over]);
   const clock = duel && !over ? msUntil(res.match.turnDeadlineAt, now) : null;
+  // A live match's 2:30 clocks: whoever must act is ticking down.
+  const clocks = duel?.clocks && !over ? {
+    you: clockNow(duel.clocks.you, view.yourTurn, res.match.turnDeadlineAt, res.match.turnSeconds, now),
+    them: clockNow(duel.clocks.opponent, !view.yourTurn, res.match.turnDeadlineAt, res.match.turnSeconds, now)
+  } : null;
 
   const pick = (selection: Selection, action: Parameters<typeof dispatch>[0]) => {
     const now = immediate(selection, legal);
@@ -144,7 +149,8 @@ export function MatchView({ api, driver, lang, initial, onExit }: { api: ClashAp
       </Pressable>
       <View style={{ alignItems: "flex-end" }}>
         <Text style={[styles.turn, view.yourTurn && { color: "#9fbd83" }]}>{over ? "" : view.yourTurn ? w("yourTurn", lang) : duel ? duel.opponent : w("theirTurn", lang)}</Text>
-        {clock !== null ? <Text accessibilityLabel={`${w("turnClock", lang)}: ${formatLeft(clock, lang)}`} style={[styles.small, urgent(clock, duel?.live ?? false) && { color: colors.error }]}>⏱ {formatLeft(clock, lang)}</Text> : null}
+        {clock !== null ? <Text accessibilityLabel={`${w("turnClock", lang)}: ${formatLeft(clock, lang)}`} style={[styles.small, urgent(clock, duel?.live ?? false) && { color: colors.error }]}>⏱ {duel?.live ? formatClock(clock) : formatLeft(clock, lang)}</Text> : null}
+        {clocks ? <Text style={styles.small}>{w("matchClock", lang, { you: formatClock(clocks.you), them: formatClock(clocks.them) })}</Text> : null}
       </View>
     </View>
 

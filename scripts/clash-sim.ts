@@ -75,17 +75,23 @@ export interface Game {
   hp: [number, number];
 }
 
+/** --clock S: the live match clock (S seconds per seat, 150 in the game). Each seat's human time is charged to it; when it
+ *  runs out the match ends on Health lost (a timeUp move). Applies to the live-PvP time model, so read only those numbers. */
+let CLOCK = 0;
+
 export function play(seed: number, a: DeckList, b: DeckList, levels: [AiLevel, AiLevel], setup: MatchSetup = {}): Game {
   const s = createMatch(seed, a, b, setup);
   const played: [Set<string>, Set<string>] = [new Set(), new Set()];
   let exhaustion = false, actions = 0, pvp = 0, vsAi = 0, aiCompute = 0, clockHits = 0;
   // per-turn accumulators for each seat (human pace)
   let turnHuman = 0, turnAi = 0, turnOwner: 0 | 1 = s.first, turnIndex = 0, aiMoves = 0;
+  const spent: [number, number] = [0, 0];
   const closeTurn = () => {
     const limit = turnIndex <= 2 ? TIME.firstTurnLimit : TIME.turnLimit;
     if (turnHuman > limit) clockHits++;
     const human = Math.min(turnHuman, limit);
     pvp += human;
+    spent[turnOwner] += human;
     vsAi += turnOwner === 0 ? human : turnAi + aiMoves * TIME.aiMoveRead + TIME.roundTrip;
     turnHuman = 0; turnAi = 0; aiMoves = 0;
   };
@@ -102,7 +108,12 @@ export function play(seed: number, a: DeckList, b: DeckList, levels: [AiLevel, A
     const dt = (performance.now() - t0) / 1000;
     if (who === 1) { aiCompute += dt; turnAi += dt; if (action.t !== "end" && action.t !== "mulligan") aiMoves++; }
     const sec = humanSeconds(action, s);
-    if (s.phase === "mulligan") { pvp += sec; vsAi += who === 0 ? sec : 0; }
+    if (CLOCK && s.phase === "main" && spent[turnOwner] + turnHuman + sec > CLOCK) {
+      turnHuman = Math.max(0, CLOCK - spent[turnOwner]);
+      applyMut(s, { t: "timeUp" });
+      break;
+    }
+    if (s.phase === "mulligan") { pvp += sec; spent[who] += sec; vsAi += who === 0 ? sec : 0; }
     else turnHuman += sec;
     if (action.t === "play") { const id = s.players[s.active].hand[action.hand]!; if (id !== "loot-bag") played[s.active].add(id); }
     const ev = applyMut(s, action);
@@ -154,7 +165,7 @@ function summarise(label: string, games: Game[]): Summary {
     draws: games.filter(g => g.winner === "draw").length / games.length,
     roundCap: games.filter(g => g.reason === "round-cap").length / games.length,
     exhaustion: games.filter(g => g.exhaustion).length / games.length,
-    clockHitGames: games.filter(g => g.clockHits > 0).length / games.length,
+    clockHitGames: games.filter(g => g.clockHits > 0 || g.reason === "time").length / games.length,
     aiComputeMedian: q(games.map(g => g.aiCompute), 0.5)
   };
 }
@@ -179,6 +190,7 @@ function applyPatch(raw: string): void {
 
 function main(): void {
   applyPatch(arg("patch", "{}"));
+  CLOCK = Number(arg("clock", "0"));
   const gamesPerPair = Number(arg("games", "20"));
   const pveGames = Number(arg("pve", "4"));
   const hardGames = Number(arg("hard", "0"));

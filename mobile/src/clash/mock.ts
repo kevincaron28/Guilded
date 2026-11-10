@@ -254,7 +254,7 @@ export class MockClash implements ClashApi {
 
   constructor() {
     const me = "sample-me";
-    const base = { reason: null, live: false, seat: 0 as const, you: { id: me, cls: "warrior" }, season: null, round: 0, version: 1, turnSeconds: 86_400, turnDeadlineAt: null, expiresAt: null, finishedAt: null, rated: false };
+    const base = { reason: null, live: false, seat: 0 as const, you: { id: me, cls: "warrior" }, season: null, round: 0, version: 1, turnSeconds: 86_400, turnDeadlineAt: null, expiresAt: null, finishedAt: null, rated: false, clocks: null };
     const add = (info: DuelInfo, game: string | null = null) => this.duelRows.set(info.id, { info, game });
     add({ ...base, id: "duel-in", kind: "friendly", status: "pending", direction: "incoming", seat: 1, yourTurn: false, opponent: { id: "sample-3", name: "Cindra Vale", cls: "mage" }, expiresAt: iso(19 * HOUR), createdAt: iso(-5 * HOUR) });
     const mine = this.newGame({ mode: "ai", cls: "warrior", opponent: "rogue" }, true);
@@ -317,7 +317,7 @@ export class MockClash implements ClashApi {
     const id = `duel-${this.duelRows.size + 1}`;
     const info: DuelInfo = { id, kind: "friendly", status: "pending", reason: null, live: input.live, direction: "outgoing", seat: 0, yourTurn: false, you: { id: "sample-me", cls: input.cls },
       opponent: { id: to.discordUserId, name: to.name, cls: null }, season: null, round: 0, version: 1, turnSeconds: input.live ? 60 : 86_400, turnDeadlineAt: null,
-      expiresAt: iso(input.live ? 120_000 : 24 * HOUR), createdAt: iso(0), finishedAt: null, rated: false };
+      expiresAt: iso(input.live ? 120_000 : 24 * HOUR), createdAt: iso(0), finishedAt: null, rated: false, clocks: null };
     const row = { info, game: null };
     this.duelRows.set(id, row);
     return this.duelReply(row);
@@ -364,9 +364,9 @@ export class MockClash implements ClashApi {
     if (this.queue && Date.now() - this.queue.since >= 6000) {
       const g = this.newGame({ mode: "ai", cls: this.queue.cls, opponent: "hunter" }, true);
       const id = `ranked-${this.duelRows.size + 1}`;
-      const info: DuelInfo = { id, kind: "ranked", status: "active", reason: null, live: false, direction: "match", seat: 0, yourTurn: true, you: { id: "sample-me", cls: this.queue.cls },
-        opponent: { id: RANKED_FOE.discordUserId, name: RANKED_FOE.name, cls: "hunter" }, season: new Date().toISOString().slice(0, 7), round: 1, version: 1, turnSeconds: 86_400,
-        turnDeadlineAt: iso(24 * HOUR), expiresAt: null, createdAt: iso(0), finishedAt: null, rated: false };
+      const info: DuelInfo = { id, kind: "ranked", status: "active", reason: null, live: true, direction: "match", seat: 0, yourTurn: true, you: { id: "sample-me", cls: this.queue.cls },
+        opponent: { id: RANKED_FOE.discordUserId, name: RANKED_FOE.name, cls: "hunter" }, season: new Date().toISOString().slice(0, 7), round: 1, version: 1, turnSeconds: 60,
+        turnDeadlineAt: iso(60_000), expiresAt: null, createdAt: iso(0), finishedAt: null, rated: false, clocks: { you: 150_000, opponent: 150_000 } };
       const row = { info, game: g.id };
       this.duelRows.set(id, row);
       this.queue = null;

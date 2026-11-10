@@ -35,6 +35,8 @@ interface Pending {
   issue?: () => Promise<SignInGrant | null>;
   /** Zero-setup companion: the Guild row its device key syncs to, picked first on the page. */
   prefer?: string;
+  /** The in-game guild of the saved file the companion found (name or name-realm): servers that know it are listed first. */
+  guildKey?: string;
 }
 
 export function confirmCode(bytes = randomBytes(6)): string {
@@ -58,14 +60,15 @@ export function createCompanionSignIn(options: { now?: () => number } = {}) {
 
   return {
     /** A new request. requestId is the companion's secret; only its hash is kept. */
-    start(options: { loopback?: unknown; prefer?: string | null } = {}): { requestId: string; confirm: string; expiresAt: Date } | null {
+    start(options: { loopback?: unknown; prefer?: string | null; guildKey?: unknown } = {}): { requestId: string; confirm: string; expiresAt: Date } | null {
       sweep();
       if (pending.size >= MAX_PENDING) return null;
       const requestId = randomBytes(32).toString("base64url");
       const confirm = confirmCode();
       const expiresAt = now() + SIGN_IN_LIFETIME_MS;
       const loopback = typeof options.loopback === "number" && Number.isInteger(options.loopback) && options.loopback >= 1024 && options.loopback <= 65535 ? options.loopback : undefined;
-      pending.set(hashCompanionSecret(requestId), { confirm, expiresAt, grant: null, ...(loopback ? { loopback } : {}), ...(options.prefer ? { prefer: options.prefer } : {}) });
+      const guildKey = typeof options.guildKey === "string" ? options.guildKey.trim().slice(0, 120) : "";
+      pending.set(hashCompanionSecret(requestId), { confirm, expiresAt, grant: null, ...(loopback ? { loopback } : {}), ...(options.prefer ? { prefer: options.prefer } : {}), ...(guildKey ? { guildKey } : {}) });
       return { requestId, confirm, expiresAt: new Date(expiresAt) };
     },
     /** The Windows app's port when it gave one: the page then sends the proof there instead of asking for the code. */
@@ -75,6 +78,10 @@ export function createCompanionSignIn(options: { now?: () => number } = {}) {
     /** The server the companion's device key already syncs to (a Guild row ID or Discord ID), if any. */
     preferFor(requestId: unknown): string | null {
       return find(requestId)?.prefer ?? null;
+    },
+    /** The saved file's in-game guild the companion sent when it started this sign-in, if any. */
+    guildKeyFor(requestId: unknown): string | null {
+      return find(requestId)?.guildKey ?? null;
     },
     /** Internal code lookup; never render this code on the approval page. */
     confirmFor(requestId: unknown): string | null {
@@ -164,6 +171,8 @@ export interface SignInPageDeps {
   servers(discordUserId: string): Promise<{ discordId: string; name: string; wowGuildId?: string; gameEdition?: string }[]>;
   /** A guild companion credential, or null when the user is not (or no longer) an active member. */
   issueGuild(account: WebAccountView, guildDiscordId: string, wowGuildId?: string, deviceName?: string): Promise<string | null>;
+  /** Does this server know the in-game guild of the companion's saved file? Used to list the right servers first. */
+  knowsGuild?(server: { discordId: string; wowGuildId?: string }, guildKey: string): Promise<boolean>;
   issuePersonal(accountId: string, deviceName?: string): Promise<string>;
 }
 
@@ -193,7 +202,18 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
     // A zero-setup companion already syncs to one server: that one comes first (and is checked).
     const prefer = deps.signIn.preferFor(requestId);
     const listed = await deps.servers(ctx.account.discordUserId);
-    const servers = prefer ? [...listed].sort((a, b) => Number([b.wowGuildId, b.discordId].includes(prefer)) - Number([a.wowGuildId, a.discordId].includes(prefer))) : listed;
+    const sorted = prefer ? [...listed].sort((a, b) => Number([b.wowGuildId, b.discordId].includes(prefer)) - Number([a.wowGuildId, a.discordId].includes(prefer))) : listed;
+    // T1 (10 Nov 2026): the saved file's in-game guild decides which servers come first; the others wait under "Other choices".
+    // When none matches (or nothing was sent) every server stays in the main list, as before.
+    const guildKey = deps.signIn.guildKeyFor(requestId);
+    let servers = sorted;
+    let others: typeof listed = [];
+    if (guildKey && deps.knowsGuild && sorted.length > 1) {
+      const flags = await Promise.all(sorted.map((server) => deps.knowsGuild!(server, guildKey).catch(() => false)));
+      const matching = sorted.filter((_, index) => flags[index]);
+      if (matching.length) { servers = matching; others = sorted.filter((_, index) => !flags[index]); }
+    }
+    const selectable = [...servers, ...others];
     const loopback = deps.signIn.loopbackFor(requestId);
     const needsCode = !loopback;
     if (ctx.request.method === "POST") {
@@ -205,7 +225,7 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       try {
       const account = ctx.account;
       const deviceName = (ctx.form?.get("deviceName") || defaultDeviceName(ctx.request.headers["user-agent"], lang)).slice(0, 80);
-      const selected = servers.find(server => (server.wowGuildId ?? server.discordId) === choice);
+      const selected = selectable.find(server => (server.wowGuildId ?? server.discordId) === choice);
       const notAvailable = () => kit.page(400, title, `<h1>${t("That choice is not available", "Ce choix n'est pas disponible")}</h1><p><a href="${link("/me/companion", lang, { request: requestId })}">${t("Go back and choose again", "Revenir et choisir de nouveau")}</a></p>`, { noindex: true });
       const expired = () => kit.page(410, title, expiredBody(t), { noindex: true });
       if (choice !== "personal" && !selected) return notAvailable();
@@ -235,9 +255,13 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       `<label class="choice"><input type="radio" name="choice" value="${escapeHtml(value)}"${checked ? " checked" : ""}> <strong>${label}</strong><br><span class="muted">${hint}</span></label>`;
     const personal = radio("personal", t("Public dungeon leaderboards only", "Classements publics des donjons seulement"), t("No guild needed: your finished dungeon runs (Guilded Dungeons or Guilded) go to the public leaderboards.", "Aucune guilde requise : vos donjons terminés (Guilded Dungeons ou Guilded) vont aux classements publics."), servers.length === 0);
     // One server (the usual case) is chosen already; the leaderboards-only choice waits under "Other choices".
-    const choices = servers.length === 1
+    const choices = servers.length === 1 && !others.length
       ? `<input type="hidden" name="choice" value="${escapeHtml(servers[0]!.wowGuildId ?? servers[0]!.discordId)}"><p class="choice"><strong>${escapeHtml(servers[0]!.name)}</strong><br><span class="muted">${t("Your guild's addon data and standings sync with this Discord server.", "Les données de l'addon et les classements de guilde se synchronisent avec ce serveur Discord.")}</span></p>`
       : servers.map((server, index) => radio(server.wowGuildId ?? server.discordId, escapeHtml(server.name), t("Sync your guild's addon data and standings with this Discord server.", "Synchronisez les données de l'addon et les classements de guilde avec ce serveur Discord."), index === 0)).join("") + personal;
+    const otherServers = others.length
+      ? `<p class="muted">${t("These servers do not know the guild of your saved game files. Pick one only if you are sure:", "Ces serveurs ne connaissent pas la guilde de vos fichiers de jeu. Choisissez-en un seulement si vous en êtes certain :")}</p>`
+        + others.map((server) => radio(server.wowGuildId ?? server.discordId, escapeHtml(server.name), t("Sync your guild's addon data and standings with this Discord server.", "Synchronisez les données de l'addon et les classements de guilde avec ce serveur Discord."), false)).join("")
+      : "";
     const device = defaultDeviceName(ctx.request.headers["user-agent"], lang);
     const body = `<style>.choice{display:block;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:10px 0;color:var(--text);font-size:16px}.choice input{width:auto}</style>`
       + `<p class="eyebrow">${t("Guilded companion", "Compagnon Guilded")}</p><h1>${title}</h1>`
@@ -248,7 +272,7 @@ export function companionSignInRoute(deps: SignInPageDeps): WebRoute {
       + `<form method="post" action="/me/companion"><input type="hidden" name="csrf" value="${escapeHtml(ctx.csrf ?? "")}"><input type="hidden" name="lang" value="${lang}"><input type="hidden" name="request" value="${escapeHtml(requestId)}">`
       + (needsCode ? `<p><label>${t("Code from your companion", "Code de votre compagnon")}<br><input name="code" autocomplete="off" required maxlength="7" pattern="[A-Za-z0-9]{3}-?[A-Za-z0-9]{3}" placeholder="ABC-DEF" style="width:9em;font-size:20px;text-transform:uppercase"></label></p>` : "")
       + `<h2>${t("Link it to", "Le relier à")}</h2>${choices}`
-      + `<details><summary>${t("Other choices", "Autres choix")}</summary>${servers.length === 1 ? `<p class="muted">${t("Pick this instead of your server to send only your own dungeon runs:", "Choisissez ceci au lieu de votre serveur pour n'envoyer que vos propres donjons :")}</p>${personal.replace('type="radio"', 'type="checkbox"').replace('name="choice"', 'name="personalOnly"')}` : ""}`
+      + `<details><summary>${t("Other choices", "Autres choix")}</summary>${otherServers}${servers.length === 1 ? `<p class="muted">${t("Pick this instead of your server to send only your own dungeon runs:", "Choisissez ceci au lieu de votre serveur pour n'envoyer que vos propres donjons :")}</p>${personal.replace('type="radio"', 'type="checkbox"').replace('name="choice"', 'name="personalOnly"')}` : ""}`
       + `<p><label>${t("Device name", "Nom de l'appareil")}<input name="deviceName" maxlength="80" value="${escapeHtml(device)}"></label></p></details>`
       + `<p class="muted">${t("Your other devices stay connected. Manage devices in", "Vos autres appareils restent connectés. Gérez les appareils dans")} <a href="/me/connections">${t("Connections", "Connexions")}</a>.</p>`
       + (servers.length ? "" : `<p class="muted">${t("No Discord server with the Guilded bot lists you as a member. Addon-only guilds don't need one: the addon syncs in game.", "Aucun serveur Discord avec le bot Guilded ne vous compte comme membre. Les guildes sans Discord n'en ont pas besoin : l'addon se synchronise en jeu.")}</p>`)

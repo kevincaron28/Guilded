@@ -744,7 +744,11 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       const ranks = await guildRanks(period);
       // With nobody ranked yet, one line replaces a grid of empty level brackets.
       const ranked = brackets.some((b) => scores.some((row) => row.bracket === b.key));
-      body = `<h2>${t("Top runs this week", "Meilleurs essais de la semaine")}</h2><p class="muted">${t("A weekly snapshot; character and guild rankings below use your selected period.", "Aperçu hebdomadaire; les classements des personnages et des guildes ci-dessous utilisent la période choisie.")}</p>${topRuns(ctx, week, filters, periodRules(weekPeriod))}`
+      const weekHtml = topRuns(ctx, week, filters, periodRules(weekPeriod));
+      // A week with no rated runs is one sentence and a link, not a "0 this week" headline above the season table.
+      const weekBlock = weekHtml.includes('class="empty-cta"') ? weekHtml
+        : `<h2>${t("Top runs this week", "Meilleurs essais de la semaine")}</h2><p class="muted">${t("A weekly snapshot; character and guild rankings below use your selected period.", "Aperçu hebdomadaire; les classements des personnages et des guildes ci-dessous utilisent la période choisie.")}</p>${weekHtml}`;
+      body = weekBlock
         + `<h2>${t("Top characters", "Meilleurs personnages")} · ${escapeHtml(periodName(ctx, period))}</h2><p class="muted">${t("Score adds a character’s best distinct rated routes in each level bracket. Higher is better.", "Le score additionne les meilleurs parcours classés distincts du personnage dans chaque tranche de niveaux. Plus il est élevé, mieux c’est.")}</p>`
         + (ranked || !brackets.length ? `<div class="grid2">` + brackets.map((b) => `<section><h3>${escapeHtml(bracketName(ctx, b.key))} <span class="tag">${t(`best ${b.bestCount} routes`, `${b.bestCount} meilleurs parcours`)}</span></h3>${scoreTable(ctx, scores.filter((row) => row.bracket === b.key), 25)}<p><a href="${link("/leaderboards/characters/", lang, { season: filters.season, period: filters.week ? "week" : null, bracket: b.key, class: filters.className, role: filters.role, realm: filters.realm })}">${t("Full ranking →", "Classement complet →")}</a></p></section>`).join("") + `</div>`
           : `<p class="muted">${t("Nobody is ranked yet in this period: your first ranked clear puts you on the board.", "Personne n'est encore classé pour cette période : votre premier essai classé vous place au classement.")}</p>`)

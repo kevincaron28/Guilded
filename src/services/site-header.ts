@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { editionHref, editionSection, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../../site/nav.mjs";
 import { currentEdition } from "./edition-context.js";
 import { SITE_LOGO } from "./site-logo.js";
@@ -9,34 +10,12 @@ import { SITE_LOGO } from "./site-logo.js";
 
 type Lang = "en" | "fr";
 
+const chrome = readFileSync(new URL("../../site/design-tokens.css", import.meta.url), "utf8");
+const chromeStart = chrome.indexOf("/* site-chrome:start */");
+const chromeEnd = chrome.indexOf("/* site-chrome:end */");
 export const SITE_HEADER_STYLE = `@font-face{font-family:Inter;font-style:normal;font-weight:400 700;font-display:swap;src:url("/fonts/inter-latin.woff2") format("woff2")}
 body{font-family:Inter,"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
-.site-top{position:sticky;top:0;z-index:20;background:#111312ed;border-bottom:1px solid var(--line)}
-.site-top-inner{max-width:1280px;margin:auto;padding:14px 32px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px}
-.site-top .brand{display:inline-flex;align-items:center;gap:10px;color:var(--text);font-size:19px;font-weight:800;letter-spacing:.15em;line-height:1.2;text-decoration:none}
-.site-top .brand img{flex-shrink:0;border-radius:6px}.site-top .brand-caption{display:block;font-size:8px;font-weight:500;letter-spacing:.17em;color:var(--muted);margin-top:6px}
-.site-top nav{display:flex;flex-wrap:wrap;align-items:center;gap:4px 4px;font-size:13px}
-.site-top nav a,.nav-group>summary{display:inline-flex;align-items:center;min-height:44px;color:var(--muted);text-decoration:none}
-.site-top nav>a{padding:0 10px;border-radius:5px;white-space:nowrap}
-.site-top nav a:hover,.site-top nav a[aria-current=page],.nav-group>summary:hover,.nav-group[open]>summary{color:var(--text)}
-.site-top nav>a[aria-current=page]{box-shadow:inset 0 -2px var(--gold);border-radius:0}
-.site-top nav a.nav-cta{margin-left:8px;padding:0 18px;border-radius:5px;background:var(--gold);color:#1b2019;font-weight:650}.site-top nav a.nav-cta:hover{background:#f4d89e;color:#1b2019}.site-top nav a.nav-cta[aria-current=page]{box-shadow:none;color:#1b2019}
-.language-switch{display:inline-flex;margin-left:8px;border:1px solid #494d40;border-radius:5px;overflow:hidden}.site-top .language-switch a{min-height:36px;padding:0 11px;font-size:12px}
-.site-top .language-switch a[aria-current=true]{background:#e8c47c1f;color:var(--gold)}
-.menu-check{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
-.menu-label{display:none;cursor:pointer;align-items:center;gap:12px;min-height:44px;padding:0 14px;border:1px solid #505447;border-radius:4px;font-size:13px;color:var(--text)}
-.menu-check:focus-visible+.menu-label{outline:3px solid #9dc7f0;outline-offset:4px}
-@media(max-width:1260px){.site-top-inner{padding-left:20px;padding-right:20px}.site-top nav{font-size:12px}.site-top nav>a{padding:0 7px}.site-top nav a.nav-cta{padding:0 13px;margin-left:4px}}
-@media(max-width:940px){.site-top-inner{padding:12px 20px}.menu-label{display:inline-flex}.site-top nav{display:none;width:100%;flex-direction:column;align-items:stretch;gap:0;padding:4px 0 14px;font-size:16px}
-.menu-check:checked~nav{display:flex}.site-top nav>a{min-height:48px;padding:0 4px;border-bottom:1px solid var(--line);border-radius:0}.site-top nav>a[aria-current=page]{box-shadow:none;color:var(--gold)}
-.site-top nav a.nav-cta{justify-content:center;margin:14px 0 0;min-height:52px;border-bottom:0;border-radius:5px;font-size:16px}.language-switch{align-self:flex-start;margin:14px 0 0}.site-top .language-switch a{min-height:44px;padding:0 16px}}
-.site-foot{margin-top:56px;padding-top:28px;border-top:1px solid var(--line)}
-.footer-cols{display:grid;align-items:start;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px 32px;text-align:left}
-.footer-title{margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text)}
-.footer-cols ul{list-style:none;margin:0;padding:0}.footer-cols a{display:inline-flex;align-items:center;min-height:34px;font-size:13px;color:var(--muted);text-decoration:none}.footer-cols a:hover{color:var(--text);text-decoration:underline}
-.foot-note{margin-top:24px}
-@media(max-width:700px){.footer-cols{grid-template-columns:repeat(2,minmax(0,1fr))}.footer-cols a{min-height:44px}}
-.crumbs{font-size:13px;color:var(--muted);margin:14px 0 20px}.crumbs a{color:var(--muted)}.crumbs a:hover{color:var(--text)}`;
+${chrome.slice(chromeStart + "/* site-chrome:start */".length, chromeEnd).trim()}`;
 
 // The website's 1200 × 630 link-preview card (site/images/social/), for pages without their own.
 export const SHARE_CARD = "https://guilded.kcaron.top/images/social/guilded-card.png";

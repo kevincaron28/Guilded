@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CARDS_SET1, starterDeck } from "../src/services/tcg-cards-set1.js";
 import { CLASS_KEYS, type Action, type ClassKey, type MatchState } from "../src/services/tcg-engine-types.js";
-import { apply, applyMut, attackTargets, costOf, createMatch, legalActions, powerCost, replay, spawn, stateHash, atkOf, hpOf } from "../src/services/tcg-engine.js";
+import { apply, applyMut, attackTargets, costOf, createMatch, DRAW_ROUND, EXHAUSTION_ROUND, SECOND_WIND_HEALTH, START_HEALTH, withRules, legalActions, powerCost, replay, spawn, stateHash, atkOf, hpOf } from "../src/services/tcg-engine.js";
 
 const deck = (cls: ClassKey) => ({ cls, cards: starterDeck(cls) });
 
@@ -38,7 +38,7 @@ describe("setup and turn flow", () => {
       for (const p of [0, 1] as const) expect(s.players[p].hand.some(id => id !== "loot-bag" && costOf(s, p, id) <= 2)).toBe(true);
     }
   });
-  it("lets each player mulligan once, first player first, then starts turn 1 without a draw", () => {
+  it("lets each player mulligan once, first player first, then starts turn 1 with a draw", () => {
     const s = createMatch(3, deck("warrior"), deck("mage"));
     expect(legalActions(s).every(a => a.t === "mulligan")).toBe(true);
     const a = act(s, { t: "mulligan", replace: [0] });
@@ -48,7 +48,7 @@ describe("setup and turn flow", () => {
     expect(b.active).toBe(b.first);
     expect(b.turn).toBe(1);
     expect(b.players[b.first].mana).toBe(1);
-    expect(b.players[b.first].hand).toHaveLength(3);
+    expect(b.players[b.first].hand).toHaveLength(4);
   });
   it("never lets the Loot Bag be mulliganed away", () => {
     const s = createMatch(3, deck("warrior"), deck("mage"));
@@ -58,18 +58,18 @@ describe("setup and turn flow", () => {
   it("gives min(turn number, 8) mana and refreshes it each turn", () => {
     let s = game();
     s.players[0].mana = 1;
-    for (let turn = 1; turn <= 10; turn++) {
+    for (let turn = 1; turn < DRAW_ROUND; turn++) {
       expect(s.players[0].mana).toBe(Math.min(turn, 8));
       s = endTurns(s, 2);
     }
   });
-  it("draws one card a turn except for the first player's first turn", () => {
+  it("draws one card a turn, the first player's first turn included", () => {
     let s = game();
-    expect(s.players[0].deck).toHaveLength(21);
+    expect(s.players[0].deck).toHaveLength(20);
     s = act(s, { t: "end" });
     expect(s.players[1].deck).toHaveLength(19);
     s = act(s, { t: "end" });
-    expect(s.players[0].deck).toHaveLength(20);
+    expect(s.players[0].deck).toHaveLength(19);
   });
   it("lets the second player spend the Loot Bag for 2 temporary mana", () => {
     let s = game();
@@ -110,7 +110,7 @@ describe("combat", () => {
     const shade = spawn(s, 0, "036");
     s = act(s, { t: "attack", unit: shade.uid, target: { champ: 1 } });
     expect(s.players[0].board[0]!.kw).not.toContain("shadow");
-    expect(s.players[1].hp).toBe(18);
+    expect(s.players[1].hp).toBe(START_HEALTH - 2);
   });
   it("deals combat damage both ways at once and kills what reaches 0", () => {
     let s = game();
@@ -125,7 +125,7 @@ describe("combat", () => {
     const a = spawn(s, 0, "111");
     s.players[1].armor = 2;
     s = act(s, { t: "attack", unit: a.uid, target: { champ: 1 } });
-    expect(s.players[1].hp).toBe(17);
+    expect(s.players[1].hp).toBe(START_HEALTH - 3);
     expect(s.players[1].armor).toBe(0);
     expect(s.players[0].board[0]!.dmg).toBe(0);
   });
@@ -147,17 +147,17 @@ describe("combat", () => {
   });
   it("lets Drain mend the owner's Champion by the damage dealt", () => {
     let s = game();
-    s.players[0].hp = 15;
+    s.players[0].hp = START_HEALTH - 5;
     const siphon = spawn(s, 0, "084");
     s = act(s, { t: "attack", unit: siphon.uid, target: { champ: 1 } });
-    expect(s.players[0].hp).toBe(19);
+    expect(s.players[0].hp).toBe(START_HEALTH - 1);
   });
   it("lets Twin Strike attack twice and no more", () => {
     let s = game();
     const rider = spawn(s, 0, "059");
     s = act(s, { t: "attack", unit: rider.uid, target: { champ: 1 } });
     s = act(s, { t: "attack", unit: rider.uid, target: { champ: 1 } });
-    expect(s.players[1].hp).toBe(14);
+    expect(s.players[1].hp).toBe(START_HEALTH - 6);
     expect(legalActions(s).some(a => a.t === "attack")).toBe(false);
   });
   it("ends the match when a Champion reaches 0 and declares a draw when both do", () => {
@@ -182,17 +182,17 @@ describe("spells and Rally", () => {
     let s = game("mage", "warrior");
     hand(s, 0, "068");
     s = play(s, 0, { target: { champ: 1 } });
-    expect(s.players[1].hp).toBe(17);
+    expect(s.players[1].hp).toBe(START_HEALTH - 3);
   });
   it("makes Cleaving Strike hurt you only if the target survives", () => {
     let s = game();
     const big = spawn(s, 1, "119");
     hand(s, 0, "002", "002");
     s = play(s, 0, { target: { unit: big.uid } });
-    expect(s.players[0].hp).toBe(18);
+    expect(s.players[0].hp).toBe(START_HEALTH - 2);
     const small = spawn(s, 1, "001");
     s = play(s, 0, { target: { unit: small.uid } });
-    expect(s.players[0].hp).toBe(18);
+    expect(s.players[0].hp).toBe(START_HEALTH - 2);
   });
   it("only lets Reckoning target units with 5 or more Attack", () => {
     const s = game("paladin", "warrior");
@@ -206,10 +206,10 @@ describe("spells and Rally", () => {
   });
   it("resolves Rally healing, and fizzles a Rally with no target", () => {
     let s = game("paladin", "warrior");
-    s.players[0].hp = 10;
+    s.players[0].hp = START_HEALTH - 10;
     hand(s, 0, "016");
     s = play(s, 0, { target: { champ: 0 } });
-    expect(s.players[0].hp).toBe(14);
+    expect(s.players[0].hp).toBe(START_HEALTH - 6);
     let t = game("hunter", "warrior");
     hand(t, 0, "026");
     t = play(t, 0);
@@ -220,7 +220,7 @@ describe("spells and Rally", () => {
     s.zone = { card: "136", owner: 0 };
     hand(s, 0, "028");
     s = play(s, 0);
-    expect(s.players[1].hp).toBe(16);
+    expect(s.players[1].hp).toBe(START_HEALTH - 4);
   });
   it("Chills a unit for its controller's next turn only", () => {
     let s = game("mage", "warrior");
@@ -349,7 +349,7 @@ describe("Gear, Zones and Standards", () => {
     s.zone = { card: "137", owner: 0 };
     hand(s, 0, "028");
     s = play(s, 0);
-    expect(s.players[1].hp).toBe(19);
+    expect(s.players[1].hp).toBe(START_HEALTH - 1);
   });
   it("lets a Standard fill the slot once and powers cost less with the Duelist banner", () => {
     let s = game();
@@ -393,19 +393,19 @@ describe("Full Party, powers, stalls and limits", () => {
     h = act(h, { t: "power" });
     expect(h.players[0].board.map(u => u.card)).toEqual(["tk-beast-companion"]);
     const p = game("paladin", "mage");
-    expect(powerCost(p, 0)).toBe(3);
+    expect(powerCost(p, 0)).toBe(2);
   });
   it("applies Exhaustion from an empty deck, growing each time", () => {
     let s = game();
     s.players[1].deck = [];
     s = act(s, { t: "end" });
-    expect(s.players[1].hp).toBe(19);
+    expect(s.players[1].hp).toBe(START_HEALTH - 2);
     s = endTurns(s, 2);
-    expect(s.players[1].hp).toBe(17);
+    expect(s.players[1].hp).toBe(START_HEALTH - 6);
   });
-  it("gives Second Wind once at 8 Health or less", () => {
+  it("gives Second Wind once at SECOND_WIND_HEALTH or less", () => {
     let s = game();
-    s.players[1].hp = 8;
+    s.players[1].hp = SECOND_WIND_HEALTH;
     const deckBefore = s.players[1].deck.length;
     s = act(s, { t: "end" });
     expect(s.players[1].armor).toBe(2);
@@ -413,12 +413,33 @@ describe("Full Party, powers, stalls and limits", () => {
     s = endTurns(s, 2);
     expect(s.players[1].armor).toBe(2);
   });
-  it("ends in a draw at the round cap", () => {
+  it("starts Sudden Death at round EXHAUSTION_ROUND even with cards left", () => {
     let s = game();
-    s.turn = 39;
-    s.players[0].deck.length = 5;
-    s.players[1].deck.length = 5;
+    s.turn = EXHAUSTION_ROUND * 2 - 2;
+    s = act(s, { t: "end" });
+    expect(s.players[1].hp).toBe(START_HEALTH - 2);
+    expect(s.players[1].deck.length).toBeGreaterThan(0);
+  });
+  it("ends after the last round: the Champion who lost less Health (Armor counting) wins", () => {
+    let s = game();
+    s.turn = DRAW_ROUND * 2 - 1;
+    s.players[0].hp = START_HEALTH - 5;
+    s.players[0].armor = 3;
+    s.players[1].hp = START_HEALTH - 1;
     s = endTurns(s, 2);
+    // Player 0 lost 5 Health but has 3 Armor (net 2); player 1 lost 1 plus 2 Sudden Death on its last turn (3).
+    expect(s.phase).toBe("over");
+    expect(s.reason).toBe("round-cap");
+    expect(s.winner).toBe(0);
+  });
+  it("is a draw after the last round when both lost the same", () => {
+    const s = withRules({ exhaustionRound: 99 }, () => {
+      const t = game();
+      t.turn = DRAW_ROUND * 2 - 1;
+      t.players[0].hp = START_HEALTH - 4;
+      t.players[1].hp = START_HEALTH - 4;
+      return endTurns(t, 2);
+    });
     expect(s.phase === "over" && s.winner === "draw").toBe(true);
   });
   it("burns cards drawn into a full hand and lets players concede", () => {
@@ -447,7 +468,7 @@ function botRng(seed: number) {
 function invariants(s: MatchState): void {
   for (const p of [0, 1] as const) {
     const pl = s.players[p];
-    expect(pl.hp).toBeLessThanOrEqual(20);
+    expect(pl.hp).toBeLessThanOrEqual(START_HEALTH);
     expect(pl.hand.length).toBeLessThanOrEqual(8);
     expect(pl.board.length).toBeLessThanOrEqual(5);
     expect(pl.mana).toBeLessThanOrEqual(10);
@@ -470,6 +491,55 @@ function playRandom(seed: number, a: ClassKey, b: ClassKey): { actions: Action[]
   }
   return { actions, final: s };
 }
+
+describe("balance review fixes (10 November 2026)", () => {
+  it("brings the Resurrected Saint back once: the copy has no Last Stand", () => {
+    let s = game("mage", "priest");
+    const saint = spawn(s, 1, "054");
+    saint.kw = [];
+    hand(s, 0, "081", "081");
+    s = play(s, 0, { target: { unit: saint.uid } });
+    const copy = s.players[1].board.find(u => u.card === "054")!;
+    expect(copy.quiet).toBe(true);
+    copy.kw = [];
+    s = play(s, 0, { target: { unit: copy.uid } });
+    expect(s.players[1].board.some(u => u.card === "054")).toBe(false);
+  });
+  it("needs a friendly unit to sacrifice before Pact Binder draws or Pact Overseer grows", () => {
+    let s = game("warlock", "mage");
+    hand(s, 0, "083", "085");
+    const deck = s.players[0].deck.length;
+    s = play(s, 0);
+    expect(s.players[0].deck.length).toBe(deck);
+    const binder = s.players[0].board[0]!;
+    s = play(s, 0, { target: { unit: binder.uid } });
+    expect(s.players[0].board.map(u => [u.card, u.atk, u.hp])).toEqual([["085", 8, 7]]);
+    let t = game("warlock", "mage");
+    hand(t, 0, "085");
+    t = play(t, 0);
+    expect(t.players[0].board.map(u => [u.card, u.atk, u.hp])).toEqual([["085", 5, 4]]);
+  });
+  it("sacrifices once under Echoes: the second Rally finds its target gone", () => {
+    let s = game("warlock", "mage");
+    s.zone = { card: "136", owner: 0 };
+    const victim = spawn(s, 0, "078");
+    hand(s, 0, "085");
+    s = play(s, 0, { target: { unit: victim.uid } });
+    expect(s.players[0].board.map(u => [u.card, u.atk, u.hp])).toEqual([["085", 8, 7]]);
+  });
+  it("lets Dispel remove Last Stand and auras", () => {
+    let s = game("priest", "warlock");
+    const sapper = spawn(s, 1, "109");
+    const mine = spawn(s, 0, "045");
+    hand(s, 0, "053", "047");
+    s = play(s, 0, { target: { unit: sapper.uid } });
+    expect(s.players[1].board[0]!.quiet).toBe(true);
+    s = play(s, 0, { target: { unit: sapper.uid } });
+    expect(s.players[1].board).toHaveLength(0);
+    for (const u of s.players[0].board) expect(u.dmg, `${u.card} was hit by a dispelled Last Stand`).toBe(0);
+    expect(s.players[0].board.some(u => u.uid === mine.uid)).toBe(true);
+  });
+});
 
 describe("replay and random play", () => {
   it("plays every card in every way it can be played without breaking the rules", () => {

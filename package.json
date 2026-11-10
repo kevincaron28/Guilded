@@ -16,6 +16,7 @@
     "companion:watch": "node companion/watcher.mjs",
     "addon:zip": "node scripts/build-addon-zip.mjs",
     "clash:selfplay": "tsx scripts/clash-selfplay.ts",
+    "clash:sim": "tsx scripts/clash-sim.ts",
     "addon:editions": "node scripts/build-addon-editions.mjs",
     "addon:verify-editions": "node scripts/verify-edition-zips.mjs",
     "dungeons:sync": "node scripts/build-dungeons-addon.mjs",

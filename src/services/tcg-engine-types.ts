@@ -29,7 +29,7 @@ export type Eff = EffBase & (
   | { k: "buff"; a: number; h: number; to: To; turn?: boolean }
   | { k: "kw"; kw: Keyword; to: To; turn?: boolean }
   | { k: "summon"; token: string; n: number }
-  | { k: "summonCopy"; hp1?: boolean; shield?: boolean }
+  | { k: "summonCopy"; hp1?: boolean; shield?: boolean; quiet?: boolean }
   | { k: "destroy"; to: To }
   | { k: "chill"; to: To }
   | { k: "dispel"; to: To }
@@ -50,7 +50,12 @@ export type Eff = EffBase & (
 );
 
 /** One way of playing a card: its target (if any) and what it does. A card with several abilities is modal: the player picks one. */
-export interface Ability { target?: Sel; effects: Eff[] }
+export interface Ability {
+  target?: Sel;
+  effects: Eff[];
+  /** The whole ability needs its target (a sacrifice): with no target, or once the target is gone, nothing happens. */
+  needsTarget?: boolean;
+}
 
 export type Aura =
   | { k: "atkIfTankHealer"; n: number }
@@ -122,6 +127,9 @@ export interface UnitState {
   doomed: boolean;
   survivor: boolean;
   zoneShieldUntil: number | null;
+  /** Dispelled (or the Resurrected Saint's copy): its Rally, Last Stand, Frenzy, turn effects and auras no longer apply. Older
+   *  stored matches lack the field, which reads as false. */
+  quiet?: boolean;
 }
 
 export interface PlayerState {

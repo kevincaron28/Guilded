@@ -52,13 +52,13 @@ Rules facts below were checked against the linked pages where a link is given; i
 
 ### 2.1 Overview
 
-1v1. Each player is a **Champion** of one of 9 classes with **20 Health**. You win by reducing the opposing Champion to 0 Health. You build a **24-card deck** from your class and neutral cards. Units fight on the board, spells and gear shape the fight, a **Zone** changes the rules for both sides, and your **Standard** (optional) gives you a permanent edge.
+1v1. Each player is a **Champion** of one of 9 classes with **16 Health** (20 until the balance review of 10 November 2026, `docs/plans/CLASH_BALANCE_REVIEW_2026-11-10.md`). You win by reducing the opposing Champion to 0 Health. You build a **24-card deck** from your class and neutral cards. Units fight on the board, spells and gear shape the fight, a **Zone** changes the rules for both sides, and your **Standard** (optional) gives you a permanent edge.
 
 ### 2.2 Components and limits
 
 | Item | Rule |
 | --- | --- |
-| Champion | 20 Health, no attack of its own. Armor absorbs damage before Health. Health cannot be healed above 20. |
+| Champion | 16 Health, no attack of its own. Armor absorbs damage before Health. Health cannot be healed above 16. |
 | Deck | Exactly 24 cards. |
 | Hand | 8 cards maximum; a card drawn into a full hand is burned. |
 | Board | 5 unit slots per side. A 6th unit cannot be played (or is destroyed if summoned). |
@@ -74,7 +74,7 @@ Rules facts below were checked against the linked pages where a link is given; i
 
 ### 2.4 Turn structure
 
-1. **Start phase.** Ready your units (they can attack again), refresh mana, draw 1 card (the first player skips the draw on their first turn). Start-of-turn effects trigger; if your deck is empty you take Exhaustion damage (see 2.9).
+1. **Start phase.** Ready your units (they can attack again), refresh mana, draw 1 card (since 10 November 2026 the first player draws on their first turn too). Start-of-turn effects trigger; if your deck is empty you take Exhaustion damage (see 2.9).
 2. **Main phase.** In any order, as many times as you can afford: play cards, use your class power once (2 mana), attack with ready units. Each unit may attack once (Twin Strike: twice). A unit that entered play this turn is exhausted and cannot attack unless it has **Swift**.
 3. **End phase.** End-of-turn effects trigger, temporary effects expire, and the turn passes. Chill, if applied to your units, wears off at the end of the turn in which they were prevented from attacking.
 
@@ -128,7 +128,7 @@ Each Champion has one power, usable once a turn for 2 mana unless noted.
 | Class | Power | Effect |
 | --- | --- | --- |
 | Warrior | Brace | Gain 2 Armor. |
-| Paladin | Ward (3 mana) | Give a friendly unit Shield. |
+| Paladin | Ward | Give a friendly unit Shield. (3 mana until 10 November 2026.) |
 | Hunter | Call Companion | Summon a 1/1 Beast with Swift. |
 | Rogue | Sinister Jab | Deal 1 damage to an enemy unit. |
 | Priest | Mending Word | Mend 3 a friendly character. |
@@ -141,13 +141,13 @@ Each Champion has one power, usable once a turn for 2 mana unless noted.
 
 - **Mulligan.** You see your opening hand and may replace any cards once; replaced cards are shuffled back after you draw. Opening-hand smoothing: each hand contains at least one card costing 2 or less (MTG Arena has a comparable idea, whose details sources dispute).
 - **Second player help.** One extra card and the Loot Bag. Tuning target: first player wins 48 to 52% of games (section 8.3).
-- **Second Wind.** The first time your Champion starts your turn with 8 Health or less, you draw an extra card and gain 2 Armor. Once per game.
-- **Exhaustion (stall breaker).** From the 13th round on, and at any time your own deck is empty, you take Exhaustion damage at the start of your turn: 1, then 2, 3, and so on (the counter is per player). Matches almost always end before round 16.
-- **Draws.** If both Champions fall to 0 together the match is a draw (no rating change, no win-based quest progress). Hard cap: round 20 ends the match as a draw.
+- **Second Wind.** The first time your Champion starts your turn with 6 Health or less, you draw an extra card and gain 2 Armor. Once per game.
+- **Exhaustion / Sudden Death (stall breaker).** From the 8th round on, and at any time your own deck is empty, you take Exhaustion damage at the start of your turn: 2, then 4, 6, and so on (the counter is per player). (Before 10 November 2026: from round 13, 1, 2, 3.)
+- **Draws.** If both Champions fall to 0 together the match is a draw (no rating change, no win-based quest progress). Hard cap: the match ends after round 9; the Champion who lost less Health (Armor counts as Health) wins, and equal losses are a draw. (Before 10 November 2026: round 20, always a draw.)
 - **Timers (live).** 60 seconds per turn (90 on your first), a warning at 15 s. On timeout your turn ends automatically; three timeouts in a row forfeit the match. **Async:** 24 hours per turn, 3 missed turns forfeit, reminders via the app's on-device notifications.
 - **Concede.** Any time; counts as a loss.
 - **Disconnect (live).** State is on the server, so rejoining is seamless within a 90 s grace; during it your turn clock keeps running. A match is only lost by forfeit or timeouts. One free reconnect per day does not count toward timeout forfeits.
-- **Match length.** Target 4 to 8 minutes live (about 8 rounds, 25 s per turn on average).
+- **Match length.** Target 2 to 5 minutes (owner, 10 November 2026): median 7 rounds; see the balance review for the simulated times.
 
 ### 2.10 Deck building
 

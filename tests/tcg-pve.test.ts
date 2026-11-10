@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { cardOf, deckProblem, starterDeck } from "../src/services/tcg-cards-set1.js";
 import { GAUNTLET, createGauntletMatch, featuredRun, runReward } from "../src/services/tcg-pve.js";
 import { playGame } from "../src/services/tcg-sim.js";
-import { applyMut, replay, stateHash } from "../src/services/tcg-engine.js";
+import { applyMut, replay, START_HEALTH, stateHash } from "../src/services/tcg-engine.js";
 import { chooseAction } from "../src/services/tcg-ai.js";
 import type { Action } from "../src/services/tcg-engine-types.js";
 
@@ -27,9 +27,9 @@ describe("dungeon gauntlet data", () => {
     const boss = GAUNTLET[4]!;
     const s = createGauntletMatch(3, player, boss);
     expect(s.zone).toEqual({ card: boss.zone, owner: 1 });
-    expect(s.players[1].hp).toBe(30);
-    expect(s.players[1].maxHp).toBe(30);
-    expect(s.players[0].hp).toBe(20);
+    expect(s.players[1].hp).toBe(boss.health);
+    expect(s.players[1].maxHp).toBe(boss.health);
+    expect(s.players[0].hp).toBe(START_HEALTH);
   });
   it("replays a boss match from its set-up to the same state", () => {
     const boss = GAUNTLET[1]!;
@@ -40,12 +40,12 @@ describe("dungeon gauntlet data", () => {
       actions.push(a);
       applyMut(s, a);
     }
-    const again = replay(21, player, { cls: boss.cls, cards: [...boss.deck] }, actions, { zone: { card: boss.zone, owner: 1 }, hp: [20, boss.health] });
+    const again = replay(21, player, { cls: boss.cls, cards: [...boss.deck] }, actions, { zone: { card: boss.zone, owner: 1 }, hp: [START_HEALTH, boss.health] });
     expect(stateHash(again)).toBe(stateHash(s));
   });
   it("plays every boss to a finish against the hard AI", () => {
     for (const boss of GAUNTLET) {
-      const r = playGame(70, player, { cls: boss.cls, cards: [...boss.deck] }, ["hard", boss.level], { zone: { card: boss.zone, owner: 1 }, hp: [20, boss.health] });
+      const r = playGame(70, player, { cls: boss.cls, cards: [...boss.deck] }, ["hard", boss.level], { zone: { card: boss.zone, owner: 1 }, hp: [START_HEALTH, boss.health] });
       expect(r.stuck, boss.name).toBe(false);
     }
   }, 60_000);

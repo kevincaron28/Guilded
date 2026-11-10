@@ -128,6 +128,25 @@ export function linkedAsLua(account) {
   return name ? `GuildedLinkedAs = ${luaString(name)}\n` : "GuildedLinkedAs = nil\n";
 }
 
+// Per-character identity in game (9.1.4): GuildedLinked[characterKey] = { discord = "<name>", confirmed = true|false } for THIS
+// PC's own characters only, plus GuildedLinkedMeta.updatedAt (the addon ignores a map older than 14 days). The key is the
+// character's name in ASCII lowercase with single spaces, as Modules/CompanionLink.lua computes it. `entries` are
+// { name, discord?, confirmed }: a confirmed entry carries the member's own Discord name, a reported one none.
+export const linkedMapKey = (name) => String(name ?? "").trim().replace(/\s+/g, " ").replace(/[A-Z]/g, (letter) => letter.toLowerCase());
+const plainDiscordName = (raw) => typeof raw === "string" ? Array.from(raw).filter((char) => char.charCodeAt(0) >= 32 && char !== '"' && char !== "\\" && char !== "|").join("").trim().slice(0, 40) : "";
+export function linkedMapLua(entries, updatedAt) {
+  const seen = new Set();
+  const lines = [];
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const key = linkedMapKey(entry?.name);
+    if (!key || seen.has(key) || key.length > 60 || seen.size >= 24) continue;
+    seen.add(key);
+    const discord = entry.confirmed === true ? plainDiscordName(entry.discord) : "";
+    lines.push(`  [${luaString(key)}] = { ${discord ? `discord = ${luaString(discord)}, ` : ""}confirmed = ${discord ? "true" : "false"} },`);
+  }
+  return ["GuildedLinked = {", ...lines, "}", `GuildedLinkedMeta = { updatedAt = ${luaString(updatedAt)}, }`, ""].join("\n");
+}
+
 // The bot's "ready to promote" list for an OFFICER's addon (Modules/Promotion.lua). Members never receive it.
 export function promotionToLua(promotion) {
   const ready = Array.isArray(promotion?.ready) ? promotion.ready.filter(name => typeof name === "string" && name && !/[\t\r\n]/.test(name)).slice(0, 100) : null;

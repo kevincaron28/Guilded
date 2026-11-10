@@ -43,41 +43,94 @@ function module.needed()
       if ns.normalizeName and ns.normalizeName(name) == ns.normalizeName(me) or name == me then return true end
     end
   end
-  if module.linkedAs() then return false end
+  if module.linkedState() then return false end
   -- (9.1.3) An unsigned (zero-setup) companion that wrote its data file is a companion.
   if module.unsignedCompanion() then return false end
   return not (type(GuildedStandings) == "table" and type(GuildedStandings.updatedAt) == "string")
 end
 
--- "Linked to Discord as <name>" (8.5 Track L): the companion writes GuildedLinkedAs with the
--- standings once this PC is linked. Said once in chat per name, and shown by /guilded companion.
--- (9.1.3) The companion on this PC has no Discord sign-in (zero-setup): it writes GuildedCompanion.mode = "device".
+-- "Linked to Discord as <name>" (8.5 Track L), per character since 9.1.4: the companion writes the map
+-- GuildedLinked[characterKey] = { discord = "<name>", confirmed = true|false } for THIS PC's own characters, with
+-- GuildedLinkedMeta.updatedAt. The line is said only for the character being played: "Linked to Discord as <name>"
+-- when confirmed, "Reported, not confirmed" when the bot only holds the character as reported, nothing otherwise.
+-- A map older than 14 days is ignored. The old PC-wide GuildedLinkedAs is read only when no map exists (an older
+-- companion), never once the map is there and never from an unsigned companion.
+-- (9.1.3) An unsigned (zero-setup) companion writes GuildedCompanion.mode = "device".
+local MAP_MAX_AGE = 14 * 24 * 3600
+
 function module.unsignedCompanion()
   return type(GuildedCompanion) == "table" and GuildedCompanion.mode == "device"
 end
 
-function module.linkedAs()
-  -- An unsigned companion means any GuildedLinkedAs left by an earlier signed-in one is stale: never announce it.
-  if module.unsignedCompanion() then return nil end
-  local name = GuildedLinkedAs
+local function plainName(name)
   if type(name) ~= "string" then return nil end
   name = string.gsub(name, "|", "")
   if name == "" or string.len(name) > 60 then return nil end
   return name
 end
 
+-- The map key of the character being played: ASCII-lowercase, single spaces (the companion writes the same).
+local function currentKey()
+  local me = ns.playerName and ns.playerName()
+  if type(me) ~= "string" or me == "" then return nil end
+  return string.lower((string.gsub(string.match(me, "^%s*(.-)%s*$") or me, "%s+", " ")))
+end
+
+local function mapFresh()
+  local meta = type(GuildedLinkedMeta) == "table" and GuildedLinkedMeta.updatedAt or nil
+  local at = ns.util and ns.util.isoEpoch and ns.util.isoEpoch(meta)
+  if not at then return false end
+  local age = clock() - at
+  return age < MAP_MAX_AGE
+end
+
+-- nil (say nothing), or { name = "<discord name>", confirmed = true }, or { confirmed = false } (reported only).
+function module.linkedState()
+  if type(GuildedLinked) == "table" then
+    if not mapFresh() then return nil end
+    local key = currentKey()
+    local entry = key and GuildedLinked[key]
+    if type(entry) ~= "table" then return nil end
+    if entry.confirmed == true then
+      local name = plainName(entry.discord)
+      return name and { name = name, confirmed = true } or nil
+    end
+    return { confirmed = false }
+  end
+  -- No map (an older companion): the one PC-wide name, never from an unsigned companion.
+  if module.unsignedCompanion() then return nil end
+  local name = plainName(GuildedLinkedAs)
+  return name and { name = name, confirmed = true } or nil
+end
+
+function module.linkedAs()
+  local state = module.linkedState()
+  return state and state.confirmed and state.name or nil
+end
+
 function module.linkedLine(name)
   return string.format(L("Linked to Discord as %s"), name) .. " |cff40ff40\226\156\147|r"
 end
 
--- Says the linked line in chat once per session for this name. Returns true when it spoke.
--- Once per game session (every login while linked), and again if the linked name changes.
-local announcedName
+function module.reportedLine()
+  return L("Reported, not confirmed")
+end
+
+local function stateLine(state)
+  if not state then return nil end
+  if state.confirmed then return module.linkedLine(state.name) end
+  return module.reportedLine()
+end
+
+-- Says the linked line in chat once per game session for this character and state. Returns true when it spoke.
+-- Once per game session (every login while linked), and again if the state changes.
+local announced
 function module.announceLinked()
-  local name = module.linkedAs()
-  if not name or announcedName == name then return false end
-  announcedName = name
-  ns.message(module.linkedLine(name))
+  local state = module.linkedState()
+  local line = stateLine(state)
+  if not line or announced == line then return false end
+  announced = line
+  ns.message(line)
   return true
 end
 
@@ -164,8 +217,8 @@ ns.commandHandlers["companion"] = function(args)
   if action == "off" then module.setEnabled(false); ns.message(L("Companion reminder off."))
   elseif action == "on" then module.setEnabled(true); ns.message(L("Companion reminder on (at most once a week)."))
   else
-    local name = module.linkedAs()
-    if name then ns.message(module.linkedLine(name)) end
+    local line = stateLine(module.linkedState())
+    if line then ns.message(line) end
     ns.message(module.text())
     for _, line in ipairs(module.steps()) do ns.message(line) end
     ns.message(module.SHORT)

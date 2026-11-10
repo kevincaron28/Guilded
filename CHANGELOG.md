@@ -1,5 +1,15 @@
 # Changelog
 
+## 9.1.4 — 10 November 2026
+
+Linking and dungeon fixes after the 9.1.3 retest. Details: docs/V9_1_4_RELEASE_NOTES.md.
+
+- `/gdungeons` and `/gdg` work with Guilded alone and answer for guildmates' runs (#712); dungeons-only members' runs reach the leaderboards through a guildmate (#715).
+- World map dots, no blocked guild reads, the welcome retried, Invite buttons show a copy box (#714).
+- The "Linked to Discord" line is per character (#717).
+- Wrong-server guard: links only where the server knows the in-game guild; sign-in lists matching servers first; `/api/v1/companion/leave` (#719); stronger proof wins, unlink detaches, `/officer character move` (#720).
+- Bot: Guilded Clash balance, 16 Health and Sudden Death (#718, server side; the phone app is separate).
+
 ## 9.1.3 — 9 November 2026
 
 Plug-and-play fixes from the two-PC fresh-install test of 9.1.2. Details: docs/V9_1_3_RELEASE_NOTES.md.

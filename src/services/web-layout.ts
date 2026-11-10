@@ -46,7 +46,8 @@ textarea{min-height:120px}button,.button{cursor:pointer;border:0;font:inherit}bu
 .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;align-items:end}.filters button{padding:10px}
 .who{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;justify-content:flex-end;font-size:13px;color:var(--muted);margin:8px 0 0}.who button.link{font-size:13px}
 .notice{background:var(--panel);border-left:3px solid var(--gold);padding:12px 16px;margin:16px 0}.trust-confirmed{color:#7bc47f}.trust-reported{color:var(--gold)}.error{border-left-color:#e07a6b}
-.code{font:700 28px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;color:var(--gold)}`;
+.code{font:700 28px/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;color:var(--gold)}
+@media(max-width:480px){main{padding-top:16px}h1{font-size:32px;margin:0 0 8px}h2{margin:24px 0 10px}.table-wrap{overflow-x:visible}}`;
 
 export interface LayoutInput {
   shareImage?: string;
@@ -75,7 +76,7 @@ export function layout(input: LayoutInput): string {
     + `<meta property="og:description" content="${description}"><meta property="og:image" content="${escapeHtml(input.shareImage ?? SHARE_CARD)}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
     + '<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
     + `<meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37">`
-    + `<link rel="icon" href="/favicon.png" type="image/png"><style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a>${siteHeader(input.lang, input.path, languages)}<main>${who.length ? `<div class="who">${who.join("")}</div>` : ""}<div id="content" tabindex="-1">${input.body}</div>`
+    + `<link rel="icon" href="/favicon.png" type="image/png"><style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a>${siteHeader(input.lang, input.path, languages)}<main><div id="content" tabindex="-1">${input.body}</div>${who.length ? `<div class="who">${who.join("")}</div>` : ""}`
     + `<footer class="site-foot">${siteFooterNav(input.lang)}<p class="foot-note">${t("Made with", "Créé avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;
 }
 

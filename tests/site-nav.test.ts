@@ -49,13 +49,13 @@ describe("site menu", () => {
     expect(editionSwitchHref("/leaderboards/", "retail")).toBe("/editions/");
   });
 
-  it("shows WoW Forever in the header of bot pages, even for a removed edition's stored guild", () => {
+  it("has no edition drop-down on bot pages, even for a removed edition's stored guild", () => {
     const html = withEdition("forever", () => page("/leaderboards/guilds/", "fr"));
-    expect(html).toContain('<details class="nav-group edition-menu" data-nav-group="edition"><summary>Je joue à : <strong>WoW Forever</strong></summary>');
-    expect(html).toContain('href="/forever/leaderboards/guilds/?lang=fr" data-edition="forever" aria-current="true"');
+    expect(html).not.toContain("edition-menu");
+    expect(html).not.toMatch(/Choose your WoW|Choisir votre WoW|Je joue à|Playing:/);
     for (const slug of ["retail", "tbc", "mists", "classic-era"]) expect(html).not.toContain(`data-edition="${slug}"`);
     const guild = renderGuildPage({ slug: "qg", name: "QG", language: "en", indexable: true, intro: null, sections: [], cores: [], recruitment: null, edition: "retail" });
-    expect(guild).toContain("Playing: <strong>WoW Forever</strong>");
+    expect(guild).not.toContain("edition-menu");
     expect(guild).not.toContain('href="/retail/');
   });
 

@@ -20,7 +20,8 @@ describe('edition-specific downloads', () => {
     expect(home).toContain('href="/forever/"');
     expect(home).toContain('class="edition-card edition-forever featured"');
     for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(home).not.toContain(`edition-card edition-${other}`);
-    expect(home).toContain('<span data-edition-none><span data-en="Choose your WoW" data-fr="Choisir votre WoW">Choose your WoW</span></span>');
+    expect(home).not.toMatch(/Choose your WoW|Choisir votre WoW|every version|choose your edition|Choisir votre édition/i);
+    expect(home).not.toContain('class="edition-menu"');
     expect(home).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
 
@@ -116,7 +117,8 @@ describe('edition hubs', () => {
     const downloads = [...html.matchAll(/href="(https:\/\/github\.com\/[^" ]+\.zip)"/g)].map(match => match[1]);
     expect(downloads).toEqual(['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`));
     for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(html).not.toContain(`-${other}.zip`);
-    expect(html).toContain('<summary><span data-en="Playing:" data-fr="Je joue à :">Playing:</span> <strong>');
+    expect(html).not.toContain('class="edition-menu"');
+    expect(html).not.toMatch(/Choose your WoW|Choisir votre WoW|Je joue à/i);
     expect(html).not.toContain('undefined');
     expect(html.includes('id="dates-title"')).toBe(edition.id === 'forever');
   });

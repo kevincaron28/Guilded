@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deviceUploadBody } from "../companion/device-sync.mjs";
 import { readAddonExport } from "../companion/lua-export.mjs";
+import { witnessTables } from "./helpers/witness-tables.js";
 import { mergeDeviceReceipts, parseDeviceReceipts, readDeviceReceipts, writeDeviceReceipts } from "../companion/device-receipts.mjs";
 import { handleDeviceUpload, prismaInstallStore, storeDeviceRuns, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
 import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
@@ -25,12 +26,16 @@ const now = new Date("2026-11-09T12:00:00Z");
 function fakeDatabase() {
   const runs: Record<string, unknown>[] = [];
   const receipts: Record<string, unknown>[] = [];
+  // Meo (this PC's character) is in the officer-synced roster, so the run counts on its own.
+  const trust = witnessTables(["meo gratton"]);
   const tx = {
+    ...trust.tables,
     guild: { findUnique: async () => ({ gameEdition: "forever" }) },
     character: { findMany: async () => [] },
     guildSettings: { findUnique: async () => ({ dungeonLeaderboardChannelId: null }) },
     dungeonSeason: { findFirst: async () => season, create: async () => season, update: vi.fn() },
     dungeonRun: {
+      updateMany: async () => ({ count: 0 }),
       findUnique: async ({ where }: { where: { guildId_runRef: { runRef: string } } }) => runs.find((r) => r["runRef"] === where.guildId_runRef.runRef) ?? null,
       findMany: async ({ where }: { where: { runRef?: { in: string[] }; instanceId?: number; valid?: boolean; state?: string; completedBy?: string } }) => runs.filter((r) =>
         (!where.runRef || where.runRef.in.includes(r["runRef"] as string)) && (where.instanceId === undefined || r["instanceId"] === where.instanceId)
@@ -91,7 +96,7 @@ function botStore(database: ReturnType<typeof fakeDatabase>): DeviceStore {
     async characterKeys() { return []; },
     async saveUpload() { /* device rows are not under test */ },
     async claim() { return false; },
-    importRuns: (guildId, runs, at) => storeDeviceRuns(database.tx as never, guildId, runs, at),
+    importRuns: (guildId, runs, at, source) => storeDeviceRuns(database.tx as never, guildId, runs, at, source),
     receipts: (guildId, refs) => real.receipts!(guildId, refs)
   };
 }
@@ -169,7 +174,7 @@ describe("unsigned companion: runs reach the bot and come back as receipts", () 
 
   it("merges receipts newest first and lets the bot's latest note replace an older one", () => {
     const merged = mergeDeviceReceipts({ refs: ["a", "b"], notes: { a: "old", b: "kept" } }, { acceptedRunRefs: ["c", "a"], runNotes: { c: "new" } });
-    expect(merged).toEqual({ refs: ["c", "a", "b"], notes: { c: "new", b: "kept" } });
+    expect(merged).toEqual({ refs: ["c", "a", "b"], notes: { c: "new", b: "kept" }, pending: {} });
   });
 });
 
@@ -211,7 +216,7 @@ describe("runs that are not this PC's", () => {
   it("forgets a 9.1.3 refusal kept as a receipt", () => {
     const note = "Not one of this PC's characters";
     const merged = mergeDeviceReceipts({ refs: ["kept", "refused"], notes: { refused: note, kept: "Not completed" } }, { acceptedRunRefs: ["new", "refused-again"], runNotes: { "refused-again": note } });
-    expect(merged).toEqual({ refs: ["new", "kept"], notes: { kept: "Not completed" } });
+    expect(merged).toEqual({ refs: ["new", "kept"], notes: { kept: "Not completed" }, pending: {} });
   });
 });
 

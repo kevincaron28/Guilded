@@ -1702,6 +1702,10 @@ model DungeonRun {
   addonVersion    String?
   seasonId        String?
   importId        String?
+  // Who vouches for the run (docs/plans/RUN_TRUST_2026-11-10.md). null or "member": a signed-in member's upload
+  // brought it. "device": one unsigned companion, a party member is in the roster. "witnessed": two unsigned
+  // companions speaking for two party members. Only null and "member" runs are published to the public boards.
+  trust           String?
   createdAt       DateTime                  @default(now())
   guild           Guild                     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   season          DungeonSeason?            @relation(fields: [seasonId], references: [id], onDelete: SetNull)
@@ -2314,9 +2318,64 @@ model CompanionDevice {
   guild           Guild?    @relation(fields: [guildId], references: [id], onDelete: SetNull)
   claimedMember   Member?   @relation(fields: [claimedMemberId], references: [id], onDelete: SetNull)
   characters      DeviceCharacter[]
+  witnesses       DungeonRunWitness[]
 
   @@index([guildId])
   @@index([claimedMemberId])
+}
+
+/// One unsigned companion's statement that a dungeon run happened (docs/plans/RUN_TRUST_2026-11-10.md). A run only
+/// such devices sent is stored when a party member is known to the server or two devices speaking for two party
+/// members agree; until then it waits here ("pending") and is not a run anywhere else.
+model DungeonRunWitness {
+  id           String    @id @default(cuid())
+  guildId      String
+  deviceId     String
+  runRef       String
+  /// first-hand (a character of the device was in the party) or relay (a participant's addon sent it in game).
+  kind         String
+  /// First-name key of the party character this statement rests on.
+  voucher      String
+  instanceId   Int
+  difficultyId Int       @default(0)
+  startedAt    DateTime?
+  endedAt      DateTime?
+  /// First-name keys of the party, sorted; boss ids in kill order.
+  players      String[]  @default([])
+  bosses       Int[]     @default([])
+  /// The run as uploaded, kept while pending so it can be imported when a second statement arrives.
+  payload      Json?
+  /// pending | stored | expired
+  status       String    @default("pending")
+  /// The trust the stored run got through this statement (device | witnessed).
+  trust        String?
+  reason       String?
+  runId        String?
+  firstSeenAt  DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  decidedAt    DateTime?
+  device       CompanionDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, runRef, deviceId])
+  @@index([guildId, instanceId, endedAt])
+  @@index([deviceId, status])
+}
+
+/// An in-game guild name no /setup registered that unsigned companions of this server's roster reported
+/// (a guild renamed in game). Recorded for officers; the roster match itself routes those companions.
+model GuildNameAlias {
+  id         String   @id @default(cuid())
+  guildId    String
+  /// looseKey(name): letters and digits only.
+  nameKey    String
+  name       String
+  realm      String   @default("")
+  /// Uploads that reported it.
+  seen       Int      @default(1)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@unique([guildId, nameKey])
 }
 
 /// A character an unsigned companion reported (name, class, level): shown as "reported", never linked to a member.

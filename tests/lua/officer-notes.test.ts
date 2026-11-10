@@ -185,6 +185,35 @@ describe("greeting", () => {
     s.run('NS.officerNotes.command({"officer","auto","greet","off"}); fire_event("CHAT_MSG_SYSTEM", "Xia has joined the guild.")');
     expect(s.run("return #SAID")).toBe("2");
   });
+  // 10 November 2026 taint log: the game refused the welcome line twice, while milestone lines (sent only out of
+  // combat) go out. The welcome waits while chat is locked and a refused line is tried again a few times.
+  it("waits while chat is locked and tries a refused welcome again, a limited number of times", () => {
+    setup(); only(["greet"]);
+    s.run(`TIMERS = {}; C_Timer.After = function(_, fn) TIMERS[#TIMERS + 1] = fn end
+      function runTimers() local list = TIMERS; TIMERS = {}; for _, fn in ipairs(list) do fn() end end
+      COMBAT = false; function InCombatLockdown() return COMBAT end
+      LOCKDOWN = false; C_ChatInfo = { InChatMessagingLockdown = function() return LOCKDOWN end }`);
+    // In combat nothing is sent; the line goes out on the first retry after combat.
+    s.run('COMBAT = true; fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild."); runTimers()');
+    expect(s.run("return #SAID .. ':' .. #TIMERS")).toBe("0:1");
+    s.run("COMBAT = false; runTimers()");
+    expect(s.run("return #SAID .. ':' .. #TIMERS")).toBe("1:0");
+    // The game's chat lockdown holds it back the same way.
+    s.run('LOCKDOWN = true; fire_event("CHAT_MSG_SYSTEM", "Yan has joined the guild."); runTimers()');
+    expect(s.run("return #SAID")).toBe("1");
+    s.run("LOCKDOWN = false; runTimers()");
+    expect(s.run("return #SAID .. ':' .. SAID[2][1]")).toContain("2:Welcome to the guild, Yan");
+    // A block right after a send is the welcome's: it is sent again. One long after is not.
+    expect(s.run("return tostring(NS.officerNotes.onBlocked()) .. ':' .. #TIMERS")).toBe("true:1");
+    expect(s.run("return tostring(NS.officerNotes.onBlocked())")).toBe("false");
+    s.run("runTimers()");
+    expect(s.run("return #SAID .. ':' .. SAID[3][1]")).toContain("3:Welcome to the guild, Yan");
+    s.run("CLOCK = (CLOCK or 0) + 10");
+    expect(s.run("return tostring(NS.officerNotes.onBlocked())")).toBe("false");
+    // Always locked: it gives up after GREET_MAX_TRIES and nobody is greeted twice.
+    s.run('COMBAT = true; fire_event("CHAT_MSG_SYSTEM", "Xia has joined the guild."); for _ = 1, 20 do runTimers() end');
+    expect(s.run("return #SAID .. ':' .. #TIMERS")).toBe("3:0");
+  });
   it("is silent for non-officers, for yourself, and when another officer already greeted", () => {
     setup(); only(["greet"]);
     s.run('OFFICER=false; fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild.")');

@@ -1,5 +1,45 @@
 # Changelog
 
+## 9.1.3 — 9 November 2026
+
+Plug-and-play fixes from the two-PC fresh-install test of 9.1.2. Details: docs/V9_1_3_RELEASE_NOTES.md.
+
+- Both addons (GuildedDungeons too) update by themselves with the companion; the zero-setup companion home, French texts, `/guilded dungeon` never silent, Envoyé/Reçu times, panel drag fix (#705); Start page wording (#706).
+- Unsigned companions: dungeon-run receipts reach the addon end to end, so runs no longer wait forever; the stale Discord link line is cleared; the `/gdungeons` French string (#708).
+- Repair shows sign-in as optional, the uninstaller keeps your data and removes the startup entry, and a website install imports the Store settings (#707).
+
+## 9.1.2 — 9 November 2026
+
+A clear 3-step companion guide everywhere, and one profession name in every game language. Details: docs/V9_1_2_RELEASE_NOTES.md.
+
+- Addon, website, /help and the CurseForge text: one 3-step guide to install the companion, also at `/guilded companion` and `/gdungeons companion` (#699); the website Start page says the companion needs no sign-in (#701).
+- Professions are stored under one English name, so Cooking and Cuisine no longer split between French and English clients; the bot migration is already live (#702).
+
+## 9.1.1 — 9 November 2026
+
+The zero-setup companion now finds your guild's Discord by itself and uploads your dungeon runs without signing in. Details: docs/V9_1_1_RELEASE_NOTES.md.
+
+- Companion: the Discord server is matched by normalised guild name (realm is only a hint), the message names guild and realm, "Saved runs ... waiting" is translated (#695).
+- Bot: unsigned device uploads carry dungeon runs, stored and scored like any run (#694); empty dungeon boards explain why (#693).
+- Mobile: Rare card paintings wired in (#692).
+
+## 9.1.0 — 9 November 2026
+
+The companion no longer needs any setup: install it and it syncs. Details: docs/V9_1_0_RELEASE_NOTES.md.
+
+- Companion: zero-setup sync with a device key, server chosen from the in-game guild, optional Discord sign-in that claims the device (#684).
+- Bot: `/api/v1/device/register|uploads|claim`, reported characters in `/roster gaps`, migration `companion_devices`.
+- Website Worker: allow-lists the device routes.
+
+## 9.0.9 — 9 November 2026
+
+Invite buttons that work, uploads that survive collisions, downloads from the website. Details: docs/V9_0_9_RELEASE_NOTES.md.
+
+- Addon: every guild and party Invite button is a secure /ginvite or /invite macro button (#681).
+- Companion: survives two connections uploading one file (P2034), queues uploads, warns about a wrong server, adds Remove this server (#682).
+- Website and companion: members download from the website, not GitHub (#683, #680).
+- Bot: smaller addon-import payloads, harder pruning, lighter backups (#679).
+
 ## 9.0.8 — 9 November 2026
 
 Runs stop waiting forever, no more blocked-action popups from the chat tab or the map. Details: docs/V9_0_8_RELEASE_NOTES.md.

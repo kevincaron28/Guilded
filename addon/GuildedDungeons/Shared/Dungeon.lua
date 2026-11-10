@@ -40,6 +40,10 @@ local TERMINAL = { COMPLETED = true, ABANDONED = true, INVALID = true, ERROR = t
 -- (9.0) Guildmates' runs nobody's bot confirmed are dropped after this long (the bot takes
 -- relayed runs up to 30 days old, so older copies can never reach it).
 local KEEP_PEER_DAYS = 45
+local REPLAY_DAYS = 30
+local REPLAY_RUNS = 10
+-- The note a 9.1.3 bot gave an unsigned companion for a guildmate's run it refused (see markSynced).
+local NOT_THIS_PC = "Not one of this PC's characters"
 
 local function db()
   local root = ns.getDb and ns.getDb()
@@ -753,6 +757,9 @@ local function onAddonMessage(text, sender)
     index, total = tonumber(index), tonumber(total)
     if not id or not index or not total or total < 1 or total > 20 or index < 1 or index > total then return end
     if #id > 120 then return end
+    -- Guilded Dungeons takes a party member's summary of a run it recorded itself; it keeps no
+    -- copies of guildmates' other runs (no catch-up module there to pass them on).
+    if ns.standalone and not (d and d.runs[id]) then return end
     local count, senderCount = 0, 0
     for bufferKey, buffer in pairs(dungeon.incoming) do
       if not buffer.at or now() - buffer.at > 60 then dungeon.incoming[bufferKey] = nil
@@ -851,6 +858,7 @@ local function onEvent(_, event, ...)
       -- After markSynced: a recovered run is changed, so it must upload again.
       pcall(dungeon.recoverRuns)
       pcall(dungeon.remindWaiting)
+      pcall(dungeon.noteOtherAddonVersion)
       dungeon.replayPending()
       if ns.isOfficer and ns.isOfficer() then send("REQUEST|1", "GUILD") end
     end) end
@@ -962,13 +970,19 @@ function dungeon.markSynced()
   if not d then return end
   local accepted = type(GuildedDungeonAccepted) == "table" and GuildedDungeonAccepted or {}
   local notes = type(GuildedDungeonNotes) == "table" and GuildedDungeonNotes or nil
+  -- (9.1.4) A 9.1.3 unsigned companion listed a guildmate's run it could not upload as received.
+  -- No bot holds it: it is not synced, and nobody may be told it is (ACK, catch-up). Undo the
+  -- marks saved then (the updated companion no longer lists those runs), and never set one again.
+  for _, run in pairs(d.runs) do
+    if run.syncNote == NOT_THIS_PC then run.synced, run.syncNote = nil, nil end
+  end
   for _, id in ipairs(accepted) do
     local run = d.runs[id]
-    if run then
+    local note = notes and notes[id]
+    if run and note ~= NOT_THIS_PC then
       run.synced = true
       -- Only a companion that writes notes (9.0.8+) may clear one.
       if notes then
-        local note = notes[id]
         run.syncNote = type(note) == "string" and note ~= "" and string.sub(string.gsub(note, "|", ""), 1, 80) or nil
       end
     end
@@ -989,12 +1003,28 @@ function dungeon.markSynced()
   end
 end
 
+-- A run one of this PC's characters played (the character logged in, or one Guilded saw log in here).
+local function playedHere(run)
+  local players = type(run.players) == "table" and run.players or {}
+  if players[me()] then return true end
+  local d = ns.getDb and ns.getDb()
+  for _, info in pairs(d and type(d.myCharacters) == "table" and d.myCharacters or {}) do
+    local name = type(info) == "table" and ns.normalizeName(info.name)
+    if name and players[name] then return true end
+  end
+  return false
+end
+
 -- (9.0.8) Finished runs no bot has confirmed yet: neither ours (synced) nor a guildmate's (syncedVia).
+-- (9.1.4) A companion without Discord sign-in (GuildedCompanion.mode = "device") uploads only runs
+-- this PC's characters played, so a guildmate's run is not waiting on this PC: it stays unconfirmed
+-- for a signed-in guildmate's companion, and is not counted here.
 function dungeon.waitingRuns()
   local d = db()
   local list = {}
+  local deviceOnly = type(GuildedCompanion) == "table" and GuildedCompanion.mode == "device"
   for _, run in pairs(d and d.runs or {}) do
-    if not run.synced and not run.syncedVia and TERMINAL[run.state] then list[#list + 1] = run end
+    if not run.synced and not run.syncedVia and TERMINAL[run.state] and (not deviceOnly or playedHere(run)) then list[#list + 1] = run end
   end
   return list
 end
@@ -1020,6 +1050,33 @@ end
 
 local function L(text) return ns.L and ns.L(text) or text end
 
+-- (9.1) The three companion steps and the page link, one chat line each, for members who have no
+-- companion running (also in the standalone Guilded Dungeons addon, which has no Home page).
+local function sayCompanionSteps()
+  local util = ns.util
+  if not (util and util.companionSteps) then return end
+  for _, line in ipairs(util.companionSteps()) do ns.message(line) end
+  ns.message(util.COMPANION_PAGE)
+end
+
+-- (9.1.3) Guilded and Guilded Dungeons are one product with one version. Side by side at different
+-- versions (an older Guilded Dungeons left behind by an update) Guilded alone records the runs, so
+-- nothing breaks, but say so once per session: the companion updates both, or the member can remove
+-- Guilded Dungeons, which Guilded replaces.
+function dungeon.noteOtherAddonVersion(force)
+  if ns.standalone then return false end
+  local other
+  if C_AddOns and C_AddOns.GetAddOnMetadata then other = select(2, pcall(C_AddOns.GetAddOnMetadata, "GuildedDungeons", "Version")) end
+  if type(other) ~= "string" and GetAddOnMetadata then other = select(2, pcall(GetAddOnMetadata, "GuildedDungeons", "Version")) end
+  local mine = compat.addonVersion()
+  if type(other) ~= "string" or other == "" or other == mine then return false end
+  if dungeon.otherVersionSaid and not force then return false end
+  if dungeon.otherVersionSaid == other and force then return false end
+  dungeon.otherVersionSaid = other
+  ns.message(string.format(L("Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."), other, tostring(mine)))
+  return true
+end
+
 -- Once per session, after login or /reload: runs are waiting and the companion did not deliver them.
 function dungeon.remindWaiting()
   if dungeon.waitingReminded then return false end
@@ -1027,6 +1084,7 @@ function dungeon.remindWaiting()
   if overdue == 0 then return false end
   dungeon.waitingReminded = true
   ns.message(string.format(L("%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."), overdue))
+  sayCompanionSteps()
   return true
 end
 
@@ -1110,6 +1168,8 @@ end
 
 -- Retry only our own recent unsynced runs. An officer arriving later can request
 -- them; the server's run id makes a repeated upload idempotent.
+-- (9.1.4) 30 days and 10 runs (were 7 and 5): the bot takes a guildmate's relayed run up to 30
+-- days old (guildmate-relay.ts), and a run no guildmate heard in its first week was lost for good.
 function dungeon.replayPending()
   if dungeon.lastReplay and now() - dungeon.lastReplay < 60 then return end
   dungeon.lastReplay = now()
@@ -1117,10 +1177,10 @@ function dungeon.replayPending()
   local runs = {}
   for _, run in pairs(d and d.runs or {}) do
     if not run.synced and not run.syncedVia and run.players and run.players[me()] and TERMINAL[run.state]
-      and (run.endedAt or 0) >= now() - 7 * 86400 then runs[#runs + 1] = run end
+      and (run.endedAt or 0) >= now() - REPLAY_DAYS * 86400 then runs[#runs + 1] = run end
   end
   table.sort(runs, function(a, b) return (a.endedAt or 0) > (b.endedAt or 0) end)
-  for index = 1, math.min(5, #runs) do
+  for index = 1, math.min(REPLAY_RUNS, #runs) do
     local run = runs[index]
     local summary = serialize(run)
     local total = math.ceil(#summary / CHUNK_BYTES)
@@ -1147,20 +1207,24 @@ local function status()
     local total = 0
     for _ in pairs(d and d.runs or {}) do total = total + 1 end
     local pending = #dungeon.waitingRuns()
-    ns.message(string.format("No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord).", total, pending))
+    ns.message(string.format(L("No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."), total, pending))
     if pending > 0 then
-      ns.message(#dungeon.overdueRuns() > 0
+      local overdue = #dungeon.overdueRuns() > 0
+      ns.message(overdue
         and L("Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out.")
         or L("They go to Discord when you /reload or log out while the Guilded Companion app is running."))
+      if overdue then sayCompanionSteps() end
     end
     return
   end
   local elapsed = run.startedAt and (now() - run.startedAt) or 0
   local kills = 0
-  for _, encounter in ipairs(run.encounters) do if encounter.success then kills = kills + 1 end end
-  ns.message(string.format("%s - %s%s - bosses %d%s - recorder %s", run.name or "?", run.state,
+  for _, encounter in ipairs(type(run.encounters) == "table" and run.encounters or {}) do if encounter.success then kills = kills + 1 end end
+  local recorder = run.recorder or "?"
+  if ns.displayName then recorder = ns.displayName(recorder) or recorder end
+  ns.message(string.format("%s - %s%s - bosses %d%s - recorder %s", run.name or "?", tostring(run.state),
     run.state == "ACTIVE" and string.format(" %d:%02d", math.floor(elapsed / 60), elapsed % 60) or "",
-    kills, run.bossCount and ("/" .. run.bossCount) or "", ns.displayName(run.recorder or "?")))
+    kills, run.bossCount and ("/" .. run.bossCount) or "", tostring(recorder)))
 end
 
 local function check()
@@ -1178,10 +1242,11 @@ local function check()
 end
 
 ns.commandHandlers = ns.commandHandlers or {}
-ns.commandHandlers["dungeon"] = function(args)
+local function handleDungeonCommand(args)
   local action = string.lower(args[1] or "status")
   local d = db()
-  if not d then return end
+  -- (9.1.3) Never silent: a member who types /guilded dungeon always gets a line back.
+  if not d then ns.message(L("Dungeon data is not loaded yet. Try again in a moment, or /reload.")) return end
   if action == "status" then status()
   elseif action == "results" then
     local latest
@@ -1203,6 +1268,32 @@ ns.commandHandlers["dungeon"] = function(args)
     finish("ABANDONED", "manual")
   else
     ns.message("/guilded dungeon status | results | start | complete | abandon | check")
+  end
+end
+ns.commandHandlers["dungeon"] = function(args)
+  local ok, err = pcall(handleDungeonCommand, args or {})
+  if not ok then
+    -- A failure is said, never swallowed: the member sees it and the diagnostics keep it.
+    if ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "dungeon command: " .. tostring(err)) end
+    ns.message(L("The dungeon command failed. /guilded diag shows the details."))
+  end
+  pcall(dungeon.noteOtherAddonVersion, true)
+end
+-- (9.1.3) /gdungeons and /gdg answer with Guilded alone (without them WoW says the command does not exist, in
+-- the client's language). The standalone Guilded Dungeons addon loads after this one and takes them over.
+if not ns.standalone and SLASH_GUILDEDDUNGEONS1 == nil then
+  SLASH_GUILDEDDUNGEONS1 = "/gdungeons"
+  SLASH_GUILDEDDUNGEONS2 = "/gdg"
+  SlashCmdList["GUILDEDDUNGEONS"] = function(text)
+    local args = {}
+    for word in string.gmatch(text or "", "%S+") do args[#args + 1] = word end
+    local action = string.lower(args[1] or "")
+    if (action == "score" or action == "lang") and ns.commandHandlers[action] then
+      table.remove(args, 1)
+      ns.commandHandlers[action](args)
+    else
+      ns.commandHandlers["dungeon"](args)
+    end
   end
 end
 ns.commandHelp = ns.commandHelp or {}

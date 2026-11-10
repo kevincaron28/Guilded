@@ -64,6 +64,31 @@ end
 -- No guild officers here: start/complete/abandon follow the group leader (or solo play).
 function ns.isOfficer() return false end
 
+-- Who may send guild sync messages (Transport.lua's "guild" and "officer" policies). Guilded's
+-- Core.lua answers these from its saved roster and officer settings; this addon keeps neither, so
+-- it reads the game's guild roster. Without them every guild message was refused: a guildmate's
+-- "my bot has your run" (ACK) and an officer's replay request never arrived, and the same runs
+-- were replayed at every login.
+local function rosterRank(name)
+  name = ns.normalizeName(name)
+  if not name or not GetNumGuildMembers or not GetGuildRosterInfo then return nil end
+  local ok, count = pcall(GetNumGuildMembers)
+  if not ok or type(count) ~= "number" then return nil end
+  for i = 1, count do
+    local read, rosterName, _, rankIndex = pcall(GetGuildRosterInfo, i)
+    if read and not ns.isSecret(rosterName) and ns.normalizeName(rosterName) == name then
+      return type(rankIndex) == "number" and rankIndex or 99
+    end
+  end
+  return nil
+end
+function ns.isGuildMember(name) return rosterRank(name) ~= nil end
+-- The guild master and the rank below: Guilded's default officer ranks (this addon has no setting).
+function ns.isOfficerName(name)
+  local rank = rosterRank(name)
+  return rank ~= nil and rank <= 1
+end
+
 function ns.logDiagnostic(kind, detail)
   local db = ns.getDb()
   db.diagnostics = type(db.diagnostics) == "table" and db.diagnostics or {}

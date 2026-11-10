@@ -15,9 +15,16 @@ export function linkSteps(config = {}, state = {}, hub = null) {
   const characters = Array.isArray(hub?.characters) ? hub.characters.length : null;
   const server = typeof hub?.guild?.name === 'string' && hub.guild.name ? hub.guild.name : null;
   const wowFile = config.wowEnabled !== false && Boolean(state.watching || config.watchFile);
+  // Zero-setup companion (9.1.0): syncing with the device key, no Discord sign-in. The sign-in is an
+  // optional extra that confirms the characters (they count as "reported" until then).
+  const device = !discord && config.device === true && Boolean(config.deviceSecret) && config.wowEnabled !== false;
+  const reported = device && state.device?.status === 'synced' ? Number(state.device.characters) || 0 : 0;
   const steps = [];
 
-  steps.push({
+  steps.push(device ? {
+    id: 'discord', required: false, state: 'optional', label: 'Discord sign-in (optional)', args: [],
+    next: 'Optional: sign in with Discord to confirm your characters as yours. Syncing works without it.'
+  } : {
     id: 'discord', required: true, state: discord ? 'done' : 'todo',
     label: discord ? (personal ? 'Signed in for public dungeon rankings only' : server ? 'Discord linked to {0}' : 'Discord linked') : 'Discord not linked yet',
     args: discord && server ? [server] : [],
@@ -26,7 +33,8 @@ export function linkSteps(config = {}, state = {}, hub = null) {
 
   // Optional by design: WoW Forever characters may not appear in Battle.net at all.
   let battle;
-  if (!discord) battle = { state: 'waiting', label: 'Battle.net (optional)', next: 'Sign in with Discord first.' };
+  if (device) battle = { state: 'optional', label: 'Battle.net (optional)', next: null };
+  else if (!discord) battle = { state: 'waiting', label: 'Battle.net (optional)', next: 'Sign in with Discord first.' };
   else if (!link || typeof link.battleNet !== 'boolean') battle = { state: 'unknown', label: 'Battle.net (optional)', next: 'Optional: open Connect Battle.net to add characters it knows. WoW Forever characters may not appear there; that is fine.' };
   else if (link.battleNet) battle = typeof link.battleTag === 'string' && link.battleTag
     ? { state: 'done', label: 'Battle.net linked as {0}', args: [link.battleTag], next: null }
@@ -35,7 +43,9 @@ export function linkSteps(config = {}, state = {}, hub = null) {
   steps.push({ id: 'battlenet', required: false, args: [], ...battle });
 
   let proof;
-  if (!discord) proof = { state: 'waiting', label: 'Characters not found yet', next: 'Sign in with Discord first.' };
+  if (device && reported > 0) proof = { state: 'done', label: '{0} character(s) reported', args: [reported], next: 'Sign in with Discord to confirm them (optional).' };
+  else if (device) proof = { state: 'todo', label: 'Characters not reported yet', next: 'Log in to WoW and type /reload once: your characters are reported by themselves.' };
+  else if (!discord) proof = { state: 'waiting', label: 'Characters not found yet', next: 'Sign in with Discord first.' };
   // Leaderboards only usually means the Discord account is in no server that uses Guilded yet (the
   // sign-in page picks it when there is none). Say so, and never "everything is linked" (8.5 fresh-PC test).
   else if (personal) proof = { state: 'todo', label: 'No guild server yet', next: NOT_IN_A_GUILD_SERVER };
@@ -48,7 +58,7 @@ export function linkSteps(config = {}, state = {}, hub = null) {
   const required = steps.filter(step => step.required);
   const complete = !personal && required.every(step => step.state === 'done');
   const nextStep = steps.find(step => step.required && step.state !== 'done') || null;
-  return { steps, complete, nextStep, firstRun: !discord };
+  return { steps, complete: complete || (device && reported > 0), nextStep, firstRun: !discord && !device, device };
 }
 
 // One short line for the Home page: "Discord ✓ · Battle.net – · Characters ✓".

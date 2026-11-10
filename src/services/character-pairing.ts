@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
+import { mergeProfessionSkills } from "./profession-names.js";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { AddonCharacter } from "../integrations/addon.js";
 import { findCharacter } from "./character-match.js";
@@ -42,7 +43,7 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
       ...(confirm ? { confirmedAt: new Date() } : {})
     }
   });
-  for (const profession of self.professions) {
+  for (const profession of mergeProfessionSkills(self.professions)) {
     await tx.professionSkill.upsert({
       where: { characterId_profession: { characterId: created.id, profession: profession.name } },
       create: { characterId: created.id, profession: profession.name, skillLevel: profession.skillLevel },

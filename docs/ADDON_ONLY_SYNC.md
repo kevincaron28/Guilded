@@ -22,7 +22,7 @@ with the companion was online with them.
 | Professions and skill levels | Yes: same digest, plus `P:` = the author's own clock for a complete list | `peerRoster[name].professions/professionsAt` | Yes (`relayProfessions`, apply) | **Dropped** |
 | `/guilded verify` code | Yes: digest `V:` | `peerRoster[name].verify` | Links and confirms | Links provisionally (8.1, unchanged) |
 | Guild rank | Read by every client from the guild roster | `roster` | Yes | Own only |
-| Dungeon runs | Yes: `SUM` on GUILD after each run, `REQUEST` replay of the last 7 days (Dungeon.lua) | `dungeon.runs[id]` with `reporters` = game-reported senders who were in the run | Yes | **Dropped, own runs included** |
+| Dungeon runs | Yes: `SUM` on GUILD after each run, `REQUEST` replay of the last 7 days (30 since 9.1.4) (Dungeon.lua) | `dungeon.runs[id]` with `reporters` = game-reported senders who were in the run | Yes | **Dropped, own runs included** |
 | Recipes and cooldowns | Yes: `GuildedRcp` (Recipes.lua) | `recipeBook.people[name]` | Yes | Own only |
 | Attunements | Yes: `ATTUNEMENT|` self-reports | `attunements[name]` | Yes | Own only |
 | Duels | Yes: `GuildedDuel D|` on GUILD | `duels.results` | Never (by design) | Only duels the uploader fought |
@@ -217,7 +217,7 @@ Dungeons-only player with no companion replayed the same runs at every login for
 ## Left for later
 
 1. **Guilded Dungeons answering catch-up**: Dungeons-only players replay their own runs and accept
-   ACKs, but do not hold or forward others' runs (no CatchUp module in that addon).
+   ACKs (really so only since 9.1.4, see the last section), but do not hold or forward others' runs (no CatchUp module in that addon).
 2. **Recipes in catch-up**: recipes still travel first-hand only (`Q` makes everyone online
    re-share their own). Forwarding needs per-profession keys and a third-party recipe format.
 3. **Milestones relay**: needs a bot rule for milestones of characters the uploader does not own.
@@ -286,3 +286,84 @@ uploader.
 3. Milestones of other players (needs a bot rule).
 4. Real-client check: three clients as in "Needs a real client" above, with `/guilded recipes` opened on one
    of them; the carrier's next upload shows the author's recipes on the website's craft board.
+
+---
+
+# 9.1.4: Guilded Dungeons only, no companion (what really happens)
+
+Owner report (10 November 2026): "people with Guilded Dungeons and no companion don't get synced."
+Three faults were found in the code and fixed; the delivery between real clients is still unchecked
+(see the end of this section).
+
+## What was wrong
+
+1. **The standalone addon refused every guild message.** `comm.authorized(author, "guild")`
+   (Transport.lua) asks `ns.isOfficerName` / `ns.isGuildMember`. Guilded's Core.lua provides them;
+   `addon/GuildedDungeons/Shim.lua` did not, so a guildmate's `ACK` and an officer's `REQUEST` were
+   dropped before Dungeon.lua saw them. The sections above that say a Dungeons-only player "accepts
+   ACKs" described the intent, not the behaviour. The Shim now answers both from the game's guild
+   roster (officer = guild master and the rank below, Guilded's default officer ranks).
+2. **An unsigned (zero-setup) companion made a guildmate's run look delivered.** Such a companion may
+   upload only runs its own PC's characters played (`runsOfDevice`, `src/services/companion-device.ts`).
+   Since 9.1.3 the bot still answered a guildmate's run with a receipt ("Not one of this PC's
+   characters") so the uploader's addon stopped counting it as waiting. But a receipt marks the run
+   `synced`, and a `synced` copy answers its author's replay with `ACK` and is offered as "the bot has
+   it" in catch-up. So the author stopped replaying a run no bot held. The bot now gives such a run
+   no receipt, the companion no longer sends it, and the addon ignores (and undoes) the old note.
+3. **Replay covered 7 days and 5 runs** while the bot takes a relayed run up to 30 days old. A run
+   nobody with a signed-in companion heard in its first week was never offered again. Now 30 days
+   and the newest 10 runs.
+
+## What happens now
+
+A Dungeons-only member A, with no companion, finishes a run. A's addon sends the run to the guild
+(`SUM`) when the group leaves the instance, and again 30 s after each login while the run is
+unconfirmed (and when an officer's addon asks with `REQUEST`), for 30 days, newest 10 runs.
+
+| Who hears A's run | What their PC does | Does it reach the leaderboards? |
+| --- | --- | --- |
+| Nobody online with Guilded | Nothing. A replays at the next login. | Not yet |
+| Guildmate with Guilded, **no companion** | Keeps a copy; catch-up (`GuildedCatch`) passes it to other Guilded clients later (14 days). | Not yet, but it travels on |
+| Guildmate with Guilded and a companion **signed in with Discord** (member or officer) | Keeps a copy; the companion uploads it on the relay lane (`relayableDungeonRuns`: a reporter who played the run, last 30 days, newest 25 per upload). At the next replay it hears, the addon answers `ACK`, and A stops replaying. | **Yes** |
+| Guildmate with Guilded and an **unsigned** companion, who was **in the run** | The companion uploads it as that PC's own run; then as above (`ACK`). | **Yes** |
+| Guildmate with Guilded and an **unsigned** companion, **not in the run** | Keeps a copy and passes it on by catch-up. The companion does not send it, the bot would not store it, and nothing is confirmed to A. Not counted in that PC's "waiting to reach Discord". | Not through this PC |
+| Another Dungeons-only member | Nothing: the standalone addon keeps no copies of guildmates' runs. | No |
+
+With a companion on A's own PC (signed in or not), A's runs upload first-hand as before; the relay
+only matters for members without one.
+
+## Why an unsigned companion still may not relay a guildmate's run
+
+Not changed, on purpose. A device key is anonymous: anyone can register one (rate-limited) and it
+proves nothing about who runs it. Its reach is bounded by the 12 characters it may report, and a
+run is stored only when one of them is in the party. Taking relayed runs from it would remove that
+bound: any anonymous key could post runs for any characters of a guild it names, with nobody to
+hold accountable (a paired member's relay is tied to a Discord member, `DungeonRun.importId`).
+The existing evidence rules (`dungeon-rules.ts`, `public-runs.ts`) check the run's content, not who
+sent it, so they would not catch a forged relay. No global-token or unauthenticated write path was
+added.
+
+## Still limited
+
+- A guild where **nobody** has a signed-in companion (and no unsigned companion user was in the run)
+  never gets a Dungeons-only member's run. Signing in on one PC is enough.
+- `ACK` needs two hearings: the carrier must hear the run, upload it, reload (so its addon reads the
+  receipt), then hear a replay. Until then A keeps replaying; the bot keeps one row per run id.
+- Members on 9.1.3 keep the old behaviour until they update: a 9.1.3 standalone addon ignores `ACK`,
+  and a 9.1.3 Guilded copy already marked by the old note keeps answering `ACK` for that run.
+  The bot change alone stops new false receipts.
+
+## Needs a real client (not run)
+
+Two accounts in one guild: A with Guilded Dungeons only and no companion; B with Guilded and a
+companion.
+
+1. B signed in with Discord, not in A's group. A finishes a dungeon while B is online. B `/reload`s,
+   B's companion uploads: the run is on the website once, credited to A's character.
+2. B `/reload`s again (reads the receipt). A logs out and in; 30 s later A's replay is answered by
+   B's `ACK`. A: `/gdungeons status` shows 0 waiting; A's next login sends no `SUM`.
+3. Same with B's companion **not** signed in: the run does not appear, A keeps replaying, B's
+   `/guilded dungeon status` does not count A's run as waiting. Then B signs in: step 1 happens.
+4. The roster check: A's addon accepts the `ACK` only once the guild roster has loaded
+   (`GetNumGuildMembers`); confirm it has by the time of the replay, 30 s after login.
+5. An officer logs in while A is online: A replays (`REQUEST`).

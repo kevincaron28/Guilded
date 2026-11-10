@@ -29,3 +29,40 @@ Upload in this order (CurseForge shows the first image as the cover, so `01` or 
 | `15-chat-tab.jpg` | A chat tab of its own for Guilded messages (small shot, 369 × 290). |
 | `16-call-for-help-confirm.jpg` | Call for help asks for confirmation first (tiny crop, 343 × 66; better skipped on CurseForge). |
 | `17-world-map-guildmate-dots.jpg` | Guildmates appear as dots on the world map (small shot, 330 × 251). |
+
+## Discord cards (`discord/`, PNG, 1200 px wide)
+
+Rendered by the bot's own card code with made-up data (guild "Example Guild", invented characters; no real
+members). Regenerate with `npx tsx scripts/render-sample-cards.ts` (the site gets English and French webp in
+`site/images/discord/`). Good for CurseForge, Discord/Reddit posts and social media.
+
+| File | Caption |
+|---|---|
+| `dungeon-run.png` | Every finished dungeon run, with time, dungeon score and the whole party. |
+| `daily-recap.png` | The day in the guild: levels gained, dungeon clears, records and PvP. |
+| `race-to-60.png` | Race to 60: who is levelling fastest, with the first to 60 marked. |
+| `hall-of-fame.png` | Hall of Fame: a card for every member who reaches level 60. |
+| `duel-ladder.png` | Duel ladder: wins, losses and streaks, updated after every sync. |
+| `achievements.png` | Achievements: the medals a member just unlocked. |
+| `raid-end.png` | Raid summary: bosses, attendance, EP and the best loot. |
+| `battleground-end.png` | Battleground result, posted when the match ends. |
+
+## Phone app (`phone/`, PNG, full size 720 × 1480 for Guilded Clash and 1080 × 1920 for the app)
+
+From the Play listing set and the Guilded Clash walkthrough (sample guild, made-up players). The site uses
+360 px webp copies (`site/images/phone/`); regenerate both with `node scripts/optimise-phone-screenshots.mjs`.
+
+| File | Caption |
+|---|---|
+| `app-guild-roster.png` | Your guild's members and their characters. |
+| `app-guild-raids.png` | Upcoming raids and your sign-ups. |
+| `app-me-badges.png` | The badge album. |
+| `app-alerts.png` | A reminder on your phone before each raid. |
+| `clash-play.png` | Guilded Clash, a card game for your guild: play the AI or your guildmates. |
+| `clash-gauntlet.png` | Dungeon gauntlet: five bosses to beat, one after the other. |
+| `clash-board.png` | The board: cards in play, your hand and the zone effect. |
+| `clash-collection.png` | Collection by class and rarity. |
+| `clash-pack-open.png` | Opening a pack. |
+| `clash-pvp-01-guild.png` | Guild challenges: a friendly match against a guildmate. |
+| `clash-pvp-07-ranked.png` | Ranked ladder: climb divisions against every Guilded server. |
+| `clash-pvp-10-ladder.png` | The monthly global ladder. |

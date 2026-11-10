@@ -302,7 +302,7 @@ local FR = {
   ["Raid sign-up is turned off."] = "L'inscription aux raids est d\195\169sactiv\195\169e.",
   ["Use the number from /guilded signups."] = "Utilise le num\195\169ro de /guilded signups.",
   ["Get the Windows companion (select a link, Ctrl+C):"] = "Obtenir le compagnon Windows (s\195\169lectionner un lien, Ctrl+C) :",
-  ["Guilded companion (Windows): sends your data to Discord and brings standings, raids and signups into the game."] = "Compagnon Guilded (Windows) : envoie tes donn\195\169es \195\160 Discord et am\195\168ne classement, raids et inscriptions dans le jeu.",
+  ["Guilded companion (Windows): sends your data to Discord and brings standings, raids and signups into the game."] = "Compagnon Guilded (Windows) : envoie vos donn\195\169es \195\160 Discord et am\195\168ne classement, raids et inscriptions dans le jeu.",
   ["Open Guilded > Home to copy the link. Turn this reminder off: /guilded companion off"] = "Ouvre Guilded > Accueil pour copier le lien. D\195\169sactiver ce rappel : /guilded companion off",
   ["Companion reminder off."] = "Rappel du compagnon d\195\169sactiv\195\169.",
   ["Companion reminder on (at most once a week)."] = "Rappel du compagnon activ\195\169 (au plus une fois par semaine).",
@@ -618,6 +618,7 @@ local FR = {
   ["Deaths %d"] = "Morts %d",
   ["waiting for the first pull"] = "en attente du premier pull",
   ["No dungeon run in progress. Enter a dungeon: the timer starts on the first pull and stops on the last boss."] = "Aucun donjon en cours. Entrez dans un donjon : le chrono part au premier pull et s'arr\195xte au dernier boss.",
+  ["No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."] = "Aucun donjon en cours. Donjons enregistr\195\169s : %d (%d en attente d'envoi vers Discord).",
   ["on Discord"] = "sur Discord",
   ["waiting to sync"] = "en attente d'envoi",
   ["None yet."] = "Aucun pour l'instant.",
@@ -1823,6 +1824,7 @@ local DE = {
   ["No drops noted yet (epic items, while you are in a raid)."] = "Noch keine Beutefunde notiert (epische Gegenst\195\164nde w\195\164hrend eines Raids).",
   ["No duel recorded for you yet."] = "F\195\188r dich ist noch kein Duell gespeichert.",
   ["No dungeon run in progress. Enter a dungeon: the timer starts on the first pull and stops on the last boss."] = "Kein Dungeon-Lauf aktiv. Betritt einen Dungeon: Der Timer startet beim ersten Pull und endet beim letzten Boss.",
+  ["No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."] = "Kein Dungeon-Lauf aktiv. Gespeicherte L\195\164ufe: %d (%d warten auf die \195\156bertragung an Discord).",
   ["No dungeon scores yet: complete a dungeon with Guilded running."] = "Noch keine Dungeon-Wertungen: Schlie\195\159e einen Dungeon mit laufendem Guilded ab.",
   ["No eligible timed boss kills recorded."] = "Keine zul\195\164ssigen zeitgemessenen Boss-Siege aufgezeichnet.",
   ["no enchant"] = "keine Verzauberung",
@@ -2451,7 +2453,8 @@ local DE = {
   ["%d waiting for a guild invite."] = "%d warten auf eine Gildeneinladung.",
   ["Nobody is waiting for a guild invite."] = "Niemand wartet auf eine Gildeneinladung.",
   ["%d waiting for a guild invite. Open them with /guilded invites."] = "%d warten auf eine Gildeneinladung. \195\150ffne die Liste mit /guilded invites.",
-  ["Invite sent to %s."] = "Einladung an %s gesendet.",
+  ["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Kopiere %s (Strg+C), f\195\188ge es im Chatfeld ein (Strg+V) und dr\195\188cke Enter.",
+  ["Copy with Ctrl+C, then paste in chat"] = "Mit Strg+C kopieren, dann im Chat einf\195\188gen",  ["Type %s to invite them."] = "Tippe %s, um den Spieler einzuladen.",
   ["The game would not send the invite. Invite them by hand."] = "Das Spiel hat die Einladung nicht gesendet. Lade den Spieler von Hand ein.",
   ["Your rank cannot invite to the guild."] = "Dein Rang kann nicht in die Gilde einladen.",
   ["Rule: rank %s for %d+ days."] = "Regel: Rang %s seit %d+ Tagen.",
@@ -2710,6 +2713,35 @@ local DE = {
   ["/guilded probe achievements - check which achievement APIs this client has"] = "/guilded probe achievements - pr\195\188ft, welche Erfolgs-APIs dieser Client hat",
   ["%s earned the achievement %s!"] = "%s hat den Erfolg %s erreicht!",
   ["Achievements in guild chat: %s."] = "Erfolge im Gildenchat: %s.",
+  ["Sync with Discord in 3 steps (Windows only):"] = "In 3 Schritten mit Discord synchronisieren (nur Windows):",
+  ["1) Download it: copy the link, or search \"Guilded Companion\" in the Microsoft Store."] = "1) Herunterladen: Link kopieren oder im Microsoft Store nach \"Guilded Companion\" suchen.",
+  ["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Installer ausf\195\188hren. Er findet WoW und den Discord-Server deiner Gilde von selbst.",
+  ["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) Offen lassen (startet mit Windows). Die Anmeldung mit Discord ist optional.",
+  ["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Am einfachsten: Installiere die Guilded-Windows-App (Schritte unten). Sie synchronisiert von selbst, ohne Anmeldung. Keine App? Nutze in Discord /character pair und f\195\188ge den Code unten ein.",
+  ["Commands: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto"] = "Befehle: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto",
+  ["Alchemy"] = "Alchimie",
+  ["Blacksmithing"] = "Schmiedekunst",
+  ["Enchanting"] = "Verzauberkunst",
+  ["Engineering"] = "Ingenieurskunst",
+  ["Herbalism"] = "Kr\195\164uterkunde",
+  ["Inscription"] = "Inschriftenkunde",
+  ["Jewelcrafting"] = "Juwelenschleifen",
+  ["Leatherworking"] = "Lederverarbeitung",
+  ["Mining"] = "Bergbau",
+  ["Skinning"] = "K\195\188rschnerei",
+  ["Tailoring"] = "Schneiderei",
+  ["Cooking"] = "Kochkunst",
+  ["First Aid"] = "Erste Hilfe",
+  ["Fishing"] = "Angeln",
+  ["Archaeology"] = "Arch\195\164ologie",
+  ["No off-hand item equipped (expected when using a two-handed weapon)."] = "Kein Gegenstand in der Nebenhand (normal bei einer Zweihandwaffe).",
+  ["Empty slots (normal while levelling): %s."] = "Leere Pl\195\164tze (normal beim Leveln): %s.",
+  ["Missing enchants: %s."] = "Fehlende Verzauberungen: %s.",
+  ["No flask or elixir active."] = "Kein Fl\195\164schchen oder Elixier aktiv.",
+  ["No food buff active."] = "Kein Nahrungsbonus aktiv.",
+  ["Dungeon data is not loaded yet. Try again in a moment, or /reload."] = "Die Dungeon-Daten sind noch nicht geladen. Versuche es gleich noch einmal oder /reload.",
+  ["The dungeon command failed. /guilded diag shows the details."] = "Der Dungeon-Befehl ist fehlgeschlagen. /guilded diag zeigt die Details.",
+  ["Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."] = "Guilded Dungeons %s ist neben Guilded %s installiert. Guilded zeichnet deine L\195\164ufe auf; aktualisiere Guilded Dungeons mit dem Guilded Companion (oder entferne es).",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3511,6 +3543,7 @@ local ES = {
   ["No drops noted yet (epic items, while you are in a raid)."] = "A\195\186n no hay bot\195\173n registrado (objetos \195\169picos mientras est\195\161s en una banda).",
   ["No duel recorded for you yet."] = "Todav\195\173a no hay ning\195\186n duelo registrado para ti.",
   ["No dungeon run in progress. Enter a dungeon: the timer starts on the first pull and stops on the last boss."] = "No hay una mazmorra en curso. Entra en una: el cron\195\179metro empieza en el primer combate y termina con el \195\186ltimo jefe.",
+  ["No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."] = "No hay una mazmorra en curso. Mazmorras guardadas: %d (%d esperando para llegar a Discord).",
   ["No dungeon scores yet: complete a dungeon with Guilded running."] = "A\195\186n no hay puntuaciones de mazmorra: completa una con Guilded activo.",
   ["No eligible timed boss kills recorded."] = "No se han registrado muertes de jefes cronometradas v\195\161lidas.",
   ["no enchant"] = "sin encantamiento",
@@ -4139,7 +4172,8 @@ local ES = {
   ["%d waiting for a guild invite."] = "%d esperan una invitaci\195\179n a la hermandad.",
   ["Nobody is waiting for a guild invite."] = "Nadie espera una invitaci\195\179n a la hermandad.",
   ["%d waiting for a guild invite. Open them with /guilded invites."] = "%d esperan una invitaci\195\179n a la hermandad. Abre la lista con /guilded invites.",
-  ["Invite sent to %s."] = "Invitaci\195\179n enviada a %s.",
+  ["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Copia %s (Ctrl+C), p\195\169galo en tu cuadro de chat (Ctrl+V) y pulsa Intro.",
+  ["Copy with Ctrl+C, then paste in chat"] = "Copia con Ctrl+C y pega en el chat",  ["Type %s to invite them."] = "Escribe %s para invitarlo.",
   ["The game would not send the invite. Invite them by hand."] = "El juego no envi\195\179 la invitaci\195\179n. Invita al jugador a mano.",
   ["Your rank cannot invite to the guild."] = "Tu rango no puede invitar a la hermandad.",
   ["Rule: rank %s for %d+ days."] = "Regla: rango %s durante %d+ d\195\173as.",
@@ -4398,6 +4432,35 @@ local ES = {
   ["/guilded probe achievements - check which achievement APIs this client has"] = "/guilded probe achievements - comprueba qu\195\169 API de logros tiene este cliente",
   ["%s earned the achievement %s!"] = "\194\161%s ha conseguido el logro %s!",
   ["Achievements in guild chat: %s."] = "Logros en el chat de hermandad: %s.",
+  ["Sync with Discord in 3 steps (Windows only):"] = "Sincroniza con Discord en 3 pasos (solo Windows):",
+  ["1) Download it: copy the link, or search \"Guilded Companion\" in the Microsoft Store."] = "1) Desc\195\161rgalo: copia el enlace o busca \"Guilded Companion\" en la Microsoft Store.",
+  ["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Ejecuta el instalador. Encuentra WoW y el servidor de Discord de tu hermandad por s\195\173 solo.",
+  ["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) D\195\169jalo abierto (arranca con Windows). Iniciar sesi\195\179n con Discord es opcional.",
+  ["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Lo m\195\161s f\195\161cil: instala la aplicaci\195\179n de Windows de Guilded (pasos abajo). Sincroniza sola, sin iniciar sesi\195\179n. \194\191Sin la aplicaci\195\179n? En Discord usa /character pair y pega el c\195\179digo abajo.",
+  ["Commands: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto"] = "Comandos: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto",
+  ["Alchemy"] = "Alquimia",
+  ["Blacksmithing"] = "Herrer\195\173a",
+  ["Enchanting"] = "Encantamiento",
+  ["Engineering"] = "Ingenier\195\173a",
+  ["Herbalism"] = "Herborister\195\173a",
+  ["Inscription"] = "Inscripci\195\179n",
+  ["Jewelcrafting"] = "Joyer\195\173a",
+  ["Leatherworking"] = "Peleter\195\173a",
+  ["Mining"] = "Miner\195\173a",
+  ["Skinning"] = "Desuello",
+  ["Tailoring"] = "Sastrer\195\173a",
+  ["Cooking"] = "Cocina",
+  ["First Aid"] = "Primeros auxilios",
+  ["Fishing"] = "Pesca",
+  ["Archaeology"] = "Arqueolog\195\173a",
+  ["No off-hand item equipped (expected when using a two-handed weapon)."] = "No hay ning\195\186n objeto en la mano izquierda (normal con un arma a dos manos).",
+  ["Empty slots (normal while levelling): %s."] = "Ranuras vac\195\173as (normal al subir de nivel): %s.",
+  ["Missing enchants: %s."] = "Encantamientos que faltan: %s.",
+  ["No flask or elixir active."] = "Sin frasco ni elixir activo.",
+  ["No food buff active."] = "Sin bonificaci\195\179n de comida activa.",
+  ["Dungeon data is not loaded yet. Try again in a moment, or /reload."] = "Los datos de mazmorra a\195\186n no est\195\161n cargados. Int\195\169ntalo de nuevo en un momento o /reload.",
+  ["The dungeon command failed. /guilded diag shows the details."] = "El comando de mazmorra ha fallado. /guilded diag muestra los detalles.",
+  ["Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."] = "Guilded Dungeons %s est\195\161 instalado junto a Guilded %s. Guilded registra tus recorridos; actualiza Guilded Dungeons con el Guilded Companion (o qu\195\173talo).",
 }
 -- END ES
 
@@ -5057,7 +5120,8 @@ FR["invited"] = "invit\195\169"
 FR["%d waiting for a guild invite."] = "%d en attente d'une invitation de guilde."
 FR["Nobody is waiting for a guild invite."] = "Personne n'attend d'invitation de guilde."
 FR["%d waiting for a guild invite. Open them with /guilded invites."] = "%d en attente d'une invitation de guilde. Ouvre la liste avec /guilded invites."
-FR["Invite sent to %s."] = "Invitation envoy\195\169e \195\160 %s."
+FR["Copy %s (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."] = "Copie %s (Ctrl+C), colle-le dans ta zone de discussion (Ctrl+V) et appuie sur Entr\195\169e."
+FR["Copy with Ctrl+C, then paste in chat"] = "Copie avec Ctrl+C, puis colle dans le chat"FR["Type %s to invite them."] = "Tape %s pour l'inviter."
 FR["The game would not send the invite. Invite them by hand."] = "Le jeu n'a pas envoy\195\169 l'invitation. Invite le joueur \195\160 la main."
 FR["Your rank cannot invite to the guild."] = "Ton rang ne peut pas inviter dans la guilde."
 FR["Promotion requested. Wait for the roster to confirm it before the next one."] = "Promotion demand\195\169e. Attendez que la liste la confirme avant la suivante."
@@ -5179,3 +5243,39 @@ FR["/guilded probe achievements - check which achievement APIs this client has"]
 -- Achievements as milestones (Modules/GameAchievements.lua)
 FR["%s earned the achievement %s!"] = "%s a obtenu le succ\195\168s %s !"
 FR["Achievements in guild chat: %s."] = "Succ\195\168s dans le chat de guilde : %s."
+
+-- Companion in three steps (9.1: Util.lua companionSteps, Home page, /guilded companion)
+FR["Sync with Discord in 3 steps (Windows only):"] = "Synchroniser avec Discord en 3 \195\169tapes (Windows seulement) :"
+FR["1) Download it: copy the link, or search \"Guilded Companion\" in the Microsoft Store."] = "1) T\195\169l\195\169chargez-le : copiez le lien, ou cherchez \"Guilded Companion\" dans le Microsoft Store."
+FR["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Lancez l'installateur. Il trouve WoW et le serveur Discord de votre guilde tout seul."
+FR["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) Laissez-le ouvert (il d\195\169marre avec Windows). La connexion avec Discord est facultative."
+FR["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Le plus simple : installez l'application Windows Guilded (\195\169tapes ci-dessous). Elle synchronise toute seule, sans connexion. Pas d'application ? Dans Discord, utilisez /character pair, puis collez le code ci-dessous."
+FR["Commands: /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto"] = "Commandes : /gdungeons status | results | start | complete | abandon | check | score | companion | lang en|fr|auto"
+
+-- (9.0.10) Profession names: the stored and sent name is the English one; the player sees their own language's.
+FR["Alchemy"] = "Alchimie"
+FR["Blacksmithing"] = "Forge"
+FR["Enchanting"] = "Enchantement"
+FR["Engineering"] = "Ing\195\169nierie"
+FR["Herbalism"] = "Herboristerie"
+FR["Inscription"] = "Calligraphie"
+FR["Jewelcrafting"] = "Joaillerie"
+FR["Leatherworking"] = "Travail du cuir"
+FR["Mining"] = "Minage"
+FR["Skinning"] = "D\195\169pe\195\167age"
+FR["Tailoring"] = "Couture"
+FR["Cooking"] = "Cuisine"
+FR["First Aid"] = "Premiers soins"
+FR["Fishing"] = "P\195\170che"
+FR["Archaeology"] = "Arch\195\169ologie"
+
+-- (9.1.3) Real-client findings on a French client: readiness notes, the dungeon command and mixed versions.
+FR["No off-hand item equipped (expected when using a two-handed weapon)."] = "Aucun objet en main gauche (normal avec une arme \195\160 deux mains)."
+FR["Empty slots (normal while levelling): %s."] = "Emplacements vides (normal en montant de niveau) : %s."
+FR["Missing enchants: %s."] = "Enchantements manquants : %s."
+FR["No flask or elixir active."] = "Aucun flacon ni \195\169lixir actif."
+FR["No food buff active."] = "Aucun bonus de nourriture actif."
+FR["Dungeon data is not loaded yet. Try again in a moment, or /reload."] = "Les donn\195\169es de donjon ne sont pas encore charg\195\169es. R\195\169essayez dans un instant, ou faites /reload."
+FR["The dungeon command failed. /guilded diag shows the details."] = "La commande de donjon a \195\169chou\195\169. /guilded diag montre les d\195\169tails."
+FR["Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."] = "Guilded Dungeons %s est install\195\169 \195\160 c\195\180t\195\169 de Guilded %s. Guilded enregistre vos donjons ; mettez Guilded Dungeons \195\160 jour avec le Guilded Companion (ou retirez-le)."
+

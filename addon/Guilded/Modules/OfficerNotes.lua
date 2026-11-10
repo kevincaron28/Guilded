@@ -245,10 +245,49 @@ local function markGreeted(name)
   end
 end
 
-local function sendGuild(text)
+-- The game sometimes refuses the welcome line (taint log of 10 November 2026: "An action was blocked because of
+-- taint from Guilded" at this send, twice, after members joined), while the milestone lines, sent the same way but
+-- only out of combat, do go out. So the welcome waits while chat is locked (combat, or the game's chat lockdown),
+-- and a refused line is tried again a few times instead of being lost. Nothing is remembered between sessions.
+module.GREET_RETRY_SECONDS = 20
+module.GREET_MAX_TRIES = 6
+local function chatLocked()
+  if ns.compat and ns.compat.inCombat and ns.compat.inCombat() then return true end
+  if type(InCombatLockdown) == "function" then
+    local ok, value = pcall(InCombatLockdown)
+    if ok and value == true then return true end
+  end
+  local lockdown = C_ChatInfo and C_ChatInfo.InChatMessagingLockdown
+  if type(lockdown) == "function" then
+    local ok, value = pcall(lockdown)
+    if ok and value == true then return true end
+  end
+  return false
+end
+local lastGuildSend
+-- True when the line was handed to the game (which may still refuse it: see onBlocked).
+local function sendGuild(item)
   local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
-  if type(send) ~= "function" then return false end
-  return pcall(send, text, "GUILD")
+  if type(send) ~= "function" or chatLocked() then return false end
+  lastGuildSend = { at = clock(), item = item }
+  local ok, err = pcall(send, item.text, "GUILD")
+  return ok and err ~= false
+end
+local function greetLater(item)
+  item.tries = (item.tries or 0) + 1
+  if item.tries > module.GREET_MAX_TRIES or not (C_Timer and C_Timer.After) then return false end
+  C_Timer.After(module.GREET_RETRY_SECONDS, function()
+    if module.enabled("greet") and not sendGuild(item) then greetLater(item) end
+  end)
+  return true
+end
+-- Core calls this on ADDON_ACTION_BLOCKED/FORBIDDEN naming Guilded. Returns true when it was the welcome line.
+function module.onBlocked()
+  local last, at = lastGuildSend, clock()
+  if not last or at - last.at > 2 or at < last.at then return false end
+  lastGuildSend = nil
+  greetLater(last.item)
+  return true
 end
 
 -- One officer welcomes: each waits a few seconds, and whoever goes first tells the others.
@@ -260,7 +299,8 @@ function module.onJoined(name)
     if module.greeted(name) or not module.enabled("greet") then return end
     markGreeted(name)
     if ns.comm and IsInGuild and IsInGuild() then ns.comm.send(PREFIX, "GREETED|1|" .. name, "GUILD") end
-    sendGuild(module.greetingText(name))
+    local item = { text = module.greetingText(name) }
+    if not sendGuild(item) then greetLater(item) end
   end
   local wait = 3 + (math.random and math.random() * 5 or 0)
   if C_Timer and C_Timer.After then C_Timer.After(wait, go) else go() end

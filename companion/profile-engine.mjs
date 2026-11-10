@@ -75,7 +75,7 @@ export function createProfileEngine(initialConfig, hooks = {}, factory = createE
   const state = () => ({ ...(snapshots.get(activeId()) || { running: false }),
     // Every WoW account the selected connection syncs (one entry for a single-account setup).
     accounts: plans.filter(p => (p.accountOf || p.id) === activeId() && p.account).map(p => ({ account: p.account, file: p.config.watchFile, enabled: p.enabled, ...accountState(p.id) })),
-    profiles: plans.filter(p => !p.accountOf).map(p => ({ id: p.id, name: p.name, enabled: p.enabled, writesStandings: p.writesStandings, error: p.error || snapshots.get(p.id)?.uploadError || snapshots.get(p.id)?.standingsError || null, running: !!snapshots.get(p.id)?.running, lastUpload: snapshots.get(p.id)?.lastUpload || null })) });
+    profiles: plans.filter(p => !p.accountOf).map(p => ({ id: p.id, name: p.name, enabled: p.enabled, writesStandings: p.writesStandings, error: p.error || snapshots.get(p.id)?.uploadError || snapshots.get(p.id)?.standingsError || null, warning: snapshots.get(p.id)?.guildWarning || null, running: !!snapshots.get(p.id)?.running, lastUpload: snapshots.get(p.id)?.lastUpload || null })) });
   const emit = () => hooks.onState?.(state());
   const enqueue = task => { const next = chain.then(task); chain = next.catch(() => {}); return next; };
   async function stopAll() {

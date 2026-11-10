@@ -71,17 +71,11 @@ function module.partners()
   return list
 end
 
-local function partyInvite(name)
-  if C_PartyInfo and C_PartyInfo.InviteUnit then return pcall(C_PartyInfo.InviteUnit, name) end
-  if InviteUnit then return pcall(InviteUnit, name) end
-  return false
-end
-
-function module.invite(name)
+-- The Invite button shows "/invite First Last" in the copy box (util.inviteButton, which also says to copy and paste it):
+-- the party invite API is refused to addon code on WoW Forever. This runs after its click.
+function module.invited(name)
   if not name or name == "" then return false end
-  if partyInvite(name) then say(string.format(L("Invited %s to your party."), display(name))); return true end
-  say(string.format(L("Could not invite %s."), display(name)))
-  return false
+  return true
 end
 
 -- Opens the chat box addressed to the player; the member still types and sends.
@@ -146,7 +140,7 @@ local function ensureWindow()
   return window
 end
 
-function module.refresh()
+local function refreshNow()
   if not window then return 0 end
   local list = module.partners()
   window.title:SetText(L("Levelling partners"))
@@ -159,7 +153,7 @@ function module.refresh()
       row.label:SetWidth(210)
       row.whisper = makeButton(window, L("Whisper"), 62, function() module.whisper(row.name) end)
       row.whisper:SetPoint("TOPRIGHT", window, "TOPRIGHT", -80, -34 - (i - 1) * 24)
-      row.invite = makeButton(window, L("Invite"), 58, function() module.invite(row.name) end)
+      row.invite = ns.util.inviteButton(window, "party", L("Invite"), 58, 22, function(name) module.invited(name) end)
       row.invite:SetPoint("TOPRIGHT", window, "TOPRIGHT", -16, -34 - (i - 1) * 24)
       rows[i] = row
     end
@@ -167,10 +161,10 @@ function module.refresh()
       if p then
         row.name = p.name
         row.label:SetText(string.format("%s%s|r (%d) %s", classColor(p.classFile), display(p.name), p.level, p.zone))
-        row.label:Show(); row.whisper:Show(); row.invite:Show()
+        row.label:Show(); row.whisper:Show(); row.invite:Show(); row.invite.setInvite(p.name)
       else
         row.name = nil
-        row.label:Hide(); row.whisper:Hide(); row.invite:Hide()
+        row.label:Hide(); row.whisper:Hide(); row.invite:Hide(); row.invite.setInvite(nil)
       end
     end
   end
@@ -183,6 +177,16 @@ function module.refresh()
   end
   window:SetHeight(#list == 0 and 110 or (80 + #list * 24))
   return #list
+end
+
+-- Rows (secure Invite buttons) only change out of combat.
+function module.refresh()
+  if not window then return 0 end
+  if ns.util.inCombat() then
+    ns.util.afterCombat("levelPartners.refresh", refreshNow, true)
+    return #module.partners()
+  end
+  return refreshNow()
 end
 
 function module.open()

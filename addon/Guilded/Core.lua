@@ -149,6 +149,8 @@ local function ensureDb()
   -- summary only, not full detail) so one officer's export can carry the
   -- whole online guild's readiness picture, not just their own.
   db.peerRoster = asTable(db.peerRoster)
+  -- (9.0.10) One name per profession whatever the game language ("Cuisine" and "Cooking" were two): fix older saved data.
+  if ns.util and ns.util.normalizeProfessionData then pcall(ns.util.normalizeProfessionData, db) end
   db.loot = asTable(db.loot)
   -- Raid templates: name -> { title, coreId } (/guilded template).
   db.raidTemplates = asTable(db.raidTemplates)
@@ -808,8 +810,12 @@ local function collectProfessions()
   for i = 1, count do
     local index = indices[i]
     if index then
-      local name, _, skillLevel = GetProfessionInfo(index)
-      if name then table.insert(result, { name = name, skillLevel = skillLevel or 0 }) else complete = false end
+      local name, _, skillLevel, _, _, _, skillLine = GetProfessionInfo(index)
+      if name then
+        -- The same profession is the same name on every client: the English name (Util.lua), by skill line id first.
+        local key = ns.util and ns.util.professionName and ns.util.professionName(name, skillLine) or name
+        table.insert(result, { name = key, skillLevel = skillLevel or 0 })
+      else complete = false end
     end
   end
   return result, complete
@@ -1939,6 +1945,8 @@ local function handlePeerReadiness(text, sender, channel)
         if #kept < 10 and #profession <= 40 and #skill <= 4 then table.insert(kept, profession .. ":" .. skill) end
       end
       professions = table.concat(kept, ",")
+      -- An older client sends its own language's names: store the canonical ones.
+      if ns.util and ns.util.professionSkillText then professions = ns.util.professionSkillText(professions) end
     end
   end
   local STATUSES = { READY = true, PARTIAL = true, NOT_READY = true }
@@ -2311,6 +2319,8 @@ local function onEvent(_, event, ...)
       blockedAddon ~= addonName)
     -- A refused guild action is never retried on this client build (see RosterTools).
     if blockedAddon == addonName and ns.rosterTools and ns.rosterTools.onBlocked then pcall(ns.rosterTools.onBlocked) end
+    -- A refused guild welcome is tried again a little later (see OfficerNotes).
+    if blockedAddon == addonName and ns.officerNotes and ns.officerNotes.onBlocked then pcall(ns.officerNotes.onBlocked) end
   elseif event == "UI_ERROR_MESSAGE" then
     -- Fallback net in case the blocked-action popup surfaces as a generic UI
     -- error toast instead of ADDON_ACTION_BLOCKED/FORBIDDEN -- log it only

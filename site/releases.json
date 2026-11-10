@@ -3,17 +3,20 @@
   "mobile": {
     "android": {
       "version": "0.2.0",
+      "build": "preview 2 (versionCode 2)",
       "stage": "preview",
-      "apkUrl": "https://github.com/kevincaron28/Guilded/releases/download/mobile-v0.2.0-preview/guilded-android-0.2.0-preview.apk",
+      "apkUrl": "https://guilded.kcaron.top/downloads/Guilded-Android.apk",
+      "mirrorUrl": "https://dl.kcaron.top/Guilded-Android.apk",
       "releaseUrl": "https://github.com/kevincaron28/Guilded/releases/tag/mobile-v0.2.0-preview",
-      "sha256": "9363877c2857f3d4fa291d6ae2611194a80646c436790423ea34e054704dcceb"
+      "size": 77082979,
+      "sha256": "2c4122fb50bd55acf3662f269c7e974fb758e0f283f231ee9a9f2acdb1643be3"
     }
   },
   "guilded": {
     "github": {
-      "version": "9.0.8",
+      "version": "9.1.3",
       "stage": "release",
-      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.0.8"
+      "url": "https://github.com/kevincaron28/Guilded/releases/tag/v9.1.3"
     },
     "curseforge": {
       "version": "9.0.3",
@@ -27,15 +30,15 @@
       }
     },
     "companionDirect": {
-      "version": "9.0.8",
+      "version": "9.1.3",
       "url": "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe",
       "siteUrl": "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe",
-      "size": 123300850,
-      "sha256": "bdc35611bbccfca86b53dea5be7be46dd29597ab65a5fd59a4a9a7c584a046d6"
+      "size": 123315442,
+      "sha256": "81a7eaf0656ada61473285d9f6088c8af2a4c201a6e3fc683ce378965b95fe4f"
     },
     "addonZips": {
-      "Guilded-v9.0.8-forever.zip": "c25c32f1de71763556d30e75a497bf4f59db61e4916fee394a305ce62984beb9",
-      "GuildedDungeons-v9.0.8-forever.zip": "ce0a8c108312d6efc678003e77673ebe08ef5a497462556eca7b36be3374edcb"
+      "Guilded-v9.1.3-forever.zip": "f22dc9ee6fa17a15549e66a6a561fa8c55f6ebc3ad428adee835c655bcb7fa34",
+      "GuildedDungeons-v9.1.3-forever.zip": "b882356e042e0d0a20320249a1188e07f83ee3b92783b898e3155ce3b72bfd6d"
     },
     "microsoftStore": {
       "version": "8.3.0",

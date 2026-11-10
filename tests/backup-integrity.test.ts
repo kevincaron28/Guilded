@@ -27,6 +27,19 @@ describe("daily backup integrity", () => {
     expect(transaction).toHaveBeenCalledOnce();
     expect(await readdir(dir)).toEqual([result!.file]);
   });
+  it("leaves the raw payload of applied uploads out but keeps pending ones", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "guilded-backup-")); dirs.push(dir);
+    const findMany = vi.fn(async (query: { where: { status: unknown } }) => query.where.status === "APPLIED"
+      ? [{ id: "a", status: "APPLIED", checksum: "c1" }]
+      : [{ id: "p", status: "PREVIEWED", checksum: "c2", payload: { big: [1, 2, 3] } }]);
+    const database = { $transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ addonImport: { findMany } }) };
+    const result = await runBackup(database as never, new Date("2026-10-02T12:00:00Z"), dir);
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ omit: { payload: true } }));
+    expect(JSON.parse(gunzipSync(await readFile(join(dir, result!.file))).toString()).tables.AddonImport).toEqual([
+      { id: "a", status: "APPLIED", checksum: "c1", payload: { omitted: true } },
+      { id: "p", status: "PREVIEWED", checksum: "c2", payload: { big: [1, 2, 3] } }
+    ]);
+  });
   it("replaces a corrupt daily copy instead of considering it finished", async () => {
     const { dir, database } = await fixture(); const now = new Date("2026-09-30T12:00:00Z");
     await writeFile(join(dir, backupFileName(now)), "interrupted write");

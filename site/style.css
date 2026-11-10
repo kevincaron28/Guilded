@@ -508,3 +508,15 @@ form { margin: 22px 0 0; }
 .shot-gallery figcaption { margin-top: 8px; font-size: 13px; line-height: 1.5; color: #c2cab7; }
 .shot-gallery-small { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
 @media (max-width: 700px) { .shot-gallery, .shot-gallery-small { grid-template-columns: minmax(0, 1fr); } .shot-gallery-small img { max-width: 420px; } }
+
+/* Android app download: shown on phones only; the full steps are on the companion page. */
+.android-phone{display:none}
+@media (max-width:760px) and (pointer:coarse){.android-phone{display:inline-flex}}
+/* Phone-app screenshots on the Features page: tall pictures in a compact grid. */
+.phone-gallery { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin: 20px 0 24px; }
+.phone-gallery figure { margin: 0; min-width: 0; }
+.phone-gallery a { display: block; }
+.phone-gallery img { width: 100%; height: auto; display: block; border: 1px solid #4b4d38; border-radius: 10px; background: #111; }
+.phone-gallery figcaption { margin-top: 8px; font-size: 12px; line-height: 1.45; color: #c2cab7; }
+@media (max-width: 900px) { .phone-gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .phone-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }

@@ -30,6 +30,15 @@ function deps(overrides: Record<string, unknown> = {}) {
 const byId = (results: Result[]) => Object.fromEntries(results.map((item) => [item.id, item.status]));
 
 describe("Repair", () => {
+  it("shows an unsigned device as information, never a to-do (zero-setup)", async () => {
+    const results = await runRepair(deps({ signedIn: () => false }));
+    expect(byId(results)["signin"]).toBe("ok");
+    expect(repairSummary(results).needsYou).toBe(0);
+    const line = (results as Result[]).find((item) => item.id === "signin")!.text[0];
+    expect(line).toBe("Discord sign-in: optional, not used.");
+    expect(fr[line]).toBeTruthy();
+  });
+
   it("says everything is fine when it is", async () => {
     const results = await runRepair(deps());
     expect(byId(results)).toEqual({ folder: "ok", addon: "ok", signin: "ok", link: "ok", sync: "ok" });
@@ -60,7 +69,7 @@ describe("Repair", () => {
       signedIn: () => false,
       syncConfigured: () => false
     }));
-    expect(byId(results)).toEqual({ folder: "needs-you", addon: "needs-you", signin: "needs-you" });
+    expect(byId(results)).toEqual({ folder: "needs-you", addon: "needs-you", signin: "ok" });
     expect(results[0]!.text[0]).toMatch(/no account folder yet/);
   });
 

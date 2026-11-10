@@ -44,14 +44,17 @@ describe("Link everything at start", () => {
   });
 
   it("counts setup as done when signed in and syncing has what it needs", () => {
-    const body = /function setupDone\(config\) \{ return ([^}]+) \}/.exec(app)?.[1];
+    const body = /function setupDone\(config\) \{([\s\S]*?)\r?\n\}/.exec(app)?.[1];
     expect(body).toBeTruthy();
-    const setupDone = new Function("config", `return ${body}`) as (config: Record<string, unknown>) => boolean;
+    const setupDone = new Function("config", body as string) as (config: Record<string, unknown>) => boolean;
     expect(setupDone({})).toBe(false);
     expect(setupDone({ companionCredential: "c" })).toBe(false);
     expect(setupDone({ companionCredential: "c", watchFile: "D:\\WoW\\Guilded.lua" })).toBe(true);
     expect(setupDone({ companionCredential: "c", personal: true })).toBe(true);
     expect(setupDone({ companionCredential: "c", wowEnabled: false })).toBe(true);
     expect(setupDone({ watchFile: "D:\\WoW\\Guilded.lua" })).toBe(false);
+    // (9.1.3) Zero-setup: the device key syncs without any sign-in.
+    expect(setupDone({ device: true, deviceSecret: "set", watchFile: "D:\\WoW\\Guilded.lua" })).toBe(true);
+    expect(setupDone({ device: true, deviceSecret: "set" })).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-// Builds the app-sized painted card art (owner approved the "E22" batch on 9 November 2026) from the original PNGs.
+// Builds the app-sized painted card art (owner approved the "E22" and Rare batches on 9 November 2026) from the original PNGs.
 // Usage: node docs/plans/app-tcg-art/make-card-art.mjs <folder with files named <card id>-<slug>.png>
 // Writes mobile/assets/clash/cards/<id>.webp (full 640x480) and <id>-window.webp (card art window, 624x240),
 // plus docs/plans/app-tcg-art/cards/<id>.webp previews (640x480). Needs `sharp` (set REPO_NODE_MODULES to a checkout that has it).
@@ -21,6 +21,8 @@ mkdirSync(preview, { recursive: true });
 
 // Vertical focus (fraction of the painting height) so the window crop keeps the subject in view; table below; centred by default.
 const FOCUS = { "010": 0.2, "021": 0.2, "032": 0.25, "044": 0.2, "055": 0.2, "065": 0.25, "087": 0.25, "098": 0.25, "121": 0.35, "123": 0.3, "125": 0.35 };
+// Rare batch (9 November 2026): units sit a little above centre, the zone and Standards are centred.
+for (const id of ["008","009","018","020","030","031","043","052","053","063","064","074","075","085","086","096","097","115","116","117","124"]) FOCUS[id] = 0.25;
 const DEFAULT_FOCUS = 0.5; // spells, gear and standards: centred
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 

@@ -6,11 +6,19 @@
 <p class="micro">Free · Windows 10 and 11 · about 120 MB · updates itself</p>
 </section>
 
-## Android app (preview)
+<h2 id="android">Android app (preview)</h2>
 
-<div class="actions"><a class="button" href="{{ANDROID_APK_URL}}">Download the Android app (APK) <span aria-hidden="true">↓</span></a><a class="button secondary" href="{{ANDROID_RELEASE_URL}}">Release notes <span aria-hidden="true">↗</span></a></div>
+<div class="actions"><a class="button" href="{{ANDROID_APK_URL}}">Download for Android <span aria-hidden="true">↓</span></a><a class="button secondary" href="{{ANDROID_RELEASE_URL}}">GitHub <span aria-hidden="true">↗</span></a></div>
 
 A free **preview** of the Guilded phone app for Android: check your guild's raid roster, reserves, loot wishlist and standings, and get raid reminders. It is a sideloaded preview, version {{ANDROID_VERSION}}, not on Google Play yet. After you open the file, Android asks you to allow installing from your browser: allow it once, then install. The app tells you when a newer version is ready and updates its content by itself.
+
+**Install it on your phone in three taps:**
+
+1. Tap **Download for Android** (about 74 MB). If your browser asks, keep the file.
+2. Open the downloaded file. Android asks once to **allow installs from your browser**: allow it, then tap **Install**.
+3. Open **Guilded** and sign in with Discord.
+
+If Android says the app can't be installed because it conflicts with an older Guilded, **uninstall the old Guilded app first**, then install again. Version {{ANDROID_VERSION}} (preview). The GitHub copy of an older build is still on the [release page]({{ANDROID_RELEASE_URL}}).
 
 SHA-256 of the file: `{{ANDROID_SHA256}}`. You can compare it with the checksum shown by a file-hash tool before installing.
 
@@ -21,11 +29,13 @@ SHA-256 of the file: `{{ANDROID_SHA256}}`. You can compare it with the checksum 
 
 The companion works on **Windows only**. There is no Mac or Linux version and no browser version.
 
-## Install in three steps
+## Sync with Discord in 3 steps
 
-1. **Download.** [Download for Windows]({{COMPANION_DIRECT_URL}}). The link always gives the newest version.
+1. **Download.** [Download for Windows]({{COMPANION_DIRECT_URL}}), or search **Guilded Companion** in the Microsoft Store. The link always gives the newest version.
 2. **Run it.** Open the file you downloaded. Windows may say it "protected your PC": choose **More info → Run anyway** (the installer is free and not code-signed). There is nothing to choose: it installs and opens the companion by itself.
-3. **Let the setup do the rest.** The companion finds World of Warcraft on any drive, installs or updates the Guilded addon, and opens Discord in your browser: pick your guild's server and press **Connect**. After your next `/reload` in WoW (or when you log out) it syncs by itself, and keeps syncing from the tray.
+3. **Keep it open.** It starts with Windows and lives in the tray. The companion finds World of Warcraft on any drive, installs or updates the Guilded addon, and picks your guild's Discord server from your in-game guild. After your next `/reload` in WoW (or when you log out) it syncs by itself.
+
+**Signing in with Discord is optional.** Until you sign in, your characters are shown as reported by your PC; press **Sign in with Discord** in the companion to confirm them and unlock your personal page and Discord messages.
 
 That's all. The companion **updates itself**: new versions download in the background and install when you quit or restart it, or at once with **Update now** on its Home page.
 

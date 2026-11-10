@@ -24,6 +24,18 @@ export function switchProfile(config, id) {
   if (!Object.hasOwn(profiles, id)) throw new Error("Connection profile not found.");
   return { ...profiles[id], profiles, activeProfile: id };
 }
+// Forgets one connection on this PC: its sign-in and folders are dropped and nothing uploads there any more. It never
+// deletes anything on the server. The selection moves to another connection when the removed one was selected.
+export function removeProfile(config, id) {
+  const profiles = savedProfiles(config);
+  if (!Object.hasOwn(profiles, id)) throw new Error("Connection profile not found.");
+  const remaining = Object.fromEntries(Object.entries(profiles).filter(([key]) => key !== id));
+  const keys = Object.keys(remaining);
+  if (!keys.length) throw new Error("This is your only connection. Add another one before removing it.");
+  const active = config.activeProfile || "default";
+  const next = active === id ? keys[0] : active;
+  return { ...remaining[next], profiles: remaining, activeProfile: next };
+}
 export function addProfile(config, name) {
   if (Object.keys(savedProfiles(config)).length >= 20) throw new Error("Up to 20 connection profiles are supported.");
   const profileName = String(name || "").trim().slice(0, 80);

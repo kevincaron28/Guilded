@@ -69,6 +69,79 @@ describe("acknowledged dungeon runs", () => {
   });
 });
 
+// 9.1.4: a 9.1.3 unsigned companion acknowledged guildmates' runs it could not upload ("Not one of this PC's
+// characters"). The addon then told the run's author "my bot has your run", and the author stopped replaying it.
+describe("a guildmate's run an unsigned companion cannot upload", () => {
+  const NOTE = "Not one of this PC's characters";
+  const theirs = (id: string, extra = "") => s.run(`
+    NS.dungeon.savedRuns()[${JSON.stringify(id)}] = { id = ${JSON.stringify(id)}, state = "COMPLETED", instanceId = 33, name = "Gnomeregan", difficultyId = 1,
+      startedAt = CLOCK - 8100, endedAt = CLOCK - 7200, recorder = "Donny", players = { Donny = { presentSec = 900 } }, encounters = {}, reporters = { Donny = true } ${extra} }`);
+
+  it("is never marked synced by the old refusal note, and an old mark is undone", () => {
+    start();
+    theirs("fresh"); theirs("marked", `, synced = true, syncNote = "${NOTE}"`); seed("mine", 7200);
+    // The updated companion drops such a run from its list: the saved mark goes all the same.
+    theirs("unlisted", `, synced = true, syncNote = "${NOTE}"`);
+    s.run(`GuildedDungeonAccepted = { "fresh", "marked", "mine" }
+      GuildedDungeonNotes = { fresh = "${NOTE}", marked = "${NOTE}" }
+      NS.dungeon.markSynced()`);
+    expect(s.run(`local r = NS.dungeon.savedRuns(); return tostring(r.fresh.synced) .. tostring(r.marked.synced) .. tostring(r.marked.syncNote) .. tostring(r.mine.synced) .. tostring(r.unlisted.synced)`)).toBe("nilnilniltruenil");
+    // A real receipt for the same run later (a signed-in guildmate's bot stored it) marks it again.
+    s.run(`GuildedDungeonAccepted = { "unlisted" }; GuildedDungeonNotes = {}; NS.dungeon.markSynced()`);
+    expect(s.run(`return tostring(NS.dungeon.savedRuns().unlisted.synced)`)).toBe("true");
+  });
+
+  it("does not answer its author's replay with a confirmation", () => {
+    start();
+    s.run(`NS.isGuildMember = function() return true end
+      SENT_TEXT = {}; NS.comm.send = function(_, text) SENT_TEXT[#SENT_TEXT + 1] = text; return true end`);
+    const replayFromDonny = () => {
+      // The author's client (same saved run, not confirmed there) replays it; this PC hears the replay.
+      s.run(`local run = NS.dungeon.savedRuns().held; local synced = run.synced; run.synced = nil
+        NS.playerName = function() return "Donny" end; NS.dungeon.lastReplay = nil; NS.dungeon.replayPending()
+        REPLAY = SENT_TEXT; SENT_TEXT = {}; run.synced = synced
+        NS.playerName = function() return "Hulke Hogan" end
+        for _, text in ipairs(REPLAY) do fire_event("CHAT_MSG_ADDON", "GuildedDgn", text, "GUILD", "Donny-Realm") end`);
+      expect(Number(s.run("return tostring(#REPLAY)"))).toBeGreaterThan(0);
+      return s.run(`for _, text in ipairs(SENT_TEXT) do if text:match("^ACK|") then return "acked" end end; return "quiet"`);
+    };
+    theirs("held", `, synced = true, syncNote = "${NOTE}"`);
+    s.run(`GuildedDungeonAccepted = { "held" }; GuildedDungeonNotes = { held = "${NOTE}" }; NS.dungeon.markSynced()`);
+    expect(replayFromDonny()).toBe("quiet");
+    // A real receipt (the bot holds the run) is confirmed to its author.
+    s.run(`GuildedDungeonNotes = {}; NS.dungeon.markSynced()`);
+    expect(s.run(`return tostring(NS.dungeon.savedRuns().held.synced)`)).toBe("true");
+    expect(replayFromDonny()).toBe("acked");
+  });
+
+  it("is not counted as waiting on a PC whose companion has no Discord sign-in", () => {
+    start();
+    seed("mine", 7200); theirs("guildmate");
+    expect(s.run(`return #NS.dungeon.waitingRuns()`)).toBe("2");
+    s.run(`GuildedCompanion = { mode = "device" }`);
+    expect(s.run(`return #NS.dungeon.waitingRuns()`)).toBe("1");
+    s.run(`GuildedDB.dungeon.lastSaveAt = CLOCK - 3600; NS.dungeon.remindWaiting()`);
+    expect(chat()).toContain("1 dungeon run(s) have not reached Discord yet");
+    // A run of another character of this PC still waits here.
+    s.run(`GuildedDB.myCharacters = { donny = { name = "Donny" } }`);
+    expect(s.run(`return #NS.dungeon.waitingRuns()`)).toBe("2");
+    s.run(`GuildedCompanion = nil`);
+  });
+});
+
+describe("replaying our own runs to the guild", () => {
+  it("covers the 30 days the bot accepts from a guildmate, newest 10 runs", () => {
+    start();
+    for (let day = 1; day <= 12; day++) seed(`day-${day}`, day * 86400);
+    seed("too-old", 31 * 86400); seed("synced", 3600, ", synced = true"); seed("confirmed", 3600, `, syncedVia = "Chad"`);
+    s.run(`IDS = {}; NS.comm.send = function(_, text) local id = text:match("^SUM|([^|]+)|1|"); if id then IDS[#IDS + 1] = id end return true end
+      NS.dungeon.lastReplay = nil; NS.dungeon.replayPending()`);
+    expect(s.run(`return table.concat(IDS, ",")`)).toBe(Array.from({ length: 10 }, (_, i) => `day-${i + 1}`).join(","));
+    s.run(`IDS = {}; for day = 1, 12 do NS.dungeon.savedRuns()["day-" .. day] = nil end; NS.dungeon.lastReplay = nil; NS.dungeon.replayPending()`);
+    expect(s.run(`return tostring(#IDS)`)).toBe("0");
+  });
+});
+
 describe("the waiting-runs reminder", () => {
   it("records each save (logout or /reload) of the file the companion reads", () => {
     start();
@@ -81,7 +154,10 @@ describe("the waiting-runs reminder", () => {
     seed("old", 7200);
     s.run(`GuildedDB.dungeon.lastSaveAt = CLOCK - 3600`);
     expect(s.run(`return tostring(NS.dungeon.remindWaiting())`)).toBe("true");
-    expect(chat()).toContain("1 dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC?");
+    const said = chat();
+    expect(said).toContain("1 dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC?");
+    expect(said).toContain("3) Keep it open");
+    expect(said).toContain("guilded.kcaron.top/companion/");
     expect(s.run(`return tostring(NS.dungeon.remindWaiting())`)).toBe("false");
     expect(chat()).toBe("");
   });

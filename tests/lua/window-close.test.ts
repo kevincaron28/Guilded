@@ -147,3 +147,23 @@ describe("the Guilded window opened from the guild tab closes", () => {
     expect(shown(s)).toBe("false");
   });
 });
+
+// 9.1.3 (real-client report): dragging the docked panel raised "GuildedPanel:StartMoving(): Frame is not movable".
+describe("dragging the Guilded window", () => {
+  const instrument = (s: LuaSession, movable: boolean) => s.run(`
+    GuildedPanel.movable = ${movable}; MOVES = 0
+    GuildedPanel.IsMovable = function(self) return self.movable end
+    GuildedPanel.StartMoving = function(self) if not self.movable then error("Frame is not movable") end MOVES = MOVES + 1 end
+    local ok, err = pcall(GuildedPanel.scripts.OnDragStart, GuildedPanel)
+    return tostring(ok) .. ":" .. tostring(MOVES)`);
+  it("does nothing, and raises no error, when the panel is docked and not movable", () => {
+    const s = boot();
+    clickMinimap(s);
+    expect(instrument(s, false)).toBe("true:0");
+  });
+  it("still moves the panel when it is movable", () => {
+    const s = boot();
+    clickMinimap(s);
+    expect(instrument(s, true)).toBe("true:1");
+  });
+});

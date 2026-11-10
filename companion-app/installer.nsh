@@ -1,9 +1,7 @@
 ﻿; Extra uninstall cleanup for Guilded Companion.
 ;
-; electron-builder's "deleteAppDataOnUninstall" option (set in package.json)
-; already removes %APPDATA%\Guilded Companion (config.json, which holds the
-; upload token and companion credential, plus Electron's cache folders) when
-; the app is uninstalled from Windows Settings / Add or Remove Programs.
+; "deleteAppDataOnUninstall" is off (package.json): since 9.1.3 an uninstall keeps
+; %APPDATA%\Guilded Companion (settings, Discord sign-in) unless the member says yes below.
 ;
 ; What that flag does NOT touch is the "Start with Windows" entry: main.cjs
 ; turns autostart on by default on first run (app.setLoginItemSettings),
@@ -20,6 +18,20 @@
 !macro customUnInstall
   ${ifNot} ${isUpdated}
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Guilded Companion"
+    ; Electron writes its Start with Windows entry under "electron.app.<productName>" (9.1.3: this was left behind).
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "electron.app.${PRODUCT_NAME}"
+    ; The member's settings stay unless they say otherwise; a silent uninstall never asks and never deletes.
+    ${if} ${Silent}
+      DetailPrint "Settings kept."
+    ${else}
+      ${if} $LANGUAGE == 1036
+        MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "Supprimer aussi vos réglages et votre connexion Discord ? Choisissez Non pour les garder (utile avant une réinstallation)." /SD IDNO IDNO guilded_keep_data
+      ${else}
+        MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "Also delete your settings and Discord sign-in? Choose No to keep them (useful before a reinstall)." /SD IDNO IDNO guilded_keep_data
+      ${endIf}
+      RMDir /r "$APPDATA\${PRODUCT_NAME}"
+      guilded_keep_data:
+    ${endIf}
     ; The installer copy electron-builder keeps (see customInstall below).
     RMDir /r "$LOCALAPPDATA\guilded-companion-updater"
   ${endIf}

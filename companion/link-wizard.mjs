@@ -19,12 +19,24 @@ export function linkWizard({ config = {}, state = {}, hub = null, me = null, pro
   const addonStatus = savedFile?.addon?.status;
   const addonFine = !has("addon-missing") && !has("addon-wrong-edition") && addonStatus !== "not-installed" && addonStatus !== "wrong-edition";
   const wowDone = !wow || (addonFine && (watched || addonStatus === "ok"));
+  // Zero-setup companion (9.1.0): syncing with the device key and no Discord sign-in. The server comes
+  // from the character's in-game guild, the characters are "reported", and the sign-in is an optional
+  // extra, not a numbered step.
+  const hasKey = config.device === true && Boolean(config.deviceSecret) && state.device?.status !== "claimed";
+  const device = !signedIn && wow && hasKey;
+  const deviceStatus = state.device?.status ?? null;
+  const reported = device && deviceStatus === "synced" ? Number(state.device.characters) || 0 : 0;
   const discordDone = signedIn;
-  const serverDone = signedIn && !personal;
-  const charactersDone = serverDone && characters.length > 0;
-  const current = !wowDone ? "wow" : !discordDone ? "discord" : !serverDone ? "server" : !charactersDone ? "characters" : null;
+  const serverDone = device ? deviceStatus === "synced" : signedIn && !personal;
+  const charactersDone = device ? reported > 0 : serverDone && characters.length > 0;
+  const current = !wowDone ? "wow" : device ? (!serverDone ? "server" : !charactersDone ? "characters" : null)
+    : !discordDone ? "discord" : !serverDone ? "server" : !charactersDone ? "characters" : null;
   const stepState = (id, done) => done ? "done" : current === id ? "current" : "todo";
-  const steps = [
+  const steps = device ? [
+    { id: "wow", label: "WoW and the Guilded addon", state: stepState("wow", wowDone) },
+    { id: "server", label: "Your guild's Discord server", state: stepState("server", serverDone) },
+    { id: "characters", label: "Your characters", state: stepState("characters", charactersDone) }
+  ] : [
     { id: "wow", label: "WoW and the Guilded addon", state: stepState("wow", wowDone) },
     { id: "discord", label: "Sign in with Discord", state: stepState("discord", discordDone) },
     { id: "server", label: "Your guild's Discord server", state: stepState("server", serverDone) },
@@ -33,7 +45,13 @@ export function linkWizard({ config = {}, state = {}, hub = null, me = null, pro
 
   // Step 2 for a member whose Discord account is not in the guild's server yet.
   let join = null;
-  if (current === "server") {
+  if (current === "server" && device) {
+    // The bot picks the server from the in-game guild: nothing to join or choose, only to wait or ask an officer.
+    const guild = state.device?.guild?.name;
+    if (deviceStatus === "choose") join = { kind: "info", server: null, text: ["Several Discord servers set up your guild {0}. Choose yours on the Sync page, under Advanced: choose server.", guild ?? ""] };
+    else if (deviceStatus === "no-guild" && guild) join = { kind: "info", server: null, text: ["Your guild {0} isn't set up on Discord yet. Your data waits here; ask an officer to run /setup on your guild's Discord.", guild] };
+    else join = { kind: "info", server: null, text: ["Waiting for your character's guild: log in to WoW with the Guilded addon enabled, then type /reload once."] };
+  } else if (current === "server") {
     const target = me?.join ?? null;
     if (target?.joined) join = { kind: "joined", server: target.serverName, text: ["You joined {0}. Linking it now: approve in your browser.", target.serverName] };
     else if (target?.inviteUrl) join = { kind: "invite", server: target.serverName, inviteUrl: target.inviteUrl, text: ["Your WoW guild uses {0} on Discord, but your Discord account is not in it yet. Join it, then the companion continues by itself.", target.serverName] };
@@ -50,7 +68,8 @@ export function linkWizard({ config = {}, state = {}, hub = null, me = null, pro
 
   // Step 4: where characters come from, and why they may not be there yet.
   const charactersHelp = current === "characters" ? {
-    text: "Your characters come from the Guilded addon: play a character with the addon on, type /reload, and the companion proves it is yours. Battle.net is optional on WoW Forever.",
+    text: device ? "Your characters come from the Guilded addon: log in to WoW, type /reload once, and they are reported here. Signing in with Discord is optional: it confirms them as yours."
+      : "Your characters come from the Guilded addon: play a character with the addon on, type /reload, and the companion proves it is yours. Battle.net is optional on WoW Forever.",
     canDetect: watched
   } : null;
 
@@ -61,6 +80,10 @@ export function linkWizard({ config = {}, state = {}, hub = null, me = null, pro
   if (current === "wow") diagnostics = [
     check(watched || addonStatus === "ok" || addonStatus === "not-installed", "World of Warcraft is found on this PC", "Press Try again, or choose your WoW folder in Settings."),
     check(addonFine, "The Guilded addon is installed", "Exit World of Warcraft, then press Try again.")
+  ];
+  else if (current === "server" && device) diagnostics = [
+    check(reachable, "Guilded's server answers", "Guilded's server is restarting or unreachable. Wait a minute and try again."),
+    check(Boolean(state.device?.guild), "Your WoW guild is found on Discord", "Log in to WoW once with the Guilded addon and type /reload, so the companion knows your guild.")
   ];
   else if (current === "discord") diagnostics = [
     check(reachable, "Guilded's server answers", "Guilded's server is restarting or unreachable. Wait a minute and try again."),
@@ -81,8 +104,10 @@ export function linkWizard({ config = {}, state = {}, hub = null, me = null, pro
   ];
 
   const names = characters.map((c) => c.displayName || c.name).filter((name) => typeof name === "string" && name);
-  const success = charactersDone ? { server: server ?? "", names: names.slice(0, 10), more: Math.max(0, names.length - 10) } : null;
-  return { steps, current, join, setupHelp, charactersHelp, diagnostics, success, identity: signedIn && me?.account ? me.account : null };
+  const success = charactersDone && !device ? { server: server ?? "", names: names.slice(0, 10), more: Math.max(0, names.length - 10) } : null;
+  // The sign-in as an optional extra beside the steps (zero-setup only).
+  const optional = device ? { id: "discord", label: "Sign in with Discord (optional)", note: "It confirms your characters as yours. Syncing works without it." } : null;
+  return { steps, current, join, setupHelp, charactersHelp, diagnostics, success, optional, device, identity: signedIn && me?.account ? me.account : null };
 }
 
 /**
@@ -105,13 +130,15 @@ export function savedSince(savedFile, since) {
  * What the wizard does by itself next (owner, 7 November 2026: automatic setup). Each automatic step
  * runs once per run of the companion; after that the member gets the button.
  * @param {{ current?: string | null } | null} wizard  linkWizard's answer
- * @param {{ wow?: boolean, signIn?: boolean, visible?: boolean, signInBusy?: boolean }} [done]
+ * @param {{ wow?: boolean, signIn?: boolean, visible?: boolean, signInBusy?: boolean, zeroSetup?: boolean }} [done]
  * @returns {"setup-wow" | "sign-in" | null}
  */
-export function autoStep(wizard, { wow = false, signIn = false, visible = true, signInBusy = false } = {}) {
+// zeroSetup: the companion registers its own device key within seconds of its first start (9.1.0), so on a
+// fresh install it never opens the browser for a sign-in by itself; the button stays for older bots.
+export function autoStep(wizard, { wow = false, signIn = false, visible = true, signInBusy = false, zeroSetup = false } = {}) {
   if (!wizard || !visible) return null;
   if (wizard.current === "wow" && !wow) return "setup-wow";
   // The browser opens by itself once; never while a sign-in is already waiting.
-  if (wizard.current === "discord" && !signIn && !signInBusy) return "sign-in";
+  if (wizard.current === "discord" && !signIn && !signInBusy && !zeroSetup) return "sign-in";
   return null;
 }

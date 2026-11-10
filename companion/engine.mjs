@@ -13,6 +13,11 @@ import { personalSavedFiles, uploadPersonalRuns } from "./personal-runs.mjs";
 import { GAME_EDITIONS } from "./game-edition.mjs";
 import { normalizeSavedPath } from "./saved-folder.mjs";
 import { errorDetail, isTimeout, rememberError } from "./error-detail.mjs";
+import { deviceHeaders, deviceMessage, deviceSummary, hasDeviceKey, uploadAsDevice } from "./device-sync.mjs";
+import { readDeviceReceipts, writeDeviceReceipts } from "./device-receipts.mjs";
+
+// Zero-setup companion (device-sync.mjs): no Discord sign-in yet, only the per-install device key.
+export const isDeviceMode = (config) => config?.device === true && hasDeviceKey(config) && !(typeof config.companionCredential === "string" && config.companionCredential.length >= 32);
 
 // The companion's working parts, shared by the command-line watcher
 // (watcher.mjs) and the desktop app (companion-app/). It watches the addon's
@@ -26,7 +31,8 @@ export function validateConfig(config) {
   if (config.wowEnabled === false && !poeTrackingOn(config)) problems.push(POE_TRACKING_ENABLED ? "Enable WoW or PoE2 tracking before starting." : "Enable WoW sync before starting.");
   if (!config.uploadUrl) problems.push("The bot address is not set.");
   const linked = typeof config.companionCredential === "string" && config.companionCredential.length >= 32;
-  if (!linked) problems.push("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup.");
+  if (isDeviceMode(config)) { /* zero-setup: the bot finds the server from the in-game guild */ }
+  else if (!linked) problems.push("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup.");
   // Personal mode (leaderboards only, from Sign in with Discord or a /me/ code) has no guild: only public dungeon runs.
   else if (!config.guildDiscordId && !config.personal) problems.push("The Discord server ID is not set.");
   if (config.uploadUrl) { try { checkUrl(config.uploadUrl); } catch (error) { problems.push(error.message); } }
@@ -96,7 +102,8 @@ export const HOSTED_UPLOAD_URL = "https://guilded.kcaron.top/api/v1/addon-import
 export async function startSignIn(config, { loopback } = {}) {
   const uploadUrl = config.uploadUrl?.trim() || HOSTED_UPLOAD_URL;
   try {
-    const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in", uploadUrl), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(loopback ? { loopback } : {}) }, undefined, 10_000);
+    // A zero-setup companion sends its device key: the page then puts the server it syncs to first.
+    const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in", uploadUrl), { method: "POST", headers: { "content-type": "application/json", ...(hasDeviceKey(config) ? deviceHeaders(config) : {}) }, body: JSON.stringify(loopback ? { loopback } : {}) }, undefined, 10_000);
     if (response.status === 404) return { ok: false, message: "This bot does not offer Discord sign-in yet. Use a pairing code instead." };
     if (!response.ok) return { ok: false, message: describeApiError(response.status, body.error) };
     if (typeof body.requestId !== "string" || typeof body.url !== "string" || typeof body.confirm !== "string") return { ok: false, message: "The bot's sign-in answer was incomplete." };
@@ -187,6 +194,19 @@ const FILE_CHECK_MS = 30_000;
 const WATCH_RETRY_MS = 5 * 60_000;
 const WATCH_STABLE_MS = 10 * 60_000;
 
+// One member can have several connections (servers) reading the same saved file. Their uploads go one at a time,
+// never at the same instant: two roster applies for the same guild collided on the bot (9 Nov 2026, P2034).
+const uploadGates = new Map();
+export function withUploadGate(file, work) {
+  const key = String(file || "").replaceAll("\\", "/").toLowerCase();
+  const previous = uploadGates.get(key) || Promise.resolve();
+  const run = previous.then(work, work);
+  const tail = run.catch(() => {});
+  uploadGates.set(key, tail);
+  tail.then(() => { if (uploadGates.get(key) === tail) uploadGates.delete(key); });
+  return run;
+}
+
 export function createEngine(initialConfig, hooks = {}) {
   // A file picked inside a character folder (WTF\Account\X\<realm>\<character>\SavedVariables) never holds GuildedDB:
   // watch the account-level one instead (companion/saved-folder.mjs).
@@ -233,6 +253,7 @@ export function createEngine(initialConfig, hooks = {}) {
     // The addon's guild sync counters from the last save (9.0; support summary only).
     gameSync: null,
     uploads: 0,
+    guildWarning: null,
     syncPhase: "waiting-save",
     syncEvidence: {},
     // "live" (the bot tells this companion about changes as they happen) or "interval".
@@ -241,12 +262,14 @@ export function createEngine(initialConfig, hooks = {}) {
     // noticed within 30 seconds until it works again).
     fileWatch: null,
     lastUploadBytes: null,
+    // Zero-setup companion: where unsigned uploads go ({ status, server, guild, servers }), or null.
+    device: null,
     poe: null
   };
 
   const snapshot = () => JSON.parse(JSON.stringify(state));
   const log = (level, message) => {
-    for (const secret of [config.companionCredential, config.uploadToken, config.pairingCode]) {
+    for (const secret of [config.companionCredential, config.uploadToken, config.pairingCode, config.deviceSecret]) {
       if (typeof secret === "string" && secret.length >= 6) message = message.replaceAll(secret, "[redacted]");
     }
     const at = new Date().toISOString();
@@ -352,9 +375,73 @@ export function createEngine(initialConfig, hooks = {}) {
     }
   }
 
+  // Zero-setup: this PC's characters and in-game guild only, with the device key (device-sync.mjs).
+  async function deviceUpload() {
+    if (uploading) { queued = true; return; }
+    uploading = true;
+    queued = false;
+    const epoch = generation;
+    const current = { ...config };
+    state.pendingUpload = true;
+    state.syncPhase = "uploading";
+    state.retryAt = null;
+    const startedAt = Date.now();
+    try {
+      lastFile = await fileStamp(current.watchFile);
+      const full = await readAddonExport(current.watchFile, current.realm);
+      // (9.1.3) The same evidence as a signed-in upload (one revision for saved, sent and received), so the
+      // Sync page shows "Sent" and "Received" instead of "Unknown" after an unsigned sync.
+      const revision = createHash("sha256").update(JSON.stringify(full)).digest("hex");
+      state.syncEvidence = { savedAt: new Date().toISOString(), savedRevision: revision, character: full.character?.name ? `${full.character.name} — ${full.character.realm || current.realm || "?"}` : null, edition: full.gameEdition || full.character?.gameEdition };
+      // Runs the bot already acknowledged (kept in the addon's data file) are not sent again: only the newest 50 go in one upload.
+      const acknowledged = new Set((await readDeviceReceipts(current)).refs);
+      const { response, body } = await uploadAsDevice(current, full, controller.signal, { acknowledged });
+      if (epoch !== generation) return;
+      state.botVersion = body.botVersion ?? state.botVersion;
+      if (!response.ok) {
+        const error = new Error(`Upload failed (${response.status}): ${describeApiError(response.status, body.error)}`);
+        error.retryable = response.status === 429 || response.status >= 500;
+        throw error;
+      }
+      const summary = deviceSummary(body);
+      state.device = summary;
+      // (9.1.3) The bot's receipts for the runs this upload carried go to the addon, which marks them synced at the next load.
+      if (summary?.status === "synced" && body.runReceipts) {
+        try { await writeDeviceReceipts(current, body.runReceipts, controller.signal); }
+        catch (error) { if (epoch !== generation) return; log("warn", `Could not save the run receipts for the addon: ${describeError(error)}`); }
+      }
+      const message = deviceMessage(summary);
+      state.lastUpload = { at: new Date().toISOString(), message };
+      state.syncPhase = summary?.status === "synced" ? "synced" : "needs-attention";
+      if (summary?.status === "synced") Object.assign(state.syncEvidence, { uploadedAt: state.lastUpload.at, uploadedRevision: revision, acceptedAt: state.lastUpload.at, acceptedRevision: revision });
+      state.uploads += 1;
+      state.uploadError = null;
+      failures = 0;
+      state.pendingUpload = false;
+      log(summary?.status === "synced" ? "ok" : "warn", message);
+      if (summary?.status === "claimed") hooks.onDeviceClaimed?.();
+    } catch (error) {
+      if (epoch !== generation) return;
+      state.uploadError = describeError(error);
+      noteError("upload", error, startedAt);
+      state.syncPhase = error.retryable === false ? "needs-attention" : "retry";
+      log("error", `Upload failed: ${state.uploadError}${errorCodeNote(error)}`);
+      if (error.retryable !== false && state.running) {
+        const delay = Math.min(300_000, 5_000 * 2 ** Math.min(failures++, 6));
+        state.retryAt = new Date(Date.now() + delay).toISOString();
+        scheduleUpload(delay);
+      }
+    } finally {
+      uploading = false;
+      if (epoch === generation && state.running && queued) scheduleUpload(0);
+      hooks.onState?.(snapshot());
+    }
+  }
+
   async function upload() {
     if (!state.running || config.wowEnabled === false) return;
     if (config.personal) return personalUpload();
+    if (isDeviceMode(config)) return deviceUpload();
     if (uploading) { queued = true; return; }
     uploading = true;
     queued = false;
@@ -391,8 +478,15 @@ export function createEngine(initialConfig, hooks = {}) {
     // Leave out what the bot already stored (it said so in the last standings answer).
     const { exported, omitted } = pruneAcknowledged(full, ack, features);
     const uploadedAt = new Date().toISOString();
-    const { response, body } = await send(current, exported, epoch);
+    const { response, body } = await withUploadGate(current.watchFile, () => send(current, exported, epoch));
     if (epoch !== generation) return;
+    // The bot says whether this server knows the character's in-game guild; a wrong connection is warned about, never silent.
+    if (body.serverWowGuild) {
+      state.guildWarning = body.serverWowGuild.known === false
+        ? `This character's guild${full.wowGuild ? ` (${full.wowGuild})` : ""} isn't set up in ${current.profileName || current.wowGuildName || body.serverWowGuild.name || "this server"}. If this is the wrong server, remove it on the Server page.`
+        : null;
+      if (state.guildWarning) log("warn", state.guildWarning);
+    }
     if (response.ok || response.status === 409 && body.importId) {
       Object.assign(state.syncEvidence, { uploadedAt, uploadedRevision: revision });
       // A failed apply is not accepted, even when the same bytes were stored earlier.
@@ -500,7 +594,7 @@ export function createEngine(initialConfig, hooks = {}) {
   }
 
   async function refreshStandings(options = {}) {
-    if (!state.running || refreshing || config.wowEnabled === false || config.personal) return;
+    if (!state.running || refreshing || config.wowEnabled === false || config.personal || isDeviceMode(config)) return;
     refreshing = true;
     const epoch = generation;
     const startedAt = Date.now();
@@ -603,7 +697,12 @@ export function createEngine(initialConfig, hooks = {}) {
   async function startWatching() {
     const epoch = generation;
     const problems = validateConfig(config);
-    if (problems.length > 0) { log("warn", `Not started: ${problems[0]}`); return false; }
+    if (problems.length > 0) {
+      // (9.1.3) Right after an install there is no saved-data file until the first /reload: a calm note, not a warning.
+      if (/^The saved-data file/.test(problems[0])) log("info", "Waiting for your first /reload in WoW: the saved-data file does not exist yet.");
+      else log("warn", `Not started: ${problems[0]}`);
+      return false;
+    }
     if (poeTrackingOn(config)) {
       poe = createPoeEngine(config, {
         onLog: ({ level, message }) => log(level, message),
@@ -636,6 +735,8 @@ export function createEngine(initialConfig, hooks = {}) {
     // Standings first: they say what the bot already has, which the first upload leaves out.
     await refreshStandings();
     if (epoch !== generation || !state.running) return false;
+    // (9.1.3) An unsigned PC says so in the addon's data: an old signed-in companion's "Linked to Discord as ..." ends.
+    if (isDeviceMode(config)) await writeDeviceReceipts({ ...config }, null, controller.signal).catch(() => undefined);
     scheduleUpload(0);
     // Safety net for the folder watch: a save it missed is noticed within 30 seconds.
     fileCheckTimer = setInterval(() => track((async () => {
@@ -644,8 +745,8 @@ export function createEngine(initialConfig, hooks = {}) {
       const now = await savedStamp();
       if (now && now !== lastFile) scheduleUpload(0);
     })()), FILE_CHECK_MS);
-    if (config.personal) {
-      // No guild standings in personal mode.
+    if (config.personal || isDeviceMode(config)) {
+      // No guild standings in personal mode, nor before a Discord sign-in (zero-setup device).
     } else if (features.has("long-poll") && etag && config.liveStandings !== false) {
       state.standingsMode = "live";
       track(liveStandings(epoch));
@@ -676,7 +777,7 @@ export function createEngine(initialConfig, hooks = {}) {
     // Track L: the signed-in Discord name for the in-game "Linked to Discord as" line; the next
     // standings fetch writes it (no restart).
     setLinkedAccount(account) { config = { ...config, discordAccount: account }; etag = null; },
-    async configure(next) { await this.stop(); state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = accountLevel(next); etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
+    async configure(next) { await this.stop(); state.device = null; state.syncEvidence = {}; state.syncPhase = "waiting-save"; state.lastUpload = null; state.lastStandings = null; state.lastUploadBytes = null; state.error = null; state.standingsError = null; config = accountLevel(next); etag = null; ack = null; features = new Set(); gzipOff = false; lastFile = null; lastText = null; return this.start(); },
     uploadNow() { if (config.wowEnabled !== false) scheduleUpload(0); if (poe) track(poe.pollNow()); },
     // The tray's "Refresh in-game standings now" always fetches and writes the full answer.
     refreshStandings: () => { const pending = config.personal ? personalUpload() : refreshStandings({ force: true }); track(pending); return pending; }

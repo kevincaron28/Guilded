@@ -123,6 +123,7 @@ enum ApplicationStatus {
 }
 
 model Guild {
+  companionDevices CompanionDevice[]
   mapSightings GuildMapSighting[]
   helpCalls GuildHelpCall[]
   statSnapshots GuildStatSnapshot[]
@@ -516,6 +517,7 @@ model Member {
   characterVerifyCodes  CharacterVerifyCode[]
   characterVerifyClaims CharacterVerifyClaim[]
   companionCredentials CompanionCredential[]
+  companionDevices CompanionDevice[]
   pairedImports       AddonImport[]
   poeMapVisits        PoeMapVisit[]
   linkNotice          MemberLinkNotice?
@@ -2254,6 +2256,54 @@ model CompanionCredential {
   member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@index([memberId, revokedAt])
+}
+
+/// Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): one key per install, made without Discord sign-in.
+/// Its uploads are "reported" only: they never touch a member's data, officer data or public rankings
+/// until a Discord sign-in in that companion claims the device (claimedMemberId).
+model CompanionDevice {
+  id              String    @id @default(cuid())
+  tokenHash       String    @unique
+  createdAt       DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  /// The Guild row (in-game guild scope) its uploads go to, from the uploading character's WoW guild.
+  guildId         String?
+  /// NFC-lowercase "name|realm" of the in-game guild in the last upload, and how the addon spelled it.
+  wowGuildKey     String?
+  wowGuildName    String?
+  wowGuildRealm   String?
+  /// Guild row picked under "Advanced: choose server" when several servers set up the same in-game guild.
+  chosenGuildId   String?
+  claimedMemberId String?
+  claimedAt       DateTime?
+  revokedAt       DateTime?
+  uploads         Int       @default(0)
+  guild           Guild?    @relation(fields: [guildId], references: [id], onDelete: SetNull)
+  claimedMember   Member?   @relation(fields: [claimedMemberId], references: [id], onDelete: SetNull)
+  characters      DeviceCharacter[]
+
+  @@index([guildId])
+  @@index([claimedMemberId])
+}
+
+/// A character an unsigned companion reported (name, class, level): shown as "reported", never linked to a member.
+model DeviceCharacter {
+  id          String   @id @default(cuid())
+  deviceId    String
+  gameEdition String   @default("forever")
+  nameKey     String
+  name        String
+  realm       String   @default("")
+  displayName String?
+  className   String?
+  race        String?
+  level       Int?
+  firstSeenAt DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  device      CompanionDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, nameKey])
+  @@index([nameKey])
 }
 
 // Weekly dungeon/PvP teams deliberately have no loot or point-pool relations.

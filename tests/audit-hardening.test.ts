@@ -208,12 +208,16 @@ describe("retention", () => {
     const addonImport = { deleteMany: vi.fn<(query: { where: { OR: Row[] } }) => Promise<{ count: number }>>(async () => ({ count: 4 })) };
     const errorReport = { deleteMany: vi.fn(async () => ({ count: 2 })) };
     const $executeRaw = vi.fn(async () => 7);
-    expect(await runRetention({ addonImport, errorReport, $executeRaw } as never, now)).toEqual({ imports: 4, snapshots: 7, errors: 2 });
+    expect(await runRetention({ addonImport, errorReport, $executeRaw } as never, now)).toEqual({ imports: 11, snapshots: 7, errors: 2 });
+    const sql = $executeRaw.mock.calls.map(call => (call as unknown as string[][])[0]!.join("?"));
+    // Pending uploads are capped per guild; applied ones lose their raw payload.
+    expect(sql.some(text => text.includes('FROM "AddonImport"') && text.includes("row_number()"))).toBe(true);
+    expect(sql.some(text => text.includes('UPDATE "AddonImport"') && text.includes("'compacted'") && text.includes("'APPLIED'"))).toBe(true);
     const where = addonImport.deleteMany.mock.calls[0]![0].where;
     expect(where.OR[0]).toEqual({ status: "APPLIED", createdAt: { lt: new Date(now.getTime() - RETENTION.appliedImportDays * 86_400_000) } });
     expect(where.OR[1]).toMatchObject({ status: { not: "APPLIED" } });
     // The newest gear check of a character is never deleted.
-    expect(String(($executeRaw.mock.calls[0] as unknown[])[0])).toContain("newer");
+    expect(sql.some(text => text.includes("newer"))).toBe(true);
   });
 });
 

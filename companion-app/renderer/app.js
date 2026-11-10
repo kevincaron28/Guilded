@@ -135,10 +135,34 @@ async function statusAction() {
     case 'switch-folder': { const answer = await api.switchLiveFolder(); say(answer?.path ? T('Switched. Now watching {0}', answer.path) : '', true); return; }
     case 'retry': await api.recoverSync(); await api.uploadNow(); say(T('Trying again. Follow the result in Activity.')); return;
     case 'sync-now': await api.uploadNow(); say(T('Syncing now. Follow the result in Activity.')); return;
+    case 'choose-server': $('deviceAdvanced').open = true; $('deviceServerList').focus(); return;
     default: return;
   }
 }
 bind('btnStatusAction', statusAction);
+// Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): the optional sign-in note and "Advanced: choose server".
+function renderDevice(snapshot) {
+  const overview = window.guildedOverview(savedConfig, snapshot.state || {});
+  $('devicePanel').hidden = !overview.device;
+  if (!overview.device) return;
+  const device = snapshot.state?.device;
+  const list = $('deviceServerList');
+  const servers = Array.isArray(device?.servers) ? device.servers : [];
+  const wanted = ['', ...servers.map((server) => server.discordId)].join('|');
+  if (list.dataset.servers !== wanted) {
+    list.dataset.servers = wanted;
+    list.replaceChildren(new Option(T('Automatic (from your guild)'), ''), ...servers.map((server) => new Option(server.name || server.discordId, server.discordId)));
+  }
+  if (device?.status === 'choose' && !$('deviceAdvanced').dataset.opened) { $('deviceAdvanced').open = true; $('deviceAdvanced').dataset.opened = 'true'; }
+}
+bind('btnDeviceServer', async () => {
+  const typed = $('deviceServerId').value.trim();
+  const choice = typed || $('deviceServerList').value;
+  if (choice && !/^\d{5,25}$/.test(choice)) { $('deviceServerResult').textContent = T('A Discord server ID is a long number.'); $('deviceServerResult').className = 'result bad'; return; }
+  const answer = await api.deviceChooseServer(choice);
+  $('deviceServerResult').textContent = M(answer.message);
+  $('deviceServerResult').className = answer.ok ? 'result ok' : 'result bad';
+});
 // Several WoW accounts (docs/plans/MULTI_ACCOUNT.md): another account folder with Guilded's data.
 // Asked once; main.cjs keeps which file it is and remembers the answer.
 function renderAccountAsk(snapshot) {
@@ -183,8 +207,11 @@ function renderState(snapshot) {
   lastSnapshot = snapshot;
   try { renderStatusCard(snapshot); } catch { /* the rest of the page still renders */ }
   try { renderAccountAsk(snapshot); } catch { /* the rest of the page still renders */ }
+  try { renderDevice(snapshot); } catch { /* the rest of the page still renders */ }
   try { renderAccounts(snapshot); } catch { /* the rest of the page still renders */ }
   if ($('profileSyncStatus')) $('profileSyncStatus').textContent = (snapshot.state.profiles || []).map(p => p.name + ': ' + M(p.error || (p.running ? 'Syncing' : p.enabled ? 'Setup needed' : 'Paused'))).join(' · ');
+  const guildWarnings = (snapshot.state.profiles || []).filter(p => p.warning).map(p => '[' + p.name + '] ' + p.warning);
+  for (const note of document.querySelectorAll('.guild-warning')) { note.hidden = !guildWarnings.length; note.textContent = M(guildWarnings.join(' ')); }
   const {state,health} = snapshot;
   const sync = window.guildedSyncStatus(savedConfig, state, state.syncEvidence);
   let evidencePanel = $('syncEvidence');
@@ -203,7 +230,7 @@ function renderState(snapshot) {
   evidencePanel.textContent += ' · ' + T('Edition: {0} · Character: {1} · Saved-data source: {2}', sync.edition === 'unknown' ? T('Unknown') : sync.edition, sync.character || T('Unknown'), sync.folder || sync.watchedFile || state.watching || T('Unknown')) + ' · ' + T(syncActions[sync.action]);
   renderUpdate(snapshot.update);
   const overview = window.guildedOverview(savedConfig,state);
-  $('btnUpload').hidden = !overview.linked;
+  $('btnUpload').hidden = !overview.linked && !overview.device;
   $('btnUpload').disabled = !overview.canSync || $('btnUpload').dataset.busy === 'true';
   const linked = !!savedConfig.companionCredential;
   const paused = linked && !state.running && health.text === 'Not running';
@@ -524,6 +551,17 @@ async function changeConnection(choice) {
 }
 $('connectionProfile').addEventListener('change', () => changeConnection({ id: $('connectionProfile').value }));
 document.addEventListener('companion-language', () => { void renderProfiles().catch(error => toast(error.message, true)); });
+bind('btnRemoveProfile', async () => {
+  const select = $('connectionProfile'); const label = select.selectedOptions[0]?.textContent || '';
+  if (!confirm([T('Remove this server from this PC?'), label, T('Nothing is deleted on the server; this companion just stops uploading there.')].join(String.fromCharCode(10)))) return;
+  const result = await api.removeProfile(select.value);
+  if (!result.ok) { toast(languageUI.message(result.message), true); return; }
+  const all = await api.getAll(); savedConfig = all.config;
+  for (const id of fields) $(id).value = all.config[id] ?? '';
+  $('syncEnabled').checked = all.config.syncEnabled !== false; $('wowEnabled').checked = all.config.wowEnabled !== false;
+  gameFields(); renderState({state:all.state,health:all.health,update:all.update,savedFile:all.savedFile});
+  await renderProfiles(); toast(languageUI.message(result.message));
+});
 bind('btnAddProfile', async () => { await changeConnection({ name: $('newProfileName').value }); $('newProfileName').value = ''; });
 
 // The companion opens on Link everything (status, characters, big actions); Skip for now sends the user to Home and is remembered on this PC.
@@ -531,7 +569,11 @@ bind('btnAddProfile', async () => { await changeConnection({ name: $('newProfile
 function linkSkipped() { try { return sessionStorage.getItem('guilded.companion.linkSkipped') === '1'; } catch { return false; } }
 // Setup is done once the member is signed in and syncing has what it needs: a leaderboards-only
 // sign-in, a WoW folder, or WoW turned off.
-function setupDone(config) { return Boolean(config.companionCredential) && (config.personal === true || Boolean(config.watchFile) || config.wowEnabled === false); }
+// (9.1.3) Zero-setup counts as set up: the device key syncs without any sign-in, so the first-run page never opens for it.
+function setupDone(config) {
+  const device = !config.companionCredential && config.device === true && Boolean(config.deviceSecret);
+  return (Boolean(config.companionCredential) || device) && (config.personal === true || Boolean(config.watchFile) || config.wowEnabled === false);
+}
 async function init() {
   if (!api) { toast(T("The companion interface could not load. Please reload or reinstall."),true); return; }
   const all = await api.getAll(); savedConfig = all.config;

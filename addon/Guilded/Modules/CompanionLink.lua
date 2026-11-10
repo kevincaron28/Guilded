@@ -15,7 +15,8 @@ local module = {}
 ns.companionLink = module
 
 module.SHORT = "https://guilded.kcaron.top/companion/"
-module.DIRECT = "https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe"
+-- The website serves the installer (R2 mirror, then the bot server, then GitHub): members never need GitHub.
+module.DIRECT = "https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe"
 local WEEK = 7 * 24 * 3600
 
 local function L(text) return ns.L and ns.L(text) or text end
@@ -43,12 +44,21 @@ function module.needed()
     end
   end
   if module.linkedAs() then return false end
+  -- (9.1.3) An unsigned (zero-setup) companion that wrote its data file is a companion.
+  if module.unsignedCompanion() then return false end
   return not (type(GuildedStandings) == "table" and type(GuildedStandings.updatedAt) == "string")
 end
 
 -- "Linked to Discord as <name>" (8.5 Track L): the companion writes GuildedLinkedAs with the
 -- standings once this PC is linked. Said once in chat per name, and shown by /guilded companion.
+-- (9.1.3) The companion on this PC has no Discord sign-in (zero-setup): it writes GuildedCompanion.mode = "device".
+function module.unsignedCompanion()
+  return type(GuildedCompanion) == "table" and GuildedCompanion.mode == "device"
+end
+
 function module.linkedAs()
+  -- An unsigned companion means any GuildedLinkedAs left by an earlier signed-in one is stale: never announce it.
+  if module.unsignedCompanion() then return nil end
   local name = GuildedLinkedAs
   if type(name) ~= "string" then return nil end
   name = string.gsub(name, "|", "")
@@ -76,7 +86,7 @@ local popup
 function module.openCopyWindow()
   if not popup then
     popup = CreateFrame("Frame", "GuildedCompanionCopy", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-    popup:SetSize(500, 150)
+    popup:SetSize(500, 210)
     popup:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
     popup:SetFrameStrata("DIALOG")
     if UISpecialFrames then table.insert(UISpecialFrames, "GuildedCompanionCopy") end
@@ -101,6 +111,10 @@ function module.openCopyWindow()
     popup.box:SetSize(450, 20)
     popup.box:SetPoint("TOPLEFT", popup, "TOPLEFT", 26, -86)
     popup.box:SetAutoFocus(false)
+    popup.steps = popup:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    popup.steps:SetPoint("TOPLEFT", popup, "TOPLEFT", 26, -116)
+    popup.steps:SetWidth(450)
+    popup.steps:SetJustifyH("LEFT")
     popup.box:SetScript("OnTextChanged", function(self, user)
       if user and self:GetText() ~= module.DIRECT then self:SetText(module.DIRECT); self:HighlightText() end
     end)
@@ -112,6 +126,7 @@ function module.openCopyWindow()
     close:SetScript("OnClick", function() popup:Hide() end)
   end
   popup.box:SetText(module.DIRECT)
+  popup.steps:SetText(table.concat(module.steps(), "\n"))
   popup:Show()
   popup.box:SetFocus()
   popup.box:HighlightText()
@@ -120,6 +135,11 @@ end
 
 function module.text()
   return L("Guilded companion (Windows): sends your data to Discord and brings standings, raids and signups into the game.")
+end
+
+-- The three steps, one chat line each (shared text: Util.lua).
+function module.steps()
+  return ns.util and ns.util.companionSteps and ns.util.companionSteps() or {}
 end
 
 -- Says the reminder in chat when it is due. Returns true when it spoke.
@@ -133,6 +153,7 @@ function module.remind(force)
   end
   d.companionRemindedAt = clock()
   ns.message(module.text() .. " " .. module.SHORT)
+  for _, line in ipairs(module.steps()) do ns.message(line) end
   ns.message(L("Open Guilded > Home to copy the link. Turn this reminder off: /guilded companion off"))
   return true
 end
@@ -146,6 +167,7 @@ ns.commandHandlers["companion"] = function(args)
     local name = module.linkedAs()
     if name then ns.message(module.linkedLine(name)) end
     ns.message(module.text())
+    for _, line in ipairs(module.steps()) do ns.message(line) end
     ns.message(module.SHORT)
     ns.message(module.DIRECT)
   end

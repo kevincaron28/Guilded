@@ -193,12 +193,12 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 ## Compagnon Windows
 
 Une petite application Windows gratuite. Facultative pour l’addon, requise pour les fonctions
-Discord et le site. Toutes les étapes : [Application compagnon](https://github.com/kevincaron28/Guilded/releases/latest/download/Guilded.Companion.Setup.exe).
+Discord et le site. Toutes les étapes : [Application compagnon](https://guilded.kcaron.top/companion/).
 
 | Quoi | Détail |
 | --- | --- |
 | Ce qu’il fait | Envoie les données enregistrées de votre addon à Discord et au site, et rapporte les classements dans le jeu |
-| Où l’obtenir | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommandé, mise à jour automatique) ou [GitHub](https://github.com/kevincaron28/Guilded/releases/latest) (solution de rechange non signée) |
+| Où l’obtenir | [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommandé, mise à jour automatique) ou le [téléchargement direct](https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe) (solution de rechange non signée) |
 | Plateforme | Windows seulement. Pas de version Mac, Linux ni navigateur |
 | Première ouverture | Choisir **Connexion avec Discord**, sélectionner votre serveur (ou les classements publics seulement), puis vos données |
 | Après avoir joué | `/reload` dans WoW et le compagnon synchronise |

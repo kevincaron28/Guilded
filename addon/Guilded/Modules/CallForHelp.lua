@@ -292,18 +292,11 @@ function module.zoneMates()
   return list
 end
 
-local function partyInvite(name)
-  if C_PartyInfo and C_PartyInfo.InviteUnit then return pcall(C_PartyInfo.InviteUnit, name) end
-  if InviteUnit then return pcall(InviteUnit, name) end
-  return false
-end
-
--- Invite button: a party invite to one guildmate.
-function module.invite(name)
+-- Invite buttons show "/invite First Last" in the copy box (util.inviteButton, which also says to copy and paste it):
+-- the party invite API is refused to addon code on WoW Forever. This runs after the click.
+function module.invited(name)
   if not name or name == "" then return false end
-  if partyInvite(name) then say(string.format(L("Invited %s to your party."), display(name))); return true end
-  say(string.format(L("Could not invite %s."), display(name)))
-  return false
+  return true
 end
 
 -- Join button: ask the caller for a party invite the usual way (a whisper of "inv").
@@ -316,11 +309,6 @@ function module.join()
   return false
 end
 
--- Invite caller button: invite the caller to my party.
-function module.inviteCaller()
-  if not (banner and banner.sender) then return false end
-  return module.invite(banner.sender)
-end
 
 -- ---------------------------------------------------------------------
 -- Frames (created lazily; plain frames, no protected actions)
@@ -380,7 +368,7 @@ local function refreshOffer()
 end
 
 -- The caller's list of online guildmates in the same zone, each with an Invite button.
-function module.refreshMates()
+local function refreshMatesNow()
   if not offerFrame then return 0 end
   local mates = mine and module.zoneMates() or {}
   for i = 1, MAX_MATES do
@@ -390,7 +378,7 @@ function module.refreshMates()
       row = {}
       row.label = offerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
       row.label:SetPoint("TOPLEFT", offerFrame, "TOPLEFT", 16, -30 - (i - 1) * 24)
-      row.button = makeButton(offerFrame, L("Invite"), 70, function() module.invite(row.name) end)
+      row.button = ns.util.inviteButton(offerFrame, "party", L("Invite"), 70, 24, function(name) module.invited(name) end)
       row.button:SetPoint("TOPRIGHT", offerFrame, "TOPRIGHT", -14, -26 - (i - 1) * 24)
       mateRows[i] = row
     end
@@ -398,15 +386,25 @@ function module.refreshMates()
       if mate then
         row.name = mate.name
         row.label:SetText(display(mate.name) .. (mate.level and mate.level > 0 and (" (" .. mate.level .. ")") or ""))
-        row.label:Show(); row.button:Show()
+        row.label:Show(); row.button:Show(); row.button.setInvite(mate.name)
       else
         row.name = nil
-        row.label:Hide(); row.button:Hide()
+        row.label:Hide(); row.button:Hide(); row.button.setInvite(nil)
       end
     end
   end
   offerFrame:SetHeight(70 + (#mates > 0 and (#mates * 24 + 6) or 0))
   return #mates
+end
+
+-- Rows (secure Invite buttons) only change out of combat.
+function module.refreshMates()
+  if not offerFrame then return 0 end
+  if ns.util.inCombat() then
+    ns.util.afterCombat("callForHelp.mates", refreshMatesNow, true)
+    return #(mine and module.zoneMates() or {})
+  end
+  return refreshMatesNow()
 end
 
 local function ensureOffer()
@@ -437,7 +435,7 @@ local function ensureBanner()
   banner.coming:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -4, 10)
   banner.join = makeButton(banner, L("Join"), 120, function() module.join() end)
   banner.join:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -4, 40)
-  banner.inviteCaller = makeButton(banner, L("Invite caller"), 120, function() module.inviteCaller() end)
+  banner.inviteCaller = ns.util.inviteButton(banner, "party", L("Invite caller"), 120, 24, function(name) module.invited(name) end)
   banner.inviteCaller:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 4, 40)
   banner.cant = makeButton(banner, L("Can't"), 120, function() module.reply(false) end)
   banner.cant:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 4, 10)
@@ -622,6 +620,7 @@ end
 local function showBanner(call, callerName, sender)
   ensureBanner()
   banner.call, banner.sender, banner.shownAt = call, sender, now()
+  banner.inviteCaller.setInvite(sender)
   banner.text:SetText(string.format(L("CALL FOR HELP: %s"), display(callerName)))
   local where = whereText(call)
   banner.detail:SetText(describe(call, callerName) .. (where ~= "" and ("\n" .. where) or ""))

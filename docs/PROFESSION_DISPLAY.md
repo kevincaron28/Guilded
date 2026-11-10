@@ -43,3 +43,13 @@ Track C's compact "Details" for chat links is a different message; if it lands f
 - Reagent search still needs recipe materials that the addon does not upload yet.
 - Posts are edited by the existing profession refresh job; Discord components in an old post appear on its next edit.
 - Everything is on by default; an officer switches the posts off with `/craft posts-setting` (see `docs/ARTISANS_GALLERY.md`).
+
+## One profession, one name in every game language (9 November 2026)
+
+French and English WoW Forever clients report a profession under their own language ("Cuisine", "Cooking"), and the guild
+saw two professions. The stored and sent key is now the English name, identified by the skill line id when the game gives
+it, else by any client's localized name (`src/services/profession-names.ts` for the bot, the same table in
+`addon/Guilded/Util.lua`; a test keeps them equal). The addon sends and stores English names and shows the player's own
+language through Locale.lua; the bot maps names on arrival (so an older addon cannot split a profession again) and shows
+the server's language. Migration `20270130000000_canonical_profession_names` merged rows already stored under a localized
+name (the highest skill wins, nothing else is dropped); the addon rewrites older SavedVariables when it loads.

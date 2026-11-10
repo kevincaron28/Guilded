@@ -1,6 +1,6 @@
 /* global Request, Response */
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { hostedDownload } from "../worker/index.mjs";
+import { androidDownload, hostedDownload } from "../worker/index.mjs";
 
 // The installer comes from the bot's server (Caddy file_server); the Worker passes the body through.
 const env = { GUILDED_ORIGIN_TOKEN: "origin-token", GUILDED_ORIGIN_URL: "https://bot.example.org/" };
@@ -62,6 +62,12 @@ describe("companion installer served from the bot's server (8 Nov 2026)", () => 
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("down"); }));
     expect((await ask()).headers.get("location")).toContain("github.com");
   });
+  it("puts the mirror object's ETag in the redirect so a new release is never served from the old cached file", async () => {
+    const mirrorEnv = { ...env, GUILDED_DOWNLOAD_MIRROR_URL: "https://dl.example.org/" };
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 200, headers: { etag: '"485460fd-e3ef"' } })));
+    const hit = await hostedDownload(new Request("https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe"), mirrorEnv, { waitUntil() {} });
+    expect(hit.headers.get("location")).toBe("https://dl.example.org/Guilded.Companion.Setup.exe?e=485460fde3ef");
+  });
   it("ignores a mirror address that is not plain https", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("body", { status: 200 })));
     const bad = await hostedDownload(new Request("https://guilded.kcaron.top/downloads/Guilded.Companion.Setup.exe"), { ...env, GUILDED_DOWNLOAD_MIRROR_URL: "http://dl.example.org" }, { waitUntil() {} });
@@ -71,5 +77,21 @@ describe("companion installer served from the bot's server (8 Nov 2026)", () => 
     expect(await get("/downloads/Guilded-v9.0.4-forever.zip")).toBeNull();
     expect(await get("/downloads/../secret.exe")).toBeNull();
     expect((await get("/downloads/Guilded.Companion.Setup.exe", "POST")).status).toBe(405);
+  });
+});
+
+describe("Android app (APK) redirect to the R2 mirror (9 Nov 2026)", () => {
+  const ask = (path, method = "GET") => androidDownload(new Request(`https://guilded.kcaron.top${path}`, { method }));
+  it("redirects the short and versioned names to dl.kcaron.top", () => {
+    for (const name of ["Guilded-Android.apk", "Guilded-Android-0.2.0-preview-2.apk"]) {
+      const response = ask(`/downloads/${name}`);
+      expect(response.status).toBe(302);
+      expect(response.headers.get("location")).toBe(`https://dl.kcaron.top/${name}`);
+    }
+  });
+  it("ignores other paths and refuses writes", () => {
+    expect(ask("/downloads/other.apk")).toBeNull();
+    expect(ask("/downloads/Guilded-Android.apk/../x")).toBeNull();
+    expect(ask("/downloads/Guilded-Android.apk", "POST").status).toBe(405);
   });
 });

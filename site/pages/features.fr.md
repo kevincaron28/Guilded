@@ -43,6 +43,42 @@ Capturé dans WoW Forever (Guilded 9.0.7 et plus). Les fenêtres sont montrées 
 <figure><a href="/images/addon/17-world-map-guildmate-dots.webp"><img src="/images/addon/17-world-map-guildmate-dots.webp" alt="Fenêtre Guilded en jeu : Les membres sur la carte du monde" width="330" height="251" loading="lazy"></a><figcaption><strong>Les membres sur la carte du monde.</strong> Les membres de la guilde apparaissent en points sur la carte du monde.</figcaption></figure>
 </div>
 
+## Sur Discord
+
+Les cartes que le bot publie dans Discord, avec des données fictives (guilde « Example Guild »). Cliquez une image pour l’agrandir.
+
+<div class="shot-gallery">
+<figure><a href="/images/discord/dungeon-run-fr.webp"><img src="/images/discord/dungeon-run-fr.webp" alt="Carte de donjon (exemple, données fictives)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Carte de donjon.</strong> Chaque donjon terminé, avec le temps, la cote de donjon et tout le groupe.</figcaption></figure>
+<figure><a href="/images/discord/daily-recap-fr.webp"><img src="/images/discord/daily-recap-fr.webp" alt="Résumé du jour (exemple, données fictives)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Résumé du jour.</strong> La journée de la guilde : niveaux gagnés, donjons, records et JcJ.</figcaption></figure>
+<figure><a href="/images/discord/race-to-60-fr.webp"><img src="/images/discord/race-to-60-fr.webp" alt="Course au 60 (exemple, données fictives)" width="1200" height="862" loading="lazy"></a><figcaption><strong>Course au 60.</strong> Qui monte le plus vite, aux couleurs des classes, avec les premiers au 60.</figcaption></figure>
+<figure><a href="/images/discord/hall-of-fame-fr.webp"><img src="/images/discord/hall-of-fame-fr.webp" alt="Temple de la renommée (exemple, données fictives)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Temple de la renommée.</strong> Une carte pour chaque membre qui atteint le niveau 60.</figcaption></figure>
+<figure><a href="/images/discord/duel-ladder-fr.webp"><img src="/images/discord/duel-ladder-fr.webp" alt="Classement des duels (exemple, données fictives)" width="1200" height="666" loading="lazy"></a><figcaption><strong>Classement des duels.</strong> Victoires, défaites et séries, mis à jour à chaque synchronisation.</figcaption></figure>
+<figure><a href="/images/discord/achievements-fr.webp"><img src="/images/discord/achievements-fr.webp" alt="Succès (exemple, données fictives)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Succès.</strong> Les médailles débloquées par un membre, publiées pour que la guilde l’applaudisse.</figcaption></figure>
+<figure><a href="/images/discord/raid-end-fr.webp"><img src="/images/discord/raid-end-fr.webp" alt="Résumé de raid (exemple, données fictives)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Résumé de raid.</strong> Boss, présence, EP et meilleur butin à la fin d’une soirée de raid.</figcaption></figure>
+<figure><a href="/images/discord/battleground-end-fr.webp"><img src="/images/discord/battleground-end-fr.webp" alt="Résultat de champ de bataille (exemple, données fictives)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Résultat de champ de bataille.</strong> Le résultat d’un champ de bataille, publié à la fin de la partie.</figcaption></figure>
+</div>
+
+## Sur votre téléphone
+
+L’application Android montre les classements, votre guilde, vos raids et vos badges, et inclut Guilded Clash, un jeu de cartes. Captures d’un exemple de guilde (données fictives).
+
+<div class="phone-gallery">
+<figure><a href="/images/phone/app-guild-roster.webp"><img src="/images/phone/app-guild-roster.webp" alt="Roster de la guilde (exemple, données fictives)" width="360" height="640" loading="lazy"></a><figcaption><strong>Roster de la guilde.</strong> Les membres de votre guilde et leurs personnages.</figcaption></figure>
+<figure><a href="/images/phone/app-guild-raids.webp"><img src="/images/phone/app-guild-raids.webp" alt="Raids (exemple, données fictives)" width="360" height="640" loading="lazy"></a><figcaption><strong>Raids.</strong> Les raids à venir et vos inscriptions.</figcaption></figure>
+<figure><a href="/images/phone/app-me-badges.webp"><img src="/images/phone/app-me-badges.webp" alt="Album de badges (exemple, données fictives)" width="360" height="640" loading="lazy"></a><figcaption><strong>Album de badges.</strong> Les badges que vous avez débloqués.</figcaption></figure>
+<figure><a href="/images/phone/app-alerts.webp"><img src="/images/phone/app-alerts.webp" alt="Rappels de raid (exemple, données fictives)" width="360" height="640" loading="lazy"></a><figcaption><strong>Rappels de raid.</strong> Un rappel sur votre téléphone avant chaque raid.</figcaption></figure>
+<figure><a href="/images/phone/clash-play.webp"><img src="/images/phone/clash-play.webp" alt="Guilded Clash (exemple, données fictives)" width="360" height="740" loading="lazy"></a><figcaption><strong>Guilded Clash.</strong> Un jeu de cartes pour votre guilde : contre l’IA ou vos coéquipiers.</figcaption></figure>
+<figure><a href="/images/phone/clash-gauntlet.webp"><img src="/images/phone/clash-gauntlet.webp" alt="Gauntlet de donjon (exemple, données fictives)" width="360" height="740" loading="lazy"></a><figcaption><strong>Gauntlet de donjon.</strong> Cinq boss à vaincre, l’un après l’autre.</figcaption></figure>
+<figure><a href="/images/phone/clash-board.webp"><img src="/images/phone/clash-board.webp" alt="Le plateau (exemple, données fictives)" width="360" height="740" loading="lazy"></a><figcaption><strong>Le plateau.</strong> Cartes en jeu, votre main et l’effet de zone.</figcaption></figure>
+<figure><a href="/images/phone/clash-collection.webp"><img src="/images/phone/clash-collection.webp" alt="Collection (exemple, données fictives)" width="360" height="740" loading="lazy"></a><figcaption><strong>Collection.</strong> Collectionnez des cartes par classe et par rareté.</figcaption></figure>
+<figure><a href="/images/phone/clash-pack-open.webp"><img src="/images/phone/clash-pack-open.webp" alt="Ouverture d’un paquet (exemple, données fictives)" width="360" height="740" loading="lazy"></a><figcaption><strong>Ouverture d’un paquet.</strong> Ouvrez des paquets pour trouver de nouvelles cartes.</figcaption></figure>
+<figure><a href="/images/phone/clash-pvp-01-guild.webp"><img src="/images/phone/clash-pvp-01-guild.webp" alt="Défis de guilde (exemple, données fictives)" width="360" height="740" loading="lazy"></a><figcaption><strong>Défis de guilde.</strong> Défiez un coéquipier pour un match amical.</figcaption></figure>
+<figure><a href="/images/phone/clash-pvp-07-ranked.webp"><img src="/images/phone/clash-pvp-07-ranked.webp" alt="Échelle classée (exemple, données fictives)" width="360" height="740" loading="lazy"></a><figcaption><strong>Échelle classée.</strong> Montez de division contre des joueurs de tous les serveurs Guilded.</figcaption></figure>
+<figure><a href="/images/phone/clash-pvp-10-ladder.webp"><img src="/images/phone/clash-pvp-10-ladder.webp" alt="Classement mondial (exemple, données fictives)" width="360" height="740" loading="lazy"></a><figcaption><strong>Classement mondial.</strong> Le classement du mois, mondial ou pour votre serveur.</figcaption></figure>
+</div>
+
+<div class="actions"><a class="button" href="{{ANDROID_APK_URL}}" download>Télécharger pour Android <span aria-hidden="true">↓</span></a></div>
+
 ## Nouveau dans la 9.0
 
 Ce qui change dans la 9.0, et pourquoi cela vous sert.
@@ -78,7 +114,7 @@ Trouvez une guilde, un core permanent ou une place pour une soirée. Le [tableau
 
 ## Le compagnon
 
-Une application Windows gratuite, facultative pour l’addon seul mais nécessaire pour les fonctions Discord et site. Obtenez-la sur le [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (téléchargement direct GitHub en solution de rechange). Connectez votre compte, sélectionnez les données enregistrées de l’addon, puis utilisez **Synchroniser** après avoir joué. L’export vers un tableur fonctionne sans connexion.
+Une application Windows gratuite, facultative pour l’addon seul mais nécessaire pour les fonctions Discord et site. Obtenez-la sur le [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (téléchargement direct depuis ce site en solution de rechange). Connectez votre compte, sélectionnez les données enregistrées de l’addon, puis utilisez **Synchroniser** après avoir joué. L’export vers un tableur fonctionne sans connexion.
 
 - **Liste de souhaits :** vos objets recherchés.
 - **Cores et prix :** règles, rosters et prix des objets, pour les responsables de raid.

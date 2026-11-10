@@ -1,4 +1,5 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { normalizeProfessionName } from "./profession-names.js";
 import type { Lang } from "../i18n.js";
 import { findCharacter } from "./character-match.js";
 import { currentEdition } from "./edition-context.js";
@@ -77,7 +78,7 @@ export function createCraftOfferService(database: Db) {
         data: {
           guildId: input.guildId, crafterId: input.crafterId, item: name,
           itemKey: recipe?.itemKey ?? null, character: recipe ? characterLabel(recipe.character, recipe.realm) : null,
-          profession: (recipe?.profession ?? input.profession)?.trim().slice(0, 40) || null,
+          profession: (recipe?.profession ?? input.profession)?.trim() ? normalizeProfessionName((recipe?.profession ?? input.profession) as string).slice(0, 40) : null,
           verified: !!recipe, price: input.price?.trim().slice(0, 100) || null,
           materialsProvided: input.materialsProvided, note: input.note?.trim().slice(0, 300) || null,
           expiresAt: new Date(now.getTime() + days * 86_400_000)

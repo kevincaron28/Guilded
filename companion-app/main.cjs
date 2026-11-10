@@ -112,6 +112,21 @@ const asset = (name) => path.join(__dirname, "assets", name);
 // Settings at start (9.0): logged, backed up before any migration, restored from a backup when the
 // file is missing, and never overwritten after a failed read (companion-app/config-load.cjs).
 async function loadConfig() {
+  // 9.1.3: a direct-download companion with no settings yet takes over the Store companion's, once.
+  if (!STORE_PACKAGE) {
+    try {
+      require("./store-migrate.cjs").migrateStoreSettings({ userData: app.getPath("userData"), localAppData: process.env.LOCALAPPDATA, appData: process.env.APPDATA,
+        log: (from, files) => pushLog({ time: new Date().toISOString(), level: "info", message: E("Settings, Discord sign-in and WoW folder were copied from the Microsoft Store version ({0}, {1} files). The Store copy was left as it is.", from, files.length) }) });
+    } catch { /* nothing to import */ }
+  }
+  // 9.1.3: a direct-download companion with no settings yet takes over the Store companion's, once.
+  if (!STORE_PACKAGE) {
+    try {
+      const moved = require("./store-migrate.cjs").migrateStoreSettings({ userData: app.getPath("userData"), localAppData: process.env.LOCALAPPDATA, appData: process.env.APPDATA,
+        log: (from, files) => pushLog({ time: new Date().toISOString(), level: "info", message: E("Settings, Discord sign-in and WoW folder were copied from the Microsoft Store version ({0}, {1} files). The Store copy was left as it is.", from, files.length) }) });
+      void moved;
+    } catch { /* nothing to import */ }
+  }
   const loaded = await configLoadModule().loadSavedConfig({
     store: storeConfig, file: configFile(), legacyFile: path.join(app.getPath("userData"), "config.json"),
     isStore: STORE_PACKAGE, defaults: DEFAULTS, version: app.getVersion(),
@@ -180,7 +195,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, wowFolderModule, activeGamesModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("wow-folder.mjs")), import(url("active-games.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")), ...await import(url("wow-accounts.mjs")) };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")), ...await import(url("wow-accounts.mjs")), deviceSync: await import(url("device-sync.mjs")) };
 }
 
 // Start-up diagnostics (9.0 release blocker): every line logged before the window is ready also
@@ -485,15 +500,19 @@ async function refreshSavedFile() {
 }
 
 // Problems panel (8.5, companion/problems.mjs): what is wrong right now, each with its fix.
-// Whether WoW is open is checked once a minute (tasklist, Windows only).
+// Whether WoW is open is checked every 20 seconds (tasklist, Windows only); the moment it exits, an addon
+// update that was waiting for it runs (maybeAutoUpdateAddon).
 let wowRunning = false;
+let addonAutoUpdating = false, addonUpdateFailed = false, addonUpdateFailedAt = 0;
 function checkWowRunning() {
   if (process.platform !== "win32") return;
   execFile("tasklist", ["/FO", "CSV", "/NH", "/FI", "IMAGENAME eq Wow*"], { windowsHide: true, timeout: 15_000 }, (error, stdout) => {
     const running = !error && engineModules.wowRunningFrom(stdout);
     if (running === wowRunning) return;
+    const exited = wowRunning && !running;
     wowRunning = running;
     if (engine) onState(engine.state());
+    if (exited) setTimeout(() => void refreshSavedFile(), 3000);
   });
 }
 let online = true;
@@ -501,7 +520,7 @@ function problems(state) {
   if (typeof engineModules?.companionProblems !== "function") return [];
   return engineModules.companionProblems({
     config, state, savedFile, update, version: app.getVersion(), store: STORE_INSTALL, autoUpdate: config.autoUpdate !== false,
-    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online, diskSpace, settingsSave: settingsSaveState()
+    updateAttempts: config.pendingUpdate?.attempts ?? 0, wowRunning, online, diskSpace, settingsSave: settingsSaveState(), addonUpdateFailed
   });
 }
 // Install addon / Update addon (8.5, track F3): offered when the watched game folder has no
@@ -770,7 +789,7 @@ app.whenReady().then(async () => {
     const checkStep = (step) => { if (setUp && configLoadModule().isUnset(config)) pushLog({ time: new Date().toISOString(), level: "error", message: E("Settings became blank after {0}; the saved file was not changed.", step) }); };
     await repairSavedConfig(); checkStep("repairSavedConfig");
     const handedToInstaller = await startupUpdateStep();
-    pushLog({ time: new Date().toISOString(), level: "info", message: E("Start-up update step: {0}.", handedToInstaller ? "a downloaded update is installing; this start ends here" : "nothing to install") });
+    pushLog({ time: new Date().toISOString(), level: "info", message: handedToInstaller ? E("Start-up update step: a downloaded update is installing; this start ends here.") : E("Start-up update step: nothing to install.") });
     if (handedToInstaller) return;
     checkStep("startupUpdateStep");
     try { const preference = JSON.parse(fs.readFileSync(path.join(app.getPath("userData"), "language.json"), "utf8")); if (["en", "fr"].includes(preference.language)) selectedLanguage = preference.language; } catch { /* use system language */ }
@@ -801,10 +820,14 @@ app.whenReady().then(async () => {
   powerMonitor.on("resume", () => { void engine.resume().catch(error => pushLog({ level: "error", time: new Date().toISOString(), message: error.message })); });
   onState(engine.state());
   void refreshSavedFile();
+  // Zero-setup companion: no sign-in needed to start syncing (tried again every 5 minutes until it works).
+  const zeroSetup = () => void zeroSetupStep().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("Automatic setup will try again: {0}", error instanceof Error ? error.message : String(error)) }));
+  zeroSetup();
+  setInterval(zeroSetup, 5 * 60 * 1000).unref?.();
   // Every 5 minutes: a few file dates, so a /reload that did not save Guilded.lua shows up soon.
   setInterval(() => void refreshSavedFile(), 5 * 60 * 1000);
   checkWowRunning();
-  setInterval(checkWowRunning, 60 * 1000);
+  setInterval(checkWowRunning, 20 * 1000);
   // Look for a newer release shortly after start, then every few hours.
   setTimeout(() => void checkForUpdate(), 20_000);
   setInterval(() => void checkForUpdate(), updates.CHECK_INTERVAL_MS);
@@ -865,6 +888,20 @@ registerIpc("change-profile", async (_event, choice) => {
     onState(engine.state());
     return { ok: true, message: "Connection selected." };
   } catch (error) { return { ok: false, message: error.message }; }
+});
+
+registerIpc("remove-profile", async (_event, id) => {
+  try {
+    if (signIn) return { ok: false, message: "Finish or cancel Discord sign-in before removing a connection." };
+    await engine.stop();
+    config = engineModules.removeProfile(config, id);
+    config.poeJournalFile = path.join(app.getPath("userData"), config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
+    await saveConfig();
+    savedFile = null;
+    await engine.configure(config);
+    onState(engine.state());
+    return { ok: true, message: "Connection removed from this PC. Nothing was deleted on the server." };
+  } catch (error) { try { await engine.configure(config); } catch { /* keep the old selection running if possible */ } return { ok: false, message: error.message }; }
 });
 
 registerIpc("set-language", (_event, value) => {
@@ -1034,9 +1071,73 @@ registerIpc("install-update", async () => {
 
 registerIpc("test-connection", (_event, next) => engineModules.testConnection({ ...config, ...next }));
 
+// Zero-setup companion (owner decision, 9 November 2026; docs/ZERO_SETUP_COMPANION.md). With no
+// Discord sign-in anywhere, the companion finds the WoW folder, gets a device key from the bot (kept
+// in these encrypted settings) and syncs: the bot picks the server from the character's in-game
+// guild and keeps the characters as "reported". Sign-in stays optional; an install that is already
+// signed in is never changed here.
+let zeroSetupRunning = false;
+async function zeroSetupStep() {
+  if (zeroSetupRunning || !engine || signIn) return false;
+  const summary = configLoadModule().configSummary(config);
+  if (summary.signedIn || config.personal || config.wowEnabled === false || config.zeroSetupOff === true) return false;
+  zeroSetupRunning = true;
+  try {
+    const next = { ...config };
+    if (!next.uploadUrl) next.uploadUrl = engineModules.HOSTED_UPLOAD_URL;
+    if (!next.watchFile) {
+      const detected = await detectSavedVariables(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions());
+      const found = detected.filter((entry) => entry.exists);
+      const chosen = pickPrimaryAccount(found) || (found.length === 0 ? pickSavedVariables(detected.filter((entry) => !/beta/i.test(entry.game))) : null);
+      // Not found (or several accounts): the window offers one folder picker; nothing else to choose.
+      if (chosen) next.watchFile = chosen.path;
+    }
+    // The bot no longer knows this key (its data was reset): get a new one.
+    if (/device key is not known/.test(String(engine.state()?.uploadError ?? ""))) delete next.deviceSecret;
+    if (!engineModules.deviceSync.hasDeviceKey(next)) {
+      const registered = await engineModules.deviceSync.registerDevice(next);
+      if (!registered.ok) {
+        // An older bot without zero-setup: Sign in with Discord still works as before.
+        if (!registered.unsupported) throw new Error(registered.message);
+        return false;
+      }
+      next.deviceSecret = registered.deviceSecret;
+      pushLog({ time: new Date().toISOString(), level: "info", message: E("This companion got its own device key: it syncs without Discord sign-in.") });
+    }
+    next.device = true;
+    const changed = ["uploadUrl", "watchFile", "deviceSecret", "device"].some((key) => next[key] !== config[key]);
+    // A sign-in that finished meanwhile wins.
+    if (!changed || configLoadModule().configSummary(config).signedIn || signIn) return false;
+    config = { ...config, uploadUrl: next.uploadUrl, watchFile: next.watchFile, deviceSecret: next.deviceSecret, device: true };
+    await saveConfig();
+    await engine.configure(config);
+    void refreshSavedFile();
+    return true;
+  } finally {
+    zeroSetupRunning = false;
+  }
+}
+
+// "Advanced: choose server": when several Discord servers set up the same in-game guild ("" = automatic).
+registerIpc("device-choose-server", async (_event, discordId) => {
+  if (!engineModules.isDeviceMode(config)) return { ok: false, message: T("Signed-in companions choose their server when they sign in.") };
+  config = { ...config, deviceServer: discordId || undefined };
+  await saveConfig();
+  await engine.configure(config);
+  engine.uploadNow();
+  return { ok: true, message: T("Saved. Syncing now.") };
+});
+
 // A pairing code or a Discord sign-in: both end with the same credential and settings.
 async function applyPairing(next, result) {
   if (!result.ok) return result;
+  // Zero-setup companion: the sign-in claims this PC's device key, so what it reported becomes the
+  // member's (confirmed by the next, signed-in upload). The device key is not needed afterwards.
+  if (engineModules.deviceSync.hasDeviceKey(config) && !result.personal) {
+    const claimed = await engineModules.deviceSync.claimDevice({ ...config, uploadUrl: result.uploadUrl || config.uploadUrl }, result.companionCredential);
+    pushLog({ time: new Date().toISOString(), level: claimed.ok ? "info" : "warn", message: claimed.ok ? E("This PC's earlier uploads now belong to your Discord account.") : E("This PC's earlier uploads could not be moved to your Discord account ({0}); your next sync sends them again.", claimed.status ?? "offline") });
+  }
+  if (engineModules.deviceSync.hasDeviceKey(config) || config.device) config = { ...config, deviceSecret: undefined, device: false, deviceServer: undefined };
   // A code from guilded.kcaron.top/me/ pairs a personal account (public dungeon runs, no guild).
   config = { ...config, ...next, gameEdition: result.gameEdition, wowGuildId: result.wowGuildId, wowGuildName: result.wowGuildName, ...(result.uploadUrl ? { uploadUrl: result.uploadUrl } : {}), pairingCode: "", companionCredential: result.companionCredential, personal: result.personal === true, guildDiscordId: result.personal ? "" : result.guildDiscordId || next.guildDiscordId || config.guildDiscordId };
   await saveConfig();
@@ -1232,7 +1333,7 @@ registerIpc("search-wow", () => {
 // "Link everything", step 3: after sign-in, pick the saved-data file by itself when exactly one
 // account on this PC has it. Local read only; with several accounts the member chooses.
 registerIpc("link-find-saved-data", async () => {
-  if (!config.companionCredential) return { ok: false, found: 0, message: T("Sign in with Discord first.") };
+  if (!config.companionCredential && !engineModules.isDeviceMode(config)) return { ok: false, found: 0, message: T("Sign in with Discord first.") };
   // A watched file that exists and is the live one is done. One that is missing, from the beta
   // client or stale (the player moved to WoW Forever) is looked for again below.
   if (config.watchFile) {
@@ -1412,7 +1513,10 @@ async function installAddonNow({ refresh = true, force = false } = {}) {
     if (!disk.ok) throw new Error(lowDiskMessage(disk));
     const running = process.platform === "win32" ? await wowIsRunning() : false;
     const result = await addonInstallerModule().installAddon({ addon: savedFile?.addon, companionVersion: app.getVersion(), wowRunning: running, force });
-    pushLog({ time: new Date().toISOString(), level: "info", message: E("Guilded addon {0} installed in {1}.", result.version, result.folder) + (result.backup ? " " + E("The previous Guilded folder was moved to {0}.", result.backup) : "") });
+    pushLog({ time: new Date().toISOString(), level: "info", message: result.backup ? E("Guilded addon {0} installed in {1}. The previous Guilded folder was moved to {2}.", result.version, result.folder, result.backup) : E("Guilded addon {0} installed in {1}.", result.version, result.folder) });
+    // Every other installed Guilded addon (GuildedDungeons) goes with it; a failing one is said, never silent.
+    for (const extra of (result.updated ?? []).filter((entry) => entry.name !== "Guilded")) pushLog({ time: new Date().toISOString(), level: "info", message: E("Also installed {0} {1} in {2}.", extra.name, result.version, extra.folder) });
+    for (const failure of result.failed ?? []) pushLog({ time: new Date().toISOString(), level: "warn", message: E("Could not update {0}: {1}", failure.name, failure.message) });
     return result;
   } catch (error) {
     pushLog({ time: new Date().toISOString(), level: "warn", message: E("The Guilded addon could not be installed: {0}", error instanceof Error ? error.message : String(error)) });
@@ -1433,26 +1537,35 @@ async function installAddonAnswer(force) {
     return { ok: false, message: error instanceof Error ? error.message : String(error) };
   }
 }
-// Guilded Setup keeps both up to date (owner batch 3 #3): the companion updates itself (direct
-// build, or F5 on the Store) and, once it is newer, the addon follows: an installed Guilded older
-// than this companion is replaced while WoW is closed. At most one try per version every 6 hours;
-// "Install updates automatically" off stops it.
-let addonAutoUpdating = false;
+// Guilded Setup keeps both up to date (owner batch 3 #3; 9.1.3): the companion updates itself (direct
+// build, or F5 on the Store) and the addons follow by themselves: a missing or older Guilded, or an older
+// GuildedDungeons beside it, is replaced right away when WoW is closed, otherwise the moment WoW exits
+// (checkWowRunning looks again). The old folders are kept in Interface\Guilded backups and a short
+// notice says what happened. A failed try is repeated every 10 minutes and, until it works, shows as a
+// problem with the manual button as the fallback. "Install updates automatically" off stops all of it.
 async function maybeAutoUpdateAddon(addon) {
   if (addonAutoUpdating || config.autoUpdate === false || config.wowEnabled === false || !addon) return;
-  const decision = addonInstallerModule().decideAddonInstall({ addon, companionVersion: app.getVersion(), wowRunning });
-  if (decision.action !== "update" || decision.reason !== "older" || decision.blocked) return;
-  const last = config.addonAutoUpdate;
-  if (last?.version === app.getVersion() && Date.now() - Date.parse(last.at) < 6 * 60 * 60 * 1000) return;
+  const decision = addonInstallerModule().decideAddonInstall({ addon, companionVersion: app.getVersion(), wowRunning: false });
+  const wanted = decision.action === "install" || (decision.action === "update" && (decision.reason === "older" || decision.reason === "unknown-version"));
+  if (!wanted) { if (addonUpdateFailed) { addonUpdateFailed = false; if (engine) onState(engine.state()); } return; }
+  // WoW holds the addon files: wait for it (the next check after it exits comes back here).
+  if (process.platform === "win32" && await wowIsRunning()) return;
+  if (addonUpdateFailed && Date.now() - addonUpdateFailedAt < 10 * 60 * 1000) return;
   addonAutoUpdating = true;
   try {
-    config = { ...config, addonAutoUpdate: { version: app.getVersion(), at: new Date().toISOString() } };
-    await saveConfig();
-    if (process.platform === "win32" && await wowIsRunning()) return;
     const result = await installAddonNow({ refresh: false });
-    pushLog({ time: new Date().toISOString(), level: "ok", message: E("The Guilded addon was updated to {0} automatically. Start WoW to use it.", result.version) });
+    addonUpdateFailed = false;
+    const names = (result.updated ?? []).map((entry) => entry.name).join(", ");
+    pushLog({ time: new Date().toISOString(), level: "ok", message: E("Guilded addons updated to {0} ({1}). Type /reload in WoW, or start it, to use them.", result.version, names || "Guilded") });
+    if (Notification.isSupported()) new Notification({ title: T("Guilded addon updated to {0}", result.version), body: T("Start WoW, or type /reload, to use it. Your old version is kept in Interface\\Guilded backups."), icon: asset("icon.png") }).show();
     setTimeout(() => void refreshSavedFile(), 1000);
-  } catch { /* logged by installAddonNow; tried again in 6 hours */ } finally { addonAutoUpdating = false; }
+  } catch (error) {
+    // WoW started in between: not a failure, the next exit tries again.
+    if (!/Exit World of Warcraft first/.test(error instanceof Error ? error.message : String(error))) { addonUpdateFailed = true; addonUpdateFailedAt = Date.now(); }
+  } finally {
+    addonAutoUpdating = false;
+    if (engine) onState(engine.state());
+  }
 }
 // Repair (owner batch 3 #3): re-check the WoW folder, the addon, the sign-in, the link and the
 // sync, fix what can be fixed here, and say what was done (companion-app/repair.cjs).

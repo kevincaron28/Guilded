@@ -48,6 +48,10 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const apiMethods = new Map([
   ["/api/v1/addon-imports", ["POST"]],
   ["/api/v1/addon-pairings", ["POST"]],
+  // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): device key, unsigned uploads, claim after sign-in.
+  ["/api/v1/device/register", ["POST"]],
+  ["/api/v1/device/uploads", ["POST"]],
+  ["/api/v1/device/claim", ["POST"]],
   ["/api/v1/public-runs", ["POST"]],
   ["/api/v1/standings", ["GET"]],
   // 8.5: the Google Sheets statistics feed (IMPORTDATA); the key travels in the query and is checked by the bot.
@@ -212,7 +216,12 @@ export async function hostedDownload(request, env, ctx, url = new URL(request.ur
     const target = `${mirrorBase}/${match[1]}`;
     try {
       const probe = await fetch(target, { method: "HEAD", signal: AbortSignal.timeout(4_000), cf: { cacheTtl: 0, cacheEverything: false } });
-      if (probe.status === 200) return new Response(null, { status: 302, headers: { location: target, "cache-control": "no-store" } });
+      if (probe.status === 200) {
+        // The mirror's edge keeps a fixed name (Guilded.Companion.Setup.exe) for hours, so a new release would still serve the old
+        // file. The object's ETag in the query gives each new file its own cache key (R2 ignores the query).
+        const tag = (probe.headers.get("etag") ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 64);
+        return new Response(null, { status: 302, headers: { location: tag ? `${target}?e=${tag}` : target, "cache-control": "no-store" } });
+      }
     } catch { /* fall through to the server, then GitHub */ }
   }
   const headers = new Headers();
@@ -247,6 +256,16 @@ export async function hostedDownload(request, env, ctx, url = new URL(request.ur
   return github();
 }
 
+// The Android phone app (APK) lives on the R2 mirror (dl.kcaron.top); this short website address redirects there so the
+// button on the site is one tap on a phone. The bytes never pass through the Worker.
+const ANDROID_APK = /^\/downloads\/(Guilded-Android(?:-\d{1,3}\.\d{1,3}\.\d{1,3}(?:-[a-z]+-\d{1,3})?)?\.apk)$/;
+export function androidDownload(request, url = new URL(request.url)) {
+  const match = ANDROID_APK.exec(url.pathname);
+  if (!match) return null;
+  if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
+  return new Response(null, { status: 302, headers: { location: `https://dl.kcaron.top/${match[1]}`, "cache-control": "no-store" } });
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === "OPTIONS" && mobileDevCors(request)) {
@@ -272,6 +291,8 @@ async function route(request, env, ctx) {
     const url = new URL(request.url);
     const download = await hostedDownload(request, env, ctx, url);
     if (download) return download;
+    const apk = androidDownload(request, url);
+    if (apk) return apk;
     // Keep Google's exact verification filename at HTTP 200 despite clean HTML URLs.
     if (/^\/google[a-f0-9]{8,64}\.html$/.test(url.pathname)) {
       if (!["GET", "HEAD"].includes(request.method)) return failure(405, "Method not allowed");
@@ -378,7 +399,7 @@ async function route(request, env, ctx) {
     const methods = api ? apiMethods.get(url.pathname) : web ? ["GET", "HEAD", "POST"] : ["GET", "HEAD"];
     if (!methods.includes(request.method)) return failure(405, "Method not allowed");
     if (api && request.method === "POST") {
-      const pairing = /\/(?:addon-pairings|companion\/sign-in)$/.test(url.pathname);
+      const pairing = /\/(?:addon-pairings|companion\/sign-in|device\/register)$/.test(url.pathname);
       const limiter = pairing ? env.PAIRING_ATTEMPTS : env.API_WRITES;
       if (limiter) {
         // Cloudflare supplies this header; caller-controlled forwarding headers

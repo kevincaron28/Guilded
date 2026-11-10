@@ -1040,12 +1040,15 @@ local function buildToolsPage(page)
   if ns.companionLink then
     at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -282)
     at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -282)
+    local steps = at(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), page, 0, -308)
+    steps:SetWidth(PAGE_WIDTH - 40)
+    steps:SetJustifyH("LEFT")
   end
 
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -316)
+    "GameFontHighlightSmall"), page, 0, -366)
   help:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
@@ -1479,7 +1482,7 @@ local function buildHomePage(page)
   ui.linkStatus = linkWidget(below(newLabel(page, "", "GameFontHighlightSmall"), 0, -158))
   ui.linkStatus:SetWidth(PAGE_WIDTH)
   local howTo = linkWidget(below(newLabel(page,
-    "Easiest: open the Guilded Windows app and press Sign in with Discord. No app? In Discord use /character pair, then paste the code below (it is the same as /guilded verify CODE).",
+    "Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below.",
     "GameFontDisableSmall"), 0, -176))
   howTo:SetWidth(PAGE_WIDTH)
   ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -222), "Code from /character pair"))
@@ -1504,6 +1507,9 @@ local function buildHomePage(page)
     below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -262)
     below(copyBox(page, ns.companionLink.SHORT, 250), 6, -282)
     below(copyBox(page, ns.companionLink.DIRECT, 250), 270, -282)
+    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -312)
+    steps:SetWidth(PAGE_WIDTH)
+    steps:SetJustifyH("LEFT")
   end
 end
 
@@ -1970,14 +1976,23 @@ refresh = function()
 
   local snapshot = db.readiness[me]
   if snapshot then
+    -- (9.1.3) The findings are stored (and sent to officers) in English; the window says them in the player's language.
+    local function findingText(finding)
+      local text = finding.message or ""
+      local list = string.match(text, "^Empty slots %(normal while levelling%): (.-)%.$")
+      if list then return string.format(L("Empty slots (normal while levelling): %s."), list) end
+      list = string.match(text, "^Missing enchants: (.-)%.$")
+      if list then return string.format(L("Missing enchants: %s."), list) end
+      return L(text)
+    end
     local problems = {}
     for _, finding in ipairs(snapshot.findings or {}) do
-      if finding.severity ~= "INFO" then table.insert(problems, finding.message) end
+      if finding.severity ~= "INFO" then table.insert(problems, findingText(finding)) end
     end
     -- Notes that are not problems (empty slots while levelling) are shown greyed below.
     local notes = {}
     for _, finding in ipairs(snapshot.findings or {}) do
-      if finding.code == "EMPTY_SLOTS_LOW_LEVEL" then table.insert(notes, "|cff999999" .. finding.message .. "|r") end
+      if finding.code == "EMPTY_SLOTS_LOW_LEVEL" then table.insert(notes, "|cff999999" .. findingText(finding) .. "|r") end
     end
     ui.gearInfo:SetText(string.format(L("Last check: %s%s\n%s"), statusWord(snapshot.status),
       snapshot.itemLevel and string.format(L("   Item level %s"), snapshot.itemLevel) or "",
@@ -2158,7 +2173,8 @@ local function buildPanel()
   panel:SetClampedToScreen(true)
   panel:EnableMouse(true)
   panel:RegisterForDrag("LeftButton")
-  panel:SetScript("OnDragStart", panel.StartMoving)
+  -- Docked in the guild window the panel is not movable: a drag must do nothing, not raise "Frame is not movable".
+  panel:SetScript("OnDragStart", function(self) if self:IsMovable() then self:StartMoving() end end)
   panel:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
     -- Where you left it is where it opens next time.

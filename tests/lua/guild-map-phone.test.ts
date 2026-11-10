@@ -82,6 +82,8 @@ describe("phone map: own calls for help", () => {
         guildMap = { members = {}, myPosition = function() return 1429, 0.5, 0.25 end, refresh = function() end },
         comm = { register = function() end, send = function() SENT = SENT + 1; return true end } }
     `);
+    // The real shared helpers (inviteButton, afterCombat) on a scratch namespace.
+    session.run("UTILNS = {}"); session.load("Util.lua", "UTILNS"); session.run("for k, v in pairs(UTILNS.util) do NS.util[k] = v end");
     session.load("Locale.lua");
     session.run(`NS.guildMap.continentOf = function() return 1415, "Eastern Kingdoms" end
       NS.guildMap.translate = function(_, x, y) return 0.5, 0.65 end`);

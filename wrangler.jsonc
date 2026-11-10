@@ -25,6 +25,10 @@
   ],
   "previews": {},
   "keep_vars": true,
+  "vars": {
+    "GUILDED_DOWNLOAD_MIRROR_URL": "https://dl.kcaron.top",
+    "GUILDED_ORIGIN_URL": "https://bot.kcaron.top"
+  },
   "kv_namespaces": [
     {
       "binding": "OWNER_RESOURCES",

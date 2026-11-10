@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { battlegroundReportSchema } from "../services/battleground-record-schema.js";
 import { GAME_EDITIONS, editionMetadata } from "../../companion/game-edition.mjs";
+import { mergeProfessionSkills, normalizeProfessionName } from "../services/profession-names.js";
 
 export const addonTransactionSchema = z.object({
   createdAt: z.coerce.date().optional(),
@@ -356,8 +357,20 @@ export function parseAddonSnapshot(payload: unknown): AddonSnapshot {
   if (rejected.length) cleaned["rejected"] = rejected;
   const parsed = addonSnapshotSchema.parse(cleaned);
   const edition = editionMetadata(parsed);
-  const inherit = (character: AddonCharacter) => character.gameEdition !== undefined || character.interface !== undefined ? character : { ...character, ...edition };
-  return { ...parsed, ...(parsed.character ? { character: inherit(parsed.character) } : {}), alts: parsed.alts.map(inherit), characters: parsed.characters.map(inherit) };
+  // One profession, one name: a French client's "Cuisine" and an English client's "Cooking" are the same row (9 Nov 2026).
+  const inherit = (character: AddonCharacter) => {
+    const edition_ = character.gameEdition !== undefined || character.interface !== undefined ? character : { ...character, ...edition };
+    return { ...edition_, professions: mergeProfessionSkills(edition_.professions) };
+  };
+  return {
+    ...parsed,
+    ...(parsed.character ? { character: inherit(parsed.character) } : {}),
+    alts: parsed.alts.map(inherit),
+    characters: parsed.characters.map(inherit),
+    readiness: parsed.readiness.map((entry) => ({ ...entry, professions: mergeProfessionSkills(entry.professions) })),
+    recipes: parsed.recipes.map((set) => ({ ...set, profession: normalizeProfessionName(set.profession) })),
+    cooldowns: parsed.cooldowns.map((set) => ({ ...set, entries: set.entries.map((entry) => ({ ...entry, profession: normalizeProfessionName(entry.profession) })) }))
+  };
 }
 
 export function normalizeAddonSnapshot(snapshot: AddonSnapshot): AddonSnapshot {

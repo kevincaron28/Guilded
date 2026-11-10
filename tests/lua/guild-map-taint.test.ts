@@ -72,6 +72,26 @@ describe("guild map and the world map's taint", () => {
     expect(s.run(`return tostring(NS.guildMap.worldOverlay.shown)`)).toBe("true");
   });
 
+  // 10 November 2026: dots showed on the minimap but not on the world map. The map's own pins and
+  // explored-area art use frame levels in the thousands, so the overlay must sit above all of them.
+  it("keeps the overlay above the map's own layers (at least HIGH, top frame level)", () => {
+    const s = withWorldMap();
+    s.run(`
+      local make = CreateFrame
+      function CreateFrame(kind, name, parent)
+        local f = make(kind, name, parent)
+        f.SetFrameStrata = function(self, value) self.strata = value end
+        f.SetFrameLevel = function(self, value) self.level = value end
+        return f
+      end
+      MAP_STRATA = "MEDIUM"
+      WorldMapFrame.GetFrameStrata = function() return MAP_STRATA end
+      MAP_SHOWN = true; NS.guildMap.receive("P|1429|4100|6000|MAGE|60", "Ann"); NS.guildMap.refreshWorldMap()`);
+    expect(s.run(`return NS.guildMap.worldOverlay.strata .. ":" .. NS.guildMap.worldOverlay.level`)).toBe("HIGH:9000");
+    s.run(`MAP_STRATA = "FULLSCREEN"; NS.guildMap.refreshWorldMap()`);
+    expect(s.run(`return NS.guildMap.worldOverlay.strata .. ":" .. NS.guildMap.worldOverlay.level`)).toBe("FULLSCREEN:9000");
+  });
+
   it("notices the map opening, changing and zooming by reading it, and hides the overlay when it closes", () => {
     const s = withWorldMap();
     s.run(`NS.guildMap.receive("P|1429|4100|6000|MAGE|60", "Ann")`);

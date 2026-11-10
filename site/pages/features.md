@@ -43,6 +43,42 @@ Captured in WoW Forever (Guilded 9.0.7 and later). Click a picture to enlarge it
 <figure><a href="/images/addon/17-world-map-guildmate-dots.webp"><img src="/images/addon/17-world-map-guildmate-dots.webp" alt="Guilded in game : Guildmates on the world map" width="330" height="251" loading="lazy"></a><figcaption><strong>Guildmates on the world map.</strong> Guildmates appear as dots on the world map.</figcaption></figure>
 </div>
 
+## On Discord
+
+The cards the bot posts in Discord, shown with made-up data (a guild called “Example Guild”). Click a picture to enlarge it.
+
+<div class="shot-gallery">
+<figure><a href="/images/discord/dungeon-run-en.webp"><img src="/images/discord/dungeon-run-en.webp" alt="Dungeon run card (sample, made-up data)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Dungeon run card.</strong> Every finished run, with time, dungeon score and the whole party.</figcaption></figure>
+<figure><a href="/images/discord/daily-recap-en.webp"><img src="/images/discord/daily-recap-en.webp" alt="Daily recap (sample, made-up data)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Daily recap.</strong> The day in the guild: levels gained, dungeon clears, records and PvP.</figcaption></figure>
+<figure><a href="/images/discord/race-to-60-en.webp"><img src="/images/discord/race-to-60-en.webp" alt="Race to 60 (sample, made-up data)" width="1200" height="862" loading="lazy"></a><figcaption><strong>Race to 60.</strong> Who is levelling fastest, in class colours, with the first to 60 marked.</figcaption></figure>
+<figure><a href="/images/discord/hall-of-fame-en.webp"><img src="/images/discord/hall-of-fame-en.webp" alt="Hall of Fame (sample, made-up data)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Hall of Fame.</strong> A card for every member who reaches level 60.</figcaption></figure>
+<figure><a href="/images/discord/duel-ladder-en.webp"><img src="/images/discord/duel-ladder-en.webp" alt="Duel ladder (sample, made-up data)" width="1200" height="666" loading="lazy"></a><figcaption><strong>Duel ladder.</strong> Wins, losses and streaks, updated after every sync.</figcaption></figure>
+<figure><a href="/images/discord/achievements-en.webp"><img src="/images/discord/achievements-en.webp" alt="Achievements (sample, made-up data)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Achievements.</strong> Medals unlocked by a member, posted for the guild to cheer.</figcaption></figure>
+<figure><a href="/images/discord/raid-end-en.webp"><img src="/images/discord/raid-end-en.webp" alt="Raid summary (sample, made-up data)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Raid summary.</strong> Bosses, attendance, EP and the best loot at the end of a raid night.</figcaption></figure>
+<figure><a href="/images/discord/battleground-end-en.webp"><img src="/images/discord/battleground-end-en.webp" alt="Battleground result (sample, made-up data)" width="1200" height="630" loading="lazy"></a><figcaption><strong>Battleground result.</strong> The result of a battleground, posted when the match ends.</figcaption></figure>
+</div>
+
+## On your phone
+
+The Android app shows the leaderboards, your guild, your raids and your badges, and includes Guilded Clash, a card game. Screenshots from a sample guild (made-up data).
+
+<div class="phone-gallery">
+<figure><a href="/images/phone/app-guild-roster.webp"><img src="/images/phone/app-guild-roster.webp" alt="Guild roster (sample, made-up data)" width="360" height="640" loading="lazy"></a><figcaption><strong>Guild roster.</strong> Your guild’s members and their characters.</figcaption></figure>
+<figure><a href="/images/phone/app-guild-raids.webp"><img src="/images/phone/app-guild-raids.webp" alt="Raids (sample, made-up data)" width="360" height="640" loading="lazy"></a><figcaption><strong>Raids.</strong> Upcoming raids and your sign-ups.</figcaption></figure>
+<figure><a href="/images/phone/app-me-badges.webp"><img src="/images/phone/app-me-badges.webp" alt="Badge album (sample, made-up data)" width="360" height="640" loading="lazy"></a><figcaption><strong>Badge album.</strong> The badges you have unlocked.</figcaption></figure>
+<figure><a href="/images/phone/app-alerts.webp"><img src="/images/phone/app-alerts.webp" alt="Raid reminders (sample, made-up data)" width="360" height="640" loading="lazy"></a><figcaption><strong>Raid reminders.</strong> A reminder on your phone before each raid.</figcaption></figure>
+<figure><a href="/images/phone/clash-play.webp"><img src="/images/phone/clash-play.webp" alt="Guilded Clash (sample, made-up data)" width="360" height="740" loading="lazy"></a><figcaption><strong>Guilded Clash.</strong> A card game for your guild: play the AI or your guildmates.</figcaption></figure>
+<figure><a href="/images/phone/clash-gauntlet.webp"><img src="/images/phone/clash-gauntlet.webp" alt="Dungeon gauntlet (sample, made-up data)" width="360" height="740" loading="lazy"></a><figcaption><strong>Dungeon gauntlet.</strong> Five bosses to beat, one after the other.</figcaption></figure>
+<figure><a href="/images/phone/clash-board.webp"><img src="/images/phone/clash-board.webp" alt="The board (sample, made-up data)" width="360" height="740" loading="lazy"></a><figcaption><strong>The board.</strong> Cards in play, your hand and the zone effect.</figcaption></figure>
+<figure><a href="/images/phone/clash-collection.webp"><img src="/images/phone/clash-collection.webp" alt="Collection (sample, made-up data)" width="360" height="740" loading="lazy"></a><figcaption><strong>Collection.</strong> Collect cards by class and rarity.</figcaption></figure>
+<figure><a href="/images/phone/clash-pack-open.webp"><img src="/images/phone/clash-pack-open.webp" alt="Opening a pack (sample, made-up data)" width="360" height="740" loading="lazy"></a><figcaption><strong>Opening a pack.</strong> Open packs to find new cards.</figcaption></figure>
+<figure><a href="/images/phone/clash-pvp-01-guild.webp"><img src="/images/phone/clash-pvp-01-guild.webp" alt="Guild challenges (sample, made-up data)" width="360" height="740" loading="lazy"></a><figcaption><strong>Guild challenges.</strong> Challenge a guildmate to a friendly match.</figcaption></figure>
+<figure><a href="/images/phone/clash-pvp-07-ranked.webp"><img src="/images/phone/clash-pvp-07-ranked.webp" alt="Ranked ladder (sample, made-up data)" width="360" height="740" loading="lazy"></a><figcaption><strong>Ranked ladder.</strong> Climb divisions against players from every Guilded server.</figcaption></figure>
+<figure><a href="/images/phone/clash-pvp-10-ladder.webp"><img src="/images/phone/clash-pvp-10-ladder.webp" alt="Global ladder (sample, made-up data)" width="360" height="740" loading="lazy"></a><figcaption><strong>Global ladder.</strong> The monthly ladder, global or for your server.</figcaption></figure>
+</div>
+
+<div class="actions"><a class="button" href="{{ANDROID_APK_URL}}" download>Download for Android <span aria-hidden="true">↓</span></a></div>
+
 ## New in 9.0
 
 What changed in 9.0, and why you would care.
@@ -84,7 +120,7 @@ in an open-raids channel; full Guilded can browse a recent companion snapshot in
 
 ## The companion
 
-A free Windows app, optional for the addon alone but needed for Discord and website features. Get it from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (GitHub direct download as a fallback). Connect your account, choose your saved addon data, then **Sync now** after playing. Export to spreadsheet works without connecting.
+A free Windows app, optional for the addon alone but needed for Discord and website features. Get it from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (direct download from this website as a fallback). Connect your account, choose your saved addon data, then **Sync now** after playing. Export to spreadsheet works without connecting.
 
 - **Wishlist:** your wanted items.
 - **Cores & prices:** core rules, rosters and item prices, for raid leaders.

@@ -21,7 +21,7 @@ export function tocEditions(toc) {
 
 /**
  * @param {string} watchFile
- * @returns {Promise<{ status: "ok" | "wrong-edition" | "not-installed" | "unchecked" | "other-edition", expected?: string, installed?: string[], folder?: string }>}
+ * @returns {Promise<{ status: "ok" | "wrong-edition" | "not-installed" | "unchecked" | "other-edition", expected?: string, installed?: string[], folder?: string, version?: string, extras?: { name: string, version: string }[] }>}
  */
 export async function checkInstalledAddon(watchFile) {
   const parts = savedFileParts(watchFile);
@@ -30,10 +30,18 @@ export async function checkInstalledAddon(watchFile) {
   const expected = parts ? FOLDER_EDITIONS[parts.flavor.toLowerCase()] : undefined;
   if (!parts || !expected) return { status: "unchecked" };
   const folder = join(parts.root, parts.flavor, "Interface", "AddOns", "Guilded");
+  // (9.1.3) Other Guilded addons installed beside Guilded (GuildedDungeons): the companion updates them with it.
+  const extras = [];
+  for (const name of ["GuildedDungeons"]) {
+    try {
+      const text = await readFile(join(parts.root, parts.flavor, "Interface", "AddOns", name, name + ".toc"), "utf8");
+      extras.push({ name, version: /^##\s*Version:\s*(\d{1,3}\.\d{1,3}\.\d{1,3})\s*$/m.exec(text)?.[1] ?? null });
+    } catch { /* not installed */ }
+  }
   let toc;
-  try { toc = await readFile(join(folder, "Guilded.toc"), "utf8"); } catch { return { status: "not-installed", expected, folder }; }
+  try { toc = await readFile(join(folder, "Guilded.toc"), "utf8"); } catch { return { status: "not-installed", expected, folder, extras }; }
   const installed = tocEditions(toc);
   // The version on disk: newer than the one that last saved means WoW still runs the old files.
   const version = /^##\s*Version:\s*(\d{1,3}\.\d{1,3}\.\d{1,3})\s*$/m.exec(toc)?.[1] ?? null;
-  return installed.includes(expected) ? { status: "ok", expected, installed, folder, version } : { status: "wrong-edition", expected, installed, folder, version };
+  return installed.includes(expected) ? { status: "ok", expected, installed, folder, version, extras } : { status: "wrong-edition", expected, installed, folder, version, extras };
 }

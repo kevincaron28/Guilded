@@ -41,6 +41,7 @@ function message(language, value) {
     // Only these slots are authored diagnostics. All other slots can contain
     // names, paths or item text and must remain exactly as supplied.
     if (key === '{0} Select this connection to write scores to the shared addon folder.') args[0] = message(language, args[0]);
+    if (key === 'Not started: {0}') args[0] = message(language, args[0]);
     if (key === 'Connected. PoE2 tracking is {0}.') args[0] = translate(language, args[0]);
     if (key === 'Account connected. PoE2 sharing is {0}.') args[0] = translate(language, args[0]);
     if (key.startsWith('{0} completed observations')) args[1] = translate(language, args[1]);

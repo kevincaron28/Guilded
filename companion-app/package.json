@@ -1,7 +1,7 @@
 {
   "name": "guilded-companion",
   "productName": "Guilded Companion",
-  "version": "9.0.8",
+  "version": "9.1.3",
   "description": "Your guild, connected. World of Warcraft sync and Path of Exile 2 mapping.",
   "main": "main.cjs",
   "private": true,
@@ -45,6 +45,7 @@
       "repair.cjs",
       "disk-space.cjs",
       "config-load.cjs",
+      "store-migrate.cjs",
       "store-startup.cjs"
     ],
     "extraResources": [
@@ -87,7 +88,9 @@
           "revoke.mjs",
           "problems.mjs",
           "sync-status.mjs",
-          "error-detail.mjs"
+          "error-detail.mjs",
+          "device-sync.mjs",
+          "device-receipts.mjs"
         ]
       },
       {
@@ -109,7 +112,7 @@
       "perMachine": false,
       "runAfterFinish": true,
       "shortcutName": "Guilded Companion",
-      "deleteAppDataOnUninstall": true,
+      "deleteAppDataOnUninstall": false,
       "include": "installer.nsh"
     }
   },

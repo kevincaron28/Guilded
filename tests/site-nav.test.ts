@@ -74,7 +74,7 @@ describe("site menu", () => {
   });
 
   it("has a Community entry, current on the guild directory and on guild pages", () => {
-    expect(page("/recruitment/guilds/", "fr")).toContain('href="/community/?lang=fr" aria-current="page">Communauté</a>');
+    expect(page("/recruitment/guilds/", "fr")).toContain('href="/fr/community/" aria-current="page">Communauté</a>');
     expect(page("/recruitment/guilds/", "fr")).not.toContain('href="/forever/recruitment/?lang=fr" aria-current');
     expect(currentSection("/g/quebec-gold/")).toBe("community");
     expect(currentSection("/recruitment/")).toBe("community");
@@ -89,16 +89,16 @@ describe("site menu", () => {
 
   it("keeps French across the product, guide and public-page navigation", () => {
     const html = page("/leaderboards/", "fr");
-    expect(html).toContain('href="/features/?lang=fr"');
+    expect(html).toContain('href="/fr/features/"');
     expect(html).toContain('href="/guides/install/"');
     expect(html).not.toContain("QUICK_START");
     expect(html).not.toContain("MEMBER_INSTALL");
-    expect(html).toContain('href="/editions/?lang=fr"');
-    expect(html).toContain('href="/officers/?lang=fr"');
+    expect(html).toContain('href="/fr/editions/"');
+    expect(html).toContain('href="/fr/officers/"');
     expect(html).toContain('href="/forever/?lang=fr"');
     expect(localizedHref("/leaderboards/?season=s1&lang=en#records", "fr")).toBe("/leaderboards/?season=s1&lang=fr#records");
     expect(localizedHref("features/", "fr")).toBe("features/?lang=fr");
-    expect(localizedHref("/editions/retail/", "fr")).toBe("/editions/retail/?lang=fr");
+    expect(localizedHref("/editions/retail/", "fr")).toBe("/fr/editions/retail/");
     expect(localizedHref("../../editions/classic-era/?lang=fr", "en")).toBe("../../editions/classic-era/?lang=en");
     expect(localizedHref("/companion/?tab=cores&lang=en#rules", "fr")).toBe("/companion/?tab=cores&lang=fr#rules");
     expect(localizedHref("/companion/?lang=fr", "en")).toBe("/companion/?lang=en");
@@ -145,7 +145,7 @@ describe("site menu", () => {
       for (const column of Object.values(FOOTER_COLUMNS)) expect(html).toContain(`<p class="footer-title">${column[lang]}</p>`);
     }
     expect(page("/leaderboards/", "fr")).toContain('href="/forever/recruitment/?lang=fr"');
-    expect(page("/leaderboards/", "fr")).toContain('href="/officers/?lang=fr"');
+    expect(page("/leaderboards/", "fr")).toContain('href="/fr/officers/"');
     expect(footerLinks({ label: item => item.en })).toContain('href="https://discord.gg/YjzFwtP64V"');
   });
 

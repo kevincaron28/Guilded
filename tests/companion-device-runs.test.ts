@@ -14,9 +14,9 @@ const run = (id: string, over: Record<string, unknown> = {}) => ({ id, protocolV
   startedAt: start, endedAt: start + 2700, reporters: 1, completedBy: "final boss", encounters: [],
   players: ["Kev", "Bob", "Amy"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 30, minLevel: 30 })), ...over });
 
-function fakeTx(initial: Record<string, unknown>[] = [], characters: unknown[] = [], roster: string[] = ["kev"]) {
+function fakeTx(initial: Record<string, unknown>[] = [], characters: unknown[] = [], roster: string[] = ["kev"], seasons: number[] = [1]) {
   const runs = [...initial];
-  const trust = witnessTables(roster);
+  const trust = witnessTables(roster, seasons);
   const tx = {
     guild: { findUnique: async () => ({ gameEdition: "forever" }) },
     character: { findMany: async () => characters },
@@ -123,7 +123,7 @@ describe("run trust: a run counts by corroboration (docs/plans/RUN_TRUST_2026-11
   const trustOf = (runs: Record<string, unknown>[]) => runs.map((r) => [r["runRef"], r["trust"]]);
 
   it("keeps a run nobody in the party is known for pending, with a reason, and counts nothing", async () => {
-    const { tx, runs, witnesses } = fakeTx([], [], []);
+    const { tx, runs, witnesses } = fakeTx([], [], [], [1, 2]);
     const result = await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC);
     expect(result).toMatchObject({ stored: 0, pending: { "QG-1": expect.stringContaining("second player") } });
     expect(runs).toHaveLength(0);
@@ -131,7 +131,7 @@ describe("run trust: a run counts by corroboration (docs/plans/RUN_TRUST_2026-11
   });
 
   it("stores it once a second device speaking for another party member agrees, even under another run id", async () => {
-    const { tx, runs, witnesses } = fakeTx([], [], []);
+    const { tx, runs, witnesses } = fakeTx([], [], [], [1, 2]);
     await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC);
     const later = new Date(now.getTime() + 60_000);
     expect(await storeDeviceRuns(tx, "g1", [run("QG-OTHER-ID", { startedAt: start + 30, endedAt: start + 2710 })], later, two)).toMatchObject({ stored: 1 });
@@ -140,14 +140,14 @@ describe("run trust: a run counts by corroboration (docs/plans/RUN_TRUST_2026-11
   });
 
   it("never lets one device witness itself, and a replay changes nothing", async () => {
-    const { tx, runs } = fakeTx([], [], []);
+    const { tx, runs } = fakeTx([], [], [], [1, 2]);
     await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC);
     expect(await storeDeviceRuns(tx, "g1", [run("QG-1b")], now, { deviceId: "d1", characterKeys: ["kev", "bob"] })).toMatchObject({ stored: 0 });
     expect(runs).toHaveLength(0);
   });
 
   it("does not count two devices that rest on the same party member, or runs of different clears", async () => {
-    const { tx, runs } = fakeTx([], [], []);
+    const { tx, runs } = fakeTx([], [], [], [1, 2]);
     await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC);
     expect(await storeDeviceRuns(tx, "g1", [run("QG-2")], now, { deviceId: "d2", characterKeys: ["kev"] })).toMatchObject({ stored: 0 });
     expect(await storeDeviceRuns(tx, "g1", [run("QG-3", { startedAt: start + 9000, endedAt: start + 11700 })], now, two)).toMatchObject({ stored: 0 });
@@ -180,5 +180,30 @@ describe("run trust: a run counts by corroboration (docs/plans/RUN_TRUST_2026-11
     const device: DeviceRow = { id: "d1", guildId: null, chosenGuildId: null, claimedMemberId: null, revokedAt: null, uploads: 0 };
     const answer = await handleDeviceUpload(s, device, { guild: { name: "Quebec Gold", realm: "R" }, characters: [{ name: "Kev" }], dungeonRuns: [run("a")] }, { now });
     expect(answer).toMatchObject({ status: "synced", runs: { pending: 1 }, runReceipts: { acceptedRunRefs: [], pendingRunNotes: { a: expect.any(String) } } });
+  });
+});
+
+describe("Season 1: runs only anonymous devices vouch for still count (owner decision, 10 Nov 2026)", () => {
+  it("stores a single-source run with nobody known in the party, marked device, with a receipt", async () => {
+    const { tx, runs } = fakeTx([], [], [], [1]);
+    expect(await storeDeviceRuns(tx, "g1", [run("QG-1")], now, SRC)).toMatchObject({ stored: 1 });
+    expect(runs.map((r) => [r["runRef"], r["trust"]])).toEqual([["QG-1", "device"]]);
+  });
+
+  it("keeps the daily cap, and never changes a stored run", async () => {
+    const { tx, runs, witnesses } = fakeTx([], [], [], [1]);
+    for (let i = 0; i < 20; i++) witnesses.push({ deviceId: "d1", status: "stored", trust: "device", decidedAt: now });
+    expect(await storeDeviceRuns(tx, "g1", [run("QG-X")], now, SRC)).toMatchObject({ stored: 0, pending: { "QG-X": expect.stringContaining("Daily limit") } });
+    expect(runs).toHaveLength(0);
+  });
+
+  it("from Season 2 the same run waits (pending, no run) and an earlier pending run is stored on the device's next upload under Season 1", async () => {
+    const strict = fakeTx([], [], [], [1, 2]);
+    expect(await storeDeviceRuns(strict.tx, "g1", [run("QG-1")], now, SRC)).toMatchObject({ stored: 0, pending: { "QG-1": expect.any(String) } });
+    expect(strict.runs).toHaveLength(0);
+    // The companion resends a waiting run on every upload; the Season 1 rule stores it then.
+    const shared = fakeTx([], [], [], [1]);
+    shared.witnesses.push(...strict.witnesses);
+    expect(await storeDeviceRuns(shared.tx, "g1", [run("QG-1")], now, SRC)).toMatchObject({ stored: 1 });
   });
 });

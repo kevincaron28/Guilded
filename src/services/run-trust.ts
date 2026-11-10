@@ -25,6 +25,15 @@ export const PENDING_REASON = "Waiting for a second player's addon to confirm it
 export const EXPIRED_REASON = "Not confirmed by a second player";
 export const LIMIT_REASON = "Daily limit for this PC: waiting for a second player's addon";
 
+/**
+ * Owner decision, 10 November 2026: during Season 1 a run only anonymous devices vouch for is stored and counted too
+ * (marked trust "device"); from Season 2 on it waits for roster or a second witness. The switch is the official season
+ * calendar: it is on until an official season numbered 2 or later has started. No stored flag, so nothing to forget to flip.
+ */
+export function countsDeviceOnlyRuns(startedSeasonNumbers: readonly number[]): boolean {
+  return !startedSeasonNumbers.some((number) => number >= 2);
+}
+
 export type RunTrust = "device" | "witnessed" | "member";
 
 /** What two statements must agree on to be the same run. */
@@ -118,12 +127,12 @@ export type TrustDecision =
  * `others`: statements of other devices for this server around the same time. `storedToday`: runs this device already
  * had stored on its own word in the last 24 hours.
  */
-export function decide(statement: Statement, others: readonly Statement[], context: { anchored: boolean; storedToday: number; nowSec: number }): TrustDecision {
+export function decide(statement: Statement, others: readonly Statement[], context: { anchored: boolean; storedToday: number; nowSec: number; allowDeviceOnly?: boolean }): TrustDecision {
   const second = others.find((other) => independent(statement, other));
   if (second) return { store: "witnessed", with: second };
   const age = statement.endedAt ? context.nowSec - statement.endedAt : 0;
   if (age > RUN_TRUST.maxAgeSec) return { expire: EXPIRED_REASON };
-  if (!context.anchored) return { wait: PENDING_REASON };
+  if (!context.anchored && !context.allowDeviceOnly) return { wait: PENDING_REASON };
   if (context.storedToday >= RUN_TRUST.singleStatementRunsPerDevicePerDay) return { wait: LIMIT_REASON };
   return { store: "device" };
 }

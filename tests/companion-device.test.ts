@@ -123,7 +123,9 @@ describe("server from the in-game guild", () => {
     const { deviceSecret } = await registerDevice(store);
     const device = (await deviceFor(store, deviceSecret))!;
     const answer = await handleDeviceUpload(store, device, upload());
-    expect(answer).toEqual({ status: "synced", server: { discordId: "111111111", name: "Quebec Gold" }, guild: { name: "Quebec Gold", realm: "CAMWOW US2 Realm 2 PvP" }, characters: 1, claimed: false });
+    expect(answer).toEqual({ status: "synced", server: { discordId: "111111111", name: "Quebec Gold" }, guild: { name: "Quebec Gold", realm: "CAMWOW US2 Realm 2 PvP" }, characters: 1, claimed: false, reported: expect.any(Array) });
+    // Only names this device itself sent come back (9.1.4): never a Discord name or anyone else's character.
+    expect((answer as { reported: string[] }).reported).toEqual(upload().characters.map((character: { name: string }) => character.name));
     expect([...characters.get(device.id)!.values()][0]).toMatchObject({ name: "Lebowski Holyroller", className: "Paladin", level: 14 });
   });
 

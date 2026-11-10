@@ -111,3 +111,63 @@ describe("linked to Discord line", () => {
     expect(s.run(`return MSGS[1]`)).toContain("Linked to Discord as Kev");
   });
 });
+
+// 9.1.4: the line is per character, from the map the companion writes for this PC's own characters.
+describe("linked to Discord, per character", () => {
+  const fresh = `GuildedLinkedMeta = { updatedAt = "2027-01-14T00:00:00Z", }`;
+  const state = (s: LuaSession) => s.run(`local st = NS.companionLink.linkedState(); return st and (st.confirmed and ("linked:" .. st.name) or "reported") or "nil"`);
+
+  it("says the Discord name only for the character being played", () => {
+    const s = withLink(`GuildedLinked = { ann = { discord = "Kev", confirmed = true }, bob = { discord = "Kev", confirmed = true } }; ${fresh}`);
+    expect(state(s)).toBe("linked:Kev");
+    s.run(`NS.playerName = function() return "Zed" end`);
+    expect(state(s)).toBe("nil");
+    expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("false");
+  });
+
+  it("says 'Reported, not confirmed' for a reported character and never shows a Discord name for it", () => {
+    const s = withLink(`GuildedLinked = { ann = { confirmed = false } }; ${fresh}`);
+    expect(state(s)).toBe("reported");
+    expect(s.run(`return tostring(NS.companionLink.announceLinked())`)).toBe("true");
+    expect(s.run(`return MSGS[1]`)).toBe("Reported, not confirmed");
+    expect(s.run(`return tostring(NS.companionLink.linkedAs())`)).toBe("nil");
+    expect(s.run(`return tostring(NS.companionLink.needed())`)).toBe("false");
+  });
+
+  it("matches a Forever full name in any letter case", () => {
+    const s = withLink(`GuildedLinked = { ["meo gratton"] = { discord = "Kev", confirmed = true } }; ${fresh}; NS.playerName = function() return "Meo  Gratton" end`);
+    expect(state(s)).toBe("linked:Kev");
+  });
+
+  it("ignores a map older than 14 days, or one with no timestamp", () => {
+    const old = withLink(`GuildedLinked = { ann = { discord = "Kev", confirmed = true } }; GuildedLinkedMeta = { updatedAt = "2026-12-20T00:00:00Z", }`);
+    expect(state(old)).toBe("nil");
+    old.close();
+    const undated = withLink(`GuildedLinked = { ann = { discord = "Kev", confirmed = true } }`);
+    expect(state(undated)).toBe("nil");
+  });
+
+  it("reads the old PC-wide name only when there is no map, and never for a character missing from a map", () => {
+    const legacy = withLink(`GuildedLinkedAs = "Kev"`);
+    expect(state(legacy)).toBe("linked:Kev");
+    legacy.close();
+    const mapped = withLink(`GuildedLinkedAs = "Kev"; GuildedLinked = { bob = { discord = "Kev", confirmed = true } }; ${fresh}`);
+    expect(state(mapped)).toBe("nil");
+    mapped.close();
+    const empty = withLink(`GuildedLinkedAs = "Kev"; GuildedLinked = {}; ${fresh}`);
+    expect(state(empty)).toBe("nil");
+  });
+
+  it("an unsigned companion's old name is never shown, but its reported map is", () => {
+    const s = withLink(`GuildedCompanion = { mode = "device" }; GuildedLinkedAs = "Meo Gratton"`);
+    expect(state(s)).toBe("nil");
+    s.run(`GuildedLinked = { ann = { confirmed = false } }; ${fresh}`);
+    expect(state(s)).toBe("reported");
+  });
+
+  it("/guilded companion shows the reported line too", () => {
+    const s = withLink(`GuildedLinked = { ann = { confirmed = false } }; ${fresh}`);
+    s.run(`NS.commandHandlers["companion"]({})`);
+    expect(s.run(`return MSGS[1]`)).toBe("Reported, not confirmed");
+  });
+});

@@ -214,3 +214,33 @@ describe("runs that are not this PC's", () => {
     expect(merged).toEqual({ refs: ["new", "kept"], notes: { kept: "Not completed" } });
   });
 });
+
+describe("per-character identity (9.1.4)", () => {
+  it("answers with only the characters this device reported, and the addon says 'Reported, not confirmed' for them", async () => {
+    const { file, guilded } = layout();
+    const { body, answer } = await sync(file, fakeDatabase());
+    expect(body.characters.map((c: { name: string }) => c.name)).toEqual(["Meo"]);
+    // Privacy: the answer lists names the device itself sent and carries no Discord name at all.
+    expect(answer.reported).toEqual(["Meo"]);
+    expect(JSON.stringify(answer)).not.toMatch(/discord(User|Name|Account)|Gratton/);
+    await writeDeviceReceipts({ watchFile: file }, { ...answer.runReceipts, reported: answer.reported }, undefined, now);
+    const text = readFileSync(join(guilded, "Standings.lua"), "utf8");
+    expect(text).toContain('["meo"] = { confirmed = false }');
+    expect(text).not.toContain("Meo Gratton");
+    const session = addonSession();
+    session.run(`GuildedCompanion = { mode = "device" }; GuildedLinked = { ["meo"] = { confirmed = false } }; GuildedLinkedMeta = { updatedAt = "2027-01-14T00:00:00Z", }`);
+    session.run("CLOCK = 1800000000; time = function() return CLOCK end");
+    expect(session.run("local s = NS.companionLink.linkedState(); return s and tostring(s.confirmed) or 'nil'")).toBe("false");
+    expect(session.run("return tostring(NS.companionLink.announceLinked())")).toBe("true");
+  });
+
+  it("rewrites the map's stamp when it is a day old, even with nothing else changed", async () => {
+    const { file, guilded } = layout();
+    const { answer } = await sync(file, fakeDatabase());
+    const answerWith = { ...answer.runReceipts, reported: answer.reported };
+    await writeDeviceReceipts({ watchFile: file }, answerWith, undefined, now);
+    const later = new Date(now.getTime() + 2 * 86_400_000);
+    await writeDeviceReceipts({ watchFile: file }, answerWith, undefined, later);
+    expect(readFileSync(join(guilded, "Standings.lua"), "utf8")).toContain(`updatedAt = "${later.toISOString()}"`);
+  });
+});

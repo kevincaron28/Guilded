@@ -1,4 +1,4 @@
-import { standingsToLua, linkedAsLua } from "./standings-format.mjs";
+import { standingsToLua, linkedAsLua, linkedMapLua, linkedMapKey } from "./standings-format.mjs";
 export { standingsToLua } from "./standings-format.mjs";
 import { readFile, writeFile, rename, rm } from "node:fs/promises";
 import { readSavedText } from "./saved-file.mjs";
@@ -55,14 +55,29 @@ export async function writeStandings(config, signal, options = {}) {
   // Check the actual saved file before replacing standings or acknowledging
   // its ledger. Missing legacy saves retain first-run repair behavior.
   let saved;
+  let ownNames = [];
   try { saved = await readSavedText(config.watchFile); }
   catch (error) { if (error.code !== "ENOENT") throw error; }
   if (saved) {
-    const local = config.watchFile.toLowerCase().endsWith(".lua") ? readDatabase(saved).character ?? {} : JSON.parse(saved);
+    const database = config.watchFile.toLowerCase().endsWith(".lua") ? readDatabase(saved) : JSON.parse(saved);
+    const local = config.watchFile.toLowerCase().endsWith(".lua") ? database.character ?? {} : database;
     assertSameEdition(local, body);
+    // This PC's own characters (the played one and the account's others), for the per-character "Linked to Discord" line.
+    ownNames = [local, ...(Array.isArray(database.alts) ? database.alts : []), ...Object.values(database.myCharacters ?? {})].flatMap((entry) => typeof entry?.name === "string" ? [entry.name] : []);
   }
   // The member's own Discord name for the in-game "Linked to Discord as ..." line (Track L).
-  const text = standingsToLua(body) + linkedAsLua(config.discordAccount);
+  // Per character (9.1.4): a name of this PC that the bot holds in this server is linked to the signed-in member; the old
+  // PC-wide line stays for older addons. Characters the bot does not hold get no entry, so the addon says nothing for them.
+  const account = config.discordAccount && (config.discordAccount.displayName || config.discordAccount.username);
+  // `accounts` maps a character to its member: the member holding most of this PC's characters is the signed-in one, so a
+  // character of this PC that someone else holds (a squatter) is never shown as linked to this member.
+  const owners = new Map(Object.entries(body.accounts ?? {}).map(([character, member]) => [linkedMapKey(character), member]));
+  const mine = ownNames.flatMap((name) => owners.has(linkedMapKey(name)) ? [{ name, member: owners.get(linkedMapKey(name)) }] : []);
+  const tally = new Map();
+  for (const { member } of mine) tally.set(member, (tally.get(member) ?? 0) + 1);
+  const self = [...tally.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
+  const linked = account ? mine.filter(({ member }) => member === self).map(({ name }) => ({ name, discord: account, confirmed: true })) : [];
+  const text = standingsToLua(body) + linkedAsLua(config.discordAccount) + linkedMapLua(linked, body.updatedAt ?? new Date().toISOString());
   if (config.writeStandingsEnabled === false) return { notModified: false, etag, body, path, text: null, count: body.standings.length, unchanged: true, downloadedOnly: true, botVersion: body.botVersion };
   let unchanged = false;
   let refreshOnly = false;

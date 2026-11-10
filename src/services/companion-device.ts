@@ -122,7 +122,7 @@ export interface DeviceStore {
 export interface DeviceRunReceipts { acceptedRunRefs: string[]; runNotes: Record<string, string> }
 
 export type DeviceUploadAnswer =
-  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number }; runReceipts?: DeviceRunReceipts }
+  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number }; runReceipts?: DeviceRunReceipts; reported?: string[] }
   | { status: "no-guild"; guild: { name: string; realm: string } | null }
   | { status: "choose"; guild: { name: string; realm: string }; servers: { discordId: string; name: string | null }[] }
   | { status: "claimed" };
@@ -235,7 +235,11 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     const runNotes: Record<string, string> = Object.fromEntries(held.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []));
     if (acceptedRunRefs.length) runReceipts = { acceptedRunRefs, runNotes };
   }
-  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}) };
+  // (9.1.4) The characters THIS upload reported and the server holds for the device, so the addon can say "Reported, not
+  // confirmed" for the one being played. Names the device itself sent, nothing else: no Discord name and nothing about
+  // anyone else's characters ever goes back to an unsigned device.
+  const reported = rows.map((row) => row.name);
+  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}), ...(reported.length ? { reported } : {}) };
 }
 
 /**

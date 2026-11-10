@@ -66,6 +66,53 @@ Priority order. Source: Grok Bot's read-only security review of main@8b073f5d, 1
 - **W3 (optional):** `x-frame-options: DENY` and `permissions-policy` on bot-rendered pages.
 - **W4 (optional):** SHA-pin `actions/*` in `.github/workflows/*.yml`.
 
+H1 in `docs/seo/SEO_AUDIT_2026-11-10.md` (HTTP 500) is a false alarm, already corrected at the top of that file. It is not a task.
+
+### SEO1. Worker-localize French `?lang=fr` for /start/, /docs/*, /guides/*, /reference/, /quebec-gold/ (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- Source: docs/seo/SEO_AUDIT_2026-11-10.md (H2)
+- **Spec:** In `wrangler.jsonc` `assets.run_worker_first`, keep the existing entries (including `/quebec-gold/cores` and `/quebec-gold/wow`) and add `/docs`, `/docs/*`, `/guides`, `/guides/*`, `/start`, `/start/`, `/reference`, `/reference/`, `/quebec-gold`, `/quebec-gold/`, `/quebec-gold/*`, `/status`, `/status/`. `worker/localized-assets.mjs` then rewrites those HTML pages for `?lang=fr` (no separate change there if every public HTML page already goes through it): `html lang`, visible copy, title, description, canonical and `og:url`. The FR URL's canonical and `og:url` are the FR URL (with `?lang=fr`). hreflang `en` / `fr` / `x-default` stay and still point at the two language URLs. Optional in the same change: also rewrite `<script type="application/ld+json">` language / `inLanguage` / description when a French block exists.
+- **Acceptance:** For each of `/start/?lang=fr`, `/docs/QUICK_START?lang=fr`, `/docs/PRIVACY?lang=fr`, `/guides/install/?lang=fr`, `/guides/link/?lang=fr`, `/quebec-gold/?lang=fr`, `/reference/?lang=fr`: HTTP 200, `Content-Language: fr`, `<html lang="fr">`; `<link rel="canonical">` and `og:url` are the FR URL (with `?lang=fr`); `<title>` and meta description are French (`data-content-fr` applied); `[data-language-copy="fr"]` is not `hidden` and `[data-language-copy="en"]` is `hidden`; hreflang en / fr / x-default still present and still pointing at the two language URLs; curl with the Googlebot UA matches the browser UA. English URLs (no `lang`, or `lang=en`) are unchanged.
+- **PR:** one PR, with a test.
+
+### SEO2. One canonical host: 301 www.kcaron.top to apex, and canonical tags so kcaron.top and guilded.kcaron.top don't duplicate each other (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- Source: docs/seo/SEO_AUDIT_2026-11-10.md (H3)
+- Kevin to confirm which host is primary for Guilded pages before merge; default proposal per audit.
+- **Spec:** In `worker/index.mjs` `route()`, early, before asset or bot handling. (1) `www.kcaron.top` → 301 `https://kcaron.top` plus pathname and search (`/` stays `/`). (2) On `guilded.kcaron.top`, `/creator`, `/creator/` and `/creator/index.html` → 301 `https://kcaron.top/` (keep `?lang=` if present). (3) On `kcaron.top` or `www.kcaron.top`, a Guilded product path (`/features`, `/start`, `/docs`, `/guides`, `/officers`, `/companion`, `/editions`, `/forever`, `/reference`, `/status`, `/quebec-gold`, `/g/`, and the rest of that set) → 301 the same path on `https://guilded.kcaron.top`. Keep serving `/`, `/robots.txt`, `/sitemap.xml`, `/support` and the Google verification file on kcaron.top. Canonical tags name that primary host so kcaron.top and guilded.kcaron.top do not both look indexable for the same page (apex for the creator homepage, `guilded.kcaron.top` for Guilded pages under the default proposal). (4) Rewrite `site/creator/index.html` so the creator homepage is clearly "K Caron Projects / Kevin Caron" (title, H1, description, JSON-LD `WebSite` / `Person`) and links to Guilded as a product. (5) `www.guilded.kcaron.top`: leave it unpublished, or add it in `wrangler.jsonc` and 301 it to `https://guilded.kcaron.top`. Do not leave it as a TLS error if it will be typed or linked.
+- **Acceptance:** `curl -sSI https://www.kcaron.top/` → 301 `Location: https://kcaron.top/`. `curl -sSI https://www.kcaron.top/?lang=fr` → 301 `https://kcaron.top/?lang=fr`. `curl -sSI https://guilded.kcaron.top/creator/` → 301 `https://kcaron.top/`. `curl -sSI https://kcaron.top/features/` → 301 `https://guilded.kcaron.top/features/`. `https://kcaron.top/` and `https://guilded.kcaron.top/` remain 200, with clearly different titles, H1s and descriptions. The kcaron.top sitemap still lists only `https://kcaron.top/` and `https://kcaron.top/?lang=fr`.
+- **PR:** one PR, with a test.
+
+### SEO3. Canonical + hreflang on bot-served public pages (leaderboards, recruitment, guild pages), stop Accept-Language switching when ?lang is absent for crawlers, drop the duplicate ?lang=en internal links (High, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- Source: docs/seo/SEO_AUDIT_2026-11-10.md (H4)
+- **Spec:** (1) `src/services/web-layout.ts` `layout()`, for indexable pages (`!input.noindex`): emit `<link rel="canonical" href="https://guilded.kcaron.top{canonicalPath}">`, `og:url` with the same value, hreflang `en` and `x-default` at the canonical EN URL, and hreflang `fr` at the same path with only `?lang=fr`. The canonical EN path is the section URL without `?lang=` and without filter params that should be noindexed (or one consistent minimal set). (2) `langFrom()`: public indexable routes (`/leaderboards`, `/recruitment`, `/players`, `/g/`) default to `"en"` when `?lang` is absent. Do not use `Accept-Language` to switch that HTML, including for crawlers. `Accept-Language` can remain for `/me/` and other `noindex` pages. (3) `link()` in `web-layout.ts` stops adding `?lang=en` on internal EN links. 301 `?lang=en` to the clean URL (strip `lang=en` only), in the Worker for GET on those paths, or in the bot with the existing redirect pass-through. (4) Filter query strings (season, dungeon, class, realm and the rest): either canonical to the unfiltered page and `noindex,follow` the filtered views, or canonicalize every filter back to the unfiltered page. Filtered URLs stay unindexed unless they have a self or parent canonical. (5) The same canonical, hreflang and `og:url` on `src/services/guild-page.ts` for published, indexable guild pages (canonical `https://guilded.kcaron.top/g/{slug}/`, FR `?lang=fr` when a French rendering exists). (6) `scripts/build-site.mjs`: add the FR bot section URLs (`/forever/leaderboards/?lang=fr`, guilds, recruitment, players) to the sitemap once those canonicals are self-referencing. Keep `/g/{slug}/` only in the bot sitemap (`src/services/guild-directory.ts`).
+- **Acceptance:** `curl -s https://guilded.kcaron.top/forever/leaderboards/` with no `lang` and `Accept-Language: fr` still returns English `html lang="en"` (or a 301/302 to `?lang=fr` — pick one rule and test it), with a self-canonical to `https://guilded.kcaron.top/forever/leaderboards/` and hreflang `fr` to `…?lang=fr`. `curl -s https://guilded.kcaron.top/forever/leaderboards/?lang=fr` returns French, canonical `…?lang=fr`, hreflang back to the clean EN URL. `curl -sSI https://guilded.kcaron.top/forever/leaderboards/?lang=en` → 301 to `/forever/leaderboards/`. `https://guilded.kcaron.top/g/quebec-gold/` has a self-canonical and is listed in `/recruitment/guilds/sitemap.xml`. `/me/` remains `noindex` and is not added to any sitemap. Internal links do not point at `?lang=en`.
+- **PR:** one PR, with a test.
+
+### SEO4. Redirect and sitemap hygiene: 301 instead of 302/307 (H5), sitemap lastmod and remove weak FR/query URLs (M1), disallow /me/, /auth/, /api/, /health in robots.txt (M2) (Medium-high, Approved by Kevin 10 Nov 2026)
+- **Owner:** Claude
+- Source: docs/seo/SEO_AUDIT_2026-11-10.md (H5, M1, M2)
+- **Spec:** H5, in `worker/index.mjs`, now that Forever is the only edition: 301 with a long `cache-control` for `/leaderboards`, `/recruitment`, `/players` (and `/guilds` under them) to `/forever/…`. Retired edition sections already 301; keep that. One hop only: `/forever/leaderboards` → `/forever/leaderboards/` directly, not through `?edition=forever`. Trailing-slash and `.html` cleanup (`wrangler.jsonc` `html_handling: "auto-trailing-slash"` is a 307 today): 301 those paths in the Worker before `ASSETS.fetch` (using the SEO1 `run_worker_first` routes), or document that Cloudflare Assets 307 cannot be changed and add explicit 301 rules for the public HTML routes. Leave a true temporary hold (a held PoE2 page while `POE_ENABLED` is false) as 302. M1, in `scripts/build-site.mjs` after SEO1 and SEO3: keep only sitemap URLs that return 200, self-canonicalize and match the hreflang pair. Add a real `lastmod` from the git commit date or the source file mtime (do not invent dates). Remove weak FR/query URLs that are not valid language alternates. Drop `/status/` from the sitemap, or mark it `noindex` if it should not rank. If PoE2 is held, redirect it and remove it from the sitemap; if it is public, add hreflang or leave it as a single-language URL with no fake EN alternate. The same `lastmod` rule applies to the kcaron.top sitemap the build writes over `site/creator/sitemap.xml`. M2, Guilded `robots.txt` from `scripts/build-site.mjs` (the Worker must not override it), and `X-Robots-Tag: noindex` on `/health` and `/api/*` JSON:
+
+```
+User-agent: *
+Allow: /
+Disallow: /me
+Disallow: /me/
+Disallow: /auth/
+Disallow: /api/
+Disallow: /health
+Disallow: /owner
+Disallow: /owner/
+Sitemap: https://guilded.kcaron.top/sitemap.xml
+Sitemap: https://guilded.kcaron.top/recruitment/guilds/sitemap.xml
+```
+
+kcaron.top robots can stay `Allow: /` once product paths 301 away (SEO2).
+- **Acceptance:** `curl -sSI https://guilded.kcaron.top/leaderboards/` → 301 `Location: /forever/leaderboards/` (or the absolute HTTPS equivalent), one hop. `curl -sSI https://guilded.kcaron.top/forever/leaderboards` → 301 `Location: /forever/leaderboards/`, one hop, no `?edition=`. `curl -sSI https://guilded.kcaron.top/start` → 301 (not 307) to `/start/`. `curl -sSI https://guilded.kcaron.top/docs/PRIVACY.html` → 301 to `/docs/PRIVACY`. Every `<loc>` in both sitemaps returns 200 (after one 301 at most), has a matching self-canonical, and is not `noindex`. `lastmod` is present and not in the future. `curl -s https://guilded.kcaron.top/robots.txt` contains those Disallows; `/me/` and `/health` are blocked and public pages stay allowed.
+- **PR:** one PR, with a test.
+
 ## In progress
 
 _Empty. Format: item id, PR link, who._

@@ -20,8 +20,8 @@ export function hashCompanionSecret(secret: string): string {
 // included). Shared by the immediate upload-time link (linkPairedCharacter,
 // its own transaction) and the apply-time safety net in addon-import.ts
 // (already inside its own transaction) so the two never drift apart.
-// confirm: the member's own signed-in companion (or an officer) brought it, so it is confirmed, not only
-// reported (Character.confirmedAt, the "reported, not verified" label in character-trust.ts).
+// confirm: the member's own signed-in companion (or an officer) brought it (Character.confirmedAt). For the
+// companion that is half of "confirmed": character-trust.ts also wants the guild roster or a guildmate's addon to agree.
 // evidence: what proves the link (character-move.ts); the member's own companion when confirm is set, else a name.
 // A character that was unlinked before comes back as the same row, with its history.
 export async function createSelfCharacter(tx: Tx, guildId: string, memberId: string, self: AddonCharacter, confirm = false, evidence: LinkEvidence = confirm ? "companion" : "named") {

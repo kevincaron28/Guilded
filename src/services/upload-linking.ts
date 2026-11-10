@@ -16,7 +16,8 @@ type Snapshot = { character?: AddonCharacter | null | undefined; alts: readonly 
 export async function linkUploaderCharacters(database: PrismaClient, guildId: string, memberId: string, snapshot: Snapshot) {
   const own = snapshot.character ? characterKey(snapshot.character.name, snapshot.character.realm, gameEditionOf(snapshot.character)) : null;
   // 9.0.8: a failed link (a timeout under load) never fails the upload: the next upload links again.
-  // The signed-in companion is this member's own: what it uploads is confirmed, not only reported.
+  // The signed-in companion is this member's own: confirmedAt records that. Since the linking audit (T8) that alone is
+  // not "confirmed": the guild roster or a guildmate's addon must agree (character-trust.ts decides when trust is read).
   const status = snapshot.character ? await linkPairedCharacter(database, guildId, memberId, snapshot.character, { confirm: true })
     .catch((error: unknown) => { console.error("Linking the uploader's character failed", error); return "link-retry" as const; }) : "missing-character" as const;
   for (const alt of snapshot.alts) {

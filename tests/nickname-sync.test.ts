@@ -122,12 +122,13 @@ describe("opt-out restores the previous nickname", () => {
 
 describe("nickname sync across a server with in-game guild scopes (Québec Gold)", () => {
   const makeDiscordMember = (id: string, over: Record<string, unknown> = {}) => ({ id, nickname: null, user: { bot: false, globalName: `User${id}`, username: `u${id}` }, manageable: true, setNickname: vi.fn().mockResolvedValue(undefined), ...over });
-  function setup(editions: { default: string | null; second: string | null }) {
+  function setup(editions: { default: string | null; second: string | null; roster?: boolean }) {
     const members = [makeDiscordMember("m1"), makeDiscordMember("m2", { manageable: false }), makeDiscordMember("m3", { nickname: "Three (Cara Dawn)" })];
     const cache = new Map(members.map((m) => [m.id, m]));
     const guild = { id: "d1", ownerId: "owner", members: { me: { permissions: { has: () => true } }, cache, fetch: vi.fn().mockResolvedValue(null) } };
     const rows: Record<string, { id: string; gameEdition: string | null }> = { g1: { id: "g1", gameEdition: editions.default }, g2: { id: "g2", gameEdition: editions.second } };
-    const characters = [{ name: "Aria Stone", displayName: null, isMain: true, gameEdition: "forever" }];
+    // Own companion (confirmedAt) and in the synced roster: a confirmed main.
+    const characters = [{ id: "c1", memberId: "mem", name: "Aria Stone", displayName: null, realm: "", isMain: true, gameEdition: "forever", confirmedAt: new Date(), linkEvidence: "companion" }];
     const prisma = {
       guild: {
         findMany: vi.fn().mockResolvedValue([{ id: "g1" }, { id: "g2" }]),
@@ -139,7 +140,9 @@ describe("nickname sync across a server with in-game guild scopes (Québec Gold)
         findMany: vi.fn(({ where }: { where: { guildId: string; characters: { some: { gameEdition: string } } } }) => Promise.resolve(where.guildId === "g1" && where.characters.some.gameEdition === "forever"
           ? ["m1", "m2", "m3", "gone"].map((discordUserId) => ({ discordUserId, characters: characters.filter((c) => c.gameEdition === where.characters.some.gameEdition) })) : []))
       },
-      memberNickname: { findMany: vi.fn().mockResolvedValue([]), upsert: vi.fn().mockResolvedValue({}) }
+      memberNickname: { findMany: vi.fn().mockResolvedValue([]), upsert: vi.fn().mockResolvedValue({}), findUnique: vi.fn().mockResolvedValue(null), update: vi.fn().mockResolvedValue({}) },
+      characterVerifyClaim: { findMany: vi.fn().mockResolvedValue([]) },
+      guildRosterEntry: { findMany: vi.fn().mockResolvedValue(editions.roster === false ? [] : [{ nameKey: "aria stone", gameEdition: "forever" }]) }
     };
     return { guild, prisma, members };
   }
@@ -154,6 +157,24 @@ describe("nickname sync across a server with in-game guild scopes (Québec Gold)
     // The empty second scope (synced last) no longer hides the first scope's work.
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatch(/eligible 4, planned 2, renamed 2, failed 0, skipped \(not manageable\) 1, not in server 1/);
+  });
+
+  it("renames nobody whose main is only reported, and gives back a nickname it set for that main", async () => {
+    const { syncAllNicknames } = await import("../src/services/nickname-sync.js");
+    // The member's own companion uploaded the main, but it is not in the synced guild roster and nobody heard a verify code.
+    const { guild, prisma, members } = setup({ default: "forever", second: "forever", roster: false });
+    members[0]!.nickname = "Userm1 (Aria Stone)" as never;
+    const record = { id: "n1", guildId: "g1", discordUserId: "m1", originalNickname: null, appliedNickname: "Userm1 (Aria Stone)", optedOut: false };
+    prisma.memberNickname.findMany.mockResolvedValue([record]);
+    prisma.memberNickname.findUnique.mockResolvedValue(record);
+    const lines: string[] = [];
+    await syncAllNicknames(prisma as never, [guild as never], () => undefined, (line) => lines.push(line));
+    // m1 gets their own name back; m3's nickname was typed by the member, so it is left alone.
+    expect(members[0]!.setNickname).toHaveBeenCalledTimes(1);
+    expect(members[0]!.setNickname).toHaveBeenCalledWith(null, "Guilded nickname sync: restored");
+    expect(members[2]!.setNickname).not.toHaveBeenCalled();
+    expect(prisma.memberNickname.upsert).not.toHaveBeenCalled();
+    expect(lines[0]).toMatch(/eligible 4, planned 0, renamed 0, .*main not confirmed 2, up to date 0; reason: nothing to change/);
   });
 
   it("still prints a line when a server has nothing eligible, with the reason", async () => {

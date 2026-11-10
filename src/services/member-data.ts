@@ -15,7 +15,7 @@ export function memberDataStore(database: PrismaClient, access: GuildDashboardAc
     const [devices, characters, signups, recapSchedules, battlegroundReports] = await Promise.all([
       prismaDeviceStore(database).list(account),
       database.character.findMany({ where: { member: { discordUserId: account.discordUserId, guildId: { in: ids } } },
-        select: { id: true, memberId: true, name: true, realm: true, gameEdition: true, isMain: true, confirmedAt: true, member: { select: { guildId: true } } }, take: 101, orderBy: { id: "asc" } }),
+        select: { id: true, memberId: true, name: true, realm: true, gameEdition: true, isMain: true, confirmedAt: true, linkEvidence: true, member: { select: { guildId: true } } }, take: 101, orderBy: { id: "asc" } }),
       database.raidSignup.findMany({ where: { member: { discordUserId: account.discordUserId, guildId: { in: ids } }, raid: { isTest: false, guildId: { in: ids } } },
         select: { status: true, role: true, signedUpAt: true, raid: { select: { title: true, scheduledAt: true, guildId: true } } },
         take: 101, orderBy: { signedUpAt: "desc" } }),

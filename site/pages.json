@@ -1,5 +1,16 @@
 [
   {
+    "source": "download.md",
+    "sourceFr": "download.fr.md",
+    "path": "download/",
+    "title": "Download Guilded — addon, companion and Discord bot",
+    "titleFr": "Télécharger Guilded — addon, compagnon et bot Discord",
+    "description": "Everything is free. Start with the WoW Forever addon, then add the Windows companion, the Discord bot or the Android preview only if you need them.",
+    "descriptionFr": "Tout est gratuit. Commencez par l’addon WoW Forever, puis ajoutez le compagnon Windows, le bot Discord ou l’aperçu Android seulement si vous en avez besoin.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "start.md",
     "sourceFr": "start.fr.md",
     "path": "start/",

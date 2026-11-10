@@ -292,11 +292,10 @@ function module.zoneMates()
   return list
 end
 
--- Invite buttons are secure buttons running "/invite First Last" (util.inviteButton): the party invite API is
--- refused to addon code on some clients. This runs after the click and only says what was sent.
+-- Invite buttons put "/invite First Last" in the chat box (util.inviteButton, which also says to press Enter):
+-- the party invite API is refused to addon code on WoW Forever. This runs after the click.
 function module.invited(name)
   if not name or name == "" then return false end
-  say(string.format(L("Sent /invite %s. The game's own message tells you if it did not work."), name))
   return true
 end
 

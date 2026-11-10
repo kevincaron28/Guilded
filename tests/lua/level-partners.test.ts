@@ -16,11 +16,12 @@ function setup(level = 30) {
     function InviteUnit(name) INVITES[#INVITES + 1] = name end
     IN_COMBAT = false
     function InCombatLockdown() return IN_COMBAT end
+    CHATBOX = {}
+    function ChatFrame_OpenChat(line) CHATBOX[#CHATBOX + 1] = line end
     local make = CreateFrame
     CreateFrame = function(kind, name, parent, template)
       local f = make(kind, name, parent, template)
-      f.template = template; f.attrs = {}
-      f.SetAttribute = function(self, k, v) self.attrs[k] = v end
+      f.template = template
       return f
     end
     function ChatFrame_SendTell(name) TELLS[#TELLS + 1] = name end
@@ -78,28 +79,49 @@ describe("levelling partners", () => {
     expect(s!.run(`return tostring(NS.levelPartners.refresh())`)).toBe("6");
   });
 
+  // The Invite buttons (frames with setInvite/inviteLine; the test frames answer any method, so rawget) and their lines.
+  const buttons = `local function buttons() local t = {} for _, f in ipairs(FRAMES) do if rawget(f, "inviteLine") then t[#t + 1] = f end end return t end `;
+  const lines = () => s!.run(buttons + `local t = {} for _, f in ipairs(buttons()) do local l = f.inviteLine() if l then t[#t + 1] = l end end table.sort(t) return table.concat(t, "|")`);
+  const click = (line: string) => s!.run(buttons + `for _, f in ipairs(buttons()) do if f.inviteLine() == "${line}" then f.scripts.OnClick(f) return end end error("no button for ${line}")`);
+
   it("whispers and invites only on a click", () => {
     setup();
     expect(msgs()).toBe("");
     expect(s!.run(`return tostring(NS.levelPartners.whisper("Bo-Realm"))`)).toBe("true");
     expect(s!.run(`return table.concat(TELLS, ",")`)).toBe("Bo-Realm");
+    expect(msgs()).toBe("");
+    // invited() only runs after the button's click: it prints and opens nothing by itself.
     expect(s!.run(`return tostring(NS.levelPartners.invited("Bo"))`)).toBe("true");
-    expect(msgs()).toContain("Sent /invite Bo.");
+    expect(msgs()).toBe("");
+    expect(s!.run(`return #CHATBOX`)).toBe("0");
+    s!.run(`NS.levelPartners.open()`);
+    click("/invite Bo");
+    expect(s!.run(`return #CHATBOX .. CHATBOX[1]`)).toBe("1/invite Bo");
+    expect(msgs()).toBe("/invite Bo is in your chat box: press Enter to send it.");
     expect(s!.run(`return table.concat(INVITES, ",")`)).toBe("");   // the invite API is never called from addon code
   });
 
-  it("makes every Invite button a secure /invite macro button, refreshed only out of combat", () => {
+  it("tells the player which line to type when the chat box cannot be opened", () => {
+    setup();
+    s!.run(`ChatFrame_OpenChat = nil; NS.levelPartners.open()`);
+    click("/invite Cy");
+    expect(msgs()).toBe("Type /invite Cy to invite them.");
+    expect(s!.run(`return table.concat(INVITES, ",")`)).toBe("");
+  });
+
+  it("makes every Invite button a plain /invite button that fills the chat box, rows refreshed after combat", () => {
     setup();
     s!.run(`NS.levelPartners.open()`);
-    const macros = () => s!.run(`local t = {} for _, f in ipairs(FRAMES) do if type(f.attrs) == "table" and f.attrs.macrotext and f.attrs.macrotext ~= "" then t[#t + 1] = f.attrs.macrotext end end table.sort(t) return table.concat(t, "|")`);
-    expect(macros()).toBe("/invite Ann|/invite Bo|/invite Cy|/invite Eve|/invite Gus|/invite Hal");
-    expect(s!.run(`local n = 0 for _, f in ipairs(FRAMES) do if type(f.attrs) == "table" and type(f.template) == "string" and f.template:find("SecureActionButtonTemplate") and f.attrs.type == "macro" then n = n + 1 end end return n`)).toBe("6");
+    expect(lines()).toBe("/invite Ann|/invite Bo|/invite Cy|/invite Eve|/invite Gus|/invite Hal");
+    expect(s!.run(buttons + `local n, bad = 0, 0 for _, f in ipairs(buttons()) do if f.inviteLine() then n = n + 1 if f.template ~= "UIPanelButtonTemplate" then bad = bad + 1 end end end return n .. ":" .. bad`)).toBe("6:0");
     s!.run(`IN_COMBAT = true; ROSTER[3][1] = "Zed-Realm"`);
     s!.run(`NS.levelPartners.refresh()`);
-    expect(macros()).toContain("/invite Bo");
+    expect(lines()).toContain("/invite Bo");
+    click("/invite Bo");   // plain buttons: a click in combat still fills the chat box
+    expect(s!.run(`return CHATBOX[#CHATBOX]`)).toBe("/invite Bo");
     s!.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
-    expect(macros()).toContain("/invite Zed");
-    expect(macros()).not.toContain("/invite Bo");
+    expect(lines()).toContain("/invite Zed");
+    expect(lines()).not.toContain("/invite Bo");
   });
 
   it("registers /guilded partners and translates", () => {

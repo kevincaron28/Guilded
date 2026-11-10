@@ -61,15 +61,15 @@ describe("protected calls only where the player's click runs them (taint)", () =
     ["sets the guild message of the day", /\b(?:GuildSetMOTD|C_GuildInfo\.SetMOTD)\b/],
     ["runs macro text from addon code", /\bRunMacroText\b/],
     // 9 November 2026: the guild invite API is forbidden to addon code on WoW Forever even from a click ("Guilded tried to
-    // call UNKNOWN()"). Every Invite button is a secure macro button (ns.util.inviteButton: "/ginvite First Last").
-    ["calls the guild invite API (use ns.util.inviteButton, a secure /ginvite macro button)", /\b(?:C_GuildInfo\.Invite|GuildInvite)\b/]
+    // call UNKNOWN()"). Every Invite button puts "/ginvite First Last" in the chat box (ns.util.inviteButton).
+    ["calls the guild invite API (use ns.util.inviteButton, which puts the /ginvite line in the chat box)", /\b(?:C_GuildInfo\.Invite|GuildInvite)\b/]
   ];
   it.each(never)("no file %s", (_label, pattern) => {
     expect(files.filter((file) => pattern.test(source(file))).map(rel)).toEqual([]);
   });
 
   const allowed: Array<[string, RegExp, string[]]> = [
-    // Party invites: the Invite buttons (call for help, levelling partners) are secure /invite macro buttons now.
+    // Party invites: the Invite buttons (call for help, levelling partners) put the /invite line in the chat box (ns.util.inviteButton).
     ["party invites", /\bInviteUnit\b/, [
       "addon/Guilded/Modules/AutoInvite.lua"    // /guilded invite raid, typed by the officer
     ]],
@@ -77,14 +77,17 @@ describe("protected calls only where the player's click runs them (taint)", () =
       "addon/Guilded/Modules/RosterTools.lua"   // roster admin, confirmed per click; refusals remembered per build
     ]],
     ["opening the chat box", /\bChatFrame_(?:SendTell|OpenChat|ReplyTell)\b/, [
-      "addon/Guilded/Modules/LevelPartners.lua" // Whisper button
+      "addon/Guilded/Modules/LevelPartners.lua", // Whisper button
+      // Invite buttons put the /ginvite or /invite line in the chat box
+      "addon/Guilded/Util.lua",
+      "addon/GuildedDungeons/Shared/Util.lua"   // generated copy of Util.lua
     ]]
   ];
   it.each(allowed)("%s only from the click-driven files", (_label, pattern, files_) => {
     expect(files.filter((file) => pattern.test(source(file))).map(rel).sort()).toEqual([...files_].sort());
   });
 
-  it("every guild or party Invite button is a secure macro button from ns.util.inviteButton", () => {
+  it("every guild or party Invite button is a plain button from ns.util.inviteButton that fills the chat box", () => {
     const buttons: Array<[string, string]> = [
       ["addon/Guilded/Modules/InviteQueue.lua", '"guild"'],
       ["addon/Guilded/Modules/CallForHelp.lua", '"party"'],
@@ -94,10 +97,21 @@ describe("protected calls only where the player's click runs them (taint)", () =
       expect(source(file), file).toContain("ns.util.inviteButton(");
       expect(source(file), file).toContain(kind);
     }
+    // SyncNow.lua legitimately keeps a secure /reload macro button, so the checks are scoped to Util.lua's inviteButton.
     const util = source("addon/Guilded/Util.lua");
-    expect(util).toContain('"SecureActionButtonTemplate,UIPanelButtonTemplate"');
-    expect(util).toContain('SetAttribute("type", "macro")');
     expect(util).toContain('"/ginvite "');
+    expect(util).toContain('"/invite "');
+    const start = util.indexOf("function util.inviteButton(");
+    expect(start).toBeGreaterThan(-1);
+    const end = util.slice(start).search(/\r?\nend\r?\n/);
+    expect(end).toBeGreaterThan(-1);
+    const invite = util.slice(start, start + end);
+    expect(invite).toContain('"UIPanelButtonTemplate"');
+    expect(invite).toContain("util.openChatLine(");
+    expect(invite).not.toContain("SecureActionButtonTemplate");
+    expect(invite).not.toContain('SetAttribute("macrotext"');
+    expect(invite).not.toContain('SetAttribute("type"');
+    expect(util).not.toMatch(/SetAttribute\("macrotext"/);
   });
 
   it("the auto-invite whisper handler hands out /ginvite instead of inviting", () => {

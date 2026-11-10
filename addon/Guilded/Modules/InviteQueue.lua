@@ -46,21 +46,21 @@ function module.list()
   return out
 end
 
--- The invite itself is a secure button running "/ginvite First Last" (util.inviteButton): the guild invite API is refused to
--- addon code on WoW Forever, even from a click. This only validates the name and remembers that the click happened.
+-- The Invite button puts "/ginvite First Last" in the chat box (util.inviteButton) and the officer presses Enter: the
+-- guild invite API and macro buttons are both refused on WoW Forever. This only checks the officer's rank.
 function module.canInvite()
   if not officer() then return false, L("Current officer access is required.") end
   if CanGuildInvite and not CanGuildInvite() then return false, L("Your rank cannot invite to the guild.") end
   return true
 end
 
--- Called after the secure button's click (the macro has run). The chat line says what was sent, not that it worked:
--- the game prints its own error when the name is wrong.
+-- Called after the Invite button's click (the line is in the chat box, not sent yet). Remembers the click so the row
+-- shows "(invited)"; the game prints its own error when the name is wrong. util.inviteButton says what to do in chat.
 function module.markInvited(name)
   if type(name) ~= "string" or name == "" or name:find("%c") then return false, L("Unknown or ambiguous character.") end
   local d = db()
   if d then d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}; d.inviteSent[key(name)] = nowSeconds() end
-  return true, string.format(L("Sent /ginvite %s. The game's own message tells you if it did not work."), name)
+  return true, string.format(L("%s is in your chat box: press Enter to send it."), "/ginvite " .. name)
 end
 
 function module.text()
@@ -88,7 +88,7 @@ local function refreshNow()
   window.more:SetText(list and #list > MAX_ROWS and string.format(L("+%d more"), #list - MAX_ROWS) or "")
 end
 
--- Rows, labels and macros change together and only out of combat (secure buttons cannot be touched in combat).
+-- Rows and labels change together, out of combat (kept from the secure-button days; plain buttons would allow more).
 function module.refresh()
   if not window then return end
   if ns.util and ns.util.afterCombat then ns.util.afterCombat("inviteQueue.refresh", refreshNow, true) else refreshNow() end
@@ -98,7 +98,7 @@ local build
 function module.open()
   if not officer() then if ns.message then ns.message(L("Current officer access is required.")) end; return end
   if window then window:Show(); module.refresh(); return end
-  -- Secure buttons cannot be created in combat: build the window afterwards.
+  -- Opened in combat, the window is built afterwards.
   if ns.util and ns.util.afterCombat then ns.util.afterCombat("inviteQueue.open", function() build() end) else build() end
 end
 
@@ -124,7 +124,6 @@ function build()
       local ok, message = module.markInvited(name)
       module.refresh()
       f.status:SetText(message or "")
-      if ok and ns.message then ns.message(message) end
     end)
     button:SetPoint("TOPLEFT", 310, y)
     rows[i] = { label = label, button = button }

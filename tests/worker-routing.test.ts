@@ -247,8 +247,12 @@ describe("unified website and companion", () => {
       expect(response.headers.get("location")).toBe("/g/quebec-gold/");
     }
     const asset = vi.fn(async () => new Response("community"));
-    await worker.fetch(new Request("https://guilded.kcaron.top/quebec-gold/poe2/"), { ASSETS: { fetch: asset } });
-    expect(asset).toHaveBeenCalledTimes(1);
+    for (const path of ["/quebec-gold/poe2/", "/quebec-gold/poe2", "/quebec-gold/diablo/?lang=fr"]) {
+      const response = await worker.fetch(new Request(`https://guilded.kcaron.top${path}`), { ASSETS: { fetch: asset } });
+      expect(response.status, path).toBe(301);
+      expect(response.headers.get("location"), path).toBe(`/quebec-gold/${path.includes("lang=fr") ? "?lang=fr" : ""}`);
+    }
+    expect(asset).not.toHaveBeenCalled();
     expect(upstream).not.toHaveBeenCalled();
   });
 });

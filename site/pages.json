@@ -70,19 +70,10 @@
     "community": true,
     "path": "quebec-gold/",
     "title": "Quebec Gold — French-speaking WoW community",
-    "titleFr": "Quebec Gold — communauté francophone WoW et PoE2",
+    "titleFr": "Quebec Gold — communauté francophone WoW",
     "description": "Quebec Gold: a French-speaking WoW Forever guild on Montréal time. Meet the community, see how to join and what members get with Guilded.",
-    "descriptionFr": "Quebec Gold : WoW Forever et Path of Exile 2, en français à l'heure de Montréal. Découvrez la communauté et rejoignez notre Discord.",
+    "descriptionFr": "Quebec Gold : WoW Forever, en français à l'heure de Montréal. Découvrez la communauté et rejoignez notre Discord.",
     "lang": "en",
-    "draft": false
-  },
-  {
-    "source": "poe2.md",
-    "requiresGame": "poe2",
-    "path": "quebec-gold/poe2/",
-    "title": "Quebec Gold — communauté francophone Path of Exile 2",
-    "description": "Retrouvez Quebec Gold sur Path of Exile 2 à chaque nouvelle ligue : communauté francophone, heure de Montréal et contact Discord.",
-    "lang": "fr",
     "draft": false
   },
   {

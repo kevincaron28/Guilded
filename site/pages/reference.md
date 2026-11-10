@@ -8,6 +8,17 @@ admin. Discord hides officer commands from members. New here? [Start here](/star
 
 **Jump to:** [Discord bot](#discord-bot) · [WoW addon](#wow-addon) · [Windows companion](#windows-companion)
 
+<div class="ref-tools" data-ref-tools>
+<label>Search <input type="search" data-ref-search placeholder="Command" aria-label="Search commands"></label>
+<div class="ref-chips">
+<button type="button" data-role="" aria-pressed="true">All</button>
+<button type="button" data-role="Everyone">Everyone</button>
+<button type="button" data-role="Officer">Officers</button>
+<button type="button" data-role="Raid Leader">Raid leaders</button>
+<button type="button" data-role="Admin">Admin</button>
+</div>
+</div>
+
 ## Discord bot
 
 Type `/` in Discord and pick the command. Each row is one command; the words after it are its

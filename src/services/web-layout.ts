@@ -68,8 +68,12 @@ export function layout(input: LayoutInput): string {
   const here = link(input.path, input.lang, input.languageParams);
   const languages = input.lang === "fr" ? { en: link(input.path, other, input.languageParams), fr: here } : { en: here, fr: link(input.path, other, input.languageParams) };
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));
+  const bare = (input.path.split("?")[0] || "/");
+  const canonicalPath = bare.endsWith("/") ? bare : `${bare}/`;
+  const canonical = `https://guilded.kcaron.top${canonicalPath}`;
+  const alternates = input.noindex ? "" : `<link rel="canonical" href="${input.lang === "fr" ? `${canonical}?lang=fr` : canonical}"><link rel="alternate" hreflang="en" href="${canonical}"><link rel="alternate" hreflang="fr" href="${canonical}?lang=fr"><link rel="alternate" hreflang="x-default" href="${canonical}"><meta property="og:url" content="${input.lang === "fr" ? `${canonical}?lang=fr` : canonical}">`;
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
-    + `<title>${escapeHtml(input.title)} · Guilded</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : ""}`
+    + `<title>${escapeHtml(input.title)} · Guilded</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : alternates}`
     // Link previews (Discord, social sites): a pasted page shows its title, summary and the logo.
     + `<meta property="og:site_name" content="Guilded"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(input.title)}">`
     // Score cards and the website's own card (the default) are both 1200 × 630 PNGs.

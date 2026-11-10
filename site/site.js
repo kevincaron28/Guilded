@@ -122,7 +122,8 @@ if (live) {
   fetch(`${live.dataset.liveSummary || '/leaderboards/summary.json'}?lang=${document.documentElement.lang === 'fr' ? 'fr' : 'en'}`, { headers: { accept: 'application/json' } })
     .then(response => response.ok ? response.json() : null)
     .then(data => {
-      if (!data || typeof data.ratedRunsThisWeek !== 'number') return;
+      if (!data || typeof data.ratedRunsThisWeek !== 'number' || data.ratedRunsThisWeek <= 0) return;
+      live.hidden = false;
       live.querySelector('[data-live="runs"]').textContent = String(data.ratedRunsThisWeek);
       live.querySelector('[data-live="guilds"]').textContent = String(Number(data.guilds) || 0);
       const runs = Array.isArray(data.topRuns) ? data.topRuns.slice(0, 3) : [];

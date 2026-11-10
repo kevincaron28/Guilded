@@ -147,6 +147,16 @@ export function localizedHref(href, lang) {
   }
   if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?(?:features|officers|start|download|reference|guide|community)\/|(?:.*\/)?editions\/(?:[a-z-]+\/)?|\/companion\/|\/(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:leaderboards|recruitment|players)(?:\/.*)?|\/me(?:\/.*)?|(?:.*\/)?(?:forever|classic-era|tbc|mists|retail)\/)$/.test(path)) return href;
   const query = new URLSearchParams(search);
+  // Absolute marketing pages use /fr/<same path>. Relative links, data pages and the companion
+  // stay on ?lang= so a link still works from any directory and the Worker can route it.
+  const bare = path.startsWith("/") ? (path.replace(/^\/fr(?=\/|$)/, "") || "/") : "";
+  const folder = bare === "/" || /^\/(?:features|officers|start|download|reference|community)\//.test(bare) || /^\/guide(?:\/|$)/.test(bare) || /^\/editions(?:\/|$)/.test(bare) ? bare : null;
+  if (folder) {
+    query.delete("lang");
+    const rest = query.toString();
+    const dest = lang === "fr" ? (folder === "/" ? "/fr/" : `/fr${folder}`) : folder;
+    return `${dest}${rest ? `?${rest}` : ""}${hash ? `#${hash}` : ""}`;
+  }
   query.set("lang", lang);
   return `${path}?${query}${hash ? `#${hash}` : ""}`;
 }

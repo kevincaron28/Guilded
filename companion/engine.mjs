@@ -96,14 +96,50 @@ function pairingResult(config, body) {
 // The hosted bot, used when no address was entered: Discord sign-in needs no other setting.
 export const HOSTED_UPLOAD_URL = "https://guilded.kcaron.top/api/v1/addon-imports";
 
+/** The in-game guild of the newest saved file the companion watches (best effort, never throws). */
+export async function savedGuildKey(config) {
+  try {
+    if (!config?.watchFile) return "";
+    const full = config.watchFile.toLowerCase().endsWith(".lua")
+      ? await readAddonExport(config.watchFile, config.realm)
+      : JSON.parse(await readSavedText(config.watchFile));
+    return typeof full?.wowGuild === "string" ? full.wowGuild.trim().slice(0, 120) : "";
+  } catch { return ""; }
+}
+
+/**
+ * "Remove this server" (T1): the bot revokes this exact credential (POST /api/v1/companion/leave; older bots only know
+ * /logout, same effect). Revoke only: the characters and data stay in that server. The caller then drops the saved profile.
+ */
+export async function leaveServer(config) {
+  if (!config?.companionCredential) return { ok: false, message: "This server was not connected with a Discord sign-in." };
+  const uploadUrl = config.uploadUrl?.trim() || HOSTED_UPLOAD_URL;
+  try {
+    for (const path of ["/api/v1/companion/leave", "/api/v1/companion/logout"]) {
+      const { response, body } = await requestJson(checkUrl(new URL(path, uploadUrl)), {
+        method: "POST", headers: { ...credentialHeaders(config), "content-type": "application/json" }, body: JSON.stringify({ guildDiscordId: config.guildDiscordId || "" })
+      }, undefined, 10_000);
+      if (response.ok) return { ok: true };
+      // 404 = a bot or proxy that does not know /leave yet: try /logout. 400/401: already revoked or unknown credential.
+      if (response.status === 404 && path.endsWith("/leave")) continue;
+      return { ok: false, message: describeApiError(response.status, body.error), status: response.status };
+    }
+    return { ok: false, message: "The bot did not answer." };
+  } catch (error) {
+    return { ok: false, message: describeError(error) };
+  }
+}
+
 // "Sign in with Discord" (7.2): ask for a sign-in request, then open `url` in a browser.
 // loopback: the Windows app's 127.0.0.1 port. The page then sends the browser back there with a
 // proof instead of asking for the code (src/services/companion-signin.ts); pass it to waitForSignIn.
-export async function startSignIn(config, { loopback } = {}) {
+export async function startSignIn(config, { loopback, guild } = {}) {
   const uploadUrl = config.uploadUrl?.trim() || HOSTED_UPLOAD_URL;
   try {
+    // T1: the saved file's in-game guild: the sign-in page lists the servers that know it first.
+    const guildKey = typeof guild === "string" && guild.trim() ? guild.trim() : await savedGuildKey(config);
     // A zero-setup companion sends its device key: the page then puts the server it syncs to first.
-    const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in", uploadUrl), { method: "POST", headers: { "content-type": "application/json", ...(hasDeviceKey(config) ? deviceHeaders(config) : {}) }, body: JSON.stringify(loopback ? { loopback } : {}) }, undefined, 10_000);
+    const { response, body } = await requestJson(new URL("/api/v1/companion/sign-in", uploadUrl), { method: "POST", headers: { "content-type": "application/json", ...(hasDeviceKey(config) ? deviceHeaders(config) : {}) }, body: JSON.stringify({ ...(loopback ? { loopback } : {}), ...(guildKey ? { guild: guildKey } : {}) }) }, undefined, 10_000);
     if (response.status === 404) return { ok: false, message: "This bot does not offer Discord sign-in yet. Use a pairing code instead." };
     if (!response.ok) return { ok: false, message: describeApiError(response.status, body.error) };
     if (typeof body.requestId !== "string" || typeof body.url !== "string" || typeof body.confirm !== "string") return { ok: false, message: "The bot's sign-in answer was incomplete." };
@@ -486,6 +522,15 @@ export function createEngine(initialConfig, hooks = {}) {
         ? `This character's guild${full.wowGuild ? ` (${full.wowGuild})` : ""} isn't set up in ${current.profileName || current.wowGuildName || body.serverWowGuild.name || "this server"}. If this is the wrong server, remove it on the Server page.`
         : null;
       if (state.guildWarning) log("warn", state.guildWarning);
+    }
+    // T1: the bot linked and imported nothing because this server does not know the saved file's guild.
+    if (response.ok && body.skipped === "wrong-server") {
+      state.lastUpload = { at: new Date().toISOString(), message: state.guildWarning ?? "Nothing was uploaded: this server does not know the saved file's guild." };
+      state.syncPhase = "needs-attention";
+      state.uploadError = null;
+      failures = 0;
+      state.pendingUpload = false;
+      return;
     }
     if (response.ok || response.status === 409 && body.importId) {
       Object.assign(state.syncEvidence, { uploadedAt, uploadedRevision: revision });

@@ -359,6 +359,11 @@ export function createSiteApp(client?: Client) {
     signIn: companionSignIn,
     servers: (discordUserId) => signInServers(client, discordUserId),
     issueGuild: (account, guildDiscordId, wowGuildId, deviceName) => signInGuildCredential(client, account, guildDiscordId, wowGuildId, deviceName),
+    knowsGuild: async (server, guildKey) => {
+      if (!server.wowGuildId) return false;
+      const row = await prisma.guild.findUnique({ where: { id: server.wowGuildId }, select: { id: true, name: true } });
+      return row ? (await serverKnowsWowGuild(prisma, row, guildKey))?.known === true : false;
+    },
     issuePersonal: async (accountId, deviceName) => (await issuePersonalCredential(personalStore, accountId, deviceName)).companionCredential
   });
   const badges = createWebCommunityBadges(prisma, client, id => hostedPilot.allows(id));
@@ -711,7 +716,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isMapEdit = request.method === "POST" && url.pathname === "/api/v1/companion/guild-map";
       const isPoeStatus = request.method === "GET" && url.pathname === "/api/v1/poe/status";
       const isPoeRecent = request.method === "GET" && url.pathname === "/api/v1/poe/visits";
-      const isLogout = request.method === "POST" && url.pathname === "/api/v1/companion/logout";
+      // /leave (9.1.4, "Remove this server"): the same revoke of the calling credential only; /logout stays for older companions.
+      const isLogout = request.method === "POST" && (url.pathname === "/api/v1/companion/logout" || url.pathname === "/api/v1/companion/leave");
       const isDeleteData = request.method === "POST" && url.pathname === "/api/v1/companion/delete-my-data";
       const isSignInStart = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in";
       const isSignInPoll = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in/poll";
@@ -789,10 +795,10 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!auth) { json(response, 503, { error: "Sign-in with Discord is not set up on this bot. Use a pairing code instead." }); return; }
         if (!allowSignInStart(address)) { json(response, 429, { error: "Too many sign-in attempts. Try again later." }); return; }
         // The Windows app's 127.0.0.1 port (8.1): approval then needs no typed code (companion-signin.ts).
-        const startPayload = await readBody(request).catch(() => null) as { loopback?: unknown } | null;
+        const startPayload = await readBody(request).catch(() => null) as { loopback?: unknown; guild?: unknown } | null;
         // A zero-setup companion sends its device key: the page then puts the server it syncs to first.
         const signInDevice = await deviceFor(prismaInstallStore(prisma), deviceHeader(request)).catch(() => null);
-        const started = companionSignIn.start({ loopback: startPayload?.loopback, prefer: signInDevice?.guildId ?? null });
+        const started = companionSignIn.start({ loopback: startPayload?.loopback, prefer: signInDevice?.guildId ?? null, guildKey: (startPayload as { guild?: unknown } | null)?.guild });
         if (!started) { json(response, 503, { error: "Too many sign-ins in progress. Try again in a few minutes." }); return; }
         const page = new URL("/me/companion", auth.siteUrl);
         page.searchParams.set("request", started.requestId);
@@ -1177,6 +1183,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const pairedMemberId = access.memberId;
       const createdBy = access.actorId;
       let preview = await importService.preview(guild.id, requestPayload.export, createdBy);
+      // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.
+      // Officers stay exempt (their server may not list every guild an alt is in). The companion shows the warning.
+      const guildCheck = await serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild).catch(() => undefined);
+      if (guildCheck?.known === false && !access.officer) {
+        json(response, 200, { skipped: "wrong-server", serverWowGuild: guildCheck, status: "SKIPPED", pairedCharacterStatus: "wrong-server", checksum: preview.checksum, scope: "personal", botVersion: BOT_VERSION, protocolVersion: 2 });
+        return;
+      }
       const uploadStartedAt = new Date();
       const linkedBefore = pairedMemberId ? await linkedCharacterCount(prisma, pairedMemberId) : 0;
       const pairedCharacterStatus = pairedMemberId
@@ -1367,7 +1380,6 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
       }
       // 9.0.9: does this server know the uploading character's WoW guild? The companion warns about a wrong connection.
-      const guildCheck = await serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild).catch(() => undefined);
       json(response, 201, {
         ...(guildCheck ? { serverWowGuild: guildCheck } : {}),
         autoApplied,

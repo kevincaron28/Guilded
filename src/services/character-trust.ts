@@ -3,8 +3,10 @@ import { characterKey } from "../../companion/character-identity.mjs";
 
 // "Reported, not verified" (docs/JEEVES_COMPARISON.md idea 1). WoW Forever has no Blizzard API, so
 // every character comes from a client. Some sources prove the character is the member's, others only
-// say so. Shown next to each character on /me/data, /character list, /who and /officer roster gaps;
-// nickname sync only uses a confirmed main (nickname-sync.ts).
+// say so. Shown as a small label next to each character on /me/data, /character list, /who and /officer roster gaps.
+// Owner decision, 10 November 2026: "reported" counts the same as "confirmed" everywhere except in a conflict between
+// two members (character-move.ts, where the linkEvidence order decides). Trust is information, never a restriction:
+// nickname sync, cards and lists do not look at it.
 //
 // Linking audit T8 (owner decision, 10 November 2026). Confirmed when:
 //   * the member's own signed-in companion uploaded it (Character.confirmedAt) AND something outside

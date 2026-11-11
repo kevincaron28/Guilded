@@ -159,38 +159,20 @@ describe("nickname sync across a server with in-game guild scopes (Québec Gold)
     expect(lines[0]).toMatch(/eligible 4, planned 2, renamed 2, failed 0, skipped \(not manageable\) 1, not in server 1/);
   });
 
-  it("renames a main the member's own companion linked even when the roster does not confirm it (new row: reported, still renamed)", async () => {
+  it("renames any linked main, reported or confirmed, however it was linked", async () => {
     const { syncAllNicknames } = await import("../src/services/nickname-sync.js");
-    const { guild, prisma, members } = setup({ default: "forever", second: "forever", roster: false });
-    await syncAllNicknames(prisma as never, [guild as never], () => undefined, () => undefined);
-    expect(members[0]!.setNickname).toHaveBeenCalledWith("Userm1 (Aria Stone)", expect.any(String));
-  });
-
-  it("renames a main linked before the strict rule or by an officer", async () => {
-    const { syncAllNicknames } = await import("../src/services/nickname-sync.js");
-    for (const main of [{ confirmedAt: new Date("2026-11-09T12:00:00Z") }, { confirmedAt: null, linkEvidence: "officer" }]) {
+    for (const main of [
+      { confirmedAt: new Date("2026-11-11T12:00:00Z") }, // own companion, not in the roster: reported by the strict rule
+      { confirmedAt: new Date("2026-11-09T12:00:00Z") }, // linked before the strict rule
+      { confirmedAt: null, linkEvidence: "officer" },
+      { confirmedAt: null, linkEvidence: "named" } // name match, claim or invite request
+    ]) {
       const { guild, prisma, members } = setup({ default: "forever", second: "forever", roster: false, main });
-      await syncAllNicknames(prisma as never, [guild as never], () => undefined, () => undefined);
+      const lines: string[] = [];
+      await syncAllNicknames(prisma as never, [guild as never], () => undefined, (line) => lines.push(line));
       expect(members[0]!.setNickname).toHaveBeenCalledWith("Userm1 (Aria Stone)", expect.any(String));
+      expect(lines[0]).not.toContain("not confirmed");
     }
-  });
-
-  it("renames nobody whose main only a name match, claim or invite linked, and gives back a nickname it set for that main", async () => {
-    const { syncAllNicknames } = await import("../src/services/nickname-sync.js");
-    // No confirmedAt: matched by name, claimed or named in an invite request.
-    const { guild, prisma, members } = setup({ default: "forever", second: "forever", roster: false, main: { confirmedAt: null, linkEvidence: "named" } });
-    members[0]!.nickname = "Userm1 (Aria Stone)" as never;
-    const record = { id: "n1", guildId: "g1", discordUserId: "m1", originalNickname: null, appliedNickname: "Userm1 (Aria Stone)", optedOut: false };
-    prisma.memberNickname.findMany.mockResolvedValue([record]);
-    prisma.memberNickname.findUnique.mockResolvedValue(record);
-    const lines: string[] = [];
-    await syncAllNicknames(prisma as never, [guild as never], () => undefined, (line) => lines.push(line));
-    // m1 gets their own name back; m3's nickname was typed by the member, so it is left alone.
-    expect(members[0]!.setNickname).toHaveBeenCalledTimes(1);
-    expect(members[0]!.setNickname).toHaveBeenCalledWith(null, "Guilded nickname sync: restored");
-    expect(members[2]!.setNickname).not.toHaveBeenCalled();
-    expect(prisma.memberNickname.upsert).not.toHaveBeenCalled();
-    expect(lines[0]).toMatch(/eligible 4, planned 0, renamed 0, .*main not confirmed 2, up to date 0; reason: nothing to change/);
   });
 
   it("still prints a line when a server has nothing eligible, with the reason", async () => {

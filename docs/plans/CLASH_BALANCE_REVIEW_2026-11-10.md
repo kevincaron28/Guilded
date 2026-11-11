@@ -294,3 +294,40 @@ short of a clock guarantees "never more than 5 minutes".
 - No phone or real-client play of the new rules: the app reads Health, rounds and text from the server, and its generated card
   file is regenerated. Nothing in the app hard-codes 20 Health (checked).
 - Card win rates come from AI-vs-AI play and are about ±3 points at these sample sizes.
+
+## 10. Owner answers and follow-up (10 November 2026, second PR)
+
+Answers: Q1 = A (match clock, 2:30 per player, a 5:00 total decided on Health lost), Q2 = A (ranked live), Q3 = A (missed turn
+auto-ends, three in a row forfeit), Q4 = A (no Warrior nerf; wait for Play data), Q5 = give Shaman a Gear (the AI two-move search
+is not now).
+
+Built, in this order:
+
+1. **Q3 Missed clocks.** New server-only engine moves: `timeout` plays the safe default for whoever must act (keep the opening
+   hand, take the first Loot option, or end the turn); the third in a row (`MAX_TIMEOUTS`) forfeits with reason `timeout`, and
+   any real move resets the count (`PlayerState.timeouts`). Duels and matches against the AI settle every overdue clock on the
+   next read, each from the deadline of the one before. Before this, one missed clock forfeited the match.
+2. **Q1 Match clock.** `TcgDuel.clockA` / `clockB` (migration `20270131000000_tcg_duel_clocks`): 150,000 ms each for live
+   duels, charged to the seat that must act. The turn deadline is the sooner of the 60 s turn clock and the clock left; an empty
+   clock plays `timeUp`, which ends the match on Health lost (reason `time`). The phone shows both clocks as m:ss on live
+   matches (EN + FR).
+3. **Q2 Ranked live.** Ranked pairings start live: 60 s turns and both 2:30 clocks.
+4. **Q5 Shaman Gear.** Battered Shield (131) moves from Warrior to Shaman and Stone Golem (119) from Shaman to Warrior, so each
+   class keeps three moved neutrals and Warrior is not weakened (Q4). Boss 1's deck uses Stone Golem instead. Card text is
+   unchanged; no saved decks exist (matches use starter decks).
+
+Simulated, `--games 20 --hard 2 --seed 41` (1,440 + 144 games), live-PvP time model:
+
+| | Before (main after #718) | After (clock on) |
+| --- | --- | --- |
+| Two people live: median / p95 / max | 4:17 / 5:42 / 7:32 | **4:11 / 4:52 / 5:00** |
+| Over 5 minutes | 19.7% | **0%** |
+| Hard AI pace: p95 / max | 6:30 / 7:22 | 4:58 / 5:00 |
+| Matches ended by the clock | - | 33.5% (65% at the hard AI's pace) |
+| First player | 50.2% | 49.6% |
+
+The clock decides about one live match in three at this model's pace: on Health lost, as chosen. If Play data shows real players
+are faster than the model (about 18 to 20 s a turn), that share drops; if it stays high, 3:00 per player is the next lever.
+
+Shaman Gear (same seed, before vs after the swap): Emberbrand Adept is played in 31% of the games where it is in the deck (was
+17%); Shaman 55.9% → 55.6%, Warrior 54.7% → 53.4% (both inside noise).

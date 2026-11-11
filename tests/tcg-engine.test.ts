@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CARDS_SET1, starterDeck } from "../src/services/tcg-cards-set1.js";
 import { CLASS_KEYS, type Action, type ClassKey, type MatchState } from "../src/services/tcg-engine-types.js";
-import { apply, applyMut, attackTargets, costOf, createMatch, DRAW_ROUND, EXHAUSTION_ROUND, SECOND_WIND_HEALTH, START_HEALTH, withRules, legalActions, powerCost, replay, spawn, stateHash, atkOf, hpOf } from "../src/services/tcg-engine.js";
+import { apply, applyMut, attackTargets, costOf, createMatch, DRAW_ROUND, EXHAUSTION_ROUND, MAX_TIMEOUTS, SECOND_WIND_HEALTH, START_HEALTH, withRules, legalActions, powerCost, replay, spawn, stateHash, atkOf, hpOf } from "../src/services/tcg-engine.js";
 
 const deck = (cls: ClassKey) => ({ cls, cards: starterDeck(cls) });
 
@@ -538,6 +538,47 @@ describe("balance review fixes (10 November 2026)", () => {
     expect(s.players[1].board).toHaveLength(0);
     for (const u of s.players[0].board) expect(u.dmg, `${u.card} was hit by a dispelled Last Stand`).toBe(0);
     expect(s.players[0].board.some(u => u.uid === mine.uid)).toBe(true);
+  });
+});
+
+describe("missed clocks (owner, 10 November 2026)", () => {
+  it("keeps the opening hand when the mulligan clock runs out, and takes the first Loot option", () => {
+    let s = createMatch(3, deck("warrior"), deck("mage"));
+    const first = s.first;
+    const hand = [...s.players[first].hand];
+    s = act(s, { t: "timeout" });
+    expect(s.players[first].hand).toEqual(hand);
+    expect(s.players[first].timeouts).toBe(1);
+    const t = game("rogue", "warrior");
+    t.pending.push({ kind: "loot", p: 0, options: ["001", "009", "003"] });
+    const after = act(t, { t: "timeout" });
+    expect(after.players[0].hand).toContain("001");
+    expect(after.pending).toHaveLength(0);
+  });
+  it("ends the turn on a missed clock, forgives it after a real move, and forfeits on the third miss in a row", () => {
+    let s = game();
+    s = act(s, { t: "timeout" });
+    expect(s.active).toBe(1);
+    expect(s.players[0].timeouts).toBe(1);
+    s = act(s, { t: "end" });
+    s = act(s, { t: "end" });
+    expect(s.players[0].timeouts).toBe(0);
+    s = act(s, { t: "end" });
+    for (let i = 0; i < MAX_TIMEOUTS - 1; i++) { s = act(s, { t: "timeout" }); s = act(s, { t: "end" }); }
+    expect(s.phase).toBe("main");
+    s = act(s, { t: "timeout" });
+    expect(s.phase === "over" && s.winner === 1 && s.reason === "timeout").toBe(true);
+  });
+  it("never offers the server-only moves, and ends on Health lost when the match clock runs out", () => {
+    const s = game();
+    expect(legalActions(s).some(a => a.t === "timeout" || a.t === "timeUp")).toBe(false);
+    s.players[0].hp = START_HEALTH - 4;
+    s.players[0].armor = 2;
+    s.players[1].hp = START_HEALTH - 1;
+    const done = act(s, { t: "timeUp" });
+    expect(done.phase === "over" && done.winner === 1 && done.reason === "time").toBe(true);
+    const even = game();
+    expect(act(even, { t: "timeUp" }).winner).toBe("draw");
   });
 });
 

@@ -155,6 +155,8 @@ export interface PlayerState {
   nextSpellFree: boolean;
   perfectTurn: number;
   attacked: number;
+  /** Missed turn clocks in a row (older stored matches lack it: 0). */
+  timeouts?: number;
 }
 
 export interface PendingLoot { kind: "loot"; p: 0 | 1; options: string[] }
@@ -185,7 +187,11 @@ export type Action =
   | { t: "power"; target?: Target }
   | { t: "choose"; index: number }
   | { t: "end" }
-  | { t: "concede"; p: 0 | 1 };
+  | { t: "concede"; p: 0 | 1 }
+  /** Server only: the turn clock ran out for whoever must act (never in legalActions). */
+  | { t: "timeout" }
+  /** Server only: a live match's clock ran out; the match ends on Health lost. */
+  | { t: "timeUp" };
 
 export interface MatchEvent { t: string; [key: string]: unknown }
 

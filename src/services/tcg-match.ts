@@ -3,7 +3,7 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import type { AlbumLang } from "./companion-album.js";
 import { chooseAction, type AiLevel } from "./tcg-ai.js";
 import { CARD_BY_ID, starterDeck } from "./tcg-cards-set1.js";
-import { actor, applyMut, apply, cloneState, createMatch, IllegalAction, legalActions, round, stateHash, replay } from "./tcg-engine.js";
+import { actor, applyMut, apply, cloneState, createMatch, IllegalAction, legalActions, MAX_TIMEOUTS, round, stateHash, replay } from "./tcg-engine.js";
 import { CLASS_KEYS, type Action, type ClassKey, type DeckList, type MatchEvent, type MatchSetup, type MatchState, type PendingLoot, type PlayerState, type Target } from "./tcg-engine-types.js";
 import { createGauntletMatch, featuredRun, GAUNTLET, type Boss } from "./tcg-pve.js";
 import { dayKey, emptyDaily, MAX_PLAY_PACKS_PER_DAY, MIN_TURNS_COUNTED, OVERFLOW_PACK_DUST, questsOn, settleProgress, STEPS_PER_PACK, type DailyCounters } from "./tcg-quests.js";
@@ -296,16 +296,24 @@ async function commit(tx: Tx, c: Commit, now: Date): Promise<MatchResponse> {
   return responseOf(next, c.events, rewards);
 }
 
-/** Forfeits an active match whose turn clock ran out. Returns the settled response, or null when the match is not overdue. */
+/** The member's turn clock ran out (24 hours a turn): the turn ends for them with the safe default and the AI plays on; the
+ *  third miss in a row forfeits (design 2.9, owner 10 November 2026). Several missed clocks are settled at once, each from the
+ *  deadline of the one before. Returns the settled response, or null when the match is not overdue. */
 async function forfeitIfOverdue(tx: Tx, row: Row, now: Date): Promise<MatchResponse | null> {
   if (row.status !== "active" || !row.turnDeadlineAt || row.turnDeadlineAt.getTime() > now.getTime()) return null;
   const state = cloneState(stateOf(row));
   const log = [...actionsOf(row)];
   const events: MatchEvent[] = [];
-  const action: Action = { t: "concede", p: ME };
-  log.push(action);
-  applyMut(state, action, events);
-  return commit(tx, { row, state, log, spells: row.spellsCast, zones: row.zonesPlayed, events, endReason: "timeout" }, now);
+  const playing = (): boolean => state.phase !== "over";
+  let at = row.turnDeadlineAt;
+  for (let i = 0; i < MAX_TIMEOUTS && playing() && at.getTime() <= now.getTime(); i++) {
+    const action: Action = { t: "timeout" };
+    log.push(action);
+    applyMut(state, action, events);
+    if (playing()) runOpponent(state, row.aiLevel as AiLevel, log, events);
+    at = new Date(at.getTime() + row.turnSeconds * 1000);
+  }
+  return commit(tx, { row, state, log, spells: row.spellsCast, zones: row.zonesPlayed, events, ...(state.reason === "timeout" ? { endReason: "timeout" } : {}) }, now);
 }
 
 // ---- the store ----
@@ -366,7 +374,7 @@ export async function startMatch(db: MatchDb, userId: string, input: StartInput,
   return responseOf(created, events);
 }
 
-/** The match as the member sees it. An overdue match is forfeited first. */
+/** The match as the member sees it. Missed turn clocks are settled first. */
 export async function getMatch(db: MatchDb, userId: string, id: string, now = new Date()): Promise<MatchResponse> {
   return withRetry(async () => {
     const row = await loadRow(db, id, userId);

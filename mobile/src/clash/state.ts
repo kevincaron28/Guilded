@@ -140,6 +140,7 @@ export function describeEvents(events: MatchEvent[]): string[] {
       case "damage": return typeof e.champ === "number" ? [`${e.champ === 0 ? "Your" : "Foe's"} Champion took ${String(e.n)}.`] : [];
       case "secondWind": return [`${who(e.p)}: Second Wind!`];
       case "exhaustion": return [`${who(e.p)} took ${String(e.n)} Exhaustion.`];
+      case "timeout": return [`${who(e.p)} ran out of time (${String(e.n)} of 3).`];
       case "turn": return e.p === 0 ? [`Your turn ${String(e.turn ?? "")}: ${String(e.mana ?? "")} mana.`] : [];
       case "over": return [e.winner === 0 ? "Victory!" : e.winner === "draw" ? "Draw." : "Defeat."];
       default: return [];

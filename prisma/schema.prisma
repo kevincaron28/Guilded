@@ -3863,6 +3863,9 @@ model TcgDuel {
   result         Json?
   turnSeconds    Int       @default(86400)
   turnDeadlineAt DateTime?
+  // Live matches: milliseconds left on each seat's match clock (2:30 each); null for asynchronous matches.
+  clockA         Int?
+  clockB         Int?
   // Pending challenges expire here.
   expiresAt      DateTime?
   lastActionAt   DateTime  @default(now())

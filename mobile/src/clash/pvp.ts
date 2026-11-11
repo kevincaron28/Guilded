@@ -14,6 +14,12 @@ export function msUntil(iso: string | null, now: number): number | null {
 }
 
 /** "3 d", "23 h", "45 min", "<1 min" (French uses "j" for days). Zero or less is "0 min". */
+/** A live clock as m:ss (2:30, 0:07). */
+export function formatClock(ms: number): string {
+  const sec = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+
 export function formatLeft(ms: number, lang: Lang): string {
   if (ms <= 0) return "0 min";
   const minutes = Math.floor(ms / 60_000);
@@ -43,6 +49,15 @@ export interface DuelBuckets {
 }
 
 const pendingLive = (d: DuelInfo, now: number) => d.status === "pending" && (msUntil(d.expiresAt, now) ?? 1) > 0;
+/** A live match clock ticking now: the seat that must act loses the time since its turn clock started. The server sends each
+ *  clock as of the last change and the deadline is that moment plus min(turn clock, clock left). */
+export function clockNow(left: number, acting: boolean, deadline: string | null, turnSeconds: number, now: number): number {
+  const at = Date.parse(deadline ?? "");
+  if (!acting || !Number.isFinite(at)) return left;
+  const from = at - Math.min(turnSeconds * 1000, left);
+  return Math.max(0, left - Math.max(0, now - from));
+}
+
 const byClock = (key: "expiresAt" | "turnDeadlineAt") => (a: DuelInfo, b: DuelInfo) => (Date.parse(a[key] ?? "") || Infinity) - (Date.parse(b[key] ?? "") || Infinity);
 
 /** Sorts the member's duels for the list. A pending challenge whose expiry has passed is shown as finished before the server says so. */

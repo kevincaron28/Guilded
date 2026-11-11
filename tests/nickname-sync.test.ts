@@ -122,13 +122,13 @@ describe("opt-out restores the previous nickname", () => {
 
 describe("nickname sync across a server with in-game guild scopes (Québec Gold)", () => {
   const makeDiscordMember = (id: string, over: Record<string, unknown> = {}) => ({ id, nickname: null, user: { bot: false, globalName: `User${id}`, username: `u${id}` }, manageable: true, setNickname: vi.fn().mockResolvedValue(undefined), ...over });
-  function setup(editions: { default: string | null; second: string | null; roster?: boolean }) {
+  function setup(editions: { default: string | null; second: string | null; roster?: boolean; main?: Record<string, unknown> }) {
     const members = [makeDiscordMember("m1"), makeDiscordMember("m2", { manageable: false }), makeDiscordMember("m3", { nickname: "Three (Cara Dawn)" })];
     const cache = new Map(members.map((m) => [m.id, m]));
     const guild = { id: "d1", ownerId: "owner", members: { me: { permissions: { has: () => true } }, cache, fetch: vi.fn().mockResolvedValue(null) } };
     const rows: Record<string, { id: string; gameEdition: string | null }> = { g1: { id: "g1", gameEdition: editions.default }, g2: { id: "g2", gameEdition: editions.second } };
     // Own companion (confirmedAt) and in the synced roster: a confirmed main.
-    const characters = [{ id: "c1", memberId: "mem", name: "Aria Stone", displayName: null, realm: "", isMain: true, gameEdition: "forever", confirmedAt: new Date(), linkEvidence: "companion" }];
+    const characters = [{ id: "c1", memberId: "mem", name: "Aria Stone", displayName: null, realm: "", isMain: true, gameEdition: "forever", confirmedAt: new Date("2026-11-11T12:00:00Z"), linkEvidence: "companion", ...editions.main }];
     const prisma = {
       guild: {
         findMany: vi.fn().mockResolvedValue([{ id: "g1" }, { id: "g2" }]),
@@ -159,10 +159,26 @@ describe("nickname sync across a server with in-game guild scopes (Québec Gold)
     expect(lines[0]).toMatch(/eligible 4, planned 2, renamed 2, failed 0, skipped \(not manageable\) 1, not in server 1/);
   });
 
-  it("renames nobody whose main is only reported, and gives back a nickname it set for that main", async () => {
+  it("renames a main the member's own companion linked even when the roster does not confirm it (new row: reported, still renamed)", async () => {
     const { syncAllNicknames } = await import("../src/services/nickname-sync.js");
-    // The member's own companion uploaded the main, but it is not in the synced guild roster and nobody heard a verify code.
     const { guild, prisma, members } = setup({ default: "forever", second: "forever", roster: false });
+    await syncAllNicknames(prisma as never, [guild as never], () => undefined, () => undefined);
+    expect(members[0]!.setNickname).toHaveBeenCalledWith("Userm1 (Aria Stone)", expect.any(String));
+  });
+
+  it("renames a main linked before the strict rule or by an officer", async () => {
+    const { syncAllNicknames } = await import("../src/services/nickname-sync.js");
+    for (const main of [{ confirmedAt: new Date("2026-11-09T12:00:00Z") }, { confirmedAt: null, linkEvidence: "officer" }]) {
+      const { guild, prisma, members } = setup({ default: "forever", second: "forever", roster: false, main });
+      await syncAllNicknames(prisma as never, [guild as never], () => undefined, () => undefined);
+      expect(members[0]!.setNickname).toHaveBeenCalledWith("Userm1 (Aria Stone)", expect.any(String));
+    }
+  });
+
+  it("renames nobody whose main only a name match, claim or invite linked, and gives back a nickname it set for that main", async () => {
+    const { syncAllNicknames } = await import("../src/services/nickname-sync.js");
+    // No confirmedAt: matched by name, claimed or named in an invite request.
+    const { guild, prisma, members } = setup({ default: "forever", second: "forever", roster: false, main: { confirmedAt: null, linkEvidence: "named" } });
     members[0]!.nickname = "Userm1 (Aria Stone)" as never;
     const record = { id: "n1", guildId: "g1", discordUserId: "m1", originalNickname: null, appliedNickname: "Userm1 (Aria Stone)", optedOut: false };
     prisma.memberNickname.findMany.mockResolvedValue([record]);

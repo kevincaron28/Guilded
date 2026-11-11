@@ -10,8 +10,10 @@ import { characterTrustMap } from "./character-trust.js";
 // characters. Turning the sync off restores everyone's previous nickname.
 // The bot never renames the server owner, bots or anyone it cannot manage (a role above the bot's), and it
 // remembers the original nickname (MemberNickname) so turning the feature off restores everyone.
-// Linking audit T8 (owner decision, 10 November 2026): only a CONFIRMED main renames (character-trust.ts). A member
-// whose main is only reported keeps their Discord name, and a nickname we set for it earlier is put back.
+// Linking audit T8 (owner decisions, 10 November 2026): a main renames when it is confirmed (character-trust.ts) or was
+// linked by the member's own companion or an officer (confirmedAt set, or linkEvidence companion/heard/officer): the
+// strict "confirmed" rule is not required for the nickname. A main that only a name match, a claim or an invite request
+// linked keeps the plain Discord name, and a nickname we set for it earlier is put back.
 
 export const NICKNAME_MAX = 32;
 export const DEFAULT_NICKNAME_FORMAT = "{name} ({full})";
@@ -177,9 +179,9 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   for (const member of members) {
     const discordMember = guild.members.cache.get(member.discordUserId) ?? await guild.members.fetch(member.discordUserId).catch(() => null);
     if (!discordMember) { stats.notInServer++; continue; }
-    // The main (marked, else first by name) counts only when it is confirmed; no other character stands in for it.
+    // The main (marked, else first by name) decides; no other character stands in for it.
     const main = mainCharacter(member.characters);
-    const confirmed = main && trust.get(main.id) === "confirmed";
+    const confirmed = main && (trust.get(main.id) === "confirmed" || main.confirmedAt || ["officer", "heard", "companion"].includes(main.linkEvidence ?? ""));
     if (main && !confirmed) unconfirmed.add(member.discordUserId);
     people.push({ discordUserId: member.discordUserId, accountName: discordMember.user.globalName ?? discordMember.user.username, nickname: discordMember.nickname,
       mainName: confirmed ? characterName(main) : null, characterNames: member.characters.map((character) => characterName(character)), skip: !canRename(guild, discordMember), record: byUser.get(member.discordUserId) ?? null });

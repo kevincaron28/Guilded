@@ -531,7 +531,8 @@ function addonAction() {
   } catch { return { action: "none", reason: "error" }; }
 }
 let shownProblems = "";
-function onState(state) {
+function onState(raw) {
+  const state = { ...raw, zeroSetupFailures };
   refreshUpdate(state);
   const status = health(state);
   const found = problems(state);
@@ -556,8 +557,10 @@ function onState(state) {
   }
 }
 
+// Automatic setup tries that failed since the last good one: the status card stops saying "Getting this PC ready…".
+let zeroSetupFailures = 0;
 function currentState() {
-  const state = engine.state();
+  const state = { ...engine.state(), zeroSetupFailures };
   return { state, health: health(state), update, savedFile, problems: problems(state), addonAction: addonAction() };
 }
 
@@ -694,6 +697,8 @@ async function removeAllDataAndQuit(skipPrompt = false) {
   try {
     fs.rmSync(app.getPath("userData"), { recursive: true, force: true });
   } catch { /* best effort: leftover cache files, not sensitive */ }
+  // The Store sign-in is not offered again after a deliberate wipe.
+  try { fs.mkdirSync(app.getPath("userData"), { recursive: true }); fs.writeFileSync(path.join(app.getPath("userData"), require("./store-migrate.cjs").IMPORT_MARKER), new Date().toISOString()); } catch { /* best effort */ }
   exitFlushed = true;
   app.quit();
   return true;
@@ -821,9 +826,11 @@ app.whenReady().then(async () => {
   onState(engine.state());
   void refreshSavedFile();
   // Zero-setup companion: no sign-in needed to start syncing (tried again every 5 minutes until it works).
-  const zeroSetup = () => void zeroSetupStep().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("Automatic setup will try again: {0}", error instanceof Error ? error.message : String(error)) }));
-  // 9.1.4: a Discord sign-in left in a Store copy on this PC is taken over first, so the device claim runs.
-  void importStoreSignIn().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("The Microsoft Store sign-in could not be imported: {0}", error instanceof Error ? error.message : String(error)) })).finally(zeroSetup);
+  const zeroSetup = () => void zeroSetupStep().then((done) => { if (done !== undefined && zeroSetupFailures) { zeroSetupFailures = 0; onState(engine.state()); } }).catch((error) => { zeroSetupFailures += 1; if (zeroSetupFailures === 1) onState(engine.state()); pushLog({ level: "warn", time: new Date().toISOString(), message: E("Automatic setup will try again: {0}", error instanceof Error ? error.message : String(error)) }); });
+  // 9.1.4: a Discord sign-in left in a Store copy on this PC is taken over once, so the device claim runs.
+  // It runs beside the automatic setup, not before it, and only once per PC (a marker file), so it never delays start-up.
+  zeroSetup();
+  void importStoreSignIn().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("The Microsoft Store sign-in could not be imported: {0}", error instanceof Error ? error.message : String(error)) }));
   setInterval(zeroSetup, 5 * 60 * 1000).unref?.();
   // Every 5 minutes: a few file dates, so a /reload that did not save Guilded.lua shows up soon.
   setInterval(() => void refreshSavedFile(), 5 * 60 * 1000);

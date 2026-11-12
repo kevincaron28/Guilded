@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, existsSync, writeFileSync } from 
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 const require = createRequire(import.meta.url);
 const { migrateStoreSettings, importStoreCredential } = require("../companion-app/store-migrate.cjs");
@@ -60,6 +60,22 @@ describe("Store sign-in taken over by a device-only install (9.1.4)", () => {
     expect(found?.from).toBe(t.store);
     expect(found?.patch).toEqual({ companionCredential: CREDENTIAL, guildDiscordId: "123", wowGuild: "Quebec Gold" });
     expect(found?.patch).not.toHaveProperty("deviceSecret");
+  });
+  it("happens once: a second start, or a sign-out and restart, does not import again", async () => {
+    const t = setup();
+    const first = await importStoreCredential({ ...t, config: { deviceSecret: "dk" }, readSettings: read({ companionCredential: CREDENTIAL }) });
+    expect(first?.patch.companionCredential).toBe(CREDENTIAL);
+    // Device-only again (signed out, new account or reset), the Store copy still holds the old credential.
+    const spy = vi.fn(read({ companionCredential: CREDENTIAL }));
+    expect(await importStoreCredential({ ...t, config: { deviceSecret: "dk" }, readSettings: spy })).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+  it("counts a failed or empty attempt too, and waits for a device key before trying", async () => {
+    const t = setup();
+    expect(await importStoreCredential({ ...t, config: {}, readSettings: read({ companionCredential: CREDENTIAL }) })).toBeNull();
+    expect(existsSync(path.join(t.userData, "store-signin-import.done"))).toBe(false);
+    expect(await importStoreCredential({ ...t, config: { deviceSecret: "dk" }, readSettings: read(null) })).toBeNull();
+    expect(await importStoreCredential({ ...t, config: { deviceSecret: "dk" }, readSettings: read({ companionCredential: CREDENTIAL }) })).toBeNull();
   });
   it("never replaces a credential the install already has (the newer one wins)", async () => {
     const t = setup();

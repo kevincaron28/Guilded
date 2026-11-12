@@ -53,6 +53,7 @@ function migrateStoreSettings({ userData, localAppData, appData, fsImpl = fs, lo
 
 /** Fields that make a Discord sign-in work and say which server it belongs to. */
 const CREDENTIAL_FIELDS = ["companionCredential", "guildDiscordId", "personal", "uploadUrl", "wowGuild", "wowGuildName"];
+const IMPORT_MARKER = "store-signin-import.done";
 const hasCredential = (c) => typeof c?.companionCredential === "string" && c.companionCredential.length >= 32;
 
 /**
@@ -65,9 +66,12 @@ const hasCredential = (c) => typeof c?.companionCredential === "string" && c.com
  * @returns {Promise<{ patch: Record<string, unknown>, from: string } | null>}
  */
 async function importStoreCredential({ config, userData, localAppData, appData, readSettings, fsImpl = fs }) {
+  const marker = path.join(userData, IMPORT_MARKER);
   if (!config || hasCredential(config) || Object.values(config.profiles ?? {}).some(hasCredential)) return null;
   const hasDeviceKey = typeof config.deviceSecret === "string" && config.deviceSecret.length > 0;
   if (!hasDeviceKey) return null;
+  if (fsImpl.existsSync(marker)) return null;
+  try { fsImpl.mkdirSync(userData, { recursive: true }); fsImpl.writeFileSync(marker, new Date().toISOString()); } catch { return null; }
   const folders = findStoreFolders({ localAppData, appData, fsImpl });
   // replace-store.ps1 keeps the Store copy here when the install already had settings of its own.
   const backup = path.join(userData, "store-settings-backup");
@@ -86,4 +90,4 @@ async function importStoreCredential({ config, userData, localAppData, appData, 
   return null;
 }
 
-module.exports = { migrateStoreSettings, findStoreFolders, importStoreCredential };
+module.exports = { migrateStoreSettings, findStoreFolders, importStoreCredential, IMPORT_MARKER };

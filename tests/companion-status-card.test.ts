@@ -41,6 +41,14 @@ describe("the status card", () => {
     expect(statusCard({ config: { wowEnabled: true }, state: { device: { status: "unsupported" } } }).id).toBe("not-signed-in");
   });
 
+  it("falls through to sign-in when automatic setup keeps failing, instead of waiting forever", () => {
+    const card = statusCard({ problems: [p("addon-missing")], config: { wowEnabled: true }, state: { zeroSetupFailures: 1 } });
+    expect(card).toMatchObject({ id: "not-signed-in", button: { action: "sign-in" } });
+    expect(fr[card.detail![0]]).toBeTruthy();
+    // Back to normal once a try works.
+    expect(statusCard({ config: { wowEnabled: true }, state: { zeroSetupFailures: 0 } }).id).toBe("getting-ready");
+  });
+
   it("offers a message for the officer, not Sign in, when the guild is not set up", () => {
     const card = statusCard({ config: zeroSetup, state: { device: { status: "no-guild", guild: { name: "Quebec Gold" } } } });
     expect(card).toMatchObject({ id: "guild-not-set-up", button: { action: "copy-officer-message", label: "Copy a message for your officer" } });

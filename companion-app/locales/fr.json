@@ -1420,5 +1420,6 @@
   "Copied. Paste it to an officer of your guild.": "Copié. Collez-le à un officier de votre guilde.",
   "Could not copy. Ask an officer of your guild to run /setup on its Discord server.": "Copie impossible. Demandez à un officier de votre guilde de lancer /setup sur son serveur Discord.",
   "The Microsoft Store sign-in could not be imported: {0}": "La connexion de la version Microsoft Store n’a pas pu être reprise : {0}",
-  "Discord sign-in was taken over from the Microsoft Store version ({0}); the device key was kept.": "La connexion Discord a été reprise de la version Microsoft Store ({0}) ; la clé de cet appareil a été conservée."
+  "Discord sign-in was taken over from the Microsoft Store version ({0}); the device key was kept.": "La connexion Discord a été reprise de la version Microsoft Store ({0}) ; la clé de cet appareil a été conservée.",
+  "Automatic setup could not reach Guilded yet and keeps trying. You can sign in with Discord meanwhile.": "La configuration automatique n’a pas encore pu joindre Guilded et continue d’essayer. Vous pouvez vous connecter avec Discord en attendant."
 }

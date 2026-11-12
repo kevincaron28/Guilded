@@ -17,7 +17,7 @@ export const STATUS_ORDER = Object.freeze([
  * @param {{
  *   problems?: { id: string, data?: Record<string, any> }[],
  *   config?: { companionCredential?: string, wowEnabled?: boolean, watchFile?: string, personal?: boolean, syncEnabled?: boolean, device?: boolean, deviceSecret?: string, zeroSetupOff?: boolean },
- *   state?: { running?: boolean, syncPhase?: string, lastUpload?: { at?: string } | null, device?: { status?: string, server?: string, guild?: { name?: string } | null } | null },
+ *   state?: { running?: boolean, syncPhase?: string, lastUpload?: { at?: string } | null, zeroSetupFailures?: number, device?: { status?: string, server?: string, guild?: { name?: string } | null } | null },
  *   now?: number
  * }} input
  * @returns {{ id: string, tone: "ok" | "busy" | "warn" | "bad", title: [string, ...any[]], detail: [string, ...any[]] | null,
@@ -38,8 +38,10 @@ export function statusCard({ problems = [], config = {}, state = {} } = {}) {
   }
   // Sign-in is optional: while the device key is being made the card says so; Sign in is offered only
   // when the zero-setup path is off or the bot does not support it.
-  const gettingReady = !linked && !device && wow && !config.personal && config.zeroSetupOff !== true && state.device?.status !== "unsupported";
+  const gettingReady = !linked && !device && wow && !config.personal && config.zeroSetupOff !== true && state.device?.status !== "unsupported" && !(state.zeroSetupFailures > 0);
   if (gettingReady) return card("getting-ready", "busy", ["Getting this PC ready…"], ["The companion sets itself up: no sign-in needed. This takes a moment."], null);
+  // Automatic setup failed (offline, server down): say so, and keep Sign in as the way forward.
+  if (!linked && !device && state.zeroSetupFailures > 0 && config.zeroSetupOff !== true) return card("not-signed-in", "warn", ["Sign in with Discord to start syncing."], ["Automatic setup could not reach Guilded yet and keeps trying. You can sign in with Discord meanwhile."], { action: "sign-in", label: "Sign in with Discord" });
   if (!linked && (!device || state.device?.status === "claimed")) return card("not-signed-in", "warn", ["Sign in with Discord to start syncing."], ["It takes a minute: your browser opens, you pick your guild's server, and that's it."], { action: "sign-in", label: "Sign in with Discord" });
   if (has.has("sign-in-expired")) return card("sign-in-expired", "bad", ["Your Discord sign-in expired."], ["Sign in again; nothing is lost."], { action: "sign-in", label: "Sign in with Discord" });
   if (wow && !config.personal && has.has("saved-file-missing") && has.get("saved-file-missing").chosen === false) {

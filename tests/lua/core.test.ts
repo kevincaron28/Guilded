@@ -120,6 +120,7 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     withGear(s);
     s.run(`
       T = os.time() + 100000; time = function() return T end
+      C_Timer.After = function(_, fn) fn() end -- the 9.1.7 inventory debounce runs at once here
       SENT = {}
       function digests() local n = 0; for _, m in ipairs(SENT) do if string.find(m.text, "^READINESS|") then n = n + 1 end end; return n end
       fire_event("UNIT_INVENTORY_CHANGED", "player")          -- first check: sent
@@ -540,6 +541,7 @@ describe("WoW Forever guild key while the home realm is still arriving", () => {
     s.run(`GuildedDB = ${saved}; NS = {}; MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
       NOW = 1800000000; GetServerTime = function() return NOW end; GUILDED_TEST_HOME_WAIT = 20
       HOME_KNOWN = false
+      CLOCK_TICKS = 0; function GetTime() CLOCK_TICKS = CLOCK_TICKS + 10; return CLOCK_TICKS end -- roster updates are 10 s apart
       function GetBuildInfo() return "1.60.1", "70790", "Nov 1 2026", 16001 end
       function GetRealmName() return ${JSON.stringify(OWN)} end
       function GetGuildInfo() if HOME_KNOWN then return "Alpha", "Officer", 1, ${JSON.stringify(HOME)} end return "Alpha", "Officer", 1 end`);

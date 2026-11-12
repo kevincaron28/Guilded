@@ -47,7 +47,7 @@ describe("character panel", () => {
     expect(view.components).toHaveLength(0);
   });
 
-  const select = (customId: string, value: string, user = "u1") => ({ customId, values: [value], user: { id: user }, client: {}, isModalSubmit: () => false, isButton: () => false, isStringSelectMenu: () => true, update: vi.fn(async (_view?: unknown) => undefined), reply: vi.fn(async (_view?: unknown) => undefined) });
+  const select = (customId: string, value: string, user = "u1") => ({ customId, values: [value], user: { id: user }, client: {}, isModalSubmit: () => false, isButton: () => false, isStringSelectMenu: () => true, update: vi.fn<(view?: unknown) => Promise<void>>(async () => undefined), reply: vi.fn<(view?: unknown) => Promise<void>>(async () => undefined) });
 
   it("never sets the main or unlinks a character that belongs to someone else", async () => {
     const db = fake([ch("a", "m1", "Ray", true), ch("c", "m2", "Other")]);

@@ -75,7 +75,7 @@ Answer each card with the files in `mobile/store/`:
 
 | Card | Where the answers are |
 | --- | --- |
-| Privacy policy | `https://guilded.kcaron.top/docs/PRIVACY` |
+| Privacy policy | `https://guildedwow.com/docs/PRIVACY` |
 | App access | "All or some functionality is restricted" → add instructions: the text in play-content-rating.md (sample guild) |
 | Ads | No ads |
 | Content ratings | play-content-rating.md → category **All Other App Types** |
@@ -97,7 +97,7 @@ Each card needs **Save**, and some need **Submit**. The dashboard ticks them off
 6. **Manage translations → Add your own translation text → French (Canada) – fr-CA** → paste the French blocks →
    **Save**. The same graphics are fine for French.
 7. **Store settings**: Category **Social**, contact email (the placeholder in play-listing.md: pick a support
-   address), website `https://guilded.kcaron.top` → **Save**.
+   address), website `https://guildedwow.com` → **Save**.
 
 ## 7. Closed test: at least 12 testers for 14 days (required for new personal accounts)
 

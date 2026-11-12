@@ -9,7 +9,7 @@ positions) is not collected by the app, although the Guilded service holds it. T
 
 ## What the app sends, and where
 
-All of it goes to the Guilded server the member signed in to (default `https://guilded.kcaron.top`). The app refuses
+All of it goes to the Guilded server the member signed in to (default `https://guildedwow.com`). The app refuses
 `http` addresses except on the device itself (`apiOrigin` in `mobile/src/api.ts`).
 
 | Request | Sends | Why |
@@ -38,8 +38,8 @@ reporting and advertising. No analytics or ads SDK is in `mobile/package.json`. 
 | --- | --- |
 | Does your app collect or share any of the required user data types? | **Yes** |
 | Is all of the user data collected by your app encrypted in transit? | **Yes** (HTTPS only) |
-| Which ways can users request that their data is deleted? | **I provide a way for users to request deletion**: the web link https://guilded.kcaron.top/me/data (Delete my data). The companion API also exposes `POST /api/v1/companion/delete-my-data`, but the phone has no button for it yet. |
-| Account creation | Users sign in with an account created outside the app (Discord, through the Guilded website). For the account-deletion link, use https://guilded.kcaron.top/me/data. |
+| Which ways can users request that their data is deleted? | **I provide a way for users to request deletion**: the web link https://guildedwow.com/me/data (Delete my data). The companion API also exposes `POST /api/v1/companion/delete-my-data`, but the phone has no button for it yet. |
+| Account creation | Users sign in with an account created outside the app (Discord, through the Guilded website). For the account-deletion link, use https://guildedwow.com/me/data. |
 
 **Data types.** Tick only these:
 

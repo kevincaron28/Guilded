@@ -10,6 +10,7 @@ import {
   officerMoveCharacter, undoMove, WITH_DETACHED
 } from "../src/services/character-move.js";
 import { linkPairedCharacter } from "../src/services/character-pairing.js";
+import { unlinkCharacter } from "../src/services/character-verify.js";
 import { handleLinkMoveButton, tellLinkConflicts } from "../src/services/link-conflict-dm.js";
 import { t } from "../src/i18n.js";
 
@@ -287,6 +288,22 @@ describe("unlink detaches", () => {
     expect((await guild.db.character.findMany({ where: { member: { guildId: "guild" } } })).map((item) => item.name)).toEqual(["Ray Two"]);
     expect(guild.characters[1]!.isMain).toBe(true);
     expect(await detachCharacter(guild.tx, row.id)).toBeNull();
+  });
+
+  it("unlinkCharacter (/character unlink and Not mine): detaches, promotes another main, resolves conflicts, records BLOCKED", async () => {
+    const guild = newGuild();
+    const row = guild.add("Ray One", "ray", { isMain: true, linkEvidence: "companion" });
+    const other = guild.add("Ray Two", "ray");
+    guild.conflicts.push({ id: "c1", characterId: row.id, claimantMemberId: "kev", ownerMemberId: "ray", status: "OPEN", notifiedAt: null });
+    await unlinkCharacter(guild.database, row, "guild", false);
+    expect(guild.characters).toHaveLength(2); // kept, not deleted
+    expect(row).toMatchObject({ memberId: "holding", detachedFromMemberId: "ray" });
+    expect(other.isMain).toBe(true); // another main promoted
+    expect(guild.conflicts[0]!.status).toBe("RESOLVED");
+    expect(guild.claims).toEqual([{ guildId: "guild", memberId: "ray", nameKey: "ray one", status: "BLOCKED" }]);
+    // The member's own unlink sticks: their next companion upload does not link it back.
+    await expect(linkPairedCharacter(guild.database, "guild", "ray", upload("Ray One"), { confirm: true })).resolves.toBe("blocked-by-member");
+    expect(row.memberId).toBe("holding");
   });
 
   it("comes back as the same row when the member's companion links it again", async () => {

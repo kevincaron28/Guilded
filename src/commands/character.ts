@@ -12,12 +12,12 @@ import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
-import { blockVerifiedCharacter } from "../services/character-verify.js";
+import { unlinkCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
 import { removePictureByOfficer } from "../services/character-picture.js";
 import { characterTrustMap, REPORTED_HINT, trustSuffix } from "../services/character-trust.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
-import { detachCharacter, isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
+import { isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
@@ -131,11 +131,10 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     }
     // Detached, not deleted (owner decision, 10 November 2026): pictures, wishlist, professions and the
     // rest of its history stay with the row and come back when it is linked again or an officer moves it.
-    await prisma.$transaction((tx) => detachCharacter(tx, character.id));
     // The /guilded verify code that character keeps repeating in game must not link it back.
     // An officer unlinking someone else's character is a correction: their companion uploads must
     // not relink it either. Only this character is affected; their devices stay connected.
-    await blockVerifiedCharacter(prisma, context.guildId, character.memberId, character.name, character.realm, character.gameEdition, !isOwn);
+    await unlinkCharacter(prisma, character, context.guildId, !isOwn);
     if (interaction.guild) {
       await postToLogChannel(interaction.guild, isOwn
         ? `${interaction.user.username} unlinked their character ${characterName(character)}.`

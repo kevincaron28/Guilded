@@ -169,5 +169,7 @@ export async function claimCharacter(database: Db, guildId: string, memberId: st
   const taken = await database.character.findFirst({ where: { member: { guildId }, name: { equals: row.name, mode: "insensitive" }, ...((row.gameEdition ?? "forever") !== "forever" ? { realm: { equals: row.realm, mode: "insensitive" }, gameEdition: row.gameEdition } : {}) } });
   if (taken) throw new Error(`${row.name} is already linked to someone.`);
   const outcome = await linkUnclaimed(database, memberId, row);
+  // A deliberate claim undoes this member's own earlier "not mine" (automation still respects it).
+  await database.characterVerifyClaim.deleteMany({ where: { guildId, memberId, nameKey: characterKey(row.name, row.realm, row.gameEdition ?? "forever"), status: { in: ["BLOCKED"] } } });
   return { row, ...outcome };
 }

@@ -8,7 +8,7 @@ import { linkPairedCharacter } from "./character-pairing.js";
 import { postToLogChannel } from "./housekeeping.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
-import { contestCharacter, type LinkEvidence } from "./character-move.js";
+import { contestCharacter, detachCharacter, type LinkEvidence } from "./character-move.js";
 
 // Linking without a companion: a member gets one code (/character pair, the welcome button) and
 // pastes `/guilded verify CODE` in WoW chat once. The addon keeps it with the account's saved data,
@@ -183,6 +183,18 @@ export async function tellVerified(client: Client, discordGuildId: string, lang:
       : `🔗 ${result.name} was linked to <@${result.discordUserId}> by their /guilded verify code`
         + (result.reportedBy ? ` (heard by <@${result.reportedBy}>'s addon; the next officer sync confirms it).` : ".")).join("\n"));
   }
+}
+
+/**
+ * The one unlink sequence (/character unlink and the "Not mine" DM button): the character leaves its member and keeps its
+ * history (detached, another main promoted, open conflicts resolved), then the unlink is recorded so neither a verify code
+ * nor a companion upload links it back (BLOCKED for the member's own unlink, REMOVED for an officer's).
+ */
+export async function unlinkCharacter(database: PrismaClient, character: { id: string; memberId: string; name: string; realm: string; gameEdition?: string | null }, guildId: string, byOfficer: boolean): Promise<void> {
+  const { id, memberId, name, realm } = character; // read before the row moves to the holding member
+  const gameEdition = character.gameEdition ?? "forever";
+  await database.$transaction((tx) => detachCharacter(tx, id));
+  await blockVerifiedCharacter(database, guildId, memberId, name, realm, gameEdition, byOfficer);
 }
 
 /**

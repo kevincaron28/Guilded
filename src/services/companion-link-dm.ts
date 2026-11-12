@@ -6,8 +6,6 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
 import { CLASS_NAMES_FR } from "../permissions.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
-import { blockVerifiedCharacter } from "./character-verify.js";
-import { postToLogChannel } from "./housekeeping.js";
 
 // 8.5 track F3 + ROADMAP 5 (owner decisions, 6 November 2026): after a companion link, one Discord DM lists every
 // linked character by full name (class, level, which one is the main), on by default. It is sent on the first link and
@@ -190,8 +188,10 @@ export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client,
   const settings = await database.guildSettings.findUnique({ where: { guildId: character.member.guildId }, select: { language: true } });
   const lang = asLang(settings?.language);
   if (character.member.discordUserId !== discordUserId) return t(lang, "linked.notYours");
-  await database.character.delete({ where: { id: character.id } });
-  await blockVerifiedCharacter(database as unknown as PrismaClient, character.member.guildId, character.member.id, character.name, character.realm, character.gameEdition, false);
+  // Loaded here, not at the top: housekeeping.ts imports this file (a cycle otherwise), and both are only needed on a click.
+  const [{ unlinkCharacter }, { postToLogChannel }] = await Promise.all([import("./character-verify.js"), import("./housekeeping.js")]);
+  // Same sequence as /character unlink: detached with its history, another main promoted, BLOCKED recorded.
+  await unlinkCharacter(database as unknown as PrismaClient, { ...character, memberId: character.member.id }, character.member.guildId, false);
   const book = await loadFullNameBook(database, character.member.guildId);
   const name = displayCharacterName(character, book);
   const guild: Guild | null = await client.guilds.fetch(character.member.guild.discordId).catch(() => null);

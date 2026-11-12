@@ -155,22 +155,24 @@ describe("undo for every automatic link", () => {
 
   function undoFakes(ownerId = "111") {
     const character = { id: "c1", name: "Aran", realm: "Forever", gameEdition: "forever", displayName: "Aran Dawnfield", member: { id: "m1", guildId: "g1", discordUserId: ownerId, guild: { discordId: "999", name: "Quebec Gold" } } };
+    const tx = { character: { findUnique: vi.fn(async () => ({ ...character, memberId: "m1", detachedAt: null, isMain: false })), update: vi.fn(async () => undefined), findFirst: vi.fn(async () => null) }, member: { upsert: vi.fn(async () => ({ id: "holding" })) }, characterLinkConflict: { updateMany: vi.fn(async () => undefined) } };
     const database = {
       character: { findUnique: vi.fn(async () => character), delete: vi.fn(async () => undefined), findMany: vi.fn(async () => []) },
       member: { findMany: vi.fn(async () => []) },
       guildSettings: { findUnique: vi.fn(async () => ({ language: "en" })) },
-      characterVerifyClaim: { upsert: vi.fn(async () => undefined) }
+      characterVerifyClaim: { upsert: vi.fn(async () => undefined) }, $transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback(tx))
     };
     const guild = { id: "999" };
     const interaction = { customId: "linked:no:c1", user: { id: "111" }, client: { guilds: { fetch: vi.fn(async () => guild) } }, isStringSelectMenu: () => false, deferReply: vi.fn(async () => undefined), editReply: vi.fn(async () => undefined), reply: vi.fn(async () => undefined) };
-    return { database, interaction, guild };
+    return { database, interaction, guild, tx };
   }
 
   it("Not mine unlinks the character as BLOCKED (not REMOVED) and writes one officer log line", async () => {
     log.mockClear();
     const f = undoFakes();
     await handleLinkedButton(f.interaction as never, f.database as never);
-    expect(f.database.character.delete).toHaveBeenCalledWith({ where: { id: "c1" } });
+    expect(f.database.character.delete).not.toHaveBeenCalled(); // detached with its history, like /character unlink
+    expect(f.tx.character.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.objectContaining({ detachedFromMemberId: "m1" }) }));
     expect(f.database.characterVerifyClaim.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ status: "BLOCKED", memberId: "m1", guildId: "g1" }) }));
     expect(log).toHaveBeenCalledTimes(1);
     expect((log.mock.calls[0] as unknown as [unknown, string])[1]).toContain("<@111> unlinked Aran Dawnfield");
@@ -181,10 +183,10 @@ describe("undo for every automatic link", () => {
     log.mockClear();
     const menu = undoFakes();
     await handleLinkedButton({ ...menu.interaction, customId: "linked:no", isStringSelectMenu: () => true, values: ["c1"] } as never, menu.database as never);
-    expect(menu.database.character.delete).toHaveBeenCalledTimes(1);
+    expect(menu.tx.character.update).toHaveBeenCalledTimes(1);
     const other = undoFakes("999999");
     await handleLinkedButton(other.interaction as never, other.database as never);
-    expect(other.database.character.delete).not.toHaveBeenCalled();
+    expect(other.tx.character.update).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledTimes(1);
     const gone = undoFakes();
     gone.database.character.findUnique.mockResolvedValueOnce(null as never);
@@ -198,7 +200,7 @@ describe("undo for every automatic link", () => {
     const content = (f.interaction.reply.mock.calls[0] as unknown as [{ content: string }])[0].content;
     expect(content).toContain("Remove this server");
     expect(content).toContain("compagnon Guilded");
-    expect(f.database.character.delete).not.toHaveBeenCalled();
+    expect(f.tx.character.update).not.toHaveBeenCalled();
   });
 
   it("name-match, sole-newcomer and claim links send the same DM (one per member), and a closed DM is skipped quietly", async () => {

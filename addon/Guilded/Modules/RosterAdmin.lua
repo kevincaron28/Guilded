@@ -1,9 +1,9 @@
 -- Local officer workspace. Every native mutation has its own hardware click.
 -- Layout (9.1): one scrolling page of sections, each a header and a row of buttons:
---   Members, Ranks and promotion (bulk plan), Notes, Invites and greeting, Sync, GRM archive.
+--   Members, Ranks and promotion (bulk plan), Invites, Sync, GRM archive. (9.2: the Notes section and the
+--   greeting switches were removed with the guild-note writers and the automatic welcome.)
 -- "Buff coverage" was removed from this window: it is a raid-readiness tool and lives on the Ready
--- page. The officer-client switches (professions, EP/GP, promote, greet) that used to be slash-only
--- are check boxes here.
+-- page. The officer-client switch (promote) that used to be slash-only is a check box here.
 local _, ns = ...
 local function L(s) return ns.L and ns.L(s) or s end
 local window
@@ -126,26 +126,9 @@ function ns.openRosterAdmin()
   button("Recovery preview", function() grm.pending = nil; local p, err = tools.undoPreview(); if p then show(tools.describe()) end; return p, err end)
   endRow()
 
-  -- ---- Notes -----------------------------------------------------------------
-  header("Notes")
-  button("Professions to notes", function()
-    grm.pending = nil
-    if not (ns.rosterProfessions and ns.rosterProfessions.preview) then return nil, "Professions are not available yet." end
-    local p, count = ns.rosterProfessions.preview()
-    if not p then return nil, count end
-    show(tools.describe()); return true
-  end, "Preview writing each member's professions into their public note.")
-  endRow()
-  officerSwitch("professions")
-  officerSwitch("epgp")
-
-  -- ---- Invites and greeting ----------------------------------------------------
-  header("Invites and greeting")
+  -- ---- Invites -----------------------------------------------------------------
+  header("Invites")
   button("Invite queue", function() if ns.inviteQueue then ns.inviteQueue.open() end; return true end, "Players waiting for a guild invite.")
-  endRow()
-  officerSwitch("greet")
-  button("Greeting in English", function() if ns.officerNotes then ns.officerNotes.command({ "officer", "auto", "lang", "en" }) end; return true end)
-  button("Greeting in French", function() if ns.officerNotes then ns.officerNotes.command({ "officer", "auto", "lang", "fr" }) end; return true end)
   endRow()
 
   -- ---- Sync --------------------------------------------------------------------

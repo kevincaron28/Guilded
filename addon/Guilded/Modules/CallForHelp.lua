@@ -6,13 +6,17 @@
 --   /guilded sos defender on|off   get the loud alert when a guildmate in your zone calls (default: on)
 --   /guilded sos chat on|off       also post one short line in guild chat (default on)
 --
+--   /guilded sos alert toast|chat|off   how a guildmate's call reaches me (default: a small window)
+--   /guilded sos sound on|off | quiet on|off | mute | unmute | show | reset
+--
 -- (/guilded help is Core's command list, so the call uses /guilded sos.)
 --
 -- The Call for help button appears for 20 s when an enemy player damages you outside an
 -- instance. Nothing is ever sent by itself: the player presses the button (or the key, or the
 -- command). The call goes to the guild on the addon prefix GuildedSOS; guildmates in the same
--- zone who are Defenders get a banner, a sound, distance and direction, and On my way / Can't
--- buttons. Everyone else gets one line in Guilded's chat tab. No protected action is used, so
+-- zone who are Defenders get a small toast (top right, movable, closable, click-through, hides by
+-- itself; only a chat line and an SOS icon in combat), a soft sound, distance and direction, and On my
+-- way / Can't buttons. Everyone else gets one line in Guilded's chat tab. No protected action is used, so
 -- it works in combat. The combat log is deliberately NOT read (restricted on Retail and
 -- Forever); attackers are seen through the target, focus, mouseover and nameplate units.
 local addonName, ns = ...
@@ -100,6 +104,22 @@ end
 
 function module.guildChat()
   return settings().helpGuildChat ~= false
+end
+
+-- How a guildmate's call reaches me: "toast" (a small window, the default), "chat" (one chat line) or "off".
+function module.alertMode()
+  local mode = settings().helpAlert
+  if mode == "off" or mode == "chat" then return mode end
+  return "toast"
+end
+
+function module.sound()
+  return settings().helpSound ~= false
+end
+
+-- Quiet in combat (default on): no window and no sound while I fight, only a chat line and a small SOS icon.
+function module.quiet()
+  return settings().helpQuiet ~= false
 end
 
 -- ---------------------------------------------------------------------
@@ -277,7 +297,8 @@ end
 -- WoW only lets an invite come from a click, so every invite here is a button.
 -- ---------------------------------------------------------------------
 
-local offerFrame, banner
+local offerFrame, banner, anchor, icon
+local describe, whereText   -- defined in the receiver section, used by the toast
 local mateRows = {}   -- the caller's zone list: { label, button, name } per row
 
 local function baseName(name)
@@ -324,41 +345,184 @@ end
 
 
 -- ---------------------------------------------------------------------
--- Frames (created lazily; plain frames, no protected actions)
+-- Frames (created lazily; plain non-secure frames, no protected actions).
+--
+-- Small and never in the way: a compact window (TOAST_W wide) near the top right, medium strata (under
+-- dialogs and the game menu), clicks pass straight through it except on its own buttons and its title strip, it
+-- never takes the keyboard, it closes with the X or a right-click on the title strip, it hides by itself, and
+-- it can be dragged (the position is saved). One window carries every waiting call. Nothing here is protected,
+-- so all of it works in combat.
 -- ---------------------------------------------------------------------
 
+local TOAST_W = 300
+local TOAST_H = 104
+local FOOTPRINT_H = 170       -- the toast with the caller's offer under it: the box that must stay on screen
+local ICON_W = 64
+local DEFAULT_POS = { "TOPRIGHT", "TOPRIGHT", -20, -220 }
+local queue = {}          -- calls waiting for the toast: { call, name, sender, key, at }
+local muteUntil           -- this session only
+local presentNext         -- forward declaration
 
 local function makeButton(parent, label, width, onClick)
   local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
   b:SetWidth(width)
-  b:SetHeight(24)
+  b:SetHeight(22)
   if b.SetText then b:SetText(label) end
   b:SetScript("OnClick", onClick)
   return b
 end
 
-local function makeFrame(width, height)
-  local f = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
-  f:SetWidth(width)
-  f:SetHeight(height)
-  if f.SetFrameStrata then f:SetFrameStrata("DIALOG") end
-  if f.SetBackdrop then
-    pcall(f.SetBackdrop, f, { bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background",
-      edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border", tile = true, tileSize = 16, edgeSize = 16,
-      insets = { left = 4, right = 4, top = 4, bottom = 4 } })
+-- Where the windows sit: a saved { point, relativePoint, x, y } or the default top right.
+local function savedPos()
+  local p = settings().helpPos
+  if type(p) == "table" and type(p[1]) == "string" and type(p[2]) == "string" and type(p[3]) == "number" and type(p[4]) == "number" then return p end
+  return DEFAULT_POS
+end
+
+-- The screen in UIParent units (already counts the UI scale), or nil when the game does not say.
+local function screenSize()
+  if not UIParent then return nil end
+  local okW, w = pcall(UIParent.GetWidth, UIParent)
+  local okH, h = pcall(UIParent.GetHeight, UIParent)
+  if okW and okH and type(w) == "number" and type(h) == "number" and w > TOAST_W and h > FOOTPRINT_H then return w, h end
+  return nil
+end
+
+local function finite(n) return type(n) == "number" and n == n and n > -100000 and n < 100000 end
+
+-- A position as { left, top } (top counted up from the bottom edge) of the whole footprint, kept inside the screen
+-- (the toast and the offer under it, not just the anchor point). nil when the numbers make no sense.
+local function onScreen(point, relPoint, x, y, w, h)
+  if type(point) ~= "string" or type(relPoint) ~= "string" or not finite(x) or not finite(y) then return nil end
+  local function has(text, part) return string.find(text, part, 1, true) ~= nil end
+  local baseX = has(relPoint, "LEFT") and 0 or has(relPoint, "RIGHT") and w or w / 2
+  local baseY = has(relPoint, "TOP") and h or has(relPoint, "BOTTOM") and 0 or h / 2
+  local dx = has(point, "LEFT") and 0 or has(point, "RIGHT") and TOAST_W or TOAST_W / 2
+  local dy = has(point, "TOP") and 0 or has(point, "BOTTOM") and FOOTPRINT_H or FOOTPRINT_H / 2
+  local left, top = baseX + x - dx, baseY + y + dy
+  left = math.max(0, math.min(w - TOAST_W, left))
+  top = math.max(FOOTPRINT_H, math.min(h, top))
+  return left, top
+end
+
+local function placeAnchor()
+  if not anchor then return end
+  local p = savedPos()
+  local w, h = screenSize()
+  if w then
+    local left, top = onScreen(p[1], p[2], p[3], p[4], w, h)
+    if not left then left, top = onScreen(DEFAULT_POS[1], DEFAULT_POS[2], DEFAULT_POS[3], DEFAULT_POS[4], w, h) end
+    p = { "TOPLEFT", "BOTTOMLEFT", left, top }
   end
-  -- A solid back as well: the dialog texture alone left the window see-through on one client.
-  if f.CreateTexture then
-    local solid = f:CreateTexture(nil, "BACKGROUND")
-    solid:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
-    solid:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -4, 4)
-    if solid.SetColorTexture then solid:SetColorTexture(0.04, 0.04, 0.05, 0.96) end
+  anchor:ClearAllPoints()
+  anchor:SetPoint(p[1], UIParent, p[2], p[3], p[4])
+end
+
+-- Saves a position (a dragged or restored one). With a known screen it is stored as the top-left corner, kept on screen.
+function module.setPosition(point, relPoint, x, y)
+  if type(point) ~= "string" or type(relPoint) ~= "string" or type(x) ~= "number" or type(y) ~= "number" then return false end
+  local s = ns.getSettings and ns.getSettings()
+  if not s then return false end
+  local w, h = screenSize()
+  if w then
+    local left, top = onScreen(point, relPoint, x, y, w, h)
+    if not left then return false end
+    s.helpPos = { "TOPLEFT", "BOTTOMLEFT", math.floor(left + 0.5), math.floor(top + 0.5) }
+  else
+    s.helpPos = { point, relPoint, math.floor(x + 0.5), math.floor(y + 0.5) }
+  end
+  return true
+end
+
+function module.resetPosition()
+  local s = ns.getSettings and ns.getSettings()
+  if s then s.helpPos = nil end
+  placeAnchor()
+end
+
+-- One invisible, click-through frame holds the position; the toast, the offer and the icon hang from it.
+local function ensureAnchor()
+  if anchor then return anchor end
+  anchor = CreateFrame("Frame", nil, UIParent)
+  anchor:SetWidth(TOAST_W)
+  anchor:SetHeight(FOOTPRINT_H)
+  anchor:SetMovable(true)
+  anchor:SetClampedToScreen(true)
+  anchor:EnableMouse(false)
+  placeAnchor()
+  return anchor
+end
+
+local function layout()
+  if not anchor then return end
+  if banner then banner:ClearAllPoints(); banner:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0) end
+  if icon then icon:ClearAllPoints(); icon:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0) end
+  if offerFrame then
+    local below = (banner and banner.isOpen and (TOAST_H + 4)) or (icon and icon.isOpen and 30) or 0
+    offerFrame:ClearAllPoints()
+    offerFrame:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, -below)
+  end
+end
+
+-- The title strip (drag to move, right-click to close) and the X: the only parts of a window that take the mouse.
+local function addChrome(f, onClose)
+  local grip = CreateFrame("Button", nil, f)
+  grip:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -4)
+  grip:SetPoint("TOPRIGHT", f, "TOPRIGHT", -26, -4)
+  grip:SetHeight(18)
+  grip:RegisterForDrag("LeftButton")
+  grip:RegisterForClicks("RightButtonUp")
+  grip:SetScript("OnDragStart", function() if anchor then anchor:StartMoving() end end)
+  grip:SetScript("OnDragStop", function()
+    if not anchor then return end
+    anchor:StopMovingOrSizing()
+    -- Where the footprint's top-left corner is now (counted up from the bottom edge): saved, kept on screen.
+    local left, top = anchor:GetLeft(), anchor:GetTop()
+    if type(left) == "number" and type(top) == "number" and module.setPosition("TOPLEFT", "BOTTOMLEFT", left, top) then placeAnchor() end
+  end)
+  grip:SetScript("OnClick", function(_, button) if button == "RightButton" then onClose() end end)
+  f.grip = grip
+  local x = CreateFrame("Button", nil, f, "UIPanelCloseButton")
+  x:SetWidth(22)
+  x:SetHeight(22)
+  x:SetPoint("TOPRIGHT", f, "TOPRIGHT", -2, -2)
+  x:SetScript("OnClick", onClose)
+  f.close = x
+end
+
+local function makeToast(height, onClose)
+  ensureAnchor()
+  local f = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+  f:SetWidth(TOAST_W)
+  f:SetHeight(height)
+  if f.SetFrameStrata then f:SetFrameStrata("MEDIUM") end
+  f:EnableMouse(false) -- clicks pass through; never EnableKeyboard
+  if f.SetClampedToScreen then f:SetClampedToScreen(true) end -- the window itself stays on screen, whatever was saved
+  f.isOpen = false
+  if f.SetBackdrop then
+    pcall(f.SetBackdrop, f, { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+      tile = true, tileSize = 16, edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+    if f.SetBackdropColor then pcall(f.SetBackdropColor, f, 0.05, 0.05, 0.07, 0.88) end
   end
   f.text = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  f.text:SetPoint("TOP", f, "TOP", 0, -10)
-  f.text:SetWidth(width - 20)
+  f.text:SetPoint("TOPLEFT", f, "TOPLEFT", 10, -8)
+  f.text:SetWidth(TOAST_W - 40)
+  if f.text.SetJustifyH then f.text:SetJustifyH("LEFT") end
+  addChrome(f, onClose)
   if f.Hide then f:Hide() end
   return f
+end
+
+-- ----- The caller's offer: Call for help, then All clear. Small, closable, hides by itself. -----
+
+local OFFER_H = 62
+local OFFER_ROW = 24
+local OFFER_OPEN_SECONDS = 60   -- after calling, the window closes by itself; the call stays open (/guilded sos clear)
+
+local function closeOffer()
+  if offerFrame then offerFrame:Hide(); offerFrame.isOpen = false end
+  offerUntil = nil
+  layout()
 end
 
 local function refreshOffer()
@@ -375,42 +539,52 @@ local function refreshOffer()
     text = L("Under attack?")
     offerFrame.call:Show()
     offerFrame.clear:Hide()
+    offerFrame.expanded = false
   end
   offerFrame.text:SetText(text)
   module.refreshMates()
 end
 
--- The caller's list of online guildmates in the same zone, each with an Invite button.
+-- The caller's list of online guildmates in the same zone, each with an Invite button (folded away until asked for).
 local function refreshMatesNow()
   if not offerFrame then return 0 end
   local mates = mine and module.zoneMates() or {}
+  local open = offerFrame.expanded == true
   for i = 1, MAX_MATES do
     local row = mateRows[i]
     local mate = mates[i]
     if mate and not row then
       row = {}
       row.label = offerFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-      row.label:SetPoint("TOPLEFT", offerFrame, "TOPLEFT", 16, -30 - (i - 1) * 24)
-      row.button = ns.util.inviteButton(offerFrame, "party", L("Invite"), 70, 24, function(name) module.invited(name) end)
-      row.button:SetPoint("TOPRIGHT", offerFrame, "TOPRIGHT", -14, -26 - (i - 1) * 24)
+      row.label:SetPoint("TOPLEFT", offerFrame, "TOPLEFT", 12, -30 - (i - 1) * OFFER_ROW)
+      row.button = ns.util.inviteButton(offerFrame, "party", L("Invite"), 70, 22, function(name) module.invited(name) end)
+      row.button:SetPoint("TOPRIGHT", offerFrame, "TOPRIGHT", -10, -26 - (i - 1) * OFFER_ROW)
       mateRows[i] = row
     end
     if row then
       if mate then
         row.name = mate.name
         row.label:SetText(display(mate.name) .. (mate.level and mate.level > 0 and (" (" .. mate.level .. ")") or ""))
-        row.label:Show(); row.button:Show(); row.button.setInvite(mate.name)
+        row.button.setInvite(mate.name)
+        if open then row.label:Show(); row.button:Show() else row.label:Hide(); row.button:Hide() end
       else
         row.name = nil
         row.label:Hide(); row.button:Hide(); row.button.setInvite(nil)
       end
     end
   end
-  offerFrame:SetHeight(70 + (#mates > 0 and (#mates * 24 + 6) or 0))
+  if #mates > 0 then
+    offerFrame.nearby:SetText(string.format(L("Nearby (%d)"), #mates))
+    offerFrame.nearby:Show()
+  else
+    offerFrame.nearby:Hide()
+    offerFrame.expanded = false
+  end
+  offerFrame:SetHeight(OFFER_H + ((open and #mates > 0) and (#mates * OFFER_ROW + 4) or 0))
   return #mates
 end
 
--- Rows (secure Invite buttons) only change out of combat.
+-- The Invite buttons are plain buttons now, but the list only changes out of combat anyway (nothing to do in a fight).
 function module.refreshMates()
   if not offerFrame then return 0 end
   if ns.util.inCombat() then
@@ -422,37 +596,199 @@ end
 
 local function ensureOffer()
   if offerFrame then return offerFrame end
-  offerFrame = makeFrame(240, 70)
-  offerFrame:SetPoint("TOP", UIParent, "TOP", 0, -180)
+  offerFrame = makeToast(OFFER_H, function() closeOffer() end)
+  offerFrame.expanded = false
   offerFrame.call = makeButton(offerFrame, L("Call for help"), 140, function() module.open() end)
-  offerFrame.call:SetPoint("BOTTOM", offerFrame, "BOTTOM", 0, 12)
+  offerFrame.call:SetPoint("BOTTOMLEFT", offerFrame, "BOTTOMLEFT", 10, 8)
   offerFrame.clear = makeButton(offerFrame, L("All clear"), 140, function() module.allClear() end)
-  offerFrame.clear:SetPoint("BOTTOM", offerFrame, "BOTTOM", 0, 12)
+  offerFrame.clear:SetPoint("BOTTOMLEFT", offerFrame, "BOTTOMLEFT", 10, 8)
+  offerFrame.nearby = makeButton(offerFrame, L("Nearby"), 110, function()
+    offerFrame.expanded = not offerFrame.expanded
+    refreshMatesNow()
+  end)
+  offerFrame.nearby:SetPoint("BOTTOMRIGHT", offerFrame, "BOTTOMRIGHT", -10, 8)
+  offerFrame.nearby:Hide()
   return offerFrame
 end
 
 local function showOffer()
   ensureOffer()
   refreshOffer()
+  offerFrame.isOpen = true
+  offerFrame.shownAt = now()
   offerFrame:Show()
+  layout()
+end
+module.showOffer = function()
+  if not (mine or offerUntil) then offerUntil = now() + OFFER_SECONDS end
+  showOffer()
+end
+
+-- ----- The toast for a guildmate's call: one window, one call at a time, the others wait their turn. -----
+
+local TOAST_SECONDS = 15          -- on screen out of combat
+local TOAST_COMBAT_SECONDS = 6    -- in combat (quiet mode off)
+local TOAST_LIVE_SECONDS = 120    -- a waiting call older than this is stale and dropped
+local MUTE_SECONDS = 600
+
+local function closeToast()
+  if banner then banner:Hide(); banner.isOpen = false; banner.call, banner.sender, banner.callerName = nil, nil, nil end
+  layout()
+end
+
+local function hideIcon()
+  if icon then icon:Hide(); icon.isOpen = false end
+  layout()
+end
+
+local function showIcon()
+  ensureAnchor()
+  if not icon then
+    icon = CreateFrame("Button", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+    icon:SetWidth(ICON_W)
+    icon:SetHeight(26)
+    if icon.SetFrameStrata then icon:SetFrameStrata("MEDIUM") end
+    if icon.SetClampedToScreen then icon:SetClampedToScreen(true) end
+    if icon.SetBackdrop then
+      pcall(icon.SetBackdrop, icon, { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        tile = true, tileSize = 16, edgeSize = 10, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
+      if icon.SetBackdropColor then pcall(icon.SetBackdropColor, icon, 0.5, 0.05, 0.05, 0.9) end
+    end
+    icon.isOpen = false
+    icon.text = icon:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    icon.text:SetPoint("CENTER", icon, "CENTER", 0, 0)
+    icon:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    icon:SetScript("OnClick", function(_, button)
+      if button == "RightButton" then module.dismissAll() else module.expand() end
+    end)
+    icon:Hide()
+  end
+  icon.text:SetText("SOS " .. #queue)
+  icon.isOpen = true
+  icon:Show()
+  layout()
 end
 
 local function ensureBanner()
   if banner then return banner end
-  banner = makeFrame(360, 128)
-  banner:SetPoint("TOP", UIParent, "TOP", 0, -90)
-  banner.detail = banner:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-  banner.detail:SetPoint("TOP", banner.text, "BOTTOM", 0, -4)
-  banner.detail:SetWidth(340)
-  banner.coming = makeButton(banner, L("On my way"), 120, function() module.reply(true) end)
-  banner.coming:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -4, 10)
-  banner.join = makeButton(banner, L("Join"), 120, function() module.join() end)
-  banner.join:SetPoint("BOTTOMRIGHT", banner, "BOTTOM", -4, 40)
-  banner.inviteCaller = ns.util.inviteButton(banner, "party", L("Invite caller"), 120, 24, function(name) module.invited(name) end)
-  banner.inviteCaller:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 4, 40)
-  banner.cant = makeButton(banner, L("Can't"), 120, function() module.reply(false) end)
-  banner.cant:SetPoint("BOTTOMLEFT", banner, "BOTTOM", 4, 10)
+  banner = makeToast(TOAST_H, function() module.dismiss() end)
+  banner.detail = banner:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  banner.detail:SetPoint("TOPLEFT", banner.text, "BOTTOMLEFT", 0, -3)
+  banner.detail:SetWidth(TOAST_W - 20)
+  if banner.detail.SetJustifyH then banner.detail:SetJustifyH("LEFT") end
+  banner.coming = makeButton(banner, L("On my way"), 92, function() module.reply(true) end)
+  banner.coming:SetPoint("BOTTOMLEFT", banner, "BOTTOMLEFT", 10, 34)
+  banner.cant = makeButton(banner, L("Can't"), 60, function() module.reply(false) end)
+  banner.cant:SetPoint("LEFT", banner.coming, "RIGHT", 4, 0)
+  banner.mute = makeButton(banner, L("Mute 10 min"), 100, function() module.mute() end)
+  banner.mute:SetPoint("LEFT", banner.cant, "RIGHT", 4, 0)
+  banner.join = makeButton(banner, L("Join"), 92, function() module.join() end)
+  banner.join:SetPoint("BOTTOMLEFT", banner, "BOTTOMLEFT", 10, 8)
+  banner.inviteCaller = ns.util.inviteButton(banner, "party", L("Invite caller"), 120, 22, function(name) module.invited(name) end)
+  banner.inviteCaller:SetPoint("LEFT", banner.join, "RIGHT", 4, 0)
   return banner
+end
+
+local function setToastTitle()
+  if not (banner and banner.isOpen and banner.callerName) then return end
+  local title = string.format(L("CALL FOR HELP: %s"), display(banner.callerName))
+  if #queue > 0 then title = title .. " " .. string.format(L("(+%d more)"), #queue) end
+  banner.text:SetText(title)
+end
+
+local function showEntry(entry)
+  ensureBanner()
+  local call = entry.call
+  banner.call, banner.sender, banner.callerName, banner.shownAt, banner.isOpen = call, entry.sender, entry.name, now(), true
+  banner.seconds = ns.util.inCombat() and TOAST_COMBAT_SECONDS or TOAST_SECONDS
+  banner.inviteCaller.setInvite(entry.sender)
+  setToastTitle()
+  local where = whereText(call)
+  banner.detail:SetText(describe(call, entry.name) .. (where ~= "" and ("\n" .. where) or ""))
+  banner:Show()
+  layout()
+end
+
+local function playAlert()
+  if not module.sound() or not PlaySound then return end
+  local sound = (SOUNDKIT and SOUNDKIT.IG_PLAYER_INVITE) or 880
+  pcall(PlaySound, sound)
+end
+
+-- Waiting calls still worth showing: not too old and not cleared by their caller.
+local function purgeQueue()
+  local kept = {}
+  for _, e in ipairs(queue) do
+    local entry = incoming[e.key]
+    if now() - e.at <= TOAST_LIVE_SECONDS and entry and entry.id == e.call.id then kept[#kept + 1] = e end
+  end
+  queue = kept
+end
+
+presentNext = function()
+  purgeQueue()
+  if #queue == 0 then hideIcon(); return false end
+  if module.quiet() and ns.util.inCombat() then showIcon(); return false end
+  hideIcon()
+  if module.muted() or module.alertMode() ~= "toast" then queue = {}; return false end
+  showEntry(table.remove(queue, 1))
+  return true
+end
+
+-- A call to show. Returns "banner" (shown, merged into the open window, or waiting behind the combat icon).
+function module.enqueue(call, callerName, sender)
+  local key = baseName(sender)
+  local entry = { call = call, name = callerName, sender = sender, key = key, at = now() }
+  for i = #queue, 1, -1 do if queue[i].key == key then table.remove(queue, i) end end
+  if banner and banner.isOpen then
+    if banner.sender == sender then showEntry(entry) else queue[#queue + 1] = entry; setToastTitle() end
+    return "banner"
+  end
+  if module.quiet() and ns.util.inCombat() then
+    queue[#queue + 1] = entry
+    showIcon()
+    return "banner"
+  end
+  showEntry(entry)
+  playAlert()
+  return "banner"
+end
+
+-- The X, a right-click on the title strip or the toast timer: close this call, show the next one if any.
+function module.dismiss()
+  closeToast()
+  presentNext()
+end
+
+function module.dismissAll()
+  queue = {}
+  closeToast()
+  hideIcon()
+end
+
+-- The combat icon was clicked: show the next waiting call now, even in combat.
+function module.expand()
+  purgeQueue()
+  hideIcon()
+  if #queue == 0 then return false end
+  showEntry(table.remove(queue, 1))
+  return true
+end
+
+function module.mute(seconds)
+  muteUntil = now() + (tonumber(seconds) or MUTE_SECONDS)
+  module.dismissAll()
+  say(L("Guilded: calls for help muted for 10 minutes."))
+end
+
+function module.unmute()
+  muteUntil = nil
+  say(L("Guilded: calls for help unmuted."))
+end
+
+function module.muted()
+  if muteUntil and now() >= muteUntil then muteUntil = nil end
+  return muteUntil ~= nil
 end
 
 -- ---------------------------------------------------------------------
@@ -565,7 +901,7 @@ function module.allClear()
   mine = nil
   say(L("All clear sent."))
   refreshOffer()
-  if offerFrame then offerFrame:Hide() end
+  closeOffer()
   return true
 end
 
@@ -606,7 +942,7 @@ local function sameZone(call)
   return zone ~= "" and call.zone ~= "" and zone == call.zone
 end
 
-local function describe(call, callerName)
+describe = function(call, callerName)
   local line = string.format(L("%s is under attack in %s"), display(callerName), call.zone ~= "" and call.zone or "?")
   if call.subzone ~= "" then line = line .. " (" .. call.subzone .. ")" end
   local summary = module.summary(call.attackers)
@@ -615,7 +951,7 @@ local function describe(call, callerName)
 end
 
 -- Distance/direction text, or "" when either position is unknown.
-local function whereText(call)
+whereText = function(call)
   local mapId, x, y = position()
   if not (mapId and call.mapId and mapId == call.mapId and call.x) then return "" end
   local w, h = mapSize(mapId)
@@ -630,21 +966,6 @@ local function pinOnMap(callerName, call)
   local existing = map.members[callerName] or {}
   map.members[callerName] = { mapId = call.mapId, x = call.x, y = call.y, class = existing.class, level = call.level, at = now() }
   if map.refresh then pcall(map.refresh) end
-end
-
-local function showBanner(call, callerName, sender)
-  ensureBanner()
-  banner.call, banner.sender, banner.shownAt = call, sender, now()
-  banner.inviteCaller.setInvite(sender)
-  banner.text:SetText(string.format(L("CALL FOR HELP: %s"), display(callerName)))
-  local where = whereText(call)
-  banner.detail:SetText(describe(call, callerName) .. (where ~= "" and ("\n" .. where) or ""))
-  banner:Show()
-  local sound = (SOUNDKIT and SOUNDKIT.RAID_WARNING) or 8959
-  if PlaySound then pcall(PlaySound, sound) end
-  if RaidNotice_AddMessage and RaidWarningFrame and ChatTypeInfo then
-    pcall(RaidNotice_AddMessage, RaidWarningFrame, string.format(L("CALL FOR HELP: %s"), display(callerName)), ChatTypeInfo["RAID_WARNING"] or { r = 1, g = 0.2, b = 0.2 })
-  end
 end
 
 -- Handles one message from a guildmate. Returns a short result word (for the tests and /guilded diag).
@@ -673,7 +994,9 @@ function module.receive(text, sender, channel)
     local entry = incoming[name]
     if not entry or entry.id ~= msg.id then return "ignored" end
     incoming[name] = nil
-    if banner and banner.sender == sender and banner:IsShown() then banner:Hide() end
+    for i = #queue, 1, -1 do if queue[i].key == name then table.remove(queue, i) end end
+    if banner and banner.isOpen and banner.sender == sender then closeToast(); presentNext() else setToastTitle() end
+    if icon and icon.isOpen then purgeQueue(); if #queue == 0 then hideIcon() else showIcon() end end
     say(string.format(L("%s: all clear."), display(name)))
     return "clear"
   end
@@ -683,12 +1006,12 @@ function module.receive(text, sender, channel)
   if entry and now() - entry.at < COOLDOWN_SECONDS then return "cooldown" end
   incoming[name] = { at = now(), id = msg.id }
   pinOnMap(name, msg)
-  if module.defender() and sameZone(msg) and not inInstance() then
-    say(describe(msg, name))
-    showBanner(msg, name, sender)
-    return "banner"
-  end
+  local mode = module.alertMode()
+  if mode == "off" then return "off" end
   say(describe(msg, name))
+  if mode == "toast" and not module.muted() and module.defender() and sameZone(msg) and not inInstance() then
+    return module.enqueue(msg, name, sender)
+  end
   return "line"
 end
 
@@ -699,7 +1022,8 @@ function module.reply(coming)
   local id = entry and entry.id or banner.call.id
   ns.comm.send(PREFIX, "R|" .. id .. "|" .. (coming and "Y" or "N"), "WHISPER", banner.sender, nil, "interactive")
   if coming and ns.worldPvp then pcall(ns.worldPvp.note, "responded", banner.call.zone, banner.call.mapId) end
-  banner:Hide()
+  closeToast()
+  presentNext()
   return true
 end
 
@@ -725,6 +1049,9 @@ local function options()
   say(string.format(L("Call for help: defender %s, guild chat line %s."),
     module.defender() and L("on") or L("off"), module.guildChat() and L("on") or L("off")))
   say(L("/guilded sos now | clear | status | defender on|off | chat on|off"))
+  say(string.format(L("Call alerts: %s, sound %s, quiet in combat %s."), module.alertMode() == "toast" and L("small window") or module.alertMode() == "chat" and L("chat line only") or L("off"),
+    module.sound() and L("on") or L("off"), module.quiet() and L("on") or L("off")))
+  say(L("/guilded sos alert toast|chat|off | sound on|off | quiet on|off | mute | unmute | show | reset"))
   return s
 end
 
@@ -742,6 +1069,25 @@ ns.commandHandlers["sos"] = function(args)
   elseif what == "chat" and (value == "on" or value == "off") and s then
     s.helpGuildChat = value == "on"
     say(s.helpGuildChat and L("A call for help also posts one line in guild chat.") or L("A call for help stays on Guilded only."))
+  elseif what == "alert" and (value == "toast" or value == "chat" or value == "off") and s then
+    s.helpAlert = value
+    if value ~= "toast" then module.dismissAll() end
+    options()
+  elseif what == "sound" and (value == "on" or value == "off") and s then
+    s.helpSound = value == "on"
+    options()
+  elseif what == "quiet" and (value == "on" or value == "off") and s then
+    s.helpQuiet = value == "on"
+    options()
+  elseif what == "mute" then
+    module.mute()
+  elseif what == "unmute" then
+    module.unmute()
+  elseif what == "show" then
+    module.showOffer()
+  elseif what == "reset" then
+    module.resetPosition()
+    say(L("The call for help window is back at its default place."))
   elseif what == "status" then
     options()
   else
@@ -751,7 +1097,7 @@ ns.commandHandlers["sos"] = function(args)
 end
 ns.commandHandlers["callforhelp"] = ns.commandHandlers["sos"]
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded sos - options and a confirm to call guildmates for help (now, clear, status, defender on|off, chat on|off); /gsos too")
+table.insert(ns.commandHelp, "/guilded sos - options and a confirm to call guildmates for help (now, clear, status, defender on|off, chat on|off, alert toast|chat|off, sound, quiet, mute, unmute, show, reset); /gsos too")
 
 -- The key binding (Bindings.xml: Options > Keybindings > Guilded).
 BINDING_NAME_GUILDED_CALL_FOR_HELP = L("Call for help")
@@ -777,6 +1123,7 @@ register("DUEL_INBOUNDS")
 register("DUEL_OUTOFBOUNDS")
 register("DUEL_FINISHED")
 register("PLAYER_ENTERING_WORLD")
+register("PLAYER_REGEN_ENABLED") -- combat over: show the call the SOS icon was holding
 -- I asked for the duel: hooksecurefunc only watches StartDuel and taints nothing.
 if hooksecurefunc and StartDuel then pcall(hooksecurefunc, "StartDuel", duelAsked) end
 
@@ -787,13 +1134,22 @@ local function onUpdate(_, elapsed)
   if sinceTick < 1 then return end
   sinceTick = 0
   local t = now()
-  if offerFrame and offerFrame:IsShown() then
-    if mine then
-      if t - mine.at > EXPIRE_SECONDS then mine = nil; offerFrame:Hide(); say(L("Your call for help expired.")) end
-    elseif offerUntil and t > offerUntil then offerFrame:Hide(); offerUntil = nil end
+  if mine and t - mine.at > EXPIRE_SECONDS then
+    mine = nil
+    if offerFrame and offerFrame.isOpen then closeOffer() end
+    say(L("Your call for help expired."))
   end
-  if banner and banner:IsShown() and banner.shownAt and t - banner.shownAt > BANNER_SECONDS then banner:Hide() end
-  if mine and offerFrame and offerFrame:IsShown() and t - (matesAt or 0) >= MATE_REFRESH_SECONDS then
+  if offerFrame and offerFrame.isOpen then
+    if mine then
+      if t - (offerFrame.shownAt or t) > OFFER_OPEN_SECONDS then closeOffer() end
+    elseif offerUntil and t > offerUntil then closeOffer() end
+  end
+  if banner and banner.isOpen and banner.shownAt and t - banner.shownAt > (banner.seconds or TOAST_SECONDS) then
+    closeToast()
+    presentNext()
+  end
+  if icon and icon.isOpen and not ns.util.inCombat() then presentNext() end
+  if mine and offerFrame and offerFrame.isOpen and t - (matesAt or 0) >= MATE_REFRESH_SECONDS then
     matesAt = t
     module.refreshMates()
   end
@@ -806,6 +1162,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if event == "PLAYER_LOGIN" then
       ns.comm.register(PREFIX)
       frame:SetScript("OnUpdate", onUpdate)
+    elseif event == "PLAYER_REGEN_ENABLED" then
+      if not (banner and banner.isOpen) then presentNext() end
     elseif event == "UNIT_COMBAT" then
       if args[1] == "player" and args[2] == "WOUND" then module.noteDamage(args[4]) end
     elseif event == "DUEL_REQUESTED" then

@@ -1571,6 +1571,10 @@ local INFO_OFFICER_TOOLS = {
 -- default; Settings has an "Advanced..." button and this view has "Back". Personal switches come first, then
 -- what concerns other guildmates, then (officers only) the officer buttons, speed report, GRM import and tests.
 local PERSONAL_COMMANDS = { digest = true, chattags = true }
+-- The call-for-help alert block of the Advanced view is this tall (label, button row, two checks, status line).
+local CALL_ALERT_HEIGHT = 112
+ui.callAlertHeight = CALL_ALERT_HEIGHT
+
 local function buildInfoPage(page)
   local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
   scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -34)
@@ -1600,6 +1604,8 @@ local function buildInfoPage(page)
   -- Personal switches (daily digest, main names in chat) live on the Settings page itself.
   local guildmates = {}
   for _, def in ipairs(INFO_TOOLS) do if not PERSONAL_COMMANDS[def[2]] then table.insert(guildmates, def) end end
+  -- Call for help alerts (how a guildmate's call reaches you): window, chat line or off, sound, quiet in combat.
+  if ui.callAlertBlock then ui.callAlertBlock(child, y); y = y - CALL_ALERT_HEIGHT end
   heading("Guildmates and data")
   place(guildmates, false)
   heading("Officer", true)
@@ -1681,6 +1687,39 @@ ui.announcementsBlock = function(page, top)
     ui.announceStatus:SetText(off and L("Milestone announcements are turned off for the whole guild by an officer.") or "")
   end
   page:HookScript("OnShow", function() ui.refreshAnnouncements() end)
+end
+
+-- Call for help alerts, a block of the Settings page: the same switches as /guilded sos alert|sound|quiet|mute.
+ui.callAlertBlock = function(page, top)
+  at(newLabel(page, "Call for help alerts", "GameFontNormalSmall"), page, 0, top)
+  local modes = { { "toast", "Window" }, { "chat", "Chat line" }, { "off", "Off" } }
+  ui.callAlertButtons = {}
+  for i, m in ipairs(modes) do
+    ui.callAlertButtons[i] = at(newButton(page, m[2], 86, function()
+      run("sos alert " .. m[1])
+      if ui.refreshCallAlerts then ui.refreshCallAlerts() end
+    end), page, (i - 1) * 90, top - 16)
+  end
+  ui.callAlertSound = at(newCheck(page, "Play a sound"), page, 0, top - 44)
+  ui.callAlertSound:SetScript("OnClick", function(self)
+    run("sos sound " .. (self:GetChecked() and "on" or "off"))
+  end)
+  ui.callAlertQuiet = at(newCheck(page, "Quiet in combat: a chat line and a small icon, silent after combat too"), page, 0, top - 68)
+  ui.callAlertQuiet:SetScript("OnClick", function(self)
+    run("sos quiet " .. (self:GetChecked() and "on" or "off"))
+  end)
+  tip(at(newButton(page, "Mute 10 min", 110, function() run("sos mute") end), page, 290, top - 16), "No call windows for 10 minutes (this session only).")
+  tip(at(newButton(page, "Reset", 60, function() run("sos reset") end), page, 404, top - 16), "Put the call window back at its default place. Drag its title to move it.")
+  ui.callAlertStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, top - 94)
+  ui.refreshCallAlerts = function()
+    local cfh = ns.callForHelp
+    if not (cfh and cfh.alertMode) then return end
+    local mode = cfh.alertMode()
+    ui.callAlertSound:SetChecked(cfh.sound())
+    ui.callAlertQuiet:SetChecked(cfh.quiet())
+    ui.callAlertStatus:SetText(L(mode == "toast" and "small window" or mode == "chat" and "chat line only" or "off"))
+  end
+  page:HookScript("OnShow", function() ui.refreshCallAlerts() end)
 end
 
 -- Settings (9.2): one page. The general view holds the switches, announcements, window size, companion links

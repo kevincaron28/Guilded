@@ -502,14 +502,33 @@ export function exportCraftOrders(database) {
   const epoch = (v) => Number.isSafeInteger(v) && v > 1_600_000_000 && v < 4_102_444_800;
   const orderId = (v) => typeof v === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(v);
   const name = (v) => typeof v === "string" && v.trim().length > 1 && v.length <= 80 && !/[|\p{Cc}]/u.test(v);
-  const action = (v) => v === "claim" || v === "done" || v === "release";
+  const action = (v) => v === "claim" || v === "done" || v === "release" || v === "cancel";
   const state = database?.craftOrders && typeof database.craftOrders === "object" ? database.craftOrders : {};
   const row = (v) => v && orderId(v.order) && action(v.action) && name(v.character) && epoch(v.at);
   const own = Object.values(state.actions ?? {}).filter(row).sort((a, b) => a.at - b.at).slice(-30)
     .map((v) => ({ order: v.order, action: v.action, character: v.character, at: v.at }));
   const heard = Object.values(state.heard ?? {}).filter((v) => row(v) && name(v.name)).sort((a, b) => b.at - a.at).slice(0, 100)
     .map((v) => ({ order: v.order, action: v.action, character: v.character, at: v.at, name: v.name }));
-  return { ...(own.length ? { craftOrderActions: own } : {}), ...(heard.length ? { craftOrderRelayActions: heard } : {}) };
+  // Requests made in game: this player's own (db.craftOrders.requests, by ref) and guildmates' heard on GUILD
+  // (db.craftOrders.heardRequests, with the sender). The bot checks every row again and never reads an id from them.
+  const text = (v, max) => typeof v === "string" ? v.replace(/[|\p{Cc}]/gu, " ").replace(/\s+/g, " ").trim().slice(0, max) : "";
+  const request = (v) => v && typeof v.ref === "string" && orderId(v.ref) && text(v.item, 100).length >= 2 && name(v.character) && epoch(v.at);
+  const shape = (v) => ({
+    ref: v.ref, item: text(v.item, 100), character: v.character, at: v.at,
+    ...(Number.isInteger(v.key) && v.key !== 0 && Math.abs(v.key) <= 9_999_999 ? { key: v.key } : {}),
+    ...(text(v.prof, 40) ? { prof: text(v.prof, 40) } : {}),
+    ...(Number.isInteger(v.qty) && v.qty >= 1 && v.qty <= 200 ? { qty: v.qty } : {}),
+    ...(text(v.note, 300) ? { note: text(v.note, 300) } : {}),
+    ...(v.mats === true ? { mats: true } : {}),
+    ...(name(v.asked) ? { asked: v.asked.trim().slice(0, 60) } : {})
+  });
+  const requests = Object.values(state.requests ?? {}).filter(request).sort((a, b) => a.at - b.at).slice(-20).map(shape);
+  const heardRequests = Object.values(state.heardRequests ?? {}).filter((v) => request(v) && name(v.name)).sort((a, b) => b.at - a.at).slice(0, 60)
+    .map((v) => ({ ...shape(v), name: v.name }));
+  return {
+    ...(own.length ? { craftOrderActions: own } : {}), ...(heard.length ? { craftOrderRelayActions: heard } : {}),
+    ...(requests.length ? { craftOrderRequests: requests } : {}), ...(heardRequests.length ? { craftOrderRelayRequests: heardRequests } : {})
+  };
 }
 
 // Track M phone map (addon Modules/GuildMap.lua and Modules/CallForHelp.lua): this player's own

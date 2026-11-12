@@ -113,25 +113,25 @@ describe("the five member tabs", () => {
     expect(shownPages(s)).toBe("Guild overview,Board,Layer invite,Standings,Availability,Duels");
   });
 
-  it("shows Guild and Crafting as one page each, with their sections in a row at the top", () => {
+  it("shows Guild as one page with its sections in a row at the top, and Crafting as a single page", () => {
     const s = openWindow(5);
     const row = () => s.run(`local out = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then local p = t.button.points[#t.button.points]; out[#out + 1] = t.name .. "@" .. tostring(p[5]) end end; return table.concat(out, ",")`);
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
     expect(row()).toBe("Guild overview@-12,Board@-12,Layer invite@-12,Standings@-12,Availability@-12,Duels@-36");
     expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
     s.run(`NS.windowState().groupButtons.Crafting.scripts.OnClick()`);
-    expect(row()).toBe("Crafting@-12,Orders@-12");
+    expect(row()).toBe("");   // one page: no section row
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Crafting");
     // Old names open the right section of the right tab.
     s.run(`NS.windowState().selectTabByName("Availability")`);
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`)).toBe("Guild");
-    s.run(`NS.windowState().selectTabByName("Orders")`);
-    expect(row()).toBe("Crafting@-12,Orders@-12");
+    s.run(`NS.windowState().selectTabByName("Crafting")`);
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`)).toBe("Crafting");
   });
 
   it("keeps every old page name working", () => {
     const s = openWindow(5, `NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }`);
-    for (const [name, group] of [["Home", "Home"], ["Me", "Home"], ["Board", "Guild"], ["Orders", "Crafting"], ["Open raids", "Raids"], ["Signups", "Raids"], ["Duels", "Guild"], ["Tools", "Settings"], ["Announcements", "Settings"], ["Info", "Settings"]]) {
+    for (const [name, group] of [["Home", "Home"], ["Me", "Home"], ["Board", "Guild"], ["Crafting", "Crafting"], ["Open raids", "Raids"], ["Signups", "Raids"], ["Duels", "Guild"], ["Tools", "Settings"], ["Announcements", "Settings"], ["Info", "Settings"]]) {
       s.run(`NS.windowState().selectTabByName("${name}")`);
       expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`), name).toBe(group);
     }
@@ -156,10 +156,10 @@ describe("the five member tabs", () => {
   });
 });
 
-describe("the section rows of the Guild and Crafting pages", () => {
+describe("the section row of the Guild page", () => {
   it("keep every button inside the page width, sized to its text, in English", () => {
     const s = openWindow(1);
-    for (const group of ["Guild", "Crafting"]) {
+    for (const group of ["Guild"]) {
       s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
       const rows = JSON.parse(s.run(`local t = {}; for _, r in ipairs(NS.windowState().sectionLayout) do
         local b; for _, tab in ipairs(NS.windowState().tabs) do if tab.name == r.name then b = tab.button end end
@@ -393,9 +393,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Crafting,Orders,Me,Open raids,Layer invite,Standings,Availability,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Crafting,Me,Open raids,Layer invite,Standings,Availability,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Crafting,Orders,Me,Open raids,Layer invite,Standings,Availability,Reserves,Signups,Duels,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Crafting,Me,Open raids,Layer invite,Standings,Availability,Reserves,Signups,Duels,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {

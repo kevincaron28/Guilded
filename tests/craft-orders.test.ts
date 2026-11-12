@@ -16,7 +16,7 @@ const row = (over: Record<string, unknown> = {}) => ({
 describe("the feed part", () => {
   it("lists open and claimed requests, then the ones done in the last day, cleaned for the addon", async () => {
     const findMany = vi.fn()
-      .mockResolvedValueOnce([row(), row({ id: "req_cloak04", status: "CLAIMED", itemKey: null, crafter: { displayName: "Eve" }, crafterCharacter: "Eve Stone", claimedAt: new Date("2026-11-07T11:00:00Z") })])
+      .mockResolvedValueOnce([row({ gameRef: "g6a0b1c2d3" }), row({ id: "req_cloak04", status: "CLAIMED", itemKey: null, crafter: { displayName: "Eve" }, crafterCharacter: "Eve Stone", claimedAt: new Date("2026-11-07T11:00:00Z") })])
       .mockResolvedValueOnce([row({ id: "req_done005", status: "DONE", doneAt: new Date("2026-11-07T11:30:00Z") })]);
     const db = { guildSettings: { findUnique: async () => ({ craftOrdersInGame: true }) }, craftRequest: { findMany } };
     const feed = await craftOrdersForAddon(db as never, "g1", NOW);
@@ -25,6 +25,9 @@ describe("the feed part", () => {
     expect(feed.orders[0]).toMatchObject({ key: 2580, qty: 2, prof: "Tailoring", by: "Ann Walker", mats: false, note: "Tip 5g soon", at: 1794045600 });
     expect(feed.orders[1]).toMatchObject({ crafter: "Eve", character: "Eve Stone" });
     expect(feed.orders[1]).not.toHaveProperty("key");
+    // The addon's own id for a request made in game, so its in-game row becomes this order.
+    expect(feed.orders[0]).toMatchObject({ ref: "g6a0b1c2d3" });
+    expect(feed.orders[1]).not.toHaveProperty("ref");
     expect(findMany.mock.calls[1]![0].where.doneAt.gte).toEqual(new Date("2026-11-06T12:00:00Z"));
   });
   it("says off, with no orders, when officers turned it off", async () => {
@@ -36,9 +39,13 @@ describe("the feed part", () => {
     const lua = craftOrdersToLua({ enabled: true, orders: [{ id: "req_shirt01", key: 2580, item: "Brown \"Linen\" Shirt", qty: 2, status: "OPEN", by: "Ann", mats: true, at: 1762509600 },
       { id: "bad id!", status: "OPEN" }, { id: "req_x00001", status: "CANCELLED" }] }, "2026-11-07T12:00:00.000Z").join("\n");
     expect(lua).toContain('GuildedOrders = { at = "2026-11-07T12:00:00.000Z", orders = {');
-    expect(lua).toContain('{ id = "req_shirt01", key = 2580, item = "Brown \\"Linen\\" Shirt", qty = 2, prof = "", status = "OPEN", by = "Ann"');
+    expect(lua).toContain('{ id = "req_shirt01", ref = "", key = 2580, item = "Brown \\"Linen\\" Shirt", qty = 2, prof = "", status = "OPEN", by = "Ann"');
     expect(lua).toContain("mats = true");
     expect(lua.match(/\{ id = /g)).toHaveLength(1);
+    // A valid addon ref is written; anything else is written empty.
+    const refs = craftOrdersToLua({ enabled: true, orders: [{ id: "req_a00001", ref: "g6a0b1c2d3", item: "Cape", qty: 1, status: "OPEN" }, { id: "req_b00002", ref: "bad ref!", item: "Hat", qty: 1, status: "OPEN" }] }, "x").join("\n");
+    expect(refs).toContain('{ id = "req_a00001", ref = "g6a0b1c2d3", key = nil');
+    expect(refs).toContain('{ id = "req_b00002", ref = "", key = nil');
     expect(craftOrdersToLua({ enabled: false }, "x")).toEqual(['GuildedOrders = { at = "x", off = true }']);
     expect(craftOrdersToLua(undefined, "x")).toEqual(["GuildedOrders = nil"]);
     expect(standingsToLua({ standings: [], updatedAt: "s", craftOrders: { enabled: true, orders: [] } })).toContain('GuildedOrders = { at = "s", orders = {');
@@ -57,6 +64,23 @@ describe("actions from the game", () => {
     });
     expect(exportCraftOrders({})).toEqual({});
   });
+  it("exports Cancel as an action, and requests made in game (own and heard), sanitized and capped", () => {
+    const request = (over: Record<string, unknown> = {}) => ({ ref: "g6a0b1c2d3", item: "Brown Linen Shirt", key: 2580, prof: "Tailoring", qty: 2, note: "Tip | 5g", mats: true, asked: "Eve Stone", character: "Lebowski Holyroller", at: 1799999900, ...over });
+    const exported = exportCraftOrders({ craftOrders: {
+      actions: { req_shirt01: { order: "req_shirt01", action: "cancel", character: "Lebowski Holyroller", at: 1799999000 } },
+      requests: { g6a0b1c2d3: request(), bad1: request({ ref: "x" }), bad2: request({ ref: "g6a0b1c2d4", item: "x" }), bad3: request({ ref: "g6a0b1c2d5", at: "now" }) },
+      heardRequests: { "g6a0b1c2d3@Ann Walker": request({ character: "Ann Walker", name: "Ann Walker" }), "g6a0b1c2d3@": request({ name: "" }) }
+    } }) as Record<string, Array<Record<string, unknown>>>;
+    expect(exported["craftOrderActions"]).toEqual([{ order: "req_shirt01", action: "cancel", character: "Lebowski Holyroller", at: 1799999000 }]);
+    expect(exported["craftOrderRequests"]).toEqual([{ ref: "g6a0b1c2d3", item: "Brown Linen Shirt", character: "Lebowski Holyroller", at: 1799999900, key: 2580, prof: "Tailoring", qty: 2, note: "Tip 5g", mats: true, asked: "Eve Stone" }]);
+    expect(exported["craftOrderRelayRequests"]).toEqual([{ ref: "g6a0b1c2d3", item: "Brown Linen Shirt", character: "Ann Walker", at: 1799999900, key: 2580, prof: "Tailoring", qty: 2, note: "Tip 5g", mats: true, asked: "Eve Stone", name: "Ann Walker" }]);
+    // At most 20 own and 60 heard requests go up, newest kept.
+    const many = Object.fromEntries(Array.from({ length: 80 }, (_, i) => [`k${i}`, request({ ref: `g6a0b${String(i).padStart(5, "0")}`, at: 1799990000 + i, name: "Ann Walker" })]));
+    const capped = exportCraftOrders({ craftOrders: { requests: many, heardRequests: many } }) as Record<string, Array<Record<string, unknown>>>;
+    expect(capped["craftOrderRequests"]).toHaveLength(20);
+    expect(capped["craftOrderRelayRequests"]).toHaveLength(60);
+    expect(capped["craftOrderRequests"]![19]!["at"]).toBe(1799990079);
+  });
   it("parses only well-formed rows, and relayed ones need the sender", () => {
     expect(parseAddonOrderActions([{ order: "req_shirt01", action: "claim", character: "Leb", at: 1799999000 }, { order: "x", action: "claim", character: "Leb", at: 1799999000 },
       { order: "req_shirt01", action: "steal", character: "Leb", at: 1799999000 }, { order: "req_shirt01", action: "done", character: "L|eb", at: 1799999000 }])).toHaveLength(1);
@@ -72,9 +96,10 @@ describe("actions from the game", () => {
         character: { findMany: async () => [{ name: "Ann", displayName: "Ann Walker", memberId: "m-ann" }, { name: "Up", displayName: "Uploader", memberId: "m-up" }] },
         craftRequest: {
           findFirst: async ({ where }: { where: { id: string } }) => requests[where.id] ? { id: where.id, ...requests[where.id]! } : null,
-          updateMany: async (args: { where: { id: string; status: string; crafterId?: string }; data: Record<string, unknown> }) => {
+          updateMany: async (args: { where: { id: string; status: string | { in: string[] }; crafterId?: string; requesterId?: string }; data: Record<string, unknown> }) => {
             const current = requests[args.where.id]!;
-            if (current.status !== args.where.status || (args.where.crafterId && current.crafterId !== args.where.crafterId)) return { count: 0 };
+            const statusOk = typeof args.where.status === "string" ? current.status === args.where.status : args.where.status.in.includes(current.status);
+            if (!statusOk || (args.where.crafterId && current.crafterId !== args.where.crafterId) || (args.where.requesterId && current.requesterId !== args.where.requesterId)) return { count: 0 };
             updates.push(args);
             Object.assign(current, { status: args.data["status"], crafterId: args.data["crafterId"] === undefined ? current.crafterId : args.data["crafterId"] });
             return { count: 1 };
@@ -104,6 +129,23 @@ describe("actions from the game", () => {
     expect(updates[2]!.data).toMatchObject({ status: "OPEN", crafterId: null, crafterCharacter: null });
     // The same upload again changes nothing.
     expect(await applyOrderActions(db as never, "g1", "m-up", own, [], NOW)).toEqual([]);
+  });
+
+  it("lets only the requester cancel an open or claimed request, once", async () => {
+    const { db, updates } = fakeDb({
+      e: { status: "OPEN", requesterId: "m-up", crafterId: null },
+      f: { status: "CLAIMED", requesterId: "m-up", crafterId: "m-other" },
+      g: { status: "DONE", requesterId: "m-up", crafterId: "m-other" },
+      h: { status: "OPEN", requesterId: "m-req", crafterId: null },
+      i: { status: "OPEN", requesterId: "m-ann", crafterId: null }
+    });
+    const own = ["e", "f", "g", "h"].map((order, n) => ({ order, action: "cancel" as const, character: "Up Ward", at: 1799999001 + n }));
+    const relayed = [{ order: "i", action: "cancel" as const, character: "Ann Walker", at: 1799999010, name: "Ann Walker" }];
+    const changes = await applyOrderActions(db as never, "g1", "m-up", own, relayed, NOW);
+    expect(changes.map((c) => `${c.requestId}:${c.action}:${c.memberId}`)).toEqual(["e:cancel:m-up", "f:cancel:m-up", "i:cancel:m-ann"]);
+    expect(updates.map((u) => u.data["status"])).toEqual(["CANCELLED", "CANCELLED", "CANCELLED"]);
+    // Sent again: nothing left to cancel.
+    expect(await applyOrderActions(db as never, "g1", "m-up", own, relayed, NOW)).toEqual([]);
   });
 
   it("counts a relayed action for the linked sender only, never for the uploader, and does nothing when off", async () => {

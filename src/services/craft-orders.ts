@@ -15,7 +15,7 @@ const clean = (value: string | null | undefined, max: number) => (value ?? "").r
 const epoch = (date: Date | null | undefined) => date ? Math.floor(date.getTime() / 1000) : undefined;
 
 export interface AddonOrder {
-  id: string; key?: number; item: string; qty: number; prof?: string; status: CraftRequestStatus;
+  id: string; ref?: string; key?: number; item: string; qty: number; prof?: string; status: CraftRequestStatus;
   by: string; crafter?: string; character?: string; asked?: string; mats: boolean; note?: string;
   at: number; claimedAt?: number; doneAt?: number;
 }
@@ -36,6 +36,8 @@ export async function craftOrdersForAddon(db: FeedDb, guildId: string, now = new
     return {
       id: row.id, item: clean(row.item, 100) || "?", qty: row.quantity, status: row.status, by: clean(row.requester.displayName, 60) || "?", mats: row.materialsProvided,
       at: epoch(row.createdAt) ?? 0,
+      // A request made in game: its addon id, so the in-game row becomes this order once the bot has created it.
+      ...(row.gameRef ? { ref: clean(row.gameRef, 40) } : {}),
       ...(row.itemKey !== null && row.itemKey !== 0 ? { key: row.itemKey } : {}),
       ...(row.profession ? { prof: row.profession } : {}),
       ...(row.crafter ? { crafter: clean(row.crafter.displayName, 60) } : {}),
@@ -53,10 +55,10 @@ export async function craftOrdersForAddon(db: FeedDb, guildId: string, now = new
 // Actions from the game
 // ---------------------------------------------------------------------------------------------
 
-export type OrderAction = "claim" | "done" | "release";
+export type OrderAction = "claim" | "done" | "release" | "cancel";
 export interface AddonOrderAction { order: string; action: OrderAction; character: string; at: number; name?: string }
 
-const ACTIONS = new Set<OrderAction>(["claim", "done", "release"]);
+const ACTIONS = new Set<OrderAction>(["claim", "done", "release", "cancel"]);
 const isEpoch = (value: unknown): value is number => typeof value === "number" && Number.isSafeInteger(value) && value > 1_600_000_000 && value < 4_102_444_800;
 const isName = (value: unknown): value is string => typeof value === "string" && value.trim().length > 1 && value.length <= 80 && !/[|\p{Cc}]/u.test(value);
 
@@ -77,7 +79,7 @@ type ApplyDb = Pick<PrismaClient, "craftRequest" | "character" | "guildSettings"
 
 /**
  * Applies the game's actions with the Discord buttons' rules: anyone but the requester claims an open
- * order; only its crafter finishes or gives it back. "done" on an open order claims and finishes it
+ * order; only its crafter finishes or gives it back; only its requester cancels it (an open or claimed request). "done" on an open order claims and finishes it
  * (made without claiming first). Officer overrides stay in Discord. Returns what changed, in order.
  */
 export async function applyOrderActions(db: ApplyDb, guildId: string, uploaderMemberId: string, own: readonly AddonOrderAction[], relayed: readonly AddonOrderAction[], now = new Date()): Promise<OrderChange[]> {
@@ -100,8 +102,15 @@ export async function applyOrderActions(db: ApplyDb, guildId: string, uploaderMe
   const changes: OrderChange[] = [];
   for (const row of work) {
     const request = await db.craftRequest.findFirst({ where: { id: row.order, guildId }, select: { id: true, status: true, requesterId: true, crafterId: true } });
-    if (!request || request.requesterId === row.memberId) continue;
+    if (!request) continue;
     const character = clean(row.character, 60);
+    if (row.action === "cancel") {
+      if (request.requesterId !== row.memberId || (request.status !== "OPEN" && request.status !== "CLAIMED")) continue;
+      const cancelled = (await db.craftRequest.updateMany({ where: { id: request.id, requesterId: row.memberId, status: { in: ["OPEN", "CLAIMED"] } }, data: { status: "CANCELLED" } })).count === 1;
+      if (cancelled) changes.push({ requestId: request.id, action: row.action, memberId: row.memberId, character });
+      continue;
+    }
+    if (request.requesterId === row.memberId) continue;
     const claimData = { status: "CLAIMED" as const, crafterId: row.memberId, claimedAt: now, crafterCharacter: character, claimSource: "game" };
     let changed = false;
     if (row.action === "claim" && request.status === "OPEN") {

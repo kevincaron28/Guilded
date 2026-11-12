@@ -317,6 +317,7 @@ const STRINGS = {
     fr: "{user} a délié {name} depuis le panneau des personnages (il ne sera pas relié)."
   },
 
+  "panel.hint": { en: "Tip: `/character list` opens your panel: link, set your main and unlink with buttons.", fr: "Astuce : `/character list` ouvre ton panneau : lier, définir ton principal et délier avec des boutons." },
   "panel.noServer": { en: "You are not a member of that server any more.", fr: "Tu n'es plus membre de ce serveur." },
   "linked.wrongServerHelp": {
     en: "Linked to the wrong server? Open the **Guilded Companion** on your PC, go to Advanced, select that server under *Active connection*, then press **Remove this server**. It only forgets the connection on your PC and stops uploading there; nothing is deleted on the server. For a single character, use **Not mine** instead.",

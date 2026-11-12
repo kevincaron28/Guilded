@@ -1025,6 +1025,8 @@ local function buildGeneralSettings(page)
   end
   -- Announcements (merged in from their own page in 9.2).
   if ui.announcementsBlock then ui.announcementsBlock(page, -146) end
+  -- Call for help alerts (how a guildmate's call reaches you): small window, chat line or off, sound, quiet in combat.
+  if ui.callAlertBlock then ui.callAlertBlock(page, -304) end
   -- Advanced: info and data, developer tools, speed report and the GRM import.
   tip(at(newButton(page, "Advanced...", 170, function() if ui.showAdvanced then ui.showAdvanced(true) end end), page, PAGE_WIDTH - 170, -28), "Data and guildmate status, test tools, speed report, GRM import. Closed by default.")
 
@@ -1035,11 +1037,11 @@ local function buildGeneralSettings(page)
   tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -274), "Normal size, back in the middle of the screen")
 
   -- Get the companion (8.5.0): addons cannot open web pages, so the links are here to copy.
-  at(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormalSmall"), page, 0, -306)
+  at(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormalSmall"), page, 0, -372)
   if ns.companionLink then
-    at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -322)
-    at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -322)
-    local steps = at(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), page, 0, -348)
+    at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -388)
+    at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -388)
+    local steps = at(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), page, 0, -414)
     steps:SetWidth(PAGE_WIDTH - 40)
     steps:SetJustifyH("LEFT")
   end
@@ -1047,7 +1049,7 @@ local function buildGeneralSettings(page)
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -406)
+    "GameFontHighlightSmall"), page, 0, -472)
   help:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
@@ -1676,6 +1678,39 @@ ui.announcementsBlock = function(page, top)
     ui.announceStatus:SetText(off and L("Milestone announcements are turned off for the whole guild by an officer.") or "")
   end
   page:HookScript("OnShow", function() ui.refreshAnnouncements() end)
+end
+
+-- Call for help alerts, a block of the Settings page: the same switches as /guilded sos alert|sound|quiet|mute.
+ui.callAlertBlock = function(page, top)
+  at(newLabel(page, "Call for help alerts", "GameFontNormalSmall"), page, 0, top)
+  local modes = { { "toast", "Window" }, { "chat", "Chat line" }, { "off", "Off" } }
+  ui.callAlertButtons = {}
+  for i, m in ipairs(modes) do
+    ui.callAlertButtons[i] = at(newButton(page, m[2], 86, function()
+      run("sos alert " .. m[1])
+      if ui.refreshCallAlerts then ui.refreshCallAlerts() end
+    end), page, (i - 1) * 90, top - 16)
+  end
+  ui.callAlertSound = at(newCheck(page, "Play a sound"), page, 0, top - 44)
+  ui.callAlertSound:SetScript("OnClick", function(self)
+    run("sos sound " .. (self:GetChecked() and "on" or "off"))
+  end)
+  ui.callAlertQuiet = at(newCheck(page, "Quiet in combat (chat line and a small icon)"), page, 130, top - 44)
+  ui.callAlertQuiet:SetScript("OnClick", function(self)
+    run("sos quiet " .. (self:GetChecked() and "on" or "off"))
+  end)
+  tip(at(newButton(page, "Mute 10 min", 110, function() run("sos mute") end), page, 290, top - 16), "No call windows for 10 minutes (this session only).")
+  tip(at(newButton(page, "Reset", 60, function() run("sos reset") end), page, 404, top - 16), "Put the call window back at its default place. Drag its title to move it.")
+  ui.callAlertStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, top - 70)
+  ui.refreshCallAlerts = function()
+    local cfh = ns.callForHelp
+    if not (cfh and cfh.alertMode) then return end
+    local mode = cfh.alertMode()
+    ui.callAlertSound:SetChecked(cfh.sound())
+    ui.callAlertQuiet:SetChecked(cfh.quiet())
+    ui.callAlertStatus:SetText(L(mode == "toast" and "small window" or mode == "chat" and "chat line only" or "off"))
+  end
+  page:HookScript("OnShow", function() ui.refreshCallAlerts() end)
 end
 
 -- Settings (9.2): one page. The general view holds the switches, announcements, window size, companion links

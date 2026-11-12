@@ -14,8 +14,18 @@ import { scoreCardPng } from "../services/score-card.js";
 import { duelLeaderboard, percent, streakText } from "../services/duels.js";
 import { updateDuelBoard } from "../services/duel-board.js";
 import { updateBgLadder } from "../services/bg-ladder.js";
+import { weekKeyOf } from "../services/world-pvp.js";
+import { loadWorldPvpExtras } from "../services/world-pvp-extras.js";
 import { loadPvpGroups, pvpGroupLine } from "../services/pvp-group.js";
 import { createPvpGroupFromModal, PVP_FORM_ACTION, pvpGroupModal, showPvpLooking } from "./pvp-group.js";
+
+/** Officer switches for the world PvP extras (all off by default); the value picks the GuildSettings column. */
+const WORLD_PVP_EXTRAS = [
+  { value: "calls", label: "Call posts (a post when a guildmate calls for help)", labelFr: "Messages d'appel à l'aide", column: "pvpCallPostsEnabled" },
+  { value: "recap", label: "Weekly recap and defender of the week", labelFr: "Récap hebdo et défenseur de la semaine", column: "pvpRecapEnabled" },
+  { value: "hotzones", label: "Hot zones", labelFr: "Zones chaudes", column: "pvpHotZonesEnabled" },
+  { value: "wanted", label: "Most wanted (enemy names seen in several calls)", labelFr: "Plus recherchés (noms d'ennemis vus dans plusieurs appels)", column: "pvpMostWantedEnabled" }
+] as const;
 
 export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDescription("Battleground planning")
   .setDescriptionLocalizations({ fr: "Organisation des champs de bataille" })
@@ -62,7 +72,10 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
   .addSubcommand(s => s.setName("bg-ladder").setDescription("Officers: the battleground ladder message in the ladder channel (on by default)").setDescriptionLocalizations({ fr: "Officiers : classement des champs de bataille dans le salon du classement (activé par défaut)" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the battleground ladder on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le classement" }).setRequired(true)))
   .addSubcommand(s => s.setName("world-pvp").setDescription("Officers: world PvP (kills, defends) on the ladder message (on by default)").setDescriptionLocalizations({ fr: "Officiers : JcJ en monde ouvert sur le classement (activé par défaut)" })
-    .addBooleanOption(o => o.setName("enabled").setDescription("Turn world PvP on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le JcJ en monde ouvert" }).setRequired(true)))
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn world PvP (or the extra below) on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le JcJ en monde ouvert (ou l'option choisie)" }).setRequired(true))
+    .addStringOption(o => o.setName("extra").setDescription("An extra (all off by default); leave empty for world PvP itself").setDescriptionLocalizations({ fr: "Une option (toutes désactivées par défaut); vide pour le JcJ lui-même" })
+      .addChoices(...WORLD_PVP_EXTRAS.map(extra => ({ name: extra.label, value: extra.value, name_localizations: { fr: extra.labelFr } })))))
+  .addSubcommand(s => s.setName("world").setDescription("World PvP this week: defender, hot zones, most wanted (the ones officers turned on)").setDescriptionLocalizations({ fr: "JcJ en monde ouvert cette semaine : défenseur, zones chaudes, plus recherchés (selon les options)" }))
   .addSubcommand(s => s.setName("pvp-module").setDescription("Officers: include the PvP channels (groups, results, ladder) in /setup").setDescriptionLocalizations({ fr: "Officiers : inclure les salons JcJ (groupes, résultats, classement) dans /setup" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the PvP channels on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver les salons JcJ" }).setRequired(true)))
   .addSubcommand(s => s.setName("group-finder").setDescription("Officers: one group finder channel for dungeons and PvP (on by default)").setDescriptionLocalizations({ fr: "Officiers : une seule recherche de groupe pour donjons et JcJ (activé par défaut)" })
@@ -111,6 +124,21 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     await i.editReply({ content: enabled
       ? t(`Battleground ladder ${posted ? "posted" : "on; it appears once the ladder channel exists (/setup)"}. It is edited in place, separate from the duel ladder.`, `Classement des champs de bataille ${posted ? "publié" : "activé; il apparaîtra quand le salon du classement existera (/setup)"}. Il est modifié sur place, distinct de celui des duels.`)
       : t("Battleground ladder off. The existing message stays; delete it if you wish.", "Classement des champs de bataille désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "world") {
+    const week = await loadWorldPvpExtras(prisma, ctx.guildId);
+    await i.editReply({ content: week.length ? null : t("Nothing to show yet: officers choose the extras with /bg world-pvp, and they need this week's calls.", "Rien à afficher : les officiers choisissent les options avec /bg world-pvp, et il faut les appels de la semaine."), embeds: week, allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "world-pvp" && command?.options.getString("extra")) {
+    const extra = WORLD_PVP_EXTRAS.find(candidate => candidate.value === command.options.getString("extra"));
+    const enabled = command.options.getBoolean("enabled", true);
+    if (extra) {
+      await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { [extra.column]: enabled, ...(extra.value === "recap" && enabled ? { pvpRecapLastWeek: weekKeyOf(new Date()) - 1 } : {}) } });
+      if (enabled) await updateBgLadder(i.guild);
+      await i.editReply({ content: enabled
+        ? t("On: " + extra.label + ". Off by default; switch it off with enabled:false. Posts and the ladder panel use the PvP channel and the ladder message.", "Activé : " + extra.labelFr + ". Désactivé par défaut; désactivez-le avec enabled:false. Les messages vont dans le salon JcJ et le panneau dans le message du classement.")
+        : t("Off: " + extra.label + ".", "Désactivé : " + extra.labelFr + "."), allowedMentions: { parse: [] } }); return;
+    }
   }
   if (sub === "world-pvp") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;

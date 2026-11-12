@@ -73,9 +73,16 @@ export function parseGuildMapUpload(sightings: unknown, calls: unknown, now = ne
 // Push hook: the Defender push notification (needs PR #345 and Firebase) subscribes here later.
 // ---------------------------------------------------------------------------------------------
 
-export interface StoredHelpCall { guildId: string; memberId: string; character: string; zone: string; calledAt: Date; attackers: HelpCallUpload["attackers"] }
+export interface StoredHelpCall { id: string; guildId: string; memberId: string; character: string; zone: string; calledAt: Date; attackers: HelpCallUpload["attackers"] }
 type HelpCallListener = (call: StoredHelpCall) => void | Promise<void>;
 const helpCallListeners: HelpCallListener[] = [];
+/** Called when an upload brings the all clear of an already stored call. */
+export interface ClearedHelpCall extends StoredHelpCall { clearedAt: Date; postChannelId: string | null; postMessageId: string | null }
+const clearedListeners: ((call: ClearedHelpCall) => void | Promise<void>)[] = [];
+export function onHelpCallCleared(listener: (call: ClearedHelpCall) => void | Promise<void>): () => void {
+  clearedListeners.push(listener);
+  return () => { const i = clearedListeners.indexOf(listener); if (i >= 0) clearedListeners.splice(i, 1); };
+}
 /** Called once for each newly stored call. Returns an unsubscribe function. Listeners never fail an upload. */
 export function onHelpCallStored(listener: HelpCallListener): () => void {
   helpCallListeners.push(listener);
@@ -117,18 +124,24 @@ export async function applyGuildMapUpload(db: MapDb, guildId: string, memberId: 
     const calledAt = new Date(call.at * 1000);
     if (calledAt < callCutoff) continue;
     const clearedAt = call.clearedAt ? new Date(call.clearedAt * 1000) : null;
-    const existing = await db.guildHelpCall.findUnique({ where: { memberId_ref: { memberId, ref: call.ref } }, select: { id: true, clearedAt: true } });
+    const existing = await db.guildHelpCall.findUnique({ where: { memberId_ref: { memberId, ref: call.ref } }, select: { id: true, clearedAt: true, character: true, zone: true, calledAt: true, attackers: true, postChannelId: true, postMessageId: true } });
     if (existing) {
-      if (clearedAt && !existing.clearedAt) await db.guildHelpCall.update({ where: { id: existing.id }, data: { clearedAt } });
+      if (clearedAt && !existing.clearedAt) {
+        await db.guildHelpCall.update({ where: { id: existing.id }, data: { clearedAt } });
+        for (const listener of [...clearedListeners]) {
+          try { await listener({ id: existing.id, guildId, memberId, character: existing.character, zone: existing.zone, calledAt: existing.calledAt, attackers: call.attackers, clearedAt, postChannelId: existing.postChannelId, postMessageId: existing.postMessageId }); }
+          catch (error) { console.warn("Help call cleared listener failed", error); }
+        }
+      }
       continue;
     }
-    await db.guildHelpCall.create({ data: {
+    const created = await db.guildHelpCall.create({ select: { id: true }, data: {
       guildId, memberId, ref: call.ref, character: call.character, zone: call.zone || "?", subzone: call.subzone || null,
       ...coords(call, share), attackers: call.attackers, calledAt, clearedAt
     } });
     calls += 1;
     for (const listener of [...helpCallListeners]) {
-      try { await listener({ guildId, memberId, character: call.character, zone: call.zone, calledAt, attackers: call.attackers }); }
+      try { await listener({ id: created.id, guildId, memberId, character: call.character, zone: call.zone, calledAt, attackers: call.attackers }); }
       catch (error) { console.warn("Help call listener failed", error); }
     }
   }

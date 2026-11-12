@@ -13,7 +13,7 @@ local function nowSeconds() return (GetServerTime and GetServerTime()) or (time 
 local RECENT_SECONDS = 600
 local MAX_ROWS = 12
 
--- Accents folded like the bot does (Élise = elise): string.lower leaves UTF-8 capitals alone.
+-- Accents folded like the bot does (E-acute-lise = elise): string.lower leaves UTF-8 capitals alone.
 local FOLD = {}
 local function foldRange(letter, first, last) for b = first, last do FOLD[b] = letter end end
 foldRange("a", 128, 133); foldRange("c", 135, 135); foldRange("e", 136, 139); foldRange("i", 140, 143); foldRange("n", 145, 145)

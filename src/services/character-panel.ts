@@ -21,6 +21,7 @@ import { tellAutoLinked, unlinkNotMine } from "./companion-link-dm.js";
 // decides who owns what: every click re-reads the character and checks it belongs to the member who pressed.
 
 export const PANEL_PREFIX = "linked:p:";
+const MAX_SERVERS = 10; // one button per server in the DM choice
 const MAX_OPTIONS = 25; // a select menu holds 25 options, so a page of the panel is 25 characters
 
 // Typed-name attempts: a member can only try a few names per ten minutes, so the "type the name" box cannot be used to
@@ -92,7 +93,7 @@ export async function characterPanel(database: Db, discordUserId: string, discor
 }
 
 /** The "Link a character" step: the characters nobody has linked yet, plus a way to type the name. */
-async function linkView(database: Db, context: Context): Promise<PanelView> {
+export async function linkView(database: Db, context: Context): Promise<PanelView> {
   const { member, lang } = context;
   const rows = await database.unclaimedCharacter.findMany({ where: { guildId: member.guildId }, orderBy: { name: "asc" }, take: MAX_OPTIONS });
   const book = await loadFullNameBook(database, member.guildId);
@@ -192,4 +193,40 @@ export async function handlePanelInteraction(interaction: PanelInteraction, data
     const notice = await unlinkNotMine(database as unknown as Parameters<typeof unlinkNotMine>[0], interaction.client, interaction.user.id, extra, "panel");
     await show(await panel(notice));
   }
+}
+
+const serverKey = { panel: "refresh", link: "link" } as const;
+
+/**
+ * The entry from a DM button ("My characters", "Add another"): the panel (or the link step) for the one server the member
+ * is in, or a short choice of servers when there are several. In a server channel only that server counts.
+ */
+export async function openPanelFor(interaction: ButtonInteraction | StringSelectMenuInteraction, database: Db, step: keyof typeof serverKey): Promise<void> {
+  // The caller has already deferred the reply (ephemeral); every answer here edits it.
+  const members = await database.member.findMany({
+    where: { discordUserId: interaction.user.id, status: { not: "LEFT" }, ...(interaction.guildId ? { guild: { discordId: interaction.guildId } } : {}) },
+    select: { guild: { select: { name: true, discordId: true } } }, take: MAX_SERVERS + 1
+  });
+  const answer = (next: { content: string; components?: PanelView["components"]; allowedMentions?: { parse: never[] } }) => interaction.editReply(next);
+  if (!members.length) { await answer({ content: `${t("en", "linked.none")}
+${t("fr", "linked.none")}` }); return; }
+  if (members.length === 1) {
+    const guildId = members[0]!.guild.discordId;
+    if (step === "link") {
+      const context = await contextOf(database, interaction.user.id, guildId);
+      if (context) { await answer(await linkView(database, context)); return; }
+    }
+    await answer(await characterPanel(database, interaction.user.id, guildId));
+    return;
+  }
+  const shown = members.slice(0, MAX_SERVERS);
+  const buttons = shown.map((member) => new ButtonBuilder().setCustomId(id(serverKey[step], member.guild.discordId)).setLabel(label(member.guild.name)).setStyle(ButtonStyle.Secondary));
+  const rows: PanelView["components"] = [];
+  for (let index = 0; index < buttons.length; index += 5) rows.push(row(...buttons.slice(index, index + 5)));
+  const more = members.length > MAX_SERVERS ? `
+
+${t("en", "panel.moreServers")}
+${t("fr", "panel.moreServers")}` : "";
+  await answer(view(`${t("en", "panel.whichServer")}
+${t("fr", "panel.whichServer")}${more}`, rows));
 }

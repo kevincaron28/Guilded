@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const log = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock("../src/services/housekeeping.js", () => ({ postToLogChannel: log }));
 import {
-  handleLinkedButton, linkedCharactersAnswer, linkedCharactersRow, linkedLines, linkedMessage, linkUndoRows, scheduleLinkedCharacters, tellAutoLinked, tellLinkedCharacters
+  handleLinkedButton, linkedCharactersRow, linkedLines, linkedMessage, linkUndoRows, scheduleLinkedCharacters, tellAutoLinked, tellLinkedCharacters
 } from "../src/services/companion-link-dm.js";
 
 // Owner decisions (8.5 track F3, ROADMAP 5): one DM listing the linked characters on the first link and whenever new
@@ -108,34 +108,37 @@ describe("linked characters DM", () => {
     expect(fr).toContain("Guerrier niveau 60 (principal)");
     expect(linkedMessage("fr", "Guilde", fr, [])).toContain("Tu es lié sur **Guilde**");
     expect(linkedMessage("fr", "Guilde", fr, ["Bel"])).toContain("Nouveau sur **Guilde**");
-    expect(JSON.stringify(linkedCharactersRow("fr").toJSON())).toContain("Mes personnages liés");
+    expect(JSON.stringify(linkedCharactersRow("fr").toJSON())).toContain("Mes personnages");
   });
 });
 
 describe("My linked characters button", () => {
-  it("answers privately in a DM, resolving the member from the Discord user across guilds", async () => {
-    const f = fakes([aran, bel]);
-    const reply = vi.fn(async () => undefined);
-    const interaction = { customId: "linked:mine", user: { id: "111" }, guildId: null, deferReply: vi.fn(async () => undefined), editReply: reply };
-    await handleLinkedButton(interaction as never, f.database as never);
-    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: 64 });
-    const content = (reply.mock.calls[0] as unknown as [{ content: string }])[0].content;
-    expect(content).toContain("**Quebec Gold**");
-    expect(content).toContain("⭐ **Aran Dawnfield**");
-    expect(content).toContain("`/character unlink`");
-    expect(f.database.member.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ discordUserId: "111" }) }));
-    const where = (f.database.member.findMany.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
-    expect(where).not.toHaveProperty("guild"); // no guild context in a DM
+  const press = (customId: string, guildId: string | null) => ({ customId, user: { id: "111" }, guildId, deferReply: vi.fn<(arg?: unknown) => Promise<void>>(async () => undefined), editReply: vi.fn<(view?: unknown) => Promise<void>>(async () => undefined) });
+  const servers = (rows: { name: string; discordId: string }[]) => ({ member: { findMany: vi.fn<(args?: unknown) => Promise<{ guild: { name: string; discordId: string } }[]>>(async () => rows.map((guild) => ({ guild }))) } });
+
+  it("in a DM with several servers, asks which one with one button each (no guild filter)", async () => {
+    const db = servers([{ name: "Quebec Gold", discordId: "dg1" }, { name: "Other", discordId: "dg2" }]);
+    const interaction = press("linked:mine", null);
+    await handleLinkedButton(interaction as never, db as never);
+    const sent = JSON.stringify(interaction.editReply.mock.calls[0]?.[0]);
+    expect(sent).toContain("linked:p:refresh:dg1");
+    expect(sent).toContain("linked:p:refresh:dg2");
+    expect(JSON.stringify((db.member.findMany.mock.calls[0]?.[0] as { where: unknown }).where)).not.toContain("discordId\":\"dg");
   });
 
-  it("limits to the server when clicked in one, and answers in both languages when nothing is linked", async () => {
-    const f = fakes([aran]);
-    await linkedCharactersAnswer(f.database as never, "111", "999");
-    expect((f.database.member.findMany.mock.calls[0] as unknown as [{ where: { guild: unknown } }])[0].where.guild).toEqual({ discordId: "999" });
-    f.database.member.findMany.mockResolvedValueOnce([]);
-    const none = await linkedCharactersAnswer(f.database as never, "222");
-    expect(none).toContain("no linked characters");
-    expect(none).toContain("pas encore de personnage");
+  it("Add another asks about the link step per server, and a member in no server is told so", async () => {
+    const interaction = press("linked:add", null);
+    await handleLinkedButton(interaction as never, servers([{ name: "A", discordId: "dg1" }, { name: "B", discordId: "dg2" }]) as never);
+    expect(JSON.stringify(interaction.editReply.mock.calls[0]?.[0])).toContain("linked:p:link:dg1");
+    const none = press("linked:mine", null);
+    await handleLinkedButton(none as never, servers([]) as never);
+    expect(JSON.stringify(none.editReply.mock.calls[0]?.[0])).toContain("pas encore de personnage");
+  });
+
+  it("answers at once (deferred) before any lookup", async () => {
+    const interaction = press("linked:mine", null);
+    await handleLinkedButton(interaction as never, servers([{ name: "A", discordId: "dg1" }, { name: "B", discordId: "dg2" }]) as never);
+    expect(interaction.deferReply).toHaveBeenCalledTimes(1);
   });
 });
 

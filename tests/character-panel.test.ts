@@ -21,9 +21,10 @@ vi.mock("../src/services/guild.js", () => ({
 }));
 
 import { characterKey } from "../companion/character-identity.mjs";
-import { allowTypedAttempt, characterPanel, handlePanelInteraction, resetTypedAttempts } from "../src/services/character-panel.js";
+import { allowTypedAttempt, characterPanel, handlePanelInteraction, openPanelFor, resetTypedAttempts } from "../src/services/character-panel.js";
 
 type Row = typeof world.characters[number];
+const extraServers: { name: string; discordId: string }[] = [];
 const MEMBERS: Record<string, { id: string; guildId: string; displayName: string; guild: { name: string; discordId: string } }> = {
   "u1:dg1": { id: "m1", guildId: "g1", displayName: "Ray Player", guild: { name: "Québec Gold", discordId: "dg1" } },
   "u2:dg1": { id: "m2", guildId: "g1", displayName: "Zed Owner", guild: { name: "Québec Gold", discordId: "dg1" } },
@@ -53,6 +54,8 @@ function database() {
   const db = {
     member: {
       findFirst: vi.fn(async ({ where }: { where: { discordUserId: string; guild: { discordId: string } } }) => MEMBERS[`${where.discordUserId}:${where.guild.discordId}`] ?? null),
+      findMany: vi.fn(async ({ where, take = 1000 }: { where: { discordUserId: string; guild?: { discordId: string } }; take?: number }) =>
+        Object.entries(MEMBERS).filter(([key, m]) => key.startsWith(`${where.discordUserId}:`) && (!where.guild || m.guild.discordId === where.guild.discordId)).map(([, m]) => ({ guild: m.guild })).concat(extraServers.map((guild) => ({ guild }))).slice(0, take)),
       upsert: vi.fn(async ({ create }: { create: { guildId: string } }) => ({ id: `holding-${create.guildId}` }))
     },
     guildSettings: { findUnique: vi.fn(async () => ({ language: "fr" })) },
@@ -114,7 +117,7 @@ const run = (interaction: ReturnType<typeof click>, db: ReturnType<typeof databa
 
 beforeEach(() => {
   world.characters.length = 0; world.unclaimed.length = 0; world.claims.length = 0; world.log.length = 0; world.dms.length = 0;
-  resetTypedAttempts();
+  resetTypedAttempts(); extraServers.length = 0;
 });
 
 describe("character panel", () => {
@@ -289,3 +292,39 @@ describe("character panel", () => {
     expect(shown(past)).toContain("Page 2 sur 2");
   });
 });
+
+describe("opening the panel from a DM button", () => {
+  const press = (guildId: string | null = null) => ({ user: { id: "u1" }, guildId, editReply: vi.fn<(view?: unknown) => Promise<void>>(async () => undefined) });
+  const sent = (p: ReturnType<typeof press>) => JSON.stringify(p.editReply.mock.calls[0]?.[0]);
+
+  it("one server: shows that panel (or the link step) straight away, editing the deferred reply", async () => {
+    world.characters.push(ch("a", "m1", "Ray", true));
+    world.unclaimed.push(fresh("x", "Fresh"));
+    const panel = press();
+    await openPanelFor(panel as never, database(), "panel");
+    expect(sent(panel)).toContain("Ray");
+    expect(sent(panel)).toContain("linked:p:link:dg1");
+    const link = press();
+    await openPanelFor(link as never, database(), "link");
+    expect(sent(link)).toContain("linked:p:claim:dg1");
+    expect(sent(link)).toContain("Fresh");
+  });
+
+  it("no server: says so in both languages", async () => {
+    const stranger = { user: { id: "nobody" }, guildId: null, editReply: vi.fn<(view?: unknown) => Promise<void>>(async () => undefined) };
+    await openPanelFor(stranger as never, database(), "panel");
+    expect(JSON.stringify(stranger.editReply.mock.calls[0]?.[0])).toContain("pas encore de personnage");
+  });
+
+  it("several servers: one button each, and a note when there are more than ten", async () => {
+    for (let i = 0; i < 12; i++) extraServers.push({ name: `S${i}`, discordId: `x${i}` });
+    const choice = press();
+    await openPanelFor(choice as never, database(), "panel");
+    const text = sent(choice);
+    expect(text).toContain("linked:p:refresh:dg1");
+    expect(text).toContain("Use /character");
+    const buttons = (choice.editReply.mock.calls[0]?.[0] as { components: { toJSON(): { components: unknown[] } }[] }).components.flatMap((r) => r.toJSON().components);
+    expect(buttons).toHaveLength(10);
+  });
+});
+

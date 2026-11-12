@@ -97,6 +97,49 @@ describe("standalone games host window", () => {
   });
 });
 
+describe("the five member tabs", () => {
+  const shownGroups = (s: LuaSession) => s.run(`local n = {}; for _, g in ipairs({ "Home", "Guild", "Dungeons", "Crafting", "Raids", "Settings" }) do local b = NS.windowState().groupButtons[g]; if b and b.shown then n[#n + 1] = g end end; return table.concat(n, ",")`);
+  const shownPages = (s: LuaSession) => s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then n[#n + 1] = t.name end end; return table.concat(n, ",")`);
+
+  it("shows the five tabs and Settings, and only the open tab lists its pages", () => {
+    const s = openWindow(5, `NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }`);
+    expect(shownGroups(s)).toBe("Home,Guild,Dungeons,Crafting,Raids,Settings");
+    expect(shownPages(s)).toBe("Home,Me");
+    s.run(`NS.windowState().groupButtons.Raids.scripts.OnClick()`);
+    expect(shownPages(s)).toBe("Open raids,Reserves,Signups");
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
+    expect(shownPages(s)).toBe("Guild overview,Board,Standings,Availability,Duels");
+  });
+
+  it("keeps every old page name working", () => {
+    const s = openWindow(5, `NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }`);
+    for (const [name, group] of [["Home", "Home"], ["Me", "Home"], ["Board", "Guild"], ["Orders", "Crafting"], ["Open raids", "Raids"], ["Signups", "Raids"], ["Duels", "Guild"], ["Tools", "Settings"], ["Announcements", "Settings"], ["Info", "Settings"]]) {
+      s.run(`NS.windowState().selectTabByName("${name}")`);
+      expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`), name).toBe(group);
+    }
+    s.run(`NS.windowState().selectTabByName("Dungeons")`);
+    expect(s.run("return openedMode")).toBe("run");
+  });
+
+  it("opens the guild window from the Standings and Crafting buttons, and Dungeons from its tab", () => {
+    const s = openWindow(5, `NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }; ToggleGuildFrame = function() end; CommunitiesFrame = CreateFrame()`);
+    s.run(`NS.openGuildPanel = function(_, scope, name) OPENED = scope .. ":" .. name end`);
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
+    s.run(`for _, t in ipairs(NS.windowState().tabs) do if t.name == "Standings" then t.button.scripts.OnClick() end end`);
+    expect(s.run("return OPENED")).toBe("guild:Standings");
+    s.run(`NS.windowState().groupButtons.Dungeons.scripts.OnClick()`);
+    expect(s.run("return openedMode")).toBe("run");
+  });
+
+  it("shows the raid-night tools to a raid leader or officer under Raids, not hidden until a raid starts", () => {
+    const s = openWindow(1);
+    s.run(`NS.windowState().groupButtons.Raids.scripts.OnClick()`);
+    const pages = s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then n[#n + 1] = t.name end end; return table.concat(n, ",")`);
+    for (const name of ["Open raids", "Signups", "Ready", "Raid"]) expect(pages).toContain(name);
+    expect(s.run(`return tostring(NS.windowState().groupButtons.Raids.shown)`)).toBe("true");
+  });
+});
+
 describe("the tools window (sidebar and Home page)", () => {
   it("routes dungeon shortcuts to one pane and keeps calendar administration officer-only", () => {
     const s = openWindow(5);
@@ -110,7 +153,7 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run('return tostring(CalendarFrame.shown)')).toBe("true");
     s.run(`NS.openGuildPanel(CalendarFrame, "calendar", "Calendar")`);
     expect(s.run('return NS.windowState().scope')).toBe("main");
-    expect(s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do n[#n+1]=t.name end; return table.concat(n,",")`)).not.toMatch(/Dungeons|Season|Scores/);
+    expect(s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do n[#n+1]=t.name end; return table.concat(n,",")`)).not.toMatch(/Season|Scores/);
     expect(s.run('return tostring(NS.windowState().homeSave == NS.windowState().sidebarSave)')).toBe("true");
   });
 

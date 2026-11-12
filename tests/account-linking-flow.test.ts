@@ -66,7 +66,8 @@ const world = vi.hoisted(() => {
     if (where["memberId"] && row["memberId"] !== where["memberId"]) return false;
     if (typeof where["nameKey"] === "string" && row["nameKey"] !== where["nameKey"]) return false;
     if (where["nameKey"] && typeof where["nameKey"] === "object" && !(where["nameKey"] as { in: string[] }).in.includes(String(row["nameKey"]))) return false;
-    if (where["status"] && row["status"] !== where["status"]) return false;
+    const wanted = where["status"] as string | { in: string[] } | undefined;
+    if (wanted && !(typeof wanted === "object" ? wanted.in.includes(String(row["status"])) : row["status"] === wanted)) return false;
     return true;
   }
 
@@ -484,7 +485,7 @@ describe("account linking across Discord, the addon, the companion and the site"
     expect(world.pairings[0]?.["consumedAt"]).toBeNull();
   });
 
-  it("stops a verify code from relinking after unlink, and stops the companion too when an officer unlinked it", async () => {
+  it("stops a verify code from relinking after unlink, and stops the companion too (the member's own unlink and an officer's)", async () => {
     const code = await verifyCodeFor(db, "g1", "m1");
     const digest = () => parseAddonSnapshot({
       source: "Guilded", exportedAt: "2026-11-03T16:00:00Z",
@@ -494,7 +495,7 @@ describe("account linking across Discord, the addon, the companion and the site"
     world.characters.splice(0, world.characters.length);
     await blockVerifiedCharacter(db, "g1", "m1", "Ray", "Forever", "forever", false);
     expect(await linkVerifiedCharacters(db, "g1", { officer: true }, digest())).toEqual([]);
-    await expect(linkPairedCharacter(db, "g1", "m1", self())).resolves.toBe("linked");
+    await expect(linkPairedCharacter(db, "g1", "m1", self())).resolves.toBe("blocked-by-member");
 
     world.characters.splice(0, world.characters.length);
     await blockVerifiedCharacter(db, "g1", "m1", "Ray", "Forever", "forever", true);
@@ -549,7 +550,7 @@ describe("account linking across Discord, the addon, the companion and the site"
     const guild = { memberCount: cache.size + 5, members: { cache, list } };
     const linked = await autoLinkUnclaimed(guild as never, db, "g1");
     expect(list).toHaveBeenCalled();
-    expect(linked).toEqual([{ character: "Ray", member: "[GOLD] Ray" }]);
+    expect(linked).toEqual([{ character: "Ray", member: "[GOLD] Ray", memberId: "m1" }]);
     expect(world.characters.map((row) => row["name"])).toEqual(["Ray"]);
     expect(world.unclaimed.map((row) => row["id"]).sort()).toEqual(["u-bob", "u-retail"]);
 

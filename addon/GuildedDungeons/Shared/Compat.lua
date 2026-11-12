@@ -216,6 +216,13 @@ end
 -- Diagnostic for /guilded dungeon check and run recovery.
 function compat.isForeverFinalBossName(instanceId, name) return foreverFinalName(instanceId, name) end
 
+-- (9.1.7) True when this client already knows which boss ends the instance (by name or id), so a run
+-- that stops earlier is simply unfinished, not an unknown dungeon.
+function compat.dungeonFinalKnown(instanceId)
+  if type(instanceId) ~= "number" then return false end
+  return (foreverFinalBossNames[instanceId] ~= nil) or (finalBossFallbacks[instanceId] ~= nil)
+end
+
 function compat.isDungeonFinalBoss(instanceId, encounterId, name, difficultyId)
   if ns.dungeonRoutes and not secret(encounterId) and not secret(difficultyId)
     and ns.dungeonRoutes.sourceFinal(instanceId, difficultyId, tonumber(encounterId)) then return true end

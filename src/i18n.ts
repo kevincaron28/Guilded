@@ -287,6 +287,37 @@ const STRINGS = {
     fr: "Ce personnage est déjà délié. `/character list` affiche ce qui est lié."
   },
   "linked.notYours": { en: "Only the member this message was sent to can use it.", fr: "Seul le membre à qui ce message est adressé peut l'utiliser." },
+  "panel.title": { en: "**Your characters on {server}**", fr: "**Tes personnages sur {server}**" },
+  "panel.empty": { en: "Nothing is linked to you yet. Press **Link a character**, or log in with the Guilded Companion once and they link by themselves.", fr: "Aucun personnage n'est encore lié à toi. Appuie sur **Lier un personnage**, ou ouvre le jeu une fois avec le compagnon Guilded : ils se lient tout seuls." },
+  "panel.link": { en: "Link a character", fr: "Lier un personnage" },
+  "panel.picture": { en: "Picture", fr: "Image" },
+  "panel.refresh": { en: "Refresh", fr: "Actualiser" },
+  "panel.mainMenu": { en: "Set as main…", fr: "Définir comme principal…" },
+  "panel.unlinkMenu": { en: "Unlink…", fr: "Délier…" },
+  "panel.mainDone": { en: "✅ **{name}** is now your main.", fr: "✅ **{name}** est maintenant ton principal." },
+  "panel.unlinkAsk": { en: "Unlink **{name}**? Its history is kept and it is not linked back automatically.", fr: "Délier **{name}** ? Son historique est conservé et il ne sera pas relié automatiquement." },
+  "panel.unlinkYes": { en: "Yes, unlink it", fr: "Oui, le délier" },
+  "panel.cancel": { en: "Cancel", fr: "Annuler" },
+  "panel.pick": { en: "Pick the character to link. Not in the list? Log in with it once and sync, then Refresh.", fr: "Choisis le personnage à lier. Pas dans la liste ? Ouvre le jeu avec lui une fois et synchronise, puis Actualise." },
+  "panel.pickNone": { en: "No unlinked character is waiting yet. Log in with it once with the Guilded Companion; it shows up here within a minute. Or type its name.", fr: "Aucun personnage non lié n'attend pour l'instant. Ouvre le jeu avec lui une fois avec le compagnon Guilded : il apparaît ici en une minute. Ou écris son nom." },
+  "panel.pickMenu": { en: "Pick a character…", fr: "Choisis un personnage…" },
+  "panel.typeName": { en: "Type the name", fr: "Écrire le nom" },
+  "panel.modalTitle": { en: "Link a character", fr: "Lier un personnage" },
+  "panel.modalLabel": { en: "Character name", fr: "Nom du personnage" },
+  "panel.linkedOne": { en: "✅ Linked **{name}** as {kind}. A message with a **Not mine** button follows.", fr: "✅ **{name}** lié comme {kind}. Un message avec un bouton **Pas à moi** suit." },
+  "panel.kindMain": { en: "your main", fr: "ton principal" },
+  "panel.kindAlt": { en: "an alt", fr: "un alt" },
+  "panel.claimFailed": { en: "That character is not available to link. If it is yours, ask an officer.", fr: "Ce personnage n'est pas disponible à lier. S'il est à toi, demande à un officier." },
+  "panel.tooMany": { en: "Too many tries. Wait a few minutes, or ask an officer.", fr: "Trop d'essais. Attends quelques minutes, ou demande à un officier." },
+  "panel.page": { en: "Page {page} of {pages} ({hidden} more character(s) on the other pages)", fr: "Page {page} sur {pages} ({hidden} autre(s) personnage(s) sur les autres pages)" },
+  "panel.prev": { en: "◀ Previous", fr: "◀ Précédent" },
+  "panel.next": { en: "Next ▶", fr: "Suivant ▶" },
+  "linked.officerLogPanel": {
+    en: "{user} unlinked {name} from the character panel (it won't be linked back).",
+    fr: "{user} a délié {name} depuis le panneau des personnages (il ne sera pas relié)."
+  },
+
+  "panel.noServer": { en: "You are not a member of that server any more.", fr: "Tu n'es plus membre de ce serveur." },
   "linked.wrongServerHelp": {
     en: "Linked to the wrong server? Open the **Guilded Companion** on your PC, go to Advanced, select that server under *Active connection*, then press **Remove this server**. It only forgets the connection on your PC and stops uploading there; nothing is deleted on the server. For a single character, use **Not mine** instead.",
     fr: "Lié au mauvais serveur ? Ouvre le **compagnon Guilded** sur ton PC, va dans Avancé, choisis ce serveur sous *Active connection*, puis appuie sur **Remove this server**. Cela oublie seulement la connexion sur ton PC et arrête les envois là-bas ; rien n'est supprimé sur le serveur. Pour un seul personnage, utilise plutôt **Pas à moi**."

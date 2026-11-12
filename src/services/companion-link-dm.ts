@@ -179,12 +179,13 @@ type UndoDatabase = AnswerDatabase & Pick<PrismaClient, "characterVerifyClaim">;
  * "Not mine": unlinks the character as BLOCKED (linkPairedCharacter, the name matcher and the pre-link all respect it, so
  * it is not linked back) and writes one line to the officer log. Only the member the DM went to can press it.
  */
-export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client, "guilds">, discordUserId: string, characterId: string): Promise<string> {
+export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client, "guilds">, discordUserId: string, characterId: string, source: "button" | "panel" = "button"): Promise<string> {
   const character = await database.character.findUnique({
     where: { id: characterId },
-    select: { id: true, name: true, realm: true, gameEdition: true, displayName: true, member: { select: { id: true, guildId: true, discordUserId: true, guild: { select: { discordId: true, name: true } } } } }
+    select: { id: true, detachedAt: true, name: true, realm: true, gameEdition: true, displayName: true, member: { select: { id: true, guildId: true, discordUserId: true, guild: { select: { discordId: true, name: true } } } } }
   });
-  if (!character) return `${t("en", "linked.gone")}\n${t("fr", "linked.gone")}`;
+  // Already detached (a stale button): nothing to unlink, so no second block write or log line.
+  if (!character || character.detachedAt) return `${t("en", "linked.gone")}\n${t("fr", "linked.gone")}`;
   const settings = await database.guildSettings.findUnique({ where: { guildId: character.member.guildId }, select: { language: true } });
   const lang = asLang(settings?.language);
   if (character.member.discordUserId !== discordUserId) return t(lang, "linked.notYours");
@@ -195,7 +196,7 @@ export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client,
   const book = await loadFullNameBook(database, character.member.guildId);
   const name = displayCharacterName(character, book);
   const guild: Guild | null = await client.guilds.fetch(character.member.guild.discordId).catch(() => null);
-  if (guild) await postToLogChannel(guild, t(lang, "linked.officerLog", { user: `<@${discordUserId}>`, name })).catch(() => undefined);
+  if (guild) await postToLogChannel(guild, t(lang, source === "panel" ? "linked.officerLogPanel" : "linked.officerLog", { user: `<@${discordUserId}>`, name })).catch(() => undefined);
   return t(lang, "linked.unlinked", { name: escapeMarkdown(name), server: escapeMarkdown(character.member.guild.name) });
 }
 

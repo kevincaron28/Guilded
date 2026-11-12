@@ -1413,6 +1413,54 @@ local function inRaidGroup()
   return false
 end
 
+-- (9.1.7) Bursty events (a 300-member roster fires GUILD_ROSTER_UPDATE many times in a few seconds, gear
+-- changes fire UNIT_INVENTORY_CHANGED in clusters) run their heavy work once, shortly after the last
+-- burst began: the first call schedules it, calls while it is pending fold into it. In combat the run
+-- waits (the work is not needed there). Without timers it runs at once.
+local deferredWork = {}
+local function inCombatNow()
+  if ns.compat and ns.compat.inCombat then return ns.compat.inCombat() and true or false end
+  return (InCombatLockdown and InCombatLockdown()) and true or false
+end
+local lastWorkAt = {}
+-- `leading`: the first call of a burst runs at once (it is the news the rest of the code expects to
+-- see), calls within `seconds` of it fold into one more run when the window ends.
+local function deferWork(key, seconds, fn, leading)
+  if not (C_Timer and C_Timer.After) then pcall(fn) return end
+  if leading then
+    local at = (GetTime and GetTime()) or 0
+    local last = lastWorkAt[key]
+    if not deferredWork[key] and (last == nil or at - last >= seconds or at < last) and not inCombatNow() then
+      lastWorkAt[key] = at
+      local ok, err = pcall(fn)
+      if not ok then logDiagnostic("LUA_ERROR", key .. ": " .. tostring(err)) end
+      return
+    end
+    if deferredWork[key] then return end
+    deferredWork[key] = true
+    local wait = last and math.max(0.5, seconds - (at - last)) or seconds
+    local function lateRun()
+      if inCombatNow() then C_Timer.After(5, lateRun) return end
+      deferredWork[key] = nil
+      lastWorkAt[key] = (GetTime and GetTime()) or 0
+      local ok2, err2 = pcall(fn)
+      if not ok2 then logDiagnostic("LUA_ERROR", key .. ": " .. tostring(err2)) end
+    end
+    C_Timer.After(wait, lateRun)
+    return
+  end
+  if deferredWork[key] then return end
+  deferredWork[key] = true
+  local function run()
+    if inCombatNow() then C_Timer.After(5, run) return end
+    deferredWork[key] = nil
+    local ok, err = pcall(fn)
+    if not ok then logDiagnostic("LUA_ERROR", key .. ": " .. tostring(err)) end
+  end
+  C_Timer.After(seconds, run)
+end
+ns.deferWork = deferWork
+
 local function maybeAutoSync(minInterval)
   local nowTime = time()
   if (nowTime - lastAutoSyncAt) < minInterval then return end
@@ -1478,7 +1526,9 @@ end
 local function showDiagnostics(args)
   showIdentity()
   -- WoW Forever, 8.5: legacy first-name keys (EP/GP accounts first) an officer still has to assign.
-  local legacy = ns.util.nameMigrationLines and ns.util.nameMigrationLines(db) or {}
+  -- (9.1.7) Debug detail: officers, or /guilded diag names|all; ordinary members are not shown it.
+  local wantNames = args and (string.lower(args[1] or "") == "names" or string.lower(args[1] or "") == "all")
+  local legacy = (wantNames or isOfficer()) and ns.util.nameMigrationLines and ns.util.nameMigrationLines(db) or {}
   if #legacy > 0 then
     message(string.format(L("%d saved entries still use a first name only:"), #legacy))
     for index = 1, math.min(5, #legacy) do message(legacy[index]) end
@@ -2243,7 +2293,7 @@ local function onEvent(_, event, ...)
     end) end
   elseif event == "UNIT_INVENTORY_CHANGED" then
     local unit = ...
-    if unit == "player" then maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS) end
+    if unit == "player" then deferWork("inventory-sync", 3, function() maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS) end) end
   elseif event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
     local ok, captured = pcall(collectCharacter)
     if ok then
@@ -2259,6 +2309,8 @@ local function onEvent(_, event, ...)
     resolveGuildSoon()
   elseif event == "GUILD_ROSTER_UPDATE" then
     ledgerRoster = nil
+    -- (9.1.7) The full scan below walks the whole roster; a burst of updates runs it once (owner log: 95 ms).
+    deferWork("roster-scan", 2, function()
     -- Before anything is added to the roster: make sure it is the right guild's data.
     if resolveGuildData() then noteMyCharacter(db.character) end
     local count = GetNumGuildMembers and GetNumGuildMembers() or 0
@@ -2304,6 +2356,7 @@ local function onEvent(_, event, ...)
         if not inRoster[name] and entry.inGuild ~= false then entry.inGuild, entry.leftAt = false, now() end
       end
     end
+    end, true)
   elseif event == "CHAT_MSG_LOOT" and db.settings.captureLoot then
     local text = ...
     if not isSecret(text) then logEvent("LOOT_HINT", { text = text }) end
@@ -2342,8 +2395,27 @@ local function onEvent(_, event, ...)
     -- this is the precise diagnostic the "blocked from an action only
     -- available to the Blizzard UI" popup itself doesn't show you.
     local blockedAddon, blockedFunction = ...
-    logDiagnostic(event, string.format("%s tried to call %s", tostring(blockedAddon), tostring(blockedFunction)),
-      blockedAddon ~= addonName)
+    local detail = string.format("%s tried to call %s", tostring(blockedAddon), tostring(blockedFunction))
+    -- (9.1.7) The event's own arguments are kept whole (every value the game passed), plus a hint: the guarded
+    -- read that was running when it was raised (the marker exists only during the call) or else the last event
+    -- Guilded handled. A hint never switches anything off; only an exact function name from the game does.
+    if blockedAddon == addonName then
+      local extra = {}
+      for i = 3, select("#", ...) do
+        local value = select(i, ...)
+        if not isSecret(value) then extra[#extra + 1] = tostring(value) end
+      end
+      if #extra > 0 then detail = detail .. " [" .. table.concat(extra, ", ") .. "]" end
+      local call = ns.guardedCall
+      if call then
+        detail = detail .. " (raised while calling " .. tostring(call.name) .. ")"
+      elseif ns.lastEvent then
+        detail = detail .. " (after " .. tostring(ns.lastEvent) .. ")"
+      end
+      local named = type(blockedFunction) == "string" and string.gsub(blockedFunction, "%(%)$", "") or nil
+      if named and ns.guildSnapshot and ns.guildSnapshot.onBlocked then pcall(ns.guildSnapshot.onBlocked, named) end
+    end
+    logDiagnostic(event, detail, blockedAddon ~= addonName)
     -- A refused guild action is never retried on this client build (see RosterTools).
     if blockedAddon == addonName and ns.rosterTools and ns.rosterTools.onBlocked then pcall(ns.rosterTools.onBlocked) end
   elseif event == "UI_ERROR_MESSAGE" then
@@ -2384,6 +2456,7 @@ frame:RegisterEvent("UI_ERROR_MESSAGE")
 local SLOW_HANDLER_MS = 50
 frame:SetScript("OnEvent", function(_, event, ...)
   local started = debugprofilestop and debugprofilestop()
+  if event ~= "ADDON_ACTION_BLOCKED" and event ~= "ADDON_ACTION_FORBIDDEN" and event ~= "CHAT_MSG_ADDON" then ns.lastEvent = event end
   local ok, err = pcall(onEvent, _, event, ...)
   if not ok then logDiagnostic("LUA_ERROR", "Guilded event handler: " .. tostring(err)) end
   if started then

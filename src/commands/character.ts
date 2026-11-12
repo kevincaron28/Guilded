@@ -6,17 +6,18 @@ import { prisma } from "../database.js";
 import { importCharacter, parseCharacterString } from "../services/character-import.js";
 import { applySelfExport, parseSelfExport } from "../services/self-export.js";
 import { autoLinkUnclaimed, claimCharacter, linkUnclaimed } from "../services/character-autolink.js";
+import { tellAutoLinked } from "../services/companion-link-dm.js";
 import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
-import { blockVerifiedCharacter } from "../services/character-verify.js";
+import { unlinkCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
 import { removePictureByOfficer } from "../services/character-picture.js";
 import { characterTrustMap, REPORTED_HINT, trustSuffix } from "../services/character-trust.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
-import { detachCharacter, isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
+import { isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
@@ -112,6 +113,8 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
 
   if (subcommand === "claim") {
     const result = await claimCharacter(prisma, context.guildId, context.memberId, interaction.options.getString("name", true));
+    // The same DM as every automatic link, with its "Not mine" undo (skipped quietly when DMs are closed).
+    if (interaction.guildId) void tellAutoLinked(interaction.client, prisma, interaction.guildId, context.guildId, [{ memberId: context.memberId, count: 1 }]);
     await interaction.reply({ content: `Linked **${characterName(result.row)}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.`, flags: MessageFlags.Ephemeral });
     return;
   }
@@ -128,11 +131,10 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     }
     // Detached, not deleted (owner decision, 10 November 2026): pictures, wishlist, professions and the
     // rest of its history stay with the row and come back when it is linked again or an officer moves it.
-    await prisma.$transaction((tx) => detachCharacter(tx, character.id));
     // The /guilded verify code that character keeps repeating in game must not link it back.
     // An officer unlinking someone else's character is a correction: their companion uploads must
     // not relink it either. Only this character is affected; their devices stay connected.
-    await blockVerifiedCharacter(prisma, context.guildId, character.memberId, character.name, character.realm, character.gameEdition, !isOwn);
+    await unlinkCharacter(prisma, character, context.guildId, !isOwn);
     if (interaction.guild) {
       await postToLogChannel(interaction.guild, isOwn
         ? `${interaction.user.username} unlinked their character ${characterName(character)}.`

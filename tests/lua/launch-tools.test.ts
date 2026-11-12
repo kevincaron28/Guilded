@@ -171,7 +171,7 @@ describe("consumable attendance penalty (Consumables.lua with Core.lua's group a
   });
 });
 
-describe("recruiting and the welcome whisper (Recruit.lua)", () => {
+describe("recruiting (Recruit.lua)", () => {
   function withRecruit(officer = true): LuaSession {
     const s = bare({ officer, lua: `ERR_GUILD_JOIN_S = "%s has joined the guild."; C_Timer = { After = function(_, fn) fn() end }` });
     s.load("Modules/Recruit.lua");
@@ -179,27 +179,14 @@ describe("recruiting and the welcome whisper (Recruit.lua)", () => {
   }
   const join = (s: LuaSession, name: string) => s.run(`fire_event("CHAT_MSG_SYSTEM", "${name} has joined the guild.")`);
 
-  it("whispers a new member once, with the guild's message, and tells the other officers", () => {
+  // 9.2: the automatic welcome whisper was removed (a chat line sent from a timer, blocked by the game).
+  it("no longer whispers a new member or sends welcome messages, whatever an old save says", () => {
     const s = withRecruit();
-    run(s, "welcome", "on Hi {name}, welcome to {guild}!");
+    s.run("DB.welcome = { enabled = true, text = 'Hi' }");
     join(s, "Newbie");
-    join(s, "Newbie");
-    expect(s.run("return table.concat(WHISPERS, ' | ')")).toBe("WHISPER:Newbie:Hi Newbie, welcome to Test Guild!");
-    expect(s.run("local n = 0; for _, m in ipairs(SENT or {}) do if m:find('WELCOMED|1|Newbie', 1, true) then n = n + 1 end end; return n")).toBe("1");
-  });
-
-  it("stays quiet when another officer already welcomed them, when off, and for members", () => {
-    const s = withRecruit();
-    run(s, "welcome", "on");
-    s.run(`fire_event("CHAT_MSG_ADDON", "GuildedRec", "WELCOMED|1|Late", "GUILD", "Boss-Realm")`);
-    join(s, "Late");
-    run(s, "welcome", "off");
-    join(s, "Other");
     expect(s.run("return #WHISPERS")).toBe("0");
-    const member = withRecruit(false);
-    member.run("DB.welcome = { enabled = true }");
-    join(member, "Someone");
-    expect(member.run("return #WHISPERS")).toBe("0");
+    expect(s.run("return tostring(NS.commandHandlers.welcome) .. tostring(NS.recruit.onJoined)")).toBe("nilnil");
+    expect(s.run("return tostring(DB.welcome.enabled)")).toBe("true");
   });
 
   it("keeps a prospect list that follows invites and joins", () => {

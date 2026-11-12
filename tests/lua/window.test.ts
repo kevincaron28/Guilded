@@ -296,15 +296,15 @@ describe("the tools window (sidebar and Home page)", () => {
         NS.commandHandlers[name] = function(args) CALLED[#CALLED + 1] = name .. ":" .. table.concat(args or {}, ",") end
       end
       NS.windowState().selectTabByName("Info")`);
-    const labels = ["Who runs which version", "Data relay status", "Sync EP/GP history now", "Interface options", "Daily digest off", "Invite queue", "Pending loot rolls"];
+    const labels = ["Who runs which version", "Data relay status", "Sync EP/GP history now", "Interface options", "Digest off", "Invite queue", "Pending loot rolls"];
     for (const label of labels) s.run(`for _, f in ipairs(FRAMES) do if f.text == "${label}" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
     expect(s.run(`return table.concat(CALLED, ";")`)).toBe("peers:;relay:;ledgersync:now;options:;digest:off;invites:;lootroll:");
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Announcements,Info,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Reserves,Signups,Duels,Announcements,Info,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Reserves,Signups,Duels,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {
@@ -447,12 +447,11 @@ describe("the Ready page", () => {
 describe("the tools window in 4.6", () => {
   it("builds availability filters and routes clicks without changing observation settings", () => {
     const s = openWindow(5);
-    s.run(`NS.presence = { describe = function(filter) FILTER = filter; return "Visible reports" end, heatmap = function() return {} end }; NS.clientTools = { openFinder = function() FINDER = true end }; NS.openGuildPanel(nil, "guild", "Availability")`);
+    s.run(`NS.presence = { describe = function(filter) FILTER = filter; return "Visible reports" end, heatmap = function() return {} end }; NS.openGuildPanel(nil, "guild", "Availability")`);
     expect(s.run(`return NS.windowState().presenceText.text`)).toBe("Visible reports");
     s.run(`for _, f in ipairs(FRAMES) do if f.text == "Free only: Off" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
     expect(s.run(`return tostring(FILTER.free)`)).toBe("true");
-    s.run(`for _, f in ipairs(FRAMES) do if f.text == "Blizzard group finder" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
-    expect(s.run(`return tostring(FINDER)`)).toBe("true");
+    expect(s.run(`for _, f in ipairs(FRAMES) do if f.text == "Blizzard group finder" then return "found" end end return "none"`)).toBe("none");
     expect(s.chat().join("\n")).not.toContain("failed");
   });
   it("remembers where it was dragged and its size", () => {
@@ -536,9 +535,31 @@ describe("in-game UI fixes from the 5 November pass", () => {
     expect(out).toContain("wheel ticks=1");
   });
 
-  it("offers the announcement page as a tab", () => {
+  it("has one Settings tab: announcements are inside it, Info and data is its closed Advanced view", () => {
     const s = openWindow(1);
-    expect(s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`)).toContain("Announcements");
+    const names = s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`);
+    expect(names).not.toContain("Announcements");
+    expect(names).not.toContain("Info");
+    expect(names).toContain("Tools");
+    // Closed by default; the old page names still open Settings (Info opens the Advanced view).
+    s.run(`NS.windowState().selectTabByName("Tools")`);
+    expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("false");
+    expect(s.run(`return tostring(NS.windowState().settingsGeneral:IsShown())`)).toBe("true");
+    // From another tab (showing the page resets it to the general view first).
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    s.run(`NS.windowState().selectTabByName("Info")`);
+    expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("true");
+    expect(s.run(`return tostring(NS.windowState().settingsGeneral:IsShown())`)).toBe("false");
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    s.run(`NS.windowState().selectTabByName("Announcements")`);
+    expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("false");
+    expect(s.run(`return tostring(NS.windowState().announceChecks ~= nil)`)).toBe("true");
+  });
+
+  it("shows every member that an officer turned announcements off for the guild", () => {
+    const s = openWindow(5, `NS.milestones = { enabled = function() return true end, guildOff = function() return true end }`);
+    s.run(`NS.windowState().selectTabByName("Announcements"); NS.windowState().refreshAnnouncements()`);
+    expect(s.run(`return NS.windowState().announceStatus.text`)).toBe("Milestone announcements are turned off for the whole guild by an officer.");
   });
 
   it("hangs the Modules heading below the help text instead of at a fixed offset", () => {
@@ -723,7 +744,7 @@ describe("minimap button shortcuts (Track E2)", () => {
     expect(click(s, "LeftButton")).toBe("window");
   });
 
-  it("the quick menu lists the pages, and only offers Race to 60 when that page exists", () => {
+  it("the quick menu lists the pages and never offers a Race to 60 page", () => {
     const s = setup();
     click(s, "RightButton");
     s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
@@ -731,7 +752,7 @@ describe("minimap button shortcuts (Track E2)", () => {
     expect(s.run(`return MENU.buttons[1].text.text .. "," .. MENU.buttons[6].text.text`)).toBe("Raid signups,Settings");
     s.run(`NS.windowState().tabs[#NS.windowState().tabs + 1] = { name = "Race to 60" }`);
     click(s, "RightButton");
-    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("7");
+    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("6");
     s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "help" end }`);
     click(s, "RightButton");
     expect(s.run(`return MENU.buttons[#MENU.buttons - 1].text.text`)).toBe("Call for help");

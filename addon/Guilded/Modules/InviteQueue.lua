@@ -287,6 +287,10 @@ end)
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHelp = ns.commandHelp or {}
 ns.commandHandlers.invites = function(args)
+  if not officer() then
+    if ns.message then ns.message(L("Officers only.")) end
+    return
+  end
   local sub = args and args[1] and string.lower(args[1])
   if sub == "list" then
     if ns.showCopyText then ns.showCopyText(module.text(), L("To invite")) end

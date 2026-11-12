@@ -126,12 +126,13 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
       });
       return "already-linked" as const;
     }
-    // An officer took this character away from this member: their uploads must not link it back.
-    const removed = await tx.characterVerifyClaim.findFirst({
-      where: { guildId, memberId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)), status: "REMOVED" },
-      select: { id: true }
+    // An officer took this character away from this member (REMOVED), or the member unlinked it themselves
+    // (BLOCKED, /character unlink or the "Not mine" button): their uploads must not link it back.
+    const declined = await tx.characterVerifyClaim.findFirst({
+      where: { guildId, memberId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)), status: { in: ["REMOVED", "BLOCKED"] } },
+      select: { status: true }
     });
-    if (removed) return "removed-by-officer" as const;
+    if (declined) return declined.status === "BLOCKED" ? "blocked-by-member" as const : "removed-by-officer" as const;
     await createSelfCharacter(tx, guildId, memberId, self, confirm, evidence);
     return "linked" as const;
   // 9.0.8: its own budget. The 5 s default ran out while a big upload's import held the database (P2028, 9 November).

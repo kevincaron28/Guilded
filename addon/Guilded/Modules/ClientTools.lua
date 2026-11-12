@@ -19,19 +19,6 @@ local function blocked()
   return value ~= false and value ~= nil
 end
 local function notice(text) if ns.message then ns.message(L(text)) end; return false end
-function tools.openFinder()
-  if blocked() then return notice("Open this tool after combat.") end
-  local edition = ns.util and ns.util.gameEdition()
-  if edition == "forever" or edition == "unknown" or type(ToggleLFDParentFrame) ~= "function" then
-    return notice("Blizzard's group finder is unavailable on this client. Use guild group posts.")
-  end
-  if C_LFGInfo and C_LFGInfo.CanPlayerUseGroupFinder and call(C_LFGInfo.CanPlayerUseGroupFinder) ~= true then
-    return notice("Blizzard's group finder is unavailable for this character.")
-  end
-  local ok = pcall(ToggleLFDParentFrame)
-  if not ok then return notice("Blizzard's group finder could not be opened.") end
-  return true
-end
 function tools.selectedRecipe(kind)
   if blocked() then return nil end
   if kind == "modern" then
@@ -84,8 +71,6 @@ function tools.attach()
     end
   end
 end
-ns.commandHandlers = ns.commandHandlers or {}
-ns.commandHandlers.finder = tools.openFinder
 local frame = CreateFrame("Frame")
 for _, event in ipairs({ "PLAYER_LOGIN", "ADDON_LOADED", "PLAYER_REGEN_ENABLED", "TRADE_SKILL_SHOW", "CRAFT_SHOW" }) do
   if ns.compat and ns.compat.registerEvent then ns.compat.registerEvent(frame, event, true) else pcall(frame.RegisterEvent, frame, event) end

@@ -47,6 +47,15 @@ function withSync(officer = true): LuaSession {
 const advance = (s: LuaSession, seconds: number) => s.run(`NOW = NOW + ${seconds}`);
 
 describe("SyncNow.lua", () => {
+  it("remembers when the saved file was last written and says how long ago", () => {
+    const s = withSync();
+    s.run(`NS.relay = { ageText = function(sec) return math.floor(sec / 3600) .. " h ago" end }`);
+    expect(s.run("return tostring(NS.syncNow.savedAgoText())")).toBe("nil");
+    s.run(`fire_event("PLAYER_LOGOUT")`);
+    expect(s.run("return DB.syncSavedAt")).toBe("100000");
+    advance(s, 7300);
+    expect(s.run("return NS.syncNow.savedAgoText()")).toBe("2 h ago");
+  });
   it("lets a member in an addon-only guild request peer data without reloading or repeating requests", () => {
     const s = withSync(false);
     s.run(`

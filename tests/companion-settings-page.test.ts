@@ -45,7 +45,7 @@ describe("Tools", () => {
 
   it("keeps the export and the imports; the WoW folder moved to Settings", () => {
     expect(tools).toContain("<h1>Tools</h1>");
-    for (const id of ["sheetTable", "grmPanel", "lootImportPanel"]) expect(tools, id).toContain(`id="${id}"`);
+    for (const id of ["sheetTable", "grmPanel"]) expect(tools, id).toContain(`id="${id}"`);
     expect(tools).not.toContain('id="btnWowSelect"');
     // The old status tiles are gone (redesign PR 5); the Sync card says it.
     expect(tools).not.toContain('id="toolsLegacy"');

@@ -1,4 +1,5 @@
 import { escapeMarkdown, type Client } from "discord.js";
+import { linkUndoRows } from "./companion-link-dm.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { AddonCharacter } from "../integrations/addon.js";
 import { characterKey } from "../../companion/character-identity.mjs";
@@ -21,7 +22,7 @@ type Database = Pick<PrismaClient, "inviteRequest" | "member" | "character" | "c
 /** Lowercase, accents and spacing folded, so "Élodie  Rose" matches "elodie rose". */
 const fold = (text: string) => text.normalize("NFD").replace(/[̀-ͯ]/gu, "").replace(/\s+/g, " ").trim().toLowerCase();
 
-export interface PrelinkResult { discordUserId: string; name: string; isMain: boolean }
+export interface PrelinkResult { discordUserId: string; name: string; isMain: boolean; characterId?: string }
 
 /**
  * Link every waiting or invited request whose full character name is among `seen` (characters with a
@@ -57,8 +58,8 @@ export async function prelinkInvitedCharacters(database: Database, guildId: stri
       where: { guildId_memberId_nameKey: { guildId, memberId: member.id, nameKey: claimKey } },
       create: { guildId, memberId: member.id, nameKey: claimKey, status: "PROVISIONAL" }, update: { status: "PROVISIONAL" }
     });
-    const created = await database.character.findFirst({ where: { memberId: member.id, name: entry.name, gameEdition: gameEditionOf(entry) }, select: { isMain: true } });
-    results.push({ discordUserId: [...people][0]!, name: entry.name, isMain: created?.isMain ?? false });
+    const created = await database.character.findFirst({ where: { memberId: member.id, name: entry.name, gameEdition: gameEditionOf(entry) }, select: { id: true, isMain: true } });
+    results.push({ discordUserId: [...people][0]!, name: entry.name, isMain: created?.isMain ?? false, ...(created ? { characterId: created.id } : {}) });
   }
   return results;
 }
@@ -72,6 +73,8 @@ export async function tellPrelinked(client: Client, discordGuildId: string, lang
   for (const result of results) {
     await client.users.send(result.discordUserId, {
       content: t(language, "invite.prelinked", { name: escapeMarkdown(result.name), server, kind: t(language, result.isMain ? "character.mainKind" : "character.altKind") }),
+      // The same undo as every automatic link: "Not mine" for this character, plus "Wrong server".
+      components: linkUndoRows(language, result.characterId ? [{ id: result.characterId, name: result.name, displayName: null }] : [], null),
       allowedMentions: { parse: [] }
     }).catch(() => undefined);
   }

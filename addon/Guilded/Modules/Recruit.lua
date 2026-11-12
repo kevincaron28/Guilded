@@ -1,27 +1,20 @@
--- Recruiting helpers for officers: a prospect list and a welcome whisper for new members.
+-- Recruiting helpers for officers: a prospect list.
 --
 --   /guilded recruit add <name> [note]          a prospect you talked to
 --   /guilded recruit <name> contacted|invited|declined|joined [note]
 --   /guilded recruit remove <name> | list [status] | copy
---   /guilded welcome on [message] | off | status | test
 --
 -- The prospect list stays on this PC (notes can be private). Someone on it who joins the guild
--- is marked "joined" by itself. The welcome whisper is off until an officer turns it on; when
--- a player joins, one officer with it on whispers them once: the others hear that over the
--- addon channel and stay quiet. {name} and {guild} in the message are filled in.
+-- is marked "joined" by itself. 9.2 removed the automatic welcome whisper (a chat line sent from a
+-- timer, which the game blocks) and its /guilded welcome command; a saved db.welcome stays unread.
 local addonName, ns = ...
 ns = ns or {}
 
-local PREFIX = "GuildedRec"
 local STATUSES = { prospect = true, contacted = true, invited = true, joined = true, declined = true }
 local MAX_RECRUITS = 300
-local MAX_WELCOMES_PER_HOUR = 10
-local WELCOMED_MEMORY = 600
 
 local recruit = {}
 ns.recruit = recruit
-
-local welcomedAt, welcomeTimes = {}, {}
 
 local function L(text) return ns.L and ns.L(text) or text end
 local function clock() return time and time() or 0 end
@@ -31,21 +24,7 @@ local function state()
   local db = ns.getDb and ns.getDb()
   if not db then return nil end
   db.recruits = db.recruits or { list = {} }
-  db.welcome = db.welcome or { enabled = false }
   return db
-end
-
-function recruit.defaultWelcome()
-  return L("Welcome to {guild}, {name}! Say hi in guild chat, and ask an officer if you need anything.")
-end
-
--- The welcome text for one player (placeholders filled, kept to one chat line).
-function recruit.welcomeText(name, template)
-  local guild = GetGuildInfo and GetGuildInfo("player") or ""
-  local display = ns.util and ns.util.displayName and ns.util.displayName(name) or name
-  local text = string.gsub(template or recruit.defaultWelcome(), "{name}", (string.gsub(display or "", "%%", "%%%%")))
-  text = string.gsub(text, "{guild}", (string.gsub(guild or "", "%%", "%%%%")))
-  return ns.util and ns.util.truncate and ns.util.truncate(text, 250) or string.sub(text, 1, 250)
 end
 
 -- ---------------------------------------------------------------------
@@ -106,7 +85,7 @@ local function line(entry)
 end
 
 -- ---------------------------------------------------------------------
--- Welcome whisper
+-- Join detection (marks a prospect "joined")
 -- ---------------------------------------------------------------------
 
 -- "%s has joined the guild." in the client's language, as a pattern.
@@ -116,55 +95,10 @@ local function joinPattern()
   return "^" .. (string.gsub(escaped, "%%s", "(.+)")) .. "$"
 end
 
-local function recentlyWelcomed(name)
-  local at = welcomedAt[key(name)]
-  return at and clock() - at < WELCOMED_MEMORY
-end
-
-local function withinRate()
-  local now, kept = clock(), {}
-  for _, at in ipairs(welcomeTimes) do if now - at < 3600 then table.insert(kept, at) end end
-  welcomeTimes = kept
-  return #welcomeTimes < MAX_WELCOMES_PER_HOUR
-end
-
--- Sends the whisper now (no checks); returns true when the game accepted it.
-local function whisper(name, text)
-  local target = ns.util and ns.util.address and ns.util.address(name) or name
-  local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
-  if not send then return false end
-  return pcall(send, text, "WHISPER", nil, target)
-end
-
--- One officer welcomes: each waits a moment, and whoever goes first tells the others.
-function recruit.onJoined(name)
-  recruit.noteJoined(name)
-  local db = state()
-  if not (db and db.welcome.enabled) then return false end
-  if not (ns.isOfficer and ns.isOfficer()) then return false end
-  if ns.playerName and ns.normalizeName and ns.normalizeName(name) == ns.playerName() then return false end
-  local function go()
-    if recentlyWelcomed(name) or not withinRate() then return end
-    welcomedAt[key(name)] = clock()
-    table.insert(welcomeTimes, clock())
-    if ns.comm and IsInGuild and IsInGuild() then ns.comm.send(PREFIX, "WELCOMED|1|" .. name, "GUILD") end
-    whisper(name, recruit.welcomeText(name, db.welcome.text))
-  end
-  -- A spread of 2 to 6 seconds so two officers rarely send at the same instant.
-  local wait = 2 + (math.random and math.random() * 4 or 0)
-  if C_Timer and C_Timer.After then C_Timer.After(wait, go) else go() end
-  return true
-end
-
 function recruit.onSystemMessage(text)
   if type(text) ~= "string" or (ns.isSecret and ns.isSecret(text)) then return end
   local name = string.match(text, joinPattern())
-  if name then recruit.onJoined(name) end
-end
-
-function recruit.onAddonMessage(text, sender)
-  local name = string.match(text or "", "^WELCOMED|1|(.+)$")
-  if name and ns.isOfficerName and ns.isOfficerName(ns.normalizeName(sender)) then welcomedAt[key(name)] = clock() end
+  if name then recruit.noteJoined(name) end
 end
 
 -- ---------------------------------------------------------------------
@@ -204,39 +138,15 @@ ns.commandHandlers["recruit"] = function(args)
   end
 end
 
-ns.commandHandlers["welcome"] = function(args)
-  if ns.moduleActive and not ns.moduleActive("recruit") then return end
-  local db = state()
-  if not (db and needOfficer()) then return end
-  local action = string.lower(args[1] or "status")
-  if action == "on" then
-    local text = table.concat(args, " ", 2)
-    if text ~= "" then db.welcome.text = string.sub(text, 1, 250) end
-    db.welcome.enabled, db.welcome.by = true, ns.playerName and ns.playerName() or nil
-    ns.message(L("Welcome whisper on. New members get: ") .. recruit.welcomeText(L("NewMember"), db.welcome.text))
-  elseif action == "off" then
-    db.welcome.enabled = false
-    ns.message(L("Welcome whisper off."))
-  elseif action == "test" then
-    ns.message(recruit.welcomeText(ns.playerName and ns.playerName() or "", db.welcome.text))
-  else
-    ns.message(string.format(L("Welcome whisper is %s: %s"), db.welcome.enabled and L("on") or L("off"), recruit.welcomeText(L("NewMember"), db.welcome.text)))
-  end
-end
 ns.commandHelp = ns.commandHelp or {}
 table.insert(ns.commandHelp, { officer = true, text = "/guilded recruit add <name> [note] | list | copy - officers' prospect list" })
-table.insert(ns.commandHelp, { officer = true, text = "/guilded welcome on [message] | off | test - whisper new guild members once (one officer sends it)" })
 
 local frame = CreateFrame("Frame")
-frame:RegisterEvent("PLAYER_LOGIN")
 frame:RegisterEvent("CHAT_MSG_SYSTEM")
-frame:RegisterEvent("CHAT_MSG_ADDON")
-frame:SetScript("OnEvent", function(_, event, a, b, c, d)
+frame:SetScript("OnEvent", function(_, event, a)
   local ok, err = pcall(function()
     if ns.moduleActive and not ns.moduleActive("recruit") then return end
-    if event == "PLAYER_LOGIN" then ns.comm.register(PREFIX)
-    elseif event == "CHAT_MSG_SYSTEM" then recruit.onSystemMessage(a)
-    elseif event == "CHAT_MSG_ADDON" and ns.comm.accept(a, b, c, d, PREFIX) and c == "GUILD" then recruit.onAddonMessage(b, d) end
+    if event == "CHAT_MSG_SYSTEM" then recruit.onSystemMessage(a) end
   end)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "recruit: " .. tostring(err)) end
 end)

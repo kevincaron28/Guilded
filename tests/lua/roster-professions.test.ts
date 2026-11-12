@@ -43,39 +43,6 @@ describe("profession tags match the bot's definition", () => {
   });
 });
 
-describe("profession note tool", () => {
-  it("previews only empty or tag-only public notes and writes one reviewed note per click", () => {
-    setup();
-    // Amy's note is a person's own words: kept. Bob's is empty: writable.
-    s.run('ROWS[3].public=""; ROWS[2].public="Alt of Kevin"; fire_event("GUILD_ROSTER_UPDATE")');
-    expect(s.run('local p,c=NS.rosterProfessions.plan(); return tostring(c)')).toBe("1");
-    s.run('local plan=assert(NS.rosterProfessions.preview()); assert(NS.rosterTools.confirm(plan.phrase)); assert(NS.rosterTools.step())');
-    expect(s.run('return #CALLS')).toBe("1");
-    expect(s.run('return CALLS[1][1]..":"..CALLS[1][2]')).toBe("3:Mine150");
-  });
-  it("never touches officer notes, yourself, or a note that already matches", () => {
-    setup();
-    s.run('ROWS[2].public="Alch300 Herb225"; ROWS[3].public=""; DB.peerRoster["Boss-Realm"]={professions="Mining:300"}; fire_event("GUILD_ROSTER_UPDATE")');
-    const tsv = s.run('return NS.rosterProfessions.plan()');
-    expect(tsv).toBe("character\taction\tvalue\nBob-Realm\tpublic\tMine150");
-    expect(tsv).not.toContain("officer");
-    expect(tsv).not.toContain("Boss-Realm");
-  });
-  it("says so when there is nothing to update and needs a fresh roster", () => {
-    setup();
-    s.run('ROWS[2].public="Alch300 Herb225"; ROWS[3].public="Mine150"; fire_event("GUILD_ROSTER_UPDATE")');
-    expect(s.run('local t,m=NS.rosterProfessions.plan(); return tostring(t)..":"..m')).toBe("nil:No public notes to update.");
-    s.run("CLOCK=200");
-    expect(s.run('local t=NS.rosterProfessions.plan(); return tostring(t)')).toBe("nil");
-  });
-  it("is blocked for non-officers and writes nothing without the click", () => {
-    setup();
-    s.run("OFFICER=false");
-    expect(s.run('local t=NS.rosterProfessions.plan(); return tostring(t)')).toBe("nil");
-    expect(s.run("return #CALLS")).toBe("0");
-  });
-});
-
 describe("guild roster tooltip", () => {
   it("adds profession lines with icons and survives a missing tooltip", () => {
     setup();
@@ -181,7 +148,7 @@ describe("ready to promote panel", () => {
       f.CreateFontString=function() return CreateFrame("Font") end
       return f
     end`);
-    s.run("NS.showCopyText=function() end; NS.promotion.open(); NS.commandHandlers.promote({ 'promote' }); fire_event('PLAYER_LOGIN')");
+    s.run("NS.isOfficer=function() return true end; NS.showCopyText=function() end; NS.promotion.open(); NS.commandHandlers.promote({ 'promote' }); fire_event('PLAYER_LOGIN')");
     expect(s.run("return #CALLS")).toBe("0");
   });
   it("rejects names that could carry extra rows", () => {

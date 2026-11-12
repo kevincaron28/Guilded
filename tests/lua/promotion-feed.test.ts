@@ -39,6 +39,22 @@ function panelSession(luaFile: string) {
   return s;
 }
 
+describe("/guilded promote officer check", () => {
+  it("answers Officers only to a non-officer and shows no list", () => {
+    const p = panelSession("COPIED = 0; NS.showCopyText = function() COPIED = COPIED + 1 end; NS.isOfficer = function() return false end");
+    p.run("MESSAGES = {}; NS.commandHandlers.promote({ 'promote', 'list' }); NS.commandHandlers.promote({ 'promote' })");
+    expect(p.run("return table.concat(MESSAGES, '|')")).toBe("Officers only.|Officers only.");
+    expect(p.run("return COPIED")).toBe("0");
+    p.close();
+  });
+  it("still lists for an officer", () => {
+    const p = panelSession("COPIED = 0; NS.showCopyText = function() COPIED = COPIED + 1 end; NS.isOfficer = function() return true end");
+    p.run("NS.commandHandlers.promote({ 'promote', 'list' })");
+    expect(p.run("return COPIED")).toBe("1");
+    p.close();
+  });
+});
+
 describe("promotion feed, end to end", () => {
   it("lists exactly the members the bot says are ready, each with one reviewed Promote click", async () => {
     // Amy: 9 days, in Discord. Bob: 20 days, in Discord. Cy: 2 days (not yet). Dee: 30 days but left Discord.

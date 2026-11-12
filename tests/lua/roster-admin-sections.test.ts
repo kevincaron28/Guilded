@@ -28,14 +28,13 @@ function open(): LuaSession {
       end
       return f
     end
-    STATE = { professions = true, epgp = true, promote = false, greet = true }
+    STATE = { promote = false }
     SETLOG = {}
     NS = { commandHandlers = {}, commandHelp = {}, message = function() end, showCopyText = function() end,
       rosterTools = { authorized = function() return true end, context = function() return "a" end,
         invalidatePreview = function() end, requestRoster = function() error("boom") end },
       grmMigration = {},
-      officerNotes = { LABELS = { professions = "Professions in public notes", epgp = "EP/GP in officer notes",
-          promote = "Promote linked Initiates to Member", greet = "Greet new guild members" },
+      officerNotes = { LABELS = { promote = "Promote linked Initiates to Member" },
         enabled = function(k) return STATE[k] end, set = function(k, on) SETLOG[#SETLOG + 1] = k .. "=" .. tostring(on) end,
         command = function(args) SETLOG[#SETLOG + 1] = table.concat(args, " ") end } }
   `);
@@ -51,10 +50,10 @@ describe("roster admin window", () => {
       local out = {}
       for _, t in ipairs(TEXTS) do out[#out + 1] = string.format("%q", t) end
       return "[" .. table.concat(out, ",") .. "]"`));
-    const order = ["Members", "Ranks and promotion", "Notes", "Invites and greeting", "Sync", "GRM archive"].map((h) => texts.indexOf(h));
+    const order = ["Members", "Ranks and promotion", "Invites", "Sync", "GRM archive"].map((h) => texts.indexOf(h));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    for (const label of ["Invite queue", "Sync with guildmates", "Greeting in French", "Professions to notes"]) {
+    for (const label of ["Invite queue", "Sync with guildmates"]) {
       expect(w.run(String.raw`for _, f in ipairs(FRAMES) do if f.text == "${label}" and f.scripts.OnClick then return "yes" end end return "no"`)).toBe("yes");
     }
     expect(w.run(String.raw`for _, f in ipairs(FRAMES) do if f.text == "Buff coverage" then return "yes" end end return "no"`)).toBe("no");
@@ -64,10 +63,10 @@ describe("roster admin window", () => {
     const w = open();
     expect(w.run(`return table.concat(UISpecialFrames, ",")`)).toContain("GuildedRosterAdmin");
     const boxes = w.run(String.raw`local n = {} for _, f in ipairs(FRAMES) do if f.kind == "CheckButton" then n[#n + 1] = tostring(f.checked) end end return table.concat(n, ",")`);
-    expect(boxes).toBe("false,true,true,true");
+    expect(boxes).toBe("false");
     w.run(String.raw`for _, f in ipairs(FRAMES) do if f.kind == "CheckButton" then f.checked = not f.checked; f.scripts.OnClick(f) end end`);
 
-    expect(w.run(`return table.concat(SETLOG, ";")`)).toBe("promote=true;professions=false;epgp=false;greet=false");
+    expect(w.run(`return table.concat(SETLOG, ";")`)).toBe("promote=true");
   });
 
   it("survives a Lua error inside a button and says so", () => {
@@ -76,10 +75,11 @@ describe("roster admin window", () => {
     expect(w.run(`return TEXTS[#TEXTS]`)).toBe("Not applied. Check the preview and confirmation.");
   });
 
-  it("language buttons go through the officer command", () => {
+  it("no longer offers the note, greeting or guild message controls", () => {
     const w = open();
-    w.run(String.raw`for _, f in ipairs(FRAMES) do if f.text == "Greeting in French" then f.scripts.OnClick() end end`);
-    expect(w.run(`return SETLOG[#SETLOG]`)).toBe("officer auto lang fr");
+    for (const label of ["Professions to notes", "Greeting in English", "Greeting in French", "Guild message"]) {
+      expect(w.run(String.raw`for _, f in ipairs(FRAMES) do if f.text == "${label}" then return "yes" end end return "no"`), label).toBe("no");
+    }
   });
 });
 
@@ -99,7 +99,7 @@ describe("copy windows", () => {
 describe("new roster admin strings are translated", () => {
   const source = readFileSync("addon/Guilded/Locale.lua", "utf8");
   const tables = (["FR", "DE", "ES"] as const).map((l) => [l, readTable(source, l)] as const);
-  it.each(["Members", "Ranks and promotion", "Notes", "Invites and greeting", "Sync", "GRM archive", "Invite queue", "Greeting in English", "Greeting in French", "Sync with guildmates", "Sync report"])("%s", (key) => {
+  it.each(["Members", "Ranks and promotion", "Invites", "Sync", "GRM archive", "Invite queue", "Sync with guildmates", "Sync report"])("%s", (key) => {
     for (const [lang, entries] of tables) expect(entries.get(key), `${lang}: ${key}`).toBeTypeOf("string");
   });
 });

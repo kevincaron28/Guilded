@@ -51,7 +51,7 @@ function tools.findCrafter(kind)
   if query and ns.recipes and ns.recipes.whoText and ns.showCopyText then
     ns.showCopyText(ns.recipes.whoText(query), L("Guilded crafters")); return true
   end
-  if ns.openGuildPanel then ns.openGuildPanel(nil, "guild", "Crafting") end
+  if ns.openToolsPage then ns.openToolsPage("Crafting") end
   return notice("Select a recipe, or search by name in Guilded crafting.")
 end
 function tools.attach()

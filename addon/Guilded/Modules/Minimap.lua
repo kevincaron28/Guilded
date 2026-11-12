@@ -1513,6 +1513,9 @@ end
 -- The five member tabs of 9.2 (and Settings). The active one expands to its pages in the sidebar. Pages of the
 -- guild window show here as link buttons; the officer pages stay in the guild window until the Officer tab.
 local GROUPS = { "Home", "Guild", "Dungeons", "Crafting", "Raids", "Settings" }
+-- Guild and Crafting are one page each: their sections are a row of buttons at the top of the content (the
+-- pages keep their own frames), not entries in the sidebar.
+local SECTION_ROW = { Guild = true, Crafting = true }
 local function buildRosterAdminPage(page)
   local info = at(newLabel(page, "Change guild ranks and notes in bulk: paste a list of actions, preview the changes, then confirm.", "GameFontHighlightSmall"), page, 0, 0)
   info:SetWidth(PAGE_WIDTH - 8)
@@ -1704,12 +1707,12 @@ local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Home", build = buildHomePage },
   { name = "Guild overview", hint = "classes and levels of the whole guild at a glance", group = "Guild", build = function(page) if ns.guildOverview and ns.guildOverview.buildPage then ns.guildOverview.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
   { name = "Board", label = "Guild board", hint = "officers' news and open polls, vote from the game", group = "Guild", build = function(page) if ns.guildBoard and ns.guildBoard.buildPage then ns.guildBoard.buildPage(page, { newLabel = newLabel, newButton = newButton, newEdit = newEdit, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Crafting", label = "Recipes", hint = "who can craft an item, your professions and cooldowns", group = "Crafting", module = "recipes", build = buildCraftingPage },
   { name = "Orders", label = "Crafting orders", hint = "craft requests from Discord you can make", group = "Crafting", build = function(page) if ns.craftOrders and ns.craftOrders.buildPage then ns.craftOrders.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Home", usesPlayer = true, build = buildMePage },
   { name = "Open raids", hint = "find a raid with room for you", group = "Raids", build = buildPublicRaidsPage },
   { name = "Standings", scope = "guild", group = "Guild", usesPlayer = true, build = buildStandingsPage },
-  { name = "Crafting", scope = "guild", group = "Crafting", module = "recipes", build = buildCraftingPage },
-  { name = "Availability", scope = "guild", group = "Guild", module = "presence", build = buildAvailabilityPage },
+  { name = "Availability", group = "Guild", module = "presence", build = buildAvailabilityPage },
   { name = "Gear", hint = "item level and missing enchants per member", scope = "guild", group = "Officer", officer = true, build = buildGearPage },
   { name = "Ready", hint = "who is ready for the raid", group = "Raids", leader = true, build = buildReadyPage },
   { name = "Reserves", hint = "soft reserves for the raid", group = "Raids", module = "reserve", lootModes = { RESERVE = true }, usesPlayer = true, build = buildReservePage },
@@ -1819,6 +1822,7 @@ local function layoutTabs(officer)
   if ui.scope == "main" then
     local current = ui.tabs[ui.currentTab or 0]
     local currentGroup = current and current.group
+    local sectionX
     for _, group in ipairs(GROUPS) do
       local list = groupList(group, officer)
       if #list > 0 then
@@ -1845,7 +1849,12 @@ local function layoutTabs(officer)
             tab.visible = true
             firstVisible = firstVisible or i
           end
-          if group == currentGroup and #list > 1 then
+          if group == currentGroup and SECTION_ROW[group] and #list > 1 then
+            local width = tonumber(tab.button:GetWidth()) or 120
+            at(tab.button, panel, CONTENT_X + (sectionX or 0), -12)
+            sectionX = (sectionX or 0) + width + 6
+            tab.button:Show()
+          elseif group == currentGroup and #list > 1 then
             at(tab.button, panel, 26, y)
             tab.button:Show()
             y = y - 24
@@ -2268,7 +2277,9 @@ selectTab = function(index)
   for i, tab in ipairs(ui.tabs) do
     if i == index then tab.page:Show(); tab.button:LockHighlight() else tab.page:Hide(); tab.button:UnlockHighlight() end
   end
-  if ui.pageTitle then
+  if ui.pageTitle and SECTION_ROW[ui.tabs[index].group] and ui.scope == "main" and #groupList(ui.tabs[index].group, ns.isOfficer()) > 1 then
+    ui.pageTitle:SetText("")
+  elseif ui.pageTitle then
     ui.pageTitle:SetText(L(ui.tabs[index].label or ui.tabs[index].name) .. (ui.tabs[index].hint and ("   |cff999999" .. L(ui.tabs[index].hint) .. "|r") or ""))
   end
   -- The Player field only matters on pages that act on a player.

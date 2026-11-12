@@ -158,6 +158,27 @@ describe("the five member tabs", () => {
   });
 });
 
+describe("the section rows of the Guild and Crafting pages", () => {
+  it("keep every button inside the page width, sized to its text, in English", () => {
+    const s = openWindow(1);
+    for (const group of ["Guild", "Crafting"]) {
+      s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
+      const rows = JSON.parse(s.run(`local t = {}; for _, r in ipairs(NS.windowState().sectionLayout) do
+        local b; for _, tab in ipairs(NS.windowState().tabs) do if tab.name == r.name then b = tab.button end end
+        t[#t + 1] = string.format('{"x":%d,"line":%d,"width":%d,"real":%d,"text":%q}', r.x, r.line, r.width, b.width, b.text) end
+        return "[" .. table.concat(t, ",") .. "]"`)) as { x: number; line: number; width: number; real: number; text: string }[];
+      expect(rows.length).toBeGreaterThan(1);
+      const pageWidth = Number(s.run("return NS.layoutMath.PAGE_WIDTH"));
+      for (const r of rows) {
+        expect(r.real).toBe(r.width);
+        expect(r.x + r.width).toBeLessThanOrEqual(pageWidth);          // never past the right edge
+        expect(r.width).toBeGreaterThanOrEqual(r.text.length * 7 + 20 > 150 ? 150 : r.text.length * 7 + 20); // fits its text
+        expect(r.line).toBeLessThanOrEqual(1);                          // the page starts below two lines
+      }
+    }
+  });
+});
+
 describe("the tools window (sidebar and Home page)", () => {
   it("routes dungeon shortcuts to one pane and keeps calendar administration officer-only", () => {
     const s = openWindow(5);

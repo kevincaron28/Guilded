@@ -225,7 +225,7 @@ local function enableWheel(scroll, getRange)
   end
 end
 function ns.resetScrollWanted(scroll) if scroll then wantedScroll[scroll] = 0 end end
-ns.layoutMath = { scrollRange = scrollRange, SCROLL_STEP = SCROLL_STEP, SCROLL_PADDING = SCROLL_PADDING }
+ns.layoutMath = { scrollRange = scrollRange, SCROLL_STEP = SCROLL_STEP, SCROLL_PADDING = SCROLL_PADDING, PAGE_WIDTH = PAGE_WIDTH }
 
 local function newLabel(parent, text, font)
   local l = parent:CreateFontString(nil, "OVERLAY", font or "GameFontNormal")
@@ -1516,6 +1516,12 @@ local GROUPS = { "Home", "Guild", "Dungeons", "Crafting", "Raids", "Settings" }
 -- Guild and Crafting are one page each: their sections are a row of buttons at the top of the content (the
 -- pages keep their own frames), not entries in the sidebar.
 local SECTION_ROW = { Guild = true, Crafting = true }
+-- The section buttons are as wide as their text (capped); a row that would pass the page width wraps to a
+-- second line. The page itself starts at -66, below two lines (12 + 22 high, then 24 per extra line).
+local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 150
+local function sectionWidth(text)
+  return math.min(SECTION_MAX, math.max(60, #text * 7 + 20))
+end
 local function buildRosterAdminPage(page)
   local info = at(newLabel(page, "Change guild ranks and notes in bulk: paste a list of actions, preview the changes, then confirm.", "GameFontHighlightSmall"), page, 0, 0)
   info:SetWidth(PAGE_WIDTH - 8)
@@ -1862,6 +1868,8 @@ local function layoutTabs(officer)
     local current = ui.tabs[ui.currentTab or 0]
     local currentGroup = current and current.group
     local sectionX
+    local sectionLine = 0
+    ui.sectionLayout = {}
     for _, group in ipairs(GROUPS) do
       local list = groupList(group, officer)
       if #list > 0 then
@@ -1889,9 +1897,13 @@ local function layoutTabs(officer)
             firstVisible = firstVisible or i
           end
           if group == currentGroup and SECTION_ROW[group] and #list > 1 then
-            local width = tonumber(tab.button:GetWidth()) or 120
-            at(tab.button, panel, CONTENT_X + (sectionX or 0), -12)
-            sectionX = (sectionX or 0) + width + 6
+            local width = sectionWidth(L(tab.label or tab.name))
+            if sectionX and sectionX + width > PAGE_WIDTH then sectionX = 0; sectionLine = sectionLine + 1 end
+            sectionX = sectionX or 0
+            tab.button:SetWidth(width)
+            at(tab.button, panel, CONTENT_X + sectionX, -(SECTION_Y + SECTION_LINE * sectionLine))
+            ui.sectionLayout[#ui.sectionLayout + 1] = { name = tab.name, x = sectionX, line = sectionLine, width = width }
+            sectionX = sectionX + width + SECTION_GAP
             tab.button:Show()
           elseif group == currentGroup and #list > 1 then
             at(tab.button, panel, 26, y)

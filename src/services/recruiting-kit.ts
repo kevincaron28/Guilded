@@ -7,9 +7,9 @@ import { CLEANUP_DELAY_MS, nameKeyOf } from "./invite-queue.js";
 // questions per server, and a recruiting post template with one shared cooldown. Written from scratch; nothing automatic
 // beyond one reminder when the cooldown is over.
 
-export const STAGES = ["PENDING", "INVITED", "JOINED", "PROMOTED"] as const;
+export const STAGES = ["PENDING", "INVITED", "JOINED", "PROMOTED", "DECLINED"] as const;
 export type Stage = (typeof STAGES)[number];
-export const STAGE_LABEL: Record<Stage, string> = { PENDING: "asked", INVITED: "invited", JOINED: "joined", PROMOTED: "promoted" };
+export const STAGE_LABEL: Record<Stage, string> = { PENDING: "asked", INVITED: "invited", JOINED: "joined", PROMOTED: "promoted", DECLINED: "declined" };
 export const MAX_QUESTIONS = 5;
 export const MAX_ANSWERS_LENGTH = 1000;
 

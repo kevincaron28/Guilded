@@ -23,7 +23,7 @@ export const MAX_CYCLES = 3;
 export const RETRY_LATER_MS = 24 * 3_600_000;
 /** A request queued this long ago with no result is queued again (a lost job). */
 const STALE_QUEUE_MS = 6 * 3_600_000;
-const HANDLED = ["INVITED", "JOINED", "PROMOTED"];
+const HANDLED = ["INVITED", "JOINED", "PROMOTED", "DECLINED"];
 
 type Database = Pick<PrismaClient, "guildSettings" | "inviteRequest" | "discordJob">;
 type Message = { id: string; pinned: boolean; author?: { id: string } | null; delete: () => Promise<unknown> };
@@ -101,6 +101,21 @@ export async function runInviteCleanupJob(guild: GuildLike, database: Pick<Prism
   // Out of quick retries: not marked cleaned. Tried again tomorrow, a few times (so Manage Messages granted later still works), then dropped.
   await database.inviteRequest.updateMany({ where: { id: row.id }, data: { cleanQueuedAt: null, cleanupAt: new Date(now.getTime() + RETRY_LATER_MS), cleanTries: { increment: 1 } } });
   if (row.cleanTries + 1 >= MAX_CYCLES) warnOnce(`giveup:${job.guildId}`, "gave up on a request that could not be cleaned");
+}
+
+/**
+ * The one-time clean-up of requests handled before this feature shipped (the migration marked them cleaned so nothing is purged
+ * on deploy). Officer-only action (/mod invites tidy): they are the handled requests of this server's invitation channel that
+ * were never scheduled. Same job, same rules (stored ids, channel check, pins and officers' messages skipped).
+ */
+const oldHandled = (guildId: string, channelId: string) => ({ guildId, channelId, status: { in: HANDLED }, cleanedAt: { not: null }, cleanupAt: null });
+export async function countOldHandled(database: Pick<PrismaClient, "inviteRequest">, guildId: string, channelId: string): Promise<number> {
+  return database.inviteRequest.count({ where: oldHandled(guildId, channelId) });
+}
+export async function queueOldHandled(database: Database, guildId: string, channelId: string, now = new Date()): Promise<number> {
+  const marked = await database.inviteRequest.updateMany({ where: oldHandled(guildId, channelId), data: { cleanedAt: null, cleanupAt: now, cleanTries: 0, cleanQueuedAt: null } });
+  await scheduleInviteCleanups(database, new Date(now.getTime() + 1000)); // the first batch now; the 10-minute sweep takes the rest
+  return marked.count;
 }
 
 /** Every few minutes: hand the requests that are due to the Discord job queue. The deadline is stored (cleanupAt), so a restart loses nothing. */

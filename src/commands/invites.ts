@@ -8,6 +8,7 @@ import {
   cooldownState, DEFAULT_TEMPLATE, ensureInviteGuide, markRecruitPosted, MAX_COOLDOWN_HOURS, MIN_COOLDOWN_HOURS, parseQuestions,
   STAGE_LABEL, STAGES, storedQuestions, updateRecruit, type Stage
 } from "../services/recruiting-kit.js";
+import { countOldHandled, queueOldHandled } from "../services/invite-cleanup.js";
 import { markGuildChanged } from "../services/standings-feed.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -29,6 +30,8 @@ export const invitesCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("notify").setDescription("Tag"))
     .addBooleanOption((o) => o.setName("cleanup").setDescription("Tidy"))
     .addRoleOption((o) => o.setName("role").setDescription("WoW role")))
+  .addSubcommand((sub) => sub.setName("tidy").setDescription("Old.")
+    .addBooleanOption((o) => o.setName("confirm").setDescription("Yes")))
   .addSubcommand((sub) => sub.setName("questions").setDescription("Questions.")
     .addStringOption((o) => o.setName("text").setDescription("Split by |").setMaxLength(800)))
   .addSubcommand((sub) => sub.setName("post").setDescription("Recruit post.")
@@ -79,6 +82,16 @@ export async function executeInvites(interaction: ChatInputCommandInteraction): 
     }
     if (changed) markGuildChanged(guildId);
     await reply(changed ? `Updated **${name}**${stage ? ` → ${STAGE_LABEL[stageOf(stage)]}` : ""}${noteInput !== null ? " (note saved)" : ""}.` : "Nobody under that name.");
+    return;
+  }
+  if (sub === "tidy") {
+    // One deliberate, officer-only clean-up of the requests handled before the automatic clean-up shipped.
+    if (!settings?.inviteChannelId) { await reply("No invite channel yet: press Create missing channels in `/setup`."); return; }
+    const count = await countOldHandled(prisma, guildId, settings.inviteChannelId);
+    if (!count) { await reply("No old handled requests to remove."); return; }
+    if (o.getBoolean("confirm") !== true) { await reply(`${count} old handled request${count > 1 ? "s" : ""} in <#${settings.inviteChannelId}> can be removed (the request, my tag and my thank-you; never waiting requests, pinned messages or your own notes). Run \`/mod invites tidy confirm:true\` to queue them.`); return; }
+    const queued = await queueOldHandled(prisma, guildId, settings.inviteChannelId);
+    await reply(`${queued} old handled request${queued > 1 ? "s" : ""} queued for removal. It runs in small batches over the next minutes.`);
     return;
   }
   if (sub === "questions") {

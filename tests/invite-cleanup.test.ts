@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CLEANUP_DELAY_MS, MAX_ATTEMPTS, MAX_CYCLES, RETRY_LATER_MS, resetCleanupWarnings, runInviteCleanupJob, scheduleInviteCleanups } from "../src/services/invite-cleanup.js";
+import { countOldHandled, queueOldHandled, CLEANUP_DELAY_MS, MAX_ATTEMPTS, MAX_CYCLES, RETRY_LATER_MS, resetCleanupWarnings, runInviteCleanupJob, scheduleInviteCleanups } from "../src/services/invite-cleanup.js";
 import { markInvitedByName } from "../src/services/invite-queue.js";
 import { updateRecruit } from "../src/services/recruiting-kit.js";
 
@@ -14,9 +14,10 @@ function matches(r: Row, where: Record<string, unknown>): boolean {
     if (key === "OR") return (cond as Record<string, unknown>[]).some((sub) => matches(r, sub));
     const value = (r as unknown as Record<string, unknown>)[key];
     if (cond && typeof cond === "object" && !(cond instanceof Date)) {
-      const c = cond as { in?: unknown[]; lte?: Date; lt?: number };
+      const c = cond as { in?: unknown[]; lte?: Date; lt?: number; not?: null };
       if (c.in) return c.in.includes(value);
       if (c.lte) return value instanceof Date && value <= c.lte;
+      if (c.not === null) return value !== null;
       if (c.lt !== undefined) return typeof value === "number" && value < c.lt;
       return false;
     }
@@ -32,6 +33,7 @@ function table(rows: Row[], settings: { inviteCleanupEnabled?: boolean } = {}) {
     },
     inviteRequest: {
       findMany: vi.fn(async ({ where, take }: { where: Record<string, unknown>; take?: number }) => rows.filter((r) => matches(r, where)).slice(0, take)),
+      count: vi.fn(async ({ where }: { where: Record<string, unknown> }) => rows.filter((r) => matches(r, where)).length),
       findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => rows.find((r) => matches(r, where)) ?? null),
       updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
         const hit = rows.filter((r) => matches(r, where));
@@ -188,5 +190,27 @@ describe("failures are retried by the queue, boundedly", () => {
     t.rows[0]!.cleanupAt = ago(1000);
     expect(await scheduleInviteCleanups(t.database as never, now)).toBe(0);
     expect(console.warn).toHaveBeenCalledTimes(2); // the permission line once, the give-up line once
+  });
+});
+
+describe("the one-time clean-up of old handled requests (/mod invites tidy)", () => {
+  const old = (id: string, over: Partial<Row> = {}) => row({ id, messageId: id, cleanedAt: ago(9 * 86_400_000), cleanupAt: null, ...over });
+  it("counts only old handled requests of the invite channel, never waiting, new or other-channel ones", async () => {
+    const t = table([old("o1"), old("o2", { status: "JOINED" }), old("o3", { status: "DECLINED" }), old("w", { status: "PENDING", cleanedAt: null }),
+      old("n", { cleanupAt: ago(1000) }), old("x", { channelId: "other" }), row({ id: "fresh", cleanedAt: null, cleanupAt: ago(1000) })]);
+    expect(await countOldHandled(t.database as never, "g1", "chan")).toBe(3);
+  });
+  it("queues them through the same job after the officer confirms, leaving the rest untouched", async () => {
+    const t = table([old("o1"), old("o2"), old("w", { status: "PENDING", cleanedAt: null })]);
+    expect(await queueOldHandled(t.database as never, "g1", "chan", now)).toBe(2);
+    expect(t.jobs.map((j) => (j.payload as { requestId: string }).requestId).sort()).toEqual(["o1", "o2"]);
+    expect(t.rows.find((r) => r.id === "w")).toMatchObject({ status: "PENDING", cleanedAt: null, cleanupAt: null });
+    expect(await countOldHandled(t.database as never, "g1", "chan")).toBe(0);
+  });
+  it("a declined request starts the same one-hour clock, only by the officer's action", async () => {
+    const t = table([row({ status: "PENDING", cleanupAt: null })]);
+    await updateRecruit(t.database as never, "g1", "Amy Archer", { stage: "DECLINED" });
+    expect(t.rows[0]).toMatchObject({ status: "DECLINED" });
+    expect(t.rows[0]!.cleanupAt!.getTime()).toBeGreaterThan(Date.now() + CLEANUP_DELAY_MS - 5000);
   });
 });

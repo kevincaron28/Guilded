@@ -632,10 +632,12 @@ function module.post()
   local channel = module.groupChannel()
   if not channel then ns.message(L("Join a raid or party first.")) return end
   for _, line in ipairs(module.postLines(module.collect())) do
+    if ns.comm and ns.comm.chat then ns.comm.chat(line, channel) else
     pcall(function()
       if C_ChatInfo and C_ChatInfo.SendChatMessage then C_ChatInfo.SendChatMessage(line, channel)
       elseif SendChatMessage then SendChatMessage(line, channel) end
     end)
+    end
   end
 end
 

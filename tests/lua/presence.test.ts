@@ -29,29 +29,25 @@ function setup() {
   return s;
 }
 describe("opt-in availability and local observations", () => {
-  it.each([
-    'P.configure("share","off")', 'GUILD="Beta"', 'EDITION="unknown"',
-    'COMBAT=true', 'ACTIVE=false', 'P.configure("status","busy")',
-    'P.configure("role","tank")', 'InCombatLockdown=nil', 'ADVANCE(5)',
-  ])("discards a throttled status before retry when its context changes: %s", change => {
+  // (9.1.7) Availability is low-value traffic: a throttled status is dropped for the shared back-off,
+  // not retried; the next change or heartbeat sends a fresh one.
+  it("drops a throttled status instead of retrying it", () => {
     const s = setup();
     s.load("Util.lua");
-    s.run(`NS.util.gameEdition=function() return EDITION end; RETRY=nil; ATTEMPTS=0;
-      C_Timer.After=function(_,fn) RETRY=fn end;
+    s.run(`GuildedCommBudget = nil; NS.util.gameEdition=function() return EDITION end; ATTEMPTS=0;
+      C_Timer.After=function(_,fn) end;
       C_ChatInfo={SendAddonMessage=function() ATTEMPTS=ATTEMPTS+1;return 3 end};
       P.configure("share","on")`);
-    expect(s.run('return ATTEMPTS..":"..NS.comm.pending("GuildedFree")')).toBe("1:1");
-    s.run(change);
-    s.run('ADVANCE(1);RETRY()');
     expect(s.run('return ATTEMPTS..":"..NS.comm.pending("GuildedFree")')).toBe("1:0");
+    expect(Number(s.run("return NS.comm.budget().throttles"))).toBeGreaterThanOrEqual(1);
   });
-  it("retries a still-current status", () => {
+  it("sends a fresh status once the back-off is over", () => {
     const s = setup(); s.load("Util.lua");
-    s.run(`NS.util.gameEdition=function() return EDITION end; ATTEMPTS=0; THROTTLE=true;
-      C_Timer.After=function(_,fn) RETRY=fn end;
+    s.run(`GuildedCommBudget = nil; NS.util.gameEdition=function() return EDITION end; ATTEMPTS=0; THROTTLE=true;
+      C_Timer.After=function(_,fn) end;
       C_ChatInfo={SendAddonMessage=function(_,text) ATTEMPTS=ATTEMPTS+1;if THROTTLE then return 3 end;SENT[#SENT+1]=text;return 0 end};
-      P.configure("share","on");ADVANCE(1);THROTTLE=false;RETRY()`);
-    expect(s.run('return ATTEMPTS..":"..SENT[1]')).toBe("2:1|forever|F|ANY");
+      P.configure("share","on");ADVANCE(100);THROTTLE=false;P.configure("status","busy")`);
+    expect(s.run('return ATTEMPTS..":"..(SENT[#SENT] or "")')).toContain("2:");
   });
   it.each(['InCombatLockdown=nil','InCombatLockdown=function() error("hidden") end','InCombatLockdown=function() return "SECRET" end'])("does not share availability when combat state is unknown: %s", change => {
     const s=setup();s.run(change);

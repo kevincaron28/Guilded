@@ -142,10 +142,11 @@ describe("paced addon messages (ns.comm)", () => {
       C_ChatInfo.SendAddonMessage = function() return code end
       NS.comm.send("QRecovery", "first", "GUILD", nil, nil, "retry-lockdown")
       for i = 1, 8 do now = now + 5; retry() end
+      local function wait() GuildedCommBudget.backoffUntil = 0; GuildedCommBudget.tokens = 8 end
       code = 3
-      for i = 1, 5 do now = now + 5; retry() end
+      for i = 1, 5 do now = now + 100; wait(); retry() end
       code = 10
-      now = now + 5
+      now = now + 100; wait()
       NS.comm.send("QRecovery", "second", "GUILD", nil, nil, "retry-lockdown")
     `);
     expect(s.run(`local d = NS.comm.status("QRecovery")

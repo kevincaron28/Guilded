@@ -6,7 +6,7 @@ deaths, and keeps your personal records. No guild needed.
 - `/gdungeons` (or `/gdg`) `status | results | start | complete | abandon | check | score | companion | lang en|fr|auto`
 - Runs start on the first observed combat in a dungeon and finish on the detected last boss.
 - Send your runs to Discord in 3 steps (`/gdungeons companion` shows them in game):
-  1. Download the free Guilded Companion (Windows only): search "Guilded Companion" in the Microsoft Store, or
+  1. Download the free Guilded Companion (Windows only): search "Guild Sync Companion" in the Microsoft Store, or
      https://guilded.kcaron.top/companion/
   2. Run the installer. It finds WoW and your guild's Discord server by itself.
   3. Keep it open (it starts with Windows). `/reload` or log out and your runs are sent. Signing in with Discord is optional.

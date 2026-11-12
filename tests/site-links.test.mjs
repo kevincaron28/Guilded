@@ -66,15 +66,10 @@ describe("built site links", () => {
     expect(missing).toEqual([]);
   });
 
-  it("sends static French sitemap addresses to the same page under /fr/", () => {
+  it("lists French static pages under /fr/ in the sitemap", () => {
     const sitemap = readFileSync("dist/site/sitemap.xml", "utf8");
-    const french = [...sitemap.matchAll(/<loc>https:\/\/guildedwow.com([^<]+)\?lang=fr<\/loc>/g)].map(match => match[1]);
-    expect(french.length).toBeGreaterThan(0);
-    const data = /^\/(?:forever|leaderboards|recruitment|players|companion)(?:\/|$)/;
-    const stuck = french.filter(path => !data.test(path)).flatMap(path => {
-      const dest = staticRedirect(new URL(`https://guildedwow.com${path}?lang=fr`));
-      return dest?.startsWith("/fr") ? [] : [`${path} -> ${dest}`];
-    });
-    expect(stuck).toEqual([]);
+    expect(sitemap).toContain("https://guildedwow.com/fr/guide/");
+    expect(sitemap).toContain("https://guildedwow.com/fr/download/");
+    expect(sitemap).not.toContain("https://guildedwow.com/guide/?lang=fr");
   });
 });

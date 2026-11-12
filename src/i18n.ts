@@ -307,6 +307,16 @@ const STRINGS = {
   "panel.linkedOne": { en: "✅ Linked **{name}** as {kind}. A message with a **Not mine** button follows.", fr: "✅ **{name}** lié comme {kind}. Un message avec un bouton **Pas à moi** suit." },
   "panel.kindMain": { en: "your main", fr: "ton principal" },
   "panel.kindAlt": { en: "an alt", fr: "un alt" },
+  "panel.claimFailed": { en: "That character is not available to link. If it is yours, ask an officer.", fr: "Ce personnage n'est pas disponible à lier. S'il est à toi, demande à un officier." },
+  "panel.tooMany": { en: "Too many tries. Wait a few minutes, or ask an officer.", fr: "Trop d'essais. Attends quelques minutes, ou demande à un officier." },
+  "panel.page": { en: "Page {page} of {pages} ({hidden} more character(s) on the other pages)", fr: "Page {page} sur {pages} ({hidden} autre(s) personnage(s) sur les autres pages)" },
+  "panel.prev": { en: "◀ Previous", fr: "◀ Précédent" },
+  "panel.next": { en: "Next ▶", fr: "Suivant ▶" },
+  "linked.officerLogPanel": {
+    en: "{user} unlinked {name} from the character panel (it won't be linked back).",
+    fr: "{user} a délié {name} depuis le panneau des personnages (il ne sera pas relié)."
+  },
+
   "panel.noServer": { en: "You are not a member of that server any more.", fr: "Tu n'es plus membre de ce serveur." },
   "linked.wrongServerHelp": {
     en: "Linked to the wrong server? Open the **Guilded Companion** on your PC, go to Advanced, select that server under *Active connection*, then press **Remove this server**. It only forgets the connection on your PC and stops uploading there; nothing is deleted on the server. For a single character, use **Not mine** instead.",

@@ -20,7 +20,7 @@ This listing describes the five-tab app (redesign slice 3, PR #615). Ship it wit
 | Tags (pick up to 5 in Console) | Social, Community, Games companion |
 | Contains ads | No |
 | In-app purchases | None |
-| Contact email | `PLACEHOLDER — a support address the owner chooses` (Play shows it publicly; do not use a personal inbox) |
+| Contact email | `support@guildedwow.com` (Cloudflare Email Routing to the owner; Play shows it publicly) |
 | Website | https://guildedwow.com |
 | Privacy policy | https://guildedwow.com/docs/PRIVACY (live, HTTP 200 on 8 Nov 2026; `/privacy` is a 404, so do not use it) |
 | Account deletion URL | https://guildedwow.com/me/data (the **Delete my data** button) |

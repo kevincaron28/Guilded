@@ -796,7 +796,7 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     });
     return;
   }
-  if (interaction.isButton() && interaction.customId.startsWith(LINKED_PREFIX)) {
+  if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(LINKED_PREFIX)) {
     await handleLinkedButton(interaction, prisma).catch(async (error: unknown) => {
       reportInteractionError("Linked characters button", interaction, error);
       const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";

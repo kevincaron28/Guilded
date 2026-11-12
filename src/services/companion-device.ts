@@ -468,9 +468,12 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
         // officer-synced roster or linked characters already hold one of these characters are offered instead.
         const [rosters, owned] = await Promise.all([
           database.guildRosterEntry.findMany({ where: { gameEdition: "forever", inGuild: true, nameKey: { in: characterKeys } }, select: { guildId: true }, take: 50 }),
-          database.character.findMany({ where: { name: { in: characterKeys, mode: "insensitive" } }, select: { member: { select: { guildId: true } } }, take: 50 })
+          // One equality per key (no `in` with a case mode); every hit is then compared the way the tie-break below does.
+          database.character.findMany({ where: { OR: characterKeys.slice(0, 12).map((name) => ({ name: { equals: name, mode: "insensitive" as const } })) }, select: { name: true, realm: true, gameEdition: true, member: { select: { guildId: true } } }, take: 200 })
         ]);
-        const ids = [...new Set([...rosters.map((row) => row.guildId), ...owned.map((row) => row.member.guildId)])].slice(0, 10);
+        const mine = new Set(characterKeys);
+        const linked = owned.filter((character) => mine.has(characterKey(character.name, character.realm, character.gameEdition ?? "forever")));
+        const ids = [...new Set([...rosters.map((row) => row.guildId), ...linked.map((row) => row.member.guildId)])].slice(0, 10);
         const homes = ids.length ? await database.guild.findMany({ where: { id: { in: ids }, gameEdition: "forever" }, select: { id: true, discordId: true, officerSyncAt: true } }) : [];
         return homes.map((row) => ({ guildId: row.id, discordId: row.discordId, serverName: serverName(row.discordId), officerLinked: Boolean(row.officerSyncAt), rosterMatch: true, viaRoster: true }));
       }

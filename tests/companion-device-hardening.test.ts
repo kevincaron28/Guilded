@@ -64,13 +64,25 @@ describe("T9: a guild renamed in game", () => {
     expect(noteAlias).toHaveBeenCalledWith("g1", { name: "Quebec Gold Reborn", realm: "R" }, expect.any(Date));
   });
 
-  it("falls back to the server whose roster holds a character only when no guild name matches", async () => {
+  it("falls back to the server whose roster or linked characters hold a character, comparing like with like", async () => {
+    // Keys exactly as handleDeviceUpload builds them: characterKey(name, realm, "forever") is the lowercase full name.
+    const keys = ["kev gratton", "bob"];
+    const roster = [{ guildId: "g1", gameEdition: "forever", inGuild: true, nameKey: "kev gratton" }, { guildId: "g2", gameEdition: "forever", inGuild: true, nameKey: "kevin other" },
+      { guildId: "g3", gameEdition: "forever", inGuild: false, nameKey: "bob" }];
+    const linked = [{ name: "Bob", realm: "", gameEdition: "forever", member: { guildId: "g4" } }, { name: "Bob", realm: "R", gameEdition: "classic", member: { guildId: "g5" } }];
+    const names = (where: { OR: { name: { equals: string } }[] }) => where.OR.map((entry) => entry.name.equals.toLowerCase());
     const database = {
-      wowGuild: { findMany: async () => [] }, guild: { findMany: vi.fn(async (args: { where: { scopeKey?: string } }) => args.where.scopeKey ? [] : [{ id: "g1", discordId: "111111111", officerSyncAt: new Date() }]) },
-      guildRosterEntry: { findMany: async () => [{ guildId: "g1" }] }, character: { findMany: async () => [] }
+      wowGuild: { findMany: async () => [] },
+      guild: { findMany: async (args: { where: { scopeKey?: string; id?: { in: string[] } } }) => args.where.scopeKey ? [] : (args.where.id?.in ?? []).map((id) => ({ id, discordId: `d-${id}`, officerSyncAt: null })) },
+      guildRosterEntry: { findMany: async (args: { where: { gameEdition: string; inGuild: boolean; nameKey: { in: string[] } } }) => roster.filter((row) => row.gameEdition === args.where.gameEdition && row.inGuild === args.where.inGuild && args.where.nameKey.in.includes(row.nameKey)) },
+      character: { findMany: async (args: { where: { OR: { name: { equals: string } }[] } }) => linked.filter((row) => names(args.where).includes(row.name.toLowerCase())) }
     };
     const real = prismaInstallStore(database as never, () => "Quebec Gold");
-    expect(await real.candidates("renamed guild", "r", ["kev"])).toEqual([expect.objectContaining({ guildId: "g1", viaRoster: true })]);
+    const found = await real.candidates("renamed guild", "r", keys);
+    // g1 (roster), g4 (linked Forever Bob). Not g2 (similar name), g3 (left the guild), g5 (another edition).
+    expect(found.map((candidate) => candidate.guildId).sort()).toEqual(["g1", "g4"]);
+    expect(found.every((candidate) => candidate.viaRoster)).toBe(true);
+    expect(await real.candidates("renamed guild", "r", ["stranger"])).toEqual([]);
     expect(await real.candidates("renamed guild", "r", [])).toEqual([]);
   });
 });

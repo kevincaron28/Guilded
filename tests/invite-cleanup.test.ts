@@ -5,8 +5,8 @@ import { updateRecruit } from "../src/services/recruiting-kit.js";
 
 const now = new Date("2026-11-12T12:00:00Z");
 const ago = (ms: number) => new Date(now.getTime() - ms);
-type Row = { id: string; guildId: string; status: string; cleanedAt: Date | null; cleanupAt: Date | null; channelId: string; messageId: string; discordUserId: string; notifyMessageId: string | null; doneNoteMessageId: string | null; cleanTries: number; cleanQueuedAt: Date | null; nameKey: string; displayName: string };
-const row = (over: Partial<Row> = {}): Row => ({ id: "r1", guildId: "g1", status: "INVITED", cleanedAt: null, cleanupAt: ago(1000), channelId: "chan", messageId: "100", discordUserId: "u1", notifyMessageId: "101", doneNoteMessageId: "102", cleanTries: 0, cleanQueuedAt: null, nameKey: "amy archer", displayName: "Amy Archer", ...over });
+type Row = { id: string; guildId: string; status: string; cleanedAt: Date | null; cleanupAt: Date | null; channelId: string; messageId: string; discordUserId: string; notifyMessageId: string | null; doneNoteMessageId: string | null; cleanTries: number; cleanQueuedAt: Date | null; legacyHandled: boolean; nameKey: string; displayName: string };
+const row = (over: Partial<Row> = {}): Row => ({ id: "r1", guildId: "g1", status: "INVITED", cleanedAt: null, cleanupAt: ago(1000), channelId: "chan", messageId: "100", discordUserId: "u1", notifyMessageId: "101", doneNoteMessageId: "102", cleanTries: 0, cleanQueuedAt: null, legacyHandled: false, nameKey: "amy archer", displayName: "Amy Archer", ...over });
 
 // A small in-memory table that really evaluates the filters the code uses (no mock that ignores `where`).
 function matches(r: Row, where: Record<string, unknown>): boolean {
@@ -194,7 +194,7 @@ describe("failures are retried by the queue, boundedly", () => {
 });
 
 describe("the one-time clean-up of old handled requests (/mod invites tidy)", () => {
-  const old = (id: string, over: Partial<Row> = {}) => row({ id, messageId: id, cleanedAt: ago(9 * 86_400_000), cleanupAt: null, ...over });
+  const old = (id: string, over: Partial<Row> = {}) => row({ id, messageId: id, legacyHandled: true, cleanedAt: ago(9 * 86_400_000), cleanupAt: null, ...over });
   it("counts only old handled requests of the invite channel, never waiting, new or other-channel ones", async () => {
     const t = table([old("o1"), old("o2", { status: "JOINED" }), old("o3", { status: "DECLINED" }), old("w", { status: "PENDING", cleanedAt: null }),
       old("n", { cleanupAt: ago(1000) }), old("x", { channelId: "other" }), row({ id: "fresh", cleanedAt: null, cleanupAt: ago(1000) })]);
@@ -206,6 +206,17 @@ describe("the one-time clean-up of old handled requests (/mod invites tidy)", ()
     expect(t.jobs.map((j) => (j.payload as { requestId: string }).requestId).sort()).toEqual(["o1", "o2"]);
     expect(t.rows.find((r) => r.id === "w")).toMatchObject({ status: "PENDING", cleanedAt: null, cleanupAt: null });
     expect(await countOldHandled(t.database as never, "g1", "chan")).toBe(0);
+  });
+  it("a legacy request put back to waiting and later matched by a first-name guess never enters the tidy set", async () => {
+    const t = table([old("o1", { nameKey: "amy archer" })]);
+    expect(await countOldHandled(t.database as never, "g1", "chan")).toBe(1);
+    await updateRecruit(t.database as never, "g1", "Amy Archer", { stage: "PENDING" });
+    expect(t.rows[0]).toMatchObject({ status: "PENDING", cleanedAt: null, cleanupAt: null, cleanTries: 0, cleanQueuedAt: null, legacyHandled: false });
+    await markInvitedByName(t.database as never, "g1", ["Amy"], "roster"); // first name only: marks, never schedules
+    expect(t.rows[0]).toMatchObject({ status: "INVITED", cleanupAt: null });
+    expect(await countOldHandled(t.database as never, "g1", "chan")).toBe(0);
+    expect(await queueOldHandled(t.database as never, "g1", "chan", now)).toBe(0);
+    expect(t.jobs).toHaveLength(0);
   });
   it("a declined request starts the same one-hour clock, only by the officer's action", async () => {
     const t = table([row({ status: "PENDING", cleanupAt: null })]);

@@ -61,6 +61,7 @@ export async function cleanRequest(guild: GuildLike, inviteChannelId: string,
     try { return await messages.fetch(id) as Message; } catch (error) {
       if (code(error) === 10008) return null; // already gone
       retry ??= refused(error) ? "permission" : "transient";
+      warnOnce(`read:${row.channelId}:${String(code(error))}`, "a message could not be read, will retry", error);
       return null;
     }
   };
@@ -108,7 +109,7 @@ export async function runInviteCleanupJob(guild: GuildLike, database: Pick<Prism
  * on deploy). Officer-only action (/mod invites tidy): they are the handled requests of this server's invitation channel that
  * were never scheduled. Same job, same rules (stored ids, channel check, pins and officers' messages skipped).
  */
-const oldHandled = (guildId: string, channelId: string) => ({ guildId, channelId, status: { in: HANDLED }, cleanedAt: { not: null }, cleanupAt: null });
+const oldHandled = (guildId: string, channelId: string) => ({ guildId, channelId, status: { in: HANDLED }, legacyHandled: true, cleanedAt: { not: null }, cleanupAt: null });
 export async function countOldHandled(database: Pick<PrismaClient, "inviteRequest">, guildId: string, channelId: string): Promise<number> {
   return database.inviteRequest.count({ where: oldHandled(guildId, channelId) });
 }

@@ -4,7 +4,8 @@ ALTER TABLE "InviteRequest" ADD COLUMN "cleanedAt" TIMESTAMP(3);
 ALTER TABLE "InviteRequest" ADD COLUMN "cleanupAt" TIMESTAMP(3);
 ALTER TABLE "InviteRequest" ADD COLUMN "cleanTries" INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE "InviteRequest" ADD COLUMN "cleanQueuedAt" TIMESTAMP(3);
+ALTER TABLE "InviteRequest" ADD COLUMN "legacyHandled" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "InviteRequest" ADD COLUMN "doneNoteMessageId" TEXT;
 ALTER TABLE "GuildSettings" ADD COLUMN "inviteCleanupEnabled" BOOLEAN NOT NULL DEFAULT true;
 -- Going forward only: requests handled before this update are left as they are (nothing is purged on deploy).
-UPDATE "InviteRequest" SET "cleanedAt" = NOW() WHERE "status" <> 'PENDING';
+UPDATE "InviteRequest" SET "cleanedAt" = NOW(), "legacyHandled" = true WHERE "status" <> 'PENDING';

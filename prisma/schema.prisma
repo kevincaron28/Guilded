@@ -3408,6 +3408,8 @@ model InviteRequest {
   cleanTries    Int       @default(0)
   // Handed to the job queue (cleanedAt is set only after the messages are really gone).
   cleanQueuedAt DateTime?
+  // Handled before the clean-up existed (set by the migration): the only rows /mod invites tidy may queue.
+  legacyHandled Boolean   @default(false)
   // The bot's "done" thank-you under a member's own post, so the clean-up uses stored ids.
   doneNoteMessageId String?
   guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)

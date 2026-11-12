@@ -6,7 +6,7 @@ else would you remove or change place to make it less friction. People find it t
 *"make sure to analyse best implementation method"*.
 
 This is a read-only audit of `addon/Guilded/` (version 9.1.6). **Approved by the owner on 12 November 2026 ("DO THIS")**, with
-the decisions recorded in section 4. Sync, dungeon
+the decisions recorded in section 4 (every decision answered, 12 November 2026). Sync, dungeon
 runs, linking and uploads are protected: no module the companion exports or guildmates sync through is removed.
 
 ## Summary
@@ -164,7 +164,7 @@ consumables scan do check the rank. Hiding is about clutter, not security; the b
 - *Nothing destructive:* no export, reset or edit of anyone's data. Backup and restore live on the Settings tab, officer
   only.
 
-**Recommendation (folds into PR 3):** the Info tab disappears.
+**Decided (part of PR 3; officer buttons land in PR 5):** the Info tab disappears.
 
 1. **Home** gets a *My data* line: "Last sent to Discord: 12 min ago, by your companion" (or by a guildmate's), next to the
    existing **Send to Discord** button. That is the one thing a member needs from Info.
@@ -393,22 +393,21 @@ unchanged. Only the coordinator bumps the version: these ship together as **9.2.
 
 ### PR sequence (each ships alone)
 
-| # | PR | Size |
+| # | PR (build order) | Size |
 |---|---|---|
-| 1 | Remove the guild message: `GuildMotd.lua`, its page, Settings button, `/guilded motd` (one-line notice), test, validator block | S (about −700 lines) |
-| 2 | Remove other blocked or dead parts: automatic greeting and note writers (OfficerNotes, RosterProfessions writer, Roster admin note sections), welcome whisper, `ClientTools` finder, `Probe`, `LootHistoryImport`, "Race to 60" entry | M (about −900 lines) |
-| 3 | One Settings page: merge Announcements and Info and data in, add the Advanced fold for Sim, Perf and GRM | M |
-| 4 | Member navigation: Home, Guild, Dungeons, Crafting, Raids; old-name aliases; trimmed minimap menu and clicks | L (`Minimap.lua`) |
-| 5 | Officer tab, and the guild-window and calendar panels folded into the main window | M-L |
-| 6 | **Layer invite**: new `Invites.lua` (prefix `GuildedLayer`, request, claim, done, timeouts, opt-in, toast, Layer requests list); fold in `InviteQueue.lua` and `AutoInvite.lua` with their saved keys unchanged; call for help uses the shared copy box; remove `LevelPartners.lua` and its tests and mentions | M-L (about +450 / −700 lines, new Lua tests for the request, claim and timeout logic) |
-| 7 | Short `/guilded help`; update the website guides, bot `/help` and FAQ to name the new tabs (site republishes on merge) | S-M |
+| 1 | Remove the guild message: `GuildMotd.lua`, its page, Settings button, `/guilded motd` (one-line notice), test, validator block. *In progress (another worker).* | S (about −700 lines) |
+| 2 | Remove other blocked or dead parts: automatic greeting and note writers (OfficerNotes, RosterProfessions writer, Roster admin note sections), welcome whisper, `ClientTools` finder, `Probe`, `LootHistoryImport`, "Race to 60" entry. *In progress.* | M (about −900 lines) |
+| 3 | One Settings page: merge Announcements and Info and data in, add the Advanced fold for Sim, Perf and GRM. Also the Info and data changes of section 1c: a "last sent to Discord" line on Home, guildmate diagnostics in Advanced, officer buttons kept for PR 5, and a rank check inside `/guilded invites` and `/guilded promote`. *In progress.* | M |
+| 4 | The five member tabs: Home, Guild, Dungeons, Crafting (the current pages, until PR 8), Raids with the raid-night tools visible (decision 3); old-name aliases; trimmed minimap menu and clicks | L (`Minimap.lua`) |
+| 5 | The Officer tab (with the officer buttons from Info), and the guild-window and calendar panels folded into the main window | M-L |
+| 6 | Short `/guilded help`; update the website guides, bot `/help` and FAQ to name the new tabs (the site republishes on merge) | S-M |
+| 7 | **Layer invite** (section 1b), with levelling partners removed: new `Invites.lua` (prefix `GuildedLayer`; request, claim, done and timeouts; ask-once opt-in; continent-only reach; toast; Layer requests list). Fold in `InviteQueue.lua` and `AutoInvite.lua` with their saved keys unchanged; call for help uses the shared copy box; remove `LevelPartners.lua`, its tests and its mentions (bot `/help`, features pages) | M-L (about +450 / −700 lines) |
+| 8a | Crafting, bot side first: import in-game craft requests (`craftOrderRequests`, same rules as `/craft request`) and add `craftOrders.top` to the feed. Nothing visible changes until 8b. | S (about +150 lines) |
+| 8b | **Crafting tab** (section 1d): `CraftingTab.lua` (Recipes, Orders, My requests), recipe reagents in the recipe share, the request upload in the companion export | L (about +900 lines) |
 
-| 8 | **Crafting tab** (section 1d): `CraftingTab.lua`, recipe reagents in the share, in-game requests (after a small bot PR for the request import and `craftOrders.top`) | L (about +900 Lua lines, +150 bot) |
-
-PR 8 comes after PR 4 (it fills the Crafting tab). Its bot part ships first and changes nothing visible.
-
-PRs 1-3 and 6 are independent. PR 5 needs PR 4. PR 6 can ship before PR 4: until then, Change layer sits on the current
-Home page where the Levelling partners button was.
+Dependencies: PRs 1-3 are independent of each other. PR 5 needs PR 4. PR 6 follows PR 5, so the guides name the final tabs.
+PR 7 can ship any time after PR 4 (before PR 4, Change layer would sit where the Levelling partners button was). PR 8b
+needs PR 4 and PR 8a. Only the coordinator bumps the version.
 
 ### Real-client checks (owner's PC and a second PC, French client too)
 
@@ -420,7 +419,7 @@ Home page where the Levelling partners button was.
 - **Milestones:** reach a milestone and see whether the guild-chat line appears (decision 2).
 - **Send to Discord:** the secure `/reload` button (`SyncNow.lua:42`) still reloads.
 - **Levelling partners whisper:** it calls `ChatFrame_OpenChat` (`LevelPartners.lua:85`), which `Util.lua` itself says
-  never to call. This goes away with the module in PR 6.
+  never to call. This goes away with the module in PR 7.
 - **Layer invite, on two PCs, with two guildmates on different layers of one continent:**
   - the request reaches the helper while it is closed;
   - the toast and copy box work, and the pasted `/invite` is accepted with no `ADDON_ACTION_BLOCKED`;
@@ -434,7 +433,7 @@ Home page where the Levelling partners button was.
 ## 4. Decisions
 
 Owner answers of 12 November 2026: decisions **1, 2, 4 and 5: yes**, as recommended. Decision **3: no**: the raid-night
-tools move into the Raids tab and stay visible. Decisions 6 and 7 (Layer invite) are still open, and so is decision 8 (Crafting).
+tools move into the Raids tab and stay visible. Owner answers, also 12 November 2026: decisions **6, 7 and 8: yes**, as recommended. **The plan is fully decided.**
 
 1. **Remove the guild message completely** (not just hide it)? *Recommend: yes.*
 2. **Milestone announcements:** they post to guild chat from a timer, the path the game blocked for the welcome greeting. If

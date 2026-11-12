@@ -47,6 +47,14 @@
     {
       "pattern": "guilded.kcaron.top",
       "custom_domain": true
+    },
+    {
+      "pattern": "guildedwow.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.guildedwow.com",
+      "custom_domain": true
     }
   ],
   "assets": {

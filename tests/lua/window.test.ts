@@ -545,11 +545,21 @@ describe("in-game UI fixes from the 5 November pass", () => {
     s.run(`NS.windowState().selectTabByName("Tools")`);
     expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("false");
     expect(s.run(`return tostring(NS.windowState().settingsGeneral:IsShown())`)).toBe("true");
+    // From another tab (showing the page resets it to the general view first).
+    s.run(`NS.windowState().selectTabByName("Home")`);
     s.run(`NS.windowState().selectTabByName("Info")`);
     expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("true");
+    expect(s.run(`return tostring(NS.windowState().settingsGeneral:IsShown())`)).toBe("false");
+    s.run(`NS.windowState().selectTabByName("Home")`);
     s.run(`NS.windowState().selectTabByName("Announcements")`);
     expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("false");
     expect(s.run(`return tostring(NS.windowState().announceChecks ~= nil)`)).toBe("true");
+  });
+
+  it("shows every member that an officer turned announcements off for the guild", () => {
+    const s = openWindow(5, `NS.milestones = { enabled = function() return true end, guildOff = function() return true end }`);
+    s.run(`NS.windowState().selectTabByName("Announcements"); NS.windowState().refreshAnnouncements()`);
+    expect(s.run(`return NS.windowState().announceStatus.text`)).toBe("Milestone announcements are turned off for the whole guild by an officer.");
   });
 
   it("hangs the Modules heading below the help text instead of at a fixed offset", () => {

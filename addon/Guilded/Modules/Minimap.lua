@@ -1021,7 +1021,7 @@ local function buildGeneralSettings(page)
     tip(at(newButton(page, def[1], 84, function()
       local handler = ns.commandHandlers and ns.commandHandlers[def[2]]
       if handler then handler(def[3]) end
-    end), page, 210 + (i - 1) * 90, -274), def[4])
+    end), page, 232 + (i - 1) * 90, -274), def[4])
   end
   -- Announcements (merged in from their own page in 9.2).
   if ui.announcementsBlock then ui.announcementsBlock(page, -146) end
@@ -1660,6 +1660,8 @@ ui.announcementsBlock = function(page, top)
     end)
     ui.announceChecks[i] = { box = box, kind = kind }
   end
+  ui.announceStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 300, top - 20)
+  ui.announceStatus:SetWidth(PAGE_WIDTH - 300)
   ui.announceGuild = officerOnly(at(newButton(page, "", 440, function()
     run("announce guild " .. ((ns.milestones and ns.milestones.guildOff and ns.milestones.guildOff()) and "on" or "off"))
     if ui.refreshAnnouncements then ui.refreshAnnouncements() end
@@ -1671,6 +1673,7 @@ ui.announcementsBlock = function(page, top)
     end
     local off = ms and ms.guildOff and ms.guildOff() or false
     ui.announceGuild:SetText(L(off and "Guild-wide: turned off (click to allow)" or "Guild-wide: allowed (click to turn off for all)"))
+    ui.announceStatus:SetText(off and L("Milestone announcements are turned off for the whole guild by an officer.") or "")
   end
   page:HookScript("OnShow", function() ui.refreshAnnouncements() end)
 end
@@ -2461,12 +2464,19 @@ local function buildPanel()
   panel:Hide()
 end
 
+local selectTabByNameNow
 function ui.selectTabByName(name)
   -- 9.2: Announcements and Info and data are parts of Settings now; the old names still open it.
+  -- Showing the page resets Settings to its general view, so the Advanced view is chosen after the tab is shown.
   if name == "Announcements" or name == "Info" then
-    if ui.showAdvanced then ui.showAdvanced(name == "Info") end
-    name = "Tools"
+    local advanced = name == "Info"
+    selectTabByNameNow("Tools")
+    if ui.showAdvanced then ui.showAdvanced(advanced) end
+    return
   end
+  return selectTabByNameNow(name)
+end
+selectTabByNameNow = function(name)
   if name == "Loot" and ns.loot and ns.loot.mode then
     local mode = ns.loot.mode()
     if mode == "RESERVE" then name = "Reserves" elseif mode == "COUNCIL" or mode == "PRIORITY" then name = "Council" end

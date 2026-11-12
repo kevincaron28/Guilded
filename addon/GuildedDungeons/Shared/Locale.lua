@@ -2644,6 +2644,9 @@ local DE = {
   ["Names off"] = "Namen aus",
   ["GRM archive import"] = "GRM-Archiv importieren",
   ["Closes the advanced view."] = "Schlie\195\159t die erweiterte Ansicht.",
+  ["Data and guildmate status, test tools, speed report, GRM import. Closed by default."] = "Daten und Gildenstatus, Testwerkzeuge, Tempobericht, GRM-Import. Standardm\195\164\195\159ig geschlossen.",
+  ["Opens Roster admin, where a GRM archive is previewed and imported."] = "\195\150ffnet die Rosterverwaltung, wo ein GRM-Archiv vorab angezeigt und importiert wird.",
+  ["How much traffic and time the addon uses."] = "Wie viel Datenverkehr und Zeit das Addon verbraucht.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4300,6 +4303,9 @@ local ES = {
   ["Names off"] = "Nombres no",
   ["GRM archive import"] = "Importar archivo GRM",
   ["Closes the advanced view."] = "Cierra la vista avanzada.",
+  ["Data and guildmate status, test tools, speed report, GRM import. Closed by default."] = "Datos y estado de la hermandad, herramientas de prueba, informe de velocidad, importaci\195\179n GRM. Cerrado por defecto.",
+  ["Opens Roster admin, where a GRM archive is previewed and imported."] = "Abre la administraci\195\179n del roster, donde se previsualiza e importa un archivo GRM.",
+  ["How much traffic and time the addon uses."] = "Cu\195\161nto tr\195\161fico y tiempo usa el addon.",
 }
 -- END ES
 
@@ -4367,6 +4373,9 @@ FR["Names on"] = "Noms oui"
 FR["Names off"] = "Noms non"
 FR["GRM archive import"] = "Import d'archive GRM"
 FR["Closes the advanced view."] = "Ferme la vue avanc\195\169e."
+FR["Data and guildmate status, test tools, speed report, GRM import. Closed by default."] = "Donn\195\169es et \195\169tat des membres, outils de test, rapport de vitesse, import GRM. Ferm\195\169 par d\195\169faut."
+FR["Opens Roster admin, where a GRM archive is previewed and imported."] = "Ouvre l\226\128\153administration du roster, o\195\185 une archive GRM est pr\195\169visualis\195\169e et import\195\169e."
+FR["How much traffic and time the addon uses."] = "Le trafic et le temps utilis\195\169s par l\226\128\153addon."
 FR["200 at target. Best run per dungeon. Hover for boss records."] = "200 \195\160 la cible. Meilleur essai par donjon. Survolez pour les boss."
 FR["Competitive boss records"] = "Records de boss comp\195\169titifs"
 FR["No eligible timed boss kills recorded."] = "Aucun boss admissible chronom\195\169tr\195\169."

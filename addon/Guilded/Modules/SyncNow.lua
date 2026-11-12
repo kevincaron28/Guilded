@@ -44,7 +44,8 @@ end
 
 local saver = CreateFrame("Frame")
 saver:RegisterEvent("PLAYER_LOGOUT")
-saver:SetScript("OnEvent", function()
+saver:SetScript("OnEvent", function(_, event)
+  if event ~= "PLAYER_LOGOUT" then return end
   local db = ns.getDb and ns.getDb()
   if db then db.syncSavedAt = clock() end
 end)

@@ -636,6 +636,44 @@ describe("call for help: the toast is never in the way", () => {
     expect(lua.run(`local a, p = ANCHOR(); return table.concat({ p[1], p[3], p[4], p[5] }, ",")`)).toBe("TOPRIGHT,TOPRIGHT,-20,-220");
   });
 
+  const anchorPoint = (lua: LuaSession) => lua.run(`local a, p = ANCHOR(); return table.concat({ p[1], p[3], p[4], p[5] }, ",")`);
+
+  it("keeps the whole window on screen: a saved position near an edge is moved in, a nonsense one falls back", () => {
+    const lua = withFrames();
+    lua.run(`UIParent.GetWidth = function() return 1920 end; UIParent.GetHeight = function() return 1080 end`);
+    // Near the bottom: the toast (and the offer under it) would hang off the screen.
+    lua.run(`SETTINGS.helpPos = { "TOPLEFT", "TOPLEFT", 30, -1000 }`);
+    callFrom("Bob", goodCall);
+    expect(anchorPoint(lua)).toBe("TOPLEFT,BOTTOMLEFT,30,170");
+    // Reset: the default top right corner, as the top-left of the footprint.
+    lua.run(`NS.commandHandlers.sos({ "reset" })`);
+    expect(anchorPoint(lua)).toBe("TOPLEFT,BOTTOMLEFT,1600,860");
+    // Past the right edge: saved moved in.
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition("TOPRIGHT", "TOPRIGHT", 500, -20))`)).toBe("true");
+    expect(lua.run(`return table.concat(SETTINGS.helpPos, ",")`)).toBe("TOPLEFT,BOTTOMLEFT,1620,1060");
+  });
+
+  it("saves a dragged position clamped to the screen, and uses the current screen size and UI scale", () => {
+    const lua = withFrames();
+    lua.run(`UIParent.GetWidth = function() return 1920 end; UIParent.GetHeight = function() return 1080 end`);
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition("TOPLEFT", "BOTTOMLEFT", -500, 5000))`)).toBe("true");
+    expect(lua.run(`return table.concat(SETTINGS.helpPos, ",")`)).toBe("TOPLEFT,BOTTOMLEFT,0,1080");
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition("TOPLEFT", "BOTTOMLEFT", 100, -50))`)).toBe("true");
+    expect(lua.run(`return table.concat(SETTINGS.helpPos, ",")`)).toBe("TOPLEFT,BOTTOMLEFT,100,170");
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition("TOPLEFT", "BOTTOMLEFT", 0 / 0, 5))`)).toBe("false");
+    // A smaller UI (higher scale): a position saved on the big screen is moved in on the small one.
+    lua.run(`SETTINGS.helpPos = { "TOPLEFT", "BOTTOMLEFT", 1600, 900 }; UIParent.GetWidth = function() return 800 end; UIParent.GetHeight = function() return 600 end`);
+    callFrom("Bob", goodCall);
+    expect(anchorPoint(lua)).toBe("TOPLEFT,BOTTOMLEFT,500,600");
+  });
+
+  it("falls back to the default corner for nonsense saved numbers", () => {
+    const lua = withFrames();
+    lua.run(`UIParent.GetWidth = function() return 800 end; UIParent.GetHeight = function() return 600 end; SETTINGS.helpPos = { "TOPLEFT", "BOTTOMLEFT", 1e9, 5 }`);
+    callFrom("Bob", goodCall);
+    expect(anchorPoint(lua)).toBe("TOPLEFT,BOTTOMLEFT,480,380");
+  });
+
   it("loads old SavedVariables cleanly: every new setting has a safe default", () => {
     const lua = withFrames();
     lua.run(`SETTINGS = { helpDefender = true, helpGuildChat = false, helpPos = "junk", helpAlert = 42 }`);

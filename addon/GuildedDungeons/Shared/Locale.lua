@@ -1007,7 +1007,7 @@ local DE = {
   ["Window"] = "Fenster",
   ["Chat line"] = "Chatzeile",
   ["Play a sound"] = "Ton abspielen",
-  ["Quiet in combat (chat line and a small icon)"] = "Leise im Kampf (Chatzeile und kleines Symbol)",
+  ["Quiet in combat: a chat line and a small icon, silent after combat too"] = "Leise im Kampf: Chatzeile und kleines Symbol, auch nach dem Kampf ohne Ton",
   ["No call windows for 10 minutes (this session only)."] = "Keine Ruf-Fenster f\195\188r 10 Minuten (nur diese Sitzung).",
   ["Put the call window back at its default place. Drag its title to move it."] = "Setzt das Ruf-Fenster an den Standardplatz zur\195\188ck. Titel ziehen zum Verschieben.",
   -- 9.0.8 waiting dungeon runs and run receipts.
@@ -2685,7 +2685,7 @@ local ES = {
   ["Window"] = "Ventana",
   ["Chat line"] = "L\195\173nea de chat",
   ["Play a sound"] = "Reproducir un sonido",
-  ["Quiet in combat (chat line and a small icon)"] = "Discreto en combate (l\195\173nea de chat y un icono peque\195\177o)",
+  ["Quiet in combat: a chat line and a small icon, silent after combat too"] = "Discreto en combate: l\195\173nea de chat e icono peque\195\177o, tambi\195\169n en silencio despu\195\169s del combate",
   ["No call windows for 10 minutes (this session only)."] = "Sin ventanas de llamada durante 10 minutos (solo esta sesi\195\179n).",
   ["Put the call window back at its default place. Drag its title to move it."] = "Devuelve la ventana de llamada a su lugar por defecto. Arrastra su t\195\173tulo para moverla.",
   -- 9.0.8 waiting dungeon runs and run receipts.
@@ -5151,6 +5151,6 @@ FR["Call for help alerts"] = "Alertes d'appel \195\160 l'aide"
 FR["Window"] = "Fen\195\170tre"
 FR["Chat line"] = "Ligne de chat"
 FR["Play a sound"] = "Jouer un son"
-FR["Quiet in combat (chat line and a small icon)"] = "Discret en combat (ligne de chat et petite ic\195\180ne)"
+FR["Quiet in combat: a chat line and a small icon, silent after combat too"] = "Discret en combat : ligne de chat et petite ic\195\180ne, silencieux aussi apr\195\168s le combat"
 FR["No call windows for 10 minutes (this session only)."] = "Aucune fen\195\170tre d'appel pendant 10 minutes (cette session seulement)."
 FR["Put the call window back at its default place. Drag its title to move it."] = "Remet la fen\195\170tre d'appel \195\160 sa place par d\195\169faut. Faites glisser son titre pour la d\195\169placer."

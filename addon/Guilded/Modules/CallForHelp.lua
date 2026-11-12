@@ -356,6 +356,7 @@ end
 
 local TOAST_W = 300
 local TOAST_H = 104
+local FOOTPRINT_H = 170       -- the toast with the caller's offer under it: the box that must stay on screen
 local ICON_W = 64
 local DEFAULT_POS = { "TOPRIGHT", "TOPRIGHT", -20, -220 }
 local queue = {}          -- calls waiting for the toast: { call, name, sender, key, at }
@@ -378,18 +379,58 @@ local function savedPos()
   return DEFAULT_POS
 end
 
+-- The screen in UIParent units (already counts the UI scale), or nil when the game does not say.
+local function screenSize()
+  if not UIParent then return nil end
+  local okW, w = pcall(UIParent.GetWidth, UIParent)
+  local okH, h = pcall(UIParent.GetHeight, UIParent)
+  if okW and okH and type(w) == "number" and type(h) == "number" and w > TOAST_W and h > FOOTPRINT_H then return w, h end
+  return nil
+end
+
+local function finite(n) return type(n) == "number" and n == n and n > -100000 and n < 100000 end
+
+-- A position as { left, top } (top counted up from the bottom edge) of the whole footprint, kept inside the screen
+-- (the toast and the offer under it, not just the anchor point). nil when the numbers make no sense.
+local function onScreen(point, relPoint, x, y, w, h)
+  if type(point) ~= "string" or type(relPoint) ~= "string" or not finite(x) or not finite(y) then return nil end
+  local function has(text, part) return string.find(text, part, 1, true) ~= nil end
+  local baseX = has(relPoint, "LEFT") and 0 or has(relPoint, "RIGHT") and w or w / 2
+  local baseY = has(relPoint, "TOP") and h or has(relPoint, "BOTTOM") and 0 or h / 2
+  local dx = has(point, "LEFT") and 0 or has(point, "RIGHT") and TOAST_W or TOAST_W / 2
+  local dy = has(point, "TOP") and 0 or has(point, "BOTTOM") and FOOTPRINT_H or FOOTPRINT_H / 2
+  local left, top = baseX + x - dx, baseY + y + dy
+  left = math.max(0, math.min(w - TOAST_W, left))
+  top = math.max(FOOTPRINT_H, math.min(h, top))
+  return left, top
+end
+
 local function placeAnchor()
   if not anchor then return end
   local p = savedPos()
+  local w, h = screenSize()
+  if w then
+    local left, top = onScreen(p[1], p[2], p[3], p[4], w, h)
+    if not left then left, top = onScreen(DEFAULT_POS[1], DEFAULT_POS[2], DEFAULT_POS[3], DEFAULT_POS[4], w, h) end
+    p = { "TOPLEFT", "BOTTOMLEFT", left, top }
+  end
   anchor:ClearAllPoints()
   anchor:SetPoint(p[1], UIParent, p[2], p[3], p[4])
 end
 
+-- Saves a position (a dragged or restored one). With a known screen it is stored as the top-left corner, kept on screen.
 function module.setPosition(point, relPoint, x, y)
   if type(point) ~= "string" or type(relPoint) ~= "string" or type(x) ~= "number" or type(y) ~= "number" then return false end
   local s = ns.getSettings and ns.getSettings()
   if not s then return false end
-  s.helpPos = { point, relPoint, math.floor(x + 0.5), math.floor(y + 0.5) }
+  local w, h = screenSize()
+  if w then
+    local left, top = onScreen(point, relPoint, x, y, w, h)
+    if not left then return false end
+    s.helpPos = { "TOPLEFT", "BOTTOMLEFT", math.floor(left + 0.5), math.floor(top + 0.5) }
+  else
+    s.helpPos = { point, relPoint, math.floor(x + 0.5), math.floor(y + 0.5) }
+  end
   return true
 end
 
@@ -404,7 +445,7 @@ local function ensureAnchor()
   if anchor then return anchor end
   anchor = CreateFrame("Frame", nil, UIParent)
   anchor:SetWidth(TOAST_W)
-  anchor:SetHeight(2)
+  anchor:SetHeight(FOOTPRINT_H)
   anchor:SetMovable(true)
   anchor:SetClampedToScreen(true)
   anchor:EnableMouse(false)
@@ -435,8 +476,9 @@ local function addChrome(f, onClose)
   grip:SetScript("OnDragStop", function()
     if not anchor then return end
     anchor:StopMovingOrSizing()
-    local point, _, relPoint, x, y = anchor:GetPoint(1)
-    if module.setPosition(point, relPoint, x, y) then placeAnchor() end
+    -- Where the footprint's top-left corner is now (counted up from the bottom edge): saved, kept on screen.
+    local left, top = anchor:GetLeft(), anchor:GetTop()
+    if type(left) == "number" and type(top) == "number" and module.setPosition("TOPLEFT", "BOTTOMLEFT", left, top) then placeAnchor() end
   end)
   grip:SetScript("OnClick", function(_, button) if button == "RightButton" then onClose() end end)
   f.grip = grip
@@ -455,6 +497,7 @@ local function makeToast(height, onClose)
   f:SetHeight(height)
   if f.SetFrameStrata then f:SetFrameStrata("MEDIUM") end
   f:EnableMouse(false) -- clicks pass through; never EnableKeyboard
+  if f.SetClampedToScreen then f:SetClampedToScreen(true) end -- the window itself stays on screen, whatever was saved
   f.isOpen = false
   if f.SetBackdrop then
     pcall(f.SetBackdrop, f, { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
@@ -605,6 +648,7 @@ local function showIcon()
     icon:SetWidth(ICON_W)
     icon:SetHeight(26)
     if icon.SetFrameStrata then icon:SetFrameStrata("MEDIUM") end
+    if icon.SetClampedToScreen then icon:SetClampedToScreen(true) end
     if icon.SetBackdrop then
       pcall(icon.SetBackdrop, icon, { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
         tile = true, tileSize = 16, edgeSize = 10, insets = { left = 2, right = 2, top = 2, bottom = 2 } })

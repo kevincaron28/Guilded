@@ -1413,5 +1413,12 @@
   "Sign in with Discord (optional)": "Se connecter avec Discord (facultatif)",
   "Waiting for your character's guild: log in to WoW with the Guilded addon enabled, then type /reload once.": "En attente de la guilde de votre personnage : connectez-vous à WoW avec l’addon Guilded activé, puis tapez /reload une fois.",
   "Your characters come from the Guilded addon: log in to WoW, type /reload once, and they are reported here. Signing in with Discord is optional: it confirms them as yours.": "Vos personnages viennent de l’addon Guilded : connectez-vous à WoW, tapez /reload une fois, et ils sont signalés ici. La connexion avec Discord est facultative : elle les confirme comme les vôtres.",
-  "It confirms your characters as yours. Syncing works without it.": "Elle confirme vos personnages comme les vôtres. La synchronisation fonctionne sans."
+  "It confirms your characters as yours. Syncing works without it.": "Elle confirme vos personnages comme les vôtres. La synchronisation fonctionne sans.",
+  "Getting this PC ready…": "Préparation de ce PC…",
+  "The companion sets itself up: no sign-in needed. This takes a moment.": "Le compagnon se configure tout seul : aucune connexion nécessaire. Cela prend un instant.",
+  "Copy a message for your officer": "Copier un message pour votre officier",
+  "Copied. Paste it to an officer of your guild.": "Copié. Collez-le à un officier de votre guilde.",
+  "Could not copy. Ask an officer of your guild to run /setup on its Discord server.": "Copie impossible. Demandez à un officier de votre guilde de lancer /setup sur son serveur Discord.",
+  "The Microsoft Store sign-in could not be imported: {0}": "La connexion de la version Microsoft Store n’a pas pu être reprise : {0}",
+  "Discord sign-in was taken over from the Microsoft Store version ({0}); the device key was kept.": "La connexion Discord a été reprise de la version Microsoft Store ({0}) ; la clé de cet appareil a été conservée."
 }

@@ -8,18 +8,18 @@ export function companionOverview(config = {}, state = {}) {
   const wowFile = wowEnabled && Boolean(state.watching || config.watchFile);
   const poeFile = Boolean(poeTrackingOn(config) && config.poeLogFile);
   const selectedFiles = Number(wowFile) + Number(poeFile);
-  const paused = linked && !state.running;
+  const paused = (linked || device) && !state.running;
   const phases = { "waiting-save": "Waiting for a game save", uploading: "Uploading saved data", synced: "Saved data synced", "officer-review": "Waiting for officer review", "apply-error": "Uploaded; server action needed", retry: "Connection interrupted; retrying", "needs-attention": "Connection needs attention" };
   return {
     linked,
     device,
     selectedFiles,
     canSync: (linked || device) && selectedFiles > 0,
-    connection: linked ? 'Account linked' : 'Not connected',
+    connection: linked ? 'Account linked' : device ? 'Connected' : 'Not connected',
     files: selectedFiles ? `${selectedFiles} selected ${selectedFiles === 1 ? 'source' : 'sources'}` : 'Choose your game files',
-    tracking: !linked ? 'Connect your account first' : paused ? 'Tracking paused' : state.running ? phases[state.syncPhase] || 'Desktop tracking running' : 'Ready to configure',
+    tracking: !linked && !device ? 'Connect your account first' : paused ? 'Tracking paused' : state.running ? phases[state.syncPhase] || 'Desktop tracking running' : 'Ready to configure',
     standings: config.personal ? 'Not used by this connection' : state.lastStandings ? 'Standings refreshed' : 'Not refreshed yet',
-    nextAction: !linked ? 'Connect your account' : !selectedFiles ? 'Choose your saved data' : paused ? 'Resume tracking' : state.lastUpload ? 'View sync activity' : 'Save in WoW, then check sync',
-    nextPage: !linked || !selectedFiles || paused ? 'settings' : 'activity'
+    nextAction: !linked && !device ? 'Connect your account' : !selectedFiles ? 'Choose your saved data' : paused ? 'Resume tracking' : state.lastUpload ? 'View sync activity' : 'Save in WoW, then check sync',
+    nextPage: (!linked && !device) || !selectedFiles || paused ? 'settings' : 'activity'
   };
 }

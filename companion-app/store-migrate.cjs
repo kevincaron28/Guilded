@@ -51,4 +51,39 @@ function migrateStoreSettings({ userData, localAppData, appData, fsImpl = fs, lo
   }
 }
 
-module.exports = { migrateStoreSettings, findStoreFolders };
+/** Fields that make a Discord sign-in work and say which server it belongs to. */
+const CREDENTIAL_FIELDS = ["companionCredential", "guildDiscordId", "personal", "uploadUrl", "wowGuild", "wowGuildName"];
+const hasCredential = (c) => typeof c?.companionCredential === "string" && c.companionCredential.length >= 32;
+
+/**
+ * (9.1.4) A direct-download install that started on its own (zero-setup) holds only a device key. When
+ * a Store settings folder on this PC still has a Discord sign-in, take it over: the install keeps its
+ * device key and WoW folder, and gains the credential (the device claim then runs as after a sign-in).
+ * An install that already has a credential is never changed, so the newer sign-in always wins.
+ * `readSettings(dir)` returns the decrypted settings of a Store folder (null when unreadable); it is
+ * injected because decrypting needs Windows (store-decrypt.cjs).
+ * @returns {Promise<{ patch: Record<string, unknown>, from: string } | null>}
+ */
+async function importStoreCredential({ config, userData, localAppData, appData, readSettings, fsImpl = fs }) {
+  if (!config || hasCredential(config) || Object.values(config.profiles ?? {}).some(hasCredential)) return null;
+  const hasDeviceKey = typeof config.deviceSecret === "string" && config.deviceSecret.length > 0;
+  if (!hasDeviceKey) return null;
+  const folders = findStoreFolders({ localAppData, appData, fsImpl });
+  // replace-store.ps1 keeps the Store copy here when the install already had settings of its own.
+  const backup = path.join(userData, "store-settings-backup");
+  try { if (fsImpl.statSync(path.join(backup, "config.secure")).isFile()) folders.push(backup); } catch { /* none */ }
+  const own = path.resolve(userData).toLowerCase();
+  for (const dir of folders.filter((d) => path.resolve(d).toLowerCase() !== own)) {
+    let stored = null;
+    try { stored = await readSettings(dir); } catch { stored = null; }
+    if (!hasCredential(stored)) continue;
+    const patch = {};
+    for (const key of CREDENTIAL_FIELDS) if (stored[key] !== undefined && stored[key] !== "") patch[key] = stored[key];
+    // Keep this install's own server pick when it has one.
+    if (config.guildDiscordId) delete patch.guildDiscordId;
+    return { patch, from: dir };
+  }
+  return null;
+}
+
+module.exports = { migrateStoreSettings, findStoreFolders, importStoreCredential };

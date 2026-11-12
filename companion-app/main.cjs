@@ -822,7 +822,8 @@ app.whenReady().then(async () => {
   void refreshSavedFile();
   // Zero-setup companion: no sign-in needed to start syncing (tried again every 5 minutes until it works).
   const zeroSetup = () => void zeroSetupStep().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("Automatic setup will try again: {0}", error instanceof Error ? error.message : String(error)) }));
-  zeroSetup();
+  // 9.1.4: a Discord sign-in left in a Store copy on this PC is taken over first, so the device claim runs.
+  void importStoreSignIn().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("The Microsoft Store sign-in could not be imported: {0}", error instanceof Error ? error.message : String(error)) })).finally(zeroSetup);
   setInterval(zeroSetup, 5 * 60 * 1000).unref?.();
   // Every 5 minutes: a few file dates, so a /reload that did not save Guilded.lua shows up soon.
   setInterval(() => void refreshSavedFile(), 5 * 60 * 1000);
@@ -1076,6 +1077,28 @@ registerIpc("test-connection", (_event, next) => engineModules.testConnection({ 
 // in these encrypted settings) and syncs: the bot picks the server from the character's in-game
 // guild and keeps the characters as "reported". Sign-in stays optional; an install that is already
 // signed in is never changed here.
+// (9.1.4) The Store companion's Discord sign-in, for an install that so far has only a device key.
+// Windows' DPAPI opens the Store folder's own key; nothing is copied, deleted or sent anywhere.
+async function importStoreSignIn() {
+  if (STORE_PACKAGE || !engine || signIn || configLoadModule().configSummary(config).signedIn) return false;
+  const found = await require("./store-migrate.cjs").importStoreCredential({
+    config, userData: app.getPath("userData"), localAppData: process.env.LOCALAPPDATA, appData: process.env.APPDATA,
+    readSettings: (dir) => require("./store-decrypt.cjs").readStoreSettings(dir, { unprotect: dpapiUnprotect })
+  });
+  if (!found || signIn || configLoadModule().configSummary(config).signedIn) return false;
+  config = { ...config, ...found.patch };
+  await saveConfig();
+  await engine.configure(config);
+  pushLog({ time: new Date().toISOString(), level: "info", message: E("Discord sign-in was taken over from the Microsoft Store version ({0}); the device key was kept.", found.from) });
+  return true;
+}
+function dpapiUnprotect(blob) {
+  const script = "Add-Type -AssemblyName System.Security; [Convert]::ToBase64String([System.Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String($input.ReadLine()), $null, 'CurrentUser'))";
+  return new Promise((resolve, reject) => {
+    const child = execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide: true, timeout: 20_000 }, (error, stdout) => error ? reject(error) : resolve(Buffer.from(String(stdout).trim(), "base64")));
+    child.stdin.end(blob.toString("base64") + String.fromCharCode(10));
+  });
+}
 let zeroSetupRunning = false;
 async function zeroSetupStep() {
   if (zeroSetupRunning || !engine || signIn) return false;

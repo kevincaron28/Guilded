@@ -233,7 +233,7 @@ describe("requests made in game", () => {
   });
 
   it("finds requests from game that never reached Discord, bounded to a day and a few", async () => {
-    const findMany = vi.fn(async (_args: unknown) => [{ id: "req_a" }, { id: "req_b" }]);
+    const findMany = vi.fn<(args: unknown) => Promise<Array<{ id: string }>>>(async () => [{ id: "req_a" }, { id: "req_b" }]);
     expect(await unpostedGameRequests({ craftRequest: { findMany } } as never, "g1", NOW)).toEqual(["req_a", "req_b"]);
     expect(findMany.mock.calls[0]![0]).toMatchObject({
       where: { guildId: "g1", gameRef: { not: null }, status: "OPEN", threadId: null, orderMessageId: null, createdAt: { gte: new Date("2026-11-06T12:00:00Z") } }, take: 3

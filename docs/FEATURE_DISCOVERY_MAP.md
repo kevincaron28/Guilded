@@ -23,7 +23,7 @@ server audit. A feature is "discoverable" when a member can find it from the Dis
 | Community seasons, dice, badges | #activities pinned panel, #leaderboard, `/help` |
 | Guild invites | #invitation-guilde (WoW category), role DM, `/help` |
 | Bug reports | `/help` (`/report bug`) |
-| In-game only (call for help, levelling partners, raid sign-up) | `/help` one line each; the addon Help page |
+| In-game only (call for help, layer invite, raid sign-up) | `/help` one line each; the addon Help page |
 
 ## Gaps filled in this change
 

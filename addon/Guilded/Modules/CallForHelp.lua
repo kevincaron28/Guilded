@@ -453,6 +453,9 @@ local function ensureAnchor()
   return anchor
 end
 
+-- The box the toast and its offer fill, for other toasts (Layer invite) that stack below it. Read only.
+function module.footprint() return ensureAnchor() end
+
 local function layout()
   if not anchor then return end
   if banner then banner:ClearAllPoints(); banner:SetPoint("TOPLEFT", anchor, "TOPLEFT", 0, 0) end

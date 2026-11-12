@@ -110,14 +110,14 @@ describe("the five member tabs", () => {
     s.run(`NS.windowState().groupButtons.Raids.scripts.OnClick()`);
     expect(shownPages(s)).toBe("Open raids,Reserves,Signups");
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
-    expect(shownPages(s)).toBe("Guild overview,Board,Standings,Availability,Duels");
+    expect(shownPages(s)).toBe("Guild overview,Board,Layer invite,Standings,Availability,Duels");
   });
 
   it("shows Guild and Crafting as one page each, with their sections in a row at the top", () => {
     const s = openWindow(5);
     const row = () => s.run(`local out = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then local p = t.button.points[#t.button.points]; out[#out + 1] = t.name .. "@" .. tostring(p[5]) end end; return table.concat(out, ",")`);
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
-    expect(row()).toBe("Guild overview@-12,Board@-12,Standings@-12,Availability@-12,Duels@-12");
+    expect(row()).toBe("Guild overview@-12,Board@-12,Layer invite@-12,Standings@-12,Availability@-12,Duels@-36");
     expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
     s.run(`NS.windowState().groupButtons.Crafting.scripts.OnClick()`);
     expect(row()).toBe("Crafting@-12,Orders@-12");
@@ -211,8 +211,8 @@ describe("the tools window (sidebar and Home page)", () => {
   });
   it("keeps short officer pages stationary and anchors repeated calendar selections", () => {
     const s = openWindow(1);
-    s.run(`UI=NS.windowState(); UI.selectTabByName("Roster admin"); UI.guildScroll.GetHeight=function() return 300 end
-      UI.selectTabByName("Roster admin")
+    s.run(`UI=NS.windowState(); UI.selectTabByName("EPGP"); UI.guildScroll.GetHeight=function() return 300 end
+      UI.selectTabByName("EPGP")
       UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll, -1)`);
     expect(s.run('return UI.guildScrollRange..":"..UI.guildScroll:GetVerticalScroll()')).toBe("0:0");
     expect(s.run('return tostring(UI.guildScroll.ScrollBar.shown)')).toBe("false");
@@ -220,6 +220,13 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run(`local p=UI.tabs[UI.currentTab].page; return tostring(#p.points==1 and p.points[1][1]=="TOPLEFT" and p.points[1][2]==UI.guildScroll)`)).toBe("true");
     s.run(`UI.guildScroll.GetHeight=function() return 100 end; UI.selectTabByName("EPGP"); UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll,-1)`);
     expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("48");
+  });
+
+  it("gives the Layer invite page its real height inside the scroll (its fifth row ends near y=-250)", () => {
+    const s = openWindow(5);
+    s.run(`UI = NS.windowState(); UI.selectTabByName("Layer invite"); UI.guildScroll.GetHeight = function() return 100 end; UI.selectTabByName("Layer invite")`);
+    expect(s.run("return tostring(UI.guildScroll.shown and UI.guildScroll.scrollChild == UI.tabs[UI.currentTab].page)")).toBe("true");
+    expect(s.run("return UI.guildScrollRange")).toBe("188");
   });
 
   it("scrolls the long pages and leaves the short ones on the window", () => {
@@ -386,9 +393,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Crafting,Orders,Me,Open raids,Standings,Availability,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Crafting,Orders,Me,Open raids,Layer invite,Standings,Availability,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Crafting,Orders,Me,Open raids,Standings,Availability,Reserves,Signups,Duels,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Crafting,Orders,Me,Open raids,Layer invite,Standings,Availability,Reserves,Signups,Duels,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {

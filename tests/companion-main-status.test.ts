@@ -104,7 +104,7 @@ describe("mainStatus: four lines and one needs-you line", () => {
     const problemSets = [[], ...problemIds.map((id) => [{ id, data }]), problemIds.map((id) => ({ id, data }))];
     for (const config of configs) for (const state of states) for (const problems of problemSets) for (const extra of extras) {
       const status = mainStatus({ config, state, problems, ...extra });
-      for (const entry of status.lines) { walk(entry.text); walk(entry.detail); if (entry.button) keys.add(entry.button.label); }
+      for (const entry of status.lines) { walk(entry.text); walk(entry.detail); if (entry.button) keys.add((entry.button as { label: string }).label); }
       if (status.needsYou) { walk(status.needsYou.text); walk(status.needsYou.detail); for (const button of status.needsYou.buttons as { label: string }[]) keys.add(button.label); }
     }
     expect([...keys].filter((key) => typeof fr[key] !== "string")).toEqual([]);

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' blob:; base-uri 'none'">
+  <title>Guilded Companion</title>
+  <link rel="icon" href="logo.png"><link rel="stylesheet" href="main.css">
+</head>
+<body>
+  <div id="home" class="shell">
+    <header class="top">
+      <img src="logo.png" alt="" class="logo">
+      <div class="title"><strong>Guilded Companion</strong><span id="version">Version</span></div>
+      <select id="language" aria-label="Language"><option value="en">EN</option><option value="fr">FR</option></select>
+    </header>
+    <ul class="lines" aria-live="polite">
+      <li id="line-wow" class="line"><span class="dot" aria-hidden="true"></span><span class="label">World of Warcraft</span><span class="value"><span class="text"></span><small class="detail"></small></span><button type="button" class="small" hidden></button></li>
+      <li id="line-addon" class="line"><span class="dot" aria-hidden="true"></span><span class="label">Guilded addon</span><span class="value"><span class="text"></span><small class="detail"></small></span><button type="button" class="small" hidden></button></li>
+      <li id="line-sync" class="line"><span class="dot" aria-hidden="true"></span><span class="label">Last sync</span><span class="value"><span class="text"></span><small class="detail"></small></span><button type="button" class="small" hidden></button></li>
+      <li id="line-account" class="line"><span class="dot" aria-hidden="true"></span><span class="label">Synced as</span><span class="value"><span class="text"></span><small class="detail"></small></span><button type="button" class="small" hidden></button></li>
+    </ul>
+    <section id="needs" class="needs" hidden aria-live="polite"><p id="needsText"></p><small id="needsDetail"></small><div id="needsButtons" class="row"></div></section>
+    <p id="notice" class="notice" role="status" hidden></p>
+    <div id="signInWait" class="notice" hidden><span id="signInLine"></span> <button type="button" id="btnSignInCancel" class="small">Cancel</button></div>
+    <footer class="bottom">
+      <button type="button" id="btnSync" class="primary">Sync now</button>
+      <a id="linkMy" href="https://guilded.kcaron.top/me/" target="_blank" rel="noopener">My Guilded ↗</a>
+      <button type="button" id="btnAdvanced" class="link">Advanced</button>
+    </footer>
+  </div>
+
+  <div id="advanced" class="shell" hidden>
+    <header class="top"><button type="button" id="btnBack" class="link">← Back</button><div class="title"><strong>Advanced</strong></div></header>
+    <div class="scroll">
+      <section><h2>World of Warcraft</h2><p id="advFolder" class="mono"></p><div class="row"><button type="button" id="btnFolder" class="small">Choose folder</button><button type="button" id="btnFind" class="small">Find WoW again</button></div></section>
+      <section><h2>Discord</h2><p id="advDiscord"></p><div class="row"><button type="button" id="btnSignIn" class="small">Sign in with Discord</button><button type="button" id="btnSwitch" class="small">Switch account</button></div>
+        <label id="serverRow" hidden>Guild server <select id="serverList"></select> <button type="button" id="btnServer" class="small">Use this server</button></label>
+        <p><a id="linkConnections" href="#" class="inline">Connections (website)</a></p></section>
+      <section><h2>Language</h2><p><label>Language <select id="advLanguage"><option value="en">English</option><option value="fr">Français</option></select></label></p></section>
+      <section><h2>Starting and updates</h2>
+        <label class="check"><input type="checkbox" id="autostart"> Start with Windows</label>
+        <label class="check" id="autoUpdateRow"><input type="checkbox" id="autoUpdate"> Update automatically</label>
+        <p id="storeUpdate" hidden>The Microsoft Store keeps this app up to date.</p><div class="row"><button type="button" id="btnStore" class="small" hidden>Open Microsoft Store</button></div></section>
+      <section><h2>Repair</h2><p>Checks the game folder, the addon and the connection, and fixes what it can.</p><div class="row"><button type="button" id="btnRepair" class="small">Repair</button></div><p id="repairResult" role="status"></p></section>
+      <section><h2>All problems</h2><ul id="problemList" class="plain"></ul><p id="noProblems">No problems.</p></section>
+      <section><h2>Activity</h2><ul id="activity" class="plain mono"></ul><div class="row"><button type="button" id="btnReport" class="small">Copy support report</button></div><p id="reportNote" role="status"></p></section>
+      <section><h2>Privacy</h2><p>The companion sends only your Guilded addon's saved data and your finished dungeon runs, to your guild's Discord server through Guilded. It reads no other game or personal files. You can see and erase your data on your Guilded page.</p><p><a href="https://guilded.kcaron.top/companion/" target="_blank" rel="noopener">Help and details ↗</a></p></section>
+      <section><h2>Reset this companion</h2><p>Removes this PC's settings, link and unsent data, then quits. Your game files are untouched.</p><div class="row"><button type="button" id="btnReset" class="small danger">Reset this companion</button></div></section>
+      <section><h2>Community</h2><p><a href="https://discord.gg/YjzFwtP64V" target="_blank" rel="noopener">Discord community ↗</a> · <a href="https://ko-fi.com/wowguilded" target="_blank" rel="noopener">Support Guilded ↗</a></p></section>
+      <section><h2>Old window</h2><p>The previous, larger window stays available for one release.</p><div class="row"><button type="button" id="btnOld" class="small">Open the old window</button></div></section>
+    </div>
+  </div>
+  <script src="ui-bundle.js"></script><script src="main.js"></script>
+</body>
+</html>

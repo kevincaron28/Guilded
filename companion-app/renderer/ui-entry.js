@@ -24,3 +24,5 @@ window.guildedWowSearchMessage = wowSearchMessage;
 window.guildedPagesInUse = pagesInUse;
 import { statusCard, guildLine } from "../../companion/status-card.mjs";
 window.guildedStatusCard = { statusCard, guildLine };
+import { mainStatus } from "../../companion/main-status.mjs";
+window.guildedMainStatus = mainStatus;

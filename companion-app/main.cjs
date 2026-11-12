@@ -571,15 +571,19 @@ function showWindow() {
   win.focus();
 }
 
+// --tab=<page> (screenshots, support) still opens the old window on that page.
+const OLD_WINDOW_FIRST = Boolean(screenshotTab);
 function createWindow() {
   win = new BrowserWindow({
-    width: 1180, height: 820, minWidth: 760, minHeight: 600,
+    // The single window (redo C2): small and fixed; the old window (Advanced > Old window) grows it.
+    width: OLD_WINDOW_FIRST ? 1180 : 480, height: OLD_WINDOW_FIRST ? 820 : 600, minWidth: OLD_WINDOW_FIRST ? 760 : 420, minHeight: OLD_WINDOW_FIRST ? 600 : 520, resizable: OLD_WINDOW_FIRST,
     show: false, autoHideMenuBar: true, backgroundColor: "#15120d",
     title: T("Guilded Companion"), icon: asset("icon.png"),
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   win.setMenu(null);
-  win.loadFile(path.join(__dirname, "renderer", "index.html"), { query: screenshotTab ? { tab: screenshotTab } : {} });
+  if (OLD_WINDOW_FIRST) win.loadFile(path.join(__dirname, "renderer", "index.html"), { query: screenshotTab ? { tab: screenshotTab } : {} });
+  else win.loadFile(path.join(__dirname, "renderer", "main.html"));
   win.once("ready-to-show", () => { if ((!startHidden && !restartedQuietly) || engineModules.validateConfig(config).length > 0) win.show(); });
   // A Store update prompt (Windows 10 1607-1909) waits for a window the member can see.
   win.on("show", () => { if (storePromptPending) { storePromptPending = false; config.storeUpdateCheckedAt = undefined; void maybeStoreUpdate(); } });
@@ -882,6 +886,16 @@ app.on("before-quit", event => {
   }
 });
 
+// Advanced > Old window (kept for one release as a safety net): the previous, larger window.
+registerIpc("open-old-window", () => {
+  if (!win) return false;
+  win.setResizable(true);
+  win.setMinimumSize(760, 600);
+  win.setSize(1180, 820);
+  win.center();
+  void win.loadFile(path.join(__dirname, "renderer", "index.html"));
+  return true;
+});
 registerIpc("get-all", () => ({ focus: { poeTracking: engineModules.poeTracking === true }, config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: autostartOn(), version: app.getVersion() }));
 registerIpc("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
 registerIpc("change-profile", async (_event, choice) => {

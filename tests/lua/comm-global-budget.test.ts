@@ -165,7 +165,7 @@ describe("back-off", () => {
     end`);
     expect(s.run("return NS.comm.budget().strikes")).toBe("8");
     const waits = s.run("return table.concat(WAITS, ',')").split(",").map(Number);
-    for (let i = 1; i < 5; i++) expect(waits[i]).toBeGreaterThan(waits[i - 1] * 1.3); // base doubles, jitter at most +50%
+    for (let i = 1; i < 5; i++) expect(waits[i]!).toBeGreaterThan(waits[i - 1]! * 1.3); // base doubles, jitter at most +50%
     expect(waits[5]).toBeGreaterThanOrEqual(60); // strike 6 reaches the cap (it used to start over at strike 1)
     expect(waits[7]).toBeLessThanOrEqual(90);
     // Truly quiet for more than 30 s after the end of a back-off: the next one starts again at strike 1.

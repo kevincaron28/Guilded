@@ -58,8 +58,8 @@ that is not syncing moves to the website, the phone app or Discord.
 | Delete my data | **MOVE** to the website `/me` | It is the same erasure (`companion-api.ts:783`). It belongs with the account, not the sync tool. |
 | Guild page (my characters, guild, raid core) | **MOVE** to the website `/me` and the phone app | Both already show characters from `/api/v1/hub`. |
 | Server page (officers: what is ready, main switches) | **MOVE** to the website and Discord `/setup` | Officer setup is not syncing. |
-| Tools: export to spreadsheet | **MOVE** to Discord `/officer export` | It already exists there (`src/services/exports.ts`). |
-| Tools: GRM import | **REMOVE** from the window | A one-time conversion for officers. The module stays (`companion/grm-migration.mjs`) for a developer-run import. |
+| Tools: export to spreadsheet | **KEEP as one action** in Advanced ("Export my addon data (CSV)", local, no Discord needed); officers also have Discord `/officer export` (server data) | Review of C4: `/officer export` is officers-only and server-wide, so it does not replace the local file export. |
+| Tools: GRM import | **KEEP as a small action** in Advanced ("Import from GRM") | Review of C4: dropping it would leave no way to reach `companion/grm-migration.mjs`. |
 | Website links (My Guilded, Leaderboards, Raids, Reserves) and footer (Discord, Ko-fi) | **MERGE** into one "My Guilded" link | The website's own menu leads to the rest. Discord and Ko-fi go to the bottom of Advanced. |
 | Help & privacy page | **MOVE** to the website companion page | Advanced keeps a link plus the one-paragraph privacy summary. |
 | Games switch (WoW, PoE2) and PoE2 log settings | **REMOVE** from the window | PoE2 tracking is off (`ACTIVE_TRACKING = []`). The code and the journal stay for later. |
@@ -289,7 +289,7 @@ Partner Center before the next submission.
 
 1. **Move the Guild and Server pages out** to the website `/me` and the phone (officer switches to the website and
    Discord). *Recommend: yes.*
-2. **Spreadsheet export only through Discord `/officer export`, and GRM import removed from the window.** *Recommend: yes.*
+2. **Spreadsheet export and GRM import stay as two small actions in Advanced** (revised at the C4 review); officers also have Discord `/officer export`. *Approved.*
 3. **Window behaviour:** it opens on the first run and when something needs the member, and otherwise lives in the tray.
    The website build starts with Windows by default; the Store build asks Windows once. *Recommend: yes.*
 4. **Notifications:** one Windows notification only when something needs the member, and none for successful syncs.

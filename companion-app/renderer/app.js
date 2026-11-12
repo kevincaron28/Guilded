@@ -20,7 +20,7 @@ document.addEventListener('keydown',event => { if (event.key === 'Escape' && doc
 desktopNavigation.addEventListener('change',closeNavigation);
 const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes'];
-const names = {status:'Sync',link:'Link everything',characters:'Guild',server:'Server',wow:'Tools',settings:'Settings',activity:'Activity',help:'Help & privacy',problems:'Problems'};
+const names = {status:'Sync',link:'Link everything',settings:'Settings',activity:'Activity',problems:'Problems'};
 let lastSnapshot;
 let storePackage = false; // Microsoft Store build: its update banner opens the Store (F5)
 let savedConfig = {};
@@ -405,7 +405,6 @@ bind('btnLinkSignInCancel',async () => { await api.signInCancel(); stopSignInBox
 $('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say(T("Saving your preferences…"),true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
 bind('btnConnections', () => api.openConnections ? api.openConnections() : window.open('/me/connections','_blank','noopener'));
-bind('btnBattleNet', () => api.openBattleNet ? api.openBattleNet() : window.open('/me/battlenet','_blank','noopener'));
 bind('btnUpload',async () => { await api.uploadNow(); toast(T("Sync requested. Follow its progress in Activity.")); });
 bind('btnStandings',async () => {
   if (!savedConfig.companionCredential) { toast(T("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup."),true); return; }
@@ -413,17 +412,9 @@ bind('btnStandings',async () => {
   await api.refreshStandings();
   toast(T("Standings refresh requested. Check Activity for the result."));
 });
-bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
-$('grmPanel').hidden = typeof api.convertGRM !== 'function';
-bind('btnGRM', async () => {
-  if (!api.convertGRM) return;
-  const result = await api.convertGRM({ guild: $('grmGuild').value, realm: $('grmRealm').value, edition: $('grmEdition').value, includePrivate: $('grmPrivate').checked });
-  if (!result.canceled) { $('grmResult').textContent = M(result.message); toast(result.message, !result.ok); }
-});
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); const all = await api.getAll(); savedConfig = all.config; $('syncEnabled').checked = all.config.syncEnabled !== false; });
 bind('btnSingleWindow',() => api.openSingleWindow());
 bind('btnRemoveData',() => api.removeData());
-bind('btnDeleteMyData',() => api.deleteMyData()); // native confirm dialog in main.cjs
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
 bind('btnStoreUpdates', () => api.openUpdate());
 bind('btnStoreStartup', () => api.openStartupSettings());

@@ -38,14 +38,14 @@ describe("Delete my data: companion credential flow", () => {
       expect(f.client.$transaction).toHaveBeenCalledTimes(1);
     }
   });
-  it("the companion asks for confirmation (native dialog) before calling the bot, and the button is in Settings", () => {
-    const main = read("companion-app/main.cjs"), html = read("companion-app/renderer/index.html");
+  it("the companion asks for confirmation (native dialog) before calling the bot, and the website link is in Advanced", () => {
+    const main = read("companion-app/main.cjs"), html = read("companion-app/renderer/main.html");
     const start = main.indexOf("async function deleteMyDataEverywhere");
     const body = main.slice(start, main.indexOf("app.on(\"second-instance\"", start));
     expect(body.indexOf("showMessageBoxSync")).toBeGreaterThan(-1);
     expect(body.indexOf("if (choice !== 1) return false")).toBeLessThan(body.indexOf("/api/v1/companion/delete-my-data"));
     expect(body).toContain('confirm: "DELETE"');
-    expect(html).toMatch(/id="btnDeleteMyData"[^>]*>Delete my data</);
+    expect(html).toContain("https://guilded.kcaron.top/me/data");
     expect(read("companion-app/locales/fr.json")).toContain("Supprimer mes données");
     expect(read("companion-app/ipc-security.cjs")).toContain('"delete-my-data"');
   });
@@ -75,7 +75,7 @@ describe("PoE2 surfaces follow the active-games switch", () => {
     expect(ACHIEVEMENTS.every(def => achievementGameVisible(def))).toBe(true);
   });
   it("the companion UI has no PoE2 or Diablo screen, and a stale PoE2 tab stays on Sync", () => {
-    const html = read("companion-app/renderer/index.html"), app = read("companion-app/renderer/app.js");
+    const html = read("companion-app/renderer/main.html"), app = read("companion-app/renderer/app.js");
     expect(html).not.toMatch(/PoE2|Path of Exile|Diablo/);
     for (const marker of ['data-page="poe"', 'id="page-poe"', 'id="poeSettings"', 'id="poeEnabled"']) expect(html, marker).not.toContain(marker);
     // The page is gone. showPage still refuses the old name so tab=poe cannot open a blank screen.

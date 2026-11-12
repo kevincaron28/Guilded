@@ -1,6 +1,7 @@
 import type { CraftRequestStatus, PrismaClient } from "../generated/prisma/client.js";
 import { characterTrustMap } from "./character-trust.js";
 import { normalizeProfessionName } from "./profession-names.js";
+import { serializeByKey } from "./transaction-retry.js";
 
 // Crafting orders in game (docs/plans/CRAFTING_ORDERS.md). Discord craft requests go to the addon's
 // Orders page through the standings feed (craftOrders, shared), and crafters claim, finish or give
@@ -211,23 +212,46 @@ export async function applyOrderRequests(db: RequestDb, guildId: string, uploade
     const memberId = owners.get(who.toLowerCase());
     if (!memberId) continue;
     if (isRelayed ? memberId === uploaderMemberId : memberId !== uploaderMemberId) continue;
-    if (await db.craftRequest.findFirst({ where: { guildId, gameRef: row.ref }, select: { id: true } })) continue;
-    const open = await db.craftRequest.count({ where: { guildId, requesterId: memberId, status: { in: ["OPEN", "CLAIMED"] } } });
-    if (open >= REQUEST_LIMITS.open) continue;
-    const itemKey = row.key ?? await resolveItemKey(db, guildId, row.item);
-    try {
-      const request = await db.craftRequest.create({
-        data: {
-          guildId, requesterId: memberId, item: row.item, quantity: row.qty, materialsProvided: row.mats,
-          profession: row.prof ?? null, note: row.note ?? null, itemKey, askedCharacter: row.asked ?? null,
-          gameRef: row.ref, relayedById: isRelayed ? uploaderMemberId : null
-        },
-        select: { id: true }
-      });
-      created.push({ id: request.id, memberId, relayed: isRelayed });
-    } catch (error) {
-      if ((error as { code?: string }).code !== "P2002") throw error;   // the same ref twice at once: the other one won
-    }
+    // Count-then-create runs one at a time per member, so parallel uploads cannot pass the limit together.
+    const request = await serializeByKey(`craft-request:${guildId}:${memberId}`, async () => {
+      // The ref is the requester's own: another member's identical ref never blocks it.
+      if (await db.craftRequest.findFirst({ where: { guildId, requesterId: memberId, gameRef: row.ref }, select: { id: true } })) return null;
+      const open = await db.craftRequest.count({ where: { guildId, requesterId: memberId, status: { in: ["OPEN", "CLAIMED"] } } });
+      if (open >= REQUEST_LIMITS.open) return null;
+      const itemKey = await trustedKey(db, guildId, row);
+      try {
+        return await db.craftRequest.create({
+          data: {
+            guildId, requesterId: memberId, item: row.item, quantity: row.qty, materialsProvided: row.mats,
+            profession: row.prof ?? null, note: row.note ?? null, itemKey, askedCharacter: row.asked ?? null,
+            gameRef: row.ref, relayedById: isRelayed ? uploaderMemberId : null
+          },
+          select: { id: true }
+        });
+      } catch (error) {
+        if ((error as { code?: string }).code !== "P2002") throw error;   // the same ref twice at once: the other one won
+        return null;
+      }
+    });
+    if (request) created.push({ id: request.id, memberId, relayed: isRelayed });
   }
   return created;
+}
+
+/** The addon's key is used only when this server's recipes know that key under that exact name; otherwise it comes from the name, as for Discord requests. */
+async function trustedKey(db: Pick<PrismaClient, "recipeKnown">, guildId: string, row: AddonOrderRequest): Promise<number | null> {
+  if (row.key !== undefined) {
+    const known = await db.recipeKnown.findFirst({ where: { guildId, itemKey: row.key, itemName: { equals: row.item, mode: "insensitive" } }, select: { itemKey: true } });
+    if (known) return row.key;
+  }
+  return resolveItemKey(db, guildId, row.item);
+}
+
+/** Requests from game that were created but never reached Discord (no forum thread and no orders-channel line): the next upload posts them again. At most `take`, none older than a day. */
+export async function unpostedGameRequests(db: Pick<PrismaClient, "craftRequest">, guildId: string, now = new Date(), take = 3): Promise<string[]> {
+  const rows = await db.craftRequest.findMany({
+    where: { guildId, gameRef: { not: null }, status: "OPEN", threadId: null, orderMessageId: null, createdAt: { gte: new Date(now.getTime() - 86_400_000) } },
+    select: { id: true }, orderBy: { createdAt: "asc" }, take
+  });
+  return rows.map((row) => row.id);
 }

@@ -515,6 +515,7 @@ model Member {
   applications        Application[]
   craftRequests       CraftRequest[]               @relation("CraftRequester")
   craftsClaimed       CraftRequest[]               @relation("CraftCrafter")
+  craftsRelayed       CraftRequest[]               @relation("CraftRelayer")
   craftOffers         CraftOffer[]
   dungeonRunPlayers   DungeonRunPlayer[]
   dungeonPoints       DungeonPointTransaction[]
@@ -1562,7 +1563,7 @@ model CraftRequest {
   crafterCharacter  String?
   claimSource       String?
   // Requests made in game (craft-orders.ts applyOrderRequests): the addon's own id for it (one request is created
-  // once per server), and, when a guildmate's companion carried it (the requester has none), that uploader's Member id.
+  // once per requester, so one member's ref can never block another's), and, when a guildmate's companion carried it (the requester has none), that uploader's Member id.
   gameRef           String?
   relayedById       String?
   // 9.1: its line in the craft orders channel and, once finished, in the archive.
@@ -1576,8 +1577,9 @@ model CraftRequest {
   guild             Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
   requester         Member             @relation("CraftRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   crafter           Member?            @relation("CraftCrafter", fields: [crafterId], references: [id], onDelete: SetNull)
+  relayedBy         Member?            @relation("CraftRelayer", fields: [relayedById], references: [id], onDelete: SetNull)
 
-  @@unique([guildId, gameRef])
+  @@unique([guildId, requesterId, gameRef])
   @@index([guildId, status, createdAt])
   @@index([requesterId])
   @@index([crafterId])

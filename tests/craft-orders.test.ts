@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyOrderActions, applyOrderRequests, craftOrdersForAddon, parseAddonOrderActions, parseAddonOrderRequests, REQUEST_LIMITS, resolveItemKey } from "../src/services/craft-orders.js";
+import { applyOrderActions, applyOrderRequests, craftOrdersForAddon, parseAddonOrderActions, parseAddonOrderRequests, REQUEST_LIMITS, resolveItemKey, unpostedGameRequests } from "../src/services/craft-orders.js";
 import { craftOrdersToLua, standingsToLua } from "../companion/standings-format.mjs";
 import { exportCraftOrders } from "../companion/lua-export-content.mjs";
 
@@ -154,15 +154,19 @@ describe("requests made in game", () => {
       { id: "c4", name: "Twin Name", displayName: null, realm: "Forever", gameEdition: "forever", memberId: "m4", confirmedAt: null, linkEvidence: "officer" },
       { id: "c5", name: "Twin Name", displayName: null, realm: "Forever", gameEdition: "forever", memberId: "m5", confirmedAt: null, linkEvidence: "officer" }
     ];
+    const recipes = [{ itemKey: 2580, itemName: "Brown Linen Shirt" }, { itemKey: 777, itemName: "Other Thing" }];
     let seq = 0;
     const db = {
       guildSettings: { findUnique: async () => ({ craftOrdersInGame: !over.off }) },
       character: { findMany: async () => chars },
       characterVerifyClaim: { findMany: async () => [] },
       guildRosterEntry: { findMany: async () => [] },
-      recipeKnown: { findMany: async () => [] },
+      recipeKnown: {
+        findFirst: async ({ where }: { where: { itemKey: number; itemName: { equals: string } } }) => recipes.find((r) => r.itemKey === where.itemKey && r.itemName.toLowerCase() === where.itemName.equals.toLowerCase()) ?? null,
+        findMany: async ({ where }: { where: { itemName: { equals: string } } }) => recipes.filter((r) => r.itemName.toLowerCase() === where.itemName.equals.toLowerCase())
+      },
       craftRequest: {
-        findFirst: async ({ where }: { where: { gameRef: string } }) => created.find((r) => r["gameRef"] === where.gameRef) ?? null,
+        findFirst: async ({ where }: { where: { gameRef: string; requesterId: string } }) => created.find((r) => r["gameRef"] === where.gameRef && r["requesterId"] === where.requesterId) ?? null,
         count: async ({ where }: { where: { requesterId: string } }) => (over.open ?? 0) + created.filter((r) => r["requesterId"] === where.requesterId).length,
         create: async ({ data }: { data: Record<string, unknown> }) => { created.push(data); return { id: `req_new${++seq}` }; }
       }
@@ -199,6 +203,41 @@ describe("requests made in game", () => {
     expect(await applyOrderRequests(db, "g1", "m2", [], parse([good({ ref: "ref-0002", character: "Cy Reed", name: "Cy Reed" })], true), NOW)).toEqual([]);
     expect(await applyOrderRequests(db, "g1", "m1", [], parse([good({ ref: "ref-0003", character: "Twin Name", name: "Twin Name" })], true), NOW)).toEqual([]);
     expect(created).toEqual([]);
+  });
+
+  it("trusts the addon's key only when this server's recipes know it under that name, else resolves from the name", async () => {
+    const { db, created } = fake();
+    await applyOrderRequests(db, "g1", "m1", parse([
+      good({ ref: "ref-k00001", key: 2580 }),                         // known key, same name
+      good({ ref: "ref-k00002", key: 777 }),                          // known key, but another item's: the name wins
+      good({ ref: "ref-k00003", key: 9999, item: "Unknown Cloak" }),  // nothing known
+      good({ ref: "ref-k00004", key: 9999 })                          // unknown key, known name
+    ]), [], NOW);
+    expect(created.map((r) => r["itemKey"])).toEqual([2580, 2580, null, 2580]);
+  });
+
+  it("keeps one member's ref from blocking another's: refs are unique per requester", async () => {
+    const { db, created } = fake();
+    await applyOrderRequests(db, "g1", "m2", parse([good({ character: "Bo Stone", item: "Other Thing", key: 777 })]), [], NOW);   // Bo takes "ref-0001" first
+    const made = await applyOrderRequests(db, "g1", "m1", parse([good()]), [], NOW);                                              // Ann's own "ref-0001" still goes through
+    expect(made).toHaveLength(1);
+    expect(created.map((r) => `${r["requesterId"]}:${r["gameRef"]}`)).toEqual(["m2:ref-0001", "m1:ref-0001"]);
+    expect(await applyOrderRequests(db, "g1", "m1", parse([good()]), [], NOW)).toEqual([]);                                       // but a repeat by the same requester is skipped
+  });
+
+  it("holds the five-open limit when two uploads arrive at once", async () => {
+    const { db, created } = fake();
+    const rows = (tag: string) => Array.from({ length: 4 }, (_, i) => good({ ref: `ref-${tag}${i}00` }));
+    await Promise.all([applyOrderRequests(db, "g1", "m1", parse(rows("a")), [], NOW), applyOrderRequests(db, "g1", "m1", parse(rows("b")), [], NOW)]);
+    expect(created).toHaveLength(5);
+  });
+
+  it("finds requests from game that never reached Discord, bounded to a day and a few", async () => {
+    const findMany = vi.fn(async (_args: unknown) => [{ id: "req_a" }, { id: "req_b" }]);
+    expect(await unpostedGameRequests({ craftRequest: { findMany } } as never, "g1", NOW)).toEqual(["req_a", "req_b"]);
+    expect(findMany.mock.calls[0]![0]).toMatchObject({
+      where: { guildId: "g1", gameRef: { not: null }, status: "OPEN", threadId: null, orderMessageId: null, createdAt: { gte: new Date("2026-11-06T12:00:00Z") } }, take: 3
+    });
   });
 
   it("creates each ref once, even when the upload is resent", async () => {

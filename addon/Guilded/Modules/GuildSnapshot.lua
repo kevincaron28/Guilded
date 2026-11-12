@@ -46,25 +46,28 @@ local function lastOnline(index, online, now)
   return now - age
 end
 
--- (9.1.7) The game names a refused call "UNKNOWN()". The two guild text reads below are marked while they
--- run, so Core's ADDON_ACTION_BLOCKED handler can say which one was refused (ns.guardedCall), and a refusal
--- is remembered for this client build: the reads stop, the MOTD still arrives with the GUILD_MOTD event.
+-- (9.1.7) The game often names a refused call "UNKNOWN()". The two guild text reads below are marked while they
+-- run, so Core's ADDON_ACTION_BLOCKED handler can say which one was running when the refusal was raised. That is
+-- only a hint for the message. The reads are switched off for this client build (the MOTD still arrives with the
+-- GUILD_MOTD event) only when the game itself names the function.
 local function buildKey()
   if type(GetBuildInfo) ~= "function" then return "?" end
   local ok, _, build = pcall(GetBuildInfo)
   return ok and not secret(build) and tostring(build or "?") or "?"
 end
 local function textBlocked(db) return type(db.guildTextBlocked) == "string" and db.guildTextBlocked == buildKey() end
+-- Called by Core only when the game's own event names exactly this function (never from a guess).
 function snapshot.onBlocked(name)
   local db = ns.getDb and ns.getDb()
   if db and (name == "GetGuildRosterMOTD" or name == "GetGuildInfoText") then db.guildTextBlocked = buildKey(); return true end
   return false
 end
 local function guarded(name, fn)
+  -- The marker exists only while the call runs: a refusal event raised inside it is named, one that
+  -- arrives later is never blamed on this read.
   ns.guardedCall = { name = name }
   local ok, value = pcall(fn)
-  -- The refusal event can arrive just after the call returns: leave the mark for two seconds.
-  if C_Timer and C_Timer.After then C_Timer.After(2, function() if ns.guardedCall and ns.guardedCall.name == name then ns.guardedCall = nil end end) else ns.guardedCall = nil end
+  ns.guardedCall = nil
   return ok, value
 end
 

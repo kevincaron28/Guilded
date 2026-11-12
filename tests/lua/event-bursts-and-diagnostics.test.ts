@@ -58,18 +58,39 @@ describe("event bursts", () => {
   });
 });
 
+describe("score relearning on roster updates", () => {
+  it("relearns at most once a minute and runs once more at the end of the minute", () => {
+    const s = loggedIn(`CLOCK = 100; function GetTime() return CLOCK end`);
+    s.load("Modules/Scores.lua");
+    s.run(`GuildedDB.dungeon = { runs = { r1 = { state = "COMPLETED" } } }; LEARNED = 0; NS.scores.learn = function() LEARNED = LEARNED + 1 end; TIMERS = {}`);
+    s.run(`fire_event("GUILD_ROSTER_UPDATE")`);
+    expect(s.run("return LEARNED")).toBe("1");
+    s.run(`CLOCK = 110; for i = 1, 20 do fire_event("GUILD_ROSTER_UPDATE") end`);
+    expect(s.run("return LEARNED")).toBe("1"); // folded
+    s.run(`CLOCK = 165; run_timers()`);
+    expect(s.run("return LEARNED")).toBe("2"); // the trailing run
+  });
+});
+
 describe("blocked calls and diagnostics", () => {
-  it("names the guild text read that the game refused instead of UNKNOWN", () => {
+  it("says what was running when the game refused a call, but only switches reads off when the game names them", () => {
     const s = loggedIn(`
-      function GetGuildRosterMOTD() fire_event("ADDON_ACTION_BLOCKED", "Guilded", "UNKNOWN") return "hi" end
+      function GetGuildRosterMOTD() fire_event("ADDON_ACTION_BLOCKED", "Guilded", "UNKNOWN", "extra") return "hi" end
       function GetGuildInfoText() return "info" end
       GetBuildInfo = function() return "1.0", "55555" end
     `);
     s.load("Modules/GuildSnapshot.lua");
     s.run(`NS.guildSnapshot.read(true)`);
-    expect(s.run("local d = GuildedDB.diagnostics; return d[#d].detail")).toContain("while calling GetGuildRosterMOTD");
-    // Remembered for this client build: the next read does not call it again.
+    const detail = s.run("local d = GuildedDB.diagnostics; return d[#d].detail");
+    expect(detail).toContain("raised while calling GetGuildRosterMOTD");
+    expect(detail).toContain("extra"); // the event's own arguments are kept
+    // A guess is not proof: the read is still made next time.
     s.run(`MOTD_CALLS = 0; function GetGuildRosterMOTD() MOTD_CALLS = MOTD_CALLS + 1 return "hi" end; NS.guildSnapshot.read(true)`);
+    expect(s.run("return MOTD_CALLS")).toBe("1");
+    // After the call returned, the marker is gone: a later refusal is not blamed on the read.
+    expect(s.run("return tostring(NS.guardedCall)")).toBe("nil");
+    // When the game itself names the function, the reads stop for this client build.
+    s.run(`fire_event("ADDON_ACTION_BLOCKED", "Guilded", "GetGuildRosterMOTD()"); MOTD_CALLS = 0; NS.guildSnapshot.read(true)`);
     expect(s.run("return MOTD_CALLS")).toBe("0");
   });
 
@@ -84,9 +105,44 @@ describe("blocked calls and diagnostics", () => {
 });
 
 describe("unfinished dungeons", () => {
-  it("knows Wailing Caverns ends with Mutanus, so stopping after Verdan is not a problem", () => {
+  function abandoned(instance: string, kills: Array<[number, string]>) {
+    const s = newLuaSession();
+    session = s;
+    s.run("NS = {}; GuildedDB = nil");
+    s.load("Core.lua");
+    s.load("DungeonRoutes.lua");
+    s.load("Compat.lua");
+    s.load("Modules/Dungeon.lua");
+    s.run(`fire_event("PLAYER_LOGIN")
+      GetBuildInfo = function() return "1.60.1", "70790", "date", 16001 end
+      STAMP = 1800000000
+      NS.compat.serverTime = function() return STAMP end
+      INSTANCE = ${instance}
+      NS.compat.instance = function() return INSTANCE end
+      fire_event("PLAYER_ENTERING_WORLD")
+      fire_event("PLAYER_REGEN_DISABLED")
+      STAMP = STAMP + 600`);
+    for (const [id, name] of kills) s.run(`STAMP=STAMP+300; fire_event("ENCOUNTER_END",${id},"${name}",0,5,1)`);
+    s.run(`NS.commandHandlers["dungeon"]({ "abandon" })`);
+    return s;
+  }
+  const problems = (s: LuaSession) => s.run(`local n = 0; for _, e in ipairs(GuildedDB.diagnostics or {}) do if e.kind == "DUNGEON_FINAL_UNMATCHED" then n = n + 1 end end return n`);
+
+  it("knows Wailing Caverns ends with Mutanus", () => {
     const s = loggedIn();
     expect(s.run("return tostring(NS.compat.dungeonFinalKnown(43))")).toBe("true");
     expect(s.run("return tostring(NS.compat.dungeonFinalKnown(999999))")).toBe("false");
+  });
+
+  it("an abandoned run whose last kill was Verdan lists no problem; an unrecognised last kill still does", () => {
+    const wc = '{id=43, type="party", name="Wailing Caverns", difficultyId=0}';
+    const s = abandoned(wc, [[1001, "Verdan the Everliving"]]);
+    expect(s.run("return GuildedDB.dungeon.runs[next(GuildedDB.dungeon.runs)].state")).toBe("ABANDONED");
+    expect(problems(s)).toBe("0");
+    session?.close();
+    // A dungeon the addon has no final boss for: the trace is what lets it be added.
+    const t = abandoned('{id=999999, type="party", name="Unknown Hold", difficultyId=0}', [[1002, "Some Boss"]]);
+    expect(t.run("return GuildedDB.dungeon.runs[next(GuildedDB.dungeon.runs)].state")).toBe("ABANDONED");
+    expect(problems(t)).toBe("1");
   });
 });

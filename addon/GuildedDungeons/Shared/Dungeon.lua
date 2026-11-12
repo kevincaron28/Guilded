@@ -356,16 +356,22 @@ local function finish(state, reason)
   if state == "COMPLETED" then run.completedBy = reason else run.endReason = reason end
   -- Kills were recorded but none was recognised as the final boss: leave a trace (game ids and
   -- boss names only) so an unknown Forever dungeon id or name can be added to Compat.lua.
-  -- (9.1.7) Only for dungeons whose final boss is NOT known: when it is known (journal id or Compat) and
-  -- was not killed, the run is just unfinished (Wailing Caverns, 12 November: last kill Verdan, final
-  -- boss Mutanus, group disbanded), not a problem to report.
-  local finalKnown = run.finalEncounterId ~= nil or (ns.compat and ns.compat.dungeonFinalKnown and ns.compat.dungeonFinalKnown(tonumber(run.instanceId)))
-  if state == "ABANDONED" and ns.logDiagnostic and not finalKnown then
+  -- (9.1.7) Kills were recorded but none was recognised as the final boss: leave a trace. Skipped only when the
+  -- final boss is KNOWN (journal id or Compat) and the last successful kill is clearly not it (Wailing Caverns,
+  -- 12 November: last kill Verdan, final boss Mutanus, group disbanded): that run is just unfinished. A last kill
+  -- that IS the final boss but went unmatched (name variant, id mismatch) is exactly what the trace is for.
+  if state == "ABANDONED" and ns.logDiagnostic then
     local last
     for _, encounter in ipairs(run.encounters or {}) do if encounter.success and not encounter.kind then last = encounter end end
     if last then
-      pcall(ns.logDiagnostic, "DUNGEON_FINAL_UNMATCHED", string.format("instance %s (%s) last kill %s %s; abandoned: %s",
-        tostring(run.instanceId), tostring(run.gameEdition), tostring(last.id), tostring(last.name), tostring(reason)))
+      local finalKnown = run.finalEncounterId ~= nil or (ns.compat and ns.compat.dungeonFinalKnown and ns.compat.dungeonFinalKnown(tonumber(run.instanceId)))
+      local lastIsFinal = (run.finalEncounterId ~= nil and tonumber(last.id) == run.finalEncounterId)
+        or (ns.compat and ns.compat.isForeverFinalBossName and ns.compat.isForeverFinalBossName(run.instanceId, last.name))
+        or (ns.compat and ns.compat.isDungeonFinalBoss and ns.compat.isDungeonFinalBoss(run.instanceId, last.id, last.name, run.difficultyId))
+      if not (finalKnown and not lastIsFinal) then
+        pcall(ns.logDiagnostic, "DUNGEON_FINAL_UNMATCHED", string.format("instance %s (%s) last kill %s %s; abandoned: %s",
+          tostring(run.instanceId), tostring(run.gameEdition), tostring(last.id), tostring(last.name), tostring(reason)))
+      end
     end
   end
   send(string.format("END|%s|%s|%d|%s", run.id, state, run.endedAt, reason or ""))

@@ -2380,16 +2380,24 @@ local function onEvent(_, event, ...)
     -- available to the Blizzard UI" popup itself doesn't show you.
     local blockedAddon, blockedFunction = ...
     local detail = string.format("%s tried to call %s", tostring(blockedAddon), tostring(blockedFunction))
-    -- (9.1.7) The game says UNKNOWN() for protected reads. Name what Guilded was calling (guarded reads
-    -- mark themselves) and the last event Guilded was handling, so the next report points at the cause.
+    -- (9.1.7) The event's own arguments are kept whole (every value the game passed), plus a hint: the guarded
+    -- read that was running when it was raised (the marker exists only during the call) or else the last event
+    -- Guilded handled. A hint never switches anything off; only an exact function name from the game does.
     if blockedAddon == addonName then
+      local extra = {}
+      for i = 3, select("#", ...) do
+        local value = select(i, ...)
+        if not isSecret(value) then extra[#extra + 1] = tostring(value) end
+      end
+      if #extra > 0 then detail = detail .. " [" .. table.concat(extra, ", ") .. "]" end
       local call = ns.guardedCall
-      if call then -- cleared by its own timer two seconds after the call
-        detail = detail .. " (while calling " .. tostring(call.name) .. ")"
-        if ns.guildSnapshot and ns.guildSnapshot.onBlocked then pcall(ns.guildSnapshot.onBlocked, call.name) end
+      if call then
+        detail = detail .. " (raised while calling " .. tostring(call.name) .. ")"
       elseif ns.lastEvent then
         detail = detail .. " (after " .. tostring(ns.lastEvent) .. ")"
       end
+      local named = type(blockedFunction) == "string" and string.gsub(blockedFunction, "%(%)$", "") or nil
+      if named and ns.guildSnapshot and ns.guildSnapshot.onBlocked then pcall(ns.guildSnapshot.onBlocked, named) end
     end
     logDiagnostic(event, detail, blockedAddon ~= addonName)
     -- A refused guild action is never retried on this client build (see RosterTools).

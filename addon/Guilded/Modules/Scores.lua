@@ -372,7 +372,7 @@ register("PLAYER_LOGIN")
 register("CHAT_MSG_ADDON")
 register("GUILD_ROSTER_UPDATE")
 
-local lastLearnAt
+local lastLearnAt, learnPending
 frame:SetScript("OnEvent", function(_, event, ...)
   local args = { ... }
   local ok, err = pcall(function()
@@ -387,12 +387,27 @@ frame:SetScript("OnEvent", function(_, event, ...)
     elseif event == "GUILD_ROSTER_UPDATE" then
       if not active() then return end
       -- (9.1.7) Roster updates come in bursts: relearn the runs at most once a minute, never in combat.
+      local function learnRuns()
+        lastLearnAt = (GetTime and GetTime()) or 0
+        local db2 = ns.getDb and ns.getDb()
+        for _, run in pairs(db2 and db2.dungeon and db2.dungeon.runs or {}) do scores.learn(run) end
+      end
       local at = (GetTime and GetTime()) or 0
-      if lastLearnAt and at - lastLearnAt < 60 and at >= lastLearnAt then return end
-      if InCombatLockdown and InCombatLockdown() then return end
-      lastLearnAt = at
-      local db = ns.getDb and ns.getDb()
-      for _, run in pairs(db and db.dungeon and db.dungeon.runs or {}) do scores.learn(run) end
+      if (lastLearnAt and at - lastLearnAt < 60 and at >= lastLearnAt) or (InCombatLockdown and InCombatLockdown()) then
+        -- Within the minute (or in combat): one trailing run when it ends, so the last state is not lost.
+        if not learnPending and C_Timer and C_Timer.After then
+          learnPending = true
+          local wait = lastLearnAt and math.max(5, 60 - (at - lastLearnAt)) or 5
+          local function trailing()
+            if InCombatLockdown and InCombatLockdown() then C_Timer.After(5, trailing) return end
+            learnPending = false
+            pcall(learnRuns)
+          end
+          C_Timer.After(wait, trailing)
+        end
+        return
+      end
+      learnRuns()
     elseif event == "CHAT_MSG_ADDON" then
       local prefix, text, channel, sender = args[1], args[2], args[3], args[4]
       if ns.isSecret and (ns.isSecret(prefix) or ns.isSecret(text) or ns.isSecret(sender)) then return end

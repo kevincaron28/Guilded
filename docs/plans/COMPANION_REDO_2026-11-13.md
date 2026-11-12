@@ -1,0 +1,238 @@
+# Companion redo: a small, quiet sync tool (13 November 2026)
+
+On 13 November 2026 the owner asked to *"start planning the companion redo, the TSM companion installed is a great example of
+simplicity, just the sync for the companion"*.
+
+This document is a read-only plan for `companion-app/` (the Electron window) and `companion/` (the shared engine), as of
+origin/main at 9.1.6 plus #766. It changes no code. The sync engine, its uploads and its tests stay as they are; only the
+window around them is redone.
+
+## Summary
+
+Today the companion is a full app:
+
+- **Pages:** 9 (Sync, Link everything, Guild, Server, Tools, Settings, Problems, Activity, Help & privacy).
+- **Links and dialogs:** 4 website links and 2 dialogs.
+- **Settings:** an Advanced section with 6 groups.
+- **Tray menu:** 6 items.
+
+The redo is **one small window with four status lines and one "needs you" line**, plus an **Advanced** view. Everything
+that is not syncing moves to the website, the phone app or Discord.
+
+```
++- Guilded Companion ---------------------------- _  x -+
+|  [logo]  Guilded Companion          9.2.0    EN | FR  |
+|                                                       |
+|  (o) World of Warcraft   Found  D:\...\_forever_      |
+|  (o) Guilded addon       Up to date  9.2.0            |
+|  (o) Last sync           2 min ago  (3 runs sent)     |
+|  (o) Synced as           Marie Tremblay  (Discord)    |
+|                          or: This PC, not signed in   |
+|                              [Sign in with Discord]   |
+|  ---------------------------------------------------  |
+|  ! New WoW account found: is it yours?  [Yes] [No]    |  <- only when something needs you
+|                                                       |
+|  [ Sync now ]                  My Guilded ->  Advanced|
++-------------------------------------------------------+
+```
+
+- Each dot is green, amber or red. Only the line that is not green says why.
+- Closing the window keeps the companion running in the tray.
+- The window opens on the first run and whenever something needs the member, and otherwise stays closed.
+
+| Today (where) | Verdict | Goes to / why |
+|---|---|---|
+| Sync page: status card, guild line, device panel, version panel, Repair, Sync now | **KEEP (main window)** | Becomes the four lines, the needs-you line and **Sync now**. Repair runs by itself when a line is red; its button moves to Advanced. |
+| "Is this WoW account yours?" question | **KEEP (main window)** | Shown as the needs-you line, only while unanswered. The bot depends on the answer (`wow-accounts.mjs`). |
+| Sign in with Discord (Link everything) | **KEEP (main window)** | One optional button on the "Synced as" line. Zero-setup sync works without it. |
+| Link everything wizard (4 steps, diagnose, characters table, find data, check characters) | **REMOVE** | Zero-setup already finds the game, the folder and the guild. The diagnosis becomes the needs-you line. |
+| Problems page | **ADVANCED** | The main window shows the worst problem as one line with **Fix it**. The full list sits in Advanced. |
+| Activity log and support summary | **ADVANCED** | For support only: copy the report from there. |
+| Settings: WoW folder and accounts list | **ADVANCED** | Found automatically; change it only if wrong. |
+| Settings: start with Windows, automatic updates, Store updates | **ADVANCED** + tray | Both are on by default. The tray menu keeps a Start with Windows tick. |
+| Settings: Discord account explainer, switch account, sign out, unlink this PC | **ADVANCED** | One "Discord" block. |
+| Settings: guild connections (several servers or profiles) | **ADVANCED** | Kept for members in several guilds. Most members never see a list. |
+| Reset this companion | **ADVANCED** | Kept: removes this PC's settings, the link and unsent data. |
+| Delete my data | **MOVE** to the website `/me` | It is the same erasure (`companion-api.ts:783`). It belongs with the account, not the sync tool. |
+| Guild page (my characters, guild, raid core) | **MOVE** to the website `/me` and the phone app | Both already show characters from `/api/v1/hub`. |
+| Server page (officers: what is ready, main switches) | **MOVE** to the website and Discord `/setup` | Officer setup is not syncing. |
+| Tools: export to spreadsheet | **MOVE** to Discord `/officer export` | It already exists there (`src/services/exports.ts`). |
+| Tools: GRM import | **REMOVE** from the window | A one-time conversion for officers. The module stays (`companion/grm-migration.mjs`) for a developer-run import. |
+| Website links (My Guilded, Leaderboards, Raids, Reserves) and footer (Discord, Ko-fi) | **MERGE** into one "My Guilded" link | The website's own menu leads to the rest. Discord and Ko-fi go to the bottom of Advanced. |
+| Help & privacy page | **MOVE** to the website companion page | Advanced keeps a link plus the one-paragraph privacy summary. |
+| Games switch (WoW, PoE2) and PoE2 log settings | **REMOVE** from the window | PoE2 tracking is off (`ACTIVE_TRACKING = []`). The code and the journal stay for later. |
+| Bot address and Discord server ID filter (Advanced) | **REMOVE** from the window | Set automatically. The config keys stay readable; developers set them in the settings file. |
+| Battle.net connection | **MOVE** to the website `/me/battlenet` | That page already exists. |
+| Tray: Open, Send now, Refresh standings, Start with Windows, Quit, Remove all data and quit | **KEEP 4** | New menu: a status line (greyed), **Open**, **Sync now** (sends and refreshes), **Start with Windows**, **Quit**. Remove-all-data moves to Advanced > Reset. |
+
+## 1. What the companion does today
+
+**Background jobs** (`companion-app/main.cjs:770-850`; `companion/engine.mjs`):
+
+- **Watching the game's files:** the engine watches the addon's SavedVariables folder, with a safety re-read for missed
+  saves. It uploads what changed: the guild export, dungeon runs (`personal-runs.mjs` for Guilded Dungeons), battleground
+  reports, duels, the guild bank, help calls and the rest of the whitelist in `lua-export-content.mjs`.
+- **Downloading standings:** the engine long-polls the standings (12 s) and writes the addon's `Standings.lua`. That file
+  holds the board, orders, invites, promotion, bank, accepted dungeon runs and the link line.
+- **Relaying guildmates:** it carries guildmates' runs and actions that their addons relayed, so one companion serves
+  members without one.
+- **Zero-setup:** it retries every 5 minutes until the device key and server are set (`device-sync.mjs`), and keeps
+  device receipts (`device-receipts.mjs`).
+- **Periodic checks:**
+  - it re-reads saved-file dates every 5 minutes;
+  - it checks every 20 s whether WoW is running, and syncs when WoW closes;
+  - it sleeps and wakes with the PC.
+- **Updates:**
+  - **Self-update** (website build): a fixed-name installer, checked 20 s after start and then every few hours.
+  - **Store update:** every 30 min, at most once in 6 h, never while WoW runs.
+  - **Addon install and update:** `addon-installer.cjs`, website first, GitHub second.
+  - **Store moves:** a sign-in left in a Store copy is imported once, and settings come over when moving from the Store to
+    the website build (`store-migrate.cjs`, `replace-store.ps1`).
+- **Installer hand-off:** the installer leaves a quit request and the running companion closes for it.
+- **Several accounts:** several WoW accounts per PC, with a one-time "is this yours?" question; live-folder switching;
+  several connections (profiles).
+
+**Sign-in paths:**
+
+- zero-setup device key (no sign-in);
+- optional Discord sign-in through the browser, with a loopback finish or a code;
+- a Store sign-in imported once;
+- sign-in and settings kept on upgrade, encrypted with Windows `safeStorage` (`store-config.cjs`).
+
+**Two builds:** the website build updates itself and sets startup itself. The Store build gets updates from the Store and
+its startup from Windows settings. Both builds read the same settings.
+
+**Already covered elsewhere:**
+
+- *Website `/me`:* characters, connections and devices (#765), Battle.net, delete my data, raid plans, reserves,
+  leaderboards.
+- *Phone app:* guild roster, characters, wishlist, raids, map, alerts.
+- *Discord:* `/officer export`, `/setup`.
+
+## 2. The model: the TradeSkillMaster desktop app (ideas only)
+
+The ideas we take, from general knowledge of the app; no code, names or art are copied:
+
+- One small window of status lines (game found, addon up to date, last sync).
+- It lives in the tray and starts with Windows.
+- It finds the game folder and the accounts by itself.
+- It syncs on a timer and whenever the game writes its files.
+- A problem shows as one line, and there are almost no settings.
+
+**Where Guilded differs:**
+
+- **Identity:** a Discord identity (optional, on top of the zero-setup device), and possibly several Discord servers.
+- **Dungeon runs:** they need receipts, so a run is never "waiting" for ever.
+- **Relaying:** the companion carries guildmates who have no companion.
+- **Two-way sync:** it downloads `Standings.lua` for the addon.
+- **The addon itself:** it installs and updates the addon, not only data.
+- **Distribution:** a Store build with its own rules (strictly increasing versions, Store-first guidance, the 3 November
+  objection to the "Guilded Companion" name).
+- **Language:** English and French.
+
+None of these needs a page: each is a line or an automatic job.
+
+## 3. The redo
+
+**Main window** (wireframe above). About 460 by 340, not resizable, follows the Windows theme.
+
+| Line | What it shows | Red or amber looks like |
+|---|---|---|
+| World of Warcraft | Found, with a shortened path | "WoW not found: [Choose folder]" |
+| Guilded addon | Up to date, with version | "Update ready, installs when WoW closes" (amber) or "Not installed: [Install]" (red) |
+| Last sync | Time ago, with what was sent | "Waiting: the game has not saved yet (/reload or log out)" (amber) or "Bot unreachable, retrying in 30 s" (amber) |
+| Synced as | Discord name, or "This PC, not signed in" | "Signed out on another PC: [Sign in]" |
+
+The **needs-you line** shows one item, the most urgent first: a new WoW account to confirm, the wrong server for the in-game
+guild, a run not counted yet (with its reason), a companion update, or low disk space.
+
+**Advanced** is one scrolling view inside the same window, with **Back**:
+
+- WoW folder and accounts;
+- Discord (sign in, switch, sign out, unlink this PC, server picker when there are several);
+- connections;
+- language;
+- start with Windows;
+- automatic updates, or Store updates;
+- Repair;
+- all problems;
+- the activity log and Copy support report;
+- the privacy summary and help link;
+- Reset this companion;
+- Discord community and Ko-fi.
+
+**Must stay**, because the bot or the addon depends on it:
+
+- every upload in `lua-export-content.mjs`, and the device upload and receipts;
+- relays, and the standings download into `Standings.lua`;
+- the personal runs for Guilded Dungeons;
+- the addon installer and updater, self-update and Store update;
+- the Store sign-in import, and the Store-to-website move;
+- the installer quit protocol;
+- multi-account answers and connections;
+- the encrypted settings and `language.json`;
+- the `/api/v1/hub` and manage APIs, which the phone and website still use (only the companion's window stops calling
+  them).
+
+## 4. Implementation method
+
+**A new renderer on the same engine and the same IPC.** `companion/engine.mjs`, `main.cjs`'s jobs and `preload.cjs` stay.
+All sync tests stay untouched; about 60 `tests/companion-*` files cover them.
+
+- **New pure model:** `companion/main-status.mjs`, which turns `engine.state()`, problems, the version and the addon state
+  into the four lines and the needs-you line. It reuses `status-card.mjs`, `sync-status.mjs`, `problems.mjs` and
+  `overview.mjs`, and is tested in Node.
+- **New screens:** `renderer/main.html` and `main.js` (about 250 lines) and `advanced.js`. French goes in
+  `locales/fr.json`, and `companion-i18n.test.ts` already checks the keys.
+
+**Upgrades:** no migration is needed.
+
+- The app id (`com.guilded.companion`), the data folder, the settings file, the encrypted sign-in and `language.json` don't
+  change, so an upgrade keeps everything with no re-setup.
+- Members with several connections see them in Advanced.
+- Remembered pages (`page-visibility.mjs`) are simply ignored.
+
+**Store:**
+
+- Ship as 9.2.0.0 (strictly higher) under the same name and identity.
+- Refresh the Store screenshots, because the window changes.
+- Guidance stays Store-first.
+
+**PRs (each can ship alone):**
+
+| # | PR | Size |
+|---|---|---|
+| C1 | `companion/main-status.mjs` and its tests (pure, no UI change) | S (about +250) |
+| C2 | New main window and Advanced view. The old pages stay reachable from Advanced > "Old window" for one release as a safety net. | M-L (about +700) |
+| C3 | Tray menu down to 4 items with a status line; the window opens only on first run or when needed; close goes to the tray | S |
+| C4 | Moves and removals: Guild, Server, Tools, Help pages, website links, PoE2 and bot-address settings, Battle.net, delete-my-data (each now points to the website or Discord). Update `companion-navigation`, `settings-page` and `plain-words` tests. | M (mostly deletions) |
+| C5 | Remove the old window and its now-unused IPC channels (from the `ipc-security` allowlist and `preload.cjs`), unused `fr.json` keys and packaging entries | M (about −2,000) |
+| C6 | Website companion page, guides, `/help` and Store listing screenshots and text for the new window | S |
+
+C1 must land before C2. C3 and C4 need C2. C5 needs one release with C2 to C4 in members' hands, and C6 ships with C5.
+
+**Checks on a real Windows PC and Store install:**
+
+- **Fresh website install:** it finds the game, installs the addon and syncs without sign-in, all within 5 minutes, and
+  the window then stays in the tray.
+- **Upgrade from 9.1.6** (website build and Store build): settings, sign-in, start with Windows and connections are all
+  kept.
+- **Store 9.2.0.0 certification:** it passes, and the Windows startup task still works.
+- **Store to website switch:** `replace-store.ps1` still works.
+- **Two WoW accounts:** the question appears once.
+- **Display:** French Windows, and 150% display scaling (the small window must not clip).
+- **Tray:** works on Windows 10 and 11.
+- **Self-update:** the update hand-off closes the old companion.
+- **Dungeon runs:** they reach Discord, and receipts mark them accepted in the addon.
+
+## 5. Decisions for the owner
+
+1. **Move the Guild and Server pages out** to the website `/me` and the phone (officer switches to the website and
+   Discord). *Recommend: yes.*
+2. **Spreadsheet export only through Discord `/officer export`, and GRM import removed from the window.** *Recommend: yes.*
+3. **Window behaviour:** it opens on the first run and when something needs the member, and otherwise lives in the tray.
+   The website build starts with Windows by default; the Store build asks Windows once. *Recommend: yes.*
+4. **Notifications:** one Windows notification only when something needs the member, and none for successful syncs.
+   *Recommend: yes.*
+5. **Name:** keep "Guilded Companion" and the Store identity, to avoid a new Store name review after the 3 November
+   objection. *Recommend: keep.*

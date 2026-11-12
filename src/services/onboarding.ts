@@ -13,6 +13,7 @@ import { createGuildService } from "./guild.js";
 import { characterLinkPrompt } from "./character-link-prompt.js";
 import { issueCharacterPairingCode } from "./character-pairing.js";
 import { selfRoleProblem } from "./selfrole.js";
+import { runAutoGameReminders, stopReminders } from "./game-reminder.js";
 import { asLang, t, type Lang } from "../i18n.js";
 
 // Onboarding: the buttons a new member gets on the welcome message and on the pinned panel of
@@ -41,7 +42,7 @@ const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
 const NUDGE_UNTIL_MS = 72 * 60 * 60 * 1000;
 const NUDGES_PER_RUN = 25;
 
-type Action = "rules" | "accept" | "games" | "pick" | "pair" | "chat" | "companion" | "paircode" | "steps";
+type Action = "rules" | "accept" | "games" | "pick" | "pair" | "chat" | "companion" | "paircode" | "steps" | "stop";
 const customId = (action: Action, discordGuildId: string) => `${ONBOARD_PREFIX}${action}:${discordGuildId}`;
 
 type StepSettings = Pick<GuildSettings, "welcomeRoleIds" | "rulesChannelId">;
@@ -195,6 +196,13 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
   const checklist = async (progress?: OnboardingProgress) =>
     checklistText(progress ?? await loadProgress(guild.id, settings, member), lang, discordGuild.name);
 
+  // The "Stop reminders" button of a game reminder: remembered, and it works whatever else is pending.
+  if (action === "stop") {
+    await stopReminders(prisma, guild.id, member.id);
+    await interaction.editReply({ content: t(lang, "gamerem.stopped") });
+    return;
+  }
+
   if (action === "steps") {
     await interaction.editReply({ content: await checklist(), components: [buttons()] });
     return;
@@ -342,4 +350,12 @@ export async function runOnboardingNudges(client: Client, now = new Date()): Pro
     }
   }
   return sent;
+}
+
+// The automatic game reminder (its own switch, /report games auto, off by default). Only queues; see game-reminder.ts.
+export async function runGameReminders(client: Client, now = new Date()): Promise<number> {
+  return runAutoGameReminders(client, prisma, async (discordGuild) => {
+    const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
+    return { id: guild.id, settings: await guildService.getSettings(guild.id) };
+  }, (id) => hostedPilot.allows(id), now);
 }

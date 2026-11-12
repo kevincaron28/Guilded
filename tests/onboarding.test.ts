@@ -321,3 +321,16 @@ describe("reminder", () => {
     expect(await runOnboardingNudges(joined(30).client as never, now)).toBe(0);
   });
 });
+
+describe("stop reminders button", () => {
+  it("remembers the member's choice and answers without asking for the rules first", async () => {
+    useSettings(baseSettings);
+    const member = fakeMember();
+    const interaction = click("onboard:stop:g1", fakeGuild(member));
+    await handleOnboardingInteraction(interaction as never);
+    expect(db.memberOnboarding.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ remindersStopped: true }), update: { remindersStopped: true }
+    }));
+    expect(interaction.editReply.mock.calls[0]![0].content).toContain("no more reminders");
+  });
+});

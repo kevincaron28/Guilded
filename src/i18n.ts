@@ -414,6 +414,8 @@ const STRINGS = {
   "gamerem.result.queued": { en: "Reminders queued: {count} (sent a few at a time).", fr: "Rappels en file : {count} (envoyés quelques-uns à la fois)." },
   "gamerem.result.stopped": { en: "Skipped, asked to stop: {count}.", fr: "Ignorés, ont demandé d'arrêter : {count}." },
   "gamerem.result.closed": { en: "Skipped, DMs closed: {count}.", fr: "Ignorés, MP fermés : {count}." },
+  "gamerem.result.capped": { en: "Skipped, already reminded {max} times: {count}.", fr: "Ignorés, déjà rappelés {max} fois : {count}." },
+  "gamerem.cooldown": { en: "\"Remind all\" was already used this week. You can use it again {when}. You can still remind a page or one member.", fr: "« Rappeler tous » a déjà été utilisé cette semaine. Vous pourrez le refaire {when}. Vous pouvez encore rappeler une page ou un membre." },
   "gamerem.result.recent": { en: "Skipped, reminded in the last 24 hours: {count}.", fr: "Ignorés, rappelés depuis moins de 24 h : {count}." },
   "gamerem.result.gone": { en: "Skipped, already picked a game, left or a bot: {count}.", fr: "Ignorés, jeu déjà choisi, parti ou robot : {count}." },
   "gamerem.auto.on": { en: "Automatic reminder **on**: a member with no game gets one private message a day after joining, and one more a week later at most. Never more.", fr: "Rappel automatique **activé** : un membre sans jeu reçoit un message privé un jour après son arrivée, puis un seul autre une semaine plus tard au plus. Jamais plus." },

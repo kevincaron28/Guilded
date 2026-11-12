@@ -15,11 +15,12 @@ vi.mock("../src/services/character-pairing.js", () => ({
 }));
 
 import {
-  checklistText, handleOnboardingInteraction, onboardingGuildService, onboardingIncomplete, welcomePanel
+  checklistText, handleOnboardingInteraction, onboardingGuildService, onboardingIncomplete, runOnboardingNudges, welcomePanel
 } from "../src/services/onboarding.js";
 import { handleMemberJoin, welcomeGuildService } from "../src/services/housekeeping.js";
 import { issueCharacterPairingCode } from "../src/services/character-pairing.js";
 
+const HOUR = 60 * 60 * 1000;
 const role = (id: string, name: string, permissions = 0n, managed = false) => ({ id, name, managed, permissions: { bitfield: permissions } });
 const baseSettings = {
   language: "en", welcomeRoleIds: ["wow", "poe"], welcomeRolePrompt: null, rulesChannelId: "rules", rulesGate: true,
@@ -284,6 +285,40 @@ describe("game menu and pairing", () => {
     await handleOnboardingInteraction(interaction as never);
     expect(member.roles.cache.has("wow")).toBe(false);
     expect(interaction.editReply.mock.calls[0]![0].content).toContain("✅ Pick your games");
+  });
+});
+
+describe("reminder", () => {
+  const now = new Date("2026-10-02T12:00:00Z");
+  const joined = (hoursAgo: number, extra: Record<string, unknown> = {}) => {
+    const member = fakeMember([], { joinedTimestamp: now.getTime() - hoursAgo * HOUR, ...extra });
+    return { member, client: { guilds: { cache: new Map([["g1", fakeGuild(member)]]) } } };
+  };
+
+  it("reminds once, a day after joining, and marks it before sending", async () => {
+    const { member, client } = joined(30);
+    useSettings(baseSettings);
+    member.send.mockImplementation(async () => { expect(db.memberOnboarding.upsert).toHaveBeenCalledTimes(1); });
+    expect(await runOnboardingNudges(client as never, now)).toBe(1);
+    expect(customIds(member.send.mock.calls[0]![0])).toContain("onboard:rules:g1");
+    db.memberOnboarding.findUnique.mockResolvedValue({ nudgedAt: now });
+    expect(await runOnboardingNudges(client as never, now)).toBe(0);
+  });
+
+  it("leaves alone the too recent, the long-time members, the finished and the servers with it off", async () => {
+    useSettings(baseSettings);
+    for (const hours of [2, 200]) {
+      const { member, client } = joined(hours);
+      expect(await runOnboardingNudges(client as never, now)).toBe(0);
+      expect(member.send).not.toHaveBeenCalled();
+    }
+    const done = joined(30);
+    done.member.roles.cache.has = (id: string) => id === "wow";
+    db.memberOnboarding.findUnique.mockResolvedValue({ rulesAcceptedAt: now });
+    expect(await runOnboardingNudges(done.client as never, now)).toBe(0);
+    db.memberOnboarding.findUnique.mockResolvedValue(null);
+    useSettings({ ...baseSettings, onboardingNudge: false });
+    expect(await runOnboardingNudges(joined(30).client as never, now)).toBe(0);
   });
 });
 

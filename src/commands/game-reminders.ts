@@ -6,7 +6,7 @@ import { prisma } from "../database.js";
 import { hostedPilot } from "../hosted-pilot.js";
 import { hasPermission } from "../permissions.js";
 import { asLang, t, type Lang } from "../i18n.js";
-import { PAGE_SIZE, listNoGame, queueManualReminders, type NoGameRow, type QueueResult } from "../services/game-reminder.js";
+import { LIFETIME_MAX_REMINDERS, PAGE_SIZE, listNoGame, queueManualReminders, remindAllBlockedUntil, type NoGameRow, type QueueResult } from "../services/game-reminder.js";
 import { officerAccess } from "./officer-tools.js";
 import { guildService } from "./context.js";
 
@@ -63,6 +63,7 @@ function resultText(lang: Lang, r: QueueResult): string {
   const lines = [t(lang, "gamerem.result.queued", { count: r.queued })];
   if (r.stopped) lines.push(t(lang, "gamerem.result.stopped", { count: r.stopped }));
   if (r.dmClosed) lines.push(t(lang, "gamerem.result.closed", { count: r.dmClosed }));
+  if (r.capped) lines.push(t(lang, "gamerem.result.capped", { count: r.capped, max: LIFETIME_MAX_REMINDERS }));
   if (r.recent) lines.push(t(lang, "gamerem.result.recent", { count: r.recent }));
   if (r.gone) lines.push(t(lang, "gamerem.result.gone", { count: r.gone }));
   return lines.join("\n");
@@ -90,8 +91,8 @@ export async function executeGameReminders(interaction: ChatInputCommandInteract
 
   if (sub === "auto") {
     const enabled = interaction.options.getBoolean("enabled");
-    if (enabled !== null) await guildService.updateSettings(guildId, { onboardingNudge: enabled });
-    const on = enabled ?? settings.onboardingNudge;
+    if (enabled !== null) await guildService.updateSettings(guildId, { gameReminderAuto: enabled });
+    const on = enabled ?? settings.gameReminderAuto;
     await interaction.editReply({ content: t(lang, on ? "gamerem.auto.on" : "gamerem.auto.off") });
     return;
   }
@@ -141,6 +142,15 @@ export async function handleGameReminderButton(interaction: ButtonInteraction): 
       allowedMentions: { parse: [] }
     });
     return;
+  }
+  if (action === "allgo") {
+    // "Remind all" is limited to once a week per server; paging and "this page" stay available.
+    const until = remindAllBlockedUntil(settings.gameRemindAllAt, new Date());
+    if (until) {
+      await interaction.editReply({ content: t(lang, "gamerem.cooldown", { when: ts(until) }), components: [], allowedMentions: { parse: [] } });
+      return;
+    }
+    await guildService.updateSettings(guildId, { gameRemindAllAt: new Date() });
   }
   if (action === "these" || action === "allgo") {
     const ids = action === "these" ? renderList(lang, listed.rows, Number(arg) || 1).slice.map((r) => r.id) : listed.rows.map((r) => r.id);

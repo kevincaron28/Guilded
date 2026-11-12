@@ -383,7 +383,7 @@ export async function renderStep(step: number, guild: DiscordGuild, guildId: str
       T("🎮 **Game roles:** {roles}", { roles: offered || T("*none*") }),
       T("📜 **Rules channel:** {channel}", { channel: channelLabel(lang, settings.rulesChannelId) }),
       T("🔒 **Rules required first:** {state}", { state: onOff(rulesGateActive(settings)) }),
-      T("⏰ **Game reminder (a day, then a week):** {state}", { state: onOff(settings.onboardingNudge) }),
+      T("⏰ **One reminder after a day:** {state}", { state: onOff(settings.onboardingNudge) }),
       "",
       T("The welcome message and a pinned **Start here** panel in the welcome channel carry the same buttons: rules, game menu, WoW character pairing and a personal checklist. Every answer is private. Game roles (up to 25, create them first in Server Settings → Roles) let people see only the games they picked."),
       "",
@@ -1189,7 +1189,7 @@ ${await ensureCommunitySetup(guild, prisma, guildId, lang, i.user.id)
           await guildService.updateSettings(guildId, { onboardingNudge: !current?.onboardingNudge });
           note = current?.onboardingNudge
             ? T("Reminder off.")
-            : T("Reminder on: a member with no game gets one private message a day after joining and one more a week later, never more (they can stop it). Officers: `/report games list`.");
+            : T("Reminder on: someone who has not finished a day after joining gets one private message, once.");
         } else if (action === "epgp-recommended") {
           await guildService.updateSettings(guildId, RECOMMENDED_EPGP);
           note = T("Recommended EPGP values saved.");

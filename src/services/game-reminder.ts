@@ -2,9 +2,7 @@ import type { Client, Guild as DiscordGuild, GuildMember } from "discord.js";
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle } from "discord.js";
 import type { DiscordJob, GuildSettings, MemberOnboarding, PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
-import { enqueueDiscordJob } from "./discord-jobs.js";
 import { findWowRoleId } from "./invite-channel.js";
-import { selfRoleProblem } from "./selfrole.js";
 
 // Members who joined the Discord server but have not picked a game.
 //
@@ -35,6 +33,14 @@ export const AUTO_FIRST_UNTIL_MS = 72 * HOUR;
 export const AUTO_SECOND_AFTER_MS = 7 * 24 * HOUR;
 export const AUTO_SECOND_UNTIL_MS = 21 * 24 * HOUR;
 export const AUTO_MAX_REMINDERS = 2;
+// All reminders to one member, automatic and officer, ever.
+export const LIFETIME_MAX_REMINDERS = 3;
+// "Remind all" can be used once per server in this time.
+export const REMIND_ALL_COOLDOWN_MS = 7 * 24 * HOUR;
+// Reminders are queued this far apart, so a big batch never holds the shared job queue.
+export const SPACING_MS = 6_000;
+// A reminder that keeps failing (other than closed DMs) is given up after this many tries.
+export const MAX_ATTEMPTS = 4;
 export const MANUAL_SPACING_MS = 24 * HOUR;
 // A hourly run queues at most this many; the job queue paces the delivery.
 export const AUTO_PER_RUN = 25;
@@ -60,10 +66,8 @@ type RoleSource = Pick<GuildSettings, "welcomeRoleIds" | "inviteWowRoleId">;
 /** The ids of the roles that count as "has picked a game" in this server. */
 export function gameRoleIds(settings: RoleSource, discordGuild: Pick<DiscordGuild, "id" | "roles">): string[] {
   const ids = new Set<string>();
-  for (const id of settings.welcomeRoleIds) {
-    const role = discordGuild.roles.cache.get(id);
-    if (role && !selfRoleProblem({ id: role.id, managed: role.managed, permissions: role.permissions.bitfield }, discordGuild.id)) ids.add(id);
-  }
+  // Membership counts every configured game role, even one the bot would refuse to hand out.
+  for (const id of settings.welcomeRoleIds) if (discordGuild.roles.cache.has(id)) ids.add(id);
   const wow = findWowRoleId(discordGuild.roles.cache.values(), settings.inviteWowRoleId);
   if (wow && settings.welcomeRoleIds.length > 0) ids.add(wow);
   return [...ids];
@@ -128,24 +132,30 @@ export function autoDue(state: ReminderState | null, ageMs: number, now: Date): 
  * Counts a reminder and queues it, once. The conditional update means two runs (or a run and a click) that
  * both read "no reminder yet" cannot both win. Returns false when someone else got there first.
  */
-async function claim(db: Db, guildId: string, discordUserId: string, state: ReminderState | null, source: ReminderSource, now: Date): Promise<number | null> {
+async function claim(db: Db, guildId: string, discordUserId: string, state: ReminderState | null, source: ReminderSource, now: Date, cap: number, slot: number): Promise<number | null> {
   const next = (state?.reminderCount ?? 0) + 1;
   const data = { reminderCount: next, lastReminderAt: now, lastReminderSource: source };
   if (!state) {
     try { await db.memberOnboarding.create({ data: { guildId, discordUserId, ...data } }); } catch { return null; }
   } else {
-    const won = await db.memberOnboarding.updateMany({ where: { guildId, discordUserId, reminderCount: state.reminderCount, remindersStopped: false }, data });
+    const won = await db.memberOnboarding.updateMany({ where: { guildId, discordUserId, reminderCount: { equals: state.reminderCount, lt: cap }, remindersStopped: false }, data });
     if (won.count !== 1) return null;
   }
-  await enqueueDiscordJob(db, guildId, `game-reminder:${discordUserId}:${next}`, "GAME_REMINDER", { discordUserId, source, n: next });
+  // Spread over time: the nth reminder of a batch is due n slots from now, so other job types interleave.
+  const dueAt = new Date(now.getTime() + slot * SPACING_MS);
+  await db.discordJob.upsert({
+    where: { guildId_key: { guildId, key: `game-reminder:${discordUserId}:${next}` } },
+    create: { guildId, key: `game-reminder:${discordUserId}:${next}`, kind: "GAME_REMINDER", payload: { discordUserId, source, n: next }, nextAttemptAt: dueAt },
+    update: {}
+  });
   return next;
 }
 
-export interface QueueResult { queued: number; stopped: number; dmClosed: number; recent: number; gone: number }
+export interface QueueResult { queued: number; stopped: number; dmClosed: number; recent: number; gone: number; capped: number }
 
 /** An officer's reminder to these members. Re-checks every one against the live roles and saved state. */
 export async function queueManualReminders(db: Db & Pick<PrismaClient, "memberOnboarding">, guildId: string, discordGuild: DiscordGuild, settings: RoleSource, userIds: string[], now = new Date()): Promise<QueueResult> {
-  const result: QueueResult = { queued: 0, stopped: 0, dmClosed: 0, recent: 0, gone: 0 };
+  const result: QueueResult = { queued: 0, stopped: 0, dmClosed: 0, recent: 0, gone: 0, capped: 0 };
   const roleIds = gameRoleIds(settings, discordGuild);
   if (roleIds.length === 0) return result;
   for (const userId of userIds) {
@@ -154,7 +164,8 @@ export async function queueManualReminders(db: Db & Pick<PrismaClient, "memberOn
     const state = await db.memberOnboarding.findUnique({ where: { guildId_discordUserId: { guildId, discordUserId: userId } } });
     const block = manualBlock({ stopped: !!state?.remindersStopped, dmClosed: !!state?.dmClosedAt }, state, now);
     if (block) { result[block] += 1; continue; }
-    if (await claim(db, guildId, userId, state, "OFFICER", now) !== null) result.queued += 1; else result.recent += 1;
+    if ((state?.reminderCount ?? 0) >= LIFETIME_MAX_REMINDERS) { result.capped += 1; continue; }
+    if (await claim(db, guildId, userId, state, "OFFICER", now, LIFETIME_MAX_REMINDERS, result.queued) !== null) result.queued += 1; else result.recent += 1;
   }
   return result;
 }
@@ -165,7 +176,7 @@ export async function runAutoGameReminders(client: Client, db: Db, guildFor: (di
   for (const discordGuild of client.guilds.cache.values()) {
     if (!allowed(discordGuild.id)) continue;
     const { id: guildId, settings } = await guildFor(discordGuild);
-    if (!settings?.onboardingNudge) continue;
+    if (!settings?.gameReminderAuto) continue;
     const roleIds = gameRoleIds(settings, discordGuild);
     if (roleIds.length === 0) continue;
     const members = await loadMembers(discordGuild);
@@ -178,7 +189,7 @@ export async function runAutoGameReminders(client: Client, db: Db, guildFor: (di
       if (age < AUTO_FIRST_AFTER_MS || age >= AUTO_SECOND_UNTIL_MS) continue;
       const state = await db.memberOnboarding.findUnique({ where: { guildId_discordUserId: { guildId, discordUserId: member.id } } });
       if (!autoDue(state, age, now)) continue;
-      if (await claim(db, guildId, member.id, state, "AUTO", now) !== null) { inGuild += 1; queued += 1; }
+      if (await claim(db, guildId, member.id, state, "AUTO", now, AUTO_MAX_REMINDERS, inGuild) !== null) { inGuild += 1; queued += 1; }
     }
   }
   return queued;
@@ -197,11 +208,11 @@ export function reminderMessage(settings: Pick<GuildSettings, "welcomeChannelId"
 }
 
 /** Delivers one queued reminder. Re-checks everything now; a member who has since picked a game gets nothing. */
-export async function deliverGameReminder(discordGuild: DiscordGuild, db: Db, settings: GuildSettings | null, job: Pick<DiscordJob, "guildId" | "payload" | "createdAt">): Promise<"sent" | "skipped" | "dmClosed"> {
+export async function deliverGameReminder(discordGuild: DiscordGuild, db: Db, settings: GuildSettings | null, job: Pick<DiscordJob, "guildId" | "payload" | "createdAt" | "attempts">): Promise<"sent" | "skipped" | "dmClosed" | "failed"> {
   const payload = job.payload as { discordUserId?: string; source?: ReminderSource; n?: number };
   const userId = String(payload.discordUserId ?? "");
   if (!settings || !userId) return "skipped";
-  if (payload.source === "AUTO" && !settings.onboardingNudge) return "skipped";
+  if (payload.source === "AUTO" && !settings.gameReminderAuto) return "skipped";
   const roleIds = gameRoleIds(settings, discordGuild);
   const member = await discordGuild.members.fetch(userId).catch(() => null);
   if (!member || member.user.bot || roleIds.length === 0 || hasGameRole(member, roleIds)) return "skipped";
@@ -217,6 +228,12 @@ export async function deliverGameReminder(discordGuild: DiscordGuild, db: Db, se
       await db.memberOnboarding.updateMany({ where: { guildId: job.guildId, discordUserId: userId }, data: { dmClosedAt: new Date() } });
       return "dmClosed";
     }
+    // Retried with the queue's backoff, but not for ever: after MAX_ATTEMPTS it is recorded and dropped.
+    if (job.attempts >= MAX_ATTEMPTS) {
+      console.error(`Game reminder to ${userId} given up after ${job.attempts} attempts`);
+      await db.memberOnboarding.updateMany({ where: { guildId: job.guildId, discordUserId: userId }, data: { dmClosedAt: new Date() } });
+      return "failed";
+    }
     throw error;
   }
   await db.memberOnboarding.updateMany({ where: { guildId: job.guildId, discordUserId: userId }, data: { lastSentAt: new Date() } });
@@ -230,4 +247,11 @@ export async function stopReminders(db: Pick<PrismaClient, "memberOnboarding">, 
     create: { guildId, discordUserId, remindersStopped: true },
     update: { remindersStopped: true }
   });
+}
+
+/** The next time "remind all" may be used in this server, or null when it may be used now. */
+export function remindAllBlockedUntil(lastAt: Date | null | undefined, now: Date): Date | null {
+  if (!lastAt) return null;
+  const until = new Date(lastAt.getTime() + REMIND_ALL_COOLDOWN_MS);
+  return until.getTime() > now.getTime() ? until : null;
 }

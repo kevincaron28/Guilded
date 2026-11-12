@@ -7,7 +7,7 @@ ALTER TABLE "MemberOnboarding"
   ADD COLUMN "remindersStopped" BOOLEAN NOT NULL DEFAULT false,
   ADD COLUMN "dmClosedAt" TIMESTAMP(3);
 
--- The one reminder the old onboarding nudge already sent counts as the first automatic one.
-UPDATE "MemberOnboarding"
-  SET "reminderCount" = 1, "lastReminderAt" = "nudgedAt", "lastReminderSource" = 'AUTO', "lastSentAt" = "nudgedAt"
-  WHERE "nudgedAt" IS NOT NULL;
+-- Their own automatic switch (off by default) and the time of the last "remind all".
+ALTER TABLE "GuildSettings"
+  ADD COLUMN "gameReminderAuto" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN "gameRemindAllAt" TIMESTAMP(3);

@@ -157,6 +157,8 @@ export function createGuildService(database: PrismaClient) {
       rulesChannelId?: string | null;
       rulesGate?: boolean;
       onboardingNudge?: boolean;
+      gameReminderAuto?: boolean;
+      gameRemindAllAt?: Date | null;
       farewellChannelId?: string | null;
       farewellMessageTemplate?: string | null;
       applicantRoleId?: string | null;

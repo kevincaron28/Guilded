@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  AUTO_PER_RUN, HOUR, autoDue, deliverGameReminder, gameRoleIds, listNoGame, manualBlock, queueManualReminders,
-  reminderMessage, runAutoGameReminders, stopReminders, type ReminderState
+  AUTO_PER_RUN, HOUR, LIFETIME_MAX_REMINDERS, MAX_ATTEMPTS, SPACING_MS, autoDue, deliverGameReminder, gameRoleIds, listNoGame, manualBlock, queueManualReminders,
+  reminderMessage, remindAllBlockedUntil, runAutoGameReminders, stopReminders, type ReminderState
 } from "../src/services/game-reminder.js";
 import { renderList } from "../src/commands/game-reminders.js";
 
@@ -25,7 +25,16 @@ function fakeDb() {
       updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
         const row = rows.get(key(where as never));
         if (!row) return { count: 0 };
-        for (const field of ["reminderCount", "remindersStopped"]) if (field in where && row[field] !== where[field]) return { count: 0 };
+        // The same filters the database applies: equality, and { equals, lt }.
+        for (const field of ["reminderCount", "remindersStopped"]) {
+          const want = where[field];
+          if (want === undefined) continue;
+          const have = row[field] as number;
+          if (typeof want === "object" && want !== null) {
+            const f = want as { equals?: number; lt?: number };
+            if ((f.equals !== undefined && have !== f.equals) || (f.lt !== undefined && !(have < f.lt))) return { count: 0 };
+          } else if (have !== want) return { count: 0 };
+        }
         Object.assign(row, data);
         return { count: 1 };
       }),
@@ -36,7 +45,7 @@ function fakeDb() {
     },
     discordJob: {
       upsert: vi.fn(async ({ where, create }: { where: { guildId_key: { guildId: string; key: string } }; create: Record<string, unknown> }) => {
-        jobs.set(where.guildId_key.key, { ...create, createdAt: new Date() });
+        if (!jobs.has(where.guildId_key.key)) jobs.set(where.guildId_key.key, { ...create, createdAt: new Date() });
       })
     }
   };
@@ -44,7 +53,7 @@ function fakeDb() {
 }
 
 const role = (id: string, name: string, permissions = 0n, managed = false) => ({ id, name, managed, permissions: { bitfield: permissions } });
-const settings = { welcomeRoleIds: ["wow", "poe"], inviteWowRoleId: null, rulesChannelId: "rules", onboardingNudge: true, language: "en", welcomeChannelId: "welcome" } as never;
+const settings = { welcomeRoleIds: ["wow", "poe"], inviteWowRoleId: null, rulesChannelId: "rules", gameReminderAuto: true, language: "en", welcomeChannelId: "welcome" } as never;
 const now = new Date("2026-11-12T12:00:00Z");
 
 function fakeMember(id: string, held: string[], hoursAgo: number, extra: Record<string, unknown> = {}) {
@@ -74,9 +83,10 @@ let db: ReturnType<typeof fakeDb>;
 beforeEach(() => { db = fakeDb(); });
 
 describe("game roles and the officer list", () => {
-  it("reads the game roles from the server's settings, never from fixed names, and drops unsafe roles", () => {
+  it("reads the game roles from the server's settings, never from fixed names, and keeps flagged ones", () => {
     const guild = fakeGuild([]);
-    expect(gameRoleIds({ welcomeRoleIds: ["wow", "poe", "admin", "gone"], inviteWowRoleId: null } as never, guild).sort()).toEqual(["poe", "wow"]);
+    // A flagged role still counts as "has a game": flagging only limits what the bot hands out.
+    expect(gameRoleIds({ welcomeRoleIds: ["wow", "poe", "admin", "gone"], inviteWowRoleId: null } as never, guild).sort()).toEqual(["admin", "poe", "wow"]);
     expect(gameRoleIds({ welcomeRoleIds: [], inviteWowRoleId: null } as never, guild)).toEqual([]);
     const custom = fakeGuild([], [role("d4", "Diablo IV"), role("lol", "League")]);
     expect(gameRoleIds({ welcomeRoleIds: ["d4", "lol"], inviteWowRoleId: null } as never, custom).sort()).toEqual(["d4", "lol"]);
@@ -112,7 +122,7 @@ describe("manual reminders", () => {
     db.rows.set("db1:closed", { reminderCount: 1, remindersStopped: false, dmClosedAt: now });
     db.rows.set("db1:recent", { reminderCount: 1, remindersStopped: false, lastReminderAt: new Date(now.getTime() - 2 * HOUR) });
     const result = await queueManualReminders(db as never, "db1", guild, settings, ["a", "stopped", "closed", "recent", "picked", "bot"], now);
-    expect(result).toEqual({ queued: 1, stopped: 1, dmClosed: 1, recent: 1, gone: 2 });
+    expect(result).toEqual({ queued: 1, stopped: 1, dmClosed: 1, recent: 1, gone: 2, capped: 0 });
     expect([...db.jobs.keys()]).toEqual(["game-reminder:a:1"]);
     expect(db.rows.get("db1:a")).toMatchObject({ reminderCount: 1, lastReminderSource: "OFFICER" });
   });
@@ -125,6 +135,60 @@ describe("manual reminders", () => {
     ]);
     expect(one.queued + two.queued).toBe(1);
     expect(db.jobs.size).toBe(1);
+  });
+});
+
+describe("caps, cooldown and pacing", () => {
+  it("a member is reminded at most the lifetime cap across officer and automatic sends, whatever the day", async () => {
+    const guild = fakeGuild([fakeMember("a", [], 80)]);
+    let at = now;
+    for (let i = 0; i < LIFETIME_MAX_REMINDERS + 2; i += 1) {
+      await queueManualReminders(db as never, "db1", guild, settings, ["a"], at);
+      at = new Date(at.getTime() + 2 * 24 * HOUR);
+    }
+    expect(db.rows.get("db1:a")!["reminderCount"]).toBe(LIFETIME_MAX_REMINDERS);
+    expect(db.jobs.size).toBe(LIFETIME_MAX_REMINDERS);
+    const last = await queueManualReminders(db as never, "db1", guild, settings, ["a"], at);
+    expect(last).toMatchObject({ queued: 0, capped: 1 });
+  });
+
+  it("the database filter refuses an automatic reminder past its cap even when the read was stale", async () => {
+    // Two reminders already saved, but this run read the member as having none.
+    db.rows.set("db1:a", { reminderCount: 2, remindersStopped: false, lastReminderSource: "AUTO", lastReminderAt: new Date(0), lastSentAt: new Date(0), dmClosedAt: null });
+    const stale = { reminderCount: 0, lastReminderAt: null };
+    const real = db.memberOnboarding.findUnique;
+    db.memberOnboarding.findUnique = vi.fn(async () => ({ ...db.rows.get("db1:a"), ...stale })) as never;
+    const guild = fakeGuild([fakeMember("a", [], 30)]);
+    expect(await runAutoGameReminders(clientOf(guild as never), db as never, guildFor(), allowed, now)).toBe(0);
+    db.memberOnboarding.findUnique = real;
+    expect(db.jobs.size).toBe(0);
+  });
+
+  it("remind all can be used once a week per server", () => {
+    expect(remindAllBlockedUntil(null, now)).toBeNull();
+    expect(remindAllBlockedUntil(new Date(now.getTime() - 6 * 24 * HOUR), now)).toBeInstanceOf(Date);
+    expect(remindAllBlockedUntil(new Date(now.getTime() - 8 * 24 * HOUR), now)).toBeNull();
+  });
+
+  it("spreads a big batch into slots so other job types interleave", async () => {
+    const members = Array.from({ length: 300 }, (_, i) => fakeMember(`u${i}`, [], 80));
+    const result = await queueManualReminders(db as never, "db1", fakeGuild(members), settings, members.map((m) => m.id), now);
+    expect(result.queued).toBe(300);
+    const due = [...db.jobs.values()].map((j) => (j["nextAttemptAt"] as Date).getTime() - now.getTime());
+    expect(Math.min(...due)).toBe(0);
+    expect(Math.max(...due)).toBe(299 * SPACING_MS);
+    // At most a handful are due in any one minute: the queue's batch of 25 is never filled by this job.
+    const inFirstMinute = due.filter((d) => d < 60_000).length;
+    expect(inFirstMinute).toBeLessThanOrEqual(10);
+  });
+
+  it("gives a failing reminder up after the attempt limit instead of retrying for ever", async () => {
+    db.rows.set("db1:b", { reminderCount: 1, remindersStopped: false, lastSentAt: null, dmClosedAt: null });
+    const broken = fakeMember("b", [], 30, { send: vi.fn().mockRejectedValue(Object.assign(new Error("down"), { code: 500 })) });
+    const job = (attempts: number) => ({ guildId: "db1", createdAt: new Date(now.getTime() - 1000), attempts, payload: { discordUserId: "b", source: "OFFICER", n: 1 } }) as never;
+    await expect(deliverGameReminder(fakeGuild([broken]), db as never, settings, job(MAX_ATTEMPTS - 1))).rejects.toThrow("down");
+    expect(await deliverGameReminder(fakeGuild([broken]), db as never, settings, job(MAX_ATTEMPTS))).toBe("failed");
+    expect(db.rows.get("db1:b")!["dmClosedAt"]).toBeInstanceOf(Date);
   });
 });
 
@@ -149,7 +213,7 @@ describe("automatic schedule", () => {
 
   it("does nothing while the server's switch is off, and does nothing when no game role is configured", async () => {
     const guild = fakeGuild([fakeMember("a", [], 30)]);
-    expect(await runAutoGameReminders(clientOf(guild as never), db as never, guildFor({ ...(settings as object), onboardingNudge: false }), allowed, now)).toBe(0);
+    expect(await runAutoGameReminders(clientOf(guild as never), db as never, guildFor({ ...(settings as object), gameReminderAuto: false }), allowed, now)).toBe(0);
     expect(await runAutoGameReminders(clientOf(guild as never), db as never, guildFor({ ...(settings as object), welcomeRoleIds: [] }), allowed, now)).toBe(0);
     expect(db.jobs.size).toBe(0);
   });
@@ -185,7 +249,7 @@ describe("automatic schedule", () => {
 });
 
 describe("delivery", () => {
-  const job = (extra: Record<string, unknown> = {}) => ({ guildId: "db1", createdAt: new Date(now.getTime() - 1000), payload: { discordUserId: "a", source: "OFFICER", n: 1 }, ...extra }) as never;
+  const job = (extra: Record<string, unknown> = {}) => ({ guildId: "db1", attempts: 1, createdAt: new Date(now.getTime() - 1000), payload: { discordUserId: "a", source: "OFFICER", n: 1 }, ...extra }) as never;
 
   it("sends a private message with the picker button, a link to the server and a stop button, in the server's language", async () => {
     const member = fakeMember("a", [], 30);
@@ -222,7 +286,7 @@ describe("delivery", () => {
     expect(stopped.send).not.toHaveBeenCalled();
     expect(await deliverGameReminder(fakeGuild([]), db as never, settings, job())).toBe("skipped");
     const auto = fakeMember("a", [], 30);
-    expect(await deliverGameReminder(fakeGuild([auto]), db as never, { ...(settings as object), onboardingNudge: false } as never, job({ payload: { discordUserId: "a", source: "AUTO", n: 1 } }))).toBe("skipped");
+    expect(await deliverGameReminder(fakeGuild([auto]), db as never, { ...(settings as object), gameReminderAuto: false } as never, job({ payload: { discordUserId: "a", source: "AUTO", n: 1 } }))).toBe("skipped");
     db.rows.set("db1:c", { remindersStopped: false, lastSentAt: now });
     const done = fakeMember("c", [], 30);
     expect(await deliverGameReminder(fakeGuild([done]), db as never, settings, job({ payload: { discordUserId: "c", source: "OFFICER", n: 1 } }))).toBe("skipped");

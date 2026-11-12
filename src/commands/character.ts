@@ -6,6 +6,7 @@ import { prisma } from "../database.js";
 import { importCharacter, parseCharacterString } from "../services/character-import.js";
 import { applySelfExport, parseSelfExport } from "../services/self-export.js";
 import { autoLinkUnclaimed, claimCharacter, linkUnclaimed } from "../services/character-autolink.js";
+import { tellAutoLinked } from "../services/companion-link-dm.js";
 import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
@@ -112,6 +113,8 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
 
   if (subcommand === "claim") {
     const result = await claimCharacter(prisma, context.guildId, context.memberId, interaction.options.getString("name", true));
+    // The same DM as every automatic link, with its "Not mine" undo (skipped quietly when DMs are closed).
+    if (interaction.guildId) void tellAutoLinked(interaction.client, prisma, interaction.guildId, context.guildId, [{ memberId: context.memberId, count: 1 }]);
     await interaction.reply({ content: `Linked **${characterName(result.row)}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.`, flags: MessageFlags.Ephemeral });
     return;
   }

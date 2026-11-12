@@ -184,7 +184,19 @@ describe("character pairing", () => {
     await expect(linkPairedCharacter(database as never, "guild", "member", {
       name: "Ray", realm: "Forever", class: "PRIEST", race: "", level: 60, spec: "", professions: []
     })).resolves.toBe("removed-by-officer");
-    expect(tx.characterVerifyClaim.findFirst).toHaveBeenCalledWith({ where: { guildId: "guild", memberId: "member", nameKey: "ray", status: "REMOVED" }, select: { id: true } });
+    expect(tx.characterVerifyClaim.findFirst).toHaveBeenCalledWith({ where: { guildId: "guild", memberId: "member", nameKey: "ray", status: { in: ["REMOVED", "BLOCKED"] } }, select: { status: true } });
+    expect(tx.character.create).not.toHaveBeenCalled();
+  });
+
+  it("does not relink a character the member unlinked themselves (BLOCKED), so a self-unlink sticks", async () => {
+    const tx = {
+      character: { findMany: vi.fn(async () => []), count: vi.fn(), create: vi.fn() },
+      characterVerifyClaim: { findFirst: vi.fn(async () => ({ status: "BLOCKED" })) }
+    };
+    const database = { $transaction: async (callback: (client: typeof tx) => unknown) => callback(tx) };
+    await expect(linkPairedCharacter(database as never, "guild", "member", {
+      name: "Ray", realm: "Forever", class: "PRIEST", race: "", level: 60, spec: "", professions: []
+    })).resolves.toBe("blocked-by-member");
     expect(tx.character.create).not.toHaveBeenCalled();
   });
 

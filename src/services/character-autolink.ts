@@ -5,6 +5,7 @@ import { createGuildService } from "./guild.js";
 import { nameKey } from "./roster-discovery.js";
 import { cacheAllMembers } from "./member-cache.js";
 import { characterKey } from "../../companion/character-identity.mjs";
+import { tellAutoLinked } from "./companion-link-dm.js";
 
 // Linking discovered characters to Discord members without anyone typing:
 //   1. automatically, when a member's Discord name (nickname, display name or
@@ -108,7 +109,7 @@ async function linkIfFree(database: Db, guildId: string, memberId: string, row: 
  * member who has a companion credential has no character yet, those two belong together. Anything
  * less clear (two newcomers, two candidates, a declined link) is left for /character claim.
  */
-export async function linkSoleNewcomer(database: Db, guildId: string, since: Date): Promise<{ character: string; member: string } | null> {
+export async function linkSoleNewcomer(database: Db, guildId: string, since: Date): Promise<{ character: string; member: string; memberId: string } | null> {
   const arrived = await database.unclaimedCharacter.findMany({ where: { guildId, lastSeenAt: { gte: since }, gameEdition: "forever" } });
   if (arrived.length !== 1 || !arrived[0]) return null;
   const waiting = await database.member.findMany({
@@ -118,12 +119,12 @@ export async function linkSoleNewcomer(database: Db, guildId: string, since: Dat
   });
   if (waiting.length !== 1 || !waiting[0]) return null;
   if (!await linkIfFree(database, guildId, waiting[0].id, arrived[0])) return null;
-  return { character: arrived[0].name, member: waiting[0].displayName };
+  return { character: arrived[0].name, member: waiting[0].displayName, memberId: waiting[0].id };
 }
 
 // Links what can be linked by Discord name (first name, or first AND last name), and, with `since`
 // (the start of the upload that brought characters), the one-newcomer-one-waiting-member case.
-export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db, guildId: string, options: { since?: Date } = {}): Promise<{ character: string; member: string }[]> {
+export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db, guildId: string, options: { since?: Date } = {}): Promise<{ character: string; member: string; memberId: string }[]> {
   const unclaimed = await database.unclaimedCharacter.findMany({ where: { guildId } });
   if (unclaimed.length === 0) return [];
   await cacheAllMembers(discordGuild);
@@ -135,7 +136,7 @@ export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db
     people.push({ id: member.id, names: [...names], display: member.displayName, username: member.user.username });
   }
   const guild = createGuildService(database);
-  const linked: { character: string; member: string }[] = [];
+  const linked: { character: string; member: string; memberId: string }[] = [];
   // A Discord nickname cannot prove which realm owns a same-named character.
   // Blizzard characters use explicit pairing/claiming; retain legacy Forever linking.
   for (const match of matchUnclaimed(unclaimed.filter(row => (row.gameEdition ?? "forever") === "forever"), people)) {
@@ -143,12 +144,16 @@ export async function autoLinkUnclaimed(discordGuild: DiscordGuild, database: Db
     const person = people.find((row) => row.id === match.discordId);
     if (!character || !person) continue;
     const member = await guild.ensureMember(guildId, person.id, person.display);
-    if (await linkIfFree(database, guildId, member.id, character)) linked.push({ character: character.name, member: person.display });
+    if (await linkIfFree(database, guildId, member.id, character)) linked.push({ character: character.name, member: person.display, memberId: member.id });
   }
   if (options.since) {
     const sole = await linkSoleNewcomer(database, guildId, options.since).catch(() => null);
     if (sole) linked.push(sole);
   }
+  // Every automatic link gets the same DM as a companion link, with the "Not mine" undo (companion-link-dm.ts).
+  const counts = new Map<string, number>();
+  for (const link of linked) counts.set(link.memberId, (counts.get(link.memberId) ?? 0) + 1);
+  await tellAutoLinked(discordGuild.client, database, discordGuild.id, guildId, [...counts].map(([memberId, count]) => ({ memberId, count })));
   return linked;
 }
 

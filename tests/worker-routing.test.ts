@@ -534,7 +534,7 @@ describe("canonical host (guildedwow.com move)", () => {
     const upstream = vi.fn(async () => Response.json({ ok: true }));
     vi.stubGlobal("fetch", upstream);
     for (const [method, path] of [["POST", "/api/v1/addon-imports"], ["GET", "/api/v1/standings"], ["GET", "/health"], ["GET", "/releases.json"], ["GET", "/leaderboards/summary.json"], ["HEAD", "/downloads/Guilded.Companion.Setup.exe"], ["POST", "/me/settings"]] as const) {
-      const response = await worker.fetch(new Request(`https://guilded.kcaron.top${path}`, { method, body: method === "POST" ? "{}" : undefined }), on);
+      const response = await worker.fetch(new Request(`https://guilded.kcaron.top${path}`, method === "POST" ? { method, body: "{}" } : { method }), on);
       expect(response.status, `${method} ${path}`).not.toBe(301);
     }
   });

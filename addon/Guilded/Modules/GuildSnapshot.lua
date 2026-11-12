@@ -46,6 +46,28 @@ local function lastOnline(index, online, now)
   return now - age
 end
 
+-- (9.1.7) The game names a refused call "UNKNOWN()". The two guild text reads below are marked while they
+-- run, so Core's ADDON_ACTION_BLOCKED handler can say which one was refused (ns.guardedCall), and a refusal
+-- is remembered for this client build: the reads stop, the MOTD still arrives with the GUILD_MOTD event.
+local function buildKey()
+  if type(GetBuildInfo) ~= "function" then return "?" end
+  local ok, _, build = pcall(GetBuildInfo)
+  return ok and not secret(build) and tostring(build or "?") or "?"
+end
+local function textBlocked(db) return type(db.guildTextBlocked) == "string" and db.guildTextBlocked == buildKey() end
+function snapshot.onBlocked(name)
+  local db = ns.getDb and ns.getDb()
+  if db and (name == "GetGuildRosterMOTD" or name == "GetGuildInfoText") then db.guildTextBlocked = buildKey(); return true end
+  return false
+end
+local function guarded(name, fn)
+  ns.guardedCall = { name = name }
+  local ok, value = pcall(fn)
+  -- The refusal event can arrive just after the call returns: leave the mark for two seconds.
+  if C_Timer and C_Timer.After then C_Timer.After(2, function() if ns.guardedCall and ns.guardedCall.name == name then ns.guardedCall = nil end end) else ns.guardedCall = nil end
+  return ok, value
+end
+
 -- Reads the whole roster; returns the snapshot, or nil when the roster is not loaded.
 function snapshot.read(force)
   local db = ns.getDb and ns.getDb()
@@ -83,12 +105,13 @@ function snapshot.read(force)
   -- call UNKNOWN()" twice per roster update, taint log of 10 November 2026). In combat the texts of
   -- the last snapshot are kept; the next read out of combat refreshes them.
   local motdText, infoText, textAt
-  if inCombat() then
+  if inCombat() or textBlocked(db) then
     if type(saved) == "table" then motdText, infoText, textAt = saved.motd, saved.info, saved.textAt end
+    if snapshot.eventMotd then motdText, textAt = snapshot.eventMotd, now end
   else
     local motdFn = GetGuildRosterMOTD or (C_GuildInfo and C_GuildInfo.GetMOTD)
-    local okMotd, motd = pcall(function() return motdFn and motdFn() end)
-    local okInfo, info = pcall(function() return GetGuildInfoText and GetGuildInfoText() end)
+    local okMotd, motd = guarded("GetGuildRosterMOTD", function() return motdFn and motdFn() end)
+    local okInfo, info = guarded("GetGuildInfoText", function() return GetGuildInfoText and GetGuildInfoText() end)
     motdText, infoText, textAt = okMotd and text(motd, 255) or nil, okInfo and text(info, 1000) or nil, now
   end
   local result = { at = now, count = count, complete = showsOffline and count <= MAX_MEMBERS, members = members,
@@ -100,8 +123,10 @@ end
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("GUILD_ROSTER_UPDATE")
 frame:RegisterEvent("GUILD_MOTD")
-frame:SetScript("OnEvent", function(_, event)
+frame:SetScript("OnEvent", function(_, event, arg1)
   local ok, err = pcall(function()
+    -- GUILD_MOTD carries the new text itself: no read needed.
+    if event == "GUILD_MOTD" and type(arg1) == "string" and not secret(arg1) then snapshot.eventMotd = text(arg1, 255) end
     if ns.moduleActive and not ns.moduleActive("guildsnapshot") then return end
     snapshot.read(event == "GUILD_MOTD")
   end)

@@ -356,7 +356,11 @@ local function finish(state, reason)
   if state == "COMPLETED" then run.completedBy = reason else run.endReason = reason end
   -- Kills were recorded but none was recognised as the final boss: leave a trace (game ids and
   -- boss names only) so an unknown Forever dungeon id or name can be added to Compat.lua.
-  if state == "ABANDONED" and ns.logDiagnostic then
+  -- (9.1.7) Only for dungeons whose final boss is NOT known: when it is known (journal id or Compat) and
+  -- was not killed, the run is just unfinished (Wailing Caverns, 12 November: last kill Verdan, final
+  -- boss Mutanus, group disbanded), not a problem to report.
+  local finalKnown = run.finalEncounterId ~= nil or (ns.compat and ns.compat.dungeonFinalKnown and ns.compat.dungeonFinalKnown(tonumber(run.instanceId)))
+  if state == "ABANDONED" and ns.logDiagnostic and not finalKnown then
     local last
     for _, encounter in ipairs(run.encounters or {}) do if encounter.success and not encounter.kind then last = encounter end end
     if last then

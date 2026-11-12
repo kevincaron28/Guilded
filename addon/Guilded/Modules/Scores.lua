@@ -372,6 +372,7 @@ register("PLAYER_LOGIN")
 register("CHAT_MSG_ADDON")
 register("GUILD_ROSTER_UPDATE")
 
+local lastLearnAt
 frame:SetScript("OnEvent", function(_, event, ...)
   local args = { ... }
   local ok, err = pcall(function()
@@ -385,6 +386,11 @@ frame:SetScript("OnEvent", function(_, event, ...)
       if C_Timer and C_Timer.After then C_Timer.After(LOGIN_DELAY_SECONDS, function() pcall(scores.share, true) end) end
     elseif event == "GUILD_ROSTER_UPDATE" then
       if not active() then return end
+      -- (9.1.7) Roster updates come in bursts: relearn the runs at most once a minute, never in combat.
+      local at = (GetTime and GetTime()) or 0
+      if lastLearnAt and at - lastLearnAt < 60 and at >= lastLearnAt then return end
+      if InCombatLockdown and InCombatLockdown() then return end
+      lastLearnAt = at
       local db = ns.getDb and ns.getDb()
       for _, run in pairs(db and db.dungeon and db.dungeon.runs or {}) do scores.learn(run) end
     elseif event == "CHAT_MSG_ADDON" then

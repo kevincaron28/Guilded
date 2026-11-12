@@ -2,6 +2,27 @@ import type { ParsedItem } from "./item-links.js";
 
 // Item data provider seam. The default provider knows nothing (tests, local dev, no Battle.net app); the live
 // one is Blizzard's Game Data API (`blizzard-items.ts`, docs/ITEM_PREVIEWS.md). Nothing is scraped.
+/** The structured facts behind a summary, one language, every field optional (the preview omits what is missing). */
+export interface ItemFacts {
+  /** Equip slot ("Head"), only for equippable items. */
+  slot?: string;
+  /** Item subclass ("Plate", "Dagger"). */
+  type?: string;
+  /** "120 Armor" or a weapon damage line. */
+  armor?: string;
+  damage?: string;
+  /** Up to 6 stat lines, already worded ("+5 Strength"). */
+  stats?: string[];
+  /** Equip/Use/Chance-on-hit effects, up to 3. */
+  effects?: string[];
+  itemLevel?: number;
+  requiredLevel?: number;
+  /** Binding ("Binds when picked up"). */
+  binding?: string;
+  /** Vendor sell price in copper. */
+  sellCopper?: number;
+}
+
 export interface ItemDetails {
   name: string;
   quality?: number;
@@ -16,7 +37,9 @@ export interface ItemDetails {
   /** "name" when the item was found by its exact name (exactly one item has it), not by a linked id. */
   matchedBy?: "id" | "name";
   /** French name and summary, when the source has them. */
-  fr?: { name: string; summary?: string };
+  fr?: { name: string; summary?: string; facts?: ItemFacts };
+  /** English structured facts (the preview layout); absent when the source only has a summary. */
+  facts?: ItemFacts;
 }
 export interface ItemDataProvider {
   lookup(item: ParsedItem): Promise<ItemDetails | null>;

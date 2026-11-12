@@ -78,7 +78,7 @@ describe("Blizzard item data", () => {
     const found = await provider(one.fetch).lookup({ itemId: null, name: "linen cloth", verified: false });
     expect(found).toMatchObject({ itemId: 2589, matchedBy: "name" });
     const embed = buildItemEmbed({ itemId: null, name: "linen cloth", verified: false }, found);
-    expect(embed.description).toContain("matched by its exact name");
+    expect(embed.description).toContain("Matched by its exact name");
     expect(embed.url).toBe("https://www.wowhead.com/classic/item=2589");
 
     const two = fakeBlizzard({ "/data/wow/search/item?static-forever-us&name.en_US=Monster - Sword": { results: [{ data: { id: 1, name: { en_US: "Monster - Sword" } } }, { data: { id: 2, name: { en_US: "Monster - Sword" } } }] } });

@@ -634,6 +634,8 @@ if (config.MESSAGE_CONTENT_INTENT) {
       disable: async (discordGuildId, reason) => { await prisma.itemPreviewConfig.updateMany({ where: { discordGuildId }, data: { enabled: false, disabledReason: reason } }); },
       secret: config.ITEM_PREVIEW_SECRET, botUserId: client.user?.id,
       fetch: (url, init) => fetch(url, init), provider: previewProvider, gate: previewGate, backoff: previewBackoff,
+      language: async (discordId) => (await prisma.guildSettings.findFirst({ where: { guild: { discordId } }, select: { language: true } }))?.language === "fr" ? "fr" : "en",
+      ...(config.PUBLIC_SITE_URL ? { siteUrl: config.PUBLIC_SITE_URL } : {}),
       professionCard: (discordGuildId, profession, names, discordUserId) => professionCardFor(prisma, previewProvider, discordGuildId, profession, names, discordUserId)
     }, { guildId: message.guildId, channelId: message.channelId, content: message.content, authorId: message.author.id, webhookId: message.webhookId,
       authorName: message.webhookId ? message.author.username : message.member?.displayName ?? message.author.displayName }).catch((error: unknown) => {

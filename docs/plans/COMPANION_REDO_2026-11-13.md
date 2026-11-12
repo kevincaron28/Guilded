@@ -194,7 +194,7 @@ All sync tests stay untouched; about 60 `tests/companion-*` files cover them.
 
 **Store:**
 
-- Ship as 9.2.0.0 (strictly higher) under the same name and identity.
+- Ship as 9.2.0.0 (strictly higher) with the same identity. The Store listing name may change; see section 4b.
 - Refresh the Store screenshots, because the window changes.
 - Guidance stays Store-first.
 
@@ -225,6 +225,62 @@ C1 must land before C2. C3 and C4 need C2. C5 needs one release with C2 to C4 in
 - **Self-update:** the update hand-off closes the old companion.
 - **Dungeon runs:** they reach Discord, and receipts mark them accepted in the addon.
 
+## 4b. A Store-safe name for the companion (owner, 13 Nov)
+
+The owner's words: *"we should maybe also change names of the companion to stop being flagged, i dont know"*.
+
+The Microsoft Store has failed the product twice on policy 10.1.1.1 ("the product name contains the title of another
+software or service"). The flagged word is "Guilded", which is also the name of the guilded.gg chat service.
+
+- 3 November: an appeal note got it through.
+- 11 November: it failed again. An appeal was sent on 13 November and the submission is back in certification.
+
+We submit with every companion release, so each release can be held up again. This section covers the **companion's name
+only**; the addon, bot and website keep the Guilded brand. Nothing here is legal advice, and none of these names has been
+checked for trademarks.
+
+**How the name is wired today:**
+
+| What | Where | Effect of a name change |
+|---|---|---|
+| Store listing name and package display name | Partner Center reserved name; `displayName: "Guilded Companion"` in `companion-app/build-msix.cjs:19` | A new name must be **reserved in Partner Center** and the package display name must match it. The package identity (`identity.name`, publisher) and app id `GuildedCompanion` **stay the same**, so it is the same product and updates continue. The old reserved name can be kept or released. |
+| Website installer, auto-update asset | `productName`, `shortcutName` in `companion-app/package.json`; `Guilded.Companion.Setup.exe` fetched by `update-check.cjs:19`, verified by `scripts/verify-release-artifacts.mjs` and the site | Must keep working. Renaming the asset strands every installed companion's auto-update unless both names are published for several releases. |
+| Settings folder | Website build: `%APPDATA%\Guilded Companion`, derived from `productName`. Store build: pinned to `%APPDATA%\Guilded Companion Store` (`main.cjs:20`). | Changing `productName` would **move the website build's folder** and lose sign-in and settings, unless it is pinned with `app.setPath` first. The Store build is already pinned. |
+| Shortcuts and tray | Start menu shortcut `Guilded Companion` (NSIS); Store tile = package display name | The Store tile follows the new name by itself. The website shortcut changes only if we change it. |
+| Texts that name it | Website companion pages, guides, `/help`, the addon's companion steps (`CompanionLink.lua`, `Locale.lua`), Store description | Guidance is Store-first, so members must recognise the listing: a short "listed in the Store as ..." line. |
+
+**Options:**
+
+1. **(a) Keep "Guilded Companion" and keep appealing.**
+   - *Cost:* nothing to build.
+   - *Risk:* every submission can fail again, delaying Store updates by days, and two reviewers have already disagreed.
+     Lowest effort, least predictable.
+2. **(b) A Store-only descriptive name** (recommended).
+   - *What changes:* only the Partner Center listing name, the MSIX display name (`build-msix.cjs`, ideally read from the
+     identity JSON) and the Store description.
+   - *What stays:* everything else keeps "Guilded Companion": the website build, `productName`, the
+     `Guilded.Companion.Setup.exe` asset, shortcuts and both settings folders. The window title reads "Guilded" with the
+     Store name underneath, and the description says it works with the Guilded addon and Discord bot.
+   - *Cost:* a small PR, plus one line in the site guides and the addon's companion steps.
+   - *Candidates*, judged on the policy's own terms:
+     - **"Guild Sync Companion"** and **"Guild Data Sync"**: lower risk, generic words with no other product's title.
+     - **"GuildedWoW Sync"**: higher risk. It still begins with the flagged word and adds "WoW", which is Blizzard's mark
+       and itself the title of another product.
+     - **"Guild Sync for WoW Forever"**: also higher risk. Avoid "WoW", "World of Warcraft" and "Discord" in the name;
+       saying "works with ..." in the description is the usual practice.
+   - *Before reserving:* search the Store and the web for the chosen name; a generic name can still collide.
+3. **(c) A full rename of the companion everywhere.**
+   - *Cost:* the same Store work as (b), plus:
+     - pin the website build's settings folder before changing `productName`;
+     - keep `appId` `com.guilded.companion`, so the NSIS installer upgrades in place instead of installing a second copy;
+     - publish both the old and new installer names for several releases, so old companions still auto-update;
+     - update the site download links and tests, every guide and the addon's text.
+   - *Size:* about M-L for no Store benefit over (b). It also splits the brand members know.
+
+**Recommendation: (b).** Change the Store listing only, to a name without "Guilded", "WoW" or "Discord" (first choice "Guild
+Sync Companion" after a name search). Ship it in C6, or sooner on its own if the 13 November appeal fails. Reserve the name in
+Partner Center before the next submission.
+
 ## 5. Decisions for the owner
 
 1. **Move the Guild and Server pages out** to the website `/me` and the phone (officer switches to the website and
@@ -234,5 +290,7 @@ C1 must land before C2. C3 and C4 need C2. C5 needs one release with C2 to C4 in
    The website build starts with Windows by default; the Store build asks Windows once. *Recommend: yes.*
 4. **Notifications:** one Windows notification only when something needs the member, and none for successful syncs.
    *Recommend: yes.*
-5. **Name:** keep "Guilded Companion" and the Store identity, to avoid a new Store name review after the 3 November
-   objection. *Recommend: keep.*
+5. **Store name (section 4b):** list the companion in the Store under a descriptive name without "Guilded", "WoW" or
+   "Discord" (first choice "Guild Sync Companion", after a name search). Everything else, including the installer, the
+   settings folder and the in-app brand, keeps "Guilded Companion". *Recommend: yes. Ship it on its own if the 13 November
+   appeal fails.*

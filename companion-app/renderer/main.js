@@ -144,7 +144,7 @@ async function loadMe() {
 }
 async function reload() {
   const all = await api.getAll();
-  snapshot = { ...snapshot, config: all.config, state: all.state, problems: all.problems, savedFile: all.savedFile, addonAction: all.addonAction, update: all.update };
+  snapshot = { ...snapshot, otherAccount: all.otherAccount ?? null, config: all.config, state: all.state, problems: all.problems, savedFile: all.savedFile, addonAction: all.addonAction, update: all.update };
   storePackage = all.storePackage === true; version = all.version || '';
   logs = all.logs || logs;
   $('autostart').checked = all.autostart === true;
@@ -180,6 +180,7 @@ document.addEventListener('companion-language', () => { $('language').value = $(
 window.addEventListener('online', () => { void api.recoverSync?.().catch(() => {}); });
 
 api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, otherAccount: next.otherAccount }; render(); });
+api.onUpdateProgress?.((percent) => say(T('Downloading and checking the update: {0}%', percent)));
 api.onLog((entry) => { logs = [...logs, entry].slice(-100); renderAdvanced(); });
 $('language').value = $('advLanguage').value = languageUI.language;
 reload().then(loadMe).catch((error) => say(error?.message || T('This action could not be completed.'), false));

@@ -886,6 +886,16 @@ app.on("before-quit", event => {
   }
 });
 
+// Old window > back to the single window.
+registerIpc("open-single-window", () => {
+  if (!win) return false;
+  win.setResizable(false);
+  win.setMinimumSize(420, 520);
+  win.setSize(480, 600);
+  win.center();
+  void win.loadFile(path.join(__dirname, "renderer", "main.html"));
+  return true;
+});
 // Advanced > Old window (kept for one release as a safety net): the previous, larger window.
 registerIpc("open-old-window", () => {
   if (!win) return false;
@@ -896,7 +906,7 @@ registerIpc("open-old-window", () => {
   void win.loadFile(path.join(__dirname, "renderer", "index.html"));
   return true;
 });
-registerIpc("get-all", () => ({ focus: { poeTracking: engineModules.poeTracking === true }, config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: autostartOn(), version: app.getVersion() }));
+registerIpc("get-all", () => ({ otherAccount: otherAccount ? { account: otherAccount.account } : null, focus: { poeTracking: engineModules.poeTracking === true }, config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: autostartOn(), version: app.getVersion() }));
 registerIpc("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
 registerIpc("change-profile", async (_event, choice) => {
   try {

@@ -1399,7 +1399,6 @@
   "{0}": "{0}",
   "Yes": "Oui",
   "No": "Non",
-  "A dungeon run is not counted yet.": "Un donjon n’est pas encore compté.",
   "Found": "Trouvé",
   "Update ready, installs when WoW closes": "Mise à jour prête, installée à la fermeture de WoW",
   "Nothing is deleted.": "Rien n’est supprimé.",
@@ -1464,5 +1463,7 @@
   "Update automatically": "Mettre à jour automatiquement",
   "Version": "Version",
   "World of Warcraft": "World of Warcraft",
-  "← Back": "← Retour"
+  "← Back": "← Retour",
+  "A new version of the companion is out.": "Une nouvelle version du compagnon est disponible.",
+  "Back to the simple window": "Retour à la fenêtre simple"
 }

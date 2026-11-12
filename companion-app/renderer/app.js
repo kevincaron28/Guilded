@@ -421,6 +421,7 @@ bind('btnGRM', async () => {
   if (!result.canceled) { $('grmResult').textContent = M(result.message); toast(result.message, !result.ok); }
 });
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); const all = await api.getAll(); savedConfig = all.config; $('syncEnabled').checked = all.config.syncEnabled !== false; });
+bind('btnSingleWindow',() => api.openSingleWindow());
 bind('btnRemoveData',() => api.removeData());
 bind('btnDeleteMyData',() => api.deleteMyData()); // native confirm dialog in main.cjs
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.

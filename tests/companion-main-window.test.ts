@@ -32,6 +32,14 @@ describe("the single window", () => {
     expect(() => security.validateIpc("open-old-window", [])).not.toThrow();
     expect(() => security.validateIpc("open-old-window", ["x"])).toThrow();
     expect(main).toContain('registerIpc("open-old-window"');
+    expect(() => security.validateIpc("open-single-window", [])).not.toThrow();
+    expect(main).toContain('registerIpc("open-single-window"');
+    // The old window has a way back, and the first load already knows about a second WoW account.
+    expect(readFileSync("companion-app/renderer/index.html", "utf8")).toContain('id="btnSingleWindow"');
+    expect(readFileSync("companion-app/renderer/app.js", "utf8")).toContain("api.openSingleWindow()");
+    expect(main).toMatch(/registerIpc\("get-all", \(\) => \(\{ otherAccount:/);
+    expect(js).toContain("api.onUpdateProgress");
+    expect(js).toContain("all.otherAccount");
   });
 
   it("keeps the page's content policy and loads only local files", () => {

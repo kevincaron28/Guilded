@@ -15,6 +15,7 @@ import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/compa
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
 import { applyWorldPvpUpload, parseWorldPvpUploads } from "./services/world-pvp.js";
+import { scheduleBgLadderRefresh } from "./services/pvp-board-refresh.js";
 import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
 import { liveNewsFeed } from "./services/news-feed.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
@@ -1289,7 +1290,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (pairedMemberId && preview.snapshot.worldPvp.length) {
         const worldChanged = await applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUploads(preview.snapshot.worldPvp))
           .catch((error: unknown) => { console.warn("World PvP upload failed", error); return false; });
-        if (worldChanged) markGuildChanged(guild.id);
+        if (worldChanged) { markGuildChanged(guild.id); void scheduleBgLadderRefresh(prisma, guild.id); }
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

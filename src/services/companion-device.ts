@@ -153,8 +153,15 @@ export interface DeviceStore {
 /** The runs of one unsigned upload the server now holds, in the shape the signed-in standings use. */
 export interface DeviceRunReceipts { acceptedRunRefs: string[]; runNotes: Record<string, string>; /** Received but not counted yet, with the reason. Never "synced". */ pendingRunNotes?: Record<string, string> }
 
+/** What an unsigned companion should tell its member. PvP counters (kills, defends, duels, calls) are applied only for a signed-in member. */
+export interface DeviceNotice { en: string; fr: string }
+export const DEVICE_PVP_NOTICE: DeviceNotice = {
+  en: "Sign in with Discord to count your PvP on the boards.",
+  fr: "Connectez-vous avec Discord pour que votre JcJ compte dans les classements."
+};
+
 export type DeviceUploadAnswer =
-  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number; pending?: number }; runReceipts?: DeviceRunReceipts; reported?: string[] }
+  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number; pending?: number }; runReceipts?: DeviceRunReceipts; reported?: string[]; notice: DeviceNotice }
   | { status: "no-guild"; guild: { name: string; realm: string } | null }
   | { status: "choose"; guild: { name: string; realm: string }; servers: { discordId: string; name: string | null }[] }
   | { status: "claimed" };
@@ -288,7 +295,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   // confirmed" for the one being played. Names the device itself sent, nothing else: no Discord name and nothing about
   // anyone else's characters ever goes back to an unsigned device.
   const reported = rows.map((row) => row.name);
-  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}), ...(reported.length ? { reported } : {}) };
+  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, notice: DEVICE_PVP_NOTICE, ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}), ...(reported.length ? { reported } : {}) };
 }
 
 /**

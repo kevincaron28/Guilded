@@ -2690,6 +2690,7 @@ local DE = {
   ["Quantity"] = "Menge",
   ["Item or recipe: type a name, or shift-click an item"] = "Gegenstand oder Rezept: Namen tippen oder Gegenstand mit Umschalt+Klick",
   ["find a crafter and request an item, crafting requests, your professions"] = "Hersteller finden und etwas anfragen, Anfragen, deine Berufe",
+  ["Request withdrawn. If Discord already has it, it shows up again here to cancel."] = "Anfrage zur\195\188ckgezogen. Hat Discord sie schon, erscheint sie hier wieder zum Abbrechen.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4413,6 +4414,7 @@ local ES = {
   ["Quantity"] = "Cantidad",
   ["Item or recipe: type a name, or shift-click an item"] = "Objeto o receta: escribe un nombre o haz Mays+clic en un objeto",
   ["find a crafter and request an item, crafting requests, your professions"] = "buscar un artesano y pedir un objeto, peticiones, tus profesiones",
+  ["Request withdrawn. If Discord already has it, it shows up again here to cancel."] = "Petici\195\179n retirada. Si Discord ya la tiene, vuelve a aparecer aqu\195\173 para cancelarla.",
 }
 -- END ES
 
@@ -4550,6 +4552,7 @@ FR["Advanced"] = "Avanc\195\169"
 FR["Quantity"] = "Quantit\195\169"
 FR["Item or recipe: type a name, or shift-click an item"] = "Objet ou recette : tapez un nom, ou Maj+clic sur un objet"
 FR["find a crafter and request an item, crafting requests, your professions"] = "trouver un artisan et demander un objet, les demandes, vos m\195\169tiers"
+FR["Request withdrawn. If Discord already has it, it shows up again here to cancel."] = "Demande retir\195\169e. Si Discord l'a d\195\169j\195\160, elle r\195\169appara\195\174t ici pour l'annuler."
 FR["200 at target. Best run per dungeon. Hover for boss records."] = "200 \195\160 la cible. Meilleur essai par donjon. Survolez pour les boss."
 FR["Competitive boss records"] = "Records de boss comp\195\169titifs"
 FR["No eligible timed boss kills recorded."] = "Aucun boss admissible chronom\195\169tr\195\169."

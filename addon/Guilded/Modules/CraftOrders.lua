@@ -35,6 +35,19 @@ local function L(text) return ns.L and ns.L(text) or text end
 local function clock() return (GetServerTime and GetServerTime()) or (time and time()) or 0 end
 local function secret(value) return ns.isSecret and ns.isSecret(value) end
 local function fold(text) return string.lower(tostring(text or "")) end
+-- Cut on a UTF-8 character boundary (accented item names), and make free text safe: no control characters or bars.
+local function cut(text, max)
+  text = tostring(text or "")
+  if ns.util and ns.util.truncate then return ns.util.truncate(text, max) end
+  return string.sub(text, 1, max)
+end
+local function cleanText(text, max)
+  local plain = (string.gsub(tostring(text or ""), "[|%c]", " "))
+  return cut(string.match(plain, "^%s*(.-)%s*$") or "", max)
+end
+local SETTLE_AFTER = 6 * 3600   -- a request the feed never showed is settled once a feed this much newer still lacks it
+local ALERT_GAP = 30            -- seconds between two chat alerts for the same sender
+local PER_SENDER = 5            -- heard requests kept per sender
 
 local function state()
   local db = ns.getDb and ns.getDb()
@@ -130,9 +143,20 @@ function orders.prune()
   for key, action in pairs(s.heard) do
     if type(action) ~= "table" or now - (tonumber(action.at) or 0) > KEEP then s.heard[key] = nil else count = count + 1 end
   end
-  -- Requests made in game: kept for the companion for three days (the bot keeps the order itself).
+  -- Requests made in game: kept for the companion for three days (the bot keeps the order itself). A request whose
+  -- order Discord showed (this player's, by name) and that has left the feed since is finished or cancelled: settled.
+  -- One the feed never showed is settled once a feed 6 hours newer than it still lacks it (the upload had its chance).
+  local feedRefs = {}
+  for _, order in ipairs(current and current.orders or {}) do
+    if order.ref and order.ref ~= "" and isMe(order.by) then feedRefs[order.ref] = true end
+  end
+  local feedAt = current and ns.util and ns.util.isoEpoch and ns.util.isoEpoch(current.at)
   for ref, request in pairs(s.requests) do
-    if type(request) ~= "table" or now - (tonumber(request.at) or 0) > KEEP then s.requests[ref] = nil end
+    if type(request) ~= "table" or now - (tonumber(request.at) or 0) > KEEP then s.requests[ref] = nil
+    elseif feedRefs[ref] then
+      if not request.seenFeed then request.seenFeed = current.at end
+    elseif request.seenFeed and current and current.at >= request.seenFeed then s.requests[ref] = nil
+    elseif feedAt and feedAt > (tonumber(request.at) or 0) + SETTLE_AFTER then s.requests[ref] = nil end
   end
   local heardCount = 0
   for key, request in pairs(s.heardRequests) do
@@ -166,11 +190,17 @@ function orders.view(order)
   return { status = status, mine = mine, waiting = action ~= nil }
 end
 
--- An order this player asked for: its ref is one of the requests made here, or the requester is this character.
+-- An order this player asked for: the requester is this character (a copied ref alone proves nothing).
 function orders.isMyRequest(order)
-  local s = state()
-  if order.ref and order.ref ~= "" and s and s.requests[order.ref] then return true end
   return isMe(order.by)
+end
+
+-- Does a requester name from Discord (order.by) name the sender of a heard request?
+local function sameRequester(by, sender)
+  local wanted = fold(by)
+  if wanted == "" or type(sender) ~= "string" then return false end
+  local shown = ns.displayName and ns.displayName(sender) or sender
+  return wanted == fold(sender) or wanted == fold(shown) or wanted == fold(string.match(shown, "^(%S+)") or shown)
 end
 
 -- Orders for the page: this character's recipes first (orders asked of you on top), then, with `all`, the rest.
@@ -250,8 +280,19 @@ function orders.act(id, action)
   local row = { order = id, action = action, character = me, at = clock(), ordersAt = current.at }
   s.actions[id] = row
   sayAction(row)
+  if action == "cancel" and order.ref and s.requests[order.ref] then s.requests[order.ref] = nil end   -- cancelled: no longer waiting to be uploaded
   if ns.onOrdersChange then pcall(ns.onOrdersChange) end
   return row
+end
+
+-- A request that has not reached Discord (as far as this addon knows): taken back, so it is no longer said or uploaded.
+-- If Discord got it anyway, its order shows up in the feed and can be cancelled like any other.
+function orders.cancelPending(ref)
+  local s = state()
+  if not (s and type(ref) == "string" and s.requests[ref]) then return false end
+  s.requests[ref] = nil
+  if ns.onOrdersChange then pcall(ns.onOrdersChange) end
+  return true
 end
 
 -- ---------------------------------------------------------------------
@@ -311,6 +352,22 @@ function orders.share()
   for part = 1, total do
     send(string.format("ORDERS|%s|%d|%d|%s", current.at, part, total, string.sub(payload, (part - 1) * PART + 1, part * PART)))
   end
+  -- The requests' refs ride in a message of their own (the order lines keep the layout older addons decode).
+  local line, sentRefs = {}, 0
+  local function flush()
+    if #line == 0 or sentRefs >= 5 then line = {}; return end
+    sentRefs = sentRefs + 1
+    send(string.format("ORDREFS|%s|%s", current.at, table.concat(line, ",")))
+    line = {}
+  end
+  for _, o in ipairs(current.orders or {}) do
+    if type(o.ref) == "string" and #o.ref >= 6 and #o.ref <= 40 and string.find(o.ref, "^[%w_%-]+$") and string.find(o.id, "^[%w_%-]+$") then
+      local pair = o.id .. ":" .. o.ref
+      if #table.concat(line, ",") + #pair + 1 > 200 then flush() end
+      line[#line + 1] = pair
+    end
+  end
+  flush()
   return true
 end
 
@@ -322,6 +379,11 @@ local function scheduleReply()
   local delay = quick and 1 + math.random() * 4 or 6 + math.random() * 9
   local function reply() replyScheduled = false; orders.share() end
   if C_Timer and C_Timer.After then C_Timer.After(delay, reply) else reply() end
+end
+
+-- The refs of the shared orders (ORDREFS|stamp|id:ref,...) are put on the orders of that same share.
+local function applyRefs(list, map)
+  for _, order in ipairs(list or {}) do if map[order.id] then order.ref = map[order.id] end end
 end
 
 local function receiveOrders(text, sender)
@@ -345,7 +407,31 @@ local function receiveOrders(text, sender)
   if not decoded or not s then return end
   decoded.at, decoded.from = stamp, sender
   s.relayed = decoded
+  local waiting = s.refsWaiting
+  if type(waiting) == "table" and waiting.stamp == stamp and waiting.sender == sender then applyRefs(decoded.orders, waiting.map) end
+  s.refsWaiting = nil
   orders.prune()
+  if ns.onOrdersChange then pcall(ns.onOrdersChange) end
+end
+
+-- ORDREFS|stamp|id:ref,id:ref: put on the orders of that same share, or kept until it arrives.
+local function receiveRefs(text, sender)
+  local stamp, body = string.match(text, "^ORDREFS|([^|]+)|(.*)$")
+  if not stamp or #stamp > 40 or #body > 240 then return end
+  local s = state()
+  if not s then return end
+  local map, count = {}, 0
+  for id, ref in string.gmatch(body, "([%w_%-]+):([%w_%-]+)") do
+    if #id <= 40 and #ref >= 6 and #ref <= 40 and count < 12 then map[id] = ref; count = count + 1 end
+  end
+  if count == 0 then return end
+  if s.relayed and s.relayed.at == stamp and s.relayed.from == sender then
+    applyRefs(s.relayed.orders, map)
+  else
+    local waiting = s.refsWaiting
+    if type(waiting) ~= "table" or waiting.stamp ~= stamp or waiting.sender ~= sender then waiting = { stamp = stamp, sender = sender, map = {} }; s.refsWaiting = waiting end
+    for id, ref in pairs(map) do waiting.map[id] = ref end
+  end
   if ns.onOrdersChange then pcall(ns.onOrdersChange) end
 end
 
@@ -490,7 +576,7 @@ function orders.myRequests()
         rows[#rows + 1] = { order = order, view = view, at = tonumber(order.at) or 0 }
       end
     end
-    if order.ref then made[order.ref] = true end
+    if order.ref and isMe(order.by) then made[order.ref] = true end
   end
   for ref, request in pairs(s.requests) do
     if type(request) == "table" and not made[ref] then
@@ -506,11 +592,17 @@ function orders.heardForMe()
   local s, rows = state(), {}
   if not s then return rows end
   local current = orders.current()
-  local made = {}
-  for _, order in ipairs(current and current.orders or {}) do if order.ref then made[order.ref] = true end end
+  local made = {}   -- ref -> requester names of the feed orders carrying it
+  for _, order in ipairs(current and current.orders or {}) do
+    if order.ref then made[order.ref] = made[order.ref] or {}; table.insert(made[order.ref], order.by) end
+  end
+  local function onDiscord(request)
+    for _, by in ipairs(made[request.ref] or {}) do if sameRequester(by, request.name) then return true end end
+    return false
+  end
   local known = orders.myRecipes()
   for _, request in pairs(s.heardRequests) do
-    if type(request) == "table" and not made[request.ref] and not (s.requests and s.requests[request.ref]) then
+    if type(request) == "table" and not onDiscord(request) and not (s.requests and s.requests[request.ref]) then
       local canCraft = request.key and known[request.key] ~= nil or false
       if canCraft or isMe(request.asked) then rows[#rows + 1] = { pending = request, canCraft = canCraft, forMe = isMe(request.asked), at = tonumber(request.at) or 0 } end
     end
@@ -523,12 +615,12 @@ end
 function orders.submit(opts)
   local s, me = state(), orders.myName()
   if not (s and me) then return nil, L("Guilded is not ready yet.") end
+  orders.prune()   -- finished requests must not count against the limit
   if not (IsInGuild and IsInGuild()) then return nil, L("Join a guild to request a craft.") end
   if ns.util and ns.util.inCombat and ns.util.inCombat() then return nil, L("You can request a craft after combat.") end
   local current = orders.current()
   if current and current.off then return nil, L("Your officers turned crafting orders off.") end
-  local item = string.gsub(tostring(opts.item or ""), "[|%c]", " ")
-  item = string.sub(string.match(item, "^%s*(.-)%s*$") or "", 1, 60)
+  local item = cleanText(opts.item, 60)
   if #item < 2 then return nil, L("Name the item you want crafted.") end
   local mine = orders.myRequests()
   local open = 0
@@ -544,10 +636,10 @@ function orders.submit(opts)
   end
   local qty = math.max(1, math.min(200, math.floor(tonumber(opts.qty) or 1)))
   local ref = string.format("g%x%03x", now, math.random(0, 4095))
-  local row = { ref = ref, item = item, key = tonumber(opts.key), prof = opts.prof and string.sub(tostring(opts.prof), 1, 40) or nil, qty = qty,
-    note = opts.note and string.sub(string.gsub(tostring(opts.note), "[|%c]", " "), 1, 80) or nil, mats = false,
-    asked = opts.asked and tostring(opts.asked) or nil, character = me, at = now }
-  if row.note == "" then row.note = nil end
+  local row = { ref = ref, item = item, key = tonumber(opts.key), prof = opts.prof and cleanText(opts.prof, 40) or nil, qty = qty,
+    note = opts.note and cleanText(opts.note, 80) or nil, mats = false,
+    asked = opts.asked and cleanText(opts.asked, 60) or nil, character = me, at = now }
+  for _, field in ipairs({ "prof", "note", "asked" }) do if row[field] == "" then row[field] = nil end end
   s.requests[ref] = row
   orders.sayRequest(row)
   if ns.onOrdersChange then pcall(ns.onOrdersChange) end
@@ -556,11 +648,11 @@ end
 
 -- NEW|ref|key|qty|mats|at|prof|asked|item|note. Said once; guildmates who can make it (or are asked) see it at once.
 function orders.encodeRequest(row)
-  local function cut(text, max) return encode(string.sub(tostring(text or ""), 1, max)) end
-  local text = table.concat({ "NEW", row.ref, tonumber(row.key) or 0, tonumber(row.qty) or 1, row.mats and 1 or 0, tonumber(row.at) or 0,
-    cut(row.prof, 24), cut(row.asked, 40), cut(row.item, 50), cut(row.note, 40) }, "|")
-  if #text > 250 then text = table.concat({ "NEW", row.ref, tonumber(row.key) or 0, tonumber(row.qty) or 1, row.mats and 1 or 0, tonumber(row.at) or 0,
-    "", cut(row.asked, 40), cut(row.item, 50), "" }, "|") end
+  local function field(text, max) return encode(cut(text, max)) end
+  local head = { "NEW", row.ref, tonumber(row.key) or 0, tonumber(row.qty) or 1, row.mats and 1 or 0, tonumber(row.at) or 0 }
+  local function build(prof, note) return table.concat({ head[1], head[2], head[3], head[4], head[5], head[6], prof, field(row.asked, 40), field(row.item, 50), note }, "|") end
+  local text = build(field(row.prof, 24), field(row.note, 40))
+  if #text > 250 then text = build("", "") end
   return text
 end
 
@@ -580,20 +672,35 @@ function orders.decodeRequest(text)
     prof = fields[1] ~= "" and fields[1] or nil, asked = fields[2] ~= "" and fields[2] or nil, item = string.sub(fields[3], 1, 100), note = fields[4] ~= "" and fields[4] or nil }
 end
 
+local lastAlertAt = {}
 local function receiveNew(text, sender)
   local request = orders.decodeRequest(text)
   local s = state()
-  if not request or not s or not request.at or request.at > clock() + 600 or clock() - request.at > KEEP then return end
-  if string.find(request.item, "[%c|]") then return end
+  if not request or not s or not request.at or clock() - request.at > KEEP then return end
+  request.at = math.min(request.at, clock() + 60)          -- a clock far ahead cannot pin a request to the top
+  request.item = cleanText(request.item, 60)
+  if #request.item < 2 then return end
+  request.prof, request.asked, request.note = cleanText(request.prof, 24), cleanText(request.asked, 60), cleanText(request.note, 40)
+  for _, field in ipairs({ "prof", "asked", "note" }) do if request[field] == "" then request[field] = nil end end
   local key = request.ref .. "@" .. sender
   if s.heardRequests[key] then return end             -- asked once, never again
+  -- At most five kept per sender: a sender over the limit replaces only its own oldest, never anyone else's.
+  local mineKept, oldestKey, oldestAt = 0, nil, nil
+  for heardKey, heard in pairs(s.heardRequests) do
+    if type(heard) == "table" and heard.name == sender then
+      mineKept = mineKept + 1
+      if not oldestAt or (tonumber(heard.at) or 0) < oldestAt then oldestKey, oldestAt = heardKey, tonumber(heard.at) or 0 end
+    end
+  end
+  if mineKept >= PER_SENDER and oldestKey then s.heardRequests[oldestKey] = nil end
   request.character, request.name = sender, sender
   s.heardRequests[key] = request
   orders.prune()
   if ns.onOrdersChange then pcall(ns.onOrdersChange) end
   local known = orders.myRecipes()
   local forMe = request.asked and isMe(request.asked)
-  if orders.alertsOn() and ns.message and ((request.key and known[request.key]) or forMe) then
+  if orders.alertsOn() and ns.message and ((request.key and known[request.key]) or forMe) and clock() - (lastAlertAt[sender] or -ALERT_GAP) >= ALERT_GAP then
+    lastAlertAt[sender] = clock()
     ns.message(string.format(L("%s asks for %dx %s%s. Open Guilded, Crafting."), ns.displayName and ns.displayName(sender) or sender, request.qty, request.item, forMe and (" (" .. L("asked of you") .. ")") or ""))
   end
 end
@@ -673,7 +780,8 @@ function orders.buildCraftingPage(page, helpers)
   local typed = view.box:GetScript("OnTextChanged")
   view.box:SetScript("OnTextChanged", function(self, user, ...)
     if type(typed) == "function" then typed(self, user, ...) end
-    if user then search() end   -- results follow what is typed (or shift-clicked); Enter and Search still work
+    -- Results follow what is typed or shift-clicked (the game reports a pasted link as not typed by the user).
+    if (self:GetText() or "") ~= (view.query or "") then search() end
   end)
   view.searchButton = newButton(page, "Search", 90, search)
   view.searchButton:SetPoint("TOPLEFT", page, "TOPLEFT", 344, 3)
@@ -706,11 +814,9 @@ function orders.buildCraftingPage(page, helpers)
 
   local function request(row)
     if not row then return end
-    local asked = view.asked
-    if asked then
-      local isCrafter = false
-      for _, crafter in ipairs(row.entry.crafters or {}) do if crafter.name == asked then isCrafter = true end end
-      if not isCrafter then asked = nil end
+    local asked = nil   -- the asked crafter, by full "First Last" name, only when that one can make this item
+    for _, crafter in ipairs(row.entry.crafters or {}) do
+      if view.asked and crafter.name == view.asked then asked = crafter.shown or crafter.name end
     end
     local saved, why = orders.submit({ item = row.entry.name, key = row.entry.key, prof = row.entry.crafters and row.entry.crafters[1] and row.entry.crafters[1].profession,
       qty = tonumber(view.qtyBox:GetText()) or 1, note = view.noteBox:GetText(), asked = asked })
@@ -771,6 +877,11 @@ function orders.buildCraftingPage(page, helpers)
     return row
   end
   local function act(self)
+    if type(self.ref) == "string" then   -- a request that has not reached Discord: taken back
+      if orders.cancelPending(self.ref) and ns.message then ns.message(L("Request withdrawn. If Discord already has it, it shows up again here to cancel.")) end
+      orders.refresh()
+      return
+    end
     local saved, why = orders.act(self.orderId, self.action)
     if ns.message then
       if not saved then ns.message(why)
@@ -896,9 +1007,10 @@ function orders.render(view)
       local item = entry.pending and entry.pending.item or entry.order.item
       row.order = entry.order
       row.text:SetText(string.format("%dx |cffffd100%s|r  |cffaaaaaa%s|r", tonumber(qty) or 1, tostring(item or "?"), orders.requestStatusText(entry)))
-      local cancellable = entry.order and (entry.view.status == "OPEN" or entry.view.status == "CLAIMED") and not entry.view.waiting
+      local cancellable = entry.pending or (entry.order and (entry.view.status == "OPEN" or entry.view.status == "CLAIMED") and not entry.view.waiting)
       row.first:Hide()
       row.second.orderId, row.second.action = entry.order and entry.order.id or nil, "cancel"
+      row.second.ref = entry.pending and entry.pending.ref or nil
       row.second:SetText(L("Cancel"))
       setShown(row.second, cancellable)
       place(row.frame, page, 0, y)
@@ -1030,6 +1142,7 @@ frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
       if current and current.at > string.sub(text, 5) then scheduleReply() end
     elseif string.sub(text, 1, 4) == "NEW|" then receiveNew(text, sender)
     elseif string.sub(text, 1, 7) == "ORDERS|" then receiveOrders(text, sender)
+    elseif string.sub(text, 1, 8) == "ORDREFS|" then receiveRefs(text, sender)
     elseif string.sub(text, 1, 4) == "ACT|" then receiveAction(text, sender) end
   end)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "craft orders: " .. tostring(err)) end

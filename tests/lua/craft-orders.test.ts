@@ -314,7 +314,7 @@ describe("requests heard from guildmates", () => {
     const heard = () => s!.run(`local n = 0 for _ in pairs(NS.getDb().craftOrders.heardRequests) do n = n + 1 end return n`);
     for (const [text, sender] of [["NEW|x|2580|1|0|1799999900|||Item|", "Ann Walker"], ["NEW|g6a0b1c2d3|2580|1|0|1799999900||Eve|I|", "Stranger"],
       ["NEW|g6a0b1c2d3|2580|1|0|1799999900||Eve|I", "Ann Walker"], ["NEW|g6a0b1c2d3|2580|1|0|1500000000||Eve|Old item|", "Ann Walker"],
-      ["NEW|g6a0b1c2d3|2580|1|0|1900000000||Eve|Future item|", "Ann Walker"], ["NEW|g6a0b1c2d3|2580|1|0|1799999900||Eve|X|", "Ann Walker"]]) {
+      ["NEW|g6a0b1c2d3|2580|1|0|1799999900||Eve|X|", "Ann Walker"]]) {
       s!.run(`fire_event("CHAT_MSG_ADDON", "GuildedOrd", ${JSON.stringify(text)}, "GUILD", ${JSON.stringify(sender)})`);
     }
     expect(heard()).toBe("0");
@@ -365,5 +365,154 @@ describe("the relay for crafters without the companion", () => {
       .toBe("Linen Belt|true|CLAIMED");
     expect(s!.run(`return tostring(NS.craftOrders.decode("bad line"))`)).toBe("nil");
     expect(s!.run(`return NS.craftOrders.decode("X").off and "off" or "on"`)).toBe("off");
+  });
+});
+
+describe("the Crafting page: review fixes", () => {
+  const FEED_LATER = `GuildedOrders = { at = "2027-01-15T07:59:00.000Z", orders = {} }`;   // the clock is 2027-01-15T08:00:00Z
+  function withMe() {
+    setup();
+    s!.run(`local book = NS.recipes.book()
+      book.names[2580], book.names[7026] = "Brown Linen Shirt", "Linen Belt"
+      book.people["Ann Walker"] = { Tailoring = { v = 1799990000, keys = { 2580 } } }`);
+    buildPage();
+  }
+  const requests = () => Number(s!.run(`local n = 0 for _ in pairs(NS.getDb().craftOrders.requests) do n = n + 1 end return n`));
+
+  it("settles a request Discord showed and then dropped, so finished requests never come back or block new ones", () => {
+    withMe();
+    for (let i = 1; i <= 5; i++) s!.run(`NS.craftOrders.submit({ item = "Item number ${i}" })`);
+    expect(requests()).toBe(5);
+    // Discord shows all five (mine, by name) ...
+    s!.run(`GuildedOrders.at = "2026-11-08T00:00:00.000Z"
+      local n = 0
+      for ref, r in pairs(NS.getDb().craftOrders.requests) do
+        n = n + 1
+        GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_own000" .. n, ref = ref, item = r.item, qty = 1, status = "OPEN", by = NS.craftOrders.myName(), at = 1799999999 }
+      end
+      NS.craftOrders.refresh()`);
+    expect(s!.run("return #VIEW.mineRows")).toBe("5");
+    expect(mine()).not.toContain("Sent.");
+    // ... then they are done or cancelled there and leave the feed.
+    s!.run(`GuildedOrders.at = "2026-11-09T00:00:00.000Z"
+      for i = #GuildedOrders.orders, 6, -1 do table.remove(GuildedOrders.orders, i) end
+      GuildedOrders.orders = { table.unpack(GuildedOrders.orders, 1, 5) }
+      for i = 1, #GuildedOrders.orders do GuildedOrders.orders[i].status = nil end
+      GuildedOrders.orders = {}
+      NS.craftOrders.refresh()`);
+    expect(requests()).toBe(0);
+    expect(mine()).toBe("");
+    expect(s!.run(`return tostring(NS.craftOrders.submit({ item = "A new one" }) ~= nil)`)).toBe("true");
+  });
+
+  it("settles a request the feed never showed once a feed 6 hours newer still lacks it, but not before", () => {
+    withMe();
+    s!.run(`NS.craftOrders.submit({ item = "Linen Belt", key = 7026 })
+      for _, r in pairs(NS.getDb().craftOrders.requests) do r.at = 1800000000 - 7 * 3600 end`);
+    s!.run(`GuildedOrders = { at = "2027-01-15T06:30:00.000Z", orders = {} }; NS.craftOrders.refresh()`);   // not yet 6 h after the request
+    expect(requests()).toBe(1);
+    s!.run(`${FEED_LATER}; NS.craftOrders.refresh()`);
+    expect(requests()).toBe(0);
+  });
+
+  it("a cancelled order drops its local request at once (nothing is re-said or uploaded for it)", () => {
+    withMe();
+    s!.run(`NS.craftOrders.submit({ item = "Brown Linen Shirt", key = 2580 })
+      REF = next(NS.getDb().craftOrders.requests)
+      GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_mine0009", ref = REF, key = 2580, item = "Brown Linen Shirt", qty = 1, status = "OPEN", by = NS.craftOrders.myName(), at = 1799999999 }
+      NS.craftOrders.act("req_mine0009", "cancel")`);
+    expect(requests()).toBe(0);
+  });
+
+  it("gives a request that is not on Discord yet a Cancel button that takes it back", () => {
+    withMe();
+    search("shirt");
+    s!.run("VIEW.resultRows[1].button.scripts.OnClick(VIEW.resultRows[1].button)");
+    expect(s!.run("return tostring(VIEW.mineRows[1].second.shown) .. VIEW.mineRows[1].second.text")).toBe("trueCancel");
+    s!.run("VIEW.mineRows[1].second.scripts.OnClick(VIEW.mineRows[1].second)");
+    expect(requests()).toBe(0);
+    expect(mine()).toBe("");
+    expect(s!.run("return MESSAGES[#MESSAGES]")).toContain("Request withdrawn");
+    // Nothing is said again at login for it.
+    s!.run("SENT = {}; fire_event('PLAYER_ENTERING_WORLD')");
+    expect(sent("NEW")).toBe("");
+  });
+
+  it("a copied ref cannot hide someone else's request, mine or a guildmate's", () => {
+    withMe();
+    s!.run(`NS.craftOrders.submit({ item = "Brown Linen Shirt", key = 2580 })
+      REF = next(NS.getDb().craftOrders.requests)
+      GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_copy0010", ref = REF, key = 2580, item = "Brown Linen Shirt", qty = 1, status = "OPEN", by = "Mallory Evil", at = 1799999999 }
+      fire_event("CHAT_MSG_ADDON", "GuildedOrd", "NEW|g6a0b1c2d3|2580|1|0|1799999900|||Brown Linen Shirt|", "GUILD", "Ann Walker")
+      GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_copy0011", ref = "g6a0b1c2d3", key = 2580, item = "Brown Linen Shirt", qty = 1, status = "OPEN", by = "Mallory Evil", at = 1799999999 }
+      NS.craftOrders.refresh()`);
+    expect(mine()).toContain("Sent.");                       // still my own pending row
+    expect(s!.run("return #NS.craftOrders.heardForMe()")).toBe("1");   // Ann's request is still listed
+    expect(s!.run(`return tostring(NS.craftOrders.isMyRequest({ ref = REF, by = "Mallory Evil" }))`)).toBe("false");
+  });
+
+  it("cuts text on character boundaries and keeps the asked crafter's full name", () => {
+    withMe();
+    const accented = `a${"\\195\\169".repeat(40)}`;   // 81 bytes: a, then 40 two-byte letters
+    const row = s!.run(`local r = NS.craftOrders.submit({ item = "${accented}" }); return r.item .. "|" .. #r.item`);
+    expect(row.endsWith("|59")).toBe(true);                  // cut before the half character, not in it
+    search("shirt");
+    s!.run("VIEW.optionsButton.scripts.OnClick(VIEW.optionsButton); VIEW.askButton.scripts.OnClick(VIEW.askButton)");
+    s!.run("VIEW.resultRows[1].button.scripts.OnClick(VIEW.resultRows[1].button)");
+    expect(sent("NEW").split("\n").pop()).toContain("|Ann Walker|Brown Linen Shirt|");
+  });
+
+  it("refreshes the results for a shift-clicked link even when the game says it was not typed", () => {
+    withMe();
+    s!.run(`VIEW.box:SetText("|cff1eff00|Hitem:2580::::::::60:|h[Brown Linen Shirt]|h|r"); VIEW.box.scripts.OnTextChanged(VIEW.box, false)`);
+    expect(found()).toContain("Brown Linen Shirt");
+  });
+});
+
+describe("requests heard from guildmates: limits and clean-up", () => {
+  const heard = (ref: string, sender: string, extra = "") =>
+    `fire_event("CHAT_MSG_ADDON", "GuildedOrd", "NEW|${ref}|2580|1|0|1799999900||${extra}|Brown Linen Shirt|", "GUILD", "${sender}")`;
+
+  it("keeps five per sender (replacing only that sender's oldest) and alerts once per sender per 30 seconds", () => {
+    setup();
+    s!.run(`MESSAGES = {}
+      fire_event("CHAT_MSG_ADDON", "GuildedOrd", "NEW|g6a0b1c2d3|2580|1|0|1799999900|||Item of Bo|", "GUILD", "Bo Dee")`);
+    for (let i = 0; i < 7; i++) s!.run(`fire_event("CHAT_MSG_ADDON", "GuildedOrd", "NEW|gaaaaa${i}|2580|1|0|${1799999000 + i}|||Brown Linen Shirt|", "GUILD", "Ann Walker")`);
+    const count = (name: string) => Number(s!.run(`local n = 0 for _, v in pairs(NS.getDb().craftOrders.heardRequests) do if v.name == "${name}" then n = n + 1 end end return n`));
+    expect(count("Ann Walker")).toBe(5);
+    expect(count("Bo Dee")).toBe(1);
+    expect(s!.run(`return tostring(NS.getDb().craftOrders.heardRequests["gaaaaa0@Ann Walker"])`)).toBe("nil");   // her oldest went
+    expect(s!.run(`return tostring(NS.getDb().craftOrders.heardRequests["gaaaaa6@Ann Walker"] ~= nil)`)).toBe("true");
+    // Ann made seven and Bo one: Ann alerted once (the 30 s gap), Bo once.
+    expect(s!.run("return #MESSAGES")).toBe("2");
+    s!.run(`GetServerTime = function() return 1800000031 end
+      ${heard("gbbbbb1", "Ann Walker")}`);
+    expect(s!.run("return #MESSAGES")).toBe("3");
+  });
+
+  it("clamps a time far ahead to a minute from now, and cleans prof, asked and note like the item", () => {
+    setup();
+    s!.run(`fire_event("CHAT_MSG_ADDON", "GuildedOrd", "NEW|g6a0b1c2d3|2580|1|0|1900000000|Tai%0Aloring|Eve%0AStone|Brown Linen Shirt|No%0Ate", "GUILD", "Ann Walker")`);
+    expect(s!.run(`local v = NS.getDb().craftOrders.heardRequests["g6a0b1c2d3@Ann Walker"]; return v.at .. "|" .. v.prof .. "|" .. v.asked .. "|" .. v.note`))
+      .toBe("1800000060|Tai loring|Eve Stone|No te");
+  });
+});
+
+describe("the orders relay carries the request refs", () => {
+  it("shares refs beside the order lines, in any order of arrival, without changing the order layout", () => {
+    setup();
+    s!.run(`GuildedOrders.orders[#GuildedOrders.orders + 1] = { id = "req_ref00012", ref = "g6a0b1c2d3", key = 2580, item = "Brown Linen Shirt", qty = 1, status = "OPEN", by = "Ann Walker", at = 1799999999 }`);
+    expect(s!.run("return tostring(NS.craftOrders.share())")).toBe("true");
+    const parts = s!.run(`local t = {} for _, m in ipairs(SENT) do if string.find(m.text, "^ORDERS|") then t[#t + 1] = m.text end end return table.concat(t, "\\0")`).split("\0");
+    expect(parts.every((p) => !p.includes("g6a0b1c2d3"))).toBe(true);   // older addons decode these lines exactly as before
+    const refs = sent("ORDREFS");
+    expect(refs).toMatch(/^ORDREFS\|2026-11-07T12:00:00\.000Z\|req_ref00012:g6a0b1c2d3$/);
+    for (const order of ["orders-first", "refs-first"]) {
+      s!.close();
+      setup({ file: false });
+      const feed = order === "orders-first" ? [...parts, refs] : [refs, ...parts];
+      for (const text of feed) s!.run(`fire_event("CHAT_MSG_ADDON", "GuildedOrd", ${JSON.stringify(text)}, "GUILD", "Kev Caron")`);
+      expect(s!.run(`for _, o in ipairs(NS.craftOrders.current().orders) do if o.id == "req_ref00012" then return o.ref end end`), order).toBe("g6a0b1c2d3");
+    }
   });
 });

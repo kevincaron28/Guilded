@@ -2,7 +2,6 @@ import { PermissionFlagsBits, type Guild, type GuildMember } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { characterName } from "./character-display.js";
 import { forEachGuildScope, guildWhere } from "./guild-scope.js";
-import { characterTrustMap } from "./character-trust.js";
 
 // 8.5 track C2: nickname sync. Each member's server nickname becomes "Name (Main First Last)", where Name is the member's
 // OWN server nickname when they set one (9.0, owner decision), else their global display name, else their username
@@ -10,8 +9,8 @@ import { characterTrustMap } from "./character-trust.js";
 // characters. Turning the sync off restores everyone's previous nickname.
 // The bot never renames the server owner, bots or anyone it cannot manage (a role above the bot's), and it
 // remembers the original nickname (MemberNickname) so turning the feature off restores everyone.
-// Linking audit T8 (owner decision, 10 November 2026): only a CONFIRMED main renames (character-trust.ts). A member
-// whose main is only reported keeps their Discord name, and a nickname we set for it earlier is put back.
+// Owner decision, 10 November 2026: "reported" counts the same as "confirmed" everywhere except in a conflict between
+// two members (character-move.ts). So ANY linked main renames, however it was linked (character-trust.ts only labels).
 
 export const NICKNAME_MAX = 32;
 export const DEFAULT_NICKNAME_FORMAT = "{name} ({full})";
@@ -137,12 +136,10 @@ export interface NicknameSyncStats {
   notManageable: number;
   /** Opted out, or no usable nickname (too long). */
   optedOutOrNoFit: number;
-  /** The main is only reported, not confirmed: the Discord name stays. */
-  mainNotConfirmed: number;
   /** Already carrying the right nickname. */
   upToDate: number;
 }
-const emptyStats = (): NicknameSyncStats => ({ eligible: 0, notInServer: 0, notManageable: 0, optedOutOrNoFit: 0, mainNotConfirmed: 0, upToDate: 0 });
+const emptyStats = (): NicknameSyncStats => ({ eligible: 0, notInServer: 0, notManageable: 0, optedOutOrNoFit: 0, upToDate: 0 });
 
 export interface NicknameSyncResult { changes: NicknameChange[]; applied: number; failed: number; skipped: string | null; stats: NicknameSyncStats }
 
@@ -150,7 +147,7 @@ export function describeNicknameSync(guildId: string, result: NicknameSyncResult
   if (!result) return `Nickname sync ${guildId}: did not run (error reported)`;
   const { stats } = result;
   const reason = result.skipped ? `reason: ${result.skipped}` : result.changes.length ? "reason: changes made" : stats.eligible === 0 ? "reason: no eligible members" : "reason: nothing to change";
-  return `Nickname sync ${guildId}: eligible ${stats.eligible}, planned ${result.changes.length}, renamed ${result.applied}, failed ${result.failed}, skipped (not manageable) ${stats.notManageable}, not in server ${stats.notInServer}, opted out/no fit ${stats.optedOutOrNoFit}, main not confirmed ${stats.mainNotConfirmed}, up to date ${stats.upToDate}; ${reason}`;
+  return `Nickname sync ${guildId}: eligible ${stats.eligible}, planned ${result.changes.length}, renamed ${result.applied}, failed ${result.failed}, skipped (not manageable) ${stats.notManageable}, not in server ${stats.notInServer}, opted out/no fit ${stats.optedOutOrNoFit}, up to date ${stats.upToDate}; ${reason}`;
 }
 
 export async function syncNicknames(prisma: PrismaClient, guild: Guild, options: { dryRun?: boolean } = {}): Promise<NicknameSyncResult> {
@@ -172,31 +169,21 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   const people: NicknamePerson[] = [];
   const stats = emptyStats();
   stats.eligible = members.length;
-  const trust = await characterTrustMap(prisma, row.id, members.flatMap((member) => member.characters));
-  const unconfirmed = new Set<string>();
   for (const member of members) {
     const discordMember = guild.members.cache.get(member.discordUserId) ?? await guild.members.fetch(member.discordUserId).catch(() => null);
     if (!discordMember) { stats.notInServer++; continue; }
-    // The main (marked, else first by name) counts only when it is confirmed; no other character stands in for it.
     const main = mainCharacter(member.characters);
-    const confirmed = main && trust.get(main.id) === "confirmed";
-    if (main && !confirmed) unconfirmed.add(member.discordUserId);
     people.push({ discordUserId: member.discordUserId, accountName: discordMember.user.globalName ?? discordMember.user.username, nickname: discordMember.nickname,
-      mainName: confirmed ? characterName(main) : null, characterNames: member.characters.map((character) => characterName(character)), skip: !canRename(guild, discordMember), record: byUser.get(member.discordUserId) ?? null });
+      mainName: main ? characterName(main) : null, characterNames: member.characters.map((character) => characterName(character)), skip: !canRename(guild, discordMember), record: byUser.get(member.discordUserId) ?? null });
   }
   const changes = planNicknames(people, format);
   stats.notManageable = people.filter((person) => person.skip).length;
   const planned = new Set(changes.map((change) => change.discordUserId));
   const rest = people.filter((person) => !person.skip && !planned.has(person.discordUserId));
-  stats.mainNotConfirmed = rest.filter((person) => unconfirmed.has(person.discordUserId)).length;
-  stats.optedOutOrNoFit = rest.filter((person) => !unconfirmed.has(person.discordUserId) && (!person.mainName || !nicknameFor(person.nickname ?? person.accountName, person.mainName, format))).length;
-  stats.upToDate = rest.length - stats.optedOutOrNoFit - stats.mainNotConfirmed;
+  stats.optedOutOrNoFit = rest.filter((person) => !person.mainName || !nicknameFor(person.nickname ?? person.accountName, person.mainName, format)).length;
+  stats.upToDate = rest.length - stats.optedOutOrNoFit;
   if (options.dryRun) return { changes, applied: 0, failed: 0, skipped: null, stats };
   let applied = 0, failed = 0;
-  // A nickname we set for a main that is no longer confirmed goes back to the member's own.
-  for (const person of rest) {
-    if (unconfirmed.has(person.discordUserId) && person.record?.appliedNickname != null) await restoreNickname(prisma, guild, row.id, person.discordUserId, null).catch(() => false);
-  }
   for (const change of changes) {
     const member = guild.members.cache.get(change.discordUserId);
     if (!member) { failed++; continue; }

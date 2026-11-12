@@ -1,5 +1,5 @@
 import type { ParsedItem } from "./item-links.js";
-import { nullItemDataProvider, type ItemDataProvider, type ItemDetails } from "./item-preview-data.js";
+import { nullItemDataProvider, type ItemDataProvider, type ItemDetails, type ItemFacts } from "./item-preview-data.js";
 
 // Item data from Blizzard's own Game Data API (docs/ITEM_PREVIEWS.md), using the bot's Battle.net app with a
 // client-credentials token (no member account involved). WoW Forever's static namespace answers first; an id that
@@ -75,6 +75,38 @@ export function itemSummary(item: unknown, locale: Locale): string | undefined {
   return text ? text.slice(0, 200) : undefined;
 }
 
+/** The structured facts of an item in one language (the layout of the Discord preview). */
+export function itemFacts(item: unknown, locale: Locale): ItemFacts | undefined {
+  const facts: ItemFacts = {};
+  const subclass = loc(at(item, "item_subclass", "name"), locale);
+  const slot = loc(at(item, "inventory_type", "name"), locale);
+  if (slot && at(item, "inventory_type", "type") !== "NON_EQUIP") facts.slot = slot;
+  if (subclass && subclass !== slot) facts.type = subclass;
+  const armor = display(at(item, "preview_item", "armor"), locale);
+  if (armor) facts.armor = armor;
+  const damage = display(at(item, "preview_item", "weapon", "damage"), locale);
+  if (damage) facts.damage = damage;
+  const stats = at(item, "preview_item", "stats");
+  if (Array.isArray(stats)) {
+    const lines = stats.map(stat => display(stat, locale)).filter((text): text is string => !!text).slice(0, 6);
+    if (lines.length) facts.stats = lines;
+  }
+  const spells = at(item, "preview_item", "spells");
+  if (Array.isArray(spells)) {
+    const lines = spells.map(spell => loc(at(spell, "description"), locale)).filter((text): text is string => !!text).slice(0, 3);
+    if (lines.length) facts.effects = lines;
+  }
+  const level = positive(at(item, "level"));
+  if (level) facts.itemLevel = level;
+  const required = positive(at(item, "required_level"));
+  if (required && required > 1) facts.requiredLevel = required;
+  const binding = loc(at(item, "preview_item", "binding", "name"), locale);
+  if (binding) facts.binding = binding;
+  const sell = positive(at(item, "preview_item", "sell_price", "value")) ?? positive(at(item, "sell_price"));
+  if (sell) facts.sellCopper = sell;
+  return Object.keys(facts).length ? facts : undefined;
+}
+
 /** Turns one Game Data item document into ItemDetails; null when it is not a usable item. */
 export function parseBlizzardItem(item: unknown, source: "forever" | "classic1x"): ItemDetails | null {
   const id = positive(at(item, "id"));
@@ -85,11 +117,15 @@ export function parseBlizzardItem(item: unknown, source: "forever" | "classic1x"
   if (quality !== undefined) details.quality = quality;
   const summary = itemSummary(item, "en_US");
   if (summary) details.summary = summary;
+  const facts = itemFacts(item, "en_US");
+  if (facts) details.facts = facts;
   const frName = typeof at(item, "name") === "object" ? loc(at(item, "name", "fr_FR"), "fr_FR") : undefined;
   if (frName) {
     details.fr = { name: frName.slice(0, 100) };
     const frSummary = itemSummary(item, "fr_FR");
     if (frSummary) details.fr.summary = frSummary;
+    const frFacts = itemFacts(item, "fr_FR");
+    if (frFacts) details.fr.facts = frFacts;
   }
   return details;
 }

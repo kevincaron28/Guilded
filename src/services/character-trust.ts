@@ -3,8 +3,10 @@ import { characterKey } from "../../companion/character-identity.mjs";
 
 // "Reported, not verified" (docs/JEEVES_COMPARISON.md idea 1). WoW Forever has no Blizzard API, so
 // every character comes from a client. Some sources prove the character is the member's, others only
-// say so. Shown next to each character on /me/data, /character list, /who and /officer roster gaps;
-// nickname sync only uses a confirmed main (nickname-sync.ts).
+// say so. Shown as a small label next to each character on /me/data, /character list, /who and /officer roster gaps.
+// Owner decision, 10 November 2026: "reported" counts the same as "confirmed" everywhere except in a conflict between
+// two members (character-move.ts, where the linkEvidence order decides). Trust is information, never a restriction:
+// nickname sync, cards and lists do not look at it.
 //
 // Linking audit T8 (owner decision, 10 November 2026). Confirmed when:
 //   * the member's own signed-in companion uploaded it (Character.confirmedAt) AND something outside
@@ -13,6 +15,9 @@ import { characterKey } from "../../companion/character-identity.mjs";
 //     code from it (CharacterVerifyClaim PROVISIONAL or LINKED, or linkEvidence "heard"); or
 //   * an officer vouched for it: /officer character link or move (linkEvidence "officer"), or an
 //     officer's own addon heard the code (CharacterVerifyClaim LINKED).
+// Grandfathered (owner decision, 10 November 2026: "grandfather the old links"): a character whose confirmedAt is
+// before T8_STRICT_FROM, the instant the strict rule went live, stays confirmed exactly as before T8 (the member's own
+// companion or an officer linked it). The strict rule above applies only to links confirmed at or after it.
 // Reported otherwise: typed in, matched by name, named in an invite request, heard by a guildmate's
 // addon without the member's own companion, or uploaded by the member's companion alone (a saved file
 // can name any character).
@@ -44,9 +49,13 @@ export interface TrustProof {
 const nameKeyOf = (character: TrustedCharacter) => characterKey(character.name, character.realm, character.gameEdition ?? "forever");
 const keyOf = (character: TrustedCharacter) => `${character.memberId}\n${nameKeyOf(character)}`;
 
+/** When the strict rule (T8, #724) went live on the bot. Older links keep the pre-T8 meaning of confirmedAt. */
+export const T8_STRICT_FROM = new Date("2026-11-10T15:14:00Z");
+
 /** Pure: one character's trust from its own fields and what agrees with them. */
 export function characterTrust(character: Pick<TrustedCharacter, "confirmedAt" | "linkEvidence">, proof: TrustProof = {}): CharacterTrust {
   if (character.linkEvidence === "officer" || proof.claim === "LINKED") return "confirmed";
+  if (character.confirmedAt && character.confirmedAt < T8_STRICT_FROM) return "confirmed";
   const heard = proof.claim === "PROVISIONAL" || character.linkEvidence === "heard";
   return character.confirmedAt && (heard || proof.inRoster) ? "confirmed" : "reported";
 }
@@ -66,7 +75,7 @@ export async function characterTrustMap(database: TrustDatabase, guildId: string
     });
     for (const claim of claims) claimed.set(`${claim.memberId}\n${claim.nameKey}`, claim.status);
     // Only a character the member's own companion uploaded can be confirmed by the roster.
-    const own = open.filter((character) => character.confirmedAt && claimed.get(keyOf(character)) !== "LINKED");
+    const own = open.filter((character) => character.confirmedAt && character.confirmedAt >= T8_STRICT_FROM && claimed.get(keyOf(character)) !== "LINKED");
     if (own.length) {
       const rows = await database.guildRosterEntry.findMany({
         where: { guildId, inGuild: true, nameKey: { in: [...new Set(own.map(nameKeyOf))] } },

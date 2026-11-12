@@ -1,17 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
-import { characterTrust, characterTrustMap, trustLabel, trustSuffix } from "../src/services/character-trust.js";
+import { characterTrust, characterTrustMap, T8_STRICT_FROM, trustLabel, trustSuffix } from "../src/services/character-trust.js";
 import { charactersMeSection, meCharacterList } from "../src/services/me-characters.js";
 import { formatRosterGaps, planRosterGaps } from "../src/services/roster-gaps.js";
 import { rosterFreshness } from "../src/services/guild-data.js";
 
 // 9.1 (docs/JEEVES_COMPARISON.md ideas 1 and 3): "reported, not verified" and the roster's freshness.
+// Around the instant the strict rule went live (T8_STRICT_FROM, 10 November 2026 15:14 UTC).
+const OLD = new Date("2026-11-09T12:00:00Z");
+const NEW = new Date("2026-11-11T12:00:00Z");
 const character = (id: string, name: string, extra: { memberId?: string; confirmedAt?: Date | null; linkEvidence?: string | null } = {}) =>
   ({ id, memberId: extra.memberId ?? "m1", name, realm: "", gameEdition: "forever", confirmedAt: extra.confirmedAt ?? null, linkEvidence: extra.linkEvidence ?? null });
 
 describe("reported, not verified", () => {
   // Linking audit T8 (owner decision, 10 November 2026).
   it("is confirmed by the member's own companion only when the roster or a heard verify code agrees, or by an officer", () => {
-    const own = { confirmedAt: new Date() };
+    const own = { confirmedAt: NEW };
     // The member's own companion alone: a saved file can name any character.
     expect(characterTrust(own)).toBe("reported");
     expect(characterTrust(own, { inRoster: true })).toBe("confirmed");
@@ -27,15 +30,29 @@ describe("reported, not verified", () => {
     expect(characterTrust({ confirmedAt: null })).toBe("reported");
   });
 
+  it("grandfathers links confirmed before the strict rule went live", async () => {
+    // Own companion (or an officer's hand link) before T8: confirmed as it always was, with no roster or code.
+    expect(characterTrust({ confirmedAt: OLD })).toBe("confirmed");
+    expect(characterTrust({ confirmedAt: NEW })).toBe("reported");
+    expect(characterTrust({ confirmedAt: T8_STRICT_FROM })).toBe("reported");
+    const roster = vi.fn(async () => []);
+    const trust = await characterTrustMap({ characterVerifyClaim: { findMany: vi.fn(async () => []) }, guildRosterEntry: { findMany: roster } } as never, "g1", [
+      character("old", "Old Link", { confirmedAt: OLD }), character("new", "New Link", { confirmedAt: NEW }), character("named", "Name Match")
+    ]);
+    expect(Object.fromEntries(trust)).toEqual({ old: "confirmed", new: "reported", named: "reported" });
+    // Only the new own-companion link needs the roster.
+    expect(roster).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ nameKey: { in: ["new link"] } }) }));
+  });
+
   it("reads the verify claims and the roster once each for a whole list", async () => {
     const claims = vi.fn(async () => [{ memberId: "m1", nameKey: "lebowski holyroller", status: "LINKED" }, { memberId: "m1", nameKey: "the stranger", status: "PROVISIONAL" }]);
     const roster = vi.fn(async () => [{ nameKey: "donny kerabatsos", gameEdition: "forever" }, { nameKey: "walter sobchak", gameEdition: "forever" }]);
     const trust = await characterTrustMap({ characterVerifyClaim: { findMany: claims }, guildRosterEntry: { findMany: roster } } as never, "g1", [
       character("a", "Lebowski Holyroller"), // an officer's addon heard the code
       character("b", "Walter Sobchak"), // in the roster, but never uploaded by the member's own companion
-      character("c", "Donny Kerabatsos", { confirmedAt: new Date() }), // own companion + roster
-      character("d", "Jesus Quintana", { confirmedAt: new Date() }), // own companion only (not in this guild)
-      character("e", "The Stranger", { confirmedAt: new Date() }), // own companion + a guildmate's addon
+      character("c", "Donny Kerabatsos", { confirmedAt: NEW }), // own companion + roster
+      character("d", "Jesus Quintana", { confirmedAt: NEW }), // own companion only (not in this guild)
+      character("e", "The Stranger", { confirmedAt: NEW }), // own companion + a guildmate's addon
       character("f", "Maude Lebowski", { linkEvidence: "officer" }) // an officer's link
     ]);
     expect(Object.fromEntries(trust)).toEqual({ a: "confirmed", b: "reported", c: "confirmed", d: "reported", e: "confirmed", f: "confirmed" });
@@ -62,7 +79,7 @@ describe("reported, not verified", () => {
   it("lists the member's characters with their label on the website, and explains reported ones", async () => {
     const database = {
       character: { findMany: vi.fn(async () => [
-        { ...character("a", "Ann Lee", { confirmedAt: new Date() }), displayName: null, isMain: true, member: { guildId: "g1" } },
+        { ...character("a", "Ann Lee", { confirmedAt: NEW }), displayName: null, isMain: true, member: { guildId: "g1" } },
         { ...character("b", "Bo <Script>"), displayName: null, isMain: false, member: { guildId: "g1" } }
       ]) },
       characterVerifyClaim: { findMany: vi.fn(async () => []) },

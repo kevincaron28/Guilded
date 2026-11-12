@@ -353,6 +353,22 @@ describe("call for help: guildmates in the zone and party invites", () => {
   });
 });
 
+  it("posts the call and the all-clear in French on a French client", () => {
+    const lua = setup();
+    lua.run(`SETTINGS.language = "fr"`);
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Kev", zone = "Duskwood", attackers = {} })`)).toContain("l'aide ! Kev est attaqu");
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Kev", zone = "", attackers = {} })`)).toContain("dans le monde ouvert");
+    lua.run(`SETTINGS.language = "en"`);
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Kev", zone = "", attackers = {} })`)).toBe("[Guilded] Help! Kev is under attack in the open world");
+  });
+  it("tells the world PvP stats which zone the call named when I answer", () => {
+    const lua = setup();
+    lua.run(`NS.worldPvp = { note = function(kind, zone, map) NOTED = kind .. ":" .. tostring(zone) .. ":" .. tostring(map) end }`);
+    callFrom("Ann-Realm", goodCall);
+    lua.run(`NS.callForHelp.reply(true)`);
+    expect(lua.run(`return NOTED`)).toBe("responded:Duskwood:47");
+  });
+
 describe("call for help: only a real attack counts, and the chat line is limited", () => {
   it("ignores a hit while no enemy player is targeting me (an NPC, a trap, a fall)", () => {
     const lua = setup();
@@ -377,6 +393,22 @@ describe("call for help: only a real attack counts, and the chat line is limited
     lua.run(`ENEMY = { name = "Thug", level = 60 }; fire_event("DUEL_REQUESTED", "Thug")`);
     expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
     lua.run(`fire_event("DUEL_FINISHED"); CLOCK = CLOCK + 60`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
+  });
+  // A declined or timed-out request may never fire DUEL_FINISHED; it must not hide a real attack for the whole session.
+  it("stops treating an unaccepted duel request as a duel after a minute", () => {
+    const lua = setup();
+    lua.run(`ENEMY = { name = "Thug", level = 60 }; fire_event("DUEL_REQUESTED", "Thug")`);
+    lua.run(`CLOCK = CLOCK + 61`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
+  });
+  it("keeps a started duel a duel however long it lasts, until it finishes", () => {
+    const lua = setup();
+    lua.run(`ENEMY = { name = "Thug", level = 60 }; fire_event("DUEL_REQUESTED", "Thug"); fire_event("DUEL_COUNTDOWN", 3)`);
+    lua.run(`CLOCK = CLOCK + 300`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    lua.run(`fire_event("DUEL_FINISHED")`);
+    lua.run(`CLOCK = CLOCK + 60`);
     expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
   });
   it("ignores an enemy that is not in combat, and hits too far apart", () => {

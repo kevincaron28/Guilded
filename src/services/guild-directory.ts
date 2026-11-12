@@ -1,3 +1,4 @@
+import { siteUrl } from "../site-url.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 import { currentEdition } from "./edition-context.js";
@@ -119,7 +120,7 @@ export function createGuildDirectory(store: GuildDirectoryStore): { route: WebRo
       const slugs = new Set((await Promise.all(GAME_EDITIONS.map((edition) => store.guilds(edition)))).flat()
         .filter((guild) => guild.slug && guild.indexable !== false).map((guild) => guild.slug!));
       const body = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${[...slugs].sort().map((slug) => `<url><loc>https://guilded.kcaron.top/g/${encodeURIComponent(slug)}/</loc></url>`).join("")}</urlset>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${[...slugs].sort().map((slug) => `<url><loc>${siteUrl(`/g/${encodeURIComponent(slug)}/`)}</loc></url>`).join("")}</urlset>
 `;
       return { status: 200, headers: { "content-type": "application/xml; charset=utf-8", "cache-control": "public, max-age=3600", "x-content-type-options": "nosniff" }, body: ctx.request.method === "HEAD" ? "" : body };
     }

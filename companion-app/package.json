@@ -46,6 +46,7 @@
       "disk-space.cjs",
       "config-load.cjs",
       "store-migrate.cjs",
+      "store-decrypt.cjs",
       "store-startup.cjs"
     ],
     "extraResources": [

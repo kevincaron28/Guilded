@@ -106,7 +106,7 @@ describe("independent companion devices", () => {
   });
   it("scopes single-device and all-device revocation to the signed-in owner", async () => {
     const guild = vi.fn(async () => ({})), personal = vi.fn(async () => ({}));
-    const store = prismaDeviceStore({ companionCredential: { updateMany: guild }, webCompanionCredential: { updateMany: personal } } as never);
+    const store = prismaDeviceStore({ companionCredential: { updateMany: guild }, webCompanionCredential: { updateMany: personal }, companionDevice: { updateMany: vi.fn(async () => ({})) } } as never);
     const account = { id: "account", discordUserId: "discord", username: "user", displayName: null };
     await store.change(account, "revoke", "guild", "guessed-other-device", "");
     expect(guild).toHaveBeenLastCalledWith(expect.objectContaining({ where: { id: "guessed-other-device", revokedAt: null, member: { discordUserId: "discord" } } }));

@@ -10,9 +10,10 @@ import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
 // The public address written into canonical links, the sitemap and robots.txt (docs/plans/GUILDEDWOW_DOMAIN.md).
-// Set SITE_ORIGIN (https only) in the Cloudflare build settings to move to guildedwow.com; unset keeps the old address.
+// guildedwow.com is the main site (12 November 2026). SITE_ORIGIN (https only) overrides it; rollback = revert that PR.
 const OLD_ORIGIN = "https://guilded.kcaron.top";
-const origin = /^https:\/\/[a-z0-9.-]+$/.test(process.env.SITE_ORIGIN ?? "") ? process.env.SITE_ORIGIN : OLD_ORIGIN;
+const DEFAULT_ORIGIN = "https://guildedwow.com";
+const origin = /^https:\/\/[a-z0-9.-]+$/.test(process.env.SITE_ORIGIN ?? "") ? process.env.SITE_ORIGIN : DEFAULT_ORIGIN;
 const guideDescriptions = {
   AUTOMATION_QUICK_START: "Optional member and officer automation: setup, status and stopping delivery. English and French.",
   PRIVACY: "Guilded privacy: data, permissions, retention and private support requests. English and French.",

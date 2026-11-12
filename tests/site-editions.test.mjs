@@ -33,7 +33,7 @@ describe('edition-specific downloads', () => {
     const html = page('editions/forever/index.html');
     const downloads = [...html.matchAll(/href="(https:\/\/github\.com\/[^" ]+\.zip)"/g)].map(match => match[1]);
     expect(downloads).toEqual(['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-forever.zip`));
-    expect(html).toContain('href="https://guilded.kcaron.top/editions/forever/?lang=fr"');
+    expect(html).toContain('href="https://guildedwow.com/editions/forever/?lang=fr"');
     expect(html).toContain('data-fr="Installer dans le bon dossier de jeu"');
     expect(html).toContain('https://apps.microsoft.com/detail/9N680XX3QFL9');
     for (const path of ['/leaderboards/', '/recruitment/', '/players/']) expect(html).toContain(`href="/forever${path}"`);
@@ -41,8 +41,8 @@ describe('edition-specific downloads', () => {
     if (curseforge.version === published) for (const url of Object.values(curseforge.editions?.forever ?? {})) expect(html).toContain(`href="${url}"`);
     expect(html).not.toContain('undefined');
     const sitemap = page('sitemap.xml');
-    expect(sitemap).toContain('https://guilded.kcaron.top/editions/forever/?lang=fr');
-    expect(sitemap).toContain('https://guilded.kcaron.top/editions/forever/</loc>');
+    expect(sitemap).toContain('https://guildedwow.com/editions/forever/?lang=fr');
+    expect(sitemap).toContain('https://guildedwow.com/editions/forever/</loc>');
     for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(sitemap).not.toContain(`/editions/${other}/`);
   });
 
@@ -74,8 +74,8 @@ describe('website refresh', () => {
   it('publishes the officer page in both languages, with server-rendered French', () => {
     for (const path of ['officers']) {
       const html = page(`${path}/index.html`);
-      expect(html).toContain(`<link rel="canonical" href="https://guilded.kcaron.top/${path}/">`);
-      expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/${path}/?lang=fr"`);
+      expect(html).toContain(`<link rel="canonical" href="https://guildedwow.com/${path}/">`);
+      expect(html).toContain(`hreflang="fr" href="https://guildedwow.com/${path}/?lang=fr"`);
       expect(html).toContain('data-language-copy="fr"');
       expect(html).toContain('<nav class="footer-cols"');
       expect(html).not.toContain('<details class="nav-group has-current"');
@@ -86,16 +86,16 @@ describe('website refresh', () => {
 
   it('lists the public data pages and the guild-page sitemap for search engines', () => {
     const sitemap = page('sitemap.xml');
-    for (const path of ['/forever/leaderboards/', '/forever/recruitment/guilds/', '/forever/players/', '/officers/', '/forever/']) expect(sitemap).toContain(`<loc>https://guilded.kcaron.top${path}</loc>`);
-    for (const slug of ['retail', 'tbc', 'mists', 'classic-era']) expect(sitemap).not.toContain(`guilded.kcaron.top/${slug}/`);
-    expect(page('robots.txt')).toContain('Sitemap: https://guilded.kcaron.top/recruitment/guilds/sitemap.xml');
+    for (const path of ['/forever/leaderboards/', '/forever/recruitment/guilds/', '/forever/players/', '/officers/', '/forever/']) expect(sitemap).toContain(`<loc>https://guildedwow.com${path}</loc>`);
+    for (const slug of ['retail', 'tbc', 'mists', 'classic-era']) expect(sitemap).not.toContain(`guildedwow.com/${slug}/`);
+    expect(page('robots.txt')).toContain('Sitemap: https://guildedwow.com/recruitment/guilds/sitemap.xml');
   });
 
   it('uses light images and a large link preview', () => {
     expect(statSync('dist/site/logo-88.webp').size).toBeLessThan(10_000);
     expect(statSync('dist/site/logo.png').size).toBeLessThan(150_000);
     const home = page('index.html');
-    expect(home).toContain('<meta property="og:image" content="https://guilded.kcaron.top/images/social/guilded-card.png">');
+    expect(home).toContain('<meta property="og:image" content="https://guildedwow.com/images/social/guilded-card.png">');
     expect(home).toContain('<meta name="twitter:card" content="summary_large_image">');
     expect([...home.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]).filter(src => src.endsWith('.png'))).toEqual([]);
     expect(page('docs/QUICK_START.html')).toContain('images/social/guilded-card.png');
@@ -121,8 +121,8 @@ describe('edition hubs', () => {
   it.each(WOW_EDITIONS)('gives $id its hub: leaderboard first, then download, guilds and first steps', edition => {
     const { slug } = editionSection(edition.id);
     const html = page(`${slug}/index.html`);
-    expect(html).toContain(`<link rel="canonical" href="https://guilded.kcaron.top/${slug}/">`);
-    expect(html).toContain(`hreflang="fr" href="https://guilded.kcaron.top/${slug}/?lang=fr"`);
+    expect(html).toContain(`<link rel="canonical" href="https://guildedwow.com/${slug}/">`);
+    expect(html).toContain(`hreflang="fr" href="https://guildedwow.com/${slug}/?lang=fr"`);
     expect(html).toContain(`data-live-summary="/${slug}/leaderboards/summary.json"`);
     const board = html.indexOf('class="live-strip hub-board"');
     expect(board).toBeGreaterThan(0);

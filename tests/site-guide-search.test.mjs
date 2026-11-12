@@ -21,7 +21,7 @@ describe("guide search", () => {
     expect(html).toContain("Chercher dans le guide");
     expect(html.match(/data-guide>/g)).toHaveLength(PAGES.length * 2);
     for (const href of PAGES) expect(html).toContain(`href="${href}"`);
-    expect(readFileSync("dist/site/sitemap.xml", "utf8")).toContain("https://guilded.kcaron.top/guide/");
+    expect(readFileSync("dist/site/sitemap.xml", "utf8")).toContain("https://guildedwow.com/guide/");
     expect(guideMatches("Install the addon", "install")).toBe(true);
     expect(guideMatches("Officers", "loot")).toBe(false);
     expect(guideMatches("Officers", "  ")).toBe(true);

@@ -45,6 +45,11 @@ Not changed on purpose: stored Discord text that mentions `guilded.kcaron.top/..
 changing every string is churn), `uptime.yml` checks (update after cut-over), `dl.kcaron.top`, the owner
 creator page, the addon `Locale.lua` strings (new addon release only).
 
+**Update, 12 November 2026:** the cut-over variables now live in `wrangler.jsonc` (`vars`: `GUILDED_CANONICAL_HOST`,
+`GUILDED_ADS`) and `scripts/build-site.mjs` defaults to `https://guildedwow.com` (`SITE_ORIGIN` still overrides), because
+the Cloudflare dashboard would not load. Rollback of the Worker and site side = revert that PR; the bot side is still
+`PUBLIC_SITE_URL` on Oracle.
+
 ## Order of steps
 
 1. Merge this PR (no behavior change). Do not deploy yet.

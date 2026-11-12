@@ -62,31 +62,56 @@ end
 
 local function officer() return ns.isOfficer and ns.isOfficer() end
 
+-- "first last-realm" -> "first last", "realm". Only a dash after a complete first+last pair can be a realm; the same
+-- rule as the bot (invite-queue.ts knownRealms/stripRealm): a hyphenated surname is not a realm.
+local function splitRealm(folded)
+  local pos = string.find(folded, "%-[^%-]*$")
+  if not pos then return folded, nil end
+  local base, suffix = string.sub(folded, 1, pos - 1), string.sub(folded, pos + 1)
+  if suffix == "" or string.find(suffix, "%s") or not string.find(base, ".+ .+") then return folded, nil end
+  return base, suffix
+end
+
+-- The guild's names without their realm, and the realms in use (a suffix at least two names carry and half or more do).
 local function guildKeys()
-  local keys = {}
-  if not (GetNumGuildMembers and GetGuildRosterInfo) then return keys end
+  local names, keys, counts, realms = {}, {}, {}, {}
+  if not (GetNumGuildMembers and GetGuildRosterInfo) then return keys, realms end
   local total = select(1, GetNumGuildMembers()) or 0
   for i = 1, total do
     local ok, name = pcall(GetGuildRosterInfo, i)
-    if ok and type(name) == "string" then
-      keys[key((string.gsub(name, "%-.*$", "")))] = true
-    end
+    if ok and type(name) == "string" then names[#names + 1] = key(name) end
   end
-  return keys
+  for _, n in ipairs(names) do
+    local _, suffix = splitRealm(n)
+    if suffix then counts[suffix] = (counts[suffix] or 0) + 1 end
+  end
+  for suffix, count in pairs(counts) do
+    if count >= 2 and count * 2 >= #names then realms[suffix] = true end
+  end
+  for _, n in ipairs(names) do
+    local base, suffix = splitRealm(n)
+    keys[(suffix and realms[suffix]) and base or n] = true
+  end
+  return keys, realms
 end
+module.splitRealm = splitRealm
 
 -- Waiting names: { { name, at, invitedAt } }, oldest first. Names already in the guild are left out.
 function module.list()
   if not officer() then return nil, L("Current officer access is required.") end
   local data = _G.GuildedInvites
   if type(data) ~= "table" or type(data.names) ~= "table" then return {} end
-  local d, inGuild, out, at = db() or {}, guildKeys(), {}, nowSeconds()
+  local inGuild, realms = guildKeys()
+  local d, out, at = db() or {}, {}, nowSeconds()
   d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}
   d.inviteState = type(d.inviteState) == "table" and d.inviteState or {}
   d.inviteRemoved = type(d.inviteRemoved) == "table" and d.inviteRemoved or {}
   for _, row in ipairs(data.names) do
     local k = type(row) == "table" and type(row.name) == "string" and key(row.name)
-    if k and row.name ~= "" and not inGuild[k] then
+    -- A request typed with its realm ("Anna Smith-RealmName") is checked without it too.
+    local base, suffix = splitRealm(k or "")
+    local joined = k and (inGuild[k] or (suffix and realms[suffix] and inGuild[base]))
+    if k and row.name ~= "" and not joined then
       local sent = d.inviteSent[k]
       local answer = d.inviteState[k]
       -- A row the officer removed stays gone until the requester posts the name again (a newer post).

@@ -6,7 +6,7 @@ import { notifyInviters } from "./invite-notify.js";
 import { DONE_BUTTON, requestInviteRow } from "./invite-request.js";
 import { INVITE_REQUEST_PREFIX } from "./invite-request.js";
 import { parseInviteAnswers, questionsBlock, storedQuestions } from "./recruiting-kit.js";
-import { foldKey, markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, SEEN, type InvitedRow } from "./invite-queue.js";
+import { foldKey, knownRealms, stripRealm, markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, SEEN, type InvitedRow } from "./invite-queue.js";
 
 // 8.5 batch 3 (#13/#14): the Discord half of the guild-invite channel. On by default; an officer's off switch is
 // `/mod invites settings queue:false` (and `dm:false` for the WoW-role DM). Reading names needs the Message Content
@@ -41,7 +41,10 @@ export async function settleIfAlreadyIn(client: Pick<Client, "channels" | "user"
     const wanted = foldKey(nameKey);
     if (!wanted.includes(" ")) return;
     const roster = await (database as Pick<PrismaClient, "guildRosterEntry">).guildRosterEntry.findMany({ where: { guildId: guild.id, inGuild: true }, select: { name: true } });
-    const names = roster.map((row) => row.name).filter((name) => { const key = foldKey(name); return key === wanted || key.replace(/-[^\s-]+$/u, "") === wanted; });
+    const realms = knownRealms(roster.map((row) => row.name));
+    const target = stripRealm(wanted, realms);
+    // Realm-free names go on, so the matcher cannot cut anything else.
+    const names = roster.map((row) => stripRealm(foldKey(row.name), realms)).filter((name) => name === target);
     if (names.length) await completeInvitesFromRoster(client, database as never, guild, names);
   } catch { /* the hourly back-check still runs */ }
 }

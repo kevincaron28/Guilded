@@ -328,6 +328,7 @@ const STRINGS = {
   },
   "linked.button": { en: "My characters", fr: "Mes personnages" },
   "linked.add": { en: "Add another", fr: "Ajouter un autre" },
+  "panel.moreServers": { en: "You are in more servers than shown. Use /character in the server you want.", fr: "Tu es dans plus de serveurs que ceux affichés. Utilise /character dans le serveur voulu." },
   "panel.whichServer": { en: "Which server?", fr: "Quel serveur ?" },
   "linked.level": { en: "level {level}", fr: "niveau {level}" },
   "linked.main": { en: "main", fr: "principal" },

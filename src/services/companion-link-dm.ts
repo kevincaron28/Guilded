@@ -155,27 +155,7 @@ export async function tellAutoLinked(client: Messenger | null | undefined, datab
   } catch { /* a missing DM never fails a link */ }
 }
 
-type AnswerDatabase = Pick<PrismaClient, "character" | "member" | "guildSettings">;
-
-/** The private answer to the button: every guild the Discord user is linked in (only this one when clicked in a server). */
-export async function linkedCharactersAnswer(database: AnswerDatabase, discordUserId: string, discordGuildId?: string | null): Promise<string> {
-  const members = await database.member.findMany({
-    where: { discordUserId, ...(discordGuildId ? { guild: { discordId: discordGuildId } } : {}), characters: { some: {} } },
-    select: { guildId: true, guild: { select: { name: true } }, characters: { select: { name: true, displayName: true, className: true, level: true, isMain: true } } },
-    take: 10
-  });
-  if (!members.length) return `${t("en", "linked.none")}\n${t("fr", "linked.none")}`;
-  const sections: string[] = [];
-  for (const member of members) {
-    const settings = await database.guildSettings.findUnique({ where: { guildId: member.guildId }, select: { language: true } });
-    const lang = asLang(settings?.language);
-    const book = await loadFullNameBook(database, member.guildId);
-    sections.push(`**${escapeMarkdown(member.guild.name)}**\n${linkedLines(lang, member.characters, book)}\n${t(lang, "linked.hint")}`);
-  }
-  return sections.join("\n\n").slice(0, 1990);
-}
-
-type UndoDatabase = AnswerDatabase & Pick<PrismaClient, "characterVerifyClaim">;
+type UndoDatabase = Pick<PrismaClient, "character" | "member" | "guildSettings" | "characterVerifyClaim">;
 
 /**
  * "Not mine": unlinks the character as BLOCKED (linkPairedCharacter, the name matcher and the pre-link all respect it, so
@@ -217,6 +197,8 @@ export async function handleLinkedButton(interaction: ButtonInteraction | String
     return;
   }
   if (id !== MINE && id !== ADD_MORE) return;
+  // Acknowledge first: the panel needs several queries (and a lazy import) and Discord gives 3 seconds.
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
   // The same panel as /character list (character-panel.ts); loaded here because that file imports this one.
   const { openPanelFor } = await import("./character-panel.js");
   await openPanelFor(interaction, database as unknown as Parameters<typeof openPanelFor>[1], id === ADD_MORE ? "link" : "panel");

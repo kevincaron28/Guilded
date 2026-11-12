@@ -38,8 +38,27 @@ export const DEVICE_LIMITS = {
   /** Dungeon runs in one upload (same cap as a public upload). */
   runsPerUpload: 50,
   /** Dungeon runs one device may send per hour, new or repeated. */
-  runsPerDevicePerHour: 300
+  runsPerDevicePerHour: 300,
+  /** Reported characters of unclaimed devices one server keeps (T7): new names beyond it are ignored. */
+  charactersPerGuild: 2000,
+  /** An unclaimed device that has not uploaded for this long is forgotten with what it reported (T7). */
+  idleDays: 90
 } as const;
+
+/**
+ * The key a registration limit counts by (T7): an IPv4 address as it is, or the /64 of an IPv6 address (a home or one
+ * machine holds a whole /64, so a limit per address was no limit there).
+ */
+export function networkKey(address: string): string {
+  const text = address.trim().toLowerCase().replace(/^\[|\]$/g, "").replace(/%.*$/, "");
+  const mapped = /^(?:::ffff:)?(\d+\.\d+\.\d+\.\d+)$/.exec(text);
+  if (mapped) return mapped[1]!;
+  if (!text.includes(":")) return text;
+  const [head = "", tail = ""] = text.split("::");
+  const left = head ? head.split(":") : [], right = tail ? tail.split(":") : [];
+  const groups = text.includes("::") ? [...left, ...Array.from({ length: Math.max(0, 8 - left.length - right.length) }, () => "0"), ...right] : left;
+  return `${groups.slice(0, 4).map((group) => group.replace(/^0+(?=.)/, "")).join(":")}::/64`;
+}
 
 /** Sliding-window counter kept in memory (a restart forgets it, like the other API limits). */
 export function windowLimiter(limit: number, windowMs: number, maxKeys = 5_000) {
@@ -95,6 +114,8 @@ export interface ServerCandidate {
   realmMatch?: boolean;
   /** One of the uploading characters is already in this server's roster. */
   rosterMatch?: boolean;
+  /** No server registered this guild name: found only because its roster holds one of the uploading characters (T9, a guild renamed in game). */
+  viaRoster?: boolean;
 }
 
 /** The device a batch of runs came from, and the characters it reported. */
@@ -121,6 +142,12 @@ export interface DeviceStore {
    * (GuildedDungeonAccepted/Notes) so it marks the runs synced, as the standings do for a signed-in companion.
    */
   receipts?(guildId: string, refs: string[]): Promise<{ runRef: string; reason: string | null }[]>;
+  /** Reported characters unclaimed devices hold in this server (T7 cap). */
+  guildCharacterCount?(guildId: string): Promise<number>;
+  /** Forgets unclaimed devices idle since before `before`, with their characters and waiting runs (T7). */
+  expireIdle?(before: Date): Promise<number>;
+  /** Remembers an in-game guild name no /setup registered, for the server its roster pointed to (T9). */
+  noteAlias?(guildId: string, guild: { name: string; realm: string }, now: Date): Promise<void>;
 }
 
 /** The runs of one unsigned upload the server now holds, in the shape the signed-in standings use. */
@@ -197,6 +224,9 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   const chosen = upload.server ?? remembered?.discordId ?? null;
   const decision = pickServer(candidates, chosen);
   const target = "pick" in decision ? decision.pick : null;
+  sweepIdleDevices(store, now);
+  // T7: a server keeps a bounded number of reported names, whatever the number of keys that send them.
+  const guildFull = target && store.guildCharacterCount ? await store.guildCharacterCount(target.guildId) >= DEVICE_LIMITS.charactersPerGuild : false;
   const chosenGuildId = upload.server && target?.discordId === upload.server ? target.guildId : remembered?.guildId ?? null;
 
   // Characters: only ones this device already reported, plus new ones up to the cap.
@@ -206,7 +236,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
     const nameKey = characterKey(character.name, character.realm, character.gameEdition);
     if (rows.some((row) => row.nameKey === nameKey)) continue;
     if (!known.has(nameKey)) {
-      if (known.size >= DEVICE_LIMITS.charactersPerDevice) continue;
+      if (known.size >= DEVICE_LIMITS.charactersPerDevice || guildFull) continue;
       known.add(nameKey);
     }
     rows.push({
@@ -220,6 +250,8 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   await store.saveUpload(device.id, { guildId: target?.guildId ?? null, chosenGuildId, wowGuild, now }, rows);
   if (!guild || "none" in decision) return { status: "no-guild", guild };
   if ("choose" in decision) return { status: "choose", guild, servers: decision.choose.map((candidate) => ({ discordId: candidate.discordId, name: candidate.serverName })) };
+  // T9: the guild was renamed in game. The roster sent this device to the right server; officers get the new name.
+  if (target?.viaRoster && store.noteAlias) await store.noteAlias(target.guildId, guild, now).catch(() => undefined);
   let runs: { received: number; stored: number; skipped: number; pending?: number } | undefined;
   let pending: Record<string, string> = {};
   if (upload.dungeonRuns.length && store.importRuns && target) {
@@ -268,6 +300,14 @@ export async function claimDevice(store: DeviceStore, device: DeviceRow, memberI
   if (device.claimedMemberId && device.claimedMemberId !== memberId) return false;
   if (device.claimedMemberId === memberId) return true;
   return store.claim(device.id, memberId, now);
+}
+
+let lastSweep = 0;
+/** T7: at most every six hours, forget unclaimed devices idle for 90 days. Never delays or fails an upload. */
+function sweepIdleDevices(store: DeviceStore, now: Date): void {
+  if (!store.expireIdle || now.getTime() - lastSweep < 6 * 3_600_000) return;
+  lastSweep = now.getTime();
+  void store.expireIdle(new Date(now.getTime() - DEVICE_LIMITS.idleDays * 86_400_000)).catch((error: unknown) => console.error("Idle device sweep failed", error));
 }
 
 type RunTx = Pick<Prisma.TransactionClient, "officialSeason" | "guild" | "dungeonRun" | "character" | "guildSettings" | "dungeonRunWitness" | "guildRosterEntry"> & Parameters<typeof importDungeonRuns>[0] & Parameters<typeof enqueueDiscordJob>[0];
@@ -423,6 +463,17 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
         add({ guildId: row.id, discordId: row.discordId, serverName: discordName, officerLinked: Boolean(row.officerSyncAt) });
       }
       const result = [...found.values()].slice(0, 10);
+      if (!result.length && characterKeys.length) {
+        // T9: no server registered this guild name (renamed in game, or set up under another spelling). The servers whose
+        // officer-synced roster or linked characters already hold one of these characters are offered instead.
+        const [rosters, owned] = await Promise.all([
+          database.guildRosterEntry.findMany({ where: { gameEdition: "forever", inGuild: true, nameKey: { in: characterKeys } }, select: { guildId: true }, take: 50 }),
+          database.character.findMany({ where: { name: { in: characterKeys, mode: "insensitive" } }, select: { member: { select: { guildId: true } } }, take: 50 })
+        ]);
+        const ids = [...new Set([...rosters.map((row) => row.guildId), ...owned.map((row) => row.member.guildId)])].slice(0, 10);
+        const homes = ids.length ? await database.guild.findMany({ where: { id: { in: ids }, gameEdition: "forever" }, select: { id: true, discordId: true, officerSyncAt: true } }) : [];
+        return homes.map((row) => ({ guildId: row.id, discordId: row.discordId, serverName: serverName(row.discordId), officerLinked: Boolean(row.officerSyncAt), rosterMatch: true, viaRoster: true }));
+      }
       if (result.length > 1 && characterKeys.length) {
         // Only needed to tell servers apart: does a roster already hold one of these characters?
         const members = await database.character.findMany({ where: { member: { guildId: { in: result.map((candidate) => candidate.guildId) } } }, select: { name: true, realm: true, gameEdition: true, member: { select: { guildId: true } } }, take: 5000 });
@@ -459,6 +510,15 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
       return [...byRef].map(([runRef, reason]) => ({ runRef, reason }));
     },
     importRuns: (guildId, runs, now, source) => database.$transaction((tx) => storeDeviceRuns(tx, guildId, runs, now, source), { timeout: 60_000, maxWait: 15_000 }),
+    guildCharacterCount: (guildId) => database.deviceCharacter.count({ where: { device: { guildId, claimedMemberId: null, revokedAt: null } } }),
+    // Claimed devices stay (the member sees and revokes them on /me/connections); characters and waiting runs go with the device.
+    expireIdle: async (before) => (await database.companionDevice.deleteMany({ where: { claimedMemberId: null, lastSeenAt: { lt: before } } })).count,
+    async noteAlias(guildId, guild, now) {
+      const nameKey = looseKey(guild.name);
+      if (!nameKey) return;
+      await database.guildNameAlias.upsert({ where: { guildId_nameKey: { guildId, nameKey } },
+        create: { guildId, nameKey, name: guild.name, realm: guild.realm, createdAt: now, lastSeenAt: now }, update: { seen: { increment: 1 }, lastSeenAt: now } });
+    },
     async claim(deviceId, memberId, now) {
       const done = await database.companionDevice.updateMany({ where: { id: deviceId, revokedAt: null, OR: [{ claimedMemberId: null }, { claimedMemberId: memberId }] }, data: { claimedMemberId: memberId, claimedAt: now } });
       return done.count === 1;
@@ -477,6 +537,11 @@ export async function reportedDeviceCharacters(database: Pick<PrismaClient, "dev
     .map((character) => characterKey(character.name, character.realm, character.gameEdition ?? "forever")));
   const seen = new Set<string>();
   return rows.filter((row) => !linked.has(row.nameKey) && !seen.has(row.nameKey) && seen.add(row.nameKey)).slice(0, limit);
+}
+
+/** In-game guild names unsigned companions of this server's roster reported that no /setup registered (T9): the guild was renamed in game. */
+export async function reportedGuildNames(database: Pick<PrismaClient, "guildNameAlias">, guildId: string) {
+  return database.guildNameAlias.findMany({ where: { guildId }, orderBy: { lastSeenAt: "desc" }, take: 10, select: { name: true, realm: true, seen: true, lastSeenAt: true } });
 }
 
 /** The member a companion credential belongs to (guild credentials only; leaderboards-only accounts have no guild). */

@@ -138,3 +138,135 @@ export async function scheduleInviteCleanups(database: Database, now = new Date(
   }
   return queued;
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// /mod invites tidy also sweeps the channel itself (owner, 12 Nov 2026). The row-driven clean-up above never sees clutter tied
+// to no row (old thank-you replies, hint replies whose timers died on a restart, tag messages with no stored id, posts with
+// no row). The sweep reads the channel's recent history instead. Kept always: the pinned guide, every pinned message, and the
+// messages of requests still waiting or not yet cleaned. Deleted: the bot's own messages older than 2 hours, and - only with
+// `members:true` - anyone else's messages older than 24 hours. Never anything newer from members.
+// ---------------------------------------------------------------------------------------------------------------------
+export const SWEEP_CAP = 1000;
+export const SWEEP_BOT_MIN_AGE_MS = 2 * 3_600_000;
+export const SWEEP_MEMBER_MIN_AGE_MS = 24 * 3_600_000;
+/** Discord refuses bulk deletes of messages 14 days old or more; one hour of margin. */
+export const BULK_MAX_AGE_MS = 14 * 86_400_000 - 3_600_000;
+/** One run stops deleting after this long (the interaction answers within 15 minutes); the officer runs it again for the rest. */
+export const SWEEP_BUDGET_MS = 10 * 60_000;
+const SINGLE_DELETE_PAUSE_MS = 400;
+
+type ScanMessage = { id: string; pinned: boolean; createdTimestamp: number; author?: { id: string } | null; delete: () => Promise<unknown> };
+type ScanPage = { size: number; values: () => Iterable<ScanMessage>; last: () => ScanMessage | undefined };
+type SweepChannel = {
+  isTextBased: () => boolean;
+  messages?: { fetch: (options: { limit: number; before?: string }) => Promise<ScanPage> };
+  bulkDelete?: (ids: string[], filterOld?: boolean) => Promise<unknown>;
+};
+
+export interface SweepOptions { members?: boolean; confirm?: boolean; now?: Date; cap?: number; budgetMs?: number; pauseMs?: number; sleep?: (ms: number) => Promise<void> }
+export interface SweepResult {
+  /** "unreadable": the channel could not be read at all; "permission": Discord refused reading or deleting. */
+  status: "ok" | "unreadable" | "permission";
+  scanned: number;
+  /** The scan or the deleting stopped at a limit: run it again for the rest. */
+  capped: boolean;
+  protectedCount: number;
+  /** The bot's own messages that are (or were) due for removal. */
+  mine: number;
+  /** Members' messages older than 24 hours (removed only with members:true). */
+  memberOld: number;
+  /** Members' messages newer than that: never touched. */
+  memberFresh: number;
+  deleted: number;
+}
+
+export const MISSING_PERMISSIONS = "View Channel, Read Message History and Manage Messages";
+
+export async function sweepInviteChannel(guild: GuildLike, database: Pick<PrismaClient, "inviteRequest">, guildId: string, channelId: string,
+  guideMessageId: string | null, options: SweepOptions = {}): Promise<SweepResult> {
+  const now = (options.now ?? new Date()).getTime();
+  const cap = options.cap ?? SWEEP_CAP;
+  const result: SweepResult = { status: "ok", scanned: 0, capped: false, protectedCount: 0, mine: 0, memberOld: 0, memberFresh: 0, deleted: 0 };
+  const me = guild.client.user?.id;
+  let channel: SweepChannel | null;
+  try { channel = await guild.channels.fetch(channelId) as SweepChannel | null; } catch (error) {
+    return { ...result, status: refused(error) ? "permission" : "unreadable" };
+  }
+  if (!me || !channel?.isTextBased() || !channel.messages) return { ...result, status: "unreadable" };
+
+  // Messages of requests still waiting, or handled but not cleaned yet (the normal clean-up owns those).
+  const rows = await database.inviteRequest.findMany({ where: { guildId, channelId, OR: [{ status: "PENDING" }, { cleanedAt: null }] }, select: { messageId: true, notifyMessageId: true, doneNoteMessageId: true } });
+  const keep = new Set<string>(guideMessageId ? [guideMessageId] : []);
+  for (const row of rows) for (const id of [row.messageId, row.notifyMessageId, row.doneNoteMessageId]) if (id) keep.add(id);
+
+  const targets: ScanMessage[] = [];
+  let before: string | undefined;
+  scan: for (;;) {
+    let page: ScanPage;
+    try { page = await channel.messages.fetch({ limit: 100, ...(before ? { before } : {}) }); } catch (error) {
+      return { ...result, status: refused(error) ? "permission" : "unreadable" };
+    }
+    if (!page.size) break;
+    for (const message of page.values()) {
+      if (result.scanned >= cap) { result.capped = true; break scan; }
+      result.scanned++;
+      const age = now - message.createdTimestamp;
+      if (message.pinned || keep.has(message.id)) { result.protectedCount++; continue; }
+      if (message.author?.id === me) {
+        if (age > SWEEP_BOT_MIN_AGE_MS) { result.mine++; targets.push(message); }
+        continue;
+      }
+      if (age > SWEEP_MEMBER_MIN_AGE_MS) { result.memberOld++; if (options.members) targets.push(message); } else result.memberFresh++;
+    }
+    before = page.last()?.id;
+    if (page.size < 100 || !before) break;
+  }
+  if (!options.confirm || !targets.length) return result;
+
+  const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const deadline = Date.now() + (options.budgetMs ?? SWEEP_BUDGET_MS);
+  const outOfTime = () => Date.now() > deadline;
+  const single = async (message: ScanMessage): Promise<void> => {
+    try { await message.delete(); result.deleted++; } catch (error) {
+      if (code(error) === 10008) return; // already gone
+      if (refused(error)) result.status = "permission";
+    }
+  };
+  const young = targets.filter((message) => now - message.createdTimestamp < BULK_MAX_AGE_MS);
+  const old = targets.filter((message) => now - message.createdTimestamp >= BULK_MAX_AGE_MS);
+  for (let at = 0; at < young.length && result.status === "ok"; at += 100) {
+    if (outOfTime()) { result.capped = true; break; }
+    const chunk = young.slice(at, at + 100);
+    if (chunk.length === 1 || !channel.bulkDelete) { for (const message of chunk) await single(message); continue; }
+    try {
+      const done = await channel.bulkDelete(chunk.map((message) => message.id), true) as { size?: number } | null;
+      result.deleted += typeof done?.size === "number" ? done.size : chunk.length;
+    } catch (error) {
+      if (refused(error)) { result.status = "permission"; break; }
+      for (const message of chunk) await single(message); // e.g. one of them vanished: fall back to single deletes
+    }
+  }
+  // Messages 14 days old or more cannot be bulk deleted: one at a time, throttled.
+  for (const message of old) {
+    if (result.status !== "ok") break;
+    if (outOfTime()) { result.capped = true; break; }
+    await single(message);
+    await sleep(options.pauseMs ?? SINGLE_DELETE_PAUSE_MS);
+  }
+  return result;
+}
+
+/** The officer-facing text of a sweep: counts for the preview, or what was done. */
+export function sweepSummary(channelId: string, result: SweepResult, membersOption: boolean, confirmed: boolean): string {
+  if (result.status === "unreadable") return `I cannot read <#${channelId}>. Check that it exists and that I have ${MISSING_PERMISSIONS}.`;
+  const lines: string[] = [];
+  if (result.status === "permission") lines.push(`Discord refused: I am missing a permission in <#${channelId}>. I need ${MISSING_PERMISSIONS}.`);
+  const memberLine = result.memberOld || result.memberFresh
+    ? `Member posts: ${result.memberOld} older than 24 hours (${membersOption ? (confirmed ? "removed" : "will be removed") : "kept; add `members:true` to remove them"}), ${result.memberFresh} newer (always kept).`
+    : "";
+  if (confirmed) lines.push(`Removed ${result.deleted} message${result.deleted === 1 ? "" : "s"} from <#${channelId}> (looked at ${result.scanned}; kept ${result.protectedCount} pinned or still needed).`);
+  else lines.push(`In the last ${result.scanned} messages of <#${channelId}>: ${result.mine} of mine older than 2 hours can be removed; ${result.protectedCount} pinned or still needed are kept.`);
+  if (memberLine) lines.push(memberLine);
+  if (result.capped) lines.push(confirmed ? "I stopped at my limit for one run: run it again for the rest." : "That is only the newest part of the channel; run it again afterwards for the rest.");
+  return lines.join("\n");
+}

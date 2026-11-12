@@ -379,6 +379,22 @@ describe("call for help: only a real attack counts, and the chat line is limited
     lua.run(`fire_event("DUEL_FINISHED"); CLOCK = CLOCK + 60`);
     expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
   });
+  // A declined or timed-out request may never fire DUEL_FINISHED; it must not hide a real attack for the whole session.
+  it("stops treating an unaccepted duel request as a duel after a minute", () => {
+    const lua = setup();
+    lua.run(`ENEMY = { name = "Thug", level = 60 }; fire_event("DUEL_REQUESTED", "Thug")`);
+    lua.run(`CLOCK = CLOCK + 61`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
+  });
+  it("keeps a started duel a duel however long it lasts, until it finishes", () => {
+    const lua = setup();
+    lua.run(`ENEMY = { name = "Thug", level = 60 }; fire_event("DUEL_REQUESTED", "Thug"); fire_event("DUEL_COUNTDOWN", 3)`);
+    lua.run(`CLOCK = CLOCK + 300`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    lua.run(`fire_event("DUEL_FINISHED")`);
+    lua.run(`CLOCK = CLOCK + 60`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
+  });
   it("ignores an enemy that is not in combat, and hits too far apart", () => {
     const lua = setup();
     lua.run(`ENEMY = { name = "Thug", level = 60 }; function UnitAffectingCombat() return false end`);

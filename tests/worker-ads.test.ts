@@ -140,3 +140,15 @@ describe("consent script", () => {
     expect(r.scripts()).toHaveLength(1);
   });
 });
+
+describe("configuration in wrangler.jsonc", () => {
+  it("sets the canonical host and the ads switch, and keeps the other variables and all five domains", async () => {
+    const { readFileSync } = await import("node:fs");
+    const config = JSON.parse(readFileSync("wrangler.jsonc", "utf8"));
+    expect(config.vars.GUILDED_CANONICAL_HOST).toBe("guildedwow.com");
+    expect(config.vars.GUILDED_ADS).toBe("on");
+    expect(config.vars.GUILDED_ORIGIN_URL).toBe("https://bot.kcaron.top");
+    expect(config.keep_vars).toBe(true);
+    expect(config.routes.map((route: { pattern: string }) => route.pattern).sort()).toEqual(["guilded.kcaron.top", "guildedwow.com", "kcaron.top", "www.guildedwow.com", "www.kcaron.top"]);
+  });
+});

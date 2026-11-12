@@ -10,7 +10,9 @@ visitors until the switch is turned on; only `ads.txt` is live at once (it is in
 | `GUILDED_ADS=on` | Cloudflare → Workers & Pages → `guilded-wow` → Settings → Variables (the Worker answers static **and** bot-rendered pages, so this one switch covers both; `keep_vars` keeps it across deploys) | Turns on the banner, `/consent.js` and the wider CSP on the allowed pages. Anything but `on` = off. |
 | `LOAD_AFTER_DECLINE` in `worker/consent-script.mjs` | one line in code | `true` (default, owner decision 12 Nov): Decline loads AdSense in non-personalised mode (`requestNonPersonalizedAds = 1` set first). `false`: Decline loads nothing. |
 
-Rollback: delete the variable. Pages go back to the strict policy at once (HTML is not cached).
+**Since 12 November 2026 the switch lives in `wrangler.jsonc` (`vars`), not the dashboard; rollback = revert that PR** (or set `GUILDED_ADS` to anything but `on`). Dashboard variables not named in `vars` are kept (`keep_vars`); `vars` wins for the names it sets.
+
+Original rollback note: delete the variable. Pages go back to the strict policy at once (HTML is not cached).
 
 ## How it works
 

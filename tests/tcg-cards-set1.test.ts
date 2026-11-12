@@ -52,7 +52,8 @@ describe("cost curve (section 7 of the design)", () => {
   // Tolerances are the design's plus 0.5 for those estimates. Units flagged here are balance work for the self-play
   // harness (stage B), not data errors.
   const TOLERANCE = { common: 1.5, uncommon: 2, rare: 3 } as const;
-  const KNOWN_LOW: Record<string, string> = { "084": "Soul Siphoner: Drain priced at 1 point on a vanilla-sized body; the harness will say whether it needs +1 Health" };
+  // Soul Siphoner (084) was listed here until the 10 November balance review gave it the +1 Health the harness asked for.
+  const KNOWN_LOW: Record<string, string> = {};
   const units = CARDS_SET1.filter(c => c.type === "unit");
   it("keeps every Common, Uncommon and Rare unit near its budget", () => {
     expect(units.length).toBeGreaterThan(95);

@@ -1,3 +1,8 @@
+> **Start here:** the work queue is [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md). Work only from its "Ready for Claude" section, top first; ROADMAP.md stays the release and status record.
+
+> 9.1.6 (10 November 2026): guild sync and invite fixes from the owner problem log: sync messages fit the 255-byte limit (standings chunks were dropped), `/guilded invite raid` shows copyable `/invite` lines and no longer calls the invite API, guild MOTD reads guarded in combat, the "To invite" window shows the game answer per row with one row per requester and a Remove button (#731). Store: 9.1.6.0 package built, not submitted.
+> 9.1.5 (10 November 2026): run trust and confirmed characters: unsigned companions also upload runs that guildmates' addons relayed (one companion carries addon-only members' runs), a run counts with a roster/linked party member or a second PC agreeing, `/guilded dungeon` shows why a received run is not counted yet (#725); during Season 1 runs only anonymous devices vouch for still count, marked as device runs, strict from Season 2 (#726); "confirmed" needs the member's own companion plus the guild roster or a heard verify code, nicknames follow confirmed mains only (#724). Bot side already live. Store: 9.1.5.0 package built, not submitted.
+> 9.1.4 (10 November 2026): linking and dungeons: the wrong-server guard (signed uploads link only where the in-game guild is known, sign-in lists matching servers first, `/api/v1/companion/leave`, #719), stronger proof wins and unlink detaches (#720), per-character "Linked to Discord" line (#717), `/gdungeons` and `/gdg` with Guilded alone (#712), world map dots, no blocked guild reads, Invite copy box (#714), dungeons-only members reach the boards through a guildmate (#715); bot: Guilded Clash balance (#718). Store: 9.1.4.0 package built, not submitted.
 > 9.1.3 (9 November 2026): plug-and-play fixes from the two-PC fresh-install test: addons update by themselves (#705), unsigned dungeon-run receipts end to end and the stale link line (#708), Repair shows sign-in as optional, the uninstaller keeps data and removes the startup entry, Store→website settings import (#707), Start page wording (#706). Store: 9.1.3.0 package built, not submitted (Submission 13 certifying).
 > 9.1.2 (9 November 2026): one clear 3-step companion guide in the addon (`/guilded companion`, `/gdungeons companion`), website and /help (#699, #701), and professions stored under one English key so Cooking = Cuisine across French and English clients (#702, bot migration already live). Store: 9.1.2.0 package built, not submitted (Submission 13 certifying).
 > 9.1.1 (9 November 2026): the zero-setup companion finds Québec Gold: the Discord server is matched by normalised in-game guild name, the realm only a hint (#695), unsigned companions upload dungeon runs (#694), empty dungeon boards explain why (#693), Rare card art in the mobile app (#692). Bot deployed separately. Store: 9.1.1.0 package built, not submitted (Submission 13 certifying).
@@ -32,7 +37,7 @@ addon side. Full context: `docs/GETTING_STARTED.md` (setup), `docs/DEPLOY_ORACLE
 feature's design notes, as an example of this file's format for a specific
 feature).
 
-**Current status (9 November 2026): version 9.1.3, protocol 2.**
+**Current status (9 November 2026): version 9.1.6, protocol 2.**
 8.4.7 is on GitHub (latest release) and the bot. CurseForge has the 8.4.6 Forever files; the
 Store has 8.4.4.0 live with 8.4.6.0 in certification. Check each provider live before claiming
 status. WoW Forever launched 4 November 2026; its first raids open 9 December.
@@ -123,6 +128,18 @@ Prisma 7 (see `docs/PRISMA_7_UPGRADE.md`):
   node-postgres adapter, and `poolSettings()` translates `DATABASE_URL`'s Prisma 6 parameters
   (pool size, timeouts, the Aiven CA in `sslcert`) that node-postgres would misread. The CLI
   reads the URL from `prisma.config.ts`.
+
+Character links (linking audit T3, 10 November 2026; `src/services/character-move.ts`):
+
+- **Unlink detaches, it does not delete.** An unlinked character keeps its row and history under the
+  server's hidden holding member (`detached-<guildId>`, LEFT, isTest) with `detachedAt` set.
+  `createPrismaClient()` hides those rows from every `character` list, search and count; a query that
+  must see them names `detachedAt` in its `where` (`DETACHED`, `WITH_DETACHED`). Lookups by id and
+  nested reads through other tables are not filtered. Test fakes do not have this filter.
+- **Never change `Character.memberId` by hand.** Use `moveCharacter(tx, id, toMemberId, reason)`: it
+  keeps the id, hands over the main flag, records the proof (`linkEvidence`: named < companion <
+  heard < officer) and updates both members' verify claims. New characters go through
+  `guildService.addCharacter` or `createSelfCharacter`, which bring a detached row back.
 
 ## No database or Discord access from here
 

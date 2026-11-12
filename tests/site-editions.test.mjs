@@ -20,7 +20,12 @@ describe('edition-specific downloads', () => {
     expect(home).toContain('href="/forever/"');
     expect(home).toContain('class="edition-card edition-forever featured"');
     for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(home).not.toContain(`edition-card edition-${other}`);
-    expect(home).toContain('<span data-edition-none><span data-en="Choose your WoW" data-fr="Choisir votre WoW">Choose your WoW</span></span>');
+    expect(home).not.toMatch(/Choose your WoW|Choisir votre WoW|every version|choose your edition|Choisir votre édition/i);
+    expect(home).not.toContain('class="edition-menu"');
+    expect(home).not.toContain('data-nav-group="edition"');
+    expect(home).toContain('href="/download/"');
+    expect(home).toContain('href="/guide/start/"');
+    expect(home).not.toMatch(/every version|choose your edition|Choisir votre édition/i);
     expect(home).not.toMatch(/\{\{[A-Z_]+\}\}/);
   });
 
@@ -45,6 +50,17 @@ describe('edition-specific downloads', () => {
     const older = { version: '0.0.1', editions: { forever: { guilded: 'https://example.invalid/old-file' } } };
     const forever = editionPages(published, older).find(page => page.path === 'editions/forever/');
     expect(forever.body).not.toContain('https://example.invalid/old-file');
+  });
+
+  it('shows the CurseForge and zip links in the first download section', () => {
+    const html = page('editions/forever/index.html');
+    const download = html.indexOf('id="download-title"');
+    const install = html.indexOf('id="install-title"');
+    expect(download).toBeGreaterThan(0);
+    expect(download).toBeLessThan(install);
+    expect(html).toContain('https://www.curseforge.com/wow/addons/guilded');
+    expect(html).toContain('https://www.curseforge.com/wow/addons/guilded-dungeons');
+    expect(html).toMatch(/href="(?:\/downloads\/Guilded-v|https:\/\/github.com\/kevincaron28\/Guilded\/releases\/download\/)/);
   });
 
   it('routes edition pages through the Worker for server-rendered French', () => {
@@ -116,7 +132,9 @@ describe('edition hubs', () => {
     const downloads = [...html.matchAll(/href="(https:\/\/github\.com\/[^" ]+\.zip)"/g)].map(match => match[1]);
     expect(downloads).toEqual(['Guilded', 'GuildedDungeons'].map(addon => `https://github.com/kevincaron28/Guilded/releases/download/v${published}/${addon}-v${published}-${edition.id}.zip`));
     for (const other of ['classic-era', 'classic-tbc', 'classic-mists', 'retail']) expect(html).not.toContain(`-${other}.zip`);
-    expect(html).toContain('<summary><span data-en="Playing:" data-fr="Je joue à :">Playing:</span> <strong>');
+    expect(html).not.toContain('class="edition-menu"');
+    expect(html).not.toMatch(/Choose your WoW|Choisir votre WoW|Je joue à/i);
+    expect(html).not.toContain('data-nav-group="edition"');
     expect(html).not.toContain('undefined');
     expect(html.includes('id="dates-title"')).toBe(edition.id === 'forever');
   });

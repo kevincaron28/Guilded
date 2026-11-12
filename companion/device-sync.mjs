@@ -44,12 +44,15 @@ export function deviceUploadBody(full, options = {}) {
     if (characters.length >= MAX_CHARACTERS) break;
   }
   // Finished dungeon runs, newest first and capped: the bot checks and scores them like any run.
-  // Only runs one of this PC's characters played (9.1.4): the bot refuses a guildmate's run from an unsigned PC, so
-  // sending it only took a place in the upload. It waits in the saved file for a signed-in companion.
+  // Runs one of this PC's characters played, and (9.1.4, run trust) runs a participant's addon sent this PC in game
+  // (reporterNames). The bot counts them by corroboration: a party member in the officer-synced roster, or a second
+  // companion that agrees (docs/plans/RUN_TRUST_2026-11-10.md). Until then they wait on the bot, not as "received".
   const acknowledged = options.acknowledged instanceof Set ? options.acknowledged : new Set();
   const played = (run) => Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string"
     && characters.some(own => foreverSameName(own.name, player.character)));
-  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !acknowledged.has(run.id) && played(run))
+  const heard = (run) => Array.isArray(run.reporterNames) && Array.isArray(run.players) && run.players.some(player => typeof player?.character === "string"
+    && run.reporterNames.some(name => typeof name === "string" && foreverSameName(name, player.character)));
+  const dungeonRuns = (Array.isArray(full?.dungeonRuns) ? full.dungeonRuns : []).filter(run => run && run.state === "COMPLETED" && !acknowledged.has(run.id) && (played(run) || heard(run)))
     .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0)).slice(0, MAX_RUNS);
   return { guild: splitGuildKey(full?.wowGuild), characters, ...(dungeonRuns.length ? { dungeonRuns } : {}), ...(options.server ? { server: String(options.server) } : {}) };
 }

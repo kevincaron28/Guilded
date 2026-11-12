@@ -509,6 +509,16 @@ form { margin: 22px 0 0; }
 .shot-gallery-small { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
 @media (max-width: 700px) { .shot-gallery, .shot-gallery-small { grid-template-columns: minmax(0, 1fr); } .shot-gallery-small img { max-width: 420px; } }
 
+.ref-tools{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:16px 0 24px}
+.ref-tools input{min-height:44px;min-width:16rem;background:#0c0e0d;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+.ref-chips{display:flex;flex-wrap:wrap;gap:8px}
+.ref-chips button{min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--text);cursor:pointer}
+.ref-chips button[aria-pressed="true"]{background:var(--gold);color:#1b2019;border-color:var(--gold)}
+@media print {
+  .site-header,.site-footer,.ref-tools,.skip{display:none!important}
+  main{max-width:none}
+  table{font-size:11px}
+}
 /* Android app download: shown on phones only; the full steps are on the companion page. */
 .android-phone{display:none}
 @media (max-width:760px) and (pointer:coarse){.android-phone{display:inline-flex}}
@@ -520,3 +530,8 @@ form { margin: 22px 0 0; }
 .phone-gallery figcaption { margin-top: 8px; font-size: 12px; line-height: 1.45; color: #c2cab7; }
 @media (max-width: 900px) { .phone-gallery { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .phone-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; } }
+
+.guide-tools { margin: 16px 0 8px; }
+.guide-tools input { min-height: 44px; width: min(100%, 420px); margin-left: 8px; padding: 8px 12px; border: 1px solid var(--line, #494d40); border-radius: 6px; background: transparent; color: inherit; }
+[data-guide-empty] { color: var(--muted, #aab5ba); }
+@media print { .guide-tools, [data-guide-empty] { display: none; } }

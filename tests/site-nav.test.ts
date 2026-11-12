@@ -49,30 +49,34 @@ describe("site menu", () => {
     expect(editionSwitchHref("/leaderboards/", "retail")).toBe("/editions/");
   });
 
-  it("shows WoW Forever in the header of bot pages, even for a removed edition's stored guild", () => {
+  it("has no edition drop-down on the six-item header", () => {
     const html = withEdition("forever", () => page("/leaderboards/guilds/", "fr"));
-    expect(html).toContain('<details class="nav-group edition-menu" data-nav-group="edition"><summary>Je joue à : <strong>WoW Forever</strong></summary>');
-    expect(html).toContain('href="/forever/leaderboards/guilds/?lang=fr" data-edition="forever" aria-current="true"');
+    expect(html).not.toContain('<details class="nav-group edition-menu"');
+    expect(html).not.toContain("<details");
+    expect(html).not.toMatch(/Choose your WoW|Choisir votre WoW|Je joue à|Playing:/);
     for (const slug of ["retail", "tbc", "mists", "classic-era"]) expect(html).not.toContain(`data-edition="${slug}"`);
     const guild = renderGuildPage({ slug: "qg", name: "QG", language: "en", indexable: true, intro: null, sections: [], cores: [], recruitment: null, edition: "retail" });
-    expect(guild).toContain("Playing: <strong>WoW Forever</strong>");
+    expect(guild).not.toContain('<details class="nav-group edition-menu"');
     expect(guild).not.toContain('href="/retail/');
   });
 
   it("shows every menu link on bot-served pages, in the page language", () => {
     const html = page("/leaderboards/", "fr");
-    for (const item of SITE_NAV) expect(html).toContain(`>${item.fr}</a>`);
+    for (const item of SITE_NAV) {
+      if (item.icon) expect(html).toContain(`aria-label="${item.fr}"`);
+      else expect(html).toContain(`>${item.fr}</a>`);
+    }
     expect(html).toContain('href="/forever/leaderboards/?lang=fr" aria-current="page"');
     expect(html).toContain('href="/companion/?lang=fr"');
     expect(page("/me/", "en")).toContain('href="/me/?lang=en" aria-current="page"');
     expect(page("/players/", "en")).not.toContain('aria-current="page"');
   });
 
-  it("has a Guilds entry, current on the guild directory and on guild pages", () => {
-    expect(page("/recruitment/guilds/", "fr")).toContain('href="/forever/recruitment/guilds/?lang=fr" aria-current="page">Trouver une guilde</a>');
+  it("has a Community entry, current on the guild directory and on guild pages", () => {
+    expect(page("/recruitment/guilds/", "fr")).toContain('href="/fr/community/" aria-current="page">Communauté</a>');
     expect(page("/recruitment/guilds/", "fr")).not.toContain('href="/forever/recruitment/?lang=fr" aria-current');
-    expect(currentSection("/g/quebec-gold/")).toBe("guilds");
-    expect(currentSection("/recruitment/")).toBe("guilds");
+    expect(currentSection("/g/quebec-gold/")).toBe("community");
+    expect(currentSection("/recruitment/")).toBe("community");
     expect(currentSection("/leaderboards/guilds/")).toBe("leaderboards");
     expect(currentSection("/players/")).toBeNull();
   });
@@ -84,14 +88,16 @@ describe("site menu", () => {
 
   it("keeps French across the product, guide and public-page navigation", () => {
     const html = page("/leaderboards/", "fr");
-    expect(html).toContain('href="/features/?lang=fr"');
-    expect(html).toContain('href="/docs/QUICK_START.html#fr"');
-    expect(html).toContain('href="/editions/?lang=fr"');
-    expect(html).toContain('href="/officers/?lang=fr"');
+    expect(html).toContain('href="/fr/features/"');
+    expect(html).toContain('href="/guides/install/"');
+    expect(html).not.toContain("QUICK_START");
+    expect(html).not.toContain("MEMBER_INSTALL");
+    expect(html).toContain('href="/fr/editions/"');
+    expect(html).toContain('href="/fr/officers/"');
     expect(html).toContain('href="/forever/?lang=fr"');
     expect(localizedHref("/leaderboards/?season=s1&lang=en#records", "fr")).toBe("/leaderboards/?season=s1&lang=fr#records");
     expect(localizedHref("features/", "fr")).toBe("features/?lang=fr");
-    expect(localizedHref("/editions/retail/", "fr")).toBe("/editions/retail/?lang=fr");
+    expect(localizedHref("/editions/retail/", "fr")).toBe("/fr/editions/retail/");
     expect(localizedHref("../../editions/classic-era/?lang=fr", "en")).toBe("../../editions/classic-era/?lang=en");
     expect(localizedHref("/companion/?tab=cores&lang=en#rules", "fr")).toBe("/companion/?tab=cores&lang=fr#rules");
     expect(localizedHref("/companion/?lang=fr", "en")).toBe("/companion/?lang=en");
@@ -104,15 +110,27 @@ describe("site menu", () => {
   });
 
   // 2 November 2026 rebuild: six visible entries, no hidden drop-downs for them, one button.
-  it("has six top-level links, no drop-downs and one Get the addon button", () => {
+  it("has six header items: Download, Guide, Quick reference, Leaderboards, Community and a My Guilded icon", () => {
     const html = navLinks({ label: item => item.en, current: "leaderboards" });
     expect([...html.matchAll(/<a /g)]).toHaveLength(6);
     expect(html).not.toMatch(/<details|<summary/);
-    expect(SITE_NAV.map(item => item.key)).toEqual(["start", "features", "leaderboards", "guilds", "my-guilded", "download"]);
-    expect(html).toContain('<a href="/editions/" class="nav-cta">Get the addon</a>');
+    expect(SITE_NAV.map(item => item.key)).toEqual(["download", "guide", "reference", "leaderboards", "community", "my-guilded"]);
+    expect(html).toContain('<a href="/download/" class="nav-cta">Download</a>');
+    expect(html).toContain('aria-label="My Guilded"');
     expect(html.match(/class="nav-cta"/g)).toHaveLength(1);
     expect(html).toContain('<a href="/leaderboards/" aria-current="page">Leaderboards</a>');
     expect(html.match(/aria-current/g)).toHaveLength(1);
+  });
+
+  it("keeps Help to the one install path", () => {
+    const help = FOOTER_NAV.filter((item) => item.column === "help");
+    expect(help.map((item) => [item.en, item.href])).toEqual([
+      ["Install guide", "/guides/install/"],
+      ["Quick reference", "/reference/"],
+      ["Setup help", "/docs/AI_SETUP_HELP.html"],
+      ["Service status", "/status/"]
+    ]);
+    expect(FOOTER_NAV.some((item) => /QUICK_START|MEMBER_INSTALL/.test(item.href))).toBe(false);
   });
 
   it("puts every other destination in the footer columns, in both languages", () => {
@@ -126,7 +144,7 @@ describe("site menu", () => {
       for (const column of Object.values(FOOTER_COLUMNS)) expect(html).toContain(`<p class="footer-title">${column[lang]}</p>`);
     }
     expect(page("/leaderboards/", "fr")).toContain('href="/forever/recruitment/?lang=fr"');
-    expect(page("/leaderboards/", "fr")).toContain('href="/officers/?lang=fr"');
+    expect(page("/leaderboards/", "fr")).toContain('href="/fr/officers/"');
     expect(footerLinks({ label: item => item.en })).toContain('href="https://discord.gg/YjzFwtP64V"');
   });
 

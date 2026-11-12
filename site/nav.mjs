@@ -5,17 +5,17 @@
 // (`cta`) is the one button. Everything else (officers, companion, status, Discord...) sits in the
 // footer columns below, which every page shows.
 
-/** @typedef {{ key: string, href: string, en: string, fr: string, bot?: boolean, cta?: boolean }} NavItem */
+/** @typedef {{ key: string, href: string, en: string, fr: string, bot?: boolean, cta?: boolean, icon?: boolean }} NavItem */
 
 /** @type {NavItem[]} */
 export const SITE_NAV = [
-  { key: "start", href: "/start/", en: "Start here", fr: "Commencer ici" },
-  { key: "features", href: "/features/", en: "Features", fr: "Fonctions" },
+  { key: "download", href: "/download/", en: "Download", fr: "Télécharger", cta: true },
+  { key: "guide", href: "/guide/", en: "Guide", fr: "Guide" },
+  { key: "reference", href: "/reference/", en: "Quick reference", fr: "Référence rapide" },
   { key: "leaderboards", href: "/leaderboards/", en: "Leaderboards", fr: "Classements", bot: true },
-  // The guild directory sits under /recruitment/ because the Cloudflare Worker already forwards it.
-  { key: "guilds", href: "/recruitment/guilds/", en: "Find a guild", fr: "Trouver une guilde", bot: true },
-  { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true },
-  { key: "download", href: "/editions/", en: "Get the addon", fr: "Obtenir l’addon", cta: true }
+  // Community boards are served by the bot under the Forever section.
+  { key: "community", href: "/community/", en: "Community", fr: "Communauté" },
+  { key: "my-guilded", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true, icon: true }
 ];
 
 /** @typedef {{ key: string, href: string, en: string, fr: string, column: string, bot?: boolean }} FooterItem */
@@ -42,14 +42,11 @@ export const FOOTER_NAV = [
   { key: "players", column: "community", href: "/players/", en: "Players", fr: "Joueurs", bot: true },
   { key: "my-guilded", column: "community", href: "/me/", en: "My Guilded", fr: "Mon Guilded", bot: true },
   { key: "discord", column: "community", href: "https://discord.gg/YjzFwtP64V", en: "Ask on Discord ↗", fr: "Demander sur Discord ↗" },
-  { key: "guides", column: "help", href: "/docs/QUICK_START.html", en: "Quick start", fr: "Démarrage rapide" },
+  { key: "install", column: "help", href: "/guides/install/", en: "Install guide", fr: "Guide d’installation" },
   { key: "reference", column: "help", href: "/reference/", en: "Quick reference", fr: "Référence rapide" },
-  { key: "install-steps", column: "help", href: "/guides/install/", en: "Install, step by step", fr: "Installer, pas à pas" },
-  { key: "link-steps", column: "help", href: "/guides/link/", en: "Link your character", fr: "Lier votre personnage" },
-  { key: "install", column: "help", href: "/docs/MEMBER_INSTALL.html", en: "Install guide", fr: "Guide d’installation" },
   { key: "setup-help", column: "help", href: "/docs/AI_SETUP_HELP.html", en: "Setup help", fr: "Aide à la configuration" },
   { key: "status", column: "help", href: "/status/", en: "Service status", fr: "État du service" },
-  { key: "privacy", column: "help", href: "/docs/PRIVACY.html", en: "Privacy", fr: "Confidentialité" },
+  { key: "privacy", column: "about", href: "/docs/PRIVACY.html", en: "Privacy", fr: "Confidentialité" },
   { key: "support", column: "about", href: "/docs/SUPPORT_GUILDED.html", en: "Support Guilded", fr: "Soutenir Guilded" },
   { key: "releases", column: "about", href: "https://github.com/kevincaron28/Guilded/releases", en: "Releases ↗", fr: "Versions ↗" },
   { key: "quebec-gold", column: "about", href: "/quebec-gold/", en: "Quebec Gold", fr: "Quebec Gold" },
@@ -129,12 +126,11 @@ export function editionSwitchHref(path, edition) {
   return `/${section.slug}/`;
 }
 
-/** The header's "Playing: WoW Forever ▾" menu, a <details> drop-down that works without scripts: it links
- * to the WoW Forever section. title is the drop-down's label; label(section) and href(section) give the link.
- * @param {{ current: string | null, title: string, label: (section: EditionSection) => string, href: (section: EditionSection) => string }} options
+/** Guilded is WoW Forever only, so the header has no "Choose your WoW" / "Playing" drop-down.
+ * Callers may still pass the old menu options; they are ignored.
  * @returns {string} */
-export function editionMenu({ current, title, label, href }) {
-  return `<details class="nav-group edition-menu" data-nav-group="edition"><summary>${title}</summary><div class="nav-menu">${EDITION_SECTIONS.map((section) => `<a href="${escape(href(section))}" data-edition="${section.slug}"${section.id === current ? ' aria-current="true"' : ""}>${label(section)}</a>`).join("")}</div></details>`;
+export function editionMenu() {
+  return "";
 }
 
 /** Keep the chosen language across translated pages and bilingual guide sections.
@@ -149,11 +145,23 @@ export function localizedHref(href, lang) {
   if (/(?:^|\/)docs\/(?:QUICK_START|MEMBER_INSTALL|DUNGEONS_GUIDE|EPGP_GUIDE|HOSTED_PILOT|SUPPORT_GUILDED)(?:\.html)?$/.test(path)) {
     return base + (hash && hash !== "fr" ? `#${hash}` : lang === "fr" ? "#fr" : "");
   }
-  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?(?:features|officers)\/|(?:.*\/)?editions\/(?:[a-z-]+\/)?|\/companion\/|\/(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:leaderboards|recruitment|players)(?:\/.*)?|\/me(?:\/.*)?|(?:.*\/)?(?:forever|classic-era|tbc|mists|retail)\/)$/.test(path)) return href;
+  if (!/^(?:\/?|(?:.*\/)?index\.html|(?:.*\/)?(?:features|officers|start|download|reference|guide|community)\/|(?:.*\/)?editions\/(?:[a-z-]+\/)?|\/companion\/|\/(?:(?:forever|classic-era|tbc|mists|retail)\/)?(?:leaderboards|recruitment|players)(?:\/.*)?|\/me(?:\/.*)?|(?:.*\/)?(?:forever|classic-era|tbc|mists|retail)\/)$/.test(path)) return href;
   const query = new URLSearchParams(search);
+  // Absolute marketing pages use /fr/<same path>. Relative links, data pages and the companion
+  // stay on ?lang= so a link still works from any directory and the Worker can route it.
+  const bare = path.startsWith("/") ? (path.replace(/^\/fr(?=\/|$)/, "") || "/") : "";
+  const folder = bare === "/" || /^\/(?:features|officers|start|download|reference|community)\//.test(bare) || /^\/guide(?:\/|$)/.test(bare) || /^\/editions(?:\/|$)/.test(bare) ? bare : null;
+  if (folder) {
+    query.delete("lang");
+    const rest = query.toString();
+    const dest = lang === "fr" ? (folder === "/" ? "/fr/" : `/fr${folder}`) : folder;
+    return `${dest}${rest ? `?${rest}` : ""}${hash ? `#${hash}` : ""}`;
+  }
   query.set("lang", lang);
   return `${path}?${query}${hash ? `#${hash}` : ""}`;
 }
+
+const accountIcon = `<svg class="nav-account-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="3.2"/><path d="M5 19c1.4-3 3.8-4.5 7-4.5S17.6 16 19 19"/></svg>`;
 
 /**
  * The menu as HTML: one plain link per entry, no drop-downs; the `cta` entry is the button.
@@ -163,7 +171,11 @@ export function localizedHref(href, lang) {
  * @returns {string}
  */
 export function navLinks({ label, href = (item) => item.href, current = null }) {
-  return SITE_NAV.map((item) => `<a href="${escape(href(item))}"${item.cta ? ' class="nav-cta"' : ""}${item.key === current ? ' aria-current="page"' : ""}>${label(item)}</a>`).join("");
+  return SITE_NAV.map((item) => {
+    const currentAttr = item.key === current ? ' aria-current="page"' : "";
+    if (item.icon) return `<a class="nav-account" href="${escape(href(item))}"${currentAttr} aria-label="${escape(label(item))}">${accountIcon}</a>`;
+    return `<a href="${escape(href(item))}"${item.cta ? ' class="nav-cta"' : ""}${currentAttr}>${label(item)}</a>`;
+  }).join("");
 }
 
 /**

@@ -92,6 +92,27 @@ for (const menu of document.querySelectorAll('.edition-menu')) {
   menu.querySelector('[data-edition-none]').hidden = true;
 }
 
+// One version on the home page. The date and the CurseForge lag note come from /releases.json
+// (site/release-line.mjs). The file ids themselves are updated separately.
+const releaseNote = document.querySelector('[data-release-note]');
+if (releaseNote) {
+  fetch('/releases.json', { headers: { accept: 'application/json' } })
+    .then(response => response.ok ? response.json() : null)
+    .then(data => {
+      const version = data?.guilded?.github?.version;
+      const curseforge = data?.guilded?.curseforge?.version;
+      const verifiedAt = data?.verifiedAt;
+      if (typeof version !== 'string' || !version) return;
+      const versionNode = releaseNote.querySelector('[data-release-version]');
+      if (versionNode) versionNode.textContent = version;
+      const dateNode = releaseNote.querySelector('[data-release-date]');
+      if (dateNode && typeof verifiedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(verifiedAt)) dateNode.textContent = verifiedAt;
+      const lag = releaseNote.querySelector('[data-release-lag]');
+      if (lag) lag.hidden = !(typeof curseforge === 'string' && curseforge !== '' && curseforge !== version);
+    })
+    .catch(() => { /* the printed version still stands */ });
+}
+
 // "This week on Guilded" and each edition hub's leaderboard: public numbers from the bot
 // (summary.json, no player names). Those numbers stay hidden when they cannot load, e.g. in the
 // static preview; the hub's links to the full leaderboard still work.
@@ -101,7 +122,8 @@ if (live) {
   fetch(`${live.dataset.liveSummary || '/leaderboards/summary.json'}?lang=${document.documentElement.lang === 'fr' ? 'fr' : 'en'}`, { headers: { accept: 'application/json' } })
     .then(response => response.ok ? response.json() : null)
     .then(data => {
-      if (!data || typeof data.ratedRunsThisWeek !== 'number') return;
+      if (!data || typeof data.ratedRunsThisWeek !== 'number' || data.ratedRunsThisWeek <= 0) return;
+      live.hidden = false;
       live.querySelector('[data-live="runs"]').textContent = String(data.ratedRunsThisWeek);
       live.querySelector('[data-live="guilds"]').textContent = String(Number(data.guilds) || 0);
       const runs = Array.isArray(data.topRuns) ? data.topRuns.slice(0, 3) : [];
@@ -149,6 +171,50 @@ if (live) {
       board.parentElement.querySelector('[data-status-meta]').textContent = `Checked ${new Date().toLocaleTimeString()}.`;
     });
   }
+}
+
+// Quick reference: search and role chips filter the command tables. The full list stays in the HTML.
+const refTools = document.querySelector('[data-ref-tools]');
+if (refTools) {
+  const search = refTools.querySelector('[data-ref-search]');
+  const rows = [...document.querySelectorAll('main table tbody tr')];
+  const applyRefFilter = () => {
+    const query = search.value.trim().toLowerCase();
+    const role = refTools.querySelector('[data-role][aria-pressed="true"]')?.dataset.role ?? '';
+    for (const row of rows) {
+      const text = row.textContent.toLowerCase();
+      const who = (row.lastElementChild?.textContent ?? '').toLowerCase();
+      row.hidden = (query !== '' && !text.includes(query)) || (role !== '' && !who.includes(role.toLowerCase()));
+    }
+  };
+  search.addEventListener('input', applyRefFilter);
+  for (const button of refTools.querySelectorAll('[data-role]')) {
+    button.addEventListener('click', () => {
+      for (const other of refTools.querySelectorAll('[data-role]')) other.setAttribute('aria-pressed', String(other === button));
+      applyRefFilter();
+    });
+  }
+}
+
+// Guide hub search. The full list stays in the HTML; this only hides rows that miss the query.
+function guideMatches(text, query) {
+  const needle = query.trim().toLowerCase();
+  return needle === "" || text.toLowerCase().includes(needle);
+}
+for (const input of document.querySelectorAll("[data-guide-search]")) {
+  const list = document.querySelector("[data-guide-list]");
+  const empty = document.querySelector("[data-guide-empty]");
+  if (!list) continue;
+  const apply = () => {
+    let shown = 0;
+    for (const item of list.querySelectorAll("[data-guide]")) {
+      const hit = guideMatches(item.textContent, input.value);
+      item.hidden = !hit;
+      if (hit) shown += 1;
+    }
+    if (empty) empty.hidden = shown > 0;
+  };
+  input.addEventListener("input", apply);
 }
 
 // Guide screenshots that are not captured yet (docs/SCREENSHOT_SHOTLIST.md): show the marked placeholder, never a broken image.

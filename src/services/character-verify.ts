@@ -8,6 +8,7 @@ import { linkPairedCharacter } from "./character-pairing.js";
 import { postToLogChannel } from "./housekeeping.js";
 import { characterKey } from "../../companion/character-identity.mjs";
 import { gameEditionOf } from "./game-edition.js";
+import { contestCharacter, type LinkEvidence } from "./character-move.js";
 
 // Linking without a companion: a member gets one code (/character pair, the welcome button) and
 // pastes `/guilded verify CODE` in WoW chat once. The addon keeps it with the account's saved data,
@@ -20,6 +21,12 @@ import { gameEditionOf } from "./game-edition.js";
 // for an officer to be online, but provisionally: that member's companion sends whatever its saved
 // file says. The next officer upload confirms the link, or moves the character to the member whose
 // code the officer's addon heard. Each provisional link is logged with the member who reported it.
+//
+// Linking audit T3 (10 November 2026): a character another member already holds follows the proof
+// order of character-move.ts. A code heard by an officer's addon is officer proof, by another
+// guildmate's addon "heard", and by the member's own companion only as good as that companion.
+// Stronger proof moves the character with its history (both members get a DM with an undo, from
+// link-conflict-dm.ts); equal proof waits for an officer.
 
 // Letters only, without I and O: read on one screen, typed on another. Older officer addons also
 // read any NAME:DIGITS piece of a digest as a profession, which a letters-only code never is.
@@ -67,7 +74,7 @@ export interface VerifiedCharacter {
   isMain: boolean;
   /** Linked from a member's (not an officer's) upload: the Discord ID of that member. */
   reportedBy?: string;
-  /** An officer's upload moved this character away from this provisional owner. */
+  /** Stronger proof moved this character away from this member (their Discord ID). */
   movedFrom?: string;
 }
 
@@ -76,7 +83,8 @@ const PROVISIONAL_PER_UPLOAD = 5;
 
 /**
  * Characters in an upload that carry a member's code. An officer's upload links and confirms; a
- * paired member's upload (uploader.memberId) links only unowned characters, provisionally.
+ * paired member's upload (uploader.memberId) links provisionally. A character someone else holds
+ * moves only on stronger proof.
  */
 export async function linkVerifiedCharacters(database: PrismaClient, guildId: string, uploader: { officer: boolean; memberId?: string | null }, entries: readonly AddonCharacter[]): Promise<VerifiedCharacter[]> {
   if (!uploader.officer && !uploader.memberId) return [];
@@ -119,34 +127,24 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
       if (uploader.officer && before === "PROVISIONAL") await remember(owner.memberId, key, "LINKED");
       continue;
     }
-    if (existing && uploader.officer && claimed.get(`${existing.memberId}\n${key}`) === "PROVISIONAL") {
-      // Preserve the character ID and all dependent history. Ownership and claims
-      // change together, and concurrent confirmation/correction must not be lost.
+    // Heard by the member's own companion is not a guildmate hearing it.
+    const evidence: LinkEvidence = uploader.officer ? "officer" : uploader.memberId === owner.memberId ? "companion" : "heard";
+    if (existing) {
+      if (!uploader.officer && ++provisional > PROVISIONAL_PER_UPLOAD) continue;
+      // The proof order decides (character-move.ts). The row keeps its id and all dependent history;
+      // ownership and claims change together, and a concurrent confirmation or correction is not lost.
       const from = existing;
-      const moved = await database.$transaction(async (tx) => {
+      const outcome = await database.$transaction(async (tx) => {
         const current = findCharacter(await tx.character.findMany({ where: { member: { guildId } } }), entry.name, entry.realm, gameEditionOf(entry));
         if (!current || current.id !== from.id || current.memberId !== from.memberId) return null;
-        const provisionalClaim = await tx.characterVerifyClaim.findFirst({ where: { guildId, memberId: from.memberId, nameKey: key, status: "PROVISIONAL" } });
-        if (!provisionalClaim) return null;
-        const blocked = await tx.characterVerifyClaim.findMany({ where: { guildId, memberId: owner.memberId, nameKey: { in: [key] } } });
-        if (blocked.some((claim) => claim.memberId === owner.memberId && (claim.status === "REMOVED" || claim.status === "BLOCKED"))) return null;
-        const isMain = (await tx.character.count({ where: { memberId: owner.memberId, isMain: true } })) === 0;
-        const character = await tx.character.update({ where: { id: from.id }, data: { memberId: owner.memberId, isMain, confirmedAt: new Date() } });
-        for (const [memberId, status] of [[from.memberId, "REMOVED"], [owner.memberId, "LINKED"]] as const) {
-          await tx.characterVerifyClaim.upsert({
-            where: { guildId_memberId_nameKey: { guildId, memberId, nameKey: key } },
-            create: { guildId, memberId, nameKey: key, status }, update: { status }
-          });
-        }
-        return character;
+        const result = await contestCharacter(tx, { guildId, claimantMemberId: owner.memberId, evidence, character: current });
+        return result === "moved" ? tx.character.findUnique({ where: { id: from.id }, select: { isMain: true } }) : null;
       }, { isolationLevel: "Serializable" });
-      if (moved) {
+      if (outcome) {
         linked.splice(linked.indexOf(from), 1, { ...from, memberId: owner.memberId, member: { discordUserId: owner.member.discordUserId } });
-        results.push({ discordUserId: owner.member.discordUserId, name: entry.name, status: "linked", isMain: moved.isMain, movedFrom: from.member.discordUserId });
+        results.push({ discordUserId: owner.member.discordUserId, name: entry.name, status: "linked", isMain: outcome.isMain, movedFrom: from.member.discordUserId });
+        continue;
       }
-      continue;
-    }
-    if (existing) {
       // A member's upload says nothing about taken characters: only an officer's is sure enough.
       if (uploader.officer && before !== "TAKEN") {
         await remember(owner.memberId, key, "TAKEN");
@@ -155,7 +153,7 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
       continue;
     }
     if (!uploader.officer && ++provisional > PROVISIONAL_PER_UPLOAD) continue;
-    if (await linkPairedCharacter(database, guildId, owner.memberId, entry, { confirm: uploader.officer }) !== "linked") continue;
+    if (await linkPairedCharacter(database, guildId, owner.memberId, entry, { confirm: uploader.officer, evidence }) !== "linked") continue;
     await remember(owner.memberId, key, uploader.officer ? "LINKED" : "PROVISIONAL");
     const created = await database.character.findFirst({ where: { memberId: owner.memberId, name: entry.name, realm: entry.realm, gameEdition: gameEditionOf(entry) }, select: { id: true, isMain: true } });
     linked.push({ id: created?.id ?? "", name: entry.name, realm: entry.realm, memberId: owner.memberId, gameEdition: gameEditionOf(entry), member: { discordUserId: owner.member.discordUserId } });
@@ -169,26 +167,21 @@ export async function linkVerifiedCharacters(database: PrismaClient, guildId: st
 export async function tellVerified(client: Client, discordGuildId: string, lang: Lang, results: readonly VerifiedCharacter[]): Promise<void> {
   const discordGuild = await client.guilds.fetch(discordGuildId).catch(() => null);
   const server = escapeMarkdown(discordGuild?.name ?? "Discord");
-  for (const result of results) {
+  // A moved character is announced with its undo button by tellLinkConflicts (link-conflict-dm.ts).
+  for (const result of results.filter((row) => !row.movedFrom)) {
     const name = escapeMarkdown(result.name);
     const content = result.status === "linked"
       ? t(lang, "verify.linked", { name, server, kind: t(lang, result.isMain ? "character.mainKind" : "character.altKind") })
       : t(lang, "verify.taken", { name, server });
     await client.users.send(result.discordUserId, { content, allowedMentions: { parse: [] } }).catch(() => undefined);
   }
-  for (const result of results) {
-    if (!result.movedFrom) continue;
-    await client.users.send(result.movedFrom, { content: t(lang, "verify.moved", { name: escapeMarkdown(result.name), server }), allowedMentions: { parse: [] } }).catch(() => undefined);
-  }
-  const linked = results.filter((result) => result.status === "linked");
+  const linked = results.filter((result) => result.status === "linked" && !result.movedFrom);
   if (discordGuild && linked.length) {
     await postToLogChannel(discordGuild, linked.map((result) => lang === "fr"
       ? `🔗 ${result.name} a été lié à <@${result.discordUserId}> par son code /guilded verify`
-        + (result.movedFrom ? ` (la synchronisation d'un officier l'a retiré à <@${result.movedFrom}>, dont le lien venait du rapport d'un membre).`
-          : result.reportedBy ? ` (reçu par l'addon de <@${result.reportedBy}>; la prochaine synchronisation d'un officier le confirme).` : ".")
+        + (result.reportedBy ? ` (reçu par l'addon de <@${result.reportedBy}>; la prochaine synchronisation d'un officier le confirme).` : ".")
       : `🔗 ${result.name} was linked to <@${result.discordUserId}> by their /guilded verify code`
-        + (result.movedFrom ? ` (an officer's sync moved it from <@${result.movedFrom}>, whose link came from a guildmate's report).`
-          : result.reportedBy ? ` (heard by <@${result.reportedBy}>'s addon; the next officer sync confirms it).` : ".")).join("\n"));
+        + (result.reportedBy ? ` (heard by <@${result.reportedBy}>'s addon; the next officer sync confirms it).` : ".")).join("\n"));
   }
 }
 

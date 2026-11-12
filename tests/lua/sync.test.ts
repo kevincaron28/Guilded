@@ -317,3 +317,32 @@ describe("store and forward of standings and item data (6.3)", () => {
     expect(s.run("return DB.standings.players.Amy.ep")).toBe("10");
   });
 });
+
+// 10 November 2026: "GuildedSync: rejected a 259-byte message (limit 255)" x17 on the owner's PC. A STAND chunk
+// carried up to 220 bytes of players behind a header of up to ~41 bytes. Every chunk now fits the 255-byte
+// limit whatever the names or the stamp, and nothing is dropped.
+describe("GuildedSync messages never exceed 255 bytes", () => {
+  it("splits long accented standings and item lists into chunks that fit, and loses no player", () => {
+    const s = withSync();
+    s.run(`
+      GetServerTime = function() return 1800000000 end
+      NS.isOfficer = function() return true end
+      NS.playerName = function() return "Kev" end
+      local E = string.char(195, 169)
+      local O = string.char(195, 180)
+      local names = { "Crashing Shaminem", "H" .. O .. "ly Tabernak", E .. "l Chacal Daron" .. E, "Mister Cleanshot" }
+      DB.epgp = {}
+      for i = 1, 90 do DB.epgp[names[i % 4 + 1] .. string.rep(E, i % 7) .. i] ={ ep = 100000 + i, gp = 99999 - i, ledger = {} } end
+      DB.items = { updatedAt = date("!%Y-%m-%dT%H:%M:%S.000Z", 1800000000), list = {} }
+      for i = 1, 40 do DB.items.list["item:" .. (100000 + i)] = { gp = 123, n = 5, wn = 9, wish = { { "H" .. O .. "ly Tabernak", 2 }, { "Crashing Shaminem", 3 }, { "Mister Cleanshot", 1 } } } end
+      SENT_TEXTS = {}
+      NS.comm.send = function(prefix, text) SENT_TEXTS[#SENT_TEXTS + 1] = text; return true end
+    `);
+    expect(s.run(`return tostring(NS.publishLocalStandings())`)).toBe("true");
+    expect(Number(s.run(`return #SENT_TEXTS`))).toBeGreaterThan(5);
+    expect(s.run(`local worst = 0; for _, t in ipairs(SENT_TEXTS) do worst = math.max(worst, #t) end; return worst`)).toSatisfy((v: string) => Number(v) <= 255);
+    // Every player travels: count the entries in all STAND chunks.
+    expect(s.run(`local n = 0; for _, t in ipairs(SENT_TEXTS) do local body = t:match("^STAND|[^|]*|[^|]*|[^|]*|[^|]*|(.*)$"); if body then for _ in body:gmatch("[^;]+") do n = n + 1 end end end; return n`)).toBe("90");
+    expect(s.run(`local n = 0; for _, t in ipairs(SENT_TEXTS) do if t:sub(1, 5) == "ITEM|" then n = n + 1 end end; return n`)).not.toBe("0");
+  });
+});

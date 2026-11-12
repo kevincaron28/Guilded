@@ -210,6 +210,7 @@ model Guild {
   characterPairings   CharacterPairing[]
   characterVerifyCodes  CharacterVerifyCode[]
   characterVerifyClaims CharacterVerifyClaim[]
+  characterLinkConflicts CharacterLinkConflict[]
   communitySeasons    CommunitySeason[]
   communitySeasonCounters CommunitySeasonCounter[]
   poeMapVisits        PoeMapVisit[]
@@ -551,10 +552,22 @@ model Character {
   // character from the guild digest, and that guildmate's Member id ("reported by a guildmate").
   relayedAt          DateTime?
   relayedById        String?
-  // 9.1 (docs/JEEVES_COMPARISON.md idea 1): when something trusted confirmed this character is the
-  // member's: their own signed-in companion uploaded it, or an officer linked it. Null = only reported
-  // (typed in, matched by name, a guildmate's addon heard their /guilded verify code, an invite request).
+  // 9.1 (docs/JEEVES_COMPARISON.md idea 1): when the member's own signed-in companion first uploaded
+  // this character, or an officer linked it. Null = typed in, matched by name, heard by a guildmate's
+  // addon, or named in an invite request. Linking audit T8: the companion alone no longer makes it
+  // "confirmed"; character-trust.ts also wants the guild roster or a heard verify code to agree.
   confirmedAt        DateTime?
+  // Linking audit T3 (docs/plans/LINKING_AUDIT_2026-11-10.md): what proved this link, weakest to
+  // strongest: named (typed, claimed, name match, invite request) < companion (the member's own
+  // companion) < heard (a guildmate's addon heard their /guilded verify code) < officer. Null on rows
+  // from before: character-move.ts derives it from confirmedAt and the verify claim.
+  linkEvidence       String?
+  // /character unlink detaches instead of deleting: the row moves to the server's hidden holding
+  // member (character-move.ts) with its history, and comes back on relink or an officer's move.
+  // database.ts hides detached rows from ordinary character reads.
+  detachedAt         DateTime?
+  detachedFromMemberId String?
+  linkConflicts      CharacterLinkConflict[]
   // 8.5: the pre-8.5 Forever first name this row had before it took its full "First Last" name
   // (owner backfill scripts/forever-names.ts, or the member's own upload). Never a key.
   legacyName         String?
@@ -1690,6 +1703,10 @@ model DungeonRun {
   addonVersion    String?
   seasonId        String?
   importId        String?
+  // Who vouches for the run (docs/plans/RUN_TRUST_2026-11-10.md). null or "member": a signed-in member's upload
+  // brought it. "device": one unsigned companion, a party member is in the roster. "witnessed": two unsigned
+  // companions speaking for two party members. Only null and "member" runs are published to the public boards.
+  trust           String?
   createdAt       DateTime                  @default(now())
   guild           Guild                     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   season          DungeonSeason?            @relation(fields: [seasonId], references: [id], onDelete: SetNull)
@@ -2241,6 +2258,30 @@ model CharacterVerifyClaim {
   @@unique([guildId, memberId, nameKey])
 }
 
+// Two members and one character (character-move.ts). MOVED: stronger proof took it (both got a DM
+// with an undo). OPEN: equal proof, waiting for an officer (/officer character move). WEAKER: the
+// claimant's proof is weaker, they were told once. UNDONE and RESOLVED are closed.
+model CharacterLinkConflict {
+  id               String    @id @default(cuid())
+  guildId          String
+  characterId      String
+  // Who had the character when the claim arrived, and who claimed it.
+  ownerMemberId    String
+  claimantMemberId String
+  ownerEvidence    String
+  claimantEvidence String
+  status           String
+  // Null until the members and the officer log were told.
+  notifiedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  guild            Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  character        Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, claimantMemberId])
+  @@index([guildId, status])
+}
+
 model CompanionCredential {
   mobileDevice MobileDevice?
   previousTokenHash String? @unique
@@ -2281,9 +2322,64 @@ model CompanionDevice {
   guild           Guild?    @relation(fields: [guildId], references: [id], onDelete: SetNull)
   claimedMember   Member?   @relation(fields: [claimedMemberId], references: [id], onDelete: SetNull)
   characters      DeviceCharacter[]
+  witnesses       DungeonRunWitness[]
 
   @@index([guildId])
   @@index([claimedMemberId])
+}
+
+/// One unsigned companion's statement that a dungeon run happened (docs/plans/RUN_TRUST_2026-11-10.md). A run only
+/// such devices sent is stored when a party member is known to the server or two devices speaking for two party
+/// members agree; until then it waits here ("pending") and is not a run anywhere else.
+model DungeonRunWitness {
+  id           String    @id @default(cuid())
+  guildId      String
+  deviceId     String
+  runRef       String
+  /// first-hand (a character of the device was in the party) or relay (a participant's addon sent it in game).
+  kind         String
+  /// First-name key of the party character this statement rests on.
+  voucher      String
+  instanceId   Int
+  difficultyId Int       @default(0)
+  startedAt    DateTime?
+  endedAt      DateTime?
+  /// First-name keys of the party, sorted; boss ids in kill order.
+  players      String[]  @default([])
+  bosses       Int[]     @default([])
+  /// The run as uploaded, kept while pending so it can be imported when a second statement arrives.
+  payload      Json?
+  /// pending | stored | expired
+  status       String    @default("pending")
+  /// The trust the stored run got through this statement (device | witnessed).
+  trust        String?
+  reason       String?
+  runId        String?
+  firstSeenAt  DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  decidedAt    DateTime?
+  device       CompanionDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([guildId, runRef, deviceId])
+  @@index([guildId, instanceId, endedAt])
+  @@index([deviceId, status])
+}
+
+/// An in-game guild name no /setup registered that unsigned companions of this server's roster reported
+/// (a guild renamed in game). Recorded for officers; the roster match itself routes those companions.
+model GuildNameAlias {
+  id         String   @id @default(cuid())
+  guildId    String
+  /// looseKey(name): letters and digits only.
+  nameKey    String
+  name       String
+  realm      String   @default("")
+  /// Uploads that reported it.
+  seen       Int      @default(1)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+
+  @@unique([guildId, nameKey])
 }
 
 /// A character an unsigned companion reported (name, class, level): shown as "reported", never linked to a member.

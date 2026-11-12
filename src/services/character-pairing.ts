@@ -7,6 +7,7 @@ import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
 import { guildRankUpdate } from "./guild-rank.js";
 import { gameEditionOf } from "./game-edition.js";
+import { contestCharacter, evidenceOf, evidenceRank, reattachDetached, type LinkEvidence } from "./character-move.js";
 
 const PAIRING_CODE_LIFETIME_MS = 15 * 60_000;
 type Tx = Prisma.TransactionClient;
@@ -19,11 +20,25 @@ export function hashCompanionSecret(secret: string): string {
 // included). Shared by the immediate upload-time link (linkPairedCharacter,
 // its own transaction) and the apply-time safety net in addon-import.ts
 // (already inside its own transaction) so the two never drift apart.
-// confirm: the member's own signed-in companion (or an officer) brought it, so it is confirmed, not only
-// reported (Character.confirmedAt, the "reported, not verified" label in character-trust.ts).
-export async function createSelfCharacter(tx: Tx, guildId: string, memberId: string, self: AddonCharacter, confirm = false) {
+// confirm: the member's own signed-in companion (or an officer) brought it (Character.confirmedAt). For the
+// companion that is half of "confirmed": character-trust.ts also wants the guild roster or a guildmate's addon to agree.
+// evidence: what proves the link (character-move.ts); the member's own companion when confirm is set, else a name.
+// A character that was unlinked before comes back as the same row, with its history.
+export async function createSelfCharacter(tx: Tx, guildId: string, memberId: string, self: AddonCharacter, confirm = false, evidence: LinkEvidence = confirm ? "companion" : "named") {
+  const back = await reattachDetached(tx, guildId, memberId, { name: self.name, realm: self.realm, gameEdition: gameEditionOf(self) }, evidence);
   const hasMain = (await tx.character.count({ where: { memberId, isMain: true } })) > 0;
-  const created = await tx.character.create({
+  const created = back ? await tx.character.update({
+    where: { id: back.character.id },
+    data: {
+      ...(self.displayName ? { displayName: self.displayName } : {}),
+      className: normalizeClassName(self.class as string),
+      race: self.race ? normalizeRaceName(self.race) : null,
+      level: self.level >= 1 ? self.level : null,
+      spec: self.spec || null,
+      ...guildRankUpdate(self),
+      lastSeenAt: new Date()
+    }
+  }) : await tx.character.create({
     data: {
       memberId,
       guildId,
@@ -40,6 +55,7 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
       isMain: !hasMain,
       professionsUpdatedAt: self.professionsComplete === true ? self.professionsAt ?? new Date() : null,
       lastSeenAt: new Date(),
+      linkEvidence: evidence,
       ...(confirm ? { confirmedAt: new Date() } : {})
     }
   });
@@ -54,10 +70,10 @@ export async function createSelfCharacter(tx: Tx, guildId: string, memberId: str
   return created;
 }
 
-export async function linkPairedCharacter(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter, options: { confirm?: boolean } = {}) {
+export async function linkPairedCharacter(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter, options: { confirm?: boolean; evidence?: LinkEvidence } = {}) {
   if (!self.class) return "missing-class" as const;
   try {
-    return await linkPairedCharacterOnce(database, guildId, memberId, self, options.confirm === true);
+    return await linkPairedCharacterOnce(database, guildId, memberId, self, options.confirm === true, options.evidence ?? (options.confirm ? "companion" : "named"));
   } catch (error) {
     // A parallel request linked this character between our look and our create (unique constraint, P2002):
     // it is linked, so say so and let the upload carry on.
@@ -66,16 +82,27 @@ export async function linkPairedCharacter(database: PrismaClient, guildId: strin
   }
 }
 
-async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter, confirm: boolean) {
+async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, memberId: string, self: AddonCharacter, confirm: boolean, evidence: LinkEvidence) {
   return database.$transaction(async (tx) => {
     const characters = await tx.character.findMany({
       where: { member: { guildId } },
       include: { member: true }
     });
     const existing = findCharacter(characters, self.name, self.realm, gameEditionOf(self));
-    if (existing && existing.memberId !== memberId) return "owned-by-another" as const;
+    if (existing && existing.memberId !== memberId) {
+      // Another member has it: stronger proof moves it (history kept, both told, undo), equal proof goes
+      // to the officers, weaker proof is told once (character-move.ts). Never silent.
+      const outcome = await contestCharacter(tx, { guildId, claimantMemberId: memberId, evidence, character: existing });
+      return outcome === "moved" ? "linked" as const : "owned-by-another" as const;
+    }
 
     if (existing) {
+      // The proof only ever gets stronger here. A row from before the column reads its proof from its verify claim.
+      let stronger = evidenceRank(evidence) > evidenceRank(evidenceOf(existing));
+      if (stronger && !existing.linkEvidence) {
+        const claim = await tx.characterVerifyClaim.findFirst({ where: { guildId, memberId, nameKey: characterKey(self.name, self.realm, gameEditionOf(self)), status: { in: ["LINKED", "PROVISIONAL"] } }, select: { status: true } });
+        stronger = evidenceRank(evidence) > evidenceRank(evidenceOf(existing, claim?.status));
+      }
       // WoW Forever, 8.5: the member's own upload names this character in full ("Lebowski
       // Holyroller") while the row still has the pre-8.5 first-name key: it takes the full name,
       // so the member's other "Lebowski" alts become their own rows instead of sharing this one.
@@ -93,6 +120,7 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
 
           ...guildRankUpdate(self),
           lastSeenAt: new Date(),
+          ...(stronger ? { linkEvidence: evidence } : {}),
           ...(confirm && !existing.confirmedAt ? { confirmedAt: new Date() } : {})
         }
       });
@@ -104,7 +132,7 @@ async function linkPairedCharacterOnce(database: PrismaClient, guildId: string, 
       select: { id: true }
     });
     if (removed) return "removed-by-officer" as const;
-    await createSelfCharacter(tx, guildId, memberId, self, confirm);
+    await createSelfCharacter(tx, guildId, memberId, self, confirm, evidence);
     return "linked" as const;
   // 9.0.8: its own budget. The 5 s default ran out while a big upload's import held the database (P2028, 9 November).
   }, { timeout: 20_000, maxWait: 10_000 });

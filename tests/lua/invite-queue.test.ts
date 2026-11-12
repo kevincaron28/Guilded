@@ -139,4 +139,42 @@ describe("InviteQueue.lua", () => {
     s.run("NS.inviteQueue.notify()");
     expect(s.run("return #CHAT")).toBe("1");
   });
+  const say = (lua: LuaSession, text: string) => lua.run(`NS.inviteQueue.onSystemMessage(${JSON.stringify(text)})`);
+  const labels = (lua: LuaSession) => lua.run(String.raw`local t = {} for _, l in ipairs(NS.inviteQueue.list()) do t[#t + 1] = l.name .. "=" .. tostring(l.state) end return table.concat(t, "|")`);
+
+  it("shows the game's answer on the row and removes a row that joined", () => {
+    const s = withQueue();
+    s.run("NS.inviteQueue.open()");
+    click(s, 1); click(s, 2);
+    say(s, "Player Amy Archer not found.");
+    say(s, "Bob Brewer is already in a guild.");
+    expect(labels(s)).toBe("Amy Archer=notfound|Bob Brewer=inguild");
+    say(s, "Bob Brewer declines your guild invitation.");
+    expect(labels(s)).toBe("Amy Archer=notfound|Bob Brewer=declined");
+    say(s, "Bob Brewer has joined the guild.");
+    expect(labels(s)).toBe("Amy Archer=notfound");
+    // A name the officer never sent from the panel is ignored.
+    say(s, "Player Zoe Zed not found.");
+    expect(labels(s)).toBe("Amy Archer=notfound");
+  });
+  it("offers Remove on a not-found row, never lists it for sending, and shows it again only after a repost", () => {
+    const s = withQueue();
+    s.run("NS.inviteQueue.open()");
+    click(s, 1);
+    say(s, "Player Amy Archer not found.");
+    expect(s.run("return NS.inviteQueue.text()")).toBe("/ginvite Bob Brewer");
+    expect(s.run(String.raw`return tostring(INVITES()[1].shown)`)).not.toBe("true");
+    s.run(`NS.inviteQueue.remove("Amy Archer")`);
+    expect(labels(s)).toBe("Bob Brewer=nil");
+    s.run(String.raw`GuildedInvites.names[1].at = "2026-11-10T12:00:00Z"`);
+    expect(labels(s)).toBe("Amy Archer=nil|Bob Brewer=nil");
+  });
+  it("highlights the row the copy box refers to and names it in the header", () => {
+    const s = withQueue();
+    s.run("NS.inviteQueue.open()");
+    click(s, 2);
+    expect(s.run("return NS.inviteQueue.selected")).toBe("bob brewer");
+    expect(s.run(String.raw`local f = FRAMES[1] return tostring(NS.inviteQueue.markInvited("Bob Brewer"))`)).toBe("true");
+    expect(s.run(String.raw`local _, m = NS.inviteQueue.markInvited("Bob Brewer") return m`)).toBe("Copy /ginvite Bob Brewer for the highlighted row (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter.");
+  });
 });

@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveStandingsPath } from "./standings.mjs";
 import { writeDataAddon } from "./data-addon.mjs";
+import { linkedMapLua } from "./standings-format.mjs";
 
 // Zero-setup companion (9.1.3): an unsigned device never fetches the guild standings, so nothing told the
 // addon which of its dungeon runs the bot had received, and they stayed "waiting" for ever. The bot's answer
@@ -13,6 +14,7 @@ import { writeDataAddon } from "./data-addon.mjs";
 
 const MAX_REFS = 1200;
 const MAX_NOTES = 300;
+const MAX_PENDING = 100;
 const luaString = (value) => `"${String(value).replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/[\r\n]/g, " ")}"`;
 const unquote = (text) => text.replace(/\\(["\\])/g, "$1");
 const QUOTED = String.raw`"((?:[^"\\]|\\.)*)"`;
@@ -24,7 +26,9 @@ export function parseDeviceReceipts(text) {
   const block = (name) => new RegExp(String.raw`${name} = \{([\s\S]*?)\n\}`).exec(text)?.[1] ?? "";
   for (const match of block("GuildedDungeonAccepted").matchAll(new RegExp(String.raw`^\s*${QUOTED},\s*$`, "gm"))) refs.push(unquote(match[1]));
   for (const match of block("GuildedDungeonNotes").matchAll(new RegExp(String.raw`^\s*\[${QUOTED}\] = ${QUOTED},\s*$`, "gm"))) notes[unquote(match[1])] = unquote(match[2]);
-  return { refs, notes };
+  const pending = {};
+  for (const match of block("GuildedDungeonPending").matchAll(new RegExp(String.raw`^\s*\[${QUOTED}\] = ${QUOTED},\s*$`, "gm"))) pending[unquote(match[1])] = unquote(match[2]);
+  return { refs, notes, pending };
 }
 
 /** The note a 9.1.3 bot gave a guildmate's run it refused from this PC: no bot holds that run, so it is no receipt. */
@@ -39,20 +43,29 @@ export function mergeDeviceReceipts(previous, answer) {
   const notes = { ...(previous?.notes ?? {}) };
   for (const ref of fresh) delete notes[ref]; // The bot's latest word on a run replaces an older note.
   for (const [ref, note] of Object.entries(answer?.runNotes && typeof answer.runNotes === "object" ? answer.runNotes : {})) if (typeof note === "string" && note) notes[ref] = note.slice(0, 80);
-  return { refs, notes: Object.fromEntries(Object.entries(notes).filter(([ref]) => refs.includes(ref)).slice(0, MAX_NOTES)) };
+  // Runs the bot received but does not count yet (waiting for a second player's addon): shown by the addon, never "synced".
+  const pending = { ...(previous?.pending ?? {}) };
+  for (const ref of refs) delete pending[ref];
+  for (const [ref, note] of Object.entries(answer?.pendingRunNotes && typeof answer.pendingRunNotes === "object" ? answer.pendingRunNotes : {})) if (typeof note === "string" && note && !refs.includes(ref)) pending[ref] = note.slice(0, 80);
+  return { refs, notes: Object.fromEntries(Object.entries(notes).filter(([ref]) => refs.includes(ref)).slice(0, MAX_NOTES)), pending: Object.fromEntries(Object.entries(pending).slice(-MAX_PENDING)) };
 }
 
-export function deviceReceiptsToLua({ refs, notes }, updatedAt) {
+export function deviceReceiptsToLua({ refs, notes, pending, reported }, updatedAt) {
   return [
     "-- Written by the Guilded companion for an unsigned (zero-setup) PC. Overwritten automatically; edits here are lost.",
     "-- This PC is not signed in with Discord, so any earlier \"Linked to Discord as ...\" line no longer applies.",
     "GuildedLinkedAs = nil",
+    // Per character (9.1.4): the characters the bot holds for this device, reported and never confirmed (no Discord name).
+    linkedMapLua((reported ?? []).map((name) => ({ name, confirmed: false })), updatedAt).trimEnd(),
     `GuildedCompanion = { mode = "device", updatedAt = ${luaString(updatedAt)} }`,
     "GuildedDungeonAccepted = {",
     ...refs.map((ref) => `  ${luaString(ref)},`),
     "}",
     "GuildedDungeonNotes = {",
     ...Object.entries(notes).map(([ref, note]) => `  [${luaString(ref)}] = ${luaString(note)},`),
+    "}",
+    "GuildedDungeonPending = {",
+    ...Object.entries(pending ?? {}).map(([ref, note]) => `  [${luaString(ref)}] = ${luaString(note)},`),
     "}",
     ""
   ].join("\n");
@@ -86,7 +99,11 @@ export async function writeDeviceReceipts(config, answer, signal, now = new Date
   if (!standings) return [];
   const merged = mergeDeviceReceipts(await readDeviceReceipts(config), answer);
   const stamp = now.toISOString();
-  const text = deviceReceiptsToLua(merged, stamp);
+  // `reported`: the characters of this PC the bot holds as reported (9.1.4); only the newest answer counts, never merged.
+  const reported = Array.isArray(answer?.reported) ? answer.reported.filter((name) => typeof name === "string" && name).slice(0, 24) : [];
+  const text = deviceReceiptsToLua({ ...merged, reported }, stamp);
+  // The per-character map is ignored by the addon after 14 days: rewrite the file when its stamp is a day old even if nothing else changed.
+  const stampAge = (value) => { const at = Date.parse(/GuildedLinkedMeta = \{ updatedAt = "([^"]*)"/.exec(value)?.[1] ?? ""); return Number.isNaN(at) ? Infinity : now.getTime() - at; };
   const written = [];
   const guilded = dirname(standings);
   if (existsSync(guilded)) {
@@ -96,7 +113,7 @@ export async function writeDeviceReceipts(config, answer, signal, now = new Date
       try { current = await readFile(standings, "utf8"); } catch { /* first write */ }
       // Unchanged except for the stamp: leave the file alone (the game only reads it on reload anyway).
       const withoutStamp = (value) => value.replace(/updatedAt = "[^"]*"/, "");
-      if (current === null || withoutStamp(current) !== withoutStamp(text)) await writeAtomic(standings, text);
+      if (current === null || withoutStamp(current) !== withoutStamp(text) || stampAge(current) > 86_400_000) await writeAtomic(standings, text);
       written.push(standings);
       if (config.dataAddon !== false) { try { const data = await writeDataAddon(standings, text, stamp, signal); if (data) written.push(data); } catch { signal?.throwIfAborted(); } }
     } catch { signal?.throwIfAborted(); }

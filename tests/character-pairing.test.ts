@@ -197,7 +197,7 @@ describe("character pairing", () => {
     });
   });
 
-  it("does not take a character already linked to another member", async () => {
+  it("does not take a character already linked to another member on equal proof: it is recorded for the officers", async () => {
     const tx = {
       character: {
         findMany: vi.fn(async () => [{ id: "character", name: "Ray", realm: "Forever", memberId: "other-member" }]),
@@ -205,6 +205,8 @@ describe("character pairing", () => {
         create: vi.fn(),
         update: vi.fn()
       },
+      characterVerifyClaim: { findMany: vi.fn(async () => []) },
+      characterLinkConflict: { findUnique: vi.fn(async () => null), upsert: vi.fn(async () => ({})) },
       professionSkill: { upsert: vi.fn() },
       unclaimedCharacter: { deleteMany: vi.fn() }
     };
@@ -217,5 +219,8 @@ describe("character pairing", () => {
     expect(result).toBe("owned-by-another");
     expect(tx.character.update).not.toHaveBeenCalled();
     expect(tx.character.create).not.toHaveBeenCalled();
+    expect(tx.characterLinkConflict.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ characterId: "character", claimantMemberId: "member", ownerMemberId: "other-member", status: "OPEN", notifiedAt: null }) as unknown
+    }));
   });
 });

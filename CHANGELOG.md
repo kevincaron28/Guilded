@@ -1,5 +1,34 @@
 # Changelog
 
+## 9.1.6 — 10 November 2026
+
+Guild sync and invite fixes from the owner's in-game problem log. Details: docs/V9_1_6_RELEASE_NOTES.md.
+
+- Guild sync messages no longer exceed the game's 255-byte limit (standings chunks were silently dropped) (#731).
+- `/guilded invite raid` shows copyable `/invite` lines and no longer calls the invite API (#731).
+- Guild message-of-the-day reads are guarded in combat (#731).
+- The "To invite" window shows the game's real answer per row (not found, already in a guild, declined, joined), keeps one row per requester, and has a Remove button (#731).
+
+## 9.1.5 — 10 November 2026
+
+Run trust and confirmed characters. Details: docs/V9_1_5_RELEASE_NOTES.md.
+
+- Unsigned companions also send runs that guildmates' addons relayed, so one companion carries addon-only members' runs (#725).
+- A run counts with a roster/linked party member or a second PC agreeing; `/guilded dungeon` shows "received by Discord, not counted yet: reason" (#725).
+- During Season 1, anonymous-only runs still count, marked as device runs; this turns off when Season 2 starts (#726).
+- "Confirmed" needs the member's own companion plus the guild roster or a heard verify code; nicknames follow confirmed mains only (#724).
+- The bot side of all three is already live.
+
+## 9.1.4 — 10 November 2026
+
+Linking and dungeon fixes after the 9.1.3 retest. Details: docs/V9_1_4_RELEASE_NOTES.md.
+
+- `/gdungeons` and `/gdg` work with Guilded alone and answer for guildmates' runs (#712); dungeons-only members' runs reach the leaderboards through a guildmate (#715).
+- World map dots, no blocked guild reads, the welcome retried, Invite buttons show a copy box (#714).
+- The "Linked to Discord" line is per character (#717).
+- Wrong-server guard: links only where the server knows the in-game guild; sign-in lists matching servers first; `/api/v1/companion/leave` (#719); stronger proof wins, unlink detaches, `/officer character move` (#720).
+- Bot: Guilded Clash balance, 16 Health and Sudden Death (#718, server side; the phone app is separate).
+
 ## 9.1.3 — 9 November 2026
 
 Plug-and-play fixes from the two-PC fresh-install test of 9.1.2. Details: docs/V9_1_3_RELEASE_NOTES.md.

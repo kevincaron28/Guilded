@@ -1,5 +1,124 @@
 [
   {
+    "source": "download.md",
+    "sourceFr": "download.fr.md",
+    "path": "download/",
+    "title": "Download Guilded — addon, companion and Discord bot",
+    "titleFr": "Télécharger Guilded — addon, compagnon et bot Discord",
+    "description": "Everything is free. Start with the WoW Forever addon, then add the Windows companion, the Discord bot or the Android preview only if you need them.",
+    "descriptionFr": "Tout est gratuit. Commencez par l’addon WoW Forever, puis ajoutez le compagnon Windows, le bot Discord ou l’aperçu Android seulement si vous en avez besoin.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "community.md",
+    "sourceFr": "community.fr.md",
+    "path": "community/",
+    "title": "Guilded community",
+    "titleFr": "Communauté Guilded",
+    "description": "Find a guild, open raid spots, player profiles and Quebec Gold.",
+    "descriptionFr": "Trouver une guilde, des places de raid, des profils de joueurs et Quebec Gold.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide.md",
+    "sourceFr": "guide.fr.md",
+    "path": "guide/",
+    "title": "Guilded guide",
+    "titleFr": "Guide Guilded",
+    "description": "Pick a path: player, officer or the person hosting the bot. Each page does one job.",
+    "descriptionFr": "Choisissez un parcours : joueur, officier ou la personne qui héberge le bot. Chaque page fait une seule chose.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-start.md",
+    "sourceFr": "guide-start.fr.md",
+    "path": "guide/start/",
+    "title": "Get started with Guilded",
+    "titleFr": "Commencer avec Guilded",
+    "description": "Three steps for a player: install the addon, play, and add the companion only if you want Discord or the website.",
+    "descriptionFr": "Trois étapes pour un joueur : installer l’addon, jouer, et ajouter le compagnon seulement pour Discord ou le site.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-install.md",
+    "sourceFr": "guide-install.fr.md",
+    "path": "guide/install/",
+    "title": "Install the Guilded addon",
+    "titleFr": "Installer l’addon Guilded",
+    "description": "The one install page: close WoW and put the addon folder in the right place.",
+    "descriptionFr": "La seule page d’installation : fermez WoW et placez le dossier de l’addon au bon endroit.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-companion.md",
+    "path": "guide/companion/",
+    "title": "Guilded companion",
+    "description": "The Windows companion is optional for the addon and needed for Discord and the website.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-link.md",
+    "path": "guide/link-character/",
+    "title": "Link your character",
+    "description": "Connect a character to Discord after the addon is installed.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-dungeons.md",
+    "path": "guide/dungeons/",
+    "title": "Dungeons and scores",
+    "description": "How dungeon runs get onto the Guilded leaderboards.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-officers.md",
+    "path": "guide/officers/",
+    "title": "Guilded for officers",
+    "description": "Set up EP/GP, loot and raids for your guild.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-epgp.md",
+    "path": "guide/epgp/",
+    "title": "EP/GP and loot",
+    "description": "How effort points and gear points work in Guilded.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-discord.md",
+    "path": "guide/discord-bot/",
+    "title": "Add the Discord bot",
+    "description": "Add the free hosted Guilded bot to a Discord server.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-self-host.md",
+    "path": "guide/self-host/",
+    "title": "Host your own Guilded bot",
+    "description": "Public notes for running the Guilded bot yourself. The hosted bot is enough for most guilds.",
+    "lang": "en",
+    "draft": false
+  },
+  {
+    "source": "guide-troubleshooting.md",
+    "path": "guide/troubleshooting/",
+    "title": "Guilded troubleshooting",
+    "description": "What to check when the addon, companion or leaderboard does not do what you expect.",
+    "lang": "en",
+    "draft": false
+  },
+  {
     "source": "start.md",
     "sourceFr": "start.fr.md",
     "path": "start/",
@@ -70,19 +189,10 @@
     "community": true,
     "path": "quebec-gold/",
     "title": "Quebec Gold — French-speaking WoW community",
-    "titleFr": "Quebec Gold — communauté francophone WoW et PoE2",
+    "titleFr": "Quebec Gold — communauté francophone WoW",
     "description": "Quebec Gold: a French-speaking WoW Forever guild on Montréal time. Meet the community, see how to join and what members get with Guilded.",
-    "descriptionFr": "Quebec Gold : WoW Forever et Path of Exile 2, en français à l'heure de Montréal. Découvrez la communauté et rejoignez notre Discord.",
+    "descriptionFr": "Quebec Gold : WoW Forever, en français à l'heure de Montréal. Découvrez la communauté et rejoignez notre Discord.",
     "lang": "en",
-    "draft": false
-  },
-  {
-    "source": "poe2.md",
-    "requiresGame": "poe2",
-    "path": "quebec-gold/poe2/",
-    "title": "Quebec Gold — communauté francophone Path of Exile 2",
-    "description": "Retrouvez Quebec Gold sur Path of Exile 2 à chaque nouvelle ligue : communauté francophone, heure de Montréal et contact Discord.",
-    "lang": "fr",
     "draft": false
   },
   {

@@ -63,6 +63,7 @@ export async function linkUnclaimed(database: Db, memberId: string, unclaimed: U
     memberId, name: unclaimed.name, realm: unclaimed.realm, className: unclaimed.className, isMain: !hasMain,
     gameEdition: unclaimed.gameEdition ?? "forever",
     ...(unclaimed.displayName ? { displayName: unclaimed.displayName } : {}),
+    ...(options.confirmed ? { linkEvidence: "officer" as const } : {}),
     ...(unclaimed.spec ? { spec: unclaimed.spec } : {}), ...(unclaimed.level ? { level: unclaimed.level } : {}), ...(unclaimed.race ? { race: unclaimed.race } : {})
   });
   const created = await database.character.findFirst({ where: { memberId, name: unclaimed.name, realm: unclaimed.realm, gameEdition: unclaimed.gameEdition ?? "forever" } });

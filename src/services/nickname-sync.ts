@@ -9,6 +9,8 @@ import { forEachGuildScope, guildWhere } from "./guild-scope.js";
 // characters. Turning the sync off restores everyone's previous nickname.
 // The bot never renames the server owner, bots or anyone it cannot manage (a role above the bot's), and it
 // remembers the original nickname (MemberNickname) so turning the feature off restores everyone.
+// Owner decision, 10 November 2026: "reported" counts the same as "confirmed" everywhere except in a conflict between
+// two members (character-move.ts). So ANY linked main renames, however it was linked (character-trust.ts only labels).
 
 export const NICKNAME_MAX = 32;
 export const DEFAULT_NICKNAME_FORMAT = "{name} ({full})";
@@ -110,9 +112,12 @@ export function planNicknames(people: readonly NicknamePerson[], format = DEFAUL
 }
 
 // A member's main: the one marked main, else the first by name.
+export function mainCharacter<T extends { name: string; displayName?: string | null; isMain: boolean }>(characters: readonly T[]): T | null {
+  return [...characters].sort((a, b) => Number(b.isMain) - Number(a.isMain) || characterName(a).localeCompare(characterName(b)))[0] ?? null;
+}
 export function mainCharacterName(characters: readonly { name: string; displayName?: string | null; isMain: boolean }[]): string | null {
-  const sorted = [...characters].sort((a, b) => Number(b.isMain) - Number(a.isMain) || characterName(a).localeCompare(characterName(b)));
-  return sorted[0] ? characterName(sorted[0]) : null;
+  const main = mainCharacter(characters);
+  return main ? characterName(main) : null;
 }
 
 export const botCanRename = (guild: Guild) => Boolean(guild.members.me?.permissions.has(PermissionFlagsBits.ManageNicknames));
@@ -155,7 +160,8 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   const [members, records] = await Promise.all([
     prisma.member.findMany({
       where: { guildId: row.id, status: "ACTIVE", isTest: false, characters: { some: { gameEdition: row.gameEdition ?? "forever" } } },
-      select: { discordUserId: true, characters: { where: { gameEdition: row.gameEdition ?? "forever" }, select: { name: true, displayName: true, isMain: true } } }
+      select: { discordUserId: true, characters: { where: { gameEdition: row.gameEdition ?? "forever" },
+        select: { id: true, memberId: true, name: true, displayName: true, realm: true, gameEdition: true, isMain: true, confirmedAt: true, linkEvidence: true } } }
     }),
     prisma.memberNickname.findMany({ where: { guildId: row.id } })
   ]);
@@ -166,8 +172,9 @@ export async function syncNicknames(prisma: PrismaClient, guild: Guild, options:
   for (const member of members) {
     const discordMember = guild.members.cache.get(member.discordUserId) ?? await guild.members.fetch(member.discordUserId).catch(() => null);
     if (!discordMember) { stats.notInServer++; continue; }
+    const main = mainCharacter(member.characters);
     people.push({ discordUserId: member.discordUserId, accountName: discordMember.user.globalName ?? discordMember.user.username, nickname: discordMember.nickname,
-      mainName: mainCharacterName(member.characters), characterNames: member.characters.map((character) => characterName(character)), skip: !canRename(guild, discordMember), record: byUser.get(member.discordUserId) ?? null });
+      mainName: main ? characterName(main) : null, characterNames: member.characters.map((character) => characterName(character)), skip: !canRename(guild, discordMember), record: byUser.get(member.discordUserId) ?? null });
   }
   const changes = planNicknames(people, format);
   stats.notManageable = people.filter((person) => person.skip).length;

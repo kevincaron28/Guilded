@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deviceUploadBody } from "../companion/device-sync.mjs";
 import { readAddonExport } from "../companion/lua-export.mjs";
+import { witnessTables } from "./helpers/witness-tables.js";
 import { mergeDeviceReceipts, parseDeviceReceipts, readDeviceReceipts, writeDeviceReceipts } from "../companion/device-receipts.mjs";
 import { handleDeviceUpload, prismaInstallStore, storeDeviceRuns, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
 import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
@@ -25,12 +26,16 @@ const now = new Date("2026-11-09T12:00:00Z");
 function fakeDatabase() {
   const runs: Record<string, unknown>[] = [];
   const receipts: Record<string, unknown>[] = [];
+  // Meo (this PC's character) is in the officer-synced roster, so the run counts on its own.
+  const trust = witnessTables(["meo gratton"]);
   const tx = {
+    ...trust.tables,
     guild: { findUnique: async () => ({ gameEdition: "forever" }) },
     character: { findMany: async () => [] },
     guildSettings: { findUnique: async () => ({ dungeonLeaderboardChannelId: null }) },
     dungeonSeason: { findFirst: async () => season, create: async () => season, update: vi.fn() },
     dungeonRun: {
+      updateMany: async () => ({ count: 0 }),
       findUnique: async ({ where }: { where: { guildId_runRef: { runRef: string } } }) => runs.find((r) => r["runRef"] === where.guildId_runRef.runRef) ?? null,
       findMany: async ({ where }: { where: { runRef?: { in: string[] }; instanceId?: number; valid?: boolean; state?: string; completedBy?: string } }) => runs.filter((r) =>
         (!where.runRef || where.runRef.in.includes(r["runRef"] as string)) && (where.instanceId === undefined || r["instanceId"] === where.instanceId)
@@ -91,7 +96,7 @@ function botStore(database: ReturnType<typeof fakeDatabase>): DeviceStore {
     async characterKeys() { return []; },
     async saveUpload() { /* device rows are not under test */ },
     async claim() { return false; },
-    importRuns: (guildId, runs, at) => storeDeviceRuns(database.tx as never, guildId, runs, at),
+    importRuns: (guildId, runs, at, source) => storeDeviceRuns(database.tx as never, guildId, runs, at, source),
     receipts: (guildId, refs) => real.receipts!(guildId, refs)
   };
 }
@@ -169,7 +174,7 @@ describe("unsigned companion: runs reach the bot and come back as receipts", () 
 
   it("merges receipts newest first and lets the bot's latest note replace an older one", () => {
     const merged = mergeDeviceReceipts({ refs: ["a", "b"], notes: { a: "old", b: "kept" } }, { acceptedRunRefs: ["c", "a"], runNotes: { c: "new" } });
-    expect(merged).toEqual({ refs: ["c", "a", "b"], notes: { c: "new", b: "kept" } });
+    expect(merged).toEqual({ refs: ["c", "a", "b"], notes: { c: "new", b: "kept" }, pending: {} });
   });
 });
 
@@ -211,6 +216,36 @@ describe("runs that are not this PC's", () => {
   it("forgets a 9.1.3 refusal kept as a receipt", () => {
     const note = "Not one of this PC's characters";
     const merged = mergeDeviceReceipts({ refs: ["kept", "refused"], notes: { refused: note, kept: "Not completed" } }, { acceptedRunRefs: ["new", "refused-again"], runNotes: { "refused-again": note } });
-    expect(merged).toEqual({ refs: ["new", "kept"], notes: { kept: "Not completed" } });
+    expect(merged).toEqual({ refs: ["new", "kept"], notes: { kept: "Not completed" }, pending: {} });
+  });
+});
+
+describe("per-character identity (9.1.4)", () => {
+  it("answers with only the characters this device reported, and the addon says 'Reported, not confirmed' for them", async () => {
+    const { file, guilded } = layout();
+    const { body, answer } = await sync(file, fakeDatabase());
+    expect(body.characters.map((c: { name: string }) => c.name)).toEqual(["Meo"]);
+    // Privacy: the answer lists names the device itself sent and carries no Discord name at all.
+    expect(answer.reported).toEqual(["Meo"]);
+    expect(JSON.stringify(answer)).not.toMatch(/discord(User|Name|Account)|Gratton/);
+    await writeDeviceReceipts({ watchFile: file }, { ...answer.runReceipts, reported: answer.reported }, undefined, now);
+    const text = readFileSync(join(guilded, "Standings.lua"), "utf8");
+    expect(text).toContain('["meo"] = { confirmed = false }');
+    expect(text).not.toContain("Meo Gratton");
+    const session = addonSession();
+    session.run(`GuildedCompanion = { mode = "device" }; GuildedLinked = { ["meo"] = { confirmed = false } }; GuildedLinkedMeta = { updatedAt = "2027-01-14T00:00:00Z", }`);
+    session.run("CLOCK = 1800000000; time = function() return CLOCK end");
+    expect(session.run("local s = NS.companionLink.linkedState(); return s and tostring(s.confirmed) or 'nil'")).toBe("false");
+    expect(session.run("return tostring(NS.companionLink.announceLinked())")).toBe("true");
+  });
+
+  it("rewrites the map's stamp when it is a day old, even with nothing else changed", async () => {
+    const { file, guilded } = layout();
+    const { answer } = await sync(file, fakeDatabase());
+    const answerWith = { ...answer.runReceipts, reported: answer.reported };
+    await writeDeviceReceipts({ watchFile: file }, answerWith, undefined, now);
+    const later = new Date(now.getTime() + 2 * 86_400_000);
+    await writeDeviceReceipts({ watchFile: file }, answerWith, undefined, later);
+    expect(readFileSync(join(guilded, "Standings.lua"), "utf8")).toContain(`updatedAt = "${later.toISOString()}"`);
   });
 });

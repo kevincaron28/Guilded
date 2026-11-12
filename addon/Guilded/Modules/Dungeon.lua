@@ -1199,6 +1199,20 @@ local function canControl()
   return compat.isLeader() or ns.isOfficer() or not compat.inGroup()
 end
 
+-- (9.1.4, run trust) Runs the bot received from this PC's companion but does not count yet: it needs a second
+-- player's addon (or a party member known to the guild roster). Written by the companion as GuildedDungeonPending
+-- { [runId] = reason }. They are NOT synced: the author keeps replaying them and nobody ACKs them.
+function dungeon.pendingRuns()
+  local d = db()
+  local list = {}
+  local notes = type(GuildedDungeonPending) == "table" and GuildedDungeonPending or {}
+  for id, reason in pairs(notes) do
+    local run = d and d.runs[id]
+    if run and not run.synced and not run.syncedVia and type(reason) == "string" then list[#list + 1] = { run = run, reason = reason } end
+  end
+  return list
+end
+
 local function status()
   local d = db()
   local run = d and d.current
@@ -1207,6 +1221,10 @@ local function status()
     for _ in pairs(d and d.runs or {}) do total = total + 1 end
     local pending = #dungeon.waitingRuns()
     ns.message(string.format(L("No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."), total, pending))
+    local held = dungeon.pendingRuns()
+    if #held > 0 then
+      ns.message(string.format(L("%d received by Discord, not counted yet: %s."), #held, string.sub((string.gsub(held[1].reason, "|", "")), 1, 80)))
+    end
     if pending > 0 then
       local overdue = #dungeon.overdueRuns() > 0
       ns.message(overdue

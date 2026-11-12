@@ -6,15 +6,51 @@ import type { Ability, Action, CardDef, ClassKey, Cond, DeckList, Eff, Keyword, 
 // seed stored inside the match state, nothing reads a clock or Math.random, and a match is fully described by
 // { seed, decks, actions }. Replaying the actions reproduces the same state hash. No network, no database.
 
-export const START_HEALTH = 20;
+// Match length (balance review of 10 November 2026, docs/plans/CLASH_BALANCE_REVIEW_2026-11-10.md): 16 Health, Sudden Death
+// (Exhaustion 2, 4, 6...) from round 8, and round 9 is the last: then the Champion who lost less Health wins.
+export const START_HEALTH = 16;
 export const HAND_LIMIT = 8;
 export const BOARD_LIMIT = 5;
 export const MANA_CAP = 8;
 export const MANA_HARD_CAP = 10;
-export const EXHAUSTION_ROUND = 13;
-export const DRAW_ROUND = 20;
-export const SECOND_WIND_HEALTH = 8;
+export const EXHAUSTION_ROUND = 8;
+export const EXHAUSTION_STEP = 2;
+/** The last round: the match ends after it (see Rules.capRule). */
+export const DRAW_ROUND = 9;
+export const SECOND_WIND_HEALTH = 6;
 export const POWER_COST = 2;
+
+/** The match-length rules in one place, so the balance simulator (scripts/clash-sim.ts) can try other numbers with
+ *  `withRules`. Live matches always use DEFAULT_RULES. */
+export interface Rules {
+  startHealth: number;
+  manaCap: number;
+  /** Extra mana on every turn: turn n has min(n + manaBonus, manaCap). */
+  manaBonus: number;
+  exhaustionRound: number;
+  /** Exhaustion damage grows by this much each time (1, 2, 3... with 1). */
+  exhaustionStep: number;
+  drawRound: number;
+  /** After the last round: "draw", or "health" (the Champion who lost less Health, Armor counting as Health, wins; equal is a draw). */
+  capRule: "draw" | "health";
+  secondWindHealth: number;
+  /** Opening hand of the second player (the first player has 3), before the Loot Bag. */
+  secondHand: number;
+  /** The first player also draws on their first turn (the second player still has one more card and the Loot Bag). */
+  firstDraws: boolean;
+}
+export const DEFAULT_RULES: Readonly<Rules> = Object.freeze({
+  startHealth: START_HEALTH, manaCap: MANA_CAP, manaBonus: 0, exhaustionRound: EXHAUSTION_ROUND, exhaustionStep: EXHAUSTION_STEP,
+  drawRound: DRAW_ROUND, capRule: "health", secondWindHealth: SECOND_WIND_HEALTH, secondHand: 4, firstDraws: true
+} satisfies Rules);
+let R: Readonly<Rules> = DEFAULT_RULES;
+/** Runs `fn` with some rules changed (the simulator and tests only; not re-entrant across awaits). */
+export function withRules<T>(over: Partial<Rules>, fn: () => T): T {
+  const before = R;
+  R = { ...before, ...over };
+  try { return fn(); } finally { R = before; }
+}
+export const currentRules = (): Readonly<Rules> => R;
 
 type Side = 0 | 1;
 const other = (p: Side): Side => (p === 0 ? 1 : 0);
@@ -39,6 +75,9 @@ function shuffle<T>(s: MatchState, list: T[]): void {
 export const cloneState = (s: MatchState): MatchState => JSON.parse(JSON.stringify(s)) as MatchState;
 export const round = (s: MatchState): number => Math.ceil(s.turn / 2);
 const unitCard = (u: UnitState): CardDef => cardOf(u.card);
+const NO_TEXT: Pick<CardDef, "aura" | "frenzy" | "lastStand" | "startTurn" | "endTurn"> = {};
+/** The text a unit still has in play: none once it is Dispelled. */
+const textOf = (u: UnitState): Pick<CardDef, "aura" | "frenzy" | "lastStand" | "startTurn" | "endTurn"> => (u.quiet ? NO_TEXT : unitCard(u));
 const hasKw = (u: UnitState, word: Keyword): boolean => u.kw.includes(word) || u.tempKw.includes(word);
 const zoneFlag = (s: MatchState) => (s.zone ? cardOf(s.zone.card).zone : undefined);
 const standardOf = (s: MatchState, p: Side) => { const id = s.players[p].standard; return id ? cardOf(id) : null; };
@@ -62,7 +101,7 @@ export const partyActive = (s: MatchState, p: Side): boolean => { const r = role
 
 function auraSum(s: MatchState, p: Side, pick: (aura: NonNullable<CardDef["aura"]>[number]) => number): number {
   let total = 0;
-  for (const u of s.players[p].board) for (const aura of unitCard(u).aura ?? []) total += pick(aura);
+  for (const u of s.players[p].board) for (const aura of textOf(u).aura ?? []) total += pick(aura);
   return total;
 }
 
@@ -70,7 +109,7 @@ function auraSum(s: MatchState, p: Side, pick: (aura: NonNullable<CardDef["aura"
 export function atkOf(s: MatchState, p: Side, u: UnitState): number {
   let atk = u.atk + u.tempAtk;
   const r = roles(s, p);
-  for (const aura of unitCard(u).aura ?? []) if (aura.k === "atkIfTankHealer" && r.tank && r.healer) atk += aura.n;
+  for (const aura of textOf(u).aura ?? []) if (aura.k === "atkIfTankHealer" && r.tank && r.healer) atk += aura.n;
   if (s.active === p && hasStandard(s, p, "atkOnTurn")) atk += 1;
   if (zoneFlag(s) === "smoke" && hasKw(u, "shadow")) atk += 1;
   return Math.max(0, atk);
@@ -79,7 +118,7 @@ export function atkOf(s: MatchState, p: Side, u: UnitState): number {
 export function maxHpOf(s: MatchState, p: Side, u: UnitState): number {
   const role = roleOfCard(unitCard(u));
   let bonus = 0;
-  for (const x of s.players[p].board) for (const aura of unitCard(x).aura ?? []) if (aura.k === "hpRoles" && aura.roles.includes(role) && x.uid !== u.uid) bonus += aura.n;
+  for (const x of s.players[p].board) for (const aura of textOf(x).aura ?? []) if (aura.k === "hpRoles" && aura.roles.includes(role) && x.uid !== u.uid) bonus += aura.n;
   return u.hp + bonus;
 }
 export const hpOf = (s: MatchState, p: Side, u: UnitState): number => maxHpOf(s, p, u) - u.dmg;
@@ -95,7 +134,7 @@ const newUnit = (s: MatchState, cardId: string): UnitState => {
 };
 
 function newPlayer(list: DeckList): PlayerState {
-  return { cls: list.cls, hp: START_HEALTH, maxHp: START_HEALTH, armor: 0, deck: [...list.cards], hand: [], board: [], standard: null, mana: 0, turns: 0, exhaustion: 0, secondWind: false, powerUsed: false, cooldown: 0, lastDied: null, partyDiscount: false, played: 0, nextDiscount: 0, nextSpellFree: false, perfectTurn: 0, attacked: 0 };
+  return { cls: list.cls, hp: R.startHealth, maxHp: R.startHealth, armor: 0, deck: [...list.cards], hand: [], board: [], standard: null, mana: 0, turns: 0, exhaustion: 0, secondWind: false, powerUsed: false, cooldown: 0, lastDied: null, partyDiscount: false, played: 0, nextDiscount: 0, nextSpellFree: false, perfectTurn: 0, attacked: 0 };
 }
 
 function drawRaw(s: MatchState, p: Side): string | null {
@@ -132,7 +171,7 @@ export function createMatch(seed: number, a: DeckList, b: DeckList, setup: Match
   for (const p of [0, 1] as const) shuffle(s, s.players[p].deck);
   const second = other(s.first);
   for (let i = 0; i < 3; i++) { const c = drawRaw(s, s.first); if (c) s.players[s.first].hand.push(c); }
-  for (let i = 0; i < 4; i++) { const c = drawRaw(s, second); if (c) s.players[second].hand.push(c); }
+  for (let i = 0; i < R.secondHand; i++) { const c = drawRaw(s, second); if (c) s.players[second].hand.push(c); }
   s.players[second].hand.push(LOOT_BAG);
   smooth(s, s.first);
   smooth(s, second);
@@ -166,7 +205,7 @@ export function costOf(s: MatchState, p: Side, id: string): number {
 export interface PowerDef { name: string; cost: number; target?: Sel; effects: Eff[] }
 export const POWERS: Record<ClassKey, PowerDef> = {
   warrior: { name: "Brace", cost: POWER_COST, effects: [{ k: "armor", n: 2 }] },
-  paladin: { name: "Ward", cost: 3, target: "friendlyUnit", effects: [{ k: "kw", kw: "shield", to: "target" }] },
+  paladin: { name: "Ward", cost: POWER_COST, target: "friendlyUnit", effects: [{ k: "kw", kw: "shield", to: "target" }] },
   hunter: { name: "Call Companion", cost: POWER_COST, effects: [{ k: "summon", token: "tk-beast-companion", n: 1 }] },
   rogue: { name: "Sinister Jab", cost: POWER_COST, target: "enemyUnit", effects: [{ k: "dmg", n: 1, to: "target" }] },
   priest: { name: "Mending Word", cost: POWER_COST, target: "friendlyChar", effects: [{ k: "mend", n: 3, to: "target" }] },
@@ -261,7 +300,7 @@ function dealDamage(x: X, t: Target, amount: number, c: Ctx, source?: { p: Side;
   }
   f.u.dmg += amount;
   emit(x, "damage", { unit: f.u.uid, n: amount });
-  if (hpOf(s, f.p, f.u) > 0 && !f.u.frenzied && unitCard(f.u).frenzy) x.frenzyQ.push(f.u.uid);
+  if (hpOf(s, f.p, f.u) > 0 && !f.u.frenzied && textOf(f.u).frenzy) x.frenzyQ.push(f.u.uid);
   void source;
   return amount;
 }
@@ -294,11 +333,12 @@ function gainTempMana(x: X, p: Side, n: number): void {
 }
 
 // ---- units entering play ----
-function addUnit(x: X, p: Side, cardId: string, tweak?: { hp1?: boolean; shield?: boolean }): UnitState | null {
+function addUnit(x: X, p: Side, cardId: string, tweak?: { hp1?: boolean; shield?: boolean; quiet?: boolean }): UnitState | null {
   const s = x.s;
   if (s.players[p].board.length >= boardLimit(s)) return null;
   const u = newUnit(s, cardId);
   if (tweak?.hp1) u.hp = 1;
+  if (tweak?.quiet) u.quiet = true;
   if (tweak?.shield && !u.kw.includes("shield")) u.kw.push("shield");
   if (zoneFlag(s) === "cairn" && !u.kw.includes("shield")) { u.kw.push("shield"); u.zoneShieldUntil = s.turn + 1; }
   s.players[p].board.push(u);
@@ -360,11 +400,11 @@ function runEffect(x: X, e: Eff, c: Ctx): void {
       }
       return;
     case "summon": for (let i = 0; i < e.n; i++) addUnit(x, p, e.token); return;
-    case "summonCopy": if (c.selfCard) addUnit(x, p, c.selfCard, { hp1: e.hp1 ?? false, shield: e.shield ?? false }); return;
+    case "summonCopy": if (c.selfCard) addUnit(x, p, c.selfCard, { hp1: e.hp1 ?? false, shield: e.shield ?? false, quiet: e.quiet ?? false }); return;
     case "destroy": for (const t of resolveTo(x, e.to, c)) if ("unit" in t) { const f = findUnit(s, t.unit); if (f) f.u.doomed = true; } return;
     case "chill": for (const t of resolveTo(x, e.to, c)) if ("unit" in t) { const f = findUnit(s, t.unit); if (f) f.u.chilled = true; } return;
     case "dispel":
-      for (const t of resolveTo(x, e.to, c)) if ("unit" in t) { const f = findUnit(s, t.unit); if (f) { f.u.kw = []; f.u.tempKw = []; f.u.gearOn = false; } }
+      for (const t of resolveTo(x, e.to, c)) if ("unit" in t) { const f = findUnit(s, t.unit); if (f) { f.u.kw = []; f.u.tempKw = []; f.u.gearOn = false; f.u.quiet = true; } }
       return;
     case "selfDmg": dealDamage(x, { champ: p }, e.n, c); return;
     case "tempMana": gainTempMana(x, p, e.n); return;
@@ -442,7 +482,7 @@ function settle(x: X): void {
         if (!f || f.u.frenzied || hpOf(s, f.p, f.u) <= 0) continue;
         f.u.frenzied = true;
         did = true;
-        runEffects(x, unitCard(f.u).frenzy ?? [], { p: f.p, self: f.u.uid, selfCard: f.u.card });
+        runEffects(x, textOf(f.u).frenzy ?? [], { p: f.p, self: f.u.uid, selfCard: f.u.card });
       }
       const dead: { u: UnitState; p: Side }[] = [];
       for (const p of [s.active, other(s.active)] as const) for (const u of s.players[p].board) if (u.doomed || hpOf(s, p, u) <= 0) dead.push({ u, p });
@@ -464,7 +504,8 @@ function settle(x: X): void {
           if (u.gear && hasStandard(s, p, "gearReturn")) addToHand(x, p, u.gear);
           if (s.active === other(p) && hasStandard(s, other(p), "armorOnKill")) s.players[other(p)].armor += 1;
           const ctx: Ctx = { p, self: u.uid, selfCard: u.card };
-          if (card.lastStand) queue.push({ eff: card.lastStand, ctx });
+          const lastStand = textOf(u).lastStand;
+          if (lastStand) queue.push({ eff: lastStand, ctx });
           if (u.gear && u.gearOn) { const g = cardOf(u.gear).gear; if (g?.lastStand) queue.push({ eff: g.lastStand, ctx }); }
         }
         for (const q of queue) runEffects(x, q.eff, q.ctx);
@@ -484,7 +525,7 @@ function startTurn(x: X): void {
   const pl = s.players[p];
   s.turn += 1;
   pl.turns += 1;
-  pl.mana = Math.max(0, Math.min(pl.turns, MANA_CAP) - pl.cooldown);
+  pl.mana = Math.max(0, Math.min(pl.turns + R.manaBonus, R.manaCap) - pl.cooldown);
   pl.cooldown = 0;
   pl.powerUsed = false;
   pl.played = 0;
@@ -494,10 +535,10 @@ function startTurn(x: X): void {
   for (const u of pl.board) u.attacks = 0;
   pl.partyDiscount = partyActive(s, p);
   emit(x, "turn", { p, turn: s.turn, mana: pl.mana });
-  const skipDraw = pl.turns === 1 && p === s.first;
+  const skipDraw = pl.turns === 1 && p === s.first && !R.firstDraws;
   if (!skipDraw) {
-    if (pl.deck.length === 0 || round(s) >= EXHAUSTION_ROUND) {
-      pl.exhaustion += 1;
+    if (pl.deck.length === 0 || round(s) >= R.exhaustionRound) {
+      pl.exhaustion += R.exhaustionStep;
       dealDamage(x, { champ: p }, pl.exhaustion, { p });
       emit(x, "exhaustion", { p, n: pl.exhaustion });
       settle(x);
@@ -505,7 +546,7 @@ function startTurn(x: X): void {
     if (pl.deck.length > 0 && s.phase !== "over") drawCards(x, p, 1);
   }
   if (s.phase === "over") return;
-  if (!pl.secondWind && pl.hp <= SECOND_WIND_HEALTH) {
+  if (!pl.secondWind && pl.hp <= R.secondWindHealth) {
     pl.secondWind = true;
     drawCards(x, p, 1);
     pl.armor += 2;
@@ -521,7 +562,7 @@ function startTurn(x: X): void {
       settle(x);
     }
   }
-  for (const u of [...pl.board]) { const card = unitCard(u); if (card.startTurn && findUnit(s, u.uid)) runEffects(x, card.startTurn, { p, self: u.uid, selfCard: u.card }); }
+  for (const u of [...pl.board]) { const card = textOf(u); if (card.startTurn && findUnit(s, u.uid)) runEffects(x, card.startTurn, { p, self: u.uid, selfCard: u.card }); }
   const std = standardOf(s, p);
   if (std?.startTurn) runEffects(x, std.startTurn, { p });
   settle(x);
@@ -531,7 +572,7 @@ function endTurn(x: X): void {
   const s = x.s;
   const p = s.active;
   const pl = s.players[p];
-  for (const u of [...pl.board]) { const card = unitCard(u); if (card.endTurn && findUnit(s, u.uid)) runEffects(x, card.endTurn, { p, self: u.uid, selfCard: u.card }); }
+  for (const u of [...pl.board]) { const card = textOf(u); if (card.endTurn && findUnit(s, u.uid)) runEffects(x, card.endTurn, { p, self: u.uid, selfCard: u.card }); }
   if (zoneFlag(s) === "overgrown") for (const u of pl.board) mendTarget(x, { unit: u.uid }, 1);
   if (hasStandard(s, p, "survivor")) for (const u of pl.board) if (u.since < s.turn && !u.survivor) { u.survivor = true; u.hp += 1; }
   for (const side of [0, 1] as const) {
@@ -547,7 +588,16 @@ function endTurn(x: X): void {
   emit(x, "endTurn", { p });
   settle(x);
   if (s.phase === "over") return;
-  if (s.turn >= DRAW_ROUND * 2) { s.phase = "over"; s.winner = "draw"; s.reason = "round-cap"; emit(x, "over", { winner: "draw" }); return; }
+  if (s.turn >= R.drawRound * 2) {
+    // Health lost, Armor counting as Health: fair when a PvE boss starts with more Health.
+    const total = (q: PlayerState) => q.hp + q.armor - q.maxHp;
+    const lead = total(s.players[0]) - total(s.players[1]);
+    s.phase = "over";
+    s.winner = R.capRule === "health" && lead !== 0 ? (lead > 0 ? 0 : 1) : "draw";
+    s.reason = "round-cap";
+    emit(x, "over", { winner: s.winner });
+    return;
+  }
   s.active = other(p);
   startTurn(x);
 }
@@ -703,7 +753,11 @@ function payAndPlay(x: X, a: Extract<Action, { t: "play" }>): void {
     const u = addUnit(x, p, id);
     if (!u) return;
     const times = zoneFlag(s) === "echoes" ? 2 : 1;
-    for (let i = 0; i < times && ability; i++) runEffects(x, ability.effects, { p, self: u.uid, selfCard: id, ...(a.target ? { target: a.target } : {}), rally: true });
+    const hasTarget = () => !!a.target && "unit" in a.target && findUnit(s, a.target.unit) !== null;
+    for (let i = 0; i < times && ability; i++) {
+      if (ability.needsTarget && !hasTarget()) break;
+      runEffects(x, ability.effects, { p, self: u.uid, selfCard: id, ...(a.target ? { target: a.target } : {}), rally: true });
+    }
     if (card.cooldown) pl.cooldown += card.cooldown;
   } else if (card.type === "spell") {
     if (ability) runEffects(x, ability.effects, { p, ...(a.target ? { target: a.target } : {}) });

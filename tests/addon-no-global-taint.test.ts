@@ -70,9 +70,8 @@ describe("protected calls only where the player's click runs them (taint)", () =
 
   const allowed: Array<[string, RegExp, string[]]> = [
     // Party invites: the Invite buttons (call for help, levelling partners) show the /invite line in the copy box (ns.util.inviteButton).
-    ["party invites", /\bInviteUnit\b/, [
-      "addon/Guilded/Modules/AutoInvite.lua"    // /guilded invite raid, typed by the officer
-    ]],
+    // No file calls InviteUnit any more: /guilded invite raid lists /invite lines too (Invite() is FORBIDDEN to addons on Forever).
+    ["party invites", /\bInviteUnit\b/, []],
     ["guild rank, kick and note changes", /\b(?:GuildPromote|GuildDemote|GuildUninvite|GuildRosterSetPublicNote|GuildRosterSetOfficerNote|SetGuildMemberRank|SetGuildRankOrder|RemoveFromGuild)\b/, [
       "addon/Guilded/Modules/RosterTools.lua"   // roster admin, confirmed per click; refusals remembered per build
     ]],

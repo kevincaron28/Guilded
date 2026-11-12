@@ -198,3 +198,17 @@ describe("the waiting-runs reminder", () => {
     expect(chat()).toContain("Is the Guilded Companion app running on this PC?");
   });
 });
+
+describe("runs the bot received but does not count yet (run trust)", () => {
+  it("lists them from GuildedDungeonPending, never as synced, and says why in /guilded dungeon status", () => {
+    start();
+    seed("waiting", 3600);
+    seed("done", 7200);
+    s.run(`GuildedDungeonAccepted = { "done" }; GuildedDungeonNotes = {}; GuildedDungeonPending = { waiting = "Waiting for a second player's addon to confirm it", gone = "x" }; NS.dungeon.markSynced()`);
+    expect(Number(s.run(`return #NS.dungeon.pendingRuns()`))).toBe(1);
+    expect(Number(s.run(`return #NS.dungeon.waitingRuns()`))).toBe(1);
+    chat();
+    s.run(`SlashCmdList.GUILDED("dungeon status")`);
+    expect(chat()).toContain("1 received by Discord, not counted yet: Waiting for a second player's addon");
+  });
+});

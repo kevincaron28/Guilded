@@ -51,6 +51,8 @@ describe("guild page rendering", () => {
     expect(html).toContain('<html lang="fr">');
     expect(html).toContain("Classement EPGP");
     expect(html).toContain("Royaume : Doomhowl");
+    expect(html).toContain('<aside class="card recruitment-card"><h2>Recrutement</h2>');
+    expect(html).toContain("We raid twice a week.");
     expect(html).toContain('<meta name="robots" content="noindex">');
     expect(renderGuildPage(view())).not.toContain("noindex");
   });

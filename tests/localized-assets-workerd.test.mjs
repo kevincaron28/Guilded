@@ -20,8 +20,13 @@ beforeAll(async () => {
   }}}}]}); await runtime.ready;
 },30000);
 afterAll(async()=>{await runtime?.dispose();},30000);
+it('sends the retired features page with ?lang=fr to the French home',async()=>{
+  const response=await runtime.dispatchFetch('https://fixture.invalid/features/?lang=fr',{redirect:'manual'});
+  expect(response.status).toBe(301);
+  expect(response.headers.get('location')).toBe('/fr/');
+});
 it('renders French content, metadata, visibility, multi-query links and canonical without JavaScript',async()=>{
-  const response=await runtime.dispatchFetch('https://fixture.invalid/features/?lang=fr');
+  const response=await runtime.dispatchFetch('https://fixture.invalid/fr/features/');
   const html=await response.text();
   expect(response.headers.get('content-language')).toBe('fr');
   expect(response.headers.get('etag')).toBeNull();
@@ -31,9 +36,9 @@ it('renders French content, metadata, visibility, multi-query links and canonica
   expect(html).toContain('content="Français & amis"');
   expect(html).toContain('data-language-copy="en" hidden');
   expect(html).toContain('data-language-copy="fr">');
-  expect(html).toContain('href="https://guilded.kcaron.top/features/?lang=fr"');
-  expect(html).toContain('content="https://guilded.kcaron.top/features/?lang=fr"');
-  expect(html).toContain('href="/features/?period=week&bracket=60&lang=fr"');
+  expect(html).toContain('href="https://guilded.kcaron.top/fr/features/"');
+  expect(html).toContain('content="https://guilded.kcaron.top/fr/features/"');
+  expect(html).toContain('href="/fr/features/?period=week&bracket=60"');
   expect(html).not.toContain('&amp;amp;');
 });
 it('renders English and leaves unselected-language responses untouched',async()=>{

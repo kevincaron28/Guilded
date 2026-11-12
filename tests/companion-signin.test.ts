@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { companionSignInRoute, defaultDeviceName, confirmCode, createCompanionSignIn } from "../src/services/companion-signin.js";
 import { createRequire } from "node:module";
 import { createWebApp, type WebRequest, type WebResponse } from "../src/services/web-app.js";
-import { startSignIn, waitForSignIn } from "../companion/engine.mjs";
+import { startSignIn, waitForSignIn, leaveServer } from "../companion/engine.mjs";
 import { memoryWebStore } from "./helpers/memory-web-store.js";
 
 const SITE = "https://guilded.kcaron.top";
@@ -53,12 +53,13 @@ describe("companion sign-in requests", () => {
 });
 
 describe("/me/companion", () => {
-  function setup(servers = [{ discordId: "111", name: "Quebec Gold" }], beforeIssue = async () => {}) {
+  function setup(servers: { discordId: string; name: string; wowGuildId?: string }[] = [{ discordId: "111", name: "Quebec Gold" }], beforeIssue = async () => {}, knowsGuild?: (server: { discordId: string; wowGuildId?: string }, key: string) => Promise<boolean>) {
     const signIn = createCompanionSignIn({ now: () => NOW.getTime() });
     const issued: string[] = [];
     const route = companionSignInRoute({
       signIn,
       servers: async () => servers,
+      ...(knowsGuild ? { knowsGuild } : {}),
       issueGuild: async (account, guildDiscordId) => { await beforeIssue(); issued.push(`${account.discordUserId}@${guildDiscordId}`); return "g".repeat(43); },
       issuePersonal: async (accountId) => { issued.push(`personal:${accountId}`); return "p".repeat(43); }
     });
@@ -148,6 +149,42 @@ describe("/me/companion", () => {
     expect(issued).toEqual(["222222222222222222@111"]);
     expect(await signIn.poll(started.requestId)).toEqual({ companionCredential: "g".repeat(43), guildDiscordId: "111" });
     expect((await request("POST", "/me/companion", form, body("111"))).status).toBe(410);
+  });
+
+  it("lists the servers that know the saved file's guild first and keeps the others under Other choices", async () => {
+    const servers = [{ discordId: "111", wowGuildId: "g1", name: "Wrong Server" }, { discordId: "222", wowGuildId: "g2", name: "Quebec Gold" }];
+    const { signIn, request, signedIn, issued } = setup(servers, async () => {}, async (server, key) => key === "Quebec Gold" && server.wowGuildId === "g2");
+    const started = signIn.start({ guildKey: "Quebec Gold" })!;
+    expect(signIn.guildKeyFor(started.requestId)).toBe("Quebec Gold");
+    const target = `/me/companion?request=${started.requestId}`;
+    const { cookie } = await signedIn(target);
+    const page = await request("GET", target, { cookie });
+    const main = page.body.slice(0, page.body.indexOf("<details>"));
+    expect(main).toContain("Quebec Gold");
+    expect(main).not.toContain("Wrong Server");
+    const other = page.body.slice(page.body.indexOf("<details>"));
+    expect(other).toContain("Wrong Server");
+    expect(other).toContain("do not know the guild");
+    // Still choosable on purpose.
+    const csrf = /name="csrf" value="([^"]+)"/.exec(page.body)![1]!;
+    const done = await request("POST", "/me/companion", { cookie, origin: SITE, "content-type": "application/x-www-form-urlencoded" },
+      `csrf=${encodeURIComponent(csrf)}&request=${encodeURIComponent(started.requestId)}&choice=g1&code=${started.confirm}`);
+    expect(done.status).toBe(200);
+    expect(issued).toEqual(["222222222222222222@111"]);
+  });
+
+  it("keeps every server listed when none knows the guild, or the companion sent none", async () => {
+    const servers = [{ discordId: "111", wowGuildId: "g1", name: "Alpha" }, { discordId: "222", wowGuildId: "g2", name: "Beta" }];
+    for (const knows of [async () => false, undefined]) {
+      const { signIn, request, signedIn } = setup(servers, async () => {}, knows);
+      const started = signIn.start({ guildKey: "Nowhere" })!;
+      const target = `/me/companion?request=${started.requestId}`;
+      const { cookie } = await signedIn(target);
+      const page = await request("GET", target, { cookie });
+      const main = page.body.slice(0, page.body.indexOf("<details>"));
+      expect(main).toContain("Alpha");
+      expect(main).toContain("Beta");
+    }
   });
 
   it("chooses a member's only server and names the device by itself", async () => {
@@ -333,6 +370,25 @@ describe("companion engine sign-in", () => {
     await waitForSignIn({ uploadUrl: "" }, "r".repeat(43), { sleep: async () => {}, proof: () => proof });
     expect(JSON.parse(polls.mock.calls[0]![1].body)).toEqual({ requestId: "r".repeat(43) });
     expect(JSON.parse(polls.mock.calls[1]![1].body)).toEqual({ requestId: "r".repeat(43), proof: "p".repeat(32) });
+  });
+});
+
+describe("companion engine: guild key and leaving a server", () => {
+  const reply = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body });
+  it("sends the guild given to startSignIn", async () => {
+    const fetch = vi.fn().mockResolvedValue(reply(200, { requestId: "r".repeat(43), confirm: "ABC-DEF", url: `${SITE}/me/companion?request=x` }));
+    vi.stubGlobal("fetch", fetch);
+    await startSignIn({ uploadUrl: "" }, { guild: "Quebec Gold" });
+    expect(JSON.parse(String(fetch.mock.calls[0]![1].body))).toEqual({ guild: "Quebec Gold" });
+  });
+  it("leaves with /leave, falls back to /logout on 404, and needs a sign-in credential", async () => {
+    const fetch = vi.fn().mockResolvedValueOnce(reply(404, { error: "Not found" })).mockResolvedValueOnce(reply(200, { ok: true }));
+    vi.stubGlobal("fetch", fetch);
+    expect(await leaveServer({ uploadUrl: "", companionCredential: "c".repeat(43), guildDiscordId: "111" })).toEqual({ ok: true });
+    expect(fetch.mock.calls.map((call) => String(call[0]))).toEqual([`${SITE}/api/v1/companion/leave`, `${SITE}/api/v1/companion/logout`]);
+    expect((await leaveServer({ uploadUrl: "" })).ok).toBe(false);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(reply(400, { error: "A valid companion credential is required." })));
+    expect((await leaveServer({ uploadUrl: "", companionCredential: "c".repeat(43) })).ok).toBe(false);
   });
 });
 

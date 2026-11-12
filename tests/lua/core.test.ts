@@ -144,7 +144,11 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     expect(s.run(`return OPENED`)).toBe("1");
     expect(s.run(`return #CHAT_LOG`)).toBe("0");
     s.run(`SlashCmdList["GUILDED"]("help")`);
-    expect(Number(s.run(`return #CHAT_LOG`))).toBeGreaterThan(5);
+    // The short help: the guild name line, nine commands and the way to the full list.
+    expect(s.run(`return #CHAT_LOG`)).toBe("11");
+    expect(s.run(`return table.concat(CHAT_LOG, "|")`)).toContain("/gsos");
+    s.run(`CHAT_LOG = {}; SlashCmdList["GUILDED"]("help all")`);
+    expect(Number(s.run(`return #CHAT_LOG`))).toBeGreaterThan(15);
     expect(s.run(`return OPENED`)).toBe("1");
   });
 

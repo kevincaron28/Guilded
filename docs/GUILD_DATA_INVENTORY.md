@@ -17,7 +17,7 @@ reach Discord and the website.
 | Zone | `GetGuildRosterInfo` | Unused | Unused (no consumer; location of members who did not opt in) |
 | Public note, officer note | `GetGuildRosterInfo` (+ `CanViewOfficerNote`) | Read only by RosterTools for its note tool | **Deliberately not synced**: personal text, and EPGP-style addons keep data there |
 | Guild event log: invites, joins, promotions, demotions, removals, quits | `QueryGuildEventLog`, `GetGuildEventInfo` | Kept and deduplicated in game (`Modules/GuildLog.lua`, 2000 events), never uploaded | **Uploaded**; stored once whoever reads it; dates "in this rank since" for the promotion panel |
-| Message of the day | `GetGuildRosterMOTD` | Read by GuildMotd.lua for its reminder only | **Saved and uploaded** (`GuildText`) |
+| Message of the day | `GetGuildRosterMOTD` | Not used in game (the MOTD reminder was removed in 9.2) | **Saved and uploaded** (`GuildText`) |
 | Guild information text | `GetGuildInfoText` | Unused | **Saved and uploaded** (`GuildText`) |
 | Guild bank contents and gold | `GetGuildBankItemInfo`, `GetGuildBankMoney` | Snapshot in game when someone opens the bank (`Modules/GuildBank.lua`) | **Uploaded** with a gold history (9.0, docs/GUILD_BANK_LEDGER.md) |
 | Guild bank item and money logs | `QueryGuildBankLog`, `GetGuildBankTransaction`, `GetGuildBankMoneyTransaction` | Unused | **Kept and uploaded** (9.0): the read-only Guild bank page and a weekly officer summary. The owner confirmed Forever has a guild bank (6 November 2026) |

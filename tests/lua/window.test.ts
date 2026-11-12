@@ -211,8 +211,8 @@ describe("the tools window (sidebar and Home page)", () => {
   });
   it("keeps short officer pages stationary and anchors repeated calendar selections", () => {
     const s = openWindow(1);
-    s.run(`UI=NS.windowState(); UI.selectTabByName("EPGP"); UI.guildScroll.GetHeight=function() return 300 end
-      UI.selectTabByName("EPGP")
+    s.run(`UI=NS.windowState(); UI.selectTabByName("Roster admin"); UI.guildScroll.GetHeight=function() return 300 end
+      UI.selectTabByName("Roster admin")
       UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll, -1)`);
     expect(s.run('return UI.guildScrollRange..":"..UI.guildScroll:GetVerticalScroll()')).toBe("0:0");
     expect(s.run('return tostring(UI.guildScroll.ScrollBar.shown)')).toBe("false");
@@ -248,6 +248,45 @@ describe("the tools window (sidebar and Home page)", () => {
     s.run(`function InCombatLockdown() return false end; NS.guildPanel.attach(); firstTab = NS.guildPanel.tab; NS.guildPanel.attach()`);
     expect(s.run(`return tostring(firstTab == NS.guildPanel.tab)`)).toBe("true");
     expect(s.run(`return tostring(CommunitiesFrame.GuildInfoTab:GetScript("OnClick") == nativeHandler)`)).toBe("true");
+  });
+
+  it("gives a raid leader who is not an officer the Raids pages but no Officer tab", () => {
+    const s = openWindow(5, `function UnitIsGroupLeader() return true end`);
+    const tabs = visibleTabs(s);
+    for (const name of ["Ready", "Open raids", "Signups"]) expect(tabs).toContain(name);
+    for (const name of ["Raid", "Gear", "EPGP", "Local guild", "Roster admin", "Officer tools"]) expect(tabs).not.toContain(name);
+    expect(s.run("return tostring(NS.windowState().groupButtons.Officer)")).toBe("nil");
+    expect(s.run("return tostring(NS.windowState().groupButtons.Raids ~= nil)")).toBe("true");
+  });
+
+  it("adds the Guilded tab to the guild window when that window loads later, and opens the main window from it", () => {
+    const s = openWindow(5);
+    s.run(`function InCombatLockdown() return false end; NS.guildPanel.attach()`);
+    expect(s.run("return tostring(NS.guildPanel.tab == nil)")).toBe("true"); // no guild window yet: nothing breaks
+    s.run(`
+      CommunitiesFrame = CreateFrame()
+      CommunitiesFrame.ChatTab = false; CommunitiesFrame.RosterTab = false; CommunitiesFrame.GuildBenefitsTab = false
+      CommunitiesFrame.SetDisplayMode = false; CommunitiesFrame.GuildInfoTab = CreateFrame()
+      fire_event("ADDON_LOADED")
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then PANEL = f end end; PANEL:Hide()`);
+    expect(s.run("return tostring(NS.guildPanel.tab ~= nil)")).toBe("true");
+    s.run(`NS.guildPanel.tab.scripts.OnClick(NS.guildPanel.tab)`);
+    expect(s.run("return tostring(PANEL:IsShown())")).toBe("true");
+    expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].group")).toBe("Guild");
+  });
+
+  it("adds the calendar button when the calendar loads later, for officers only, and it opens the Calendar page", () => {
+    const officer = openWindow(1);
+    officer.run("NS.guildPanel.calendarTab = nil; fire_event('PLAYER_LOGIN')");
+    expect(officer.run("return tostring(NS.guildPanel.calendarTab == nil)")).toBe("true"); // no calendar yet
+    officer.run(`CalendarFrame = CreateFrame(); fire_event("ADDON_LOADED")`);
+    expect(officer.run("return tostring(NS.guildPanel.calendarTab ~= nil and NS.guildPanel.calendarTab.shown)")).toBe("true");
+    officer.run("NS.guildPanel.calendarTab.scripts.OnClick(NS.guildPanel.calendarTab)");
+    expect(officer.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Calendar");
+    session?.close();
+    const member = openWindow(5);
+    member.run(`CalendarFrame = CreateFrame(); fire_event("ADDON_LOADED")`);
+    expect(member.run("return tostring(NS.guildPanel.calendarTab ~= nil and NS.guildPanel.calendarTab.shown == true)")).toBe("false");
   });
 
   it("filters core rosters, uses each pool, and never changes the loot selection", () => {

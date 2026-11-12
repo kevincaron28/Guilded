@@ -9,7 +9,7 @@
 
 ## In game, no Discord needed
 
-Recipes, the guild map, attendance, loot and EP/GP standings, shared with your guild in game. Standings and crafting live in the guild window.
+Recipes, the guild map, attendance, loot and EP/GP standings, shared with your guild in game. Standings and crafting are pages of the Guilded window.
 
 [Get Guilded on CurseForge](https://www.curseforge.com/wow/addons/guilded) · [Install guide](../docs/MEMBER_INSTALL.html)
 

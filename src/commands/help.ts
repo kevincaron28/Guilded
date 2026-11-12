@@ -17,7 +17,7 @@ export const visibleLines = (lines: string[], poe = POE_TRACKING_ENABLED): strin
 const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record<Lang, string[]>> = {
   everyone: {
     en: [
-      "**New here? https://guilded.kcaron.top/start/** — 1) install the addon for your WoW version (required) · 2) sync with Discord: [download the Windows companion](https://guilded.kcaron.top/companion/) (or search \"Guilded Companion\" in the Microsoft Store) and run the installer · 3) keep it open, it starts with Windows. Signing in with Discord is optional",
+      "**New here? https://guilded.kcaron.top/start/** — 1) install the addon for your WoW version (required) · 2) sync with Discord: [download the Windows companion](https://guilded.kcaron.top/companion/) (or search \"Guild Sync Companion\" in the Microsoft Store) and run the installer · 3) keep it open, it starts with Windows. Signing in with Discord is optional",
       "The addon works alone. The companion syncs by itself; **Sign in with Discord** is optional and confirms your characters (no code). A character missing? `/character claim` and pick it; `/character list` checks them",
       "`/wow list` · `/wow use` — choose your guild; channel bindings take priority. Keep Forever first/last names and Blizzard realms from the addon",
       "`/character add` — link a character by hand, or `/character import` — paste the line `/guilded character` shows, or the code from `/guilded share`",
@@ -42,7 +42,7 @@ const LINES: Record<"everyone" | "raidLeader" | "dkpOfficer" | "officer", Record
       "`/poe status` · `/poe pair` · `/poe runs` · `/poe summary` — PoE2 companion mapping journal"
     ],
     fr: [
-      "**Nouveau ? https://guilded.kcaron.top/start/?lang=fr** — 1) installez l'addon de votre version de WoW (obligatoire) · 2) [téléchargez le compagnon Windows](https://guilded.kcaron.top/companion/?lang=fr) (ou « Guilded Companion » dans le Microsoft Store) et lancez-le · 3) laissez-le ouvert. Connexion Discord facultative",
+      "**Nouveau ? https://guilded.kcaron.top/start/?lang=fr** — 1) installez l'addon de votre version de WoW (obligatoire) · 2) [téléchargez le compagnon Windows](https://guilded.kcaron.top/companion/?lang=fr) (ou « Guild Sync Companion » dans le Microsoft Store) et lancez-le · 3) laissez-le ouvert. Connexion Discord facultative",
       "L'addon fonctionne seul. Le compagnon synchronise tout seul; **Sign in with Discord** est facultatif et confirme tes personnages (aucun code). Il en manque un ? `/character claim` et choisis-le; `/character list` les affiche",
       "`/wow list` · `/wow use` — choisir sa guilde; les salons associés ont priorité. Gardez les prénoms/noms Forever et les royaumes Blizzard de l'addon",
       "`/character add` — liez un personnage manuellement, ou `/character import` — collez la ligne de `/guilded character`, ou le code de `/guilded share`",

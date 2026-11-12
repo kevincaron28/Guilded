@@ -447,12 +447,11 @@ describe("the Ready page", () => {
 describe("the tools window in 4.6", () => {
   it("builds availability filters and routes clicks without changing observation settings", () => {
     const s = openWindow(5);
-    s.run(`NS.presence = { describe = function(filter) FILTER = filter; return "Visible reports" end, heatmap = function() return {} end }; NS.clientTools = { openFinder = function() FINDER = true end }; NS.openGuildPanel(nil, "guild", "Availability")`);
+    s.run(`NS.presence = { describe = function(filter) FILTER = filter; return "Visible reports" end, heatmap = function() return {} end }; NS.openGuildPanel(nil, "guild", "Availability")`);
     expect(s.run(`return NS.windowState().presenceText.text`)).toBe("Visible reports");
     s.run(`for _, f in ipairs(FRAMES) do if f.text == "Free only: Off" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
     expect(s.run(`return tostring(FILTER.free)`)).toBe("true");
-    s.run(`for _, f in ipairs(FRAMES) do if f.text == "Blizzard group finder" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
-    expect(s.run(`return tostring(FINDER)`)).toBe("true");
+    expect(s.run(`for _, f in ipairs(FRAMES) do if f.text == "Blizzard group finder" then return "found" end end return "none"`)).toBe("none");
     expect(s.chat().join("\n")).not.toContain("failed");
   });
   it("remembers where it was dragged and its size", () => {

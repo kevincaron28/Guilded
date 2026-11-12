@@ -24,4 +24,23 @@ describe("page targets", () => {
     }
     expect(missing).toEqual([]);
   });
+  it("no module calls a function on another module (ns.module.fn) that its file does not define", () => {
+    // ns.<module> = <var> in one file, <var>.<fn> defined there. Modules assigned any other way are skipped.
+    const defined = new Map<string, { file: string; source: string; variable: string }>();
+    for (const [file, source] of sources) {
+      for (const m of source.matchAll(/^ns\.(\w+)\s*=\s*(\w+)\s*$/gm)) defined.set(m[1]!, { file, source, variable: m[2]! });
+    }
+    const missing = new Set<string>();
+    for (const [file, source] of sources) {
+      const code = source.replace(/--[^\n]*/g, "");
+      for (const m of code.matchAll(/\bns\.(\w+)\.(\w+)\(/g)) {
+        const mod = defined.get(m[1]!);
+        if (!mod) continue;
+        const v = mod.variable;
+        const has = new RegExp(String.raw`function ${v}[.:]${m[2]!}\b|\b${v}\.${m[2]!}\s*=`).test(mod.source);
+        if (!has) missing.add(`${file}: ns.${m[1]!}.${m[2]!}() is not defined in ${mod.file}`);
+      }
+    }
+    expect([...missing]).toEqual([]);
+  });
 });

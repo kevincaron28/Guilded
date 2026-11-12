@@ -39,15 +39,6 @@ function validateIpc(channel, args) {
     object(value, new Set(["guild", "realm", "edition", "includePrivate"]));
     text(value.guild, 120); text(value.realm, 120);
     if (value.edition !== "forever" || typeof value.includePrivate !== "boolean") fail();
-  } else if (channel === "loot-history-preview") {
-    object(value, new Set(["guild", "realm", "edition", "source"]));
-    text(value.guild, 120); text(value.realm, 120);
-    if (value.edition !== "forever" || !["rclootcouncil", "gargul"].includes(value.source)) fail();
-  } else if (channel === "loot-history-save") {
-    object(value, new Set(["token", "characterMap", "allowUnidentified"]));
-    if (!Number.isSafeInteger(value.token) || value.token < 1 || typeof value.allowUnidentified !== "boolean") fail();
-    if (!value.characterMap || typeof value.characterMap !== "object" || Array.isArray(value.characterMap) || Object.keys(value.characterMap).length > 5000) fail();
-    for (const [key, target] of Object.entries(value.characterMap)) { text(key, 160); text(target, 160); }
   } else if (channel === "hub-view") {
     if (!["en", "fr"].includes(value)) fail();
   } else if (channel === "hub-edit") {

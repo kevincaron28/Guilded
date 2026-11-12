@@ -142,7 +142,6 @@ function ns.openRosterAdmin()
   -- ---- Invites and greeting ----------------------------------------------------
   header("Invites and greeting")
   button("Invite queue", function() if ns.inviteQueue then ns.inviteQueue.open() end; return true end, "Players waiting for a guild invite.")
-  button("Guild message", function() if ns.openToolsPage then ns.openToolsPage("Guild message") end; return true end, "The guild message of the day and welcome text.")
   endRow()
   officerSwitch("greet")
   button("Greeting in English", function() if ns.officerNotes then ns.officerNotes.command({ "officer", "auto", "lang", "en" }) end; return true end)

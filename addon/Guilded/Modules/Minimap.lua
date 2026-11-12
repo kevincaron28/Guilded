@@ -2077,7 +2077,6 @@ updateGuildScroll = function()
   elseif tab.name == "Crafting" then
     height = 46 + textHeight(ui.craftResult) + 16 + 20 + textHeight(ui.craftMine) + 16 + 24 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
-  elseif tab.name == "Guild message" then height = 340
   elseif tab.name == "Announcements" then height = 290
   elseif tab.name == "Signups" then height = 590
   elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12

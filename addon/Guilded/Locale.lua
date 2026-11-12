@@ -902,7 +902,6 @@ local FR = {
   ["Bulk changes: paste tab-separated actions or a converted GGRM1 archive. Preview before confirming."] = "Changements group\195\169s : collez des actions s\195\169par\195\169es par tabulation ou une archive GGRM1 convertie. Pr\195\169visualisez avant de confirmer.",
   ["Preview writing each member's professions into their public note."] = "Aper\195\167u de l'\195\169criture des m\195\169tiers de chaque membre dans sa note publique.",
   ["Players waiting for a guild invite."] = "Joueurs en attente d'une invitation de guilde.",
-  ["The guild message of the day and welcome text."] = "Le message du jour de la guilde et le texte d'accueil.",
   ["Asks online guildmates for their latest data."] = "Demande leurs derni\195\168res donn\195\169es aux membres en ligne.",
   ["These use the paste box and confirmation phrase above. Confirm with IMPORT; recover with UNDO IMPORT. Archives stay on this character; no guild notes are changed."] = "Ces boutons utilisent la zone de collage et la phrase de confirmation ci-dessus. Confirmez avec IMPORT ; annulez avec UNDO IMPORT. Les archives restent sur ce personnage ; aucune note de guilde n'est modifi\195\169e.",
   -- Info and data page (9.1)
@@ -2471,7 +2470,6 @@ local DE = {
   ["Bulk changes: paste tab-separated actions or a converted GGRM1 archive. Preview before confirming."] = "Sammel\195\164nderungen: F\195\188ge tab-getrennte Aktionen oder ein konvertiertes GGRM1-Archiv ein. Vor dem Best\195\164tigen Vorschau ansehen.",
   ["Preview writing each member's professions into their public note."] = "Vorschau: Berufe jedes Mitglieds in dessen \195\182ffentliche Notiz schreiben.",
   ["Players waiting for a guild invite."] = "Spieler, die auf eine Gildeneinladung warten.",
-  ["The guild message of the day and welcome text."] = "Die Gildennachricht des Tages und der Begr\195\188\195\159ungstext.",
   ["Asks online guildmates for their latest data."] = "Fragt online befindliche Gildenmitglieder nach ihren neuesten Daten.",
   ["These use the paste box and confirmation phrase above. Confirm with IMPORT; recover with UNDO IMPORT. Archives stay on this character; no guild notes are changed."] = "Diese nutzen das Einf\195\188gefeld und die Best\195\164tigungsphrase oben. Mit IMPORT best\195\164tigen; mit UNDO IMPORT r\195\188ckg\195\164ngig machen. Archive bleiben auf diesem Charakter; keine Gildennotizen werden ge\195\164ndert.",
   -- Info and data page (9.1)
@@ -4169,7 +4167,6 @@ local ES = {
   ["Bulk changes: paste tab-separated actions or a converted GGRM1 archive. Preview before confirming."] = "Cambios en bloque: pega acciones separadas por tabulaciones o un archivo GGRM1 convertido. Revisa la vista previa antes de confirmar.",
   ["Preview writing each member's professions into their public note."] = "Vista previa de escribir las profesiones de cada miembro en su nota p\195\186blica.",
   ["Players waiting for a guild invite."] = "Jugadores que esperan una invitaci\195\179n a la hermandad.",
-  ["The guild message of the day and welcome text."] = "El mensaje del d\195\173a de la hermandad y el texto de bienvenida.",
   ["Asks online guildmates for their latest data."] = "Pide los datos m\195\161s recientes a los miembros conectados.",
   ["These use the paste box and confirmation phrase above. Confirm with IMPORT; recover with UNDO IMPORT. Archives stay on this character; no guild notes are changed."] = "Estos usan el cuadro de pegado y la frase de confirmaci\195\179n de arriba. Confirma con IMPORT; recupera con UNDO IMPORT. Los archivos se quedan en este personaje; no se cambia ninguna nota de hermandad.",
   -- Info and data page (9.1)

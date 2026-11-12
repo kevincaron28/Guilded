@@ -2,7 +2,7 @@ const { pathToFileURL } = require("node:url");
 const path = require("node:path");
 
 const configFields = new Set(["uploadUrl", "guildDiscordId", "pairingCode", "watchFile", "realm", "wowGuild", "standingsIntervalMinutes", "poeLogFile", "poeCharacter", "poeLeague", "poeMode", "wowEnabled", "poeEnabled", "syncEnabled"]);
-const noArgs = new Set(["open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "account-yes", "account-no", "open-update", "open-startup-settings", "install-update", "check-update", "sign-in-wait", "sign-in-cancel", "sign-in-reopen", "browse-file", "detect-wow", "search-wow", "companion-me", "sign-in-switch", "repair", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "delete-my-data", "toggle-tracking", "get-poe-runs", "manage-view", "link-find-saved-data", "open-discord-server", "copy-problem-report", "open-addon-download", "pick-wow-folder", "install-addon", "version-info", "open-store-listing", "reinstall-addon", "open-storage-settings", "check-disk-space"]);
+const noArgs = new Set(["open-old-window", "open-single-window", "open-connections", "open-battlenet", "recover-sync", "get-all", "list-profiles", "switch-live-folder", "dismiss-live-folder", "account-yes", "account-no", "open-update", "open-startup-settings", "install-update", "check-update", "sign-in-wait", "sign-in-cancel", "sign-in-reopen", "browse-file", "detect-wow", "search-wow", "companion-me", "sign-in-switch", "repair", "browse-poe-log", "upload-now", "refresh-standings", "open-addon-folder", "remove-data", "delete-my-data", "toggle-tracking", "get-poe-runs", "manage-view", "link-find-saved-data", "open-discord-server", "copy-problem-report", "open-addon-download", "pick-wow-folder", "install-addon", "version-info", "open-store-listing", "reinstall-addon", "open-storage-settings", "check-disk-space"]);
 function fail() { throw new Error("Invalid companion request."); }
 function object(value, fields) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail();
@@ -60,7 +60,9 @@ function assertSender(event, win, directory) {
   if (!contents || event?.sender !== contents || event.senderFrame !== contents.mainFrame) throw new Error("Untrusted companion window.");
   const url = new URL(event.senderFrame.url);
   url.search = ""; url.hash = "";
-  if (url.href !== pathToFileURL(path.join(directory, "renderer", "index.html")).href) throw new Error("Untrusted companion window.");
+  // The single window (main.html) and, behind Advanced, the old window (index.html).
+  const trusted = ["main.html", "index.html"].map((file) => pathToFileURL(path.join(directory, "renderer", file)).href);
+  if (!trusted.includes(url.href)) throw new Error("Untrusted companion window.");
 }
 function rendererConfig(config) {
   const result = { ...config };

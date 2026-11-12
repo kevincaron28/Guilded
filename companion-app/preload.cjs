@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld("companion", {
   pickWowFolder: () => ipcRenderer.invoke("pick-wow-folder"),
   recoverSync: () => ipcRenderer.invoke("recover-sync"),
   openUpdate: () => ipcRenderer.invoke("open-update"),
+  openOldWindow: () => ipcRenderer.invoke("open-old-window"),
+  openSingleWindow: () => ipcRenderer.invoke("open-single-window"),
   openStartupSettings: () => ipcRenderer.invoke("open-startup-settings"),
   installUpdate: () => ipcRenderer.invoke("install-update"),
   checkUpdate: () => ipcRenderer.invoke("check-update"),

@@ -82,7 +82,7 @@ function accountLine({ config, state, problems, me = null }) {
 }
 
 /** The one thing that needs the member, most urgent first; null when nothing does. */
-function needsYou({ config, state, problems, savedFile, update, otherAccount, runNotice }) {
+function needsYou({ config, state, problems, savedFile, update, otherAccount }) {
   const item = (id, tone, text, detail, buttons) => ({ id, tone, text, detail, buttons });
   const save = has(problems, "settings-not-saved");
   if (save) return item("settings-not-saved", "bad", ["Your settings could not be saved."], ["Restart Windows, then open the companion again."], [{ action: "problems", label: "See how to fix" }]);
@@ -94,7 +94,6 @@ function needsYou({ config, state, problems, savedFile, update, otherAccount, ru
     return item("guild-not-set-up", "warn", ["Your guild {0} isn't set up on Discord yet.", state.device.guild.name], ["Ask an officer to run /setup on your guild's Discord."], [{ action: "copy-officer-message", label: "Copy a message for your officer" }]);
   }
   if (savedFile?.candidate && !has(problems, "saved-file-missing")) return item("folder-moved", "warn", ["Your addon data seems to be in another WoW folder now."], ["Nothing is deleted."], [{ action: "switch-folder", label: "Use the new folder" }]);
-  if (runNotice?.reason) return item("run-not-counted", "warn", ["A dungeon run is not counted yet."], ["{0}", runNotice.reason], []);
   const outdated = has(problems, "companion-outdated");
   if (outdated || (update && config.autoUpdate === false)) {
     return item("companion-update", "warn", ["A new version is out."], ["Version {0}", outdated?.data.latest ?? update?.version ?? ""], [{ action: outdated?.data.store ? "open-store" : "install-update", label: "Update" }]);
@@ -107,7 +106,7 @@ function needsYou({ config, state, problems, savedFile, update, otherAccount, ru
  *   config?: Record<string, any>, state?: Record<string, any>, problems?: { id: string, data?: Record<string, any> }[],
  *   savedFile?: Record<string, any> | null, addonAction?: { action?: string } | null, wowRunning?: boolean,
  *   update?: { version?: string } | null, otherAccount?: { account?: string } | null,
- *   me?: { account?: { displayName?: string | null, username?: string } } | null, runNotice?: { reason?: string } | null
+ *   me?: { account?: { displayName?: string | null, username?: string } } | null
  * }} [input]
  */
 export function mainStatus(input = {}) {
@@ -116,7 +115,7 @@ export function mainStatus(input = {}) {
   const problems = (input.problems ?? []).map((problem) => ({ id: problem.id, data: problem.data ?? {} }));
   const shared = { config, state, problems, savedFile: input.savedFile ?? null, addonAction: input.addonAction ?? null, wowRunning: input.wowRunning === true, me: input.me ?? null };
   const lines = [wowLine(shared), addonLine(shared), syncLine(shared), accountLine(shared)];
-  const needs = needsYou({ ...shared, update: input.update ?? null, otherAccount: input.otherAccount ?? null, runNotice: input.runNotice ?? null });
+  const needs = needsYou({ ...shared, update: input.update ?? null, otherAccount: input.otherAccount ?? null });
   const worst = [...lines.map((entry) => entry.tone), needs?.tone ?? "ok"].reduce((a, b) => (RANK[b] > RANK[a] ? b : a), "ok");
   const linked = Boolean(config.companionCredential);
   const device = !linked && config.device === true && Boolean(config.deviceSecret);

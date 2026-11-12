@@ -80,7 +80,6 @@ describe("mainStatus: four lines and one needs-you line", () => {
     expect(pick({ state: { device: { status: "choose", guild: { name: "QG" } } } })?.id).toBe("choose-server");
     expect(pick({ state: { device: { status: "no-guild", guild: { name: "QG" } } } })?.id).toBe("guild-not-set-up");
     expect(pick({ savedFile: { ...okAddon, candidate: { path: "x" } } })?.id).toBe("folder-moved");
-    expect(pick({ runNotice: { reason: "No guildmate heard it" } })?.id).toBe("run-not-counted");
     expect(pick({ problems: [{ id: "companion-outdated", data: { latest: "9.2.0", store: true } }] })).toMatchObject({ id: "companion-update", buttons: [{ action: "open-store" }] });
     expect(pick({})).toBeNull();
   });
@@ -100,7 +99,7 @@ describe("mainStatus: four lines and one needs-you line", () => {
     const data = { freeMb: 1, offline: true, chosen: false, latest: "9.2.0", store: true };
     const configs = [{}, signedIn, { device: true, deviceSecret: "s", watchFile: FILE }, { wowEnabled: false }, { companionCredential: "c", syncEnabled: false, watchFile: FILE }];
     const states = [{}, { syncPhase: "uploading" }, { running: true, lastUpload: { at: "2026-11-13T10:00:00.000Z" } }, { device: { status: "choose", guild: { name: "G" } } }, { device: { status: "no-guild", guild: { name: "G" } } }, { device: { status: "synced", server: "S" } }, { zeroSetupFailures: 1 }];
-    const extras = [{}, { otherAccount: { account: "A" } }, { runNotice: { reason: "r" } }, { addonAction: { action: "update" }, wowRunning: true, savedFile: { ...okAddon, candidate: { path: "p" } } }, { savedFile: okAddon, me: { account: { username: "u" } } }];
+    const extras = [{}, { otherAccount: { account: "A" } }, { addonAction: { action: "update" }, wowRunning: true, savedFile: { ...okAddon, candidate: { path: "p" } } }, { savedFile: okAddon, me: { account: { username: "u" } } }];
     const problemSets = [[], ...problemIds.map((id) => [{ id, data }]), problemIds.map((id) => ({ id, data }))];
     for (const config of configs) for (const state of states) for (const problems of problemSets) for (const extra of extras) {
       const status = mainStatus({ config, state, problems, ...extra });

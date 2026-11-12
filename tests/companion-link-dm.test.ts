@@ -108,7 +108,7 @@ describe("linked characters DM", () => {
     expect(fr).toContain("Guerrier niveau 60 (principal)");
     expect(linkedMessage("fr", "Guilde", fr, [])).toContain("Tu es lié sur **Guilde**");
     expect(linkedMessage("fr", "Guilde", fr, ["Bel"])).toContain("Nouveau sur **Guilde**");
-    expect(JSON.stringify(linkedCharactersRow("fr").toJSON())).toContain("Mes personnages liés");
+    expect(JSON.stringify(linkedCharactersRow("fr").toJSON())).toContain("Mes personnages");
   });
 });
 

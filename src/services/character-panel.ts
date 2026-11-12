@@ -67,7 +67,7 @@ export async function characterPanel(database: Db, discordUserId: string, discor
 }
 
 /** The "Link a character" step: the characters nobody has linked yet, plus a way to type the name. */
-async function linkView(database: Db, context: Context): Promise<PanelView> {
+export async function linkView(database: Db, context: Context): Promise<PanelView> {
   const { member, lang } = context;
   const rows = await database.unclaimedCharacter.findMany({ where: { guildId: member.guildId }, orderBy: { name: "asc" }, take: MAX_OPTIONS });
   const book = await loadFullNameBook(database, member.guildId);
@@ -147,4 +147,34 @@ export async function handlePanelInteraction(interaction: PanelInteraction, data
     const notice = await unlinkNotMine(database as unknown as Parameters<typeof unlinkNotMine>[0], interaction.client, interaction.user.id, extra);
     await show(await panel(notice));
   }
+}
+
+const serverKey = { panel: "refresh", link: "link" } as const;
+
+/**
+ * The entry from a DM button ("My characters", "Add another"): the panel (or the link step) for the one server the member
+ * is in, or a short choice of servers when there are several. In a server channel only that server counts.
+ */
+export async function openPanelFor(interaction: ButtonInteraction | StringSelectMenuInteraction, database: Db, step: keyof typeof serverKey): Promise<void> {
+  const members = await database.member.findMany({
+    where: { discordUserId: interaction.user.id, status: { not: "LEFT" }, ...(interaction.guildId ? { guild: { discordId: interaction.guildId } } : {}) },
+    select: { guild: { select: { name: true, discordId: true } } }, take: 10
+  });
+  const flags = MessageFlags.Ephemeral;
+  if (!members.length) { await interaction.reply({ content: `${t("en", "linked.none")}
+${t("fr", "linked.none")}`, flags }); return; }
+  if (members.length === 1) {
+    const guildId = members[0]!.guild.discordId;
+    if (step === "link") {
+      const context = await contextOf(database, interaction.user.id, guildId);
+      if (context) { await interaction.reply({ ...await linkView(database, context), flags }); return; }
+    }
+    await interaction.reply({ ...await characterPanel(database, interaction.user.id, guildId), flags });
+    return;
+  }
+  const buttons = members.map((member) => new ButtonBuilder().setCustomId(id(serverKey[step], member.guild.discordId)).setLabel(label(member.guild.name)).setStyle(ButtonStyle.Secondary));
+  const rows: PanelView["components"] = [];
+  for (let index = 0; index < buttons.length; index += 5) rows.push(row(...buttons.slice(index, index + 5)));
+  await interaction.reply({ ...view(`${t("en", "panel.whichServer")}
+${t("fr", "panel.whichServer")}`, rows), flags });
 }

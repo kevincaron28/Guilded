@@ -316,7 +316,9 @@ const STRINGS = {
     en: "{user} unlinked {name} with the \"Not mine\" button (it had been linked automatically; it won't be linked back).",
     fr: "{user} a délié {name} avec le bouton « Pas à moi » (il avait été lié automatiquement; il ne sera pas relié)."
   },
-  "linked.button": { en: "My linked characters", fr: "Mes personnages liés" },
+  "linked.button": { en: "My characters", fr: "Mes personnages" },
+  "linked.add": { en: "Add another", fr: "Ajouter un autre" },
+  "panel.whichServer": { en: "Which server?", fr: "Quel serveur ?" },
   "linked.level": { en: "level {level}", fr: "niveau {level}" },
   "linked.main": { en: "main", fr: "principal" },
   "linked.more": { en: "… and {count} more", fr: "… et {count} de plus" },

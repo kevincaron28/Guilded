@@ -20,6 +20,7 @@ const MINE = `${LINKED_PREFIX}mine`;
 const NOT_MINE_BUTTON = `${LINKED_PREFIX}no:`; // + character id
 const NOT_MINE_MENU = `${LINKED_PREFIX}no`;
 const WRONG_SERVER = `${LINKED_PREFIX}server`;
+const ADD_MORE = `${LINKED_PREFIX}add`;
 const MAX_NAMES = 25;
 const MAX_NOT_MINE_BUTTONS = 5;
 export const LINK_DM_DELAY_MS = 30_000;
@@ -55,6 +56,7 @@ export function linkUndoRows(lang: Lang, characters: readonly UndoCharacter[], b
   }
   rows.push(new ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MINE).setLabel(t(lang, "linked.button")).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(ADD_MORE).setLabel(t(lang, "linked.add")).setStyle(ButtonStyle.Secondary),
     new ButtonBuilder().setCustomId(WRONG_SERVER).setLabel(t(lang, "linked.wrongServer")).setStyle(ButtonStyle.Secondary)));
   return rows;
 }
@@ -213,7 +215,8 @@ export async function handleLinkedButton(interaction: ButtonInteraction | String
     await interaction.editReply({ content: await unlinkNotMine(database, interaction.client, interaction.user.id, characterId), allowedMentions: { parse: [] } });
     return;
   }
-  if (id !== MINE) return;
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  await interaction.editReply({ content: await linkedCharactersAnswer(database, interaction.user.id, interaction.guildId), allowedMentions: { parse: [] } });
+  if (id !== MINE && id !== ADD_MORE) return;
+  // The same panel as /character list (character-panel.ts); loaded here because that file imports this one.
+  const { openPanelFor } = await import("./character-panel.js");
+  await openPanelFor(interaction, database as unknown as Parameters<typeof openPanelFor>[1], id === ADD_MORE ? "link" : "panel");
 }

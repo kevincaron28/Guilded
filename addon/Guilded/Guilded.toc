@@ -82,7 +82,6 @@ Modules\SeasonDetails.lua
 Modules\DungeonStats.lua
 Modules\DungeonScorePanel.lua
 Modules\Perf.lua
-Modules\Probe.lua
 Modules\GuildLog.lua
 Modules\Recruit.lua
 Modules\ChatTags.lua
@@ -90,6 +89,5 @@ Modules\GuildBank.lua
 Modules\PugCheck.lua
 Modules\PasteBox.lua
 Modules\LootImports.lua
-Modules\LootHistoryImport.lua
 Modules\Minimap.lua
 Modules\Options.lua

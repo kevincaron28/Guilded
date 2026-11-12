@@ -1158,9 +1158,6 @@ local function buildAvailabilityPage(page)
     filter.free = not filter.free; freeButton:SetText(L(filter.free and "Free only: On" or "Free only: Off")); update()
   end), page, 308, -430)
   at(newButton(page, "My recorded characters", 210, action("characters")), page, 0, -466)
-  at(newButton(page, "Blizzard group finder", 230, function()
-    if ns.clientTools then ns.clientTools.openFinder() end
-  end), page, 220, -466)
   ui.presenceText = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -540)
   ui.presenceText:SetWidth(PAGE_WIDTH)
   ui.refreshPresence = function()
@@ -2635,11 +2632,6 @@ local function inCombat()
   return (InCombatLockdown and InCombatLockdown()) and true or false
 end
 
-local function tabExists(name)
-  for _, tab in ipairs(ui.tabs) do if tab.name == name then return true end end
-  return false
-end
-
 local function openPage(name)
   if ns.openToolsPage then ns.openToolsPage(name) end
 end
@@ -2648,7 +2640,7 @@ local function openDungeons()
   if ns.dungeonScorePanel and ns.dungeonScorePanel.open then ns.dungeonScorePanel.open("run") else openPage("Open raids") end
 end
 
--- The quick menu: label, then what it does. "Race to 60" appears only when that page exists.
+-- The quick menu: label, then what it does.
 local function quickMenuItems()
   local items = {
     { "Raid signups", function() openPage("Open raids") end },
@@ -2657,7 +2649,6 @@ local function quickMenuItems()
     { "Crafting search", function() openPage("Crafting") end },
     { "Guild map", function() run("map open") end }
   }
-  if tabExists("Race to 60") then table.insert(items, { "Race to 60", function() openPage("Race to 60") end }) end
   if ns.levelPartners and ns.levelPartners.available() then table.insert(items, { "Levelling partners", function() ns.levelPartners.open() end }) end
   if ns.callForHelp and ns.callForHelp.open then table.insert(items, { "Call for help", function() ns.callForHelp.open() end }) end
   table.insert(items, { "Settings", function() openPage("Tools") end })

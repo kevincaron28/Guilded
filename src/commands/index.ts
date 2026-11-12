@@ -27,6 +27,7 @@ import { wclCommand, executeWcl } from "./wcl.js";
 import { coreCommand } from "./core.js";
 import { teamCommand } from "./team.js";
 import { inactiveCommand, executeInactive } from "./inactive.js";
+import { gameRemindersCommand, executeGameReminders } from "./game-reminders.js";
 import { exportCommand, executeExport } from "./export.js";
 import { statsFeedCommand, executeStatsFeed } from "./stats-feed.js";
 import { guildHealthCommand, executeGuildHealth } from "./guild-health.js";
@@ -149,6 +150,7 @@ const importer = new MergedCommand("import", "Bring addon data into Discord: pre
 const report = new MergedCommand("report", "Guild reports: activity, inactive members, health, bot status and bug reports.", [
   { command: statsCommand, handler: executeStats, as: "stats" },
   { command: inactiveCommand, handler: executeInactive, as: "inactive" },
+  { command: gameRemindersCommand, handler: executeGameReminders, as: "games" },
   { command: guildHealthCommand, handler: executeGuildHealth, as: "guild" },
   { command: healthCommand, handler: executeHealth, as: "ping" },
   { command: bugCommand, handler: executeBug, as: "bug" }

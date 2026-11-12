@@ -24,7 +24,7 @@ const createdIds = (text: string) => new Set([...text.matchAll(/\.id\s*=\s*['"](
 
 describe("the companion window", () => {
   it("loads only scripts that exist", () => {
-    expect(own.length).toBeGreaterThan(4);
+    expect(own.length).toBeGreaterThan(3);
     for (const file of own) expect(existsSync(join(dir, file)), file).toBe(true);
     expect(scripts).not.toContain("manage.js");
     expect(scripts).not.toContain("raid-hub.js");

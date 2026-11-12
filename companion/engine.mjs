@@ -519,7 +519,7 @@ export function createEngine(initialConfig, hooks = {}) {
     // The bot says whether this server knows the character's in-game guild; a wrong connection is warned about, never silent.
     if (body.serverWowGuild) {
       state.guildWarning = body.serverWowGuild.known === false
-        ? `This character's guild${full.wowGuild ? ` (${full.wowGuild})` : ""} isn't set up in ${current.profileName || current.wowGuildName || body.serverWowGuild.name || "this server"}. If this is the wrong server, remove it on the Server page.`
+        ? `This character's guild${full.wowGuild ? ` (${full.wowGuild})` : ""} isn't set up in ${current.profileName || current.wowGuildName || body.serverWowGuild.name || "this server"}. If this is the wrong server, remove it in the companion's Advanced settings.`
         : null;
       if (state.guildWarning) log("warn", state.guildWarning);
     }

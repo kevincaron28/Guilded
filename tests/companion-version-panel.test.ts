@@ -82,8 +82,8 @@ describe("the same update guidance everywhere", () => {
   });
 
   it("the companion's Help says the same", () => {
-    const html = readFileSync("companion-app/renderer/index.html", "utf8");
-    expect(html).toContain("Both versions update themselves.");
+    const html = readFileSync("companion-app/renderer/main.html", "utf8");
+    expect(html).toContain("The Microsoft Store keeps this app up to date.");
     expect(html).not.toContain("A direct download from GitHub is the fallback");
   });
 });

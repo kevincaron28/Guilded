@@ -174,6 +174,8 @@ $('autoUpdate').onchange = async (event) => { event.target.checked = await api.s
 $('btnStore').onclick = () => api.openStoreListing();
 $('btnReport').onclick = async () => { const report = await api.copyProblemReport(); $('reportNote').textContent = T('Support summary {0} is copied. Paste it in Discord with /report bug, or send it to an officer. It holds no file paths, names or passwords.', report.reference); };
 $('btnReset').onclick = () => api.removeData();
+$('btnExport').onclick = async () => { $('exportResult').textContent = ''; const result = await api.exportSheets(undefined); if (!result.canceled) $('exportResult').textContent = M(result.message); };
+$('btnGRM').onclick = async () => { const result = await api.convertGRM({ guild: $('grmGuild').value, realm: $('grmRealm').value, edition: 'forever', includePrivate: $('grmPrivate').checked }); if (!result.canceled) $('grmResult').textContent = M(result.message); };
 $('btnOld').onclick = () => api.openOldWindow();
 for (const id of ['language', 'advLanguage']) $(id).addEventListener('change', async (event) => { languageUI.set(event.target.value); await api.setLanguage?.(event.target.value); $('language').value = $('advLanguage').value = languageUI.language; render(); });
 document.addEventListener('companion-language', () => { $('language').value = $('advLanguage').value = languageUI.language; });

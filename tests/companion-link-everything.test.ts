@@ -67,7 +67,7 @@ describe("companion Link everything status", () => {
   });
   it("uses no technical words in the member-facing texts", () => {
     const html = read("companion-app/renderer/index.html");
-    const page = html.slice(html.indexOf('id="page-link"'), html.indexOf('id="page-wow"'));
+    const page = html.slice(html.indexOf('id="page-link"'), html.indexOf('id="page-settings"'));
     for (const word of [/token/i, /oauth/i, /credential/i]) expect(page).not.toMatch(word);
     expect(read("companion/link-everything.mjs").replace(/\/\/.*$/gm, "")).not.toMatch(/token|oauth|credential"/i);
   });

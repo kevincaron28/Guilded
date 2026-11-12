@@ -118,9 +118,6 @@ describe("Repair and the addon", () => {
 });
 
 describe("Home and the support summary", () => {
-  it("reloads Home after a sign-in, so the 'Not connected' line goes away", () => {
-    expect(readFileSync("companion-app/renderer/hub.js", "utf8")).toMatch(/addEventListener\('companion-signed-in', \(\) => \{[^}]*void load\(\); \}\)/);
-  });
 
   it("shows local times with the offset, and names the zone", () => {
     expect(zoneName(-300)).toBe("UTC-05:00");

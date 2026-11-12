@@ -1,7 +1,9 @@
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { dungeonArt } from "../src/services/dungeon-art.js";
-import { dungeonRunCard, dungeonTheme } from "../src/services/dungeon-card.js";
+import { dungeonRunCard, dungeonTheme, paintedKey } from "../src/services/dungeon-card.js";
+import { dungeonBackdrop } from "../src/services/dungeon-backdrop.js";
+import { existsSync, readdirSync } from "node:fs";
 import type { DungeonImportResult } from "../src/services/dungeon-import.js";
 import { ROLE_COLOR, roleGlyph, scoreCardPng } from "../src/services/score-card.js";
 
@@ -110,9 +112,10 @@ describe("rendered dungeon card", () => {
       const meta = await sharp(png).metadata();
       expect([meta.width, meta.height]).toEqual([1200, 630]);
     }
-    // The painted backdrop carries the dungeon's colour: green caverns, red magma (bottom strip, under the footer line).
-    const [wr, wg] = await mean(wailing, 640, 520, 500, 50), [rr, rg] = await mean(ragefire, 640, 520, 500, 50);
-    expect(wg).toBeGreaterThan(wr);
+    // The painted backdrop carries the dungeon's colour: a green cavern is greener than red magma (the gutter between the
+    // left column and the party panel, where the art shows through).
+    const [wr, wg] = await mean(wailing, 560, 60, 40, 450), [rr, rg] = await mean(ragefire, 560, 60, 40, 450);
+    expect(wg / wr).toBeGreaterThan(rg / rr);
     expect(rr).toBeGreaterThan(rg);
     // Text sits on dark ground: the empty part of the left column and the frosted panel stay dark.
     expect(luma(await mean(wailing, 330, 200, 220, 140))).toBeLessThan(0.3);
@@ -129,4 +132,49 @@ describe("rendered dungeon card", () => {
     const [dr, dg] = await mean(wailing, 639, 262, 3, 3);
     expect(dr).toBeGreaterThan(dg + 40);
   }, 60_000);
+});
+
+describe("painted dungeon artwork files", () => {
+  const dir = new URL("../site/dungeon-art/", import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith(".jpg")).map((f) => f.slice(0, -4));
+  it("maps every dungeon and wing to its painting, and leaves the rest procedural", () => {
+    expect(paintedKey("Scarlet Monastery: Graveyard")).toBe("scarlet-graveyard");
+    expect(paintedKey("Scarlet Monastery: Library")).toBe("scarlet-library");
+    expect(paintedKey("Scarlet Monastery: Cathedral")).toBe("scarlet-cathedral");
+    expect(paintedKey("Scarlet Monastery: Armory")).toBeUndefined();
+    expect(paintedKey("Dire Maul: North")).toBe("dire-maul-north");
+    expect(paintedKey("Stratholme: Service Gate")).toBe("stratholme-service");
+    expect(paintedKey("Upper Blackrock Spire")).toBe("upper-blackrock-spire");
+    expect(paintedKey("Lower Blackrock Spire")).toBe("lower-blackrock-spire");
+    expect(paintedKey("Blackrock Depths")).toBe("blackrock-depths");
+    expect(paintedKey("Razorfen Downs")).toBe("razorfen-downs");
+    expect(paintedKey("Razorfen Kraul")).toBe("razorfen-kraul");
+    expect(paintedKey("The Drowned City")).toBe("drowned-city");
+    expect(paintedKey("Temple of Atal'Hakkar (Sunken Temple)")).toBe("sunken-temple");
+    expect(paintedKey("Alcaz Prison")).toBe("alcaz-prison");
+    expect(paintedKey("The Stockade")).toBe("stockade");
+    expect(paintedKey("Somewhere Nobody Charted")).toBeUndefined();
+    expect(dungeonTheme("Wailing Caverns").painted).toBe("wailing-caverns");
+    expect(dungeonTheme("Somewhere Nobody Charted").painted).toBeUndefined();
+  });
+  it("has a file for every key the names can map to, each 1200x630", async () => {
+    for (const name of ["Ragefire Chasm", "The Hall of Thanes", "Ruins of Lordaeron", "Wailing Caverns", "The Deadmines", "Shadowfang Keep", "Blackfathom Deeps", "The Stockade",
+      "Excavation Site: Wetlands", "City of Dalaran", "Gnomeregan", "Razorfen Kraul", "Scarlet Monastery: Cathedral", "The Drowned City", "Razorfen Downs", "Krol'dok Stronghold",
+      "Uldaman", "Zul'Farrak", "Maraudon", "Alcaz Prison", "Temple of Atal'Hakkar (Sunken Temple)", "Blackrock Depths", "Dire Maul: East", "Blackmaw Hold", "Scholomance",
+      "Shaper's Terrace", "Stratholme: Main Gate", "Upper Blackrock Spire"]) {
+      const key = paintedKey(name);
+      expect(key, name).toBeDefined();
+      expect(files, name).toContain(key);
+    }
+    for (const key of files) { const meta = await sharp(new URL(`${key}.jpg`, dir).pathname.replace(/^\/([A-Za-z]:)/, "$1")).metadata(); expect([meta.width, meta.height], key).toEqual([1200, 630]); }
+  });
+  it("draws the painting, and falls back to the procedural scene when the file is missing or no painting is named", async () => {
+    const theme = dungeonTheme("Wailing Caverns");
+    const withArt = await dungeonBackdrop(theme), without = await dungeonBackdrop({ ...theme, painted: undefined }), missing = await dungeonBackdrop({ ...theme, painted: "no-such-file" }), unsafe = await dungeonBackdrop({ ...theme, painted: "../../package" });
+    expect((await sharp(withArt).metadata()).width).toBe(1200);
+    expect(withArt.equals(without)).toBe(false);
+    expect(missing.equals(without)).toBe(true);
+    expect(unsafe.equals(without)).toBe(true);
+    expect(existsSync(new URL("wailing-caverns.jpg", dir))).toBe(true);
+  });
 });

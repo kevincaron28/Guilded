@@ -111,14 +111,14 @@ describe("the tools window in French", () => {
 
   it.each(["deDE", "esES"])("fits translated button labels on %s", client => {
     const s = frenchWindow(client);
-    s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
+    s.run(`NS.openToolsPage("Standings")`);
     expect(s.run(`local out = {}; for _, f in ipairs(FRAMES) do
       if f.template == "UIPanelButtonTemplate" and f.text ~= "" and f.width < #f.text * 6 + 20 then out[#out + 1] = f.text end
       end; return table.concat(out, " | ")`)).toBe("");
   });
   it("fits every button label, including the long ledger sharing button", () => {
     const s = frenchWindow();
-    s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
+    s.run(`NS.openToolsPage("Standings")`);
     const tooNarrow = s.run(`
       local out = {}
       for _, f in ipairs(FRAMES) do
@@ -143,7 +143,7 @@ describe("the tools window in French", () => {
       for (const r of rows) {
         expect(r.real).toBe(r.width);
         expect(r.x + r.width).toBeLessThanOrEqual(pageWidth);          // never past the right edge
-        expect(r.width).toBeGreaterThanOrEqual(r.text.length * 7 + 20 > 150 ? 150 : r.text.length * 7 + 20); // fits its text
+        expect(r.width).toBeGreaterThanOrEqual(r.text.length * 7 + 20 > 200 ? 200 : r.text.length * 7 + 20); // fits its text
         expect(r.line).toBeLessThanOrEqual(1);                          // the page starts below two lines
       }
     }

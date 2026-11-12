@@ -1015,6 +1015,12 @@ model GuildSettings {
   bgLadderEnabled          Boolean @default(true)
   bgLadderMessageId        String?
   worldPvpEnabled          Boolean @default(true)
+  // 9.1 world PvP extras (docs/plans/WPVP_REVIEW_2026-11-10.md): every one OFF until an officer turns it on with /bg world-pvp.
+  pvpCallPostsEnabled      Boolean @default(false)
+  pvpRecapEnabled          Boolean @default(false)
+  pvpHotZonesEnabled       Boolean @default(false)
+  pvpMostWantedEnabled     Boolean @default(false)
+  pvpRecapLastWeek         Int?
   // 8.5 track C5: promotion panel (Initiate -> Member). On by default; officers change the rule or switch it off.
   // 9.1 character pictures (docs/plans/CHARACTER_VISUALS.md): officers switch member pictures off for the server.
   characterPicturesEnabled Boolean @default(true)
@@ -3589,6 +3595,9 @@ model GuildHelpCall {
   attackers   Json
   calledAt    DateTime
   clearedAt   DateTime?
+  // The Discord post made for this call when the server opted in (call posts): edited to "cleared" on the all clear.
+  postChannelId String?
+  postMessageId String?
   createdAt   DateTime  @default(now())
   guild       Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)

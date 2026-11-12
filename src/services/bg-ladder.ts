@@ -9,6 +9,7 @@ import { percent } from "./duels.js";
 import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
+import { loadExtrasFields } from "./world-pvp-extras.js";
 import { loadWorldPvpData, worldPvpCard, worldPvpEmbed, WORLD_PVP_CARD_FILE } from "./world-pvp.js";
 import { moveColumn, moveFields, trackRanks, type Movements } from "./ladder-snapshots.js";
 
@@ -137,7 +138,11 @@ export async function updateBgLadder(discordGuild: DiscordGuild | null, delivery
       const world = await loadWorldPvpData(prisma, guild.id, guild.gameEdition ?? "forever").catch(() => null);
       if (world) {
         const worldPng = world.standings.length ? await scoreCardPng(worldPvpCard(world, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()))).catch(() => null) : null;
-        embeds.push(worldPvpEmbed(world, lang, worldPng ? WORLD_PVP_CARD_FILE : undefined));
+        const worldEmbed = worldPvpEmbed(world, lang, worldPng ? WORLD_PVP_CARD_FILE : undefined);
+        // Officer opt-ins (world-pvp-extras.ts): defender of the week, hot zones, most wanted. Nothing is added while they are off.
+        const extras = await loadExtrasFields(prisma, guild.id, settings, world.standings, lang);
+        if (extras.length) worldEmbed.addFields(extras);
+        embeds.push(worldEmbed);
         if (worldPng) files.push(new AttachmentBuilder(worldPng, { name: WORLD_PVP_CARD_FILE }));
       }
     }

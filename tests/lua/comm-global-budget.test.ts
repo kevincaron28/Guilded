@@ -156,6 +156,23 @@ describe("back-off", () => {
     expect(Number(s.run("return NS.comm.budget().rate"))).toBeLessThan(4);
   });
 
+  it("a persistent throttle keeps escalating to the 60 s cap: the quiet window counts from the end of the back-off", () => {
+    const s = boot();
+    s.run(`WAITS = {}; for i = 1, 8 do
+      NS.comm.noteThrottle()
+      WAITS[#WAITS + 1] = NS.comm.budget().waiting
+      advance(NS.comm.budget().waiting + 1) -- the next refusal comes 1 s after the back-off ended
+    end`);
+    expect(s.run("return NS.comm.budget().strikes")).toBe("8");
+    const waits = s.run("return table.concat(WAITS, ',')").split(",").map(Number);
+    for (let i = 1; i < 5; i++) expect(waits[i]!).toBeGreaterThan(waits[i - 1]! * 1.3); // base doubles, jitter at most +50%
+    expect(waits[5]).toBeGreaterThanOrEqual(60); // strike 6 reaches the cap (it used to start over at strike 1)
+    expect(waits[7]).toBeLessThanOrEqual(90);
+    // Truly quiet for more than 30 s after the end of a back-off: the next one starts again at strike 1.
+    s.run(`advance(NS.comm.budget().waiting + 31); NS.comm.noteThrottle()`);
+    expect(s.run("return NS.comm.budget().strikes")).toBe("1");
+  });
+
   it("a throttled result from the client protects on its own, without any chat line", () => {
     const s = boot();
     s.run(`ERR_CHAT_THROTTLED = nil; C_ChatInfo.SendAddonMessage = function() return 3 end; NS.comm.send("GuildedSync", "x", "GUILD"); NS.comm.send("GuildedLedger", "y", "GUILD")`);

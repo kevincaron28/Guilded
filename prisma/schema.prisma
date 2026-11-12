@@ -3392,6 +3392,11 @@ model InviteRequest {
   notifyMessageId String?
   // When the clean-up of this handled request was attempted (messages removed, already gone, or refused): once only.
   cleanedAt     DateTime?
+  // When the clean-up is due: set only by a full first+last name match or an explicit officer action (never a first-name-only guess).
+  cleanupAt     DateTime?
+  cleanTries    Int       @default(0)
+  // The bot's "done" thank-you under a member's own post, so the clean-up uses stored ids.
+  doneNoteMessageId String?
   guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, messageId])

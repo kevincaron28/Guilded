@@ -1,92 +1,158 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CLEANUP_DELAY_MS, cleanAllInviteChannels, cleanInviteChannel, resetCleanupWarnings } from "../src/services/invite-cleanup.js";
+import { CLEANUP_DELAY_MS, MAX_ATTEMPTS, MAX_CYCLES, RETRY_LATER_MS, resetCleanupWarnings, runInviteCleanupJob, scheduleInviteCleanups } from "../src/services/invite-cleanup.js";
+import { markInvitedByName } from "../src/services/invite-queue.js";
+import { updateRecruit } from "../src/services/recruiting-kit.js";
 
 const now = new Date("2026-11-12T12:00:00Z");
 const ago = (ms: number) => new Date(now.getTime() - ms);
-type Row = { id: string; guildId: string; status: string; cleanedAt: Date | null; invitedAt: Date | null; channelId: string; messageId: string; discordUserId: string; notifyMessageId: string | null };
+type Row = { id: string; guildId: string; status: string; cleanedAt: Date | null; cleanupAt: Date | null; channelId: string; messageId: string; discordUserId: string; notifyMessageId: string | null; doneNoteMessageId: string | null; cleanTries: number; nameKey: string; displayName: string };
+const row = (over: Partial<Row> = {}): Row => ({ id: "r1", guildId: "g1", status: "INVITED", cleanedAt: null, cleanupAt: ago(1000), channelId: "chan", messageId: "100", discordUserId: "u1", notifyMessageId: "101", doneNoteMessageId: "102", cleanTries: 0, nameKey: "amy archer", displayName: "Amy Archer", ...over });
 
-function setup(rows: Row[], opts: { messages?: Record<string, { author: string; pinned?: boolean; ref?: string; deleteError?: number }>; switchOn?: boolean } = {}) {
-  const deleted: string[] = [];
-  const messages = new Map(Object.entries(opts.messages ?? {}).map(([id, m]) => [id, {
-    id, pinned: Boolean(m.pinned), author: { id: m.author }, reference: m.ref ? { messageId: m.ref } : null,
-    delete: vi.fn(async () => { if (m.deleteError) throw Object.assign(new Error("x"), { code: m.deleteError }); deleted.push(id); messages.delete(id); })
-  }]));
-  const channel = { isTextBased: () => true, messages: { fetch: vi.fn(async (arg: unknown) => {
-    if (typeof arg === "string") { const m = messages.get(arg); if (!m) throw Object.assign(new Error("gone"), { code: 10008 }); return m; }
-    return new Map([...messages].filter(([id]) => BigInt(id) > BigInt((arg as { after: string }).after)));
-  }) } };
-  const client = { user: { id: "bot" }, channels: { fetch: vi.fn(async () => channel) } };
-  const database = {
-    guildSettings: { findMany: vi.fn(async () => opts.switchOn === false ? [] : [{ guildId: "g1", inviteChannelId: "chan" }]) },
-    inviteRequest: {
-      findMany: vi.fn(async ({ where, take }: { where: { status: { in: string[] }; cleanedAt: null; invitedAt: { lte: Date } }; take: number }) => rows.filter((r) => where.status.in.includes(r.status) && r.cleanedAt === null && r.invitedAt !== null && r.invitedAt <= where.invitedAt.lte).slice(0, take)),
-      updateMany: vi.fn(async ({ where, data }: { where: { id: string }; data: { cleanedAt: Date } }) => { const r = rows.find((x) => x.id === where.id && x.cleanedAt === null); if (r) r.cleanedAt = data.cleanedAt; return { count: r ? 1 : 0 }; })
+// A small in-memory table that really evaluates the filters the code uses (no mock that ignores `where`).
+function matches(r: Row, where: Record<string, unknown>): boolean {
+  return Object.entries(where).every(([key, cond]) => {
+    const value = (r as unknown as Record<string, unknown>)[key];
+    if (cond && typeof cond === "object" && !(cond instanceof Date)) {
+      const c = cond as { in?: unknown[]; lte?: Date };
+      if (c.in) return c.in.includes(value);
+      if (c.lte) return value instanceof Date && value <= c.lte;
+      return false;
     }
-  };
-  return { client, database, deleted, rows };
+    return cond === null ? value === null : value === cond;
+  });
 }
-const row = (over: Partial<Row> = {}): Row => ({ id: "r1", guildId: "g1", status: "INVITED", cleanedAt: null, invitedAt: ago(CLEANUP_DELAY_MS + 1000), channelId: "chan", messageId: "100", discordUserId: "u1", notifyMessageId: "101", ...over });
+function table(rows: Row[], settings: { inviteCleanupEnabled?: boolean } = {}) {
+  const jobs: { key: string; kind: string; payload: unknown }[] = [];
+  const database = {
+    guildSettings: {
+      findMany: vi.fn(async ({ where }: { where: { inviteCleanupEnabled: boolean } }) => (settings.inviteCleanupEnabled ?? true) === where.inviteCleanupEnabled ? [{ guildId: "g1" }] : []),
+      findUnique: vi.fn(async () => ({ inviteCleanupEnabled: settings.inviteCleanupEnabled ?? true, inviteChannelId: "chan" }))
+    },
+    inviteRequest: {
+      findMany: vi.fn(async ({ where, take }: { where: Record<string, unknown>; take?: number }) => rows.filter((r) => matches(r, where)).slice(0, take)),
+      findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => rows.find((r) => matches(r, where)) ?? null),
+      updateMany: vi.fn(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
+        const hit = rows.filter((r) => matches(r, where));
+        for (const r of hit) for (const [k, v] of Object.entries(data)) (r as unknown as Record<string, unknown>)[k] = v && typeof v === "object" && "increment" in v ? (r as unknown as Record<string, number>)[k]! + (v as { increment: number }).increment : v;
+        return { count: hit.length };
+      })
+    },
+    discordJob: { upsert: vi.fn(async ({ create }: { create: { key: string; kind: string; payload: unknown } }) => { jobs.push(create); return create; }) }
+  };
+  return { database, jobs, rows };
+}
+
+type Msg = { author: string; pinned?: boolean; deleteError?: number; fetchError?: number };
+function guild(messages: Record<string, Msg>) {
+  const deleted: string[] = [];
+  const fetched: unknown[] = [];
+  const live = new Map(Object.entries(messages).map(([id, m]) => [id, { id, pinned: Boolean(m.pinned), author: { id: m.author }, delete: vi.fn(async () => { if (m.deleteError) throw Object.assign(new Error("x"), { code: m.deleteError }); deleted.push(id); live.delete(id); }) }]));
+  const channel = { isTextBased: () => true, messages: { fetch: vi.fn(async (id: unknown) => {
+    fetched.push(id);
+    const m = messages[String(id)];
+    if (m?.fetchError) throw Object.assign(new Error("net"), { code: m.fetchError });
+    const found = live.get(String(id));
+    if (!found) throw Object.assign(new Error("gone"), { code: 10008 });
+    return found;
+  }) } };
+  return { g: { channels: { fetch: vi.fn(async () => channel) }, client: { user: { id: "bot" } } }, deleted, fetched };
+}
+const job = (attempts = 1) => ({ guildId: "g1", attempts, payload: { requestId: "r1" } as never });
 
 beforeEach(() => { resetCleanupWarnings(); vi.spyOn(console, "warn").mockImplementation(() => undefined); });
 
-describe("guild-invite channel clean-up", () => {
-  it("deletes a handled member post, the tag message and the bot's reply once the delay passed", async () => {
-    const t = setup([row()], { messages: { "100": { author: "u1" }, "101": { author: "bot", ref: "100" }, "102": { author: "bot", ref: "100" }, "103": { author: "officer", ref: "100" }, "104": { author: "bot", ref: "999" } } });
-    await cleanAllInviteChannels(t.client as never, t.database as never, now);
-    expect(t.deleted.sort()).toEqual(["100", "101", "102"]); // the officer's reply and another request's follow-up stay
-    expect(t.rows[0]!.cleanedAt).toEqual(now);
+describe("scheduling (the clean-up is queued, not run inline)", () => {
+  it("queues only handled requests that are due: not pending, not early, not backfilled, not without a deadline", async () => {
+    const t = table([row(), row({ id: "p", status: "PENDING", cleanupAt: null }), row({ id: "early", cleanupAt: new Date(now.getTime() + 60_000) }),
+      row({ id: "old", cleanedAt: ago(5000) }), row({ id: "guess", cleanupAt: null })]);
+    expect(await scheduleInviteCleanups(t.database as never, now)).toBe(1);
+    expect(t.jobs).toHaveLength(1);
+    expect(t.jobs[0]).toMatchObject({ kind: "INVITE_CLEANUP", payload: { requestId: "r1" } });
+    expect(t.rows.find((r) => r.id === "r1")!.cleanedAt).toEqual(now);
+    // a second sweep (or a restart) does not queue it again
+    expect(await scheduleInviteCleanups(t.database as never, now)).toBe(0);
   });
-  it("deletes the bot's own request post made by the Request button", async () => {
-    const t = setup([row()], { messages: { "100": { author: "bot" } } });
-    await cleanAllInviteChannels(t.client as never, t.database as never, now);
-    expect(t.deleted).toEqual(["100"]);
+  it("queues nothing when the officer switch is off", async () => {
+    const t = table([row()], { inviteCleanupEnabled: false });
+    expect(await scheduleInviteCleanups(t.database as never, now)).toBe(0);
+    expect(t.jobs).toHaveLength(0);
   });
-  it("waits for the delay and never touches a pending request", async () => {
-    const t = setup([row({ invitedAt: ago(CLEANUP_DELAY_MS - 60_000) }), row({ id: "r2", status: "PENDING", invitedAt: null, messageId: "200" })], { messages: { "100": { author: "u1" }, "200": { author: "u2" } } });
-    await cleanAllInviteChannels(t.client as never, t.database as never, now);
-    expect(t.deleted).toEqual([]);
-    await cleanAllInviteChannels(t.client as never, t.database as never, new Date(now.getTime() + 120_000));
-    expect(t.deleted).toEqual(["100"]);
+  it("starts the clock only on a full name match or an officer action, never on a first-name-only roster guess", async () => {
+    const waiting = () => table([row({ status: "PENDING", cleanupAt: null, nameKey: "amy archer" })]);
+    const full = waiting();
+    await markInvitedByName(full.database as never, "g1", ["Amy Archer-Realm"], "roster");
+    expect(full.rows[0]).toMatchObject({ status: "INVITED" });
+    expect(full.rows[0]!.cleanupAt!.getTime()).toBeGreaterThan(Date.now() + CLEANUP_DELAY_MS - 5000);
+    const guess = waiting();
+    await markInvitedByName(guess.database as never, "g1", ["Amy"], "roster");
+    expect(guess.rows[0]).toMatchObject({ status: "INVITED", cleanupAt: null });
+    const officer = waiting();
+    await markInvitedByName(officer.database as never, "g1", ["Amy"], "officer-id");
+    expect(officer.rows[0]!.cleanupAt).not.toBeNull();
+    const record = waiting();
+    await updateRecruit(record.database as never, "g1", "Amy Archer", { stage: "JOINED" });
+    expect(record.rows[0]!.cleanupAt).not.toBeNull();
   });
-  it("survives a restart: the deadline is on the row, a second run deletes nothing twice", async () => {
-    const t = setup([row({ invitedAt: ago(10 * 60_000) })], { messages: { "100": { author: "u1" } } });
-    await cleanAllInviteChannels(t.client as never, t.database as never, now); // "before restart": too early
-    expect(t.deleted).toEqual([]);
-    const later = new Date(now.getTime() + CLEANUP_DELAY_MS);
-    await cleanAllInviteChannels(t.client as never, t.database as never, later); // "after restart"
-    await cleanAllInviteChannels(t.client as never, t.database as never, later);
-    expect(t.deleted).toEqual(["100"]);
+});
+
+describe("the queued job deletes by stored ids only", () => {
+  it("removes the request post, the tag message and the thank-you, and nothing else (no history scan)", async () => {
+    const t = table([row()]);
+    const { g, deleted, fetched } = guild({ "100": { author: "u1" }, "101": { author: "bot" }, "102": { author: "bot" }, "103": { author: "officer" } });
+    await runInviteCleanupJob(g as never, t.database as never, job(), now);
+    expect(deleted.sort()).toEqual(["100", "101", "102"]);
+    expect(fetched.every((id) => typeof id === "string")).toBe(true);
   });
-  it("tolerates a message that is already gone and still marks the request done", async () => {
-    const t = setup([row()], { messages: {} });
-    expect(await cleanAllInviteChannels(t.client as never, t.database as never, now)).toBe(0);
-    expect(t.rows[0]!.cleanedAt).toEqual(now);
+  it("deletes the bot's own request post, and leaves a pinned post and someone else's post", async () => {
+    const own = guild({ "100": { author: "bot" } });
+    await runInviteCleanupJob(own.g as never, table([row({ notifyMessageId: null, doneNoteMessageId: null })]).database as never, job(), now);
+    expect(own.deleted).toEqual(["100"]);
+    const other = guild({ "100": { author: "u1", pinned: true }, "101": { author: "officer" } });
+    await runInviteCleanupJob(other.g as never, table([row()]).database as never, job(), now);
+    const foreign = guild({ "100": { author: "stranger" } });
+    await runInviteCleanupJob(foreign.g as never, table([row({ notifyMessageId: null, doneNoteMessageId: null })]).database as never, job(), now);
+    expect(other.deleted).toEqual([]);
+    expect(foreign.deleted).toEqual([]);
   });
-  it("logs a missing Manage Messages permission once and never retries", async () => {
-    const t = setup([row(), row({ id: "r2", messageId: "200", notifyMessageId: null })], { messages: { "100": { author: "u1", deleteError: 50013 }, "200": { author: "u2", deleteError: 50013 } } });
-    t.rows[1]!.discordUserId = "u2";
-    await cleanAllInviteChannels(t.client as never, t.database as never, now);
-    await cleanAllInviteChannels(t.client as never, t.database as never, now);
-    expect(console.warn).toHaveBeenCalledTimes(1);
-    expect(t.deleted).toEqual([]);
+  it("a request from another channel, or with the switch off at delivery, is left alone", async () => {
+    const moved = guild({ "100": { author: "u1" } });
+    await runInviteCleanupJob(moved.g as never, table([row({ channelId: "old" })]).database as never, job(), now);
+    const off = guild({ "100": { author: "u1" } });
+    await runInviteCleanupJob(off.g as never, table([row()], { inviteCleanupEnabled: false }).database as never, job(), now);
+    expect(moved.deleted).toEqual([]);
+    expect(off.deleted).toEqual([]);
   });
-  it("leaves pinned messages, other people's posts and requests from another channel", async () => {
-    const t = setup([row(), row({ id: "r2", messageId: "200", channelId: "old", notifyMessageId: null }), row({ id: "r3", messageId: "300", notifyMessageId: null, discordUserId: "u3" })],
-      { messages: { "100": { author: "u1", pinned: true }, "200": { author: "u2" }, "300": { author: "someoneElse" } } });
-    await cleanAllInviteChannels(t.client as never, t.database as never, now);
-    expect(t.deleted).toEqual([]);
+  it("an already-deleted message is fine (no retry)", async () => {
+    const t = table([row()]);
+    await expect(runInviteCleanupJob(guild({}).g as never, t.database as never, job(), now)).resolves.toBeUndefined();
   });
-  it("does nothing when the officer switch is off", async () => {
-    const t = setup([row()], { messages: { "100": { author: "u1" } }, switchOn: false });
-    await cleanAllInviteChannels(t.client as never, t.database as never, now);
-    expect(t.deleted).toEqual([]);
-    expect(t.rows[0]!.cleanedAt).toBeNull();
-    expect(t.database.guildSettings.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ inviteCleanupEnabled: true }) }));
+});
+
+describe("failures are retried by the queue, boundedly", () => {
+  it("throws on a missing permission while attempts remain (the queue backs off), keeping the request marked for retry", async () => {
+    const t = table([row()]);
+    const { g, deleted } = guild({ "100": { author: "u1", deleteError: 50013 } });
+    await expect(runInviteCleanupJob(g as never, t.database as never, job(1), now)).rejects.toThrow("permission");
+    expect(deleted).toEqual([]);
+    // later, with the permission granted, the same job succeeds
+    const fixed = guild({ "100": { author: "u1" } });
+    await runInviteCleanupJob(fixed.g as never, t.database as never, job(2), now);
+    expect(fixed.deleted).toEqual(["100"]);
   });
-  it("limits a sweep to a small batch", async () => {
-    const many = Array.from({ length: 20 }, (_, i) => row({ id: `r${i}`, messageId: String(1000 + i), notifyMessageId: null }));
-    const t = setup(many, { messages: Object.fromEntries(many.map((r) => [r.messageId, { author: "u1" }])) });
-    await cleanInviteChannel(t.client as never, t.database as never, "g1", "chan", now);
-    expect(t.deleted).toHaveLength(15);
+  it("a transient read failure is retried too", async () => {
+    const t = table([row()]);
+    await expect(runInviteCleanupJob(guild({ "100": { author: "u1", fetchError: 500 } }).g as never, t.database as never, job(1), now)).rejects.toThrow("transient");
+  });
+  it("after the quick retries a permission refusal is queued again tomorrow, a few times, then dropped; one log line", async () => {
+    const t = table([row({ cleanedAt: now })]);
+    const refuse = () => guild({ "100": { author: "u1", deleteError: 50013 } }).g as never;
+    await runInviteCleanupJob(refuse(), t.database as never, job(MAX_ATTEMPTS), now);
+    expect(t.rows[0]).toMatchObject({ cleanedAt: null, cleanTries: 1 });
+    expect(t.rows[0]!.cleanupAt).toEqual(new Date(now.getTime() + RETRY_LATER_MS));
+    t.rows[0]!.cleanTries = MAX_CYCLES - 1;
+    t.rows[0]!.cleanedAt = now;
+    await runInviteCleanupJob(refuse(), t.database as never, job(MAX_ATTEMPTS), now);
+    expect(t.rows[0]!.cleanedAt).toEqual(now); // dropped, not rescheduled
+    expect(console.warn).toHaveBeenCalledTimes(2); // the permission line once, the give-up line once
   });
 });

@@ -1,25 +1,31 @@
-import type { Client } from "discord.js";
-import type { PrismaClient } from "../generated/prisma/client.js";
+import type { DiscordJob, PrismaClient } from "../generated/prisma/client.js";
+import { enqueueDiscordJob } from "./discord-jobs.js";
 
-// Guild-invite channel clean-up (owner request, 12 Nov 2026): about an hour after a request is handled (invited,
-// joined or promoted: a roster upload, an officer's check mark or /mod invites record) the bot removes that request's
-// message and its own follow-ups (the tag message, the "done" thank-you), so what stays is who still needs an invite.
-// Per server officer switch: /mod invites settings cleanup:false (on by default).
+// Guild-invite channel clean-up (owner request, 12 Nov 2026): about an hour after a request is handled the bot removes
+// that request's message and its own follow-ups, so what stays is who still needs an invite. Officer switch:
+// /mod invites settings cleanup:false (on by default).
 //
-// Only messages the bot can attribute to the handled request are touched: the request row names the post (a member's
-// own post, or the bot's post made by the Request button) and the bot's replies to it. Never a pending request, a
-// pinned message, an officer's own note, or the pinned guide. One attempt per request (cleanedAt), so a missing
-// permission or a vanished message is logged once and never retried.
+// When the clock starts (cleanupAt, set in invite-queue.ts / recruiting-kit.ts): a full first+last name match in a
+// roster, or an officer's own action (check mark, button, /mod invites record). A first-name-only roster guess marks the
+// request invited but never schedules a deletion. Requests handled before this shipped are never touched (migration backfill).
+//
+// Only messages stored on the request are touched: the request post (the bot's own, or the member's own post the row
+// names), the bot's tag message (notifyMessageId) and the bot's thank-you (doneNoteMessageId). Never a pending request,
+// a pinned message, an officer's own note. Deletions go through the Discord job queue (paced, retried with backoff).
 
-/** How long after a request is handled its messages are removed. Easy to change. */
-export const CLEANUP_DELAY_MS = 60 * 60_000;
-/** At most this many requests per server per sweep, so a first run over old rows stays gentle on Discord's limits. */
-export const CLEANUP_BATCH = 15;
+export { CLEANUP_DELAY_MS } from "./invite-queue.js";
+/** Requests handed to the job queue per server per sweep. */
+export const CLEANUP_BATCH = 25;
+/** Job attempts (the queue backs off 30 s, 1 min, 2 min ...) before a refused/failed clean-up is set aside. */
+export const MAX_ATTEMPTS = 6;
+/** A permission refusal is retried once a day, this many times, so granting Manage Messages later still takes effect. */
+export const MAX_CYCLES = 3;
+export const RETRY_LATER_MS = 24 * 3_600_000;
 const HANDLED = ["INVITED", "JOINED", "PROMOTED"];
 
-type Database = Pick<PrismaClient, "guildSettings" | "inviteRequest">;
-type Message = { id: string; pinned: boolean; author?: { id: string } | null; reference?: { messageId?: string | null } | null; delete: () => Promise<unknown> };
-type Channel = { isTextBased: () => boolean; messages?: { fetch: (arg: unknown) => Promise<unknown> } };
+type Database = Pick<PrismaClient, "guildSettings" | "inviteRequest" | "discordJob">;
+type Message = { id: string; pinned: boolean; author?: { id: string } | null; delete: () => Promise<unknown> };
+type GuildLike = { channels: { fetch: (id: string) => Promise<unknown> }; client: { user?: { id: string } | null } };
 
 const warned = new Set<string>();
 const warnOnce = (key: string, text: string, error?: unknown) => {
@@ -28,61 +34,89 @@ const warnOnce = (key: string, text: string, error?: unknown) => {
   console.warn(`Invite clean-up: ${text}`, error ?? "");
 };
 export const resetCleanupWarnings = () => warned.clear();
-
 const code = (error: unknown): number | undefined => (error as { code?: number } | null)?.code;
+const refused = (error: unknown) => code(error) === 50001 || code(error) === 50013;
 
-/** Removes one handled request's messages. Returns how many were deleted. Never throws. */
-export async function cleanRequest(client: Pick<Client, "channels" | "user">, inviteChannelId: string,
-  row: { channelId: string; messageId: string; discordUserId: string; notifyMessageId: string | null }): Promise<number> {
-  const me = client.user?.id;
+export type CleanOutcome = { deleted: number; retry: null | "permission" | "transient" };
+
+/** Removes one handled request's stored messages. Never throws; says whether a retry could help. */
+export async function cleanRequest(guild: GuildLike, inviteChannelId: string,
+  row: { channelId: string; messageId: string; discordUserId: string; notifyMessageId: string | null; doneNoteMessageId: string | null }): Promise<CleanOutcome> {
+  const me = guild.client.user?.id;
   // Only the configured invite channel: a row from before the channel was moved is left alone.
-  if (!me || row.channelId !== inviteChannelId) return 0;
-  const channel = await client.channels.fetch(row.channelId).catch(() => null) as unknown as Channel | null;
-  if (!channel?.isTextBased() || !channel.messages) return 0;
+  if (!me || row.channelId !== inviteChannelId) return { deleted: 0, retry: null };
+  let channel: { isTextBased: () => boolean; messages?: { fetch: (id: string) => Promise<unknown> } } | null;
+  try { channel = await guild.channels.fetch(row.channelId) as typeof channel; } catch (error) {
+    if (code(error) === 10003) return { deleted: 0, retry: null };
+    warnOnce(`fetch:${row.channelId}`, "the invite channel could not be read, will retry", error);
+    return { deleted: 0, retry: refused(error) ? "permission" : "transient" };
+  }
+  if (!channel?.isTextBased() || !channel.messages) return { deleted: 0, retry: null };
   const messages = channel.messages;
-  const one = async (id: string): Promise<Message | null> => (await messages.fetch(id).catch(() => null)) as Message | null;
   let deleted = 0;
+  let retry: CleanOutcome["retry"] = null;
+  const one = async (id: string): Promise<Message | null> => {
+    try { return await messages.fetch(id) as Message; } catch (error) {
+      if (code(error) === 10008) return null; // already gone
+      retry ??= refused(error) ? "permission" : "transient";
+      return null;
+    }
+  };
   const remove = async (message: Message): Promise<void> => {
     if (message.pinned) return;
     try { await message.delete(); deleted++; } catch (error) {
-      if (code(error) === 10008) return; // already gone
-      if (code(error) === 50013 || code(error) === 50001) warnOnce(`perm:${row.channelId}`, `the bot cannot delete messages in <#${row.channelId}> (needs View Channel, Read Message History and Manage Messages)`, error);
-      else warnOnce(`err:${row.channelId}:${String(code(error))}`, "a message could not be deleted", error);
+      if (code(error) === 10008) return;
+      if (refused(error)) {
+        retry = "permission";
+        warnOnce(`perm:${row.channelId}`, `the bot cannot delete messages in <#${row.channelId}> (needs View Channel, Read Message History and Manage Messages)`, error);
+      } else { retry ??= "transient"; warnOnce(`err:${row.channelId}:${String(code(error))}`, "a message could not be deleted, will retry", error); }
     }
   };
-  // 1. The request itself: the bot's own post, or the member's own post that the request row names.
   const post = await one(row.messageId);
   if (post && (post.author?.id === me || post.author?.id === row.discordUserId)) await remove(post);
-  // 2. The bot's follow-ups: the tag message, and its replies to the request (the thank-you under a member's post).
-  const followUps = new Map<string, Message>();
-  if (row.notifyMessageId) { const note = await one(row.notifyMessageId); if (note) followUps.set(note.id, note); }
-  const after = (await messages.fetch({ after: row.messageId, limit: 50 }).catch(() => null)) as Map<string, Message> | null;
-  for (const message of after?.values() ?? []) if (message.reference?.messageId === row.messageId) followUps.set(message.id, message);
-  for (const message of followUps.values()) if (message.author?.id === me) await remove(message);
-  return deleted;
-}
-
-/** One server's sweep: handled requests older than the delay, oldest first, a limited batch. */
-export async function cleanInviteChannel(client: Pick<Client, "channels" | "user">, database: Database, guildId: string, inviteChannelId: string, now = new Date()): Promise<number> {
-  const due = await database.inviteRequest.findMany({
-    where: { guildId, status: { in: HANDLED }, cleanedAt: null, invitedAt: { lte: new Date(now.getTime() - CLEANUP_DELAY_MS) } },
-    orderBy: { invitedAt: "asc" }, take: CLEANUP_BATCH,
-    select: { id: true, channelId: true, messageId: true, discordUserId: true, notifyMessageId: true }
-  });
-  let deleted = 0;
-  for (const row of due) {
-    // Marked first: a crash or an error never makes the same request loop.
-    const claimed = await database.inviteRequest.updateMany({ where: { id: row.id, cleanedAt: null }, data: { cleanedAt: now } });
-    if (!claimed.count) continue;
-    deleted += await cleanRequest(client, inviteChannelId, row).catch((error) => { warnOnce(`fail:${guildId}`, "a request could not be cleaned", error); return 0; });
+  for (const id of [row.notifyMessageId, row.doneNoteMessageId]) {
+    if (!id) continue;
+    const note = await one(id);
+    if (note?.author?.id === me) await remove(note);
   }
-  return deleted;
+  return { deleted, retry };
 }
 
-/** Start-up and every few minutes: every server with the queue and the clean-up on. The deadline is stored (invitedAt), so a restart loses nothing. */
-export async function cleanAllInviteChannels(client: Pick<Client, "channels" | "user">, database: Database, now = new Date()): Promise<number> {
-  const rows = await database.guildSettings.findMany({ where: { inviteQueueEnabled: true, inviteCleanupEnabled: true, inviteChannelId: { not: null } }, select: { guildId: true, inviteChannelId: true } });
-  let deleted = 0;
-  for (const row of rows) deleted += await cleanInviteChannel(client, database, row.guildId, row.inviteChannelId!, now).catch(() => 0);
-  return deleted;
+/** The queued job: one request. Throws on a retryable failure so the job queue backs off and tries again. */
+export async function runInviteCleanupJob(guild: GuildLike, database: Pick<PrismaClient, "guildSettings" | "inviteRequest">,
+  job: Pick<DiscordJob, "guildId" | "attempts" | "payload">, now = new Date()): Promise<void> {
+  const requestId = String((job.payload as Record<string, unknown> | null)?.["requestId"] ?? "");
+  const row = await database.inviteRequest.findFirst({ where: { id: requestId, guildId: job.guildId },
+    select: { id: true, channelId: true, messageId: true, discordUserId: true, notifyMessageId: true, doneNoteMessageId: true, cleanTries: true } });
+  if (!row) return;
+  const settings = await database.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { inviteCleanupEnabled: true, inviteChannelId: true } });
+  // Re-checked at delivery: the switch (or the channel) changing takes effect for queued deletions too.
+  if (!settings?.inviteCleanupEnabled || !settings.inviteChannelId) return;
+  const outcome = await cleanRequest(guild, settings.inviteChannelId, row);
+  if (!outcome.retry) return;
+  if (job.attempts < MAX_ATTEMPTS) throw new Error(`invite clean-up ${outcome.retry}`);
+  // Out of quick retries. A refusal (no Manage Messages yet) is tried again tomorrow, a few times; anything else is dropped.
+  if (outcome.retry === "permission" && row.cleanTries + 1 < MAX_CYCLES) {
+    await database.inviteRequest.updateMany({ where: { id: row.id }, data: { cleanedAt: null, cleanupAt: new Date(now.getTime() + RETRY_LATER_MS), cleanTries: { increment: 1 } } });
+  } else warnOnce(`giveup:${job.guildId}`, "gave up on a request that could not be cleaned");
+}
+
+/** Every few minutes: hand the requests that are due to the Discord job queue. The deadline is stored (cleanupAt), so a restart loses nothing. */
+export async function scheduleInviteCleanups(database: Database, now = new Date()): Promise<number> {
+  const guilds = await database.guildSettings.findMany({ where: { inviteQueueEnabled: true, inviteCleanupEnabled: true, inviteChannelId: { not: null } }, select: { guildId: true } });
+  let queued = 0;
+  for (const { guildId } of guilds) {
+    const due = await database.inviteRequest.findMany({ where: { guildId, status: { in: HANDLED }, cleanedAt: null, cleanupAt: { lte: now } },
+      orderBy: { cleanupAt: "asc" }, take: CLEANUP_BATCH, select: { id: true } });
+    for (const { id } of due) {
+      // Claimed first (once), then queued; an enqueue failure gives the claim back.
+      const claim = await database.inviteRequest.updateMany({ where: { id, cleanedAt: null }, data: { cleanedAt: now } });
+      if (!claim.count) continue;
+      try { await enqueueDiscordJob(database, guildId, `invite-cleanup:${id}:${now.getTime()}`, "INVITE_CLEANUP", { requestId: id }); queued++; } catch (error) {
+        await database.inviteRequest.updateMany({ where: { id }, data: { cleanedAt: null } }).catch(() => undefined);
+        warnOnce(`enqueue:${guildId}`, "could not queue a clean-up", error);
+      }
+    }
+  }
+  return queued;
 }

@@ -72,7 +72,7 @@ export async function executeInvites(interaction: ChatInputCommandInteraction): 
     if (stage === "INVITED") {
       const rows = await markInvitedByName(prisma, guildId, [name], interaction.user.id);
       changed = rows.length;
-      await markPostsDone(interaction.client, rows);
+      await markPostsDone(interaction.client, rows, "en", prisma);
     }
     if ((stage && stage !== "INVITED") || noteInput !== null) {
       changed = Math.max(changed, await updateRecruit(prisma, guildId, name, { ...(stage && stage !== "INVITED" ? { stage: stageOf(stage) } : {}), ...(noteInput !== null ? { note: noteInput === "-" ? null : noteInput } : {}) }));

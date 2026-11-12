@@ -21,7 +21,20 @@ import { tellAutoLinked, unlinkNotMine } from "./companion-link-dm.js";
 // decides who owns what: every click re-reads the character and checks it belongs to the member who pressed.
 
 export const PANEL_PREFIX = "linked:p:";
-const MAX_OPTIONS = 25;
+const MAX_OPTIONS = 25; // a select menu holds 25 options, so a page of the panel is 25 characters
+
+// Typed-name attempts: a member can only try a few names per ten minutes, so the "type the name" box cannot be used to
+// probe which characters exist or who holds them. Kept in memory (it restarts with the bot, which is enough for this).
+const TYPED_LIMIT = 5;
+const TYPED_WINDOW_MS = 10 * 60 * 1000;
+const typedAttempts = new Map<string, number[]>();
+export function allowTypedAttempt(discordUserId: string, now = Date.now()): boolean {
+  const recent = (typedAttempts.get(discordUserId) ?? []).filter((at) => now - at < TYPED_WINDOW_MS);
+  if (recent.length >= TYPED_LIMIT) { typedAttempts.set(discordUserId, recent); return false; }
+  typedAttempts.set(discordUserId, [...recent, now]);
+  return true;
+}
+export const resetTypedAttempts = () => typedAttempts.clear();
 
 type Db = Pick<PrismaClient, "member" | "character" | "guildSettings" | "unclaimedCharacter" | "characterVerifyClaim" | "guildRosterEntry" | "memberLinkNotice">;
 type PanelInteraction = ButtonInteraction | StringSelectMenuInteraction | ModalSubmitInteraction;
@@ -44,22 +57,34 @@ async function contextOf(database: Db, discordUserId: string, discordGuildId: st
   return { member, lang: asLang(settings?.language) };
 }
 
-/** The panel itself: the member's characters (main first) and the controls. */
-export async function characterPanel(database: Db, discordUserId: string, discordGuildId: string, notice = ""): Promise<PanelView> {
+/** The panel itself: the member's characters (main first, 25 per page) and the controls. */
+export async function characterPanel(database: Db, discordUserId: string, discordGuildId: string, notice = "", requestedPage = 0): Promise<PanelView> {
   const context = await contextOf(database, discordUserId, discordGuildId);
   if (!context) return view(`${t("en", "panel.noServer")}\n${t("fr", "panel.noServer")}`);
   const { member, lang } = context;
-  const characters = await database.character.findMany({ where: { memberId: member.id, detachedAt: null }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: MAX_OPTIONS });
+  const where = { memberId: member.id, detachedAt: null };
+  const total = await database.character.count({ where });
+  const pages = Math.max(1, Math.ceil(total / MAX_OPTIONS));
+  const page = Math.min(Math.max(0, Math.trunc(requestedPage) || 0), pages - 1);
+  const characters = await database.character.findMany({ where, orderBy: [{ isMain: "desc" }, { name: "asc" }], skip: page * MAX_OPTIONS, take: MAX_OPTIONS });
   const book = await loadFullNameBook(database, member.guildId);
   const trust = await characterTrustMap(database, member.guildId, characters);
   const lines = characters.map((character) =>
     `${character.isMain ? "⭐" : "•"} ${escapeMarkdown(displayCharacterName(character, book))} — ${character.className}${character.level ? ` ${character.level}` : ""}${trustSuffix(trust.get(character.id), lang)}`);
-  const content = [notice, t(lang, "panel.title", { server: escapeMarkdown(member.guild.name) }), lines.length ? lines.join("\n") : t(lang, "panel.empty")].filter(Boolean).join("\n\n");
+  const content = [
+    notice, t(lang, "panel.title", { server: escapeMarkdown(member.guild.name) }), lines.length ? lines.join("\n") : t(lang, "panel.empty"),
+    pages > 1 ? t(lang, "panel.page", { page: page + 1, pages, hidden: total - characters.length }) : ""
+  ].filter(Boolean).join("\n\n");
   const options = (rows: typeof characters) => rows.map((character) => ({ label: label(displayCharacterName(character, book), 100), value: character.id, description: label(character.className, 100) }));
-  const components = [row(
+  const buttons = [
     new ButtonBuilder().setCustomId(id("link", discordGuildId)).setLabel(t(lang, "panel.link")).setStyle(ButtonStyle.Primary),
     new ButtonBuilder().setLabel(t(lang, "panel.picture")).setStyle(ButtonStyle.Link).setURL(siteUrl("/me/pictures/")),
-    new ButtonBuilder().setCustomId(id("refresh", discordGuildId)).setLabel(t(lang, "panel.refresh")).setStyle(ButtonStyle.Secondary))];
+    new ButtonBuilder().setCustomId(id("refresh", discordGuildId, String(page))).setLabel(t(lang, "panel.refresh")).setStyle(ButtonStyle.Secondary)
+  ];
+  if (pages > 1) buttons.push(
+    new ButtonBuilder().setCustomId(id("page", discordGuildId, String(page - 1))).setLabel(t(lang, "panel.prev")).setStyle(ButtonStyle.Secondary).setDisabled(page === 0),
+    new ButtonBuilder().setCustomId(id("page", discordGuildId, String(page + 1))).setLabel(t(lang, "panel.next")).setStyle(ButtonStyle.Secondary).setDisabled(page >= pages - 1));
+  const components = [row(...buttons)];
   const others = characters.filter((character) => !character.isMain);
   if (others.length) components.push(row(new StringSelectMenuBuilder().setCustomId(id("main", discordGuildId)).setPlaceholder(t(lang, "panel.mainMenu")).addOptions(options(others))));
   if (characters.length) components.push(row(new StringSelectMenuBuilder().setCustomId(id("unlink", discordGuildId)).setPlaceholder(t(lang, "panel.unlinkMenu")).addOptions(options(characters))));
@@ -99,26 +124,44 @@ async function ownCharacter(database: Db, context: Context, characterId: string)
 export async function handlePanelInteraction(interaction: PanelInteraction, database: Db): Promise<void> {
   const [action, discordGuildId, extra] = interaction.customId.slice(PANEL_PREFIX.length).split(":");
   if (!action || !discordGuildId) return;
+  const opensModal = action === "name" && interaction.isButton();
+  // Acknowledge first: the database work below can pass Discord's 3 seconds. Only the click that opens the modal cannot be deferred.
+  if (!opensModal) {
+    if (interaction.isModalSubmit()) await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    else await interaction.deferUpdate();
+  }
   const context = await contextOf(database, interaction.user.id, discordGuildId);
-  const reply = (content: string) => interaction.reply({ content: content.slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
-  if (!context) { await reply(`${t("en", "panel.noServer")}\n${t("fr", "panel.noServer")}`); return; }
+  if (!context) {
+    const gone = `${t("en", "panel.noServer")}\n${t("fr", "panel.noServer")}`;
+    if (opensModal) await interaction.reply({ content: gone, flags: MessageFlags.Ephemeral });
+    else await interaction.editReply({ content: gone, allowedMentions: { parse: [] } });
+    return;
+  }
   const { lang } = context;
-  // A component on the panel replaces the panel; a modal answer is a new private message.
-  const show = async (next: PanelView) => { if (interaction.isModalSubmit()) await interaction.reply({ ...next, flags: MessageFlags.Ephemeral }); else await interaction.update(next); };
-  const panel = (notice = "") => characterPanel(database, interaction.user.id, discordGuildId, notice);
+  // A component on the panel replaces the panel; a modal answer is a new private message (both are edits of the deferred reply).
+  const show = async (next: PanelView) => { await interaction.editReply(next); };
+  const panel = (notice = "", page = 0) => characterPanel(database, interaction.user.id, discordGuildId, notice, page);
 
-  if (action === "refresh") { await show(await panel()); return; }
+  if (action === "refresh" || action === "page") { await show(await panel("", Number(extra) || 0)); return; }
   if (action === "link") { await show(await linkView(database, context)); return; }
-  if (action === "name" && interaction.isButton()) {
+  if (opensModal && interaction.isButton()) {
     await interaction.showModal(new ModalBuilder().setCustomId(id("namemodal", discordGuildId)).setTitle(t(lang, "panel.modalTitle")).addComponents(
       new ActionRowBuilder<TextInputBuilder>().addComponents(new TextInputBuilder().setCustomId("name").setLabel(t(lang, "panel.modalLabel")).setStyle(TextInputStyle.Short).setRequired(true).setMaxLength(40))));
     return;
   }
   if ((action === "claim" && interaction.isStringSelectMenu()) || (action === "namemodal" && interaction.isModalSubmit())) {
+    const typed = interaction.isModalSubmit();
     const wanted = interaction.isStringSelectMenu() ? interaction.values[0] : interaction.fields.getTextInputValue("name");
-    if (!wanted) return;
+    if (!wanted) { await show(await panel()); return; }
     let notice: string;
-    try { notice = await claim(database, interaction, context, wanted); } catch (error) { notice = `⚠️ ${error instanceof Error ? error.message : String(error)}`; }
+    if (typed && !allowTypedAttempt(interaction.user.id)) notice = `⚠️ ${t(lang, "panel.tooMany")}`;
+    else {
+      try { notice = await claim(database, interaction, context, wanted); } catch (error) {
+        // claimCharacter's message can name the member who holds the character: logged for the developer, never shown.
+        console.warn(`Character panel: link of "${wanted.slice(0, 40)}" refused for ${interaction.user.id}:`, error instanceof Error ? error.message : String(error));
+        notice = `⚠️ ${t(lang, "panel.claimFailed")}`;
+      }
+    }
     await show(await panel(notice));
     return;
   }
@@ -143,8 +186,10 @@ export async function handlePanelInteraction(interaction: PanelInteraction, data
     return;
   }
   if (action === "ok" && interaction.isButton() && extra) {
-    // The same unlink as the DM's "Not mine" button: detached with its history, BLOCKED so nothing links it back, officer log line.
-    const notice = await unlinkNotMine(database as unknown as Parameters<typeof unlinkNotMine>[0], interaction.client, interaction.user.id, extra);
+    // A stale confirm (already unlinked, or moved to someone else) does nothing: no second detach, block write or log line.
+    if (!await ownCharacter(database, context, extra)) { await show(await panel(t(lang, "linked.gone"))); return; }
+    // The same unlink as the DM's "Not mine" button: detached with its history, BLOCKED so nothing links it back, officer log line (worded for the panel).
+    const notice = await unlinkNotMine(database as unknown as Parameters<typeof unlinkNotMine>[0], interaction.client, interaction.user.id, extra, "panel");
     await show(await panel(notice));
   }
 }

@@ -13,6 +13,7 @@ import { createGuildService } from "./guild.js";
 import { characterLinkPrompt } from "./character-link-prompt.js";
 import { issueCharacterPairingCode } from "./character-pairing.js";
 import { selfRoleProblem } from "./selfrole.js";
+import { runAutoGameReminders, stopReminders } from "./game-reminder.js";
 import { asLang, t, type Lang } from "../i18n.js";
 
 // Onboarding: the buttons a new member gets on the welcome message and on the pinned panel of
@@ -36,12 +37,8 @@ import { requestInviteRow } from "./invite-request.js";
 
 export const ONBOARD_PREFIX = "onboard:";
 export const MAX_ONBOARDING_ROLES = 25;
-const NUDGE_AFTER_MS = 24 * 60 * 60 * 1000;
-// Someone who joined long before the reminder was turned on is left alone.
-const NUDGE_UNTIL_MS = 72 * 60 * 60 * 1000;
-const NUDGES_PER_RUN = 25;
 
-type Action = "rules" | "accept" | "games" | "pick" | "pair" | "chat" | "companion" | "paircode" | "steps";
+type Action = "rules" | "accept" | "games" | "pick" | "pair" | "chat" | "companion" | "paircode" | "steps" | "stop";
 const customId = (action: Action, discordGuildId: string) => `${ONBOARD_PREFIX}${action}:${discordGuildId}`;
 
 type StepSettings = Pick<GuildSettings, "welcomeRoleIds" | "rulesChannelId">;
@@ -195,6 +192,13 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
   const checklist = async (progress?: OnboardingProgress) =>
     checklistText(progress ?? await loadProgress(guild.id, settings, member), lang, discordGuild.name);
 
+  // The "Stop reminders" button of a game reminder: remembered, and it works whatever else is pending.
+  if (action === "stop") {
+    await stopReminders(prisma, guild.id, member.id);
+    await interaction.editReply({ content: t(lang, "gamerem.stopped") });
+    return;
+  }
+
   if (action === "steps") {
     await interaction.editReply({ content: await checklist(), components: [buttons()] });
     return;
@@ -307,39 +311,11 @@ export async function handleOnboardingInteraction(interaction: ButtonInteraction
   }
 }
 
-// One private reminder, a day after joining, to someone who has not finished. Marked before it
-// is sent, so a closed DM or a crash never makes it repeat.
+// The automatic game reminder (the switch in /setup, off by default): queued for members who have not
+// picked a game, a day after joining and once more a week later at most. See services/game-reminder.ts.
 export async function runOnboardingNudges(client: Client, now = new Date()): Promise<number> {
-  let sent = 0;
-  for (const discordGuild of client.guilds.cache.values()) {
-    if (!hostedPilot.allows(discordGuild.id)) continue;
+  return runAutoGameReminders(client, prisma, async (discordGuild) => {
     const guild = await guildService.ensureGuild(discordGuild.id, discordGuild.name);
-    const settings = await guildService.getSettings(guild.id);
-    if (!settings?.onboardingNudge) continue;
-    const lang = asLang(settings.language);
-    // The member cache is kept current by the GuildMembers intent; fetch only when incomplete.
-    const members = discordGuild.members.cache.size >= discordGuild.memberCount ? discordGuild.members.cache : await discordGuild.members.fetch().catch(() => null);
-    if (!members) continue;
-    const due = [...members.values()].filter((member) => {
-      const age = member.joinedTimestamp ? now.getTime() - member.joinedTimestamp : 0;
-      return !member.user.bot && age >= NUDGE_AFTER_MS && age < NUDGE_UNTIL_MS;
-    });
-    let inGuild = 0;
-    for (const member of due) {
-      if (inGuild >= NUDGES_PER_RUN) break;
-      const key = { guildId_discordUserId: { guildId: guild.id, discordUserId: member.id } };
-      const state = await prisma.memberOnboarding.findUnique({ where: key });
-      if (state?.nudgedAt) continue;
-      const progress = await loadProgress(guild.id, settings, member);
-      if (!onboardingIncomplete(progress)) continue;
-      await prisma.memberOnboarding.upsert({ where: key, create: { guildId: guild.id, discordUserId: member.id, nudgedAt: now }, update: { nudgedAt: now } });
-      inGuild += 1;
-      const delivered = await member.send({
-        content: `${t(lang, "onboard.nudge", { guild: discordGuild.name })}\n\n${checklistText(progress, lang, discordGuild.name)}`,
-        components: [onboardingButtons(settings, discordGuild.id, lang)]
-      }).then(() => true).catch(() => false);
-      if (delivered) sent += 1;
-    }
-  }
-  return sent;
+    return { id: guild.id, settings: await guildService.getSettings(guild.id) };
+  }, (id) => hostedPilot.allows(id), now);
 }

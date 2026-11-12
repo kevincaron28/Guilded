@@ -383,6 +383,41 @@ const STRINGS = {
     en: "Your existing main stays the same. Check `/character list`. No companion is required for this link.",
     fr: "Ton principal existant reste le même. Vérifie `/character list`. Aucun compagnon n'est requis pour ce lien."
   },
+  "gamerem.dm": {
+    en: "Hi! You are in **{guild}** but have not picked a game yet. Pick yours to open its channels. It takes a few seconds.",
+    fr: "Salut ! Tu es dans **{guild}**, mais tu n'as pas encore choisi de jeu. Choisis le tien pour ouvrir ses salons. Ça prend quelques secondes."
+  },
+  "gamerem.dm.again": {
+    en: "Hi again! You still have no game picked in **{guild}**. Pick yours to open its channels, or press Stop reminders and we will not write again.",
+    fr: "Re-salut ! Tu n'as toujours pas choisi de jeu dans **{guild}**. Choisis le tien pour ouvrir ses salons, ou appuie sur Arrêter les rappels et on ne t'écrira plus."
+  },
+  "gamerem.button.channel": { en: "Open the server", fr: "Ouvrir le serveur" },
+  "gamerem.button.stop": { en: "Stop reminders", fr: "Arrêter les rappels" },
+  "gamerem.stopped": { en: "Done: no more reminders from this server. You can still pick your games any time.", fr: "C'est fait : plus aucun rappel de ce serveur. Tu peux toujours choisir tes jeux en tout temps." },
+  "gamerem.title": { en: "**Members with no game yet:** {count} (page {page}/{pages})", fr: "**Membres sans jeu choisi :** {count} (page {page}/{pages})" },
+  "gamerem.empty": { en: "Everyone has picked a game. 🎉", fr: "Tout le monde a choisi un jeu. 🎉" },
+  "gamerem.notConfigured": { en: "This server has no game roles yet: pick them in `/setup start` (games step).", fr: "Ce serveur n'a pas encore de rôles de jeu : choisissez-les dans `/setup start` (étape des jeux)." },
+  "gamerem.unreadable": { en: "I could not read the member list right now. Try again in a minute.", fr: "Je n'ai pas pu lire la liste des membres. Réessayez dans une minute." },
+  "gamerem.rules": { en: "rules", fr: "règles" },
+  "gamerem.joined": { en: "joined {when}", fr: "arrivé {when}" },
+  "gamerem.joinedUnknown": { en: "join date unknown", fr: "date d'arrivée inconnue" },
+  "gamerem.state.none": { en: "no reminder", fr: "aucun rappel" },
+  "gamerem.state.queued": { en: "reminder queued", fr: "rappel en attente" },
+  "gamerem.state.sent": { en: "reminder sent ×{n} (last {when})", fr: "rappel envoyé ×{n} (dernier {when})" },
+  "gamerem.state.closed": { en: "DMs closed", fr: "MP fermés" },
+  "gamerem.state.stopped": { en: "stopped reminders", fr: "a arrêté les rappels" },
+  "gamerem.button.these": { en: "Remind this page", fr: "Rappeler cette page" },
+  "gamerem.button.all": { en: "Remind all ({count})", fr: "Rappeler tous ({count})" },
+  "gamerem.button.confirm": { en: "Yes, remind {count}", fr: "Oui, rappeler {count}" },
+  "gamerem.button.cancel": { en: "Cancel", fr: "Annuler" },
+  "gamerem.confirm": { en: "Send a private reminder to up to {count} members? Those who stopped reminders, closed their DMs or were reminded in the last 24 hours are skipped.", fr: "Envoyer un rappel privé à {count} membres au plus? Ceux qui ont arrêté les rappels, fermé leurs MP ou reçu un rappel dans les dernières 24 h sont ignorés." },
+  "gamerem.result.queued": { en: "Reminders queued: {count} (sent a few at a time).", fr: "Rappels en file : {count} (envoyés quelques-uns à la fois)." },
+  "gamerem.result.stopped": { en: "Skipped, asked to stop: {count}.", fr: "Ignorés, ont demandé d'arrêter : {count}." },
+  "gamerem.result.closed": { en: "Skipped, DMs closed: {count}.", fr: "Ignorés, MP fermés : {count}." },
+  "gamerem.result.recent": { en: "Skipped, reminded in the last 24 hours: {count}.", fr: "Ignorés, rappelés depuis moins de 24 h : {count}." },
+  "gamerem.result.gone": { en: "Skipped, already picked a game, left or a bot: {count}.", fr: "Ignorés, jeu déjà choisi, parti ou robot : {count}." },
+  "gamerem.auto.on": { en: "Automatic reminder **on**: a member with no game gets one private message a day after joining, and one more a week later at most. Never more.", fr: "Rappel automatique **activé** : un membre sans jeu reçoit un message privé un jour après son arrivée, puis un seul autre une semaine plus tard au plus. Jamais plus." },
+  "gamerem.auto.off": { en: "Automatic reminder **off**. Officers can still send reminders from `/report games list`.", fr: "Rappel automatique **désactivé**. Les officiers peuvent toujours envoyer des rappels depuis `/report games list`." },
   "onboard.nudge": {
     en: "Hi! You joined **{guild}** yesterday and a step or two is still open. This is the only reminder you will get.",
     fr: "Salut ! Tu as rejoint **{guild}** hier et il te reste une étape ou deux. C'est le seul rappel que tu recevras."

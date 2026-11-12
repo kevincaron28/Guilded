@@ -253,6 +253,14 @@ model MemberOnboarding {
   discordUserId   String
   rulesAcceptedAt DateTime?
   nudgedAt        DateTime?
+  // Game reminders (services/game-reminder.ts). reminderCount counts reminders queued, so a restart
+  // or a retried job never sends one more; lastSentAt is set when the private message was delivered.
+  reminderCount      Int       @default(0)
+  lastReminderAt     DateTime?
+  lastReminderSource String?
+  lastSentAt         DateTime?
+  remindersStopped   Boolean   @default(false)
+  dmClosedAt         DateTime?
   createdAt       DateTime  @default(now())
   guild           Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 

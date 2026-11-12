@@ -480,7 +480,9 @@ async function refreshSavedFile() {
   const another = otherAccounts();
   if (ticket !== savedFileCheck) return;
   savedFile = result;
+  savedFileChecked = true;
   otherAccount = another[0] ?? null;
+  if (engine) { const now = currentState(); trayAndWindowFollow(now.state, now.problems); }
   const candidate = savedFile?.candidate;
   // The app mostly lives in the tray: say it once per folder outside the window too.
   if (candidate && config.liveFolderNotified !== candidate.path) {
@@ -613,19 +615,19 @@ function trayStatusLine(status) {
   return worst ? statusWords(worst.text) : T("Everything is working.");
 }
 let trayLine = "";
-let openedFor = "";
+let autoOpenLatch = { key: "", openedAt: 0 };
+let savedFileChecked = false;
 function trayAndWindowFollow(state, found) {
   if (!engineModules?.mainStatus) return;
   const status = engineModules.mainStatus(statusInput(state, found));
   const line = trayStatusLine(status);
   if (tray && line !== trayLine) { trayLine = line; buildTrayMenu(); }
-  // The window opens by itself only when something needs the member, once per problem (not for a sync).
-  // Wait until the saved-file check has answered, so a slow start does not flash "WoW not found".
-  const key = status.openWindow && savedFile ? [status.needsYou?.id ?? "", ...status.lines.filter((entry) => entry.tone === "bad").map((entry) => entry.id)].join(",") : "";
-  if (!key) { openedFor = ""; return; }
-  if (key === openedFor) return;
-  openedFor = key;
-  if (win && !win.isVisible()) showWindow();
+  // The window opens by itself only when something needs the member: once per problem, after the first
+  // saved-file check has answered (even when it found no WoW), and not more than every 30 minutes.
+  const decision = engineModules.autoOpenDecision(autoOpenLatch, status, { checked: savedFileChecked, now: Date.now(), visible: !!win && win.isVisible() });
+  if (decision.open && !win) return;
+  if (decision.open) showWindow();
+  autoOpenLatch = decision.latch;
 }
 
 function buildTrayMenu() {

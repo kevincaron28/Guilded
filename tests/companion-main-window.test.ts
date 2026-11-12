@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
+import { AUTO_OPEN_MIN_INTERVAL_MS, autoOpenDecision, mainStatus } from "../companion/main-status.mjs";
 
 // Companion redo C2: the single window (renderer/main.html) on the same IPC as the old window.
 const require = createRequire(import.meta.url);
@@ -66,13 +67,46 @@ describe("tray and automatic opening (redo C3)", () => {
     expect(tray).not.toContain("Remove all data");
   });
 
-  it("opens the window only from the model's openWindow, once per problem", () => {
-    expect(main).toContain("status.openWindow && savedFile");
-    expect(main).toContain("if (key === openedFor) return;");
-    expect(main).toContain("trayAndWindowFollow(state, found);");
-  });
-
   it("ships main-status.mjs with the engine files", () => {
     expect(readFileSync("companion-app/package.json", "utf8")).toContain('"main-status.mjs"');
+  });
+});
+
+describe("autoOpenDecision", () => {
+  const needy = mainStatus({ config: { companionCredential: "c", watchFile: "x" }, savedFile: { addon: { status: "ok" } }, otherAccount: { account: "A" } });
+  const noWow = mainStatus({ config: { companionCredential: "c" }, problems: [{ id: "saved-file-missing", data: { chosen: false } }] });
+  const quiet = mainStatus({ config: { companionCredential: "c", watchFile: "x" }, savedFile: { addon: { status: "ok" } } });
+  const empty = { key: "", openedAt: 0 };
+  const T0 = 1_000_000;
+
+  it("waits for the first check, then opens even when no WoW install was found", () => {
+    expect(autoOpenDecision(empty, noWow, { checked: false, now: T0 }).open).toBe(false);
+    expect(autoOpenDecision(empty, noWow, { checked: true, now: T0 }).open).toBe(true);
+  });
+
+  it("never opens for a quiet status and opens once per problem", () => {
+    expect(autoOpenDecision(empty, quiet, { checked: true, now: T0 }).open).toBe(false);
+    const first = autoOpenDecision(empty, needy, { checked: true, now: T0 });
+    expect(first.open).toBe(true);
+    expect(autoOpenDecision(first.latch, needy, { checked: true, now: T0 + 1000 }).open).toBe(false);
+  });
+
+  it("does not reopen every time a problem comes and goes: 30 minutes apart at least", () => {
+    let latch = autoOpenDecision(empty, needy, { checked: true, now: T0 }).latch;
+    latch = autoOpenDecision(latch, quiet, { checked: true, now: T0 + 60_000 }).latch;
+    const soon = autoOpenDecision(latch, needy, { checked: true, now: T0 + 120_000 });
+    expect(soon.open).toBe(false);
+    const later = autoOpenDecision(soon.latch, needy, { checked: true, now: T0 + AUTO_OPEN_MIN_INTERVAL_MS + 1 });
+    expect(later.open).toBe(true);
+  });
+
+  it("does not open a window that is already showing", () => {
+    expect(autoOpenDecision(empty, needy, { checked: true, now: T0, visible: true })).toMatchObject({ open: false, latch: { key: expect.any(String) } });
+  });
+
+  it("is used by main.cjs, which commits the latch after showing the window", () => {
+    const main = readFileSync("companion-app/main.cjs", "utf8");
+    expect(main).toContain("engineModules.autoOpenDecision(");
+    expect(main).toContain("savedFileChecked = true;");
   });
 });

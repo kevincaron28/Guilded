@@ -129,6 +129,13 @@ describe("finishing a name from the guild roster", () => {
     expect(p.react).toHaveBeenCalledWith("✅");
     expect(p.edit).toHaveBeenCalledWith(expect.objectContaining({ components: [] }));
   });
+  it("settles a post at once when the character is already in the guild: no wait, no tag", async () => {
+    const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => [{ name: "Drakka Whitefang-Realm" }]) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) } });
+    db.inviteRequest.count = vi.fn(async () => 1);
+    const { c } = client();
+    expect(await handleInviteMessage(post("Drakka Whitefang", { client: c, channel: { send: vi.fn() } }) as never, db as never)).toBe("recorded");
+    expect(db.inviteRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "INVITED", invitedBy: "roster" }) }));
+  });
   it("does nothing when nobody is waiting", async () => {
     const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => []) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) } });
     expect(await backCheckInvites(client().c as never, db as never, { id: "g1", discordId: "guild" })).toBe(0);

@@ -128,8 +128,20 @@ describe("InviteQueue.lua", () => {
     expect(s.run(String.raw`return tostring((NS.inviteQueue.canInvite()))`)).toBe("false");
     expect(s.run(String.raw`return tostring((NS.inviteQueue.markInvited("Amy\nArcher")))`)).toBe("false");
     const plain = withQueue(false);
+    plain.run("CAN = false");
     expect(plain.run(String.raw`return tostring((NS.inviteQueue.canInvite()))`)).toBe("false");
     expect(plain.run(String.raw`return tostring((NS.inviteQueue.list()))`)).toBe("nil");
+  });
+  it("shows the panel to a non-officer member whose rank can invite (any guildmate may invite)", () => {
+    const member = withQueue(false);
+    expect(member.run(String.raw`local l = NS.inviteQueue.list() return l and #l or -1`)).toBe("2");
+    expect(member.run(String.raw`return tostring((NS.inviteQueue.canInvite()))`)).toBe("true");
+  });
+  it("matches a name in the guild with accents and capitals folded like the bot does", () => {
+    const s = withQueue();
+    s.run(String.raw`ROSTER = { "\195\137lise Dupont-Realm", "Zo\195\171 Quinn-Realm" }`);
+    s.run(String.raw`GuildedInvites.names = { { name = "Elise Dupont", at = "a" }, { name = "\195\169lise Dupont", at = "b" }, { name = "Zoe Quinn", at = "c" }, { name = "Amy Archer", at = "d" } }`);
+    expect(s.run(String.raw`local t = {} for _, l in ipairs(NS.inviteQueue.list()) do t[#t + 1] = l.name end return table.concat(t, "|")`)).toBe("Amy Archer");
   });
   it("prints a copyable ginvite list and a one-line reminder", () => {
     const s = withQueue();

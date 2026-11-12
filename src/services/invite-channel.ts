@@ -31,6 +31,11 @@ function isOfficer(member: GuildMember | null | undefined): boolean {
   try { return Boolean(member && hasPermission(member, "officer")); } catch { return false; }
 }
 
+/** A request whose character is already in the stored guild roster is handled right away. Best effort. */
+export async function settleIfAlreadyIn(client: Pick<Client, "channels" | "user">, database: unknown, guild: { id: string; discordId: string }): Promise<void> {
+  try { await backCheckInvites(client, database as never, guild); } catch { /* the hourly back-check still runs */ }
+}
+
 /** A player's post in the invite channel: record the full name and react 👀, or send a short hint that deletes itself. */
 export async function handleInviteMessage(message: Message, database: Database): Promise<"recorded" | "hinted" | "ignored"> {
   if (!message.guildId || message.author.bot || message.webhookId || !message.content?.trim()) return "ignored";
@@ -45,6 +50,8 @@ export async function handleInviteMessage(message: Message, database: Database):
   }
   await recordInviteRequest(database, { guildId: settings.guildId, parsed, discordUserId: message.author.id, channelId: message.channelId, messageId: message.id, answers: parseInviteAnswers(message.content) });
   await message.react(SEEN).catch(() => undefined);
+  // Someone already in the guild is done at once: no tag, no wait for the hourly back-check.
+  await settleIfAlreadyIn(message.client, database, { id: settings.guildId, discordId: message.guildId });
   if (message.channel && "send" in message.channel) await notifyInviters(database as never, { guildId: settings.guildId, discordGuild: message.guild, channel: message.channel as never, requestMessageId: message.id, requesterId: message.author.id, displayName: parsed.displayName });
   // The member row lets the character link to them when it joins (invite-prelink.ts). Best effort.
   try { await database.member.upsert({ where: { guildId_discordUserId: { guildId: settings.guildId, discordUserId: message.author.id } }, create: { guildId: settings.guildId, discordUserId: message.author.id, displayName: message.member?.displayName ?? message.author.username }, update: {} }); } catch { /* optional */ }

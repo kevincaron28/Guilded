@@ -570,8 +570,9 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     boardForAddon(prisma, guild.id),
     // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
     bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
-    // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
-    access.officer ? pendingInvites(prisma, guild.id).then(inviteListForAddon) : Promise.resolve(null),
+    // The names waiting for a guild invite, for the addon's "To invite" panel. Every guild member can invite
+    // (owner decision, 7 Nov: the bot tags any online guildmate), so every member's file has them; names and times only.
+    pendingInvites(prisma, guild.id).then(inviteListForAddon),
     publicRaids(prisma, hostedPilot.allows),
     // Crafting orders in game (craft-orders.ts): Discord craft requests for the addon's Orders page; the same for everyone.
     craftOrdersForAddon(prisma, guild.id)

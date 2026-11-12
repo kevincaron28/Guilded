@@ -13,7 +13,17 @@ local function nowSeconds() return (GetServerTime and GetServerTime()) or (time 
 local RECENT_SECONDS = 600
 local MAX_ROWS = 12
 
-local function key(name) return string.lower((string.gsub(tostring(name or ""), "%s+", " "))) end
+-- Accents folded like the bot does (Élise = elise): string.lower leaves UTF-8 capitals alone.
+local FOLD = {}
+local function foldRange(letter, first, last) for b = first, last do FOLD[b] = letter end end
+foldRange("a", 128, 133); foldRange("c", 135, 135); foldRange("e", 136, 139); foldRange("i", 140, 143); foldRange("n", 145, 145)
+foldRange("o", 146, 150); foldRange("o", 152, 152); foldRange("u", 153, 156); foldRange("y", 157, 157)
+foldRange("a", 160, 165); foldRange("c", 167, 167); foldRange("e", 168, 171); foldRange("i", 172, 175); foldRange("n", 177, 177)
+foldRange("o", 178, 182); foldRange("o", 184, 184); foldRange("u", 185, 188); foldRange("y", 189, 189); foldRange("y", 191, 191)
+local function key(name)
+  local text = string.gsub(tostring(name or ""), "\195([\128-\191])", function(c) return FOLD[string.byte(c)] end)
+  return string.lower((string.gsub(text, "%s+", " ")))
+end
 
 -- What the game answered to /ginvite, per name (English strings of the game's own messages; the client's
 -- localized global strings are used when it has them): notfound, inguild, already (invited), declined, joined.
@@ -46,7 +56,14 @@ local function answerPatterns()
   return patterns
 end
 
-local function officer() return ns.isOfficer and ns.isOfficer() end
+-- Officers, and any member whose rank can invite: every guild member may invite (owner decision, 7 Nov 2026), and the
+-- bot tags whichever guildmates are online, so the panel is for them too.
+local function officer()
+  if ns.isOfficer and ns.isOfficer() then return true end
+  if not CanGuildInvite then return false end
+  local ok, can = pcall(CanGuildInvite)
+  return ok and can == true
+end
 
 local function guildKeys()
   local keys = {}

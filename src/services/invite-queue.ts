@@ -24,7 +24,10 @@ export function parseInviteName(content: string | null | undefined): ParsedInvit
   text = text.replace(LEAD_IN, "").trim();
   const match = NAME.exec(text);
   if (!match) return null;
-  const displayName = `${match[1]} ${match[2]}`;
+  // "First Last-Realm" (the form the game's own invite line and roster show): the realm is not part of the name.
+  const last = match[2]!.replace(/-.*$/u, "");
+  if (last.length < 2) return null;
+  const displayName = `${match[1]} ${last}`;
   return { displayName, nameKey: displayName.normalize("NFC").toLowerCase() };
 }
 

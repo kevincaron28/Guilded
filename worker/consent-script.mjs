@@ -1,17 +1,17 @@
 // The consent banner, served by the Worker as /consent.js on the pages that may carry ads (worker/ads.mjs).
-// Nothing from Google loads before a choice. Accept loads AdSense; Decline loads nothing (Quebec Law 25: the
-// safe default). To show non-personalised ads after Decline instead, change LOAD_AFTER_DECLINE to true.
+// Nothing from Google loads before a choice. Accept loads AdSense; Decline loads it in non-personalised mode
+// (owner decision, 12 November 2026). To load nothing after Decline instead, change LOAD_AFTER_DECLINE to false.
 export const CONSENT_SCRIPT = String.raw`(function () {
   "use strict";
   var KEY = "guilded_ad_consent";
   var CLIENT = "ca-pub-6948243189424271";
-  var LOAD_AFTER_DECLINE = false;
+  var LOAD_AFTER_DECLINE = true;
   var fr = /^fr/i.test(document.documentElement.lang || "");
   var T = fr ? {
-    text: "Guilded affiche de la publicité Google pour couvrir l'hébergement. Acceptez-vous les témoins publicitaires de Google? Refuser ne charge rien de Google.",
+    text: "Guilded affiche de la publicité Google pour couvrir l'hébergement. Acceptez-vous les témoins publicitaires personnalisés de Google? Refuser affiche des publicités non personnalisées; Google peut tout de même utiliser des témoins pour la mesure et la prévention de la fraude.",
     accept: "Accepter", decline: "Refuser", change: "Choix de témoins", more: "En savoir plus", label: "Publicité et témoins"
   } : {
-    text: "Guilded shows Google ads to help pay for hosting. Do you accept Google's advertising cookies? Declining loads nothing from Google.",
+    text: "Guilded shows Google ads to help pay for hosting. Do you accept Google's personalised advertising cookies? Declining still shows ads, but not personalised ones; Google may still set cookies for measurement and fraud prevention.",
     accept: "Accept", decline: "Decline", change: "Cookie choices", more: "Learn more", label: "Advertising and cookies"
   };
   var memory = null;

@@ -96,13 +96,14 @@ describe("consent script", () => {
     const head = make("head"); const body = make("body"); const footer = make("footer");
     const store = new Map<string, string>(stored ? [["guilded_ad_consent", stored]] : []);
     const document = { documentElement: { lang }, readyState: "complete", head, body, getElementById: () => null, createElement: make, querySelector: () => footer, addEventListener: () => undefined };
+    const win: Record<string, unknown> = {};
     const localStorage = storageThrows ? { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } } : { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) };
-    vm.runInNewContext(CONSENT_SCRIPT, { window: { localStorage, location: { reload: vi.fn() }, document }, document });
+    vm.runInNewContext(CONSENT_SCRIPT, { window: Object.assign(win, { localStorage, location: { reload: vi.fn() }, document }), document });
     const scripts = () => head.children.filter((c) => c.tag === "script");
     const banner = () => body.children.find((c) => c.className === "gc-banner");
     const buttons = () => banner()?.children[1]?.children ?? [];
     const click = (index: number) => buttons()[index]?.listeners["click"]?.();
-    return { footer, store, scripts, banner, buttons, click };
+    return { footer, store, scripts, banner, buttons, click, win };
   }
   it("loads nothing before a choice, and shows both buttons", () => {
     const { scripts, buttons, footer } = run("en", null);
@@ -114,7 +115,7 @@ describe("consent script", () => {
   it("is French on a French page", () => {
     expect(run("fr-CA", null).buttons().map((b) => b.textContent)).toEqual(["Accepter", "Refuser"]);
   });
-  it("Accept loads AdSense async and anonymous; Decline loads nothing; the choice is remembered", () => {
+  it("Accept loads AdSense personalised; Decline loads it non-personalised; the choice is remembered", () => {
     const a = run("en", null);
     a.click(0);
     const s = a.scripts()[0];
@@ -122,11 +123,13 @@ describe("consent script", () => {
     expect(s?.async).toBe(true);
     expect(s?.crossOrigin).toBe("anonymous");
     expect(a.store.get("guilded_ad_consent")).toBe("accept");
+    expect((a.win["adsbygoogle"] as { requestNonPersonalizedAds?: number }).requestNonPersonalizedAds).toBeUndefined();
     const d = run("en", null);
     d.click(1);
-    expect(d.scripts()).toHaveLength(0);
+    expect(d.scripts()).toHaveLength(1);
+    expect((d.win["adsbygoogle"] as { requestNonPersonalizedAds?: number }).requestNonPersonalizedAds).toBe(1);
     expect(d.store.get("guilded_ad_consent")).toBe("decline");
-    expect(run("en", "decline").scripts()).toHaveLength(0);
+    expect(run("en", "decline").scripts()).toHaveLength(1);
     expect(run("en", "decline").banner()).toBeUndefined();
     expect(run("en", "accept").scripts()).toHaveLength(1);
   });

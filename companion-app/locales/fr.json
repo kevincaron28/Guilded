@@ -1368,7 +1368,7 @@
   "A Discord server ID is a long number.": "L’identifiant d’un serveur Discord est un long nombre.",
   "Signed-in companions choose their server when they sign in.": "Un compagnon connecté choisit son serveur au moment de la connexion.",
   "Saved. Syncing now.": "Enregistré. Synchronisation en cours.",
-  "Syncing without a Discord sign-in: your characters show as reported. Signing in is optional; it confirms them and turns on your Discord messages and your page on the website.": "Synchronisation sans connexion Discord : vos personnages apparaissent comme signalés. La connexion est facultative ; elle les confirme et active vos messages Discord et votre page sur le site.",
+  "Syncing without a Discord sign-in: your characters show as reported and your PvP is not counted on the boards. Signing in is optional; it confirms them, counts your PvP and turns on your Discord messages and your page on the website.": "Synchronisation sans connexion Discord : vos personnages apparaissent comme signalés et votre JcJ n'est pas compté dans les classements. La connexion est facultative ; elle les confirme, compte votre JcJ et active vos messages Discord et votre page sur le site.",
   "Advanced: choose server": "Avancé : choisir le serveur",
   "Only if your guild's data goes to the wrong Discord server.": "Seulement si les données de votre guilde vont au mauvais serveur Discord.",
   "Use this server": "Utiliser ce serveur",

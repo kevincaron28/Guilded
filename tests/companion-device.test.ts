@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { claimDevice, DEVICE_LIMITS, deviceFor, handleDeviceUpload, looseKey, pickServer, prismaInstallStore, registerDevice, windowLimiter, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
+import { claimDevice, DEVICE_LIMITS, DEVICE_PVP_NOTICE, deviceFor, handleDeviceUpload, looseKey, pickServer, prismaInstallStore, registerDevice, windowLimiter, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
 import { hashCompanionSecret } from "../src/services/character-pairing.js";
 
 // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): device keys, server by in-game guild, reported data only.
@@ -123,7 +123,10 @@ describe("server from the in-game guild", () => {
     const { deviceSecret } = await registerDevice(store);
     const device = (await deviceFor(store, deviceSecret))!;
     const answer = await handleDeviceUpload(store, device, upload());
-    expect(answer).toEqual({ status: "synced", server: { discordId: "111111111", name: "Quebec Gold" }, guild: { name: "Quebec Gold", realm: "CAMWOW US2 Realm 2 PvP" }, characters: 1, claimed: false, reported: expect.any(Array) });
+    expect(answer).toEqual({ status: "synced", server: { discordId: "111111111", name: "Quebec Gold" }, guild: { name: "Quebec Gold", realm: "CAMWOW US2 Realm 2 PvP" }, characters: 1, claimed: false, reported: expect.any(Array), notice: DEVICE_PVP_NOTICE });
+    // The unsigned member is told, in both languages, that PvP is not counted until they sign in. PvP data itself is never accepted here.
+    expect(DEVICE_PVP_NOTICE.en).toContain("Sign in with Discord");
+    expect(DEVICE_PVP_NOTICE.fr).toContain("Discord");
     // Only names this device itself sent come back (9.1.4): never a Discord name or anyone else's character.
     expect((answer as { reported: string[] }).reported).toEqual(upload().characters.map((character: { name: string }) => character.name));
     expect([...characters.get(device.id)!.values()][0]).toMatchObject({ name: "Lebowski Holyroller", className: "Paladin", level: 14 });

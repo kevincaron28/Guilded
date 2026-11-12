@@ -1587,6 +1587,12 @@ end
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHelp = ns.commandHelp or {}
 
+-- Commands of features removed in 9.2: they print one line instead of the help text.
+-- /guilded <command> is kept for one release so officers' macros explain themselves.
+ns.removedCommands = ns.removedCommands or {
+  motd = "WoW does not let addons set the guild message.",
+}
+
 -- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
 -- name on their own. Nothing is changed here; an officer moves or merges them by hand.
 ns.commandHandlers["names"] = function()
@@ -1900,6 +1906,8 @@ local function command(text)
   elseif commandModule[action] and not ns.moduleActive(commandModule[action]) then
     local key = commandModule[action]
     message(ns.moduleName(key) .. " is " .. moduleStateText(key) .. ". /guilded modules to see or change it.")
+  elseif ns.removedCommands[action] then
+    message(string.format(L("/guilded %s was removed in 9.2: %s"), action, L(ns.removedCommands[action])))
   elseif ns.commandHandlers[action] then
     -- args[1] is the action itself; hand the module the remaining tokens.
     table.remove(args, 1)

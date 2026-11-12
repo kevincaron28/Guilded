@@ -143,6 +143,27 @@ describe("the whole addon, loaded in .toc order", () => {
     }
   });
 
+  // 9.2: features WoW blocks were removed. A 9.1.6 saved file still has their keys, and a guildmate on
+  // 9.1.6 still sends their addon messages; neither may raise an error, and the old command explains itself.
+  it("ignores removed-feature saved keys and old guildmates' messages, and explains removed commands", () => {
+    const s = fullAddon(1);
+    s.run(`
+      local db = NS.getDb()
+      db.motd = { enabled = true, mode = "rotate", lines = { "Raid Friday" }, intended = { text = "Raid Friday" } }
+      fire_event("PLAYER_LOGIN")
+      fire_event("CHAT_MSG_ADDON", "GuildedMotd", "HELLO|1", "GUILD", "Old-Officer")
+      fire_event("GUILD_MOTD", "Raid Friday")
+      SlashCmdList["GUILDED"]("motd config")
+      SlashCmdList["GUILDED"]("motd on")
+      NS.windowState().selectTabByName("Home")
+    `);
+    expect(s.run(`return tostring(NS.guildMotd)`)).toBe("nil");
+    expect(s.chat().filter((line) => line.includes("/guilded motd was removed in 9.2"))).toHaveLength(2);
+    expect(s.run(`return GuildedDB and tostring(NS.getDb().motd.enabled) or ""`)).toBe("true");
+    expect(problems(s).filter((line) => !line.includes("removed in 9.2"))).toEqual([]);
+    expect(diagnostics(s)).toBe("0");
+  });
+
   it("loads, logs in and opens the window as an officer without a single error", () => {
     const s = fullAddon(1);
     expect(problems(s)).toEqual([]);

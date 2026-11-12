@@ -164,6 +164,31 @@ describe("the whole addon, loaded in .toc order", () => {
     expect(diagnostics(s)).toBe("0");
   });
 
+  it("explains the commands of every feature removed in 9.2 and ignores their old guildmate messages", () => {
+    const s = fullAddon(1);
+    s.run(`
+      local db = NS.getDb()
+      db.welcome = { enabled = true }
+      db.officerAuto = { off = { greet = true }, greeted = { Zed = 1 }, lang = "fr" }
+      db.probes = { achievements = {} }
+      for _, prefix in ipairs({ "GuildedGreet", "GuildedRec" }) do
+        fire_event("CHAT_MSG_ADDON", prefix, "GREETED|1|Zed", "GUILD", "Old-Officer")
+        fire_event("CHAT_MSG_ADDON", prefix, "WELCOMED|1|Zed", "GUILD", "Old-Officer")
+      end
+      fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild.")
+      for _, command in ipairs({ "welcome on", "finder", "probe achievements", "import history", "officer auto greet off" }) do
+        SlashCmdList["GUILDED"](command)
+      end
+    `);
+    const chat = s.chat().join("\n");
+    for (const name of ["welcome", "finder", "probe", "import history", "officer auto greet"]) {
+      expect(chat).toContain(`/guilded ${name} was removed in 9.2`);
+    }
+    expect(s.run(`return type(NS.commandHandlers.welcome) .. type(NS.commandHandlers.finder) .. type(NS.commandHandlers.probe)`)).toBe("nilnilnil");
+    expect(problems(s).filter((line) => !line.includes("removed in 9.2"))).toEqual([]);
+    expect(diagnostics(s)).toBe("0");
+  });
+
   it("loads, logs in and opens the window as an officer without a single error", () => {
     const s = fullAddon(1);
     expect(problems(s)).toEqual([]);
@@ -174,7 +199,7 @@ describe("the whole addon, loaded in .toc order", () => {
   it("has an options page and an Addon Compartment entry", () => {
     const s = fullAddon(1);
     expect(s.run(`return type(Guilded_OnAddonCompartmentClick) .. type(Guilded_OnAddonCompartmentEnter) .. type(Guilded_OnAddonCompartmentLeave)`)).toBe("functionfunctionfunction");
-    expect(s.run(`return tostring(#NS.options.switches() == 19 + #NS.MODULES + (NS.isOfficer() and 4 or 0))`)).toBe("true");
+    expect(s.run(`return tostring(#NS.options.switches() == 19 + #NS.MODULES + (NS.isOfficer() and 1 or 0))`)).toBe("true");
     // A switch runs the same command you could type.
     s.run(`for _, sw in ipairs(NS.options.switches()) do if sw.module == "bidding" then sw.set(false) end end`);
     expect(s.run(`return tostring(GuildedDB.settings.modules.bidding)`)).toBe("false");

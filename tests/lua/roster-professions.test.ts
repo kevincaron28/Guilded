@@ -148,7 +148,7 @@ describe("ready to promote panel", () => {
       f.CreateFontString=function() return CreateFrame("Font") end
       return f
     end`);
-    s.run("NS.showCopyText=function() end; NS.promotion.open(); NS.commandHandlers.promote({ 'promote' }); fire_event('PLAYER_LOGIN')");
+    s.run("NS.isOfficer=function() return true end; NS.showCopyText=function() end; NS.promotion.open(); NS.commandHandlers.promote({ 'promote' }); fire_event('PLAYER_LOGIN')");
     expect(s.run("return #CALLS")).toBe("0");
   });
   it("rejects names that could carry extra rows", () => {

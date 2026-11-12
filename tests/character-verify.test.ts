@@ -38,7 +38,7 @@ function newGuild() {
         .map((row) => ({ ...row, member: { discordUserId: users[row.memberId] } })))
     },
     characterVerifyClaim: {
-      findFirst: vi.fn(async ({ where }) => claims.find((row) => row.guildId === where.guildId && row.memberId === where.memberId && row.nameKey === where.nameKey && row.status === where.status) ?? null),
+      findFirst: vi.fn(async ({ where }) => claims.find((row) => row.guildId === where.guildId && row.memberId === where.memberId && row.nameKey === where.nameKey && (typeof where.status === "object" ? where.status.in.includes(row.status) : row.status === where.status)) ?? null),
       findMany: vi.fn(async ({ where }) => claims.filter((row) => row.guildId === where.guildId && where.nameKey.in.includes(row.nameKey))),
       deleteMany: vi.fn(),
       upsert: vi.fn(async ({ where, create, update }) => {

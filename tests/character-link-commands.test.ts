@@ -28,7 +28,7 @@ vi.mock("../src/permissions.js", async (importOriginal) => {
 vi.mock("../src/commands/context.js", () => ({ requireGuildContext: mocks.context, guildService: { ensureMember: mocks.ensureMember } }));
 vi.mock("../src/services/character-verify.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/services/character-verify.js")>();
-  return { ...actual, blockVerifiedCharacter: mocks.block };
+  return { ...actual, unlinkCharacter: mocks.block };
 });
 vi.mock("../src/services/character-autolink.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/services/character-autolink.js")>();
@@ -119,10 +119,9 @@ describe("Discord character link commands", () => {
     const interactionOwn = interaction("unlink", { name: "Ray" });
     await executeCharacter(interactionOwn as never);
     // Detached, never deleted: the history stays with the row.
-    expect(mocks.detach).toHaveBeenCalledWith("tx", "c1");
     expect(mocks.prisma.character.delete).not.toHaveBeenCalled();
     expect(interactionOwn.reply.mock.calls[0]?.[0].content).toContain("Nothing was deleted");
-    expect(mocks.block).toHaveBeenCalledWith(expect.anything(), "g1", "m1", "Ray", "Forever", "forever", false);
+    expect(mocks.block).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: "c1", name: "Ray" }), "g1", false); // the shared detach + BLOCKED sequence
     expect(mocks.log).toHaveBeenCalledWith(interactionOwn.guild, expect.stringContaining("unlinked their character"));
     expect(interactionOwn.reply.mock.calls[0]?.[0].content).toContain("Unlinked **Ray**");
     expect(interactionOwn.reply.mock.calls[0]?.[0].flags).toBe(MessageFlags.Ephemeral);
@@ -132,7 +131,7 @@ describe("Discord character link commands", () => {
     mocks.prisma.character.findMany.mockResolvedValue([kev]);
     const unlink = interaction("unlink", { name: "Kevchar" });
     await executeCharacter(unlink as never);
-    expect(mocks.block).toHaveBeenCalledWith(expect.anything(), "g1", "m2", "Kevchar", "Forever", "forever", true);
+    expect(mocks.block).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ name: "Kevchar", memberId: "m2" }), "g1", true);
     expect(mocks.log).toHaveBeenCalledWith(unlink.guild, expect.stringContaining("unlinked Kevchar from Kev"));
     expect(unlink.reply.mock.calls[0]?.[0].content).toContain("from Kev");
     expect(unlink.reply.mock.calls[0]?.[0].content).toContain("won't relink");

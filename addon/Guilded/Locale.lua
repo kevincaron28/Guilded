@@ -2633,6 +2633,19 @@ local DE = {
   ["nothing used the imported loot history."] = "nichts hat die importierte Beutehistorie verwendet.",
   ["WoW does not let addons write guild notes or send the automatic welcome."] = "WoW erlaubt Addons nicht, Gildennotizen zu schreiben oder die automatische Begr\195\188\195\159ung zu senden.",
   ["Invites"] = "Einladungen",
+  ["Officers only."] = "Nur f\195\188r Offiziere.",
+  ["Advanced..."] = "Erweitert...",
+  ["Back to settings"] = "Zur\195\188ck zu den Einstellungen",
+  ["Guildmates and data"] = "Gildenmitglieder und Daten",
+  ["Digest on"] = "Zusammenfassung an",
+  ["Digest off"] = "Zusammenfassung aus",
+  ["Names on"] = "Namen an",
+  ["Names off"] = "Namen aus",
+  ["GRM archive import"] = "GRM-Archiv importieren",
+  ["Closes the advanced view."] = "Schlie\195\159t die erweiterte Ansicht.",
+  ["Data and guildmate status, test tools, speed report, GRM import. Closed by default."] = "Daten und Gildenstatus, Testwerkzeuge, Tempobericht, GRM-Import. Standardm\195\164\195\159ig geschlossen.",
+  ["Opens Roster admin, where a GRM archive is previewed and imported."] = "\195\150ffnet die Rosterverwaltung, wo ein GRM-Archiv vorab angezeigt und importiert wird.",
+  ["How much traffic and time the addon uses."] = "Wie viel Datenverkehr und Zeit das Addon verbraucht.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4279,6 +4292,19 @@ local ES = {
   ["nothing used the imported loot history."] = "nada usaba el historial de bot\195\173n importado.",
   ["WoW does not let addons write guild notes or send the automatic welcome."] = "WoW no permite que los addons escriban notas de hermandad ni env\195\173en la bienvenida autom\195\161tica.",
   ["Invites"] = "Invitaciones",
+  ["Officers only."] = "Solo para oficiales.",
+  ["Advanced..."] = "Avanzado...",
+  ["Back to settings"] = "Volver a los ajustes",
+  ["Guildmates and data"] = "Miembros de la hermandad y datos",
+  ["Digest on"] = "Resumen s\195\173",
+  ["Digest off"] = "Resumen no",
+  ["Names on"] = "Nombres s\195\173",
+  ["Names off"] = "Nombres no",
+  ["GRM archive import"] = "Importar archivo GRM",
+  ["Closes the advanced view."] = "Cierra la vista avanzada.",
+  ["Data and guildmate status, test tools, speed report, GRM import. Closed by default."] = "Datos y estado de la hermandad, herramientas de prueba, informe de velocidad, importaci\195\179n GRM. Cerrado por defecto.",
+  ["Opens Roster admin, where a GRM archive is previewed and imported."] = "Abre la administraci\195\179n del roster, donde se previsualiza e importa un archivo GRM.",
+  ["How much traffic and time the addon uses."] = "Cu\195\161nto tr\195\161fico y tiempo usa el addon.",
 }
 -- END ES
 
@@ -4336,6 +4362,19 @@ FR["the achievement probe finished its job."] = "la sonde des succ\195\168s a te
 FR["nothing used the imported loot history."] = "plus rien n'utilisait l'historique de butin import\195\169."
 FR["WoW does not let addons write guild notes or send the automatic welcome."] = "WoW ne permet pas aux addons d'\195\169crire dans les notes de guilde ni d'envoyer l'accueil automatique."
 FR["Invites"] = "Invitations"
+FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
+FR["Advanced..."] = "Avanc\195\169..."
+FR["Back to settings"] = "Retour aux options"
+FR["Guildmates and data"] = "Membres de la guilde et donn\195\169es"
+FR["Digest on"] = "R\195\169sum\195\169 oui"
+FR["Digest off"] = "R\195\169sum\195\169 non"
+FR["Names on"] = "Noms oui"
+FR["Names off"] = "Noms non"
+FR["GRM archive import"] = "Import d'archive GRM"
+FR["Closes the advanced view."] = "Ferme la vue avanc\195\169e."
+FR["Data and guildmate status, test tools, speed report, GRM import. Closed by default."] = "Donn\195\169es et \195\169tat des membres, outils de test, rapport de vitesse, import GRM. Ferm\195\169 par d\195\169faut."
+FR["Opens Roster admin, where a GRM archive is previewed and imported."] = "Ouvre l\226\128\153administration du roster, o\195\185 une archive GRM est pr\195\169visualis\195\169e et import\195\169e."
+FR["How much traffic and time the addon uses."] = "Le trafic et le temps utilis\195\169s par l\226\128\153addon."
 FR["200 at target. Best run per dungeon. Hover for boss records."] = "200 \195\160 la cible. Meilleur essai par donjon. Survolez pour les boss."
 FR["Competitive boss records"] = "Records de boss comp\195\169titifs"
 FR["No eligible timed boss kills recorded."] = "Aucun boss admissible chronom\195\169tr\195\169."

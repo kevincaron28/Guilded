@@ -272,8 +272,28 @@ const STRINGS = {
     fr: "✅ Nouveau sur **{server}** : {names} maintenant lié(s) à toi. Tous tes personnages liés :"
   },
   "linked.hint": {
-    en: "Not yours? Use `/character unlink` on the server. `/character list` shows this list any time.",
-    fr: "Pas à toi ? Utilise `/character unlink` sur le serveur. `/character list` affiche cette liste en tout temps."
+    en: "Not yours? Press **Not mine** below (or `/character unlink` on the server): it is unlinked and never linked back automatically. `/character list` shows this list any time.",
+    fr: "Pas à toi ? Appuie sur **Pas à moi** ci-dessous (ou `/character unlink` sur le serveur) : il est délié et ne sera plus relié automatiquement. `/character list` affiche cette liste en tout temps."
+  },
+  "linked.notMine": { en: "Not mine: {name}", fr: "Pas à moi : {name}" },
+  "linked.notMineMenu": { en: "Not mine… pick a character", fr: "Pas à moi… choisis un personnage" },
+  "linked.wrongServer": { en: "Wrong server", fr: "Mauvais serveur" },
+  "linked.unlinked": {
+    en: "✅ **{name}** is unlinked from you on **{server}** and won't be linked back automatically. An officer can still link it to someone.",
+    fr: "✅ **{name}** n'est plus lié à toi sur **{server}** et ne sera pas relié automatiquement. Un officier peut encore le lier à quelqu'un."
+  },
+  "linked.gone": {
+    en: "That character is already unlinked. `/character list` shows what is linked.",
+    fr: "Ce personnage est déjà délié. `/character list` affiche ce qui est lié."
+  },
+  "linked.notYours": { en: "Only the member this message was sent to can use it.", fr: "Seul le membre à qui ce message est adressé peut l'utiliser." },
+  "linked.wrongServerHelp": {
+    en: "Linked to the wrong server? Open the **Guilded Companion** on your PC, go to Advanced, select that server under *Active connection*, then press **Remove this server**. It only forgets the connection on your PC and stops uploading there; nothing is deleted on the server. For a single character, use **Not mine** instead.",
+    fr: "Lié au mauvais serveur ? Ouvre le **compagnon Guilded** sur ton PC, va dans Avancé, choisis ce serveur sous *Active connection*, puis appuie sur **Remove this server**. Cela oublie seulement la connexion sur ton PC et arrête les envois là-bas ; rien n'est supprimé sur le serveur. Pour un seul personnage, utilise plutôt **Pas à moi**."
+  },
+  "linked.officerLog": {
+    en: "{user} unlinked {name} with the \"Not mine\" button (it had been linked automatically; it won't be linked back).",
+    fr: "{user} a délié {name} avec le bouton « Pas à moi » (il avait été lié automatiquement; il ne sera pas relié)."
   },
   "linked.button": { en: "My linked characters", fr: "Mes personnages liés" },
   "linked.level": { en: "level {level}", fr: "niveau {level}" },

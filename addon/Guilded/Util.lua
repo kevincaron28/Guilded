@@ -760,7 +760,9 @@ function comm.noteThrottle()
   g.refusals = (g.refusals or 0) + 1
   if t < (g.backoffUntil or 0) then return g.backoffUntil - t end
   g.throttles = (g.throttles or 0) + 1
-  if t - (g.lastStrike or -1000) > BACKOFF_FORGET then g.strikes = 0 end
+  -- The quiet window counts from the END of the previous back-off (it may be 60 s long): a throttle that
+  -- persists keeps escalating to BACKOFF_MAX instead of starting over at strike 1.
+  if t - math.max(g.lastStrike or -1000, g.backoffUntil or -1000) > BACKOFF_FORGET then g.strikes = 0 end
   g.strikes = math.min((g.strikes or 0) + 1, 8)
   g.lastStrike = t
   g.rate = math.max(RATE_MIN, (g.rate or RATE_MAX) * 0.6)
@@ -955,8 +957,9 @@ end
 -- reserve like SOS and receipts, and when even that is unavailable (budget empty, a back-off running) they
 -- wait in a short bounded list and go out in order as soon as the budget allows, for at most RESULT_RETRY_SECONDS
 -- (the list holds RESULT_RETRY_MAX lines; the oldest goes first, the newest is refused when full). Only after
--- that is a line dropped, with one local note. Convenience lines (ready check post, roll announce) stay
--- immediate-or-drop.
+-- that is a line dropped, with one local note. Convenience lines (ready check post, roll announce) are never
+-- queued: immediate-or-drop. Every chat line, result or convenience, is "interactive" for the budget, so all
+-- of them may use the tokens kept back from bulk sync; the difference is only that a result line waits.
 local RESULT_RETRY_MAX, RESULT_RETRY_SECONDS = 12, 120
 local resultQueue, resultScheduled = {}, false
 local function noteChatDropped()

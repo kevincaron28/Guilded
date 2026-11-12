@@ -1,7 +1,7 @@
 # RCLootCouncil and Gargul loot-history import
 
 > **Removed in 9.2.** The companion's loot-history panel and its converter were removed with the other loot-import tools. This page is
-> kept for the export format notes; the GRM archive import is still in Settings, Advanced.
+> kept for the export format notes; the GRM archive import is in the companion's Advanced view (Import from GRM; the old window's Tools page is gone, redo C4).
 
 The desktop companion converts an export into a local GLH1 archive. An officer then previews and confirms it in-game. Historical records are stored separately from live loot and EP/GP; importing never replays awards, changes points, or uploads the source history to Discord.
 

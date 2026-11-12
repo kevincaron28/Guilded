@@ -38,6 +38,13 @@ describe("plain words on the member's path", () => {
   it("points officers to Discord for exports, and members to their Guilded page", () => {
     const html = read("companion-app/renderer/main.html");
     expect(html).toContain("/officer export");
-    for (const path of ["/me/", "/me/battlenet", "/me/data"]) expect(html).toContain(`https://guilded.kcaron.top${path}"`);
+    for (const path of ["/me/", "/me/battlenet", "/me/data", "/docs/PRIVACY.html", "/companion/"]) expect(html).toContain(`https://guilded.kcaron.top${path}"`);
+    // Delete my data on the website erases server data only: the window says so and points to Reset.
+    expect(html).toContain("on the server only. Afterwards press Reset this companion");
+    // Local export and GRM import stay reachable from Advanced.
+    for (const id of ["btnExport", "btnGRM", "grmGuild", "grmRealm", "grmPrivate"]) expect(html, id).toContain(`id="${id}"`);
+    const script = read("companion-app/renderer/main.js");
+    expect(script).toContain("api.exportSheets(");
+    expect(script).toContain("api.convertGRM(");
   });
 });

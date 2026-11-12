@@ -1459,7 +1459,7 @@ registerIpc("browse-poe-log", async () => {
 // Export to spreadsheet: one CSV file per table (all, or `table`) from Guilded.lua, into a
 // folder the player picks.
 registerIpc("export-sheets", async (_event, table) => {
-  if (!config.watchFile) return { ok: false, message: T("Choose your Guilded.lua file first (World of Warcraft page).") };
+  if (!config.watchFile) return { ok: false, message: T("Choose your WoW folder first (Advanced).") };
   let files;
   try { files = engineModules.sheetFiles(await fs.promises.readFile(config.watchFile, "utf8")).filter((file) => !table || file.table === table); }
   catch (error) { return { ok: false, message: T("Could not read {0}: {1}", path.basename(config.watchFile), error.message) }; }

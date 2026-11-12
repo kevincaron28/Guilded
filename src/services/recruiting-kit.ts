@@ -61,8 +61,8 @@ export async function ensureInviteGuide(client: Pick<Client, "channels">, databa
 
 /** Sets stage and/or note on every post of a name. Returns how many records changed. */
 export async function updateRecruit(database: Pick<PrismaClient, "inviteRequest">, guildId: string, name: string, change: { stage?: Stage; note?: string | null }): Promise<number> {
-  const data: { status?: Stage; note?: string | null; invitedAt?: Date; cleanupAt?: Date } = {};
-  if (change.stage) { data.status = change.stage; if (change.stage !== "PENDING") { data.invitedAt = new Date(); data.cleanupAt = new Date(Date.now() + CLEANUP_DELAY_MS); } }
+  const data: { status?: Stage; note?: string | null; invitedAt?: Date; cleanupAt?: Date | null } = {};
+  if (change.stage) { data.status = change.stage; if (change.stage !== "PENDING") { data.invitedAt = new Date(); data.cleanupAt = new Date(Date.now() + CLEANUP_DELAY_MS); } else data.cleanupAt = null; }
   if (change.note !== undefined) data.note = change.note ? change.note.slice(0, 500) : null;
   if (!Object.keys(data).length) return 0;
   const result = await database.inviteRequest.updateMany({ where: { guildId, nameKey: nameKeyOf(name) }, data });

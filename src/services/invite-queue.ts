@@ -88,7 +88,7 @@ export async function markInvitedByName(database: Database, guildId: string, nam
   const rows = waiting.filter((row) => hit.has(row.id)).map(({ id, channelId, messageId, displayName, notifyMessageId }) => ({ id, channelId, messageId, displayName, notifyMessageId }));
   if (!rows.length) return [];
   const now = new Date();
-  await database.inviteRequest.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data: { status: "INVITED", invitedBy: by, invitedAt: now } });
+  await database.inviteRequest.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data: { status: "INVITED", invitedBy: by, invitedAt: now, cleanupAt: null } });
   // The clean-up clock starts on a full name match, or on an officer's own action (by is not "roster"); a first-name-only roster guess only marks.
   const due = rows.filter((row) => by !== "roster" || certain.has(row.id)).map((row) => row.id);
   if (due.length) await database.inviteRequest.updateMany({ where: { id: { in: due } }, data: { cleanupAt: new Date(now.getTime() + CLEANUP_DELAY_MS) } });

@@ -3395,6 +3395,8 @@ model InviteRequest {
   // When the clean-up is due: set only by a full first+last name match or an explicit officer action (never a first-name-only guess).
   cleanupAt     DateTime?
   cleanTries    Int       @default(0)
+  // Handed to the job queue (cleanedAt is set only after the messages are really gone).
+  cleanQueuedAt DateTime?
   // The bot's "done" thank-you under a member's own post, so the clean-up uses stored ids.
   doneNoteMessageId String?
   guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)

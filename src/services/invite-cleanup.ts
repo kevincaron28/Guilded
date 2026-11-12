@@ -18,9 +18,11 @@ export { CLEANUP_DELAY_MS } from "./invite-queue.js";
 export const CLEANUP_BATCH = 25;
 /** Job attempts (the queue backs off 30 s, 1 min, 2 min ...) before a refused/failed clean-up is set aside. */
 export const MAX_ATTEMPTS = 6;
-/** A permission refusal is retried once a day, this many times, so granting Manage Messages later still takes effect. */
+/** A failed clean-up is retried once a day, this many times, so granting Manage Messages later still takes effect. */
 export const MAX_CYCLES = 3;
 export const RETRY_LATER_MS = 24 * 3_600_000;
+/** A request queued this long ago with no result is queued again (a lost job). */
+const STALE_QUEUE_MS = 6 * 3_600_000;
 const HANDLED = ["INVITED", "JOINED", "PROMOTED"];
 
 type Database = Pick<PrismaClient, "guildSettings" | "inviteRequest" | "discordJob">;
@@ -87,18 +89,18 @@ export async function runInviteCleanupJob(guild: GuildLike, database: Pick<Prism
   job: Pick<DiscordJob, "guildId" | "attempts" | "payload">, now = new Date()): Promise<void> {
   const requestId = String((job.payload as Record<string, unknown> | null)?.["requestId"] ?? "");
   const row = await database.inviteRequest.findFirst({ where: { id: requestId, guildId: job.guildId },
-    select: { id: true, channelId: true, messageId: true, discordUserId: true, notifyMessageId: true, doneNoteMessageId: true, cleanTries: true } });
-  if (!row) return;
+    select: { id: true, status: true, cleanupAt: true, cleanedAt: true, channelId: true, messageId: true, discordUserId: true, notifyMessageId: true, doneNoteMessageId: true, cleanTries: true } });
+  if (!row || row.cleanedAt) return;
+  const release = () => database.inviteRequest.updateMany({ where: { id: row.id }, data: { cleanQueuedAt: null } });
   const settings = await database.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { inviteCleanupEnabled: true, inviteChannelId: true } });
-  // Re-checked at delivery: the switch (or the channel) changing takes effect for queued deletions too.
-  if (!settings?.inviteCleanupEnabled || !settings.inviteChannelId) return;
+  // Re-checked when the job runs: a request put back to waiting, one with no deadline, or the switch turned off is left alone.
+  if (!HANDLED.includes(row.status) || !row.cleanupAt || row.cleanupAt > now || !settings?.inviteCleanupEnabled || !settings.inviteChannelId) { await release(); return; }
   const outcome = await cleanRequest(guild, settings.inviteChannelId, row);
-  if (!outcome.retry) return;
+  if (!outcome.retry) { await database.inviteRequest.updateMany({ where: { id: row.id }, data: { cleanedAt: now } }); return; }
   if (job.attempts < MAX_ATTEMPTS) throw new Error(`invite clean-up ${outcome.retry}`);
-  // Out of quick retries. A refusal (no Manage Messages yet) is tried again tomorrow, a few times; anything else is dropped.
-  if (outcome.retry === "permission" && row.cleanTries + 1 < MAX_CYCLES) {
-    await database.inviteRequest.updateMany({ where: { id: row.id }, data: { cleanedAt: null, cleanupAt: new Date(now.getTime() + RETRY_LATER_MS), cleanTries: { increment: 1 } } });
-  } else warnOnce(`giveup:${job.guildId}`, "gave up on a request that could not be cleaned");
+  // Out of quick retries: not marked cleaned. Tried again tomorrow, a few times (so Manage Messages granted later still works), then dropped.
+  await database.inviteRequest.updateMany({ where: { id: row.id }, data: { cleanQueuedAt: null, cleanupAt: new Date(now.getTime() + RETRY_LATER_MS), cleanTries: { increment: 1 } } });
+  if (row.cleanTries + 1 >= MAX_CYCLES) warnOnce(`giveup:${job.guildId}`, "gave up on a request that could not be cleaned");
 }
 
 /** Every few minutes: hand the requests that are due to the Discord job queue. The deadline is stored (cleanupAt), so a restart loses nothing. */
@@ -106,14 +108,14 @@ export async function scheduleInviteCleanups(database: Database, now = new Date(
   const guilds = await database.guildSettings.findMany({ where: { inviteQueueEnabled: true, inviteCleanupEnabled: true, inviteChannelId: { not: null } }, select: { guildId: true } });
   let queued = 0;
   for (const { guildId } of guilds) {
-    const due = await database.inviteRequest.findMany({ where: { guildId, status: { in: HANDLED }, cleanedAt: null, cleanupAt: { lte: now } },
-      orderBy: { cleanupAt: "asc" }, take: CLEANUP_BATCH, select: { id: true } });
-    for (const { id } of due) {
-      // Claimed first (once), then queued; an enqueue failure gives the claim back.
-      const claim = await database.inviteRequest.updateMany({ where: { id, cleanedAt: null }, data: { cleanedAt: now } });
+    // Not already queued (or queued so long ago the job must have been lost, e.g. a crash before it was enqueued).
+    const due = await database.inviteRequest.findMany({ where: { guildId, status: { in: HANDLED }, cleanedAt: null, cleanTries: { lt: MAX_CYCLES }, cleanupAt: { lte: now },
+      OR: [{ cleanQueuedAt: null }, { cleanQueuedAt: { lte: new Date(now.getTime() - STALE_QUEUE_MS) } }] }, orderBy: { cleanupAt: "asc" }, take: CLEANUP_BATCH, select: { id: true, cleanQueuedAt: true } });
+    for (const { id, cleanQueuedAt } of due) {
+      const claim = await database.inviteRequest.updateMany({ where: { id, cleanedAt: null, cleanQueuedAt }, data: { cleanQueuedAt: now } });
       if (!claim.count) continue;
       try { await enqueueDiscordJob(database, guildId, `invite-cleanup:${id}:${now.getTime()}`, "INVITE_CLEANUP", { requestId: id }); queued++; } catch (error) {
-        await database.inviteRequest.updateMany({ where: { id }, data: { cleanedAt: null } }).catch(() => undefined);
+        await database.inviteRequest.updateMany({ where: { id }, data: { cleanQueuedAt } }).catch(() => undefined);
         warnOnce(`enqueue:${guildId}`, "could not queue a clean-up", error);
       }
     }

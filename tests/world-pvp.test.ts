@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { exportWorldPvp } from "../companion/lua-export-content.mjs";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 import {
-  REPEAT_VICTIM_LIMIT, WEEKLY_KILL_CAP, applyWorldPvpUpload, cappedCounts, parseWorldPvpUpload, weekKeyOf, weekRange,
+  REPEAT_VICTIM_LIMIT, WEEKLY_KILL_CAP, applyWorldPvpUpload, cappedCounts, parseWorldPvpUpload, parseWorldPvpUploads, weekKeyOf, weekRange,
   worldPvpCard, worldPvpEmbed, worldPvpStandings
 } from "../src/services/world-pvp.js";
 
@@ -99,6 +99,31 @@ describe("applying an upload", () => {
     const f = fakeDb({ calls: 0 });
     await applyWorldPvpUpload(f.db, "g1", "m1", upload(), NOW);
     expect(f.rows[0]).toMatchObject({ kills: 12, defends: 0, helped: 0 });
+  });
+});
+
+describe("the week before the Tuesday reset", () => {
+  const prevBlock = { weekKey: KEY - 1, kills: 7, defends: 1, responded: 2, recent: [{ n: "Thug", at: inWeek(-30) }] };
+  it("is exported as a second block, and the snapshot schema accepts both", () => {
+    const exported = exportWorldPvp({ worldPvp: { weekKey: KEY, week: { kills: 4, defends: 1, responded: 2 }, prev: { weekKey: KEY - 1, week: { kills: 7, defends: 1, responded: 2 } }, recent: {} } });
+    expect((exported.worldPvp ?? []).map((b: { weekKey: number; kills: number }) => [b.weekKey, b.kills])).toEqual([[KEY, 4], [KEY - 1, 7]]);
+    // An empty current week still exports last week's numbers.
+    expect(exportWorldPvp({ worldPvp: { weekKey: KEY, week: { kills: 0 }, prev: { weekKey: KEY - 1, week: { kills: 3 } } } }).worldPvp).toHaveLength(1);
+    const snapshot = parseAddonSnapshot({ source: "Guilded", exportedAt: NOW.toISOString(), ...exported });
+    expect(parseWorldPvpUploads(snapshot.worldPvp).map(b => b.weekKey)).toEqual([KEY, KEY - 1]);
+  });
+  it("keeps the first valid block of each week and drops the malformed", () => {
+    const blocks = parseWorldPvpUploads([{ weekKey: "x" }, { weekKey: KEY, kills: 1, defends: 0, responded: 0 }, { weekKey: KEY, kills: 9, defends: 0, responded: 0 }, prevBlock]);
+    expect(blocks.map(b => [b.weekKey, b.kills])).toEqual([[KEY, 1], [KEY - 1, 7]]);
+  });
+  it("the bot stores every block on its own week", async () => {
+    const f = fakeDb();
+    expect(await applyWorldPvpUpload(f.db, "g1", "m1", parseWorldPvpUploads([{ weekKey: KEY, kills: 12, defends: 2, responded: 3, recent: [] }, prevBlock]), NOW)).toBe(true);
+    expect(f.rows.map(r => [r["weekKey"], r["kills"]])).toEqual([[KEY, 12], [KEY - 1, 7]]);
+  });
+  it("still refuses a week older than the last one", async () => {
+    const f = fakeDb();
+    expect(await applyWorldPvpUpload(f.db, "g1", "m1", parseWorldPvpUploads([{ ...prevBlock, weekKey: KEY - 2 }]), NOW)).toBe(false);
   });
 });
 

@@ -1,7 +1,8 @@
+import { siteUrl } from "../site-url.js";
 import { PAGE_STYLE } from "./guild-page.js";
 import { currentEdition } from "./edition-context.js";
 import { editionHref } from "../../site/nav.mjs";
-import { SHARE_CARD, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
+import { shareCard, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
 
 // Shared HTML for the bot-served website pages (/recruitment/, /me/, /leaderboards/). Plain
 // server-rendered forms, no scripts: the pages work under a strict Content-Security-Policy.
@@ -70,18 +71,18 @@ export function layout(input: LayoutInput): string {
   const description = escapeHtml((input.description ?? input.title).slice(0, 160));
   const bare = (input.path.split("?")[0] || "/");
   const canonicalPath = bare.endsWith("/") ? bare : `${bare}/`;
-  const canonical = `https://guilded.kcaron.top${canonicalPath}`;
+  const canonical = siteUrl(canonicalPath);
   const alternates = input.noindex ? "" : `<link rel="canonical" href="${input.lang === "fr" ? `${canonical}?lang=fr` : canonical}"><link rel="alternate" hreflang="en" href="${canonical}"><link rel="alternate" hreflang="fr" href="${canonical}?lang=fr"><link rel="alternate" hreflang="x-default" href="${canonical}"><meta property="og:url" content="${input.lang === "fr" ? `${canonical}?lang=fr` : canonical}">`;
   return `<!doctype html><html lang="${input.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${escapeHtml(input.title)} · Guilded</title><meta name="description" content="${description}">${input.noindex ? '<meta name="robots" content="noindex">' : alternates}`
     // Link previews (Discord, social sites): a pasted page shows its title, summary and the logo.
     + `<meta property="og:site_name" content="Guilded"><meta property="og:type" content="website"><meta property="og:title" content="${escapeHtml(input.title)}">`
     // Score cards and the website's own card (the default) are both 1200 × 630 PNGs.
-    + `<meta property="og:description" content="${description}"><meta property="og:image" content="${escapeHtml(input.shareImage ?? SHARE_CARD)}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
+    + `<meta property="og:description" content="${description}"><meta property="og:image" content="${escapeHtml(input.shareImage ?? shareCard())}"><meta property="og:locale" content="${input.lang === "fr" ? "fr_CA" : "en_CA"}">`
     + '<meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">'
     + `<meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37">`
     + `<link rel="icon" href="/favicon.png" type="image/png"><style>${PAGE_STYLE}\n${FORM_STYLE}</style></head><body><a class="skip" href="#content">${t("Skip to content", "Aller au contenu")}</a>${siteHeader(input.lang, input.path, languages)}<main><div id="content" tabindex="-1">${input.body}</div>${who.length ? `<div class="who">${who.join("")}</div>` : ""}`
-    + `<footer class="site-foot">${siteFooterNav(input.lang)}<p class="foot-note">${t("Made with", "Créé avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;
+    + `<footer class="site-foot">${siteFooterNav(input.lang)}<p class="foot-note">${t("Made with", "Créé avec")} <a href="${siteUrl("/")}">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;
 }
 
 export const options = (values: readonly { value: string; label: string }[], selected: string | null | undefined) =>

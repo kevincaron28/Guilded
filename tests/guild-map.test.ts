@@ -91,12 +91,14 @@ describe("guild map upload", () => {
     expect(f.calls[0]).toMatchObject({ memberId: "m1", cx: 0.46, mapId: 1431 });
   });
 
-  it("keeps nothing when officers turned the map off, or for a member of another guild", async () => {
+  it("keeps no position when officers turned the map off, but still stores the call (without coordinates) for the world PvP checks; nothing for another guild's member", async () => {
     const off = fakeDb({ mapOff: true });
-    expect(await applyGuildMapUpload(off.db as never, "g1", "m1", upload(), NOW)).toEqual({ sightings: 0, calls: 0 });
+    expect(await applyGuildMapUpload(off.db as never, "g1", "m1", upload(), NOW)).toEqual({ sightings: 0, calls: 1 });
+    expect(off.sightings.length).toBe(0);
+    expect(off.calls[0]).toMatchObject({ zone: "Duskwood", mapId: null, x: null, cx: null });
     const other = fakeDb({ memberGuild: "g2" });
     expect(await applyGuildMapUpload(other.db as never, "g1", "m1", upload(), NOW)).toEqual({ sightings: 0, calls: 0 });
-    expect(off.sightings.length + other.sightings.length + off.calls.length).toBe(0);
+    expect(other.sightings.length + other.calls.length).toBe(0);
   });
 
   it("keeps no position for a member who turned sharing off; their call stays without coordinates", async () => {

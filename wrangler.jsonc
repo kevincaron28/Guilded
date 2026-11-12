@@ -27,7 +27,9 @@
   "keep_vars": true,
   "vars": {
     "GUILDED_DOWNLOAD_MIRROR_URL": "https://dl.kcaron.top",
-    "GUILDED_ORIGIN_URL": "https://bot.kcaron.top"
+    "GUILDED_ORIGIN_URL": "https://bot.kcaron.top",
+    "GUILDED_CANONICAL_HOST": "guildedwow.com",
+    "GUILDED_ADS": "on"
   },
   "kv_namespaces": [
     {
@@ -47,6 +49,14 @@
     {
       "pattern": "guilded.kcaron.top",
       "custom_domain": true
+    },
+    {
+      "pattern": "guildedwow.com",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.guildedwow.com",
+      "custom_domain": true
     }
   ],
   "assets": {
@@ -55,6 +65,12 @@
     "run_worker_first": [
       "/",
       "/robots.txt",
+      "/ads.txt",
+      "/consent.js",
+      "/guide",
+      "/guide/*",
+      "/fr",
+      "/fr/*",
       "/sitemap.xml",
       "/googlefc463a9e1454c920.html",
       "/support",

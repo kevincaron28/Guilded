@@ -563,16 +563,21 @@ export function exportGuildMap(database) {
 // (src/services/world-pvp.ts).
 export function exportWorldPvp(database) {
   const state = database?.worldPvp;
-  const week = state?.week;
+  if (!state || typeof state !== "object") return {};
   const count = (v) => Number.isInteger(v) && v >= 0 && v <= 1_000_000 ? v : 0;
-  if (!state || typeof state !== "object" || !week || typeof week !== "object" || !Number.isInteger(state.weekKey) || state.weekKey < 0) return {};
   const recent = Object.values(state.recent ?? {}).flatMap((row) => {
     const n = row && typeof row.n === "string" ? row.n.replace(/[|\p{Cc}]/gu, " ").trim().slice(0, 40) : "";
     return n && Number.isInteger(row.at) && row.at > 1_600_000_000 && row.at < 4_000_000_000 ? [{ n, at: row.at, ...(row.d === 1 ? { d: 1 } : {}) }] : [];
   }).slice(-30);
-  const kills = count(week.kills), defends = count(week.defends), responded = count(week.responded);
-  if (!kills && !defends && !responded) return {};
-  return { worldPvp: [{ weekKey: state.weekKey, kills, defends, responded, recent }] };
+  // This week, and the week before when the player's session crossed the Tuesday reset (addon worldPvp.prev): the bot takes
+  // the last two weeks and keeps the larger number.
+  const block = (weekKey, week) => {
+    if (!week || typeof week !== "object" || !Number.isInteger(weekKey) || weekKey < 0) return [];
+    const kills = count(week.kills), defends = count(week.defends), responded = count(week.responded);
+    return kills || defends || responded ? [{ weekKey, kills, defends, responded, recent }] : [];
+  };
+  const blocks = [...block(state.weekKey, state.week), ...block(state.prev?.weekKey, state.prev?.week)];
+  return blocks.length ? { worldPvp: blocks } : {};
 }
 
 // What the game shows every member about the whole guild (addon Modules/GuildSnapshot.lua and

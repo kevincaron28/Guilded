@@ -117,18 +117,28 @@ function renderStatusCard(snapshot) {
   const button = $('btnStatusAction');
   button.hidden = !card.button;
   if (card.button && !button.dataset.busy) button.textContent = T(card.button.label);
+  // Sign-in is optional: on a healthy card it is only a quiet secondary link.
+  const link = $('btnStatusLink');
+  link.hidden = !card.link;
+  if (card.link) link.textContent = T(card.link.label);
   const line = window.guildedStatusCard.guildLine({ config: savedConfig, savedFile: snapshot.savedFile });
   const parts = [line.guild, line.lastReload ? T("last /reload {0}", ago(line.lastReload).toLowerCase()) : null].filter(Boolean);
   $('statusGuildLine').textContent = parts.join(' · ');
   $('statusGuildLine').hidden = !parts.length;
 }
-async function statusAction() {
-  const action = shownCard?.button?.action;
+async function statusAction(which) {
+  const action = (which === 'link' ? shownCard?.link : shownCard?.button)?.action;
   const result = $('statusResult');
   const say = (message, ok = true) => { result.textContent = message ? M(message) : ''; result.className = ok ? 'result ok' : 'result bad'; };
   say('');
   switch (action) {
     case 'sign-in': showPage('link'); return;
+    case 'copy-officer-message': {
+      const guild = shownCard?.title?.[1] || savedConfig.wowGuildName || savedConfig.wowGuild || '';
+      const text = "Hello! Could you run /setup in our guild's Discord server so the Guilded companion can sync our guild " + guild + "? Thank you!" + String.fromCharCode(10) + 'Bonjour ! Pourriez-vous lancer /setup sur le serveur Discord de notre guilde pour que le compagnon Guilded puisse synchroniser notre guilde ' + guild + ' ? Merci !';
+      try { await navigator.clipboard.writeText(text); say(T("Copied. Paste it to an officer of your guild.")); } catch { say(T("Could not copy. Ask an officer of your guild to run /setup on its Discord server."), false); }
+      return;
+    }
     case 'problems': showPage('problems'); return;
     case 'settings': showPage('settings'); return;
     case 'storage': await api.openStorageSettings(); return;
@@ -141,7 +151,8 @@ async function statusAction() {
     default: return;
   }
 }
-bind('btnStatusAction', statusAction);
+bind('btnStatusAction', () => statusAction());
+bind('btnStatusLink', () => statusAction('link'));
 // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): the optional sign-in note and "Advanced: choose server".
 function renderDevice(snapshot) {
   const overview = window.guildedOverview(savedConfig, snapshot.state || {});

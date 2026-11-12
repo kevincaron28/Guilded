@@ -38,7 +38,13 @@ local function store()
   d.duels.results = type(d.duels.results) == "table" and d.duels.results or {}
   return d.duels
 end
+-- My own name as the guild knows it: on WoW Forever UnitName gives the first name only (the surname is a second
+-- value), so the full "First Last" key comes from ns.util.unitKey when it is there.
 local function me()
+  if ns.util and ns.util.unitKey then
+    local ok, key = pcall(ns.util.unitKey, "player")
+    if ok and type(key) == "string" and key ~= "" then return key end
+  end
   local ok, name = pcall(UnitName, "player")
   return ok and type(name) == "string" and name or nil
 end
@@ -87,7 +93,16 @@ function duels.rebuildPatterns() patterns = nil end
 
 -- ----- records ---------------------------------------------------------
 
-local function same(a, b) return a and b and a:lower() == b:lower() end
+-- The same player: equal names, or one side only a first name (a client that gives "Kev" where the duel line says
+-- "Kev Caron"). Two full names with different surnames are two players.
+local function same(a, b)
+  if not (a and b) then return false end
+  a, b = a:lower(), b:lower()
+  if a == b then return true end
+  local aBare, bBare = not a:find(" ", 1, true), not b:find(" ", 1, true)
+  if aBare == bBare then return false end
+  return aBare and a == b:match("^(%S+)") or bBare and b == a:match("^(%S+)") or false
+end
 local function prune(d)
   local list = {}
   for id, r in pairs(d.results) do list[#list + 1] = { id = id, at = type(r) == "table" and r.at or 0 } end

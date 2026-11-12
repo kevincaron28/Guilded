@@ -1,7 +1,7 @@
 -- WoW Forever's in-game achievements, recorded for the bot's badges (roadmap item 8; docs/plans/FOREVER_ACHIEVEMENTS.md).
 --
 -- Reads the achievement API the client already has (GetCategoryList / GetCategoryNumAchievements / GetAchievementInfo, confirmed on a
--- real Forever client by /guilded probe achievements) and records every achievement this character has earned as a milestone of kind
+-- real Forever client by the probe command, removed in 9.2) and records every achievement this character has earned as a milestone of kind
 -- "ach" (ref "ach:<id>", with its name, text, category and points), which the companion uploads with the rest of the milestones.
 -- Category 15425 ("Do Not Display") is skipped: the game hides it.
 --

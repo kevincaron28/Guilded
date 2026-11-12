@@ -149,7 +149,7 @@ know, including Guilded Dungeons-only players and players with no addon.
 | `GuildedSeason`, `GuildedSync`, `GuildedBridge`, `GuildedRating`, `GuildedScore` | Bot data passed down to members, version check | Standings, boards | No (comes from the bot) |
 | `GuildedFree` (Presence.lua) | Opt-in availability | **Memory only, by design** (consent) | No |
 | `GuildedMap` | Positions | **Not kept, by design** (location) | No |
-| `GuildedSOS`, `GuildedLC`, `GuildedBid`, `GuildedMotd`, `GuildedRec`, `GuildedHist` | Live calls, council, bids, MOTD helper, welcome, history replies | Transient (their results end up in loot, the ledger or the MOTD) | Through those results |
+| `GuildedSOS`, `GuildedLC`, `GuildedBid`, `GuildedMotd`, `GuildedRec`, `GuildedHist` | Live calls, council, bids, welcome, history replies (the MOTD helper was removed in 9.2) | Transient (their results end up in loot, the ledger or the MOTD) | Through those results |
 
 Heard but dropped, and what happened to each:
 

@@ -72,7 +72,7 @@ privacy boundaries and the two-client acceptance test.
 | GuildMap.lua | `guildmap` | GuildedMap | 5.0: guildmates as dots on the world map and minimap (`P\|map\|x\|y\|class\|level`, `G` = gone, `Q` = rate-limited position refresh); `/guilded map share\|show on\|off` |
 | Scores.lua | `scores` | GuildedScore | 5.0: a dungeon score per player from recorded runs (best run per dungeon), on tooltips; `S\|score\|dungeons`; `/guilded score [player\|top]` |
 | GuildLog.lua | `guildlog` | (none) | 7.5.0: the game's guild event log saved past its short window; `/guilded guildlog` |
-| Recruit.lua | `recruit` | GuildedRec | 7.5.0: officers' prospect list and one welcome whisper per new member (`WELCOMED\|1\|name` on GUILD keeps other officers quiet) |
+| Recruit.lua | `recruit` | GuildedRec | 7.5.0: officers' prospect list (the automatic welcome whisper was removed in 9.2) |
 | ChatTags.lua | `chattags` | (none) | 7.5.0: personal opt-in, an alt's main name in guild/officer chat from the standings' account groups |
 | GuildBank.lua | `guildbank` | (none) | 7.5.0: snapshot of the viewable guild bank tabs and gold when opened; `/guilded gbank` |
 | PugCheck.lua | `pugcheck` | (none) | 7.5.0: inspects non-guild group members one at a time (out of combat) for item level, enchants and empty slots |
@@ -80,7 +80,6 @@ privacy boundaries and the two-client acceptance test.
 | LootImports.lua | `imports` | (none) | 7.5.0: softres.it lists into Reserve.lua (`ns.reserve.importEntries`) and That's My BiS priorities onto tooltips |
 | Perf.lua | always loaded; personal opt-in | (none) | 7.5.0: `/guilded perf`, timings of Guilded events and commands plus message-queue depth while on |
 | GameAchievements.lua | `milestones` | (none) | 9.1: records every WoW Forever in-game achievement (category 15425 skipped) as an `ach` milestone with its name and date, silently at the first scan, the newest announced; uploaded with the milestones |
-| Probe.lua | always loaded; read-only | (none) | 9.0.x: `/guilded probe achievements`, lists which achievement APIs this client has and saves a summary in `db.probes.achievements` |
 | Minimap.lua | always on | (none) | Minimap button and tools window |
 
 ## Local guild and loot rolls
@@ -176,6 +175,6 @@ shown per rank and per module switch (re-checked each time the window
 opens and whenever a switch changes). The Tools tab lists every module
 with its switches.
 
-Alt-click the minimap coin opens the guild map.
+The guild map opens from the minimap button's right-click menu (or `/guilded map`).
 Use `/guilded map check` for sharing status, map availability and peer count. Guildmates must
 run Guilded and enable sharing; minimap dots are limited to nearby players outside instances.

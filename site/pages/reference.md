@@ -122,15 +122,15 @@ Both owner commands exist only in the bot owner's own server.
 
 ## WoW addon
 
-Type `/guilded` (or `/gd`) in game. A bare `/guilded` opens the window; `/guilded help` lists
-everything. Officer rows need the officer rank in your WoW guild.
+Type `/guilded` (or `/gd`) in game. A bare `/guilded` opens the window; `/guilded help` lists the few commands a member needs and
+`/guilded help all` lists everything. Officer rows need the officer rank in your WoW guild.
 
 ### Everyday
 
 | Command | What it does | Who |
 | --- | --- | --- |
 | `/guilded` | Open the Guilded window | Everyone |
-| `/guilded help` | List every command you can use | Everyone |
+| `/guilded help` | The main commands (`/guilded help all` lists every command you can use) | Everyone |
 | `/guilded standings [player]` | Standings, or one player's | Everyone |
 | `/guilded history [player]` | Your EP/GP and loot history | Everyone |
 | `/guilded share` | One paste with your character, gear check and attunements (Discord: `/character import`) | Everyone |

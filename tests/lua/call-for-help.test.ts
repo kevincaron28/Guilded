@@ -363,10 +363,10 @@ describe("call for help: guildmates in the zone and party invites", () => {
   });
   it("tells the world PvP stats which zone the call named when I answer", () => {
     const lua = setup();
-    lua.run(`NS.worldPvp = { note = function(kind, zone) NOTED = kind .. ":" .. tostring(zone) end }`);
+    lua.run(`NS.worldPvp = { note = function(kind, zone, map) NOTED = kind .. ":" .. tostring(zone) .. ":" .. tostring(map) end }`);
     callFrom("Ann-Realm", goodCall);
     lua.run(`NS.callForHelp.reply(true)`);
-    expect(lua.run(`return NOTED`)).toBe("responded:Duskwood");
+    expect(lua.run(`return NOTED`)).toBe("responded:Duskwood:47");
   });
 
 describe("call for help: only a real attack counts, and the chat line is limited", () => {

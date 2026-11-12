@@ -110,7 +110,7 @@ end
 -- ---------------------------------------------------------------------
 
 local lastKill, lastDeathAt
-local defendingUntil, defendingZone
+local defendingUntil, defendingZone, defendingMap
 
 local function currentZone()
   local zone = GetRealZoneText and GetRealZoneText() or ""
@@ -118,10 +118,23 @@ local function currentZone()
   return zone
 end
 
--- Inside the 5 minutes after On my way, and in the zone of the call (a call without a zone counts anywhere).
+local function currentMap()
+  if not (ns.guildMap and ns.guildMap.myPosition) then return nil end
+  local ok, mapId = pcall(ns.guildMap.myPosition)
+  return ok and tonumber(mapId) or nil
+end
+
+-- Inside the 5 minutes after On my way, and where the call was. The map id decides when both sides know it (the zone name
+-- is the caller's language: a French helper and an English caller never share one); otherwise the name, cut like the call
+-- cuts it (28 characters). A call without a place counts anywhere.
 function wp.defending()
   if defendingUntil == nil or clock() > defendingUntil then return false end
-  return defendingZone == nil or currentZone() == defendingZone
+  if defendingMap then
+    local mine = currentMap()
+    if mine then return mine == defendingMap end
+  end
+  if defendingZone == nil then return defendingMap == nil end
+  return clean(currentZone(), 28) == defendingZone
 end
 
 -- An honorable kill line from the game. Returns true when it was counted.
@@ -154,14 +167,15 @@ function wp.noteDeath()
 end
 
 -- From Call for help: "call" (I called), "answered" (a guildmate said On my way to my call),
--- "responded" (I pressed On my way; `zone` is the zone the call named).
-function wp.note(kind, zone)
+-- "responded" (I pressed On my way; `zone` and `mapId` are where the call named).
+function wp.note(kind, zone, mapId)
   if not active() then return false end
   if kind == "call" then return bump("calls") end
   if kind == "answered" then return bump("answered") end
   if kind == "responded" then
     defendingUntil = clock() + DEFEND_SECONDS
-    defendingZone = type(zone) == "string" and zone ~= "" and zone or nil
+    defendingZone = type(zone) == "string" and zone ~= "" and clean(zone, 28) or nil
+    defendingMap = tonumber(mapId) and tonumber(mapId) > 0 and tonumber(mapId) or nil
     return bump("responded")
   end
   return false

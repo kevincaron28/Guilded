@@ -97,8 +97,8 @@ export async function applyGuildMapUpload(db: MapDb, guildId: string, memberId: 
     db.member.findUnique({ where: { id: memberId }, select: { guildId: true, mapShareOff: true } })
   ]);
   if (!member || member.guildId !== guildId) return { sightings: 0, calls: 0 };
-  // With the map off for the server nothing about where anyone was is kept, but calls for help are still stored (without
-  // coordinates): the world PvP board checks defends and calls answered against the guild's real calls.
+  // With the map off for the server no position is kept (no sightings, no coordinates on calls), but a call for help is still
+  // stored with its zone, subzone and attackers: the world PvP board checks defends and calls answered against the guild's real calls.
   const mapOn = settings?.guildMapEnabled !== false;
   const share = mapOn && !member.mapShareOff;
   const sightingCutoff = new Date(now.getTime() - SIGHTING_DAYS * 86_400_000);

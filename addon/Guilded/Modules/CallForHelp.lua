@@ -698,7 +698,7 @@ function module.reply(coming)
   local entry = ns.normalizeName and incoming[ns.normalizeName(banner.sender)]
   local id = entry and entry.id or banner.call.id
   ns.comm.send(PREFIX, "R|" .. id .. "|" .. (coming and "Y" or "N"), "WHISPER", banner.sender, nil, "interactive")
-  if coming and ns.worldPvp then pcall(ns.worldPvp.note, "responded", banner.call.zone) end
+  if coming and ns.worldPvp then pcall(ns.worldPvp.note, "responded", banner.call.zone, banner.call.mapId) end
   banner:Hide()
   return true
 end

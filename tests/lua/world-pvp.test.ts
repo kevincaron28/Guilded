@@ -119,6 +119,29 @@ describe("world PvP deaths, calls and defends", () => {
     expect(stat("total", "defends")).toBe("1");
     expect(stat("total", "kills")).toBe("2");
   });
+
+  it("compares map ids first, so a French helper and an English caller still match", () => {
+    setup();
+    s!.run(`MYMAP = 47; NS.guildMap = { myPosition = function() return MYMAP, 0.5, 0.5 end }; ZONE = "Bois de la Penombre"`);
+    s!.run(`NS.worldPvp.note("responded", "Duskwood", 47)`);
+    expect(s!.run(`return tostring(NS.worldPvp.defending())`)).toBe("true");
+    kill("Here");
+    expect(stat("total", "defends")).toBe("1");
+    s!.run(`MYMAP = 48; CLOCK = CLOCK + 10`);
+    expect(s!.run(`return tostring(NS.worldPvp.defending())`)).toBe("false");
+    kill("Elsewhere");
+    expect(stat("total", "defends")).toBe("1");
+  });
+  it("falls back to the zone name when a side has no map id, and cuts a long name like the call does", () => {
+    setup();
+    const long = "The Hinterlands Northern Reaches Of The Wild";
+    s!.run(`ZONE = "${long}"; NS.worldPvp.note("responded", string.sub("${long}", 1, 28), 0)`);
+    expect(s!.run(`return tostring(NS.worldPvp.defending())`)).toBe("true");
+    s!.run(`NS.guildMap = { myPosition = function() return nil end }; NS.worldPvp.note("responded", "Duskwood", 47)`);
+    expect(s!.run(`return tostring(NS.worldPvp.defending())`)).toBe("false"); // my map unknown, name differs
+    s!.run(`ZONE = "Duskwood"`);
+    expect(s!.run(`return tostring(NS.worldPvp.defending())`)).toBe("true");
+  });
 });
 
 describe("world PvP weeks and the readout", () => {

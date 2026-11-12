@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyGuildMapUpload } from "../src/services/guild-map.js";
 import { weekKeyOf, weekRange, type WorldPvpStanding } from "../src/services/world-pvp.js";
 import {
-  callPostText, clean, deliverWeeklyRecap, extrasFields, extrasSwitches, hotZones, knownNameSet, loadWeekCalls, mostWanted, queueCallPost, recapText,
-  scheduleWeeklyRecap, syncCallPost, weekRecap, zoneKeyOf, pvpPostChannelId, type WeekCall
+  clean, deliverWeeklyRecap, extrasFields, extrasSwitches, hotZones, knownNameSet, loadWeekCalls, mostWanted, recapText,
+  scheduleWeeklyRecap, weekRecap, pvpPostChannelId, type WeekCall
 } from "../src/services/world-pvp-extras.js";
 
 const at = (iso: string) => new Date(iso);
@@ -46,7 +45,6 @@ describe("hot zones and most wanted", () => {
     const fields = extrasFields({ switches: extrasSwitches({ pvpHotZonesEnabled: true, pvpMostWantedEnabled: true }), standings: [], calls: evil }, "en");
     expect(fields.length).toBe(2);
     for (const f of fields) expect(f.value).not.toMatch(/\w\.\w|\/|:\/\//);
-    expect(callPostText("en", "a.b/c", "discord.gg/x")).not.toMatch(/\w\.\w|discord\.gg/);
   });
 });
 
@@ -61,27 +59,20 @@ describe("recap and board lines", () => {
   });
   it("shows only the switched-on sections, in English and French", () => {
     const calls = [1, 2, 3].map((i) => call("Duskwood", [{ name: "Gank", class: "Rogue" }], { memberId: `m${i}` }));
-    expect(extrasFields({ switches: extrasSwitches({}), standings, calls }, "en")).toEqual([]);
+    // On by default: a server with no saved choice (or null columns) gets all three; an officer's false switches one off.
+    expect(extrasSwitches({})).toEqual({ recap: true, hotZones: true, mostWanted: true });
+    expect(extrasSwitches({ pvpRecapEnabled: false, pvpHotZonesEnabled: false, pvpMostWantedEnabled: false })).toEqual({ recap: false, hotZones: false, mostWanted: false });
+    expect(extrasFields({ switches: extrasSwitches({ pvpRecapEnabled: false, pvpHotZonesEnabled: false, pvpMostWantedEnabled: false }), standings, calls }, "en")).toEqual([]);
     const en = extrasFields({ switches: extrasSwitches({ pvpRecapEnabled: true, pvpHotZonesEnabled: true, pvpMostWantedEnabled: true }), standings, calls }, "en");
     expect(en.map((f) => f.name)).toEqual(["🛡️ Defender of the week", "🔥 Hot zones this week", "🎯 Most wanted"]);
     expect(en[2]!.value).toBe("Gank — seen in 3 calls");
-    expect(extrasFields({ switches: extrasSwitches({ pvpMostWantedEnabled: true }), standings, calls }, "fr")[0]!.name).toBe("🎯 Les plus recherchés");
+    expect(extrasFields({ switches: extrasSwitches({ pvpRecapEnabled: false, pvpHotZonesEnabled: false }), standings, calls }, "fr")[0]!.name).toBe("🎯 Les plus recherchés");
     expect(recapText(weekRecap(standings, []), "fr")).toContain("Défenseur de la semaine");
-  });
-  it("words a call post and its cleared edit in both languages", () => {
-    expect(callPostText("en", "Aria Vale", "Duskwood")).toBe("⚔️ **Aria Vale** called for help in **Duskwood**");
-    expect(callPostText("fr", "Aria Vale", "Duskwood", true)).toContain("Alerte levée");
-    expect(callPostText("en", "A", "Z", true)).toContain("~~");
   });
   it("routes posts to the group finder, else the PvP groups channel, else the ladder channel", () => {
     expect(pvpPostChannelId({ dungeonSignupChannelId: "f", bgGroupsChannelId: "g", bgStatsChannelId: "l" })).toBe("f");
     expect(pvpPostChannelId({ unifiedGroupFinder: false, dungeonSignupChannelId: "f", bgGroupsChannelId: "g" })).toBe("g");
     expect(pvpPostChannelId({ bgStatsChannelId: "l" })).toBe("l");
-  });
-  it("matches a zone by map id, else by name without case or accents", () => {
-    expect(zoneKeyOf({ mapId: 1431, zone: "Duskwood" })).toBe(zoneKeyOf({ mapId: 1431, zone: "Bois de la Pénombre" }));
-    expect(zoneKeyOf({ zone: "Bois de la Pénombre" })).toBe(zoneKeyOf({ zone: "bois  de la penombre" }));
-    expect(zoneKeyOf({ zone: "Westfall" })).not.toBe(zoneKeyOf({ zone: "Duskwood" }));
   });
   it("loads the newest 500 calls of a busy week", async () => {
     const findMany = vi.fn(async () => []);
@@ -134,88 +125,12 @@ function world(settings: Record<string, unknown> | null, rows: Row[], hooks: { o
   return { db: db as never, raw: db, discordGuild, send, messages, rows };
 }
 const NOW = at("2026-11-10T20:01:00Z");
-const row = (id: string, extra: Partial<Row> = {}): Row => ({ id, guildId: "g1", memberId: "m1", character: "Aria Vale", zone: "Duskwood", mapId: 1431, calledAt: at("2026-11-10T20:00:00Z"), clearedAt: null, postChannelId: null, postMessageId: null, ...extra });
-const on = { pvpCallPostsEnabled: true, worldPvpEnabled: true, dungeonSignupChannelId: "ch1", language: "en" };
-
-describe("call posts", () => {
-  it("posts nothing until an officer turns it on", async () => {
-    const w = world({ ...on, pvpCallPostsEnabled: false }, [row("c1")]);
-    expect(await syncCallPost(w.discordGuild, w.db, "c1", NOW)).toBe(false);
-    expect(await queueCallPost(w.db as never, { id: "c1", guildId: "g1" })).toBe(false);
-    expect(w.send).not.toHaveBeenCalled();
-    expect(w.raw.discordJob.upsert).not.toHaveBeenCalled();
-  });
-  it("queues one job per call when on", async () => {
-    const w = world(on, [row("c1")]);
-    expect(await queueCallPost(w.db as never, { id: "c1", guildId: "g1" })).toBe(true);
-    expect(w.raw.discordJob.upsert).toHaveBeenCalledWith(expect.objectContaining({ where: { guildId_key: { guildId: "g1", key: "pvp-call:c1" } } }));
-  });
-  it("posts a live call once and remembers the message", async () => {
-    const w = world(on, [row("c1")]);
-    expect(await syncCallPost(w.discordGuild, w.db, "c1", NOW)).toBe(true);
-    expect(w.send).toHaveBeenCalledTimes(1);
-    expect(w.rows[0]).toMatchObject({ postChannelId: "ch1", postMessageId: "msg1" });
-  });
-  it("never posts a call that is already cleared or too old", async () => {
-    const cleared = world(on, [row("c1", { clearedAt: at("2026-11-10T20:00:30Z") })]);
-    expect(await syncCallPost(cleared.discordGuild, cleared.db, "c1", NOW)).toBe(false);
-    const old = world(on, [row("c1")]);
-    expect(await syncCallPost(old.discordGuild, old.db, "c1", at("2026-11-10T21:00:00Z"))).toBe(false);
-    expect(cleared.send).not.toHaveBeenCalled();
-    expect(old.send).not.toHaveBeenCalled();
-  });
-  it("edits the post to cleared when the all clear comes later", async () => {
-    const w = world(on, [row("c1")]);
-    await syncCallPost(w.discordGuild, w.db, "c1", NOW);
-    w.rows[0]!.clearedAt = at("2026-11-10T20:02:00Z");
-    expect(await syncCallPost(w.discordGuild, w.db, "c1", at("2026-11-10T20:02:10Z"))).toBe(true);
-    expect(w.messages.get("msg1")!.content).toContain("Cleared");
-  });
-  it("edits the post when the all clear lands while the send is in flight", async () => {
-    const rows = [row("c1")];
-    const w = world(on, rows, { onSend: () => { rows[0]!.clearedAt = at("2026-11-10T20:01:05Z"); } });
-    expect(await syncCallPost(w.discordGuild, w.db, "c1", NOW)).toBe(true);
-    expect(w.messages.get("msg1")!.content).toContain("Cleared");
-  });
-  it("keeps one live post per zone, whatever the spelling or order of the batch", async () => {
-    const rows = [row("c1"), row("c2", { memberId: "m2", zone: "duskwood" }), row("c3", { memberId: "m3", zone: "Bois", mapId: 1431 }), row("c4", { memberId: "m4", zone: "Westfall", mapId: 1436 })];
-    const w = world(on, rows);
-    for (const id of ["c1", "c2", "c3", "c4"]) await syncCallPost(w.discordGuild, w.db, id, NOW);
-    expect(w.send).toHaveBeenCalledTimes(2);
-    expect(rows.map((r) => r.postMessageId !== null)).toEqual([true, false, false, true]);
-  });
-  it("posts a call only once when two deliveries race", async () => {
-    const w = world(on, [row("c1")]);
-    await Promise.all([syncCallPost(w.discordGuild, w.db, "c1", NOW), syncCallPost(w.discordGuild, w.db, "c1", NOW)]);
-    expect(w.send).toHaveBeenCalledTimes(1);
-  });
-  it("caps posts per member each hour and per server in ten minutes", async () => {
-    const mine = Array.from({ length: 5 }, (_, i) => row(`c${i}`, { zone: `Zone ${i}`, mapId: 100 + i }));
-    const w = world(on, mine);
-    for (const r of mine) await syncCallPost(w.discordGuild, w.db, r.id, NOW);
-    expect(w.send).toHaveBeenCalledTimes(3);
-    const many = Array.from({ length: 10 }, (_, i) => row(`s${i}`, { memberId: `m${i}`, zone: `Zone ${i}`, mapId: 200 + i }));
-    const s = world(on, many);
-    for (const r of many) await syncCallPost(s.discordGuild, s.db, r.id, NOW);
-    expect(s.send).toHaveBeenCalledTimes(6);
-  });
-  it("retries a failed send (the job throws) and ends quietly when the channel or permission is gone", async () => {
-    const rows = [row("c1")];
-    const failing = world(on, rows, { failSend: new Error("rate limited") });
-    await expect(syncCallPost(failing.discordGuild, failing.db, "c1", NOW)).rejects.toThrow("rate limited");
-    expect(rows[0]!.postMessageId).toBeNull();
-    const rows2 = [row("c1")];
-    const gone = world(on, rows2, { failSend: Object.assign(new Error("Missing Access"), { code: 50001 }) });
-    expect(await syncCallPost(gone.discordGuild, gone.db, "c1", NOW)).toBe(false);
-    expect(rows2[0]!.postMessageId).toBeNull();
-  });
-});
 
 describe("weekly recap", () => {
   const afterReset = new Date(weekRange(weekKeyOf(NOW) + 1).from.getTime() + 7 * 3_600_000);
   const week = weekKeyOf(afterReset) - 1;
   const settings = (extra: Record<string, unknown> = {}) => ({ pvpRecapEnabled: true, worldPvpEnabled: true, bgStatsChannelId: "ch1", language: "en", pvpRecapLastWeek: week - 1, ...extra });
-  it("is off by default, waits for the reset plus six hours, and queues once", async () => {
+  it("is on by default, switches off, waits for the reset plus six hours, and queues once", async () => {
     const off = world(settings({ pvpRecapEnabled: false }), []);
     expect(await scheduleWeeklyRecap(off.db, "d1", afterReset)).toBe(false);
     const early = world(settings(), []);
@@ -238,29 +153,23 @@ describe("weekly recap", () => {
     expect(await deliverWeeklyRecap(w.discordGuild, w.db, "g1", week)).toBe(false);
     expect(w.send).not.toHaveBeenCalled();
   });
+  it("treats an unset switch as on, and posts nothing for a week with no PvP activity", async () => {
+    const unset: Record<string, unknown> = settings();
+    delete unset["pvpRecapEnabled"];
+    const w = world(unset, []);
+    expect(await scheduleWeeklyRecap(w.db, "d1", afterReset)).toBe(true);
+    (w.raw.worldPvpWeek.findMany as unknown as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue([]);
+    expect(await deliverWeeklyRecap(w.discordGuild, w.db, "g1", week)).toBe(false);
+    expect(w.send).not.toHaveBeenCalled();
+  });
+  it("posts nothing for a week that ended before the baseline (the week the migration set)", async () => {
+    const w = world(settings({ pvpRecapLastWeek: week }), []);
+    expect(await scheduleWeeklyRecap(w.db, "d1", afterReset)).toBe(false);
+    expect(w.raw.discordJob.upsert).not.toHaveBeenCalled();
+  });
   it("delivers the finished week's recap", async () => {
     const w = world(settings(), []);
     expect(await deliverWeeklyRecap(w.discordGuild, w.db, "g1", week)).toBe(true);
     expect(w.send).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("upload hooks", () => {
-  it("tells the cleared listener when an upload brings the all clear of a stored call", async () => {
-    const { onHelpCallCleared } = await import("../src/services/guild-map.js");
-    const seen = vi.fn();
-    const off = onHelpCallCleared(seen);
-    const now = new Date();
-    const stored = { id: "c1", clearedAt: null, character: "Aria Vale", zone: "Duskwood", calledAt: now, attackers: [], postChannelId: "ch1", postMessageId: "m1" };
-    const db = {
-      guildSettings: { findUnique: vi.fn(async () => ({ guildMapEnabled: true })) },
-      member: { findUnique: vi.fn(async () => ({ guildId: "g1", mapShareOff: false })) },
-      guildMapSighting: { createMany: vi.fn(), deleteMany: vi.fn() },
-      guildHelpCall: { findUnique: vi.fn(async () => stored), update: vi.fn(), create: vi.fn(), deleteMany: vi.fn() }
-    };
-    const t = Math.floor(now.getTime() / 1000);
-    await applyGuildMapUpload(db as never, "g1", "m", { sightings: [], calls: [{ ref: "r1", character: "Aria Vale", zone: "Duskwood", attackers: [], at: t - 30, clearedAt: t } as never] }, now);
-    off();
-    expect(seen).toHaveBeenCalledWith(expect.objectContaining({ id: "c1", postMessageId: "m1" }));
   });
 });

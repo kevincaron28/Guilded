@@ -73,9 +73,7 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const { updateDungeonLeaderboard } = await import("./dungeon-leaderboard.js");
     if (!await updateDungeonLeaderboard(guild, true)) throw new Error("Board unavailable");
   } else if (job.kind === "PVP_CALL") {
-    // World PvP call post or its cleared edit (world-pvp-extras.ts). A refused send throws and is retried with the usual backoff.
-    const { syncCallPost } = await import("./world-pvp-extras.js");
-    await syncCallPost(guild, prisma, String(payload["callId"] ?? ""));
+    // Retired 13 November 2026: a call-post job queued before the update finishes quietly and posts nothing.
   } else if (job.kind === "PVP_RECAP") {
     const { deliverWeeklyRecap } = await import("./world-pvp-extras.js");
     await deliverWeeklyRecap(guild, prisma, job.guildId, Number(payload["week"] ?? 0));

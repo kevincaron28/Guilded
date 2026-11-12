@@ -5,7 +5,8 @@ starting with the guild message which is useless because it can't auto post new 
 else would you remove or change place to make it less friction. People find it too complicated to navigate the addon"*, and
 *"make sure to analyse best implementation method"*.
 
-This is a read-only audit of `addon/Guilded/` (version 9.1.6). **Nothing is removed until the owner approves.** Sync, dungeon
+This is a read-only audit of `addon/Guilded/` (version 9.1.6). **Approved by the owner on 12 November 2026 ("DO THIS")**, with
+the decisions recorded in section 4. Sync, dungeon
 runs, linking and uploads are protected: no module the companion exports or guildmates sync through is removed.
 
 ## Summary
@@ -37,7 +38,7 @@ behind Settings > Advanced.
 | Crafting (guild panel) and Crafting orders | **MERGE** into **Crafting** | Search recipes and claim orders in one place. |
 | My character | **MERGE** into **Home** | Gear check and attunements belong on the first screen. |
 | Open raids and Raid sign-up | **MERGE** into **Raids** | One place to find and join raids. |
-| Ready, Reserves, Run a raid, Loot, Council, Standings, Calendar panel | **MOVE** into Raids (leader/officer section) | Raid-night tools. Forever raids open 9 December; until then they only clutter. |
+| Ready, Reserves, Run a raid, Loot, Council, Standings, Calendar panel | **MOVE** into Raids (leader/officer section) | Raid-night tools grouped in one place. They stay visible before raids open on 9 December (owner, decision 3). |
 | Administration (EP/GP), Local guild, Roster admin, Gear, Officer tools, To invite, Auto-invite | **MOVE** into **Officer** | One officer tab instead of officer pages spread over two windows. |
 | Guilded panel inside Blizzard's guild window and calendar | **MERGE** into the main window | Two extra windows are the main navigation confusion. A Guilded button there opens the main window on the right tab. |
 | Background modules (Sync, CatchUp, GuildRelay, GuildSnapshot, LedgerSync/Relay/Digest, OfficerBridge, SeasonSync, Scores, Dungeon, RunResults, DungeonStats, DungeonScorePanel, SeasonDetails, Battleground, WorldPvP, GameAchievements, Duels, GuildMap, CallForHelp, Tooltip, Presence, Recipes, CraftOrders, GuildBoard, GuildBank, GuildLog, CompanionLink, Backup, History, API) | **KEEP** | They carry sync, runs, linking and uploads, or have a single obvious entry. |
@@ -169,7 +170,7 @@ requests live in memory only. There is no bot or companion change.
 3. **Dungeons:** opens the existing Guilded tab in the group finder, unchanged.
 4. **Crafting:** recipe search plus crafting orders.
 5. **Raids:** sign-up and open raids for everyone. A *Raid leader* section (Ready, Reserves, Run a raid, Loot or Council by
-   loot system, Standings, Calendar, and the Raid group `/invite` lines from `Invites.lua`) shows only to leaders and officers, and only once raids are open or a raid is running.
+   loot system, Standings, Calendar, and the Raid group `/invite` lines from `Invites.lua`) shows only to leaders and officers. It is always visible, not held back until raids open (owner, decision 3).
 6. **Officer** (officers only): Administration (EP/GP), raid cores (Local guild), Roster admin, Guild invites (the To invite queue and auto-invite,
    from `Invites.lua`),
    gear check, guild log, prospects, guild bank, imports.
@@ -284,7 +285,10 @@ Home page where the Levelling partners button was.
   - full first and last names appear in every line;
   - repeat on a French client.
 
-## 4. Decisions for the owner
+## 4. Decisions
+
+Owner answers of 12 November 2026: decisions **1, 2, 4 and 5: yes**, as recommended. Decision **3: no**: the raid-night
+tools move into the Raids tab and stay visible. Decisions 6 and 7 (Layer invite) are still open.
 
 1. **Remove the guild message completely** (not just hide it)? *Recommend: yes.*
 2. **Milestone announcements:** they post to guild chat from a timer, the path the game blocked for the welcome greeting. If

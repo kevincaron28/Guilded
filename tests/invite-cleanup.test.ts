@@ -93,7 +93,7 @@ describe("scheduling (the clean-up is queued, not run inline)", () => {
   it("starts the clock only on a full name match or an officer action, never on a first-name-only roster guess", async () => {
     const waiting = () => table([row({ status: "PENDING", cleanupAt: null, nameKey: "amy archer" })]);
     const full = waiting();
-    await markInvitedByName(full.database as never, "g1", ["Amy Archer-Realm"], "roster");
+    await markInvitedByName(full.database as never, "g1", ["Amy Archer-Realm", "Bob Brewer-Realm"], "roster");
     expect(full.rows[0]).toMatchObject({ status: "INVITED" });
     expect(full.rows[0]!.cleanupAt!.getTime()).toBeGreaterThan(Date.now() + CLEANUP_DELAY_MS - 5000);
     const guess = waiting();
@@ -190,6 +190,19 @@ describe("failures are retried by the queue, boundedly", () => {
     t.rows[0]!.cleanupAt = ago(1000);
     expect(await scheduleInviteCleanups(t.database as never, now)).toBe(0);
     expect(console.warn).toHaveBeenCalledTimes(2); // the permission line once, the give-up line once
+  });
+});
+
+describe("realm names are stripped only when they are realms", () => {
+  const waiting = (...keys: string[]) => table(keys.map((k, i) => row({ id: `w${i}`, status: "PENDING", cleanupAt: null, nameKey: k, displayName: k })));
+  const matched = async (t: ReturnType<typeof table>, roster: string[]) => (await markInvitedByName(t.database as never, "g1", roster, "roster")).map((r) => r.displayName).sort();
+  it("a roster member with a hyphenated surname does not close a request for a different person", async () => {
+    expect(await matched(waiting("anna smith"), ["Anna Smith-Jones", "Bob Brewer"])).toEqual([]);
+    expect(await matched(waiting("anna smith", "anna smith-jones"), ["Anna Smith-Jones-Forever", "Bob Brewer-Forever", "Cat Carter-Forever"])).toEqual(["anna smith-jones"]);
+  });
+  it("a real realm suffix is stripped in both directions", async () => {
+    expect(await matched(waiting("anna smith"), ["Anna Smith-Forever", "Bob Brewer-Forever"])).toEqual(["anna smith"]);
+    expect(await matched(waiting("anna smith-forever"), ["Anna Smith", "Bob Brewer-Forever", "Cat Carter-Forever"])).toEqual(["anna smith-forever"]);
   });
 });
 

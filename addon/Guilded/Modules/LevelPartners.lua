@@ -78,12 +78,13 @@ function module.invited(name)
   return true
 end
 
--- Opens the chat box addressed to the player; the member still types and sends.
+-- Shows "/w Name" in the copy box: the game refuses addon code that fills the chat box (Util.lua), so the member
+-- copies the line, pastes it in the chat box and types the message.
 function module.whisper(name)
   if not name or name == "" then return false end
-  if ChatFrame_SendTell then return pcall(ChatFrame_SendTell, name) end
-  if ChatFrame_OpenChat then return pcall(ChatFrame_OpenChat, "/w " .. name .. " ") end
-  return false
+  if not ns.showCopyText then return false end
+  ns.showCopyText("/w " .. name, L("Whisper"))
+  return true
 end
 
 -- ---------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { newLuaSession, type LuaSession } from "./harness.js";
+import { foldKey } from "../../src/services/invite-queue.js";
 
 let session: LuaSession | undefined;
 afterEach(() => { session?.close(); session = undefined; });
@@ -10,7 +11,7 @@ function withQueue(officer = true): LuaSession {
     DB = {}
     SENT = {}
     CAN = true
-    ROSTER = { "Zed Zealot-Realm" }
+    ROSTER = { "Zed Zealot-Realm", "Dan Dorn-Realm" }
     time = function() return 5000 end
     function CanGuildInvite() return CAN end
     function GuildInvite(name) SENT[#SENT + 1] = name end
@@ -130,6 +131,40 @@ describe("InviteQueue.lua", () => {
     const plain = withQueue(false);
     expect(plain.run(String.raw`return tostring((NS.inviteQueue.canInvite()))`)).toBe("false");
     expect(plain.run(String.raw`return tostring((NS.inviteQueue.list()))`)).toBe("nil");
+  });
+  it("matches a name in the guild with accents and capitals folded like the bot does", () => {
+    const s = withQueue();
+    s.run(String.raw`ROSTER = { "\195\137lise Dupont-Realm", "Zo\195\171 Quinn-Realm" }`);
+    s.run(String.raw`GuildedInvites.names = { { name = "Elise Dupont", at = "a" }, { name = "\195\169lise Dupont", at = "b" }, { name = "Zoe Quinn", at = "c" }, { name = "Amy Archer", at = "d" } }`);
+    expect(s.run(String.raw`local t = {} for _, l in ipairs(NS.inviteQueue.list()) do t[#t + 1] = l.name end return table.concat(t, "|")`)).toBe("Amy Archer");
+  });
+  it("cuts only a realm from roster names, never a hyphenated surname (same rule as the bot)", () => {
+    const names = (lua: LuaSession) => lua.run(String.raw`local t = {} for _, l in ipairs(NS.inviteQueue.list()) do t[#t + 1] = l.name end return table.concat(t, "|")`);
+    const s = withQueue();
+    s.run(String.raw`GuildedInvites.names = { { name = "Anna Smith", at = "a" }, { name = "Anna Smith-Forever", at = "b" }, { name = "Cat Carter", at = "c" } }`);
+    // Anna Smith-Jones is a surname: the request for Anna Smith stays
+    s.run(String.raw`ROSTER = { "Anna Smith-Jones" }`);
+    expect(names(s)).toBe("Anna Smith|Anna Smith-Forever|Cat Carter");
+    // a real realm (carried by most names) is cut, on the roster and on a request typed with it
+    s.run(String.raw`ROSTER = { "Anna Smith-Forever", "Bob Brewer-Forever", "Zed Zealot-Forever" }`);
+    expect(names(s)).toBe("Cat Carter");
+    s.run(String.raw`ROSTER = { "Anna Smith", "Bob Brewer-Forever", "Cat Zed-Forever" }`);
+    expect(names(s)).toBe("Cat Carter");
+    expect(s.run(String.raw`local a, b = NS.inviteQueue.splitRealm("anna smith-jones") return a .. "|" .. tostring(b)`)).toBe("anna smith|jones");
+  });
+  it("folds every letter exactly like the bot's foldKey (shared table, Latin-1 and Latin Extended-A)", () => {
+    const s = withQueue();
+    const mismatches: string[] = [];
+    for (let cp = 0xc0; cp <= 0x17f; cp++) {
+      if (cp === 0xd7 || cp === 0xf7) continue;
+      const letter = String.fromCodePoint(cp);
+      const name = `Ab${letter}Cd Xy`;
+      const escaped = [...Buffer.from(name, "utf8")].map((b) => `\\${b}`).join("");
+      const lua = s.run(`return NS.inviteQueue.foldKey("${escaped}")`);
+      // The bot's key for the same name (letters outside the shared set stay as they are on both sides).
+      if (lua !== foldKey(name)) mismatches.push(`${letter} U+${cp.toString(16)}: lua ${lua} bot ${foldKey(name)}`);
+    }
+    expect(mismatches).toEqual([]);
   });
   it("answers Officers only to /guilded invites for a non-officer, and opens nothing", () => {
     const plain = withQueue(false);

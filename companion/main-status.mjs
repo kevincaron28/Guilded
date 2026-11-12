@@ -128,3 +128,21 @@ export function mainStatus(input = {}) {
     syncNow: { enabled: (linked || device) && Boolean(config.watchFile) && state.syncPhase !== "uploading", busy: state.syncPhase === "uploading" }
   };
 }
+
+/** At least this long between two automatic opens (a member's own click is never limited). */
+export const AUTO_OPEN_MIN_INTERVAL_MS = 30 * 60 * 1000;
+
+/**
+ * Decides whether the hidden companion opens its window by itself (redo C3).
+ * `latch` is { key, openedAt }; the caller keeps the returned latch only if the window really showed.
+ * Opens once per problem, only after the first check has answered, and not more often than the interval.
+ */
+export function autoOpenDecision(latch, status, { checked, now, visible = false, minIntervalMs = AUTO_OPEN_MIN_INTERVAL_MS }) {
+  const key = status.openWindow ? [status.needsYou?.id ?? "", ...status.lines.filter((entry) => entry.tone === "bad").map((entry) => entry.id)].join(",") : "";
+  if (!checked) return { open: false, latch };
+  if (!key) return { open: false, latch: { ...latch, key: "" } };
+  if (key === latch.key) return { open: false, latch };
+  if (visible) return { open: false, latch: { ...latch, key } };
+  if (latch.openedAt && now - latch.openedAt < minIntervalMs) return { open: false, latch };
+  return { open: true, latch: { key, openedAt: now } };
+}

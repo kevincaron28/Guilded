@@ -195,7 +195,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, wowFolderModule, activeGamesModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("wow-folder.mjs")), import(url("active-games.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")), ...await import(url("wow-accounts.mjs")), deviceSync: await import(url("device-sync.mjs")) };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("main-status.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")), ...await import(url("wow-accounts.mjs")), deviceSync: await import(url("device-sync.mjs")) };
 }
 
 // Start-up diagnostics (9.0 release blocker): every line logged before the window is ready also
@@ -480,7 +480,9 @@ async function refreshSavedFile() {
   const another = otherAccounts();
   if (ticket !== savedFileCheck) return;
   savedFile = result;
+  savedFileChecked = true;
   otherAccount = another[0] ?? null;
+  if (engine) { const now = currentState(); trayAndWindowFollow(now.state, now.problems); }
   const candidate = savedFile?.candidate;
   // The app mostly lives in the tray: say it once per folder outside the window too.
   if (candidate && config.liveFolderNotified !== candidate.path) {
@@ -550,6 +552,7 @@ function onState(raw) {
     shownProblems = key;
     try { win.setOverlayIcon(key ? nativeImage.createFromPath(asset("problem-badge.png")) : null, key ? T("{0} problem(s): open to see how to fix", found.length) : ""); } catch { /* not every Windows shell has overlays */ }
   }
+  trayAndWindowFollow(state, found);
   // An upload means the file changed: refresh its date for the status line.
   if (state.lastUpload?.at && state.lastUpload.at !== lastUploadAt) {
     lastUploadAt = state.lastUpload.at;
@@ -597,25 +600,58 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//i.test(url)) void shell.openExternal(url); return { action: "deny" }; });
 }
 
-function createTray() {
-  tray = new Tray(nativeImage.createFromPath(asset("tray-setup.png")).resize({ width: 32, height: 32 }));
-  tray.setToolTip(T("Guilded Companion"));
-  tray.on("click", showWindow);
-  const rebuild = () => tray.setContextMenu(Menu.buildFromTemplate([
+// The tray status line and the window's "open by itself" rule share the window's own model (redo C3).
+function statusInput(state, found) {
+  return { config, state, problems: found, savedFile, addonAction: addonAction(), wowRunning, update, otherAccount: otherAccount ? { account: otherAccount.account } : null };
+}
+function statusWords(text) {
+  const [key, ...values] = Array.isArray(text) ? text : [];
+  return typeof key === "string" ? T(key, ...values) : "";
+}
+/** One short line for the tray: what needs the member, else the first line that is not green, else "all good". */
+function trayStatusLine(status) {
+  if (status.needsYou) return statusWords(status.needsYou.text);
+  const worst = status.lines.find((entry) => entry.tone === "bad") ?? status.lines.find((entry) => entry.tone === "warn");
+  return worst ? statusWords(worst.text) : T("Everything is working.");
+}
+let trayLine = "";
+let autoOpenLatch = { key: "", openedAt: 0 };
+let savedFileChecked = false;
+function trayAndWindowFollow(state, found) {
+  if (!engineModules?.mainStatus) return;
+  const status = engineModules.mainStatus(statusInput(state, found));
+  const line = trayStatusLine(status);
+  if (tray && line !== trayLine) { trayLine = line; buildTrayMenu(); }
+  // The window opens by itself only when something needs the member: once per problem, after the first
+  // saved-file check has answered (even when it found no WoW), and not more than every 30 minutes.
+  const decision = engineModules.autoOpenDecision(autoOpenLatch, status, { checked: savedFileChecked, now: Date.now(), visible: !!win && win.isVisible() });
+  if (decision.open && !win) return;
+  if (decision.open) showWindow();
+  autoOpenLatch = decision.latch;
+}
+
+function buildTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: trayLine || T("Everything is working."), enabled: false },
+    { type: "separator" },
     { label: T("Open Guilded Companion"), click: showWindow },
-    { type: "separator" },
-    { label: T("Send my data to Discord now"), click: () => engine.uploadNow() },
-    { label: T("Refresh in-game standings now"), click: () => void engine.refreshStandings() },
-    { type: "separator" },
+    { label: T("Sync now"), click: () => { engine.uploadNow(); void engine.refreshStandings(); } },
     {
       label: T("Start with Windows"), type: "checkbox", checked: autostartOn(),
       click: (item) => { void setAutostart(item.checked); }
     },
-    { label: T("Quit (stops sending data)"), click: () => { quitting = true; app.quit(); } },
-    { label: T("Remove all data and quit..."), click: () => { void removeAllDataAndQuit(); } }
+    { label: T("Quit (stops sending data)"), click: () => { quitting = true; app.quit(); } }
   ]));
-  rebuild();
-  tray.on("right-click", rebuild);
+}
+
+function createTray() {
+  tray = new Tray(nativeImage.createFromPath(asset("tray-setup.png")).resize({ width: 32, height: 32 }));
+  tray.setToolTip(T("Guilded Companion"));
+  tray.on("click", showWindow);
+  buildTrayMenu();
+  // Rebuilt on right-click so the Start with Windows tick is current.
+  tray.on("right-click", buildTrayMenu);
 }
 
 // Store build (9.0.8): the package startup task (store-startup.cjs), never a Run registry entry.

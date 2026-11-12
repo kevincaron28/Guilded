@@ -14,6 +14,7 @@ import { scoreCardPng } from "../services/score-card.js";
 import { duelLeaderboard, percent, streakText } from "../services/duels.js";
 import { updateDuelBoard } from "../services/duel-board.js";
 import { updateBgLadder } from "../services/bg-ladder.js";
+import { weekKeyOf } from "../services/world-pvp.js";
 import { loadWorldPvpExtras } from "../services/world-pvp-extras.js";
 import { loadPvpGroups, pvpGroupLine } from "../services/pvp-group.js";
 import { createPvpGroupFromModal, PVP_FORM_ACTION, pvpGroupModal, showPvpLooking } from "./pvp-group.js";
@@ -132,7 +133,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     const extra = WORLD_PVP_EXTRAS.find(candidate => candidate.value === command.options.getString("extra"));
     const enabled = command.options.getBoolean("enabled", true);
     if (extra) {
-      await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { [extra.column]: enabled } });
+      await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { [extra.column]: enabled, ...(extra.value === "recap" && enabled ? { pvpRecapLastWeek: weekKeyOf(new Date()) - 1 } : {}) } });
       if (enabled) await updateBgLadder(i.guild);
       await i.editReply({ content: enabled
         ? t("On: " + extra.label + ". Off by default; switch it off with enabled:false. Posts and the ladder panel use the PvP channel and the ladder message.", "Activé : " + extra.labelFr + ". Désactivé par défaut; désactivez-le avec enabled:false. Les messages vont dans le salon JcJ et le panneau dans le message du classement.")

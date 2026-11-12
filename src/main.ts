@@ -106,7 +106,7 @@ import { updateDuelBoard } from "./services/duel-board.js";
 import { updateActivityBoard } from "./services/guild-activity.js";
 import { updateRaceBoard } from "./services/race-board.js";
 import { updateBgLadder } from "./services/bg-ladder.js";
-import { postWeeklyRecap, registerCallPosts } from "./services/world-pvp-extras.js";
+import { registerCallPosts, scheduleWeeklyRecap } from "./services/world-pvp-extras.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { refreshBgPanels } from "./services/battleground-setup.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
@@ -373,7 +373,7 @@ client.once(Events.ClientReady, (readyClient) => {
   // The live boards are edited in place every 30 minutes (and after uploads), so a season change or a missed
   // refresh never leaves a stale panel for long. Both are no-ops for a server without the channel/opt-in.
   // World PvP call posts (off until an officer turns them on): one post per call for help, edited on the all clear.
-  registerCallPosts(readyClient, prisma);
+  registerCallPosts(prisma);
   let refreshingBoards = false;
   const refreshBoards = async () => {
     if (refreshingBoards) return;
@@ -386,7 +386,7 @@ client.once(Events.ClientReady, (readyClient) => {
           await updateDuelBoard(guild).catch(reportJobError("Duel board refresh", origin));
           await updateRaceBoard(guild).catch(reportJobError("Race board refresh", origin));
           await updateBgLadder(guild).catch(reportJobError("Battleground ladder refresh", origin));
-          await postWeeklyRecap(guild, prisma).catch(reportJobError("World PvP recap", origin));
+          await scheduleWeeklyRecap(prisma, guild.id).catch(reportJobError("World PvP recap", origin));
           await updateActivityBoard(guild).catch(reportJobError("Activity board refresh", origin));
         });
       }

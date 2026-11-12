@@ -1598,7 +1598,7 @@ end
 
 -- Each rank only sees the commands it can use. Module help lines are either
 -- plain strings (everyone) or { officer = true, text = "..." }.
-local function showHelp()
+local function showFullHelp()
   local officer = isOfficer()
   message("|cffffd100Everyday|r")
   message("/guilded menu (or click the minimap coin) | inspect | status | roster | standings [player] | diag | version")
@@ -1629,6 +1629,21 @@ local function showHelp()
     end
   end
   message("/guilded modules - turn optional parts (bidding, dungeons...) on or off")
+end
+
+-- /guilded help: the few commands a member needs. Every other command keeps working and is listed by /guilded help all.
+local function showHelp()
+  message("|cffffd100Guilded|r")
+  message(L("/guilded - open the Guilded window"))
+  message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character pair gives the line)"))
+  message(L("/guilded companion - the three steps to set up the companion"))
+  message(L("/guilded sync - save your addon data so the companion can send it"))
+  message(L("/guilded map - the guild map"))
+  message(L("/guilded announce off - stop your guild-chat milestone announcements"))
+  message(L("/guilded diag - problems the addon recorded, to copy for a bug report"))
+  message(L("/gsos - call guildmates for help"))
+  message(L("/gdg - dungeon groups"))
+  message(L("/guilded help all - every command"))
 end
 
 -- Extension point for modules loaded after Core.lua (see Modules/Casino.lua):
@@ -1815,7 +1830,8 @@ local function command(text)
     return
   end
   local action = string.lower(args[1] or "help")
-  if action == "help" then showHelp()
+  if action == "help" then
+    if string.lower(args[2] or "") == "all" then showFullHelp() else showHelp() end
   elseif action == "status" then
     message(activeRaid and ("Active raid: " .. activeRaid.title .. " (started " .. activeRaid.startedAt .. ")") or "No active raid.")
   elseif action == "roster" then

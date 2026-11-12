@@ -80,7 +80,10 @@ describe("level brackets in the addon", () => {
     officer.run("DB.dungeonBoard=GuildedDungeonBoard");
     member.run(`DB.dungeonBoard={updatedAt="stamp",season="All levels",status="ACTIVE",rows={},
       brackets={{key="15-29",min=15,max=29,bestCount=3},{key="60",min=60,max=60,bestCount=4}}}; NS.seasonDetails.request(1)`);
+    // 9.1.7: the relay now leaves at the shared budget's pace, so let the officer's clock run until it is sent.
+    officer.run("X = 0; GetTime = function() return X end; TIM = {}; C_Timer.After = function(_, f) TIM[#TIM + 1] = f end");
     officer.run(`fire_event("CHAT_MSG_ADDON","GuildedRating",${JSON.stringify(member.run("return SENT[#SENT].text"))},"GUILD","Tester")`);
+    for (let k = 0; k < 40; k++) officer.run("X = X + 1; local l = TIM; TIM = {}; for _, f in ipairs(l) do f() end");
     for (let i = 1; i <= Number(officer.run("return #SENT")); i++) member.run(`fire_event("CHAT_MSG_ADDON","GuildedRating",${JSON.stringify(officer.run(`return SENT[${i}].text`))},"WHISPER","Officer")`);
     expect(member.run('local p=NS.seasonDetails.get(1,"Tester").profile; return p.bracket .. " " .. p.points')).toBe("15-29 800");
     expect(member.run('local n=0; for _,d in ipairs(NS.seasonDetails.get(1,"Tester").profile.details) do if d.counted then n=n+1 end end; return n')).toBe("3");

@@ -9,7 +9,7 @@
 
 ## En jeu, sans Discord
 
-Recettes, carte de guilde, présence, butin et classements EP/GP sont partagés avec votre guilde en jeu. Les classements et l’artisanat se trouvent dans la fenêtre de guilde.
+Recettes, carte de guilde, présence, butin et classements EP/GP sont partagés avec votre guilde en jeu. Les classements et l’artisanat sont des pages de la fenêtre Guilded.
 
 [Obtenir Guilded sur CurseForge](https://www.curseforge.com/wow/addons/guilded) · [Guide d’installation](../docs/MEMBER_INSTALL.html#fr)
 

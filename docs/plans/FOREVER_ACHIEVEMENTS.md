@@ -40,6 +40,9 @@ Unverified until probed on a live Forever client; do not ship detection code for
 
 ### Running the probe (chat `/run` is blocked on Forever)
 
+> The probe has done its job and was removed in 9.2 (`Modules/Probe.lua`); `/guilded probe` now prints a one-line "removed" message. The
+> description below is the record of how the results were gathered.
+
 `/guilded probe achievements` (addon, any player, read-only; `Modules/Probe.lua`) does the checks above without scripts. Everything is wrapped in pcall,
 nothing protected is called, and nothing is sent. It prints to the Guilded chat tab:
 

@@ -317,6 +317,7 @@ const STRINGS = {
     fr: "{user} a délié {name} depuis le panneau des personnages (il ne sera pas relié)."
   },
 
+  "panel.hint": { en: "Tip: `/character list` opens your panel: link, set your main and unlink with buttons.", fr: "Astuce : `/character list` ouvre ton panneau : lier, définir ton principal et délier avec des boutons." },
   "panel.noServer": { en: "You are not a member of that server any more.", fr: "Tu n'es plus membre de ce serveur." },
   "linked.wrongServerHelp": {
     en: "Linked to the wrong server? Open the **Guilded Companion** on your PC, go to Advanced, select that server under *Active connection*, then press **Remove this server**. It only forgets the connection on your PC and stops uploading there; nothing is deleted on the server. For a single character, use **Not mine** instead.",
@@ -326,7 +327,10 @@ const STRINGS = {
     en: "{user} unlinked {name} with the \"Not mine\" button (it had been linked automatically; it won't be linked back).",
     fr: "{user} a délié {name} avec le bouton « Pas à moi » (il avait été lié automatiquement; il ne sera pas relié)."
   },
-  "linked.button": { en: "My linked characters", fr: "Mes personnages liés" },
+  "linked.button": { en: "My characters", fr: "Mes personnages" },
+  "linked.add": { en: "Add another", fr: "Ajouter un autre" },
+  "panel.moreServers": { en: "You are in more servers than shown. Use /character in the server you want.", fr: "Tu es dans plus de serveurs que ceux affichés. Utilise /character dans le serveur voulu." },
+  "panel.whichServer": { en: "Which server?", fr: "Quel serveur ?" },
   "linked.level": { en: "level {level}", fr: "niveau {level}" },
   "linked.main": { en: "main", fr: "principal" },
   "linked.more": { en: "… and {count} more", fr: "… et {count} de plus" },

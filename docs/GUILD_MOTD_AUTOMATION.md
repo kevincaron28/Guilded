@@ -1,5 +1,8 @@
 # Guild message of the day, one click
 
+> **Removed in 9.2.** The MOTD reminder module (`GuildMotd.lua`), its tab and `/guilded motd` are gone; `/guilded motd` prints a one-line
+> "removed" message. This page is kept as the record of why (WoW does not let addons set the message of the day).
+
 Guilded is a **reminder plus a copy box** for the in-game guild MOTD (`addon/Guilded/Modules/GuildMotd.lua`). WoW does not let
 addons set the message of the day: `GuildSetMOTD` is Blizzard-UI only on Forever, and chat-box text an addon fills in is
 tainted, so `/gmotd` pre-filled by an addon is blocked too. When a rotation or next-raid update is due, the elected officer

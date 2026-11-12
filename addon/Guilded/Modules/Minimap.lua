@@ -2248,7 +2248,9 @@ updateGuildScroll = function()
   elseif tab.name == "Crafting" then
     height = 46 + textHeight(ui.craftResult) + 16 + 20 + textHeight(ui.craftMine) + 16 + 24 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
-  elseif tab.name == "Signups" then height = 590
+  elseif tab.name == "EPGP" then height = 445 + 40 -- lowest widget near y=445
+  elseif tab.name == "Roster admin" then height = 36 + 30 + 40
+  elseif tab.name == "Officer tools" then height = 12 + math.ceil(#OFFICER_TOOLS / 2) * 38 + 12
   elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
   local scroll = ui.guildScroll

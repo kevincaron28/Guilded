@@ -8,6 +8,7 @@ local function announce(text)
   ns.message(text)
   local channel = ns.util.groupChannel()
   if channel then
+    if ns.comm and ns.comm.chat then ns.comm.chat("[Guilded] " .. text:sub(1, 240), channel); return end
     local send = C_ChatInfo and C_ChatInfo.SendChatMessage or SendChatMessage
     if send then pcall(send, "[Guilded] " .. text:sub(1, 240), channel) end
   end

@@ -123,7 +123,7 @@ Ces deux commandes n’existent que dans le serveur du propriétaire du bot.
 
 ## Addon WoW
 
-Tapez `/guilded` (ou `/gd`) en jeu. `/guilded` seul ouvre la fenêtre ; `/guilded help` liste tout.
+Tapez `/guilded` (ou `/gd`) en jeu. `/guilded` seul ouvre la fenêtre ; `/guilded help` liste les commandes principales ; `/guilded help all` liste tout.
 Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 
 ### Au quotidien
@@ -131,7 +131,7 @@ Les lignes « Officiers » demandent le rang d’officier dans votre guilde WoW.
 | Commande | Ce qu’elle fait | Qui |
 | --- | --- | --- |
 | `/guilded` | Ouvrir la fenêtre Guilded | Tout le monde |
-| `/guilded help` | Lister les commandes que vous pouvez utiliser | Tout le monde |
+| `/guilded help` | Les commandes principales (`/guilded help all` liste toutes celles que vous pouvez utiliser) | Tout le monde |
 | `/guilded standings [joueur]` | Les classements, ou ceux d’un joueur | Tout le monde |
 | `/guilded history [joueur]` | Votre historique d’EP/GP et de butin | Tout le monde |
 | `/guilded share` | Un seul collage avec votre personnage, équipement et accès (Discord : `/character import`) | Tout le monde |

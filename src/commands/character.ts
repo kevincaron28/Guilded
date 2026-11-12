@@ -18,6 +18,9 @@ import { addRaceSubcommand, executeRace } from "./race.js";
 import { characterPanel } from "../services/character-panel.js";
 import { isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
 
+// One line for the claim and unlink replies so members find the panel (both languages: the replies themselves are English).
+const PANEL_HINT = [t("en", "panel.hint"), t("fr", "panel.hint")].join("\n");
+
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
   .setDescription("Manage characters in your selected WoW guild.")
@@ -105,7 +108,9 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     const result = await claimCharacter(prisma, context.guildId, context.memberId, interaction.options.getString("name", true));
     // The same DM as every automatic link, with its "Not mine" undo (skipped quietly when DMs are closed).
     if (interaction.guildId) void tellAutoLinked(interaction.client, prisma, interaction.guildId, context.guildId, [{ memberId: context.memberId, count: 1 }]);
-    await interaction.reply({ content: `Linked **${characterName(result.row)}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.`, flags: MessageFlags.Ephemeral });
+    await interaction.reply({ content: `Linked **${characterName(result.row)}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.
+
+${PANEL_HINT}`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "unlink") {
@@ -131,7 +136,9 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
         : `${interaction.user.username} unlinked ${characterName(character)} from ${character.member.displayName}.`);
     }
     await interaction.reply({
-      content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their uploads won't relink it; an officer can still move it to anyone (\`/officer character move\`)`}. Nothing was deleted: its history comes back when it is linked again. If the addon reports it again, it will show up as unclaimed until then.`,
+      content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their uploads won't relink it; an officer can still move it to anyone (\`/officer character move\`)`}. Nothing was deleted: its history comes back when it is linked again. If the addon reports it again, it will show up as unclaimed until then.
+
+${PANEL_HINT}`,
       flags: MessageFlags.Ephemeral
     });
     return;

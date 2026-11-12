@@ -143,7 +143,8 @@ import { POE_TRACKING_ENABLED } from "../companion/active-games.mjs";
 import { executeParticipation } from "./commands/participation.js";
 import { createParticipationTracker } from "./services/participation-discord.js";
 import { createActivityTracker, VOICE_TICK_MS } from "./services/activity-totals.js";
-import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges } from "./services/onboarding.js";
+import { handleGameReminderButton, GAME_REMINDER_PREFIX } from "./commands/game-reminders.js";
+import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges, runGameReminders } from "./services/onboarding.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService, isMemberAnswer } from "./services/error-report.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
@@ -529,6 +530,7 @@ client.once(Events.ClientReady, (readyClient) => {
     runAutoDecay(prisma).catch(reportJobError("Automatic decay"));
     // One private reminder to new members who have not finished onboarding (guilds that turned it on).
     runOnboardingNudges(readyClient).catch(reportJobError("Onboarding reminders"));
+    runGameReminders(readyClient).catch(reportJobError("Game reminders"));
   }, 60 * 60 * 1000);
 });
 
@@ -662,7 +664,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
 client.on(Events.InteractionCreate, async interaction => {
   try {
     const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_PREVIEWS_COMMAND, OWNER_CONSOLE_COMMAND];
-    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, GAME_REMINDER_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
     const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
@@ -809,6 +811,15 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       reportInteractionError("Guild invite request", interaction, error);
       const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    });
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(GAME_REMINDER_PREFIX)) {
+    await handleGameReminderButton(interaction).catch(async (error: unknown) => {
+      reportInteractionError("Game reminders", interaction, error);
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      if (interaction.deferred && !interaction.replied) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;

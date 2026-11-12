@@ -121,11 +121,56 @@ const THEMES: { match: RegExp; scene: DungeonScene; a: string; b: string; motif:
   { match: /blackrock|rochenoire|molten|kroldok|krol.dok/i, scene: "blackrock", a: "#24100c", b: "#e8501c", motif: "fire" },
   { match: /alcaz/i, scene: "stockade", a: "#1a2330", b: "#4f6a85", motif: "keep" }
 ];
+/**
+ * Painted artwork (site/dungeon-art/<key>.jpg), by dungeon and wing, English and French names. Wings without a painting
+ * (Scarlet Monastery: Armory) and unknown dungeons keep the procedural scene. A bare multi-wing name uses its first wing.
+ */
+const PAINTED: [RegExp, string | null][] = [
+  [/alcaz/i, "alcaz-prison"],
+  [/scarlet.*(armory|armurerie)|[ée]carlate.*armurerie/i, null],
+  [/scarlet.*(library|biblioth)|[ée]carlate.*biblioth/i, "scarlet-library"],
+  [/scarlet.*(cathedral|cath[ée]drale)|[ée]carlate.*cath[ée]drale/i, "scarlet-cathedral"],
+  [/scarlet|[ée]carlate/i, "scarlet-graveyard"],
+  [/dire ?maul.*(north|nord)|hache-tripes.*nord/i, "dire-maul-north"],
+  [/dire ?maul.*(west|ouest)|hache-tripes.*ouest/i, "dire-maul-west"],
+  [/dire ?maul|hache-tripes/i, "dire-maul-east"],
+  [/stratholme.*(service)/i, "stratholme-service"],
+  [/stratholme/i, "stratholme-main"],
+  [/blackrock.*(depths)|rochenoire.*profondeurs|profondeurs de rochenoire/i, "blackrock-depths"],
+  [/(upper|sup[ée]rieur).*(blackrock|rochenoire)|(blackrock|rochenoire).*(upper|sup[ée]rieur)/i, "upper-blackrock-spire"],
+  [/(lower|inf[ée]rieur).*(blackrock|rochenoire)|(blackrock|rochenoire).*(lower|inf[ée]rieur|spire)/i, "lower-blackrock-spire"],
+  [/krol.?dok/i, "kroldok-stronghold"],
+  [/razorfen.*downs|souilles/i, "razorfen-downs"],
+  [/razorfen|kraul|kraal/i, "razorfen-kraul"],
+  [/drowned|noy[ée]e/i, "drowned-city"],
+  [/sunken|engloutis|atal.?hakkar/i, "sunken-temple"],
+  [/shaper|fa[çc]onneur/i, "shapers-terrace"],
+  [/uldaman/i, "uldaman"],
+  [/wailing|lamentations/i, "wailing-caverns"],
+  [/ragefire|ragefeu|fournaise/i, "ragefire-chasm"],
+  [/deadmines|mortemine/i, "deadmines"],
+  [/shadowfang|ombrecroc/i, "shadowfang-keep"],
+  [/stockade|ge[ôo]le|prison/i, "stockade"],
+  [/blackfathom|brassenoire|noirprofondeurs/i, "blackfathom-deeps"],
+  [/gnomeregan|gnomeregon/i, "gnomeregan"],
+  [/blackmaw/i, "blackmaw-hold"],
+  [/scholomance/i, "scholomance"],
+  [/thanes/i, "hall-of-thanes"],
+  [/lordaeron/i, "ruins-of-lordaeron"],
+  [/excavation/i, "excavation-wetlands"],
+  [/dalaran/i, "city-of-dalaran"],
+  [/zul.?farrak/i, "zulfarrak"],
+  [/maraudon/i, "maraudon"]
+];
+export function paintedKey(name: string): string | undefined {
+  for (const [match, key] of PAINTED) if (match.test(name)) return key ?? undefined;
+  return undefined;
+}
 function hashOf(text: string): number { let h = 2166136261; for (const c of text) h = Math.imul(h ^ c.codePointAt(0)!, 16777619); return h >>> 0; }
 export function dungeonTheme(name: string): DungeonVisual["theme"] {
   const seed = hashOf(name.toLowerCase());
   const found = THEMES.find((theme) => theme.match.test(name));
-  if (found) return { a: found.a, b: found.b, motif: found.motif, seed, scene: found.scene };
+  if (found) { const painted = paintedKey(name); return { a: found.a, b: found.b, motif: found.motif, seed, scene: found.scene, ...(painted ? { painted } : {}) }; }
   // Unknown dungeon: the generic painted fallback, in a stable hue from its name, so it always looks the same.
   const hue = seed % 360, motifs: DungeonMotif[] = ["cave", "keep", "mine", "thorn"];
   return { a: `hsl(${hue} 55% 12%)`, b: `hsl(${(hue + 25) % 360} 50% 36%)`, motif: motifs[seed % motifs.length]!, seed, scene: "fortress" };

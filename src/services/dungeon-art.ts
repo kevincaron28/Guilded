@@ -11,7 +11,8 @@ import type { DungeonMotif } from "./score-card.js";
 export type DungeonScene = "wailing" | "ragefire" | "deadmines" | "shadowfang" | "stockade" | "blackfathom" | "gnomeregan" | "razorfen"
   | "scarlet" | "uldaman" | "thanes" | "lordaeron" | "excavation" | "dalaran" | "zulfarrak" | "maraudon" | "blackrock" | "stratholme"
   | "scholomance" | "diremaul" | "sunken" | "forest" | "fortress";
-export interface DungeonArtTheme { a: string; b: string; motif: DungeonMotif; seed: number; scene?: DungeonScene | undefined }
+/** `painted` names a painting in site/dungeon-art/ (see dungeon-backdrop.ts); without it, or when the file is missing, the procedural scene is drawn. */
+export interface DungeonArtTheme { a: string; b: string; motif: DungeonMotif; seed: number; scene?: DungeonScene | undefined; painted?: string | undefined }
 
 const W = 1200, H = 630;
 type Rand = () => number;

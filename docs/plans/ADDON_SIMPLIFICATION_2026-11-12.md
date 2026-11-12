@@ -28,6 +28,8 @@ behind Settings > Advanced.
 | `/guilded probe` (`Probe.lua`) | **REMOVE** | Developer probe; its job (achievement APIs) is done (`GameAchievements.lua:4`). |
 | `/guilded import history` (`LootHistoryImport.lua`) | **REMOVE** | Writes `lootHistory`, which nothing reads. Has no tests. |
 | "Race to 60" in the minimap menu | **REMOVE** | No such page exists in the addon (`Minimap.lua:2663`), so it is a dead branch. |
+| Levelling partners (`LevelPartners.lua`, Home button, minimap menu, `/guilded partners`) | **REMOVE** (owner, 12 Nov) | Replaced by **Layer invite** (section 1b). Its Whisper button calls `ChatFrame_OpenChat`, which the addon's own rules forbid. |
+| Every invite helper: `/guilded invite raid` and `missing`, the "To invite" window (`InviteQueue.lua`), auto-invite (`AutoInvite.lua`), the Invite buttons in call for help | **MERGE** into **Layer invite** (`Invites.lua`) | One module and one copy box for every `/invite` and `/ginvite` line, instead of four. |
 | Announcements page | **MERGE** into Settings | It is a set of switches, not a destination. |
 | Info and data page | **MERGE** into Settings > Advanced | Diagnostics (peers, relay, ledger sync) that members never need. |
 | Test tools (`Sim.lua`), Speed report (`Perf.lua`), GRM archive import | **HIDE** (Advanced) | Developer and one-time tools that crowd Settings and Officer tools. |
@@ -62,6 +64,81 @@ feature's whole point. The `/ginvite` and `/invite` copy lines stay, because inv
 pasting works (10 Nov). Two more automatic guild-chat posts fail this test: the officer's welcome greeting and the
 recruiting welcome whisper.
 
+## 1b. Layer invite (replaces levelling partners; owner, 12 Nov)
+
+The owner's words: *"we will remove the levelling partners addon and combine everything into a layer invite module to help
+people that want to get layered"*.
+
+**Goal:** a member who wants another layer asks once. Guildmates who can help see the request and invite them, with the
+fewest clicks. Accepting a party invite from someone on another layer moves you to that layer; you then leave the group and
+stay there.
+
+### What WoW Forever allows
+
+| Step | Automatic? | Why |
+|---|---|---|
+| Send the request to guildmates | Automatic, on the requester's one click | Addon messages on the guild channel work (`ns.comm`, used by every sync). |
+| Know who is on another layer | **No** | The addon cannot read the layer. It only knows each guildmate's zone, continent, group and instance state, and whether they run Guilded. |
+| Invite | **One click plus one paste** by the helper | The invite API, secure macro buttons and lines the addon writes into the chat box are all refused (`Util.lua:485`). Only a line the player pastes works: `/invite Marie Tremblay` in Guilded's copy box (`util.inviteButton`). |
+| Accept | One click by the requester | This is Blizzard's own invite pop-up. |
+| Leave the group after the move | One typed `/leave` (or right-click your portrait > Leave group) | Leaving from addon code is not attempted; Guilded only says when. |
+| Post the request in guild chat | Not used | Addon-written guild-chat lines are unverified or blocked. The addon channel does the job silently. |
+
+### The flow
+
+1. **Requester:** clicks **Change layer** on Home (or types `/guilded layer`). Guilded first checks the requester can be
+   invited: not in a group, not in an instance, not in combat. If any check fails, it says which. Otherwise it sends
+   `REQ` with the requester's full first and last name, continent and zone on a new prefix, `GuildedLayer`.
+2. **Helpers:** guildmates who opted in see a small toast (a plain frame, no secure template): *"Marie Tremblay wants
+   another layer (Elwynn Forest)"*, with **Invite** and **Not now**.
+   - **Invite** shows `/invite Marie Tremblay`, already selected in the copy box. The helper presses Ctrl+C, Enter,
+     Ctrl+V, Enter.
+   - The helper's addon then sends `CLAIM`, so every other helper's toast closes and only one invite goes out.
+   - Toasts never appear to a helper who is in an instance, a raid, a full party or combat, or who is on another
+     continent.
+3. **Back on the requester's side:** once they have joined the helper's group, Guilded says *"You are in Jean Roy's group.
+   When the zone has reloaded, type /leave."* and sends `DONE`.
+   - If they are still on the same layer, a **Same layer, try someone else** button skips that helper for 30 minutes and
+     re-sends the request.
+4. **Timeouts:** a request expires after 5 minutes. A claim expires after 60 seconds if the requester never joined, and the
+   request reopens. A requester can ask at most once every 2 minutes.
+5. **Opt-in:** helpers see toasts only after saying yes once. The first time a request arrives, a one-time prompt asks
+   *"Help guildmates change layer? Yes / No"*. Either answer is remembered in `db.layer.helper`, and Settings can change it.
+   Requesters need no opt-in.
+6. **Layer requests list** (Guild tab): open requests with a ready `/invite` line each. Here a helper who turned toasts off
+   can still help.
+7. **Guildmates without Guilded:** below the list, Guilded shows online guildmates on the same continent who don't run it,
+   each with a **Whisper** copy line (`/w Jean Roy can you invite me for a layer?`). Guilded can't know whether they will help.
+
+### What it absorbs
+
+All of these go into one `Modules/Invites.lua`, with one copy-box component and three sections:
+
+- **Layer** (everyone): the flow above. It replaces `LevelPartners.lua`. Levelling buddies are still found on Discord with
+  `/character race near`.
+- **Raid group** (raid leaders): `/guilded invite raid` and `/guilded invite missing`, from `AutoInvite.lua`. This lists
+  the `/invite` lines for signed-up players who are not in the group yet.
+- **Guild invites** (officers): the "To invite" window (`InviteQueue.lua`, Discord requests sent by the companion as
+  `_G.GuildedInvites`) and whisper auto-invite (`AutoInvite.lua`, phrase "ginv").
+
+Call for help keeps its own banner, but its **Invite** and **Invite caller** buttons use the same component. Every line uses
+full first and last names (`util.bareName`, Forever full names).
+
+### Removing levelling partners safely
+
+`LevelPartners.lua` has no saved key, no addon prefix and no companion or bot data; it reads only the guild roster.
+
+1. Delete the file and its `.toc` line.
+2. Remove the Home button and its refresh (`Minimap.lua:1473`, `1796`) and the minimap menu entry (`Minimap.lua:2664`).
+3. Leave `/guilded partners` as a one-line pointer to Change layer for one release.
+4. Delete `tests/lua/level-partners.test.ts`, and the `LevelPartners.lua` entry in `tests/addon-no-global-taint.test.ts:79`.
+5. Update the text that mentions it: `src/commands/help.ts:33` (bot `/help`), `site/pages/features.md` and
+   `site/pages/features.fr.md` (line 93), and the `Locale.lua` strings, which can stay.
+
+The `Invites.lua` merge keeps every existing saved key byte-for-byte: `db.inviteState`, `inviteSent`, `inviteRemoved` and
+`autoInvite`, plus the companion's `_G.GuildedInvites` global. The only new data is `db.layer = { helper, lastAskAt }`;
+requests live in memory only. There is no bot or companion change.
+
 ## 2. Navigation, before and after
 
 **Before:**
@@ -85,13 +162,16 @@ recruiting welcome whisper.
    1. *Right now*: raid tonight, open orders for your professions, unread board post.
    2. The Discord link status with one "Get the companion" button. The code box stays as a fallback.
    3. Your gear check and attunements (formerly My character).
-   4. Levelling partners, while you are levelling.
-2. **Guild:** online overview, board and polls, availability, duel ladder. Each is a section of one scrolling page.
+   4. A **Change layer** button (Layer invite, section 1b). If a request is open, it shows that request's state instead.
+2. **Guild:** online overview, **Layer requests** (open requests, each with its `/invite` line), board and polls,
+   availability, duel ladder. Each is a section of one scrolling page. Helpers who opted in also get the request toast
+   wherever they are.
 3. **Dungeons:** opens the existing Guilded tab in the group finder, unchanged.
 4. **Crafting:** recipe search plus crafting orders.
 5. **Raids:** sign-up and open raids for everyone. A *Raid leader* section (Ready, Reserves, Run a raid, Loot or Council by
-   loot system, Standings, Calendar) shows only to leaders and officers, and only once raids are open or a raid is running.
-6. **Officer** (officers only): Administration (EP/GP), raid cores (Local guild), Roster admin, To invite and auto-invite,
+   loot system, Standings, Calendar, and the Raid group `/invite` lines from `Invites.lua`) shows only to leaders and officers, and only once raids are open or a raid is running.
+6. **Officer** (officers only): Administration (EP/GP), raid cores (Local guild), Roster admin, Guild invites (the To invite queue and auto-invite,
+   from `Invites.lua`),
    gear check, guild log, prospects, guild bank, imports.
 
 Settings becomes a gear button at the top of the window. It holds the module switches, announcements, chat tab, main names in
@@ -110,6 +190,7 @@ help, Settings), and Shift-right-click calls for help. The other modifier clicks
 - `/guilded sync`
 - `/guilded map`
 - `/guilded announce off` (owner rule, 5 Nov)
+- `/guilded layer` (Change layer)
 - `/guilded diag`
 - `/gsos`
 - `/gdg`
@@ -176,9 +257,11 @@ unchanged. Only the coordinator bumps the version: these ship together as **9.2.
 | 3 | One Settings page: merge Announcements and Info and data in, add the Advanced fold for Sim, Perf and GRM | M |
 | 4 | Member navigation: Home, Guild, Dungeons, Crafting, Raids; old-name aliases; trimmed minimap menu and clicks | L (`Minimap.lua`) |
 | 5 | Officer tab, and the guild-window and calendar panels folded into the main window | M-L |
-| 6 | Short `/guilded help`; update the website guides, bot `/help` and FAQ to name the new tabs (site republishes on merge) | S-M |
+| 6 | **Layer invite**: new `Invites.lua` (prefix `GuildedLayer`, request, claim, done, timeouts, opt-in, toast, Layer requests list); fold in `InviteQueue.lua` and `AutoInvite.lua` with their saved keys unchanged; call for help uses the shared copy box; remove `LevelPartners.lua` and its tests and mentions | M-L (about +450 / −700 lines, new Lua tests for the request, claim and timeout logic) |
+| 7 | Short `/guilded help`; update the website guides, bot `/help` and FAQ to name the new tabs (site republishes on merge) | S-M |
 
-PRs 1-3 are independent. PR 5 needs PR 4.
+PRs 1-3 and 6 are independent. PR 5 needs PR 4. PR 6 can ship before PR 4: until then, Change layer sits on the current
+Home page where the Levelling partners button was.
 
 ### Real-client checks (owner's PC and a second PC, French client too)
 
@@ -190,7 +273,16 @@ PRs 1-3 are independent. PR 5 needs PR 4.
 - **Milestones:** reach a milestone and see whether the guild-chat line appears (decision 2).
 - **Send to Discord:** the secure `/reload` button (`SyncNow.lua:42`) still reloads.
 - **Levelling partners whisper:** it calls `ChatFrame_OpenChat` (`LevelPartners.lua:85`), which `Util.lua` itself says
-  never to call. Fix it in PR 4 with a copy box or `/w` copy line.
+  never to call. This goes away with the module in PR 6.
+- **Layer invite, on two PCs, with two guildmates on different layers of one continent:**
+  - the request reaches the helper while it is closed;
+  - the toast and copy box work, and the pasted `/invite` is accepted with no `ADDON_ACTION_BLOCKED`;
+  - a second helper's toast closes on the claim;
+  - the requester moves layer after accepting, then `/leave` keeps them there;
+  - **Same layer, try someone else** re-asks;
+  - no toast appears in an instance, in combat or in a full group;
+  - full first and last names appear in every line;
+  - repeat on a French client.
 
 ## 4. Decisions for the owner
 
@@ -204,6 +296,12 @@ PRs 1-3 are independent. PR 5 needs PR 4.
    opens it? *Recommend: yes. Two extra windows are the biggest source of "where is it?".*
 5. **Old slash commands:** keep them working but hidden from help, instead of deleting them? *Recommend: keep them hidden;
    remove only the commands of removed features.*
+
+6. **Layer invite helpers:** ask once at the first request (yes or no, remembered) rather than on by default? *Recommend:
+   ask once.* A default-on toast that nobody asked for is the spam the owner wants to avoid.
+7. **Layer invite reach:** send requests to helpers on the requester's continent only? *Recommend: yes.* Layers are per
+   continent on Classic-style layering (confirm on Forever in the two-PC test), and helpers elsewhere cannot help without
+   travelling.
 
 Out of scope, noted for later: the separate `GuildedGames` addon also posts game lines with `SendChatMessage`, which is
 unverified on Forever. Raid-chat announces in LootRoll, Bidding, Council, Reserve and Ready are swallowed silently if

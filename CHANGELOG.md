@@ -1,5 +1,35 @@
 # Changelog
 
+## 9.2.0 — 12 November 2026
+
+A simpler addon and companion, plus the Crafting page. Details: docs/V9_2_0_RELEASE_NOTES.md.
+
+**Addon (Guilded)**
+- One window with five member tabs (Home, Guild, Dungeons, Crafting, Raids), an Officer tab for officers and one Settings page with an Advanced section; the minimap menu has four items and `/guilded help` is short (`/guilded help all` lists everything) (#771, #778, #784, #785, #786, #793, #796, #797).
+- Removed: the guild-message feature and the parts the game blocks or that nothing used any more (#778, #784).
+- Layer invite replaces levelling partners (#802).
+- Crafting: search an item and Request it in the game, see My requests with Cancel, and Requests for me with Claim / Done from the game; requests reach Discord through your companion or a guildmate's (#805, bot side #804).
+- Call for help is a small closable toast, quiet in combat, with no centre-screen warning (#789).
+- The "messages are limited" chat spam is fixed: one global send budget with a back-off that keeps growing up to a cap (#792, #800).
+- Blocked actions name their function in the diagnostics, roster and inventory handlers are cheaper (#795).
+
+**Companion**
+- One simple window with an Advanced view (export, GRM import and privacy stay there), a four-item tray menu, and the window opens by itself only when something needs you (#799, #801, #803, #806).
+- Listed in the Microsoft Store as "Guild Sync Companion" (#794).
+
+**Bot (already live)**
+- `/character` panel to link, set a main, unlink and choose a picture, also from a DM (#787, #790, #798).
+- Guild-invite channel tidy: handled requests are removed an hour later, plus an officer-only one-time tidy of old ones (#779, #781, #807).
+- Reminders by private message are capped, automatic mode is off by default; officers see members without a game (#782).
+- World PvP extras on by default; the Discord call-for-help post is removed (#780, #791).
+- Painted dungeon card backgrounds for 34 dungeons (#775).
+- Craft requests made in game become Discord orders (#804).
+
+**Not yet verified in a real client**
+- The new single addon window, the Crafting page requests (Request, Cancel, the relay for members without the companion), Layer invite and the call-for-help toast have been tested only in the offline Lua harness and CI, not in the live WoW Forever client.
+- The companion's single window, tray menu and Advanced view have not been tried on a fresh Windows install or through the Store build.
+- Whether the "messages are limited" spam is gone on a busy guild is only known from tests.
+
 ## 9.1.6 — 10 November 2026
 
 Guild sync and invite fixes from the owner's in-game problem log. Details: docs/V9_1_6_RELEASE_NOTES.md.

@@ -22,11 +22,10 @@ describe("plain words on the member's path", () => {
     for (const text of memberPath) expect(text, text).not.toMatch(/saved data|\bupload|Guilded\.lua|SavedVariables/i);
   });
 
-  it("points to Tools, not the old World of Warcraft page", () => {
+  it("no longer names the Tools page or the old World of Warcraft page", () => {
     const html = read("companion-app/renderer/index.html");
     expect(html).not.toContain("World of Warcraft page");
-    expect(html).toContain("and Export to spreadsheet in Tools still works.");
-    expect(html).toContain("In Tools, Export to spreadsheet turns your Guilded addon data into CSV files");
+    expect(html).not.toContain("in Tools");
   });
 
   it("has the French for every renamed sentence, and drops the old keys", () => {
@@ -36,8 +35,9 @@ describe("plain words on the member's path", () => {
     for (const old of ["Find my saved data", "Guilded.lua was not updated by your last /reload.", "The bot refused your last upload.", "Your WoW saved data is not chosen yet."]) expect(fr[old], old).toBeUndefined();
   });
 
-  it("keeps the exact file words where officers need them", () => {
-    const html = read("companion-app/renderer/index.html");
-    expect(html).toContain("Convert a GRM SavedVariables backup into a local Guilded archive.");
+  it("points officers to Discord for exports, and members to their Guilded page", () => {
+    const html = read("companion-app/renderer/main.html");
+    expect(html).toContain("/officer export");
+    for (const path of ["/me/", "/me/battlenet", "/me/data"]) expect(html).toContain(`https://guilded.kcaron.top${path}"`);
   });
 });

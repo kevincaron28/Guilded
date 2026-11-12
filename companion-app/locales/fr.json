@@ -1301,8 +1301,6 @@
   "Your addon data file": "Fichier de données de votre addon",
   "Choose your World of Warcraft folder: the companion finds your account and its addon data.": "Choisissez votre dossier World of Warcraft : le compagnon trouve votre compte et les données de son addon.",
   "The companion reads the data of the addon you choose and proves from it that your WoW characters belong to your Discord account: no code to type. Other players' characters are never claimed.": "Le compagnon lit les données de l’addon que vous choisissez et en déduit que vos personnages WoW appartiennent à votre compte Discord : aucun code à saisir. Les personnages des autres joueurs ne sont jamais réclamés.",
-  "In Tools, Export to spreadsheet turns your Guilded addon data into CSV files: standings (EP, GP, PR), loot history, attendance, raids and dungeon scores. The companion saves them in a folder you choose. Nothing is sent anywhere.": "Dans Outils, Exporter vers un tableur transforme les données de votre addon Guilded en fichiers CSV : classements (EP, GP, PR), butin, présence, raids et scores de donjon. Le compagnon les enregistre dans le dossier choisi. Rien n’est envoyé.",
-  "You don't need to connect. The addon already shares EP/GP, loot and standings with your guild in game, and Export to spreadsheet in Tools still works.": "Vous n’avez pas besoin de vous connecter. L’addon partage déjà l’EP/GP, le butin et les classements avec votre guilde en jeu. L’export vers un tableur reste disponible dans Outils.",
   "Press Find my addon data, then log in to WoW once and we will find your characters.": "Appuyez sur Trouver les données de mon addon, puis connectez-vous une fois à WoW et nous trouverons vos personnages.",
   "Setting up WoW and the Guilded addon: looking on every drive…": "Configuration de WoW et de l’addon Guilded : recherche sur tous les disques…",
   "The companion could not install the Guilded addon by itself. Exit World of Warcraft, then press Try again.": "Le compagnon n’a pas pu installer l’addon Guilded tout seul. Quittez World of Warcraft, puis appuyez sur Réessayer.",
@@ -1466,5 +1464,14 @@
   "← Back": "← Retour",
   "A new version of the companion is out.": "Une nouvelle version du compagnon est disponible.",
   "Back to the simple window": "Retour à la fenêtre simple",
-  "Everything is working.": "Tout fonctionne."
+  "Everything is working.": "Tout fonctionne.",
+  "Characters and your data": "Personnages et vos données",
+  "Your characters, Battle.net, connected devices and Delete my data are on your Guilded page.": "Vos personnages, Battle.net, vos appareils connectés et « Supprimer mes données » sont sur votre page Guilded.",
+  "My Guilded page ↗": "Ma page Guilded ↗",
+  "Battle.net ↗": "Battle.net ↗",
+  "Delete my data ↗": "Supprimer mes données ↗",
+  "Officers": "Officiers",
+  "Server settings and spreadsheet exports are in Discord: type /setup, or /officer export.": "Les réglages du serveur et les exports en tableur sont dans Discord : tapez /setup ou /officer export.",
+  "Connect with a code": "Se connecter avec un code",
+  "You don't need to connect. The addon already shares EP/GP, loot and standings with your guild in game.": "Vous n’avez pas besoin de vous connecter. L’addon partage déjà l’EP/GP, le butin et les classements avec votre guilde en jeu."
 }

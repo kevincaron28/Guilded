@@ -130,6 +130,25 @@ describe("the tools window in French", () => {
       .toBe(String(("Partager mon registre comme classement".length) * 6 + 20));
   });
 
+  it("keeps the section rows inside the page width in French", () => {
+    const s = frenchWindow();
+    for (const group of ["Guild", "Crafting"]) {
+      s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
+      const rows = JSON.parse(s.run(`local t = {}; for _, r in ipairs(NS.windowState().sectionLayout) do
+        local b; for _, tab in ipairs(NS.windowState().tabs) do if tab.name == r.name then b = tab.button end end
+        t[#t + 1] = string.format('{"x":%d,"line":%d,"width":%d,"real":%d,"text":%q}', r.x, r.line, r.width, b.width, b.text) end
+        return "[" .. table.concat(t, ",") .. "]"`)) as { x: number; line: number; width: number; real: number; text: string }[];
+      expect(rows.length).toBeGreaterThan(1);
+      const pageWidth = Number(s.run("return NS.layoutMath.PAGE_WIDTH"));
+      for (const r of rows) {
+        expect(r.real).toBe(r.width);
+        expect(r.x + r.width).toBeLessThanOrEqual(pageWidth);          // never past the right edge
+        expect(r.width).toBeGreaterThanOrEqual(r.text.length * 7 + 20 > 150 ? 150 : r.text.length * 7 + 20); // fits its text
+        expect(r.line).toBeLessThanOrEqual(1);                          // the page starts below two lines
+      }
+    }
+  });
+
   it("names the five member tabs and Settings in French", () => {
     const s = frenchWindow();
     const headings = s.run(`local t = {}; for _, button in pairs(NS.windowState().groupButtons) do t[#t + 1] = button.text end; table.sort(t); return table.concat(t, "|")`);

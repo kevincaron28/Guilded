@@ -131,6 +131,15 @@ describe("InviteQueue.lua", () => {
     expect(plain.run(String.raw`return tostring((NS.inviteQueue.canInvite()))`)).toBe("false");
     expect(plain.run(String.raw`return tostring((NS.inviteQueue.list()))`)).toBe("nil");
   });
+  it("answers Officers only to /guilded invites for a non-officer, and opens nothing", () => {
+    const plain = withQueue(false);
+    plain.run(String.raw`CHAT = {}; NS.commandHandlers.invites({}); NS.commandHandlers.invites({ "list" })`);
+    expect(plain.run("return table.concat(CHAT, '|')")).toBe("Officers only.|Officers only.");
+    expect(plain.run("return #COPIED")).toBe("0");
+    const officer = withQueue();
+    officer.run(String.raw`CHAT = {}; NS.commandHandlers.invites({ "list" })`);
+    expect(officer.run("return #COPIED")).toBe("1");
+  });
   it("prints a copyable ginvite list and a one-line reminder", () => {
     const s = withQueue();
     expect(s.run("return NS.inviteQueue.text()")).toBe("/ginvite Amy Archer\n/ginvite Bob Brewer");

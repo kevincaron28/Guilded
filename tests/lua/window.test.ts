@@ -296,15 +296,15 @@ describe("the tools window (sidebar and Home page)", () => {
         NS.commandHandlers[name] = function(args) CALLED[#CALLED + 1] = name .. ":" .. table.concat(args or {}, ",") end
       end
       NS.windowState().selectTabByName("Info")`);
-    const labels = ["Who runs which version", "Data relay status", "Sync EP/GP history now", "Interface options", "Daily digest off", "Invite queue", "Pending loot rolls"];
+    const labels = ["Who runs which version", "Data relay status", "Sync EP/GP history now", "Interface options", "Digest off", "Invite queue", "Pending loot rolls"];
     for (const label of labels) s.run(`for _, f in ipairs(FRAMES) do if f.text == "${label}" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
     expect(s.run(`return table.concat(CALLED, ";")`)).toBe("peers:;relay:;ledgersync:now;options:;digest:off;invites:;lootroll:");
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Announcements,Info,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Reserves,Signups,Duels,Announcements,Info,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Reserves,Signups,Duels,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {
@@ -535,9 +535,21 @@ describe("in-game UI fixes from the 5 November pass", () => {
     expect(out).toContain("wheel ticks=1");
   });
 
-  it("offers the announcement page as a tab", () => {
+  it("has one Settings tab: announcements are inside it, Info and data is its closed Advanced view", () => {
     const s = openWindow(1);
-    expect(s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`)).toContain("Announcements");
+    const names = s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`);
+    expect(names).not.toContain("Announcements");
+    expect(names).not.toContain("Info");
+    expect(names).toContain("Tools");
+    // Closed by default; the old page names still open Settings (Info opens the Advanced view).
+    s.run(`NS.windowState().selectTabByName("Tools")`);
+    expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("false");
+    expect(s.run(`return tostring(NS.windowState().settingsGeneral:IsShown())`)).toBe("true");
+    s.run(`NS.windowState().selectTabByName("Info")`);
+    expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("true");
+    s.run(`NS.windowState().selectTabByName("Announcements")`);
+    expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("false");
+    expect(s.run(`return tostring(NS.windowState().announceChecks ~= nil)`)).toBe("true");
   });
 
   it("hangs the Modules heading below the help text instead of at a fixed offset", () => {

@@ -997,7 +997,7 @@ local function copyBox(parent, text, width)
   return box
 end
 
-local function buildToolsPage(page)
+local function buildGeneralSettings(page)
   at(newButton(page, "Guilded setup", 170, function() run("setup") end), page, PAGE_WIDTH - 170, -64)
   local everyone = {
     { "Diagnostics", "diag" }, { "Raid status", "status" }, { "All commands", "help" }, { "Addon version", "version" }
@@ -1011,35 +1011,35 @@ local function buildToolsPage(page)
   officerOnly(at(newButton(page, "Backup", 136, function() run("backup") end), page, 0, -116))
   officerOnly(tip(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116), "Who counts as an officer in this guild."))
 
-  -- Test tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.
-  forModule("sim", at(newLabel(page, "Developer tools: test raids with fake players (saved tests can sync to Discord)", "GameFontDisableSmall"), page, 0, -146), true)
-  local tests = {
-    { "Start test raid", "sim start", "A test raid with fake players; bosses and loot work like a real one." },
-    { "Fake bids", "sim bids", "Fake players bid on the item open for GP bids." },
-    { "Fake council answers", "sim council", "Fake players answer the open loot council or priority item." },
-    { "Test dungeon run", "sim dungeon", "A finished dungeon run with fake players, for the Dungeons page." },
-    { "End test raid", "sim end", "Ends the test raid." },
-  }
-  for i, test in ipairs(tests) do
-    forModule("sim", tip(at(newButton(page, test[1], 136, function() run(test[2]) end), page, ((i - 1) % 3) * 142, -162 - math.floor((i - 1) / 3) * 26), test[3]), true)
+  -- Personal switches (moved here from the Info page in 9.2).
+  for i, def in ipairs({
+    { "Digest on", "digest", { "on" }, "Show what changed since your last login, once at login." },
+    { "Digest off", "digest", { "off" }, "Stop the login digest." },
+    { "Names on", "chattags", { "on" }, "Show an alt's main name in guild and officer chat." },
+    { "Names off", "chattags", { "off" }, "Stop showing main names in chat." },
+  }) do
+    tip(at(newButton(page, def[1], 84, function()
+      local handler = ns.commandHandlers and ns.commandHandlers[def[2]]
+      if handler then handler(def[3]) end
+    end), page, 210 + (i - 1) * 90, -274), def[4])
   end
-  local clearTests = forModule("sim", tip(at(newButton(page, "Clear test data", 136), page, 284, -188), "Deletes every test raid and test dungeon run from this PC. Click twice to confirm."), true)
-  confirmClick(clearTests, "Clear test data", function() run("sim clear") end)
-
-  tip(at(newButton(page, "Announcements", 130, function() ui.selectTabByName("Announcements") end), page, 284, -234), "Say your milestones in guild chat (on by default).")
+  -- Announcements (merged in from their own page in 9.2).
+  if ui.announcementsBlock then ui.announcementsBlock(page, -146) end
+  -- Advanced: info and data, developer tools, speed report and the GRM import.
+  tip(at(newButton(page, "Advanced...", 170, function() if ui.showAdvanced then ui.showAdvanced(true) end end), page, PAGE_WIDTH - 170, -28), "Data and guildmate status, test tools, speed report, GRM import. Closed by default.")
 
   -- Window size, kept between sessions.
-  at(newLabel(page, "Window size", "GameFontNormalSmall"), page, 0, -238)
-  tip(at(newButton(page, "-", 30, function() run("menu scale smaller") end), page, 90, -234), "Smaller window")
-  tip(at(newButton(page, "+", 30, function() run("menu scale bigger") end), page, 124, -234), "Bigger window")
-  tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -234), "Normal size, back in the middle of the screen")
+  at(newLabel(page, "Window size", "GameFontNormalSmall"), page, 0, -278)
+  tip(at(newButton(page, "-", 30, function() run("menu scale smaller") end), page, 90, -274), "Smaller window")
+  tip(at(newButton(page, "+", 30, function() run("menu scale bigger") end), page, 124, -274), "Bigger window")
+  tip(at(newButton(page, "Reset", 60, function() run("menu scale reset") end), page, 158, -274), "Normal size, back in the middle of the screen")
 
   -- Get the companion (8.5.0): addons cannot open web pages, so the links are here to copy.
-  at(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormalSmall"), page, 0, -266)
+  at(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormalSmall"), page, 0, -306)
   if ns.companionLink then
-    at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -282)
-    at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -282)
-    local steps = at(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), page, 0, -308)
+    at(copyBox(page, ns.companionLink.SHORT, 250), page, 6, -322)
+    at(copyBox(page, ns.companionLink.DIRECT, 250), page, 270, -322)
+    local steps = at(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), page, 0, -348)
     steps:SetWidth(PAGE_WIDTH - 40)
     steps:SetJustifyH("LEFT")
   end
@@ -1047,7 +1047,7 @@ local function buildToolsPage(page)
   local help = at(newLabel(page,
     L("Minimap button hidden? /guilded minimap show. Problem? Press Diagnostics and send a screenshot to an officer. A key can open this window: Options > Keybindings > Guilded.")
       .. " " .. L("Guilded is free. A coffee helps pay for hosting: kcaron.top/support"),
-    "GameFontHighlightSmall"), page, 0, -366)
+    "GameFontHighlightSmall"), page, 0, -406)
   help:SetWidth(PAGE_WIDTH - 40)
 
   -- Optional modules: your own switch, and (officers) the guild-wide one. There are more of
@@ -1524,8 +1524,7 @@ local OFFICER_TOOLS = {
   { "Guild bank", "gbank", { "copy" } },
   { "Check pugs in my group", "pugcheck", { "now" } },
   { "Import softres.it", "import", { "softres" } },
-  { "Import That's My BiS", "import", { "tmb" } },
-  { "Speed report", "perf", { "copy" } }
+  { "Import That's My BiS", "import", { "tmb" } }
 }
 local function buildOfficerToolsPage(page)
   for i, def in ipairs(OFFICER_TOOLS) do
@@ -1563,28 +1562,85 @@ local INFO_OFFICER_TOOLS = {
   { "Pending loot rolls", "lootroll", {}, "Soft-reserve rolls waiting to be awarded." },
   { "Consumables check", "consumes", { "scan" }, "Who in your group is missing a flask, elixir or food." },
 }
+-- Settings > Advanced (9.2): what used to be the "Info and data" page plus the developer tools. Closed by
+-- default; Settings has an "Advanced..." button and this view has "Back". Personal switches come first, then
+-- what concerns other guildmates, then (officers only) the officer buttons, speed report, GRM import and tests.
+local PERSONAL_COMMANDS = { digest = true, chattags = true }
 local function buildInfoPage(page)
-  local function place(list, startY, officer)
+  local scroll = CreateFrame("ScrollFrame", nil, page, "UIPanelScrollFrameTemplate")
+  scroll:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -34)
+  scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -24, 24)
+  local child = CreateFrame("Frame", nil, scroll)
+  child:SetWidth(PAGE_WIDTH - 24)
+  scroll:SetScrollChild(child)
+  local y = 0
+  local function heading(text, officer)
+    local label = newLabel(child, text, "GameFontNormal")
+    label:SetPoint("TOPLEFT", child, "TOPLEFT", 0, y)
+    if officer then officerOnly(label) end
+    y = y - 22
+  end
+  local function place(list, officer)
     for i, def in ipairs(list) do
-      local b = newButton(page, def[1], 220, function()
+      local b = newButton(child, def[1], 220, function()
         local handler = ns.commandHandlers and ns.commandHandlers[def[2]]
         if handler then handler(def[3]) end
       end)
-      b:SetPoint("TOPLEFT", page, "TOPLEFT", ((i - 1) % 2) * 230, startY - math.floor((i - 1) / 2) * 34)
+      b:SetPoint("TOPLEFT", child, "TOPLEFT", ((i - 1) % 2) * 230, y - math.floor((i - 1) / 2) * 34)
       tip(b, def[4])
       if officer then officerOnly(b) end
     end
-    return startY - math.ceil(#list / 2) * 34
+    y = y - math.ceil(#list / 2) * 34 - 8
   end
-  local y = place(INFO_TOOLS, -4, false)
-  officerOnly(at(newLabel(page, "Officer", "GameFontNormalSmall"), page, 0, y - 6))
-  place(INFO_OFFICER_TOOLS, y - 26, true)
+  -- Personal switches (daily digest, main names in chat) live on the Settings page itself.
+  local guildmates = {}
+  for _, def in ipairs(INFO_TOOLS) do if not PERSONAL_COMMANDS[def[2]] then table.insert(guildmates, def) end end
+  heading("Guildmates and data")
+  place(guildmates, false)
+  heading("Officer", true)
+  place(INFO_OFFICER_TOOLS, true)
+  place({
+    { "Speed report", "perf", { "copy" }, "How much traffic and time the addon uses." },
+    { "GRM archive import", "rosteradmin", {}, "Opens Roster admin, where a GRM archive is previewed and imported." },
+  }, true)
+
+  -- Developer tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.
+  local devLabel = forModule("sim", newLabel(child, "Developer tools: test raids with fake players (saved tests can sync to Discord)", "GameFontDisableSmall"), true)
+  devLabel:SetPoint("TOPLEFT", child, "TOPLEFT", 0, y)
+  y = y - 22
+  local tests = {
+    { "Start test raid", "sim start", "A test raid with fake players; bosses and loot work like a real one." },
+    { "Fake bids", "sim bids", "Fake players bid on the item open for GP bids." },
+    { "Fake council answers", "sim council", "Fake players answer the open loot council or priority item." },
+    { "Test dungeon run", "sim dungeon", "A finished dungeon run with fake players, for the Dungeons page." },
+    { "End test raid", "sim end", "Ends the test raid." },
+  }
+  for i, test in ipairs(tests) do
+    local b = forModule("sim", tip(newButton(child, test[1], 136, function() run(test[2]) end), test[3]), true)
+    b:SetPoint("TOPLEFT", child, "TOPLEFT", ((i - 1) % 3) * 142, y - math.floor((i - 1) / 3) * 26)
+  end
+  local clearTests = forModule("sim", tip(newButton(child, "Clear test data", 136), "Deletes every test raid and test dungeon run from this PC. Click twice to confirm."), true)
+  clearTests:SetPoint("TOPLEFT", child, "TOPLEFT", 284, y - 26)
+  confirmClick(clearTests, "Clear test data", function() run("sim clear") end)
+  y = y - 60
+
+  child:SetHeight(-y + 24)
+  enableWheel(scroll, function() return scrollRange(-y + SCROLL_PADDING, scroll:GetHeight()) end)
+  ui.advancedScroll = scroll
+  return scroll
 end
+-- The Rosteradmin button above goes through a command, like every other button here.
+ns.commandHandlers = ns.commandHandlers or {}
+ns.commandHandlers["rosteradmin"] = ns.commandHandlers["rosteradmin"] or function()
+  if ns.openRosterAdmin then ns.openRosterAdmin() end
+end
+
 -- Milestone announcements in guild chat (Modules/Milestones.lua): your master switch, one per
 -- kind, and (officers) the guild-wide off switch. The same switches exist in Interface Options.
-local function buildAnnouncementsPage(page)
-  local intro = at(newLabel(page, "Say your milestones (levels, first dungeon clears, honorable kills, duel wins) once in guild chat so guildmates can cheer. On by default; untick to turn them off.", "GameFontHighlightSmall"), page, 0, 0)
-  intro:SetWidth(PAGE_WIDTH)
+-- Milestone announcements in guild chat (Modules/Milestones.lua), a block of the Settings page since 9.2: your
+-- master switch, one per kind, and (officers) the guild-wide off switch. Same switches as Interface Options.
+ui.announcementsBlock = function(page, top)
+  at(newLabel(page, "Announcements", "GameFontNormalSmall"), page, 0, top)
   local rows = {
     { nil, "Announce my milestones in guild chat" },
     { "level", "Milestones: level 10, 20..." },
@@ -1595,7 +1651,9 @@ local function buildAnnouncementsPage(page)
   ui.announceChecks = {}
   for i, row in ipairs(rows) do
     local kind = row[1]
-    local box = at(newCheck(page, row[2]), page, kind and 24 or 0, -44 - (i - 1) * 30)
+    local x, y = 0, top - 20
+    if kind then x, y = ((i - 2) % 2) * math.floor(PAGE_WIDTH / 2), top - 46 - math.floor((i - 2) / 2) * 26 end
+    local box = at(newCheck(page, row[2]), page, x, y)
     box:SetScript("OnClick", function(self)
       run("announce " .. (kind and (kind .. " ") or "") .. (self:GetChecked() and "on" or "off"))
       if ui.refreshAnnouncements then ui.refreshAnnouncements() end
@@ -1605,9 +1663,7 @@ local function buildAnnouncementsPage(page)
   ui.announceGuild = officerOnly(at(newButton(page, "", 440, function()
     run("announce guild " .. ((ns.milestones and ns.milestones.guildOff and ns.milestones.guildOff()) and "on" or "off"))
     if ui.refreshAnnouncements then ui.refreshAnnouncements() end
-  end), page, 0, -210))
-  ui.announceStatus = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -246)
-  ui.announceStatus:SetWidth(PAGE_WIDTH)
+  end), page, 0, top - 100))
   ui.refreshAnnouncements = function()
     local ms = ns.milestones
     for _, entry in ipairs(ui.announceChecks) do
@@ -1615,9 +1671,28 @@ local function buildAnnouncementsPage(page)
     end
     local off = ms and ms.guildOff and ms.guildOff() or false
     ui.announceGuild:SetText(L(off and "Guild-wide: turned off (click to allow)" or "Guild-wide: allowed (click to turn off for all)"))
-    ui.announceStatus:SetText(off and L("Milestone announcements are turned off for the whole guild by an officer.") or "")
   end
   page:HookScript("OnShow", function() ui.refreshAnnouncements() end)
+end
+
+-- Settings (9.2): one page. The general view holds the switches, announcements, window size, companion links
+-- and modules; "Advanced..." swaps it for the advanced view (info and data, developer tools), "Back" returns.
+local function buildSettingsPage(page)
+  local general = CreateFrame("Frame", nil, page)
+  general:SetAllPoints(page)
+  buildGeneralSettings(general)
+  local advanced = CreateFrame("Frame", nil, page)
+  advanced:SetAllPoints(page)
+  buildInfoPage(advanced)
+  tip(at(newButton(advanced, "Back to settings", 170, function() if ui.showAdvanced then ui.showAdvanced(false) end end), advanced, 0, 0), "Closes the advanced view.")
+  advanced:Hide()
+  general:Show()
+  ui.settingsGeneral, ui.settingsAdvanced = general, advanced
+  ui.showAdvanced = function(on)
+    if on then general:Hide(); advanced:Show() else advanced:Hide(); general:Show() end
+  end
+  page:HookScript("OnShow", function() ui.showAdvanced(false) end)
+  if general.HookScript then general:HookScript("OnShow", function() if ui.refreshAnnouncements then ui.refreshAnnouncements() end end) end
 end
 
 local TAB_DEFS = {
@@ -1643,9 +1718,7 @@ local TAB_DEFS = {
   { name = "Loot", hint = "bids and loot", group = "Raid night", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
   { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
   { name = "Duels", hint = "guild duel leaderboard", group = "Fun and runs", module = "duels", build = function(page) if ns.duels and ns.duels.buildPage then ns.duels.buildPage(page, { newLabel = newLabel, at = at, width = PAGE_WIDTH }) end end },
-  { name = "Announcements", hint = "milestones in guild chat", group = "System", build = buildAnnouncementsPage },
-  { name = "Info", label = "Info and data", hint = "status of data sync, relay, versions and more", group = "System", build = buildInfoPage },
-  { name = "Tools", label = "Settings", hint = "switch parts on or off, diagnostics", group = "System", build = buildToolsPage }
+  { name = "Tools", label = "Settings", hint = "switch parts on or off, announcements, diagnostics, advanced", group = "System", build = buildSettingsPage }
 }
 
 -- ---------------------------------------------------------------------
@@ -1855,7 +1928,11 @@ local function refreshHome(db, officer, me)
 
   ui.syncStatus = ns.syncNow and ns.syncNow.statusLine and ns.syncNow.statusLine() or ""
   if ui.sidebarSync then
-    ui.sidebarSync:SetText(ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty() and L(not localOnly and ns.isOfficer() and "Unsent changes" or "Local changes") or L("All saved"))
+    local dirty = ns.syncNow and ns.syncNow.isDirty and ns.syncNow.isDirty()
+    local text = dirty and L(not localOnly and ns.isOfficer() and "Unsent changes" or "Local changes") or L("All saved")
+    -- Last save (a /reload or logout, when the companion can pick the data up), next to the button.
+    local ago = ns.syncNow and ns.syncNow.savedAgoText and ns.syncNow.savedAgoText()
+    ui.sidebarSync:SetText(ago and (text .. " - " .. ago) or text)
   end
 end
 
@@ -2074,7 +2151,6 @@ updateGuildScroll = function()
   elseif tab.name == "Crafting" then
     height = 46 + textHeight(ui.craftResult) + 16 + 20 + textHeight(ui.craftMine) + 16 + 24 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
-  elseif tab.name == "Announcements" then height = 290
   elseif tab.name == "Signups" then height = 590
   elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12
   elseif tab.name == "Calendar" then height = 70 + textHeight(ui.calendarStatus) + 12 end
@@ -2386,6 +2462,11 @@ local function buildPanel()
 end
 
 function ui.selectTabByName(name)
+  -- 9.2: Announcements and Info and data are parts of Settings now; the old names still open it.
+  if name == "Announcements" or name == "Info" then
+    if ui.showAdvanced then ui.showAdvanced(name == "Info") end
+    name = "Tools"
+  end
   if name == "Loot" and ns.loot and ns.loot.mode then
     local mode = ns.loot.mode()
     if mode == "RESERVE" then name = "Reserves" elseif mode == "COUNCIL" or mode == "PRIORITY" then name = "Council" end

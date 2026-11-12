@@ -28,6 +28,27 @@ end
 
 function module.isDirty() return dirtyAt ~= nil end
 
+-- When the saved file was last written (a /reload or logout), shown next to the Send to Discord button.
+-- That is the moment the companion can pick the data up; the addon cannot see the upload itself.
+function module.savedAt()
+  local db = ns.getDb and ns.getDb()
+  return db and tonumber(db.syncSavedAt) or nil
+end
+
+-- "2 h ago" or nil when nothing was saved yet.
+function module.savedAgoText()
+  local at = module.savedAt()
+  if not at or not (ns.relay and ns.relay.ageText) then return nil end
+  return ns.relay.ageText(clock() - at)
+end
+
+local saver = CreateFrame("Frame")
+saver:RegisterEvent("PLAYER_LOGOUT")
+saver:SetScript("OnEvent", function()
+  local db = ns.getDb and ns.getDb()
+  if db then db.syncSavedAt = clock() end
+end)
+
 local function inCombat()
   if InCombatLockdown and InCombatLockdown() then return true end
   if UnitAffectingCombat and UnitAffectingCombat("player") then return true end

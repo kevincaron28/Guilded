@@ -176,6 +176,10 @@ end)
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHelp = ns.commandHelp or {}
 ns.commandHandlers.promote = function(args)
+  if not (ns.isOfficer and ns.isOfficer()) then
+    if ns.message then ns.message(L("Officers only.")) end
+    return
+  end
   local sub = args and args[2] and args[2]:lower()
   if sub == "rule" then
     module.setRule(args[3], args[4])

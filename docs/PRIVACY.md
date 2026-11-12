@@ -1,6 +1,6 @@
 # Guilded privacy / Confidentialité
 
-Last updated / Dernière mise à jour : 6 November / novembre 2026.
+Last updated / Dernière mise à jour : 12 November / novembre 2026.
 
 ## English
 
@@ -123,6 +123,24 @@ The web availability feature requires an explicit post and sharing confirmation.
 Only current members of the selected guild and edition can see it. You can
 remove your post; it expires after at most one hour. Addon-observed local presence
 is not uploaded to that feature.
+
+### Advertising and cookies
+
+Some public pages of guildedwow.com (the home page, the public leaderboards, player and guild pages, a few guides) and
+the creator page kcaron.top may show advertising from Google AdSense. Ads never appear on download, companion,
+install, sign-in or account pages, in the addon, the companion or the phone app.
+
+- **Your choice comes first.** Before you choose, nothing from Google loads. A banner asks you to **Accept** or
+  **Decline**, with equal weight. If you decline, nothing from Google is loaded at all.
+- **If you accept**, Google loads its ad script, which may set or read advertising cookies and similar identifiers
+  in your browser, and Google receives your IP address and page address to select and measure ads. Google acts as
+  its own controller for this; see [Google's advertising policies](https://policies.google.com/technologies/ads).
+- **Where the choice is kept:** only in your browser (local storage, key `guilded_ad_consent`). Guilded does not
+  send it anywhere. Use **Cookie choices** at the bottom of a page to change your mind; withdrawing consent reloads
+  the page without the ad script. You can also clear the site's data in your browser.
+- **Quebec Law 25 and PIPEDA:** this is opt-in; declining costs you nothing. The person responsible for the
+  protection of personal information at Guilded is **[PLACEHOLDER: name, title and email of the person responsible
+  for privacy, to be filled in by the owner before ads are switched on]**.
 
 ### Retention
 
@@ -278,6 +296,27 @@ La disponibilité web nécessite une annonce et un consentement explicites. Seul
 les membres actuels de la guilde et de l'édition choisies y accèdent. Vous pouvez
 la retirer; elle expire au plus tard après une heure. La présence locale observée
 par l'addon n'est pas téléversée vers cette fonction.
+
+### Publicité et témoins
+
+Certaines pages publiques de guildedwow.com (l'accueil, les classements publics, les pages de joueurs et de guildes,
+quelques guides) et la page de créateur kcaron.top peuvent afficher de la publicité Google AdSense. Aucune publicité
+n'apparaît sur les pages de téléchargement, du compagnon, d'installation, de connexion ou de compte, ni dans
+l'addon, le compagnon ou l'application mobile.
+
+- **Votre choix passe d'abord.** Avant votre choix, rien de Google ne se charge. Une bannière vous demande
+  d'**Accepter** ou de **Refuser**, avec la même importance. Si vous refusez, rien de Google n'est chargé.
+- **Si vous acceptez**, Google charge son script publicitaire, qui peut déposer ou lire des témoins (cookies) et
+  identifiants publicitaires dans votre navigateur, et Google reçoit votre adresse IP et l'adresse de la page pour
+  choisir et mesurer les publicités. Google agit à titre de responsable distinct; voyez les
+  [règles publicitaires de Google](https://policies.google.com/technologies/ads).
+- **Où le choix est conservé :** uniquement dans votre navigateur (stockage local, clé `guilded_ad_consent`).
+  Guilded ne l'envoie nulle part. Utilisez **Choix de témoins** au bas d'une page pour changer d'avis; le retrait du
+  consentement recharge la page sans le script publicitaire. Vous pouvez aussi effacer les données du site dans votre
+  navigateur.
+- **Loi 25 du Québec et LPRPDE :** c'est un consentement préalable; refuser ne vous coûte rien. La personne
+  responsable de la protection des renseignements personnels chez Guilded est **[À REMPLIR : nom, titre et courriel de
+  la personne responsable de la vie privée, à compléter par le propriétaire avant l'activation des publicités]**.
 
 ### Durées de conservation
 

@@ -51,7 +51,7 @@ end
 
 local function sendChat(text, channel, target)
   if channel == "TEST" then return end
-  if ns.comm and ns.comm.chat then ns.comm.chat(text, channel, target) return end
+  if ns.comm and ns.comm.chat then ns.comm.chat(text, channel, target, { result = true }) return end
   pcall(function()
     if C_ChatInfo and C_ChatInfo.SendChatMessage then
       C_ChatInfo.SendChatMessage(text, channel, nil, target)

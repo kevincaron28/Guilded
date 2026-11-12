@@ -29,8 +29,44 @@ function setup() {
   return s;
 }
 describe("opt-in availability and local observations", () => {
-  // (9.1.7) Availability is low-value traffic: a throttled status is dropped for the shared back-off,
-  // not retried; the next change or heartbeat sends a fresh one.
+  // (9.1.7) Availability is low-value traffic: it waits for budget headroom (4 tokens), and its guard is
+  // re-checked at every attempt, so a status whose context changed while it waited is discarded, unsent.
+  const WAITING = `GuildedCommBudget = { tokens = 0, at = CLOCK, rate = 4, strikes = 0, throttles = 0, refusals = 0, lastStrike = -1000, backoffUntil = 0 }
+    NS.util.gameEdition=function() return EDITION end; RETRY=nil; ATTEMPTS=0; SENT={};
+    C_Timer.After=function(_,fn) RETRY=fn end;
+    C_ChatInfo={SendAddonMessage=function(_,text) ATTEMPTS=ATTEMPTS+1;SENT[#SENT+1]=text;return 0 end};
+    P.configure("share","on")`;
+  it.each([
+    'P.configure("share","off")', 'GUILD="Beta"', 'EDITION="unknown"',
+    'ACTIVE=false', 'P.configure("status","busy")',
+    'P.configure("role","tank")', 'InCombatLockdown=nil', 'ADVANCE(5)',
+  ])("discards a status that is waiting for budget when its context changes: %s", change => {
+    const s = setup();
+    s.load("Util.lua");
+    s.run(WAITING);
+    // Nothing is sent yet: the budget is empty and the status waits in the queue.
+    expect(s.run('return ATTEMPTS..":"..NS.comm.pending("GuildedFree")')).toBe("0:1");
+    s.run(change);
+    s.run('ADVANCE(3);if RETRY then RETRY() end');
+    expect(s.run('return ATTEMPTS..":"..NS.comm.pending("GuildedFree")')).toBe("0:0");
+    expect(s.run("return #SENT")).toBe("0");
+  });
+  it("holds a waiting status in combat and sends it afterwards while it is still current", () => {
+    const s = setup();
+    s.load("Util.lua");
+    s.run(WAITING);
+    s.run('COMBAT=true; ADVANCE(1); if RETRY then RETRY() end');
+    expect(s.run('return #SENT..":"..NS.comm.pending("GuildedFree")')).toBe("0:1");
+    s.run('COMBAT=false; for i=1,3 do ADVANCE(1); if RETRY then RETRY() end end');
+    expect(s.run('return #SENT..":"..NS.comm.pending("GuildedFree")')).toBe("1:0");
+  });
+  it("sends a still-current waiting status with its payload once the budget has headroom", () => {
+    const s = setup();
+    s.load("Util.lua");
+    s.run(WAITING);
+    s.run('ADVANCE(1);if RETRY then RETRY() end');
+    expect(s.run('return ATTEMPTS..":"..SENT[1]')).toBe("1:1|forever|F|ANY");
+  });
   it("drops a throttled status instead of retrying it", () => {
     const s = setup();
     s.load("Util.lua");

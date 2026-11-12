@@ -215,6 +215,71 @@ describe("headroom, queues and chat", () => {
     expect(s.run(`return tostring(NS.comm.chat("later", "RAID"))`)).toBe("false");
   });
 
+  describe("result lines (auction close, acknowledgements) are never silently dropped", () => {
+    const line = (s: LuaSession, text: string) => s.run(`return tostring(NS.comm.chat(${JSON.stringify(text)}, "RAID", nil, { result = true }))`);
+
+    it("waits out a back-off and goes out in order afterwards", () => {
+      const s = boot();
+      s.run(`NS.comm.noteThrottle()`);
+      expect(line(s, "No bids on Sword.")).toBe("true");
+      expect(line(s, "Shield goes to Ray for 40 GP.")).toBe("true");
+      expect(s.run("return #CHATS")).toBe("0");
+      expect(s.run("return NS.comm.resultsWaiting()")).toBe("2");
+      s.run("advance(10)");
+      expect(s.run("return #CHATS .. ':' .. CHATS[1].text .. '|' .. CHATS[2].text")).toBe("2:No bids on Sword.|Shield goes to Ray for 40 GP.");
+      expect(s.run("return NS.comm.resultsWaiting()")).toBe("0");
+      expect(s.run("return #NOTES")).toBe("0"); // nothing was lost, so nobody is told
+    });
+
+    it("uses the reserve when the bulk budget is spent, and never lets a newer line jump the queue", () => {
+      const s = boot();
+      storm(s, 30); // empties the shared budget
+      expect(line(s, "first")).toBe("true");
+      expect(line(s, "second")).toBe("true");
+      s.run("advance(20)");
+      expect(s.run("local t = {}; for _, c in ipairs(CHATS) do t[#t + 1] = c.text end return table.concat(t, ',')")).toBe("first,second");
+    });
+
+    it("is bounded: a full list refuses the newest with a note, and an overdue line is dropped with a note", () => {
+      const s = boot();
+      s.run(`NS.comm.noteThrottle()`);
+      for (let i = 1; i <= 14; i++) line(s, `r${i}`);
+      expect(s.run("return NS.comm.resultsWaiting()")).toBe("12");
+      expect(Number(s.run("return #NOTES"))).toBe(2);
+      // The game keeps refusing: back-offs run past the 120 s limit and the lines are dropped, told once each.
+      s.run(`for i = 1, 40 do GuildedCommBudget.backoffUntil = NOW + 60; advance(5) end`); // the game keeps refusing
+      expect(s.run("return NS.comm.resultsWaiting()")).toBe("0");
+      expect(s.run("return #CHATS")).toBe("0");
+      expect(Number(s.run("return #NOTES"))).toBeGreaterThan(2);
+    });
+
+    it("convenience lines stay immediate-or-drop even while result lines wait", () => {
+      const s = boot();
+      s.run(`NS.comm.noteThrottle()`);
+      line(s, "result");
+      expect(s.run(`return tostring(NS.comm.chat("ready check", "RAID"))`)).toBe("false");
+      s.run("advance(10)");
+      expect(s.run("return #CHATS .. ':' .. CHATS[1].text")).toBe("1:result");
+    });
+
+    it("an auction that closes during a back-off still tells the raid", () => {
+      const s = boot();
+      s.run(`
+        function IsInRaid() return true end
+        function IsInGroup() return true end
+        function time() return 1800000000 end
+        NS.playerName = function() return "Ray" end; NS.isOfficer = function() return true end
+        NS.getActiveRaid = function() return nil end; NS.commandHandlers = {}; NS.commandHelp = {}; NS.runCommand = function() end
+      `);
+      s.load("Modules/Bidding.lua");
+      s.run(`NS.commandHandlers["bid"]({ "start", "10", "Sword", "10" }); CHATS = {}; GuildedCommBudget.backoffUntil = NOW + 40`);
+      s.run("advance(11)"); // the close timer fires while the back-off is still running
+      expect(s.run("return #CHATS")).toBe("0");
+      s.run("advance(60)");
+      expect(s.run("return #CHATS .. ':' .. tostring(CHATS[1] and CHATS[1].text)")).toBe("1:[Guilded] No bids on Sword.");
+    });
+  });
+
   it("does not mistake the throttle line for a guild event or route system messages into a tab", () => {
     const s = boot();
     s.run(`ERR_GUILD_JOIN_S = "%s has joined the guild."`);

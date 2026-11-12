@@ -677,8 +677,9 @@ local buckets = {}
 -- prefixes at a login together sent far more than the server lets one player send: it refused the excess
 -- and printed "The number of messages that can be sent is limited" into the chat (owner report, 13 November
 -- 2026). The budget lives in a global so Guilded and Guilded Dungeons, which each load this file, share it.
--- The rate adapts (AIMD): it starts at RATE_MAX a second and falls by 40% (floor RATE_MIN) each time the game
--- really throttles us, and climbs back 0.5 a second per minute without a refusal. The real server limit is
+-- The rate adapts (AIMD): it starts at RATE_MAX (4 messages a second) and each real refusal cuts it by 40%
+-- (4 becomes 2.4, floor RATE_MIN 1.5); after 30 quiet seconds it recovers 0.5 messages a second per quiet minute
+-- (so one spurious refusal costs about three minutes of reduced speed). The real server limit is
 -- unknown, so the start value is a guess that is allowed to learn. The game prints one refusal line per
 -- refused send: only the FIRST of a burst counts as a strike (none while a back-off is running), and both
 -- addons see the same line, so the shared back-off window also de-duplicates them.
@@ -949,18 +950,68 @@ end
 -- which the game may refuse outside a hardware event, and a ready check or bid arriving seconds late is
 -- worse than none. Returns true when it went out; false (with one short local note) when the budget or a
 -- back-off says wait.
-function comm.chat(text, channel, target)
+--
+-- RESULT lines (auction winner or "no bids", council close, bid and reserve acknowledgements) pass
+-- opts.result = true: they matter and are often raised by a timer or a whisper, not a click. They use the
+-- reserve like SOS and receipts, and when even that is unavailable (budget empty, a back-off running) they
+-- wait in a short bounded list and go out in order as soon as the budget allows, for at most RESULT_RETRY_SECONDS
+-- (the list holds RESULT_RETRY_MAX lines; the oldest goes first, the newest is refused when full). Only after
+-- that is a line dropped, with one local note. Convenience lines (ready check post, roll announce) stay
+-- immediate-or-drop.
+local RESULT_RETRY_MAX, RESULT_RETRY_SECONDS = 12, 120
+local resultQueue, resultScheduled = {}, false
+local function noteChatDropped()
+  if ns.message and ns.L then pcall(ns.message, ns.L("Too many messages just now: wait a moment and try again.")) end
+end
+local function pumpResults()
+  resultScheduled = false
+  while resultQueue[1] do
+    local item = resultQueue[1]
+    if nowSeconds() > item.deadline then
+      table.remove(resultQueue, 1)
+      noteChatDropped()
+    else
+      local wait = globalWait({ interactive = true }, "chat")
+      if wait > 0 then
+        if C_Timer and C_Timer.After then
+          resultScheduled = true
+          C_Timer.After(math.max(0.5, wait + 0.05), pumpResults)
+        end
+        return
+      end
+      local g = globalBudget()
+      g.tokens = math.max(0, g.tokens - 1)
+      table.remove(resultQueue, 1)
+      rawSend("chat", item.text, item.channel, item.target, true)
+    end
+  end
+end
+
+function comm.chat(text, channel, target, opts)
   if not channel then return false end
   text = tostring(text)
-  local wait = globalWait({ interactive = true }, "chat")
+  local result = type(opts) == "table" and opts.result or opts == true
+  -- A waiting result line keeps its place: a newer one never jumps ahead of it.
+  local wait = (result and resultQueue[1]) and 1 or globalWait({ interactive = true }, "chat")
   if wait > 0 then
-    if ns.message and ns.L then pcall(ns.message, ns.L("Too many messages just now: wait a moment and try again.")) end
+    if result and C_Timer and C_Timer.After and #resultQueue < RESULT_RETRY_MAX then
+      resultQueue[#resultQueue + 1] = { text = text, channel = channel, target = target, deadline = nowSeconds() + RESULT_RETRY_SECONDS }
+      if not resultScheduled then
+        resultScheduled = true
+        C_Timer.After(0.5, pumpResults)
+      end
+      return true
+    end
+    noteChatDropped()
     return false
   end
   local g = globalBudget()
   g.tokens = math.max(0, g.tokens - 1)
   return rawSend("chat", text, channel, target, true) == "sent"
 end
+
+-- Result lines still waiting to go out (tests and /guilded sync stats).
+function comm.resultsWaiting() return #resultQueue end
 
 -- Messages still waiting for a prefix (0 when everything went out).
 function comm.pending(prefix)

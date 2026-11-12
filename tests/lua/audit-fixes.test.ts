@@ -145,12 +145,14 @@ describe("paced addon messages (ns.comm)", () => {
       C_ChatInfo.SendAddonMessage = function() return code end
       NS.comm.send("QRecovery", "first", "GUILD", nil, nil, "retry-lockdown")
       for i = 1, 8 do now = now + 5; retry() end
-      local function wait() GuildedCommBudget.backoffUntil = 0; GuildedCommBudget.resume = false; GuildedCommBudget.tokens = 8 end
+      -- Each step is longer than any back-off (60 s plus jitter), and the real back-off and rate apply: after a
+      -- refusal the first timer only ends the back-off, the second one makes the next attempt.
       code = 3
-      for i = 1, 5 do now = now + 100; wait(); retry() end
+      for i = 1, 10 do now = now + 100; retry() end
       code = 10
-      now = now + 100; wait()
+      now = now + 100
       NS.comm.send("QRecovery", "second", "GUILD", nil, nil, "retry-lockdown")
+      for i = 1, 3 do now = now + 100; retry() end
     `);
     expect(s.run(`local d = NS.comm.status("QRecovery")
       return d.throttled .. ":" .. d.abandoned .. ":" .. d.refused .. ":" .. d.queued`)).toBe("5:1:1:0");

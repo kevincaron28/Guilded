@@ -75,9 +75,7 @@ describe("protected calls only where the player's click runs them (taint)", () =
     ["guild rank, kick and note changes", /\b(?:GuildPromote|GuildDemote|GuildUninvite|GuildRosterSetPublicNote|GuildRosterSetOfficerNote|SetGuildMemberRank|SetGuildRankOrder|RemoveFromGuild)\b/, [
       "addon/Guilded/Modules/RosterTools.lua"   // roster admin, confirmed per click; refusals remembered per build
     ]],
-    ["opening the chat box", /\bChatFrame_(?:SendTell|OpenChat|ReplyTell)\b/, [
-      "addon/Guilded/Modules/LevelPartners.lua" // Whisper button
-    ]]
+    ["opening the chat box", /\bChatFrame_(?:SendTell|OpenChat|ReplyTell)\b/, []]  // no file opens the chat box: whispers show a /w line in the copy box
   ];
   it.each(allowed)("%s only from the click-driven files", (_label, pattern, files_) => {
     expect(files.filter((file) => pattern.test(source(file))).map(rel).sort()).toEqual([...files_].sort());

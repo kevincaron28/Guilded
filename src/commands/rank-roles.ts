@@ -50,7 +50,7 @@ export const rankRolesCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("list").setDescription("Show the mapped ranks and whether rank roles are on."))
   .addSubcommand((sub) => sub.setName("enabled").setDescription("Turn rank roles on or off (on by default).")
     .addBooleanOption((o) => o.setName("on").setDescription("On or off").setRequired(true)))
-  .addSubcommand((sub) => sub.setName("sync").setDescription("Preview or run the role changes now (it also runs every hour).")
+  .addSubcommand((sub) => sub.setName("sync").setDescription("Preview or run the role changes now.")
     .addBooleanOption((o) => o.setName("apply").setDescription("Apply the changes (default: preview only)")));
 
 export async function executeRankRoles(interaction: ChatInputCommandInteraction): Promise<void> {

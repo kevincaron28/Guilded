@@ -415,6 +415,15 @@ describe("the Crafting page: review fixes", () => {
     expect(requests()).toBe(0);
   });
 
+  it("keeps a request a guildmate's relayed feed (newer, without its ref) does not show: only the companion's own feed settles by absence", () => {
+    setup({ file: false });
+    s!.run(`NS.craftOrders.submit({ item = "Linen Belt", key = 7026 })
+      for _, r in pairs(NS.getDb().craftOrders.requests) do r.at = 1800000000 - 7 * 3600 end
+      fire_event("CHAT_MSG_ADDON", "GuildedOrd", "ORDERS|2027-01-15T07:59:00.000Z|1|1|E", "GUILD", "Kev Caron")`);
+    expect(s!.run("return NS.craftOrders.current().source")).toBe("guild");
+    expect(requests()).toBe(1);
+  });
+
   it("a cancelled order drops its local request at once (nothing is re-said or uploaded for it)", () => {
     withMe();
     s!.run(`NS.craftOrders.submit({ item = "Brown Linen Shirt", key = 2580 })

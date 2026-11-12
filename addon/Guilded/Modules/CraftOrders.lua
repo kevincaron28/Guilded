@@ -151,12 +151,17 @@ function orders.prune()
     if order.ref and order.ref ~= "" and isMe(order.by) then feedRefs[order.ref] = true end
   end
   local feedAt = current and ns.util and ns.util.isoEpoch and ns.util.isoEpoch(current.at)
+  -- Only the companion's own feed proves an upload had its chance; a guildmate's relayed feed may be newer without ever
+  -- having heard of this request (and its ORDREFS may not be applied yet), so it settles nothing by absence alone.
+  local ownFeed = current and current.source == "companion"
+  local feedHasRefs = false
+  for _, order in ipairs(current and current.orders or {}) do if order.ref and order.ref ~= "" then feedHasRefs = true; break end end
   for ref, request in pairs(s.requests) do
     if type(request) ~= "table" or now - (tonumber(request.at) or 0) > KEEP then s.requests[ref] = nil
     elseif feedRefs[ref] then
       if not request.seenFeed then request.seenFeed = current.at end
-    elseif request.seenFeed and current and current.at >= request.seenFeed then s.requests[ref] = nil
-    elseif feedAt and feedAt > (tonumber(request.at) or 0) + SETTLE_AFTER then s.requests[ref] = nil end
+    elseif request.seenFeed and current and current.at >= request.seenFeed and (ownFeed or feedHasRefs) then s.requests[ref] = nil
+    elseif ownFeed and feedAt and feedAt > (tonumber(request.at) or 0) + SETTLE_AFTER then s.requests[ref] = nil end
   end
   local heardCount = 0
   for key, request in pairs(s.heardRequests) do
@@ -1125,7 +1130,7 @@ frame:SetScript("OnEvent", function(_, event, prefix, text, channel, sender)
         for _, action in pairs(s and s.actions or {}) do sayAction(action) end
         -- Requests not on Discord yet (the feed has no order with their ref): said again once for a guildmate's companion.
         local made = {}
-        for _, order in ipairs(current and current.orders or {}) do if order.ref then made[order.ref] = true end end
+        for _, order in ipairs(current and current.orders or {}) do if order.ref and orders.isMyRequest(order) then made[order.ref] = true end end
         for ref, request in pairs(s and s.requests or {}) do
           if not made[ref] and type(request) == "table" then orders.sayRequest(request) end
         end

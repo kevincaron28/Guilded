@@ -41,7 +41,7 @@ function util.companionSteps()
   local function L(text) return ns.L and ns.L(text) or text end
   return {
     L("Sync with Discord in 3 steps (Windows only):"),
-    L("1) Download it: copy the link, or search \"Guilded Companion\" in the Microsoft Store."),
+    L("1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."),
     L("2) Run the installer. It finds WoW and your guild's Discord server by itself."),
     L("3) Keep it open (it starts with Windows). Signing in with Discord is optional."),
   }

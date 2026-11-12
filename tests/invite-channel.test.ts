@@ -107,10 +107,11 @@ describe("finishing a name from the guild roster", () => {
     return { p, c: { user: { id: "bot" }, channels: { fetch: vi.fn(async () => ({ isTextBased: () => true, messages: { fetch: vi.fn(async () => p) } })) } } };
   };
   it("ignores case, accents and a realm suffix, and matches a first-name-only roster row when only one waiting name fits", async () => {
-    for (const roster of ["DRAKKA WHITEFANG", "Drakka-Doomhowl Whitefang".replace("-Doomhowl", ""), "drakka whitefang-Realm", "Drakka"]) {
+    // A realm is recognised from the roster itself (a suffix most names carry), so a real upload has the other members too.
+    for (const roster of [["DRAKKA WHITEFANG"], ["Drakka-Doomhowl Whitefang".replace("-Doomhowl", "")], ["drakka whitefang-Realm", "Other Person-Realm"], ["Drakka"]]) {
       const db = database(); await handleInviteMessage(post("Drakka Whitefang") as never, db as never);
       const { c } = client();
-      expect(await completeInvitesFromRoster(c as never, db as never, { id: "g1", discordId: "guild" }, [roster]), roster).toBe(1);
+      expect(await completeInvitesFromRoster(c as never, db as never, { id: "g1", discordId: "guild" }, roster), roster.join()).toBe(1);
     }
     const accents = database(); await handleInviteMessage(post("Éloïse Brûlé") as never, accents as never);
     expect(await completeInvitesFromRoster(client().c as never, accents as never, { id: "g1", discordId: "guild" }, ["eloise brule"])).toBe(1);
@@ -128,6 +129,29 @@ describe("finishing a name from the guild roster", () => {
     expect(await backCheckInvites(c as never, db as never, { id: "g1", discordId: "guild" })).toBe(1);
     expect(p.react).toHaveBeenCalledWith("✅");
     expect(p.edit).toHaveBeenCalledWith(expect.objectContaining({ components: [] }));
+  });
+  it("settles a post at once when the character is already in the guild: no wait, no tag", async () => {
+    const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => [{ name: "Drakka Whitefang-Realm" }, { name: "Other Person-Realm" }]) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) } });
+    db.inviteRequest.count = vi.fn(async () => 1);
+    const { c } = client();
+    expect(await handleInviteMessage(post("Drakka Whitefang", { client: c, channel: { send: vi.fn() } }) as never, db as never)).toBe("recorded");
+    expect(db.inviteRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "INVITED", invitedBy: "roster" }) }));
+  });
+  it("settles at once only on a full name in the current roster: not a first name, not a linked character who left, not a surname with a dash cut short", async () => {
+    const roster = [{ name: "Elise Old-Realm" }, { name: "Anna Smith-Realm" }];
+    const run = async (post_: string, extra: Partial<{ roster: { name: string }[]; linked: { name: string }[] }> = {}) => {
+      const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => extra.roster ?? roster) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => extra.linked ?? [{ name: "Drakka Whitefang", displayName: null }]) } });
+      db.inviteRequest.count = vi.fn(async () => 1);
+      await handleInviteMessage(post(post_, { client: client().c, channel: { send: vi.fn() } }) as never, db as never);
+      return db.inviteRequest.updateMany.mock.calls.some((call) => (call as unknown as [{ data: { status?: string } }])[0].data.status === "INVITED");
+    };
+    expect(await run("Elise New")).toBe(false); // an old "Elise" does not close a new "Elise New"
+    expect(await run("Drakka Whitefang")).toBe(false); // linked, but not in the current roster
+    expect(await run("Anna Smith-Jones")).toBe(false); // the surname is not cut at its dash
+    expect(await run("Anna Smith", { roster: [{ name: "Anna Smith-Jones" }] })).toBe(false); // a hyphenated surname in the roster is not a realm
+    expect(await run("Elise Old")).toBe(true);
+    // a full-name settle is a certain match, so it is the kind that may start the clean-up clock; the guesses above never reached it
+
   });
   it("does nothing when nobody is waiting", async () => {
     const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => []) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) } });

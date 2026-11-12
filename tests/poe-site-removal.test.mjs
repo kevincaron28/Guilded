@@ -14,7 +14,7 @@ describe("PoE2 and Diablo leave the public site", () => {
     const sitemap = readFileSync("dist/site/sitemap.xml", "utf8");
     expect(sitemap).not.toMatch(/poe2|diablo/i);
     const quebec = readFileSync("dist/site/quebec-gold/index.html", "utf8");
-    const withoutNav = quebec.replace(/<nav class="community-subnav"[\s\S]*?<\/nav>/, "");
-    expect(withoutNav).not.toMatch(/Path of Exile|PoE2|Diablo/i);
+    expect(quebec).not.toMatch(/Path of Exile|PoE2|Diablo/i);
+    expect(readFileSync("scripts/build-site.mjs", "utf8")).not.toContain("Path of Exile 2");
   });
 });

@@ -26,9 +26,9 @@ function setup(continent = 12) {
         if id == 37 then return { mapType = 3, parentMapID = CONTINENT } end
         return { mapType = 2, parentMapID = 946 }
       end }
-    DB = {}; FR = {}
+    DB = {}; FR = {}; DIAG = ''; NS_LOG = nil
     local make = CreateFrame
-    CreateFrame = function(kind, name, parent, template) local f = make(kind, name, parent, template); if name then FR[name] = f end; return f end
+    CreateFrame = function(kind, name, parent, template) local f = make(kind, name, parent, template); if name then FR[name] = f; local sp = f.SetPoint; f.SetPoint = function(self, ...) if type(self.pts) ~= "table" then self.pts = {} end; self.pts[#self.pts + 1] = { ... }; if sp then return sp(self, ...) end end end; return f end
     NS = { util = {}, commandHandlers = {}, commandHelp = {},
       message = function(text) MSGS[#MSGS + 1] = text end,
       isSecret = function() return false end,
@@ -36,6 +36,7 @@ function setup(continent = 12) {
       normalizeName = function(n) return n and (n:match("^[^-]+")) end,
       isGuildMember = function(n) return n ~= "Stranger" end,
       getDb = function() return DB end,
+      logDiagnostic = function(kind, text) DIAG = DIAG .. text .. ';' end,
       comm = { register = function() end,
         accept = function(prefix, text, channel, sender, expected, authorize)
           if prefix ~= expected or type(text) ~= "string" or #text > 255 then return false end
@@ -110,6 +111,7 @@ describe("layer invite: a helper", () => {
     expect(toastShown()).toBe("false");
     expect(openList()).toBe("");
     heard("Bo", "REQ|78|12|Duskwood");
+    
     expect(toastShown()).toBe("true");
     expect(openList()).toBe("Bo");
     // The same request again (a resend) never shows a second time, even after the helper closed the first.
@@ -163,8 +165,10 @@ describe("layer invite: a helper", () => {
     expect(openList()).toBe("Ann");
     // The queued request is not pushed on screen unasked after combat only once; claiming in combat sends nothing.
     s!.run(`IN_COMBAT = true`);
-    expect(s!.run(`return tostring(NS.layerInvite.claim(NS.layerInvite.openRequests()[1]))`)).toBe("true");
+    expect(s!.run(`return tostring(NS.layerInvite.claim(NS.layerInvite.openRequests()[1]))`)).toBe("false");
     expect(sentCount()).toBe(0);
+    // The refused send did not mark it claimed: it is still open.
+    expect(openList()).toBe("Ann");
   });
 
   it("Invite shows the /invite line in the copy box and never calls the invite API or the chat box", () => {
@@ -183,7 +187,7 @@ describe("layer invite: the first accept closes the request", () => {
     s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     s!.run(`FR.GuildedLayerToast.invite:GetScript("OnClick")(FR.GuildedLayerToast.invite)`);
-    expect(sent()).toBe("GuildedLayer:GUILD:CLAIM|Ann|5");
+    expect(sent()).toBe("GuildedLayer:GUILD:CLAIM|Ann|5|12");
     expect(openList()).toBe("");
     expect(toastShown()).toBe("false");
     // A second helper's toast for the same request closes when the first CLAIM arrives.
@@ -191,7 +195,7 @@ describe("layer invite: the first accept closes the request", () => {
     s!.run(`DB.layer = { helper = true }`);
     heard("Ann", "REQ|5|12|Elwynn Forest");
     expect(toastShown()).toBe("true");
-    heard("Bo", "CLAIM|Ann|5");
+    heard("Bo", "CLAIM|Ann|5|12");
     expect(toastShown()).toBe("false");
     expect(openList()).toBe("");
     // A late claim from a helper who did not hear it is refused locally once the request is no longer open.
@@ -202,10 +206,10 @@ describe("layer invite: the first accept closes the request", () => {
     setup(12); login();
     s!.run(`NS.layerInvite.ask()`);
     const id = s!.run(`return NS.layerInvite.myRequest().id`);
-    heard("Bo", `CLAIM|Kev|${id}`);
+    heard("Bo", `CLAIM|Kev|${id}|12`);
     expect(msgs()).toContain("Bo will invite you");
     // Someone else's claim for a different request does not count.
-    heard("Cy", "CLAIM|Kev|nope");
+    heard("Cy", "CLAIM|Kev|nope|12");
     expect(s!.run(`return NS.layerInvite.myRequest().claimedBy`)).toBe("Bo");
     s!.run(`GROUP = 2; fire_event("GROUP_ROSTER_UPDATE")`);
     expect(msgs()).toContain("type /leave");
@@ -223,6 +227,94 @@ describe("layer invite: the first accept closes the request", () => {
     s!.run(`CLOCK = CLOCK + 301; NS.layerInvite.tick()`);
     expect(msgs()).toContain("expired");
     expect(s!.run(`return tostring(NS.layerInvite.myRequest())`)).toBe("nil");
+  });
+});
+
+describe("layer invite: receiver-side limits", () => {
+  it("ignores a second request from the same sender within the pause, whatever the id", () => {
+    setup(12); login();
+    s!.run(`DB.layer = { helper = true }`);
+    heard("Ann", "REQ|1|12|Elwynn Forest");
+    heard("Ann", "REQ|2|12|Elwynn Forest");
+    heard("Ann", "REQ|3|12|Elwynn Forest");
+    expect(s!.run(`return #NS.layerInvite.openRequests()`)).toBe("1");
+    s!.run(`CLOCK = CLOCK + 121`);
+    heard("Ann", "REQ|4|12|Elwynn Forest");
+    expect(s!.run(`return #NS.layerInvite.openRequests()`)).toBe("2");
+  });
+
+  it("bounds what it remembers and what it queues", () => {
+    setup(12); login();
+    s!.run(`DB.layer = { helper = true }`);
+    for (let i = 0; i < 150; i++) heard(`P${i}`, `REQ|${i}|99|Somewhere`);
+    expect(s!.run(`local seen = NS.layerInvite.counts(); return seen`)).toBe("100");
+    setup(12); login();
+    s!.run(`DB.layer = { helper = true }`);
+    for (let i = 0; i < 12; i++) heard(`Q${i}`, `REQ|${i}|12|Elwynn Forest`);
+    expect(s!.run(`local _, waiting = NS.layerInvite.counts(); return waiting`)).toBe("5");
+  });
+
+  it("does not lose a request when the continent cannot be read yet", () => {
+    setup(12); login();
+    s!.run(`DB.layer = { helper = true }; REAL = C_Map.GetBestMapForUnit; C_Map.GetBestMapForUnit = function() return nil end`);
+    heard("Ann", "REQ|1|12|Elwynn Forest");
+    expect(openList()).toBe("");
+    s!.run(`C_Map.GetBestMapForUnit = REAL`);
+    heard("Ann", "REQ|1|12|Elwynn Forest");
+    expect(openList()).toBe("Ann");
+    expect(toastShown()).toBe("true");
+  });
+});
+
+describe("layer invite: CLAIM rules", () => {
+  it("does nothing for a request this client does not hold, from the asker, or from a non-member", () => {
+    setup(12); login();
+    s!.run(`DB.layer = { helper = true }`);
+    heard("Ann", "REQ|5|12|Elwynn Forest");
+    heard("Ann", "CLAIM|Ann|5|12");
+    heard("Bo", "CLAIM|Zed|9|12");
+    heard("Bo", "CLAIM|Ann|6|12");
+    heard("Stranger", "CLAIM|Ann|5|12");
+    expect(openList()).toBe("Ann");
+    expect(toastShown()).toBe("true");
+  });
+
+  it("the asker accepts only the first claim, from a guildmate on the same continent", () => {
+    setup(12); login();
+    s!.run(`NS.layerInvite.ask()`);
+    const id = s!.run(`return NS.layerInvite.myRequest().id`);
+    heard("Kev", `CLAIM|Kev|${id}|12`);
+    heard("Stranger", `CLAIM|Kev|${id}|12`);
+    heard("Bo", `CLAIM|Kev|${id}|13`);
+    expect(s!.run(`return tostring(NS.layerInvite.myRequest().claimedBy)`)).toBe("nil");
+    heard("Cy", `CLAIM|Kev|${id}|12`);
+    heard("Dee", `CLAIM|Kev|${id}|12`);
+    expect(s!.run(`return NS.layerInvite.myRequest().claimedBy`)).toBe("Cy");
+  });
+});
+
+describe("layer invite: combat and placement", () => {
+  it("hides the window when combat starts and brings it back after, if the request is still open", () => {
+    setup(12); login();
+    s!.run(`DB.layer = { helper = true }`);
+    heard("Ann", "REQ|5|12|Elwynn Forest");
+    expect(toastShown()).toBe("true");
+    s!.run(`IN_COMBAT = true; fire_event("PLAYER_REGEN_DISABLED")`);
+    expect(toastShown()).toBe("false");
+    s!.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(toastShown()).toBe("true");
+    // A claim heard during the fight keeps it gone.
+    s!.run(`IN_COMBAT = true; fire_event("PLAYER_REGEN_DISABLED")`);
+    heard("Bo", "CLAIM|Ann|5|12");
+    s!.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(toastShown()).toBe("false");
+  });
+
+  it("hangs below the call-for-help toast's box when that exists", () => {
+    setup(12); login();
+    s!.run(`DB.layer = { helper = true }; CFH = CreateFrame("Frame"); NS.callForHelp = { footprint = function() return CFH end }`);
+    heard("Ann", "REQ|5|12|Elwynn Forest");
+    expect(s!.run(`local p = FR.GuildedLayerToast.pts; local last = p[#p]; return tostring(last[1]) .. ":" .. tostring(last[2] == CFH) .. ":" .. tostring(last[3])`)).toBe("TOPLEFT:true:BOTTOMLEFT");
   });
 });
 

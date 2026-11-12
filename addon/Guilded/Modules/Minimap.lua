@@ -1807,7 +1807,7 @@ local updateGuildScroll
 local READ_ONLY_PAGES = { ["Open raids"] = true, Calendar = true }
 -- Long pages scroll inside the window; the rest sit on the window directly.
 local SCROLLED_PAGES = { Standings = true, Gear = true, EPGP = true, ["Local guild"] = true, ["Roster admin"] = true,
-  ["Officer tools"] = true, Calendar = true, Crafting = true, Availability = true }
+  ["Officer tools"] = true, Calendar = true, Crafting = true, Availability = true, ["Layer invite"] = true }
 
 local function clock(seconds)
   seconds = math.max(0, math.floor(seconds or 0))
@@ -2245,6 +2245,7 @@ updateGuildScroll = function()
   elseif tab.name == "Crafting" then
     height = 46 + textHeight(ui.craftResult) + 16 + 20 + textHeight(ui.craftMine) + 16 + 24 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
+  elseif tab.name == "Layer invite" then height = 264 -- the last of five request rows ends near y=-250
   elseif tab.name == "EPGP" then height = 252 -- the lowest widget ends near y=-218, a 22 px button
   elseif tab.name == "Roster admin" then height = 36 + 30 + 40
   elseif tab.name == "Officer tools" then height = 12 + math.ceil(#OFFICER_TOOLS / 2) * 38 + 12

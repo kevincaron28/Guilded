@@ -222,6 +222,13 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("48");
   });
 
+  it("gives the Layer invite page its real height inside the scroll (its fifth row ends near y=-250)", () => {
+    const s = openWindow(5);
+    s.run(`UI = NS.windowState(); UI.selectTabByName("Layer invite"); UI.guildScroll.GetHeight = function() return 100 end; UI.selectTabByName("Layer invite")`);
+    expect(s.run("return tostring(UI.guildScroll.shown and UI.guildScroll.scrollChild == UI.tabs[UI.currentTab].page)")).toBe("true");
+    expect(s.run("return UI.guildScrollRange")).toBe("188");
+  });
+
   it("scrolls the long pages and leaves the short ones on the window", () => {
     const s = openWindow(1);
     s.run(`UI = NS.windowState(); UI.selectTabByName("Standings")`);

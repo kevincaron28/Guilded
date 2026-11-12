@@ -23,6 +23,9 @@ local CLAIM_SECONDS = 60         -- a helper has this long to get the asker into
 local ASK_EVERY_SECONDS = 120    -- one request per asker per two minutes
 local TOAST_SECONDS = 30
 local MAX_ROWS = 5
+local MAX_SEEN = 100         -- request keys remembered (oldest out)
+local MAX_WAITING = 5        -- requests queued behind the open window (oldest out)
+local MAX_SENDERS = 60       -- senders remembered for the per-sender pause
 
 local module = {}
 ns.layerInvite = module
@@ -86,7 +89,8 @@ end
 
 local mine                -- my own open request: { id, at, claimedBy, claimedAt }
 local requests = {}       -- guildmates' requests: [key] = { key, id, name, zone, at, state = "open"|"claimed"|"closed" }
-local seen = {}           -- request keys already received: a helper is asked once per request
+local seen, seenOrder = {}, {}   -- request keys already received: a helper is asked once per request
+local lastFrom = {}          -- sender -> time of their last accepted request (receiver-side pause)
 local order = {}          -- keys in arrival order
 local counter = 0
 local toast, current, waiting = nil, nil, {}
@@ -119,12 +123,22 @@ end
 
 local presentNext
 
+-- Hangs below the call-for-help toast's footprint (its toast and offer box), so both can be open at once.
+function module.placeToast()
+  if not toast then return end
+  toast:ClearAllPoints()
+  local cfh = ns.callForHelp
+  local anchor = cfh and cfh.footprint and cfh.footprint()
+  if anchor then toast:SetPoint("TOPLEFT", anchor, "BOTTOMLEFT", 0, -4)
+  else toast:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -20, -394) end
+end
+
 local function ensureToast()
   if toast then return toast end
   toast = CreateFrame("Frame", "GuildedLayerToast", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
   toast:SetWidth(290)
   toast:SetHeight(84)
-  toast:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -24, -220)
+  module.placeToast()
   if toast.SetFrameStrata then toast:SetFrameStrata("MEDIUM") end
   if toast.SetClampedToScreen then toast:SetClampedToScreen(true) end
   if toast.SetBackdrop then
@@ -169,6 +183,7 @@ end
 -- Shows one request (the first time a guildmate asks, it asks the helper once whether to help at all).
 function module.show(request)
   ensureToast()
+  module.placeToast()
   current = request
   toast.shownAt = nowSeconds()
   toast.isOpen = true
@@ -218,7 +233,7 @@ function module.ask()
   local id = string.format("%d%d", t % 100000, counter % 10)
   if not send(string.format("REQ|%s|%d|%s", id, continent, zoneName())) then return false end
   data().lastAskAt = t
-  mine = { id = id, at = t }
+  mine = { id = id, at = t, continent = continent }
   say(L("Asked guildmates on your continent. You will be told when someone offers to invite you."))
   return true
 end
@@ -233,8 +248,9 @@ end
 -- The helper's click on Invite: the line was already shown; tell everyone else the request is taken.
 function module.claim(request)
   if not request or request.state ~= "open" then return false end
+  -- Only a CLAIM that went out closes the request: in combat the send is refused and the request stays open.
+  if not send(string.format("CLAIM|%s|%s|%d", bare(request.name), request.id, request.continent or 0)) then return false end
   request.state = "claimed"
-  send(string.format("CLAIM|%s|%s", bare(request.name), request.id))
   closeToast()
   presentNext()
   return true
@@ -244,35 +260,59 @@ local function chatLine(request)
   say(string.format(L("%s wants another layer (%s). Open Guilded, Guild, Layer invite after combat."), display(request.name), request.zone))
 end
 
+local function remember(key)
+  seen[key] = true
+  seenOrder[#seenOrder + 1] = key
+  while #seenOrder > MAX_SEEN do seen[table.remove(seenOrder, 1)] = nil end
+end
+
 local function receiveRequest(sender, parts)
   local id, continent, zone = parts[2], tonumber(parts[3]), parts[4] or ""
   if not id or id == "" or #id > 12 or not continent then return end
   if same(sender, myName()) then return end                  -- my own message coming back
   local key = keyOf(sender, id)
   if seen[key] then return end                                -- asked once, never again
-  seen[key] = true
+  local t = nowSeconds()
+  local who = bare(sender)
+  if lastFrom[who] and t - lastFrom[who] < ASK_EVERY_SECONDS then return end   -- one request per sender per pause, whatever the id
   local here = module.continent()
-  if not here or here ~= continent then return end            -- not a candidate: another continent
-  local request = { key = key, id = id, name = bare(sender), zone = zone:gsub("[|%c]", ""), at = nowSeconds(), state = "open" }
+  if not here then return end                                 -- unreadable now: not marked, a later request still counts
+  remember(key)
+  lastFrom[who] = t
+  local count = 0
+  for name, at in pairs(lastFrom) do
+    if t - at >= ASK_EVERY_SECONDS then lastFrom[name] = nil else count = count + 1 end
+  end
+  if count > MAX_SENDERS then lastFrom = { [who] = t } end
+  if here ~= continent then return end                        -- not a candidate: another continent
+  local request = { key = key, id = id, name = who, zone = (zone:gsub("[|%c]", "")), at = t, state = "open", continent = continent }
   requests[key] = request
   order[#order + 1] = key
   while #order > 20 do requests[table.remove(order, 1)] = nil end
   if data().helper == false or not canHelp() then return end
   if combat() then chatLine(request); return end
-  if current then waiting[#waiting + 1] = request else module.show(request) end
+  if current then
+    waiting[#waiting + 1] = request
+    while #waiting > MAX_WAITING do table.remove(waiting, 1) end
+  else module.show(request) end
 end
 
 local function receiveClaim(sender, parts)
-  local requester, id = parts[2], parts[3]
-  if not requester or not id then return end
-  local request = requests[keyOf(requester, id)]
-  if request then
+  local requester, id, continent = parts[2], parts[3], tonumber(parts[4])
+  if not requester or not id or not continent then return end
+  if same(sender, requester) then return end                  -- never a claim from the asker
+  if same(requester, myName()) then
+    -- I am the asker: only the first claim for my own open request, from a guildmate on my continent.
+    if mine and mine.id == id and not mine.claimedBy and continent == mine.continent then
+      mine.claimedBy, mine.claimedAt = bare(sender), nowSeconds()
+      say(string.format(L("%s will invite you. Accept the invite, then type /leave once the zone has reloaded."), display(sender)))
+    end
+    return
+  end
+  local request = requests[keyOf(requester, id)]              -- only a request this client holds
+  if request and request.state == "open" then
     request.state = "claimed"
     if current == request then closeToast(); presentNext() end
-  end
-  if mine and mine.id == id and same(requester, myName()) and not mine.claimedBy then
-    mine.claimedBy, mine.claimedAt = bare(sender), nowSeconds()
-    say(string.format(L("%s will invite you. Accept the invite, then type /leave once the zone has reloaded."), display(sender)))
   end
 end
 
@@ -328,6 +368,7 @@ module.tick = tick
 -- ---------------------------------------------------------------------
 
 function module.openRequests() return openRequests() end
+function module.counts() return #seenOrder, #waiting end
 function module.myRequest() return mine end
 
 function module.buildPage(page, helpers)
@@ -416,6 +457,7 @@ register("PLAYER_LOGIN")
 register("CHAT_MSG_ADDON")
 register("GROUP_ROSTER_UPDATE")
 register("PLAYER_REGEN_ENABLED")
+register("PLAYER_REGEN_DISABLED")
 local since = 0
 frame:SetScript("OnEvent", function(_, event, ...)
   local args = { ... }
@@ -432,6 +474,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
       local authorize = function(name) return ns.isGuildMember and ns.isGuildMember(name) == true end
       if not ns.comm.accept(prefix, text, channel, sender, PREFIX, authorize) then return end
       module.receive(text, sender)
+    elseif event == "PLAYER_REGEN_DISABLED" then
+      -- The window goes away for the fight and comes back after it if the request is still open.
+      if current then
+        local request = current
+        closeToast()
+        if request.state == "open" then table.insert(waiting, 1, request) end
+      end
     elseif event == "PLAYER_REGEN_ENABLED" then
       presentNext()
     elseif event == "GROUP_ROSTER_UPDATE" then

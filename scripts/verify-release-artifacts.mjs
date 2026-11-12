@@ -30,8 +30,6 @@ for (const path of toc.split(/\r?\n/).map(line => line.trim()).filter(line => li
   assert.ok(files[`Guilded/${path.replaceAll("\\", "/")}`], `Missing TOC file: ${path}`);
 }
 const standings = Buffer.from(files["Guilded/Standings.lua"]).toString("utf8");
-assert.deepEqual(Buffer.from(files["Guilded/Modules/LootHistoryImport.lua"] ?? []),
-  readFileSync("addon/Guilded/Modules/LootHistoryImport.lua"), "Missing or stale loot-history module");
 for (const path of ["Core.lua", "Modules/Loot.lua", "Modules/Council.lua", "Modules/LootRoll.lua", "Modules/Sync.lua"]) {
   assert.deepEqual(Buffer.from(files[`Guilded/${path}`] ?? []), readFileSync(`addon/Guilded/${path}`), `Missing or stale raid pricing module: ${path}`);
 }

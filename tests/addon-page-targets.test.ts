@@ -9,8 +9,6 @@ const minimap = readFileSync(`${dir}/Minimap.lua`, "utf8");
 const tabs = new Set([...minimap.matchAll(/^\s*\{ name = "([^"]+)"/gm)].map((m) => m[1]!));
 // selectTabByName answers these without a tab of that name.
 const handled = new Set(["Loot", "Dungeons", "Season", "Scores"]);
-// Only offered when that tab exists (tabExists in the quick menu): a dead branch that PR 2 removes.
-handled.add("Race to 60");
 
 describe("page targets", () => {
   it("finds the page list", () => {

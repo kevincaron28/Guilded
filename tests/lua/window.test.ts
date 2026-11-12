@@ -723,7 +723,7 @@ describe("minimap button shortcuts (Track E2)", () => {
     expect(click(s, "LeftButton")).toBe("window");
   });
 
-  it("the quick menu lists the pages, and only offers Race to 60 when that page exists", () => {
+  it("the quick menu lists the pages and never offers a Race to 60 page", () => {
     const s = setup();
     click(s, "RightButton");
     s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
@@ -731,7 +731,7 @@ describe("minimap button shortcuts (Track E2)", () => {
     expect(s.run(`return MENU.buttons[1].text.text .. "," .. MENU.buttons[6].text.text`)).toBe("Raid signups,Settings");
     s.run(`NS.windowState().tabs[#NS.windowState().tabs + 1] = { name = "Race to 60" }`);
     click(s, "RightButton");
-    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("7");
+    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("6");
     s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "help" end }`);
     click(s, "RightButton");
     expect(s.run(`return MENU.buttons[#MENU.buttons - 1].text.text`)).toBe("Call for help");

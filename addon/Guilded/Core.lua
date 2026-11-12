@@ -1591,6 +1591,9 @@ ns.commandHelp = ns.commandHelp or {}
 -- /guilded <command> is kept for one release so officers' macros explain themselves.
 ns.removedCommands = ns.removedCommands or {
   motd = "WoW does not let addons set the guild message.",
+  welcome = "WoW does not let addons send the automatic welcome whisper.",
+  finder = "Blizzard's group finder is not available to addons on WoW Forever.",
+  probe = "the achievement probe finished its job.",
 }
 
 -- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
@@ -1633,7 +1636,7 @@ ns.MODULES = {
   { key = "presence", name = "Availability", desc = "opt-in availability and local activity observations", commands = { "free" } },
   { key = "scores", name = "Dungeon scores", desc = "a dungeon score per player from recorded runs, on tooltips", commands = { "score" } },
   { key = "guildlog", name = "Guild event log", desc = "joins, leaves, promotions and removals, kept longer than the game keeps them", commands = { "guildlog" } },
-  { key = "recruit", name = "Recruiting", desc = "officers' prospect list and a welcome whisper for new members", commands = { "recruit", "welcome" } },
+  { key = "recruit", name = "Recruiting", desc = "officers' prospect list", commands = { "recruit" } },
   { key = "chattags", name = "Main names in chat", desc = "the main's name next to an alt in guild and officer chat", commands = { "chattags" } },
   { key = "guildbank", name = "Guild bank snapshot", desc = "what the guild bank held when it was last opened", commands = { "gbank" } },
   { key = "pugcheck", name = "Pug gear check", desc = "item level and missing enchants of group members from outside the guild", commands = { "pugcheck" } },
@@ -1644,7 +1647,7 @@ ns.MODULES = {
   { key = "imports", name = "Loot imports", desc = "softres.it lists and That's My BiS priorities", commands = { "import", "tmb" } },
 }
 local MODULE_ALIASES = { map = "guildmap", score = "scores", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables",
-  log = "guildlog", recruiting = "recruit", welcome = "recruit", tags = "chattags", bank = "guildbank", gbank = "guildbank", pug = "pugcheck", tmb = "imports", import = "imports" }
+  log = "guildlog", recruiting = "recruit", tags = "chattags", bank = "guildbank", gbank = "guildbank", pug = "pugcheck", tmb = "imports", import = "imports" }
 local moduleByKey, commandModule, activeAtLogin = {}, {}, {}
 for _, module in ipairs(ns.MODULES) do
   moduleByKey[module.key] = module
@@ -2327,8 +2330,6 @@ local function onEvent(_, event, ...)
       blockedAddon ~= addonName)
     -- A refused guild action is never retried on this client build (see RosterTools).
     if blockedAddon == addonName and ns.rosterTools and ns.rosterTools.onBlocked then pcall(ns.rosterTools.onBlocked) end
-    -- A refused guild welcome is tried again a little later (see OfficerNotes).
-    if blockedAddon == addonName and ns.officerNotes and ns.officerNotes.onBlocked then pcall(ns.officerNotes.onBlocked) end
   elseif event == "UI_ERROR_MESSAGE" then
     -- Fallback net in case the blocked-action popup surfaces as a generic UI
     -- error toast instead of ADDON_ACTION_BLOCKED/FORBIDDEN -- log it only

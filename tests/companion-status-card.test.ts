@@ -28,10 +28,38 @@ describe("the status card", () => {
   });
 
   it("asks to sign in before anything else a member can fix", () => {
-    const card = statusCard({ problems: [p("addon-missing"), p("bot-unreachable")], config: { wowEnabled: true } });
+    const card = statusCard({ problems: [p("addon-missing"), p("bot-unreachable")], config: { wowEnabled: true, zeroSetupOff: true } });
     expect(card).toMatchObject({ id: "not-signed-in", tone: "warn", button: { action: "sign-in", label: "Sign in with Discord" } });
     // Saving and disk space still come first: they would break the sign-in too.
     expect(statusCard({ problems: [p("disk-space-low", { freeMb: 10 })], config: {} }).id).toBe("disk-space-low");
+  });
+
+  it("says the PC is getting ready, not 'sign in', while the device key is being made", () => {
+    const card = statusCard({ problems: [p("addon-missing")], config: { wowEnabled: true } });
+    expect(card).toMatchObject({ id: "getting-ready", tone: "busy", title: ["Getting this PC ready…"], button: null });
+    // An older bot without zero-setup: Sign in is the way.
+    expect(statusCard({ config: { wowEnabled: true }, state: { device: { status: "unsupported" } } }).id).toBe("not-signed-in");
+  });
+
+  it("falls through to sign-in when automatic setup keeps failing, instead of waiting forever", () => {
+    const card = statusCard({ problems: [p("addon-missing")], config: { wowEnabled: true }, state: { zeroSetupFailures: 1 } });
+    expect(card).toMatchObject({ id: "not-signed-in", button: { action: "sign-in" } });
+    expect(fr[card.detail![0]]).toBeTruthy();
+    // Back to normal once a try works.
+    expect(statusCard({ config: { wowEnabled: true }, state: { zeroSetupFailures: 0 } }).id).toBe("getting-ready");
+  });
+
+  it("offers a message for the officer, not Sign in, when the guild is not set up", () => {
+    const card = statusCard({ config: zeroSetup, state: { device: { status: "no-guild", guild: { name: "Quebec Gold" } } } });
+    expect(card).toMatchObject({ id: "guild-not-set-up", button: { action: "copy-officer-message", label: "Copy a message for your officer" } });
+  });
+
+  it("keeps sign-in as a secondary link on the healthy device card", () => {
+    const card = statusCard({ config: zeroSetup, state: { device: { status: "synced", server: "Quebec Gold", guild: { name: "Quebec Gold" } } } });
+    expect(card.id).toBe("synced");
+    expect(card.button?.action).not.toBe("sign-in");
+    expect(card.link).toMatchObject({ action: "sign-in" });
+    expect(fr[card.link!.label]).toBeTruthy();
   });
 
   it("finds WoW, installs the addon, follows a moved folder, waits for the first save", () => {
@@ -59,7 +87,7 @@ describe("the status card", () => {
   it("is worded in French, every sentence and button", () => {
     const inputs = [
       { problems: [p("settings-not-saved")], config: linked }, { problems: [p("disk-space-low", { freeMb: 1, neededMb: 600 })], config: linked },
-      { config: {} }, { problems: [p("sign-in-expired")], config: linked }, { problems: [p("saved-file-missing", { chosen: false })], config: { companionCredential: "c" } },
+      { config: {} }, { config: { zeroSetupOff: true } }, { problems: [p("sign-in-expired")], config: linked }, { problems: [p("saved-file-missing", { chosen: false })], config: { companionCredential: "c" } },
       { problems: [p("addon-missing")], config: linked }, { problems: [p("addon-wrong-edition")], config: linked }, { problems: [p("addon-outdated")], config: linked },
       { problems: [p("saved-file-not-updated", { moved: true })], config: linked }, { problems: [p("saved-file-missing", { chosen: true })], config: linked },
       { problems: [p("bot-unreachable")], config: linked }, { problems: [p("bot-unreachable", { offline: true })], config: linked }, { problems: [p("upload-rejected")], config: linked },
@@ -72,7 +100,7 @@ describe("the status card", () => {
     for (const input of inputs) {
       const card = statusCard(input);
       seen.add(card.id);
-      for (const key of [card.title[0], card.detail?.[0], card.button?.label].filter(Boolean) as string[]) expect(fr[key], key).toBeTruthy();
+      for (const key of [card.title[0], card.detail?.[0], card.button?.label, card.link?.label].filter(Boolean) as string[]) expect(fr[key], key).toBeTruthy();
     }
     expect([...seen].sort()).toEqual([...STATUS_ORDER].sort());
   });

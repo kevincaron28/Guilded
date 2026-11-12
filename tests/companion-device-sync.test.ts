@@ -120,10 +120,11 @@ describe("device mode in the engine and the window", () => {
     const config = { ...device(), companionCredential: "", deviceSecret: "set" };
     expect(companionOverview(config, {})).toMatchObject({ device: true, canSync: true });
     const card = statusCard({ config, state: { running: true, device: { status: "synced", server: "Quebec Gold", guild: { name: "Quebec Gold" } } } });
-    expect(card).toMatchObject({ id: "synced", tone: "ok", title: ["Syncing to {0} (from your guild {1}).", "Quebec Gold", "Quebec Gold"], button: { action: "sign-in" } });
+    expect(card).toMatchObject({ id: "synced", tone: "ok", title: ["Syncing to {0} (from your guild {1}).", "Quebec Gold", "Quebec Gold"], button: { action: "sync-now" }, link: { action: "sign-in" } });
     expect(statusCard({ config, state: { running: true, device: { status: "no-guild", guild: { name: "Quebec Gold" } } } }).id).toBe("guild-not-set-up");
     expect(statusCard({ config, state: { running: true, device: { status: "choose", guild: { name: "Quebec Gold" } } } }).button?.action).toBe("choose-server");
     // Without a device key the sign-in card stays first.
-    expect(statusCard({ config: { ...config, deviceSecret: "" }, state: {} }).id).toBe("not-signed-in");
+    expect(statusCard({ config: { ...config, deviceSecret: "" }, state: {} }).id).toBe("getting-ready");
+    expect(statusCard({ config: { ...config, deviceSecret: "", zeroSetupOff: true }, state: {} }).id).toBe("not-signed-in");
   });
 });

@@ -8,7 +8,7 @@
 
 /** The order states are picked in. The first that applies is shown. */
 export const STATUS_ORDER = Object.freeze([
-  "settings-not-saved", "disk-space-low", "not-signed-in", "sign-in-expired", "no-wow-folder",
+  "settings-not-saved", "disk-space-low", "getting-ready", "not-signed-in", "sign-in-expired", "no-wow-folder",
   "addon-missing", "addon-wrong-edition", "addon-outdated", "folder-moved", "never-saved",
   "bot-unreachable", "upload-rejected", "paused", "syncing", "guild-not-set-up", "choose-server", "synced", "waiting-first-save"
 ]);
@@ -16,12 +16,12 @@ export const STATUS_ORDER = Object.freeze([
 /**
  * @param {{
  *   problems?: { id: string, data?: Record<string, any> }[],
- *   config?: { companionCredential?: string, wowEnabled?: boolean, watchFile?: string, personal?: boolean, syncEnabled?: boolean, device?: boolean, deviceSecret?: string },
- *   state?: { running?: boolean, syncPhase?: string, lastUpload?: { at?: string } | null, device?: { status?: string, server?: string, guild?: { name?: string } | null } | null },
+ *   config?: { companionCredential?: string, wowEnabled?: boolean, watchFile?: string, personal?: boolean, syncEnabled?: boolean, device?: boolean, deviceSecret?: string, zeroSetupOff?: boolean },
+ *   state?: { running?: boolean, syncPhase?: string, lastUpload?: { at?: string } | null, zeroSetupFailures?: number, device?: { status?: string, server?: string, guild?: { name?: string } | null } | null },
  *   now?: number
  * }} input
  * @returns {{ id: string, tone: "ok" | "busy" | "warn" | "bad", title: [string, ...any[]], detail: [string, ...any[]] | null,
- *   button: { action: string, label: string } | null }}
+ *   button: { action: string, label: string } | null, link?: { action: string, label: string } | null }}
  */
 export function statusCard({ problems = [], config = {}, state = {} } = {}) {
   const has = new Map(problems.map((problem) => [problem.id, problem.data || {}]));
@@ -29,13 +29,19 @@ export function statusCard({ problems = [], config = {}, state = {} } = {}) {
   // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): syncing with the device key, no sign-in yet.
   const device = !linked && config.device === true && Boolean(config.deviceSecret);
   const wow = config.wowEnabled !== false;
-  const card = (id, tone, title, detail = null, button = null) => ({ id, tone, title, detail, button });
+  const card = (id, tone, title, detail = null, button = null, link = null) => ({ id, tone, title, detail, button, link });
 
   if (has.has("settings-not-saved")) return card("settings-not-saved", "bad", ["Your settings could not be saved."], ["Restart Windows, then open the companion again. Until then, what you change is kept only while it stays open."], { action: "problems", label: "See how to fix" });
   if (has.has("disk-space-low")) {
     const d = has.get("disk-space-low");
     return card("disk-space-low", "bad", ["Not enough disk space: {0} MB free.", d.freeMb], ["Updates and the addon install need about {0} MB. Free some space, then the companion carries on.", d.neededMb ?? 600], { action: "storage", label: "Open Storage settings" });
   }
+  // Sign-in is optional: while the device key is being made the card says so; Sign in is offered only
+  // when the zero-setup path is off or the bot does not support it.
+  const gettingReady = !linked && !device && wow && !config.personal && config.zeroSetupOff !== true && state.device?.status !== "unsupported" && !(state.zeroSetupFailures > 0);
+  if (gettingReady) return card("getting-ready", "busy", ["Getting this PC ready…"], ["The companion sets itself up: no sign-in needed. This takes a moment."], null);
+  // Automatic setup failed (offline, server down): say so, and keep Sign in as the way forward.
+  if (!linked && !device && state.zeroSetupFailures > 0 && config.zeroSetupOff !== true) return card("not-signed-in", "warn", ["Sign in with Discord to start syncing."], ["Automatic setup could not reach Guilded yet and keeps trying. You can sign in with Discord meanwhile."], { action: "sign-in", label: "Sign in with Discord" });
   if (!linked && (!device || state.device?.status === "claimed")) return card("not-signed-in", "warn", ["Sign in with Discord to start syncing."], ["It takes a minute: your browser opens, you pick your guild's server, and that's it."], { action: "sign-in", label: "Sign in with Discord" });
   if (has.has("sign-in-expired")) return card("sign-in-expired", "bad", ["Your Discord sign-in expired."], ["Sign in again; nothing is lost."], { action: "sign-in", label: "Sign in with Discord" });
   if (wow && !config.personal && has.has("saved-file-missing") && has.get("saved-file-missing").chosen === false) {
@@ -57,11 +63,11 @@ export function statusCard({ problems = [], config = {}, state = {} } = {}) {
     const guild = state.device.guild?.name;
     const realm = state.device.guild?.realm;
     return guild
-      ? card("guild-not-set-up", "warn", realm ? ["Your guild {0} (realm {1}) isn't set up on Discord yet.", guild, realm] : ["Your guild {0} isn't set up on Discord yet.", guild], ["Your data waits here. Ask an officer to run /setup on your guild's Discord: the companion syncs by itself after that."], { action: "sign-in", label: "Sign in with Discord" })
+      ? card("guild-not-set-up", "warn", realm ? ["Your guild {0} (realm {1}) isn't set up on Discord yet.", guild, realm] : ["Your guild {0} isn't set up on Discord yet.", guild], ["Your data waits here. Ask an officer to run /setup on your guild's Discord: the companion syncs by itself after that."], { action: "copy-officer-message", label: "Copy a message for your officer" })
       : card("guild-not-set-up", "warn", ["Waiting for your character's guild."], ["Log in to WoW with the Guilded addon enabled, then type /reload once."], null);
   }
   if (device && state.device?.status === "choose") return card("choose-server", "warn", ["Choose your guild's Discord server."], ["Several Discord servers set up your guild {0}. Pick yours once.", state.device.guild?.name ?? ""], { action: "choose-server", label: "Choose server" });
-  if (device && state.device?.status === "synced") return card("synced", "ok", ["Syncing to {0} (from your guild {1}).", state.device.server ?? "", state.device.guild?.name ?? ""], ["Your characters show as reported. Sign in with Discord to confirm them (optional)."], { action: "sign-in", label: "Sign in with Discord to confirm your characters" });
+  if (device && state.device?.status === "synced") return card("synced", "ok", ["Syncing to {0} (from your guild {1}).", state.device.server ?? "", state.device.guild?.name ?? ""], ["Your characters show as reported. Sign in with Discord to confirm them (optional)."], { action: "sync-now", label: "Sync now" }, { action: "sign-in", label: "Sign in with Discord to confirm your characters" });
   if (state.lastUpload?.at) return card("synced", "ok", ["Synced {0}.", { ago: state.lastUpload.at }], ["After you play, /reload or log out: the companion syncs by itself."], { action: "sync-now", label: "Sync now" });
   return card("waiting-first-save", "ok", ["Ready. Waiting for your first /reload in WoW."], ["Log in to WoW and type /reload (or log out): the companion syncs by itself."], { action: "sync-now", label: "Sync now" });
 }

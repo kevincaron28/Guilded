@@ -45,3 +45,11 @@ If the owner or Blizzard says otherwise, removing the thumbnail is one line in `
   the crafters, and "Item data: Blizzard" in the footer when data was found.
 - **Gallery Details (website):** quality colour, the summary line, the Wowhead link and "Item data: Blizzard"; no icon.
 - Without Battle.net credentials everything falls back to the previous display (bullets, no quality, no stats).
+
+## Chat preview identity and layout (12 November 2026)
+
+The chat preview is posted through a webhook the bot creates (`item-preview-webhook.ts`). Every post now sets the sender
+itself: `username` "Guilded Items" / "Objets Guilded" (server language) and `avatar_url` = the Guilded logo served by the
+site (`/brand/logo-400.png` on `PUBLIC_SITE_URL`; no avatar override when that is unset). Layout (`item-preview-embed.ts`):
+quality, slot, type; armour or damage; stats; effects; binding; then Item level, Requires and Sells for as small fields;
+footer "Guilded Items · Item id · Data: Blizzard". Empty fields are omitted. Source/drop is not in Blizzard's item data.

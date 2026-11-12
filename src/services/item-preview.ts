@@ -23,6 +23,10 @@ export interface PreviewDeps {
   fetch: FetchLike;
   provider: ItemDataProvider;
   gate: PreviewGate;
+  /** The server's language for the preview text and sender name; English when absent. */
+  language?: (discordGuildId: string) => Promise<"en" | "fr">;
+  /** The public website address: the sender's avatar is the Guilded logo served there. */
+  siteUrl?: string;
   now?: () => number;
   /** Per-guild back-off after a 429 (kept by the caller so it survives between messages). */
   backoff: Map<string, number>;
@@ -66,11 +70,12 @@ export async function handlePreviewMessage(deps: PreviewDeps, message: PreviewMe
   }
   const allowed = items.filter(item => deps.gate.allow(message.channelId, itemKey(item)));
   if (allowed.length === 0 && embeds.length === 0) return gated || items.length ? "throttled" : "no-items";
-  for (const item of allowed) embeds.push(buildItemEmbed(item, await deps.provider.lookup(item).catch(() => null)));
+  const lang = await deps.language?.(message.guildId).catch(() => "en" as const) ?? "en";
+  for (const item of allowed) embeds.push(buildItemEmbed(item, await deps.provider.lookup(item).catch(() => null), lang));
 
   const url = openSecret(deps.secret, config.webhookSealed);
   if (!url) { await deps.disable(message.guildId, "stored webhook could not be decrypted"); return "bad-secret"; }
-  const result = await postWebhook(deps.fetch, url, buildPayload(embeds));
+  const result = await postWebhook(deps.fetch, url, buildPayload(embeds, { lang, ...(deps.siteUrl ? { siteUrl: deps.siteUrl } : {}) }));
   if (result.ok) return "posted";
   if (result.disable) { await deps.disable(message.guildId, `webhook rejected (${result.status || "invalid"})`); return "disabled"; }
   if (result.retryAfterMs) deps.backoff.set(message.guildId, now() + result.retryAfterMs);

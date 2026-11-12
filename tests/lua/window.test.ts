@@ -35,6 +35,8 @@ const RICH_FRAMES = String.raw`
     f.ClearAllPoints = function(self) self.points = {} end
     f.SetPoint = function(self, ...) table.insert(self.points, {...}) end
     f.SetSize = function(self, width, height) self.width = width; self.height = height end
+    f.SetWidth = function(self, width) self.width = width end
+    f.SetHeight = function(self, height) self.height = height end
     f.SetVerticalScroll = function(self, value) self.verticalScroll = value end
     f.GetVerticalScroll = function(self) return rawget(self, "verticalScroll") or 0 end
     -- Like the game's scrollbar: starts with a stale (short) range, clamps to it and snaps to its step,
@@ -597,6 +599,54 @@ describe("in-game UI fixes from the 5 November pass", () => {
     s.run(`NS.windowState().selectTabByName("Announcements")`);
     expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("false");
     expect(s.run(`return tostring(NS.windowState().announceChecks ~= nil)`)).toBe("true");
+  });
+
+  it("lays the Settings page out without overlaps, with the call alerts in the scrolling Advanced view", () => {
+    const s = openWindow(1);
+    // Every widget anchored TOPLEFT to its parent: its box from the anchor and its own size (a check box adds its label).
+    const report = s.run(String.raw`
+      local W = NS.windowState()
+      local function box(f)
+        local p = f.points[1]
+        local w = rawget(f, "width") or 100
+        -- The frames' fixed string width (50) widens every short button to 70 here: size those by their text instead.
+        local text = rawget(f, "text")
+        if w == 70 and type(text) == "string" then w = math.max(30, #text * 7 + 20) end
+        local h = rawget(f, "height") or 22
+        local label = rawget(f, "label")
+        if type(label) == "table" and type(label.text) == "string" then w = w + 2 + #label.text * 6 end
+        return p[4], p[5], w, h
+      end
+      local problems, count = {}, 0
+      local function walk(parent)
+        local list = {}
+        for _, f in ipairs(parent.children) do
+          local p = f.points[1]
+          if p and p[1] == "TOPLEFT" and p[2] == parent and type(p[4]) == "number" and type(p[5]) == "number" then list[#list + 1] = f end
+          walk(f)
+        end
+        for i = 1, #list do
+          local x1, y1, w1, h1 = box(list[i])
+          count = count + 1
+          for j = i + 1, #list do
+            local x2, y2, w2, h2 = box(list[j])
+            if x1 < x2 + w2 and x2 < x1 + w1 and y1 > y2 - h2 and y2 > y1 - h1 then
+              problems[#problems + 1] = string.format("(%d,%d %dx%d) overlaps (%d,%d %dx%d)", x1, y1, w1, h1, x2, y2, w2, h2)
+            end
+          end
+        end
+      end
+      walk(W.settingsGeneral)
+      walk(W.settingsAdvanced)
+      return count .. "|" .. table.concat(problems, "; ")`);
+    const [count, problems] = report.split("|");
+    expect(Number(count)).toBeGreaterThan(20);
+    expect(problems).toBe("");
+    // The block is in the Advanced view (which scrolls), not squeezed into the general page above the Modules list.
+    expect(s.run(`return tostring(NS.windowState().callAlertSound ~= nil) .. tostring(NS.windowState().callAlertHeight)`)).toBe("true112");
+    expect(s.run(`local W = NS.windowState(); local function inside(parent, target) for _, f in ipairs(parent.children) do if f == target or inside(f, target) then return true end end return false end return tostring(inside(W.settingsAdvanced, W.callAlertSound)) .. tostring(inside(W.settingsGeneral, W.callAlertSound))`)).toBe("truefalse");
+    // The block fits in its reserved height: label 0, buttons -16, checks -44 and -68, status -94 (+ line).
+    expect(s.run(`local W = NS.windowState(); return W.callAlertStatus.points[1][5] - W.callAlertSound.points[1][5]`)).toBe("-50");
   });
 
   it("shows every member that an officer turned announcements off for the guild", () => {

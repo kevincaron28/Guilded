@@ -1,4 +1,3 @@
-import { armoryMarkdown } from "../services/armory-link.js";
 import { characterName, displayCharacterName, loadFullNameBook, cleanCharacterName } from "../services/character-display.js";
 import { selectedCharacter } from "../services/character-match.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
@@ -15,8 +14,8 @@ import { characterLinkPrompt } from "../services/character-link-prompt.js";
 import { unlinkCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
 import { removePictureByOfficer } from "../services/character-picture.js";
-import { characterTrustMap, REPORTED_HINT, trustSuffix } from "../services/character-trust.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
+import { characterPanel } from "../services/character-panel.js";
 import { isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
 
 export const characterCommand = new SlashCommandBuilder()
@@ -73,7 +72,7 @@ export const characterCommand = new SlashCommandBuilder()
     .addStringOption((option) => option.setName("name").setDescription("Character").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("list")
-    .setDescription("List your linked characters."))
+    .setDescription("Your characters: link, set main, unlink."))
   .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
 
 // The realm most of the guild's characters use, so nobody types it.
@@ -97,17 +96,8 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   }
   if (subcommand === "race") { await executeRace(interaction, context); return; }
   if (subcommand === "list") {
-    const characters = await guildService.listCharacters(context.memberId);
-    const book = await loadFullNameBook(prisma, context.guildId);
-    const trust = await characterTrustMap(prisma, context.guildId, characters);
-    const reported = characters.some((character) => trust.get(character.id) === "reported");
-    await interaction.reply({
-      content: characters.length === 0
-        ? "You have no linked characters."
-        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${displayCharacterName(character, book)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}${armoryMarkdown(character) ? ` · ${armoryMarkdown(character)}` : ""}${trustSuffix(trust.get(character.id))}`).join("\n")
-          + (reported ? `\n-# ${REPORTED_HINT}` : ""),
-      flags: MessageFlags.Ephemeral
-    });
+    // The panel: the member's characters with Link, Set main, Unlink, Picture and Refresh (character-panel.ts).
+    await interaction.reply({ ...await characterPanel(prisma, interaction.user.id, interaction.guildId!), flags: MessageFlags.Ephemeral });
     return;
   }
 

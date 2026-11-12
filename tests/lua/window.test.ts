@@ -170,7 +170,7 @@ describe("the section rows of the Guild and Crafting pages", () => {
       for (const r of rows) {
         expect(r.real).toBe(r.width);
         expect(r.x + r.width).toBeLessThanOrEqual(pageWidth);          // never past the right edge
-        expect(r.width).toBeGreaterThanOrEqual(r.text.length * 7 + 20 > 150 ? 150 : r.text.length * 7 + 20); // fits its text
+        expect(r.width).toBeGreaterThanOrEqual(r.text.length * 7 + 20 > 200 ? 200 : r.text.length * 7 + 20); // fits its text
         expect(r.line).toBeLessThanOrEqual(1);                          // the page starts below two lines
       }
     }

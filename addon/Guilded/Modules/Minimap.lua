@@ -1518,7 +1518,7 @@ local GROUPS = { "Home", "Guild", "Dungeons", "Crafting", "Raids", "Officer", "S
 local SECTION_ROW = { Guild = true, Crafting = true }
 -- The section buttons are as wide as their text (capped); a row that would pass the page width wraps to a
 -- second line. The page itself starts at -66, below two lines (12 + 22 high, then 24 per extra line).
-local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 150
+local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 200
 local function sectionWidth(text)
   return math.min(SECTION_MAX, math.max(60, #text * 7 + 20))
 end

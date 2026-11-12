@@ -1,6 +1,8 @@
 import { createPugWeb } from "./services/pug-web.js";
 import { cachedOfficerCheck, meSection, type MeSectionInput } from "./services/me-layout.js";
 import { revokeCompanionCredential } from "./services/companion-revoke.js";
+import { renewCompanionCredential } from "./services/companion-renew.js";
+import { configureMobileDevice } from "./services/mobile-alerts.js";
 import { createWebCommunityBadges } from "./services/web-community-badges.js";
 import { guildWhere, loadGuildScope, runInGuildScope, withGuildScope } from "./services/guild-scope.js";
 import { hostedPilot } from "./hosted-pilot.js";
@@ -59,7 +61,7 @@ import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
 import { createGuildPageServer, loadGuildPageView } from "./services/guild-page.js";
 import type { Client } from "discord.js";
-import { companionAccess, personalSnapshot } from "./services/companion-access.js";
+import { CompanionUnavailable, companionAccess, personalSnapshot } from "./services/companion-access.js";
 import { createMemberData, memberDataStore } from "./services/member-data.js";
 import { createPicturePages, prismaPictureStore } from "./services/character-picture.js";
 import { deleteMyData, deleteMyDataByCredential } from "./services/data-deletion.js";
@@ -724,6 +726,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isDeleteData = request.method === "POST" && url.pathname === "/api/v1/companion/delete-my-data";
       const isSignInStart = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in";
       const isSignInPoll = request.method === "POST" && url.pathname === "/api/v1/companion/sign-in/poll";
+      const isRenew = request.method === "POST" && url.pathname === "/api/v1/companion/renew";
+      const isMobileDevice = ["GET", "POST"].includes(request.method ?? "") && url.pathname === "/api/v1/mobile/device";
       // The companion's own pages: wishlists for members; prices, core rules and rosters for Raid Leaders.
       const isManageView = request.method === "GET" && url.pathname === "/api/v1/manage";
       const isManageEdit = request.method === "POST" && url.pathname === "/api/v1/manage";
@@ -734,13 +738,20 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const isDeviceRegister = request.method === "POST" && url.pathname === "/api/v1/device/register";
       const isDeviceUpload = request.method === "POST" && url.pathname === "/api/v1/device/uploads";
       const isDeviceClaim = request.method === "POST" && url.pathname === "/api/v1/device/claim";
-      if (!isDeviceRegister && !isDeviceUpload && !isDeviceClaim && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
+      if (!isRenew && !isMobileDevice && !isDeviceRegister && !isDeviceUpload && !isDeviceClaim && !isImport && !isPairing && !isSignInStart && !isSignInPoll && !isPublicRuns && !isPersonalStatus && !isCompanionMe && !isAlbum && !isCards && !isClash && !isStandings && !isPoeUpload && !isPoeLevels && !isPoeStatus && !isPoeRecent && !isLogout && !isDeleteData && !isManageView && !isManageEdit && !isHubView && !isHubEdit && !isMapView && !isMapEdit) {
         json(response, 404, { error: "Not found" });
         return;
       }
       const address = clientAddress(request);
       if (isLockedOut(address)) {
         json(response, 429, { error: "Too many failed attempts. Try again in a few minutes." });
+        return;
+      }
+      if (isRenew) {
+        const payload = await readBody(request) as { nextCredential?: unknown } | null;
+        const ok = await renewCompanionCredential(prisma, request.headers["x-companion-credential"], payload?.nextCredential);
+        if (!ok) recordFailure(address);
+        json(response, ok ? 200 : 401, ok ? { ok: true, companionCredential: payload?.nextCredential } : { error: "This device connection is no longer valid. Sign in again." });
         return;
       }
       if (isDeviceRegister || isDeviceUpload || isDeviceClaim) {
@@ -776,6 +787,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (!allowCompanionRevocation(address)) { json(response, 429, { error: "Too many disconnect requests. Try again in a minute." }); return; }
         const secret = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
         const ok = await revokeCompanionCredential(prisma, secret);
+        if (ok && typeof secret === "string") await prisma.mobileDevice.updateMany({ where: { credential: { OR: [{ tokenHash: hashCompanionSecret(secret) }, { previousTokenHash: hashCompanionSecret(secret), previousValidUntil: { gt: new Date() } }] } }, data: { enabled: false, expoPushToken: null } });
         if (!ok) recordFailure(address);
         json(response, ok ? 200 : 400, ok ? { ok: true } : { error: "A valid companion credential is required." });
         return;
@@ -1048,9 +1060,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         });
       }
-      const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit || isMapEdit ? await readBody(request) : null;
+      const payload = isImport || isPoeUpload || (isMobileDevice && request.method === "POST") || isPoeLevels || isManageEdit || isHubEdit || isMapEdit ? await readBody(request) : null;
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
-      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isMapView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
+      const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isMapView || (isMobileDevice && request.method === "GET") ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
       if (!hostedPilot.allows(guildDiscordId)) { json(response, 403, { error: "This server is on Guilded Lite: companion sync unlocks when the Guilded owner approves it." }); return; }
       const header = request.headers["x-companion-credential"] ?? request.headers.authorization?.replace(/^Bearer\s+/i, "");
@@ -1067,6 +1079,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!access) {
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
+      }
+      if (isMobileDevice) {
+        const device = request.method === "GET"
+          ? await prisma.mobileDevice.findUnique({ where: { credentialId: (await prisma.companionCredential.findUniqueOrThrow({ where: { tokenHash: hashCompanionSecret(header as string) }, select: { id: true } })).id }, select: { enabled: true } })
+          : await configureMobileDevice(prisma, header as string, payload);
+        json(response, 200, { ok: true, enabled: device?.enabled ?? false });
+        return;
       }
       if (isMapView || isMapEdit) {
         // Signed-in members of this guild only (the credential is bound to it); never public, never cached.
@@ -1428,6 +1447,12 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       });
       });
     } catch (error) {
+      if (error instanceof CompanionUnavailable) { json(response, 503, { error: error.message }); return; }
+      if (request.url?.split("?")[0] === "/api/v1/mobile/device") {
+        // Prisma errors may echo write arguments. Push tokens never enter logs.
+        json(response, error instanceof ZodError ? 400 : 503, { error: error instanceof ZodError ? "That mobile device setting is not valid." : "Mobile alert settings are temporarily unavailable. Try again shortly." });
+        return;
+      }
       if (error instanceof PoeMappingError) { json(response, error.status, { error: error.message }); return; }
       if (error instanceof GameEditionError) { json(response, 409, { error: error.message }); return; }
       if (error instanceof BodyTooLargeError) {

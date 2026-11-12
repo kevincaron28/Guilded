@@ -23,6 +23,7 @@
     "dungeons:zip": "node scripts/build-dungeons-addon.mjs --zip",
     "locale": "node scripts/addon-locale.mjs",
     "lint": "eslint .",
+    "mobile:update": "npm run update:preview --prefix mobile",
     "test": "vitest run",
     "postinstall": "prisma generate",
     "prisma:generate": "node scripts/with-env.mjs prisma generate",

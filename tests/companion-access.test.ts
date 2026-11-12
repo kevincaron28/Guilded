@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { companionAccess, personalSnapshot } from "../src/services/companion-access.js";
+import { CompanionUnavailable, companionAccess, personalSnapshot } from "../src/services/companion-access.js";
 import { parseAddonSnapshot } from "../src/integrations/addon.js";
 
 describe("companion authorization", () => {
@@ -19,9 +19,14 @@ describe("companion authorization", () => {
   });
   it("fails closed when the member has left or Discord is unavailable", async () => {
     const db = { companionCredential: { findFirst: async () => ({ memberId: "m", member: { discordUserId: "u" } }) } };
-    expect(await companionAccess(db as never, undefined, "g", "d", "x".repeat(43))).toBeNull();
-    const client = { guilds: { fetch: async () => ({ members: { fetch: async () => { throw new Error("left"); } } }) } };
+    await expect(companionAccess(db as never, undefined, "g", "d", "x".repeat(43))).rejects.toBeInstanceOf(CompanionUnavailable);
+    const client = { guilds: { fetch: async () => ({ members: { fetch: async () => { throw { code: 10007 }; } } }) } };
     expect(await companionAccess(db as never, client as never, "g", "d", "x".repeat(43))).toBeNull();
+  });
+  it("does not invalidate credentials when Discord returns a temporary failure", async () => {
+    const db = { companionCredential: { findFirst: async () => ({ memberId: "m", member: { discordUserId: "u" } }) } };
+    const client = { guilds: { fetch: async () => ({ members: { fetch: async () => { throw { status: 503 }; } } }) } };
+    await expect(companionAccess(db as never, client as never, "g", "d", "x".repeat(43))).rejects.toBeInstanceOf(CompanionUnavailable);
   });
   it("strips ledger and guild changes from personal uploads, including another player's data", () => {
     const snapshot = parseAddonSnapshot({ source: "Guilded", exportedAt: new Date(),

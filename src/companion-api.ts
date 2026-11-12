@@ -107,7 +107,7 @@ import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
 import { createLeaderboardPages, guildDungeonSummary, prismaLeaderboardStore } from "./services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
-import { claimDevice, DEVICE_LIMITS, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
+import { claimDevice, DEVICE_LIMITS, networkKey, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
@@ -744,7 +744,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (isDeviceRegister || isDeviceUpload || isDeviceClaim) {
         const devices = prismaInstallStore(prisma, (discordId) => client?.guilds.cache.get(discordId)?.name ?? null);
         if (isDeviceRegister) {
-          if (!deviceRegistrations(address)) { json(response, 429, { error: "Too many new companions from this network. Try again later." }); return; }
+          if (!deviceRegistrations(networkKey(address))) { json(response, 429, { error: "Too many new companions from this network. Try again later." }); return; }
           json(response, 200, await registerDevice(devices));
           return;
         }

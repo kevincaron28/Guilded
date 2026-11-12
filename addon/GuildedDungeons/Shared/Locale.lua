@@ -2616,7 +2616,7 @@ local DE = {
   ["%s earned the achievement %s!"] = "%s hat den Erfolg %s erreicht!",
   ["Achievements in guild chat: %s."] = "Erfolge im Gildenchat: %s.",
   ["Sync with Discord in 3 steps (Windows only):"] = "In 3 Schritten mit Discord synchronisieren (nur Windows):",
-  ["1) Download it: copy the link, or search \"Guilded Companion\" in the Microsoft Store."] = "1) Herunterladen: Link kopieren oder im Microsoft Store nach \"Guilded Companion\" suchen.",
+  ["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) Herunterladen: Link kopieren oder im Microsoft Store nach \"Guilded Companion\" suchen.",
   ["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Installer ausf\195\188hren. Er findet WoW und den Discord-Server deiner Gilde von selbst.",
   ["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) Offen lassen (startet mit Windows). Die Anmeldung mit Discord ist optional.",
   ["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Am einfachsten: Installiere die Guilded-Windows-App (Schritte unten). Sie synchronisiert von selbst, ohne Anmeldung. Keine App? Nutze in Discord /character pair und f\195\188ge den Code unten ein.",
@@ -4294,7 +4294,7 @@ local ES = {
   ["%s earned the achievement %s!"] = "\194\161%s ha conseguido el logro %s!",
   ["Achievements in guild chat: %s."] = "Logros en el chat de hermandad: %s.",
   ["Sync with Discord in 3 steps (Windows only):"] = "Sincroniza con Discord en 3 pasos (solo Windows):",
-  ["1) Download it: copy the link, or search \"Guilded Companion\" in the Microsoft Store."] = "1) Desc\195\161rgalo: copia el enlace o busca \"Guilded Companion\" en la Microsoft Store.",
+  ["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) Desc\195\161rgalo: copia el enlace o busca \"Guilded Companion\" en la Microsoft Store.",
   ["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Ejecuta el instalador. Encuentra WoW y el servidor de Discord de tu hermandad por s\195\173 solo.",
   ["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) D\195\169jalo abierto (arranca con Windows). Iniciar sesi\195\179n con Discord es opcional.",
   ["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Lo m\195\161s f\195\161cil: instala la aplicaci\195\179n de Windows de Guilded (pasos abajo). Sincroniza sola, sin iniciar sesi\195\179n. \194\191Sin la aplicaci\195\179n? En Discord usa /character pair y pega el c\195\179digo abajo.",
@@ -5102,7 +5102,7 @@ FR["Achievements in guild chat: %s."] = "Succ\195\168s dans le chat de guilde : 
 
 -- Companion in three steps (9.1: Util.lua companionSteps, Home page, /guilded companion)
 FR["Sync with Discord in 3 steps (Windows only):"] = "Synchroniser avec Discord en 3 \195\169tapes (Windows seulement) :"
-FR["1) Download it: copy the link, or search \"Guilded Companion\" in the Microsoft Store."] = "1) T\195\169l\195\169chargez-le : copiez le lien, ou cherchez \"Guilded Companion\" dans le Microsoft Store."
+FR["1) Download it: copy the link, or search \"Guild Sync Companion\" in the Microsoft Store."] = "1) T\195\169l\195\169chargez-le : copiez le lien, ou cherchez \"Guilded Companion\" dans le Microsoft Store."
 FR["2) Run the installer. It finds WoW and your guild's Discord server by itself."] = "2) Lancez l'installateur. Il trouve WoW et le serveur Discord de votre guilde tout seul."
 FR["3) Keep it open (it starts with Windows). Signing in with Discord is optional."] = "3) Laissez-le ouvert (il d\195\169marre avec Windows). La connexion avec Discord est facultative."
 FR["Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below."] = "Le plus simple : installez l'application Windows Guilded (\195\169tapes ci-dessous). Elle synchronise toute seule, sans connexion. Pas d'application ? Dans Discord, utilisez /character pair, puis collez le code ci-dessous."

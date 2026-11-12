@@ -1465,8 +1465,7 @@ local function buildHomePage(page)
   officerOnly(link("Raid", "Run a raid", 178, -56, 170, "Start a raid, record bosses and attendance."))
   officerOnly(link("Loot", "Give loot", 356, -56, 170, "Bids, council and direct loot."))
   officerOnly(link("Local guild", "Pick a raid core", 0, -94, 170, "Choose or create the raid core (team) that loot and standings use."))
-  -- Online guildmates within 3 levels of you; shown only while levelling (refreshHome).
-  ui.homeLevelling = tip(below(newButton(page, "Levelling partners", 170, function() if ns.levelPartners then ns.levelPartners.open() end end, 30), 178, -94), "Online guildmates within 3 levels of you, with Whisper and Invite buttons.")
+  link("Layer invite", "Change layer", 178, -94, 170, "Ask guildmates on your continent to invite you, so you land on their layer.")
 
   -- Linking to Discord, in the open: the Windows app does it in one step; the code is the fallback.
   ui.linkWidgets = {}
@@ -1756,6 +1755,7 @@ local TAB_DEFS = {
   { name = "Orders", label = "Crafting orders", hint = "craft requests from Discord you can make", group = "Crafting", build = function(page) if ns.craftOrders and ns.craftOrders.buildPage then ns.craftOrders.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Home", usesPlayer = true, build = buildMePage },
   { name = "Open raids", hint = "find a raid with room for you", group = "Raids", build = buildPublicRaidsPage },
+  { name = "Layer invite", hint = "ask guildmates on your continent to invite you onto their layer", group = "Guild", build = function(page) if ns.layerInvite and ns.layerInvite.buildPage then ns.layerInvite.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
   { name = "Standings", group = "Guild", usesPlayer = true, build = buildStandingsPage },
   { name = "Availability", group = "Guild", module = "presence", build = buildAvailabilityPage },
   { name = "Gear", hint = "item level and missing enchants per member", group = "Officer", officer = true, build = buildGearPage },
@@ -1956,9 +1956,6 @@ end
 -- Home page text: plain-language state, and the Discord-sync line.
 local function refreshHome(db, officer, me)
   if not ui.homeGreeting then return end
-  if ui.homeLevelling then
-    if ns.levelPartners and ns.levelPartners.available() then ui.homeLevelling:Show() else ui.homeLevelling:Hide() end
-  end
   local localOnly = ns.isInGameOnly and ns.isInGameOnly()
   if ui.sidebarSave then ui.sidebarSave:SetText(L(localOnly and "Save my addon data" or (officer and "Send to Discord" or "Save my addon data"))) end
   -- The guild rank name as the game shows it ("Guild Master", custom ranks), else Officer/Member.
@@ -2248,7 +2245,7 @@ updateGuildScroll = function()
   elseif tab.name == "Crafting" then
     height = 46 + textHeight(ui.craftResult) + 16 + 20 + textHeight(ui.craftMine) + 16 + 24 + textHeight(ui.craftCooldowns) + 12
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
-  elseif tab.name == "EPGP" then height = 445 + 40 -- lowest widget near y=445
+  elseif tab.name == "EPGP" then height = 252 -- the lowest widget ends near y=-218, a 22 px button
   elseif tab.name == "Roster admin" then height = 36 + 30 + 40
   elseif tab.name == "Officer tools" then height = 12 + math.ceil(#OFFICER_TOOLS / 2) * 38 + 12
   elseif tab.name == "Gear" then height = 40 + textHeight(ui.gearList) + 12

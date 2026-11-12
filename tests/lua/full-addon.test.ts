@@ -176,15 +176,15 @@ describe("the whole addon, loaded in .toc order", () => {
         fire_event("CHAT_MSG_ADDON", prefix, "WELCOMED|1|Zed", "GUILD", "Old-Officer")
       end
       fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild.")
-      for _, command in ipairs({ "welcome on", "finder", "probe achievements", "import history", "officer auto greet off" }) do
+      for _, command in ipairs({ "welcome on", "finder", "probe achievements", "import history", "officer auto greet off", "partners" }) do
         SlashCmdList["GUILDED"](command)
       end
     `);
     const chat = s.chat().join("\n");
-    for (const name of ["welcome", "finder", "probe", "import history", "officer auto greet"]) {
+    for (const name of ["welcome", "finder", "probe", "import history", "officer auto greet", "partners"]) {
       expect(chat).toContain(`/guilded ${name} was removed in 9.2`);
     }
-    expect(s.run(`return type(NS.commandHandlers.welcome) .. type(NS.commandHandlers.finder) .. type(NS.commandHandlers.probe)`)).toBe("nilnilnil");
+    expect(s.run(`return type(NS.commandHandlers.welcome) .. type(NS.commandHandlers.finder) .. type(NS.commandHandlers.probe) .. type(NS.levelPartners)`)).toBe("nilnilnilnil");
     expect(problems(s).filter((line) => !line.includes("removed in 9.2"))).toEqual([]);
     expect(diagnostics(s)).toBe("0");
   });

@@ -690,7 +690,7 @@ local LOW_VALUE_RESERVE = 3        -- low-value traffic may only use tokens abov
 local LOW_VALUE_MAX_QUEUED = 3     -- a stale position or presence note is replaced, not queued behind itself
 local BACKOFF_FIRST, BACKOFF_MAX, BACKOFF_FORGET = 2, 60, 30
 -- Positions and "free to group" notes are the first traffic to wait or be dropped.
-local LOW_VALUE = { GuildedMap = true, GuildedFree = true }
+local LOW_VALUE = { GuildedMap = true, GuildedFree = true, GuildedLayer = true }
 -- Call for help and dungeon run receipts (plus any message queued "interactive") may use the reserved tokens.
 local HIGH_VALUE = { GuildedSOS = true, GuildedDgn = true }
 local function globalBudget()

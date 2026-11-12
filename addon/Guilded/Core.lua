@@ -1659,6 +1659,7 @@ ns.removedCommands = ns.removedCommands or {
   welcome = "WoW does not let addons send the automatic welcome whisper.",
   finder = "Blizzard's group finder is not available to addons on WoW Forever.",
   probe = "the achievement probe finished its job.",
+  partners = "levelling partners were replaced by Layer invite (/guilded layer).",
 }
 
 -- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever

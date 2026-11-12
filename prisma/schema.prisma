@@ -944,6 +944,8 @@ model GuildSettings {
   inviteDmEnabled          Boolean   @default(true)
   // 9.1: tag up to 3 online officers (else the officer role once) when someone posts their name in the invite channel.
   inviteNotifyEnabled      Boolean   @default(true)
+  // 9.1.7: about an hour after a request is handled, the bot removes the request message and its own follow-ups.
+  inviteCleanupEnabled     Boolean   @default(true)
   // 8.5 light recruiting kit: interview questions (JSON array of strings), the pinned guide message in the invite channel,
   // the recruiting post template and its shared cooldown (one reminder when it is over).
   inviteQuestions          Json?
@@ -1026,11 +1028,10 @@ model GuildSettings {
   bgLadderEnabled          Boolean @default(true)
   bgLadderMessageId        String?
   worldPvpEnabled          Boolean @default(true)
-  // 9.1 world PvP extras (docs/plans/WPVP_REVIEW_2026-11-10.md): every one OFF until an officer turns it on with /bg world-pvp.
-  pvpCallPostsEnabled      Boolean @default(false)
-  pvpRecapEnabled          Boolean @default(false)
-  pvpHotZonesEnabled       Boolean @default(false)
-  pvpMostWantedEnabled     Boolean @default(false)
+  // 9.1 world PvP extras (docs/plans/WPVP_REVIEW_2026-11-10.md): every one ON by default (owner, 13 Nov 2026); officers switch each off with /bg world-pvp.
+  pvpRecapEnabled          Boolean @default(true)
+  pvpHotZonesEnabled       Boolean @default(true)
+  pvpMostWantedEnabled     Boolean @default(true)
   pvpRecapLastWeek         Int?
   // 8.5 track C5: promotion panel (Initiate -> Member). On by default; officers change the rule or switch it off.
   // 9.1 character pictures (docs/plans/CHARACTER_VISUALS.md): officers switch member pictures off for the server.
@@ -3399,6 +3400,17 @@ model InviteRequest {
   notifiedAt    DateTime?
   // The bot's tag message, edited to a done note when the character joins.
   notifyMessageId String?
+  // When the clean-up of this handled request was attempted (messages removed, already gone, or refused): once only.
+  cleanedAt     DateTime?
+  // When the clean-up is due: set only by a full first+last name match or an explicit officer action (never a first-name-only guess).
+  cleanupAt     DateTime?
+  cleanTries    Int       @default(0)
+  // Handed to the job queue (cleanedAt is set only after the messages are really gone).
+  cleanQueuedAt DateTime?
+  // Handled before the clean-up existed (set by the migration): the only rows /mod invites tidy may queue.
+  legacyHandled Boolean   @default(false)
+  // The bot's "done" thank-you under a member's own post, so the clean-up uses stored ids.
+  doneNoteMessageId String?
   guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, messageId])
@@ -3606,9 +3618,6 @@ model GuildHelpCall {
   attackers   Json
   calledAt    DateTime
   clearedAt   DateTime?
-  // The Discord post made for this call when the server opted in (call posts): edited to "cleared" on the all clear.
-  postChannelId String?
-  postMessageId String?
   createdAt   DateTime  @default(now())
   guild       Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   member      Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)

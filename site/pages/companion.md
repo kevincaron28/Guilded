@@ -31,7 +31,7 @@ The companion works on **Windows only**. There is no Mac or Linux version and no
 
 ## Sync with Discord in 3 steps
 
-1. **Download.** [Download for Windows]({{COMPANION_DIRECT_URL}}), or search **Guilded Companion** in the Microsoft Store. The link always gives the newest version.
+1. **Download.** [Download for Windows]({{COMPANION_DIRECT_URL}}), or search **Guild Sync Companion** in the Microsoft Store (the Store lists the companion under that name). The link always gives the newest version.
 2. **Run it.** Open the file you downloaded. Windows may say it "protected your PC": choose **More info → Run anyway** (the installer is free and not code-signed). There is nothing to choose: it installs and opens the companion by itself.
 3. **Keep it open.** It starts with Windows and lives in the tray. The companion finds World of Warcraft on any drive, installs or updates the Guilded addon, and picks your guild's Discord server from your in-game guild. After your next `/reload` in WoW (or when you log out) it syncs by itself.
 

@@ -19,9 +19,8 @@ import { loadWorldPvpExtras } from "../services/world-pvp-extras.js";
 import { loadPvpGroups, pvpGroupLine } from "../services/pvp-group.js";
 import { createPvpGroupFromModal, PVP_FORM_ACTION, pvpGroupModal, showPvpLooking } from "./pvp-group.js";
 
-/** Officer switches for the world PvP extras (all off by default); the value picks the GuildSettings column. */
+/** Officer switches for the world PvP extras (all on by default); the value picks the GuildSettings column. */
 const WORLD_PVP_EXTRAS = [
-  { value: "calls", label: "Call posts (a post when a guildmate calls for help)", labelFr: "Messages d'appel à l'aide", column: "pvpCallPostsEnabled" },
   { value: "recap", label: "Weekly recap and defender of the week", labelFr: "Récap hebdo et défenseur de la semaine", column: "pvpRecapEnabled" },
   { value: "hotzones", label: "Hot zones", labelFr: "Zones chaudes", column: "pvpHotZonesEnabled" },
   { value: "wanted", label: "Most wanted (enemy names seen in several calls)", labelFr: "Plus recherchés (noms d'ennemis vus dans plusieurs appels)", column: "pvpMostWantedEnabled" }
@@ -73,7 +72,7 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the battleground ladder on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le classement" }).setRequired(true)))
   .addSubcommand(s => s.setName("world-pvp").setDescription("Officers: world PvP (kills, defends) on the ladder message (on by default)").setDescriptionLocalizations({ fr: "Officiers : JcJ en monde ouvert sur le classement (activé par défaut)" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn world PvP (or the extra below) on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le JcJ en monde ouvert (ou l'option choisie)" }).setRequired(true))
-    .addStringOption(o => o.setName("extra").setDescription("An extra (all off by default); leave empty for world PvP itself").setDescriptionLocalizations({ fr: "Une option (toutes désactivées par défaut); vide pour le JcJ lui-même" })
+    .addStringOption(o => o.setName("extra").setDescription("An extra (on by default); leave empty for world PvP itself").setDescriptionLocalizations({ fr: "Une option (activées par défaut); vide pour le JcJ lui-même" })
       .addChoices(...WORLD_PVP_EXTRAS.map(extra => ({ name: extra.label, value: extra.value, name_localizations: { fr: extra.labelFr } })))))
   .addSubcommand(s => s.setName("world").setDescription("World PvP this week: defender, hot zones, most wanted (the ones officers turned on)").setDescriptionLocalizations({ fr: "JcJ en monde ouvert cette semaine : défenseur, zones chaudes, plus recherchés (selon les options)" }))
   .addSubcommand(s => s.setName("pvp-module").setDescription("Officers: include the PvP channels (groups, results, ladder) in /setup").setDescriptionLocalizations({ fr: "Officiers : inclure les salons JcJ (groupes, résultats, classement) dans /setup" })
@@ -136,7 +135,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
       await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { [extra.column]: enabled, ...(extra.value === "recap" && enabled ? { pvpRecapLastWeek: weekKeyOf(new Date()) - 1 } : {}) } });
       if (enabled) await updateBgLadder(i.guild);
       await i.editReply({ content: enabled
-        ? t("On: " + extra.label + ". Off by default; switch it off with enabled:false. Posts and the ladder panel use the PvP channel and the ladder message.", "Activé : " + extra.labelFr + ". Désactivé par défaut; désactivez-le avec enabled:false. Les messages vont dans le salon JcJ et le panneau dans le message du classement.")
+        ? t("On: " + extra.label + ". On by default; switch it off with enabled:false. It appears on the ladder message and in /bg world; the weekly recap goes to the PvP channel.", "Activé : " + extra.labelFr + ". Activé par défaut; désactivez-le avec enabled:false. Il apparaît sur le message du classement et dans /bg world; le récap hebdo va dans le salon JcJ.")
         : t("Off: " + extra.label + ".", "Désactivé : " + extra.labelFr + "."), allowedMentions: { parse: [] } }); return;
     }
   }

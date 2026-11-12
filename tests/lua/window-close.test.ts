@@ -100,7 +100,7 @@ describe("the Guilded window opened from the minimap button closes", () => {
   });
 });
 
-describe("the Guilded window opened from the guild tab closes", () => {
+describe("the guild window's Guilded tab opens the one Guilded window", () => {
   const GUILD = String.raw`
     CommunitiesFrame = CreateFrame("Frame", "CommunitiesFrame")
     CommunitiesFrame.ChatTab = false; CommunitiesFrame.RosterTab = false; CommunitiesFrame.GuildBenefitsTab = false
@@ -108,39 +108,29 @@ describe("the Guilded window opened from the guild tab closes", () => {
     CommunitiesFrame.GuildInfoTab = CreateFrame()
     CommunitiesFrame:Show()
   `;
-  const openFromTab = (s: LuaSession) => {
+  const clickTab = (s: LuaSession) => {
     s.run(`fire_event("PLAYER_LOGIN")`);
     s.run(`NS.guildPanel.tab.scripts.OnClick(NS.guildPanel.tab)`);
   };
 
-  it("with the guild tab again, Escape and the minimap button", () => {
+  it("opens the main window on the Guild tab, and Escape and the minimap button close it", () => {
     const s = boot(GUILD);
-    openFromTab(s);
-    expect(s.run(`return tostring(NS.windowState().guildHost == CommunitiesFrame) .. ":" .. tostring(GuildedPanel:IsVisible())`)).toBe("true:true");
-    s.run(`NS.guildPanel.tab.scripts.OnClick(NS.guildPanel.tab)`);
-    expect(shown(s)).toBe("false");
-    // Escape
-    openFromTab(s);
+    clickTab(s);
+    expect(shown(s)).toBe("true");
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`)).toBe("Guild");
+    // The window does not sit inside the guild window: closing that one leaves it alone.
+    s.run(`CommunitiesFrame:Hide()`);
     expect(shown(s)).toBe("true");
     s.run(`Escape()`);
     expect(shown(s)).toBe("false");
-    expect(s.run(`return NS.windowState().scope`)).toBe("main");
-    // Minimap button while docked closes it, then the next click opens it free-standing.
-    openFromTab(s);
-    clickMinimap(s);
-    expect(shown(s)).toBe("false");
     clickMinimap(s);
     expect(shown(s)).toBe("true");
-    s.run(`Escape()`);
+    clickMinimap(s);
     expect(shown(s)).toBe("false");
   });
 
-  it("when the guild window itself is closed", () => {
+  it("opens and closes normally from the minimap and the close button", () => {
     const s = boot(GUILD);
-    openFromTab(s);
-    s.run(`CommunitiesFrame:Hide()`);
-    expect(shown(s)).toBe("false");
-    // And it opens and closes normally from the minimap afterwards.
     clickMinimap(s);
     expect(shown(s)).toBe("true");
     pressClose(s);
@@ -148,22 +138,18 @@ describe("the Guilded window opened from the guild tab closes", () => {
   });
 });
 
-// 9.1.3 (real-client report): dragging the docked panel raised "GuildedPanel:StartMoving(): Frame is not movable".
+// 9.1.3 (real-client report): dragging the panel raised "GuildedPanel:StartMoving(): Frame is not movable".
 describe("dragging the Guilded window", () => {
-  const instrument = (s: LuaSession, movable: boolean) => s.run(`
-    GuildedPanel.movable = ${movable}; MOVES = 0
-    GuildedPanel.IsMovable = function(self) return self.movable end
-    GuildedPanel.StartMoving = function(self) if not self.movable then error("Frame is not movable") end MOVES = MOVES + 1 end
-    local ok, err = pcall(GuildedPanel.scripts.OnDragStart, GuildedPanel)
-    return tostring(ok) .. ":" .. tostring(MOVES)`);
-  it("does nothing, and raises no error, when the panel is docked and not movable", () => {
+  it("moves the panel when it is movable, and raises no error when it is not", () => {
     const s = boot();
     clickMinimap(s);
-    expect(instrument(s, false)).toBe("true:0");
-  });
-  it("still moves the panel when it is movable", () => {
-    const s = boot();
-    clickMinimap(s);
-    expect(instrument(s, true)).toBe("true:1");
+    for (const [movable, expected] of [[false, "true:0"], [true, "true:1"]] as [boolean, string][]) {
+      expect(s.run(`
+        GuildedPanel.movable = ${movable}; MOVES = 0
+        GuildedPanel.IsMovable = function(self) return self.movable end
+        GuildedPanel.StartMoving = function(self) if not self.movable then error("Frame is not movable") end MOVES = MOVES + 1 end
+        local ok = pcall(GuildedPanel.scripts.OnDragStart, GuildedPanel)
+        return tostring(ok) .. ":" .. tostring(MOVES)`)).toBe(expected);
+    }
   });
 });

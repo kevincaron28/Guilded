@@ -10,7 +10,7 @@ function setup() {
     NS = { comm = {}, util = { gameEdition = function() return EDITION end }, isSecret = function(v) return v == "SECRET" end,
       moduleActive = function() return ACTIVE end, message = function(text) MESSAGE = text end,
       recipes = { whoText = function(q) QUERY = q; return "Known crafters" end },
-      showCopyText = function(t) COPIED = t end, openGuildPanel = function() PANEL = true end }
+      showCopyText = function(t) COPIED = t end, openToolsPage = function() PANEL = true end }
   `);
   s.load("Modules/ClientTools.lua"); s.run(`T = NS.clientTools`); return s;
 }

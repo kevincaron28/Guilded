@@ -8,7 +8,7 @@ import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "ACTIVITY_BOARD" | "WHOS_WHO_BOARD" | "RACE_BOARD" | "BG_LADDER" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "SIGNUP_ANSWERS" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE" | "PVP_CALL" | "PVP_RECAP" | "GAME_REMINDER";
+export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "ACTIVITY_BOARD" | "WHOS_WHO_BOARD" | "RACE_BOARD" | "BG_LADDER" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "SIGNUP_ANSWERS" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE" | "PVP_CALL" | "PVP_RECAP" | "GAME_REMINDER" | "INVITE_CLEANUP";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -73,9 +73,7 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const { updateDungeonLeaderboard } = await import("./dungeon-leaderboard.js");
     if (!await updateDungeonLeaderboard(guild, true)) throw new Error("Board unavailable");
   } else if (job.kind === "PVP_CALL") {
-    // World PvP call post or its cleared edit (world-pvp-extras.ts). A refused send throws and is retried with the usual backoff.
-    const { syncCallPost } = await import("./world-pvp-extras.js");
-    await syncCallPost(guild, prisma, String(payload["callId"] ?? ""));
+    // Retired 13 November 2026: a call-post job queued before the update finishes quietly and posts nothing.
   } else if (job.kind === "PVP_RECAP") {
     const { deliverWeeklyRecap } = await import("./world-pvp-extras.js");
     await deliverWeeklyRecap(guild, prisma, job.guildId, Number(payload["week"] ?? 0));
@@ -225,6 +223,9 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const card = cardDefinition ? await scoreCardPng(cardDefinition).catch(() => null) : null;
     if (card) last.setImage("attachment://card.png");
     await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" })] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
+  } else if (job.kind === "INVITE_CLEANUP") {
+    const { runInviteCleanupJob } = await import("./invite-cleanup.js");
+    await runInviteCleanupJob(guild, prisma, job);
   } else throw new Error("Unknown job type");
 }
 

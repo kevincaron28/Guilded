@@ -35,6 +35,8 @@ const RICH_FRAMES = String.raw`
     f.ClearAllPoints = function(self) self.points = {} end
     f.SetPoint = function(self, ...) table.insert(self.points, {...}) end
     f.SetSize = function(self, width, height) self.width = width; self.height = height end
+    f.SetWidth = function(self, width) self.width = width end
+    f.SetHeight = function(self, height) self.height = height end
     f.SetVerticalScroll = function(self, value) self.verticalScroll = value end
     f.GetVerticalScroll = function(self) return rawget(self, "verticalScroll") or 0 end
     -- Like the game's scrollbar: starts with a stale (short) range, clamps to it and snaps to its step,
@@ -97,6 +99,84 @@ describe("standalone games host window", () => {
   });
 });
 
+describe("the five member tabs", () => {
+  const shownGroups = (s: LuaSession) => s.run(`local n = {}; for _, g in ipairs({ "Home", "Guild", "Dungeons", "Crafting", "Raids", "Settings" }) do local b = NS.windowState().groupButtons[g]; if b and b.shown then n[#n + 1] = g end end; return table.concat(n, ",")`);
+  const shownPages = (s: LuaSession) => s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then n[#n + 1] = t.name end end; return table.concat(n, ",")`);
+
+  it("shows the five tabs and Settings, and only the open tab lists its pages", () => {
+    const s = openWindow(5, `NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }`);
+    expect(shownGroups(s)).toBe("Home,Guild,Dungeons,Crafting,Raids,Settings");
+    expect(shownPages(s)).toBe("Home,Me");
+    s.run(`NS.windowState().groupButtons.Raids.scripts.OnClick()`);
+    expect(shownPages(s)).toBe("Open raids,Reserves,Signups");
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
+    expect(shownPages(s)).toBe("Guild overview,Board,Standings,Availability,Duels");
+  });
+
+  it("shows Guild and Crafting as one page each, with their sections in a row at the top", () => {
+    const s = openWindow(5);
+    const row = () => s.run(`local out = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then local p = t.button.points[#t.button.points]; out[#out + 1] = t.name .. "@" .. tostring(p[5]) end end; return table.concat(out, ",")`);
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
+    expect(row()).toBe("Guild overview@-12,Board@-12,Standings@-12,Availability@-12,Duels@-12");
+    expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
+    s.run(`NS.windowState().groupButtons.Crafting.scripts.OnClick()`);
+    expect(row()).toBe("Crafting@-12,Orders@-12");
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Crafting");
+    // Old names open the right section of the right tab.
+    s.run(`NS.windowState().selectTabByName("Availability")`);
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`)).toBe("Guild");
+    s.run(`NS.windowState().selectTabByName("Orders")`);
+    expect(row()).toBe("Crafting@-12,Orders@-12");
+  });
+
+  it("keeps every old page name working", () => {
+    const s = openWindow(5, `NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }`);
+    for (const [name, group] of [["Home", "Home"], ["Me", "Home"], ["Board", "Guild"], ["Orders", "Crafting"], ["Open raids", "Raids"], ["Signups", "Raids"], ["Duels", "Guild"], ["Tools", "Settings"], ["Announcements", "Settings"], ["Info", "Settings"]]) {
+      s.run(`NS.windowState().selectTabByName("${name}")`);
+      expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`), name).toBe(group);
+    }
+    s.run(`NS.windowState().selectTabByName("Dungeons")`);
+    expect(s.run("return openedMode")).toBe("run");
+  });
+
+  it("opens Standings from the Guild page and Dungeons from its tab", () => {
+    const s = openWindow(5, `NS.dungeonScorePanel = { open = function(mode) openedMode = mode end }`);
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
+    s.run(`for _, t in ipairs(NS.windowState().tabs) do if t.name == "Standings" then t.button.scripts.OnClick() end end`);
+    expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Standings");
+    s.run(`NS.windowState().groupButtons.Dungeons.scripts.OnClick()`);
+    expect(s.run("return openedMode")).toBe("run");
+  });
+  it("shows the raid-night tools to a raid leader or officer under Raids, not hidden until a raid starts", () => {
+    const s = openWindow(1);
+    s.run(`NS.windowState().groupButtons.Raids.scripts.OnClick()`);
+    const pages = s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then n[#n + 1] = t.name end end; return table.concat(n, ",")`);
+    for (const name of ["Open raids", "Signups", "Ready", "Raid"]) expect(pages).toContain(name);
+    expect(s.run(`return tostring(NS.windowState().groupButtons.Raids.shown)`)).toBe("true");
+  });
+});
+
+describe("the section rows of the Guild and Crafting pages", () => {
+  it("keep every button inside the page width, sized to its text, in English", () => {
+    const s = openWindow(1);
+    for (const group of ["Guild", "Crafting"]) {
+      s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
+      const rows = JSON.parse(s.run(`local t = {}; for _, r in ipairs(NS.windowState().sectionLayout) do
+        local b; for _, tab in ipairs(NS.windowState().tabs) do if tab.name == r.name then b = tab.button end end
+        t[#t + 1] = string.format('{"x":%d,"line":%d,"width":%d,"real":%d,"text":%q}', r.x, r.line, r.width, b.width, b.text) end
+        return "[" .. table.concat(t, ",") .. "]"`)) as { x: number; line: number; width: number; real: number; text: string }[];
+      expect(rows.length).toBeGreaterThan(1);
+      const pageWidth = Number(s.run("return NS.layoutMath.PAGE_WIDTH"));
+      for (const r of rows) {
+        expect(r.real).toBe(r.width);
+        expect(r.x + r.width).toBeLessThanOrEqual(pageWidth);          // never past the right edge
+        expect(r.width).toBeGreaterThanOrEqual(r.text.length * 7 + 20 > 200 ? 200 : r.text.length * 7 + 20); // fits its text
+        expect(r.line).toBeLessThanOrEqual(1);                          // the page starts below two lines
+      }
+    }
+  });
+});
+
 describe("the tools window (sidebar and Home page)", () => {
   it("routes dungeon shortcuts to one pane and keeps calendar administration officer-only", () => {
     const s = openWindow(5);
@@ -105,12 +185,9 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run("return openedMode")).toBe("season");
     s.run(`NS.windowState().selectTabByName("Dungeons")`);
     expect(s.run("return openedMode")).toBe("run");
-    s.run(`CalendarFrame = CreateFrame(); NS.windowState().selectTabByName("Calendar")`);
-    expect(s.run('return NS.windowState().scope')).toBe("main");
-    expect(s.run('return tostring(CalendarFrame.shown)')).toBe("true");
-    s.run(`NS.openGuildPanel(CalendarFrame, "calendar", "Calendar")`);
-    expect(s.run('return NS.windowState().scope')).toBe("main");
-    expect(s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do n[#n+1]=t.name end; return table.concat(n,",")`)).not.toMatch(/Dungeons|Season|Scores/);
+    s.run(`NS.windowState().selectTabByName("Calendar")`);
+    expect(s.run("return NS.windowState().tabs[NS.windowState().currentTab].name")).toBe("Home");
+    expect(s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do n[#n+1]=t.name end; return table.concat(n,",")`)).not.toMatch(/Season|Scores/);
     expect(s.run('return tostring(NS.windowState().homeSave == NS.windowState().sidebarSave)')).toBe("true");
   });
 
@@ -123,67 +200,35 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run('for _,f in ipairs(FRAMES) do if f.frameName=="GuildedCharacterExport" then return f.scroll.height..":"..f.box.text end end')).toBe("24:GGRM1:fixture");
   });
 
-  it("gives each officer feature a single menu scope", () => {
+  it("puts the officer pages in one Officer tab, for officers only", () => {
     const s = openWindow(1);
-    s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
-    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Roster admin,Officer tools");
-    s.run(`NS.openGuildPanel(nil, "calendar", "Calendar")`);
-    expect(visibleTabs(s)).toBe("Calendar");
+    s.run(`NS.windowState().groupButtons.Officer.scripts.OnClick()`);
+    expect(s.run(`local n = {}; for _, t in ipairs(NS.windowState().tabs) do if t.group == "Officer" and t.button.shown then n[#n + 1] = t.name end end; return table.concat(n, ",")`))
+      .toBe("Gear,Calendar,EPGP,Local guild,Roster admin,Officer tools");
+    session?.close();
+    const member = openWindow(5);
+    expect(member.run("return tostring(NS.windowState().groupButtons.Officer)")).toBe("nil");
   });
-
-  it("keeps short guild pages stationary and anchors repeated calendar selections", () => {
+  it("keeps short officer pages stationary and anchors repeated calendar selections", () => {
     const s = openWindow(1);
-    s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "EPGP")
-      UI=NS.windowState(); UI.guildScroll.GetHeight=function() return 300 end
+    s.run(`UI=NS.windowState(); UI.selectTabByName("EPGP"); UI.guildScroll.GetHeight=function() return 300 end
       UI.selectTabByName("EPGP")
       UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll, -1)`);
     expect(s.run('return UI.guildScrollRange..":"..UI.guildScroll:GetVerticalScroll()')).toBe("0:0");
     expect(s.run('return tostring(UI.guildScroll.ScrollBar.shown)')).toBe("false");
-    s.run(`NS.openGuildPanel(HOST,"calendar","Calendar"); UI.selectTabByName("Calendar"); UI.selectTabByName("Calendar")`);
+    s.run(`UI.selectTabByName("Calendar"); UI.selectTabByName("Calendar")`);
     expect(s.run(`local p=UI.tabs[UI.currentTab].page; return tostring(#p.points==1 and p.points[1][1]=="TOPLEFT" and p.points[1][2]==UI.guildScroll)`)).toBe("true");
-    s.run(`UI.guildScroll.GetHeight=function() return 100 end; NS.openGuildPanel(HOST,"guild","EPGP"); UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll,-1)`);
+    s.run(`UI.guildScroll.GetHeight=function() return 100 end; UI.selectTabByName("EPGP"); UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll,-1)`);
     expect(s.run('return UI.guildScroll:GetVerticalScroll()')).toBe("48");
   });
 
-  it("docks guild pages with the same permissions and restores the full menu", () => {
-    const s = openWindow(5);
-    s.run(`
-      HOST = CreateFrame()
-      HOST.GetWidth = function() return 800 end
-      HOST.GetHeight = function() return 600 end
-      NS.openGuildPanel(HOST)
-    `);
-    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability");
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Standings");
-    expect(s.run(`return tostring(NS.windowState().guildHost == HOST)`)).toBe("true");
-    expect(s.run(`
-      for _, f in ipairs(FRAMES) do
-        if f.frameName == "GuildedPanel" then
-          return tostring(f.scale == 1 and #f.points == 2 and f.points[1][1] == "TOPLEFT" and f.points[2][1] == "BOTTOMRIGHT")
-        end
-      end
-    `)).toBe("true");
-    expect(s.run(`return tostring(NS.windowState().tabs[1].page.level > 1000)`)).toBe("true");
-    expect(s.run(`
-      local ui = NS.windowState()
-      return tostring(ui.guildScroll.scrollChild == ui.tabs[ui.currentTab].page and ui.guildScroll.shown)
-    `)).toBe("true");
-    s.run(`
-      for _, f in ipairs(FRAMES) do if f.scripts.OnHide and f.scripts.OnShow then f.scripts.OnHide(f) end end
-      NS.commandHandlers["menu"]()
-      NS.commandHandlers["menu"]()
-      for _, f in ipairs(FRAMES) do if f.scripts.OnShow then f.scripts.OnShow(f) end end
-    `);
-    expect(s.run(`return tostring(NS.windowState().guildHost == nil)`)).toBe("true");
-    expect(s.run(`return tostring(NS.windowState().guildScroll.shown)`)).toBe("false");
-    expect(s.run(`
-      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then return tostring(f.width == 790 and f.height == 600) end end
-    `)).toBe("true");
-    expect(visibleTabs(s)).toContain("Home");
-    expect(visibleTabs(s)).toContain("Me");
-    expect(visibleTabs(s)).not.toContain("EPGP");
+  it("scrolls the long pages and leaves the short ones on the window", () => {
+    const s = openWindow(1);
+    s.run(`UI = NS.windowState(); UI.selectTabByName("Standings")`);
+    expect(s.run("return tostring(UI.guildScroll.shown and UI.guildScroll.scrollChild == UI.tabs[UI.currentTab].page)")).toBe("true");
+    s.run(`UI.selectTabByName("Home")`);
+    expect(s.run("return tostring(UI.guildScroll.shown)")).toBe("false");
   });
-
   it("defers the guild tab in combat and does not replace native handlers", () => {
     const s = openWindow(1);
     s.run(`
@@ -277,9 +322,9 @@ describe("the tools window (sidebar and Home page)", () => {
       db.markersShown = true
       db.markerWindow = { point = "CENTER", x = 12 }
       fire_event("PLAYER_LOGIN")
-      function IsAltKeyDown() return true end
       NS.commandHandlers["map"] = function(args) MAP_ACTION = args[1] end
-      GuildedMinimapButton.scripts.OnClick(GuildedMinimapButton, "LeftButton")
+      GuildedMinimapButton.scripts.OnClick(GuildedMinimapButton, "RightButton")
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then f.buttons[2].scripts.OnClick() end end
     `);
     expect(s.run("return MAP_ACTION")).toBe("open");
     expect(s.run("return tostring(NS.raidTools)")).toBe("nil");
@@ -302,9 +347,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Ready,Reserves,Signups,Raid,Loot,Council,Duels,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Crafting,Orders,Me,Open raids,Standings,Availability,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Orders,Me,Open raids,Reserves,Signups,Duels,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Crafting,Orders,Me,Open raids,Standings,Availability,Reserves,Signups,Duels,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {
@@ -447,7 +492,7 @@ describe("the Ready page", () => {
 describe("the tools window in 4.6", () => {
   it("builds availability filters and routes clicks without changing observation settings", () => {
     const s = openWindow(5);
-    s.run(`NS.presence = { describe = function(filter) FILTER = filter; return "Visible reports" end, heatmap = function() return {} end }; NS.openGuildPanel(nil, "guild", "Availability")`);
+    s.run(`NS.presence = { describe = function(filter) FILTER = filter; return "Visible reports" end, heatmap = function() return {} end }; NS.windowState().selectTabByName("Availability")`);
     expect(s.run(`return NS.windowState().presenceText.text`)).toBe("Visible reports");
     s.run(`for _, f in ipairs(FRAMES) do if f.text == "Free only: Off" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
     expect(s.run(`return tostring(FILTER.free)`)).toBe("true");
@@ -494,8 +539,6 @@ describe("Home shows how fresh the shared data is (6.3)", () => {
     expect(now).toMatch(/Dungeon standings: .*, shared by Amy\./);
     expect(now).not.toContain("2027-01-15T");
     expect(s.run("return tostring(NS.windowState().solidBack.shown)")).toBe("true");
-    s.run(`HOST = CreateFrame(); HOST.GetWidth = function() return 800 end; HOST.GetHeight = function() return 600 end; NS.openGuildPanel(HOST)`);
-    expect(s.run("return tostring(NS.windowState().solidBack.shown)")).toBe("false");
   });
 });
 
@@ -527,10 +570,10 @@ describe("in-game UI fixes from the 5 November pass", () => {
 
   it("prints scroll numbers for /guilded debug scroll without needing /script", () => {
     const s = openWindow(1);
-    s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "Availability"); UI = NS.windowState()
+    s.run(`UI = NS.windowState(); UI.selectTabByName("Standings")
       UI.guildScroll:GetScript("OnMouseWheel")(UI.guildScroll, -1); NS.commandHandlers.debug({ "scroll" })`);
     const out = s.chat().join(" | ");
-    expect(out).toContain("scroll debug, page Availability");
+    expect(out).toContain("scroll debug, page Standings");
     expect(out).toContain("estimated range=");
     expect(out).toContain("wheel ticks=1");
   });
@@ -554,6 +597,54 @@ describe("in-game UI fixes from the 5 November pass", () => {
     s.run(`NS.windowState().selectTabByName("Announcements")`);
     expect(s.run(`return tostring(NS.windowState().settingsAdvanced:IsShown())`)).toBe("false");
     expect(s.run(`return tostring(NS.windowState().announceChecks ~= nil)`)).toBe("true");
+  });
+
+  it("lays the Settings page out without overlaps, with the call alerts in the scrolling Advanced view", () => {
+    const s = openWindow(1);
+    // Every widget anchored TOPLEFT to its parent: its box from the anchor and its own size (a check box adds its label).
+    const report = s.run(String.raw`
+      local W = NS.windowState()
+      local function box(f)
+        local p = f.points[1]
+        local w = rawget(f, "width") or 100
+        -- The frames' fixed string width (50) widens every short button to 70 here: size those by their text instead.
+        local text = rawget(f, "text")
+        if w == 70 and type(text) == "string" then w = math.max(30, #text * 7 + 20) end
+        local h = rawget(f, "height") or 22
+        local label = rawget(f, "label")
+        if type(label) == "table" and type(label.text) == "string" then w = w + 2 + #label.text * 6 end
+        return p[4], p[5], w, h
+      end
+      local problems, count = {}, 0
+      local function walk(parent)
+        local list = {}
+        for _, f in ipairs(parent.children) do
+          local p = f.points[1]
+          if p and p[1] == "TOPLEFT" and p[2] == parent and type(p[4]) == "number" and type(p[5]) == "number" then list[#list + 1] = f end
+          walk(f)
+        end
+        for i = 1, #list do
+          local x1, y1, w1, h1 = box(list[i])
+          count = count + 1
+          for j = i + 1, #list do
+            local x2, y2, w2, h2 = box(list[j])
+            if x1 < x2 + w2 and x2 < x1 + w1 and y1 > y2 - h2 and y2 > y1 - h1 then
+              problems[#problems + 1] = string.format("(%d,%d %dx%d) overlaps (%d,%d %dx%d)", x1, y1, w1, h1, x2, y2, w2, h2)
+            end
+          end
+        end
+      end
+      walk(W.settingsGeneral)
+      walk(W.settingsAdvanced)
+      return count .. "|" .. table.concat(problems, "; ")`);
+    const [count, problems] = report.split("|");
+    expect(Number(count)).toBeGreaterThan(20);
+    expect(problems).toBe("");
+    // The block is in the Advanced view (which scrolls), not squeezed into the general page above the Modules list.
+    expect(s.run(`return tostring(NS.windowState().callAlertSound ~= nil) .. tostring(NS.windowState().callAlertHeight)`)).toBe("true112");
+    expect(s.run(`local W = NS.windowState(); local function inside(parent, target) for _, f in ipairs(parent.children) do if f == target or inside(f, target) then return true end end return false end return tostring(inside(W.settingsAdvanced, W.callAlertSound)) .. tostring(inside(W.settingsGeneral, W.callAlertSound))`)).toBe("truefalse");
+    // The block fits in its reserved height: label 0, buttons -16, checks -44 and -68, status -94 (+ line).
+    expect(s.run(`local W = NS.windowState(); return W.callAlertStatus.points[1][5] - W.callAlertSound.points[1][5]`)).toBe("-50");
   });
 
   it("shows every member that an officer turned announcements off for the guild", () => {
@@ -593,15 +684,6 @@ describe("in-game UI fixes from the 5 November pass", () => {
     expect(labels).toContain("Loot page of the /guilded window");
   });
 
-  it("hides the emblem ring while Guilded is shown in the guild window and puts it back after", () => {
-    const s = openWindow(1);
-    s.run(`HOST = CreateFrame(); HOST.PortraitContainer = CreateFrame(); HOST.PortraitContainer.shown = true
-      NS.openGuildPanel(HOST, "guild", "EPGP")`);
-    expect(s.run("return tostring(HOST.PortraitContainer.shown)")).toBe("false");
-    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then f.scripts.OnHide() end end`);
-    expect(s.run("return tostring(HOST.PortraitContainer.shown)")).toBe("true");
-  });
-
   it("hides the Unsent changes block on pages that only read", () => {
     const s = openWindow(5);
     s.run(`UI = NS.windowState(); UI.selectTabByName("Open raids")`);
@@ -618,67 +700,6 @@ describe("in-game UI fixes from the 5 November pass", () => {
     expect(s.run("return tostring(NS.windowState().pugPaging[1].shown)")).toBe("false");
   });
 
-  it("opens the calendar page from its top edge and keeps a Close button that closes both", () => {
-    const s = openWindow(1);
-    s.run(`HOST = CreateFrame(); NS.openGuildPanel(HOST, "calendar", "Calendar")`);
-    expect(s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then return f.points[1][4] .. "," .. f.points[1][5] end end`)).toBe("4,-4");
-    expect(s.run("return tostring(NS.windowState().closeButton.shown)")).toBe("true");
-  });
-
-  it("hides ring pieces the game names by key, and keeps the panel when Dungeons opens", () => {
-    const s = openWindow(1);
-    s.run(`HOST = CreateFrame(); HOST.GuildEmblemRing = CreateFrame(); HOST.GuildEmblemRing.shown = true
-      NS.openGuildPanel(HOST, "guild", "EPGP")`);
-    expect(s.run("return tostring(HOST.GuildEmblemRing.shown)")).toBe("false");
-    s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then f.scripts.OnHide(); PANEL = f end end`);
-    expect(s.run("return tostring(HOST.GuildEmblemRing.shown)")).toBe("true");
-    s.run(`PANEL.shown = true; NS.dungeonScorePanel = { open = function(mode) OPENED = mode end }
-      NS.windowState().selectTabByName("Dungeons")`);
-    expect(s.run("return OPENED .. ':' .. tostring(PANEL.shown)")).toBe("run:true");
-  });
-
-  it("returns to the Guilded panel when the calendar closes, and hides the calendar's own tab meanwhile", () => {
-    const s = openWindow(1);
-    s.run(`NS.guildPanel = NS.guildPanel or {}; NS.guildPanel.calendarTab = CreateFrame(); NS.guildPanel.calendarTab.shown = true
-      HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "EPGP")
-      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then PANEL = f end end
-      NS.closeGuildPanel(HOST); PANEL.scripts.OnHide(); PANEL.shown = true
-      NS.openGuildPanel(HOST, "calendar", "Calendar")`);
-    expect(s.run("return tostring(NS.guildPanel.calendarTab.shown)")).toBe("false");
-    s.run(`NS.closeGuildPanel(HOST)`);
-    expect(s.run("return tostring(PANEL.shown)")).toBe("true");
-  });
-
-  it("never hides or re-parents the embedded panel in combat: it waits for PLAYER_REGEN_ENABLED", () => {
-    const s = openWindow(1);
-    s.run(String.raw`
-      HOST = CreateFrame(); NS.openGuildPanel(HOST, "guild", "EPGP")
-      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then PANEL = f end end
-      COMBAT = false; BLOCKED = 0
-      function InCombatLockdown() return COMBAT end
-      -- Like a protected frame: these calls are refused in combat (ADDON_ACTION_BLOCKED).
-      local realHide, realParent = PANEL.Hide, PANEL.SetParent
-      PANEL.Hide = function(self) if COMBAT then BLOCKED = BLOCKED + 1 return end; self.shown = false; if self.scripts.OnHide then self.scripts.OnHide(self) end end
-      PANEL.SetParent = function(self, parent) if COMBAT then BLOCKED = BLOCKED + 1 return end; self.parent = parent end
-      PANEL.ClearAllPoints = function(self) if COMBAT then BLOCKED = BLOCKED + 1 return end; self.points = {} end
-      PANEL.shown = true
-      COMBAT = true
-      NS.closeGuildPanel(HOST)
-      NS.closeGuildPanel(HOST)
-    `);
-    expect(s.run("return BLOCKED")).toBe("0");
-    expect(s.run("return tostring(PANEL.shown)")).toBe("true");
-    expect(s.run(`return tostring(NS.util.pendingAfterCombat("guilded-panel-close"))`)).toBe("true");
-    // Hiding by other means (Escape) in combat: the re-parenting waits too.
-    s.run(`PANEL.shown = false; PANEL.scripts.OnHide(PANEL)`);
-    expect(s.run("return BLOCKED")).toBe("0");
-    expect(s.run(`return tostring(NS.util.pendingAfterCombat("guilded-panel-restore"))`)).toBe("true");
-    s.run(`COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
-    expect(s.run("return BLOCKED")).toBe("0");
-    expect(s.run(`return tostring(NS.util.pendingAfterCombat("guilded-panel-close"))`)).toBe("false");
-    expect(s.run("return tostring(PANEL.parent == UIParent)")).toBe("true");
-    expect(s.run("return NS.windowState().scope")).toBe("main");
-  });
 });
 
 describe("minimap button shortcuts (Track E2)", () => {
@@ -703,33 +724,29 @@ describe("minimap button shortcuts (Track E2)", () => {
   it("routes each click to its action", () => {
     const s = setup();
     expect(click(s, "LeftButton")).toBe("window");
-    expect(click(s, "LeftButton", "shift = true")).toBe("dungeons");
-    expect(click(s, "LeftButton", "ctrl = true")).toBe("gear");
-    expect(click(s, "LeftButton", "alt = true")).toBe("map");
-    expect(click(s, "MiddleButton")).toBe("settings");
+    // The other modifier clicks are gone: they open the window like a plain click.
+    expect(click(s, "LeftButton", "shift = true")).toBe("window");
+    expect(click(s, "LeftButton", "ctrl = true")).toBe("window");
+    expect(click(s, "LeftButton", "alt = true")).toBe("window");
+    expect(click(s, "MiddleButton")).toBe("window");
     expect(click(s, "RightButton")).toBe("menu");
     expect(click(s, "RightButton", "shift = true")).toBe("unavailable");
     s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "sos" end }; COMBAT = true`);
     expect(click(s, "RightButton", "shift = true")).toBe("help"); // works in combat
-    s.run(`COMBAT = false; table.remove(DONE)`);
-    expect(s.run(`return table.concat(DONE, ",")`)).toBe("dungeons run,inspect,map open");
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Tools"); // middle opened settings
+    expect(s.run(`return table.concat(DONE, ",")`)).toBe("sos");
   });
-
-  it("registers the middle button and lists every shortcut in the tooltip", () => {
+  it("lists the short set of clicks in the tooltip", () => {
     const s = setup();
     s.run(`TIP = {}; GameTooltip = { SetOwner = function() end, AddLine = function(_, t) TIP[#TIP + 1] = t end, Show = function() end, Hide = function() end }
       Guilded_OnAddonCompartmentEnter(nil, UIParent)`);
     const tip = s.run(`return table.concat(TIP, "|")`);
-    for (const word of ["Left-click", "Right-click: quick menu", "Shift-click", "Ctrl-click: check my gear", "Alt-click", "Middle-click: settings"]) expect(tip).toContain(word);
+    for (const word of ["Left-click", "Right-click: quick menu"]) expect(tip).toContain(word);
+    for (const word of ["Shift-click", "Ctrl-click", "Alt-click", "Middle-click"]) expect(tip).not.toContain(word);
   });
-
   it("does nothing protected in combat, apart from toggling Guilded's own window", () => {
     const s = setup();
     s.run(`COMBAT = true`);
-    for (const [button, keys] of ([["RightButton", ""], ["MiddleButton", ""], ["LeftButton", "shift = true"], ["LeftButton", "ctrl = true"], ["LeftButton", "alt = true"]] as [string, string][])) {
-      expect(click(s, button, keys)).toBe("blocked");
-    }
+    expect(click(s, "RightButton")).toBe("blocked");
     expect(s.run(`return #DONE`)).toBe("0");
   });
 
@@ -744,20 +761,16 @@ describe("minimap button shortcuts (Track E2)", () => {
     expect(click(s, "LeftButton")).toBe("window");
   });
 
-  it("the quick menu lists the pages and never offers a Race to 60 page", () => {
+  it("the quick menu has four items: dungeons, guild map, call for help, settings", () => {
     const s = setup();
     click(s, "RightButton");
     s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
-    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("6");
-    expect(s.run(`return MENU.buttons[1].text.text .. "," .. MENU.buttons[6].text.text`)).toBe("Raid signups,Settings");
-    s.run(`NS.windowState().tabs[#NS.windowState().tabs + 1] = { name = "Race to 60" }`);
-    click(s, "RightButton");
-    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("6");
+    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("3");
     s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "help" end }`);
     click(s, "RightButton");
-    expect(s.run(`return MENU.buttons[#MENU.buttons - 1].text.text`)).toBe("Call for help");
-  });
-});
+    const names = s.run(`local t = {}; for i = 1, #MENU.buttons do if MENU.buttons[i].shown then t[#t + 1] = MENU.buttons[i].text.text end end; return table.concat(t, ",")`);
+    expect(names).toBe("Dungeons,Guild map,Call for help,Settings");
+  });});
 
 // 8.5 in-game test (French Forever): the minimap button was missing and /guilded minimap show was silent.
 describe("the minimap button", () => {

@@ -26,6 +26,14 @@ describe('companion overview readiness', () => {
     const config = { companionCredential: 'fixture', watchFile: 'local.lua' };
     expect(companionOverview(config, { running: true, lastUpload: {} }).nextPage).toBe('activity');
   });
+  it('reads Connected in device mode, without asking to connect an account', () => {
+    const config = { device: true, deviceSecret: 'key', watchFile: 'local.lua' };
+    expect(companionOverview(config, {}).connection).toBe('Connected');
+    expect(companionOverview({}, {}).connection).toBe('Not connected');
+    expect(companionOverview(config, { running: true }).tracking).not.toBe('Connect your account first');
+    expect(companionOverview(config, {}).nextAction).not.toBe('Connect your account');
+    expect(companionOverview(config, { running: true, lastUpload: {} }).nextPage).toBe('activity');
+  });
   it('does not imply guild standings for an existing personal connection', () => {
     expect(companionOverview({ personal: true }, {}).standings).toBe('Not used by this connection');
   });

@@ -315,7 +315,8 @@ local function newPin(parent, pool, index)
   pin.icon:SetTexture(PIN_TEXTURE)
   if pin.EnableMouse then pin:EnableMouse(true) end
   pin:SetScript("OnEnter", function(self)
-    if not (GameTooltip and self.name) then return end
+    -- WoW Forever: no tooltip work in combat.
+    if not (GameTooltip and self.name) or (ns.compat and ns.compat.inCombat and ns.compat.inCombat()) then return end
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     local member = map.members[self.name]
     GameTooltip:AddLine(ns.displayName(self.name), classColor(member and member.class))

@@ -50,6 +50,17 @@ function withWorldMap(): LuaSession {
 }
 
 describe("guild map and the world map's taint", () => {
+  it("fills no tooltip from a dot while in combat", () => {
+    const s = withWorldMap();
+    s.run(`TIPS = 0; GameTooltip = { SetOwner = function() TIPS = TIPS + 1 end, AddLine = function() end, Show = function() end, Hide = function() end }
+      MAP_SHOWN = true; NS.guildMap.receive("P|1429|4100|6000|MAGE|60", "Ann"); NS.guildMap.refreshWorldMap()
+      PIN = NS.guildMap.worldPins[1]
+      NS.compat = { inCombat = function() return COMBAT == true end }
+      COMBAT = true; PIN.scripts.OnEnter(PIN)`);
+    expect(s.run(`return TIPS`)).toBe("0");
+    s.run(`COMBAT = false; PIN.scripts.OnEnter(PIN)`);
+    expect(s.run(`return TIPS`)).toBe("1");
+  });
   it("never hooks WorldMapFrame at login", () => {
     const s = withWorldMap();
     expect(s.run(`return table.concat(MAP_CALLS, ",")`)).toBe("");

@@ -66,7 +66,8 @@ const world = vi.hoisted(() => {
     if (where["memberId"] && row["memberId"] !== where["memberId"]) return false;
     if (typeof where["nameKey"] === "string" && row["nameKey"] !== where["nameKey"]) return false;
     if (where["nameKey"] && typeof where["nameKey"] === "object" && !(where["nameKey"] as { in: string[] }).in.includes(String(row["nameKey"]))) return false;
-    if (where["status"] && row["status"] !== where["status"]) return false;
+    const wanted = where["status"] as string | { in: string[] } | undefined;
+    if (wanted && !(typeof wanted === "object" ? wanted.in.includes(String(row["status"])) : row["status"] === wanted)) return false;
     return true;
   }
 
@@ -240,6 +241,14 @@ const world = vi.hoisted(() => {
         const row = { id: next("claim"), ...create };
         claims.push(row);
         return row;
+      },
+      async deleteMany({ where }: { where: { guildId: string; memberId: string; nameKey: string; status: { in: string[] } } }) {
+        const before = claims.length;
+        for (let index = claims.length - 1; index >= 0; index--) {
+          const row = claims[index]!;
+          if (row["memberId"] === where.memberId && row["nameKey"] === where.nameKey && where.status.in.includes(String(row["status"]))) claims.splice(index, 1);
+        }
+        return { count: before - claims.length };
       }
     },
     webPairing: {
@@ -484,7 +493,7 @@ describe("account linking across Discord, the addon, the companion and the site"
     expect(world.pairings[0]?.["consumedAt"]).toBeNull();
   });
 
-  it("stops a verify code from relinking after unlink, and stops the companion too when an officer unlinked it", async () => {
+  it("stops a verify code from relinking after unlink, and stops the companion too (the member's own unlink and an officer's)", async () => {
     const code = await verifyCodeFor(db, "g1", "m1");
     const digest = () => parseAddonSnapshot({
       source: "Guilded", exportedAt: "2026-11-03T16:00:00Z",
@@ -494,7 +503,7 @@ describe("account linking across Discord, the addon, the companion and the site"
     world.characters.splice(0, world.characters.length);
     await blockVerifiedCharacter(db, "g1", "m1", "Ray", "Forever", "forever", false);
     expect(await linkVerifiedCharacters(db, "g1", { officer: true }, digest())).toEqual([]);
-    await expect(linkPairedCharacter(db, "g1", "m1", self())).resolves.toBe("linked");
+    await expect(linkPairedCharacter(db, "g1", "m1", self())).resolves.toBe("blocked-by-member");
 
     world.characters.splice(0, world.characters.length);
     await blockVerifiedCharacter(db, "g1", "m1", "Ray", "Forever", "forever", true);
@@ -502,6 +511,14 @@ describe("account linking across Discord, the addon, the companion and the site"
     expect(await linkVerifiedCharacters(db, "g1", { officer: true }, digest())).toEqual([]);
     expect(world.characters).toHaveLength(0);
     expect(world.claims.map((row) => row["status"])).toContain("REMOVED");
+  });
+
+  it("a deliberate /character claim clears the member's own 'not mine', so the next upload links it", async () => {
+    world.unclaimed.push({ id: "u-ray", guildId: "g1", name: "Ray", realm: "Forever", nameKey: "ray", className: "Priest", gameEdition: "forever", level: 60, professions: [], lastSeenAt: new Date("2026-11-01T00:00:00Z") });
+    await blockVerifiedCharacter(db, "g1", "m1", "Ray", "Forever", "forever", false);
+    await claimCharacter(db, "g1", "m1", "Ray");
+    expect(world.claims.filter((row) => row["status"] === "BLOCKED")).toEqual([]);
+    expect(world.characters.map((row) => row["name"])).toEqual(["Ray"]);
   });
 
   it("claims, relinks and refuses conflicts for unclaimed characters, including edition and realm", async () => {
@@ -549,7 +566,7 @@ describe("account linking across Discord, the addon, the companion and the site"
     const guild = { memberCount: cache.size + 5, members: { cache, list } };
     const linked = await autoLinkUnclaimed(guild as never, db, "g1");
     expect(list).toHaveBeenCalled();
-    expect(linked).toEqual([{ character: "Ray", member: "[GOLD] Ray" }]);
+    expect(linked).toEqual([{ character: "Ray", member: "[GOLD] Ray", memberId: "m1" }]);
     expect(world.characters.map((row) => row["name"])).toEqual(["Ray"]);
     expect(world.unclaimed.map((row) => row["id"]).sort()).toEqual(["u-bob", "u-retail"]);
 

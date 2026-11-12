@@ -253,6 +253,14 @@ model MemberOnboarding {
   discordUserId   String
   rulesAcceptedAt DateTime?
   nudgedAt        DateTime?
+  // Game reminders (services/game-reminder.ts). reminderCount counts reminders queued, so a restart
+  // or a retried job never sends one more; lastSentAt is set when the private message was delivered.
+  reminderCount      Int       @default(0)
+  lastReminderAt     DateTime?
+  lastReminderSource String?
+  lastSentAt         DateTime?
+  remindersStopped   Boolean   @default(false)
+  dmClosedAt         DateTime?
   createdAt       DateTime  @default(now())
   guild           Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
@@ -507,6 +515,7 @@ model Member {
   applications        Application[]
   craftRequests       CraftRequest[]               @relation("CraftRequester")
   craftsClaimed       CraftRequest[]               @relation("CraftCrafter")
+  craftsRelayed       CraftRequest[]               @relation("CraftRelayer")
   craftOffers         CraftOffer[]
   dungeonRunPlayers   DungeonRunPlayer[]
   dungeonPoints       DungeonPointTransaction[]
@@ -936,6 +945,8 @@ model GuildSettings {
   inviteDmEnabled          Boolean   @default(true)
   // 9.1: tag up to 3 online officers (else the officer role once) when someone posts their name in the invite channel.
   inviteNotifyEnabled      Boolean   @default(true)
+  // 9.1.7: about an hour after a request is handled, the bot removes the request message and its own follow-ups.
+  inviteCleanupEnabled     Boolean   @default(true)
   // 8.5 light recruiting kit: interview questions (JSON array of strings), the pinned guide message in the invite channel,
   // the recruiting post template and its shared cooldown (one reminder when it is over).
   inviteQuestions          Json?
@@ -974,6 +985,9 @@ model GuildSettings {
   rulesChannelId           String?
   rulesGate                Boolean   @default(false)
   onboardingNudge          Boolean   @default(false)
+  // Game reminders (services/game-reminder.ts): their own automatic switch (off by default) and the last "remind all".
+  gameReminderAuto         Boolean   @default(false)
+  gameRemindAllAt          DateTime?
   // Dungeon Challenge: announcements channel and point rules (JSON; missing
   // keys use the built-in defaults).
   bgCategoryId             String?
@@ -1015,6 +1029,11 @@ model GuildSettings {
   bgLadderEnabled          Boolean @default(true)
   bgLadderMessageId        String?
   worldPvpEnabled          Boolean @default(true)
+  // 9.1 world PvP extras (docs/plans/WPVP_REVIEW_2026-11-10.md): every one ON by default (owner, 13 Nov 2026); officers switch each off with /bg world-pvp.
+  pvpRecapEnabled          Boolean @default(true)
+  pvpHotZonesEnabled       Boolean @default(true)
+  pvpMostWantedEnabled     Boolean @default(true)
+  pvpRecapLastWeek         Int?
   // 8.5 track C5: promotion panel (Initiate -> Member). On by default; officers change the rule or switch it off.
   // 9.1 character pictures (docs/plans/CHARACTER_VISUALS.md): officers switch member pictures off for the server.
   characterPicturesEnabled Boolean @default(true)
@@ -1543,6 +1562,10 @@ model CraftRequest {
   askedCharacter    String?
   crafterCharacter  String?
   claimSource       String?
+  // Requests made in game (craft-orders.ts applyOrderRequests): the addon's own id for it (one request is created
+  // once per requester, so one member's ref can never block another's), and, when a guildmate's companion carried it (the requester has none), that uploader's Member id.
+  gameRef           String?
+  relayedById       String?
   // 9.1: its line in the craft orders channel and, once finished, in the archive.
   orderMessageId    String?
   archiveMessageId  String?
@@ -1554,7 +1577,9 @@ model CraftRequest {
   guild             Guild              @relation(fields: [guildId], references: [id], onDelete: Cascade)
   requester         Member             @relation("CraftRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   crafter           Member?            @relation("CraftCrafter", fields: [crafterId], references: [id], onDelete: SetNull)
+  relayedBy         Member?            @relation("CraftRelayer", fields: [relayedById], references: [id], onDelete: SetNull)
 
+  @@unique([guildId, requesterId, gameRef])
   @@index([guildId, status, createdAt])
   @@index([requesterId])
   @@index([crafterId])
@@ -3425,6 +3450,17 @@ model InviteRequest {
   notifiedAt    DateTime?
   // The bot's tag message, edited to a done note when the character joins.
   notifyMessageId String?
+  // When the clean-up of this handled request was attempted (messages removed, already gone, or refused): once only.
+  cleanedAt     DateTime?
+  // When the clean-up is due: set only by a full first+last name match or an explicit officer action (never a first-name-only guess).
+  cleanupAt     DateTime?
+  cleanTries    Int       @default(0)
+  // Handed to the job queue (cleanedAt is set only after the messages are really gone).
+  cleanQueuedAt DateTime?
+  // Handled before the clean-up existed (set by the migration): the only rows /mod invites tidy may queue.
+  legacyHandled Boolean   @default(false)
+  // The bot's "done" thank-you under a member's own post, so the clean-up uses stored ids.
+  doneNoteMessageId String?
   guild         Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
 
   @@unique([guildId, messageId])

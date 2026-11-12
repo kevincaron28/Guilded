@@ -20,7 +20,7 @@ document.addEventListener('keydown',event => { if (event.key === 'Escape' && doc
 desktopNavigation.addEventListener('change',closeNavigation);
 const modeLabel = mode => T(({STANDARD:'Trade / Standard', HARDCORE:'Hardcore', SSF:'Solo self-found', SSF_HARDCORE:'Solo self-found Hardcore'})[mode] || mode || '');
 const fields = ['uploadUrl','guildDiscordId','pairingCode','watchFile','realm','wowGuild','standingsIntervalMinutes'];
-const names = {status:'Sync',link:'Link everything',characters:'Guild',server:'Server',wow:'Tools',settings:'Settings',activity:'Activity',help:'Help & privacy',problems:'Problems'};
+const names = {status:'Sync',link:'Link everything',settings:'Settings',activity:'Activity',problems:'Problems'};
 let lastSnapshot;
 let storePackage = false; // Microsoft Store build: its update banner opens the Store (F5)
 let savedConfig = {};
@@ -117,18 +117,28 @@ function renderStatusCard(snapshot) {
   const button = $('btnStatusAction');
   button.hidden = !card.button;
   if (card.button && !button.dataset.busy) button.textContent = T(card.button.label);
+  // Sign-in is optional: on a healthy card it is only a quiet secondary link.
+  const link = $('btnStatusLink');
+  link.hidden = !card.link;
+  if (card.link) link.textContent = T(card.link.label);
   const line = window.guildedStatusCard.guildLine({ config: savedConfig, savedFile: snapshot.savedFile });
   const parts = [line.guild, line.lastReload ? T("last /reload {0}", ago(line.lastReload).toLowerCase()) : null].filter(Boolean);
   $('statusGuildLine').textContent = parts.join(' · ');
   $('statusGuildLine').hidden = !parts.length;
 }
-async function statusAction() {
-  const action = shownCard?.button?.action;
+async function statusAction(which) {
+  const action = (which === 'link' ? shownCard?.link : shownCard?.button)?.action;
   const result = $('statusResult');
   const say = (message, ok = true) => { result.textContent = message ? M(message) : ''; result.className = ok ? 'result ok' : 'result bad'; };
   say('');
   switch (action) {
     case 'sign-in': showPage('link'); return;
+    case 'copy-officer-message': {
+      const guild = shownCard?.title?.[1] || savedConfig.wowGuildName || savedConfig.wowGuild || '';
+      const text = "Hello! Could you run /setup in our guild's Discord server so the Guilded companion can sync our guild " + guild + "? Thank you!" + String.fromCharCode(10) + 'Bonjour ! Pourriez-vous lancer /setup sur le serveur Discord de notre guilde pour que le compagnon Guilded puisse synchroniser notre guilde ' + guild + ' ? Merci !';
+      try { await navigator.clipboard.writeText(text); say(T("Copied. Paste it to an officer of your guild.")); } catch { say(T("Could not copy. Ask an officer of your guild to run /setup on its Discord server."), false); }
+      return;
+    }
     case 'problems': showPage('problems'); return;
     case 'settings': showPage('settings'); return;
     case 'storage': await api.openStorageSettings(); return;
@@ -141,7 +151,8 @@ async function statusAction() {
     default: return;
   }
 }
-bind('btnStatusAction', statusAction);
+bind('btnStatusAction', () => statusAction());
+bind('btnStatusLink', () => statusAction('link'));
 // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): the optional sign-in note and "Advanced: choose server".
 function renderDevice(snapshot) {
   const overview = window.guildedOverview(savedConfig, snapshot.state || {});
@@ -394,7 +405,6 @@ bind('btnLinkSignInCancel',async () => { await api.signInCancel(); stopSignInBox
 $('form').addEventListener('submit',event => { event.preventDefault(); action($('btnSave'),async () => { say(T("Saving your preferences…"),true); const result = await api.saveConfig(readForm()); say(result.message,result.ok); savedConfig = (await api.getAll()).config; renderState(lastSnapshot); if (result.ok) { toast(result.message); showPage('status'); } }); });
 $('autostart').addEventListener('change',event => action(event.target,async () => { $('autostart').checked = await api.setAutostart(event.target.checked); }));
 bind('btnConnections', () => api.openConnections ? api.openConnections() : window.open('/me/connections','_blank','noopener'));
-bind('btnBattleNet', () => api.openBattleNet ? api.openBattleNet() : window.open('/me/battlenet','_blank','noopener'));
 bind('btnUpload',async () => { await api.uploadNow(); toast(T("Sync requested. Follow its progress in Activity.")); });
 bind('btnStandings',async () => {
   if (!savedConfig.companionCredential) { toast(T("Connect your account first: choose Sign in with Discord (or enter a pairing code) in Connection & setup."),true); return; }
@@ -402,44 +412,9 @@ bind('btnStandings',async () => {
   await api.refreshStandings();
   toast(T("Standings refresh requested. Check Activity for the result."));
 });
-bind('btnSheets',async () => { const result = await api.exportSheets($('sheetTable').value || undefined); if (!result.canceled) toast(result.message,!result.ok); });
-$('grmPanel').hidden = typeof api.convertGRM !== 'function';
-bind('btnGRM', async () => {
-  if (!api.convertGRM) return;
-  const result = await api.convertGRM({ guild: $('grmGuild').value, realm: $('grmRealm').value, edition: $('grmEdition').value, includePrivate: $('grmPrivate').checked });
-  if (!result.canceled) { $('grmResult').textContent = M(result.message); toast(result.message, !result.ok); }
-});
 bind('btnFolder',() => api.openAddonFolder()); bind('btnPause',async () => { await api.toggleTracking(); const all = await api.getAll(); savedConfig = all.config; $('syncEnabled').checked = all.config.syncEnabled !== false; });
-let lootImportToken = null, lootMappingInputs = [];
-$('lootImportPanel').hidden = typeof api.previewLootHistory !== 'function';
-function resetLootPreview() { lootImportToken = null; $('lootImportReview').hidden = true; $('btnLootImportSave').disabled = true; }
-for (const id of ['lootImportSource', 'lootImportGuild', 'lootImportRealm', 'lootImportEdition']) $(id).addEventListener('input', resetLootPreview);
-bind('btnLootImportPreview', async () => {
-  if (!api.previewLootHistory) return;
-  resetLootPreview();
-  if (['lootImportSource', 'lootImportGuild', 'lootImportRealm', 'lootImportEdition'].some(id => !$(id).value.trim())) { $('lootImportResult').textContent = T("Choose the source, destination guild, realm and edition first."); return; }
-  const result = await api.previewLootHistory({ source: $('lootImportSource').value, guild: $('lootImportGuild').value, realm: $('lootImportRealm').value, edition: $('lootImportEdition').value });
-  if (result.canceled) return;
-  if (!result.ok) { $('lootImportResult').textContent = M(result.message); return; }
-  lootImportToken = result.token; lootMappingInputs = []; $('lootImportMappings').replaceChildren();
-  for (const source of result.characters) {
-    const label = document.createElement('label'), input = document.createElement('input');
-    label.textContent = source + ' → '; input.maxLength = 160; input.autocomplete = 'off';
-    input.value = source.includes('-') ? source : ''; label.append(input); $('lootImportMappings').append(label);
-    lootMappingInputs.push({ source, input });
-  }
-  $('lootImportRows').textContent = result.entries.map(row => `${row.sourceCharacter} | ${row.itemId} | ${row.awardedAt.value} (${row.awardedAt.timezone}) | ${row.response}`).join('\n');
-  $('lootImportResult').textContent = T("{0} awards; {1} duplicates omitted; {2} awards without stable IDs.", result.summary.previewRows, result.summary.duplicates, result.summary.missingSourceIds) + '\n' + result.warnings.map(M).join('\n');
-  $('lootImportUnidentified').checked = false; $('lootImportReview').hidden = false; $('btnLootImportSave').disabled = false;
-});
-bind('btnLootImportSave', async () => {
-  if (!api.saveLootHistory || !lootImportToken) return;
-  const result = await api.saveLootHistory({ token: lootImportToken, characterMap: Object.fromEntries(lootMappingInputs.map(({ source, input }) => [source, input.value.trim()])), allowUnidentified: $('lootImportUnidentified').checked });
-  if (result.canceled) return;
-  $('lootImportResult').textContent = M(result.message); if (result.ok) resetLootPreview();
-});
+bind('btnSingleWindow',() => api.openSingleWindow());
 bind('btnRemoveData',() => api.removeData());
-bind('btnDeleteMyData',() => api.deleteMyData()); // native confirm dialog in main.cjs
 // Update now (7.2): the desktop app downloads, checks and installs the new version itself.
 bind('btnStoreUpdates', () => api.openUpdate());
 bind('btnStoreStartup', () => api.openStartupSettings());

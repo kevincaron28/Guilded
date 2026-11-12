@@ -182,6 +182,24 @@ describe("guild duels", () => {
     expect(lua.run(`local w, l = NS.duels.parse("Kev a battu Bob en duel"); return w .. "," .. l`)).toBe("Kev,Bob");
   });
 
+  // WoW Forever: UnitName gives "Kev" and the surname separately, the duel line says "Kev Caron".
+  it("knows my own duels by my full name, and shares and counts them", () => {
+    const lua = setup();
+    lua.run(`GUILD_MEMBERS["Kev Caron"] = true; GUILD_MEMBERS["Bob Smith"] = true; NS.util.unitKey = function() return "Kev Caron" end; SENT = {}
+      NS.comm = { register = function() end, send = function(prefix, text) SENT[#SENT + 1] = text; return true end }`);
+    lua.run(knock("Kev Caron", "Bob Smith"));
+    expect(lua.run(`return table.concat(SENT, ",")`)).toMatch(/^D\|Kev Caron\|Bob Smith\|\d+\|knockout$/);
+    expect(lua.run(`return tostring(NS.duels.myWins())`)).toBe("1");
+    expect(out()).toBe("GUILD:Kev won a first duel!");
+  });
+  it("still knows my duels when only the first name is known, but keeps two surnames apart", () => {
+    const lua = setup();
+    lua.run(`GUILD_MEMBERS["Kev Caron"] = true; GUILD_MEMBERS["Kev Smith"] = true; NS.comm = { register = function() end, send = function() return true end }`);
+    lua.run(knock("Kev Caron", "Kev Smith"));
+    expect(lua.run(`return tostring(#NS.duels.standings())`)).toBe("2");
+    expect(lua.run(`return tostring(NS.duels.myWins())`)).toBe("1");
+  });
+
   it("records only duels between two guild members", () => {
     const lua = setup();
     lua.run(knock("Kev", "Stranger"));

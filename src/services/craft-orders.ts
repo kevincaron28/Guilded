@@ -1,4 +1,7 @@
 import type { CraftRequestStatus, PrismaClient } from "../generated/prisma/client.js";
+import { characterTrustMap } from "./character-trust.js";
+import { normalizeProfessionName } from "./profession-names.js";
+import { serializeByKey } from "./transaction-retry.js";
 
 // Crafting orders in game (docs/plans/CRAFTING_ORDERS.md). Discord craft requests go to the addon's
 // Orders page through the standings feed (craftOrders, shared), and crafters claim, finish or give
@@ -127,4 +130,128 @@ export async function resolveItemKey(db: Pick<PrismaClient, "recipeKnown">, guil
   if (text.length < 2) return null;
   const rows = await db.recipeKnown.findMany({ where: { guildId, itemName: { equals: text, mode: "insensitive" } }, select: { itemKey: true }, distinct: ["itemKey"], take: 2 });
   return rows.length === 1 ? rows[0]!.itemKey : null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Requests made in game
+// ---------------------------------------------------------------------------------------------
+
+/** At most this many open (open or claimed) requests per member, whoever carried them; rows older than `ageMs` are dropped. */
+export const REQUEST_LIMITS = { open: 5, ageMs: 3 * 86_400_000, perUpload: 10 } as const;
+
+export interface AddonOrderRequest {
+  ref: string; item: string; qty: number; mats: boolean; character: string; at: number;
+  key?: number; prof?: string; note?: string; asked?: string;
+  /** Relayed rows only: the sender, as the game reported it. The requester is found from this name, never from an id. */
+  name?: string;
+}
+
+const isKey = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value !== 0 && Math.abs(value) <= 9_999_999;
+
+/** Rows from the addon (own, or heard on GUILD with the sender's `name`); malformed rows are dropped. Ids from the addon are never read. */
+export function parseAddonOrderRequests(rows: readonly unknown[], relayed = false): AddonOrderRequest[] {
+  return rows.flatMap((row): AddonOrderRequest[] => {
+    if (!row || typeof row !== "object") return [];
+    const { ref, item, key, prof, qty, note, mats, asked, character, at, name } = row as Record<string, unknown>;
+    if (typeof ref !== "string" || !/^[A-Za-z0-9_-]{6,40}$/.test(ref)) return [];
+    if (typeof item !== "string" || clean(item, 100).length < 2) return [];
+    if (!isName(character) || !isEpoch(at) || (relayed && !isName(name))) return [];
+    if (key !== undefined && !isKey(key)) return [];
+    if (qty !== undefined && (typeof qty !== "number" || !Number.isInteger(qty) || qty < 1 || qty > 200)) return [];
+    const profession = typeof prof === "string" && clean(prof, 40) ? normalizeProfessionName(clean(prof, 40)).slice(0, 40) : undefined;
+    const askedName = isName(asked) ? asked.trim().slice(0, 60) : undefined;
+    const text = typeof note === "string" ? clean(note, 300) : "";
+    return [{
+      ref, item: clean(item, 100), qty: (qty as number | undefined) ?? 1, mats: mats === true, character: character.trim(), at,
+      ...(key !== undefined ? { key } : {}), ...(profession ? { prof: profession } : {}), ...(text ? { note: text } : {}),
+      ...(askedName ? { asked: askedName } : {}), ...(relayed ? { name: (name as string).trim() } : {})
+    }];
+  }).slice(0, relayed ? 60 : 20);
+}
+
+type RequestDb = Pick<PrismaClient, "craftRequest" | "character" | "guildSettings" | "recipeKnown" | "characterVerifyClaim" | "guildRosterEntry">;
+export interface CreatedOrderRequest { id: string; memberId: string; relayed: boolean }
+
+/**
+ * Creates the requests made in game. The requester is the owner of the requesting CHARACTER, found by name among the
+ * server's active members and only when that link is confirmed (character-trust.ts: a reported-only character is refused);
+ * a Discord or member id sent by the addon is never read. An own request needs a character of the uploader, a relayed one
+ * (a guildmate's companion carried it) a character of someone else, and is marked with that uploader (`relayedById`).
+ * Each `gameRef` creates one request per server, a member has at most REQUEST_LIMITS.open open ones, and the setting that
+ * turns crafting orders in game off turns this off. Returns what was created, in order.
+ */
+export async function applyOrderRequests(db: RequestDb, guildId: string, uploaderMemberId: string, own: readonly AddonOrderRequest[], relayed: readonly AddonOrderRequest[], now = new Date()): Promise<CreatedOrderRequest[]> {
+  if (!own.length && !relayed.length) return [];
+  const settings = await db.guildSettings.findUnique({ where: { guildId }, select: { craftOrdersInGame: true } });
+  if (settings?.craftOrdersInGame === false) return [];
+  const fresh = (row: AddonOrderRequest) => row.at >= (now.getTime() - REQUEST_LIMITS.ageMs) / 1000 && row.at <= now.getTime() / 1000 + 3600;
+  const work = [
+    ...own.filter(fresh).map((row) => ({ row, who: row.character, relayed: false })),
+    ...relayed.filter(fresh).map((row) => ({ row, who: row.name!, relayed: true }))
+  ].sort((a, b) => a.row.at - b.row.at).slice(0, REQUEST_LIMITS.perUpload * 3);
+  if (!work.length) return [];
+  const wanted = new Set(work.map((entry) => entry.who.toLowerCase()));
+  const candidates = (await db.character.findMany({
+    where: { member: { guildId, status: "ACTIVE" } },
+    select: { id: true, name: true, displayName: true, realm: true, gameEdition: true, memberId: true, confirmedAt: true, linkEvidence: true }
+  })).filter((character) => [character.name, character.displayName].some((key) => key && wanted.has(key.toLowerCase())));
+  const trust = await characterTrustMap(db, guildId, candidates);
+  // name -> owner, for confirmed characters only; a name two members could claim is refused (null).
+  const owners = new Map<string, string | null>();
+  for (const character of candidates) {
+    if (trust.get(character.id) !== "confirmed") continue;
+    for (const key of [character.name, character.displayName]) {
+      if (!key || !wanted.has(key.toLowerCase())) continue;
+      const known = owners.get(key.toLowerCase());
+      owners.set(key.toLowerCase(), known === undefined || known === character.memberId ? character.memberId : null);
+    }
+  }
+  const created: CreatedOrderRequest[] = [];
+  for (const { row, who, relayed: isRelayed } of work) {
+    if (created.length >= REQUEST_LIMITS.perUpload) break;
+    const memberId = owners.get(who.toLowerCase());
+    if (!memberId) continue;
+    if (isRelayed ? memberId === uploaderMemberId : memberId !== uploaderMemberId) continue;
+    // Count-then-create runs one at a time per member, so parallel uploads cannot pass the limit together.
+    const request = await serializeByKey(`craft-request:${guildId}:${memberId}`, async () => {
+      // The ref is the requester's own: another member's identical ref never blocks it.
+      if (await db.craftRequest.findFirst({ where: { guildId, requesterId: memberId, gameRef: row.ref }, select: { id: true } })) return null;
+      const open = await db.craftRequest.count({ where: { guildId, requesterId: memberId, status: { in: ["OPEN", "CLAIMED"] } } });
+      if (open >= REQUEST_LIMITS.open) return null;
+      const itemKey = await trustedKey(db, guildId, row);
+      try {
+        return await db.craftRequest.create({
+          data: {
+            guildId, requesterId: memberId, item: row.item, quantity: row.qty, materialsProvided: row.mats,
+            profession: row.prof ?? null, note: row.note ?? null, itemKey, askedCharacter: row.asked ?? null,
+            gameRef: row.ref, relayedById: isRelayed ? uploaderMemberId : null
+          },
+          select: { id: true }
+        });
+      } catch (error) {
+        if ((error as { code?: string }).code !== "P2002") throw error;   // the same ref twice at once: the other one won
+        return null;
+      }
+    });
+    if (request) created.push({ id: request.id, memberId, relayed: isRelayed });
+  }
+  return created;
+}
+
+/** The addon's key is used only when this server's recipes know that key under that exact name; otherwise it comes from the name, as for Discord requests. */
+async function trustedKey(db: Pick<PrismaClient, "recipeKnown">, guildId: string, row: AddonOrderRequest): Promise<number | null> {
+  if (row.key !== undefined) {
+    const known = await db.recipeKnown.findFirst({ where: { guildId, itemKey: row.key, itemName: { equals: row.item, mode: "insensitive" } }, select: { itemKey: true } });
+    if (known) return row.key;
+  }
+  return resolveItemKey(db, guildId, row.item);
+}
+
+/** Requests from game that were created but never reached Discord (no forum thread and no orders-channel line): the next upload posts them again. At most `take`, none older than a day. */
+export async function unpostedGameRequests(db: Pick<PrismaClient, "craftRequest">, guildId: string, now = new Date(), take = 3): Promise<string[]> {
+  const rows = await db.craftRequest.findMany({
+    where: { guildId, gameRef: { not: null }, status: "OPEN", threadId: null, orderMessageId: null, createdAt: { gte: new Date(now.getTime() - 86_400_000) } },
+    select: { id: true }, orderBy: { createdAt: "asc" }, take
+  });
+  return rows.map((row) => row.id);
 }

@@ -37,13 +37,19 @@ export const worldPvpUploadSchema = z.object({
 });
 export type WorldPvpUpload = z.infer<typeof worldPvpUploadSchema>;
 
-/** Pure: the first valid block of an upload, or null. Anything malformed is left out; it never fails the upload. */
-export function parseWorldPvpUpload(value: unknown): WorldPvpUpload | null {
+/** Pure: the valid blocks of an upload (this week and, after the Tuesday reset, the week before), one per week. Anything malformed is left out; it never fails the upload. */
+export function parseWorldPvpUploads(value: unknown): WorldPvpUpload[] {
+  const blocks = new Map<number, WorldPvpUpload>();
   for (const raw of Array.isArray(value) ? value : []) {
     const parsed = worldPvpUploadSchema.safeParse(raw);
-    if (parsed.success) return parsed.data;
+    if (parsed.success && !blocks.has(parsed.data.weekKey)) blocks.set(parsed.data.weekKey, parsed.data);
   }
-  return null;
+  return [...blocks.values()];
+}
+
+/** Pure: the first valid block of an upload, or null. */
+export function parseWorldPvpUpload(value: unknown): WorldPvpUpload | null {
+  return parseWorldPvpUploads(value)[0] ?? null;
 }
 
 export interface WorldPvpCounts { kills: number; defends: number; helped: number }
@@ -69,8 +75,15 @@ type ApplyDb = Pick<PrismaClient, "guildSettings" | "member" | "worldPvpWeek" | 
  * Stores the member's week. Only the current and the previous week are accepted (a late upload, never a made-up future or old week).
  * Each number only goes up. Returns whether anything changed.
  */
-export async function applyWorldPvpUpload(db: ApplyDb, guildId: string, memberId: string, upload: WorldPvpUpload | null, now = new Date()): Promise<boolean> {
+export async function applyWorldPvpUpload(db: ApplyDb, guildId: string, memberId: string, upload: WorldPvpUpload | readonly WorldPvpUpload[] | null, now = new Date()): Promise<boolean> {
   if (!upload) return false;
+  // Every block is stored on its own; the week before is the late upload of a session that crossed the Tuesday reset.
+  if (Array.isArray(upload)) {
+    let changed = false;
+    for (const block of upload as readonly WorldPvpUpload[]) if (await applyWorldPvpUpload(db, guildId, memberId, block, now)) changed = true;
+    return changed;
+  }
+  upload = upload as WorldPvpUpload;
   const current = weekKeyOf(now);
   if (upload.weekKey > current || upload.weekKey < current - 1) return false;
   const [settings, member] = await Promise.all([

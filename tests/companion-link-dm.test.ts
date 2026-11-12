@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const log = vi.hoisted(() => vi.fn(async () => undefined));
+vi.mock("../src/services/housekeeping.js", () => ({ postToLogChannel: log }));
 import {
-  handleLinkedButton, linkedCharactersAnswer, linkedCharactersRow, linkedLines, linkedMessage, scheduleLinkedCharacters, tellLinkedCharacters
+  handleLinkedButton, linkedCharactersRow, linkedLines, linkedMessage, linkUndoRows, scheduleLinkedCharacters, tellAutoLinked, tellLinkedCharacters
 } from "../src/services/companion-link-dm.js";
 
 // Owner decisions (8.5 track F3, ROADMAP 5): one DM listing the linked characters on the first link and whenever new
@@ -42,7 +45,11 @@ describe("linked characters DM", () => {
     expect(message.content).toContain("• **Bel** — Mage");
     expect(message.content).toContain("`/character unlink`");
     expect(message.allowedMentions).toEqual({ parse: [] });
-    expect(message.components).toHaveLength(1);
+    expect(message.components).toHaveLength(2); // Not mine buttons, then My linked characters + Wrong server
+    const ids = JSON.stringify(message.components);
+    expect(ids).toContain("linked:no:c1");
+    expect(ids).toContain("linked:no:c2");
+    expect(ids).toContain("linked:server");
   });
 
   it("sends once per change: a repeat upload says nothing, new characters get one batched DM, unlinks stay silent", async () => {
@@ -101,33 +108,113 @@ describe("linked characters DM", () => {
     expect(fr).toContain("Guerrier niveau 60 (principal)");
     expect(linkedMessage("fr", "Guilde", fr, [])).toContain("Tu es lié sur **Guilde**");
     expect(linkedMessage("fr", "Guilde", fr, ["Bel"])).toContain("Nouveau sur **Guilde**");
-    expect(JSON.stringify(linkedCharactersRow("fr").toJSON())).toContain("Mes personnages liés");
+    expect(JSON.stringify(linkedCharactersRow("fr").toJSON())).toContain("Mes personnages");
   });
 });
 
 describe("My linked characters button", () => {
-  it("answers privately in a DM, resolving the member from the Discord user across guilds", async () => {
-    const f = fakes([aran, bel]);
-    const reply = vi.fn(async () => undefined);
-    const interaction = { customId: "linked:mine", user: { id: "111" }, guildId: null, deferReply: vi.fn(async () => undefined), editReply: reply };
-    await handleLinkedButton(interaction as never, f.database as never);
-    expect(interaction.deferReply).toHaveBeenCalledWith({ flags: 64 });
-    const content = (reply.mock.calls[0] as unknown as [{ content: string }])[0].content;
-    expect(content).toContain("**Quebec Gold**");
-    expect(content).toContain("⭐ **Aran Dawnfield**");
-    expect(content).toContain("`/character unlink`");
-    expect(f.database.member.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ discordUserId: "111" }) }));
-    const where = (f.database.member.findMany.mock.calls[0] as unknown as [{ where: Record<string, unknown> }])[0].where;
-    expect(where).not.toHaveProperty("guild"); // no guild context in a DM
+  const press = (customId: string, guildId: string | null) => ({ customId, user: { id: "111" }, guildId, deferReply: vi.fn<(arg?: unknown) => Promise<void>>(async () => undefined), editReply: vi.fn<(view?: unknown) => Promise<void>>(async () => undefined) });
+  const servers = (rows: { name: string; discordId: string }[]) => ({ member: { findMany: vi.fn<(args?: unknown) => Promise<{ guild: { name: string; discordId: string } }[]>>(async () => rows.map((guild) => ({ guild }))) } });
+
+  it("in a DM with several servers, asks which one with one button each (no guild filter)", async () => {
+    const db = servers([{ name: "Quebec Gold", discordId: "dg1" }, { name: "Other", discordId: "dg2" }]);
+    const interaction = press("linked:mine", null);
+    await handleLinkedButton(interaction as never, db as never);
+    const sent = JSON.stringify(interaction.editReply.mock.calls[0]?.[0]);
+    expect(sent).toContain("linked:p:refresh:dg1");
+    expect(sent).toContain("linked:p:refresh:dg2");
+    expect(JSON.stringify((db.member.findMany.mock.calls[0]?.[0] as { where: unknown }).where)).not.toContain("discordId\":\"dg");
   });
 
-  it("limits to the server when clicked in one, and answers in both languages when nothing is linked", async () => {
-    const f = fakes([aran]);
-    await linkedCharactersAnswer(f.database as never, "111", "999");
-    expect((f.database.member.findMany.mock.calls[0] as unknown as [{ where: { guild: unknown } }])[0].where.guild).toEqual({ discordId: "999" });
-    f.database.member.findMany.mockResolvedValueOnce([]);
-    const none = await linkedCharactersAnswer(f.database as never, "222");
-    expect(none).toContain("no linked characters");
-    expect(none).toContain("pas encore de personnage");
+  it("Add another asks about the link step per server, and a member in no server is told so", async () => {
+    const interaction = press("linked:add", null);
+    await handleLinkedButton(interaction as never, servers([{ name: "A", discordId: "dg1" }, { name: "B", discordId: "dg2" }]) as never);
+    expect(JSON.stringify(interaction.editReply.mock.calls[0]?.[0])).toContain("linked:p:link:dg1");
+    const none = press("linked:mine", null);
+    await handleLinkedButton(none as never, servers([]) as never);
+    expect(JSON.stringify(none.editReply.mock.calls[0]?.[0])).toContain("pas encore de personnage");
+  });
+
+  it("answers at once (deferred) before any lookup", async () => {
+    const interaction = press("linked:mine", null);
+    await handleLinkedButton(interaction as never, servers([{ name: "A", discordId: "dg1" }, { name: "B", discordId: "dg2" }]) as never);
+    expect(interaction.deferReply).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("undo for every automatic link", () => {
+  it("uses one Not mine button per character up to five, a select menu above, and always two rows at most", () => {
+    const few = linkUndoRows("en", [aran, bel, cyr], null).map((row) => row.toJSON());
+    expect(few).toHaveLength(2);
+    expect(few[0]!.components.map((component) => (component as { label: string }).label)).toEqual(["Not mine: Aran Dawnfield", "Not mine: Bel", "Not mine: Cyr Stonehand"]);
+    const many = Array.from({ length: 30 }, (_, index) => ({ id: `x${index}`, name: `N${index}`, displayName: null }));
+    const menu = linkUndoRows("fr", many, null).map((row) => row.toJSON());
+    expect(menu).toHaveLength(2);
+    const select = menu[0]!.components[0] as { custom_id: string; options: unknown[]; placeholder: string };
+    expect(select.custom_id).toBe("linked:no");
+    expect(select.options).toHaveLength(25);
+    expect(JSON.stringify(menu[1])).toContain("Mauvais serveur");
+  });
+
+  function undoFakes(ownerId = "111") {
+    const character = { id: "c1", name: "Aran", realm: "Forever", gameEdition: "forever", displayName: "Aran Dawnfield", member: { id: "m1", guildId: "g1", discordUserId: ownerId, guild: { discordId: "999", name: "Quebec Gold" } } };
+    const tx = { character: { findUnique: vi.fn(async () => ({ ...character, memberId: "m1", detachedAt: null, isMain: false })), update: vi.fn(async () => undefined), findFirst: vi.fn(async () => null) }, member: { upsert: vi.fn(async () => ({ id: "holding" })) }, characterLinkConflict: { updateMany: vi.fn(async () => undefined) } };
+    const database = {
+      character: { findUnique: vi.fn(async () => character), delete: vi.fn(async () => undefined), findMany: vi.fn(async () => []) },
+      member: { findMany: vi.fn(async () => []) },
+      guildSettings: { findUnique: vi.fn(async () => ({ language: "en" })) },
+      characterVerifyClaim: { upsert: vi.fn(async () => undefined) }, $transaction: vi.fn(async (callback: (tx: unknown) => unknown) => callback(tx))
+    };
+    const guild = { id: "999" };
+    const interaction = { customId: "linked:no:c1", user: { id: "111" }, client: { guilds: { fetch: vi.fn(async () => guild) } }, isStringSelectMenu: () => false, deferReply: vi.fn(async () => undefined), editReply: vi.fn(async () => undefined), reply: vi.fn(async () => undefined) };
+    return { database, interaction, guild, tx };
+  }
+
+  it("Not mine unlinks the character as BLOCKED (not REMOVED) and writes one officer log line", async () => {
+    log.mockClear();
+    const f = undoFakes();
+    await handleLinkedButton(f.interaction as never, f.database as never);
+    expect(f.database.character.delete).not.toHaveBeenCalled(); // detached with its history, like /character unlink
+    expect(f.tx.character.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "c1" }, data: expect.objectContaining({ detachedFromMemberId: "m1" }) }));
+    expect(f.database.characterVerifyClaim.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ status: "BLOCKED", memberId: "m1", guildId: "g1" }) }));
+    expect(log).toHaveBeenCalledTimes(1);
+    expect((log.mock.calls[0] as unknown as [unknown, string])[1]).toContain("<@111> unlinked Aran Dawnfield");
+    expect((f.interaction.editReply.mock.calls[0] as unknown as [{ content: string }])[0].content).toContain("unlinked from you");
+  });
+
+  it("the select menu path unlinks the chosen character, and only the DM's member can press it", async () => {
+    log.mockClear();
+    const menu = undoFakes();
+    await handleLinkedButton({ ...menu.interaction, customId: "linked:no", isStringSelectMenu: () => true, values: ["c1"] } as never, menu.database as never);
+    expect(menu.tx.character.update).toHaveBeenCalledTimes(1);
+    const other = undoFakes("999999");
+    await handleLinkedButton(other.interaction as never, other.database as never);
+    expect(other.tx.character.update).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledTimes(1);
+    const gone = undoFakes();
+    gone.database.character.findUnique.mockResolvedValueOnce(null as never);
+    await handleLinkedButton(gone.interaction as never, gone.database as never);
+    expect((gone.interaction.editReply.mock.calls[0] as unknown as [{ content: string }])[0].content).toContain("already unlinked");
+  });
+
+  it("Wrong server explains Remove this server in the companion, in both languages", async () => {
+    const f = undoFakes();
+    await handleLinkedButton({ ...f.interaction, customId: "linked:server" } as never, f.database as never);
+    const content = (f.interaction.reply.mock.calls[0] as unknown as [{ content: string }])[0].content;
+    expect(content).toContain("Remove this server");
+    expect(content).toContain("compagnon Guilded");
+    expect(f.tx.character.update).not.toHaveBeenCalled();
+  });
+
+  it("name-match, sole-newcomer and claim links send the same DM (one per member), and a closed DM is skipped quietly", async () => {
+    vi.useFakeTimers();
+    const f = fakes([aran, bel]);
+    await tellAutoLinked(f.client as never, f.database as never, "999", "g1", [{ memberId: "m1", count: 2 }], 100);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(f.send).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(sent(f)[1].components)).toContain("linked:no:c1");
+    const closed = fakes([aran], vi.fn(async () => { throw new Error("Cannot send messages to this user"); }));
+    await tellAutoLinked(closed.client as never, closed.database as never, "999", "g1", [{ memberId: "m2", count: 1 }], 100);
+    await expect(vi.advanceTimersByTimeAsync(200)).resolves.not.toThrow();
   });
 });

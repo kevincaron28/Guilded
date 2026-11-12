@@ -353,6 +353,22 @@ describe("call for help: guildmates in the zone and party invites", () => {
   });
 });
 
+  it("posts the call and the all-clear in French on a French client", () => {
+    const lua = setup();
+    lua.run(`SETTINGS.language = "fr"`);
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Kev", zone = "Duskwood", attackers = {} })`)).toContain("l'aide ! Kev est attaqu");
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Kev", zone = "", attackers = {} })`)).toContain("dans le monde ouvert");
+    lua.run(`SETTINGS.language = "en"`);
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Kev", zone = "", attackers = {} })`)).toBe("[Guilded] Help! Kev is under attack in the open world");
+  });
+  it("tells the world PvP stats which zone the call named when I answer", () => {
+    const lua = setup();
+    lua.run(`NS.worldPvp = { note = function(kind, zone, map) NOTED = kind .. ":" .. tostring(zone) .. ":" .. tostring(map) end }`);
+    callFrom("Ann-Realm", goodCall);
+    lua.run(`NS.callForHelp.reply(true)`);
+    expect(lua.run(`return NOTED`)).toBe("responded:Duskwood:47");
+  });
+
 describe("call for help: only a real attack counts, and the chat line is limited", () => {
   it("ignores a hit while no enemy player is targeting me (an NPC, a trap, a fall)", () => {
     const lua = setup();
@@ -377,6 +393,22 @@ describe("call for help: only a real attack counts, and the chat line is limited
     lua.run(`ENEMY = { name = "Thug", level = 60 }; fire_event("DUEL_REQUESTED", "Thug")`);
     expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
     lua.run(`fire_event("DUEL_FINISHED"); CLOCK = CLOCK + 60`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
+  });
+  // A declined or timed-out request may never fire DUEL_FINISHED; it must not hide a real attack for the whole session.
+  it("stops treating an unaccepted duel request as a duel after a minute", () => {
+    const lua = setup();
+    lua.run(`ENEMY = { name = "Thug", level = 60 }; fire_event("DUEL_REQUESTED", "Thug")`);
+    lua.run(`CLOCK = CLOCK + 61`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
+  });
+  it("keeps a started duel a duel however long it lasts, until it finishes", () => {
+    const lua = setup();
+    lua.run(`ENEMY = { name = "Thug", level = 60 }; fire_event("DUEL_REQUESTED", "Thug"); fire_event("DUEL_COUNTDOWN", 3)`);
+    lua.run(`CLOCK = CLOCK + 300`);
+    expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("false");
+    lua.run(`fire_event("DUEL_FINISHED")`);
+    lua.run(`CLOCK = CLOCK + 60`);
     expect(lua.run(`NS.callForHelp.noteDamage(5); CLOCK = CLOCK + 1; return tostring(NS.callForHelp.noteDamage(5))`)).toBe("true");
   });
   it("ignores an enemy that is not in combat, and hits too far apart", () => {
@@ -423,5 +455,287 @@ describe("call for help: only a real attack counts, and the chat line is limited
     const lua = setup();
     expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Lebowski Holyroller", zone = "Silverpine Forest", subzone = "The Sepulcher", x = 0.4312, y = 0.3871, attackers = {} })`))
       .toBe("[Guilded] Help! Lebowski Holyroller is under attack in Silverpine Forest, The Sepulcher (43, 39)");
+  });
+});
+
+// The toast and the caller's offer (9.2.x): small, click-through, closable in and out of combat, never takes the keyboard.
+describe("call for help: the toast is never in the way", () => {
+  function withFrames() {
+    const lua = setup();
+    lua.run(`IN_COMBAT = false; KB = {}; MOUSE = {}
+      function InCombatLockdown() return IN_COMBAT end
+      local make = CreateFrame
+      CreateFrame = function(kind, name, parent, template)
+        local f = make(kind, name, parent, template)
+        f.kind = kind
+        f.pts = {}
+        f.EnableKeyboard = function(self, v) KB[#KB + 1] = tostring(v); return self end
+        f.EnableMouse = function(self, v) if kind == "Frame" and v then MOUSE[#MOUSE + 1] = "frame" end return self end
+        f.Show = function(self) self.vis = true; return self end
+        f.Hide = function(self) self.vis = false; return self end
+        f.SetPoint = function(self, ...) self.pts[#self.pts + 1] = { ... }; return self end
+        f.ClearAllPoints = function(self) self.pts = {}; return self end
+        return f
+      end
+      function FIND(field) for _, f in ipairs(FRAMES) do if rawget(f, field) then return f end end end
+      function ICON() for _, f in ipairs(FRAMES) do if f.kind == "Button" and rawget(f, "text") then return f end end end
+      function ANCHOR() for _, f in ipairs(FRAMES) do if rawget(f, "pts") then for _, p in ipairs(f.pts) do if p[2] == UIParent then return f, p end end end end end
+      function UPDATE(seconds) CLOCK = CLOCK + seconds; for _, f in ipairs(FRAMES) do if f.scripts.OnUpdate then f.scripts.OnUpdate(f, 1.5) end end end
+      fire_event("PLAYER_LOGIN")`);
+    return lua;
+  }
+  const vis = (field: string) => s!.run(`local f = FIND("${field}"); return tostring(f and rawget(f, "vis"))`);
+  const toastShown = () => vis("coming");
+  const offerShown = () => vis("clear");
+  const iconShown = () => s!.run(`local f = ICON(); return tostring(f and rawget(f, "vis"))`);
+  const callFromCy = () => callFrom("Cy", "S|43|58|47|2600|3100|Duskwood|Raven Hill|Bo~MAGE~58~H|1800000100");
+  const attack = (lua: LuaSession) => lua.run(`ATTACK()`);
+
+  it("closes with the X and with a right-click on the title strip, out of combat and in combat", () => {
+    const lua = withFrames();
+    expect(callFrom("Bob", goodCall)).toBe("banner");
+    expect(toastShown()).toBe("true");
+    lua.run(`local t = FIND("coming"); t.grip.scripts.OnClick(t.grip, "LeftButton")`);
+    expect(toastShown()).toBe("true");   // a left click on the strip only drags
+    lua.run(`local t = FIND("coming"); t.grip.scripts.OnClick(t.grip, "RightButton")`);
+    expect(toastShown()).toBe("false");
+    lua.run(`SETTINGS.helpQuiet = false; IN_COMBAT = true; CLOCK = CLOCK + 200`);
+    expect(callFromCy()).toBe("banner");
+    expect(toastShown()).toBe("true");   // quiet mode off: the window shows in combat too
+    lua.run(`local t = FIND("coming"); t.close.scripts.OnClick(t.close)`);
+    expect(toastShown()).toBe("false");
+  });
+
+  it("never enables the keyboard and never makes a plain frame take the mouse", () => {
+    const lua = withFrames();
+    callFrom("Bob", goodCall);
+    lua.run(`NS.callForHelp.open(); NS.callForHelp.showOffer()`);
+    expect(toastShown()).toBe("true");
+    expect(offerShown()).toBe("true");
+    expect(lua.run(`return #KB .. "/" .. #MOUSE`)).toBe("0/0");
+  });
+
+  it("hides by itself: 15 seconds out of combat, 6 in combat", () => {
+    const lua = withFrames();
+    callFrom("Bob", goodCall);
+    lua.run(`UPDATE(14)`);
+    expect(toastShown()).toBe("true");
+    lua.run(`UPDATE(2)`);
+    expect(toastShown()).toBe("false");
+    lua.run(`SETTINGS.helpQuiet = false; IN_COMBAT = true`);
+    callFromCy();
+    lua.run(`UPDATE(5)`);
+    expect(toastShown()).toBe("true");
+    lua.run(`UPDATE(2)`);
+    expect(toastShown()).toBe("false");
+  });
+
+  it("is quiet in combat: a chat line and a small icon, no window and no sound, then the full toast after combat", () => {
+    const lua = withFrames();
+    lua.run(`IN_COMBAT = true`);
+    expect(callFrom("Bob", goodCall)).toBe("banner");
+    expect(toastShown()).toBe("nil");
+    expect(iconShown()).toBe("true");
+    expect(lua.run(`return tostring(SOUNDS)`)).toBe("0");
+    expect(msgs()).toContain("Bob is under attack in Duskwood");
+    lua.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(toastShown()).toBe("true");
+    expect(iconShown()).toBe("false");
+  });
+
+  it("drops a call that went stale during the fight and one its caller cleared", () => {
+    const lua = withFrames();
+    lua.run(`IN_COMBAT = true`);
+    callFrom("Bob", goodCall);
+    lua.run(`CLOCK = CLOCK + 130; IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(toastShown()).toBe("nil");
+    expect(iconShown()).toBe("false");
+    lua.run(`IN_COMBAT = true`);
+    callFrom("Bob", goodCall);
+    expect(iconShown()).toBe("true");
+    expect(callFrom("Bob", "C|42")).toBe("clear");
+    expect(iconShown()).toBe("false");
+    lua.run(`IN_COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")`);
+    expect(toastShown()).toBe("nil");
+  });
+
+  it("the icon opens the waiting call even in combat, and a right-click dismisses it", () => {
+    const lua = withFrames();
+    lua.run(`IN_COMBAT = true`);
+    callFrom("Bob", goodCall);
+    lua.run(`local i = ICON(); i.scripts.OnClick(i, "LeftButton")`);
+    expect(toastShown()).toBe("true");
+    expect(iconShown()).toBe("false");
+    lua.run(`CLOCK = CLOCK + 200`);
+    callFromCy();
+    lua.run(`local i = ICON(); i.scripts.OnClick(i, "RightButton")`);
+    expect(iconShown()).toBe("false");
+  });
+
+  it("puts a second call in the same window, behind the first", () => {
+    const lua = withFrames();
+    callFrom("Bob", goodCall);
+    expect(callFromCy()).toBe("banner");
+    expect(lua.run(`local n = 0 for _, f in ipairs(FRAMES) do if rawget(f, "coming") then n = n + 1 end end return n`)).toBe("1");
+    expect(lua.run(`return tostring(SOUNDS)`)).toBe("1");   // one sound for the window, not one per call
+    lua.run(`local t = FIND("coming"); t.close.scripts.OnClick(t.close)`);
+    expect(toastShown()).toBe("true");   // the waiting call takes the window
+    expect(lua.run(`return FIND("coming").sender`)).toBe("Cy");
+    lua.run(`local t = FIND("coming"); t.close.scripts.OnClick(t.close)`);
+    expect(toastShown()).toBe("false");
+  });
+
+  it("closes when the caller says all clear", () => {
+    const lua = withFrames();
+    callFrom("Bob", goodCall);
+    callFrom("Bob", "C|42");
+    expect(toastShown()).toBe("false");
+    expect(lua.run(`return tostring(rawget(FIND("coming"), "call"))`)).toBe("nil");
+  });
+
+  it("replying closes the toast", () => {
+    const lua = withFrames();
+    callFrom("Bob", goodCall);
+    lua.run(`NS.callForHelp.reply(true)`);
+    expect(toastShown()).toBe("false");
+    expect(sent()).toContain(":R|42|Y");
+  });
+
+  it("respects the alert style, the sound switch and a ten-minute mute", () => {
+    const lua = withFrames();
+    lua.run(`SETTINGS.helpAlert = "chat"`);
+    expect(callFrom("Bob", goodCall)).toBe("line");
+    expect(toastShown()).toBe("nil");
+    expect(msgs()).toContain("Bob is under attack");
+    lua.run(`SETTINGS.helpAlert = "off"; MSGS = {}`);
+    expect(callFrom("Cy", goodCall)).toBe("off");
+    expect(msgs()).toBe("");
+    lua.run(`SETTINGS.helpAlert = nil; SETTINGS.helpSound = false`);
+    expect(callFrom("Di", goodCall)).toBe("banner");
+    expect(lua.run(`return tostring(SOUNDS)`)).toBe("0");
+    lua.run(`NS.callForHelp.dismissAll(); NS.commandHandlers.sos({ "mute" })`);
+    expect(toastShown()).toBe("false");
+    expect(callFrom("Ed", goodCall)).toBe("line");
+    tick(601);
+    expect(callFrom("Flo", goodCall)).toBe("banner");
+    lua.run(`NS.callForHelp.dismissAll(); NS.commandHandlers.sos({ "mute" }); NS.commandHandlers.sos({ "unmute" })`);
+    expect(callFrom("Gus", goodCall)).toBe("banner");
+  });
+
+  it("saves the position, uses it, and starts at the default for old or damaged settings", () => {
+    const lua = withFrames();
+    lua.run(`SETTINGS.helpPos = { "TOPLEFT", "TOPLEFT", 30, -40 }`);
+    callFrom("Bob", goodCall);
+    expect(lua.run(`local a, p = ANCHOR(); return table.concat({ p[1], p[3], p[4], p[5] }, ",")`)).toBe("TOPLEFT,TOPLEFT,30,-40");
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition("TOP", "TOP", 10.4, -20.6))`)).toBe("true");
+    expect(lua.run(`return table.concat(SETTINGS.helpPos, ",")`)).toBe("TOP,TOP,10,-21");
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition(nil, "TOP", 1, 2))`)).toBe("false");
+    expect(lua.run(`return table.concat(SETTINGS.helpPos, ",")`)).toBe("TOP,TOP,10,-21");
+    lua.run(`NS.commandHandlers.sos({ "reset" })`);
+    expect(lua.run(`return tostring(SETTINGS.helpPos)`)).toBe("nil");
+    expect(lua.run(`local a, p = ANCHOR(); return table.concat({ p[1], p[3], p[4], p[5] }, ",")`)).toBe("TOPRIGHT,TOPRIGHT,-20,-220");
+  });
+
+  const anchorPoint = (lua: LuaSession) => lua.run(`local a, p = ANCHOR(); return table.concat({ p[1], p[3], p[4], p[5] }, ",")`);
+
+  it("keeps the whole window on screen: a saved position near an edge is moved in, a nonsense one falls back", () => {
+    const lua = withFrames();
+    lua.run(`UIParent.GetWidth = function() return 1920 end; UIParent.GetHeight = function() return 1080 end`);
+    // Near the bottom: the toast (and the offer under it) would hang off the screen.
+    lua.run(`SETTINGS.helpPos = { "TOPLEFT", "TOPLEFT", 30, -1000 }`);
+    callFrom("Bob", goodCall);
+    expect(anchorPoint(lua)).toBe("TOPLEFT,BOTTOMLEFT,30,170");
+    // Reset: the default top right corner, as the top-left of the footprint.
+    lua.run(`NS.commandHandlers.sos({ "reset" })`);
+    expect(anchorPoint(lua)).toBe("TOPLEFT,BOTTOMLEFT,1600,860");
+    // Past the right edge: saved moved in.
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition("TOPRIGHT", "TOPRIGHT", 500, -20))`)).toBe("true");
+    expect(lua.run(`return table.concat(SETTINGS.helpPos, ",")`)).toBe("TOPLEFT,BOTTOMLEFT,1620,1060");
+  });
+
+  it("saves a dragged position clamped to the screen, and uses the current screen size and UI scale", () => {
+    const lua = withFrames();
+    lua.run(`UIParent.GetWidth = function() return 1920 end; UIParent.GetHeight = function() return 1080 end`);
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition("TOPLEFT", "BOTTOMLEFT", -500, 5000))`)).toBe("true");
+    expect(lua.run(`return table.concat(SETTINGS.helpPos, ",")`)).toBe("TOPLEFT,BOTTOMLEFT,0,1080");
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition("TOPLEFT", "BOTTOMLEFT", 100, -50))`)).toBe("true");
+    expect(lua.run(`return table.concat(SETTINGS.helpPos, ",")`)).toBe("TOPLEFT,BOTTOMLEFT,100,170");
+    expect(lua.run(`return tostring(NS.callForHelp.setPosition("TOPLEFT", "BOTTOMLEFT", 0 / 0, 5))`)).toBe("false");
+    // A smaller UI (higher scale): a position saved on the big screen is moved in on the small one.
+    lua.run(`SETTINGS.helpPos = { "TOPLEFT", "BOTTOMLEFT", 1600, 900 }; UIParent.GetWidth = function() return 800 end; UIParent.GetHeight = function() return 600 end`);
+    callFrom("Bob", goodCall);
+    expect(anchorPoint(lua)).toBe("TOPLEFT,BOTTOMLEFT,500,600");
+  });
+
+  it("falls back to the default corner for nonsense saved numbers", () => {
+    const lua = withFrames();
+    lua.run(`UIParent.GetWidth = function() return 800 end; UIParent.GetHeight = function() return 600 end; SETTINGS.helpPos = { "TOPLEFT", "BOTTOMLEFT", 1e9, 5 }`);
+    callFrom("Bob", goodCall);
+    expect(anchorPoint(lua)).toBe("TOPLEFT,BOTTOMLEFT,480,380");
+  });
+
+  it("loads old SavedVariables cleanly: every new setting has a safe default", () => {
+    const lua = withFrames();
+    lua.run(`SETTINGS = { helpDefender = true, helpGuildChat = false, helpPos = "junk", helpAlert = 42 }`);
+    expect(lua.run(`return NS.callForHelp.alertMode() .. tostring(NS.callForHelp.sound()) .. tostring(NS.callForHelp.quiet())`)).toBe("toasttruetrue");
+    expect(callFrom("Bob", goodCall)).toBe("banner");
+    expect(toastShown()).toBe("true");
+    expect(lua.run(`local a, p = ANCHOR(); return table.concat({ p[1], p[3], p[4], p[5] }, ",")`)).toBe("TOPRIGHT,TOPRIGHT,-20,-220");
+  });
+
+  it("the caller's offer closes with X or a right-click and hides after its 20 seconds", () => {
+    const lua = withFrames();
+    attack(lua);
+    expect(offerShown()).toBe("true");
+    lua.run(`local o = FIND("clear"); o.close.scripts.OnClick(o.close)`);
+    expect(offerShown()).toBe("false");
+    lua.run(`CLOCK = CLOCK + 40`);
+    attack(lua);
+    expect(offerShown()).toBe("true");
+    lua.run(`local o = FIND("clear"); o.grip.scripts.OnClick(o.grip, "RightButton")`);
+    expect(offerShown()).toBe("false");
+    lua.run(`CLOCK = CLOCK + 40`);
+    attack(lua);
+    lua.run(`UPDATE(19)`);
+    expect(offerShown()).toBe("true");
+    lua.run(`UPDATE(3)`);
+    expect(offerShown()).toBe("false");
+    expect(sentCount()).toBe(0);   // nothing was ever sent by itself
+  });
+
+  it("after calling, the offer closes by itself after a minute but the call stays open", () => {
+    const lua = withFrames();
+    lua.run(`NS.callForHelp.open()`);
+    expect(offerShown()).toBe("true");
+    lua.run(`UPDATE(61)`);
+    expect(offerShown()).toBe("false");
+    expect(lua.run(`return tostring(NS.callForHelp.allClear())`)).toBe("true");
+    expect(sent()).toContain(":C|");
+  });
+
+  it("folds the guildmate list away until Nearby is pressed", () => {
+    const lua = withFrames();
+    lua.run(`ROSTER = { { "Kev", 60, "ROGUE", "Duskwood", true }, { "Ann-Realm", 58, "MAGE", "Duskwood", true } }
+      function GetNumGuildMembers() return #ROSTER end
+      function GetGuildRosterInfo(i) local r = ROSTER[i]; return r[1], "Member", 3, r[2], r[3], r[4], "", "", r[5] end`);
+    lua.run(`NS.callForHelp.open(); NS.callForHelp.refreshMates()`);
+    const shownInvites = `local n = 0 for _, r in ipairs(FRAMES) do if rawget(r, "inviteLine") and rawget(r, "vis") then n = n + 1 end end return n`;
+    expect(lua.run(shownInvites)).toBe("0");
+    lua.run(`local o = FIND("clear"); o.nearby.scripts.OnClick(o.nearby)`);
+    expect(lua.run(shownInvites)).toBe("1");
+  });
+
+  it("has the new command options", () => {
+    const lua = withFrames();
+    lua.run(`NS.commandHandlers.sos({ "alert", "chat" }); NS.commandHandlers.sos({ "sound", "off" }); NS.commandHandlers.sos({ "quiet", "off" })`);
+    expect(lua.run(`return NS.callForHelp.alertMode() .. tostring(NS.callForHelp.sound()) .. tostring(NS.callForHelp.quiet())`)).toBe("chatfalsefalse");
+    expect(msgs()).toContain("Call alerts: chat line only, sound off, quiet in combat off.");
+  });
+
+  it("speaks French on a French client", () => {
+    const lua = withFrames();
+    lua.run(`SETTINGS.language = "fr"`);
+    expect(lua.run(`return NS.L("Mute 10 min")`)).toBe("Muet 10 min");
+    expect(lua.run(`return NS.L("(+%d more)")`)).toBe("(+%d autres)");
   });
 });

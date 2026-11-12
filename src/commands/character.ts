@@ -1,4 +1,3 @@
-import { armoryMarkdown } from "../services/armory-link.js";
 import { characterName, displayCharacterName, loadFullNameBook, cleanCharacterName } from "../services/character-display.js";
 import { selectedCharacter } from "../services/character-match.js";
 import { SlashCommandBuilder, type ChatInputCommandInteraction, MessageFlags } from "discord.js";
@@ -6,17 +5,21 @@ import { prisma } from "../database.js";
 import { importCharacter, parseCharacterString } from "../services/character-import.js";
 import { applySelfExport, parseSelfExport } from "../services/self-export.js";
 import { autoLinkUnclaimed, claimCharacter, linkUnclaimed } from "../services/character-autolink.js";
+import { tellAutoLinked } from "../services/companion-link-dm.js";
 import { postToLogChannel } from "../services/housekeeping.js";
 import { hasPermission } from "../permissions.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { CLASSES } from "../wow-data.js";
 import { characterLinkPrompt } from "../services/character-link-prompt.js";
-import { blockVerifiedCharacter } from "../services/character-verify.js";
+import { unlinkCharacter } from "../services/character-verify.js";
 import { asLang, t } from "../i18n.js";
 import { removePictureByOfficer } from "../services/character-picture.js";
-import { characterTrustMap, REPORTED_HINT, trustSuffix } from "../services/character-trust.js";
 import { addRaceSubcommand, executeRace } from "./race.js";
-import { detachCharacter, isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
+import { characterPanel } from "../services/character-panel.js";
+import { isHoldingMember, officerMoveCharacter, WITH_DETACHED, DETACHED } from "../services/character-move.js";
+
+// One line for the claim and unlink replies so members find the panel (both languages: the replies themselves are English).
+const PANEL_HINT = [t("en", "panel.hint"), t("fr", "panel.hint")].join("\n");
 
 export const characterCommand = new SlashCommandBuilder()
   .setName("character")
@@ -72,7 +75,7 @@ export const characterCommand = new SlashCommandBuilder()
     .addStringOption((option) => option.setName("name").setDescription("Character").setAutocomplete(true)))
   .addSubcommand((subcommand) => subcommand
     .setName("list")
-    .setDescription("List your linked characters."))
+    .setDescription("Your characters: link, set main, unlink."))
   .addSubcommand((subcommand) => addRaceSubcommand(subcommand));
 
 // The realm most of the guild's characters use, so nobody types it.
@@ -96,23 +99,18 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
   }
   if (subcommand === "race") { await executeRace(interaction, context); return; }
   if (subcommand === "list") {
-    const characters = await guildService.listCharacters(context.memberId);
-    const book = await loadFullNameBook(prisma, context.guildId);
-    const trust = await characterTrustMap(prisma, context.guildId, characters);
-    const reported = characters.some((character) => trust.get(character.id) === "reported");
-    await interaction.reply({
-      content: characters.length === 0
-        ? "You have no linked characters."
-        : characters.map((character) => `${character.isMain ? "⭐" : "•"} ${displayCharacterName(character, book)} — ${character.race ? `${character.race} ` : ""}${character.className}${character.spec ? ` (${character.spec})` : ""}${character.lastSeenAt ? ` · last seen <t:${Math.floor(character.lastSeenAt.getTime() / 1000)}:R>` : ""}${armoryMarkdown(character) ? ` · ${armoryMarkdown(character)}` : ""}${trustSuffix(trust.get(character.id))}`).join("\n")
-          + (reported ? `\n-# ${REPORTED_HINT}` : ""),
-      flags: MessageFlags.Ephemeral
-    });
+    // The panel: the member's characters with Link, Set main, Unlink, Picture and Refresh (character-panel.ts).
+    await interaction.reply({ ...await characterPanel(prisma, interaction.user.id, interaction.guildId!), flags: MessageFlags.Ephemeral });
     return;
   }
 
   if (subcommand === "claim") {
     const result = await claimCharacter(prisma, context.guildId, context.memberId, interaction.options.getString("name", true));
-    await interaction.reply({ content: `Linked **${characterName(result.row)}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.`, flags: MessageFlags.Ephemeral });
+    // The same DM as every automatic link, with its "Not mine" undo (skipped quietly when DMs are closed).
+    if (interaction.guildId) void tellAutoLinked(interaction.client, prisma, interaction.guildId, context.guildId, [{ memberId: context.memberId, count: 1 }]);
+    await interaction.reply({ content: `Linked **${characterName(result.row)}** (${result.row.className}${result.row.level ? `, level ${result.row.level}` : ""}) as ${result.isMain ? "your main" : "an alt"}. Its gear and consumables now show up by themselves.
+
+${PANEL_HINT}`, flags: MessageFlags.Ephemeral });
     return;
   }
   if (subcommand === "unlink") {
@@ -128,18 +126,19 @@ export async function executeCharacter(interaction: ChatInputCommandInteraction)
     }
     // Detached, not deleted (owner decision, 10 November 2026): pictures, wishlist, professions and the
     // rest of its history stay with the row and come back when it is linked again or an officer moves it.
-    await prisma.$transaction((tx) => detachCharacter(tx, character.id));
     // The /guilded verify code that character keeps repeating in game must not link it back.
     // An officer unlinking someone else's character is a correction: their companion uploads must
     // not relink it either. Only this character is affected; their devices stay connected.
-    await blockVerifiedCharacter(prisma, context.guildId, character.memberId, character.name, character.realm, character.gameEdition, !isOwn);
+    await unlinkCharacter(prisma, character, context.guildId, !isOwn);
     if (interaction.guild) {
       await postToLogChannel(interaction.guild, isOwn
         ? `${interaction.user.username} unlinked their character ${characterName(character)}.`
         : `${interaction.user.username} unlinked ${characterName(character)} from ${character.member.displayName}.`);
     }
     await interaction.reply({
-      content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their uploads won't relink it; an officer can still move it to anyone (\`/officer character move\`)`}. Nothing was deleted: its history comes back when it is linked again. If the addon reports it again, it will show up as unclaimed until then.`,
+      content: `Unlinked **${characterName(character)}**${isOwn ? "" : ` from ${character.member.displayName}. Their uploads won't relink it; an officer can still move it to anyone (\`/officer character move\`)`}. Nothing was deleted: its history comes back when it is linked again. If the addon reports it again, it will show up as unclaimed until then.
+
+${PANEL_HINT}`,
       flags: MessageFlags.Ephemeral
     });
     return;

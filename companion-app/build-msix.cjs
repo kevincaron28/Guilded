@@ -2,6 +2,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const metadata = require("./package.json");
+const { STORE_DISPLAY_NAME } = require("./store-name.cjs");
 const xml = value => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 
 function storeConfig(identity, preview = false) {
@@ -16,7 +17,7 @@ function storeConfig(identity, preview = false) {
     extraMetadata: { guildedDistribution: "microsoft-store", guildedStorePreview: preview },
     win: { ...metadata.build.win, target: ["appx"], signExecutable: false },
     appx: { identityName: identity.name, publisher: xml(identity.publisher), publisherDisplayName: xml(identity.publisherDisplayName),
-      applicationId: "GuildedCompanion", displayName: preview ? "Guilded Companion Local Preview" : "Guilded Companion",
+      applicationId: "GuildedCompanion", displayName: preview ? `${STORE_DISPLAY_NAME} Local Preview` : STORE_DISPLAY_NAME,
       languages: ["en-US", "fr-FR"], minVersion: "10.0.19041.0", maxVersionTested: "10.0.22621.0",
       capabilities: ["runFullTrust"], addAutoLaunchExtension: false, customExtensionsPath: "build/store-startup.xml",
       artifactName: `Guilded.Companion.${metadata.version}.x64.${preview ? "LOCAL-PREVIEW" : "STORE-SUBMISSION"}.msix` }

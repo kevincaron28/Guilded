@@ -12,14 +12,13 @@ const app = readFileSync("companion-app/renderer/app.js", "utf8");
 const nav = html.slice(html.indexOf('<nav id="companion-navigation"'), html.indexOf("</nav>"));
 
 describe("the menu", () => {
-  it("lists the entries in order, with Server for officers only and no PoE2 screen", () => {
+  it("lists the entries in order (Guild, Server, Tools and Help moved to the website and Discord) and no PoE2 screen", () => {
     const pages = [...nav.matchAll(/<button class="nav[^"]*"[^>]*data-page="([a-z]+)"/g)].map((match) => match[1]);
-    expect(pages).toEqual(["status", "characters", "server", "wow", "settings", "help", "activity"]);
-    expect(nav).toMatch(/data-page="server" id="serverNav" hidden/);
+    expect(pages).toEqual(["status", "settings", "activity"]);
     expect(nav).not.toContain('data-page="poe"');
     expect(html).not.toContain("Path of Exile");
     expect(html).not.toContain("Diablo");
-    for (const label of [">Sync</button>", ">Guild</button>", ">Server</button>", ">Tools</button>"]) expect(nav, label).toContain(label);
+    for (const label of [">Sync</button>"]) expect(nav, label).toContain(label);
     expect(nav).toMatch(/>Settings <span id="setupBadge"/);
   });
 
@@ -32,10 +31,9 @@ describe("the menu", () => {
   });
 
   it("names each page the same way in the breadcrumb, in English and French", () => {
-    expect(app).toMatch(/const names = \{status:'Sync',link:'Link everything',characters:'Guild',/);
-    expect(app).toMatch(/wow:'Tools',settings:'Settings',/);
+    expect(app).toMatch(/const names = \{status:'Sync',link:'Link everything',settings:'Settings',/);
     expect(app).not.toContain("PoE2 mapping");
-    for (const key of ["Sync", "Guild", "Server", "Tools", "Settings", "Run setup again", "Help & privacy", "Activity", "Link everything"]) expect(fr[key], key).toBeTruthy();
+    for (const key of ["Sync", "Settings", "Run setup again", "Activity", "Link everything"]) expect(fr[key], key).toBeTruthy();
   });
 });
 

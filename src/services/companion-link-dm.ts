@@ -1,6 +1,6 @@
 import {
-  ActionRowBuilder, ButtonBuilder, ButtonStyle, escapeMarkdown, MessageFlags,
-  type ButtonInteraction, type Client
+  ActionRowBuilder, ButtonBuilder, ButtonStyle, escapeMarkdown, MessageFlags, StringSelectMenuBuilder,
+  type ButtonInteraction, type Client, type Guild, type StringSelectMenuInteraction
 } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, t, type Lang } from "../i18n.js";
@@ -17,7 +17,12 @@ import { displayCharacterName, loadFullNameBook } from "./character-display.js";
 
 export const LINKED_PREFIX = "linked:";
 const MINE = `${LINKED_PREFIX}mine`;
+const NOT_MINE_BUTTON = `${LINKED_PREFIX}no:`; // + character id
+const NOT_MINE_MENU = `${LINKED_PREFIX}no`;
+const WRONG_SERVER = `${LINKED_PREFIX}server`;
+const ADD_MORE = `${LINKED_PREFIX}add`;
 const MAX_NAMES = 25;
+const MAX_NOT_MINE_BUTTONS = 5;
 export const LINK_DM_DELAY_MS = 30_000;
 
 type Database = Pick<PrismaClient, "character" | "member" | "memberLinkNotice">;
@@ -28,6 +33,32 @@ export type LinkedCharacter = { name: string; displayName: string | null; classN
 export function linkedCharactersRow(lang: Lang): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder().setCustomId(MINE).setLabel(t(lang, "linked.button")).setStyle(ButtonStyle.Secondary));
+}
+
+export type UndoCharacter = { id: string; name: string; displayName: string | null };
+type UndoRow = ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>;
+
+/**
+ * The undo rows of every automatic-link DM: a "Not mine" button per character (a select menu above five), then the
+ * "My linked characters" and "Wrong server" buttons. Discord allows 5 rows: this uses 2.
+ */
+export function linkUndoRows(lang: Lang, characters: readonly UndoCharacter[], book: Parameters<typeof displayCharacterName>[1]): UndoRow[] {
+  const rows: UndoRow[] = [];
+  const shown = characters.slice(0, MAX_NAMES);
+  const label = (character: UndoCharacter, max: number) => displayCharacterName(character, book).slice(0, max);
+  if (shown.length > 0 && shown.length <= MAX_NOT_MINE_BUTTONS) {
+    rows.push(new ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>().addComponents(shown.map((character) =>
+      new ButtonBuilder().setCustomId(`${NOT_MINE_BUTTON}${character.id}`).setLabel(t(lang, "linked.notMine", { name: label(character, 50) })).setStyle(ButtonStyle.Danger))));
+  } else if (shown.length > MAX_NOT_MINE_BUTTONS) {
+    rows.push(new ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>().addComponents(
+      new StringSelectMenuBuilder().setCustomId(NOT_MINE_MENU).setPlaceholder(t(lang, "linked.notMineMenu"))
+        .addOptions(shown.map((character) => ({ label: label(character, 100), value: character.id })))));
+  }
+  rows.push(new ActionRowBuilder<ButtonBuilder | StringSelectMenuBuilder>().addComponents(
+    new ButtonBuilder().setCustomId(MINE).setLabel(t(lang, "linked.button")).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(ADD_MORE).setLabel(t(lang, "linked.add")).setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder().setCustomId(WRONG_SERVER).setLabel(t(lang, "linked.wrongServer")).setStyle(ButtonStyle.Secondary)));
+  return rows;
 }
 
 /** One line per character: main first, full name, class and level. */
@@ -79,7 +110,7 @@ export async function tellLinkedCharacters(client: Messenger | null | undefined,
     const server = (await client.guilds.fetch(guildDiscordId).catch(() => null))?.name ?? "Discord";
     const added = notice ? fresh.map((character) => displayCharacterName(character, book)) : [];
     await client.users.send(characters[0]!.member.discordUserId, {
-      content: linkedMessage(lang, server, linkedLines(lang, characters, book), added), components: [linkedCharactersRow(lang)], allowedMentions: { parse: [] }
+      content: linkedMessage(lang, server, linkedLines(lang, characters, book), added), components: linkUndoRows(lang, characters, book), allowedMentions: { parse: [] }
     });
     return true;
   } catch {
@@ -107,28 +138,68 @@ export function linkedCharacterCount(database: Pick<PrismaClient, "character">, 
   return database.character.count({ where: { memberId } });
 }
 
-type AnswerDatabase = Pick<PrismaClient, "character" | "member" | "guildSettings">;
-
-/** The private answer to the button: every guild the Discord user is linked in (only this one when clicked in a server). */
-export async function linkedCharactersAnswer(database: AnswerDatabase, discordUserId: string, discordGuildId?: string | null): Promise<string> {
-  const members = await database.member.findMany({
-    where: { discordUserId, ...(discordGuildId ? { guild: { discordId: discordGuildId } } : {}), characters: { some: {} } },
-    select: { guildId: true, guild: { select: { name: true } }, characters: { select: { name: true, displayName: true, className: true, level: true, isMain: true } } },
-    take: 10
-  });
-  if (!members.length) return `${t("en", "linked.none")}\n${t("fr", "linked.none")}`;
-  const sections: string[] = [];
-  for (const member of members) {
-    const settings = await database.guildSettings.findUnique({ where: { guildId: member.guildId }, select: { language: true } });
+/**
+ * Name-match, sole-newcomer and /character claim links (no companion upload involved): tell each member once, with the
+ * same undo buttons. `links` is one entry per member with how many characters were just linked to them. Never throws.
+ */
+export async function tellAutoLinked(client: Messenger | null | undefined, database: Database & Pick<PrismaClient, "guildSettings">,
+  guildDiscordId: string, guildId: string, links: readonly { memberId: string; count: number }[], delayMs = LINK_DM_DELAY_MS): Promise<void> {
+  if (!client || !links.length) return;
+  try {
+    const settings = await database.guildSettings.findUnique({ where: { guildId }, select: { language: true } });
     const lang = asLang(settings?.language);
-    const book = await loadFullNameBook(database, member.guildId);
-    sections.push(`**${escapeMarkdown(member.guild.name)}**\n${linkedLines(lang, member.characters, book)}\n${t(lang, "linked.hint")}`);
-  }
-  return sections.join("\n\n").slice(0, 1990);
+    for (const link of links) {
+      const total = await database.character.count({ where: { memberId: link.memberId } });
+      scheduleLinkedCharacters(client, database, { guildDiscordId, memberId: link.memberId, lang, before: Math.max(0, total - link.count) }, delayMs);
+    }
+  } catch { /* a missing DM never fails a link */ }
 }
 
-export async function handleLinkedButton(interaction: ButtonInteraction, database: AnswerDatabase): Promise<void> {
-  if (interaction.customId !== MINE) return;
+type UndoDatabase = Pick<PrismaClient, "character" | "member" | "guildSettings" | "characterVerifyClaim">;
+
+/**
+ * "Not mine": unlinks the character as BLOCKED (linkPairedCharacter, the name matcher and the pre-link all respect it, so
+ * it is not linked back) and writes one line to the officer log. Only the member the DM went to can press it.
+ */
+export async function unlinkNotMine(database: UndoDatabase, client: Pick<Client, "guilds">, discordUserId: string, characterId: string, source: "button" | "panel" = "button"): Promise<string> {
+  const character = await database.character.findUnique({
+    where: { id: characterId },
+    select: { id: true, detachedAt: true, name: true, realm: true, gameEdition: true, displayName: true, member: { select: { id: true, guildId: true, discordUserId: true, guild: { select: { discordId: true, name: true } } } } }
+  });
+  // Already detached (a stale button): nothing to unlink, so no second block write or log line.
+  if (!character || character.detachedAt) return `${t("en", "linked.gone")}\n${t("fr", "linked.gone")}`;
+  const settings = await database.guildSettings.findUnique({ where: { guildId: character.member.guildId }, select: { language: true } });
+  const lang = asLang(settings?.language);
+  if (character.member.discordUserId !== discordUserId) return t(lang, "linked.notYours");
+  // Loaded here, not at the top: housekeeping.ts imports this file (a cycle otherwise), and both are only needed on a click.
+  const [{ unlinkCharacter }, { postToLogChannel }] = await Promise.all([import("./character-verify.js"), import("./housekeeping.js")]);
+  // Same sequence as /character unlink: detached with its history, another main promoted, BLOCKED recorded.
+  await unlinkCharacter(database as unknown as PrismaClient, { ...character, memberId: character.member.id }, character.member.guildId, false);
+  const book = await loadFullNameBook(database, character.member.guildId);
+  const name = displayCharacterName(character, book);
+  const guild: Guild | null = await client.guilds.fetch(character.member.guild.discordId).catch(() => null);
+  if (guild) await postToLogChannel(guild, t(lang, source === "panel" ? "linked.officerLogPanel" : "linked.officerLog", { user: `<@${discordUserId}>`, name })).catch(() => undefined);
+  return t(lang, "linked.unlinked", { name: escapeMarkdown(name), server: escapeMarkdown(character.member.guild.name) });
+}
+
+export async function handleLinkedButton(interaction: ButtonInteraction | StringSelectMenuInteraction, database: UndoDatabase): Promise<void> {
+  const id = interaction.customId;
+  if (id === WRONG_SERVER) {
+    // The DM has no server context here: answer in both languages.
+    await interaction.reply({ content: `${t("en", "linked.wrongServerHelp")}\n\n${t("fr", "linked.wrongServerHelp")}`.slice(0, 1990), flags: MessageFlags.Ephemeral });
+    return;
+  }
+  if ((id === NOT_MINE_MENU && interaction.isStringSelectMenu()) || id.startsWith(NOT_MINE_BUTTON)) {
+    const characterId = interaction.isStringSelectMenu() ? interaction.values[0] : id.slice(NOT_MINE_BUTTON.length);
+    if (!characterId) return;
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.editReply({ content: await unlinkNotMine(database, interaction.client, interaction.user.id, characterId), allowedMentions: { parse: [] } });
+    return;
+  }
+  if (id !== MINE && id !== ADD_MORE) return;
+  // Acknowledge first: the panel needs several queries (and a lazy import) and Discord gives 3 seconds.
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-  await interaction.editReply({ content: await linkedCharactersAnswer(database, interaction.user.id, interaction.guildId), allowedMentions: { parse: [] } });
+  // The same panel as /character list (character-panel.ts); loaded here because that file imports this one.
+  const { openPanelFor } = await import("./character-panel.js");
+  await openPanelFor(interaction, database as unknown as Parameters<typeof openPanelFor>[1], id === ADD_MORE ? "link" : "panel");
 }

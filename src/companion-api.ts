@@ -16,7 +16,8 @@ import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-li
 import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
 import { companionMe } from "./services/companion-me.js";
 import { albumFor } from "./services/companion-album.js";
-import { applyWorldPvpUpload, parseWorldPvpUpload } from "./services/world-pvp.js";
+import { applyWorldPvpUpload, parseWorldPvpUploads } from "./services/world-pvp.js";
+import { scheduleBgLadderRefresh } from "./services/pvp-board-refresh.js";
 import { applyGuildMapUpload, guildMapFor, parseGuildMapUpload, setMapSharing } from "./services/guild-map.js";
 import { liveNewsFeed } from "./services/news-feed.js";
 import { updateProfessionDirectory } from "./services/profession-directory.js";
@@ -54,7 +55,7 @@ import { serverKnowsWowGuild } from "./services/wow-guilds.js";
 import { retryWriteConflict, serializeByKey } from "./services/transaction-retry.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
-import { applyOrderActions, craftOrdersForAddon, parseAddonOrderActions } from "./services/craft-orders.js";
+import { applyOrderActions, applyOrderRequests, craftOrdersForAddon, parseAddonOrderActions, parseAddonOrderRequests, unpostedGameRequests } from "./services/craft-orders.js";
 import { applyBoardVotes, applyRelayedBoardVotes, boardEnabled, boardForAddon, createBoardService, myBoardVotes, parseAddonBoardPosts, parseAddonBoardVotes } from "./services/guild-board.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
@@ -109,7 +110,7 @@ import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
 import { createLeaderboardPages, guildDungeonSummary, prismaLeaderboardStore } from "./services/public-leaderboard.js";
 import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personalAccess, prismaPersonalStore } from "./services/personal-pairing.js";
-import { claimDevice, DEVICE_LIMITS, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
+import { claimDevice, DEVICE_LIMITS, networkKey, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
 import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
@@ -571,7 +572,8 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
     boardForAddon(prisma, guild.id),
     // 9.1 guild bank (guild-bank-member.ts): contents to search in game, the low list, this member's requests.
     bankForAddon(prisma, guild.id, access.memberId, !!access.officer),
-    // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel.
+    // Officers only (8.5 batch 3): the names waiting for a guild invite, for the addon's "To invite" panel. The bot does not
+    // know which guild ranks hold the invite right, so members' files never carry applicants' names.
     access.officer ? pendingInvites(prisma, guild.id).then(inviteListForAddon) : Promise.resolve(null),
     publicRaids(prisma, hostedPilot.allows),
     // Crafting orders in game (craft-orders.ts): Discord craft requests for the addon's Orders page; the same for everyone.
@@ -755,7 +757,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (isDeviceRegister || isDeviceUpload || isDeviceClaim) {
         const devices = prismaInstallStore(prisma, (discordId) => client?.guilds.cache.get(discordId)?.name ?? null);
         if (isDeviceRegister) {
-          if (!deviceRegistrations(address)) { json(response, 429, { error: "Too many new companions from this network. Try again later." }); return; }
+          if (!deviceRegistrations(networkKey(address))) { json(response, 429, { error: "Too many new companions from this network. Try again later." }); return; }
           json(response, 200, await registerDevice(devices));
           return;
         }
@@ -1292,6 +1294,28 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           }
         }
       }
+      // Craft requests made in game (craft-orders.ts): the uploader's own and ones a guildmate's addon heard. Each is
+      // created once (its gameRef), only for a confirmed character of an active member, and posted like a Discord request.
+      if (pairedMemberId) {
+        const ownRequests = parseAddonOrderRequests(preview.snapshot.craftOrderRequests);
+        const relayedRequests = parseAddonOrderRequests(preview.snapshot.craftOrderRelayRequests, true);
+        const created = ownRequests.length || relayedRequests.length
+          ? await applyOrderRequests(prisma, guild.id, pairedMemberId, ownRequests, relayedRequests)
+            .catch((error: unknown) => { console.warn("Craft requests from the addon failed", error); return []; })
+          : [];
+        // A request whose Discord post failed earlier (no thread, no orders line) is posted again, a few per upload.
+        const retry = await unpostedGameRequests(prisma, guild.id).catch(() => [] as string[]);
+        const toPost = [...new Set([...created.map((request) => request.id), ...retry])];
+        if (created.length) markGuildChanged(guild.id);
+        if (toPost.length) {
+          const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
+          for (const id of toPost) {
+            if (!discordGuild) break;
+            const result = await withGuildScope(prisma, guild.id, () => postCraftRequest(discordGuild, id)).catch((error: unknown) => { console.warn("Craft request post failed", error); return null; });
+            if (!result?.posted && !retry.includes(id)) console.warn(`Craft request ${id} made in game was not posted to Discord yet; the next upload retries`);
+          }
+        }
+      }
       // 9.1 guild board (guild-board.ts): votes made in game, the uploader's own and guildmates' heard in
       // game; officers' news written in game. Each is idempotent, so a resent upload changes nothing.
       if (pairedMemberId) {
@@ -1306,9 +1330,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       // World PvP: this week's counters, capped and checked against the guild's real calls (world-pvp.ts).
       if (pairedMemberId && preview.snapshot.worldPvp.length) {
-        const worldChanged = await applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUpload(preview.snapshot.worldPvp))
+        const worldChanged = await applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUploads(preview.snapshot.worldPvp))
           .catch((error: unknown) => { console.warn("World PvP upload failed", error); return false; });
-        if (worldChanged) markGuildChanged(guild.id);
+        if (worldChanged) { markGuildChanged(guild.id); void scheduleBgLadderRefresh(prisma, guild.id); }
       }
       if (!access.officer) {
         // Guildmates heard in game (level, class, race, professions): applied to already-linked

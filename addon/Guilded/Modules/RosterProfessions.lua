@@ -1,8 +1,6 @@
--- 8.5 track C4 (addon half): guildmates' professions on Blizzard's guild roster, and an opt-in officer
--- tool that writes them into PUBLIC guild notes. Skills come from the readiness digests guildmates
--- already share (db.peerRoster) and from your own character. The note tool only builds a preview and
--- hands it to the reviewed RosterTools engine: one click per note, verified, audited, never officer
--- notes, and only for notes that are empty or already a profession tag. Nothing runs on login.
+-- 8.5 track C4 (addon half): guildmates' professions on Blizzard's guild roster. Skills come from the
+-- readiness digests guildmates already share (db.peerRoster) and from your own character. 9.2: the opt-in
+-- officer tool that wrote them into PUBLIC guild notes was removed (WoW Forever refuses guild-note edits).
 local _, ns = ...
 ns = ns or {}
 local module = {}
@@ -188,39 +186,6 @@ function module.text()
   end
   if #lines == 0 then return L("No professions shared by guildmates yet.") end
   return table.concat(lines, "\n")
-end
-
--- The opt-in note tool. Rows only for characters whose PUBLIC note is empty or already a tag, whose
--- rank is below yours, and whose tag differs from what is there. Never officer notes, never yourself.
-function module.plan()
-  local tools = ns.rosterTools
-  if not tools or not tools.authorized() then return nil, L("Current officer access is required.") end
-  local snapshot, err = tools.snapshot()
-  if not snapshot then return nil, L(err or "Refresh the full guild roster first.") end
-  local rows, skipped, lines = {}, { notWritable = 0, noSkills = 0, same = 0 }, { "character\taction\tvalue" }
-  local keys = {}
-  for key in pairs(snapshot.rows) do keys[#keys + 1] = key end
-  table.sort(keys)
-  for _, key in ipairs(keys) do
-    local row = snapshot.rows[key]
-    if row.key ~= snapshot.actor.key and row.rank > snapshot.actor.rank and row.public ~= nil then
-      local tag = module.tag(module.skillsFor(row.name))
-      if tag == "" then skipped.noSkills = skipped.noSkills + 1
-      elseif not module.noteIsWritable(row.public) then skipped.notWritable = skipped.notWritable + 1
-      elseif row.public == tag then skipped.same = skipped.same + 1
-      elseif #rows < 50 then rows[#rows + 1] = row.name; lines[#lines + 1] = row.name .. "\tpublic\t" .. tag end
-    end
-  end
-  if #rows == 0 then return nil, L("No public notes to update."), skipped end
-  return table.concat(lines, "\n"), #rows, skipped
-end
-
-function module.preview()
-  local tsv, count, skipped = module.plan()
-  if not tsv then return nil, count end
-  local plan, err = ns.rosterTools.preview(tsv)
-  if not plan then return nil, err end
-  return plan, count, skipped
 end
 
 local frame = CreateFrame("Frame")

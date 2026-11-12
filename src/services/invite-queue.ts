@@ -4,7 +4,12 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 // first and a last name) in the invite channel; the bot records it, officers see it in /mod invites and in the
 // addon's "To invite" panel, and it is done when the character shows up in a roster upload or an officer reacts.
 
+
+
 type Database = Pick<PrismaClient, "inviteRequest">;
+
+/** How long after a request is handled its messages are removed from the invite channel (invite-cleanup.ts). Easy to change. */
+export const CLEANUP_DELAY_MS = 60 * 60_000;
 
 /** The bot's "seen, waiting for an invite" reaction. */
 export const SEEN = "👀";
@@ -24,6 +29,8 @@ export function parseInviteName(content: string | null | undefined): ParsedInvit
   text = text.replace(LEAD_IN, "").trim();
   const match = NAME.exec(text);
   if (!match) return null;
+  // A dash in the last word is kept ("Anna Smith-Jones" is a real surname); a "-Realm" the player typed is matched against
+  // the roster's own "Name-Realm" spelling in markInvitedByName.
   const displayName = `${match[1]} ${match[2]}`;
   return { displayName, nameKey: displayName.normalize("NFC").toLowerCase() };
 }
@@ -56,32 +63,58 @@ export async function pendingInvites(database: Database, guildId: string, limit 
 export interface InvitedRow { id: string; channelId: string; messageId: string; displayName: string; notifyMessageId?: string | null }
 
 /** Case, accents and surrounding spaces ignored: "Drakka  Whitefang" and "drakka whitefang" are the same character. */
-export const foldKey = (name: string): string => nameKeyOf(name).normalize("NFD").replace(/\p{M}/gu, "");
+// The addon folds the same letters (Modules/InviteQueue.lua, generated from this rule; tests/lua/invite-queue.test.ts compares them).
+export const foldKey = (name: string): string => nameKeyOf(name).normalize("NFD").replace(/\p{M}/gu, "")
+  .replace(/[øØ]/gu, "o").replace(/[đĐ]/gu, "d").replace(/[łŁ]/gu, "l").replace(/[ıİ]/gu, "i");
+
+const REALM_SPLIT = /^(.+ .+)-([^\s-]+)$/u;
+/**
+ * The realm names in use, read from a roster: a dash suffix after a complete "First Last" pair that at least two names carry
+ * and that half or more of all the names carry. "Anna Smith-Jones" (a hyphenated surname, no realm) is never a realm.
+ * The addon applies the same rule (Modules/InviteQueue.lua, guildKeys).
+ */
+export function knownRealms(names: readonly string[]): Set<string> {
+  const folded = names.map(foldKey).filter(Boolean);
+  const counts = new Map<string, number>();
+  for (const name of folded) { const m = REALM_SPLIT.exec(name); if (m) counts.set(m[2]!, (counts.get(m[2]!) ?? 0) + 1); }
+  return new Set([...counts].filter(([, count]) => count >= 2 && count * 2 >= folded.length).map(([suffix]) => suffix));
+}
+/** A folded "first last-realm" without its realm; any other dash is part of the name. */
+export function stripRealm(folded: string, realms: ReadonlySet<string>): string {
+  const m = REALM_SPLIT.exec(folded);
+  return m && realms.has(m[2]!) ? m[1]! : folded;
+}
 
 /**
  * Marks every waiting post of these names as invited and returns them, so the bot can add the check marks.
- * A roster name matches a post when they are the same after folding case and accents, with a "-Realm" suffix
- * dropped; a first-name-only roster entry (older uploads) matches only when exactly one waiting name starts with it.
+ * A roster name matches a post when they are the same after folding case and accents, with a known "-Realm" suffix
+ * dropped (never a hyphenated surname); a first-name-only roster entry (older uploads) matches only when exactly one waiting name starts with it.
  */
-export async function markInvitedByName(database: Database, guildId: string, names: readonly string[], by: string): Promise<InvitedRow[]> {
+export async function markInvitedByName(database: Database, guildId: string, names: readonly string[], by: string, realms: ReadonlySet<string> = knownRealms(names)): Promise<InvitedRow[]> {
   const wanted = [...new Set(names.map(foldKey).filter(Boolean))];
   if (!wanted.length) return [];
   const waiting = await database.inviteRequest.findMany({ where: { guildId, status: "PENDING" }, select: { id: true, nameKey: true, channelId: true, messageId: true, displayName: true, notifyMessageId: true }, take: 1000 });
   if (!waiting.length) return [];
   const byFold = new Map<string, typeof waiting>();
-  for (const row of waiting) { const key = foldKey(row.nameKey); byFold.set(key, [...(byFold.get(key) ?? []), row]); }
+  // A request typed with the realm ("Anna Smith-RealmName") is also indexed without it.
+  for (const row of waiting) { const full = foldKey(row.nameKey); for (const key of new Set([full, stripRealm(full, realms)])) byFold.set(key, [...(byFold.get(key) ?? []), row]); }
   const hit = new Set<string>();
+  const certain = new Set<string>(); // a full first+last name match: the only kind that starts the clean-up clock
   for (const name of wanted) {
-    const bare = name.replace(/-[^\s-]+$/u, "");
+    const bare = stripRealm(name, realms);
     const exact = byFold.get(name) ?? byFold.get(bare);
-    if (exact) { exact.forEach((row) => hit.add(row.id)); continue; }
+    if (exact) { exact.forEach((row) => { hit.add(row.id); certain.add(row.id); }); continue; }
     if (bare.includes(" ")) continue;
     const loose = [...byFold.keys()].filter((key) => key.startsWith(`${bare} `));
     if (loose.length === 1) byFold.get(loose[0]!)!.forEach((row) => hit.add(row.id));
   }
   const rows = waiting.filter((row) => hit.has(row.id)).map(({ id, channelId, messageId, displayName, notifyMessageId }) => ({ id, channelId, messageId, displayName, notifyMessageId }));
   if (!rows.length) return [];
-  await database.inviteRequest.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data: { status: "INVITED", invitedBy: by, invitedAt: new Date() } });
+  const now = new Date();
+  await database.inviteRequest.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data: { status: "INVITED", invitedBy: by, invitedAt: now, cleanupAt: null } });
+  // The clean-up clock starts on a full name match, or on an officer's own action (by is not "roster"); a first-name-only roster guess only marks.
+  const due = rows.filter((row) => by !== "roster" || certain.has(row.id)).map((row) => row.id);
+  if (due.length) await database.inviteRequest.updateMany({ where: { id: { in: due } }, data: { cleanupAt: new Date(now.getTime() + CLEANUP_DELAY_MS) } });
   return rows;
 }
 

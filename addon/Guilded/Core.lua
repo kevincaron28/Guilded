@@ -1413,6 +1413,54 @@ local function inRaidGroup()
   return false
 end
 
+-- (9.1.7) Bursty events (a 300-member roster fires GUILD_ROSTER_UPDATE many times in a few seconds, gear
+-- changes fire UNIT_INVENTORY_CHANGED in clusters) run their heavy work once, shortly after the last
+-- burst began: the first call schedules it, calls while it is pending fold into it. In combat the run
+-- waits (the work is not needed there). Without timers it runs at once.
+local deferredWork = {}
+local function inCombatNow()
+  if ns.compat and ns.compat.inCombat then return ns.compat.inCombat() and true or false end
+  return (InCombatLockdown and InCombatLockdown()) and true or false
+end
+local lastWorkAt = {}
+-- `leading`: the first call of a burst runs at once (it is the news the rest of the code expects to
+-- see), calls within `seconds` of it fold into one more run when the window ends.
+local function deferWork(key, seconds, fn, leading)
+  if not (C_Timer and C_Timer.After) then pcall(fn) return end
+  if leading then
+    local at = (GetTime and GetTime()) or 0
+    local last = lastWorkAt[key]
+    if not deferredWork[key] and (last == nil or at - last >= seconds or at < last) and not inCombatNow() then
+      lastWorkAt[key] = at
+      local ok, err = pcall(fn)
+      if not ok then logDiagnostic("LUA_ERROR", key .. ": " .. tostring(err)) end
+      return
+    end
+    if deferredWork[key] then return end
+    deferredWork[key] = true
+    local wait = last and math.max(0.5, seconds - (at - last)) or seconds
+    local function lateRun()
+      if inCombatNow() then C_Timer.After(5, lateRun) return end
+      deferredWork[key] = nil
+      lastWorkAt[key] = (GetTime and GetTime()) or 0
+      local ok2, err2 = pcall(fn)
+      if not ok2 then logDiagnostic("LUA_ERROR", key .. ": " .. tostring(err2)) end
+    end
+    C_Timer.After(wait, lateRun)
+    return
+  end
+  if deferredWork[key] then return end
+  deferredWork[key] = true
+  local function run()
+    if inCombatNow() then C_Timer.After(5, run) return end
+    deferredWork[key] = nil
+    local ok, err = pcall(fn)
+    if not ok then logDiagnostic("LUA_ERROR", key .. ": " .. tostring(err)) end
+  end
+  C_Timer.After(seconds, run)
+end
+ns.deferWork = deferWork
+
 local function maybeAutoSync(minInterval)
   local nowTime = time()
   if (nowTime - lastAutoSyncAt) < minInterval then return end
@@ -1478,7 +1526,9 @@ end
 local function showDiagnostics(args)
   showIdentity()
   -- WoW Forever, 8.5: legacy first-name keys (EP/GP accounts first) an officer still has to assign.
-  local legacy = ns.util.nameMigrationLines and ns.util.nameMigrationLines(db) or {}
+  -- (9.1.7) Debug detail: officers, or /guilded diag names|all; ordinary members are not shown it.
+  local wantNames = args and (string.lower(args[1] or "") == "names" or string.lower(args[1] or "") == "all")
+  local legacy = (wantNames or isOfficer()) and ns.util.nameMigrationLines and ns.util.nameMigrationLines(db) or {}
   if #legacy > 0 then
     message(string.format(L("%d saved entries still use a first name only:"), #legacy))
     for index = 1, math.min(5, #legacy) do message(legacy[index]) end
@@ -1548,7 +1598,7 @@ end
 
 -- Each rank only sees the commands it can use. Module help lines are either
 -- plain strings (everyone) or { officer = true, text = "..." }.
-local function showHelp()
+local function showFullHelp()
   local officer = isOfficer()
   message("|cffffd100Everyday|r")
   message("/guilded menu (or click the minimap coin) | inspect | status | roster | standings [player] | diag | version")
@@ -1581,11 +1631,36 @@ local function showHelp()
   message("/guilded modules - turn optional parts (bidding, dungeons...) on or off")
 end
 
+-- /guilded help: the few commands a member needs. Every other command keeps working and is listed by /guilded help all.
+local function showHelp()
+  message("|cffffd100Guilded|r")
+  message(L("/guilded - open the Guilded window"))
+  message(L("/guilded verify <code> - link all your characters to Discord at once (Discord: /character pair gives the line)"))
+  message(L("/guilded companion - the three steps to set up the companion"))
+  message(L("/guilded sync - save your addon data so the companion can send it"))
+  message(L("/guilded map - the guild map"))
+  message(L("/guilded announce off - stop your guild-chat milestone announcements"))
+  message(L("/guilded diag - problems the addon recorded, to copy for a bug report"))
+  message(L("/gsos - call guildmates for help"))
+  message(L("/gdg - dungeon groups"))
+  message(L("/guilded help all - every command"))
+end
+
 -- Extension point for modules loaded after Core.lua (see Modules/Casino.lua):
 -- ns.commandHandlers["casino"] = function(args) ... end registers /guilded casino ...
 -- table.insert(ns.commandHelp, "...") adds a line to /guilded help.
 ns.commandHandlers = ns.commandHandlers or {}
 ns.commandHelp = ns.commandHelp or {}
+
+-- Commands of features removed in 9.2: they print one line instead of the help text.
+-- /guilded <command> is kept for one release so officers' macros explain themselves.
+ns.removedCommands = ns.removedCommands or {
+  motd = "WoW does not let addons set the guild message.",
+  welcome = "WoW does not let addons send the automatic welcome whisper.",
+  finder = "Blizzard's group finder is not available to addons on WoW Forever.",
+  probe = "the achievement probe finished its job.",
+  partners = "levelling partners were replaced by Layer invite (/guilded layer).",
+}
 
 -- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
 -- name on their own. Nothing is changed here; an officer moves or merges them by hand.
@@ -1627,7 +1702,7 @@ ns.MODULES = {
   { key = "presence", name = "Availability", desc = "opt-in availability and local activity observations", commands = { "free" } },
   { key = "scores", name = "Dungeon scores", desc = "a dungeon score per player from recorded runs, on tooltips", commands = { "score" } },
   { key = "guildlog", name = "Guild event log", desc = "joins, leaves, promotions and removals, kept longer than the game keeps them", commands = { "guildlog" } },
-  { key = "recruit", name = "Recruiting", desc = "officers' prospect list and a welcome whisper for new members", commands = { "recruit", "welcome" } },
+  { key = "recruit", name = "Recruiting", desc = "officers' prospect list", commands = { "recruit" } },
   { key = "chattags", name = "Main names in chat", desc = "the main's name next to an alt in guild and officer chat", commands = { "chattags" } },
   { key = "guildbank", name = "Guild bank snapshot", desc = "what the guild bank held when it was last opened", commands = { "gbank" } },
   { key = "pugcheck", name = "Pug gear check", desc = "item level and missing enchants of group members from outside the guild", commands = { "pugcheck" } },
@@ -1638,7 +1713,7 @@ ns.MODULES = {
   { key = "imports", name = "Loot imports", desc = "softres.it lists and That's My BiS priorities", commands = { "import", "tmb" } },
 }
 local MODULE_ALIASES = { map = "guildmap", score = "scores", bid = "bidding", bids = "bidding", gp = "bidding", lc = "council", reserves = "reserve", recipe = "recipes", cooldown = "recipes", crafting = "recipes", softres = "reserve", sr = "reserve", lootcouncil = "council", dungeons = "dungeon", test = "sim", tests = "sim", consumable = "consumables", consumes = "consumables", flask = "consumables",
-  log = "guildlog", recruiting = "recruit", welcome = "recruit", tags = "chattags", bank = "guildbank", gbank = "guildbank", pug = "pugcheck", tmb = "imports", import = "imports" }
+  log = "guildlog", recruiting = "recruit", tags = "chattags", bank = "guildbank", gbank = "guildbank", pug = "pugcheck", tmb = "imports", import = "imports" }
 local moduleByKey, commandModule, activeAtLogin = {}, {}, {}
 for _, module in ipairs(ns.MODULES) do
   moduleByKey[module.key] = module
@@ -1756,7 +1831,8 @@ local function command(text)
     return
   end
   local action = string.lower(args[1] or "help")
-  if action == "help" then showHelp()
+  if action == "help" then
+    if string.lower(args[2] or "") == "all" then showFullHelp() else showHelp() end
   elseif action == "status" then
     message(activeRaid and ("Active raid: " .. activeRaid.title .. " (started " .. activeRaid.startedAt .. ")") or "No active raid.")
   elseif action == "roster" then
@@ -1900,6 +1976,8 @@ local function command(text)
   elseif commandModule[action] and not ns.moduleActive(commandModule[action]) then
     local key = commandModule[action]
     message(ns.moduleName(key) .. " is " .. moduleStateText(key) .. ". /guilded modules to see or change it.")
+  elseif ns.removedCommands[action] then
+    message(string.format(L("/guilded %s was removed in 9.2: %s"), action, L(ns.removedCommands[action])))
   elseif ns.commandHandlers[action] then
     -- args[1] is the action itself; hand the module the remaining tokens.
     table.remove(args, 1)
@@ -2216,7 +2294,7 @@ local function onEvent(_, event, ...)
     end) end
   elseif event == "UNIT_INVENTORY_CHANGED" then
     local unit = ...
-    if unit == "player" then maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS) end
+    if unit == "player" then deferWork("inventory-sync", 3, function() maybeAutoSync(AUTO_SYNC_DEBOUNCE_SECONDS) end) end
   elseif event == "PLAYER_TALENT_UPDATE" or event == "CHARACTER_POINTS_CHANGED" or event == "ACTIVE_TALENT_GROUP_CHANGED" then
     local ok, captured = pcall(collectCharacter)
     if ok then
@@ -2232,6 +2310,8 @@ local function onEvent(_, event, ...)
     resolveGuildSoon()
   elseif event == "GUILD_ROSTER_UPDATE" then
     ledgerRoster = nil
+    -- (9.1.7) The full scan below walks the whole roster; a burst of updates runs it once (owner log: 95 ms).
+    deferWork("roster-scan", 2, function()
     -- Before anything is added to the roster: make sure it is the right guild's data.
     if resolveGuildData() then noteMyCharacter(db.character) end
     local count = GetNumGuildMembers and GetNumGuildMembers() or 0
@@ -2277,6 +2357,7 @@ local function onEvent(_, event, ...)
         if not inRoster[name] and entry.inGuild ~= false then entry.inGuild, entry.leftAt = false, now() end
       end
     end
+    end, true)
   elseif event == "CHAT_MSG_LOOT" and db.settings.captureLoot then
     local text = ...
     if not isSecret(text) then logEvent("LOOT_HINT", { text = text }) end
@@ -2315,12 +2396,29 @@ local function onEvent(_, event, ...)
     -- this is the precise diagnostic the "blocked from an action only
     -- available to the Blizzard UI" popup itself doesn't show you.
     local blockedAddon, blockedFunction = ...
-    logDiagnostic(event, string.format("%s tried to call %s", tostring(blockedAddon), tostring(blockedFunction)),
-      blockedAddon ~= addonName)
+    local detail = string.format("%s tried to call %s", tostring(blockedAddon), tostring(blockedFunction))
+    -- (9.1.7) The event's own arguments are kept whole (every value the game passed), plus a hint: the guarded
+    -- read that was running when it was raised (the marker exists only during the call) or else the last event
+    -- Guilded handled. A hint never switches anything off; only an exact function name from the game does.
+    if blockedAddon == addonName then
+      local extra = {}
+      for i = 3, select("#", ...) do
+        local value = select(i, ...)
+        if not isSecret(value) then extra[#extra + 1] = tostring(value) end
+      end
+      if #extra > 0 then detail = detail .. " [" .. table.concat(extra, ", ") .. "]" end
+      local call = ns.guardedCall
+      if call then
+        detail = detail .. " (raised while calling " .. tostring(call.name) .. ")"
+      elseif ns.lastEvent then
+        detail = detail .. " (after " .. tostring(ns.lastEvent) .. ")"
+      end
+      local named = type(blockedFunction) == "string" and string.gsub(blockedFunction, "%(%)$", "") or nil
+      if named and ns.guildSnapshot and ns.guildSnapshot.onBlocked then pcall(ns.guildSnapshot.onBlocked, named) end
+    end
+    logDiagnostic(event, detail, blockedAddon ~= addonName)
     -- A refused guild action is never retried on this client build (see RosterTools).
     if blockedAddon == addonName and ns.rosterTools and ns.rosterTools.onBlocked then pcall(ns.rosterTools.onBlocked) end
-    -- A refused guild welcome is tried again a little later (see OfficerNotes).
-    if blockedAddon == addonName and ns.officerNotes and ns.officerNotes.onBlocked then pcall(ns.officerNotes.onBlocked) end
   elseif event == "UI_ERROR_MESSAGE" then
     -- Fallback net in case the blocked-action popup surfaces as a generic UI
     -- error toast instead of ADDON_ACTION_BLOCKED/FORBIDDEN -- log it only
@@ -2359,6 +2457,7 @@ frame:RegisterEvent("UI_ERROR_MESSAGE")
 local SLOW_HANDLER_MS = 50
 frame:SetScript("OnEvent", function(_, event, ...)
   local started = debugprofilestop and debugprofilestop()
+  if event ~= "ADDON_ACTION_BLOCKED" and event ~= "ADDON_ACTION_FORBIDDEN" and event ~= "CHAT_MSG_ADDON" then ns.lastEvent = event end
   local ok, err = pcall(onEvent, _, event, ...)
   if not ok then logDiagnostic("LUA_ERROR", "Guilded event handler: " .. tostring(err)) end
   if started then

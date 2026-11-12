@@ -10,24 +10,15 @@ function setup() {
     NS = { comm = {}, util = { gameEdition = function() return EDITION end }, isSecret = function(v) return v == "SECRET" end,
       moduleActive = function() return ACTIVE end, message = function(text) MESSAGE = text end,
       recipes = { whoText = function(q) QUERY = q; return "Known crafters" end },
-      showCopyText = function(t) COPIED = t end, openGuildPanel = function() PANEL = true end }
+      showCopyText = function(t) COPIED = t end, openToolsPage = function() PANEL = true end }
   `);
   s.load("Modules/ClientTools.lua"); s.run(`T = NS.clientTools`); return s;
 }
 describe("user-clicked client integrations", () => {
-  it("opens only the existing finder and respects edition, combat, API and eligibility gates", () => {
+  // 9.2: /guilded finder refused itself on WoW Forever and was removed; the crafter button stays.
+  it("no longer offers the group finder command", () => {
     const s = setup();
-    expect(s.run(`return tostring(T.openFinder()) .. ":" .. OPENED`)).toBe("true:1");
-    for (const condition of ['COMBAT = true', 'COMBAT = "SECRET"', 'COMBAT = false; EDITION = "forever"', 'EDITION = "retail"; C_LFGInfo = { CanPlayerUseGroupFinder = function() return false end }']) {
-      s.run(condition); expect(s.run(`return tostring(T.openFinder()) .. ":" .. OPENED`)).toBe("false:1");
-    }
-    expect(s.run(`C_LFGInfo = nil; ToggleLFDParentFrame = nil; return tostring(T.openFinder())`)).toBe("false");
-  });
-  it("accepts a legacy nil outside combat but blocks missing or throwing combat APIs", () => {
-    const s = setup();
-    expect(s.run(`COMBAT = nil; return tostring(T.openFinder())`)).toBe("true");
-    expect(s.run(`InCombatLockdown = function() error("unavailable") end; return tostring(T.openFinder())`)).toBe("false");
-    expect(s.run(`InCombatLockdown = nil; return tostring(T.openFinder())`)).toBe("false");
+    expect(s.run(`return tostring(T.openFinder) .. tostring(NS.commandHandlers and NS.commandHandlers.finder)`)).toBe("nilnil");
   });
   it("reads a modern selected item's output and enchant spell key without crafting", () => {
     const s = setup();

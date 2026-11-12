@@ -120,6 +120,7 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     withGear(s);
     s.run(`
       T = os.time() + 100000; time = function() return T end
+      C_Timer.After = function(_, fn) fn() end -- the 9.1.7 inventory debounce runs at once here
       SENT = {}
       function digests() local n = 0; for _, m in ipairs(SENT) do if string.find(m.text, "^READINESS|") then n = n + 1 end end; return n end
       fire_event("UNIT_INVENTORY_CHANGED", "player")          -- first check: sent
@@ -143,7 +144,11 @@ describe("gear check: enchants, consumables and the peer digest", () => {
     expect(s.run(`return OPENED`)).toBe("1");
     expect(s.run(`return #CHAT_LOG`)).toBe("0");
     s.run(`SlashCmdList["GUILDED"]("help")`);
-    expect(Number(s.run(`return #CHAT_LOG`))).toBeGreaterThan(5);
+    // The short help: the guild name line, nine commands and the way to the full list.
+    expect(s.run(`return #CHAT_LOG`)).toBe("11");
+    expect(s.run(`return table.concat(CHAT_LOG, "|")`)).toContain("/gsos");
+    s.run(`CHAT_LOG = {}; SlashCmdList["GUILDED"]("help all")`);
+    expect(Number(s.run(`return #CHAT_LOG`))).toBeGreaterThan(15);
     expect(s.run(`return OPENED`)).toBe("1");
   });
 
@@ -540,6 +545,7 @@ describe("WoW Forever guild key while the home realm is still arriving", () => {
     s.run(`GuildedDB = ${saved}; NS = {}; MOCK_UNITS = { player = { name = "Kev", buffs = {} } }
       NOW = 1800000000; GetServerTime = function() return NOW end; GUILDED_TEST_HOME_WAIT = 20
       HOME_KNOWN = false
+      CLOCK_TICKS = 0; function GetTime() CLOCK_TICKS = CLOCK_TICKS + 10; return CLOCK_TICKS end -- roster updates are 10 s apart
       function GetBuildInfo() return "1.60.1", "70790", "Nov 1 2026", 16001 end
       function GetRealmName() return ${JSON.stringify(OWN)} end
       function GetGuildInfo() if HOME_KNOWN then return "Alpha", "Officer", 1, ${JSON.stringify(HOME)} end return "Alpha", "Officer", 1 end`);

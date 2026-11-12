@@ -272,10 +272,65 @@ const STRINGS = {
     fr: "✅ Nouveau sur **{server}** : {names} maintenant lié(s) à toi. Tous tes personnages liés :"
   },
   "linked.hint": {
-    en: "Not yours? Use `/character unlink` on the server. `/character list` shows this list any time.",
-    fr: "Pas à toi ? Utilise `/character unlink` sur le serveur. `/character list` affiche cette liste en tout temps."
+    en: "Not yours? Press **Not mine** below (or `/character unlink` on the server): it is unlinked and never linked back automatically. `/character list` shows this list any time.",
+    fr: "Pas à toi ? Appuie sur **Pas à moi** ci-dessous (ou `/character unlink` sur le serveur) : il est délié et ne sera plus relié automatiquement. `/character list` affiche cette liste en tout temps."
   },
-  "linked.button": { en: "My linked characters", fr: "Mes personnages liés" },
+  "linked.notMine": { en: "Not mine: {name}", fr: "Pas à moi : {name}" },
+  "linked.notMineMenu": { en: "Not mine… pick a character", fr: "Pas à moi… choisis un personnage" },
+  "linked.wrongServer": { en: "Wrong server", fr: "Mauvais serveur" },
+  "linked.unlinked": {
+    en: "✅ **{name}** is unlinked from you on **{server}** and won't be linked back automatically. An officer can still link it to someone.",
+    fr: "✅ **{name}** n'est plus lié à toi sur **{server}** et ne sera pas relié automatiquement. Un officier peut encore le lier à quelqu'un."
+  },
+  "linked.gone": {
+    en: "That character is already unlinked. `/character list` shows what is linked.",
+    fr: "Ce personnage est déjà délié. `/character list` affiche ce qui est lié."
+  },
+  "linked.notYours": { en: "Only the member this message was sent to can use it.", fr: "Seul le membre à qui ce message est adressé peut l'utiliser." },
+  "panel.title": { en: "**Your characters on {server}**", fr: "**Tes personnages sur {server}**" },
+  "panel.empty": { en: "Nothing is linked to you yet. Press **Link a character**, or log in with the Guilded Companion once and they link by themselves.", fr: "Aucun personnage n'est encore lié à toi. Appuie sur **Lier un personnage**, ou ouvre le jeu une fois avec le compagnon Guilded : ils se lient tout seuls." },
+  "panel.link": { en: "Link a character", fr: "Lier un personnage" },
+  "panel.picture": { en: "Picture", fr: "Image" },
+  "panel.refresh": { en: "Refresh", fr: "Actualiser" },
+  "panel.mainMenu": { en: "Set as main…", fr: "Définir comme principal…" },
+  "panel.unlinkMenu": { en: "Unlink…", fr: "Délier…" },
+  "panel.mainDone": { en: "✅ **{name}** is now your main.", fr: "✅ **{name}** est maintenant ton principal." },
+  "panel.unlinkAsk": { en: "Unlink **{name}**? Its history is kept and it is not linked back automatically.", fr: "Délier **{name}** ? Son historique est conservé et il ne sera pas relié automatiquement." },
+  "panel.unlinkYes": { en: "Yes, unlink it", fr: "Oui, le délier" },
+  "panel.cancel": { en: "Cancel", fr: "Annuler" },
+  "panel.pick": { en: "Pick the character to link. Not in the list? Log in with it once and sync, then Refresh.", fr: "Choisis le personnage à lier. Pas dans la liste ? Ouvre le jeu avec lui une fois et synchronise, puis Actualise." },
+  "panel.pickNone": { en: "No unlinked character is waiting yet. Log in with it once with the Guilded Companion; it shows up here within a minute. Or type its name.", fr: "Aucun personnage non lié n'attend pour l'instant. Ouvre le jeu avec lui une fois avec le compagnon Guilded : il apparaît ici en une minute. Ou écris son nom." },
+  "panel.pickMenu": { en: "Pick a character…", fr: "Choisis un personnage…" },
+  "panel.typeName": { en: "Type the name", fr: "Écrire le nom" },
+  "panel.modalTitle": { en: "Link a character", fr: "Lier un personnage" },
+  "panel.modalLabel": { en: "Character name", fr: "Nom du personnage" },
+  "panel.linkedOne": { en: "✅ Linked **{name}** as {kind}. A message with a **Not mine** button follows.", fr: "✅ **{name}** lié comme {kind}. Un message avec un bouton **Pas à moi** suit." },
+  "panel.kindMain": { en: "your main", fr: "ton principal" },
+  "panel.kindAlt": { en: "an alt", fr: "un alt" },
+  "panel.claimFailed": { en: "That character is not available to link. If it is yours, ask an officer.", fr: "Ce personnage n'est pas disponible à lier. S'il est à toi, demande à un officier." },
+  "panel.tooMany": { en: "Too many tries. Wait a few minutes, or ask an officer.", fr: "Trop d'essais. Attends quelques minutes, ou demande à un officier." },
+  "panel.page": { en: "Page {page} of {pages} ({hidden} more character(s) on the other pages)", fr: "Page {page} sur {pages} ({hidden} autre(s) personnage(s) sur les autres pages)" },
+  "panel.prev": { en: "◀ Previous", fr: "◀ Précédent" },
+  "panel.next": { en: "Next ▶", fr: "Suivant ▶" },
+  "linked.officerLogPanel": {
+    en: "{user} unlinked {name} from the character panel (it won't be linked back).",
+    fr: "{user} a délié {name} depuis le panneau des personnages (il ne sera pas relié)."
+  },
+
+  "panel.hint": { en: "Tip: `/character list` opens your panel: link, set your main and unlink with buttons.", fr: "Astuce : `/character list` ouvre ton panneau : lier, définir ton principal et délier avec des boutons." },
+  "panel.noServer": { en: "You are not a member of that server any more.", fr: "Tu n'es plus membre de ce serveur." },
+  "linked.wrongServerHelp": {
+    en: "Linked to the wrong server? Open the **Guilded Companion** on your PC, go to Advanced, select that server under *Active connection*, then press **Remove this server**. It only forgets the connection on your PC and stops uploading there; nothing is deleted on the server. For a single character, use **Not mine** instead.",
+    fr: "Lié au mauvais serveur ? Ouvre le **compagnon Guilded** sur ton PC, va dans Avancé, choisis ce serveur sous *Active connection*, puis appuie sur **Remove this server**. Cela oublie seulement la connexion sur ton PC et arrête les envois là-bas ; rien n'est supprimé sur le serveur. Pour un seul personnage, utilise plutôt **Pas à moi**."
+  },
+  "linked.officerLog": {
+    en: "{user} unlinked {name} with the \"Not mine\" button (it had been linked automatically; it won't be linked back).",
+    fr: "{user} a délié {name} avec le bouton « Pas à moi » (il avait été lié automatiquement; il ne sera pas relié)."
+  },
+  "linked.button": { en: "My characters", fr: "Mes personnages" },
+  "linked.add": { en: "Add another", fr: "Ajouter un autre" },
+  "panel.moreServers": { en: "You are in more servers than shown. Use /character in the server you want.", fr: "Tu es dans plus de serveurs que ceux affichés. Utilise /character dans le serveur voulu." },
+  "panel.whichServer": { en: "Which server?", fr: "Quel serveur ?" },
   "linked.level": { en: "level {level}", fr: "niveau {level}" },
   "linked.main": { en: "main", fr: "principal" },
   "linked.more": { en: "… and {count} more", fr: "… et {count} de plus" },
@@ -383,6 +438,43 @@ const STRINGS = {
     en: "Your existing main stays the same. Check `/character list`. No companion is required for this link.",
     fr: "Ton principal existant reste le même. Vérifie `/character list`. Aucun compagnon n'est requis pour ce lien."
   },
+  "gamerem.dm": {
+    en: "Hi! You are in **{guild}** but have not picked a game yet. Pick yours to open its channels. It takes a few seconds.",
+    fr: "Salut ! Tu es dans **{guild}**, mais tu n'as pas encore choisi de jeu. Choisis le tien pour ouvrir ses salons. Ça prend quelques secondes."
+  },
+  "gamerem.dm.again": {
+    en: "Hi again! You still have no game picked in **{guild}**. Pick yours to open its channels, or press Stop reminders and we will not write again.",
+    fr: "Re-salut ! Tu n'as toujours pas choisi de jeu dans **{guild}**. Choisis le tien pour ouvrir ses salons, ou appuie sur Arrêter les rappels et on ne t'écrira plus."
+  },
+  "gamerem.button.channel": { en: "Open the server", fr: "Ouvrir le serveur" },
+  "gamerem.button.stop": { en: "Stop reminders", fr: "Arrêter les rappels" },
+  "gamerem.stopped": { en: "Done: no more reminders from this server. You can still pick your games any time.", fr: "C'est fait : plus aucun rappel de ce serveur. Tu peux toujours choisir tes jeux en tout temps." },
+  "gamerem.title": { en: "**Members with no game yet:** {count} (page {page}/{pages})", fr: "**Membres sans jeu choisi :** {count} (page {page}/{pages})" },
+  "gamerem.empty": { en: "Everyone has picked a game. 🎉", fr: "Tout le monde a choisi un jeu. 🎉" },
+  "gamerem.notConfigured": { en: "This server has no game roles yet: pick them in `/setup start` (games step).", fr: "Ce serveur n'a pas encore de rôles de jeu : choisissez-les dans `/setup start` (étape des jeux)." },
+  "gamerem.unreadable": { en: "I could not read the member list right now. Try again in a minute.", fr: "Je n'ai pas pu lire la liste des membres. Réessayez dans une minute." },
+  "gamerem.rules": { en: "rules", fr: "règles" },
+  "gamerem.joined": { en: "joined {when}", fr: "arrivé {when}" },
+  "gamerem.joinedUnknown": { en: "join date unknown", fr: "date d'arrivée inconnue" },
+  "gamerem.state.none": { en: "no reminder", fr: "aucun rappel" },
+  "gamerem.state.queued": { en: "reminder queued", fr: "rappel en attente" },
+  "gamerem.state.sent": { en: "reminder sent ×{n} (last {when})", fr: "rappel envoyé ×{n} (dernier {when})" },
+  "gamerem.state.closed": { en: "DMs closed", fr: "MP fermés" },
+  "gamerem.state.stopped": { en: "stopped reminders", fr: "a arrêté les rappels" },
+  "gamerem.button.these": { en: "Remind this page", fr: "Rappeler cette page" },
+  "gamerem.button.all": { en: "Remind all ({count})", fr: "Rappeler tous ({count})" },
+  "gamerem.button.confirm": { en: "Yes, remind {count}", fr: "Oui, rappeler {count}" },
+  "gamerem.button.cancel": { en: "Cancel", fr: "Annuler" },
+  "gamerem.confirm": { en: "Send a private reminder to up to {count} members? Those who stopped reminders, closed their DMs or were reminded in the last 24 hours are skipped.", fr: "Envoyer un rappel privé à {count} membres au plus? Ceux qui ont arrêté les rappels, fermé leurs MP ou reçu un rappel dans les dernières 24 h sont ignorés." },
+  "gamerem.result.queued": { en: "Reminders queued: {count} (sent a few at a time).", fr: "Rappels en file : {count} (envoyés quelques-uns à la fois)." },
+  "gamerem.result.stopped": { en: "Skipped, asked to stop: {count}.", fr: "Ignorés, ont demandé d'arrêter : {count}." },
+  "gamerem.result.closed": { en: "Skipped, DMs closed: {count}.", fr: "Ignorés, MP fermés : {count}." },
+  "gamerem.result.capped": { en: "Skipped, already reminded {max} times: {count}.", fr: "Ignorés, déjà rappelés {max} fois : {count}." },
+  "gamerem.cooldown": { en: "\"Remind all\" was already used this week. You can use it again {when}. You can still remind a page or one member.", fr: "« Rappeler tous » a déjà été utilisé cette semaine. Vous pourrez le refaire {when}. Vous pouvez encore rappeler une page ou un membre." },
+  "gamerem.result.recent": { en: "Skipped, reminded in the last 24 hours: {count}.", fr: "Ignorés, rappelés depuis moins de 24 h : {count}." },
+  "gamerem.result.gone": { en: "Skipped, already picked a game, left or a bot: {count}.", fr: "Ignorés, jeu déjà choisi, parti ou robot : {count}." },
+  "gamerem.auto.on": { en: "Automatic reminder **on**: a member with no game gets one private message a day after joining, and one more a week later at most. Never more.", fr: "Rappel automatique **activé** : un membre sans jeu reçoit un message privé un jour après son arrivée, puis un seul autre une semaine plus tard au plus. Jamais plus." },
+  "gamerem.auto.off": { en: "Automatic reminder **off**. Officers can still send reminders from `/report games list`.", fr: "Rappel automatique **désactivé**. Les officiers peuvent toujours envoyer des rappels depuis `/report games list`." },
   "onboard.nudge": {
     en: "Hi! You joined **{guild}** yesterday and a step or two is still open. This is the only reminder you will get.",
     fr: "Salut ! Tu as rejoint **{guild}** hier et il te reste une étape ou deux. C'est le seul rappel que tu recevras."

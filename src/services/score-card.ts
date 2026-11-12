@@ -4,6 +4,7 @@ import sharp from "sharp";
 import type { WebResponse } from "./web-app.js";
 import type { RosterVisual } from "./roster-visual.js";
 import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
+import { dungeonBackdrop } from "./dungeon-backdrop.js";
 import type { RecordVisual } from "./record-card.js";
 
 /**
@@ -423,13 +424,16 @@ export function mapView(cells: readonly number[], points: readonly { x: number; 
 async function renderDungeon(card: ScoreCard): Promise<Buffer> {
   const visual = card.dungeon!, accent = { gold: th.gold, green: th.green, red: th.red } as const, layers: Layer[] = [];
   const px = 600, pw = 540, top = 60, ph = 450;
-  const art = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${dungeonArt(visual.theme)}</svg>`)).png().toBuffer();
+  const art = await dungeonBackdrop(visual.theme);
   // Frosted glass: the art behind the panel, blurred and darkened, so the panel carries the dungeon's colours without noise.
   const frost = await sharp(art).extract({ left: px, top, width: pw, height: ph }).blur(14).modulate({ brightness: 0.5, saturation: 0.95 })
     .composite([{ input: Buffer.from(`<svg width="${pw}" height="${ph}"><rect width="${pw}" height="${ph}" rx="14"/></svg>`), blend: "dest-in" }]).png().toBuffer();
   const shapes: string[] = [`<defs><linearGradient id="shade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".62"/><stop offset=".3" stop-color="#000" stop-opacity=".46"/><stop offset=".48" stop-color="#000" stop-opacity=".2"/><stop offset=".56" stop-color="#000" stop-opacity=".08"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient>`
     + `<linearGradient id="foot" x1="0" y1="0" x2="0" y2="1"><stop offset=".88" stop-color="#000" stop-opacity="0"/><stop offset=".95" stop-color="#000" stop-opacity=".4"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient></defs>`,
-    `<rect width="1200" height="630" fill="url(#shade)"/>`, `<rect width="1200" height="630" fill="url(#foot)"/>`, `<rect width="12" height="630" fill="${th.bar}"/>`,
+    `<rect width="1200" height="630" fill="url(#shade)"/>`, `<rect width="1200" height="630" fill="url(#foot)"/>`,
+    // Painted art can be bright where the text sits (a sunlit desert, a lit hall): a second shade keeps the left column readable.
+    ...(visual.theme.painted ? [`<defs><linearGradient id="shade2" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".38"/><stop offset=".42" stop-color="#000" stop-opacity=".36"/><stop offset=".54" stop-color="#000" stop-opacity=".12"/><stop offset=".62" stop-color="#000" stop-opacity="0"/></linearGradient></defs>`, `<rect width="1200" height="630" fill="url(#shade2)"/>`, `<rect width="1200" height="630" fill="#000" fill-opacity=".1"/>`] : []),
+    `<rect width="12" height="630" fill="${th.bar}"/>`,
     `<rect x="26" y="14" width="1160" height="602" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`,
     `<image x="${px}" y="${top}" width="${pw}" height="${ph}" href="data:image/png;base64,${frost.toString("base64")}"/>`,
     `<rect x="${px}" y="${top}" width="${pw}" height="${ph}" rx="14" fill="${th.bg}" fill-opacity=".3" stroke="${th.edge}" stroke-width="1.5"/>`,

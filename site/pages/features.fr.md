@@ -9,7 +9,7 @@
 
 ## En jeu, sans Discord
 
-Recettes, carte de guilde, présence, butin et classements EP/GP sont partagés avec votre guilde en jeu. Les classements et l’artisanat se trouvent dans la fenêtre de guilde.
+Recettes, carte de guilde, présence, butin et classements EP/GP sont partagés avec votre guilde en jeu. Les classements et l’artisanat sont des pages de la fenêtre Guilded.
 
 [Obtenir Guilded sur CurseForge](https://www.curseforge.com/wow/addons/guilded) · [Guide d’installation](../docs/MEMBER_INSTALL.html#fr)
 
@@ -90,7 +90,7 @@ Ce qui change dans la 9.0, et pourquoi cela vous sert.
 <article><span class="feature-icon" aria-hidden="true">🏁</span><h3>Course au 60</h3><p>Suivez toute la guilde qui monte en niveau, et voyez qui arrive en premier.</p></article>
 <article><span class="feature-icon" aria-hidden="true">🎖️</span><h3>Temple de la renommée</h3><p>Les premiers au niveau 60 restent au tableau pour de bon.</p></article>
 <article><span class="feature-icon" aria-hidden="true">📣</span><h3>Appel à l'aide</h3><p>Demandez de l'aide à votre guilde en une commande plutôt que d'inonder le chat.</p></article>
-<article><span class="feature-icon" aria-hidden="true">🔎</span><h3>Chercheur PvP et partenaires de niveau</h3><p>Trouvez un groupe PvP ou quelqu'un de votre niveau sans quitter le jeu.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🔎</span><h3>Chercheur PvP et invitation de couche</h3><p>Trouvez un groupe PvP, ou demandez aux guildmates de votre continent de vous inviter sur leur couche, sans quitter le jeu.</p></article>
 <article><span class="feature-icon" aria-hidden="true">📅</span><h3>Inscription aux raids en jeu</h3><p>Inscrivez-vous au raid depuis la fenêtre du jeu; Discord affiche la même liste.</p></article>
 <article><span class="feature-icon" aria-hidden="true">🏦</span><h3>Banque et liste de guilde</h3><p>Voyez la banque et la liste de la guilde en jeu, synchronisées avec votre guilde.</p></article>
 <article><span class="feature-icon" aria-hidden="true">🧰</span><h3>Trousse de recrutement</h3><p>Tout ce qu'il faut à un officier pour accueillir et inviter de nouveaux membres.</p></article>

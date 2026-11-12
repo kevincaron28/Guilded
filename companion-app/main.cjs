@@ -195,7 +195,7 @@ async function loadEngineModules() {
   const dir = app.isPackaged ? path.join(process.resourcesPath, "engine") : path.join(__dirname, "..", "companion");
   const url = (file) => pathToFileURL(path.join(dir, file)).href;
   const [engineModule, standingsModule, requestModule, sheetModule, liveFolderModule, addonInstallModule, wowFolderModule, activeGamesModule] = await Promise.all([import(url("engine.mjs")), import(url("standings.mjs")), import(url("request.mjs")), import(url("sheet-export.mjs")), import(url("live-folder.mjs")), import(url("addon-install.mjs")), import(url("wow-folder.mjs")), import(url("active-games.mjs"))]);
-  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), ...await import(url("loot-history-import.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")), ...await import(url("wow-accounts.mjs")), deviceSync: await import(url("device-sync.mjs")) };
+  return { ...engineModule, ...standingsModule, ...requestModule, ...await import(url("profile-engine.mjs")), ...await import(url("main-status.mjs")), ...await import(url("profiles.mjs")), ...await import(url("revoke.mjs")), ...await import(url("grm-migration.mjs")), sheetFiles: sheetModule.sheetFiles, checkSavedFile: liveFolderModule.checkSavedFile, checkInstalledAddon: addonInstallModule.checkInstalledAddon, isOtherEditionFolder: wowFolderModule.isOtherEditionFolder, poeTracking: activeGamesModule.POE_TRACKING_ENABLED, ...await import(url("saved-folder.mjs")), ...await import(url("problems.mjs")), ...await import(url("wow-accounts.mjs")), deviceSync: await import(url("device-sync.mjs")) };
 }
 
 // Start-up diagnostics (9.0 release blocker): every line logged before the window is ready also
@@ -480,7 +480,9 @@ async function refreshSavedFile() {
   const another = otherAccounts();
   if (ticket !== savedFileCheck) return;
   savedFile = result;
+  savedFileChecked = true;
   otherAccount = another[0] ?? null;
+  if (engine) { const now = currentState(); trayAndWindowFollow(now.state, now.problems); }
   const candidate = savedFile?.candidate;
   // The app mostly lives in the tray: say it once per folder outside the window too.
   if (candidate && config.liveFolderNotified !== candidate.path) {
@@ -531,7 +533,8 @@ function addonAction() {
   } catch { return { action: "none", reason: "error" }; }
 }
 let shownProblems = "";
-function onState(state) {
+function onState(raw) {
+  const state = { ...raw, zeroSetupFailures };
   refreshUpdate(state);
   const status = health(state);
   const found = problems(state);
@@ -549,6 +552,7 @@ function onState(state) {
     shownProblems = key;
     try { win.setOverlayIcon(key ? nativeImage.createFromPath(asset("problem-badge.png")) : null, key ? T("{0} problem(s): open to see how to fix", found.length) : ""); } catch { /* not every Windows shell has overlays */ }
   }
+  trayAndWindowFollow(state, found);
   // An upload means the file changed: refresh its date for the status line.
   if (state.lastUpload?.at && state.lastUpload.at !== lastUploadAt) {
     lastUploadAt = state.lastUpload.at;
@@ -556,8 +560,10 @@ function onState(state) {
   }
 }
 
+// Automatic setup tries that failed since the last good one: the status card stops saying "Getting this PC ready…".
+let zeroSetupFailures = 0;
 function currentState() {
-  const state = engine.state();
+  const state = { ...engine.state(), zeroSetupFailures };
   return { state, health: health(state), update, savedFile, problems: problems(state), addonAction: addonAction() };
 }
 
@@ -568,15 +574,19 @@ function showWindow() {
   win.focus();
 }
 
+// --tab=<page> (screenshots, support) still opens the old window on that page.
+const OLD_WINDOW_FIRST = Boolean(screenshotTab);
 function createWindow() {
   win = new BrowserWindow({
-    width: 1180, height: 820, minWidth: 760, minHeight: 600,
+    // The single window (redo C2): small and fixed; the old window (Advanced > Old window) grows it.
+    width: OLD_WINDOW_FIRST ? 1180 : 480, height: OLD_WINDOW_FIRST ? 820 : 600, minWidth: OLD_WINDOW_FIRST ? 760 : 420, minHeight: OLD_WINDOW_FIRST ? 600 : 520, resizable: OLD_WINDOW_FIRST,
     show: false, autoHideMenuBar: true, backgroundColor: "#15120d",
     title: T("Guilded Companion"), icon: asset("icon.png"),
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   win.setMenu(null);
-  win.loadFile(path.join(__dirname, "renderer", "index.html"), { query: screenshotTab ? { tab: screenshotTab } : {} });
+  if (OLD_WINDOW_FIRST) win.loadFile(path.join(__dirname, "renderer", "index.html"), { query: screenshotTab ? { tab: screenshotTab } : {} });
+  else win.loadFile(path.join(__dirname, "renderer", "main.html"));
   win.once("ready-to-show", () => { if ((!startHidden && !restartedQuietly) || engineModules.validateConfig(config).length > 0) win.show(); });
   // A Store update prompt (Windows 10 1607-1909) waits for a window the member can see.
   win.on("show", () => { if (storePromptPending) { storePromptPending = false; config.storeUpdateCheckedAt = undefined; void maybeStoreUpdate(); } });
@@ -590,25 +600,58 @@ function createWindow() {
   win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:\/\//i.test(url)) void shell.openExternal(url); return { action: "deny" }; });
 }
 
-function createTray() {
-  tray = new Tray(nativeImage.createFromPath(asset("tray-setup.png")).resize({ width: 32, height: 32 }));
-  tray.setToolTip(T("Guilded Companion"));
-  tray.on("click", showWindow);
-  const rebuild = () => tray.setContextMenu(Menu.buildFromTemplate([
+// The tray status line and the window's "open by itself" rule share the window's own model (redo C3).
+function statusInput(state, found) {
+  return { config, state, problems: found, savedFile, addonAction: addonAction(), wowRunning, update, otherAccount: otherAccount ? { account: otherAccount.account } : null };
+}
+function statusWords(text) {
+  const [key, ...values] = Array.isArray(text) ? text : [];
+  return typeof key === "string" ? T(key, ...values) : "";
+}
+/** One short line for the tray: what needs the member, else the first line that is not green, else "all good". */
+function trayStatusLine(status) {
+  if (status.needsYou) return statusWords(status.needsYou.text);
+  const worst = status.lines.find((entry) => entry.tone === "bad") ?? status.lines.find((entry) => entry.tone === "warn");
+  return worst ? statusWords(worst.text) : T("Everything is working.");
+}
+let trayLine = "";
+let autoOpenLatch = { key: "", openedAt: 0 };
+let savedFileChecked = false;
+function trayAndWindowFollow(state, found) {
+  if (!engineModules?.mainStatus) return;
+  const status = engineModules.mainStatus(statusInput(state, found));
+  const line = trayStatusLine(status);
+  if (tray && line !== trayLine) { trayLine = line; buildTrayMenu(); }
+  // The window opens by itself only when something needs the member: once per problem, after the first
+  // saved-file check has answered (even when it found no WoW), and not more than every 30 minutes.
+  const decision = engineModules.autoOpenDecision(autoOpenLatch, status, { checked: savedFileChecked, now: Date.now(), visible: !!win && win.isVisible() });
+  if (decision.open && !win) return;
+  if (decision.open) showWindow();
+  autoOpenLatch = decision.latch;
+}
+
+function buildTrayMenu() {
+  if (!tray) return;
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: trayLine || T("Everything is working."), enabled: false },
+    { type: "separator" },
     { label: T("Open Guilded Companion"), click: showWindow },
-    { type: "separator" },
-    { label: T("Send my data to Discord now"), click: () => engine.uploadNow() },
-    { label: T("Refresh in-game standings now"), click: () => void engine.refreshStandings() },
-    { type: "separator" },
+    { label: T("Sync now"), click: () => { engine.uploadNow(); void engine.refreshStandings(); } },
     {
       label: T("Start with Windows"), type: "checkbox", checked: autostartOn(),
       click: (item) => { void setAutostart(item.checked); }
     },
-    { label: T("Quit (stops sending data)"), click: () => { quitting = true; app.quit(); } },
-    { label: T("Remove all data and quit..."), click: () => { void removeAllDataAndQuit(); } }
+    { label: T("Quit (stops sending data)"), click: () => { quitting = true; app.quit(); } }
   ]));
-  rebuild();
-  tray.on("right-click", rebuild);
+}
+
+function createTray() {
+  tray = new Tray(nativeImage.createFromPath(asset("tray-setup.png")).resize({ width: 32, height: 32 }));
+  tray.setToolTip(T("Guilded Companion"));
+  tray.on("click", showWindow);
+  buildTrayMenu();
+  // Rebuilt on right-click so the Start with Windows tick is current.
+  tray.on("right-click", buildTrayMenu);
 }
 
 // Store build (9.0.8): the package startup task (store-startup.cjs), never a Run registry entry.
@@ -694,6 +737,8 @@ async function removeAllDataAndQuit(skipPrompt = false) {
   try {
     fs.rmSync(app.getPath("userData"), { recursive: true, force: true });
   } catch { /* best effort: leftover cache files, not sensitive */ }
+  // The Store sign-in is not offered again after a deliberate wipe.
+  try { fs.mkdirSync(app.getPath("userData"), { recursive: true }); fs.writeFileSync(path.join(app.getPath("userData"), require("./store-migrate.cjs").IMPORT_MARKER), new Date().toISOString()); } catch { /* best effort */ }
   exitFlushed = true;
   app.quit();
   return true;
@@ -821,8 +866,11 @@ app.whenReady().then(async () => {
   onState(engine.state());
   void refreshSavedFile();
   // Zero-setup companion: no sign-in needed to start syncing (tried again every 5 minutes until it works).
-  const zeroSetup = () => void zeroSetupStep().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("Automatic setup will try again: {0}", error instanceof Error ? error.message : String(error)) }));
+  const zeroSetup = () => void zeroSetupStep().then((done) => { if (done !== undefined && zeroSetupFailures) { zeroSetupFailures = 0; onState(engine.state()); } }).catch((error) => { zeroSetupFailures += 1; if (zeroSetupFailures === 1) onState(engine.state()); pushLog({ level: "warn", time: new Date().toISOString(), message: E("Automatic setup will try again: {0}", error instanceof Error ? error.message : String(error)) }); });
+  // 9.1.4: a Discord sign-in left in a Store copy on this PC is taken over once, so the device claim runs.
+  // It runs beside the automatic setup, not before it, and only once per PC (a marker file), so it never delays start-up.
   zeroSetup();
+  void importStoreSignIn().catch((error) => pushLog({ level: "warn", time: new Date().toISOString(), message: E("The Microsoft Store sign-in could not be imported: {0}", error instanceof Error ? error.message : String(error)) }));
   setInterval(zeroSetup, 5 * 60 * 1000).unref?.();
   // Every 5 minutes: a few file dates, so a /reload that did not save Guilded.lua shows up soon.
   setInterval(() => void refreshSavedFile(), 5 * 60 * 1000);
@@ -874,7 +922,27 @@ app.on("before-quit", event => {
   }
 });
 
-registerIpc("get-all", () => ({ focus: { poeTracking: engineModules.poeTracking === true }, config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: autostartOn(), version: app.getVersion() }));
+// Old window > back to the single window.
+registerIpc("open-single-window", () => {
+  if (!win) return false;
+  win.setResizable(false);
+  win.setMinimumSize(420, 520);
+  win.setSize(480, 600);
+  win.center();
+  void win.loadFile(path.join(__dirname, "renderer", "main.html"));
+  return true;
+});
+// Advanced > Old window (kept for one release as a safety net): the previous, larger window.
+registerIpc("open-old-window", () => {
+  if (!win) return false;
+  win.setResizable(true);
+  win.setMinimumSize(760, 600);
+  win.setSize(1180, 820);
+  win.center();
+  void win.loadFile(path.join(__dirname, "renderer", "index.html"));
+  return true;
+});
+registerIpc("get-all", () => ({ otherAccount: otherAccount ? { account: otherAccount.account } : null, focus: { poeTracking: engineModules.poeTracking === true }, config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: autostartOn(), version: app.getVersion() }));
 registerIpc("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
 registerIpc("change-profile", async (_event, choice) => {
   try {
@@ -1076,6 +1144,28 @@ registerIpc("test-connection", (_event, next) => engineModules.testConnection({ 
 // in these encrypted settings) and syncs: the bot picks the server from the character's in-game
 // guild and keeps the characters as "reported". Sign-in stays optional; an install that is already
 // signed in is never changed here.
+// (9.1.4) The Store companion's Discord sign-in, for an install that so far has only a device key.
+// Windows' DPAPI opens the Store folder's own key; nothing is copied, deleted or sent anywhere.
+async function importStoreSignIn() {
+  if (STORE_PACKAGE || !engine || signIn || configLoadModule().configSummary(config).signedIn) return false;
+  const found = await require("./store-migrate.cjs").importStoreCredential({
+    config, userData: app.getPath("userData"), localAppData: process.env.LOCALAPPDATA, appData: process.env.APPDATA,
+    readSettings: (dir) => require("./store-decrypt.cjs").readStoreSettings(dir, { unprotect: dpapiUnprotect })
+  });
+  if (!found || signIn || configLoadModule().configSummary(config).signedIn) return false;
+  config = { ...config, ...found.patch };
+  await saveConfig();
+  await engine.configure(config);
+  pushLog({ time: new Date().toISOString(), level: "info", message: E("Discord sign-in was taken over from the Microsoft Store version ({0}); the device key was kept.", found.from) });
+  return true;
+}
+function dpapiUnprotect(blob) {
+  const script = "Add-Type -AssemblyName System.Security; [Convert]::ToBase64String([System.Security.Cryptography.ProtectedData]::Unprotect([Convert]::FromBase64String($input.ReadLine()), $null, 'CurrentUser'))";
+  return new Promise((resolve, reject) => {
+    const child = execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide: true, timeout: 20_000 }, (error, stdout) => error ? reject(error) : resolve(Buffer.from(String(stdout).trim(), "base64")));
+    child.stdin.end(blob.toString("base64") + String.fromCharCode(10));
+  });
+}
 let zeroSetupRunning = false;
 async function zeroSetupStep() {
   if (zeroSetupRunning || !engine || signIn) return false;
@@ -1369,7 +1459,7 @@ registerIpc("browse-poe-log", async () => {
 // Export to spreadsheet: one CSV file per table (all, or `table`) from Guilded.lua, into a
 // folder the player picks.
 registerIpc("export-sheets", async (_event, table) => {
-  if (!config.watchFile) return { ok: false, message: T("Choose your Guilded.lua file first (World of Warcraft page).") };
+  if (!config.watchFile) return { ok: false, message: T("Choose your WoW folder first (Advanced).") };
   let files;
   try { files = engineModules.sheetFiles(await fs.promises.readFile(config.watchFile, "utf8")).filter((file) => !table || file.table === table); }
   catch (error) { return { ok: false, message: T("Could not read {0}: {1}", path.basename(config.watchFile), error.message) }; }
@@ -1389,14 +1479,6 @@ registerIpc("export-sheets", async (_event, table) => {
 });
 registerIpc("upload-now", () => { engine.uploadNow(); return true; });
 registerIpc("convert-grm", (_event, options) => require("./grm-import.cjs").createGRMConverter({ dialog, fs: fs.promises, convertGRM: engineModules.convertGRM, getWindow: () => win, T })(options));
-let lootHistoryConverter;
-function lootConverter() {
-  return lootHistoryConverter ??= require("./loot-history-import.cjs").createLootHistoryConverter({ dialog, fs: fs.promises,
-    readLootImportFile: engineModules.readLootImportFile, previewLootHistory: engineModules.previewLootHistory,
-    createLootHistoryArchive: engineModules.createLootHistoryArchive, getWindow: () => win, T });
-}
-registerIpc("loot-history-preview", (_event, options) => lootConverter().preview(options));
-registerIpc("loot-history-save", (_event, options) => lootConverter().save(options));
 registerIpc("refresh-standings", async () => { await engine.refreshStandings(); return true; });
 registerIpc("set-autostart", (_event, on) => setAutostart(on));
 registerIpc("open-addon-folder", () => {

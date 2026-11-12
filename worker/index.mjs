@@ -3,6 +3,7 @@ import { createOwnerResources } from "./private-resources.mjs";
 import { localizedAsset } from "./localized-assets.mjs";
 import { editionSection, splitEditionPath } from "../site/nav.mjs";
 import { POE_ENABLED } from "../companion/active-games.mjs";
+import { adsOn, adsTxtResponse, consentScriptResponse, withAds } from "./ads.mjs";
 
 // WoW Forever's section (/forever/, /forever/leaderboards/...: site/nav.mjs). The cookie remembered a
 // visitor's edition when there were several; only Forever is recognized now.
@@ -267,6 +268,23 @@ export function androidDownload(request, url = new URL(request.url)) {
   return new Response(null, { status: 302, headers: { location: `https://dl.kcaron.top/${match[1]}`, "cache-control": "no-store" } });
 }
 
+// Guilded's own public home. guildedwow.com is canonical (docs/plans/GUILDEDWOW_DOMAIN.md); guilded.kcaron.top keeps
+// answering forever, because released companions, addons and phone apps contain it. GUILDED_CANONICAL_HOST (a Worker
+// variable, unset = off) turns on one rule: a browser page view (GET/HEAD) on the old host, or on www., moves permanently
+// to the canonical host. Nothing a program calls moves: the API (POSTs included), downloads, the release feed, health and
+// any .json/.xml file are answered in place, on every host.
+const LEGACY_PRODUCT_HOSTS = ["guilded.kcaron.top"];
+const NEVER_REDIRECTED = /^\/(?:api\/|downloads\/|health$|releases\.json$|ads\.txt$)|\.(?:json|xml)$/;
+export function canonicalRedirect(request, env, url = new URL(request.url)) {
+  const canonical = String(env.GUILDED_CANONICAL_HOST ?? "").trim().toLowerCase();
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(canonical) || url.hostname === canonical) return null;
+  if (!["GET", "HEAD"].includes(request.method)) return null;
+  const www = url.hostname === `www.${canonical}`;
+  if (!www && !LEGACY_PRODUCT_HOSTS.includes(url.hostname)) return null;
+  if (!www && NEVER_REDIRECTED.test(url.pathname)) return null;
+  return new Response(null, { status: 301, headers: { location: `https://${canonical}${url.pathname}${url.search}`, "cache-control": "public, max-age=3600" } });
+}
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === "OPTIONS" && mobileDevCors(request)) {
@@ -281,7 +299,7 @@ export default {
       remembered.headers.append("set-cookie", editionCookie(section.slug));
       response = remembered;
     }
-    return withMobileDevCors(request, response);
+    return withMobileDevCors(request, await withAds(request, env, response, url));
   }
 };
 
@@ -290,6 +308,11 @@ async function route(request, env, ctx) {
     const privateResponse = await ownerResources(request, env);
     if (privateResponse) return privateResponse;
     const url = new URL(request.url);
+    // ads.txt answers on every host and is inert on its own (docs/plans/ADS_CONSENT.md); the consent script only while ads are on.
+    if (url.pathname === "/ads.txt" && ["GET", "HEAD"].includes(request.method)) return adsTxtResponse(request);
+    if (url.pathname === "/consent.js" && adsOn(env) && ["GET", "HEAD"].includes(request.method)) return consentScriptResponse(request);
+    const moved = canonicalRedirect(request, env, url);
+    if (moved) return moved;
     const download = await hostedDownload(request, env, ctx, url);
     if (download) return download;
     const apk = androidDownload(request, url);

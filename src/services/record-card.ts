@@ -2,7 +2,8 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 import { EmbedBuilder, escapeMarkdown } from "discord.js";
 import type { Lang } from "../i18n.js";
-import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
+import type { DungeonArtTheme } from "./dungeon-art.js";
+import { dungeonBackdrop } from "./dungeon-backdrop.js";
 import type { DungeonImportResult } from "./dungeon-import.js";
 import type { DungeonHighlightItem } from "./dungeon-records.js";
 import { formatDuration } from "./dungeon-rules.js";
@@ -81,7 +82,7 @@ async function text(markup: string, size: number, maxWidth: number) {
 /** Draws a card with a `record` visual. Called by score-card.ts's renderer (and its cache), never directly by callers. */
 export async function renderRecordCard(card: ScoreCard): Promise<Buffer> {
   const visual = card.record!, layers: { input: Buffer; left: number; top: number }[] = [];
-  const art = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${dungeonArt(visual.theme)}</svg>`)).png().toBuffer();
+  const art = await dungeonBackdrop(visual.theme);
   const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080, align: "left" | "center" | "right" = "left") => {
     const t = await text(markup, size, maxWidth);
     const x = align === "center" ? left - t.width / 2 : align === "right" ? left - t.width : left;

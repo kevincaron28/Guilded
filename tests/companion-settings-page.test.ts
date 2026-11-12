@@ -40,17 +40,10 @@ describe("Settings", () => {
   });
 });
 
-describe("Tools", () => {
-  const tools = page("wow");
-
-  it("keeps the export and the imports; the WoW folder moved to Settings", () => {
-    expect(tools).toContain("<h1>Tools</h1>");
-    for (const id of ["sheetTable", "grmPanel", "lootImportPanel"]) expect(tools, id).toContain(`id="${id}"`);
-    expect(tools).not.toContain('id="btnWowSelect"');
-    // The old status tiles are gone (redesign PR 5); the Sync card says it.
-    expect(tools).not.toContain('id="toolsLegacy"');
-    expect(tools).not.toContain('id="tileCount"');
-    expect(tools).toContain('<button class="secondary" data-go="settings">WoW settings</button>');
+describe("Tools moved out (redo C4)", () => {
+  it("has no Tools page: export is /officer export in Discord, GRM import is gone from the window", () => {
+    const html = readFileSync("companion-app/renderer/index.html", "utf8");
+    for (const id of ["page-wow", "sheetTable", "grmPanel", "btnBattleNet", "btnDeleteMyData"]) expect(html, id).not.toContain(`id="${id}"`);
   });
 });
 

@@ -515,3 +515,32 @@ describe("phone app routes", () => {
     expect(page.headers.get("access-control-allow-origin")).toBeNull();
   });
 });
+
+describe("canonical host (guildedwow.com move)", () => {
+  const on = { ...env, GUILDED_CANONICAL_HOST: "guildedwow.com" };
+  it("does nothing until the variable is set", async () => {
+    const response = await worker.fetch(new Request("https://guilded.kcaron.top/features/"), env);
+    expect(response.headers.get("location") ?? "").not.toContain("guildedwow.com");
+  });
+  it("sends browser page views on the old host and www to the canonical host", async () => {
+    const old = await worker.fetch(new Request("https://guilded.kcaron.top/leaderboards/?lang=fr"), on);
+    expect(old.status).toBe(301);
+    expect(old.headers.get("location")).toBe("https://guildedwow.com/leaderboards/?lang=fr");
+    const www = await worker.fetch(new Request("https://www.guildedwow.com/api/v1/standings"), on);
+    expect(www.status).toBe(301);
+    expect(www.headers.get("location")).toBe("https://guildedwow.com/api/v1/standings");
+  });
+  it("never moves what programs call on the old host", async () => {
+    const upstream = vi.fn(async () => Response.json({ ok: true }));
+    vi.stubGlobal("fetch", upstream);
+    for (const [method, path] of [["POST", "/api/v1/addon-imports"], ["GET", "/api/v1/standings"], ["GET", "/health"], ["GET", "/releases.json"], ["GET", "/leaderboards/summary.json"], ["HEAD", "/downloads/Guilded.Companion.Setup.exe"], ["POST", "/me/settings"]] as const) {
+      const response = await worker.fetch(new Request(`https://guilded.kcaron.top${path}`, method === "POST" ? { method, body: "{}" } : { method }), on);
+      expect(response.status, `${method} ${path}`).not.toBe(301);
+    }
+  });
+  it("serves the canonical host itself and leaves the creator domain alone", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ ok: true })));
+    expect((await worker.fetch(new Request("https://guildedwow.com/health"), on)).status).toBe(200);
+    expect((await worker.fetch(new Request("https://kcaron.top/"), on)).status).not.toBe(301);
+  });
+});

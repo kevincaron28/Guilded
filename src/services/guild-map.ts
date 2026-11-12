@@ -73,7 +73,7 @@ export function parseGuildMapUpload(sightings: unknown, calls: unknown, now = ne
 // Push hook: the Defender push notification (needs PR #345 and Firebase) subscribes here later.
 // ---------------------------------------------------------------------------------------------
 
-export interface StoredHelpCall { guildId: string; memberId: string; character: string; zone: string; calledAt: Date; attackers: HelpCallUpload["attackers"] }
+export interface StoredHelpCall { id: string; guildId: string; memberId: string; character: string; zone: string; calledAt: Date; attackers: HelpCallUpload["attackers"] }
 type HelpCallListener = (call: StoredHelpCall) => void | Promise<void>;
 const helpCallListeners: HelpCallListener[] = [];
 /** Called once for each newly stored call. Returns an unsubscribe function. Listeners never fail an upload. */
@@ -96,8 +96,11 @@ export async function applyGuildMapUpload(db: MapDb, guildId: string, memberId: 
     db.guildSettings.findUnique({ where: { guildId }, select: { guildMapEnabled: true } }),
     db.member.findUnique({ where: { id: memberId }, select: { guildId: true, mapShareOff: true } })
   ]);
-  if (!member || member.guildId !== guildId || settings?.guildMapEnabled === false) return { sightings: 0, calls: 0 };
-  const share = !member.mapShareOff;
+  if (!member || member.guildId !== guildId) return { sightings: 0, calls: 0 };
+  // With the map off for the server no position is kept (no sightings, no coordinates on calls), but a call for help is still
+  // stored with its zone, subzone and attackers: the world PvP board checks defends and calls answered against the guild's real calls.
+  const mapOn = settings?.guildMapEnabled !== false;
+  const share = mapOn && !member.mapShareOff;
   const sightingCutoff = new Date(now.getTime() - SIGHTING_DAYS * 86_400_000);
   const callCutoff = new Date(now.getTime() - CALL_DAYS * 86_400_000);
   let sightings = 0;
@@ -119,13 +122,13 @@ export async function applyGuildMapUpload(db: MapDb, guildId: string, memberId: 
       if (clearedAt && !existing.clearedAt) await db.guildHelpCall.update({ where: { id: existing.id }, data: { clearedAt } });
       continue;
     }
-    await db.guildHelpCall.create({ data: {
+    const created = await db.guildHelpCall.create({ select: { id: true }, data: {
       guildId, memberId, ref: call.ref, character: call.character, zone: call.zone || "?", subzone: call.subzone || null,
       ...coords(call, share), attackers: call.attackers, calledAt, clearedAt
     } });
     calls += 1;
     for (const listener of [...helpCallListeners]) {
-      try { await listener({ guildId, memberId, character: call.character, zone: call.zone, calledAt, attackers: call.attackers }); }
+      try { await listener({ id: created.id, guildId, memberId, character: call.character, zone: call.zone, calledAt, attackers: call.attackers }); }
       catch (error) { console.warn("Help call listener failed", error); }
     }
   }

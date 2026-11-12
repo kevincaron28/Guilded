@@ -9,7 +9,7 @@
 
 ## In game, no Discord needed
 
-Recipes, the guild map, attendance, loot and EP/GP standings, shared with your guild in game. Standings and crafting live in the guild window.
+Recipes, the guild map, attendance, loot and EP/GP standings, shared with your guild in game. Standings and crafting are pages of the Guilded window.
 
 [Get Guilded on CurseForge](https://www.curseforge.com/wow/addons/guilded) · [Install guide](../docs/MEMBER_INSTALL.html)
 
@@ -90,7 +90,7 @@ What changed in 9.0, and why you would care.
 <article><span class="feature-icon" aria-hidden="true">🏁</span><h3>Race to 60</h3><p>Watch the whole guild level up, and see who gets there first.</p></article>
 <article><span class="feature-icon" aria-hidden="true">🎖️</span><h3>Hall of Fame</h3><p>The first to reach 60 stay on the board for good.</p></article>
 <article><span class="feature-icon" aria-hidden="true">📣</span><h3>Call for help</h3><p>Ask for help from guildmates in one command instead of spamming chat.</p></article>
-<article><span class="feature-icon" aria-hidden="true">🔎</span><h3>PvP finder and levelling partners</h3><p>Find a PvP group or someone at your level without leaving the game.</p></article>
+<article><span class="feature-icon" aria-hidden="true">🔎</span><h3>PvP finder and layer invite</h3><p>Find a PvP group, or ask guildmates on your continent to invite you onto their layer, without leaving the game.</p></article>
 <article><span class="feature-icon" aria-hidden="true">📅</span><h3>In-game raid sign-up</h3><p>Sign up for the raid from the game window; Discord shows the same list.</p></article>
 <article><span class="feature-icon" aria-hidden="true">🏦</span><h3>Guild bank and roster</h3><p>See the guild bank and roster in game, kept in sync with your guild.</p></article>
 <article><span class="feature-icon" aria-hidden="true">🧰</span><h3>Recruiting kit</h3><p>Everything an officer needs to welcome and invite new members.</p></article>

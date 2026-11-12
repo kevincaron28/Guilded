@@ -1,11 +1,13 @@
 # Addon commands that stay slash-only (9.1)
 
-Every Guilded feature has a tab or button in the Guilded window. Pages: Home, Me, Open raids, Ready,
-Reserves, Signups, Raid, Loot, Council, Duels, Announcements, **Info and data**, Settings (Tools); and in
-the guild window: Standings, Crafting, Availability, Gear, EPGP, Local guild, Guild message,
-Roster admin, Officer tools. The status and switch commands (`peers`, `relay`, `professions`, `names`,
+Every Guilded feature has a tab or button in the Guilded window (9.2): Home (with My character), Guild (overview, board, layer invite, standings, availability,
+duels), Dungeons, Crafting (recipes, orders), Raids (open raids, ready, reserves, sign-up, and for officers raid, loot, council),
+Officer (gear, calendar, administration, local guild, roster admin, officer tools) and Settings, whose **Advanced** view holds
+Info and data. Standings and the officer pages are no longer panels inside Blizzard's guild window: the Guilded button there
+and in the calendar opens this window. The status and switch commands (`peers`, `relay`, `professions`, `names`,
 `bgcapture`, `ledgersync`, `bridge`, `options`, `digest`, `chattags`, and for officers `invites`,
-`promote`, `autoinvite`, `lootroll`, `consumes`) are buttons on **Info and data**.
+`promote`, `autoinvite`, `lootroll`, `consumes`) are buttons in Settings, Advanced. `/guilded help` lists only nine
+commands; `/guilded help all` lists the rest, and every command keeps working.
 
 These stay slash-only on purpose:
 

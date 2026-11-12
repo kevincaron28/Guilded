@@ -67,9 +67,11 @@ import { syncAllNicknames } from "./services/nickname-sync.js";
 import { postAllWeeklyPromotions } from "./services/promotion.js";
 import { sendRecruitReminders } from "./services/recruiting-kit.js";
 import { handleLinkedButton, LINKED_PREFIX } from "./services/companion-link-dm.js";
+import { handlePanelInteraction, PANEL_PREFIX } from "./services/character-panel.js";
 import { handleLinkMoveButton, LINK_MOVE_PREFIX } from "./services/link-conflict-dm.js";
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
+import { scheduleInviteCleanups } from "./services/invite-cleanup.js";
 import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { RANK_ROLES_BUTTON_PREFIX, handleRankRolesButton } from "./commands/rank-roles.js";
@@ -107,6 +109,7 @@ import { updateDuelBoard } from "./services/duel-board.js";
 import { updateActivityBoard } from "./services/guild-activity.js";
 import { updateRaceBoard } from "./services/race-board.js";
 import { updateBgLadder } from "./services/bg-ladder.js";
+import { scheduleWeeklyRecap } from "./services/world-pvp-extras.js";
 import { refreshExistingBotGuides } from "./services/bot-messages.js";
 import { refreshBgPanels } from "./services/battleground-setup.js";
 import { BACKUP_DIR, runBackup } from "./services/backup.js";
@@ -143,7 +146,8 @@ import { POE_TRACKING_ENABLED } from "../companion/active-games.mjs";
 import { executeParticipation } from "./commands/participation.js";
 import { createParticipationTracker } from "./services/participation-discord.js";
 import { createActivityTracker, VOICE_TICK_MS } from "./services/activity-totals.js";
-import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges } from "./services/onboarding.js";
+import { handleGameReminderButton, GAME_REMINDER_PREFIX } from "./commands/game-reminders.js";
+import { handleOnboardingInteraction, ONBOARD_PREFIX, runOnboardingNudges, runGameReminders } from "./services/onboarding.js";
 import { handleMemberJoin, handleMemberRolesChange, handleMemberLeave, handleWelcomeRoleButton, WELCOME_ROLE_PREFIX } from "./services/housekeeping.js";
 import { createErrorReportService, isMemberAnswer } from "./services/error-report.js";
 import { buildGuildedReference } from "./services/guilded-reference.js";
@@ -340,6 +344,8 @@ client.once(Events.ClientReady, (readyClient) => {
   // Waiting guild-invite requests whose character is already in the stored roster get their check mark (start-up, then hourly).
   void backCheckAllInvites(readyClient, prisma).catch(reportJobError("Guild invite back-check"));
   setInterval(() => void backCheckAllInvites(readyClient, prisma).catch(reportJobError("Guild invite back-check")), 60 * 60_000);
+  // About an hour after a request is handled its messages are removed from the invite channel (the deadline is stored on the row).
+  setInterval(() => void scheduleInviteCleanups(prisma).catch(reportJobError("Guild invite clean-up")), 10 * 60_000).unref?.();
   setInterval(() => void sendRecruitReminders(readyClient, prisma).catch(reportJobError("Recruiting cooldown reminders")), 60 * 60_000);
   setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
   // 9.0, on by default: at most one weekly guild bank summary per server, only when the bank moved.
@@ -400,6 +406,7 @@ client.once(Events.ClientReady, (readyClient) => {
           await updateDuelBoard(guild).catch(reportJobError("Duel board refresh", origin));
           await updateRaceBoard(guild).catch(reportJobError("Race board refresh", origin));
           await updateBgLadder(guild).catch(reportJobError("Battleground ladder refresh", origin));
+          await scheduleWeeklyRecap(prisma, guild.id).catch(reportJobError("World PvP recap", origin));
           await updateActivityBoard(guild).catch(reportJobError("Activity board refresh", origin));
         });
       }
@@ -542,6 +549,7 @@ client.once(Events.ClientReady, (readyClient) => {
     runAutoDecay(prisma).catch(reportJobError("Automatic decay"));
     // One private reminder to new members who have not finished onboarding (guilds that turned it on).
     runOnboardingNudges(readyClient).catch(reportJobError("Onboarding reminders"));
+    runGameReminders(readyClient).catch(reportJobError("Game reminders"));
   }, 60 * 60 * 1000);
 });
 
@@ -651,6 +659,8 @@ if (config.MESSAGE_CONTENT_INTENT) {
       disable: async (discordGuildId, reason) => { await prisma.itemPreviewConfig.updateMany({ where: { discordGuildId }, data: { enabled: false, disabledReason: reason } }); },
       secret: config.ITEM_PREVIEW_SECRET, botUserId: client.user?.id,
       fetch: (url, init) => fetch(url, init), provider: previewProvider, gate: previewGate, backoff: previewBackoff,
+      language: async (discordId) => (await prisma.guildSettings.findFirst({ where: { guild: { discordId } }, select: { language: true } }))?.language === "fr" ? "fr" : "en",
+      ...(config.PUBLIC_SITE_URL ? { siteUrl: config.PUBLIC_SITE_URL } : {}),
       professionCard: (discordGuildId, profession, names, discordUserId) => professionCardFor(prisma, previewProvider, discordGuildId, profession, names, discordUserId)
     }, { guildId: message.guildId, channelId: message.channelId, content: message.content, authorId: message.author.id, webhookId: message.webhookId,
       authorName: message.webhookId ? message.author.username : message.member?.displayName ?? message.author.displayName }).catch((error: unknown) => {
@@ -673,7 +683,7 @@ if (config.MESSAGE_CONTENT_INTENT) {
 client.on(Events.InteractionCreate, async interaction => {
   try {
     const serverCommands = ["wow", "community", "organize", "poe", "participation", "events", "guilded-season", "guilded-events", OWNER_PREVIEWS_COMMAND, OWNER_CONSOLE_COMMAND];
-    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
+    const globalButton = "customId" in interaction && [PILOT_REQUEST_PREFIX, COMMUNITY_PREFIX, WELCOME_ROLE_PREFIX, SELF_ROLE_PREFIX, ONBOARD_PREFIX, GAME_REMINDER_PREFIX, INVITE_REQUEST_PREFIX, LINKED_PREFIX, PUG_PREFIX, CONSOLE_PREFIX, ITEM_PREVIEW_PREFIX].some(prefix => interaction.customId.startsWith(prefix));
 
     const wowOrganize = interaction.isChatInputCommand() && interaction.commandName === "organize" && interaction.options.getSubcommandGroup(false) === "dungeon-seasons";
     const globalCommand = "commandName" in interaction && serverCommands.includes(interaction.commandName) && !wowOrganize;
@@ -805,7 +815,16 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
     });
     return;
   }
-  if (interaction.isButton() && interaction.customId.startsWith(LINKED_PREFIX)) {
+  if ((interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) && interaction.customId.startsWith(PANEL_PREFIX)) {
+    await handlePanelInteraction(interaction, prisma).catch(async (error: unknown) => {
+      reportInteractionError("Character panel", interaction, error);
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      if (interaction.deferred) await interaction.editReply({ content }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    });
+    return;
+  }
+  if ((interaction.isButton() || interaction.isStringSelectMenu()) && interaction.customId.startsWith(LINKED_PREFIX)) {
     await handleLinkedButton(interaction, prisma).catch(async (error: unknown) => {
       reportInteractionError("Linked characters button", interaction, error);
       const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
@@ -820,6 +839,15 @@ async function handleGuildInteraction(interaction: Interaction): Promise<void> {
       reportInteractionError("Guild invite request", interaction, error);
       const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
       if (interaction.deferred && !interaction.replied) await interaction.editReply({ content }).catch(() => undefined);
+      else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
+    });
+    return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith(GAME_REMINDER_PREFIX)) {
+    await handleGameReminderButton(interaction).catch(async (error: unknown) => {
+      reportInteractionError("Game reminders", interaction, error);
+      const content = "That didn't work, try again or ask an officer. / Ça n'a pas fonctionné; réessaie ou demande à un officier.";
+      if (interaction.deferred && !interaction.replied) await interaction.editReply({ content, components: [] }).catch(() => undefined);
       else if (!interaction.replied) await interaction.reply({ content, flags: MessageFlags.Ephemeral }).catch(() => undefined);
     });
     return;

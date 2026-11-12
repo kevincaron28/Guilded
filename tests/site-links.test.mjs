@@ -20,9 +20,9 @@ function htmlFiles(dir, out = []) {
 function resolves(path) {
   const clean = path.split(/[?#]/)[0] || "/";
   if (DYNAMIC.test(clean)) return true;
-  if (staticRedirect(new URL(clean, "https://guilded.kcaron.top"))) return true;
+  if (staticRedirect(new URL(clean, "https://guildedwow.com"))) return true;
   const bare = clean === "/fr" || clean === "/fr/" ? "/" : clean.startsWith("/fr/") ? clean.slice(3) : clean;
-  if (bare !== clean && (DYNAMIC.test(bare) || staticRedirect(new URL(bare, "https://guilded.kcaron.top")))) return true;
+  if (bare !== clean && (DYNAMIC.test(bare) || staticRedirect(new URL(bare, "https://guildedwow.com")))) return true;
   const rel = bare.replace(/^\//, "");
   const file = rel.endsWith("/") || rel === "" ? `dist/site/${rel}index.html` : `dist/site/${rel}`;
   return existsSync(file) && statSync(file).isFile();
@@ -37,13 +37,13 @@ describe("built site links", () => {
     expect(html).toContain("discord.com/oauth2/authorize");
     expect(html).toContain('id="companion"');
     expect(html).not.toMatch(/\{\{[A-Z_]+\}\}/);
-    expect(readFileSync("dist/site/sitemap.xml", "utf8")).toContain("https://guilded.kcaron.top/download/");
-    expect(readFileSync("dist/site/sitemap.xml", "utf8")).toContain("https://guilded.kcaron.top/guide/install/");
+    expect(readFileSync("dist/site/sitemap.xml", "utf8")).toContain("https://guildedwow.com/download/");
+    expect(readFileSync("dist/site/sitemap.xml", "utf8")).toContain("https://guildedwow.com/guide/install/");
     const installPages = [];
     for (const file of htmlFiles("dist/site")) {
       if (!readFileSync(file, "utf8").includes("Interface/AddOns")) continue;
       const urlPath = `/${file.slice("dist/site/".length)}`.replace(/index\.html$/, "");
-      if (staticRedirect(new URL(urlPath, "https://guilded.kcaron.top"))) continue;
+      if (staticRedirect(new URL(urlPath, "https://guildedwow.com"))) continue;
       installPages.push(urlPath);
     }
     expect(installPages.filter(path => !path.startsWith("/guide/install"))).toEqual([]);
@@ -66,15 +66,10 @@ describe("built site links", () => {
     expect(missing).toEqual([]);
   });
 
-  it("sends static French sitemap addresses to the same page under /fr/", () => {
+  it("lists French static pages under /fr/ in the sitemap", () => {
     const sitemap = readFileSync("dist/site/sitemap.xml", "utf8");
-    const french = [...sitemap.matchAll(/<loc>https:\/\/guilded\.kcaron\.top([^<]+)\?lang=fr<\/loc>/g)].map(match => match[1]);
-    expect(french.length).toBeGreaterThan(0);
-    const data = /^\/(?:forever|leaderboards|recruitment|players|companion)(?:\/|$)/;
-    const stuck = french.filter(path => !data.test(path)).flatMap(path => {
-      const dest = staticRedirect(new URL(`https://guilded.kcaron.top${path}?lang=fr`));
-      return dest?.startsWith("/fr") ? [] : [`${path} -> ${dest}`];
-    });
-    expect(stuck).toEqual([]);
+    expect(sitemap).toContain("https://guildedwow.com/fr/guide/");
+    expect(sitemap).toContain("https://guildedwow.com/fr/download/");
+    expect(sitemap).not.toContain("https://guildedwow.com/guide/?lang=fr");
   });
 });

@@ -69,15 +69,13 @@ describe("protected calls only where the player's click runs them (taint)", () =
   });
 
   const allowed: Array<[string, RegExp, string[]]> = [
-    // Party invites: the Invite buttons (call for help, levelling partners) show the /invite line in the copy box (ns.util.inviteButton).
+    // Party invites: the Invite buttons (call for help, layer invite) show the /invite line in the copy box (ns.util.inviteButton).
     // No file calls InviteUnit any more: /guilded invite raid lists /invite lines too (Invite() is FORBIDDEN to addons on Forever).
     ["party invites", /\bInviteUnit\b/, []],
     ["guild rank, kick and note changes", /\b(?:GuildPromote|GuildDemote|GuildUninvite|GuildRosterSetPublicNote|GuildRosterSetOfficerNote|SetGuildMemberRank|SetGuildRankOrder|RemoveFromGuild)\b/, [
       "addon/Guilded/Modules/RosterTools.lua"   // roster admin, confirmed per click; refusals remembered per build
     ]],
-    ["opening the chat box", /\bChatFrame_(?:SendTell|OpenChat|ReplyTell)\b/, [
-      "addon/Guilded/Modules/LevelPartners.lua" // Whisper button
-    ]]
+    ["opening the chat box", /\bChatFrame_(?:SendTell|OpenChat|ReplyTell)\b/, []]  // no file opens the chat box: whispers show a /w line in the copy box
   ];
   it.each(allowed)("%s only from the click-driven files", (_label, pattern, files_) => {
     expect(files.filter((file) => pattern.test(source(file))).map(rel).sort()).toEqual([...files_].sort());
@@ -87,7 +85,7 @@ describe("protected calls only where the player's click runs them (taint)", () =
     const buttons: Array<[string, string]> = [
       ["addon/Guilded/Modules/InviteQueue.lua", '"guild"'],
       ["addon/Guilded/Modules/CallForHelp.lua", '"party"'],
-      ["addon/Guilded/Modules/LevelPartners.lua", '"party"']
+      ["addon/Guilded/Modules/LayerInvite.lua", '"party"']
     ];
     for (const [file, kind] of buttons) {
       expect(source(file), file).toContain("ns.util.inviteButton(");

@@ -1,3 +1,4 @@
+import { siteUrl } from "../site-url.js";
 import { pilotGuildScope } from "../hosted-pilot.js";
 import { currentGuildScope, withGuildScope } from "./guild-scope.js";
 import { randomUUID } from "node:crypto";
@@ -7,7 +8,7 @@ import { prisma } from "../database.js";
 import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
-export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "ACTIVITY_BOARD" | "WHOS_WHO_BOARD" | "RACE_BOARD" | "BG_LADDER" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "SIGNUP_ANSWERS" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE";
+export type JobKind = "GAME_EVENT_BOARD" | "GAME_EVENT_REMINDER" | "RAID_REMINDER" | "POLL_REFRESH" | "DUNGEON_BOARD" | "DUEL_BOARD" | "ACTIVITY_BOARD" | "WHOS_WHO_BOARD" | "RACE_BOARD" | "BG_LADDER" | "PROFESSIONS" | "RAID_POST" | "CORE_ROSTER" | "CALENDAR" | "SIGNUP_ANSWERS" | "MESSAGE" | "COMMUNITY_POST" | "SCHEDULED_EVENT" | "TEAM_ROSTER" | "TEAM_SESSION" | "TEAM_REMINDER" | "PUG_POST" | "PUG_NOTICE" | "PVP_CALL" | "PVP_RECAP" | "GAME_REMINDER" | "INVITE_CLEANUP";
 export async function enqueueDiscordJob(database: Db, guildId: string, key: string, kind: JobKind, payload: Prisma.InputJsonValue = {}) {
   return database.discordJob.upsert({ where: { guildId_key: { guildId, key } },
     create: { guildId, key, kind, payload },
@@ -63,9 +64,19 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
   } else if (job.kind === "PUG_NOTICE") {
     const { deliverPugNotice } = await import("./pug-discord.js");
     await deliverPugNotice(guild, prisma, job);
+  } else if (job.kind === "GAME_REMINDER") {
+    // A private message to a member who has not picked a game; everything is re-checked at delivery.
+    const { deliverGameReminder } = await import("./game-reminder.js");
+    const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId } });
+    await deliverGameReminder(guild, prisma, settings, job);
   } else if (job.kind === "DUNGEON_BOARD") {
     const { updateDungeonLeaderboard } = await import("./dungeon-leaderboard.js");
     if (!await updateDungeonLeaderboard(guild, true)) throw new Error("Board unavailable");
+  } else if (job.kind === "PVP_CALL") {
+    // Retired 13 November 2026: a call-post job queued before the update finishes quietly and posts nothing.
+  } else if (job.kind === "PVP_RECAP") {
+    const { deliverWeeklyRecap } = await import("./world-pvp-extras.js");
+    await deliverWeeklyRecap(guild, prisma, job.guildId, Number(payload["week"] ?? 0));
   } else if (job.kind === "DUEL_BOARD") {
     const { updateDuelBoard } = await import("./duel-board.js");
     if (!await updateDuelBoard(guild, true)) throw new Error("Duel board unavailable");
@@ -212,11 +223,14 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const card = cardDefinition ? await scoreCardPng(cardDefinition).catch(() => null) : null;
     if (card) last.setImage("attachment://card.png");
     await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" })] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
+  } else if (job.kind === "INVITE_CLEANUP") {
+    const { runInviteCleanupJob } = await import("./invite-cleanup.js");
+    await runInviteCleanupJob(guild, prisma, job);
   } else throw new Error("Unknown job type");
 }
 
 /** The invisible marker a delivered post carries: the website address with the job id. */
-export const deliveryLink = (jobId: string) => `https://guilded.kcaron.top/?delivery=${encodeURIComponent(jobId)}`;
+export const deliveryLink = (jobId: string) => siteUrl(`/?delivery=${encodeURIComponent(jobId)}`);
 
 let running = false;
 const DELIVERY_BATCH_SIZE = 25;

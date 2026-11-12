@@ -143,6 +143,52 @@ describe("the whole addon, loaded in .toc order", () => {
     }
   });
 
+  // 9.2: features WoW blocks were removed. A 9.1.6 saved file still has their keys, and a guildmate on
+  // 9.1.6 still sends their addon messages; neither may raise an error, and the old command explains itself.
+  it("ignores removed-feature saved keys and old guildmates' messages, and explains removed commands", () => {
+    const s = fullAddon(1);
+    s.run(`
+      local db = NS.getDb()
+      db.motd = { enabled = true, mode = "rotate", lines = { "Raid Friday" }, intended = { text = "Raid Friday" } }
+      fire_event("PLAYER_LOGIN")
+      fire_event("CHAT_MSG_ADDON", "GuildedMotd", "HELLO|1", "GUILD", "Old-Officer")
+      fire_event("GUILD_MOTD", "Raid Friday")
+      SlashCmdList["GUILDED"]("motd config")
+      SlashCmdList["GUILDED"]("motd on")
+      NS.windowState().selectTabByName("Home")
+    `);
+    expect(s.run(`return tostring(NS.guildMotd)`)).toBe("nil");
+    expect(s.chat().filter((line) => line.includes("/guilded motd was removed in 9.2"))).toHaveLength(2);
+    expect(s.run(`return GuildedDB and tostring(NS.getDb().motd.enabled) or ""`)).toBe("true");
+    expect(problems(s).filter((line) => !line.includes("removed in 9.2"))).toEqual([]);
+    expect(diagnostics(s)).toBe("0");
+  });
+
+  it("explains the commands of every feature removed in 9.2 and ignores their old guildmate messages", () => {
+    const s = fullAddon(1);
+    s.run(`
+      local db = NS.getDb()
+      db.welcome = { enabled = true }
+      db.officerAuto = { off = { greet = true }, greeted = { Zed = 1 }, lang = "fr" }
+      db.probes = { achievements = {} }
+      for _, prefix in ipairs({ "GuildedGreet", "GuildedRec" }) do
+        fire_event("CHAT_MSG_ADDON", prefix, "GREETED|1|Zed", "GUILD", "Old-Officer")
+        fire_event("CHAT_MSG_ADDON", prefix, "WELCOMED|1|Zed", "GUILD", "Old-Officer")
+      end
+      fire_event("CHAT_MSG_SYSTEM", "Zed has joined the guild.")
+      for _, command in ipairs({ "welcome on", "finder", "probe achievements", "import history", "officer auto greet off", "partners" }) do
+        SlashCmdList["GUILDED"](command)
+      end
+    `);
+    const chat = s.chat().join("\n");
+    for (const name of ["welcome", "finder", "probe", "import history", "officer auto greet", "partners"]) {
+      expect(chat).toContain(`/guilded ${name} was removed in 9.2`);
+    }
+    expect(s.run(`return type(NS.commandHandlers.welcome) .. type(NS.commandHandlers.finder) .. type(NS.commandHandlers.probe) .. type(NS.levelPartners)`)).toBe("nilnilnilnil");
+    expect(problems(s).filter((line) => !line.includes("removed in 9.2"))).toEqual([]);
+    expect(diagnostics(s)).toBe("0");
+  });
+
   it("loads, logs in and opens the window as an officer without a single error", () => {
     const s = fullAddon(1);
     expect(problems(s)).toEqual([]);
@@ -153,7 +199,7 @@ describe("the whole addon, loaded in .toc order", () => {
   it("has an options page and an Addon Compartment entry", () => {
     const s = fullAddon(1);
     expect(s.run(`return type(Guilded_OnAddonCompartmentClick) .. type(Guilded_OnAddonCompartmentEnter) .. type(Guilded_OnAddonCompartmentLeave)`)).toBe("functionfunctionfunction");
-    expect(s.run(`return tostring(#NS.options.switches() == 19 + #NS.MODULES + (NS.isOfficer() and 4 or 0))`)).toBe("true");
+    expect(s.run(`return tostring(#NS.options.switches() == 19 + #NS.MODULES + (NS.isOfficer() and 1 or 0))`)).toBe("true");
     // A switch runs the same command you could type.
     s.run(`for _, sw in ipairs(NS.options.switches()) do if sw.module == "bidding" then sw.set(false) end end`);
     expect(s.run(`return tostring(GuildedDB.settings.modules.bidding)`)).toBe("false");

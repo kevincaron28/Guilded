@@ -5301,4 +5301,5 @@ FR["No food buff active."] = "Aucun bonus de nourriture actif."
 FR["Dungeon data is not loaded yet. Try again in a moment, or /reload."] = "Les donn\195\169es de donjon ne sont pas encore charg\195\169es. R\195\169essayez dans un instant, ou faites /reload."
 FR["The dungeon command failed. /guilded diag shows the details."] = "La commande de donjon a \195\169chou\195\169. /guilded diag montre les d\195\169tails."
 FR["Guilded Dungeons %s is installed next to Guilded %s. Guilded records your runs; update Guilded Dungeons with the Guilded Companion (or remove it)."] = "Guilded Dungeons %s est install\195\169 \195\160 c\195\180t\195\169 de Guilded %s. Guilded enregistre vos donjons ; mettez Guilded Dungeons \195\160 jour avec le Guilded Companion (ou retirez-le)."
-
+FR["[Guilded] Help! %s is under attack in %s"] = "[Guilded] \195\128 l'aide ! %s est attaqu\195\169 dans %s"
+FR["the open world"] = "le monde ouvert"

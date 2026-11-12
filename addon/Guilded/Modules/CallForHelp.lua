@@ -460,7 +460,9 @@ end
 -- ---------------------------------------------------------------------
 
 local function guildChatLine(call)
-  local line = string.format("[Guilded] Help! %s is under attack in %s", clean(call.name, 24), clean(call.zone ~= "" and call.zone or "the open world", 28))
+  -- In the caller's own language (their client's Locale), like the all-clear line.
+  local place = clean(call.zone ~= "" and call.zone or L("the open world"), 28)
+  local line = string.format(L("[Guilded] Help! %s is under attack in %s"), clean(call.name, 24), place)
   if call.subzone and call.subzone ~= "" then line = line .. ", " .. clean(call.subzone, 28) end
   if call.x and call.y then line = line .. string.format(" (%d, %d)", math.floor(call.x * 100 + 0.5), math.floor(call.y * 100 + 0.5)) end
   local summary = module.summary(call.attackers)
@@ -696,7 +698,7 @@ function module.reply(coming)
   local entry = ns.normalizeName and incoming[ns.normalizeName(banner.sender)]
   local id = entry and entry.id or banner.call.id
   ns.comm.send(PREFIX, "R|" .. id .. "|" .. (coming and "Y" or "N"), "WHISPER", banner.sender, nil, "interactive")
-  if coming and ns.worldPvp then pcall(ns.worldPvp.note, "responded") end
+  if coming and ns.worldPvp then pcall(ns.worldPvp.note, "responded", banner.call.zone) end
   banner:Hide()
   return true
 end

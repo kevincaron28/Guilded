@@ -353,6 +353,22 @@ describe("call for help: guildmates in the zone and party invites", () => {
   });
 });
 
+  it("posts the call and the all-clear in French on a French client", () => {
+    const lua = setup();
+    lua.run(`SETTINGS.language = "fr"`);
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Kev", zone = "Duskwood", attackers = {} })`)).toContain("l'aide ! Kev est attaqu");
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Kev", zone = "", attackers = {} })`)).toContain("dans le monde ouvert");
+    lua.run(`SETTINGS.language = "en"`);
+    expect(lua.run(`return NS.callForHelp.guildChatLine({ name = "Kev", zone = "", attackers = {} })`)).toBe("[Guilded] Help! Kev is under attack in the open world");
+  });
+  it("tells the world PvP stats which zone the call named when I answer", () => {
+    const lua = setup();
+    lua.run(`NS.worldPvp = { note = function(kind, zone) NOTED = kind .. ":" .. tostring(zone) end }`);
+    callFrom("Ann-Realm", goodCall);
+    lua.run(`NS.callForHelp.reply(true)`);
+    expect(lua.run(`return NOTED`)).toBe("responded:Duskwood");
+  });
+
 describe("call for help: only a real attack counts, and the chat line is limited", () => {
   it("ignores a hit while no enemy player is targeting me (an NPC, a trap, a fall)", () => {
     const lua = setup();

@@ -13,7 +13,8 @@ function setup() {
     function GetTime() return CLOCK end
     function GetServerTime() return EPOCH end
     function IsInInstance() return INST end
-    function GetRealZoneText() return "Silverpine Forest" end
+    ZONE = "Silverpine Forest"
+    function GetRealZoneText() return ZONE end
     COMBATLOG_HONORGAIN = "%s dies, honorable kill Rank: %s (%d Honor Points)"
     NS = { util = {}, commandHandlers = {}, commandHelp = {},
       message = function(text) MSGS[#MSGS + 1] = text end,
@@ -105,6 +106,19 @@ describe("world PvP deaths, calls and defends", () => {
     expect(stat("total", "defends")).toBe("1");
     expect(stat("total", "kills")).toBe("2");
   });
+
+  it("counts a defend only in the zone the call named", () => {
+    setup();
+    s!.run(`NS.worldPvp.note("responded", "Duskwood")`);
+    expect(s!.run(`return tostring(NS.worldPvp.defending())`)).toBe("false"); // still in Silverpine Forest
+    kill("Elsewhere");
+    expect(stat("total", "defends")).toBe("0");
+    s!.run(`ZONE = "Duskwood"; CLOCK = CLOCK + 10`);
+    expect(s!.run(`return tostring(NS.worldPvp.defending())`)).toBe("true");
+    kill("Here");
+    expect(stat("total", "defends")).toBe("1");
+    expect(stat("total", "kills")).toBe("2");
+  });
 });
 
 describe("world PvP weeks and the readout", () => {
@@ -118,6 +132,23 @@ describe("world PvP weeks and the readout", () => {
     kill("Again");
     expect(stat("week", "kills")).toBe("1");
     expect(stat("total", "kills")).toBe("2");
+  });
+
+  it("keeps the week that just ended so a session across the reset still uploads it", () => {
+    setup();
+    kill("Thug"); kill("Other");
+    const key = s!.run(`return tostring(NS.worldPvp.weekKey())`);
+    s!.run(`EPOCH = EPOCH + ${WEEK}; CLOCK = CLOCK + 10`);
+    kill("Again");
+    expect(stat("week", "kills")).toBe("1");
+    expect(s!.run(`return DB.worldPvp.prev.weekKey .. ":" .. DB.worldPvp.prev.week.kills`)).toBe(`${key}:2`);
+    // Two weeks on, it is dropped.
+    s!.run(`EPOCH = EPOCH + ${WEEK}; CLOCK = CLOCK + 10`);
+    kill("Late");
+    expect(s!.run(`return DB.worldPvp.prev.week.kills`)).toBe("1");
+    s!.run(`EPOCH = EPOCH + 2 * ${WEEK}; CLOCK = CLOCK + 10`);
+    kill("Gone");
+    expect(s!.run(`return tostring(DB.worldPvp.prev)`)).toBe("nil");
   });
 
   it("prints this week and the total with /guilded worldpvp", () => {

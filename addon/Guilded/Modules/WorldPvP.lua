@@ -6,9 +6,9 @@
 --   kills     the game's own honorable-kill line (CHAT_MSG_COMBAT_HONOR_GAIN), outside instances and
 --             battlegrounds, read from the client's global string so every language works
 --   deaths    I died within a minute of an attack by an enemy player that Call for help confirmed
---   defends   an honorable kill within 5 minutes of pressing On my way on a guildmate's call
+--   defends   an honorable kill within 5 minutes of pressing On my way on a guildmate's call, in the zone the call named
 --   calls     calls for help I made, how many a guildmate answered, and how many I answered
--- Stored in the saved variables as worldPvp (totals, the current week, and the last 30 kills) so the
+-- Stored in the saved variables as worldPvp (totals, the current week, the week before, and the last 30 kills) so the
 -- companion can carry it to the Discord PvP ladder. Nothing is sent from here.
 local _, ns = ...
 local wp = {}
@@ -54,7 +54,12 @@ local function store()
   s.total = type(s.total) == "table" and s.total or blank()
   s.recent = type(s.recent) == "table" and s.recent or {}
   local key = math.floor((epoch() - WEEK_OFFSET) / WEEK)
-  if type(s.week) ~= "table" or s.weekKey ~= key then s.week, s.weekKey = blank(), key end
+  if type(s.week) ~= "table" or s.weekKey ~= key then
+    -- The week just ended is kept (db.worldPvp.prev) so a session that crossed the Tuesday reset still uploads it.
+    if type(s.week) == "table" and tonumber(s.weekKey) == key - 1 then s.prev = { weekKey = s.weekKey, week = s.week } end
+    s.week, s.weekKey = blank(), key
+  end
+  if type(s.prev) == "table" and tonumber(s.prev.weekKey) ~= key - 1 then s.prev = nil end
   s.since = s.since or epoch()
   return s
 end
@@ -105,9 +110,19 @@ end
 -- ---------------------------------------------------------------------
 
 local lastKill, lastDeathAt
-local defendingUntil
+local defendingUntil, defendingZone
 
-function wp.defending() return defendingUntil ~= nil and clock() <= defendingUntil end
+local function currentZone()
+  local zone = GetRealZoneText and GetRealZoneText() or ""
+  if type(zone) ~= "string" or (ns.isSecret and ns.isSecret(zone)) then return "" end
+  return zone
+end
+
+-- Inside the 5 minutes after On my way, and in the zone of the call (a call without a zone counts anywhere).
+function wp.defending()
+  if defendingUntil == nil or clock() > defendingUntil then return false end
+  return defendingZone == nil or currentZone() == defendingZone
+end
 
 -- An honorable kill line from the game. Returns true when it was counted.
 function wp.noteKill(text)
@@ -139,13 +154,14 @@ function wp.noteDeath()
 end
 
 -- From Call for help: "call" (I called), "answered" (a guildmate said On my way to my call),
--- "responded" (I pressed On my way).
-function wp.note(kind)
+-- "responded" (I pressed On my way; `zone` is the zone the call named).
+function wp.note(kind, zone)
   if not active() then return false end
   if kind == "call" then return bump("calls") end
   if kind == "answered" then return bump("answered") end
   if kind == "responded" then
     defendingUntil = clock() + DEFEND_SECONDS
+    defendingZone = type(zone) == "string" and zone ~= "" and zone or nil
     return bump("responded")
   end
   return false

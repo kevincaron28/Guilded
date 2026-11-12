@@ -2270,18 +2270,20 @@ updateGuildScroll = function()
   ui.guildScrollRange = range
   -- Tell the scrollbar the true range now: it only re-measures on a later frame and until then
   -- clamped the thumb (and the page) short of the last rows.
-  if scroll.ScrollBar and scroll.ScrollBar.SetMinMaxValues then pcall(scroll.ScrollBar.SetMinMaxValues, scroll.ScrollBar, 0, range) end
+  local bar = type(scroll.ScrollBar) == "table" and scroll.ScrollBar or nil
+  if bar and bar.SetMinMaxValues then pcall(bar.SetMinMaxValues, bar, 0, range) end
   -- Clamp to the larger of our estimate and the game's measured range (the estimate is often
   -- smaller and used to pull the page back up).
   local limit = range
   local measured = scroll.GetVerticalScrollRange and scroll:GetVerticalScrollRange()
   if type(measured) == "number" and measured > limit then limit = measured end
-  if (scroll:GetVerticalScroll() or 0) > limit then
+  local offset = scroll:GetVerticalScroll()
+  if type(offset) == "number" and offset > limit then
     scroll:SetVerticalScroll(limit)
     wantedScroll[scroll] = limit
   end
-  if scroll.ScrollBar then
-    if range > 1 then scroll.ScrollBar:Show() else scroll.ScrollBar:Hide() end
+  if bar then
+    if range > 1 then bar:Show() else bar:Hide() end
   end
 end
 

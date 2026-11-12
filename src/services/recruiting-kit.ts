@@ -1,15 +1,15 @@
 import type { Client } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
-import { nameKeyOf } from "./invite-queue.js";
+import { CLEANUP_DELAY_MS, nameKeyOf } from "./invite-queue.js";
 
 // 8.5 light recruiting kit, on top of the invite queue: a stage and an officer note on each recruit record, interview
 // questions per server, and a recruiting post template with one shared cooldown. Written from scratch; nothing automatic
 // beyond one reminder when the cooldown is over.
 
-export const STAGES = ["PENDING", "INVITED", "JOINED", "PROMOTED"] as const;
+export const STAGES = ["PENDING", "INVITED", "JOINED", "PROMOTED", "DECLINED"] as const;
 export type Stage = (typeof STAGES)[number];
-export const STAGE_LABEL: Record<Stage, string> = { PENDING: "asked", INVITED: "invited", JOINED: "joined", PROMOTED: "promoted" };
+export const STAGE_LABEL: Record<Stage, string> = { PENDING: "asked", INVITED: "invited", JOINED: "joined", PROMOTED: "promoted", DECLINED: "declined" };
 export const MAX_QUESTIONS = 5;
 export const MAX_ANSWERS_LENGTH = 1000;
 
@@ -61,8 +61,8 @@ export async function ensureInviteGuide(client: Pick<Client, "channels">, databa
 
 /** Sets stage and/or note on every post of a name. Returns how many records changed. */
 export async function updateRecruit(database: Pick<PrismaClient, "inviteRequest">, guildId: string, name: string, change: { stage?: Stage; note?: string | null }): Promise<number> {
-  const data: { status?: Stage; note?: string | null; invitedAt?: Date } = {};
-  if (change.stage) { data.status = change.stage; if (change.stage !== "PENDING") data.invitedAt = new Date(); }
+  const data: { status?: Stage; note?: string | null; invitedAt?: Date; cleanupAt?: Date | null; cleanedAt?: null; cleanTries?: number; cleanQueuedAt?: null; legacyHandled?: boolean } = {};
+  if (change.stage) { data.status = change.stage; if (change.stage !== "PENDING") { data.invitedAt = new Date(); data.cleanupAt = new Date(Date.now() + CLEANUP_DELAY_MS); } else Object.assign(data, { cleanupAt: null, cleanedAt: null, cleanTries: 0, cleanQueuedAt: null, legacyHandled: false }); }
   if (change.note !== undefined) data.note = change.note ? change.note.slice(0, 500) : null;
   if (!Object.keys(data).length) return 0;
   const result = await database.inviteRequest.updateMany({ where: { guildId, nameKey: nameKeyOf(name) }, data });

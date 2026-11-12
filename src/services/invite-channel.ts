@@ -55,7 +55,7 @@ export async function handleInviteMessage(message: Message, database: Database):
  * Check mark on each original post, the eyes taken off, the bot's own post and the tag message edited to say
  * it is done (an edit never pings), and a short thank-you under a member's own post. `lang` is the server's language.
  */
-export async function markPostsDone(client: Pick<Client, "channels" | "user">, rows: readonly InvitedRow[], lang: Lang = "en"): Promise<number> {
+export async function markPostsDone(client: Pick<Client, "channels" | "user">, rows: readonly InvitedRow[], lang: Lang = "en", database?: Pick<PrismaClient, "inviteRequest">): Promise<number> {
   let done = 0;
   for (const row of rows) {
     try {
@@ -75,7 +75,11 @@ export async function markPostsDone(client: Pick<Client, "channels" | "user">, r
         const note = await channel.messages.fetch(row.notifyMessageId).catch(() => null);
         if (note && note.author?.id === client.user?.id) { await note.edit({ content: t(lang, "invite.done.note", { name: row.displayName }), allowedMentions: { parse: [] } }).catch(() => undefined); noted = true; }
       }
-      if (!own && !noted) await post.reply({ content: t(lang, "invite.done.note", { name: row.displayName }), allowedMentions: { parse: [], repliedUser: false } }).catch(() => undefined);
+      if (!own && !noted) {
+        const thanks = await post.reply({ content: t(lang, "invite.done.note", { name: row.displayName }), allowedMentions: { parse: [], repliedUser: false } }).catch(() => null);
+        // Remembered so the clean-up (invite-cleanup.ts) removes it by id.
+        if (thanks && database) await database.inviteRequest.updateMany({ where: { id: row.id }, data: { doneNoteMessageId: thanks.id } }).catch(() => undefined);
+      }
     } catch { /* message deleted or no access: the queue row is still done */ }
   }
   return done;
@@ -92,7 +96,7 @@ export async function handleInviteReaction(client: Client, database: Database, r
   if (!member || !isOfficer(member)) return 0;
   const rows = await markInvitedByMessage(database, settings.guildId, message.id, user.id);
   // The officer's own ✅ is on the post; other waiting posts of the same name get the bot's.
-  return markPostsDone(client, rows.filter((row) => row.messageId !== message.id).concat(rows.filter((row) => row.messageId === message.id)));
+  return markPostsDone(client, rows.filter((row) => row.messageId !== message.id).concat(rows.filter((row) => row.messageId === message.id)), "en", database);
 }
 
 /** A roster upload showed these characters in the guild: their waiting posts are done. Automatic, so preview-gated. */
@@ -101,7 +105,7 @@ export async function completeInvitesFromRoster(client: Pick<Client, "channels" 
   const rows = await markInvitedByName(database, guild.id, names, "roster");
   if (!rows.length) return 0;
   const settings = await Promise.resolve().then(() => database.guildSettings?.findUnique({ where: { guildId: guild.id }, select: { language: true } })).catch(() => null);
-  return markPostsDone(client, rows, asLang(settings?.language));
+  return markPostsDone(client, rows, asLang(settings?.language), database);
 }
 
 /** Every waiting post whose character is in the stored guild roster (or is a linked character) is done. Safe to repeat. */
@@ -137,7 +141,7 @@ export async function handleInviteDoneButton(interaction: ButtonInteraction, dat
   }
   const rows = await markInvitedByMessage(database, settings.guildId, interaction.message.id, interaction.user.id);
   await interaction.update({ components: [] }).catch(() => undefined);
-  await markPostsDone(interaction.client, rows.filter((row) => row.messageId !== interaction.message.id).concat(rows.filter((row) => row.messageId === interaction.message.id)));
+  await markPostsDone(interaction.client, rows.filter((row) => row.messageId !== interaction.message.id).concat(rows.filter((row) => row.messageId === interaction.message.id)), "en", database);
 }
 
 /** Someone got the World of Warcraft role: one DM asking for their full character name in the invite channel. */

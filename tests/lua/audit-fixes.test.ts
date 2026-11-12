@@ -107,12 +107,13 @@ describe("paced addon messages (ns.comm)", () => {
   it("sends a burst at once, queues the rest, and keeps the order", () => {
     const s = loggedIn([]);
     s.run(`SENT = {}; for i = 1, 12 do NS.comm.send("QTest", "m" .. i, "GUILD") end`);
-    expect(sentCount(s)).toBe(8);
-    expect(s.run(`return tostring(NS.comm.pending("QTest"))`)).toBe("4");
+    // 9.1.7: the shared budget is 8, and 2 of them are kept for call for help and dungeon receipts.
+    expect(sentCount(s)).toBe(6);
+    expect(s.run(`return tostring(NS.comm.pending("QTest"))`)).toBe("6");
     // Time passes: the queue drains first, then the new message, in order.
     s.run(`GetTime = function() return 30 end; NS.comm.send("QTest", "m13", "GUILD")`);
-    expect(sentCount(s)).toBe(13);
-    expect(s.run("return SENT[9].text .. ',' .. SENT[13].text")).toBe("m9,m13");
+    expect(sentCount(s)).toBe(12); // the refilled 8 tokens send 6 more (2 stay reserved); m13 waits its turn
+    expect(s.run("return SENT[7].text .. ',' .. SENT[12].text .. ',' .. NS.comm.pending('QTest')")).toBe("m7,m12,1");
   });
 
   it("retries a message the game says was throttled", () => {
@@ -129,8 +130,10 @@ describe("paced addon messages (ns.comm)", () => {
     `);
     expect(sentCount(s)).toBe(0);
     expect(s.run(`return tostring(NS.comm.pending("QThrottle"))`)).toBe("1");
+    // The refusal starts the shared back-off (2-3 s, then a gentle restart): later calls resume the queue.
     s.run(`GetTime = function() return 30 end; NS.comm.send("QThrottle", "second", "GUILD")`);
-    expect(s.run("return SENT[1].text .. ',' .. SENT[2].text")).toBe("first,second");
+    s.run(`GetTime = function() return 32 end; NS.comm.send("QThrottle", "third", "GUILD")`);
+    expect(s.run("return SENT[1].text .. ',' .. SENT[2].text .. ',' .. SENT[3].text")).toBe("first,second,third");
   });
 
   it("keeps the normal throttle budget and permanent refusals for lockdown-retry packets", () => {
@@ -142,7 +145,7 @@ describe("paced addon messages (ns.comm)", () => {
       C_ChatInfo.SendAddonMessage = function() return code end
       NS.comm.send("QRecovery", "first", "GUILD", nil, nil, "retry-lockdown")
       for i = 1, 8 do now = now + 5; retry() end
-      local function wait() GuildedCommBudget.backoffUntil = 0; GuildedCommBudget.tokens = 8 end
+      local function wait() GuildedCommBudget.backoffUntil = 0; GuildedCommBudget.resume = false; GuildedCommBudget.tokens = 8 end
       code = 3
       for i = 1, 5 do now = now + 100; wait(); retry() end
       code = 10
@@ -166,7 +169,7 @@ describe("paced addon messages (ns.comm)", () => {
     s.run(`SENT = {}; for i = 1, 1016 do NS.comm.send("QBound", "m" .. i, "GUILD") end`);
     expect(s.run('return tostring(NS.comm.send("QBound", "overflow", "GUILD"))')).toBe("false");
     expect(s.run('return tostring(NS.comm.status("QBound").queued)')).toBe("1008");
-    expect(s.run('return tostring(NS.comm.status("QBound").overflow)')).toBe("1");
+    expect(s.run('return tostring(NS.comm.status("QBound").overflow)')).toBe("3"); // 1016 + 1 attempts, 6 sent at once, 1008 kept
     s.run('GetTime = function() return 30 end; NS.comm.send("QBound", "later", "GUILD")');
     expect(s.run('return SENT[9].text')).toBe("m9");
   });
@@ -180,7 +183,9 @@ describe("paced addon messages (ns.comm)", () => {
     expect(s.run('return tostring(NS.comm.pending("QPriority"))')).toBe("1024");
     expect(s.run('return tostring(NS.comm.send("QPriority", "overflow", "GUILD", nil, nil, "interactive"))')).toBe("false");
     s.run('GetTime = function() return 30 end; NS.comm.send("QPriority", "trigger", "GUILD")');
-    expect(s.run('return SENT[9].text .. "," .. SENT[12].text .. "," .. SENT[13].text .. "," .. SENT[14].text')).toBe('control1,control4,chunk9,control5');
+    // Same lane rule as before (four interactive, then one bulk chunk, chunks in order); 9.1.7 only moved the
+    // start: 6 chunks went out before the controls queued (the shared budget keeps 2 tokens for high-value traffic).
+    expect(s.run('return SENT[7].text .. "," .. SENT[10].text .. "," .. SENT[11].text .. "," .. SENT[12].text')).toBe('control1,control4,chunk7,control5');
   });
 
   it("distinguishes client acceptance, refusal and errors without retaining payloads", () => {

@@ -676,19 +676,25 @@ local buckets = {}
 -- prefixes at a login together sent far more than the server lets one player send: it refused the excess
 -- and printed "The number of messages that can be sent is limited" into the chat (owner report, 13 November
 -- 2026). The budget lives in a global so Guilded and Guilded Dungeons, which each load this file, share it.
--- The numbers are conservative guesses under the real, unpublished limit; the game's own throttle message
--- (ERR_CHAT_THROTTLED) or a throttled result backs everything off, doubling with jitter, never an instant retry.
-local GLOBAL_BURST, GLOBAL_PER_SECOND = 8, 3
+-- The rate adapts (AIMD): it starts at RATE_MAX a second and falls by 40% (floor RATE_MIN) each time the game
+-- really throttles us, and climbs back 0.5 a second per minute without a refusal. The real server limit is
+-- unknown, so the start value is a guess that is allowed to learn. The game prints one refusal line per
+-- refused send: only the FIRST of a burst counts as a strike (none while a back-off is running), and both
+-- addons see the same line, so the shared back-off window also de-duplicates them.
+local GLOBAL_BURST, RATE_MAX, RATE_MIN = 8, 4, 1.5
+local RESUME_TOKENS = 2            -- after a back-off sending resumes gently, not with a full burst
+local HIGH_RESERVE = 2             -- tokens only high-value traffic may use
 local LOW_VALUE_RESERVE = 3        -- low-value traffic may only use tokens above this many
 local LOW_VALUE_MAX_QUEUED = 3     -- a stale position or presence note is replaced, not queued behind itself
-local BACKOFF_FIRST, BACKOFF_MAX, BACKOFF_FORGET = 4, 60, 120
-local CHAT_PREFIX = "\1chat"      -- the pseudo prefix of paced SendChatMessage lines
+local BACKOFF_FIRST, BACKOFF_MAX, BACKOFF_FORGET = 2, 60, 30
 -- Positions and "free to group" notes are the first traffic to wait or be dropped.
 local LOW_VALUE = { GuildedMap = true, GuildedFree = true }
+-- Call for help and dungeon run receipts (plus any message queued "interactive") may use the reserved tokens.
+local HIGH_VALUE = { GuildedSOS = true, GuildedDgn = true }
 local function globalBudget()
   local g = _G.GuildedCommBudget
   if type(g) ~= "table" then
-    g = { tokens = GLOBAL_BURST, at = nil, strikes = 0, throttles = 0, lastStrike = -1000, backoffUntil = 0 }
+    g = { tokens = GLOBAL_BURST, at = nil, rate = RATE_MAX, strikes = 0, throttles = 0, refusals = 0, lastStrike = -1000, backoffUntil = 0 }
     _G.GuildedCommBudget = g
   end
   return g
@@ -728,7 +734,7 @@ local function bucket(prefix)
   local b = buckets[prefix]
   local t = nowSeconds()
   if not b then
-    b = { tokens = BURST, at = t, queue = {}, keys = {}, results = { sent = 0, refused = 0, error = 0, throttled = 0, oversized = 0, overflow = 0, abandoned = 0, cancelled = 0, coalesced = 0, dropped = 0 } }
+    b = { tokens = BURST, at = t, queue = {}, results = { sent = 0, refused = 0, error = 0, throttled = 0, oversized = 0, overflow = 0, abandoned = 0, cancelled = 0, dropped = 0 } }
     buckets[prefix] = b
   end
   b.tokens = math.min(BURST, b.tokens + math.max(0, t - b.at) * PER_SECOND)
@@ -736,36 +742,33 @@ local function bucket(prefix)
   return b
 end
 
-local function itemKey(item) return tostring(item.channel) .. "\1" .. tostring(item.target) .. "\1" .. item.text end
--- Every removal from a queue goes through here so the duplicate index stays right.
-local function removeItem(b, index)
-  local item = table.remove(b.queue, index)
-  if item then
-    local key = itemKey(item)
-    local n = (b.keys[key] or 1) - 1
-    b.keys[key] = n > 0 and n or nil
-  end
-  return item
-end
+local function removeItem(b, index) return table.remove(b.queue, index) end
 
 local function inCombatNow()
   return (type(InCombatLockdown) == "function" and InCombatLockdown() == true)
     or (type(UnitAffectingCombat) == "function" and UnitAffectingCombat("player") == true)
 end
 
--- The game (or the server through the game) said "slow down": nothing leaves for a growing, jittered while,
--- and what is cheap to lose is dropped now. Returns the seconds of back-off.
+-- The game (or the server through the game) said "slow down". Only the first refusal of a burst is a strike
+-- (the game prints one line per refused send, and both addons hear it): while a back-off runs further
+-- reports are only counted. A strike silences everything for a growing, jittered while, lowers the rate,
+-- empties the budget (sending resumes with RESUME_TOKENS, see globalWait) and drops what is cheap to lose.
+-- Returns the seconds of back-off now running.
 function comm.noteThrottle()
   local g, t = globalBudget(), nowSeconds()
+  g.refusals = (g.refusals or 0) + 1
+  if t < (g.backoffUntil or 0) then return g.backoffUntil - t end
   g.throttles = (g.throttles or 0) + 1
   if t - (g.lastStrike or -1000) > BACKOFF_FORGET then g.strikes = 0 end
   g.strikes = math.min((g.strikes or 0) + 1, 8)
   g.lastStrike = t
+  g.rate = math.max(RATE_MIN, (g.rate or RATE_MAX) * 0.6)
   local seconds = math.min(BACKOFF_MAX, BACKOFF_FIRST * 2 ^ (g.strikes - 1))
   seconds = seconds * (1 + 0.5 * math.random())
-  g.backoffUntil = math.max(g.backoffUntil or 0, t + seconds)
+  g.backoffUntil = t + seconds
+  g.resume = true
   g.tokens = 0
-  g.at = t
+  g.at = g.backoffUntil
   for prefix, other in pairs(buckets) do
     if LOW_VALUE[prefix] then
       while other.queue[1] do removeItem(other, 1); other.results.dropped = other.results.dropped + 1 end
@@ -775,7 +778,10 @@ function comm.noteThrottle()
   return seconds
 end
 
--- The throttle line is recognised with the game's own global string, so every language works.
+-- The throttle line is recognised with the game's own global string, so every language works. If this
+-- client's string or event differs from what is matched here, nothing is counted from the chat line and the
+-- protection that remains is the budget itself plus the throttled result of SendAddonMessage (codes 3 and 8,
+-- rawSend), which calls noteThrottle on its own.
 function comm.onSystemMessage(text)
   local known = _G.ERR_CHAT_THROTTLED
   if type(known) ~= "string" or known == "" or type(text) ~= "string" or isSecret(text) then return false end
@@ -791,16 +797,26 @@ do
   end
 end
 
--- Seconds until the global budget could allow one more message (0 = now), for this lane.
+-- Seconds until the global budget could allow one more message (0 = now), for this lane. Refills only after
+-- the back-off check; the first refill after a back-off starts from RESUME_TOKENS.
 local function globalWait(item, prefix)
   local g, t = globalBudget(), nowSeconds()
-  g.at = g.at or t
-  g.tokens = math.min(GLOBAL_BURST, g.tokens + math.max(0, t - g.at) * GLOBAL_PER_SECOND)
-  g.at = t
   if (g.backoffUntil or 0) > t then return g.backoffUntil - t end
-  local need = (LOW_VALUE[prefix] and not item.interactive) and (1 + LOW_VALUE_RESERVE) or 1
+  if g.resume then
+    g.resume = false
+    g.tokens, g.at = RESUME_TOKENS, t
+  end
+  g.at = g.at or t
+  local dt = math.max(0, t - g.at)
+  g.rate = g.rate or RATE_MAX
+  if t - (g.lastStrike or -1000) > 30 and g.rate < RATE_MAX then g.rate = math.min(RATE_MAX, g.rate + 0.5 * dt / 60) end
+  g.tokens = math.min(GLOBAL_BURST, g.tokens + dt * g.rate)
+  g.at = t
+  local need = 1 + HIGH_RESERVE
+  if item.interactive or HIGH_VALUE[prefix] then need = 1
+  elseif LOW_VALUE[prefix] then need = 1 + LOW_VALUE_RESERVE end
   if g.tokens >= need then return 0 end
-  return (need - g.tokens) / GLOBAL_PER_SECOND
+  return (need - g.tokens) / g.rate
 end
 
 local pump
@@ -808,6 +824,8 @@ local function schedule(prefix, b)
   if b.scheduled or not (C_Timer and C_Timer.After) then return end
   b.scheduled = true
   local delay = math.max(1 / PER_SECOND, (b.retryAt or 0) - b.at)
+  -- A wait caused by the shared budget is usually shorter than the per-prefix second.
+  if b.sharedWait then delay = math.max(0.25, (b.retryAt or 0) - b.at); b.sharedWait = nil end
   C_Timer.After(delay, function() b.scheduled = false; pump(prefix) end)
 end
 
@@ -819,13 +837,6 @@ pump = function(prefix)
   end
   b.retryAt = nil
   while b.queue[1] and b.tokens >= 1 do
-    -- The shared budget: wait for it (and any back-off) before looking at the queue.
-    local wait = globalWait(b.queue[1], prefix)
-    if LOW_VALUE[prefix] and inCombatNow() then wait = math.max(wait, 2) end
-    if wait > 0 then
-      b.retryAt = b.at + math.max(0.25, wait)
-      break
-    end
     -- Only explicitly independent traffic may bypass bulk transfers. Keep FIFO
     -- inside each lane, with one bulk packet after four interactive packets.
     local index = 1
@@ -835,6 +846,15 @@ pump = function(prefix)
       for i, candidate in ipairs(b.queue) do if not candidate.interactive then index = i break end end
     end
     local item = b.queue[index]
+    -- The shared budget: wait for it (and any back-off) for the lane about to send, so an interactive
+    -- message does not wait behind a bulk head of the queue.
+    local wait = globalWait(item, prefix)
+    if LOW_VALUE[prefix] and inCombatNow() then wait = math.max(wait, 2) end
+    if wait > 0 then
+      b.retryAt = b.at + math.max(0.25, wait)
+      b.sharedWait = true
+      break
+    end
     if item.holdInInstance and util.inInstance() then
       -- Background sync waits outside; FIFO order and the guard are kept for the retry.
       b.retryAt = b.at + INSTANCE_RETRY_SECONDS
@@ -911,13 +931,6 @@ function comm.send(prefix, text, channel, target, guard, priority)
   local hold = priority == "hold-in-instance"
   local item = { text = text, channel = channel, target = target, guard = guard,
     interactive = priority == "interactive", retryLockdown = hold or priority == "retry-lockdown", holdInInstance = hold }
-  -- The same message already waiting for this prefix is not queued again (a roster update that
-  -- re-asks for the same thing, a retry that raced a timer).
-  local key = itemKey(item)
-  if b.keys[key] then
-    b.results.coalesced = b.results.coalesced + 1
-    return true
-  end
   -- A position or presence note is only worth sending fresh: the oldest waiting one gives way.
   if LOW_VALUE[prefix] then
     while #b.queue >= LOW_VALUE_MAX_QUEUED do
@@ -926,24 +939,26 @@ function comm.send(prefix, text, channel, target, guard, priority)
     end
   end
   table.insert(b.queue, item)
-  b.keys[key] = (b.keys[key] or 0) + 1
   pump(prefix)
   return true
 end
 
--- A paced SendChatMessage (raid or party lines, whispers): the same global budget as addon traffic,
--- the same back-off, never more than a short queue. Returns false when the queue is full.
+-- A SendChatMessage line (raid or party text, whispers) that spends the same global budget. It is sent at
+-- once, inside the click that asked for it, or not at all: a line delayed by a queue would leave a timer,
+-- which the game may refuse outside a hardware event, and a ready check or bid arriving seconds late is
+-- worse than none. Returns true when it went out; false (with one short local note) when the budget or a
+-- back-off says wait.
 function comm.chat(text, channel, target)
   if not channel then return false end
   text = tostring(text)
-  local b = bucket(CHAT_PREFIX)
-  if #b.queue >= 40 then b.results.overflow = b.results.overflow + 1; return false end
-  local item = { text = text, channel = channel, target = target, interactive = true, chat = true }
-  table.insert(b.queue, item)
-  local key = itemKey(item)
-  b.keys[key] = (b.keys[key] or 0) + 1
-  pump(CHAT_PREFIX)
-  return true
+  local wait = globalWait({ interactive = true }, "chat")
+  if wait > 0 then
+    if ns.message and ns.L then pcall(ns.message, ns.L("Too many messages just now: wait a moment and try again.")) end
+    return false
+  end
+  local g = globalBudget()
+  g.tokens = math.max(0, g.tokens - 1)
+  return rawSend("chat", text, channel, target, true) == "sent"
 end
 
 -- Messages still waiting for a prefix (0 when everything went out).
@@ -961,7 +976,7 @@ function comm.status(prefix)
     errors = b and b.results.error or 0, throttled = b and b.results.throttled or 0,
     oversized = b and b.results.oversized or 0, overflow = b and b.results.overflow or 0,
     abandoned = b and b.results.abandoned or 0, cancelled = b and b.results.cancelled or 0,
-    coalesced = b and b.results.coalesced or 0, dropped = b and b.results.dropped or 0,
+    dropped = b and b.results.dropped or 0,
     queued = b and #b.queue or 0, lastResult = b and b.lastResult or nil,
     lastCode = b and b.lastCode or nil
   }
@@ -970,7 +985,7 @@ end
 -- Back-off state for tests and /guilded sync stats: throttle reports seen and seconds left to wait.
 function comm.budget()
   local g = globalBudget()
-  return { throttles = g.throttles or 0, strikes = g.strikes or 0, waiting = math.max(0, (g.backoffUntil or 0) - nowSeconds()) }
+  return { throttles = g.throttles or 0, refusals = g.refusals or 0, rate = g.rate or RATE_MAX, strikes = g.strikes or 0, waiting = math.max(0, (g.backoffUntil or 0) - nowSeconds()) }
 end
 
 -- (9.0) This session's addon traffic, all prefixes together (for /guilded sync stats):

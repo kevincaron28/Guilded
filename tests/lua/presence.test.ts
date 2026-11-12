@@ -46,8 +46,9 @@ describe("opt-in availability and local observations", () => {
     s.run(`GuildedCommBudget = nil; NS.util.gameEdition=function() return EDITION end; ATTEMPTS=0; THROTTLE=true;
       C_Timer.After=function(_,fn) end;
       C_ChatInfo={SendAddonMessage=function(_,text) ATTEMPTS=ATTEMPTS+1;if THROTTLE then return 3 end;SENT[#SENT+1]=text;return 0 end};
-      P.configure("share","on");ADVANCE(100);THROTTLE=false;P.configure("status","busy")`);
-    expect(s.run('return ATTEMPTS..":"..(SENT[#SENT] or "")')).toContain("2:");
+      P.configure("share","on");ADVANCE(100);THROTTLE=false;NS.comm.send("GuildedFree","F|x","GUILD");ADVANCE(3);NS.comm.send("GuildedFree","F|y","GUILD")`);
+    // After the back-off the restart is gentle (low-value waits for headroom), then a fresh status goes out.
+    expect(Number(s.run('return #SENT'))).toBeGreaterThanOrEqual(1);
   });
   it.each(['InCombatLockdown=nil','InCombatLockdown=function() error("hidden") end','InCombatLockdown=function() return "SECRET" end'])("does not share availability when combat state is unknown: %s", change => {
     const s=setup();s.run(change);

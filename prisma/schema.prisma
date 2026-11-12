@@ -1561,6 +1561,10 @@ model CraftRequest {
   askedCharacter    String?
   crafterCharacter  String?
   claimSource       String?
+  // Requests made in game (craft-orders.ts applyOrderRequests): the addon's own id for it (one request is created
+  // once per server), and, when a guildmate's companion carried it (the requester has none), that uploader's Member id.
+  gameRef           String?
+  relayedById       String?
   // 9.1: its line in the craft orders channel and, once finished, in the archive.
   orderMessageId    String?
   archiveMessageId  String?
@@ -1573,6 +1577,7 @@ model CraftRequest {
   requester         Member             @relation("CraftRequester", fields: [requesterId], references: [id], onDelete: Cascade)
   crafter           Member?            @relation("CraftCrafter", fields: [crafterId], references: [id], onDelete: SetNull)
 
+  @@unique([guildId, gameRef])
   @@index([guildId, status, createdAt])
   @@index([requesterId])
   @@index([crafterId])

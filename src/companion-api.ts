@@ -53,7 +53,7 @@ import { serverKnowsWowGuild } from "./services/wow-guilds.js";
 import { retryWriteConflict, serializeByKey } from "./services/transaction-retry.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
-import { applyOrderActions, craftOrdersForAddon, parseAddonOrderActions } from "./services/craft-orders.js";
+import { applyOrderActions, applyOrderRequests, craftOrdersForAddon, parseAddonOrderActions, parseAddonOrderRequests } from "./services/craft-orders.js";
 import { applyBoardVotes, applyRelayedBoardVotes, boardEnabled, boardForAddon, createBoardService, myBoardVotes, parseAddonBoardPosts, parseAddonBoardVotes } from "./services/guild-board.js";
 import { asLang } from "./i18n.js";
 import { serveCompanionWeb } from "./services/companion-redirect.js";
@@ -1272,6 +1272,23 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             // Loaded only when needed, like the poll command module above.
             const { announceOrderChanges } = await import("./commands/craft-board.js");
             void announceOrderChanges(client, guild.discordId, orderChanges).catch((error: unknown) => console.warn("Craft order Discord update failed", error));
+          }
+        }
+      }
+      // Craft requests made in game (craft-orders.ts): the uploader's own and ones a guildmate's addon heard. Each is
+      // created once (its gameRef), only for a confirmed character of an active member, and posted like a Discord request.
+      if (pairedMemberId) {
+        const ownRequests = parseAddonOrderRequests(preview.snapshot.craftOrderRequests);
+        const relayedRequests = parseAddonOrderRequests(preview.snapshot.craftOrderRelayRequests, true);
+        if (ownRequests.length || relayedRequests.length) {
+          const created = await applyOrderRequests(prisma, guild.id, pairedMemberId, ownRequests, relayedRequests)
+            .catch((error: unknown) => { console.warn("Craft requests from the addon failed", error); return []; });
+          if (created.length) {
+            markGuildChanged(guild.id);
+            const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
+            for (const request of created) {
+              if (discordGuild) await withGuildScope(prisma, guild.id, () => postCraftRequest(discordGuild, request.id)).catch((error: unknown) => console.warn("Craft request post failed", error));
+            }
           }
         }
       }

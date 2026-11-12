@@ -301,6 +301,10 @@ export const addonSnapshotSchema = z.object({
   // guildmates' heard on GUILD. Validated row by row on apply (services/craft-orders.ts).
   craftOrderActions: z.array(z.unknown()).max(60).default([]),
   craftOrderRelayActions: z.array(z.unknown()).max(200).default([]),
+  // Craft requests made in game (services/craft-orders.ts applyOrderRequests): the member's own, and guildmates' heard
+  // on GUILD. Absent from older companions; validated row by row on apply.
+  craftOrderRequests: z.array(z.unknown()).max(20).default([]),
+  craftOrderRelayRequests: z.array(z.unknown()).max(60).default([]),
   // Track M phone map (services/guild-map.ts): the uploader's own last-seen positions and calls for help.
   // Validated row by row on apply, with their pairing only.
   mapSightings: z.array(z.unknown()).max(100).default([]),

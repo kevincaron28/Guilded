@@ -4,7 +4,12 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 // first and a last name) in the invite channel; the bot records it, officers see it in /mod invites and in the
 // addon's "To invite" panel, and it is done when the character shows up in a roster upload or an officer reacts.
 
+
+
 type Database = Pick<PrismaClient, "inviteRequest">;
+
+/** How long after a request is handled its messages are removed from the invite channel (invite-cleanup.ts). Easy to change. */
+export const CLEANUP_DELAY_MS = 60 * 60_000;
 
 /** The bot's "seen, waiting for an invite" reaction. */
 export const SEEN = "👀";
@@ -75,17 +80,22 @@ export async function markInvitedByName(database: Database, guildId: string, nam
   const byFold = new Map<string, typeof waiting>();
   for (const row of waiting) { const key = foldKey(row.nameKey); byFold.set(key, [...(byFold.get(key) ?? []), row]); }
   const hit = new Set<string>();
+  const certain = new Set<string>(); // a full first+last name match: the only kind that starts the clean-up clock
   for (const name of wanted) {
     const bare = name.replace(/-[^\s-]+$/u, "");
     const exact = byFold.get(name) ?? byFold.get(bare);
-    if (exact) { exact.forEach((row) => hit.add(row.id)); continue; }
+    if (exact) { exact.forEach((row) => { hit.add(row.id); certain.add(row.id); }); continue; }
     if (bare.includes(" ")) continue;
     const loose = [...byFold.keys()].filter((key) => key.startsWith(`${bare} `));
     if (loose.length === 1) byFold.get(loose[0]!)!.forEach((row) => hit.add(row.id));
   }
   const rows = waiting.filter((row) => hit.has(row.id)).map(({ id, channelId, messageId, displayName, notifyMessageId }) => ({ id, channelId, messageId, displayName, notifyMessageId }));
   if (!rows.length) return [];
-  await database.inviteRequest.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data: { status: "INVITED", invitedBy: by, invitedAt: new Date() } });
+  const now = new Date();
+  await database.inviteRequest.updateMany({ where: { id: { in: rows.map((row) => row.id) } }, data: { status: "INVITED", invitedBy: by, invitedAt: now, cleanupAt: null } });
+  // The clean-up clock starts on a full name match, or on an officer's own action (by is not "roster"); a first-name-only roster guess only marks.
+  const due = rows.filter((row) => by !== "roster" || certain.has(row.id)).map((row) => row.id);
+  if (due.length) await database.inviteRequest.updateMany({ where: { id: { in: due } }, data: { cleanupAt: new Date(now.getTime() + CLEANUP_DELAY_MS) } });
   return rows;
 }
 

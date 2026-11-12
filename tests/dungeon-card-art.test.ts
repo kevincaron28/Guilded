@@ -2,7 +2,7 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import { dungeonArt } from "../src/services/dungeon-art.js";
 import { dungeonRunCard, dungeonTheme, paintedKey } from "../src/services/dungeon-card.js";
-import { dungeonBackdrop } from "../src/services/dungeon-backdrop.js";
+import { dungeonBackdrop, backdropCacheSize, BACKDROP_CACHE_LIMIT } from "../src/services/dungeon-backdrop.js";
 import { existsSync, readdirSync } from "node:fs";
 import type { DungeonImportResult } from "../src/services/dungeon-import.js";
 import { ROLE_COLOR, roleGlyph, scoreCardPng } from "../src/services/score-card.js";
@@ -176,5 +176,11 @@ describe("painted dungeon artwork files", () => {
     expect(missing.equals(without)).toBe(true);
     expect(unsafe.equals(without)).toBe(true);
     expect(existsSync(new URL("wailing-caverns.jpg", dir))).toBe(true);
+  });
+  it("keeps at most a few paintings in memory, whatever number of dungeons are drawn", async () => {
+    const files = readdirSync(dir).filter((f) => f.endsWith(".jpg")).map((f) => f.slice(0, -4));
+    expect(files.length).toBeGreaterThan(BACKDROP_CACHE_LIMIT);
+    for (const key of files) { await dungeonBackdrop({ ...dungeonTheme("Wailing Caverns"), painted: key }); expect(backdropCacheSize()).toBeLessThanOrEqual(BACKDROP_CACHE_LIMIT); }
+    expect(backdropCacheSize()).toBe(BACKDROP_CACHE_LIMIT);
   });
 });

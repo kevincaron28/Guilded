@@ -10,16 +10,24 @@ import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
  * over its picture.
  */
 const KEY = /^[a-z0-9-]{1,40}$/;
+/** Least-recently-used cache of the painting files' own (JPEG, ~160 KB) bytes: small and bounded, never decoded pictures. */
+export const BACKDROP_CACHE_LIMIT = 6;
 const cache = new Map<string, Buffer>();
+
+/** How many paintings are held right now (for the test of the bound). */
+export function backdropCacheSize(): number { return cache.size; }
 
 async function painted(key: string): Promise<Buffer | null> {
   const known = cache.get(key);
-  if (known) return known;
+  if (known) { cache.delete(key); cache.set(key, known); return known; }
   try {
     const file = fileURLToPath(new URL(`../../site/dungeon-art/${key}.jpg`, import.meta.url));
-    const art = await sharp(await readFile(file)).resize(1200, 630, { fit: "cover" }).png().toBuffer();
-    if (cache.size >= 40) cache.clear();
+    let art = await readFile(file);
+    const meta = await sharp(art).metadata();
+    // Every shipped file is 1200x630; anything else is fitted once, here.
+    if (meta.width !== 1200 || meta.height !== 630) art = await sharp(art).resize(1200, 630, { fit: "cover" }).jpeg({ quality: 82 }).toBuffer();
     cache.set(key, art);
+    while (cache.size > BACKDROP_CACHE_LIMIT) cache.delete(cache.keys().next().value as string);
     return art;
   } catch { return null; }
 }

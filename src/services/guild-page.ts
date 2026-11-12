@@ -1,8 +1,9 @@
+import { siteUrl } from "../site-url.js";
 import { guildWhere } from "./guild-scope.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { priority } from "./epgp.js";
 import { asLootMode, effectiveRules, LOOT_MODE_HELP, LOOT_MODE_HELP_FR, LOOT_MODE_LABEL, LOOT_MODE_LABEL_FR } from "./core-rules.js";
-import { breadcrumbs, SHARE_CARD, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
+import { breadcrumbs, shareCard, SITE_HEADER_STYLE, siteFooterNav, siteHeader } from "./site-header.js";
 import { gameEditionOf } from "./game-edition.js";
 import { editionHref } from "../../site/nav.mjs";
 import type { GuildDungeonSummary } from "./public-leaderboard.js";
@@ -219,11 +220,11 @@ export function renderGuildPage(view: GuildPageView): string {
   return `<!doctype html><html lang="${view.language}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">`
     + `<title>${name} · Guilded</title><meta name="description" content="${description}">${view.indexable ? "" : '<meta name="robots" content="noindex">'}`
     + `<meta property="og:title" content="${name}"><meta property="og:description" content="${description}"><meta property="og:type" content="website">`
-    + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="${SHARE_CARD}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37"><link rel="icon" href="/favicon.png" type="image/png">`
+    + `<meta property="og:site_name" content="Guilded"><meta property="og:image" content="${shareCard()}"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#d4af37"><link rel="icon" href="/favicon.png" type="image/png">`
     + `<style>${PAGE_STYLE}
 ${SITE_HEADER_STYLE}</style></head><body>${siteHeader(view.language, `/g/${view.slug}/`, undefined, view.edition)}<main>`
     + breadcrumbs(view.language, [[t("Guilds", "Guildes"), `/recruitment/guilds/?lang=${view.language}`], [view.name, null]], escapeHtml) + parts.join("")
-    + `<footer class="site-foot">${siteFooterNav(view.language, view.edition)}<p class="foot-note">${t("Guild page made with", "Page de guilde créée avec")} <a href="https://guilded.kcaron.top/">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;
+    + `<footer class="site-foot">${siteFooterNav(view.language, view.edition)}<p class="foot-note">${t("Guild page made with", "Page de guilde créée avec")} <a href="${siteUrl("/")}">Guilded</a>. ${t("Not affiliated with Blizzard Entertainment.", "Sans affiliation avec Blizzard Entertainment.")}</p></footer></main></body></html>`;
 }
 
 // Members' top scores, recent public runs and records this season (only for guilds that publish their runs).
@@ -244,7 +245,7 @@ function dungeonSection(view: GuildPageView, d: GuildDungeonSummary): string {
     + (view.dungeonPage ? `<p><a href="${escapeHtml(`${view.dungeonPage}?lang=${view.language}`)}">${t("All members' scores →", "Scores de tous les membres →")}</a></p>` : "");
 }
 
-const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found · Guilded</title><style>${PAGE_STYLE}</style></head><body><main><h1>Page not found</h1><p class="muted">This guild page does not exist or is not published. / Cette page de guilde n'existe pas ou n'est pas publiée.</p><p><a href="/recruitment/guilds/">Guilds / Guildes</a> · <a href="https://guilded.kcaron.top/">Guilded</a></p></main></body></html>`;
+const NOT_FOUND = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Page not found · Guilded</title><style>${PAGE_STYLE}</style></head><body><main><h1>Page not found</h1><p class="muted">This guild page does not exist or is not published. / Cette page de guilde n'existe pas ou n'est pas publiée.</p><p><a href="/recruitment/guilds/">Guilds / Guildes</a> · <a href="${siteUrl("/")}">Guilded</a></p></main></body></html>`;
 
 /** The public page as data for the phone app: only what renderGuildPage shows (no Discord ids, no invite unless published). */
 export function guildPageJson(view: GuildPageView) {

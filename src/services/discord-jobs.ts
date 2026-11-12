@@ -1,3 +1,4 @@
+import { siteUrl } from "../site-url.js";
 import { pilotGuildScope } from "../hosted-pilot.js";
 import { currentGuildScope, withGuildScope } from "./guild-scope.js";
 import { randomUUID } from "node:crypto";
@@ -216,7 +217,7 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
 }
 
 /** The invisible marker a delivered post carries: the website address with the job id. */
-export const deliveryLink = (jobId: string) => `https://guilded.kcaron.top/?delivery=${encodeURIComponent(jobId)}`;
+export const deliveryLink = (jobId: string) => siteUrl(`/?delivery=${encodeURIComponent(jobId)}`);
 
 let running = false;
 const DELIVERY_BATCH_SIZE = 25;

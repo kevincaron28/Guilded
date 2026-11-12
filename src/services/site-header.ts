@@ -1,3 +1,4 @@
+import { siteUrl } from "../site-url.js";
 import { readFileSync } from "node:fs";
 import { editionHref, editionSection, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../../site/nav.mjs";
 import { currentEdition } from "./edition-context.js";
@@ -18,7 +19,7 @@ body{font-family:Inter,"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
 ${chrome.slice(chromeStart + "/* site-chrome:start */".length, chromeEnd).trim()}`;
 
 // The website's 1200 × 630 link-preview card (site/images/social/), for pages without their own.
-export const SHARE_CARD = "https://guilded.kcaron.top/images/social/guilded-card.png";
+export const shareCard = (): string => siteUrl("/images/social/guilded-card.png");
 
 const escape = (text: string) => text.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
 

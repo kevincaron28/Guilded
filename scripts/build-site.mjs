@@ -9,7 +9,10 @@ import { POE_ENABLED } from "../companion/active-games.mjs";
 import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
-const origin = "https://guilded.kcaron.top";
+// The public address written into canonical links, the sitemap and robots.txt (docs/plans/GUILDEDWOW_DOMAIN.md).
+// Set SITE_ORIGIN (https only) in the Cloudflare build settings to move to guildedwow.com; unset keeps the old address.
+const OLD_ORIGIN = "https://guilded.kcaron.top";
+const origin = /^https:\/\/[a-z0-9.-]+$/.test(process.env.SITE_ORIGIN ?? "") ? process.env.SITE_ORIGIN : OLD_ORIGIN;
 const guideDescriptions = {
   AUTOMATION_QUICK_START: "Optional member and officer automation: setup, status and stopping delivery. English and French.",
   PRIVACY: "Guilded privacy: data, permissions, retention and private support requests. English and French.",
@@ -68,7 +71,7 @@ const homeFooter = footerLinks({ href: staticHref(""), label: bilingualLabel, co
 for (const name of ["index.html", "style.css", "site.js", "design-tokens.css", "atelier.css", "language.js", "nav.mjs"]) {
   // The home page's version cards open each edition's hub (/forever/, /retail/...).
   const content = renderVersions(readFileSync(`site/${name}`, "utf8")).replace("{{SITE_NAV}}", homeNav).replace("{{FOOTER_COLS}}", homeFooter).replace("{{EDITION_CARDS}}", editionCards({ hubs: true }));
-  writeFileSync(`${out}/${name}`, content);
+  writeFileSync(`${out}/${name}`, name === "index.html" ? content.replaceAll(OLD_ORIGIN, origin) : content);
 }
 cpSync("site/fonts", `${out}/fonts`, { recursive: true });
 // The header logo (88 px, 3 KB instead of the 324 KB original), favicons and the 1200 × 630 link-preview card.

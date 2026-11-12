@@ -37,9 +37,9 @@ describe("parseInviteName", () => {
     ["Éloïse D'Artagnan", "Éloïse D'Artagnan"],
     ["Jean-Luc Picard", "Jean-Luc Picard"],
     ["Lebowski Holyroller\nthanks!", "Lebowski Holyroller"],
-    // The realm form the game's invite line and roster show is not part of the name (audit 12 Nov).
-    ["Lebowski Holyroller-Stormrage", "Lebowski Holyroller"],
-    ["/ginvite Lebowski Holyroller-Stormrage", "Lebowski Holyroller"]
+    // A dash in the last word is kept: "Anna Smith-Jones" is a real surname (audit 12 Nov); a typed realm stays part of the post.
+    ["Anna Smith-Jones", "Anna Smith-Jones"],
+    ["/ginvite Lebowski Holyroller-Stormrage", "Lebowski Holyroller-Stormrage"]
   ])("reads %j", (text, expected) => expect(parseInviteName(text)?.displayName).toBe(expected));
   it.each(["", "   ", "Lebowski", "hello can I join the guild please", "Lebowski-Realm", "12 34", "<@123456789012345678>", "https://example.com/a b", "a b"])("rejects %j", (text) => {
     expect(parseInviteName(text)).toBeNull();

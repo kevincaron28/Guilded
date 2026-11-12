@@ -24,10 +24,9 @@ export function parseInviteName(content: string | null | undefined): ParsedInvit
   text = text.replace(LEAD_IN, "").trim();
   const match = NAME.exec(text);
   if (!match) return null;
-  // "First Last-Realm" (the form the game's own invite line and roster show): the realm is not part of the name.
-  const last = match[2]!.replace(/-.*$/u, "");
-  if (last.length < 2) return null;
-  const displayName = `${match[1]} ${last}`;
+  // A dash in the last word is kept ("Anna Smith-Jones" is a real surname); a "-Realm" the player typed is matched against
+  // the roster's own "Name-Realm" spelling in markInvitedByName.
+  const displayName = `${match[1]} ${match[2]}`;
   return { displayName, nameKey: displayName.normalize("NFC").toLowerCase() };
 }
 
@@ -59,7 +58,9 @@ export async function pendingInvites(database: Database, guildId: string, limit 
 export interface InvitedRow { id: string; channelId: string; messageId: string; displayName: string; notifyMessageId?: string | null }
 
 /** Case, accents and surrounding spaces ignored: "Drakka  Whitefang" and "drakka whitefang" are the same character. */
-export const foldKey = (name: string): string => nameKeyOf(name).normalize("NFD").replace(/\p{M}/gu, "");
+// The addon folds the same letters (Modules/InviteQueue.lua, generated from this rule; tests/lua/invite-queue.test.ts compares them).
+export const foldKey = (name: string): string => nameKeyOf(name).normalize("NFD").replace(/\p{M}/gu, "")
+  .replace(/[øØ]/gu, "o").replace(/[đĐ]/gu, "d").replace(/[łŁ]/gu, "l").replace(/[ıİ]/gu, "i");
 
 /**
  * Marks every waiting post of these names as invited and returns them, so the bot can add the check marks.

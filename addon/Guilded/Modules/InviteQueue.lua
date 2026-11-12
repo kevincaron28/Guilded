@@ -13,17 +13,21 @@ local function nowSeconds() return (GetServerTime and GetServerTime()) or (time 
 local RECENT_SECONDS = 600
 local MAX_ROWS = 12
 
--- Accents folded like the bot does (E-acute-lise = elise): string.lower leaves UTF-8 capitals alone.
+-- Accents folded like the bot's foldKey (invite-queue.ts): codepoint+letter pairs for Latin-1 and Latin Extended-A.
 local FOLD = {}
-local function foldRange(letter, first, last) for b = first, last do FOLD[b] = letter end end
-foldRange("a", 128, 133); foldRange("c", 135, 135); foldRange("e", 136, 139); foldRange("i", 140, 143); foldRange("n", 145, 145)
-foldRange("o", 146, 150); foldRange("o", 152, 152); foldRange("u", 153, 156); foldRange("y", 157, 157)
-foldRange("a", 160, 165); foldRange("c", 167, 167); foldRange("e", 168, 171); foldRange("i", 172, 175); foldRange("n", 177, 177)
-foldRange("o", 178, 182); foldRange("o", 184, 184); foldRange("u", 185, 188); foldRange("y", 189, 189); foldRange("y", 191, 191)
+for cp, letter in string.gmatch("192a 193a 194a 195a 196a 197a 199c 200e 201e 202e 203e 204i 205i 206i 207i 209n 210o 211o 212o 213o 214o 216o 217u 218u 219u 220u 221y 224a 225a 226a 227a 228a 229a 231c 232e 233e 234e 235e 236i 237i 238i 239i 241n 242o 243o 244o 245o 246o 248o 249u 250u 251u 252u 253y 255y 256a 257a 258a 259a 260a 261a 262c 263c 264c 265c 266c 267c 268c 269c 270d 271d 272d 273d 274e 275e 276e 277e 278e 279e 280e 281e 282e 283e 284g 285g 286g 287g 288g 289g 290g 291g 292h 293h 296i 297i 298i 299i 300i 301i 302i 303i 304i 305i 308j 309j 310k 311k 313l 314l 315l 316l 317l 318l 321l 322l 323n 324n 325n 326n 327n 328n 332o 333o 334o 335o 336o 337o 340r 341r 342r 343r 344r 345r 346s 347s 348s 349s 350s 351s 352s 353s 354t 355t 356t 357t 360u 361u 362u 363u 364u 365u 366u 367u 368u 369u 370u 371u 372w 373w 374y 375y 376y 377z 378z 379z 380z 381z 382z", "(%d+)(%a)") do FOLD[tonumber(cp)] = letter end
+local LOWER = {}
+for cp, low in string.gmatch("198:230 208:240 222:254 294:295 306:307 319:320 330:331 338:339 358:359", "(%d+):(%d+)") do LOWER[tonumber(cp)] = tonumber(low) end
 local function key(name)
-  local text = string.gsub(tostring(name or ""), "\195([\128-\191])", function(c) return FOLD[string.byte(c)] end)
+  local text = string.gsub(tostring(name or ""), "([\195-\197])([\128-\191])", function(a, b)
+    local cp = (string.byte(a) - 192) * 64 + string.byte(b) - 128
+    if FOLD[cp] then return FOLD[cp] end
+    local low = LOWER[cp]
+    if low then return string.char(192 + math.floor(low / 64), 128 + low % 64) end
+  end)
   return string.lower((string.gsub(text, "%s+", " ")))
 end
+module.foldKey = key
 
 -- What the game answered to /ginvite, per name (English strings of the game's own messages; the client's
 -- localized global strings are used when it has them): notfound, inguild, already (invited), declined, joined.
@@ -56,14 +60,7 @@ local function answerPatterns()
   return patterns
 end
 
--- Officers, and any member whose rank can invite: every guild member may invite (owner decision, 7 Nov 2026), and the
--- bot tags whichever guildmates are online, so the panel is for them too.
-local function officer()
-  if ns.isOfficer and ns.isOfficer() then return true end
-  if not CanGuildInvite then return false end
-  local ok, can = pcall(CanGuildInvite)
-  return ok and can == true
-end
+local function officer() return ns.isOfficer and ns.isOfficer() end
 
 local function guildKeys()
   local keys = {}

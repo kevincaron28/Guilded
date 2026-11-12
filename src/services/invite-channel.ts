@@ -6,7 +6,7 @@ import { notifyInviters } from "./invite-notify.js";
 import { DONE_BUTTON, requestInviteRow } from "./invite-request.js";
 import { INVITE_REQUEST_PREFIX } from "./invite-request.js";
 import { parseInviteAnswers, questionsBlock, storedQuestions } from "./recruiting-kit.js";
-import { markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, SEEN, type InvitedRow } from "./invite-queue.js";
+import { foldKey, markInvitedByMessage, markInvitedByName, parseInviteName, recordInviteRequest, SEEN, type InvitedRow } from "./invite-queue.js";
 
 // 8.5 batch 3 (#13/#14): the Discord half of the guild-invite channel. On by default; an officer's off switch is
 // `/mod invites settings queue:false` (and `dm:false` for the WoW-role DM). Reading names needs the Message Content
@@ -31,9 +31,19 @@ function isOfficer(member: GuildMember | null | undefined): boolean {
   try { return Boolean(member && hasPermission(member, "officer")); } catch { return false; }
 }
 
-/** A request whose character is already in the stored guild roster is handled right away. Best effort. */
-export async function settleIfAlreadyIn(client: Pick<Client, "channels" | "user">, database: unknown, guild: { id: string; discordId: string }): Promise<void> {
-  try { await backCheckInvites(client, database as never, guild); } catch { /* the hourly back-check still runs */ }
+/**
+ * A request whose full first+last name is in the CURRENT in-guild roster (a row the game still shows in the guild) is handled
+ * right away: no tag. Nothing looser: not a first name alone, not a linked character who may have left. Best effort; the
+ * hourly back-check still runs.
+ */
+export async function settleIfAlreadyIn(client: Pick<Client, "channels" | "user">, database: unknown, guild: { id: string; discordId: string }, nameKey: string): Promise<void> {
+  try {
+    const wanted = foldKey(nameKey);
+    if (!wanted.includes(" ")) return;
+    const roster = await (database as Pick<PrismaClient, "guildRosterEntry">).guildRosterEntry.findMany({ where: { guildId: guild.id, inGuild: true }, select: { name: true } });
+    const names = roster.map((row) => row.name).filter((name) => { const key = foldKey(name); return key === wanted || key.replace(/-[^\s-]+$/u, "") === wanted; });
+    if (names.length) await completeInvitesFromRoster(client, database as never, guild, names);
+  } catch { /* the hourly back-check still runs */ }
 }
 
 /** A player's post in the invite channel: record the full name and react 👀, or send a short hint that deletes itself. */
@@ -51,7 +61,7 @@ export async function handleInviteMessage(message: Message, database: Database):
   await recordInviteRequest(database, { guildId: settings.guildId, parsed, discordUserId: message.author.id, channelId: message.channelId, messageId: message.id, answers: parseInviteAnswers(message.content) });
   await message.react(SEEN).catch(() => undefined);
   // Someone already in the guild is done at once: no tag, no wait for the hourly back-check.
-  await settleIfAlreadyIn(message.client, database, { id: settings.guildId, discordId: message.guildId });
+  await settleIfAlreadyIn(message.client, database, { id: settings.guildId, discordId: message.guildId }, parsed.nameKey);
   if (message.channel && "send" in message.channel) await notifyInviters(database as never, { guildId: settings.guildId, discordGuild: message.guild, channel: message.channel as never, requestMessageId: message.id, requesterId: message.author.id, displayName: parsed.displayName });
   // The member row lets the character link to them when it joins (invite-prelink.ts). Best effort.
   try { await database.member.upsert({ where: { guildId_discordUserId: { guildId: settings.guildId, discordUserId: message.author.id } }, create: { guildId: settings.guildId, discordUserId: message.author.id, displayName: message.member?.displayName ?? message.author.username }, update: {} }); } catch { /* optional */ }

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { newLuaSession, type LuaSession } from "./harness.js";
+import { foldKey } from "../../src/services/invite-queue.js";
 
 let session: LuaSession | undefined;
 afterEach(() => { session?.close(); session = undefined; });
@@ -128,20 +129,28 @@ describe("InviteQueue.lua", () => {
     expect(s.run(String.raw`return tostring((NS.inviteQueue.canInvite()))`)).toBe("false");
     expect(s.run(String.raw`return tostring((NS.inviteQueue.markInvited("Amy\nArcher")))`)).toBe("false");
     const plain = withQueue(false);
-    plain.run("CAN = false");
     expect(plain.run(String.raw`return tostring((NS.inviteQueue.canInvite()))`)).toBe("false");
     expect(plain.run(String.raw`return tostring((NS.inviteQueue.list()))`)).toBe("nil");
-  });
-  it("shows the panel to a non-officer member whose rank can invite (any guildmate may invite)", () => {
-    const member = withQueue(false);
-    expect(member.run(String.raw`local l = NS.inviteQueue.list() return l and #l or -1`)).toBe("2");
-    expect(member.run(String.raw`return tostring((NS.inviteQueue.canInvite()))`)).toBe("true");
   });
   it("matches a name in the guild with accents and capitals folded like the bot does", () => {
     const s = withQueue();
     s.run(String.raw`ROSTER = { "\195\137lise Dupont-Realm", "Zo\195\171 Quinn-Realm" }`);
     s.run(String.raw`GuildedInvites.names = { { name = "Elise Dupont", at = "a" }, { name = "\195\169lise Dupont", at = "b" }, { name = "Zoe Quinn", at = "c" }, { name = "Amy Archer", at = "d" } }`);
     expect(s.run(String.raw`local t = {} for _, l in ipairs(NS.inviteQueue.list()) do t[#t + 1] = l.name end return table.concat(t, "|")`)).toBe("Amy Archer");
+  });
+  it("folds every letter exactly like the bot's foldKey (shared table, Latin-1 and Latin Extended-A)", () => {
+    const s = withQueue();
+    const mismatches: string[] = [];
+    for (let cp = 0xc0; cp <= 0x17f; cp++) {
+      if (cp === 0xd7 || cp === 0xf7) continue;
+      const letter = String.fromCodePoint(cp);
+      const name = `Ab${letter}Cd Xy`;
+      const escaped = [...Buffer.from(name, "utf8")].map((b) => `\\${b}`).join("");
+      const lua = s.run(`return NS.inviteQueue.foldKey("${escaped}")`);
+      // The bot's key for the same name (letters outside the shared set stay as they are on both sides).
+      if (lua !== foldKey(name)) mismatches.push(`${letter} U+${cp.toString(16)}: lua ${lua} bot ${foldKey(name)}`);
+    }
+    expect(mismatches).toEqual([]);
   });
   it("prints a copyable ginvite list and a one-line reminder", () => {
     const s = withQueue();

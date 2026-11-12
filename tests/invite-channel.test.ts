@@ -136,6 +136,19 @@ describe("finishing a name from the guild roster", () => {
     expect(await handleInviteMessage(post("Drakka Whitefang", { client: c, channel: { send: vi.fn() } }) as never, db as never)).toBe("recorded");
     expect(db.inviteRequest.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ status: "INVITED", invitedBy: "roster" }) }));
   });
+  it("settles at once only on a full name in the current roster: not a first name, not a linked character who left, not a surname with a dash cut short", async () => {
+    const roster = [{ name: "Elise Old-Realm" }, { name: "Anna Smith-Realm" }];
+    const run = async (post_: string, extra: Partial<{ roster: { name: string }[]; linked: { name: string }[] }> = {}) => {
+      const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => extra.roster ?? roster) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => extra.linked ?? [{ name: "Drakka Whitefang", displayName: null }]) } });
+      db.inviteRequest.count = vi.fn(async () => 1);
+      await handleInviteMessage(post(post_, { client: client().c, channel: { send: vi.fn() } }) as never, db as never);
+      return db.inviteRequest.updateMany.mock.calls.some((call) => (call as unknown as [{ data: { status?: string } }])[0].data.status === "INVITED");
+    };
+    expect(await run("Elise New")).toBe(false); // an old "Elise" does not close a new "Elise New"
+    expect(await run("Drakka Whitefang")).toBe(false); // linked, but not in the current roster
+    expect(await run("Anna Smith-Jones")).toBe(false); // the surname is not cut at its dash
+    expect(await run("Elise Old")).toBe(true);
+  });
   it("does nothing when nobody is waiting", async () => {
     const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => []) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) } });
     expect(await backCheckInvites(client().c as never, db as never, { id: "g1", discordId: "guild" })).toBe(0);

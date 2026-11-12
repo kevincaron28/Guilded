@@ -126,7 +126,7 @@ describe("the tools window (sidebar and Home page)", () => {
   it("gives each officer feature a single menu scope", () => {
     const s = openWindow(1);
     s.run(`NS.openGuildPanel(nil, "guild", "Standings")`);
-    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Guild message,Roster admin,Officer tools");
+    expect(visibleTabs(s)).toBe("Standings,Crafting,Availability,Gear,EPGP,Local guild,Roster admin,Officer tools");
     s.run(`NS.openGuildPanel(nil, "calendar", "Calendar")`);
     expect(visibleTabs(s)).toBe("Calendar");
   });
@@ -536,9 +536,8 @@ describe("in-game UI fixes from the 5 November pass", () => {
     expect(out).toContain("wheel ticks=1");
   });
 
-  it("offers the guild message and announcement pages as tabs", () => {
+  it("offers the announcement page as a tab", () => {
     const s = openWindow(1);
-    expect(s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`)).toContain("Guild message");
     expect(s.run(`local names = {}; for _, t in ipairs(NS.windowState().tabs) do names[#names + 1] = t.name end; return table.concat(names, ",")`)).toContain("Announcements");
   });
 

@@ -76,12 +76,8 @@ for (const file of addonFiles) {
   const source = readFileSync(new URL(file, root), "utf8");
   if (/SendAddonMessage\(/.test(source)) throw new Error(`${file} calls SendAddonMessage directly; use ns.comm.send (Util.lua)`);
   validateMixinHooks(source, file);
-  // GuildSetMOTD is Blizzard-UI only (ADDON_ACTION_FORBIDDEN): Modules/GuildMotd.lua is a reminder + copy box.
-  if (/\b(GuildSetMOTD|SetMOTD)\s*\(/.test(source)) throw new Error(`${file} calls GuildSetMOTD; WoW does not let addons set the MOTD (see Modules/GuildMotd.lua)`);
-  if (file === "Modules/GuildMotd.lua") {
-    const code = source.split(/\r?\n/).filter(line => !/^\s*--/.test(line)).join("\n");
-    if (/GuildSetMOTD|SetMOTD|ChatFrame_OpenChat|DEFAULT_CHAT_FRAME|\beditBox\b|ChatEdit/.test(code)) throw new Error("GuildMotd.lua must not touch the chat box or any MOTD function (tainted chat text is blocked)");
-  }
+  // GuildSetMOTD is Blizzard-UI only (ADDON_ACTION_FORBIDDEN); the guild message feature was removed in 9.2.
+  if (/\b(GuildSetMOTD|SetMOTD)\s*\(/.test(source)) throw new Error(`${file} calls GuildSetMOTD; WoW does not let addons set the MOTD`);
 }
 // Addon message prefixes are limited to 16 characters.
 for (const file of addonFiles) {

@@ -1010,7 +1010,6 @@ local function buildToolsPage(page)
   officerOnly(at(newLabel(page, "Officer", "GameFontNormalSmall"), page, 0, -100))
   officerOnly(at(newButton(page, "Backup", 136, function() run("backup") end), page, 0, -116))
   officerOnly(tip(at(newButton(page, "Officer setup", 136, function() run("officer list") end), page, 142, -116), "Who counts as an officer in this guild."))
-  officerOnly(tip(at(newButton(page, "Guild message", 136, function() run("motd config") end), page, 284, -116), "Keep the in-game guild message of the day current by itself (off until you turn it on)."))
 
   -- Test tools (/guilded sim): a pretend raid with fake players, to learn the tools alone.
   forModule("sim", at(newLabel(page, "Developer tools: test raids with fake players (saved tests can sync to Discord)", "GameFontDisableSmall"), page, 0, -146), true)
@@ -1642,7 +1641,6 @@ local TAB_DEFS = {
   { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raid night", officer = true, usesPlayer = true, build = buildRaidPage },
   { name = "EPGP", label = "Administration", hint = "award EP and GP", scope = "guild", group = "Guild", officer = true, usesPlayer = true, build = buildEpgpPage },
   { name = "Local guild", scope = "guild", group = "Guild", officer = true, build = buildLocalGuildPage },
-  { name = "Guild message", hint = "keep the guild message of the day current", scope = "guild", group = "Guild", officer = true, build = function(page) if ns.guildMotd and ns.guildMotd.buildPage then ns.guildMotd.buildPage(page, { newLabel = newLabel, newButton = newButton, newEdit = newEdit, at = at, width = PAGE_WIDTH }) end end },
   { name = "Roster admin", scope = "guild", group = "Guild", officer = true, build = buildRosterAdminPage },
   { name = "Officer tools", hint = "guild log, prospects, guild bank, imports", scope = "guild", group = "Guild", officer = true, build = buildOfficerToolsPage },
   { name = "Loot", hint = "bids and loot", group = "Raid night", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },

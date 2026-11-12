@@ -70,6 +70,7 @@ import { handleLinkedButton, LINKED_PREFIX } from "./services/companion-link-dm.
 import { handleLinkMoveButton, LINK_MOVE_PREFIX } from "./services/link-conflict-dm.js";
 import { handleInviteDm, handleInviteRequestInteraction, INVITE_REQUEST_PREFIX } from "./services/invite-request.js";
 import { postAllWeeklyGuildBanks } from "./services/guild-bank.js";
+import { scheduleInviteCleanups } from "./services/invite-cleanup.js";
 import { backCheckAllInvites, handleInviteDoneButton, handleInviteMessage, handleInviteReaction, handleWowRoleGiven } from "./services/invite-channel.js";
 import { ROSTER_BUTTON_PREFIX, handleRosterButton } from "./commands/roster.js";
 import { RANK_ROLES_BUTTON_PREFIX, handleRankRolesButton } from "./commands/rank-roles.js";
@@ -325,6 +326,8 @@ client.once(Events.ClientReady, (readyClient) => {
   // Waiting guild-invite requests whose character is already in the stored roster get their check mark (start-up, then hourly).
   void backCheckAllInvites(readyClient, prisma).catch(reportJobError("Guild invite back-check"));
   setInterval(() => void backCheckAllInvites(readyClient, prisma).catch(reportJobError("Guild invite back-check")), 60 * 60_000);
+  // About an hour after a request is handled its messages are removed from the invite channel (the deadline is stored on the row).
+  setInterval(() => void scheduleInviteCleanups(prisma).catch(reportJobError("Guild invite clean-up")), 10 * 60_000).unref?.();
   setInterval(() => void sendRecruitReminders(readyClient, prisma).catch(reportJobError("Recruiting cooldown reminders")), 60 * 60_000);
   setInterval(() => void postAllWeeklyPromotions(prisma, readyClient.guilds.cache.values(), reportJobError("Weekly promotions")), 60 * 60_000);
   // 9.0, on by default: at most one weekly guild bank summary per server, only when the bank moved.

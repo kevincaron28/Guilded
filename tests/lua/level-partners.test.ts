@@ -90,7 +90,11 @@ describe("levelling partners", () => {
     setup();
     expect(msgs()).toBe("");
     expect(s!.run(`return tostring(NS.levelPartners.whisper("Bo-Realm"))`)).toBe("true");
-    expect(s!.run(`return table.concat(TELLS, ",")`)).toBe("Bo-Realm");
+    // The whisper goes through the copy box, never the game's chat box.
+    expect(s!.run(`return table.concat(TELLS, ",")`)).toBe("");
+    expect(s!.run(`return table.concat(OPENED, ",")`)).toBe("");
+    expect(s!.run(`return table.concat(COPIED, "|")`)).toBe("/w Bo-Realm");
+    s!.run(`COPIED = {}; TITLES = {}`);
     expect(msgs()).toBe("");
     // invited() only runs after the button's click: it prints and shows nothing by itself.
     expect(s!.run(`return tostring(NS.levelPartners.invited("Bo"))`)).toBe("true");

@@ -1512,7 +1512,9 @@ local function buildHomePage(page)
 end
 
 -- Sidebar order: pages are grouped under these headings.
-local GROUPS = { "Overview", "Raid night", "Fun and runs", "System" }
+-- The five member tabs of 9.2 (and Settings). The active one expands to its pages in the sidebar. Pages of the
+-- guild window show here as link buttons; the officer pages stay in the guild window until the Officer tab.
+local GROUPS = { "Home", "Guild", "Dungeons", "Crafting", "Raids", "Settings" }
 local function buildRosterAdminPage(page)
   local info = at(newLabel(page, "Change guild ranks and notes in bulk: paste a list of actions, preview the changes, then confirm.", "GameFontHighlightSmall"), page, 0, 0)
   info:SetWidth(PAGE_WIDTH - 8)
@@ -1734,29 +1736,30 @@ local function buildSettingsPage(page)
 end
 
 local TAB_DEFS = {
-  { name = "Home", hint = "what is going on, and your data", group = "Overview", build = buildHomePage },
-  { name = "Guild overview", hint = "classes and levels of the whole guild at a glance", group = "Overview", build = function(page) if ns.guildOverview and ns.guildOverview.buildPage then ns.guildOverview.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
-  { name = "Board", label = "Guild board", hint = "officers' news and open polls, vote from the game", group = "Overview", build = function(page) if ns.guildBoard and ns.guildBoard.buildPage then ns.guildBoard.buildPage(page, { newLabel = newLabel, newButton = newButton, newEdit = newEdit, at = at, width = PAGE_WIDTH }) end end },
-  { name = "Orders", label = "Crafting orders", hint = "craft requests from Discord you can make", group = "Overview", build = function(page) if ns.craftOrders and ns.craftOrders.buildPage then ns.craftOrders.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
-  { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Overview", usesPlayer = true, build = buildMePage },
-  { name = "Open raids", hint = "find a raid with room for you", group = "Overview", build = buildPublicRaidsPage },
+  { name = "Home", hint = "what is going on, and your data", group = "Home", build = buildHomePage },
+  { name = "Guild overview", hint = "classes and levels of the whole guild at a glance", group = "Guild", build = function(page) if ns.guildOverview and ns.guildOverview.buildPage then ns.guildOverview.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Board", label = "Guild board", hint = "officers' news and open polls, vote from the game", group = "Guild", build = function(page) if ns.guildBoard and ns.guildBoard.buildPage then ns.guildBoard.buildPage(page, { newLabel = newLabel, newButton = newButton, newEdit = newEdit, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Orders", label = "Crafting orders", hint = "craft requests from Discord you can make", group = "Crafting", build = function(page) if ns.craftOrders and ns.craftOrders.buildPage then ns.craftOrders.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Home", usesPlayer = true, build = buildMePage },
+  { name = "Open raids", hint = "find a raid with room for you", group = "Raids", build = buildPublicRaidsPage },
   { name = "Standings", scope = "guild", group = "Guild", usesPlayer = true, build = buildStandingsPage },
-  { name = "Crafting", scope = "guild", group = "Guild", module = "recipes", build = buildCraftingPage },
+  { name = "Crafting", scope = "guild", group = "Crafting", module = "recipes", build = buildCraftingPage },
   { name = "Availability", scope = "guild", group = "Guild", module = "presence", build = buildAvailabilityPage },
-  { name = "Gear", hint = "item level and missing enchants per member", scope = "guild", group = "Guild", officer = true, build = buildGearPage },
-  { name = "Ready", hint = "who is ready for the raid", group = "Raid night", leader = true, build = buildReadyPage },
-  { name = "Reserves", hint = "soft reserves for the raid", group = "Raid night", module = "reserve", lootModes = { RESERVE = true }, usesPlayer = true, build = buildReservePage },
-  { name = "Signups", label = "Raid sign-up", hint = "sign up for raids, with role counts", group = "Raid night", module = "raidsignup", build = function(page) if ns.raidSignup and ns.raidSignup.buildPage then ns.raidSignup.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
-  { name = "Calendar", scope = "calendar", group = "Calendar", module = "calendar", officer = true, build = buildCalendarPage },
-  { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raid night", officer = true, usesPlayer = true, build = buildRaidPage },
-  { name = "EPGP", label = "Administration", hint = "award EP and GP", scope = "guild", group = "Guild", officer = true, usesPlayer = true, build = buildEpgpPage },
-  { name = "Local guild", scope = "guild", group = "Guild", officer = true, build = buildLocalGuildPage },
-  { name = "Roster admin", scope = "guild", group = "Guild", officer = true, build = buildRosterAdminPage },
-  { name = "Officer tools", hint = "guild log, prospects, guild bank, imports", scope = "guild", group = "Guild", officer = true, build = buildOfficerToolsPage },
-  { name = "Loot", hint = "bids and loot", group = "Raid night", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
-  { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raid night", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
-  { name = "Duels", hint = "guild duel leaderboard", group = "Fun and runs", module = "duels", build = function(page) if ns.duels and ns.duels.buildPage then ns.duels.buildPage(page, { newLabel = newLabel, at = at, width = PAGE_WIDTH }) end end },
-  { name = "Tools", label = "Settings", hint = "switch parts on or off, announcements, diagnostics, advanced", group = "System", build = buildSettingsPage }
+  { name = "Gear", hint = "item level and missing enchants per member", scope = "guild", group = "Officer", officer = true, build = buildGearPage },
+  { name = "Ready", hint = "who is ready for the raid", group = "Raids", leader = true, build = buildReadyPage },
+  { name = "Reserves", hint = "soft reserves for the raid", group = "Raids", module = "reserve", lootModes = { RESERVE = true }, usesPlayer = true, build = buildReservePage },
+  { name = "Signups", label = "Raid sign-up", hint = "sign up for raids, with role counts", group = "Raids", module = "raidsignup", build = function(page) if ns.raidSignup and ns.raidSignup.buildPage then ns.raidSignup.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Calendar", scope = "calendar", group = "Officer", module = "calendar", officer = true, build = buildCalendarPage },
+  { name = "Raid", hint = "run a raid: start, bosses, attendance", group = "Raids", officer = true, usesPlayer = true, build = buildRaidPage },
+  { name = "EPGP", label = "Administration", hint = "award EP and GP", scope = "guild", group = "Officer", officer = true, usesPlayer = true, build = buildEpgpPage },
+  { name = "Local guild", scope = "guild", group = "Officer", officer = true, build = buildLocalGuildPage },
+  { name = "Roster admin", scope = "guild", group = "Officer", officer = true, build = buildRosterAdminPage },
+  { name = "Officer tools", hint = "guild log, prospects, guild bank, imports", scope = "guild", group = "Officer", officer = true, build = buildOfficerToolsPage },
+  { name = "Loot", hint = "bids and loot", group = "Raids", lootModes = { EPGP = true }, officer = true, usesPlayer = true, build = buildLootPage },
+  { name = "Council", hint = "loot council: BiS / upgrade / off-spec answers", group = "Raids", module = "council", lootModes = { COUNCIL = true, PRIORITY = true }, officer = true, usesPlayer = true, build = buildCouncilPage },
+  { name = "Dungeons", hint = "your runs and the guild's dungeon boards", group = "Dungeons", link = function() if ns.dungeonScorePanel then ns.dungeonScorePanel.open("run") end end, available = function() return ns.dungeonScorePanel ~= nil end, build = function() end },
+  { name = "Duels", hint = "guild duel leaderboard", group = "Guild", module = "duels", build = function(page) if ns.duels and ns.duels.buildPage then ns.duels.buildPage(page, { newLabel = newLabel, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Tools", label = "Settings", hint = "switch parts on or off, announcements, diagnostics, advanced", group = "Settings", build = buildSettingsPage }
 }
 
 -- ---------------------------------------------------------------------
@@ -1796,11 +1799,14 @@ local function clock(seconds)
 end
 
 -- Officer tabs are for officers; leader tabs also for the leader or an assistant of the group.
-local function tabAllowed(tab, officer)
-  if (tab.scope or "main") ~= (ui.scope or "main") then return false end
+local function tabAllowedFor(tab, officer)
   if officer then return true end
   if tab.leader then return ns.ready ~= nil and ns.ready.canView() end
   return not tab.officer
+end
+local function tabAllowed(tab, officer)
+  if (tab.scope or "main") ~= (ui.scope or "main") then return false end
+  return tabAllowedFor(tab, officer)
 end
 
 -- A tab tied to specific loot systems (Reserves, Council) only clutters the window when the
@@ -1813,46 +1819,86 @@ local function lootModeAllowed(tab)
   return tab.lootModes[mode] == true
 end
 
+-- Opens a page from the sidebar: a link tab runs its action, a page of the guild window opens that window.
+local function activateTab(i)
+  local tab = ui.tabs[i]
+  if not tab then return end
+  if tab.link then tab.link(); return end
+  if (tab.scope or "main") ~= (ui.scope or "main") then ui.selectTabByName(tab.name); return end
+  selectTab(i)
+end
+
+local function tabListed(tab, officer)
+  return tabAllowedFor(tab, officer) and (not tab.module or moduleOn(tab.module)) and lootModeAllowed(tab)
+    and (not tab.available or tab.available())
+end
+
+local function groupList(group, officer)
+  local list = {}
+  for i, tab in ipairs(ui.tabs) do
+    if tab.group == group and tabListed(tab, officer) then table.insert(list, i) end
+  end
+  return list
+end
+
 local function layoutTabs(officer)
   local y = -62
   local firstVisible
-  ui.groupLabels = ui.groupLabels or {}
-  for _, label in pairs(ui.groupLabels) do label:Hide() end
+  ui.groupButtons = ui.groupButtons or {}
+  for _, button in pairs(ui.groupButtons) do button:Hide() end
   for _, tab in ipairs(ui.tabs) do
     tab.visible = false
     tab.button:Hide()
     tab.page:Hide()
   end
-  for _, group in ipairs(ui.scope == "guild" and { "Guild" } or ui.scope == "calendar" and { "Calendar" } or GROUPS) do
-    local any = false
-    for _, tab in ipairs(ui.tabs) do
-      if tab.group == group and tabAllowed(tab, officer) and (not tab.module or moduleOn(tab.module)) and lootModeAllowed(tab) then any = true end
-    end
-    if any then
-      local label = ui.groupLabels[group]
-      if not label then
-        label = newLabel(panel, "", "GameFontNormalSmall")
-        ui.groupLabels[group] = label
-      end
-      label:SetText(upperText(L(group)))
-      at(label, panel, 24, y)
-      if ui.scope == "main" then label:Show(); y = y - 16 end
-      for i, tab in ipairs(ui.tabs) do
-        if tab.group == group then
-          local visible = tabAllowed(tab, officer) and (not tab.module or moduleOn(tab.module)) and lootModeAllowed(tab)
-          tab.visible = visible
-          if visible then
-            at(tab.button, panel, 20, y)
-            tab.button:Show()
-            y = y - 26
+  if ui.scope == "main" then
+    local current = ui.tabs[ui.currentTab or 0]
+    local currentGroup = current and current.group
+    for _, group in ipairs(GROUPS) do
+      local list = groupList(group, officer)
+      if #list > 0 then
+        local button = ui.groupButtons[group]
+        if not button then
+          button = newButton(panel, L(group), 132, nil, 22)
+          ui.groupButtons[group] = button
+        end
+        -- The click picks from the list as it is now, not as it was when the button was made.
+        button:SetScript("OnClick", function()
+          local fresh = groupList(group, ns.isOfficer())
+          local remembered = ui.lastInGroup and ui.lastInGroup[group]
+          local pick = fresh[1]
+          for _, i in ipairs(fresh) do if i == remembered then pick = i end end
+          if pick then activateTab(pick) end
+        end)
+        at(button, panel, 20, y)
+        button:Show()
+        if group == currentGroup then button:LockHighlight() else button:UnlockHighlight() end
+        y = y - 26
+        for _, i in ipairs(list) do
+          local tab = ui.tabs[i]
+          if (tab.scope or "main") == "main" and not tab.link then
+            tab.visible = true
             firstVisible = firstVisible or i
-          else
-            tab.button:Hide()
-            tab.page:Hide()
+          end
+          if group == currentGroup and #list > 1 then
+            at(tab.button, panel, 26, y)
+            tab.button:Show()
+            y = y - 24
           end
         end
+        y = y - 6
       end
-      y = y - 8
+    end
+  else
+    for i, tab in ipairs(ui.tabs) do
+      local visible = tabAllowed(tab, officer) and (not tab.module or moduleOn(tab.module)) and lootModeAllowed(tab)
+      tab.visible = visible
+      if visible then
+        at(tab.button, panel, 20, y)
+        tab.button:Show()
+        y = y - 26
+        firstVisible = firstVisible or i
+      end
     end
   end
   local current = ui.tabs[ui.currentTab or 0]
@@ -1983,7 +2029,9 @@ refresh = function()
   local officer = ns.isOfficer()
   local modules = moduleSignature()
   local leader = ns.ready ~= nil and ns.ready.canView() or false
-  if ui.lastOfficer ~= officer or ui.lastLeader ~= leader or ui.lastModules ~= modules then
+  local activeGroup = ui.tabs[ui.currentTab or 0] and ui.tabs[ui.currentTab].group
+  if ui.lastOfficer ~= officer or ui.lastLeader ~= leader or ui.lastModules ~= modules or ui.lastGroup ~= activeGroup then
+    ui.lastGroup = activeGroup
     ui.lastOfficer = officer
     ui.lastLeader = leader
     ui.lastModules = modules
@@ -2242,6 +2290,8 @@ selectTab = function(index)
   -- The status line answers what was just done on a page; another page starts without it.
   if ui.currentTab ~= index and ui.status then ui.status:SetText("") end
   ui.currentTab = index
+  ui.lastInGroup = ui.lastInGroup or {}
+  ui.lastInGroup[ui.tabs[index].group or ""] = index
   -- The unsent-changes block means nothing on pages that only read (the secure button is left
   -- alone in combat: hiding it then is blocked).
   if not (InCombatLockdown and InCombatLockdown()) then
@@ -2362,8 +2412,8 @@ local function buildPanel()
     page:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -22, 44)
     def.build(page)
     page:Hide()
-    local tabButton = newButton(panel, L(def.label or def.name), 132, function() selectTab(i) end, 22)
-    ui.tabs[i] = { name = def.name, label = def.label, scope = def.scope, hint = def.hint, group = def.group, officer = def.officer, leader = def.leader, module = def.module, lootModes = def.lootModes, usesPlayer = def.usesPlayer, page = page, button = tabButton }
+    local tabButton = newButton(panel, L(def.label or def.name), 132, function() activateTab(i) end, 22)
+    ui.tabs[i] = { name = def.name, label = def.label, scope = def.scope, hint = def.hint, group = def.group, officer = def.officer, leader = def.leader, module = def.module, lootModes = def.lootModes, usesPlayer = def.usesPlayer, link = def.link, available = def.available, page = page, button = tabButton }
     tabButton:SetScript("OnEnter", function(self)
       if not GameTooltip then return end
       -- To the left of the sidebar, so the tooltip never covers the page being read.

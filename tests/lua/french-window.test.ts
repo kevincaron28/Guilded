@@ -130,13 +130,11 @@ describe("the tools window in French", () => {
       .toBe(String(("Partager mon registre comme classement".length) * 6 + 20));
   });
 
-  it("titles the sidebar sections in French, with accented capitals", () => {
+  it("names the five member tabs and Settings in French", () => {
     const s = frenchWindow();
-    const headings = s.run(`local t = {}; for _, label in pairs(NS.windowState().groupLabels) do t[#t + 1] = label.text end; table.sort(t); return table.concat(t, "|")`);
-    expect(headings).toContain("VUE D'ENSEMBLE");
-    expect(headings).toContain("SOIR DE RAID");
-    expect(headings).toContain("SYSTÈME");
-    expect(headings).not.toMatch(/OVERVIEW|RAID NIGHT|SYSTEM\b/);
+    const headings = s.run(`local t = {}; for _, button in pairs(NS.windowState().groupButtons) do t[#t + 1] = button.text end; table.sort(t); return table.concat(t, "|")`);
+    for (const name of ["Accueil", "Guilde", "Donjons", "Artisanat", "Raids", "Options"]) expect(headings).toContain(name);
+    expect(headings).not.toMatch(/Home|Guild\b|Dungeons|Crafting|Settings/);
     expect(s.run(`return NS.bidding.statusText()`)).toBe("Aucune enchère en cours.");
     expect(s.run(`return NS.L("Backup")`)).toBe("Sauvegarde");
   });

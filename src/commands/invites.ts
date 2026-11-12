@@ -8,6 +8,7 @@ import {
   cooldownState, DEFAULT_TEMPLATE, ensureInviteGuide, markRecruitPosted, MAX_COOLDOWN_HOURS, MIN_COOLDOWN_HOURS, parseQuestions,
   STAGE_LABEL, STAGES, storedQuestions, updateRecruit, type Stage
 } from "../services/recruiting-kit.js";
+import { countOldHandled, queueOldHandled } from "../services/invite-cleanup.js";
 import { markGuildChanged } from "../services/standings-feed.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -27,7 +28,10 @@ export const invitesCommand = new SlashCommandBuilder()
     .addBooleanOption((o) => o.setName("queue").setDescription("Queue"))
     .addBooleanOption((o) => o.setName("dm").setDescription("Role DM"))
     .addBooleanOption((o) => o.setName("notify").setDescription("Tag"))
+    .addBooleanOption((o) => o.setName("cleanup").setDescription("Tidy"))
     .addRoleOption((o) => o.setName("role").setDescription("WoW role")))
+  .addSubcommand((sub) => sub.setName("tidy").setDescription("Old.")
+    .addBooleanOption((o) => o.setName("confirm").setDescription("Yes")))
   .addSubcommand((sub) => sub.setName("questions").setDescription("Questions.")
     .addStringOption((o) => o.setName("text").setDescription("Split by |").setMaxLength(800)))
   .addSubcommand((sub) => sub.setName("post").setDescription("Recruit post.")
@@ -71,13 +75,23 @@ export async function executeInvites(interaction: ChatInputCommandInteraction): 
     if (stage === "INVITED") {
       const rows = await markInvitedByName(prisma, guildId, [name], interaction.user.id);
       changed = rows.length;
-      await markPostsDone(interaction.client, rows);
+      await markPostsDone(interaction.client, rows, "en", prisma);
     }
     if ((stage && stage !== "INVITED") || noteInput !== null) {
       changed = Math.max(changed, await updateRecruit(prisma, guildId, name, { ...(stage && stage !== "INVITED" ? { stage: stageOf(stage) } : {}), ...(noteInput !== null ? { note: noteInput === "-" ? null : noteInput } : {}) }));
     }
     if (changed) markGuildChanged(guildId);
     await reply(changed ? `Updated **${name}**${stage ? ` → ${STAGE_LABEL[stageOf(stage)]}` : ""}${noteInput !== null ? " (note saved)" : ""}.` : "Nobody under that name.");
+    return;
+  }
+  if (sub === "tidy") {
+    // One deliberate, officer-only clean-up of the requests handled before the automatic clean-up shipped.
+    if (!settings?.inviteChannelId) { await reply("No invite channel yet: press Create missing channels in `/setup`."); return; }
+    const count = await countOldHandled(prisma, guildId, settings.inviteChannelId);
+    if (!count) { await reply("No old handled requests to remove."); return; }
+    if (o.getBoolean("confirm") !== true) { await reply(`${count} old handled request${count > 1 ? "s" : ""} in <#${settings.inviteChannelId}> can be removed (the request, my tag and my thank-you; never waiting requests, pinned messages or your own notes). Run \`/mod invites tidy confirm:true\` to queue them.`); return; }
+    const queued = await queueOldHandled(prisma, guildId, settings.inviteChannelId);
+    await reply(`${queued} old handled request${queued > 1 ? "s" : ""} queued for removal. It runs in small batches over the next minutes.`);
     return;
   }
   if (sub === "questions") {
@@ -114,10 +128,11 @@ export async function executeInvites(interaction: ChatInputCommandInteraction): 
     ...(o.getBoolean("queue") !== null ? { inviteQueueEnabled: o.getBoolean("queue")! } : {}),
     ...(o.getBoolean("dm") !== null ? { inviteDmEnabled: o.getBoolean("dm")! } : {}),
     ...(o.getBoolean("notify") !== null ? { inviteNotifyEnabled: o.getBoolean("notify")! } : {}),
+    ...(o.getBoolean("cleanup") !== null ? { inviteCleanupEnabled: o.getBoolean("cleanup")! } : {}),
     ...(o.getRole("role") ? { inviteWowRoleId: o.getRole("role")!.id } : {})
   };
   if (Object.keys(data).length) await prisma.guildSettings.upsert({ where: { guildId }, create: { guildId, ...data }, update: data });
   const merged = { ...settings, ...data };
   const on = (value: boolean | undefined) => value === false ? "**off**" : "**on**";
-  await reply(`Invite queue: ${on(merged.inviteQueueEnabled)}${merged.inviteChannelId ? ` in <#${merged.inviteChannelId}>` : " (no channel yet)"}. WoW-role DM: ${on(merged.inviteDmEnabled)}, tag online officers: ${on(merged.inviteNotifyEnabled)}, role: ${merged.inviteWowRoleId ? `<@&${merged.inviteWowRoleId}>` : "the one named like \"World of Warcraft\""}.`);
+  await reply(`Invite queue: ${on(merged.inviteQueueEnabled)}${merged.inviteChannelId ? ` in <#${merged.inviteChannelId}>` : " (no channel yet)"}. WoW-role DM: ${on(merged.inviteDmEnabled)}, tag online officers: ${on(merged.inviteNotifyEnabled)}, tidy the channel an hour after an invite (needs Manage Messages): ${on(merged.inviteCleanupEnabled)}, role: ${merged.inviteWowRoleId ? `<@&${merged.inviteWowRoleId}>` : "the one named like \"World of Warcraft\""}.`);
 }

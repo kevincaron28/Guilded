@@ -28,7 +28,7 @@ function fake(rows: Row[], unclaimed: { id: string; name: string; className: str
   };
   return db as unknown as Parameters<typeof characterPanel>[0] & typeof db;
 }
-const ids = (view: Awaited<ReturnType<typeof characterPanel>>) => view.components.flatMap((r) => r.toJSON().components.map((c) => ("custom_id" in c ? c.custom_id : c.url)));
+const ids = (view: Awaited<ReturnType<typeof characterPanel>>) => view.components.flatMap((r) => r.toJSON().components.map((c) => (c as { custom_id?: string; url?: string }).custom_id ?? (c as { url?: string }).url));
 
 describe("character panel", () => {
   it("lists only the member's attached characters, in French, with the controls", async () => {
@@ -47,7 +47,7 @@ describe("character panel", () => {
     expect(view.components).toHaveLength(0);
   });
 
-  const select = (customId: string, value: string, user = "u1") => ({ customId, values: [value], user: { id: user }, client: {}, isModalSubmit: () => false, isButton: () => false, isStringSelectMenu: () => true, update: vi.fn(async () => undefined), reply: vi.fn(async () => undefined) });
+  const select = (customId: string, value: string, user = "u1") => ({ customId, values: [value], user: { id: user }, client: {}, isModalSubmit: () => false, isButton: () => false, isStringSelectMenu: () => true, update: vi.fn(async (_view?: unknown) => undefined), reply: vi.fn(async (_view?: unknown) => undefined) });
 
   it("never sets the main or unlinks a character that belongs to someone else", async () => {
     const db = fake([ch("a", "m1", "Ray", true), ch("c", "m2", "Other")]);

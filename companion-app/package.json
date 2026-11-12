@@ -89,7 +89,8 @@
           "sync-status.mjs",
           "error-detail.mjs",
           "device-sync.mjs",
-          "device-receipts.mjs"
+          "device-receipts.mjs",
+          "main-status.mjs"
         ]
       },
       {

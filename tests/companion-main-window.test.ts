@@ -54,3 +54,25 @@ describe("the single window", () => {
     expect(main).toContain('path.join(__dirname, "renderer", "main.html")');
   });
 });
+
+describe("tray and automatic opening (redo C3)", () => {
+  const main = readFileSync("companion-app/main.cjs", "utf8");
+  const tray = main.slice(main.indexOf("function buildTrayMenu()"), main.indexOf("function createTray()"));
+
+  it("has four menu items under a greyed status line", () => {
+    expect(tray).toContain("enabled: false");
+    const labels = [...tray.matchAll(/label: T\("([^"]+)"\)/g)].map((match) => match[1]);
+    expect(labels).toEqual(["Open Guilded Companion", "Sync now", "Start with Windows", "Quit (stops sending data)"]); // the status line comes first, greyed
+    expect(tray).not.toContain("Remove all data");
+  });
+
+  it("opens the window only from the model's openWindow, once per problem", () => {
+    expect(main).toContain("status.openWindow && savedFile");
+    expect(main).toContain("if (key === openedFor) return;");
+    expect(main).toContain("trayAndWindowFollow(state, found);");
+  });
+
+  it("ships main-status.mjs with the engine files", () => {
+    expect(readFileSync("companion-app/package.json", "utf8")).toContain('"main-status.mjs"');
+  });
+});

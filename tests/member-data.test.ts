@@ -31,6 +31,7 @@ describe("private member data centre", () => {
     const characters = vi.fn(async () => []), signups = vi.fn(async () => []);
     const db = { webAccount: { findUnique: vi.fn(async () => ({ publicProfile: false })) },
       companionCredential: { findMany: vi.fn(async () => [{ id: "device", deviceName: "PC", tokenHash: "secret", createdAt: new Date(), member: { guild: { name: "Guild", gameEdition: "retail" } } }]) },
+      companionDevice: { findMany: vi.fn(async () => []) },
       webCompanionCredential: { findMany: vi.fn(async () => []) }, character: { findMany: characters }, raidSignup: { findMany: signups }, recurringRecap: { findMany: vi.fn(async () => []) },
       battlegroundConsent: { findMany: vi.fn(async () => []) }, battlegroundReport: { findMany: vi.fn(async () => []) } };
     const access = { guilds: vi.fn(async () => [{ id: "allowed", name: "Guild", edition: "retail" }]) };

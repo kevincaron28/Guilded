@@ -1174,35 +1174,14 @@ local function buildAvailabilityPage(page)
   end
 end
 
+-- Crafting (9.2): one page. Search an item (a name, or shift-click it), see who can craft it, press Request;
+-- your requests and the ones for you below; Share my recipes; Advanced holds your professions, cooldowns and
+-- order alerts. The page itself lives in Modules/CraftOrders.lua (it owns the requests and the order actions).
 local function buildCraftingPage(page)
-  at(newLabel(page, "Item or recipe (a name, or click the box and shift-click the item)"), page, 0, 0)
-  ui.craftBox = itemBox(at(newEdit(page, 300), page, 6, -18))
-  local function who()
-    local text = ui.craftBox:GetText()
-    if text == "" then ns.message(L("Type a name or shift-click an item first.")) return end
-    ui.craftResult:SetText(ns.recipes and ns.recipes.whoText and ns.recipes.whoText(text) or "")
-  end
-  ui.craftBox:SetScript("OnEnterPressed", function(self) self:ClearFocus(); who() end)
-  tip(at(newButton(page, "Who can craft it", 130, who), page, 314, -16), "Guildmates who know the recipe (from their own addon).")
-  ui.craftResult = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -46)
-  ui.craftResult:SetWidth(PAGE_WIDTH)
-
-  -- Headings hang below the text above them, so a short result leaves no empty gap.
-  local professions = newLabel(page, "My professions", "GameFontNormal")
-  professions:SetPoint("TOPLEFT", ui.craftResult, "BOTTOMLEFT", 0, -16)
-  local share = tip(newButton(page, "Share now", 100, function() run("recipes share") end),
-    "Send your recipes to the guild now (it also happens by itself twice a day).")
-  share:ClearAllPoints()
-  share:SetPoint("TOPLEFT", professions, "TOPLEFT", PAGE_WIDTH - 100, 4)
-  ui.craftMine = newLabel(page, "", "GameFontHighlightSmall")
-  ui.craftMine:SetPoint("TOPLEFT", professions, "BOTTOMLEFT", 0, -8)
-  ui.craftMine:SetWidth(PAGE_WIDTH)
-
-  local cooldowns = newLabel(page, "Cooldowns", "GameFontNormal")
-  cooldowns:SetPoint("TOPLEFT", ui.craftMine, "BOTTOMLEFT", 0, -16)
-  ui.craftCooldowns = newLabel(page, "", "GameFontHighlightSmall")
-  ui.craftCooldowns:SetPoint("TOPLEFT", cooldowns, "BOTTOMLEFT", 0, -8)
-  ui.craftCooldowns:SetWidth(PAGE_WIDTH)
+  if not (ns.craftOrders and ns.craftOrders.buildCraftingPage) then return end
+  ns.craftOrders.buildCraftingPage(page, { newLabel = newLabel, newButton = newButton, newEdit = newEdit, at = at, width = PAGE_WIDTH,
+    placeholder = placeholder, itemBox = itemBox, run = run, ui = ui,
+    relayout = function() if ui.relayoutCrafting then ui.relayoutCrafting() end end })
 end
 
 -- The Ready page: everyone in your raid or party, worst first, one icon per check and why.
@@ -1512,9 +1491,9 @@ end
 -- The five member tabs of 9.2 (and Settings). The active one expands to its pages in the sidebar. Pages of the
 -- guild window show here as link buttons; the officer pages stay in the guild window until the Officer tab.
 local GROUPS = { "Home", "Guild", "Dungeons", "Crafting", "Raids", "Officer", "Settings" }
--- Guild and Crafting are one page each: their sections are a row of buttons at the top of the content (the
--- pages keep their own frames), not entries in the sidebar.
-local SECTION_ROW = { Guild = true, Crafting = true }
+-- Guild is one page: its sections are a row of buttons at the top of the content (the pages keep their own
+-- frames), not entries in the sidebar. Crafting is a single page of its own (9.2).
+local SECTION_ROW = { Guild = true }
 -- The section buttons are as wide as their text (capped); a row that would pass the page width wraps to a
 -- second line. The page itself starts at -66, below two lines (12 + 22 high, then 24 per extra line).
 local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 200
@@ -1751,8 +1730,7 @@ local TAB_DEFS = {
   { name = "Home", hint = "what is going on, and your data", group = "Home", build = buildHomePage },
   { name = "Guild overview", hint = "classes and levels of the whole guild at a glance", group = "Guild", build = function(page) if ns.guildOverview and ns.guildOverview.buildPage then ns.guildOverview.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
   { name = "Board", label = "Guild board", hint = "officers' news and open polls, vote from the game", group = "Guild", build = function(page) if ns.guildBoard and ns.guildBoard.buildPage then ns.guildBoard.buildPage(page, { newLabel = newLabel, newButton = newButton, newEdit = newEdit, at = at, width = PAGE_WIDTH }) end end },
-  { name = "Crafting", label = "Recipes", hint = "who can craft an item, your professions and cooldowns", group = "Crafting", module = "recipes", build = buildCraftingPage },
-  { name = "Orders", label = "Crafting orders", hint = "craft requests from Discord you can make", group = "Crafting", build = function(page) if ns.craftOrders and ns.craftOrders.buildPage then ns.craftOrders.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
+  { name = "Crafting", label = "Crafting", hint = "find a crafter and request an item, crafting requests, your professions", group = "Crafting", module = "recipes", build = buildCraftingPage },
   { name = "Me", label = "My character", hint = "your gear check and attunements", group = "Home", usesPlayer = true, build = buildMePage },
   { name = "Open raids", hint = "find a raid with room for you", group = "Raids", build = buildPublicRaidsPage },
   { name = "Layer invite", hint = "ask guildmates on your continent to invite you onto their layer", group = "Guild", build = function(page) if ns.layerInvite and ns.layerInvite.buildPage then ns.layerInvite.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
@@ -2181,7 +2159,7 @@ refresh = function()
     (officer and L("\n(Officers: Mark done applies to the selected player.)") or ""))
 
   refreshReady()
-  if ui.craftMine and ns.recipes then
+  if ui.craftMine and ui.craftCooldowns and ns.recipes then
     ui.craftMine:SetText(ns.recipes.mineText and ns.recipes.mineText() or "")
     local lines = ns.recipes.cooldownLines and ns.recipes.cooldownLines(false) or {}
     local shown = {}
@@ -2243,7 +2221,7 @@ updateGuildScroll = function()
   if tab.name == "Standings" then height = 80 + textHeight(ui.standingsList) + 52
   elseif tab.name == "Local guild" then height = (ui.localGuildInfoTop or 220) + textHeight(ui.localGuildInfo) + 12
   elseif tab.name == "Crafting" then
-    height = 46 + textHeight(ui.craftResult) + 16 + 20 + textHeight(ui.craftMine) + 16 + 24 + textHeight(ui.craftCooldowns) + 12
+    height = ui.craftHeight and ui.craftHeight() or 400
   elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
   elseif tab.name == "Layer invite" then height = 264 -- the last of five request rows ends near y=-250
   elseif tab.name == "EPGP" then height = 252 -- the lowest widget ends near y=-218, a 22 px button
@@ -2286,6 +2264,8 @@ updateGuildScroll = function()
     if range > 1 then bar:Show() else bar:Hide() end
   end
 end
+
+ui.relayoutCrafting = function() if updateGuildScroll then updateGuildScroll() end end
 
 selectTab = function(index)
   if not index or not ui.tabs[index] then return end

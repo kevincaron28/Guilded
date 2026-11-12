@@ -14,8 +14,8 @@ copy none of its art, names or layout; these are the ideas worth borrowing:
 
 | Retail idea | Guilded version |
 | --- | --- |
-| Three order types: public, guild, personal (one named crafter). | Every Discord request is a guild order. A request made for one crafter (the crafter menu under a profession post's Details) is a **personal** order: it shows first, marked "For you", on that crafter's Orders page. |
-| The crafter's list is filtered to recipes they can craft, with a "show all" switch. | The Orders page shows only orders whose recipe this character knows (from the addon's own profession scan). "Show all open orders" shows the rest, greyed. |
+| Three order types: public, guild, personal (one named crafter). | Every Discord request is a guild order. A request made for one crafter (the crafter menu under a profession post's Details) is a **personal** order: it shows first, marked "For you", on that crafter's Crafting page. |
+| The crafter's list is filtered to recipes they can craft, with a "show all" switch. | The Crafting page's "Requests for me" list shows only orders whose recipe this character knows (from the addon's own profession scan). "Show all open orders" shows the rest, greyed. |
 | Each order shows the reagents, who provides them, and whether you have them. | Each order shows the recipe's reagents with what is in your bags (`have / need`, green when enough) and "Customer brings the materials" when the requester said so. |
 | A note from the customer, a commission (tip). | The request's note (materials, deadline, tip) shows in full under the order. Gold never goes through Guilded. |
 | Claim the order (it is yours for a while), then craft it, then it is delivered. | **Claim** in game (the same as "I'll craft it" in Discord), **Done** when it is made, **Give back** to release it. The Discord post, its tags and the requester's DM follow. |
@@ -75,7 +75,7 @@ by, crafter, character, asked, mats, note, at, claimedAt, doneAt }] }`, at most 
 ## Later ideas (not built)
 
 - A tip field of its own (today it is part of the note) and a "fulfil by" date.
-- Requests made in game (the requester side of the Orders page), uploaded like bank requests.
+- Requests made in game (9.2, done): the Crafting page's search and Request button; `NEW|` on GuildedOrd, `db.craftOrders.requests`, uploaded as `craftOrderRequests` (guildmates' as `craftOrderRelayRequests`); Cancel is an order action; the feed's `ref` ties the in-game row to the order.
 - A Discord "Orders for me" view in `/craft mine` for crafters, using the same recipe filter.
 
 ## Owed real-client checks

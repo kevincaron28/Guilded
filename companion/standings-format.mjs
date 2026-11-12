@@ -239,7 +239,7 @@ export function standingsToLua(data) {
     "-- picks (Modules/GuildBoard.lua). Options and picks are numbered from 1 here, from 0 on the bot.",
     ...guildBoardToLua(data.board, data.boardVotes, data.updatedAt),
     "",
-    "-- Crafting orders in game: Discord craft requests for the Orders page (Modules/CraftOrders.lua).",
+    "-- Crafting orders in game: Discord craft requests for the Crafting page (Modules/CraftOrders.lua).",
     ...craftOrdersToLua(data.craftOrders, data.updatedAt),
     "",
     "-- Officers only: names waiting for a guild invite (full Forever names), for the addon's To invite panel.",
@@ -281,7 +281,7 @@ export function craftOrdersToLua(orders, updatedAt) {
   const text = (v) => luaString(typeof v === "string" ? v : "");
   const rows = (Array.isArray(orders.orders) ? orders.orders : []).slice(0, 50)
     .filter((o) => o && typeof o.id === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(o.id) && ["OPEN", "CLAIMED", "DONE"].includes(o.status))
-    .map((o) => `  { id = ${luaString(o.id)}, key = ${Number.isSafeInteger(o.key) && o.key !== 0 ? o.key : "nil"}, item = ${text(o.item)}, qty = ${Math.max(1, int(o.qty))}, `
+    .map((o) => `  { id = ${luaString(o.id)}, ref = ${luaString(typeof o.ref === "string" && /^[A-Za-z0-9_-]{6,40}$/.test(o.ref) ? o.ref : "")}, key = ${Number.isSafeInteger(o.key) && o.key !== 0 ? o.key : "nil"}, item = ${text(o.item)}, qty = ${Math.max(1, int(o.qty))}, `
       + `prof = ${text(o.prof)}, status = ${luaString(o.status)}, by = ${text(o.by)}, crafter = ${text(o.crafter)}, character = ${text(o.character)}, asked = ${text(o.asked)}, `
       + `mats = ${o.mats === true ? "true" : "false"}, note = ${text(o.note)}, at = ${epochOrNil(o.at)}, claimedAt = ${epochOrNil(o.claimedAt)}, doneAt = ${epochOrNil(o.doneAt)} },`);
   return [`GuildedOrders = { at = ${at}, orders = {`, ...rows, "} }"];

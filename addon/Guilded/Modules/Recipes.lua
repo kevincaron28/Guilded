@@ -714,6 +714,41 @@ function recipes.lastSeenText(name, online, seenAt)
   return string.format(L("%dy"), math.floor(days / 365))
 end
 
+-- Search for the Crafting page: a name (or part of one), a shift-clicked item link or an item id.
+-- Returns { { key, name, crafters = { { name, shown, online, me, seenAt, profession } } } }, matches
+-- (at most `limit` entries; crafters: you first, then online, then the most recently seen).
+function recipes.search(query, limit)
+  local text = string.match(tostring(query or ""), "^%s*(.-)%s*$") or ""
+  local results, matches = {}, 0
+  if #text < 2 then return results, 0 end
+  local keys = {}
+  local linked = keyFromLink(text) or (string.match(text, "^%d+$") and tonumber(text)) or nil
+  if linked then keys[1] = linked else keys = keysNamed(string.match(text, "%[(.-)%]") or text) end
+  matches = #keys
+  local me = ns.playerName and ns.playerName()
+  local online, seen = onlineSet()
+  for i = 1, math.min(#keys, limit or 4) do
+    local key = keys[i]
+    local entry, byName = { key = key, name = nameFor(key), crafters = {} }, {}
+    for _, found in ipairs(recipes.crafters(key)) do
+      if not byName[found.name] then
+        byName[found.name] = true
+        local mine = found.name == me
+        table.insert(entry.crafters, { name = found.name, shown = displayName(found.name), me = mine, online = mine or online[found.name] == true,
+          seenAt = seen[found.name], seen = found.seen, profession = found.profession })
+      end
+    end
+    table.sort(entry.crafters, function(x, y)
+      if x.me ~= y.me then return x.me end
+      if x.online ~= y.online then return x.online end
+      if (x.seen or 0) ~= (y.seen or 0) then return (x.seen or 0) > (y.seen or 0) end
+      return x.name < y.name
+    end)
+    table.insert(results, entry)
+  end
+  return results, matches
+end
+
 local function shiftHeld() return IsShiftKeyDown and IsShiftKeyDown() and true or false end
 
 -- First names only, unless two crafters share one (then the full names).

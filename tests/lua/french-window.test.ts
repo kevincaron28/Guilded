@@ -132,7 +132,7 @@ describe("the tools window in French", () => {
 
   it("keeps the section rows inside the page width in French", () => {
     const s = frenchWindow();
-    for (const group of ["Guild", "Crafting"]) {
+    for (const group of ["Guild"]) {
       s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
       const rows = JSON.parse(s.run(`local t = {}; for _, r in ipairs(NS.windowState().sectionLayout) do
         local b; for _, tab in ipairs(NS.windowState().tabs) do if tab.name == r.name then b = tab.button end end

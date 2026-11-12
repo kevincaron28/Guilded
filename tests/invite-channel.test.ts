@@ -148,6 +148,8 @@ describe("finishing a name from the guild roster", () => {
     expect(await run("Drakka Whitefang")).toBe(false); // linked, but not in the current roster
     expect(await run("Anna Smith-Jones")).toBe(false); // the surname is not cut at its dash
     expect(await run("Elise Old")).toBe(true);
+    // a full-name settle is a certain match, so it is the kind that may start the clean-up clock; the guesses above never reached it
+
   });
   it("does nothing when nobody is waiting", async () => {
     const db = Object.assign(database(), { guildRosterEntry: { findMany: vi.fn(async () => []) }, character: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) } });

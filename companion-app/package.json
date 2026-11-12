@@ -15,7 +15,7 @@
     "msix:store": "npm --prefix .. run companion:build && node build-msix.cjs"
   },
   "devDependencies": {
-    "electron": "^45.2.1",
+    "electron": "^45.2.3",
     "electron-builder": "^26.18.0"
   },
   "build": {

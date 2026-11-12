@@ -140,6 +140,148 @@ The `Invites.lua` merge keeps every existing saved key byte-for-byte: `db.invite
 `autoInvite`, plus the companion's `_G.GuildedInvites` global. The only new data is `db.layer = { helper, lastAskAt }`;
 requests live in memory only. There is no bot or companion change.
 
+## 1c. Who can open "Info and data" (owner question, 12 Nov)
+
+**Today: every guild member.** The tab has no officer flag (`Minimap.lua:1652`), so anyone with the addon sees it. The
+"Officer" half of the page (`INFO_OFFICER_TOOLS`, `Minimap.lua:1563`) is hidden from non-officers with `officerOnly`.
+"Officer" is a check against the member's *own* saved settings (`Core.lua:263`): their rank must be ticked in
+`db.settings.officerRanks`, or their name must be listed in `db.settings.officers`.
+
+**Can a member get around it?** Yes, in two ways. They can type the slash command behind a hidden button, or edit their own
+saved file. `/guilded invites` and `/guilded promote` don't check the rank themselves (`InviteQueue.lua:275`,
+`Promotion.lua:178`).
+
+**Does anything leak?** No. The invite queue and the promotion list come only from the companion. The bot puts them in the
+download only for a Discord officer (`companion-api.ts:546`, `:573`), so a member's copy is empty. Loot rolls and the
+consumables scan do check the rank. Hiding is about clutter, not security; the bot is the gate.
+
+**What the member half shows and does:**
+
+- *Read-only lists:* who runs which addon version (guildmates' names), which guildmate's companion carries your data,
+  guildmates' shared professions, the saved-names check, your battleground capture status.
+- *Actions:* ask guildmates or an officer for EP/GP history or data, which just sends sync requests; open interface options;
+  turn the daily digest and main names in chat on or off; your guild bank requests; guild bank low stock.
+- *Nothing destructive:* no export, reset or edit of anyone's data. Backup and restore live on the Settings tab, officer
+  only.
+
+**Recommendation (folds into PR 3):** the Info tab disappears.
+
+1. **Home** gets a *My data* line: "Last sent to Discord: 12 min ago, by your companion" (or by a guildmate's), next to the
+   existing **Send to Discord** button. That is the one thing a member needs from Info.
+2. Your bank requests move to Guild > Guild bank. The on/off switches (digest, main names in chat) move to **Settings**.
+3. Diagnostics about guildmates (versions, relay, professions shared, saved-names check, battleground capture, ledger and
+   data requests) move to **Settings > Advanced**. Advanced is closed by default, and its text says "for troubleshooting".
+4. The officer buttons (invite queue, ready to promote, auto-invite, loot rolls, consumables) move to the **Officer** tab.
+   The invite ones go into Layer invite's Guild invites section.
+5. The rank check moves into `/guilded invites` and `/guilded promote` themselves, so a member who types them gets "Officers
+   only" instead of an empty window. The bot-side gate stays the real protection.
+
+## 1d. The Crafting tab (owner, 12 Nov)
+
+The owner wants in-game crafting redesigned as one clean screen that shows everything you need, taking retail's crafting
+orders and TradeSkillMaster as models for layout only. No art, names or code is copied.
+
+### What exists today
+
+- **Crafting page** (guild-window panel): a search box with "Who can craft it" (prints a text line), your professions as
+  text, and cooldowns as text.
+- **Crafting orders page** (main window): Discord requests your character can craft. Each shows its reagents with
+  have/need, a Claim / Done / Give back action and a "Show all" switch.
+- **Tooltips:** "Crafted by" on item tooltips (compact, #375).
+
+**Data the addon already has:**
+
+- the guild recipe book, `db.recipeBook`: who knows which recipe (`people[player][profession]`), recipe names, and
+  reagents (`mats`) for recipes this PC knows (`Recipes.lua:453`);
+- profession skill per guildmate, from the roster sync (`RosterProfessions.lua:28`, "Alchemy:300");
+- cooldowns;
+- the orders feed `GuildedOrders`: id, item, quantity, profession, status, requester, crafter, reagents, note and timestamps
+  (`docs/plans/CRAFTING_ORDERS.md`);
+- the guild roster (online or not).
+
+**On the bot:** Discord requests (`CraftRequest`: OPEN, CLAIMED, DONE, CANCELLED), crafter offers (`CraftOffer`), the craft
+board posts and Top crafters (`craft-ladder.ts`).
+
+**Missing:**
+
+| Missing | Fix |
+|---|---|
+| Asking for a craft **from the game** (today only Discord can) | New: a "Request" action saved in `db.craftOrders.requests` and uploaded like bank requests (`bankRequests`). The bot creates the `CraftRequest` with the same rules as `/craft request`. Its first relay goes through a guildmate's companion. Needs a small bot import change. |
+| A "Delivered" state | The bot has DONE only. Recommendation: no new state. **Done** means made and handed over, and the requester gets the existing DM. Delivery is outside Guilded's reach (see below). |
+| Reagents of recipes nobody on this PC knows | They come from whoever shared the recipe: add `mats` to the `GuildedRcp` share (small, capped at 6 reagents). Older clients ignore the extra field. |
+| Required skill and recipe difficulty | Not shown. The crafter's current skill is enough to rank "who can craft". |
+| Top crafters in game | Add the top 5 per profession to the companion feed the bot already sends (`craftOrders.top`). It is small. |
+
+### What WoW Forever blocks
+
+- The addon cannot trade, mail, craft or open a profession window for you. Those are protected actions, and Guilded never
+  handles gold.
+- It cannot write into the chat box, so every "contact" is a copy line: `/w Jean Roy` (full first and last names).
+- It cannot read other players' bags. "What the requester already has" therefore comes only from the request ("I bring the
+  materials"), and from the requester's own bags when the requester is the one looking.
+- All frames are plain Guilded frames, so the tab stays safe in combat (orders already are).
+
+### Layout (text wireframe)
+
+```
++- Crafting ----------------------------------------------------------------------+
+| [ Find an item...        ] [Profession v] [Online only] [I can craft]           |
+| [ Recipes ] [ Orders (3) ] [ My requests (1) ]                                  |
++------------------------------------+--------------------------------------------+
+| Recipes (left list, 12 rows)       | Major Healing Potion            Alchemy    |
+|  * Major Healing Potion   Alch  3  |  Who can craft (online first):             |
+|    Flask of the Titans    Alch  1  |   * Jean Roy        Alchemy 300  online    |
+|    Enchant Chest: Stats   Ench  2  |     Lise Gagnon     Alchemy 290  2 h ago   |
+|    ...                             |  Reagents (for 1)       you have / need    |
+|                                    |   Golden Sansam              2 / 1  ok     |
+| "3" = guildmates who can craft it  |   Mountain Silversage        0 / 1  missing|
+|                                    |   Crystal Vial               5 / 1  ok     |
+|                                    |  [ Request this craft ]  [ /w Jean Roy ]   |
++------------------------------------+--------------------------------------------+
+```
+
+**Orders sub-tab** (the crafter's side): a list with a state column. Each state has one primary button.
+
+| State | Requester sees | Crafter sees (primary action) |
+|---|---|---|
+| Open | "Waiting for a crafter" | **Claim** (orders for my recipes first, "For you" on top) |
+| Claimed | "Jean Roy is making it" + `/w Jean Roy` | **Mark done** (Give back as a small link) |
+| Done | "Ready: get it from Jean Roy" + `/w` line | none (stays 24 h, then leaves) |
+| Cancelled | removed | removed |
+
+Selecting an order fills the detail pane: reagents with your have/need, the requester's note ("I bring the materials", a
+tip, a deadline) and who claimed it.
+
+**My requests sub-tab** (the requester's side): your open requests with their state, plus **Cancel** while still Open.
+
+The page opens on **Orders** when there is an order you can craft, otherwise on **Recipes**. The search takes a name or a
+shift-clicked item, and matches French and English names (professions already use one English key since #702).
+
+### Implementation
+
+- New file `Modules/CraftingTab.lua`: the UI only. It reads `ns.recipes` and `ns.craftOrders`, and replaces
+  `buildCraftingPage` and the CraftOrders page builder.
+- `Recipes.lua` and `CraftOrders.lua` keep their data, their prefixes and their saved keys (`recipeBook`, `craftOrders`),
+  which the companion exports.
+- Two additions:
+  - the request upload: `db.craftOrders.requests`, plus the companion export and the bot import, as a separate bot PR
+    that lands first;
+  - `mats` in the recipe share.
+- The list is a pooled scroll (12 rows reused), so a guild with 800 recipes stays fast.
+- **French:** about 40 new strings in `Locale.lua`, with escapes. `french-window.test.ts` covers the tab.
+- **Tests:**
+  - search and filter: profession, online only, I can craft;
+  - who-can-craft order: online first, then skill;
+  - the state-to-action table;
+  - request upload format.
+- **Real-client checks:**
+  - open a profession so the book fills;
+  - search in French and English;
+  - claim and mark done, and see the Discord post and DM follow;
+  - request from the game, and see it on Discord within one companion sync;
+  - open in combat;
+  - 800-recipe scroll speed.
+
 ## 2. Navigation, before and after
 
 **Before:**
@@ -168,7 +310,7 @@ requests live in memory only. There is no bot or companion change.
    availability, duel ladder. Each is a section of one scrolling page. Helpers who opted in also get the request toast
    wherever they are.
 3. **Dungeons:** opens the existing Guilded tab in the group finder, unchanged.
-4. **Crafting:** recipe search plus crafting orders.
+4. **Crafting:** recipes, orders and my requests in one screen (section 1d).
 5. **Raids:** sign-up and open raids for everyone. A *Raid leader* section (Ready, Reserves, Run a raid, Loot or Council by
    loot system, Standings, Calendar, and the Raid group `/invite` lines from `Invites.lua`) shows only to leaders and officers. It is always visible, not held back until raids open (owner, decision 3).
 6. **Officer** (officers only): Administration (EP/GP), raid cores (Local guild), Roster admin, Guild invites (the To invite queue and auto-invite,
@@ -261,6 +403,10 @@ unchanged. Only the coordinator bumps the version: these ship together as **9.2.
 | 6 | **Layer invite**: new `Invites.lua` (prefix `GuildedLayer`, request, claim, done, timeouts, opt-in, toast, Layer requests list); fold in `InviteQueue.lua` and `AutoInvite.lua` with their saved keys unchanged; call for help uses the shared copy box; remove `LevelPartners.lua` and its tests and mentions | M-L (about +450 / −700 lines, new Lua tests for the request, claim and timeout logic) |
 | 7 | Short `/guilded help`; update the website guides, bot `/help` and FAQ to name the new tabs (site republishes on merge) | S-M |
 
+| 8 | **Crafting tab** (section 1d): `CraftingTab.lua`, recipe reagents in the share, in-game requests (after a small bot PR for the request import and `craftOrders.top`) | L (about +900 Lua lines, +150 bot) |
+
+PR 8 comes after PR 4 (it fills the Crafting tab). Its bot part ships first and changes nothing visible.
+
 PRs 1-3 and 6 are independent. PR 5 needs PR 4. PR 6 can ship before PR 4: until then, Change layer sits on the current
 Home page where the Levelling partners button was.
 
@@ -288,7 +434,7 @@ Home page where the Levelling partners button was.
 ## 4. Decisions
 
 Owner answers of 12 November 2026: decisions **1, 2, 4 and 5: yes**, as recommended. Decision **3: no**: the raid-night
-tools move into the Raids tab and stay visible. Decisions 6 and 7 (Layer invite) are still open.
+tools move into the Raids tab and stay visible. Decisions 6 and 7 (Layer invite) are still open, and so is decision 8 (Crafting).
 
 1. **Remove the guild message completely** (not just hide it)? *Recommend: yes.*
 2. **Milestone announcements:** they post to guild chat from a timer, the path the game blocked for the welcome greeting. If
@@ -306,6 +452,9 @@ tools move into the Raids tab and stay visible. Decisions 6 and 7 (Layer invite)
 7. **Layer invite reach:** send requests to helpers on the requester's continent only? *Recommend: yes.* Layers are per
    continent on Classic-style layering (confirm on Forever in the two-PC test), and helpers elsewhere cannot help without
    travelling.
+8. **Requests from the game** (Crafting tab): let members ask for a craft in game, uploaded through the companion
+   the way bank requests are, rather than keeping requests Discord-only? *Recommend: yes.* It is the missing half of the
+   screen, and it needs a small bot change.
 
 Out of scope, noted for later: the separate `GuildedGames` addon also posts game lines with `SendChatMessage`, which is
 unverified on Forever. Raid-chat announces in LootRoll, Bidding, Council, Reserve and Ready are swallowed silently if

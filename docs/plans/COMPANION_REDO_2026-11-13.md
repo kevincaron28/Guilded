@@ -3,6 +3,8 @@
 On 13 November 2026 the owner asked to *"start planning the companion redo, the TSM companion installed is a great example of
 simplicity, just the sync for the companion"*.
 
+**Approved by the owner on 13 November 2026: decisions 1 to 5 as recommended. The plan is fully decided.**
+
 This document is a read-only plan for `companion-app/` (the Electron window) and `companion/` (the shared engine), as of
 origin/main at 9.1.6 plus #766. It changes no code. The sync engine, its uploads and its tests stay as they are; only the
 window around them is redone.
@@ -208,8 +210,10 @@ All sync tests stay untouched; about 60 `tests/companion-*` files cover them.
 | C4 | Moves and removals: Guild, Server, Tools, Help pages, website links, PoE2 and bot-address settings, Battle.net, delete-my-data (each now points to the website or Discord). Update `companion-navigation`, `settings-page` and `plain-words` tests. | M (mostly deletions) |
 | C5 | Remove the old window and its now-unused IPC channels (from the `ipc-security` allowlist and `preload.cjs`), unused `fr.json` keys and packaging entries | M (about −2,000) |
 | C6 | Website companion page, guides, `/help` and Store listing screenshots and text for the new window | S |
+| N | **Store-only name** (section 4b, decision 5): reserve the new name in Partner Center, set the MSIX display name and the Store description, and add one "listed in the Store as" line on the site and in the addon's companion steps. Its own small PR, independent of C1-C6. *In progress (another worker).* | S |
 
 C1 must land before C2. C3 and C4 need C2. C5 needs one release with C2 to C4 in members' hands, and C6 ships with C5.
+N does not depend on the others and can ship with any release (before the next Store submission if possible).
 
 **Checks on a real Windows PC and Store install:**
 
@@ -281,7 +285,7 @@ checked for trademarks.
 Sync Companion" after a name search). Ship it in C6, or sooner on its own if the 13 November appeal fails. Reserve the name in
 Partner Center before the next submission.
 
-## 5. Decisions for the owner
+## 5. Decisions (all approved by the owner, 13 November 2026)
 
 1. **Move the Guild and Server pages out** to the website `/me` and the phone (officer switches to the website and
    Discord). *Recommend: yes.*
@@ -294,3 +298,15 @@ Partner Center before the next submission.
    "Discord" (first choice "Guild Sync Companion", after a name search). Everything else, including the installer, the
    settings folder and the in-app brand, keeps "Guilded Companion". *Recommend: yes. Ship it on its own if the 13 November
    appeal fails.*
+
+## 6. Build order
+
+| Order | PR | Size | State |
+|---|---|---|---|
+| 1 | N: Store-only name (section 4b) | S | In progress (another worker) |
+| 2 | C1: `companion/main-status.mjs` and its tests | S (about +250) | To do |
+| 3 | C2: new main window and Advanced view, with the old window still behind Advanced | M-L (about +700) | To do, after C1 |
+| 4 | C3: four-item tray menu; window opens only when needed | S | To do, after C2 |
+| 5 | C4: moves and removals to the website and Discord | M (mostly deletions) | To do, after C2 |
+| 6 | C5: delete the old window, unused IPC channels, strings and packaging entries | M (about −2,000) | After one release with C2-C4 |
+| 7 | C6: website, guides, `/help` and Store screenshots and text | S | With C5 |

@@ -706,6 +706,8 @@ local function drawCard(data)
   card:SetHeight(CARD_H)
   card.age = 0
   card:SetAlpha(1)
+  -- Stacked above the dungeon result card when both are on screen.
+  if ns.util and ns.util.keepApart then ns.util.keepApart(card, _G.GuildedRunResults) end
   card:Show()
 end
 

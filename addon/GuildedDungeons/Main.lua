@@ -28,7 +28,7 @@ function ns.slash(text)
     for _, line in ipairs(ns.util.companionSteps()) do ns.message(line) end
     ns.message(ns.util.COMPANION_PAGE)
     ns.message(ns.util.COMPANION_DOWNLOAD)
-  elseif (action == "score" or action == "lang") and ns.commandHandlers[action] then
+  elseif (action == "score" or action == "lang" or action == "cards") and ns.commandHandlers[action] then
     table.remove(args, 1)
     ns.commandHandlers[action](args)
   else

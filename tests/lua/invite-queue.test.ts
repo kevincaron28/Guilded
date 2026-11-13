@@ -218,6 +218,58 @@ describe("InviteQueue.lua", () => {
     say(s, "Player Zoe Zed not found.");
     expect(labels(s)).toBe("todo:Amy Archer=notfound");
   });
+  it("finds the mark of a request posted with its realm: the click is saved without the realm, the game's reply may carry it", () => {
+    const s = withQueue();
+    s.run(String.raw`GuildedInvites.names = { { name = "Anna Smith-Realm", at = "a" } }`);
+    s.run("NS.inviteQueue.open()");
+    click(s, 1);
+    expect(s.run(String.raw`local sec = NS.inviteQueue.sections() return #sec.todo .. ":" .. #sec.invited .. ":" .. tostring(sec.invited[1] and sec.invited[1].copied)`)).toBe("0:1:true");
+    say(s, "You have invited Anna Smith-Realm to join your guild.");
+    expect(labels(s)).toBe("invited:Anna Smith-Realm=sent");
+    say(s, "Anna Smith declines your guild invitation.");
+    expect(labels(s)).toBe("invited:Anna Smith-Realm=declined");
+    // Remove clears both forms of the mark.
+    s.run(String.raw`NS.inviteQueue.remove("Anna Smith-Realm")`);
+    expect(labels(s)).toBe("");
+  });
+
+  it("matches the game's reply to a hyphenated surname instead of cutting it at the first hyphen", () => {
+    const s = withQueue();
+    s.run(String.raw`GuildedInvites.names = { { name = "Anna Smith-Jones", at = "a" } }`);
+    s.run("NS.inviteQueue.open()");
+    s.run(String.raw`NS.inviteQueue.markInvited("Anna Smith-Jones")`);
+    say(s, "Anna Smith-Jones is already in a guild.");
+    expect(labels(s)).toBe("handled:Anna Smith-Jones=inguild");
+    // A reply with a realm suffix on a plain name still matches.
+    s.run(String.raw`GuildedInvites.names = { { name = "Amy Archer", at = "a" } }; NS.inviteQueue.markInvited("Amy Archer")`);
+    say(s, "Amy Archer-Realm declines your guild invitation.");
+    expect(labels(s)).toBe("invited:Amy Archer=declined");
+  });
+
+  it("brings a name back when its requester posts it again after joining or being in another guild", () => {
+    const s = withQueue();
+    s.run(String.raw`GuildedInvites.names = { { name = "Amy Archer", at = "2026-11-10T10:00:00Z" } }`);
+    s.run("NS.inviteQueue.open()");
+    click(s, 1);
+    say(s, "Amy Archer has joined the guild.");
+    expect(labels(s)).toBe(""); // joined, and not on the roster list: hidden for that post
+    s.run("CLOCKS = CLOCKS + 200"); // (the click's pending window is over)
+    s.run(String.raw`GuildedInvites.names[1].at = "2026-11-12T10:00:00Z"`); // she left and posted again
+    expect(labels(s)).toBe("todo:Amy Archer=nil");
+    // Another guild's member: handled for that post, a todo again after a newer post.
+    click(s, 1);
+    say(s, "Amy Archer is already in a guild.");
+    expect(labels(s)).toBe("handled:Amy Archer=inguild");
+    s.run("CLOCKS = CLOCKS + 200");
+    s.run(String.raw`GuildedInvites.names[1].at = "2026-11-13T10:00:00Z"`);
+    expect(labels(s)).toBe("todo:Amy Archer=nil");
+    // Without a post time to compare, an answer expires after a day.
+    s.run(String.raw`GuildedInvites.names[1].at = "x"; NS.inviteQueue.markInvited("Amy Archer"); DB.inviteState["amy archer"] = { state = "inguild", at = CLOCKS }`);
+    expect(labels(s)).toBe("handled:Amy Archer=inguild");
+    s.run("CLOCKS = CLOCKS + 86401");
+    expect(labels(s)).toBe("todo:Amy Archer=nil");
+  });
+
   it("offers Remove on a not-found row, never lists it for sending, and shows it again only after a repost", () => {
     const s = withQueue();
     s.run("NS.inviteQueue.open()");

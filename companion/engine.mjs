@@ -542,15 +542,18 @@ export function createEngine(initialConfig, hooks = {}) {
     const left = omitted.ledger + omitted.loot + (omitted.raids ?? 0);
     const leftNote = left > 0 ? ` ${left} entries the bot already has were not sent again.` : "";
     if (response.ok) {
+      // 9.2.1: a big guild upload is still being applied when the bot answers; it finishes on its own, nothing to resend.
       const message = body.applyError
         ? `Uploaded, but the bot could not apply it: ${body.applyError}`
+        : body.applying
+        ? "Uploaded. The bot is applying it now; it finishes on its own."
         : body.autoApplied
         ? `Uploaded and applied automatically (${body.autoApplied.epgp} ledger entries, ${body.autoApplied.discovered} new characters).${heldNote(body.autoApplied)}${pairingNote(body.pairedCharacterStatus)}`
         : body.professionRelay
           ? `Professions and recipes synced. Guild ledger imports still await officer review.${pairingNote(body.pairedCharacterStatus)}`
           : `Uploaded ${body.transactionCount} ledger entries. Apply on Discord with: /import apply id:${body.importId}.${pairingNote(body.pairedCharacterStatus)}`;
       state.lastUpload = { at: new Date().toISOString(), message };
-      state.syncPhase = body.applyError ? "apply-error" : body.autoApplied?.held || !body.autoApplied && !body.professionRelay ? "officer-review" : "synced";
+      state.syncPhase = body.applyError ? "apply-error" : body.applying ? "synced" : body.autoApplied?.held || !body.autoApplied && !body.professionRelay ? "officer-review" : "synced";
       state.uploads += 1;
       log(body.applyError || body.autoApplied?.held ? "warn" : "ok", message + leftNote);
       // A live standings connection hears about the change by itself.

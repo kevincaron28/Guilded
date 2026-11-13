@@ -663,6 +663,41 @@ export async function craftRequestNeedsPost(id: string): Promise<boolean> {
   return !!row && !row.threadId && !row.orderMessageId && row.status === "OPEN";
 }
 
+// An apply of a big officer import takes longer than the companion waits. The response never waits for more than this
+// (10 s after the handler started, never past 12 s); the same apply keeps running in the background.
+const APPLY_DEADLINE_MS = 10_000;
+const APPLY_DEADLINE_MAX_MS = 12_000;
+const applyLanes = new Map<string, { pending: unknown }>();
+
+/**
+ * One apply at a time per lane (guild + uploader). While one runs, a newer job only replaces the one waiting (latest wins) and
+ * null comes back: the caller answers "received" at once. When the running apply ends, the waiting job runs once, and its
+ * outcome goes to `onNext`. `run` must not throw (it returns its outcome).
+ */
+export function startApplyLane<J, O>(key: string, job: J, run: (job: J) => Promise<O>, onNext: (outcome: O, job: J) => void): Promise<O> | null {
+  const running = applyLanes.get(key);
+  if (running) { running.pending = job; return null; }
+  const lane: { pending: unknown } = { pending: null };
+  applyLanes.set(key, lane);
+  const first = run(job);
+  void first.then(async () => {
+    try {
+      for (let next = lane.pending as J | null; next; next = lane.pending as J | null) {
+        lane.pending = null;
+        onNext(await run(next), next);
+      }
+    } finally { applyLanes.delete(key); }
+  });
+  return first;
+}
+
+/** The outcome of `first`, or null when it has not finished `waitMs` from now (it keeps running either way). */
+export async function raceDeadline<O>(first: Promise<O>, waitMs: number): Promise<O | null> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<null>((resolve) => { timer = setTimeout(() => resolve(null), Math.max(0, waitMs)); });
+  try { return await Promise.race([first, timeout]); } finally { clearTimeout(timer); }
+}
+
 /**
  * Phase timer for one upload: one journal line with the phases over 200 ms (no names, no Discord ids). Gap-free: `mark(name)`
  * attributes everything since the previous mark (or since `startedAt`, the request handler's first line) to `name`, and `time`
@@ -1427,6 +1462,63 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           if (!overCap) await updateProfessionDirectory(discordGuild);
         });
       }
+      // The apply of an upload runs in a lane per guild and uploader, and the response waits for it only until the deadline.
+      const laneKey = `${guild.id}:${pairedMemberId ?? createdBy}`;
+      const guildHash = createHash("sha256").update(guild.id).digest("hex").slice(0, 8);
+      type ApplyOutcome = { ok: true; result: AutoApplied; ms: number } | { ok: false; error: unknown; applied: boolean; ms: number };
+      type ApplyJob = { importId: string; retried: boolean };
+      const runApply = async (job: ApplyJob): Promise<ApplyOutcome> => {
+        const began = Date.now();
+        let applied = false;
+        try {
+          const result = await autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: job.importId, createdBy, since: uploadStartedAt, retried: job.retried, onApplied: () => { applied = true; } });
+          return { ok: true, result, ms: Date.now() - began };
+        } catch (error) { return { ok: false, error, applied, ms: Date.now() - began }; }
+      };
+      // Not applied: the reason goes to the server log, to the uploader (when still waiting) and, for a guild upload, to the officers.
+      // A transient database failure is retried in the background first and only told to the officers if the retries fail too.
+      const failApply = (outcome: Extract<ApplyOutcome, { ok: false }>, job: ApplyJob): string | null => {
+        const failure = classifyApplyFailure(outcome.error);
+        if (job.retried) {
+          if (/already been applied/i.test(outcome.error instanceof Error ? outcome.error.message : "")) return null;
+          console.info(applyFailureLogLine({ guildId: guild.id, importId: job.importId, failure, attempts: 1, ms: outcome.ms, officer: !!access.officer, retriedDuplicate: true }));
+          return failure.message;
+        }
+        // Application and notification are distinct: a committed import stays APPLIED even if follow-up fails.
+        console.error("Auto-apply of an addon import failed", outcome.error);
+        if (outcome.applied) return null;
+        console.info(applyFailureLogLine({ guildId: guild.id, importId: job.importId, failure, attempts: 1, ms: outcome.ms, officer: !!access.officer, retriedDuplicate: false }));
+        const tellOfficers = async (told: ApplyFailure, attempts: number) => {
+          if (!access.officer || !shouldTellApplyFailure(`${guild.id}:${told.reason}:${told.message}`)) return;
+          const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
+          // The reason stays as the classifier wrote it (it matches the server log); the frame is in the guild's language.
+          await notify(discordGuild, settings?.language === "fr"
+            ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${told.message}${attempts > 1 ? ` (${attempts} essais)` : ""} [${told.reason}]\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/import apply id:${job.importId}\`.`
+            : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${told.message}${attempts > 1 ? ` (${attempts} tries)` : ""} [${told.reason}]\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${job.importId}\`.`, "officer");
+        };
+        if (failure.transient) retryApplyLater({ guildId: guild.id, discordId: guild.discordId, importId: job.importId, createdBy, since: uploadStartedAt, officer: !!access.officer, tellOfficers });
+        else inBackground("Officer notice for a failed import", () => tellOfficers(failure, 1));
+        return failure.transient ? `${failure.message} The bot tries again in a minute.` : failure.message;
+      };
+      // What happens to an apply that ends after the response went out (or that waited in the lane).
+      const settleLate = (outcome: ApplyOutcome, job: ApplyJob) => {
+        console.info(`import-apply-finished guild=${guildHash} ms=${outcome.ms} late=1 ok=${outcome.ok ? 1 : 0}`);
+        if (!outcome.ok) failApply(outcome, job);
+      };
+      // Runs the apply (or queues it behind the one running) and waits for it only until the deadline.
+      const applyWithDeadline = async (job: ApplyJob): Promise<{ state: "done"; outcome: ApplyOutcome } | { state: "applying" }> => {
+        const first = startApplyLane(laneKey, job, runApply, settleLate);
+        if (!first) return { state: "applying" };
+        const wait = Math.min(APPLY_DEADLINE_MS, APPLY_DEADLINE_MAX_MS) - (Date.now() - requestStartedAt);
+        const outcome = await raceDeadline(first, Math.max(1_000, wait));
+        if (!outcome) { void first.then((late) => settleLate(late, job)); return { state: "applying" }; }
+        return { state: "done", outcome };
+      };
+      // "Received, being applied": the upload is stored; the companion shows it as sent and does not send the same file again.
+      const applyingAnswer = (status: number, importId: string) => json(response, status, {
+        applying: true, importId, checksum: preview.checksum, source: preview.snapshot.source, transactionCount: preview.transactionCount, pairedCharacterStatus,
+        ...(guildCheck ? { serverWowGuild: guildCheck } : {}), status: "PREVIEWED", scope: access.officer ? "officer" : "personal", botVersion: BOT_VERSION, protocolVersion: 2
+      });
       if (preview.duplicate) {
         const existing = preview.existingImport;
         // Unchanged data still repairs a member who has no linked character yet.
@@ -1435,24 +1527,20 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // but not applied must be tried again. Leaving it PREVIEWED made the
         // companion say "waiting for officer review", which a member cannot do.
         if (existing?.status === "PREVIEWED" && (!access.officer || settings?.autoApplyImports)) {
-          let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
-          const startedApply = Date.now();
-          try {
-            autoApplied = await timed("auto-apply", () => autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: existing.id, createdBy, since: uploadStartedAt, retried: true }));
-          } catch (error) {
-            const already = error instanceof Error && /already been applied/i.test(error.message);
-            if (!autoApplied && !already) {
-              // This path used to log nothing at all.
-              const failure = classifyApplyFailure(error);
-              console.info(applyFailureLogLine({ guildId: guild.id, importId: existing.id, failure, attempts: 1, ms: Date.now() - startedApply, officer: !!access.officer, retriedDuplicate: true }));
-              const applyError = failure.message;
+          mark("before:auto-apply");
+          const job = { importId: existing.id, retried: true };
+          const answer = await applyWithDeadline(job);
+          mark("auto-apply");
+          if (answer.state === "applying") { applyingAnswer(200, existing.id); return; }
+          if (!answer.outcome.ok) {
+            const applyError = failApply(answer.outcome, job);
+            if (applyError) {
               json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing.id, status: "PREVIEWED", applyError, botVersion: BOT_VERSION, protocolVersion: 2 });
               return;
             }
-          }
-          if (autoApplied) {
+          } else {
             json(response, 200, {
-              autoApplied, importId: existing.id, checksum: preview.checksum, pairedCharacterStatus,
+              autoApplied: answer.outcome.result, importId: existing.id, checksum: preview.checksum, pairedCharacterStatus,
               status: "APPLIED", scope: access.officer ? "officer" : "personal", botVersion: BOT_VERSION, protocolVersion: 2
             });
             return;
@@ -1466,40 +1554,16 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       mark("duplicate-check");
       const record = await timed("record", () => importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId));
       // Auto-apply (a guild opt-in: /config auto-import): apply now and follow up, no /import apply.
-      let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
+      let autoApplied: AutoApplied | null = null;
       let applyError: string | null = null;
       if (!access.officer || settings?.autoApplyImports) {
-        const startedApply = Date.now();
-        let applied = false;
-        try {
-          autoApplied = await timed("auto-apply", () => autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, retried: false,
-            onApplied: () => { applied = true; } }));
-        } catch (error) {
-          // Application and notification are distinct: a committed import stays APPLIED even if follow-up fails.
-          console.error("Auto-apply of an addon import failed", error);
-          if (!applied) {
-            // Nothing was imported. The reason goes to the server log as readable codes, to the
-            // uploader, and (for a guild upload) to the officers. A transient database failure
-            // (load, a concurrent upload) is retried in the background first and only told
-            // to the officers if the retries fail too.
-            const failure = classifyApplyFailure(error);
-            console.info(applyFailureLogLine({ guildId: guild.id, importId: record.id, failure, attempts: 1, ms: Date.now() - startedApply, officer: !!access.officer, retriedDuplicate: false }));
-            applyError = failure.transient ? `${failure.message} The bot tries again in a minute.` : failure.message;
-            const tellOfficers = async (told: ApplyFailure, attempts: number) => {
-              if (!access.officer || !shouldTellApplyFailure(`${guild.id}:${told.reason}:${told.message}`)) return;
-              const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-              // The reason stays as the classifier wrote it (it matches the server log); the frame is in the guild's language.
-              await notify(discordGuild, settings?.language === "fr"
-                ? `⚠️ **Import de l'addon non appliqué** (envoi de <@${createdBy}>) : ${told.message}${attempts > 1 ? ` (${attempts} essais)` : ""} [${told.reason}]\nRien n'a été importé. Corrigez la cause, ou appliquez-le à la main : \`/import apply id:${record.id}\`.`
-                : `⚠️ **Addon import not applied** (upload by <@${createdBy}>): ${told.message}${attempts > 1 ? ` (${attempts} tries)` : ""} [${told.reason}]\nNothing from it was imported. Fix the cause, or apply it by hand: \`/import apply id:${record.id}\`.`, "officer");
-            };
-            if (failure.transient) {
-              retryApplyLater({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, officer: !!access.officer, tellOfficers });
-            } else {
-              inBackground("Officer notice for a failed import", () => tellOfficers(failure, 1));
-            }
-          }
-        }
+        mark("before:auto-apply");
+        const job = { importId: record.id, retried: false };
+        const answer = await applyWithDeadline(job);
+        mark("auto-apply");
+        if (answer.state === "applying") { applyingAnswer(201, record.id); return; }
+        if (answer.outcome.ok) autoApplied = answer.outcome.result;
+        else applyError = failApply(answer.outcome, job);
       }
       mark("apply-tail");
       // 9.0.9: does this server know the uploading character's WoW guild? The companion warns about a wrong connection.

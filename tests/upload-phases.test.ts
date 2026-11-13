@@ -20,7 +20,8 @@ vi.mock("../src/services/audit.js", async (original) => ({
   createAuditService: () => ({ record: async () => undefined })
 }));
 
-import { autoApplyImportWith, createUploadTimer, craftRequestNeedsPost, inBackground, inGuildBackground } from "../src/companion-api.js";
+import { autoApplyImportWith, createUploadTimer, craftRequestNeedsPost, inBackground, inGuildBackground, raceDeadline, startApplyLane } from "../src/companion-api.js";
+import { snapshotChecksum } from "../src/services/addon-import.js";
 
 describe("uploads never wait on Discord", () => {
   it("returns the import counts at once while the Discord follow-up never finishes", async () => {
@@ -113,5 +114,55 @@ describe("a craft request made in game is posted once", () => {
     expect(await craftRequestNeedsPost("ordersOnly")).toBe(false);
     expect(await craftRequestNeedsPost("closed")).toBe(false);
     expect(await craftRequestNeedsPost("missing")).toBe(false);
+  });
+});
+
+describe("a long apply never holds the response, and retries do not pile up", () => {
+  const tick = (ms = 10) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  it("raceDeadline answers null at the deadline while the work keeps running, and the result when it is fast", async () => {
+    let finished = false;
+    const slow = tick(150).then(() => { finished = true; return "done"; });
+    const started = Date.now();
+    expect(await raceDeadline(slow, 30)).toBeNull();
+    expect(Date.now() - started).toBeLessThan(120);
+    expect(finished).toBe(false);
+    expect(await slow).toBe("done");               // the same promise: no second apply was started
+    expect(await raceDeadline(Promise.resolve("fast"), 500)).toBe("fast");
+  });
+
+  it("one apply per lane: a newer upload replaces the waiting one (latest wins) and runs once after the first ends", async () => {
+    const ran: string[] = [];
+    const next: string[] = [];
+    let release!: () => void;
+    const run = async (job: string) => { ran.push(job); if (job === "first") await new Promise<void>((resolve) => { release = resolve; }); return job; };
+    const first = startApplyLane("lane-a", "first", run, (outcome) => next.push(outcome));
+    expect(first).not.toBeNull();
+    expect(startApplyLane("lane-a", "second", run, (outcome) => next.push(outcome))).toBeNull();   // answered "received" at once
+    expect(startApplyLane("lane-a", "third", run, (outcome) => next.push(outcome))).toBeNull();
+    expect(startApplyLane("lane-b", "other", run, () => undefined)).not.toBeNull();                 // another uploader is not held
+    await tick();
+    expect(ran).toEqual(["first", "other"]);
+    release();
+    await first;
+    await tick(30);
+    expect(ran).toEqual(["first", "other", "third"]);   // "second" was superseded, "third" ran once
+    expect(next).toEqual(["third"]);
+    // The lane is free again.
+    expect(startApplyLane("lane-a", "later", async (job) => job, () => undefined)).not.toBeNull();
+  });
+});
+
+describe("an unchanged saved file dedupes", () => {
+  const snapshot = (at: number, lastOnline: number) => ({
+    source: "Guilded", exportedAt: new Date(at * 1000), epgpTransactions: [{ character: "Aria", sourceRef: "x1" }], readiness: [],
+    guildRoster: { at, complete: true, members: [{ name: "Bob", online: false, lastOnline }] }, guildEvents: [{ at, text: "joined" }], guildInfo: { at, motd: "hi" }
+  });
+
+  it("the export stamp and the guild roster, events and MOTD (applied elsewhere, 'now minus age') do not change the checksum; real content does", () => {
+    const base = snapshotChecksum(snapshot(1_800_000_000, 1_799_000_000) as never);
+    expect(snapshotChecksum(snapshot(1_800_000_300, 1_799_000_300) as never)).toBe(base);
+    const changed = { ...snapshot(1_800_000_000, 1_799_000_000), epgpTransactions: [{ character: "Aria", sourceRef: "x2" }] };
+    expect(snapshotChecksum(changed as never)).not.toBe(base);
   });
 });

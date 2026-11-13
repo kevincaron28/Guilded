@@ -75,14 +75,15 @@ describe("public guild pages", () => {
     expect((await get("/leaderboards/guild/quebec-gold")).body).toMatch(/rel="canonical" href="[^"]*\/leaderboards\/guild\/quebec-gold\//);
   });
 
-  it("tags only characters with a public run in their guild, and prints an uploader guild name only when it is a listed guild", async () => {
+  it("tags only characters with a public run in their guild and never prints uploader guild text", async () => {
     const get = appFor(two);
     const page = (await get("/leaderboards/characters/?bracket=15-29")).body;
     expect(page).toContain('guild-tag">&lt;<a href="/forever/leaderboards/guild/quebec-gold');
     expect(page).not.toContain("Elsewhere Crew");
     expect(page).not.toContain("Zed");
-    // Pickup is not on g2's roster but says "Moonwell Vanguard", a listed guild: linked. Edda says "Elsewhere Crew" (unlisted) but is on g1's roster: tagged by roster.
-    expect(page.match(/guild\/moonwell-vanguard/g)?.length).toBeGreaterThanOrEqual(1);
+    // Pickup is on no roster but says "Moonwell Vanguard", a listed guild: no tag from the uploader's text.
+    const pickup = /Pickup[\s\S]{0,400}?<\/tr>/.exec(page)?.[0] ?? "";
+    expect(pickup).not.toContain("guild-tag");
   });
 
   it("does not load guild data for run pages, and a failing guild store never breaks a page", async () => {
@@ -106,20 +107,51 @@ describe("public guild pages", () => {
     expect(slugs.get("a")).toBe("quebec-gold-2");
   });
 
-  it("stores a new guild's slug on first listing and keeps stored ones", async () => {
+  it("stores a new guild's slug on first listing, keeps stored ones and survives two concurrent loads", async () => {
     const stored = new Map<string, string | null>([["g1", "quebec-gold"], ["g2", null]]);
     const names: Record<string, string> = { g1: "Quebec Gold", g2: "Quebec Gold" };
     const database = {
       guildSettings: {
         async findMany(args: { where: Record<string, unknown> }) {
+          await Promise.resolve();
           if ("publicDungeonRuns" in args.where) return [...stored].map(([guildId, publicSlug]) => ({ guildId, publicSlug, guild: { name: names[guildId], discordId: guildId, page: null } }));
           return [...stored].filter(([, slug]) => slug).map(([, publicSlug]) => ({ publicSlug }));
         },
-        async update(args: { where: { guildId: string }; data: { publicSlug: string } }) { stored.set(args.where.guildId, args.data.publicSlug); return {}; }
+        async findUnique(args: { where: { guildId: string } }) { return { publicSlug: stored.get(args.where.guildId) ?? null }; },
+        async updateMany(args: { where: { guildId: string; publicSlug: null }; data: { publicSlug: string } }) {
+          if (stored.get(args.where.guildId)) return { count: 0 };
+          if ([...stored.values()].includes(args.data.publicSlug)) throw Object.assign(new Error("unique"), { code: "P2002" });
+          stored.set(args.where.guildId, args.data.publicSlug); return { count: 1 };
+        }
+      }
+    };
+    // Two separate stores (two processes) and a second call on the same one, all cold at once.
+    const first = prismaLeaderboardStore(database as never);
+    const second = prismaLeaderboardStore(database as never);
+    const results = await Promise.all([first.guilds(), second.guilds(), first.guilds()]);
+    expect(Object.fromEntries(stored)).toEqual({ g1: "quebec-gold", g2: "quebec-gold-2" });
+    for (const guilds of results) expect(guilds.map((g) => g.publicSlug).sort()).toEqual(["quebec-gold", "quebec-gold-2"]);
+  });
+
+  it("never overwrites a slug another process stored first", async () => {
+    const stored = new Map<string, string | null>([["g2", null]]);
+    const database = {
+      guildSettings: {
+        async findMany(args: { where: Record<string, unknown> }) { return "publicDungeonRuns" in args.where ? [{ guildId: "g2", publicSlug: null, guild: { name: "Foo", discordId: "g2", page: null } }] : []; },
+        async findUnique() { return { publicSlug: stored.get("g2") ?? null }; },
+        // The other process wins between our read and our write.
+        async updateMany() { stored.set("g2", "foo"); return { count: 0 }; }
       }
     };
     const guilds = await prismaLeaderboardStore(database as never).guilds();
-    expect(Object.fromEntries(stored)).toEqual({ g1: "quebec-gold", g2: "quebec-gold-2" });
-    expect(guilds.map((g) => g.publicSlug).sort()).toEqual(["quebec-gold", "quebec-gold-2"]);
+    expect(guilds[0]!.publicSlug).toBe("foo");
+    expect(stored.get("g2")).toBe("foo");
+  });
+
+  it("redirects the id URL of the duels page to the slug", async () => {
+    const get = appFor(two, { async guildDuels() { return { standings: [], duels: 0 }; } });
+    const moved = await get("/leaderboards/guild/g1/duels?lang=fr");
+    expect(moved.status).toBe(302);
+    expect(moved.headers["location"]).toContain("/leaderboards/guild/quebec-gold/duels");
   });
 });

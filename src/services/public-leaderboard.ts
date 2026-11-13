@@ -343,6 +343,33 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       cursor = page[page.length - 1]!.id;
     }
   }
+  const guildsLoading = new Map<string, Promise<PublicGuild[]>>();
+  async function loadGuilds(): Promise<PublicGuild[]> {
+      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition(), isTestServer: false } }, select: { guildId: true, publicSlug: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
+      const listed = rows.filter((row) => allows(row.guild.discordId));
+      // A guild's address is stored the first time it is listed and never changes (a rename keeps it, old links keep working).
+      if (listed.some((row) => !row.publicSlug)) {
+        const taken = new Set((await database.guildSettings.findMany({ where: { publicSlug: { not: null } }, select: { publicSlug: true }, take: 5_000 })).flatMap((row) => row.publicSlug ?? []));
+        for (const row of listed.filter((r) => !r.publicSlug).sort((a, b) => a.guildId.localeCompare(b.guildId))) {
+          for (let attempt = 0; attempt < 4 && !row.publicSlug; attempt++) {
+            const slug = freeSlug(row.guild.name, row.guildId, taken);
+            try {
+              // Only while still empty: a slug that was stored (here or by another process) is never overwritten.
+              const done = await database.guildSettings.updateMany({ where: { guildId: row.guildId, publicSlug: null }, data: { publicSlug: slug } });
+              if (done.count === 1) { row.publicSlug = slug; taken.add(slug); }
+              else {
+                const stored = await database.guildSettings.findUnique({ where: { guildId: row.guildId }, select: { publicSlug: true } });
+                if (stored?.publicSlug) { row.publicSlug = stored.publicSlug; taken.add(stored.publicSlug); } else break;
+              }
+            } catch (error) {
+              // Another guild took this slug: try the next one. Anything else is not a slug problem: leave the guild on its id for now.
+              if ((error as { code?: string }).code === "P2002") taken.add(slug); else break;
+            }
+          }
+        }
+      }
+      return listed.map((row) => ({ id: row.guildId, name: row.guild.name, publicSlug: row.publicSlug, slug: row.guild.page?.published ? row.guild.page.slug : null })).sort((a, b) => a.name.localeCompare(b.name));
+  }
   return {
     async run(id) {
       const row = await database.publicRun.findFirst({ where: { id, status: "ACCEPTED", gameEdition: currentEdition() }, select: PUBLIC_RUN_SELECT });
@@ -364,20 +391,11 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       return (await every({ status: "ACCEPTED", players: { some: { OR: names, ...(realm !== null ? { realm: { equals: realm, mode: "insensitive" } } : {}) } } })).sort(newestFirst);
     },
     async guilds() {
-      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition(), isTestServer: false } }, select: { guildId: true, publicSlug: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
-      const listed = rows.filter((row) => allows(row.guild.discordId));
-      // A guild's address is stored the first time it is listed and never changes (a rename keeps it, old links keep working).
-      if (listed.some((row) => !row.publicSlug)) {
-        const taken = new Set((await database.guildSettings.findMany({ where: { publicSlug: { not: null } }, select: { publicSlug: true }, take: 5_000 })).flatMap((row) => row.publicSlug ?? []));
-        for (const row of listed.filter((r) => !r.publicSlug).sort((a, b) => a.guildId.localeCompare(b.guildId))) {
-          for (let attempt = 0; attempt < 4; attempt++) {
-            const slug = freeSlug(row.guild.name, row.guildId, taken);
-            try { await database.guildSettings.update({ where: { guildId: row.guildId }, data: { publicSlug: slug } }); row.publicSlug = slug; taken.add(slug); break; }
-            catch { taken.add(slug); }
-          }
-        }
-      }
-      return listed.map((row) => ({ id: row.guildId, name: row.guild.name, publicSlug: row.publicSlug, slug: row.guild.page?.published ? row.guild.page.slug : null })).sort((a, b) => a.name.localeCompare(b.name));
+      // One load at a time per edition: concurrent cold requests share it.
+      const edition = currentEdition();
+      let load = guildsLoading.get(edition);
+      if (!load) { load = loadGuilds().finally(() => guildsLoading.delete(edition)); guildsLoading.set(edition, load); }
+      return load;
     },
     async guildRoster(guildId) {
       const rows = await database.character.findMany({ where: { member: { guildId, status: "ACTIVE" } }, select: { name: true, realm: true, gameEdition: true }, take: 5_000 });
@@ -625,8 +643,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   // guild's roster with at least one public run of that guild in the period are tagged (what the guild page already
   // shows); a character found in two guilds gets no tag. Built only for pages that need it, shared by concurrent
   // requests of the same edition and period, and never able to fail a page (an error leaves addresses as ids, no tags).
-  interface GuildIndex { slugs: Map<string, string>; byKey: Map<string, PublicGuild | null>; byName: Map<string, PublicGuild | null> }
-  const emptyIndex = (): GuildIndex => ({ slugs: new Map(), byKey: new Map(), byName: new Map() });
+  interface GuildIndex { slugs: Map<string, string>; byKey: Map<string, PublicGuild | null> }
+  const emptyIndex = (): GuildIndex => ({ slugs: new Map(), byKey: new Map() });
   const indexes = new WeakMap<WebContext, GuildIndex>();
   const inflight = new Map<string, Promise<GuildIndex>>();
   async function ensureIndex(ctx: WebContext, period?: PublicPeriod): Promise<GuildIndex> {
@@ -649,9 +667,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
             }
           }
         }
-        const byName = new Map<string, PublicGuild | null>();
-        for (const guild of guilds) { const k = foldText(guild.name); byName.set(k, byName.has(k) ? null : guild); }
-        return { slugs: guildSlugs(guilds), byKey, byName };
+        return { slugs: guildSlugs(guilds), byKey };
       });
       inflight.set(key, promise);
       promise.then(() => inflight.delete(key), () => inflight.delete(key));
@@ -670,10 +686,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   const guildLink = (ctx: WebContext, guild: PublicGuild) => `<a href="${link(guildPath(ctx, guild), ctx.lang)}">${escapeHtml(guild.name)}</a>`;
   const guildOf = (ctx: WebContext, player: LeaderPlayer): PublicGuild | null => {
     const index = indexOf(ctx);
-    const own = [player.character, ...(player.aliases ?? [])].map((name) => index.byKey.get(characterKey(name, player.realm, currentEdition()))).find((guild) => guild);
-    if (own) return own;
-    // An uploader-supplied guild name is shown only when it is a listed guild's name; anything else is left out.
-    return player.guild ? index.byName.get(foldText(player.guild)) ?? null : null;
+    // Only a roster character with a public run of that guild is tagged. The uploader-supplied player.guild text is stored for later, validated use and never printed.
+    return [player.character, ...(player.aliases ?? [])].map((name) => index.byKey.get(characterKey(name, player.realm, currentEdition()))).find((guild) => guild) ?? null;
   };
   const guildTag = (ctx: WebContext, player: LeaderPlayer) => {
     const guild = guildOf(ctx, player);
@@ -1081,6 +1095,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     const { t, lang } = ctx;
     await ensureIndex(ctx);
     const guild = findGuild(ctx, await cached("guilds", () => deps.store.guilds()), id);
+    if (guild && deps.store.guildDuels && id !== indexOf(ctx).slugs.get(guild.id)) return kit.redirect(link(`${guildPath(ctx, guild)}/duels`, lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))));
     if (!guild || !deps.store.guildDuels) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1>`, { noindex: true });
     const { standings, duels } = await cached(`duels:${guild.id}`, () => deps.store.guildDuels!(guild.id));
     const base = guildPath(ctx, guild);

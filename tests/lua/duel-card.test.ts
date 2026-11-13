@@ -352,13 +352,13 @@ describe("duel leaderboard", () => {
       UnitExists = function(unit) return unit == "target" end
       UnitName = function(unit) if unit == "target" then return "Zed" end return "Kev" end`);
     lua.run(`NOW = 100; fire_event("DUEL_COUNTDOWN", 3); NOW = 160; CLOCK = CLOCK + 60`);
-    say("Kev Caron has defeated Zed Outsider|r {2}|cff/ in a duel");
+    say("Kev Caron has defeated Zed Outsider in a duel");
     expect(stat("SHOWS")).toBe("1");
     expect(stat("VISIBLE")).toBe("true");
     const t = texts(lua);
     expect(t).toContain("VICTORY");
-    expect(t).toContain("Zed Outsider|r {2}|cff/");
-    expect(t).toContain("Not counted on the guild ladder: Zed Outsider|r {2}|cff/ is not in your guild.");
+    expect(t).toContain("Zed Outsider");
+    expect(t).toContain("Not counted on the guild ladder: Zed Outsider is not in your guild.");
     expect(t).toContain("Elwynn Forest");
     expect(t).not.toContain("points");
     expect(t).not.toContain("Guild rank");
@@ -374,14 +374,14 @@ describe("duel leaderboard", () => {
   it("shows just the name for a non-guild opponent that was not targeted, and still waits for combat to end", () => {
     const lua = setup();
     lua.run("UnitExists = function() return false end; COMBAT = true");
-    say("Zed Outsider|r {2}|cff/ has defeated Kev Caron in a duel");
+    say("Zed Outsider has defeated Kev Caron in a duel");
     expect(stat("VISIBLE")).toBe("false");
     lua.run("COMBAT = false; fire_event('PLAYER_REGEN_ENABLED')");
     expect(stat("VISIBLE")).toBe("true");
     const t = texts(lua);
     expect(t).toContain("DEFEAT");
-    expect(t).toContain("Zed Outsider|r {2}|cff/");
-    expect(t).not.toMatch(/Zed Outsider|r {2}|cff/\|r  \|cff/); // no class or level detail after the name
+    expect(t).toContain("Zed Outsider");
+    expect(t).not.toMatch(/Zed Outsider\|r {2}\|cff/); // no class or level detail after the name
     expect(lua.run("return tostring(NS.duels.lastCard.oppClass)")).toBe("nil");
   });
 
@@ -428,7 +428,7 @@ describe("duel leaderboard", () => {
     const lua = setup("frFR");
     lua.run(`GetLocale = function() return "frFR" end`);
     lua.load("Locale.lua");
-    say("Zed Outsider|r {2}|cff/ has defeated Kev Caron in a duel");
+    say("Zed Outsider has defeated Kev Caron in a duel");
     expect(texts(lua)).toContain("n'est pas dans votre guilde");
   });
 });

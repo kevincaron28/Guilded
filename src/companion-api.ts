@@ -9,6 +9,7 @@ import { withEdition } from "./services/edition-context.js";
 import { addonName } from "./services/addon-name.js";
 import { characterKey, realmKey } from "../companion/character-identity.mjs";
 import { relayProfessions } from "./services/profession-relay.js";
+import { retiredAvailabilityRoute } from "./services/retired-pages.js";
 import { autoLinkUnclaimed } from "./services/character-autolink.js";
 import { linkUploaderCharacters, repairMissingLinks } from "./services/upload-linking.js";
 import { linkedCharacterCount, scheduleLinkedCharacters } from "./services/companion-link-dm.js";
@@ -86,8 +87,6 @@ import { prismaRosterPlanWriter } from "./services/roster-plan-store.js";
 import { createRosterReview } from "./services/roster-review.js";
 import { prismaRosterDashboardStore } from "./services/roster-dashboard-store.js";
 import { guildDashboardAccess } from "./services/guild-dashboard-access.js";
-import { prismaAvailabilityStore } from "./services/web-availability-store.js";
-import { createWebAvailability } from "./services/web-availability.js";
 import { createWebLootLists, prismaLootListStore } from "./services/web-loot-lists.js";
 import { prismaGuildToolsStore } from "./services/guild-tools-store.js";
 import { createGuildToolsPages } from "./services/guild-tools-pages.js";
@@ -331,7 +330,6 @@ async function signInGuildCredential(client: Client | undefined, account: { disc
 export function createSiteApp(client?: Client) {
   const rosterStore = prismaRosterDashboardStore(prisma, client, id => hostedPilot.allows(id));
   const roster = createRosterDashboard(rosterStore);
-  const availability = createWebAvailability(prismaAvailabilityStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")), config.WEB_AVAILABILITY_ENABLED);
   const guildTools = createGuildToolsPages(prismaGuildToolsStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const gallery = createArtisansGallery({ db: prisma, access: guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), items: withDeadline(itemData, 1_500),
     post: async (guildId, requestId, askCrafter) => {
@@ -375,7 +373,7 @@ export function createSiteApp(client?: Client) {
   const handover = createOfficerHandover(officerHandoverStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))));
   const lootLists = createWebLootLists(prismaLootListStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")));
   const personalCalendar = createPersonalCalendar(personalCalendarStore(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member"), client));
-  const routes: WebRoute[] = [badges.route, signInPage, availability.route, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
+  const routes: WebRoute[] = [badges.route, signInPage, retiredAvailabilityRoute, roster.route, createRosterReview(rosterStore, prismaRosterPlanWriter(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)))), guildTools.route, createStatsPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id))).route, createGuildBankPage(prisma, guildDashboardAccess(prisma, client, id => hostedPilot.allows(id)), guildDashboardAccess(prisma, client, id => hostedPilot.allows(id), "member")).route, gallery.route, leaderboards.route, liveNewsFeed().route, directory.route, achievementsWeb.route, achievementsWeb.ownerRoute, profiles.route, createPugWeb(prisma, id => hostedPilot.allows(id)).route];
   const isOfficer = cachedOfficerCheck(rosterStore.guilds);
   const meSections: MeSectionInput[] = [
     meSection({ id: "profile", group: "overview", render: profiles.meSection, fold: { en: "Privacy and details", fr: "Confidentialité et détails" } }),
@@ -383,7 +381,6 @@ export function createSiteApp(client?: Client) {
     meSection({ id: "pictures", group: "overview", render: pictures.meSection }),
     meSection({ id: "achievements", group: "play", render: achievementsWeb.meSection }),
     meSection({ id: "badges", group: "play", render: badges.meSection }),
-    meSection({ id: "availability", group: "play", render: availability.meSection }),
     meSection({ id: "calendar", group: "play", render: personalCalendar.meSection }),
     meSection({ id: "raid-planning", group: "play", render: raidPlanning.meSection }),
     meSection({ id: "raid-loot", group: "play", render: lootLists.meSection }),

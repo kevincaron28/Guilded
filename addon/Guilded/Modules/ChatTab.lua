@@ -287,7 +287,7 @@ end
 -- so it tells the player the steps (`/guilded chattab`, and the "How to set up the chat tab" button on the Chat tab of
 -- the settings page, both through ns.chatTabHowTo). Group labels come from the game's own global strings when the
 -- client has them (so they are in the player's language and are the words the Settings window really shows);
--- English otherwise. The Battle.net whisper group is the one exception: its label is always "BN Whisper".
+-- English otherwise. The BN whisper group is the one exception: its label is always "BN Whisper".
 -- ---------------------------------------------------------------------
 -- { global string the game labels the group with, English fallback, true = always use the fallback }
 local CHAT_GROUPS = {

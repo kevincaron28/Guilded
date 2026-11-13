@@ -5,6 +5,7 @@ import type { WebResponse } from "./web-app.js";
 import type { RosterVisual } from "./roster-visual.js";
 import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
 import { dungeonBackdrop } from "./dungeon-backdrop.js";
+import { cardBackdropArt, BANNER_HEIGHT, type CardBackdrop } from "./card-backdrop.js";
 import type { RecordVisual } from "./record-card.js";
 
 /**
@@ -51,7 +52,9 @@ export interface ScoreCard { eyebrow?: string; title: string; subtitle: string; 
   /** 9.1: the daily recap layout (painted scene, a stats strip, up to three section panels of rows). */
   recap?: RecapVisual;
   /** 9.1: the new guild record card, drawn by record-card.ts. */
-  record?: RecordVisual }
+  record?: RecordVisual;
+  /** 9.2: an approved painting for this card (card-backdrop.ts, site/card-art/<kind>/<key>.jpg). Cards without it, or without a file, draw as before. */
+  backdrop?: CardBackdrop }
 
 /** A recap: up to three panels, each a title and up to five rows (name in its colour, a line under it, a value on the right). */
 export interface RecapVisual { theme: DungeonArtTheme; sections: { title: string; rows: CardRow[] }[] }
@@ -166,6 +169,10 @@ const chrome = (height = 630): string[] => {
   return shapes;
 };
 
+/** A prepared backdrop (card-backdrop.ts) as an SVG image, drawn right after the card's flat background so the frame and panels sit on top. */
+const artImage = (art: Buffer, height: number) => `<image x="0" y="0" width="1200" height="${height}" href="data:image/jpeg;base64,${art.toString("base64")}"/>`;
+const withArt = (shapes: string[], art: Buffer | null, height: number) => { if (art) shapes.splice(1, 0, artImage(art, height)); };
+
 // The leaderboard layout, shared by every ranking card. A header (eyebrow, title, subtitle, and the season / updated-at line on
 // the right), then one or more panels laid out like a ranking site: a column header, a rank column with gold, silver and bronze
 // medals for the top 3, the name in its class colour with a quiet second line, right-aligned numeric columns, an optional level
@@ -216,6 +223,7 @@ async function renderLadder(card: ScoreCard): Promise<Buffer> {
   }
   const height = Math.max(630, y + (panels.length ? 52 : 120));
   const shapes = chrome(height);
+  withArt(shapes, await cardBackdropArt(card.backdrop, "banner"), BANNER_HEIGHT);
   await put(caps(th.gold, clip(card.eyebrow ?? "Guilded", 44)), 20, 60, 36, 700);
   await put(span(th.ink, clip(card.title, 34)), 52, 58, 62, 760);
   await put(span(th.muted, clip(card.subtitle, 70)), 22, 60, 130, 760);
@@ -290,6 +298,7 @@ async function render(card: ScoreCard): Promise<Buffer> {
   if (card.ladder) return renderLadder(card);
   const accent = { gold: th.gold, green: th.green, red: th.red } as const;
   const shapes = chrome();
+  withArt(shapes, await cardBackdropArt(card.backdrop, "full"), 630);
   const layers: Layer[] = [];
   const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
     const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
@@ -801,6 +810,7 @@ async function renderUnlock(card: ScoreCard): Promise<Buffer> {
  */
 async function renderRoster(card: ScoreCard): Promise<Buffer> {
   const data = card.roster!, shapes = chrome(), layers: Layer[] = [];
+  withArt(shapes, await cardBackdropArt(card.backdrop, "banner"), BANNER_HEIGHT);
   const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
     const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;
   };

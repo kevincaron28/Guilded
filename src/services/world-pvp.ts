@@ -128,6 +128,7 @@ export function worldPvpCard(data: WorldPvpData, lang: Lang, classes: ClassBook 
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "JcJ en monde ouvert" : "World PvP",
     subtitle: fr ? "Cette semaine (reset du mardi) · victoires, défenses et appels à l'aide" : "This week (Tuesday reset) · kills, defends and calls answered",
+    backdrop: { kind: "board", key: "world-pvp" },
     stats: [], footer: fr ? "Compteurs des joueurs, plafonnés · distinct des champs de bataille et des duels · aucun point ni récompense" : "Player counters, capped · separate from battlegrounds and duels · no points or awards",
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucune activité JcJ en monde ouvert cette semaine." : "No open-world PvP this week yet.",

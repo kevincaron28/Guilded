@@ -61,6 +61,7 @@ export function bgLadderCard(data: BgLadderData, lang: Lang, classes: ClassBook 
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Champs de bataille" : "Battleground ladder",
     subtitle: fr ? `${data.participations} participations rapportées · ${DAYS} derniers jours` : `${data.participations} reported participations · last ${DAYS} days`,
+    backdrop: { kind: "board", key: "battlegrounds" },
     stats: [], footer: fr ? "Rapports de joueurs, pas des matchs vérifiés · distinct des duels · aucun point ni récompense" : "Player reports, not verified matches · separate from duels · no points or awards",
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun rapport de champ de bataille." : "No battleground report yet.",

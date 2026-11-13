@@ -79,6 +79,7 @@ export function rosterVisualCard(visual: RosterVisual, lang: "en" | "fr", title:
     stats: [{ label: fr ? "Personnages" : "Characters", value: String(visual.characters) }], footer: fr ? "Personnages liés des membres actifs · mêmes chiffres que /report guild" : "Linked characters of active members · same numbers as /report guild",
     // Class and profession names in the guild's language (the data keeps the English names).
     roster: { ...visual, classes: visual.classes.map(c => ({ ...c, name: localClassName(c.name, lang) })), professions: visual.professions.map(p => ({ ...p, name: professionName(p.name, lang) })) },
+    backdrop: { kind: "roster", key: "default" },
     rosterProfessionsLabel: fr ? "Métiers · artisans et compétence max" : "Professions · crafters and top skill"
   };
 }

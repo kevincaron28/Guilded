@@ -147,7 +147,12 @@ export function createAddonImportService(database: PrismaClient) {
       // (9.3) Dungeon runs first, in their own short transaction. They used to wait behind the rest of a long officer import
       // (a 65 s transaction timeout on 12 Nov, P2028 in the dungeon calendar lock) and were lost with it. Stored here, they are
       // kept even when the rest of the import is slow; if this step fails for any reason the runs are imported inside the main
-      // transaction as before, and if that fails too nothing is acknowledged, so the companion sends them again.
+      // transaction as before. When the MAIN transaction fails after this one committed, the runs, points and receipts stay
+      // (acknowledged), the retry finds every run known, so what the Discord announcements need (the per-run results) is saved on
+      // the import row (payload.earlyDungeonResults) here and merged back in on the retry; the final compaction drops it.
+      // Characters are read here before the main transaction links the ones this same upload discovers: a player linked only by
+      // this upload is stored with memberId null, and creditHeldRunPlayers (main transaction, before the summary is used) gives
+      // them their member and credit in the same import.
       let earlyDungeons: Awaited<ReturnType<typeof importDungeonRuns>> | null = null;
       try {
         earlyDungeons = await database.$transaction(async (tx) => {
@@ -162,7 +167,16 @@ export function createAddonImportService(database: PrismaClient) {
           await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
           return withEdition(gameEditionOf(guild ?? {}), async () => {
             const characters = await tx.character.findMany({ where: { member: { guildId } }, include: { member: true } });
-            return importDungeonRuns(tx, guildId, snapshot.dungeonRuns, characters.map(runCharacter), appliedBy, importId);
+            const summary = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns, characters.map(runCharacter), appliedBy, importId);
+            const payload = (imported.payload && typeof imported.payload === "object" ? imported.payload : {}) as Record<string, unknown>;
+            const earlier = Array.isArray(payload["earlyDungeonResults"]) ? payload["earlyDungeonResults"] as typeof summary.results : [];
+            if (summary.results.length) {
+              const fresh = new Set(summary.results.map((row) => row.runRef));
+              const merged = [...earlier.filter((row) => !fresh.has(row.runRef)), ...summary.results];
+              await tx.addonImport.update({ where: { id: importId }, data: { payload: { ...payload, earlyDungeonResults: JSON.parse(JSON.stringify(merged)) } as Prisma.InputJsonValue } });
+              return { ...summary, results: merged };
+            }
+            return earlier.length ? { ...summary, results: earlier } : summary;
           });
         }, { timeout: 30_000, maxWait: 15_000 });
       } catch (error) {

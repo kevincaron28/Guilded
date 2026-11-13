@@ -631,7 +631,9 @@ export async function standingsConsistentReads(database: PrismaClient, guildId: 
     orderBy: { createdAt: "desc" },
     take: 500
   })).map((row) => row.runRef);
-  const acceptedRunRefs = [...new Set([...receipts.map((row) => row.runRef), ...storedRefs])].slice(0, 1200);
+  // A ref whose receipt says "retry" is not held even when a (unfinished) run is stored under it: the addon keeps and resends it.
+  const waitingRefs = new Set(waiting.map((row) => row.runRef));
+  const acceptedRunRefs = [...new Set([...receipts.map((row) => row.runRef), ...storedRefs])].filter((ref) => !waitingRefs.has(ref)).slice(0, 1200);
   const runNotes = Object.fromEntries(receipts.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []).slice(0, 300));
   const pendingRunNotes: Record<string, string> = Object.fromEntries(waiting.flatMap((row) => row.reason && !acceptedRunRefs.includes(row.runRef) ? [[row.runRef, row.reason.slice(0, 80)] as const] : []));
   const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));

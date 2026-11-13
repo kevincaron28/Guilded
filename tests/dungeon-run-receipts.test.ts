@@ -144,7 +144,7 @@ describe("the standings snapshot", () => {
   const database = (receipts: { runRef: string; reason: string | null }[], stored: string[]) => {
     const empty = new Proxy({}, { get: (_, method) => async () => (String(method).startsWith("find") && String(method) !== "findMany" ? null : String(method).startsWith("aggregate") ? {} : []) });
     const tables: Record<string, unknown> = {
-      dungeonRunReceipt: { findMany: async () => receipts },
+      dungeonRunReceipt: { findMany: async (args: { where: { outcome?: unknown } }) => args.where.outcome === "retry" ? [] : receipts },
       dungeonRun: { findMany: async () => stored.map((runRef) => ({ runRef })) }
     };
     return new Proxy({}, { get: (_, model) => typeof model !== "string" ? undefined : model.startsWith("$") ? async () => [] : tables[model] ?? empty });
@@ -191,6 +191,34 @@ describe("9.3 run loss", () => {
     expect(seen[0]?.where).toMatchObject({ outcome: { not: "retry" } });
   }, 60_000);
 
+  it("gives up on a run that stays unreadable for three days: refused for good, so the addon stops resending it", async () => {
+    const { tx, receipts } = fakeTx();
+    const broken = { id: "forever-broken", players: "x" };
+    await importDungeonRuns(tx, "g1", [broken], characters, "officer", null, now);
+    expect(byRef(receipts)["forever-broken"]?.outcome).toBe("retry");
+    await importDungeonRuns(tx, "g1", [broken], characters, "officer", null, new Date(now.getTime() + 2 * 86_400_000));
+    expect(byRef(receipts)["forever-broken"]?.outcome).toBe("retry");
+    await importDungeonRuns(tx, "g1", [broken], characters, "officer", null, new Date(now.getTime() + 4 * 86_400_000));
+    expect(byRef(receipts)["forever-broken"]).toMatchObject({ outcome: "refused" });
+    expect(byRef(receipts)["forever-broken"]?.reason).toContain("gave up after 3 days");
+  });
+
+  it("a stored unfinished run re-sent as peer-confirmed is not listed as held while it waits (device receipts and the signed ref list)", async () => {
+    const rows = [{ runRef: "mine-peer", outcome: "retry", reason: "Waiting for the guildmate's own copy" }];
+    const tables: Record<string, unknown> = {
+      dungeonRunReceipt: { findMany: async (args: { where: { outcome?: unknown } }) => args.where.outcome === "retry" ? rows : args.where.outcome ? [] : [] },
+      dungeonRun: { findMany: async () => [{ runRef: "mine-peer", state: "ABANDONED", invalidReason: null }] }
+    };
+    const empty = new Proxy({}, { get: (_, method) => async () => (String(method).startsWith("find") && String(method) !== "findMany" ? null : String(method).startsWith("aggregate") ? {} : []) });
+    const db = new Proxy({}, { get: (_, model) => typeof model !== "string" ? undefined : model.startsWith("$") ? async () => [] : tables[model] ?? empty });
+    const answer = await standingsConsistentReads(db as never, "g1", "m1");
+    expect(answer.acceptedRunRefs).not.toContain("mine-peer");
+    expect(answer.pendingRunNotes).toEqual({ "mine-peer": "Waiting for the guildmate's own copy" });
+    const { prismaInstallStore } = await import("../src/services/companion-device.js");
+    const held = await prismaInstallStore(db as never).receipts!("g1", ["mine-peer"]);
+    expect(held).toEqual([]);
+  }, 60_000);
+
   it("the signed standings answer carries pendingRunNotes for retry receipts, never as accepted", async () => {
     const tables: Record<string, unknown> = {
       dungeonRunReceipt: { findMany: async (args: { where: { outcome: unknown } }) => typeof args.where.outcome === "string"
@@ -234,7 +262,11 @@ describe("9.3 run loss", () => {
     await importDungeonRuns(tx, "g1", [run("friend-copy", { startedAt: start + 20 })], characters, "officer", null, later);
     expect(runs).toHaveLength(1);
     expect(runs[0]).toMatchObject({ state: "COMPLETED", valid: true });
-    expect(byRef(receipts)["friend-copy"]).toMatchObject({ outcome: "stored", runId: "run-1" });
+    expect(byRef(receipts)["friend-copy"]).toMatchObject({ outcome: "copy", state: "COMPLETED", runId: "run-1" });
+    const reports = () => (runs[0]?.competitionData as { observerReports?: unknown[] }).observerReports?.length;
+    expect(reports()).toBe(1);
+    await importDungeonRuns(tx, "g1", [run("friend-copy", { startedAt: start + 20 })], characters, "officer", null, new Date(later.getTime() + 30_000));
+    expect(reports()).toBe(1);
     // The same copy sent again is now just a copy of the upgraded run.
     const again = await importDungeonRuns(tx, "g1", [run("friend-copy", { startedAt: start + 20 })], characters, "officer", null, new Date(later.getTime() + 60_000));
     expect(runs).toHaveLength(1);
@@ -291,6 +323,22 @@ describe("9.3 run loss", () => {
       characters, "officer", null, new Date(now.getTime() + 60_000));
     expect(runs).toHaveLength(1);
     expect(byRef(receipts)["mine-peer-2"]).toMatchObject({ outcome: "copy", reason: "Counted with a guildmate's copy of this run", runId: "run-1" });
+  });
+
+  it("does not rely on the client's peerConfirmed flag: an upgrade of a stored unfinished run with no native final kill waits too, one with a native kill upgrades", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [abandoned("flagless"), abandoned("flagless-local", { startedAt: start + 4000, endedAt: start + 5500, instanceId: 389, name: "Ragefire Chasm" })], characters, "officer", null, now);
+    const later = new Date(now.getTime() + 60_000);
+    // Same id, COMPLETED, the last kill carries no source and no peerConfirmed flag.
+    await importDungeonRuns(tx, "g1", [run("flagless", { encounters: [{ id: 9, success: true, at: start + 1400 }] })], characters, "officer", null, later);
+    expect(runs.find((row) => row.runRef === "flagless")?.state).toBe("ABANDONED");
+    expect(byRef(receipts)["flagless"]?.outcome).toBe("retry");
+    // A client that tags a kill source "peer" without the flag is held as well.
+    await importDungeonRuns(tx, "g1", [run("flagless", { encounters: [{ id: 9, success: true, at: start + 1400, source: "peer" }] })], characters, "officer", null, later);
+    expect(runs.find((row) => row.runRef === "flagless")?.state).toBe("ABANDONED");
+    // A native final kill upgrades as before.
+    await importDungeonRuns(tx, "g1", [run("flagless-local", { instanceId: 389, name: "Ragefire Chasm", startedAt: start + 4000, endedAt: start + 5500, encounters: [{ id: 9, success: true, at: start + 5400, source: "native" }] })], characters, "officer", null, later);
+    expect(runs.find((row) => row.runRef === "flagless-local")?.state).toBe("COMPLETED");
   });
 
   it("never lets a peer-confirmed run rank on its own, even when nothing else is stored", async () => {

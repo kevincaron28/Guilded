@@ -34,6 +34,8 @@ export const dungeonRunSchema = z.object({
   completedBy: z.string().max(40).optional(),
   endReason: z.string().max(80).optional(),
   recorder: z.string().max(100).optional(),
+  // UNVERIFIED CLIENT TEXT: `diagnostic`, the per-player `guild` and `peerConfirmed` are whatever the uploading client said. Never use them
+  // for ranking, points or trust decisions; they are for diagnosis and display only (peerConfirmed can only make the bot ask for more evidence).
   // 9.3: why an unfinished run did not complete (the addon's compact note: instance, last kills). Stored on the run (competitionData.diagnostic) and written to the journal.
   diagnostic: z.string().max(240).optional().catch(undefined),
   // (9.3) The final boss was only seen in a guildmate's copy of this run: ranked once that guildmate's own copy agrees.

@@ -4,5 +4,5 @@
  * Shared by the unsigned device path and the signed upload's wrong-server check (wow-guilds.ts).
  */
 export function looseKey(value: string): string {
-  return value.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
 }

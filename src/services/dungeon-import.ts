@@ -99,6 +99,7 @@ export interface DungeonImportSummary {
 // "retry" (9.3): refused for a cause a later bot version can fix (the run data could not be read). It is NOT an acknowledgement:
 // the standings and device answers leave it out of the accepted refs, so the addon keeps the run waiting and sends it again.
 export const RETRY_OUTCOME = "retry";
+export const RETRY_GIVE_UP_MS = 3 * 86_400_000;
 export interface RunReceipt { runRef: string; outcome: "stored" | "copy" | "refused" | "retry"; reason: string | null; runId: string | null; state?: string | null; fresh?: boolean }
 
 const RECEIPT_REASON_MAX = 80;
@@ -125,9 +126,15 @@ export async function saveRunReceipts(tx: Partial<Pick<Prisma.TransactionClient,
   // The first receipt of a ref wins (one upload can carry the same run twice).
   const first = new Map<string, RunReceipt>();
   for (const receipt of receipts) if (!first.has(receipt.runRef)) first.set(receipt.runRef, receipt);
-  const rows = [...first.values()];
-  const previous = await table.findMany({ where: { guildId, runRef: { in: rows.map((row) => row.runRef) } }, select: { runRef: true, outcome: true } });
+  const refs = [...first.keys()];
+  const previous = await table.findMany({ where: { guildId, runRef: { in: refs } }, select: { runRef: true, outcome: true, createdAt: true } });
+  // A "retry" is bounded: a run still unreadable (or still waiting for a guildmate's copy) three days after its first retry is
+  // refused for good, so an old addon does not resend it forever. The date of the first retry is the receipt's createdAt.
+  const gaveUp = new Set(previous.filter((row) => row.outcome === RETRY_OUTCOME && row.createdAt && now.getTime() - row.createdAt.getTime() > RETRY_GIVE_UP_MS).map((row) => row.runRef));
+  const rows = [...first.values()].map((row): RunReceipt => row.outcome === RETRY_OUTCOME && gaveUp.has(row.runRef)
+    ? { ...row, outcome: "refused", reason: receiptReason(`${row.reason ?? "Not counted"}, gave up after 3 days`) } : row);
   const existing = new Set(previous.map((row) => row.runRef));
+  const wasRetry = new Set(previous.filter((row) => row.outcome === RETRY_OUTCOME).map((row) => row.runRef));
   // A ref that waited as "retry" takes whatever it finally became (stored, copy, refused for good).
   const retried = new Set(previous.filter((row) => row.outcome === RETRY_OUTCOME).map((row) => row.runRef));
   const created = rows.filter((row) => !existing.has(row.runRef));
@@ -138,7 +145,8 @@ export async function saveRunReceipts(tx: Partial<Pick<Prisma.TransactionClient,
   // A newly stored (or recovered) run takes its new outcome and reason; a repeat only moves the date.
   for (const row of rows.filter((candidate) => existing.has(candidate.runRef) && (candidate.fresh || retried.has(candidate.runRef) && candidate.outcome !== RETRY_OUTCOME))) {
     await table.update({ where: { guildId_runRef: { guildId, runRef: row.runRef } },
-      data: { seenAt: now, outcome: row.outcome, state: row.state ?? null, reason: row.reason, runId: row.runId } });
+      // A stored receipt turned into a retry starts the retry clock again (its createdAt is the first retry).
+      data: { seenAt: now, outcome: row.outcome, state: row.state ?? null, reason: row.reason, runId: row.runId, ...(row.outcome === RETRY_OUTCOME && !wasRetry.has(row.runRef) ? { createdAt: now } : {}) } });
   }
 }
 
@@ -323,6 +331,22 @@ export function uploadRunsLine(guildId: string, importId: string | null, receive
   return `dungeon-runs guild=${guildId.slice(-6)} import=${importId?.slice(-8) ?? "-"} received=${received} stored=${fresh} known=${again} copies=${copies} malformed=${summary.malformed} refused=${[...reasons].map(([reason, count]) => `${reason}x${count}`).join(",") || "-"}`;
 }
 
+/**
+ * Is this COMPLETED run's final boss only vouched for by a guildmate's copy? Not decided by the client's own `peerConfirmed` flag alone
+ * (a client can omit it): also when any encounter says `peer`, and when it upgrades a stored UNFINISHED run of the same id while its
+ * last boss kill is not backed by this client's own native source (a peer kill is exported without a source). What this cannot
+ * prevent: a modified client that marks a kill it never saw as native, or one that sends a run under a fresh id; this is a check
+ * that two reporters agree, not protection against a cheating client.
+ */
+function peerVouched(run: DungeonRunInput, existing: { state: string } | null): boolean {
+  if (run.peerConfirmed || run.encounters?.some((encounter) => encounter.source === "peer")) return true;
+  if (!existing || existing.state === "COMPLETED") return false;
+  const kills = (run.encounters ?? []).filter((encounter) => encounter.success && !encounter.kind && encounter.at);
+  const last = kills.reduce<(typeof kills)[number] | undefined>((best, encounter) => !best || (encounter.at ?? 0) > (best.at ?? 0) ? encounter : best, undefined);
+  // No kill list at all (an old addon's run) is not evidence of a peer kill: only a final kill that lacks a native source counts.
+  return last !== undefined && last.source !== "native" && last.source !== "combat-log";
+}
+
 async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], characters: LinkedCharacter[], appliedBy: string, importId: string | null, now: Date, summary: DungeonImportSummary): Promise<void> {
   const receipts = (summary.receipts ??= []);
   const cutoff = dungeonResetCutoff();
@@ -399,7 +423,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     // gets a retry receipt (not an acknowledgement) so the addon keeps it. When they agree, ours folds into that stored run
     // as a corroborating copy (the run is never stored or ranked twice).
     let peerAgrees: Awaited<ReturnType<typeof sameRunAs>> = null;
-    if (run.peerConfirmed && run.state === "COMPLETED" && check.ok && existing?.state !== "COMPLETED") {
+    if (run.state === "COMPLETED" && check.ok && existing?.state !== "COMPLETED" && peerVouched(run, existing)) {
       const candidate = run.startedAt && run.endedAt ? await sameRunAs(tx, guildId, run) : null;
       if (candidate && candidate.state === "COMPLETED" && candidate.valid && candidate.completedBy === "final boss" && candidate.runRef !== run.id && candidate.instanceId === run.instanceId) peerAgrees = candidate;
       else {
@@ -625,7 +649,9 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
       }
     });
 
-    receipts.push({ runRef: run.id, outcome: "stored", state: run.state, reason: receiptReason(notScored), runId: stored.id, fresh: true });
+    // An upgraded copy under a new id is recorded as a COPY of the upgraded run (knownRuns answers it from this receipt on every
+    // later upload): sending it through the whole loop again would append the same report to the run's observer reports each time.
+    receipts.push({ runRef: run.id, outcome: copyUpgrade ? "copy" : "stored", state: run.state, reason: receiptReason(notScored), runId: stored.id, fresh: true });
     if (copyUpgrade) logDungeonRun("completed copy upgraded a stored unfinished run", run);
     let points = 0;
     const playerPoints = new Map<string, number>();

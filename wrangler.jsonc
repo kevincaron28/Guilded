@@ -39,14 +39,6 @@
   ],
   "routes": [
     {
-      "pattern": "kcaron.top",
-      "custom_domain": true
-    },
-    {
-      "pattern": "www.kcaron.top",
-      "custom_domain": true
-    },
-    {
       "pattern": "guilded.kcaron.top",
       "custom_domain": true
     },

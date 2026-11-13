@@ -924,8 +924,9 @@ local function onAddonMessage(text, sender)
         local known = d and d.runs[id]
         -- (9.0) A replay of a run this PC's bot already stored: say so once, so the sender
         -- (a Guilded Dungeons-only player, or someone without the companion) stops replaying it.
-        if known and known.synced and not dungeon.acked[id] then
-          dungeon.acked[id] = true
+        dungeon.markHeard(id, sender)
+        if known and known.synced and not dungeon.ackedRecently(id) then
+          dungeon.acked[id] = now()
           dungeon.stats.acksSent = dungeon.stats.acksSent + 1
           send("ACK|" .. id, "GUILD")
         end
@@ -1244,6 +1245,7 @@ end
 -- Once per session, after login or /reload: runs are waiting and the companion did not deliver them.
 function dungeon.remindWaiting()
   if dungeon.waitingReminded then return false end
+  if compat.inCombat() then dungeon.remindAfterCombat = true return false end
   local overdue = #dungeon.overdueRuns()
   if overdue == 0 then return false end
   dungeon.waitingReminded = true
@@ -1297,7 +1299,6 @@ end
 function dungeon.replayPending()
   if dungeon.lastReplay and now() - dungeon.lastReplay < 60 then return end
   dungeon.lastReplay = now()
-  local d = db()
   local runs = dungeon.ownUnconfirmed()
   for index = 1, math.min(REPLAY_RUNS, #runs) do dungeon.sendRun(runs[index]) end
 end
@@ -1315,10 +1316,39 @@ local OFFER_EVERY = 600
 local OFFER_IDS = 5
 local RESEND_RUNS = 3
 local RESEND_COOLDOWN = 300
+local RESEND_GAP_MAX = 14400
 local ANSWER_IDS = 24
 local OFFER_FROM_SENDER_EVERY = 240
-dungeon.offerSeen, dungeon.resentAt = {}, {}
+local ACK_EXPIRE = 600
+local SOLICIT_WINDOW = 900
+local SLOW_REOFFER = 21600
+local LATER_EVERY = 30
+dungeon.offerSeen, dungeon.resentAt, dungeon.resendGap = {}, {}, {}
+dungeon.solicited, dungeon.heard, dungeon.later = {}, {}, {}
 dungeon.answers = { acks = {}, wants = {}, count = 0, scheduled = false }
+
+-- (9.3) Guild traffic never queues while the player is inside an instance: the queue is one line per prefix, so a guild
+-- message held back there would also hold back this player's own START, DEATH and END for the live run. It waits here instead
+-- (one slot per kind of job, so this cannot grow) and runs when the player is outside again.
+local function outside() return not (ns.util and ns.util.inInstance and ns.util.inInstance()) end
+function dungeon.runLater()
+  dungeon.laterScheduled = false
+  if next(dungeon.later) == nil then return end
+  if not outside() then
+    if C_Timer and C_Timer.After then dungeon.laterScheduled = true; C_Timer.After(LATER_EVERY + math.random(0, 10), dungeon.runLater) end
+    return
+  end
+  local list = dungeon.later
+  dungeon.later = {}
+  for _, job in pairs(list) do pcall(job) end
+end
+function dungeon.defer(key, job)
+  dungeon.later[key] = job
+  if not dungeon.laterScheduled and C_Timer and C_Timer.After then
+    dungeon.laterScheduled = true
+    C_Timer.After(LATER_EVERY + math.random(0, 10), dungeon.runLater)
+  end
+end
 
 -- A companion has synced with this PC when its files exist with content (the empty Accepted.lua shipped with the addon is not one).
 local function companionSeen()
@@ -1335,13 +1365,49 @@ function dungeon.hasCompanion()
   end
   return d and d.companionEver == true or false
 end
+-- A device-mode companion only uploads runs this PC's own characters played, so it never sends a guildmate's run: it must
+-- neither ask for one nor count as a holder for it.
+function dungeon.canUploadOthers()
+  if type(GuildedCompanion) == "table" and GuildedCompanion.mode == "device" then return false end
+  return dungeon.hasCompanion()
+end
 
--- Own finished runs nobody confirmed yet, newest first (a run whose chunks were lost goes first).
+-- Who is known to hold a run (heard sending its summary or offering it): only such a sender's confirmation is trusted at once.
+local function markHeard(id, sender)
+  if not id or not sender then return end
+  local list = dungeon.heard[id]
+  if not list then
+    dungeon.heardCount = (dungeon.heardCount or 0) + 1
+    if dungeon.heardCount > 400 then dungeon.heard, dungeon.heardCount = {}, 1 end
+    list = {}
+    dungeon.heard[id] = list
+  end
+  list[sender] = true
+end
+dungeon.markHeard = markHeard
+local function solicitedRecently(id)
+  local at = dungeon.solicited[id]
+  return at ~= nil and now() - at <= SOLICIT_WINDOW
+end
+local function ackedRecently(id)
+  local at = dungeon.acked[id]
+  return type(at) == "number" and now() - at < ACK_EXPIRE
+end
+dungeon.ackedRecently = ackedRecently
+
+-- Own finished runs nobody confirmed yet, newest first (a run whose chunks were lost goes first). A run a guildmate's bot
+-- confirmed once is only offered again slowly (a confirmation is not proof: anyone in the guild can send one); two different
+-- guildmates, or this player's own companion, end it.
+local function offerable(run)
+  if run.synced or (run.ackCount or 0) >= 2 then return false end
+  if run.syncedVia then return now() - (run.slowOfferedAt or run.syncedViaAt or 0) >= SLOW_REOFFER end
+  return true
+end
 function dungeon.ownUnconfirmed()
   local d = db()
   local runs = {}
   for _, run in pairs(d and d.runs or {}) do
-    if not run.synced and not run.syncedVia and run.players and run.players[me()] and TERMINAL[run.state]
+    if offerable(run) and run.players and run.players[me()] and TERMINAL[run.state]
       and (run.endedAt or 0) >= now() - REPLAY_DAYS * 86400 then runs[#runs + 1] = run end
   end
   table.sort(runs, function(a, b)
@@ -1357,22 +1423,32 @@ function dungeon.sendRun(run)
   local total = math.ceil(#summary / CHUNK_BYTES)
   if total > 20 then return false end
   run.shareLostAt = nil
+  if run.syncedVia then run.slowOfferedAt = now() end
+  dungeon.solicited[run.id] = now()
   local function lost() run.shareLostAt = now(); dungeon.resentAt[run.id] = nil; dungeon.lastReplay = nil end
   for part = 1, total do
     send(string.format("SUM|%s|%d|%d|%s", run.id, part, total, string.sub(summary, (part - 1) * CHUNK_BYTES + 1, part * CHUNK_BYTES)), "GUILD", lost)
   end
   return true
 end
+-- A re-send asked for by a guildmate: never queued inside an instance.
+function dungeon.resend(run)
+  if not outside() then dungeon.defer("resend:" .. tostring(run.id), function() dungeon.resend(run) end) return false end
+  return dungeon.sendRun(run)
+end
 
 function dungeon.offerRuns(force)
   local d = db()
   if not d then return false end
+  if not outside() then dungeon.defer("offer", function() dungeon.offerRuns(force) end) return false end
   if not force and dungeon.lastOffer and now() - dungeon.lastOffer < OFFER_EVERY then return false end
   local ids, size = {}, 4
   for _, run in ipairs(dungeon.ownUnconfirmed()) do
     if #ids >= OFFER_IDS or size + #run.id + 1 > 240 then break end
     ids[#ids + 1] = run.id
     size = size + #run.id + 1
+    dungeon.solicited[run.id] = now()
+    if run.syncedVia then run.slowOfferedAt = now() end
   end
   if #ids == 0 then return false end
   dungeon.lastOffer = now()
@@ -1418,6 +1494,7 @@ dungeon.listOf = listOf
 
 function dungeon.flushAnswers()
   local q = dungeon.answers
+  if not outside() then dungeon.defer("answers", dungeon.flushAnswers) return end
   q.scheduled = false
   local acks, wants = {}, {}
   for id in pairs(q.acks) do acks[#acks + 1] = id end
@@ -1433,7 +1510,8 @@ function dungeon.flushAnswers()
     end
     if #line > 0 then send(tag .. "|" .. table.concat(line, ","), "GUILD") end
   end
-  for _, id in ipairs(acks) do dungeon.acked[id] = true end
+  -- Remembered for a few minutes only: an answer the game dropped is given again when the offer comes back.
+  for _, id in ipairs(acks) do dungeon.acked[id] = now() end
   dungeon.stats.acksSent = dungeon.stats.acksSent + #acks
   emit("ACKS", acks)
   emit("WNT", wants)
@@ -1448,10 +1526,11 @@ function dungeon.onOffer(text, sender)
   local q = dungeon.answers
   for index, id in ipairs(listOf(text, "OFR")) do
     if index > OFFER_IDS or q.count >= ANSWER_IDS then break end
+    markHeard(id, sender)
     local saved = d.runs[id]
     if saved then
-      if saved.synced and not dungeon.acked[id] and not q.acks[id] then q.acks[id] = true; q.count = q.count + 1 end
-    elseif not q.wants[id] and dungeon.hasCompanion() then
+      if saved.synced and not ackedRecently(id) and not q.acks[id] then q.acks[id] = true; q.count = q.count + 1 end
+    elseif not q.wants[id] and dungeon.canUploadOthers() then
       q.wants[id] = true
       q.count = q.count + 1
     end
@@ -1462,6 +1541,9 @@ function dungeon.onOffer(text, sender)
   end
 end
 
+-- A guildmate asks for a run. Only answered for a run this PC offered a moment ago (or one the asker played), at most
+-- RESEND_RUNS runs a round, and a run asked for again and again waits twice as long each time (a holder that keeps asking
+-- for a run it then refuses cannot make this PC repeat it).
 function dungeon.onWant(text, sender)
   local d = db()
   if not d then return end
@@ -1469,48 +1551,71 @@ function dungeon.onWant(text, sender)
   for _, id in ipairs(listOf(text, "WNT")) do
     dungeon.answers.wants[id] = nil -- someone asked already: no second ask from this PC
     local run = d.runs[id]
-    if run and not run.synced and not run.syncedVia and run.players and run.players[me()] and TERMINAL[run.state] and sent < RESEND_RUNS
-      and (not dungeon.resentAt[id] or now() - dungeon.resentAt[id] >= RESEND_COOLDOWN) then
+    if run and not run.synced and (run.ackCount or 0) < 2 and run.players and run.players[me()] and TERMINAL[run.state] and sent < RESEND_RUNS
+      and (solicitedRecently(id) or run.players[sender])
+      and (not dungeon.resentAt[id] or now() - dungeon.resentAt[id] >= (dungeon.resendGap[id] or RESEND_COOLDOWN)) then
       dungeon.resentAt[id] = now()
-      if dungeon.sendRun(run) then sent = sent + 1 end
+      dungeon.resendGap[id] = math.min((dungeon.resendGap[id] or RESEND_COOLDOWN / 2) * 2, RESEND_GAP_MAX)
+      if dungeon.resend(run) then sent = sent + 1 end
     end
   end
 end
 
--- A guildmate's bot has this run: stop replaying it, and tell the recorder once (out of combat) who uploaded it.
+-- A guildmate's bot says it has this run. Trusted at once from someone in the run, someone known to hold it, or an answer to
+-- this PC's own offer; anything else is remembered and counts only when a second guildmate says the same. Even a trusted
+-- confirmation only slows the offers down (see offerable): this PC's own companion, or two guildmates, end them.
+local function plausibleAcker(saved, id, sender)
+  if saved.players and saved.players[sender] then return true end
+  if saved.reporters and saved.reporters[sender] then return true end
+  if dungeon.heard[id] and dungeon.heard[id][sender] then return true end
+  return solicitedRecently(id)
+end
 function dungeon.noteAck(id, sender)
   local d = db()
   local saved = id and d and d.runs[id]
   dungeon.answers.acks[id or ""] = nil
   dungeon.answers.wants[id or ""] = nil
-  if saved and not saved.synced and not saved.syncedVia then
-    saved.syncedVia = sender
-    saved.syncedViaAt = now()
-    dungeon.stats.acksHeard = dungeon.stats.acksHeard + 1
-    if saved.players and saved.players[me()] and not saved.ackNoticed then
-      saved.ackNoticed = true
-      dungeon.ackNotices = dungeon.ackNotices or {}
-      dungeon.ackNotices[#dungeon.ackNotices + 1] = { id = id, who = sender }
-      dungeon.flushAckNotices()
-    end
+  if not saved or saved.synced or not sender then return end
+  saved.ackers = saved.ackers or {}
+  if saved.ackers[sender] == nil and (saved.ackCount or 0) < 5 then
+    saved.ackers[sender] = now()
+    saved.ackCount = (saved.ackCount or 0) + 1
+  end
+  if not (plausibleAcker(saved, id, sender) or (saved.ackCount or 0) >= 2) then return end
+  if saved.syncedVia then return end
+  saved.syncedVia = sender
+  saved.syncedViaAt = now()
+  dungeon.stats.acksHeard = dungeon.stats.acksHeard + 1
+  if saved.players and saved.players[me()] and not saved.ackNoticed then
+    saved.ackNoticed = true
+    dungeon.ackNotices = dungeon.ackNotices or {}
+    dungeon.ackNotices[#dungeon.ackNotices + 1] = { id = id, who = sender }
+    dungeon.flushAckNotices()
   end
 end
 
+-- Chat lines wait for the end of combat: the notice of an upload, and the two once-a-session reminders.
 function dungeon.flushAckNotices()
-  if compat.inCombat() or not dungeon.ackNotices then return end
+  if compat.inCombat() then return end
   local d = db()
   local list = dungeon.ackNotices
   dungeon.ackNotices = nil
-  for _, item in ipairs(list) do
+  for _, item in ipairs(list or {}) do
     local run = d and d.runs[item.id]
     local who = ns.displayName and ns.displayName(item.who) or item.who
     ns.message(string.format(L("Your run %s was uploaded by %s's companion."), tostring(run and run.name or "?"), tostring(who or item.who)))
+  end
+  if dungeon.remindAfterCombat then
+    dungeon.remindAfterCombat = nil
+    pcall(dungeon.remindWaiting)
+    pcall(dungeon.remindGuildmateRuns)
   end
 end
 
 -- Once per session: guildmates' runs wait for THIS PC's companion (only for a player who has a companion).
 function dungeon.remindGuildmateRuns()
   if dungeon.guildmateReminded or not dungeon.hasCompanion() then return false end
+  if compat.inCombat() then dungeon.remindAfterCombat = true return false end
   local count = 0
   for _, run in ipairs(dungeon.waitingRuns()) do
     if not (run.players and run.players[me()]) then count = count + 1 end

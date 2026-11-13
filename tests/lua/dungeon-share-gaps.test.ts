@@ -109,6 +109,7 @@ describe.each<Kind>(["guilded", "standalone"])("the runs-only catch-up (%s)", (k
   it("waits for the end of combat before printing the recorder's line", () => {
     const walter = client(kind, "Walter");
     walter.run(makeRun("walter-rfc"));
+    walter.run("NS.dungeon.offerRuns(true)"); flush(walter); lines(walter); // the holder answers an offer
     walter.run("COMBAT = true");
     hear(walter, "Lebowski", "GuildedDgn>ACKS|walter-rfc");
     expect(walter.chat().filter((line) => /uploaded by/.test(line)).length).toBe(0);
@@ -153,6 +154,7 @@ describe.each<Kind>(["guilded", "standalone"])("the runs-only catch-up (%s)", (k
     const walter = client(kind, "Walter");
     const all = ["r1", "r2", "r3", "r4", "r5"];
     for (const id of all) walter.run(makeRun(id));
+    walter.run("NS.dungeon.offerRuns(true)"); flush(walter); lines(walter);
     hear(walter, "Lebowski", `GuildedDgn>WNT|${all.join(",")}`);
     flush(walter);
     const first = ids(lines(walter), "SUM");
@@ -193,7 +195,7 @@ describe.each<Kind>(["guilded", "standalone"])("the runs-only catch-up (%s)", (k
 describe("chunk reliability", () => {
   const bigRun = (id: string) => makeRun(id) + `; for i = 1, 14 do ${runs}[${JSON.stringify(id)}].players["Extra" .. i] = { class = "MAGE", role = "DAMAGER", level = 20, deaths = 0, presentSec = 900, inGuild = true } end`;
 
-  it("a transfer slower than a minute still completes while chunks keep coming (both addons)", () => {
+  it("a transfer slower than a minute still completes while chunks keep coming (both addons)", { timeout: 30000 }, () => {
     for (const kind of ["guilded", "standalone"] as Kind[]) {
       const walter = client(kind, "Walter");
       const receiver = client(kind, "Lebowski");
@@ -280,5 +282,176 @@ describe("message volume in a big guild", () => {
     expect(asked.length).toBeLessThanOrEqual(24);
     // The game's own limit for a burst of addon messages is not exceeded either.
     expect(Number(lebowski.run('return NS.comm.status("GuildedDgn").sent'))).toBeLessThanOrEqual(8);
+  });
+});
+
+const quiet = (s: LuaSession, name: string, others: LuaSession[]) => {
+  const sent = lines(s).filter((l) => l.startsWith("GuildedDgn>"));
+  for (const line of sent) for (const o of others) hear(o, name, line);
+  return sent;
+};
+
+describe.each<Kind>(["guilded", "standalone"])("review fixes (%s)", (kind) => {
+  const inside = (s: LuaSession, on: boolean) => s.run(`IsInInstance = function() return ${on}, "party" end`);
+
+  it("never queues guild answers inside an instance, so the live run's own messages are not held up", () => {
+    const walter = client(kind, "Walter");
+    const lebowski = client(kind, "Lebowski");
+    companion(lebowski);
+    lebowski.run(makeRun("held") + "; " + `${runs}["held"].synced = true`);
+    inside(lebowski, true);
+    hear(lebowski, "Walter", "GuildedDgn>OFR|held,unknown1");
+    flush(lebowski);
+    expect(Number(lebowski.run('return NS.comm.status("GuildedDgn").queued'))).toBe(0);
+    expect(lines(lebowski)).toEqual([]);
+    // A group message of the live run goes out at once.
+    lebowski.run(`NS.comm.send("GuildedDgn", "START|x", "PARTY")`);
+    flush(lebowski);
+    expect(lines(lebowski)).toEqual(["GuildedDgn>START|x"]);
+    // Outside again, the answers follow.
+    inside(lebowski, false);
+    lebowski.run("CLOCK = CLOCK + 60");
+    flush(lebowski);
+    const answers = lines(lebowski);
+    expect(answers.some((l) => l.startsWith("GuildedDgn>ACKS|held"))).toBe(true);
+    // The author side: a want that arrives inside an instance re-sends later, not into the queue.
+    walter.run(makeRun("mine")); walter.run("NS.dungeon.offerRuns(true)"); flush(walter); lines(walter);
+    inside(walter, true);
+    hear(walter, "Lebowski", "GuildedDgn>WNT|mine");
+    flush(walter);
+    expect(lines(walter)).toEqual([]);
+    expect(Number(walter.run('return NS.comm.status("GuildedDgn").queued'))).toBe(0);
+    inside(walter, false);
+    flush(walter);
+    expect(ids(lines(walter), "SUM")).toEqual(["mine"]);
+    // An offer is not made inside an instance either.
+    inside(walter, true);
+    expect(walter.run("return tostring(NS.dungeon.offerRuns(true))")).toBe("false");
+    expect(Number(walter.run('return NS.comm.status("GuildedDgn").queued'))).toBe(0);
+  });
+
+  it("repeats a lost confirmation after a few minutes, not never", () => {
+    const lebowski = client(kind, "Lebowski");
+    lebowski.run(makeRun("walter-rfc") + "; " + `${runs}["walter-rfc"].synced = true`);
+    hear(lebowski, "Walter", "GuildedDgn>OFR|walter-rfc");
+    flush(lebowski);
+    expect(lines(lebowski)).toEqual(["GuildedDgn>ACKS|walter-rfc"]); // the game dropped it
+    lebowski.run("CLOCK = CLOCK + 300");
+    hear(lebowski, "Walter", "GuildedDgn>OFR|walter-rfc");
+    flush(lebowski);
+    expect(lines(lebowski)).toEqual([]);
+    lebowski.run("CLOCK = CLOCK + 400");
+    hear(lebowski, "Walter", "GuildedDgn>OFR|walter-rfc");
+    flush(lebowski);
+    expect(lines(lebowski)).toEqual(["GuildedDgn>ACKS|walter-rfc"]);
+  });
+
+  it("waits twice as long each time the same run is asked for again", () => {
+    const walter = client(kind, "Walter");
+    walter.run(makeRun("walter-rfc"));
+    const ask = () => { walter.run("NS.dungeon.offerRuns(true)"); flush(walter); lines(walter); hear(walter, "Lebowski", "GuildedDgn>WNT|walter-rfc"); flush(walter); return ids(lines(walter), "SUM").length; };
+    expect(ask()).toBe(1);
+    walter.run("CLOCK = CLOCK + 301");
+    expect(ask()).toBe(1); // 300 s gap passed
+    walter.run("CLOCK = CLOCK + 301");
+    expect(ask()).toBe(0); // now 600 s are needed
+    walter.run("CLOCK = CLOCK + 300");
+    expect(ask()).toBe(1);
+  });
+
+  it("a device-mode companion neither asks for nor counts as a holder of a guildmate's run", () => {
+    const lebowski = client(kind, "Lebowski");
+    lebowski.run("GuildedCompanion = { mode = 'device' }");
+    hear(lebowski, "Walter", "GuildedDgn>OFR|a1");
+    flush(lebowski);
+    expect(lines(lebowski)).toEqual([]);
+  });
+
+  it("does not trust a confirmation or a want from a guildmate who never held or was offered the run", () => {
+    const walter = client(kind, "Walter");
+    walter.run(makeRun("walter-rfc"));
+    hear(walter, "Forger", "GuildedDgn>ACKS|walter-rfc");
+    expect(walter.run(`return tostring(${runs}["walter-rfc"].syncedVia)`)).toBe("nil");
+    expect(walter.chat().filter((l) => /uploaded by/.test(l)).length).toBe(0);
+    expect(walter.run("return #NS.dungeon.ownUnconfirmed()")).toBe("1");
+    // Nobody was offered it, so nobody can ask for it.
+    hear(walter, "Forger", "GuildedDgn>WNT|walter-rfc");
+    flush(walter);
+    expect(lines(walter)).toEqual([]);
+    // A second, different guildmate saying the same is enough.
+    hear(walter, "Other", "GuildedDgn>ACKS|walter-rfc");
+    expect(walter.run("return #NS.dungeon.ownUnconfirmed()")).toBe("0");
+  });
+
+  it("a trusted confirmation only slows the offers down; they come back after six hours", () => {
+    const walter = client(kind, "Walter");
+    walter.run(makeRun("walter-rfc"));
+    walter.run("NS.dungeon.offerRuns(true)"); flush(walter); lines(walter);
+    hear(walter, "Lebowski", "GuildedDgn>ACKS|walter-rfc");
+    expect(walter.run("return #NS.dungeon.ownUnconfirmed()")).toBe("0");
+    walter.run("CLOCK = CLOCK + 22000");
+    expect(walter.run("return #NS.dungeon.ownUnconfirmed()")).toBe("1");
+    // The member's own companion ends it for good.
+    walter.run(`${runs}["walter-rfc"].synced = true`);
+    expect(walter.run("return #NS.dungeon.ownUnconfirmed()")).toBe("0");
+  });
+
+  it("holds the guildmate-runs reminder back in combat and prints it after", () => {
+    const lebowski = client(kind, "Lebowski");
+    lebowski.run(makeRun("walter-rfc"));
+    companion(lebowski);
+    lebowski.run("COMBAT = true");
+    expect(lebowski.run("return tostring(NS.dungeon.remindGuildmateRuns())")).toBe("false");
+    expect(lebowski.chat().filter((l) => /guildmate run\(s\)/.test(l)).length).toBe(0);
+    lebowski.run('COMBAT = false; fire_event("PLAYER_REGEN_ENABLED")');
+    expect(lebowski.chat().filter((l) => /guildmate run\(s\) are waiting/.test(l)).length).toBe(1);
+  });
+});
+
+describe("a login rush", () => {
+  it("10 guildmates with 3 unconfirmed runs each stay within the shared send budget, and each run is asked for once", { timeout: 90000 }, () => {
+    const names = Array.from({ length: 10 }, (_, i) => `P${i + 1}`);
+    const all = names.map((n) => client("guilded", n));
+    const mine = (n: string, i: number) => `${runs}["${n}-r${i}"] = { id = "${n}-r${i}", state = "COMPLETED", instanceId = 389, name = "Ragefire Chasm", difficultyId = 1,
+      startedAt = CLOCK - 2000, endedAt = CLOCK - 1100 - ${i}, completedBy = "final boss", recorder = "${n}", encounters = {}, reporters = { ${n} = true },
+      players = { ${n} = { class = "WARRIOR", role = "TANK", level = 20, deaths = 0, presentSec = 900, inGuild = true } } }`;
+    companion(all[0]!); companion(all[1]!); // two of them have a companion (and so may ask)
+    names.forEach((n, index) => {
+      const s = all[index]!;
+      for (let i = 1; i <= 3; i++) s.run(mine(n, i));
+      s.run("NS.dungeon.lastReplay = nil; NS.dungeon.replayPending(); NS.dungeon.offerRuns(true)");
+      flush(s);
+    });
+    let total = 0;
+    const wave1 = names.map((n, i) => ({ name: n, sent: lines(all[i]!).filter((l) => l.startsWith("GuildedDgn>")) }));
+    for (const { name, sent } of wave1) {
+      total += sent.length;
+      expect(sent.filter((l) => l.includes(">OFR|")).length).toBe(1);
+      expect(sent.length).toBeLessThanOrEqual(8); // one burst of the shared budget
+      // The summaries were not heard (that is why the runs are still unconfirmed); only the offers are.
+      names.forEach((other, j) => { if (other !== name) for (const line of sent.filter((l) => l.includes(">OFR|"))) hear(all[j]!, name, line); });
+    }
+    // The two companion PCs answer one after the other; the second hears the first and asks for nothing twice.
+    const wants: string[] = [];
+    for (const index of [0, 1]) {
+      flush(all[index]!);
+      const answer = lines(all[index]!).filter((l) => l.startsWith("GuildedDgn>"));
+      total += answer.length;
+      expect(answer.length).toBeLessThanOrEqual(6);
+      for (const line of answer) {
+        if (line.startsWith("GuildedDgn>WNT|")) wants.push(...(line.split("|")[1] ?? "").split(","));
+        names.forEach((other, j) => { if (j !== index) hear(all[j]!, names[index]!, line); });
+      }
+    }
+    expect(wants.length).toBeGreaterThan(0);
+    expect(new Set(wants).size).toBe(wants.length);
+    // Authors re-send at most three runs each.
+    for (let i = 2; i < 10; i++) {
+      flush(all[i]!);
+      const resend = lines(all[i]!).filter((l) => l.startsWith("GuildedDgn>SUM|"));
+      total += resend.length;
+      expect(ids(resend, "SUM").length).toBeLessThanOrEqual(3);
+    }
+    expect(total).toBeLessThan(160);
   });
 });

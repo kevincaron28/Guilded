@@ -14,7 +14,11 @@ ns.inviteQueue = module
 local function L(s) return ns.L and ns.L(s) or s end
 local function db() return ns.getDb and ns.getDb() end
 local function nowSeconds() return (GetServerTime and GetServerTime()) or (time and time()) or 0 end
-local RECENT_SECONDS = 600
+-- Guesses, not game facts (the repo has no evidence of the client's real values; confirm in a real client): how long a sent
+-- invitation counts as pending, from when the officer may invite again, and how long a declined row stays in the invited
+-- section. A "declined" or "expired" system message acts at once.
+local PENDING_SECONDS, AGAIN_SECONDS, DECLINED_KEEP = 120, 60, 3600
+module.PENDING_SECONDS, module.AGAIN_SECONDS = PENDING_SECONDS, AGAIN_SECONDS
 
 -- Accents folded like the bot's foldKey (invite-queue.ts): codepoint+letter pairs for Latin-1 and Latin Extended-A.
 local FOLD = {}
@@ -47,7 +51,9 @@ local ANSWERS = {
   { "inguild", "ERR_ALREADY_IN_GUILD_S", "%s is already in a guild." },
   { "already", "ERR_ALREADY_INVITED_TO_GUILD_S", "%s has already been invited to a guild." },
   { "declined", "ERR_GUILD_DECLINE_S", "%s declines your guild invitation." },
-  { "joined", "ERR_GUILD_JOIN_S", "%s has joined the guild." }
+  { "joined", "ERR_GUILD_JOIN_S", "%s has joined the guild." },
+  { "sent", "ERR_GUILD_INVITE_S", "You have invited %s to join your guild." },
+  { "expired", "ERR_GUILD_INVITE_EXPIRED_S", "The guild invitation to %s has expired." }
 }
 local patterns
 local function answerPatterns()
@@ -100,12 +106,13 @@ end
 module.splitRealm = splitRealm
 
 -- Waiting names in three groups (9.3): `todo` (still to invite, oldest first; a name the game could not find stays here with
--- its Remove button), `invited` (the officer sent the line less than RECENT_SECONDS ago and the player has not joined: the
--- invitation is still pending, or has just expired), and `handled` (already in another guild, or declined). A name already
--- in OUR guild is gone from all three. One row per name. Each item: { name, at, sent (seconds since the invite), state }.
+-- its Remove button), `invited` (the line was copied or sent less than PENDING_SECONDS ago and the player has not joined, or
+-- the player declined: the officer may invite again), and `handled` (already in another guild). A name already in OUR guild is
+-- gone from all three. One row per name. Each item: { name, at, sent (seconds since the invite), state, copied (not yet confirmed
+-- by a game message), again (the Invite again button shows) }.
 local function classify(item)
   if item.state == "notfound" then return "todo" end
-  if item.state == "inguild" or item.state == "declined" then return "handled" end
+  if item.state == "inguild" then return "handled" end
   if item.sent then return "invited" end
   return "todo"
 end
@@ -136,10 +143,18 @@ function module.sections()
         if answer and sent and answer.at < sent then answer = nil end
         -- "Already invited" means the invitation is pending: it counts from the game's answer.
         local since = sent or (answer and answer.state == "already" and answer.at) or nil
-        local pending = since and (at - since) < RECENT_SECONDS and (at - since) or nil
+        local pending = since and (at - since) < PENDING_SECONDS and (at - since) or nil
         local state = answer and answer.state or nil
         if state == "already" and not pending then state = nil end
+        if state == "sent" and not pending then state = nil end
+        if state == "expired" then state = nil; pending = nil end
+        -- A declined row stays in the invited section (the officer may be asked to try again) for DECLINED_KEEP seconds.
+        if state == "declined" then
+          if (at - answer.at) < DECLINED_KEEP then pending = at - answer.at else state = nil end
+        end
         local item = { name = row.name, at = row.at, sent = pending, state = state }
+        item.copied = pending ~= nil and state == nil
+        item.again = pending ~= nil and (state == "declined" or pending >= AGAIN_SECONDS)
         local list = out[classify(item)]
         list[#list + 1] = item
       end
@@ -188,6 +203,7 @@ function module.onSystemMessage(text)
       -- Only names the officer sent from this panel (or that waited in it) are tracked.
       if d.inviteSent[k] or entry[1] == "joined" then
         d.inviteState[k] = { state = entry[1], at = nowSeconds() }
+        if entry[1] == "expired" then d.inviteSent[k] = nil end
         module.refresh()
         return true
       end
@@ -217,6 +233,8 @@ local STATE_TEXT = {
   notfound = "not found: check the spelling", inguild = "already in a guild", already = "already invited",
   declined = "declined", joined = "joined"
 }
+local MAX_TODO, MAX_INVITED, MAX_HANDLED = 10, 8, 8
+local ROW_HEIGHT = 26
 local function rowText(item)
   if item.state and STATE_TEXT[item.state] then return item.name .. " (" .. L(STATE_TEXT[item.state]) .. ")" end
   return item.name
@@ -237,8 +255,6 @@ function module.text()
   return table.concat(lines, "\n")
 end
 
-local MAX_TODO, MAX_INVITED, MAX_HANDLED = 10, 8, 8
-local ROW_HEIGHT = 26
 local window
 local pools = { todo = {}, invited = {}, handled = {} }
 module.showHandled = false
@@ -258,6 +274,14 @@ local function refreshNow()
   module.selected = first and key(first.name) or nil
   window.status:SetText(first and string.format(L("Copy %s for the highlighted row (Ctrl+C), paste it in your chat box (Ctrl+V) and press Enter."), "/ginvite " .. first.name) or "")
   local y = -70
+  -- The window never grows past the screen: the rows that fit are shared out todo first, then invited, then handled.
+  local screen = UIParent and UIParent.GetHeight and UIParent:GetHeight()
+  if type(screen) ~= "number" or screen < 300 then screen = 768 end
+  local budget = math.max(6, math.floor((screen * 0.9 - 230) / ROW_HEIGHT))
+  local limits = {}
+  limits.todo = math.min(MAX_TODO, budget); budget = budget - math.min(#todo, limits.todo)
+  limits.invited = math.min(MAX_INVITED, math.max(budget, 0)); budget = budget - math.min(#invited, limits.invited)
+  limits.handled = module.showHandled and math.min(MAX_HANDLED, math.max(budget, 0)) or 0
   local function fill(group, list, max, show)
     local pool = pools[group]
     for i = 1, #pool do
@@ -266,12 +290,18 @@ local function refreshNow()
         place(row.label, y - 4); row.label:Show()
         row.item = item
         if group == "invited" then
-          row.label:SetText(item.name .. "  |cff8c96a3" .. string.format(L("invited %s"), agoText(item.sent or 0)) .. "|r")
+          local note
+          if item.state == "declined" then note = L("declined")
+          elseif item.copied then note = string.format(L("copied %s, waiting"), agoText(item.sent or 0))
+          else note = string.format(L("invited %s"), agoText(item.sent or 0)) end
+          row.label:SetText(item.name .. "  |cff8c96a3" .. note .. "|r")
         else
           row.label:SetText(rowText(item))
         end
         if group == "invited" or group == "handled" then row.label:SetTextColor(0.65, 0.7, 0.76) else row.label:SetTextColor(1, 1, 1) end
-        if group ~= "handled" and item.state ~= "notfound" then
+        if group == "invited" and not item.again then
+          row.button:Hide(); row.button.setInvite(nil); row.remove:Hide()
+        elseif group ~= "handled" and item.state ~= "notfound" then
           row.button:ClearAllPoints(); row.button:SetPoint("TOPLEFT", 310, y); row.button:Show(); row.button.setInvite(item.name)
           row.remove:Hide()
         elseif group ~= "handled" then
@@ -297,15 +327,17 @@ local function refreshNow()
   if #todo == 0 then
     place(window.empty, y); window.empty:SetText(L("Nobody to invite right now.")); y = y - 24
   else window.empty:SetText("") end
-  fill("todo", todo, MAX_TODO, true)
-  place(window.todoMore, y); window.todoMore:SetText(#todo > MAX_TODO and string.format(L("+%d more"), #todo - MAX_TODO) or "")
-  if #todo > MAX_TODO then y = y - 18 end
+  fill("todo", todo, limits.todo, true)
+  place(window.todoMore, y); window.todoMore:SetText(#todo > limits.todo and string.format(L("+%d more"), #todo - limits.todo) or "")
+  if #todo > limits.todo then y = y - 18 end
   -- Invited, waiting for them to accept
   if #invited > 0 then
     y = y - 8
     place(window.invitedHead, y); window.invitedHead:SetText(string.format(L("Invited, waiting for them to accept (%d)"), #invited)); y = y - 22
   else window.invitedHead:SetText("") end
-  fill("invited", invited, MAX_INVITED, true)
+  fill("invited", invited, limits.invited, true)
+  place(window.invitedMore, y); window.invitedMore:SetText(#invited > limits.invited and string.format(L("+%d more"), #invited - limits.invited) or "")
+  if #invited > limits.invited then y = y - 18 end
   -- Handled: already in another guild, or declined
   if #handled > 0 then
     y = y - 8
@@ -313,8 +345,12 @@ local function refreshNow()
     window.handledToggle:SetText(string.format(L(module.showHandled and "Hide handled (%d)" or "Show handled (%d)"), #handled))
     window.handledToggle:Show(); y = y - 28
   else window.handledToggle:Hide() end
-  fill("handled", handled, MAX_HANDLED, module.showHandled and #handled > 0)
-  if window.SetHeight then window:SetHeight(math.max(160, -y + 24)) end
+  fill("handled", handled, limits.handled, module.showHandled and #handled > 0)
+  place(window.handledMore, y); window.handledMore:SetText(module.showHandled and #handled > limits.handled and string.format(L("+%d more"), #handled - limits.handled) or "")
+  if module.showHandled and #handled > limits.handled then y = y - 18 end
+  -- The marks are per officer: say so plainly (nothing is shared between officers' computers).
+  place(window.help, y - 6); window.help:SetText(L("Marks stay on this computer: another officer may invite the same names.")); y = y - 24
+  if window.SetHeight then window:SetHeight(math.min(screen * 0.95, math.max(160, -y + 24))) end
 end
 
 -- Rows and labels change together, out of combat (kept from the secure-button days; plain buttons would allow more).
@@ -347,6 +383,9 @@ function build()
   f.empty = text(-92)
   f.todoMore = text(-92)
   f.invitedHead = text(-92, "GameFontDisableSmall")
+  f.invitedMore = text(-92)
+  f.handledMore = text(-92)
+  f.help = text(-92, "GameFontDisableSmall")
   f.handledToggle = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
   f.handledToggle:SetSize(190, 22)
   f.handledToggle:SetScript("OnClick", function() module.showHandled = not module.showHandled; refreshNow() end)
@@ -373,6 +412,13 @@ function build()
   for i = 1, MAX_INVITED do makeRow("invited", i, L("Invite again")) end
   for i = 1, MAX_HANDLED do makeRow("handled", i, L("Invite")) end
   f:SetScript("OnShow", function() module.refresh() end)
+  -- A light ticker while the window is shown (OnUpdate does not run on a hidden frame): an invitation moves from "invited" to
+  -- "to invite now" when it expires, without a click or a game message.
+  local waited = 0
+  f:SetScript("OnUpdate", function(_, elapsed)
+    waited = waited + (tonumber(elapsed) or 0)
+    if waited >= 30 then waited = 0; module.refresh() end
+  end)
   module.refresh()
 end
 
@@ -380,6 +426,8 @@ end
 local notified
 function module.notify()
   if not officer() then return end
+  -- Counted only once the guild roster is loaded: before that every name looks like it still needs an invite.
+  if GetNumGuildMembers and (select(1, GetNumGuildMembers()) or 0) == 0 then return end
   local list = module.list()
   if not list or #list == 0 or notified == #list then return end
   notified = #list
@@ -389,9 +437,22 @@ end
 local frame = CreateFrame("Frame")
 pcall(frame.RegisterEvent, frame, "PLAYER_ENTERING_WORLD")
 pcall(frame.RegisterEvent, frame, "CHAT_MSG_SYSTEM")
+pcall(frame.RegisterEvent, frame, "GUILD_ROSTER_UPDATE")
+local rosterWait, rosterNotified
 frame:SetScript("OnEvent", function(_, event, text)
   if event == "CHAT_MSG_SYSTEM" then
     if officer() then pcall(module.onSystemMessage, text) end
+    return
+  end
+  if event == "GUILD_ROSTER_UPDATE" then
+    -- The roster arrives in bursts: refresh an open window (and count the waiting names once) shortly after the last one.
+    if rosterWait or not officer() then return end
+    local function run()
+      rosterWait = false
+      if window and window.IsShown and window:IsShown() then module.refresh() end
+      if not rosterNotified and GetNumGuildMembers and (select(1, GetNumGuildMembers()) or 0) > 0 then rosterNotified = true; pcall(module.notify) end
+    end
+    if C_Timer and C_Timer.After then rosterWait = true; C_Timer.After(2, run) else run() end
     return
   end
   if C_Timer and C_Timer.After then C_Timer.After(25, function() pcall(module.notify) end) end

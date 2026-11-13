@@ -210,7 +210,8 @@ describe("InviteQueue.lua", () => {
     // Not found stays in the main list (with Remove); another guild's member is handled and out of the default view.
     expect(labels(s)).toBe("todo:Amy Archer=notfound|handled:Bob Brewer=inguild");
     say(s, "Bob Brewer declines your guild invitation.");
-    expect(labels(s)).toBe("todo:Amy Archer=notfound|handled:Bob Brewer=declined");
+    // A declined invitation stays in the invited section (with Invite again): the officer may be asked to try again.
+    expect(labels(s)).toBe("todo:Amy Archer=notfound|invited:Bob Brewer=declined");
     say(s, "Bob Brewer has joined the guild.");
     expect(labels(s)).toBe("todo:Amy Archer=notfound");
     // A name the officer never sent from the panel is ignored.
@@ -240,13 +241,14 @@ describe("InviteQueue.lua", () => {
     click(s, 1); // Amy: invited
     click(s, 3); // todo is now Bob, Cat, Eve: Eve
     say(s, "Eve Ellis is already in a guild.");
-    s.run("CLOCKS = CLOCKS + 300; NS.inviteQueue.refresh()");
+    s.run("CLOCKS = CLOCKS + 90; NS.inviteQueue.refresh()");
     const text = shown(s);
     expect(text).toContain("To invite now (2)");
     expect(text).toContain("Bob Brewer");
     expect(text).toContain("Cat Carter");
     expect(text).toContain("Invited, waiting for them to accept (1)");
-    expect(text).toContain("Amy Archer  |cff8c96a3invited 5 min ago|r");
+    // Only copied, no game message yet: "copied ... waiting", not "invited".
+    expect(text).toContain("Amy Archer  |cff8c96a3copied 1 min ago, waiting|r");
     expect(text).toContain("Show handled (1)");
     expect(text).not.toContain("Eve Ellis"); // another guild: out of the default view
     expect(text).not.toContain("Zed Zealot"); // already in our guild: gone
@@ -259,18 +261,99 @@ describe("InviteQueue.lua", () => {
     expect(shown(s)).not.toContain("Eve Ellis");
   });
 
-  it("lets the officer invite again from the invited section with the full name, and an expired invite goes back to the main list", () => {
+  it("shows Invite again on an invited row only from 60 s, and an expired invite goes back to the main list", () => {
     const s = withQueue();
     s.run("NS.inviteQueue.open()");
     click(s, 1);
-    expect(lines(s)).toBe("/ginvite Bob Brewer|/ginvite Amy Archer");
+    expect(lines(s)).toBe("/ginvite Bob Brewer"); // Amy is waiting: no button yet
     expect(s.run("return #COPIED")).toBe("1");
+    s.run("CLOCKS = CLOCKS + 60; NS.inviteQueue.refresh()");
+    expect(lines(s)).toBe("/ginvite Bob Brewer|/ginvite Amy Archer");
     click(s, 11); // the Invite again button on the invited row (after the ten to-invite rows)
     expect(s.run("return COPIED[#COPIED]")).toBe("/ginvite Amy Archer");
-    s.run("CLOCKS = CLOCKS + 601; NS.inviteQueue.refresh()");
+    expect(lines(s)).toBe("/ginvite Bob Brewer"); // marked again: waiting afresh
+    s.run("CLOCKS = CLOCKS + 121; NS.inviteQueue.refresh()");
     expect(s.run("local sec = NS.inviteQueue.sections() return #sec.todo .. ':' .. #sec.invited")).toBe("2:0");
     expect(shown(s)).not.toContain("Invited, waiting");
     expect(s.run("return #SENT .. #OPENED")).toBe("00"); // no invite API, nothing in the chat box
+  });
+
+  it("says copied until the game confirms the invite, then invited; declined and expired act at once", () => {
+    const s = withQueue();
+    s.run("NS.inviteQueue.open()");
+    click(s, 1);
+    expect(shown(s)).toContain("Amy Archer  |cff8c96a3copied just now, waiting|r");
+    say(s, "You have invited Amy Archer to join your guild.");
+    expect(shown(s)).toContain("Amy Archer  |cff8c96a3invited just now|r");
+    expect(shown(s)).not.toContain("copied");
+    say(s, "Amy Archer declines your guild invitation.");
+    expect(shown(s)).toContain("Amy Archer  |cff8c96a3declined|r");
+    expect(lines(s)).toBe("/ginvite Bob Brewer|/ginvite Amy Archer"); // Invite again at once
+    click(s, 11);
+    expect(s.run("return tostring(NS.inviteQueue.sections().invited[1].state)")).toBe("nil"); // a new click starts over
+    say(s, "The guild invitation to Amy Archer has expired.");
+    expect(s.run("local sec = NS.inviteQueue.sections() return #sec.todo .. ':' .. #sec.invited")).toBe("2:0");
+  });
+
+  it("keeps the window current by itself: a 30 s ticker moves an expired invite, and a roster update refreshes it", () => {
+    const s = withQueue();
+    s.run(String.raw`ROSTER = {}; WIN = nil; for _, f in ipairs(FRAMES) do if rawget(f, "template") == "BasicFrameTemplateWithInset" then WIN = f end end`);
+    s.run("NS.inviteQueue.open()");
+    s.run(String.raw`WIN = nil; for _, f in ipairs(FRAMES) do if rawget(f, "template") == "BasicFrameTemplateWithInset" then WIN = f end end`);
+    // Opened before the roster loaded: Zed (already in the guild) is listed as to invite.
+    expect(shown(s)).toContain("To invite now (3)");
+    s.run(String.raw`ROSTER = { "Zed Zealot-Realm", "Dan Dorn-Realm" }; WIN.IsShown = function() return true end; C_Timer.After = function(_, fn) fn() end
+      for _, f in ipairs(FRAMES) do if f.scripts.OnEvent and not rawget(f, "template") then f.scripts.OnEvent(f, "GUILD_ROSTER_UPDATE") end end`);
+    expect(shown(s)).toContain("To invite now (2)");
+    expect(s.run("return tostring(WIN.scripts.OnUpdate ~= nil)")).toBe("true");
+    click(s, 1);
+    expect(shown(s)).toContain("Invited, waiting for them to accept (1)");
+    s.run("CLOCKS = CLOCKS + 125"); // expired, but nothing refreshed yet
+    expect(shown(s)).toContain("Invited, waiting for them to accept (1)");
+    s.run("WIN.scripts.OnUpdate(WIN, 10)"); // under 30 s: nothing
+    expect(shown(s)).toContain("Invited, waiting for them to accept (1)");
+    s.run("WIN.scripts.OnUpdate(WIN, 25)"); // 35 s in all
+    expect(shown(s)).not.toContain("Invited, waiting");
+    expect(shown(s)).toContain("To invite now (2)");
+  });
+
+  it("counts the waiting names for the login notice only once the roster is loaded", () => {
+    const s = withQueue();
+    s.run("ROSTER = {}");
+    s.run("NS.inviteQueue.notify()");
+    expect(s.run("return #(CHAT or {})")).toBe("0");
+    s.run('ROSTER = { "Zed Zealot-Realm", "Dan Dorn-Realm" }');
+    s.run("NS.inviteQueue.notify()");
+    expect(s.run("return CHAT[1]")).toContain("2 waiting for a guild invite");
+  });
+
+  it("shows +N more on every section that overflows, and never grows past the screen", () => {
+    const s = withQueue();
+    s.run(String.raw`ROSTER = {}; local t = {} for i = 1, 24 do t[i] = { name = "First" .. string.char(96 + (i % 26) + 1) .. " Last" .. string.char(96 + ((i * 7) % 26) + 1) .. i, at = "t" .. i } end GuildedInvites.names = t
+      for i = 1, 12 do DB.inviteSent = DB.inviteSent or {} DB.inviteSent[NS.inviteQueue.foldKey(t[i].name)] = CLOCKS - 70 end
+      for i = 13, 24 do DB.inviteState = DB.inviteState or {} DB.inviteState[NS.inviteQueue.foldKey(t[i].name)] = nil end
+      for i = 21, 24 do DB.inviteSent[NS.inviteQueue.foldKey(t[i].name)] = CLOCKS - 10; DB.inviteState = DB.inviteState or {}; DB.inviteState[NS.inviteQueue.foldKey(t[i].name)] = { state = "inguild", at = CLOCKS - 5 } end`);
+    s.run("NS.inviteQueue.showHandled = true; NS.inviteQueue.open()");
+    const sections = s.run(String.raw`local sec = NS.inviteQueue.sections() return #sec.todo .. ":" .. #sec.invited .. ":" .. #sec.handled`);
+    expect(sections).toBe("8:12:4");
+    // 8 to invite (under the cap of 10), 12 invited (cap 8), 4 handled: only the invited overflow here.
+    expect(shown(s)).toContain("+4 more");
+    s.run(String.raw`DB.inviteSent = {}; DB.inviteState = {}; for i = 1, 24 do DB.inviteSent[NS.inviteQueue.foldKey(GuildedInvites.names[i].name)] = nil end
+      for i = 1, 24 do GuildedInvites.names[i].at = "t" .. i end; NS.inviteQueue.refresh()`);
+    expect(s.run(String.raw`return #NS.inviteQueue.sections().todo`)).toBe("24");
+    expect(shown(s)).toContain("+14 more"); // 24 to invite, 10 shown
+    // A short screen cuts the rows (6 at least) and the window height stays on screen.
+    s.run(String.raw`UIParent = { GetHeight = function() return 400 end }; HEIGHTS = {}
+      for _, f in ipairs(FRAMES) do if rawget(f, "template") == "BasicFrameTemplateWithInset" then f.SetHeight = function(self, h) HEIGHTS[#HEIGHTS + 1] = h end end end
+      NS.inviteQueue.refresh()`);
+    expect(shown(s)).toContain("+18 more");
+    expect(s.run("return HEIGHTS[#HEIGHTS] <= 400 * 0.95 and 'fits' or HEIGHTS[#HEIGHTS]")).toBe("fits");
+  });
+
+  it("says plainly that the marks stay on this computer", () => {
+    const s = withQueue();
+    s.run("NS.inviteQueue.open()");
+    expect(shown(s)).toContain("Marks stay on this computer: another officer may invite the same names.");
   });
 
   it("says Nobody to invite right now when nothing needs an invite, and keeps the invited ones out of the main count", () => {

@@ -2859,6 +2859,9 @@ local DE = {
   ["Invite again"] = "Erneut einladen",
   ["Show handled (%d)"] = "Erledigte zeigen (%d)",
   ["Hide handled (%d)"] = "Erledigte ausblenden (%d)",
+  -- To invite window: copied vs invited, per-officer marks (9.3)
+  ["copied %s, waiting"] = "kopiert %s, wartend",
+  ["Marks stay on this computer: another officer may invite the same names."] = "Markierungen bleiben auf diesem Computer: ein anderer Offizier kann dieselben Namen einladen.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4744,6 +4747,9 @@ local ES = {
   ["Invite again"] = "Invitar de nuevo",
   ["Show handled (%d)"] = "Mostrar gestionados (%d)",
   ["Hide handled (%d)"] = "Ocultar gestionados (%d)",
+  -- To invite window: copied vs invited, per-officer marks (9.3)
+  ["copied %s, waiting"] = "copiado %s, en espera",
+  ["Marks stay on this computer: another officer may invite the same names."] = "Las marcas se quedan en este ordenador: otro oficial puede invitar a los mismos nombres.",
 }
 -- END ES
 
@@ -5778,3 +5784,6 @@ FR["invited %s"] = "invit\195\169 %s"
 FR["Invite again"] = "R\195\169inviter"
 FR["Show handled (%d)"] = "Afficher les trait\195\169s (%d)"
 FR["Hide handled (%d)"] = "Masquer les trait\195\169s (%d)"
+-- To invite window: copied vs invited, per-officer marks (9.3)
+FR["copied %s, waiting"] = "copi\195\169 %s, en attente"
+FR["Marks stay on this computer: another officer may invite the same names."] = "Les marques restent sur cet ordinateur : un autre officier peut inviter les m\195\170mes noms."

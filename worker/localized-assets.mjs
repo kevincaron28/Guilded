@@ -1,5 +1,6 @@
 import { localizedHref } from '../site/nav.mjs';
 import { decodeHTML } from 'entities';
+import { GUIDE_REDIRECTS } from '../site/static-redirects.mjs';
 
 /** Static-page redirects applied before an asset is read.
  * /editions/ is the old one-card chooser; the downloads are on /download/.
@@ -8,26 +9,8 @@ import { decodeHTML } from 'entities';
  * @param {URL} url
  * @returns {string | null}
  */
-const GUIDE_REDIRECTS = {
-  "/start": "/guide/start/",
-  "/start/": "/guide/start/",
-  "/features": "/",
-  "/features/": "/",
-  "/officers": "/guide/officers/",
-  "/officers/": "/guide/officers/",
-  "/guides/install": "/guide/install/",
-  "/guides/install/": "/guide/install/",
-  "/guides/link": "/guide/link-character/",
-  "/guides/link/": "/guide/link-character/",
-  "/docs/QUICK_START": "/guide/start/",
-  "/docs/QUICK_START.html": "/guide/start/",
-  "/docs/MEMBER_INSTALL": "/guide/install/",
-  "/docs/MEMBER_INSTALL.html": "/guide/install/",
-  "/docs/DUNGEONS_GUIDE": "/guide/dungeons/",
-  "/docs/DUNGEONS_GUIDE.html": "/guide/dungeons/",
-  "/docs/EPGP_GUIDE": "/guide/epgp/",
-  "/docs/EPGP_GUIDE.html": "/guide/epgp/"
-};
+// The table lives in site/static-redirects.mjs so the site build can leave redirecting pages out of the sitemap.
+
 
 // French copies live at /fr/<same path>. Data pages, the companion and edition roots stay on ?lang=
 // because the Worker routes those itself (worker/index.mjs, PR #345).
@@ -47,6 +30,7 @@ function stripFr(pathname) {
 }
 
 function toFr(pathname) {
+  if (pathname === "/fr" || pathname.startsWith("/fr/")) return pathname.endsWith("/") || pathname.includes(".") ? pathname : `${pathname}/`;
   if (pathname === "/") return "/fr/";
   return `/fr${pathname.startsWith("/") ? pathname : `/${pathname}`}`;
 }

@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { marked } from "marked";
 import { EDITION_SECTIONS, editionHref, editionMenu, editionSection, editionSwitchHref, FOOTER_COLUMNS, footerLinks, localizedHref, navLinks } from "../site/nav.mjs";
 import { WOW_EDITIONS, editionCards, editionHubs, editionPages } from "../site/editions.mjs";
+import { GUIDE_REDIRECTS } from "../site/static-redirects.mjs";
 import { keepPage, stripPoe, withoutPoe } from "../site/focus.mjs";
 
 const guides = ["PRIVACY", "HOSTED_PILOT", "SUPPORT_GUILDED", "OWNER_WALKTHROUGH", "QUICK_START", "MEMBER_INSTALL", "DUNGEONS_GUIDE", "EPGP_GUIDE", "GUILD_OWNER_SETUP", "DEPLOY_ORACLE", "AI_SETUP_HELP", "AUTOMATION_QUICK_START"];
@@ -147,6 +148,7 @@ for (const source of sources) {
 const pages = [...JSON.parse(readFileSync("site/pages.json", "utf8")), ...editionPages(version, publishedGuilded.curseforge), ...editionHubs(version, publishedGuilded.curseforge)].filter(page => keepPage(page)).map(page => withoutPoe(page));
 // The bot-served public pages too, in each edition's section; published guild pages have their
 // own sitemap, served by the bot.
+const isRedirected = path => Object.hasOwn(GUIDE_REDIRECTS, path) || Object.hasOwn(GUIDE_REDIRECTS, path.replace(/\/$/, ""));
 const publicUrls = ["/", ...guides.map(name => `/docs/${name}`), ...EDITION_SECTIONS.flatMap(({ slug }) => ["leaderboards/", "leaderboards/guilds/", "recruitment/", "recruitment/guilds/", "players/"].map(page => `/${slug}/${page}`))];
 for (const page of pages) {
   const prefix = "../".repeat(page.path.split("/").filter(Boolean).length);
@@ -164,7 +166,8 @@ for (const page of pages) {
   writeFileSync(`${out}/${page.path}index.html`, `<!doctype html>
 <html lang="${page.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#111312"><title${bilingual ? ` data-en="${escape(page.title)}" data-fr="${escape(page.titleFr)}"` : ""}>${escape(page.title)}</title><meta name="description" content="${escape(page.description)}"${descriptionAttributes}><link rel="canonical" href="${origin}/${page.path}">${page.draft ? '<meta name="robots" content="noindex,follow">' : ''}<meta property="og:title" content="${escape(page.title)}"${titleAttributes}><meta property="og:description" content="${escape(page.description)}"${descriptionAttributes}><meta property="og:type" content="website"><meta property="og:url" content="${origin}/${page.path}"><meta property="og:image" content="${origin}/images/social/guilded-card.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta name="twitter:card" content="summary_large_image"><link rel="icon" href="${prefix}favicon.png" type="image/png"><link rel="apple-touch-icon" href="${prefix}apple-touch-icon.png"><link rel="stylesheet" href="${prefix}design-tokens.css"><link rel="stylesheet" href="${prefix}style.css"><link rel="stylesheet" href="${prefix}atelier.css"><script src="${prefix}site.js" defer></script>${bilingual ? `<script src="${prefix}language.js" type="module"></script>` : ""}</head>
 <body class="site-page ${page.hub ? 'edition-page hub-page' : page.path.startsWith('editions/') ? 'edition-page' : french || page.community ? 'community-page' : 'features-page'}"><a class="skip" href="#main">${pageText('Skip to content', 'Aller au contenu')}</a>${siteHeader(prefix, french, page.path.startsWith('editions/') ? 'download' : { 'start/': 'start', 'features/': 'features', 'officers/': 'features' }[page.path] ?? null, bilingual, page.gameEdition, `/${page.path}`)}<main class="guide recruitment" id="main" tabindex="-1">${communityNav}${page.draft ? '<aside class="note"><strong>Aperçu de recrutement</strong><p>Les informations de guilde et le contact public restent à confirmer avant publication.</p></aside>' : ''}${body}</main><footer class="site-footer">${siteFooterCols(prefix, { french, bilingual, edition: page.gameEdition })}<div class="footer-bottom"><a href="${prefix}index.html">Guilded · ${pageText('The product', 'Le produit')}</a><a href="${prefix}quebec-gold/">Quebec Gold · ${pageText('The community', 'La communauté')}</a><a href="https://kcaron.top/">${pageText('By', 'Par')} KCaron ↗</a><a href="https://ko-fi.com/wowguilded">${pageText('Buy me a coffee', 'Offrir un café')} ↗</a><p>${pageText('Independent project, not affiliated with Blizzard Entertainment or Grinding Gear Games.', 'Site indépendant, sans affiliation avec Blizzard Entertainment ou Grinding Gear Games.')}</p></div></footer></body></html>`);
-  if (!page.draft) publicUrls.push(`/${page.path}`);
+  // A page whose address redirects (worker/localized-assets.mjs) is not a sitemap entry; its target is listed once.
+  if (!page.draft && !isRedirected(`/${page.path}`)) publicUrls.push(`/${page.path}`);
 }
 writeFileSync(`${out}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${publicUrls.map(path => `<url><loc>${origin}${path}</loc></url>`).join('')}</urlset>\n`);
 writeFileSync(`${out}/robots.txt`, `User-agent: *\nAllow: /\nSitemap: ${origin}/sitemap.xml\nSitemap: ${origin}/recruitment/guilds/sitemap.xml\n`);
@@ -189,7 +192,7 @@ function languageAlternates(directory) {
     html = html.replace('</head>', `<link rel="alternate" hreflang="en" href="${escape(canonical)}"><link rel="alternate" hreflang="fr" href="${escape(french.href)}"><link rel="alternate" hreflang="x-default" href="${escape(canonical)}"></head>`);
     writeFileSync(path, html);
     const frenchLoc = french.pathname + french.search;
-    if (canonical.startsWith(origin) && !publicUrls.includes(frenchLoc)) publicUrls.push(frenchLoc);
+    if (canonical.startsWith(origin) && !isRedirected(new URL(canonical).pathname) && !publicUrls.includes(frenchLoc)) publicUrls.push(frenchLoc);
   }
 }
 languageAlternates(out);

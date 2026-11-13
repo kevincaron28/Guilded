@@ -20,7 +20,7 @@ Real-client checks: docs/V9_3_0_RELEASE_ACCEPTANCE.md. Not yet verified in a rea
 
 ## Discord and website
 
-- A card for every counted duel (switch: `/bg duel-cards`), the weekly report as a card, card-only messages and ten painted backgrounds.
+- Season podium and start cards in the dungeon leaderboard channel (switch: `/bg season-cards`, on by default), a card for every counted duel (switch: `/bg duel-cards`), the weekly report as a card, card-only messages and ten painted backgrounds.
 - Stable guild addresses and fuller guild pages on the website.
 
 ## Technical

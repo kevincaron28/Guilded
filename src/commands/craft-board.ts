@@ -13,7 +13,8 @@ import { createCraftService } from "../services/craft.js";
 import { findProfessionHolders } from "../services/profession-search.js";
 import { findCrafters } from "../services/recipes.js";
 import { PROFESSIONS } from "../wow-data.js";
-import { PROFESSION_FR } from "../services/profession-style.js";
+import { professionName as shownProfession } from "../services/profession-style.js";
+import { professionSlug } from "../services/profession-names.js";
 import { lastSeenText } from "../services/last-seen.js";
 import { guildService } from "./context.js";
 import { markGuildChanged } from "../services/standings-feed.js";
@@ -40,7 +41,7 @@ const STATUS_COLOR: Record<CraftRequestStatus, number> = { OPEN: 0x57f287, CLAIM
 const STATUSES: CraftRequestStatus[] = ["OPEN", "CLAIMED", "DONE", "CANCELLED"];
 
 // Profession names as shown to a French guild live in profession-style.ts (the stored value stays the English name).
-export const professionLabel = (lang: Lang, profession: string): string => (lang === "fr" ? PROFESSION_FR[profession] ?? profession : profession);
+export const professionLabel = (lang: Lang, profession: string): string => (profession ? shownProfession(profession, lang) : profession);
 const statusLabel = (lang: Lang, status: CraftRequestStatus) => STATUS_LABELS[lang][status];
 
 // The forum's tag names in a language: the four statuses, then the professions.
@@ -174,7 +175,7 @@ async function loadRequest(requestId: string): Promise<RequestRow & { threadId: 
 async function requestCrafters(request: { guildId: string; item: string; profession: string | null }): Promise<string[]> {
   const matches = await findCrafters(prisma, request.guildId, request.item);
   const exact = matches.filter((match) => match.itemName.toLowerCase() === request.item.trim().toLowerCase() || String(match.itemKey) === request.item.trim());
-  const known = exact.flatMap((match) => match.crafters).filter((crafter) => !request.profession || crafter.profession.toLowerCase() === request.profession.toLowerCase());
+  const known = exact.flatMap((match) => match.crafters).filter((crafter) => !request.profession || professionSlug(crafter.profession) === professionSlug(request.profession));
   if (known.length) return [...new Set(known.map((crafter) => `${cleanCharacterName(crafter.character)} (${crafter.profession}; recipe recorded)`))].slice(0, 10);
   if (!request.profession) return [];
   return (await findProfessionHolders(prisma, request.guildId, request.profession)).slice(0, 5).map((crafter) => `${cleanCharacterName(crafter.character)} (${crafter.skillLevel}; recipe unverified)`);

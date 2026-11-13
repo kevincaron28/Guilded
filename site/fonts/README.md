@@ -4,3 +4,4 @@
 - Source Serif 4 Italic, weight 400, Latin subset for the site: `source-serif-latin.woff2`. The original `source-serif-latin.ttf` stays for the share-card renderer. Adobe's SIL Open Font License is in `SOURCE-SERIF-LICENSE.md`.
 
 Retrieved 19 October 2026. The files are served locally with `font-display: swap`. They include French glyphs. The filename “latin” is a presentation asset name, not a claim that the original complete font was subset.
+- Carlito Regular and Bold (upright, Calibri-metric), for the redesigned Discord cards: `Carlito-Regular.ttf`, `Carlito-Bold.ttf`. Copyright (c) 2010-2013 tyPoland Lukasz Dziedzic; SIL Open Font License 1.1 in `CARLITO-LICENSE.txt`. Used only by the bot (src/services/card-kit.ts), not served on the website.

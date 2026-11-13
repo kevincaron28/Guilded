@@ -22,6 +22,7 @@ Not yet published. Polish after 9.2.0 (addon settings and chat, dungeon and duel
 
 **Bot (Discord)**
 - A card for every counted duel, with its own switch `/bg duel-cards` (#840).
+- Dungeon season cards: a podium card when a season ends (only once its final results are stored, for the season that just ended) and a card when one begins, in the dungeon leaderboard channel. A new message, so on by default with an officer off switch (`/bg season-cards enabled:`, ROADMAP rule 5). A post whose picture Discord refuses (no Attach Files) goes out once as text.
 - The weekly report is a card (#845).
 - Card-only messages with alt text, and ten painted card backgrounds (#833, #838).
 

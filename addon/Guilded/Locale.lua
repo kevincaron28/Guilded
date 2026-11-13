@@ -2857,6 +2857,9 @@ local DE = {
   ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "\195\150ffnet Guildeds Seite in den Spieloptionen: alle Einstellungen in Reitern, jede mit Beschreibung.",
   ["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Zeigt nach jedem deiner Gildenduelle eine kleine Karte mit Ergebnis, Bilanz und Rangwechsel. Mit /guilded duels card test siehst du eine Vorschau.",
   ["Not recorded: you duelled this player a moment ago, so this result is not added."] = "Nicht gespeichert: Du hast eben erst gegen diesen Spieler geduelliert, daher wird dieses Ergebnis nicht hinzugef\195\188gt.",
+  -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
+  ["K/D: %s this week, %s in total."] = "K/D: %s diese Woche, %s insgesamt.",
+  ["Deadliest zones: %s."] = "Gef\195\164hrlichste Zonen: %s.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4737,6 +4740,9 @@ local ES = {
   ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "Abre la p\195\161gina de Guilded en las opciones del juego: todos los ajustes en pesta\195\177as, cada uno con su descripci\195\179n.",
   ["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Muestra una peque\195\177a tarjeta con el resultado, la marca y el cambio de puesto tras cada uno de tus duelos de hermandad. Escribe /guilded duels card test para verla.",
   ["Not recorded: you duelled this player a moment ago, so this result is not added."] = "No registrado: acabas de duelar con este jugador, as\195\173 que este resultado no se a\195\177ade.",
+  -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
+  ["K/D: %s this week, %s in total."] = "K/D: %s esta semana, %s en total.",
+  ["Deadliest zones: %s."] = "Zonas m\195\161s letales: %s.",
 }
 -- END ES
 
@@ -4922,6 +4928,9 @@ FR["World PvP stats"] = "Statistiques JcJ mondial"
 -- 9.3 settings page: tabs, groups and descriptions (Modules/SettingsPage.lua).
 FR["All settings"] = "Tous les r\195\169glages"
 FR["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "Ouvre la page de Guilded dans les options du jeu : tous les r\195\169glages en onglets, chacun avec sa description."
+-- 9.3 world PvP deaths (Modules/WorldPvP.lua).
+FR["K/D: %s this week, %s in total."] = "R/M : %s cette semaine, %s au total."
+FR["Deadliest zones: %s."] = "Zones les plus mortelles : %s."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."

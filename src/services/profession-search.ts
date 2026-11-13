@@ -1,5 +1,6 @@
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { lastSeenOf } from "./last-seen.js";
+import { normalizeProfessionName, professionSlug, professionSpellings } from "./profession-names.js";
 
 export interface ProfessionHolder {
   character: string;
@@ -45,13 +46,17 @@ export async function loadGuildSkills(database: Db, guildId: string): Promise<Pr
 }
 
 // Everyone with a profession matching `query` (case-insensitive, partial:
-// "alch" finds Alchemy), highest skill first.
+// "alch" finds Alchemy), highest skill first. A French "cuis" finds rows stored as "Cooking" and the reverse: the query is
+// compared with the stored name, the canonical name and every client spelling of the profession.
 export async function findProfessionHolders(database: Db, guildId: string, query: string): Promise<ProfessionHolder[]> {
   const needle = query.trim().toLowerCase();
   if (!needle) return [];
   const skills = await loadGuildSkills(database, guildId);
   return skills
-    .filter((skill) => skill.profession.toLowerCase().includes(needle))
+    .filter((skill) => {
+      const spellings = professionSpellings(normalizeProfessionName(skill.profession));
+      return skill.profession.toLowerCase().includes(needle) || spellings.some((spelling) => spelling.toLowerCase().includes(needle));
+    })
     .sort((a, b) => b.skillLevel - a.skillLevel || a.character.localeCompare(b.character));
 }
 
@@ -59,10 +64,10 @@ export async function findProfessionHolders(database: Db, guildId: string, query
 export async function professionCoverage(database: Db, guildId: string): Promise<ProfessionCoverage[]> {
   const byProfession = new Map<string, ProfessionCoverage>();
   for (const skill of await loadGuildSkills(database, guildId)) {
-    const key = skill.profession.trim().toLowerCase();
+    const key = professionSlug(skill.profession);
     const entry = byProfession.get(key);
     if (!entry) {
-      byProfession.set(key, { profession: skill.profession.trim(), characters: 1, topSkill: skill.skillLevel, topCharacter: skill.character });
+      byProfession.set(key, { profession: normalizeProfessionName(skill.profession), characters: 1, topSkill: skill.skillLevel, topCharacter: skill.character });
     } else {
       entry.characters++;
       if (skill.skillLevel > entry.topSkill) {

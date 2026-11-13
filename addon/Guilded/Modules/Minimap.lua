@@ -1353,7 +1353,7 @@ local function buildHomePage(page)
   end
   link("Me", "My character", 0, -18, 170, "Your gear check and attunements.")
   link("Dungeons", "Dungeons", 178, -18, 170, "Your dungeon runs and the guild's dungeon boards.")
-  link("Standings", "Guild tools", 356, -18, 170, "Opens Guilded inside the game's guild window: standings, crafting, availability.")
+  link("Standings", "Guild tools", 356, -18, 170, "Opens Guilded inside the game's guild window: standings, crafting.")
   link("Calendar", "Calendar", 0, -56, 170, "Opens Guilded inside the game's calendar.")
   officerOnly(link("Raid", "Run a raid", 178, -56, 170, "Start a raid, record bosses and attendance."))
   officerOnly(link("Loot", "Give loot", 356, -56, 170, "Bids, council and direct loot."))
@@ -2518,7 +2518,7 @@ end
 
 -- Minimap button shortcuts (8.5.0):
 --   Left          the window, on the page last used
---   Right         a short menu: dungeons, guild map, call for help, settings
+--   Right         a short menu: dungeons, call for help, settings
 --   Shift + right call for help (works in combat: the one shortcut that matters during a gank)
 local function modifier(name)
   local fn = _G["Is" .. name .. "KeyDown"]
@@ -2540,8 +2540,7 @@ end
 -- The quick menu: label, then what it does.
 local function quickMenuItems()
   local items = {
-    { "Dungeons", openDungeons },
-    { "Guild map", function() run("map open") end }
+    { "Dungeons", openDungeons }
   }
   if ns.callForHelp and ns.callForHelp.open then table.insert(items, { "Call for help", function() ns.callForHelp.open() end }) end
   table.insert(items, { "Settings", function() openPage("Tools") end })

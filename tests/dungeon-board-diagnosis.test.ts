@@ -34,6 +34,12 @@ describe("why a stored dungeon run is not on the board", () => {
   });
   it("says nothing was received, and nothing when a run counts", () => {
     expect(emptyBoardNote(diagnoseRuns([], season, "g1"), "en")).toMatch(/No dungeon run has reached the bot/);
+    // (9.3) Signing in with Discord has been optional since the zero-setup companion (9.1.0): the text must not ask for it.
+    const empty = { en: emptyBoardNote(diagnoseRuns([], season, "g1"), "en") ?? "", fr: emptyBoardNote(diagnoseRuns([], season, "g1"), "fr") ?? "" };
+    expect(empty.en).toContain("optional");
+    expect(empty.en).not.toMatch(/must be signed in/);
+    expect(empty.fr).toContain("facultative");
+    expect(empty.fr).not.toMatch(/doit être connecté/);
     expect(emptyBoardNote(diagnoseRuns([run()], season, "g1"), "en")).toBeNull();
     expect(diagnoseRuns([run()], null, "g1").reasons[0]!.reason).toBe("no season is running");
   });

@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { importDungeonRuns, receiptReason, saveRunReceipts } from "../src/services/dungeon-import.js";
+import { dungeonRunSchema } from "../src/services/dungeon-rules.js";
+import { exportDungeonRuns } from "../companion/lua-export-content.mjs";
+import { z } from "zod";
 import { standingsConsistentReads } from "../src/companion-api.js";
 import { standingsToLua } from "../companion/standings-format.mjs";
 import * as ratingService from "../src/services/dungeon-rating.js";
@@ -93,7 +96,7 @@ describe("dungeon run receipts", () => {
     expect(got["left"]).toMatchObject({ outcome: "stored", reason: "Not completed" });
     expect(got["too-fast"]).toMatchObject({ outcome: "stored" });
     expect(got["too-fast"]!.reason).toBeTruthy();
-    expect(got["broken"]).toMatchObject({ outcome: "refused", reason: "Run data could not be read" });
+    expect(got["broken"]).toMatchObject({ outcome: "retry", reason: "Run data could not be read" });
     expect(receipts).toHaveLength(3); // a run with no id cannot be acknowledged
   });
 
@@ -143,7 +146,7 @@ describe("the standings snapshot", () => {
   const database = (receipts: { runRef: string; reason: string | null }[], stored: string[]) => {
     const empty = new Proxy({}, { get: (_, method) => async () => (String(method).startsWith("find") && String(method) !== "findMany" ? null : String(method).startsWith("aggregate") ? {} : []) });
     const tables: Record<string, unknown> = {
-      dungeonRunReceipt: { findMany: async () => receipts },
+      dungeonRunReceipt: { findMany: async (args: { where: { outcome?: unknown } }) => args.where.outcome === "retry" ? [] : receipts },
       dungeonRun: { findMany: async () => stored.map((runRef) => ({ runRef })) }
     };
     return new Proxy({}, { get: (_, model) => typeof model !== "string" ? undefined : model.startsWith("$") ? async () => [] : tables[model] ?? empty });
@@ -162,5 +165,222 @@ describe("the standings snapshot", () => {
     expect(text).toContain('GuildedDungeonNotes = {\n  ["copy-1"] = "Counted with a guildmate\'s copy of this run",\n}');
     expect(text).not.toContain('["bad"]');
     expect(standingsToLua({ standings: [], updatedAt: "x" })).toContain("GuildedDungeonNotes = {\n}");
+  });
+});
+
+// 9.3 run-loss work: a refusal a later bot version can fix is not an acknowledgement, a guildmate's COMPLETED copy upgrades a stored
+// unfinished run, each player's guild is stored, and every upload leaves one journal line.
+describe("9.3 run loss", () => {
+  it("answers a run it could not read as 'retry', never as an acknowledgement, and takes the real outcome when the run is readable", async () => {
+    const { tx, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [{ id: "fixme", players: "broken" }], characters, "officer", null, now);
+    expect(byRef(receipts)["fixme"]).toMatchObject({ outcome: "retry", reason: "Run data could not be read" });
+    const later = new Date(now.getTime() + 60_000);
+    await importDungeonRuns(tx, "g1", [run("fixme")], characters, "officer", null, later);
+    expect(byRef(receipts)["fixme"]).toMatchObject({ outcome: "stored", reason: null });
+    expect(receipts).toHaveLength(1);
+  });
+
+  it("leaves 'retry' receipts out of the standings and device answers", async () => {
+    const seen: { where: Record<string, unknown> }[] = [];
+    const empty = new Proxy({}, { get: (_, method) => async () => (String(method).startsWith("find") && String(method) !== "findMany" ? null : String(method).startsWith("aggregate") ? {} : []) });
+    const tables: Record<string, unknown> = {
+      dungeonRunReceipt: { findMany: async (args: { where: Record<string, unknown> }) => { seen.push(args); return []; } },
+      dungeonRun: { findMany: async () => [] }
+    };
+    const db = new Proxy({}, { get: (_, model) => typeof model !== "string" ? undefined : model.startsWith("$") ? async () => [] : tables[model] ?? empty });
+    await standingsConsistentReads(db as never, "g1", "m1");
+    expect(seen[0]?.where).toMatchObject({ outcome: { not: "retry" } });
+  }, 60_000);
+
+  it("gives up on a run that stays unreadable for three days: refused for good, so the addon stops resending it", async () => {
+    const { tx, receipts } = fakeTx();
+    const broken = { id: "forever-broken", players: "x" };
+    await importDungeonRuns(tx, "g1", [broken], characters, "officer", null, now);
+    expect(byRef(receipts)["forever-broken"]?.outcome).toBe("retry");
+    await importDungeonRuns(tx, "g1", [broken], characters, "officer", null, new Date(now.getTime() + 2 * 86_400_000));
+    expect(byRef(receipts)["forever-broken"]?.outcome).toBe("retry");
+    await importDungeonRuns(tx, "g1", [broken], characters, "officer", null, new Date(now.getTime() + 4 * 86_400_000));
+    expect(byRef(receipts)["forever-broken"]).toMatchObject({ outcome: "refused" });
+    expect(byRef(receipts)["forever-broken"]?.reason).toContain("gave up after 3 days");
+  });
+
+  it("a stored unfinished run re-sent as peer-confirmed is not listed as held while it waits (device receipts and the signed ref list)", async () => {
+    const rows = [{ runRef: "mine-peer", outcome: "retry", reason: "Waiting for the guildmate's own copy" }];
+    const tables: Record<string, unknown> = {
+      dungeonRunReceipt: { findMany: async (args: { where: { outcome?: unknown } }) => args.where.outcome === "retry" ? rows : args.where.outcome ? [] : [] },
+      dungeonRun: { findMany: async () => [{ runRef: "mine-peer", state: "ABANDONED", invalidReason: null }] }
+    };
+    const empty = new Proxy({}, { get: (_, method) => async () => (String(method).startsWith("find") && String(method) !== "findMany" ? null : String(method).startsWith("aggregate") ? {} : []) });
+    const db = new Proxy({}, { get: (_, model) => typeof model !== "string" ? undefined : model.startsWith("$") ? async () => [] : tables[model] ?? empty });
+    const answer = await standingsConsistentReads(db as never, "g1", "m1");
+    expect(answer.acceptedRunRefs).not.toContain("mine-peer");
+    expect(answer.pendingRunNotes).toEqual({ "mine-peer": "Waiting for the guildmate's own copy" });
+    const { prismaInstallStore } = await import("../src/services/companion-device.js");
+    const held = await prismaInstallStore(db as never).receipts!("g1", ["mine-peer"]);
+    expect(held).toEqual([]);
+  }, 60_000);
+
+  it("the signed standings answer carries pendingRunNotes for retry receipts, never as accepted", async () => {
+    const tables: Record<string, unknown> = {
+      dungeonRunReceipt: { findMany: async (args: { where: { outcome: unknown } }) => typeof args.where.outcome === "string"
+        ? [{ runRef: "wait-1", reason: "Waiting for the guildmate's own copy" }] : [{ runRef: "done-1", reason: null }] },
+      dungeonRun: { findMany: async () => [] }
+    };
+    const empty = new Proxy({}, { get: (_, method) => async () => (String(method).startsWith("find") && String(method) !== "findMany" ? null : String(method).startsWith("aggregate") ? {} : []) });
+    const db = new Proxy({}, { get: (_, model) => typeof model !== "string" ? undefined : model.startsWith("$") ? async () => [] : tables[model] ?? empty });
+    const answer = await standingsConsistentReads(db as never, "g1", "m1");
+    expect(answer.pendingRunNotes).toEqual({ "wait-1": "Waiting for the guildmate's own copy" });
+    expect(answer.acceptedRunRefs).toEqual(["done-1"]);
+  }, 60_000);
+
+  it("the companion's REAL export of a peer-recovered run passes the schema, and the old live schema, with the encounter list intact", () => {
+    const [exported] = exportDungeonRuns({ dungeon: { runs: { RUN1: { id: "RUN1", state: "COMPLETED", completedBy: "final boss", instanceId: 36, name: "Deadmines", difficultyId: 1,
+      startedAt: start, endedAt: start + 1500, peerConfirmed: true, diagnostic: "i=36;k=1", recoveredFrom: { state: "ABANDONED", via: "Friend" },
+      encounters: { 1: { id: 5, name: "Boss", success: true, at: start + 100, source: "native" }, 2: { id: 9, name: "Final", success: true, at: start + 1400, viaPeer: "Friend" } },
+      players: { Tester: { class: "MAGE", presentSec: 1500, deaths: 0, inGuild: true, guild: "Québec Gold" } } } } } }, "Forever");
+    const parsed = dungeonRunSchema.parse(exported);
+    expect(parsed.encounters).toHaveLength(2);
+    expect(parsed.peerConfirmed).toBe(true);
+    expect(parsed.diagnostic).toBe("i=36;k=1");
+    expect(parsed.players[0]?.guild).toBe("Québec Gold");
+    // The encounter part of the schema as it is on the live bot today (source: native | combat-log only, the whole list dropped on a mismatch).
+    const liveEncounters = z.array(z.object({ id: z.number().int().positive(), kind: z.literal("npc").optional(), name: z.string().max(100).optional(), success: z.boolean(),
+      at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional(), source: z.enum(["native", "combat-log"]).optional() })).max(100).optional().catch(undefined);
+    expect(liveEncounters.parse((exported as { encounters: unknown }).encounters)).toHaveLength(2);
+  });
+
+  it("the shape the companion exports for a peer-recovered run (peerConfirmed, kills without a source: see tests/lua/dungeon-run-loss-9-3.test.ts in #842) passes the schema with every encounter kept", () => {
+    const exported = { id: "RUN1", protocolVersion: 1, state: "COMPLETED", completedBy: "final boss", instanceId: 36, name: "Deadmines", difficultyId: 1, startedAt: start, endedAt: start + 1500,
+      peerConfirmed: true, diagnostic: "i=36;k=1", reporters: 1,
+      encounters: [{ id: 5, name: "Boss", success: true, at: start + 100, source: "native" }, { id: 9, name: "Final", success: true, at: start + 1400 }],
+      players: [{ character: "Tester", realm: "Forever", class: "MAGE", guild: "Québec Gold", deaths: 0, presentSec: 1500, inGuild: true }] };
+    const parsed = dungeonRunSchema.parse(exported);
+    expect(parsed.peerConfirmed).toBe(true);
+    expect(parsed.encounters).toHaveLength(2);
+    expect(parsed.players[0]?.guild).toBe("Québec Gold");
+  });
+
+  it("stores the guild each player was in, and nothing for players without one", async () => {
+    const { tx, runs } = fakeTx();
+    const players = characters.map((c, index) => ({ character: c.name, realm: "Forever", deaths: 0, presentSec: 1500, inGuild: index < 2, level: 20, minLevel: 20, ...(index === 0 ? { guild: "Québec Gold" } : index === 1 ? { guild: "Other Guild" } : {}) }));
+    await importDungeonRuns(tx, "g1", [run("with-guilds", { players })], characters, "officer", null, now);
+    const stored = (runs[0] as unknown as { players: { character: string; guild?: string | null }[] }).players;
+    expect(stored.find((p) => p.character === "Hulke Hogan")?.guild).toBe("Québec Gold");
+    expect(stored.find((p) => p.character === "Banished Zakarum")?.guild).toBe("Other Guild");
+    expect(stored.find((p) => p.character === "Xao Void")?.guild).toBeNull();
+  });
+
+  it("upgrades a stored ABANDONED run when a guildmate's copy under another id arrives COMPLETED, instead of storing it twice", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("mine", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", endedAt: start + 3000 })], characters, "officer", null, now);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.state).toBe("ABANDONED");
+    const later = new Date(now.getTime() + 60_000);
+    await importDungeonRuns(tx, "g1", [run("friend-copy", { startedAt: start + 20 })], characters, "officer", null, later);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ state: "COMPLETED", valid: true });
+    expect(byRef(receipts)["friend-copy"]).toMatchObject({ outcome: "copy", state: "COMPLETED", runId: "run-1" });
+    const reports = () => (runs[0]?.competitionData as { observerReports?: unknown[] }).observerReports?.length;
+    expect(reports()).toBe(1);
+    await importDungeonRuns(tx, "g1", [run("friend-copy", { startedAt: start + 20 })], characters, "officer", null, new Date(later.getTime() + 30_000));
+    expect(reports()).toBe(1);
+    // The same copy sent again is now just a copy of the upgraded run.
+    const again = await importDungeonRuns(tx, "g1", [run("friend-copy", { startedAt: start + 20 })], characters, "officer", null, new Date(later.getTime() + 60_000));
+    expect(runs).toHaveLength(1);
+    expect(again.duplicates).toBe(1);
+  });
+
+  const abandoned = (id: string, extra: Record<string, unknown> = {}) => run(id, { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", ...extra });
+
+  it("keeps what the addon sends: guild, diagnostic, peer marker and the peer encounter source pass the schema and the diagnostic is stored", async () => {
+    const parsed = dungeonRunSchema.parse(run("keep-all", { diagnostic: "i=36;k=1", peerConfirmed: true, encounters: [{ id: 5, success: true, at: start + 100, source: "peer" }],
+      players: [{ character: "Hulke Hogan", realm: "Forever", deaths: 0, presentSec: 1500, inGuild: true, guild: "Québec Gold" }] }));
+    expect(parsed).toMatchObject({ diagnostic: "i=36;k=1", peerConfirmed: true });
+    expect(parsed.encounters?.[0]?.source).toBe("peer");
+    expect(parsed.players[0]?.guild).toBe("Québec Gold");
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [abandoned("kept-note", { diagnostic: "i=36;d=1;k=2;f=unknown;last=7/Boss" })], characters, "officer", null, now);
+    expect((runs[0]?.competitionData as { diagnostic?: string }).diagnostic).toBe("i=36;d=1;k=2;f=unknown;last=7/Boss");
+  });
+
+  it("upgrades the stored ABANDONED version of a run the addon recovered locally (same id, completed later)", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [abandoned("mine-local", { diagnostic: "i=36;k=1" })], characters, "officer", null, now);
+    expect(runs.map((row) => row.state)).toEqual(["ABANDONED"]);
+    await importDungeonRuns(tx, "g1", [run("mine-local", { encounters: [{ id: 9, success: true, at: start + 1400, source: "native" }] })], characters, "officer", null, new Date(now.getTime() + 60_000));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ state: "COMPLETED", valid: true });
+    expect(byRef(receipts)["mine-local"]).toMatchObject({ outcome: "stored", reason: null });
+  });
+
+  it("holds a peer-recovered run until the guildmate's own copy is stored COMPLETED, then counts it once", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [abandoned("mine-peer")], characters, "officer", null, now);
+    const peerRecovered = run("mine-peer", { peerConfirmed: true, startedAt: start + 10, encounters: [{ id: 9, success: true, at: start + 1400, source: "peer" }] });
+    // No agreeing copy yet: not ranked, not acknowledged, the stored copy is untouched.
+    await importDungeonRuns(tx, "g1", [peerRecovered], characters, "officer", null, new Date(now.getTime() + 60_000));
+    expect(runs.map((row) => row.state)).toEqual(["ABANDONED"]);
+    expect(byRef(receipts)["mine-peer"]).toMatchObject({ outcome: "retry", reason: "Waiting for the guildmate's own copy" });
+    // A claim from an ABANDONED guildmate copy does not agree either.
+    await importDungeonRuns(tx, "g1", [abandoned("friend-gave-up", { startedAt: start + 20 })], characters, "officer", null, new Date(now.getTime() + 90_000));
+    await importDungeonRuns(tx, "g1", [peerRecovered], characters, "officer", null, new Date(now.getTime() + 100_000));
+    expect(byRef(receipts)["mine-peer"]?.outcome).toBe("retry");
+    // The guildmate's own COMPLETED copy arrives: it completes the stored unfinished run (one run, never two), and ours is then acknowledged.
+    await importDungeonRuns(tx, "g1", [run("friend-own", { startedAt: start + 30 })], characters, "officer", null, new Date(now.getTime() + 120_000));
+    expect(runs.filter((row) => row.state === "COMPLETED")).toHaveLength(1);
+    await importDungeonRuns(tx, "g1", [peerRecovered], characters, "officer", null, new Date(now.getTime() + 180_000));
+    expect(runs.filter((row) => row.state === "COMPLETED")).toHaveLength(1);
+    expect(byRef(receipts)["mine-peer"]?.outcome).not.toBe("retry");
+  });
+
+  it("folds a peer-recovered run into the guildmate's stored COMPLETED copy as a corroborating copy, without a second ranking", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("friend-own")], characters, "officer", null, now);
+    await importDungeonRuns(tx, "g1", [run("mine-peer-2", { peerConfirmed: true, startedAt: start + 10, encounters: [{ id: 9, success: true, at: start + 1400, source: "peer" }] })],
+      characters, "officer", null, new Date(now.getTime() + 60_000));
+    expect(runs).toHaveLength(1);
+    expect(byRef(receipts)["mine-peer-2"]).toMatchObject({ outcome: "copy", reason: "Counted with a guildmate's copy of this run", runId: "run-1" });
+  });
+
+  it("holds a run whose kill says source peer even without the flag, and does NOT hold a run whose kills merely have no source (relayed runs, older exports)", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [abandoned("src-peer"), abandoned("src-none", { startedAt: start + 4000, endedAt: start + 5500 })], characters, "officer", null, now);
+    const later = new Date(now.getTime() + 60_000);
+    await importDungeonRuns(tx, "g1", [run("src-peer", { encounters: [{ id: 9, success: true, at: start + 1400, source: "peer" }] })], characters, "officer", null, later);
+    expect(runs.find((row) => row.runRef === "src-peer")?.state).toBe("ABANDONED");
+    expect(byRef(receipts)["src-peer"]?.outcome).toBe("retry");
+    await importDungeonRuns(tx, "g1", [run("src-none", { startedAt: start + 4000, endedAt: start + 5500, encounters: [{ id: 9, success: true, at: start + 5400 }] })], characters, "officer", null, later);
+    expect(runs.find((row) => row.runRef === "src-none")?.state).toBe("COMPLETED");
+  });
+
+  it("never lets a peer-confirmed run rank on its own, even when nothing else is stored", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("only-peer", { peerConfirmed: true })], characters, "officer", null, now);
+    expect(runs).toHaveLength(0);
+    expect(byRef(receipts)["only-peer"]?.outcome).toBe("retry");
+  });
+
+  it("leaves a different, unrelated unfinished run alone", async () => {
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("old", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", startedAt: start - 86_400, endedAt: start - 86_400 + 900 })], characters, "officer", null, now);
+    await importDungeonRuns(tx, "g1", [run("new")], characters, "officer", null, now);
+    expect(runs.map((row) => row.state).sort()).toEqual(["ABANDONED", "COMPLETED"]);
+  });
+
+  it("writes one journal line per upload with the counts, and the unfinished-run note", async () => {
+    const { tx } = fakeTx();
+    const lines: string[] = [];
+    const info = vi.spyOn(console, "info").mockImplementation((line: unknown) => { lines.push(String(line)); });
+    await importDungeonRuns(tx, "guild-abcdef123456", [
+      run("run-a"), run("run-b", { startedAt: start + 165 }),
+      run("run-c", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", instanceId: 2970, name: "The Drowned City", diagnostic: "i=2970;k=1;f=unknown;last=777/Last Boss" }),
+      { id: "broken", players: "x" }
+    ], characters, "officer", "import-9876543210", now);
+    info.mockRestore();
+    const line = lines.find((text) => text.startsWith("dungeon-runs "));
+    expect(line).toBe("dungeon-runs guild=123456 import=76543210 received=4 stored=2 known=0 copies=1 malformed=1 refused=retry:Run_data_could_not_be_readx1");
+    expect(lines.some((text) => text.includes("dungeon-run-unfinished instance=2970") && text.includes("last=777/Last Boss"))).toBe(true);
+    expect(line).not.toContain("guild-abcdef");
   });
 });

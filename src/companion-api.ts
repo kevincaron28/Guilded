@@ -51,6 +51,7 @@ import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { applyGuildData } from "./services/guild-data.js";
 import { applyGuildBank } from "./services/guild-bank.js";
 import { serverKnowsWowGuild } from "./services/wow-guilds.js";
+import { RETRY_OUTCOME } from "./services/dungeon-import.js";
 import { retryWriteConflict, serializeByKey } from "./services/transaction-retry.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
@@ -582,12 +583,12 @@ async function standingsParts(guild: { id: string; discordId: string }, access: 
   const raids = mergeCalendarEvents(botRaids, scheduledEvents);
   const consistent = await prisma.$transaction((transaction) => standingsConsistentReads(transaction as unknown as PrismaClient, guild.id, access.memberId),
     { isolationLevel: "RepeatableRead", timeout: STANDINGS_READ_BUDGET_MS.query, maxWait: STANDINGS_READ_BUDGET_MS.poolWait });
-  const { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes } = consistent;
+  const { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes } = consistent;
   // Shared: the same for every member, so it sets the stamp. Discord events are filtered
   // per member and dungeon/ledger acknowledgements do not change what the addon shows.
   return {
     shared: { accounts, baseGp, board, craftOrders, dungeonBoard, nextRaid, items, loot: loot ? { ...loot, cores: loot.cores.map((core) => ({ ...core, accounts })) } : null, standings },
-    personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, raids, ...(promotion ? { promotion } : {}),
+    personal: { acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, ...(Object.keys(pendingRunNotes).length ? { pendingRunNotes } : {}), raids, ...(promotion ? { promotion } : {}),
       ...(officerInvites ? { officerInvites } : {}),
       bank,
       ...(boardVotes ? { boardVotes } : {}),
@@ -610,10 +611,19 @@ export async function standingsConsistentReads(database: PrismaClient, guildId: 
   const since = new Date(Date.now() - 45 * 86_400_000);
   const receiptTable = (database as Partial<Pick<PrismaClient, "dungeonRunReceipt">>).dungeonRunReceipt;
   const receipts = receiptTable ? await receiptTable.findMany({
-    where: { guildId, seenAt: { gte: since } },
+    // (9.3) A "retry" receipt is not an acknowledgement: the addon keeps that run and sends it again after an update.
+    where: { guildId, seenAt: { gte: since }, outcome: { not: RETRY_OUTCOME } },
     select: { runRef: true, reason: true },
     orderBy: { seenAt: "desc" },
     take: 1000
+  }) : [];
+  // (9.3) Runs received but not counted yet (a retry receipt: unreadable, or waiting for a guildmate's own copy): answered apart,
+  // never as accepted, so the companion's sync line says why instead of counting them "unconfirmed" (same as the device answer).
+  const waiting = receiptTable ? await receiptTable.findMany({
+    where: { guildId, seenAt: { gte: since }, outcome: RETRY_OUTCOME },
+    select: { runRef: true, reason: true },
+    orderBy: { seenAt: "desc" },
+    take: 300
   }) : [];
   const storedRefs = (await database.dungeonRun.findMany({
     where: { guildId, createdAt: { gte: since } },
@@ -621,13 +631,16 @@ export async function standingsConsistentReads(database: PrismaClient, guildId: 
     orderBy: { createdAt: "desc" },
     take: 500
   })).map((row) => row.runRef);
-  const acceptedRunRefs = [...new Set([...receipts.map((row) => row.runRef), ...storedRefs])].slice(0, 1200);
+  // A ref whose receipt says "retry" is not held even when a (unfinished) run is stored under it: the addon keeps and resends it.
+  const waitingRefs = new Set(waiting.map((row) => row.runRef));
+  const acceptedRunRefs = [...new Set([...receipts.map((row) => row.runRef), ...storedRefs])].filter((ref) => !waitingRefs.has(ref)).slice(0, 1200);
   const runNotes = Object.fromEntries(receipts.flatMap((row) => row.reason ? [[row.runRef, row.reason] as const] : []).slice(0, 300));
+  const pendingRunNotes: Record<string, string> = Object.fromEntries(waiting.flatMap((row) => row.reason && !acceptedRunRefs.includes(row.runRef) ? [[row.runRef, row.reason.slice(0, 80)] as const] : []));
   const accounts = Object.fromEntries((await database.character.findMany({ where: { member: { guildId } }, select: { name: true, realm: true, memberId: true } })).map((c) => [addonName(c.name, c.realm), c.memberId]));
   const acceptedLedgerRefs = await ledgerRefsFor(database, guildId, memberId);
   const acceptedLootRefs = await lootRefsFor(database, guildId);
   const standings = (await createEpgpService(database).getGuildStandings(guildId, baseGp)).map(row => ({ ...row, character: addonName(row.character, row.realm) }));
-  return { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes };
+  return { accounts, baseGp, standings, acceptedLedgerRefs, acceptedLootRefs, acceptedRunRefs, runNotes, pendingRunNotes };
 }
 
 // The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.

@@ -48,8 +48,9 @@ function fakeDatabase() {
       }
     },
     dungeonRunReceipt: {
-      findMany: async ({ where }: { where: { guildId: string; runRef: { in: string[] }; outcome?: string } }) =>
-        receipts.filter((r) => r["guildId"] === where.guildId && where.runRef.in.includes(r["runRef"] as string) && (!where.outcome || r["outcome"] === where.outcome)),
+      findMany: async ({ where }: { where: { guildId: string; runRef: { in: string[] }; outcome?: string | { not: string } } }) =>
+        receipts.filter((r) => r["guildId"] === where.guildId && where.runRef.in.includes(r["runRef"] as string)
+          && (!where.outcome || (typeof where.outcome === "string" ? r["outcome"] === where.outcome : r["outcome"] !== where.outcome.not))),
       createMany: async ({ data }: { data: Record<string, unknown>[] }) => { receipts.push(...data); return { count: data.length }; },
       updateMany: async () => ({ count: 0 }),
       update: async () => ({})

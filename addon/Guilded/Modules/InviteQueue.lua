@@ -105,6 +105,30 @@ local function guildKeys()
 end
 module.splitRealm = splitRealm
 
+-- A request posted with its realm ("Anna Smith-Realm") is clicked as "Anna Smith" (the Invite button drops the realm) and the game
+-- answers with whichever form it likes, so a mark is looked up under the key as posted first, then without the realm (the same
+-- rule as splitRealm: a hyphenated surname is only a realm when a full first+last pair stands before the dash).
+local function markOf(tbl, k)
+  if type(tbl) ~= "table" or not k then return nil end
+  if tbl[k] ~= nil then return tbl[k], k end
+  local base, suffix = splitRealm(k)
+  if suffix and tbl[base] ~= nil then return tbl[base], base end
+  return nil
+end
+-- An answer ("already in a guild", "joined") belongs to the post it followed; a newer post of the name is a new request.
+local ANSWER_KEEP = 86400
+local function answerStale(answer, row, at)
+  if type(answer.postAt) == "string" and type(row.at) == "string" then return row.at > answer.postAt end
+  return (at - (answer.at or 0)) >= ANSWER_KEEP
+end
+local function postTimeOf(k)
+  local base, suffix = splitRealm(k)
+  for _, row in ipairs((type(_G.GuildedInvites) == "table" and _G.GuildedInvites.names) or {}) do
+    local rk = type(row) == "table" and type(row.name) == "string" and key(row.name)
+    if rk and (rk == k or (suffix and rk == base) or select(1, splitRealm(rk)) == k) then return row.at end
+  end
+end
+
 -- Waiting names in three groups (9.3): `todo` (still to invite, oldest first; a name the game could not find stays here with
 -- its Remove button), `invited` (the line was copied or sent less than PENDING_SECONDS ago and the player has not joined, or
 -- the player declined: the officer may invite again), and `handled` (already in another guild). A name already in OUR guild is
@@ -132,11 +156,13 @@ function module.sections()
     local base, suffix = splitRealm(k or "")
     local joined = k and (inGuild[k] or (suffix and realms[suffix] and inGuild[base]))
     if k and row.name ~= "" and not joined and not seen[k] then
-      local sent = d.inviteSent[k]
-      local answer = d.inviteState[k]
+      local sent = markOf(d.inviteSent, k)
+      local answer = markOf(d.inviteState, k)
       -- A row the officer removed stays gone until the requester posts the name again (a newer post).
-      local removed = d.inviteRemoved[k]
+      local removed = markOf(d.inviteRemoved, k)
       local hidden = removed and (type(row.at) ~= "string" or type(removed.postAt) ~= "string" or row.at <= removed.postAt)
+      -- "Joined" and "already in a guild" belong to the post they followed: a newer post (or a day later) starts over.
+      if answer and (answer.state == "joined" or answer.state == "inguild") and answerStale(answer, row, at) then answer = nil end
       if not hidden and not (answer and answer.state == "joined") then
         seen[k] = true
         -- An answer only counts for the click it followed.
@@ -197,12 +223,15 @@ function module.onSystemMessage(text)
   for _, entry in ipairs(answerPatterns()) do
     local name = string.match(text, entry[2])
     if name then
-      local k = key((string.gsub(name, "%-.*$", "")))
+      -- The name as the game wrote it, or without a realm (never cut at a hyphenated surname).
+      local k = key(name)
       d.inviteState = type(d.inviteState) == "table" and d.inviteState or {}
       d.inviteSent = type(d.inviteSent) == "table" and d.inviteSent or {}
+      local _, markKey = markOf(d.inviteSent, k)
       -- Only names the officer sent from this panel (or that waited in it) are tracked.
-      if d.inviteSent[k] or entry[1] == "joined" then
-        d.inviteState[k] = { state = entry[1], at = nowSeconds() }
+      if markKey or entry[1] == "joined" then
+        k = markKey or k
+        d.inviteState[k] = { state = entry[1], at = nowSeconds(), postAt = postTimeOf(k) }
         if entry[1] == "expired" then d.inviteSent[k] = nil end
         module.refresh()
         return true
@@ -223,8 +252,11 @@ function module.remove(name)
   end
   d.inviteRemoved = type(d.inviteRemoved) == "table" and d.inviteRemoved or {}
   d.inviteRemoved[k] = { at = nowSeconds(), postAt = postAt }
-  if d.inviteSent then d.inviteSent[k] = nil end
-  if d.inviteState then d.inviteState[k] = nil end
+  local base, suffix = splitRealm(k)
+  for _, mk in ipairs(suffix and { k, base } or { k }) do
+    if d.inviteSent then d.inviteSent[mk] = nil end
+    if d.inviteState then d.inviteState[mk] = nil end
+  end
   module.refresh()
   return true
 end

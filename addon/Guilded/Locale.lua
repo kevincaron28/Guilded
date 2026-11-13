@@ -574,6 +574,9 @@ local FR = {
   ["No dungeon run in progress. Enter a dungeon: the timer starts on the first pull and stops on the last boss."] = "Aucun donjon en cours. Entrez dans un donjon : le chrono part au premier pull et s'arr\195xte au dernier boss.",
   ["%d received by Discord, not counted yet: %s."] = "%d re\195\167u(s) par Discord, pas encore compt\195\169(s) : %s.",
   ["No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."] = "Aucun donjon en cours. Donjons enregistr\195\169s : %d (%d en attente d'envoi vers Discord).",
+  ["Your run %s was uploaded by %s's companion."] = "Votre donjon %s a \195\169t\195\169 envoy\195\169 par le compagnon de %s.",
+  ["Not uploaded yet: %d of your runs."] = "Pas encore envoy\195\169s : %d de vos donjons.",
+  ["%d guildmate run(s) are waiting: /reload sends them to your companion."] = "%d donjon(s) de guildmates attendent : /reload les envoie \195\160 votre compagnon.",
   ["on Discord"] = "sur Discord",
   ["waiting to sync"] = "en attente d'envoi",
   ["None yet."] = "Aucun pour l'instant.",
@@ -1732,6 +1735,9 @@ local DE = {
   ["No dungeon run in progress. Enter a dungeon: the timer starts on the first pull and stops on the last boss."] = "Kein Dungeon-Lauf aktiv. Betritt einen Dungeon: Der Timer startet beim ersten Pull und endet beim letzten Boss.",
   ["%d received by Discord, not counted yet: %s."] = "%d von Discord empfangen, noch nicht gez\195\164hlt: %s.",
   ["No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."] = "Kein Dungeon-Lauf aktiv. Gespeicherte L\195\164ufe: %d (%d warten auf die \195\156bertragung an Discord).",
+  ["Your run %s was uploaded by %s's companion."] = "Dein Lauf %s wurde vom Companion von %s hochgeladen.",
+  ["Not uploaded yet: %d of your runs."] = "Noch nicht hochgeladen: %d deiner L\195\164ufe.",
+  ["%d guildmate run(s) are waiting: /reload sends them to your companion."] = "%d Lauf/L\195\164ufe von Gildenmitgliedern warten: /reload sendet sie an deinen Companion.",
   ["No dungeon scores yet: complete a dungeon with Guilded running."] = "Noch keine Dungeon-Wertungen: Schlie\195\159e einen Dungeon mit laufendem Guilded ab.",
   ["No eligible timed boss kills recorded."] = "Keine zul\195\164ssigen zeitgemessenen Boss-Siege aufgezeichnet.",
   ["no enchant"] = "keine Verzauberung",
@@ -2851,6 +2857,17 @@ local DE = {
   ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "\195\150ffnet Guildeds Seite in den Spieloptionen: alle Einstellungen in Reitern, jede mit Beschreibung.",
   ["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Zeigt nach jedem deiner Gildenduelle eine kleine Karte mit Ergebnis, Bilanz und Rangwechsel. Mit /guilded duels card test siehst du eine Vorschau.",
   ["Not recorded: you duelled this player a moment ago, so this result is not added."] = "Nicht gespeichert: Du hast eben erst gegen diesen Spieler geduelliert, daher wird dieses Ergebnis nicht hinzugef\195\188gt.",
+  -- Officer "To invite" window in three sections (9.3)
+  ["To invite now (%d)"] = "Jetzt einzuladen (%d)",
+  ["Nobody to invite right now."] = "Im Moment ist niemand einzuladen.",
+  ["Invited, waiting for them to accept (%d)"] = "Eingeladen, warten auf die Annahme (%d)",
+  ["invited %s"] = "eingeladen %s",
+  ["Invite again"] = "Erneut einladen",
+  ["Show handled (%d)"] = "Erledigte zeigen (%d)",
+  ["Hide handled (%d)"] = "Erledigte ausblenden (%d)",
+  -- To invite window: copied vs invited, per-officer marks (9.3)
+  ["copied %s, waiting"] = "kopiert %s, wartend",
+  ["Marks stay on this computer: another officer may invite the same names."] = "Markierungen bleiben auf diesem Computer: ein anderer Offizier kann dieselben Namen einladen.",
   -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
   ["K/D: %s this week, %s in total."] = "K/D: %s diese Woche, %s insgesamt.",
   ["Deadliest zones: %s."] = "Gef\195\164hrlichste Zonen: %s.",
@@ -2862,6 +2879,7 @@ local DE = {
   ["up %d (was #%d)"] = "+%d (war #%d)",
   ["down %d (was #%d)"] = "-%d (war #%d)",
   ["Not counted on the guild ladder: %s is not in your guild."] = "Nicht im Gildenranking gez\195\164hlt: %s ist nicht in deiner Gilde.",
+  ["Not counted yet: the guild roster has not loaded."] = "Noch nicht gez\195\164hlt: die Gildenliste ist noch nicht geladen.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -3620,6 +3638,9 @@ local ES = {
   ["No dungeon run in progress. Enter a dungeon: the timer starts on the first pull and stops on the last boss."] = "No hay una mazmorra en curso. Entra en una: el cron\195\179metro empieza en el primer combate y termina con el \195\186ltimo jefe.",
   ["%d received by Discord, not counted yet: %s."] = "%d recibido(s) por Discord, a\195\186n sin contar: %s.",
   ["No dungeon run in progress. Saved runs: %d (%d waiting to reach Discord)."] = "No hay una mazmorra en curso. Mazmorras guardadas: %d (%d esperando para llegar a Discord).",
+  ["Your run %s was uploaded by %s's companion."] = "Tu mazmorra %s fue subida por el companion de %s.",
+  ["Not uploaded yet: %d of your runs."] = "A\195\186n sin subir: %d de tus mazmorras.",
+  ["%d guildmate run(s) are waiting: /reload sends them to your companion."] = "%d mazmorra(s) de compa\195\177eros de hermandad esperan: /reload las env\195\173a a tu companion.",
   ["No dungeon scores yet: complete a dungeon with Guilded running."] = "A\195\186n no hay puntuaciones de mazmorra: completa una con Guilded activo.",
   ["No eligible timed boss kills recorded."] = "No se han registrado muertes de jefes cronometradas v\195\161lidas.",
   ["no enchant"] = "sin encantamiento",
@@ -4739,6 +4760,17 @@ local ES = {
   ["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "Abre la p\195\161gina de Guilded en las opciones del juego: todos los ajustes en pesta\195\177as, cada uno con su descripci\195\179n.",
   ["Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it."] = "Muestra una peque\195\177a tarjeta con el resultado, la marca y el cambio de puesto tras cada uno de tus duelos de hermandad. Escribe /guilded duels card test para verla.",
   ["Not recorded: you duelled this player a moment ago, so this result is not added."] = "No registrado: acabas de duelar con este jugador, as\195\173 que este resultado no se a\195\177ade.",
+  -- Officer "To invite" window in three sections (9.3)
+  ["To invite now (%d)"] = "Para invitar ahora (%d)",
+  ["Nobody to invite right now."] = "Nadie a quien invitar ahora.",
+  ["Invited, waiting for them to accept (%d)"] = "Invitados, esperando que acepten (%d)",
+  ["invited %s"] = "invitado %s",
+  ["Invite again"] = "Invitar de nuevo",
+  ["Show handled (%d)"] = "Mostrar gestionados (%d)",
+  ["Hide handled (%d)"] = "Ocultar gestionados (%d)",
+  -- To invite window: copied vs invited, per-officer marks (9.3)
+  ["copied %s, waiting"] = "copiado %s, en espera",
+  ["Marks stay on this computer: another officer may invite the same names."] = "Las marcas se quedan en este ordenador: otro oficial puede invitar a los mismos nombres.",
   -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
   ["K/D: %s this week, %s in total."] = "K/D: %s esta semana, %s en total.",
   ["Deadliest zones: %s."] = "Zonas m\195\161s letales: %s.",
@@ -4750,6 +4782,7 @@ local ES = {
   ["up %d (was #%d)"] = "+%d (era #%d)",
   ["down %d (was #%d)"] = "-%d (era #%d)",
   ["Not counted on the guild ladder: %s is not in your guild."] = "No cuenta en la clasificaci\195\179n de la hermandad: %s no est\195\161 en tu hermandad.",
+  ["Not counted yet: the guild roster has not loaded."] = "A\195\186n no cuenta: la lista de la hermandad no se ha cargado.",
 }
 -- END ES
 
@@ -5787,3 +5820,15 @@ FR["total %d"] = "total %d"
 FR["up %d (was #%d)"] = "+%d (\195\169tait #%d)"
 FR["down %d (was #%d)"] = "-%d (\195\169tait #%d)"
 FR["Not counted on the guild ladder: %s is not in your guild."] = "Non compt\195\169 au classement de la guilde : %s n'est pas dans votre guilde."
+FR["Not counted yet: the guild roster has not loaded."] = "Pas encore compt\195\169 : la liste de la guilde n'est pas charg\195\169e."
+-- Officer "To invite" window in three sections (9.3)
+FR["To invite now (%d)"] = "\195\128 inviter maintenant (%d)"
+FR["Nobody to invite right now."] = "Personne \195\160 inviter pour le moment."
+FR["Invited, waiting for them to accept (%d)"] = "Invit\195\169s, en attente de leur r\195\169ponse (%d)"
+FR["invited %s"] = "invit\195\169 %s"
+FR["Invite again"] = "R\195\169inviter"
+FR["Show handled (%d)"] = "Afficher les trait\195\169s (%d)"
+FR["Hide handled (%d)"] = "Masquer les trait\195\169s (%d)"
+-- To invite window: copied vs invited, per-officer marks (9.3)
+FR["copied %s, waiting"] = "copi\195\169 %s, en attente"
+FR["Marks stay on this computer: another officer may invite the same names."] = "Les marques restent sur cet ordinateur : un autre officier peut inviter les m\195\170mes noms."

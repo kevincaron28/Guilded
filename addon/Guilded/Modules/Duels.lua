@@ -20,7 +20,7 @@
 --   /guilded duels            the top of the board in chat
 --   /guilded duels me         my record
 --   /guilded duels card on|off|test   the end-of-duel card (on by default)
-local _, ns = ...
+local addonName, ns = ...
 local duels = {}
 ns.duels = duels
 
@@ -342,10 +342,12 @@ local session
 
 function duels.sessionStop() session = nil end
 
+local targetInfo -- defined below (class and level of my target)
 local function startFight(seconds)
   local zone
   if GetZoneText then local ok, v = pcall(GetZoneText); if ok and type(v) == "string" and v ~= "" and not (ns.isSecret and ns.isSecret(v)) then zone = v end end
-  session = { startedAt = clock() + (tonumber(seconds) or 0), opponent = session and session.opponent, zone = zone }
+  local opponent = session and session.opponent
+  session = { startedAt = clock() + (tonumber(seconds) or 0), opponent = opponent, zone = zone, oppInfo = targetInfo(opponent) }
 end
 
 -- Health left, in percent, of a unit; nil when the client does not say.
@@ -360,18 +362,34 @@ local function healthPercent(unit)
   return ok and value or nil
 end
 -- Class and level of my target when it is the duel opponent (a non-guildmate has no roster row). Optional card data: pcall.
-local function targetInfo(opponent)
-  if not (UnitExists and UnitName and opponent) then return nil end
+function targetInfo(opponent)
+  if not (UnitExists and UnitName) then return nil end
   local ok, info = pcall(function()
     if not UnitExists("target") then return nil end
     local name = UnitName("target")
-    if type(name) ~= "string" or (ns.isSecret and ns.isSecret(name)) or not same(name, opponent) then return nil end
+    if type(name) ~= "string" or (ns.isSecret and ns.isSecret(name)) then return nil end
+    if opponent and not same(name, opponent) then return nil end
     local level = UnitLevel and tonumber(UnitLevel("target"))
     local _, file
     if UnitClass then _, file = UnitClass("target") end
-    return { level = level and level > 0 and level or nil, class = type(file) == "string" and file:match("^%u+$") or nil }
+    return { name = name, level = level and level > 0 and level or nil, class = type(file) == "string" and file:match("^%u+$") or nil }
   end)
   return ok and info or nil
+end
+-- The opponent's class and level: my target now when it is the opponent, else what the target was when the duel started.
+local function opponentInfo(s, oppName)
+  local live = targetInfo(oppName)
+  if live then return live end
+  local early = s and s.oppInfo
+  if early and early.name and same(early.name, oppName) then return early end
+  return nil
+end
+-- True while the guild roster has not loaded (right after login): "not in the guild" cannot be said yet.
+local function rosterPending()
+  if not (IsInGuild and IsInGuild()) then return false end
+  if type(GetNumGuildMembers) ~= "function" then return false end
+  local ok, count = pcall(GetNumGuildMembers)
+  return ok and (tonumber(count) or 0) == 0
 end
 -- My health left, and the opponent's when my target is the duel opponent.
 local function healthLeft(opponent)
@@ -420,7 +438,8 @@ function duels.cardData(winner, loser, at, reason, ctx)
   }
   if ctx.outsider then
     -- The opponent is not in the guild: the result is shown, never recorded, no points, record or rank.
-    data.outsider, data.recorded, data.counted = true, false, false
+    data.outsider, data.recorded, data.counted = not ctx.rosterPending, false, false
+    data.rosterPending = ctx.rosterPending or nil
     return data
   end
   if ctx.recorded == false then
@@ -468,7 +487,9 @@ function duels.cardLines(data)
     if h.opponent then parts[#parts + 1] = string.format(L("opponent's health left %d%%"), h.opponent) end
     lines[#lines + 1] = "|cffffd36a" .. table.concat(parts, "  -  ") .. "|r"
   end
-  if data.outsider then
+  if data.rosterPending then
+    lines[#lines + 1] = "|cffe0a050" .. L("Not counted yet: the guild roster has not loaded.") .. "|r"
+  elseif data.outsider then
     lines[#lines + 1] = "|cffe0a050" .. string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent)) .. "|r"
   elseif data.recorded == false then
     lines[#lines + 1] = "|cffe0a050" .. L("Not recorded: you duelled this player a moment ago, so this result is not added.") .. "|r"
@@ -496,7 +517,7 @@ end
 local card, pendingCard
 -- The painting behind the card (Media\\DuelCard.blp, made by scripts/build-duel-texture.mjs). Members who turned "Card art" off
 -- (settings.cardArt, the Run tab button) get the plain card.
-duels.CARD_ART = "Interface\\AddOns\\Guilded\\Media\\DuelCard"
+duels.CARD_ART = "Interface\\AddOns\\" .. tostring(addonName or "Guilded") .. "\\Media\\DuelCard"
 
 local function savePosition(self)
   local st = settings()
@@ -530,7 +551,13 @@ local STAT_MAX = 4
 local function fit(name, max)
   name = tostring(name or "")
   if #name <= max then return name end
-  return name:sub(1, max - 3) .. "..."
+  -- Cut on a character boundary: step back over UTF-8 continuation bytes (0x80-0xBF) so an accent is never split.
+  local cut = max - 3
+  while cut > 0 do
+    local byte = name:byte(cut + 1)
+    if byte and byte >= 128 and byte < 192 then cut = cut - 1 else break end
+  end
+  return name:sub(1, cut) .. "..."
 end
 duels.fitName = fit
 
@@ -606,7 +633,7 @@ end
 -- The stat columns for a card's data: { label, value, sub } in order. Pure, so the tests can read it.
 function duels.cardStats(data)
   local out = {}
-  if data.outsider or data.recorded == false or not data.counted or not data.wins then return out end
+  if data.outsider or data.rosterPending or data.recorded == false or not data.counted or not data.wins then return out end
   out[#out + 1] = { label = L("Record"), value = string.format("%d-%d", data.wins, data.losses), sub = string.format("%d%%", data.rate or 0) }
   out[#out + 1] = { label = L("Points"), value = "+" .. (data.points or 0), sub = data.total and string.format(L("total %d"), data.total) or "" }
   if data.rank then
@@ -661,7 +688,8 @@ local function drawCard(data)
   end
   -- No stats (not counted, a rematch, or a non-guild opponent): one plain sentence in their place.
   local note = ""
-  if data.outsider then note = string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent))
+  if data.rosterPending then note = L("Not counted yet: the guild roster has not loaded.")
+  elseif data.outsider then note = string.format(L("Not counted on the guild ladder: %s is not in your guild."), displayName(data.opponent))
   elseif data.recorded == false then note = L("Not recorded: you duelled this player a moment ago, so this result is not added.")
   elseif not data.counted then note = L("Not counted: 5 duels per pair of players per day.") end
   card.note:SetText(note ~= "" and colored("e0a050", note) or "")
@@ -723,14 +751,14 @@ function duels.onSystem(text)
   if not (guildMember(winner) and guildMember(loser)) then
     if involved then
       pcall(function()
-        local ctx = { me = mine, outsider = true }
+        local ctx = { me = mine, outsider = true, rosterPending = rosterPending() }
         local s = session
         if s and s.startedAt and clock() - s.startedAt >= 0 and clock() - s.startedAt < SESSION_MAX then
           ctx.duration, ctx.zone = clock() - s.startedAt, s.zone
           ctx.health = healthLeft(s.opponent)
         end
         local oppName = same(mine, winner) and loser or winner
-        ctx.oppInfo = targetInfo(oppName) or (s and s.oppInfo) or nil
+        ctx.oppInfo = opponentInfo(s, oppName)
         local data = duels.cardData(winner, loser, at, reason, ctx)
         duels.lastCard = data
         duels.showCard(data)

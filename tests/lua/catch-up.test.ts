@@ -180,6 +180,8 @@ describe("Dungeon.lua: confirmations, instance hold and pruning", () => {
     const author = client("Donny");
     seedRun(author, "donny-1", ["Donny"]);
     seedRun(carrier, "donny-1", ["Donny"], 3600, ", synced = true");
+    // (9.3) A confirmation counts at once only from someone heard holding the run.
+    author.run(`NS.dungeon.markHeard("donny-1", "Lebowski")`);
     author.run(`NS.dungeon.lastReplay = nil; NS.dungeon.replayPending()`);
     deliver(author, "Donny", carrier);
     const ack = deliver(carrier, "Lebowski", author);
@@ -198,7 +200,9 @@ describe("Dungeon.lua: confirmations, instance hold and pruning", () => {
     seedRun(s, "donny-2", ["Donny"]);
     s.run(`INSTANCE = true; NS.dungeon.lastReplay = nil; NS.dungeon.replayPending()`);
     expect(sent(s)).toEqual([]);
+    // (9.3) Inside an instance the summary is not even queued; it follows once the player is outside.
     s.run(`INSTANCE = false; GT = GT + 30; NS.comm.send("GuildedDgn", "nudge", "PARTY")`);
+    timers(s);
     expect(sent(s).some((l) => l.startsWith("GuildedDgn>SUM|donny-2|"))).toBe(true);
   });
 

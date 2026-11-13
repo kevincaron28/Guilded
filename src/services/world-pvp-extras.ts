@@ -1,3 +1,6 @@
+import { cardAttachment } from "./card-alt.js";
+import { scoreCardPng } from "./score-card.js";
+import { worldPvpRecapCard } from "./world-pvp-card.js";
 import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
@@ -219,8 +222,17 @@ export async function deliverWeeklyRecap(discordGuild: DiscordGuild, db: PostDb,
   const data = await loadWorldPvpData(db, guildId, record?.gameEdition ?? "forever", new Date(weekRange(week).from.getTime() + 1_000));
   const recap = weekRecap(data.standings, await loadWeekCalls(db, guildId, week));
   if (!recap.killer && !recap.defender && !recap.helper) return false;
-  try { await channel.send({ content: recapText(recap, asLang(settings.language)), allowedMentions: { parse: [] } }); }
-  catch (error) { if (isGone(error)) return false; throw error; }
+  // 9.3: the card carries every line of the text (the category is in each row's name, so the alt text keeps it). Any failure drawing or
+  // sending the picture (a channel without Attach Files, 50013, included) falls back to the text; the week is already claimed, so it must not be lost.
+  const lang = asLang(settings.language), text = { content: recapText(recap, lang), allowedMentions: { parse: [] as never[] } };
+  try {
+    let sent = false;
+    try {
+      const png = await scoreCardPng(worldPvpRecapCard(recap, lang)).catch(() => null);
+      if (png) { await channel.send({ files: [cardAttachment(png, "world-pvp-recap.png")], allowedMentions: { parse: [] } }); sent = true; }
+    } catch (error) { console.error("World PvP recap card not sent, falling back to text", error); }
+    if (!sent) await channel.send(text);
+  } catch (error) { if (isGone(error)) return false; throw error; }
   return true;
 }
 

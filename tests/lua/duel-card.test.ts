@@ -431,4 +431,64 @@ describe("duel leaderboard", () => {
     say("Zed Outsider has defeated Kev Caron in a duel");
     expect(texts(lua)).toContain("n'est pas dans votre guilde");
   });
+
+  it("ships Media/DuelCard.blp as a BLP2 texture with power-of-two sides", () => {
+    const file = readFileSync(new URL("../../addon/Guilded/Media/DuelCard.blp", import.meta.url));
+    expect(file.subarray(0, 4).toString("ascii")).toBe("BLP2");
+    const w = file.readUInt32LE(12), h = file.readUInt32LE(16);
+    for (const side of [w, h]) { expect(side).toBeGreaterThan(0); expect(side & (side - 1)).toBe(0); }
+    expect(file.length).toBeLessThan(200 * 1024);
+    expect(setup() && stat("NS.duels.CARD_ART")).toBe("Interface\\AddOns\\Guilded\\Media\\DuelCard");
+  });
+
+  it("cuts an accented long name on a character boundary, never inside a UTF-8 sequence", () => {
+    const lua = setup();
+    // "A" + E-acute (2 bytes) + "lodie Gagnon-Tremblay": a cut of 5 would land inside the accent.
+    expect(lua.run(String.raw`return NS.duels.fitName("A\195\137lodie Gagnon-Tremblay", 5)`)).toBe("A...");
+    expect(lua.run(String.raw`return NS.duels.fitName("\195\137lodie Gagnon-Tremblay", 5)`)).toBe("\u00c9...");
+    expect(lua.run(String.raw`return NS.duels.fitName("\195\137lodie Gagnon-Tremblay", 4)`)).toBe("...");
+    expect(lua.run(String.raw`return NS.duels.fitName("Short \195\137", 20)`)).toBe("Short \u00c9");
+  });
+
+  it("says the opponent fled after a duel with a non-guildmate", () => {
+    const lua = setup();
+    lua.run("UnitExists = function() return false end");
+    say("Zed Outsider has fled from Kev Caron in a duel");
+    const t = texts(lua);
+    expect(t).toContain("VICTORY");
+    expect(t).toContain("the opponent fled");
+    expect(t).toContain("Not counted on the guild ladder: Zed Outsider is not in your guild.");
+  });
+
+  it("does not claim a guildmate is an outsider while the guild roster has not loaded", () => {
+    const lua = setup();
+    lua.run(`GUILD_MEMBERS = {}; IsInGuild = function() return true end; GetNumGuildMembers = function() return 0 end; UnitExists = function() return false end`);
+    say("Kev Caron has defeated Bob Smith in a duel");
+    const t = texts(lua);
+    expect(t).toContain("Not counted yet: the guild roster has not loaded.");
+    expect(t).not.toContain("is not in your guild");
+    expect(lua.run("return tostring(NS.duels.lastCard.outsider) .. tostring(NS.duels.lastCard.rosterPending)")).toBe("falsetrue");
+    expect(lua.run("return #NS.duels.cardStats(NS.duels.lastCard)")).toBe("0");
+  });
+
+  it("remembers the opponent's class and level from the target when the duel starts", () => {
+    const lua = setup();
+    lua.run(`UnitExists = function(unit) return unit == "target" and TARGETED end; TARGETED = true
+      UnitName = function(unit) if unit == "target" then return "Zed" end return "Kev" end
+      UnitClass = function(unit) if unit == "target" then return "Warlock", "WARLOCK" end return "Warrior", "WARRIOR" end
+      UnitLevel = function(unit) if unit == "target" then return 31 end return 60 end`);
+    lua.run(`NOW = 100; fire_event("DUEL_COUNTDOWN", 3); NOW = 150; CLOCK = CLOCK + 50; TARGETED = false`); // no longer targeted at the end
+    say("Zed Outsider has defeated Kev Caron in a duel");
+    expect(lua.run("return NS.duels.lastCard.oppClass .. NS.duels.lastCard.oppLevel")).toBe("WARLOCK31");
+  });
+
+  it("draws four stat columns when a streak joins the record, points and rank", () => {
+    const lua = setup();
+    playDuel(lua, "Kev Caron has defeated Bob Smith in a duel");
+    lua.run("CARD:Hide(); CLOCK = CLOCK + 5000");
+    playDuel(lua, "Kev Caron has defeated Cy Jones in a duel");
+    expect(lua.run("return #NS.duels.cardStats(NS.duels.lastCard)")).toBe("4");
+    expect(texts(lua)).toContain("Streak");
+    expect(texts(lua)).toContain("W2");
+  });
 });

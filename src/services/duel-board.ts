@@ -6,7 +6,9 @@ import type { PrismaClient } from "../generated/prisma/client.js";
 import { asLang, type Lang } from "../i18n.js";
 import { createGuildService } from "./guild.js";
 import { deliverDiscordJob, dispatchDiscordJob, enqueueDiscordJob } from "./discord-jobs.js";
-import { duelLeaderboard, percent, streakText, type DuelStanding } from "./duels.js";
+import { duelLadder, percent, streakText, type DuelStanding, type LadderStanding } from "./duels.js";
+import { ratingSeasonName, showRating } from "./duel-rating.js";
+import { ratingFooter } from "./duel-rules.js";
 import { displayCharacterName, loadFullNameBook, type FullNameBook } from "./character-display.js";
 import { classOf, loadClassBook, type ClassBook } from "./ladder-classes.js";
 import { classColor, ladderMeta, scoreCardPng, type ScoreCard } from "./score-card.js";
@@ -23,7 +25,12 @@ const TOP = 10, CARD_TOP = 25, RECENT = 5, RECENT_DAYS = 7;
 export const DUEL_CARD_FILE = "duels.png";
 
 export interface RecentDuel { winner: string; loser: string; endedAt: Date; reason: string }
-export interface DuelBoardData { standings: DuelStanding[]; duels: number; recent: RecentDuel[]; edition: string }
+export interface DuelBoardData { standings: (DuelStanding & Partial<Pick<LadderStanding, "rank" | "ranked" | "placement">>)[]; duels: number; recent: RecentDuel[]; edition: string;
+  /** "rating" from the rating start date (rating-v1); the old points before it (absent = points). */
+  mode?: "points" | "rating"; seasonId?: string; startsAt?: Date }
+
+/** What the score column of a row says: the points, or the shown rating, or the placement progress while unranked. */
+const scoreText = (row: DuelBoardData["standings"][number]) => row.placement ? `${row.placement.duels}/${row.placement.needDuels}` : String(row.ranked === undefined ? row.score : showRating(row.score));
 
 /**
  * Pure: the duel ladder picture (shared ladder layout): top 25 by the duel ranking, medals for the top 3, class colours where the
@@ -33,15 +40,15 @@ export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBoo
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Duels de la guilde" : "Guild duels",
-    subtitle: fr ? `${data.duels} duels comptés · ${data.standings.length} duellistes` : `${data.duels} counted duels · ${data.standings.length} duellists`,
+    subtitle: (data.mode === "rating" && data.seasonId ? `${ratingSeasonName(data.seasonId, lang)} · ` : "") + (fr ? `${data.duels} duels comptés · ${data.standings.length} duellistes` : `${data.duels} counted duels · ${data.standings.length} duellists`),
     backdrop: { kind: "board", key: "duel" },
-    stats: [], footer: fr ? "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · 5 duels par paire et par jour au plus · aucune récompense" : "Score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · max 5 duels per pair per day · no rewards",
+    stats: [], footer: data.mode === "rating" && data.seasonId ? ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt) : fr ? "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · 5 duels par paire et par jour au plus · aucune récompense" : "Score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · max 5 duels per pair per day · no rewards",
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun duel enregistré." : "No duel recorded yet.",
-      columns: [{ label: "Score", width: 52, primary: true }, { label: fr ? "V" : "W", width: 44 }, { label: fr ? "D" : "L", width: 44 }, { label: fr ? "% vict." : "Win %", width: 64 },
+      columns: [{ label: data.mode === "rating" ? (fr ? "Cote" : "Rating") : "Score", width: 52, primary: true }, { label: fr ? "V" : "W", width: 44 }, { label: fr ? "D" : "L", width: 44 }, { label: fr ? "% vict." : "Win %", width: 64 },
         { label: fr ? "Record" : "Best", width: 56 }, { label: fr ? "Série" : "Streak", width: 56 }, ...(moves ? [moveColumn(lang)] : [])],
-      boards: [{ rows: data.standings.slice(0, CARD_TOP).map((row, index) => ({ rank: index + 1, name: row.name, color: classColor(classOf(classes, row.name)),
-        values: [String(row.score), String(row.wins), String(row.losses), percent(row.winRate), String(row.bestStreak), streakText(row.streak), ""], ...moveFields(moves, row.memberId, lang) })) }]
+      boards: [{ rows: data.standings.slice(0, CARD_TOP).map((row, index) => ({ rank: row.rank === undefined ? index + 1 : row.rank ?? 0, name: row.name, color: classColor(classOf(classes, row.name)),
+        values: [scoreText(row), String(row.wins), String(row.losses), percent(row.winRate), String(row.bestStreak), streakText(row.streak), ""], ...moveFields(moves, row.memberId, lang) })) }]
     }
   };
 }
@@ -57,7 +64,7 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, image?: string):
   } else {
     const rows = data.standings.slice(0, image ? 3 : TOP).map((row, index) => {
       const medal = ["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`;
-      return `${medal} ${name(row.name)} — ${row.score} pts · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} · ${percent(row.winRate)} · ${t("best streak", "meilleure série")} ${row.bestStreak} · ${streakText(row.streak)}`;
+      return `${medal} ${name(row.name)} — ${data.mode === "rating" ? (row.placement ? t(`placement ${scoreText(row)}`, `placement ${scoreText(row)}`) : `${scoreText(row)}`) : `${row.score} pts`} · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} · ${percent(row.winRate)} · ${t("best streak", "meilleure série")} ${row.bestStreak} · ${streakText(row.streak)}`;
     });
     // With the picture, its top 3 repeat the card: the embed keeps only the title and the latest duels (9.3).
     if (!image) embed.setDescription(rows.join("\n"));
@@ -67,14 +74,15 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, image?: string):
     }
   }
   if (image && data.standings.length) embed.setImage(`attachment://${image}`);
+  if (data.mode === "rating" && data.seasonId) return embed.setFooter({ text: `${data.duels} ${t("counted duels", "duels comptés")} · ${ratingFooter(lang, ratingSeasonName(data.seasonId, lang), data.startsAt)}`.slice(0, 2000) });
   return embed.setFooter({ text: t(`${data.duels} counted duels · score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · max 5 per pair per day · no rewards`, `${data.duels} duels comptés · score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 en dessous (0-20) · 5 par paire et par jour · aucune récompense`) });
 }
 
-export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult">, guildId: string, edition: string, now = new Date()): Promise<DuelBoardData> {
-  const { standings, duels } = await duelLeaderboard(db, guildId, edition, { limit: CARD_TOP });
+export async function loadDuelBoardData(db: Pick<PrismaClient, "duelResult"> & { guildSettings?: Pick<PrismaClient["guildSettings"], "findUnique"> }, guildId: string, edition: string, now = new Date()): Promise<DuelBoardData> {
+  const { standings, duels, mode, season, startsAt } = await duelLadder(db, guildId, edition, { limit: CARD_TOP, now });
   const recentRows = await db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, endedAt: { gte: new Date(now.getTime() - RECENT_DAYS * 86_400_000) } },
     orderBy: { endedAt: "desc" }, take: RECENT, select: { winnerCharacter: true, loserCharacter: true, endedAt: true, reason: true } });
-  return { standings, duels, edition,
+  return { standings, duels, edition, mode, ...(season ? { seasonId: season.id } : {}), startsAt,
     recent: recentRows.map(row => ({ winner: row.winnerCharacter, loser: row.loserCharacter, endedAt: row.endedAt, reason: row.reason })) };
 }
 

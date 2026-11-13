@@ -12,13 +12,16 @@ import { classColor, ladderMeta, type ScoreCard } from "./score-card.js";
 //   - kills: at most WEEKLY_KILL_CAP a week, and a victim beyond REPEAT_VICTIM_LIMIT kills in the member's recent list stops counting;
 //   - helped (calls answered): at most the calls other guildmates really made that week (GuildHelpCall);
 //   - defends: at most helped and at most the kills.
-// Deaths are never uploaded or shown (owner default, 7 November 2026). A re-upload can only raise a number.
+// Deaths (9.3, owner request 13 November 2026): the addon counts deaths to enemy players in the open world (never the killer's name);
+// they are capped at WEEKLY_DEATH_CAP a week, shown beside kills as deaths and K/D, and never raise a rank or earn anything.
+// An old addon sends no `deaths`: it counts as 0. A re-upload can only raise a number.
 
 export const WEEK_SECONDS = 7 * 86_400;
 /** The addon's weeks start on Tuesday 15:00 UTC, counted from the epoch (a Thursday). Same formula as Modules/WorldPvP.lua. */
 export const WEEK_OFFSET_SECONDS = 5 * 86_400 + 15 * 3_600;
 export const WEEKLY_KILL_CAP = 300;
 export const REPEAT_VICTIM_LIMIT = 3;
+export const WEEKLY_DEATH_CAP = 500;
 const TOP = 5, CARD_TOP = 10;
 export const WORLD_PVP_CARD_FILE = "world-pvp.png";
 export const WORLD_PVP_MARKER = "Guilded world PvP";
@@ -33,6 +36,8 @@ const count = z.number().int().min(0).max(1_000_000);
 export const worldPvpUploadSchema = z.object({
   weekKey: z.number().int().min(0).max(100_000),
   kills: count, defends: count, responded: count,
+  /** Open-world deaths this week; absent from an addon older than 9.3. */
+  deaths: count.optional(),
   recent: z.array(z.object({ n: z.string().min(1).max(40), at: z.number().int().min(0).max(4_000_000_000), d: z.number().int().min(0).max(1).optional() })).max(30).default([])
 });
 export type WorldPvpUpload = z.infer<typeof worldPvpUploadSchema>;
@@ -52,7 +57,13 @@ export function parseWorldPvpUpload(value: unknown): WorldPvpUpload | null {
   return parseWorldPvpUploads(value)[0] ?? null;
 }
 
-export interface WorldPvpCounts { kills: number; defends: number; helped: number }
+export interface WorldPvpCounts { kills: number; defends: number; helped: number; /** Absent counts as 0. */ deaths?: number }
+
+/** Pure: deaths as stored: at most WEEKLY_DEATH_CAP a week; no upload field (an older addon) is 0. */
+export const cappedDeaths = (upload: { deaths?: number | undefined }): number => Math.max(0, Math.min(WEEKLY_DEATH_CAP, upload.deaths ?? 0));
+
+/** Pure: kills per death, one decimal; with no deaths it is the kills. */
+export const killDeathRatio = (kills: number, deaths: number): string => (deaths > 0 ? kills / deaths : kills).toFixed(1);
 
 /**
  * Pure: the counted numbers for one member and week. `guildCalls` is the number of calls for help made by other guildmates that week.
@@ -95,11 +106,12 @@ export async function applyWorldPvpUpload(db: ApplyDb, guildId: string, memberId
   const guildCalls = await db.guildHelpCall.count({ where: { guildId, memberId: { not: memberId }, calledAt: { gte: range.from, lt: range.to } } });
   const inWeek = upload.recent.filter(row => row.at * 1000 >= range.from.getTime() && row.at * 1000 < range.to.getTime());
   const next = cappedCounts({ ...upload, recent: inWeek }, guildCalls);
-  if (!next.kills && !next.defends && !next.helped) return false;
+  const deaths = cappedDeaths(upload);
+  if (!next.kills && !next.defends && !next.helped && !deaths) return false;
   const where = { guildId_memberId_weekKey: { guildId, memberId, weekKey: upload.weekKey } };
-  const existing = await db.worldPvpWeek.findUnique({ where, select: { kills: true, defends: true, helped: true } });
-  const merged = { kills: Math.max(existing?.kills ?? 0, next.kills), defends: Math.max(existing?.defends ?? 0, next.defends), helped: Math.max(existing?.helped ?? 0, next.helped) };
-  if (existing && existing.kills === merged.kills && existing.defends === merged.defends && existing.helped === merged.helped) return false;
+  const existing = await db.worldPvpWeek.findUnique({ where, select: { kills: true, defends: true, helped: true, deaths: true } });
+  const merged = { kills: Math.max(existing?.kills ?? 0, next.kills), defends: Math.max(existing?.defends ?? 0, next.defends), helped: Math.max(existing?.helped ?? 0, next.helped), deaths: Math.max(existing?.deaths ?? 0, deaths) };
+  if (existing && existing.kills === merged.kills && existing.defends === merged.defends && existing.helped === merged.helped && existing.deaths === merged.deaths) return false;
   await db.worldPvpWeek.upsert({ where, create: { guildId, memberId, weekKey: upload.weekKey, ...merged }, update: merged });
   return true;
 }
@@ -107,15 +119,18 @@ export async function applyWorldPvpUpload(db: ApplyDb, guildId: string, memberId
 export interface WorldPvpStanding extends WorldPvpCounts { memberId: string; name: string }
 export interface WorldPvpData { weekKey: number; standings: WorldPvpStanding[] }
 
-/** Pure: kills, then defends, then calls answered, then name. Members with nothing are left out. */
+/**
+ * Pure: kills, then defends, then calls answered, then fewer deaths, then name. Deaths only break a tie: they never lift a rank, and a member
+ * with deaths but nothing else is left out like any member with nothing.
+ */
 export function worldPvpStandings(rows: readonly (WorldPvpCounts & { memberId: string })[], names: ReadonlyMap<string, string>): WorldPvpStanding[] {
   return rows.filter(row => row.kills || row.defends || row.helped).map(row => ({ ...row, name: names.get(row.memberId) ?? "?" }))
-    .sort((a, b) => b.kills - a.kills || b.defends - a.defends || b.helped - a.helped || a.name.localeCompare(b.name));
+    .sort((a, b) => b.kills - a.kills || b.defends - a.defends || b.helped - a.helped || (a.deaths ?? 0) - (b.deaths ?? 0) || a.name.localeCompare(b.name));
 }
 
 export async function loadWorldPvpData(db: Pick<PrismaClient, "worldPvpWeek" | "member"> & Partial<Pick<PrismaClient, "unclaimedCharacter" | "guildRosterEntry" | "character">>, guildId: string, edition: string, now = new Date()): Promise<WorldPvpData> {
   const weekKey = weekKeyOf(now);
-  const rows = await db.worldPvpWeek.findMany({ where: { guildId, weekKey, member: { guildId, status: "ACTIVE" } }, select: { memberId: true, kills: true, defends: true, helped: true } });
+  const rows = await db.worldPvpWeek.findMany({ where: { guildId, weekKey, member: { guildId, status: "ACTIVE" } }, select: { memberId: true, kills: true, defends: true, helped: true, deaths: true } });
   const members = await db.member.findMany({ where: { id: { in: rows.map(row => row.memberId) } }, select: { id: true, displayName: true, characters: { where: { gameEdition: edition }, orderBy: [{ isMain: "desc" }, { name: "asc" }], take: 1, select: { name: true, displayName: true } } } });
   const book = await loadFullNameBook(db as never, guildId);
   const names = new Map(members.map(member => [member.id, member.characters?.[0] ? displayCharacterName(member.characters[0], book) : member.displayName]));
@@ -127,14 +142,15 @@ export function worldPvpCard(data: WorldPvpData, lang: Lang, classes: ClassBook 
   const fr = lang === "fr";
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "JcJ en monde ouvert" : "World PvP",
-    subtitle: fr ? "Cette semaine (reset du mardi) · victoires, défenses et appels à l'aide" : "This week (Tuesday reset) · kills, defends and calls answered",
+    subtitle: fr ? "Cette semaine (reset du mardi) · victoires, défenses, appels à l'aide, morts et R/M" : "This week (Tuesday reset) · kills, defends, calls answered, deaths and K/D",
     backdrop: { kind: "board", key: "world-pvp" },
     stats: [], footer: fr ? "Compteurs des joueurs, plafonnés · distinct des champs de bataille et des duels · aucun point ni récompense" : "Player counters, capped · separate from battlegrounds and duels · no points or awards",
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucune activité JcJ en monde ouvert cette semaine." : "No open-world PvP this week yet.",
-      columns: [{ label: fr ? "Vict." : "Kills", width: 52, primary: true }, { label: fr ? "Déf." : "Def.", width: 46 }, { label: fr ? "Aide" : "Helped", width: 52 }],
+      columns: [{ label: fr ? "Vict." : "Kills", width: 52, primary: true }, { label: fr ? "Déf." : "Def.", width: 46 }, { label: fr ? "Aide" : "Helped", width: 52 },
+        { label: fr ? "Morts" : "Deaths", width: 56 }, { label: fr ? "R/M" : "K/D", width: 44 }],
       boards: [{ rows: data.standings.slice(0, CARD_TOP).map((player, index) => ({ rank: index + 1, name: player.name, color: classColor(classOf(classes, player.name)),
-        values: [String(player.kills), String(player.defends), String(player.helped)] })) }]
+        values: [String(player.kills), String(player.defends), String(player.helped), String(player.deaths ?? 0), killDeathRatio(player.kills, player.deaths ?? 0)] })) }]
     }
   };
 }
@@ -147,9 +163,9 @@ export function worldPvpEmbed(data: WorldPvpData, lang: Lang, image?: string): E
   if (!data.standings.length) {
     embed.setDescription(t("No open-world PvP yet this week. Kills, defends and calls answered come from members' Guilded addon.", "Aucune activité JcJ en monde ouvert cette semaine. Les victoires, défenses et appels viennent de l'addon Guilded des membres."));
   } else {
-    embed.setDescription(t("Open-world kills, then defends (kills after answering a guildmate's call for help), then calls answered. Resets with the raid week.", "Victoires en monde ouvert, puis défenses (victoires après avoir répondu à un appel à l'aide), puis appels répondus. Remise à zéro avec la semaine de raid."));
+    embed.setDescription(t("Open-world kills, then defends (kills after answering a guildmate's call for help), then calls answered; deaths and K/D are shown but never lift a rank (ties go to fewer deaths). Resets with the raid week.", "Victoires en monde ouvert, puis défenses (victoires après avoir répondu à un appel à l'aide), puis appels répondus ; les morts et le R/M sont affichés mais ne font jamais monter un rang (à égalité, moins de morts passe devant). Remise à zéro avec la semaine de raid."));
     if (!image) {
-      const rows = data.standings.slice(0, TOP).map((p, i) => `${["🥇", "🥈", "🥉"][i] ?? `**${i + 1}.**`} ${name(p.name)} — ${p.kills} ${t("kills", "victoires")} · ${p.defends} ${t("defends", "défenses")} · ${p.helped} ${t("answered", "répondus")}`);
+      const rows = data.standings.slice(0, TOP).map((p, i) => `${["🥇", "🥈", "🥉"][i] ?? `**${i + 1}.**`} ${name(p.name)} — ${p.kills} ${t("kills", "victoires")} · ${p.defends} ${t("defends", "défenses")} · ${p.helped} ${t("answered", "répondus")} · ${p.deaths ?? 0} ${t("deaths", "morts")} (${t("K/D", "R/M")} ${killDeathRatio(p.kills, p.deaths ?? 0)})`);
       embed.addFields({ name: t("Top this week", "Meilleurs de la semaine"), value: rows.join("\n").slice(0, 1024) });
     }
   }

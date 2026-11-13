@@ -1480,5 +1480,6 @@
   "Import from GRM": "Importer depuis GRM",
   "Convert a Guild Roster Manager backup into a local Guilded archive. No upload or game connection is needed.": "Convertit une sauvegarde de Guild Roster Manager en archive Guilded locale. Aucun envoi ni connexion au jeu n’est nécessaire.",
   "Officers: server settings are in Discord with /setup, and server data exports with /officer export.": "Officiers : les réglages du serveur sont dans Discord avec /setup, et les exports des données du serveur avec /officer export.",
-  "Privacy policy ↗": "Politique de confidentialité ↗"
+  "Privacy policy ↗": "Politique de confidentialité ↗",
+  "Guilded's server is not answering": "Le serveur de Guilded ne répond pas"
 }

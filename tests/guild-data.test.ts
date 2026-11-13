@@ -17,7 +17,7 @@ function fakeDb(seed: { characters?: Row[]; unclaimed?: Row[] } = {}) {
   let n = 0;
   const id = () => `id${++n}`;
   const match = (row: Row, where: Record<string, unknown>) => Object.entries(where).every(([k, v]) => {
-    if (k === "member" || k === "guildRankName" && typeof v === "object") return true;
+    if (k === "member" || k === "OR" || k === "guildRankName" && typeof v === "object") return true;
     if (v && typeof v === "object" && "in" in (v as object)) return ((v as { in: unknown[] }).in).includes(row[k]);
     if (v && typeof v === "object" && "gte" in (v as object)) return (row[k] as Date) >= (v as { gte: Date }).gte;
     return row[k] === v;
@@ -44,11 +44,17 @@ function fakeDb(seed: { characters?: Row[]; unclaimed?: Row[] } = {}) {
     character: {
       findMany: async ({ where }: { where: { guildRankName?: unknown } }) => tables.characters!.filter((c) => where.guildRankName === undefined || c.guildRankName)
         .map((c) => ({ ...c, rankSeen: tables.rankSeen!.find((r) => r.characterId === c.id) ?? null })),
-      update: async ({ where, data }: { where: { id: string }; data: object }) => Object.assign(tables.characters!.find((c) => c.id === where.id)!, data)
+      update: async ({ where, data }: { where: { id: string }; data: object }) => Object.assign(tables.characters!.find((c) => c.id === where.id)!, data),
+      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: object }) => {
+        const rows = tables.characters!.filter((r) => match(r, where)); rows.forEach((r) => Object.assign(r, data)); return { count: rows.length };
+      }
     },
     unclaimedCharacter: {
       findMany: async () => tables.unclaimed!,
       update: async ({ where, data }: { where: { id: string }; data: object }) => Object.assign(tables.unclaimed!.find((c) => c.id === where.id)!, data),
+      updateMany: async ({ where, data }: { where: Record<string, unknown>; data: object }) => {
+        const rows = tables.unclaimed!.filter((r) => match(r, where)); rows.forEach((r) => Object.assign(r, data)); return { count: rows.length };
+      },
       // ON CONFLICT DO NOTHING: a row with the same key is kept, never doubled or thrown on
       createMany: async ({ data }: { data: Row[] }) => { for (const row of data) if (!tables.unclaimed!.some((c) => c.nameKey === row.nameKey)) tables.unclaimed!.push({ ...row, id: id() }); return { count: data.length }; }
     },
@@ -59,7 +65,14 @@ function fakeDb(seed: { characters?: Row[]; unclaimed?: Row[] } = {}) {
       }
     }
   };
-  return { tx: tx as never, tables };
+  // Every write is counted by table.method so a test can assert how many statements an upload costs.
+  const writes: string[] = [];
+  for (const [table, methods] of Object.entries(tx)) {
+    for (const [method, fn] of Object.entries(methods as Record<string, (...args: never[]) => unknown>)) {
+      if (/^(update|updateMany|upsert|create|createMany)$/.test(method)) (methods as Record<string, unknown>)[method] = (...args: never[]) => { writes.push(`${table}.${method}`); return fn(...args); };
+    }
+  }
+  return { tx: tx as never, tables, writes };
 }
 
 const upload = (members: Record<string, unknown>[], extra: Record<string, unknown> = {}, at = T) => parseAddonSnapshot({
@@ -175,5 +188,68 @@ describe("guild event log and text", () => {
     expect(out.guildRoster.members).toEqual([{ name: "Dude Lebowski", level: 12, class: "WARRIOR", online: false, lastOnline: T - 60 }]);
     expect(out.guildEvents).toEqual([{ type: "promote", actor: "Walter Sobchak", target: "Dude Lebowski", rank: "Officer", at: T }]);
     expect(out.guildInfo).toEqual({ at: T, motd: "Hi" });
+  });
+});
+
+describe("an upload costs a handful of statements, not one per member (12 Nov 2026: 19 s transaction)", () => {
+  const MANY = 200;
+  const names = Array.from({ length: MANY }, (_, i) => `Member${String.fromCharCode(65 + (i % 26))}${String.fromCharCode(65 + Math.floor(i / 26))}`);
+  const rosterOf = (rank = "Raider", online = false) => names.map((name, i) => ({ name, level: 30, class: "WARRIOR", rankName: i === 0 ? rank : "Raider", rankIndex: i === 0 && rank !== "Raider" ? 2 : 4, online, lastOnline: T - 86400 }));
+  const seedLinked = () => names.slice(0, 100).map((name, i) => linked(`c${i}`, name, { level: 30, className: "Warrior", lastSeenAt: new Date((T - 86400) * 1000), guildRankName: "Raider", guildRankIndex: 4, guildRankAt: new Date((T - 7200) * 1000) }));
+  const seedUnclaimed = () => names.slice(100).map((name, i) => ({ id: `u${i}`, nameKey: name.toLowerCase(), name, level: 30, lastSeenAt: new Date((T - 86400) * 1000), guildRankName: "Raider", guildRankAt: new Date((T - 7200) * 1000) }));
+  const officer = { memberId: "m-officer", officer: true };
+
+  async function firstUpload() {
+    const db = fakeDb({ characters: seedLinked(), unclaimed: seedUnclaimed() });
+    await applyGuildData(db.tx, "g", officer, upload(rosterOf(), {}, T - 7200), NOW);
+    db.writes.length = 0;
+    return db;
+  }
+
+  it("an officer re-uploading an identical, newer roster issues no per-row writes", async () => {
+    const db = await firstUpload();
+    const result = await applyGuildData(db.tx, "g", officer, upload(rosterOf()), NOW);
+    expect(result.skippedOlder).toBe(false);
+    expect(db.writes.filter((w) => /\.(update|upsert|create)$/.test(w))).toEqual([]);
+    expect(db.writes.length).toBeLessThanOrEqual(6);
+    // Rank confirmations still move guildRankAt (rank roles and roster gaps read its age), in one statement per table.
+    expect(db.tables.characters!.every((c) => c.guildRankAt.getTime() === T * 1000)).toBe(true);
+    expect(db.tables.unclaimed!.every((c) => c.guildRankAt.getTime() === T * 1000)).toBe(true);
+    expect(result.roster).toBe(MANY);
+  });
+
+  it("the same roster uploaded twice (a retry) changes nothing the second time", async () => {
+    const db = await firstUpload();
+    await applyGuildData(db.tx, "g", officer, upload(rosterOf()), NOW);
+    db.writes.length = 0;
+    const again = await applyGuildData(db.tx, "g", officer, upload(rosterOf()), NOW);
+    expect(again.skippedOlder).toBe(true);
+    expect(db.writes).toEqual([]);
+  });
+
+  it("a changed rank writes that row only, with its guildRankAt", async () => {
+    const db = await firstUpload();
+    await applyGuildData(db.tx, "g", officer, upload(rosterOf("Officer")), NOW);
+    expect(db.writes.filter((w) => w === "character.update")).toHaveLength(1);
+    expect(db.tables.characters![0]).toMatchObject({ guildRankName: "Officer", guildRankIndex: 2, guildRankAt: new Date(T * 1000) });
+    expect(db.tables.characters![1]).toMatchObject({ guildRankName: "Raider" });
+  });
+
+  it("online members' last seen is batched by value, not written one by one", async () => {
+    const db = await firstUpload();
+    await applyGuildData(db.tx, "g", officer, upload(rosterOf("Raider", true)), NOW);
+    expect(db.writes.filter((w) => /\.(update|upsert)$/.test(w))).toEqual([]);
+    expect(db.tables.characters!.every((c) => c.lastSeenAt.getTime() === T * 1000)).toBe(true);
+    expect(db.tables.unclaimed!.every((c) => c.lastSeenAt.getTime() === T * 1000)).toBe(true);
+    expect(db.writes.length).toBeLessThanOrEqual(8);
+  });
+
+  it("an older roster changes no rank, and a member's upload never touches ranks", async () => {
+    const db = await firstUpload();
+    await applyGuildData(db.tx, "g", officer, upload(rosterOf("Officer"), {}, T - 9000), NOW);
+    expect(db.tables.characters![0]).toMatchObject({ guildRankName: "Raider" });
+    const member = fakeDb({ characters: seedLinked(), unclaimed: seedUnclaimed() });
+    await applyGuildData(member.tx, "g", { memberId: "m", officer: false }, upload(rosterOf("Officer")), NOW);
+    expect(member.tables.characters![0]).toMatchObject({ guildRankName: "Raider", guildRankAt: new Date((T - 7200) * 1000) });
   });
 });

@@ -47,7 +47,8 @@ type Tx = Pick<Prisma.TransactionClient, "guildRosterEntry" | "guildEventEntry" 
 
 const toDate = (epoch: number | undefined) => epoch === undefined ? undefined : new Date(epoch * 1000);
 const later = (a: Date | null | undefined, b: Date | undefined) => b && (!a || b > a) ? b : undefined;
-interface UnclaimedRow { id: string; nameKey: string; level: number | null; lastSeenAt: Date }
+interface UnclaimedRow { id: string; nameKey: string; level: number | null; lastSeenAt: Date; guildRankName: string | null; guildRankAt: Date | null }
+const sameTime = (a: Date | null | undefined, b: Date | null | undefined) => (a?.getTime() ?? null) === (b?.getTime() ?? null);
 const titleClass = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
 
 /** Applies one upload's guild data inside the caller's transaction. */
@@ -62,16 +63,28 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
   const roster = snapshot.guildRoster;
   const observedAt = roster ? new Date(roster.at * 1000) : null;
   if (roster && observedAt && fresh(observedAt)) {
+    const started = Date.now();
+    // An unchanged roster must cost a handful of statements, not one per member (a 500-member guild held one
+    // transaction for ~19 s on 12 Nov 2026): a row is written on its own only when something real changes; rows
+    // that only move forward in time are batched by identical value.
+    const stats = { rowUpdates: 0, batches: 0 };
+    const rosterTouch = new Map<string, { ids: string[]; lastOnlineAt?: Date; reportedById: string | null }>();
+    const characterSeen = new Map<number, string[]>();
+    const unclaimedSeen = new Map<number, string[]>();
+    const characterRankTouch: string[] = [];
+    const unclaimedRankTouch: string[] = [];
     const members = roster.members.flatMap((raw) => { const parsed = memberSchema.safeParse(raw); return parsed.success ? [parsed.data] : []; });
     const stored = await tx.guildRosterEntry.findMany({ where: { guildId, gameEdition: edition } });
     const newest = stored.reduce<Date | null>((max, row) => !max || row.observedAt > max ? row.observedAt : max, null);
     if (newest && observedAt <= newest) result.skippedOlder = true;
     const byKey = new Map(stored.map((row) => [row.nameKey, row]));
     const characters = await tx.character.findMany({ where: { member: { guildId }, gameEdition: edition },
-      select: { id: true, name: true, realm: true, gameEdition: true, displayName: true, level: true, className: true, lastSeenAt: true, guildRankName: true } });
-    const unclaimed = await tx.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition }, select: { id: true, nameKey: true, level: true, lastSeenAt: true } });
+      select: { id: true, name: true, realm: true, gameEdition: true, displayName: true, level: true, className: true, lastSeenAt: true, guildRankName: true, guildRankIndex: true, guildRankAt: true } });
+    const unclaimed = await tx.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition }, select: { id: true, nameKey: true, level: true, lastSeenAt: true, guildRankName: true, guildRankAt: true } });
     const unclaimedByKey = new Map(unclaimed.map((row) => [row.nameKey, row]));
     const seenKeys = new Set<string>();
+    // Rank comes only from an officer's upload, and only from a roster newer than what is stored.
+    const officerRanks = uploader.officer && !result.skippedOlder;
     for (const member of members) {
       const key = String(characterKey(member.name, "", edition));
       seenKeys.add(key);
@@ -82,8 +95,19 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         const data = { name: member.name, level: member.level ?? previous?.level ?? null, className: member.class ?? previous?.className ?? null,
           rankName: member.rankName ?? null, rankIndex: member.rankIndex ?? null,
           lastOnlineAt: later(previous?.lastOnlineAt, lastOnlineOk) ?? previous?.lastOnlineAt ?? null, inGuild: true, observedAt, reportedById };
-        await tx.guildRosterEntry.upsert({ where: { guildId_gameEdition_nameKey: { guildId, gameEdition: edition, nameKey: key } },
-          create: { guildId, gameEdition: edition, nameKey: key, ...data }, update: data });
+        if (previous && previous.inGuild && previous.name === data.name && previous.level === data.level && previous.className === data.className
+          && previous.rankName === data.rankName && previous.rankIndex === data.rankIndex) {
+          // Only the reading time (and maybe last online) moved: batched, grouped by the identical new value.
+          const moved = !sameTime(previous.lastOnlineAt, data.lastOnlineAt);
+          const group = `${moved ? data.lastOnlineAt?.getTime() : "same"}|${reportedById}`;
+          const batch = rosterTouch.get(group) ?? { ids: [], ...(moved && data.lastOnlineAt ? { lastOnlineAt: data.lastOnlineAt } : {}), reportedById };
+          batch.ids.push(previous.id);
+          rosterTouch.set(group, batch);
+        } else {
+          await tx.guildRosterEntry.upsert({ where: { guildId_gameEdition_nameKey: { guildId, gameEdition: edition, nameKey: key } },
+            create: { guildId, gameEdition: edition, nameKey: key, ...data }, update: data });
+          stats.rowUpdates++;
+        }
         result.roster++;
       }
       // The same facts on the bot's own characters: level up only, last seen forward only.
@@ -93,14 +117,22 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         if (member.level && member.level > (character.level ?? 0)) update.level = member.level;
         if (member.class && (!character.className || character.className === "UNKNOWN")) update.className = titleClass(member.class);
         const seen = later(character.lastSeenAt, lastOnlineOk);
-        if (seen) update.lastSeenAt = seen;
-        if (uploader.officer && member.rankName !== undefined && member.rankIndex !== undefined) {
-          update.guildRankName = member.rankName; update.guildRankIndex = member.rankIndex; update.guildRankAt = observedAt;
+        let touchRank = false;
+        if (officerRanks && member.rankName !== undefined && member.rankIndex !== undefined) {
+          if (character.guildRankName !== member.rankName || character.guildRankIndex !== member.rankIndex) {
+            update.guildRankName = member.rankName; update.guildRankIndex = member.rankIndex; update.guildRankAt = observedAt;
+          } else if (!character.guildRankAt || character.guildRankAt < observedAt) touchRank = true;   // same rank confirmed again (rank roles read its age)
         }
         if (Object.keys(update).length) {
+          if (seen) update.lastSeenAt = seen;
+          if (touchRank) update.guildRankAt = observedAt;
           await tx.character.update({ where: { id: character.id }, data: update });
+          stats.rowUpdates++;
           Object.assign(character, update);
           result.characters++;
+        } else {
+          if (seen) { characterSeen.set(seen.getTime(), [...(characterSeen.get(seen.getTime()) ?? []), character.id]); character.lastSeenAt = seen; result.characters++; }
+          if (touchRank) { characterRankTouch.push(character.id); character.guildRankAt = observedAt; }
         }
         continue;
       }
@@ -120,25 +152,54 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
           unclaimedByKey.delete(existing.nameKey); unclaimedByKey.set(key, existing); existing.nameKey = key;
         }
         if (member.level && member.level > (existing.level ?? 0)) update.level = member.level;
-        if (seen) update.lastSeenAt = seen;
-        if (uploader.officer && member.rankName !== undefined) { update.guildRankName = member.rankName; update.guildRankAt = observedAt; }
-        if (Object.keys(update).length) { await tx.unclaimedCharacter.update({ where: { id: existing.id }, data: update }); result.unclaimed++; }
+        let touchRank = false;
+        if (officerRanks && member.rankName !== undefined) {
+          if (existing.guildRankName !== member.rankName) { update.guildRankName = member.rankName; update.guildRankAt = observedAt; }
+          else if (!existing.guildRankAt || existing.guildRankAt < observedAt) touchRank = true;
+        }
+        if (Object.keys(update).length || !existing.id) {
+          if (seen) update.lastSeenAt = seen;
+          if (touchRank) update.guildRankAt = observedAt;
+        }
+        if (Object.keys(update).length) { await tx.unclaimedCharacter.update({ where: { id: existing.id }, data: update }); stats.rowUpdates++; result.unclaimed++; }
+        else {
+          if (seen && existing.id) { unclaimedSeen.set(seen.getTime(), [...(unclaimedSeen.get(seen.getTime()) ?? []), existing.id]); existing.lastSeenAt = seen; result.unclaimed++; }
+          if (touchRank && existing.id) { unclaimedRankTouch.push(existing.id); existing.guildRankAt = observedAt; }
+        }
       } else if (member.class && !result.skippedOlder) {
         // A guild member nobody linked yet: listed as unlinked (never linked to anyone here).
         // createMany + skipDuplicates is INSERT .. ON CONFLICT DO NOTHING: a parallel upload that created the row first
         // (P2002) neither errors nor aborts this transaction, and the row it made is kept.
         await tx.unclaimedCharacter.createMany({ skipDuplicates: true, data: [{ guildId, gameEdition: edition, nameKey: key, name: member.name, realm: "",
           className: titleClass(member.class), ...(member.level ? { level: member.level } : {}), lastSeenAt: lastOnlineOk ?? observedAt,
-          ...(uploader.officer && member.rankName !== undefined ? { guildRankName: member.rankName, guildRankAt: observedAt } : {}) }] });
-        unclaimedByKey.set(key, { id: "", nameKey: key, level: member.level ?? null, lastSeenAt: lastOnlineOk ?? observedAt });
+          ...(officerRanks && member.rankName !== undefined ? { guildRankName: member.rankName, guildRankAt: observedAt } : {}) }] });
+        unclaimedByKey.set(key, { id: "", nameKey: key, level: member.level ?? null, lastSeenAt: lastOnlineOk ?? observedAt, guildRankName: null, guildRankAt: null });
         result.unclaimed++;
       }
+    }
+    // The batched statements: one per group, not one per member.
+    for (const batch of rosterTouch.values()) {
+      await tx.guildRosterEntry.updateMany({ where: { id: { in: batch.ids } }, data: { observedAt, reportedById: batch.reportedById, ...(batch.lastOnlineAt ? { lastOnlineAt: batch.lastOnlineAt } : {}) } });
+      stats.batches++;
+    }
+    for (const [ms, ids] of characterSeen) { await tx.character.updateMany({ where: { id: { in: ids } }, data: { lastSeenAt: new Date(ms) } }); stats.batches++; }
+    for (const [ms, ids] of unclaimedSeen) { await tx.unclaimedCharacter.updateMany({ where: { id: { in: ids } }, data: { lastSeenAt: new Date(ms) } }); stats.batches++; }
+    if (characterRankTouch.length) {
+      await tx.character.updateMany({ where: { id: { in: characterRankTouch }, OR: [{ guildRankAt: null }, { guildRankAt: { lt: observedAt } }] }, data: { guildRankAt: observedAt } });
+      stats.batches++;
+    }
+    if (unclaimedRankTouch.length) {
+      await tx.unclaimedCharacter.updateMany({ where: { id: { in: unclaimedRankTouch }, OR: [{ guildRankAt: null }, { guildRankAt: { lt: observedAt } }] }, data: { guildRankAt: observedAt } });
+      stats.batches++;
     }
     // Only the newest complete roster may say someone left.
     if (roster.complete && !result.skippedOlder && seenKeys.size) {
       const gone = stored.filter((row) => row.inGuild && !seenKeys.has(row.nameKey)).map((row) => row.id);
       if (gone.length) result.left = (await tx.guildRosterEntry.updateMany({ where: { id: { in: gone } }, data: { inGuild: false, observedAt } })).count;
     }
+    // One journal line per roster (counts only, no names) so the next slowdown is visible.
+    console.info(`Guild roster applied: ${members.length} members, ${result.roster} roster rows changed, ${result.characters} characters, ${result.unclaimed} unlinked, `
+      + `${stats.rowUpdates} single-row writes, ${stats.batches} batched writes, ${result.skippedOlder ? "older than stored, " : ""}${Date.now() - started} ms.`);
   }
 
   // Event log: stored once whoever reads it.

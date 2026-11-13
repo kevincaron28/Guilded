@@ -2,7 +2,6 @@
 // scores as every other leaderboard (characterScores): no second scoring. Dungeons are grouped by instance id, never
 // by name: a French client uploads "Profondeurs de Brassenoire" and an English one "Blackfathom Deeps" for instance 48.
 
-import { slugFromName } from "./guild-page.js";
 import { characterScores } from "./public-score.js";
 import type { LeaderPlayer, LeaderRun, PublicGuild } from "./public-leaderboard.js";
 import type { BracketedRules } from "./dungeon-november-rules.js";
@@ -10,15 +9,30 @@ import { characterKey } from "../../companion/character-identity.mjs";
 
 const SLUG_MAX = 36;
 
-/** Readable address of every guild: the slug of its name, "-2", "-3"... for later guilds with the same slug (stable: input order is by name, then id). */
-export function guildSlugs(guilds: PublicGuild[]): Map<string, string> {
-  const sorted = [...guilds].sort((a, b) => a.name.length - b.name.length || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
-  const taken = new Set<string>();
+/** Slug candidate from a guild name: Latin letters and digits only. A name with none (Cyrillic, Chinese...) gets a deterministic slug from the guild id. */
+export function slugBase(name: string, id: string): string {
+  const slug = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, SLUG_MAX).replace(/-+$/, "");
+  return slug.length >= 2 ? slug : `g-${id.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 10) || "guild"}`;
+}
+/** The first free slug for a guild: its base, then "-2", "-3"... Used once per guild, when its slug is stored (never reassigned). */
+export function freeSlug(name: string, id: string, taken: ReadonlySet<string>): string {
+  const base = slugBase(name, id);
+  let slug = base;
+  for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`;
+  return slug;
+}
+
+/**
+ * Address of every guild: its stored publicSlug (assigned once, stable). Guilds with none yet (in-memory stores, a failed
+ * save) get a provisional free slug from the same rule; nothing here is persisted.
+ */
+export function guildSlugs(guilds: (PublicGuild & { publicSlug?: string | null })[]): Map<string, string> {
   const out = new Map<string, string>();
-  for (const guild of sorted) {
-    const base = slugFromName(guild.name).slice(0, SLUG_MAX).replace(/-+$/, "") || "guild";
-    let slug = base;
-    for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`;
+  const taken = new Set<string>();
+  for (const guild of guilds) if (guild.publicSlug) { out.set(guild.id, guild.publicSlug); taken.add(guild.publicSlug); }
+  for (const guild of [...guilds].sort((a, b) => a.id.localeCompare(b.id))) {
+    if (out.has(guild.id)) continue;
+    const slug = freeSlug(guild.name, guild.id, taken);
     taken.add(slug);
     out.set(guild.id, slug);
   }
@@ -28,7 +42,9 @@ export function guildSlugs(guilds: PublicGuild[]): Map<string, string> {
 const rosterHas = (roster: ReadonlySet<string>, player: LeaderPlayer, edition: string) =>
   [player.character, ...(player.aliases ?? [])].some((name) => roster.has(characterKey(name, player.realm, edition)));
 
-export interface GuildDungeonRow { instanceId: number; name: string; runs: number; bestSec: number; bestRunId: string; bestAt: Date; record: boolean }
+/** One dungeon in one difficulty / route: records and best times never mix them. */
+export const routeKeyOf = (run: Pick<LeaderRun, "instanceId" | "difficultyId" | "routeKey">) => `${run.instanceId}:${run.difficultyId ?? ""}:${run.routeKey ?? ""}`;
+export interface GuildDungeonRow { key: string; instanceId: number; difficultyId: number | null; routeKey: string | null; name: string; runs: number; bestSec: number; bestRunId: string; bestAt: Date; record: boolean }
 export interface GuildTopPlayer { player: LeaderPlayer; bracket: string; points: number }
 export interface GuildPageStats {
   /** Members of the guild with a ranked score in the period. */
@@ -57,22 +73,22 @@ export function guildPageStats(runs: LeaderRun[], roster: string[], rules: Brack
   const own = runs.filter((run) => !run.challenge && run.players.some((p) => rosterHas(members, p, edition)));
   const scores = characterScores(own, rules).filter((row) => rosterHas(members, row.player as LeaderPlayer, edition));
 
-  const fastest = new Map<number, LeaderRun>();
+  const fastest = new Map<string, LeaderRun>();
   for (const run of allRuns) {
     if (run.challenge) continue;
-    const best = fastest.get(run.instanceId);
-    if (!best || run.durationSec < best.durationSec || (run.durationSec === best.durationSec && run.endedAt < best.endedAt)) fastest.set(run.instanceId, run);
+    const best = fastest.get(routeKeyOf(run));
+    if (!best || run.durationSec < best.durationSec || (run.durationSec === best.durationSec && run.endedAt < best.endedAt)) fastest.set(routeKeyOf(run), run);
   }
-  const byInstance = new Map<number, LeaderRun[]>();
-  for (const run of own) byInstance.set(run.instanceId, [...(byInstance.get(run.instanceId) ?? []), run]);
-  const dungeons: GuildDungeonRow[] = [...byInstance.entries()].map(([instanceId, list]) => {
+  const byInstance = new Map<string, LeaderRun[]>();
+  for (const run of own) byInstance.set(routeKeyOf(run), [...(byInstance.get(routeKeyOf(run)) ?? []), run]);
+  const dungeons: GuildDungeonRow[] = [...byInstance.entries()].map(([key, list]) => {
     const best = list.reduce((a, b) => b.durationSec < a.durationSec || (b.durationSec === a.durationSec && b.endedAt < a.endedAt) ? b : a);
     const names = new Map<string, { n: number; at: number }>();
     for (const run of list) { const row = names.get(run.dungeonName) ?? { n: 0, at: 0 }; row.n++; row.at = Math.max(row.at, run.endedAt.getTime()); names.set(run.dungeonName, row); }
     const name = [...names.entries()].sort((a, b) => b[1].n - a[1].n || b[1].at - a[1].at || a[0].localeCompare(b[0]))[0]![0];
-    const top = fastest.get(instanceId);
-    return { instanceId, name, runs: list.length, bestSec: best.durationSec, bestRunId: best.runId, bestAt: best.endedAt, record: !!top && top.players.some((p) => rosterHas(members, p, edition)) };
-  }).sort((a, b) => a.instanceId - b.instanceId);
+    const top = fastest.get(key);
+    return { key, instanceId: best.instanceId, difficultyId: best.difficultyId ?? null, routeKey: best.routeKey ?? null, name, runs: list.length, bestSec: best.durationSec, bestRunId: best.runId, bestAt: best.endedAt, record: !!top && top.players.some((p) => rosterHas(members, p, edition)) };
+  }).sort((a, b) => a.instanceId - b.instanceId || a.key.localeCompare(b.key));
 
   const topByRole: GuildPageStats["topByRole"] = [];
   for (const role of ["TANK", "HEALER", "DPS"]) {

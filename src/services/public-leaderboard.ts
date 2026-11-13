@@ -20,7 +20,7 @@ import type { WebContext, WebKit, WebResponse, WebRoute } from "./web-app.js";
 import { classColor, scoreCardResponse, type CardRow, type CardStat } from "./score-card.js";
 import { currentEdition, withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
-import { guildPageStats, guildSlugs, unrankedReason } from "./guild-public-stats.js";
+import { freeSlug, guildPageStats, guildSlugs, routeKeyOf, unrankedReason } from "./guild-public-stats.js";
 import { duelLeaderboard, percent, streakText, type DuelStanding } from "./duels.js";
 import { pictureUrl } from "./character-picture.js";
 import type { PublicPicture } from "./public-pictures.js";
@@ -70,7 +70,7 @@ export interface LeaderboardStore {
   /** Counts for the guild leaderboard (GuildStats), for guilds already returned by guilds(). */
   guildStats?(guildIds: string[]): Promise<GuildStats[]>;
 }
-export interface PublicGuild { id: string; name: string; slug?: string | null }
+export interface PublicGuild { id: string; name: string; slug?: string | null; /** Stored address of the guild's leaderboard page, assigned once. */ publicSlug?: string | null }
 
 // A guild's score in a bracket: its GUILD_COUNT best members' scores added up (Raider.IO-style
 // team ranking), so one strong player cannot carry a guild alone.
@@ -129,11 +129,11 @@ export const averageLevel = (stats: GuildStats | null) => stats && stats.levelle
  * dungeon records its members hold (the period's fastest public clear of a dungeon has one of its members).
  */
 export function guildOverview(entries: { guild: PublicGuild; runs: LeaderRun[]; roster: string[] }[], ranks: GuildRank[], stats: GuildStats[], allRuns: LeaderRun[], edition = "forever"): GuildOverviewRow[] {
-  const fastest = new Map<number, LeaderRun>();
+  const fastest = new Map<string, LeaderRun>();
   for (const run of allRuns) {
     if (run.challenge) continue;
-    const best = fastest.get(run.instanceId);
-    if (!best || run.durationSec < best.durationSec || (run.durationSec === best.durationSec && run.endedAt < best.endedAt)) fastest.set(run.instanceId, run);
+    const best = fastest.get(routeKeyOf(run));
+    if (!best || run.durationSec < best.durationSec || (run.durationSec === best.durationSec && run.endedAt < best.endedAt)) fastest.set(routeKeyOf(run), run);
   }
   return entries.map(({ guild, runs, roster }) => {
     const members = new Set(roster.map((name) => name.toLowerCase()));
@@ -364,9 +364,20 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       return (await every({ status: "ACCEPTED", players: { some: { OR: names, ...(realm !== null ? { realm: { equals: realm, mode: "insensitive" } } : {}) } } })).sort(newestFirst);
     },
     async guilds() {
-      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition(), isTestServer: false } }, select: { guildId: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
-      return rows.filter((row) => allows(row.guild.discordId))
-        .map((row) => ({ id: row.guildId, name: row.guild.name, slug: row.guild.page?.published ? row.guild.page.slug : null })).sort((a, b) => a.name.localeCompare(b.name));
+      const rows = await database.guildSettings.findMany({ where: { publicDungeonRuns: true, guild: { gameEdition: currentEdition(), isTestServer: false } }, select: { guildId: true, publicSlug: true, guild: { select: { name: true, discordId: true, page: { select: { slug: true, published: true } } } } }, take: 200 });
+      const listed = rows.filter((row) => allows(row.guild.discordId));
+      // A guild's address is stored the first time it is listed and never changes (a rename keeps it, old links keep working).
+      if (listed.some((row) => !row.publicSlug)) {
+        const taken = new Set((await database.guildSettings.findMany({ where: { publicSlug: { not: null } }, select: { publicSlug: true }, take: 5_000 })).flatMap((row) => row.publicSlug ?? []));
+        for (const row of listed.filter((r) => !r.publicSlug).sort((a, b) => a.guildId.localeCompare(b.guildId))) {
+          for (let attempt = 0; attempt < 4; attempt++) {
+            const slug = freeSlug(row.guild.name, row.guildId, taken);
+            try { await database.guildSettings.update({ where: { guildId: row.guildId }, data: { publicSlug: slug } }); row.publicSlug = slug; taken.add(slug); break; }
+            catch { taken.add(slug); }
+          }
+        }
+      }
+      return listed.map((row) => ({ id: row.guildId, name: row.guild.name, publicSlug: row.publicSlug, slug: row.guild.page?.published ? row.guild.page.slug : null })).sort((a, b) => a.name.localeCompare(b.name));
     },
     async guildRoster(guildId) {
       const rows = await database.character.findMany({ where: { member: { guildId, status: "ACTIVE" } }, select: { name: true, realm: true, gameEdition: true }, take: 5_000 });
@@ -610,29 +621,63 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   async function guildRanks(period: PublicPeriod): Promise<GuildRank[]> {
     return rankGuilds(await guildEntries(period), periodRules(period));
   }
-  // Readable guild addresses and "which public guild is this character in" (roster of a guild that publishes its runs:
-  // the same rule that already lists the member on that guild's page). A character on two rosters gets no tag.
-  let guildIndex = { slugs: new Map<string, string>(), byKey: new Map<string, PublicGuild | null>() };
-  async function loadGuildIndex() {
-    guildIndex = await cached("guild-index", async () => {
-      const guilds = await cached("guilds", () => deps.store.guilds());
-      const byKey = new Map<string, PublicGuild | null>();
-      for (const guild of guilds) {
-        for (const key of await cached(`roster:${guild.id}`, () => deps.store.guildRoster(guild.id))) {
-          const lower = key.toLowerCase();
-          byKey.set(lower, byKey.has(lower) && byKey.get(lower)!.id !== guild.id ? null : guild);
+  // Per request: readable guild addresses and "which public guild is this character in". Only characters on a listed
+  // guild's roster with at least one public run of that guild in the period are tagged (what the guild page already
+  // shows); a character found in two guilds gets no tag. Built only for pages that need it, shared by concurrent
+  // requests of the same edition and period, and never able to fail a page (an error leaves addresses as ids, no tags).
+  interface GuildIndex { slugs: Map<string, string>; byKey: Map<string, PublicGuild | null>; byName: Map<string, PublicGuild | null> }
+  const emptyIndex = (): GuildIndex => ({ slugs: new Map(), byKey: new Map(), byName: new Map() });
+  const indexes = new WeakMap<WebContext, GuildIndex>();
+  const inflight = new Map<string, Promise<GuildIndex>>();
+  async function ensureIndex(ctx: WebContext, period?: PublicPeriod): Promise<GuildIndex> {
+    const edition = currentEdition();
+    const chosen = period ?? (await pageFilters(ctx)).period;
+    const key = `guild-index:${edition}:${chosen.id}:${chosen.from?.getTime() ?? ""}`;
+    let promise = inflight.get(key);
+    if (!promise) {
+      promise = cached(key, async (): Promise<GuildIndex> => {
+        const guilds = await cached("guilds", () => deps.store.guilds());
+        const entries = await Promise.all(guilds.map(async (guild) => ({ guild, runs: await guildRuns(guild.id, chosen), roster: await cached(`roster:${guild.id}`, () => deps.store.guildRoster(guild.id)) })));
+        const byKey = new Map<string, PublicGuild | null>();
+        for (const { guild, runs, roster } of entries) {
+          const members = new Set(roster.map((name) => name.toLowerCase()));
+          for (const run of runs) for (const player of run.players) {
+            if (!onRoster(members, player, edition)) continue;
+            for (const name of [player.character, ...(player.aliases ?? [])]) {
+              const k = characterKey(name, player.realm, edition);
+              byKey.set(k, byKey.has(k) && byKey.get(k)?.id !== guild.id ? null : guild);
+            }
+          }
         }
-      }
-      return { slugs: guildSlugs(guilds), byKey };
-    });
+        const byName = new Map<string, PublicGuild | null>();
+        for (const guild of guilds) { const k = foldText(guild.name); byName.set(k, byName.has(k) ? null : guild); }
+        return { slugs: guildSlugs(guilds), byKey, byName };
+      });
+      inflight.set(key, promise);
+      promise.then(() => inflight.delete(key), () => inflight.delete(key));
+    }
+    let index: GuildIndex;
+    try { index = await promise; } catch { index = emptyIndex(); }
+    indexes.set(ctx, index);
+    return index;
   }
-  const guildPath = (guild: PublicGuild) => `/leaderboards/guild/${encodeURIComponent(guildIndex.slugs.get(guild.id) ?? guild.id)}`;
-  const guildLink = (ctx: WebContext, guild: PublicGuild) => `<a href="${link(guildPath(guild), ctx.lang)}">${escapeHtml(guild.name)}</a>`;
-  const guildOf = (player: LeaderPlayer): PublicGuild | null => [player.character, ...(player.aliases ?? [])].map((name) => guildIndex.byKey.get(characterKey(name, player.realm, currentEdition()))).find((guild) => guild) ?? null;
+  const indexOf = (ctx: WebContext) => indexes.get(ctx) ?? emptyIndex();
+  // Counts for every listed guild in one cached list: each page picks its guild(s) by guildId.
+  const allGuildStats = (): Promise<GuildStats[]> => deps.store.guildStats
+    ? cached(`guild-stats:${currentEdition()}`, async () => deps.store.guildStats!((await cached("guilds", () => deps.store.guilds())).map((g) => g.id)))
+    : Promise.resolve([]);
+  const guildPath = (ctx: WebContext, guild: PublicGuild) => `/leaderboards/guild/${encodeURIComponent(indexOf(ctx).slugs.get(guild.id) ?? guild.publicSlug ?? guild.id)}`;
+  const guildLink = (ctx: WebContext, guild: PublicGuild) => `<a href="${link(guildPath(ctx, guild), ctx.lang)}">${escapeHtml(guild.name)}</a>`;
+  const guildOf = (ctx: WebContext, player: LeaderPlayer): PublicGuild | null => {
+    const index = indexOf(ctx);
+    const own = [player.character, ...(player.aliases ?? [])].map((name) => index.byKey.get(characterKey(name, player.realm, currentEdition()))).find((guild) => guild);
+    if (own) return own;
+    // An uploader-supplied guild name is shown only when it is a listed guild's name; anything else is left out.
+    return player.guild ? index.byName.get(foldText(player.guild)) ?? null : null;
+  };
   const guildTag = (ctx: WebContext, player: LeaderPlayer) => {
-    const guild = guildOf(player);
-    if (guild) return ` <span class="tag guild-tag">&lt;${guildLink(ctx, guild)}&gt;</span>`;
-    return player.guild ? ` <span class="tag guild-tag">&lt;${escapeHtml(player.guild)}&gt;</span>` : "";
+    const guild = guildOf(ctx, player);
+    return guild ? ` <span class="tag guild-tag">&lt;${guildLink(ctx, guild)}&gt;</span>` : "";
   };
   function guildTable(ctx: WebContext, ranks: GuildRank[], limit: number): string {
     const { t } = ctx;
@@ -700,6 +745,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   async function charactersBoard(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
     const { periods, filters, period } = await pageFilters(ctx);
+    await ensureIndex(ctx, period);
     const rules = periodRules(period);
     const bracketKeys = rules.brackets.map((b) => b.key as string);
     const bracket = filters.bracket && bracketKeys.includes(filters.bracket) ? filters.bracket : bracketKeys[0] ?? null;
@@ -738,9 +784,10 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   async function guildsBoard(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
     const { filters, period } = await pageFilters(ctx);
+    await ensureIndex(ctx, period);
     const entries = await guildEntries(period);
     const ranks = rankGuilds(entries, periodRules(period));
-    const stats = deps.store.guildStats ? await cached("guild-stats", () => deps.store.guildStats!(entries.map((e) => e.guild.id))) : [];
+    const stats = await allGuildStats();
     const overview = guildOverview(entries, ranks, stats, await periodRuns(period), currentEdition());
     const base = "/leaderboards/guilds/";
     const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), null]], escapeHtml)
@@ -759,6 +806,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   async function board(ctx: WebContext, kit: WebKit): Promise<WebResponse> {
     const { t, lang } = ctx;
     const { periods, filters, period } = await pageFilters(ctx);
+    await ensureIndex(ctx, period);
     const periodResults = await periodRuns(period);
     const all = periodResults.filter(run => !run.challenge);
     const activeRules = periodRules(period);
@@ -967,11 +1015,12 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + `<p class="muted">${t("Scores use this run's season rules. Targets are provisional; community uploads are not Blizzard verification.", "Les scores suivent les règles de la saison du donjon. Les cibles sont provisoires; les envois communautaires ne sont pas vérifiés par Blizzard.")}</p>`, { description, shareImage: imagePath });
   }
 
-  const findGuild = (guilds: PublicGuild[], key: string) => guilds.find((g) => guildIndex.slugs.get(g.id) === key.toLowerCase()) ?? guilds.find((g) => g.id === key);
+  const findGuild = (ctx: WebContext, guilds: PublicGuild[], key: string) => guilds.find((g) => indexOf(ctx).slugs.get(g.id) === key.toLowerCase()) ?? guilds.find((g) => g.id === key);
   async function guildPage(ctx: WebContext, kit: WebKit, id: string): Promise<WebResponse> {
     const { t, lang } = ctx;
-    const guild = findGuild(await cached("guilds", () => deps.store.guilds()), id);
-    if (guild && id !== guildIndex.slugs.get(guild.id)) return kit.redirect(link(guildPath(guild), lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))));
+    await ensureIndex(ctx);
+    const guild = findGuild(ctx, await cached("guilds", () => deps.store.guilds()), id);
+    if (guild && id !== indexOf(ctx).slugs.get(guild.id)) return kit.redirect(link(guildPath(ctx, guild), lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))));
     if (!guild) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1><p class="muted">${t("Only guilds that publish their runs have a page.", "Seules les guildes qui publient leurs essais ont une page.")}</p><p><a href="${link("/leaderboards/guilds/", lang)}">${t("Guild rankings", "Classement des guildes")}</a></p>`, { noindex: true });
     const { filters, period } = await pageFilters(ctx);
     const runs = await guildRuns(guild.id, period);
@@ -987,7 +1036,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       return index < 0 ? [] : [`<span class="badge">${escapeHtml(bracketName(ctx, b.key))}</span> <span class="score">${inBracket[index]!.points}</span> <span class="tag">#${index + 1} / ${inBracket.length}</span>`];
     });
     const stats = guildPageStats(runs, rosterKeys, rules, (await periodRuns(period)).filter((run) => !run.challenge), currentEdition());
-    const info = deps.store.guildStats ? (await cached("guild-stats", () => deps.store.guildStats!([guild.id])))[0] ?? null : null;
+    const info = (await allGuildStats()).find((row) => row.guildId === guild.id) ?? null;
     const reason = unrankedReason(runs, stats);
     const reasonText = {
       "no-runs": t("This guild publishes its dungeon runs, but none has been received this period yet.", "Cette guilde publie ses donjons, mais aucun n'a encore été reçu pour cette période."),
@@ -1004,13 +1053,13 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       + tile(t("Dungeon records", "Records de donjon"), String(stats.records))
       + (info ? tile(t("Members", "Membres"), String(info.members)) + tile(t("At level 60", "Niveau 60"), `${info.at60}<span class="tag">/${info.levelled}</span>`) : "") + `</div>`;
     const dungeonTable = stats.dungeons.length ? table([t("Dungeon", "Donjon"), t("Clears", "Réussites"), t("Best time", "Meilleur temps"), t("Date", "Date"), ""],
-      stats.dungeons.map((d) => `<tr><td>${escapeHtml(d.name)}</td><td class="num">${d.runs}</td><td class="num"><a href="${link(runPath(d.bestRunId), lang)}">${time(d.bestSec)}</a></td><td>${date(d.bestAt)}</td><td>${d.record ? `<span class="badge ok" title="${t("Fastest public clear of this dungeon this period", "Essai public le plus rapide de ce donjon pour la période")}">${t("Record", "Record")}</span>` : ""}</td></tr>`), [1, 2])
+      stats.dungeons.map((d) => `<tr><td>${escapeHtml(d.name)}${stats.dungeons.some((o) => o !== d && o.instanceId === d.instanceId) ? ` <span class="tag">${escapeHtml(d.routeKey ?? (d.difficultyId === null ? "" : `${t("difficulty", "difficulté")} ${d.difficultyId}`))}</span>` : ""}</td><td class="num">${d.runs}</td><td class="num"><a href="${link(runPath(d.bestRunId), lang)}">${time(d.bestSec)}</a></td><td>${date(d.bestAt)}</td><td>${d.record ? `<span class="badge ok" title="${t("Fastest public clear of this dungeon this period", "Essai public le plus rapide de ce donjon pour la période")}">${t("Record", "Record")}</span>` : ""}</td></tr>`), [1, 2])
       : `<p class="muted">${t("No dungeon cleared by a member in this period yet.", "Aucun donjon terminé par un membre pour cette période.")}</p>`;
     const roleRows = stats.topByRole.length ? table([t("Role", "Rôle"), t("Player", "Joueur"), t("Levels", "Niveaux"), t("Score", "Score")],
       stats.topByRole.map(({ role, row }) => `<tr><td>${escapeHtml(roleLabel(role, lang))}</td><td>${who(ctx, row.player)}</td><td>${escapeHtml(bracketName(ctx, row.bracket))}</td><td class="num score">${row.points}</td></tr>`), [3]) : "";
     const peak = Math.max(1, ...stats.activity.map((w) => w.runs));
     const activity = stats.activity.length ? table([t("Week of", "Semaine du"), t("Runs", "Essais"), ""], stats.activity.map((w) => `<tr><td>${w.week}</td><td class="num">${w.runs}</td><td class="bar-cell"><div class="meter" style="width:${Math.round(100 * w.runs / peak)}%"></div></td></tr>`), [1]) : "";
-    const base = guildPath(guild);
+    const base = guildPath(ctx, guild);
     const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), link("/leaderboards/guilds/", lang)], [guild.name, null]], escapeHtml)
       + `<p class="eyebrow">${t("Guild", "Guilde")} · ${escapeHtml(periodName(ctx, period))}</p><div class="hero"><h1>${escapeHtml(guild.name)}</h1>`
       + (guild.slug ? `<a href="/g/${encodeURIComponent(guild.slug)}/">${t("Guild page →", "Page de guilde →")}</a>` : "") + `</div>`
@@ -1030,10 +1079,11 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   // /leaderboards/guild/<id>/duels: the guild's duel board (members of the guild only, counted duels).
   async function guildDuelsPage(ctx: WebContext, kit: WebKit, id: string): Promise<WebResponse> {
     const { t, lang } = ctx;
-    const guild = findGuild(await cached("guilds", () => deps.store.guilds()), id);
+    await ensureIndex(ctx);
+    const guild = findGuild(ctx, await cached("guilds", () => deps.store.guilds()), id);
     if (!guild || !deps.store.guildDuels) return kit.page(404, t("Not found", "Introuvable"), PAGE_CSS + `<h1>${t("Guild not found", "Guilde introuvable")}</h1>`, { noindex: true });
     const { standings, duels } = await cached(`duels:${guild.id}`, () => deps.store.guildDuels!(guild.id));
-    const base = guildPath(guild);
+    const base = guildPath(ctx, guild);
     const body = PAGE_CSS + breadcrumbs(lang, [[t("Leaderboards", "Classements"), link("/leaderboards/", lang)], [t("Guilds", "Guildes"), link("/leaderboards/guilds/", lang)], [guild.name, link(base, lang)], [t("Duels", "Duels"), null]], escapeHtml)
       + `<p class="eyebrow">${t("Guild", "Guilde")} · ${t("Duels", "Duels")}</p><h1>${escapeHtml(guild.name)}</h1>`
       + `<nav class="tabs"><a href="${link(base, lang)}">${t("Dungeons", "Donjons")}</a><a class="on" href="${link(`${base}/duels`, lang)}">${t("Duels", "Duels")}</a></nav>`
@@ -1081,6 +1131,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   // bracket, 10 guilds per bracket). Names are the public display names already on the page; nothing private.
   async function boardsJson(ctx: WebContext): Promise<WebResponse> {
     const { filters, period } = await pageFilters(ctx);
+    await ensureIndex(ctx, period);
     const rules = periodRules(period);
     const all = (await periodRuns(period)).filter((run) => !run.challenge);
     const scores = characterScores(all, rules, keepPlayer(filters, rules));
@@ -1090,7 +1141,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
       brackets: rules.brackets.map((b) => ({
         key: b.key, name: bracketName(ctx, b.key),
         characters: scores.filter((row) => row.bracket === b.key).slice(0, 10).map((row, i) => ({ rank: i + 1, name: (row.player as LeaderPlayer).displayName || row.player.character, realm: row.player.realm || null, className: row.player.className ?? null, role: row.player.role ?? null, points: row.points })),
-        guilds: ranks.filter((r) => r.bracket === b.key).slice(0, 10).map((r, i) => ({ rank: i + 1, id: r.guild.id, name: r.guild.name, slug: r.guild.slug ?? null, path: guildPath(r.guild), points: r.points, rated: r.rated }))
+        guilds: ranks.filter((r) => r.bracket === b.key).slice(0, 10).map((r, i) => ({ rank: i + 1, id: r.guild.id, name: r.guild.name, slug: r.guild.slug ?? null, path: guildPath(ctx, r.guild), points: r.points, rated: r.rated }))
       }))
     });
     return { status: 200, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "public, max-age=120", "access-control-allow-origin": "*", "x-content-type-options": "nosniff" }, body: ctx.request.method === "HEAD" ? "" : body };
@@ -1100,23 +1151,24 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   // /leaderboards/guilds.json: every listed guild's rank per bracket; /leaderboards/guild/<slug>.json: one guild's public stats.
   async function guildsJson(ctx: WebContext, key: string | null): Promise<WebResponse> {
     const { period } = await pageFilters(ctx);
+    await ensureIndex(ctx, period);
     const rules = periodRules(period);
     const entries = await guildEntries(period);
     const ranks = rankGuilds(entries, rules);
     const send = (status: number, value: unknown): WebResponse => ({ status, headers: jsonHeaders(), body: ctx.request.method === "HEAD" ? "" : JSON.stringify(value) });
     if (key === null) {
-      return send(200, { season: periodName(ctx, period), guilds: entries.map(({ guild }) => ({ slug: guildIndex.slugs.get(guild.id) ?? null, name: guild.name, path: guildPath(guild),
+      return send(200, { season: periodName(ctx, period), guilds: entries.map(({ guild }) => ({ slug: indexOf(ctx).slugs.get(guild.id) ?? null, name: guild.name, path: guildPath(ctx, guild),
         ranks: ranks.filter((r) => r.guild.id === guild.id).map((r) => ({ bracket: r.bracket, rank: ranks.filter((o) => o.bracket === r.bracket).findIndex((o) => o.guild.id === guild.id) + 1, points: r.points, rated: r.rated })) })) });
     }
-    const entry = entries.find(({ guild }) => guildIndex.slugs.get(guild.id) === key.toLowerCase() || guild.id === key);
+    const entry = entries.find(({ guild }) => indexOf(ctx).slugs.get(guild.id) === key.toLowerCase() || guild.id === key);
     if (!entry) return send(404, { error: "not found" });
     const stats = guildPageStats(entry.runs, entry.roster, rules, (await periodRuns(period)).filter((run) => !run.challenge), currentEdition());
-    const info = deps.store.guildStats ? (await cached("guild-stats", () => deps.store.guildStats!([entry.guild.id])))[0] ?? null : null;
+    const info = (await allGuildStats()).find((row) => row.guildId === entry.guild.id) ?? null;
     return send(200, {
-      season: periodName(ctx, period), slug: guildIndex.slugs.get(entry.guild.id) ?? null, name: entry.guild.name, faction: info?.faction ?? null, realm: info?.realm ?? null,
+      season: periodName(ctx, period), slug: indexOf(ctx).slugs.get(entry.guild.id) ?? null, name: entry.guild.name, faction: info?.faction ?? null, realm: info?.realm ?? null,
       ranks: ranks.filter((r) => r.guild.id === entry.guild.id).map((r) => ({ bracket: r.bracket, rank: ranks.filter((o) => o.bracket === r.bracket).findIndex((o) => o.guild.id === entry.guild.id) + 1, of: ranks.filter((o) => o.bracket === r.bracket).length, points: r.points, rated: r.rated })),
       rankedPlayers: stats.ranked, runs: stats.runs, records: stats.records, unranked: unrankedReason(entry.runs, stats),
-      dungeons: stats.dungeons.map((d) => ({ instanceId: d.instanceId, name: d.name, clears: d.runs, bestSec: d.bestSec, record: d.record })),
+      dungeons: stats.dungeons.map((d) => ({ instanceId: d.instanceId, difficultyId: d.difficultyId, routeKey: d.routeKey, name: d.name, clears: d.runs, bestSec: d.bestSec, record: d.record })),
       topByRole: stats.topByRole.map(({ role, row }) => ({ role, name: row.player.displayName || row.player.character, realm: row.player.realm || null, bracket: row.bracket, points: row.points })),
       activity: stats.activity
     });
@@ -1124,7 +1176,6 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
 
   const route: WebRoute = async (ctx, kit) => {
     const path = ctx.request.path;
-    if (path.startsWith("/leaderboards/")) await loadGuildIndex();
     if (path === "/leaderboards/guilds.json" && ["GET", "HEAD"].includes(ctx.request.method)) return guildsJson(ctx, null);
     const guildJson = /^\/leaderboards\/guild\/([A-Za-z0-9_-]{1,40})\.json$/.exec(path);
     if (guildJson && ["GET", "HEAD"].includes(ctx.request.method)) return guildsJson(ctx, guildJson[1]!);

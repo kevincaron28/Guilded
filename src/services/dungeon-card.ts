@@ -244,7 +244,7 @@ export function dungeonRunCard(run: Run, lang: Lang, options: DungeonCardOptions
     ],
     rowsLabel: t(`Party · ${members} from the guild`, `Groupe · ${members} de la guilde`),
     badges: rankBadges(run, t, lang),
-    footer: t("Guilded · Dungeon run as recorded by the party's addons · guilded.kcaron.top", "Guilded · Donjon noté par les addons du groupe · guilded.kcaron.top"),
+    footer: t("Guilded · Dungeon run as recorded by the party's addons · guildedwow.com", "Guilded · Donjon noté par les addons du groupe · guildedwow.com"),
     dungeon: {
       theme: dungeonTheme(run.dungeonName),
       ...(score ? { scoreLabel: score.label } : {}),

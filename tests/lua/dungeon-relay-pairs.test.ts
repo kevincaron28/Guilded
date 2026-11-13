@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { newLuaSession, type LuaSession } from "./harness.js";
 import { tocFiles } from "../../scripts/build-dungeons-addon.mjs";
+import { parseSavedFiles } from "../../companion/addon-files.mjs";
+import { deviceUploadBody } from "../../companion/device-sync.mjs";
 
 // 9.3.0: a member with an addon but NO companion cannot reach the internet. Their run reaches the bot only when a guildmate
 // whose PC has the companion hears it (a guild addon message sent when the run ends and replayed at login) and keeps it; that
@@ -10,9 +12,7 @@ import { tocFiles } from "../../scripts/build-dungeons-addon.mjs";
 //   standalone -> Guilded     works
 //   Guilded -> standalone     DOES NOT WORK (the standalone addon drops runs it did not record itself)
 //   standalone -> standalone  DOES NOT WORK (same reason)
-// The last two need a change in addon/Guilded/Modules/Dungeon.lua (onAddonMessage "SUM": `if ns.standalone and not (d and d.runs[id]) then return end`),
-// which the runs-loss worker owns; see the hand-over note. They are written as it.fails: when Dungeon.lua keeps relayed runs
-// in the standalone addon, those two start passing, vitest reports that, and `.fails` is to be removed.
+// 9.3: the last two now work: the standalone addon keeps a guildmate's relayed run too (Dungeon.lua onAddonMessage "SUM").
 
 const CLOCK = 1_800_000_000;
 let sessions: LuaSession[] = [];
@@ -116,5 +116,21 @@ describe("a run recorded by a member without the companion", () => {
       deliver(sender, "Walter", receiver);
       expect(receiver.run(`return tostring(NS.getDb().dungeon.runs["walter-rfc"].reporters.Walter)`)).toBe("true");
     }
+  });
+});
+
+// The companion side of the relay: a PC whose companion holds a run only a guildmate recorded sends it as a heard run.
+describe("the guildmate's companion uploads the relayed run", () => {
+  const SER = String.raw`function SER(v) local t = type(v) if t == "table" then local keys = {} for k in pairs(v) do keys[#keys + 1] = k end table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+    local out = {} for _, k in ipairs(keys) do out[#out + 1] = "[" .. SER(k) .. "]=" .. SER(v[k]) end return "{" .. table.concat(out, ",") .. "}" elseif t == "string" then return string.format("%q", v) else return tostring(v) end end`;
+
+  it("a Guilded Lebowski sends Walter's run as heard (not as one of his own characters')", () => {
+    const { receiver } = relay("standalone", "guilded");
+    receiver.run(SER);
+    const text = `GuildedDB = ${receiver.run("return SER(GuildedDB)")}\n`;
+    const { full } = parseSavedFiles({ guilded: text }, "TestRealm");
+    const body = deviceUploadBody({ ...full, character: { name: "Lebowski", realm: "TestRealm" } });
+    expect(body.dungeonRuns?.map((run: { id: string }) => run.id)).toEqual(["walter-rfc"]);
+    expect(body.dungeonRuns?.[0]?.reporterNames).toContain("Walter");
   });
 });

@@ -136,7 +136,7 @@ describe("a guildmate's copy completes an abandoned run", () => {
     expect(s.chat().join("\n")).toContain("guildmate's copy");
   });
 
-  it("marks a peer-recovered run, exports the kill as a peer kill and never as native, and copes with no encounters table or an over-long name", () => {
+  it("marks a peer-recovered run, exports no native source for the peer kill, and copes with no encounters table or an over-long name", () => {
     const s = start({ instance: ragefire });
     s.run(abandonedRun.replace("encounters={ {id=2732,name=\"Oggleflint\",success=true,at=1100,source=\"native\"} } }", "encounters={} }"));
     s.run(peerCopy("2735:Bazzalan:1:2000:"));
@@ -149,8 +149,8 @@ describe("a guildmate's copy completes an abandoned run", () => {
     const saved = JSON.parse(s.run(`local out = {} for _, e in ipairs(GuildedDB.dungeon.runs.R1.encounters) do out[#out + 1] = string.format('{"id":%d,"success":true,"at":%d,"viaPeer":%s}', e.id, e.at, '"x"') end return "[" .. table.concat(out, ",") .. "]"`));
     const [exported] = exportDungeonRuns({ dungeon: { runs: { R1: { id: "R1", state: "COMPLETED", completedBy: "final boss", instanceId: 389, startedAt: 1000, endedAt: 2000, peerConfirmed: true, encounters: saved, players: {} } } } }, "Forever") as Array<{ peerConfirmed?: boolean; encounters: Array<{ source?: string }> }>;
     expect(exported?.peerConfirmed).toBe(true);
-    expect(exported?.encounters.map((e) => e.source)).toContain("peer"); // a still-tagged peer kill is exported as one
-    expect(exported?.encounters.map((e) => e.source)).not.toContain("native");
+    // The peer kill carries no source at all (an older bot would drop every encounter on an unknown source); the marker is peerConfirmed.
+    expect(exported?.encounters.every((e) => e.source === undefined)).toBe(true);
   });
 
   it("a run the client recovered from its own kill is not peer-confirmed", () => {

@@ -9,7 +9,7 @@ const os = require("node:os");
 function hasDatabase(file) {
   try {
     if (fs.statSync(file).size > 64 * 1024 * 1024) return false;
-    return /^\s*GuildedDB\s*=/m.test(fs.readFileSync(file, "utf8"));
+    return /^\s*(?:GuildedDB|GuildedDungeonsDB)\s*=/m.test(fs.readFileSync(file, "utf8"));
   } catch { return false; }
 }
 

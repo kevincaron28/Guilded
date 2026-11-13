@@ -97,7 +97,12 @@ export function readDatabase(lua, name = "GuildedDB") {
 }
 
 export function parseAddonExportText(text, realm) {
-  const database = readDatabase(text.replace(/^\uFEFF/, ""));
+  return parseAddonExportDatabase(readDatabase(text.replace(/^\uFEFF/, "")), realm);
+}
+
+// The export of an already read GuildedDB. A synthetic one built from a standalone Guilded Dungeons file
+// (addon-files.mjs) goes through the same code, so it has the same shape as a full-Guilded save with nothing in it.
+export function parseAddonExportDatabase(database, realm) {
   const edition = editionMetadata(database.character ?? {});
   if (edition.gameEdition !== "forever") realm = String(database.character?.realm || realm);
   const transactions = [];
@@ -788,16 +793,17 @@ export function exportDungeonRuns(database, realm, options = {}) {
       ...(run.completedBy ? { completedBy: String(run.completedBy) } : {}),
       ...(run.endReason ? { endReason: String(run.endReason) } : {}),
       ...(run.recorder ? { recorder: String(run.recorder) } : {}),
-      // (9.3) Why an ABANDONED run did not complete: ids and boss names only (addon Dungeon.lua explainAbandoned).
       // (9.3) The final boss was only seen in a guildmate's copy of this run: the bot ranks it once the guildmate's own copy agrees.
+      // Carried only here; the kill itself is exported WITHOUT a source, so a bot that predates `peerConfirmed` still reads every encounter.
       ...(run.peerConfirmed === true ? { peerConfirmed: true } : {}),
+      // (9.3) Why an ABANDONED run did not complete: ids and boss names only (addon Dungeon.lua explainAbandoned).
       ...(typeof run.diagnostic === "string" && run.diagnostic ? { diagnostic: run.diagnostic.slice(0, 240) } : {}),
       encounters: Object.values(run.encounters ?? {}).slice(0, 100).flatMap(encounter => {
         if (!encounter || !Number.isInteger(encounter.id) || encounter.id <= 0 || typeof encounter.success !== "boolean") return [];
         return [{ id: encounter.id, success: encounter.success,
           ...(encounter.kind === "npc" ? { kind: "npc" } : {}),
           ...(typeof encounter.name === "string" ? { name: encounter.name.slice(0, 100) } : {}),
-          ...(["native", "combat-log"].includes(encounter.source) ? { source: encounter.source } : encounter.viaPeer ? { source: "peer" } : {}),
+          ...(["native", "combat-log"].includes(encounter.source) ? { source: encounter.source } : {}),
           ...(Number.isInteger(encounter.at) && encounter.at > 0 ? { at: encounter.at } : {}),
           ...(Number.isInteger(encounter.startedAt) && encounter.startedAt > 0 ? { startedAt: encounter.startedAt } : {}) }];
       }),

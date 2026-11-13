@@ -110,7 +110,7 @@ import { exchangePersonalCode, isPersonalCode, issuePersonalCredential, personal
 import { claimDevice, DEVICE_LIMITS, networkKey, DeviceError, deviceFor, handleDeviceUpload, memberForCredential, pickServer, prismaInstallStore, registerDevice, windowLimiter } from "./services/companion-device.js";
 import { loadOfficialWindows } from "./services/official-seasons.js";
 import { companionSignInRoute, createCompanionSignIn } from "./services/companion-signin.js";
-import { ingestPublicRuns, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
+import { ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PUBLIC_LIMITS, prismaPublicRunStore, PublicUploadError } from "./services/public-runs.js";
 import { publicAddonBoard } from "./services/public-addon-board.js";
 import { publicSeasons } from "./services/public-score.js";
 import { inviteListForAddon, pendingInvites } from "./services/invite-queue.js";
@@ -1105,7 +1105,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const account = await personalAccess(personalStore, typeof secret === "string" ? secret : undefined);
         if (!account) { recordFailure(address); json(response, 401, { error: "Connect this companion with a code from your Guilded page (guilded.kcaron.top/me/)." }); return; }
         if (!allowPublicUpload(account.accountId)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
-        const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown; gameEdition?: unknown; interface?: unknown }; runs?: unknown; includeScore?: unknown } | null;
+        const body = await readBody(request) as { character?: { name?: unknown; displayName?: unknown; realm?: unknown; gameEdition?: unknown; interface?: unknown }; runs?: unknown; includeScore?: unknown; characters?: unknown } | null;
         let gameEdition;
         try {
           gameEdition = gameEditionOf(body?.character ?? {});
@@ -1122,24 +1122,35 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const realm = gameEdition === "forever" ? rawRealm : realmKey(rawRealm);
         if (gameEdition !== "forever" && !realm) { json(response, 400, { error: "character.realm is required" }); return; }
         try {
-          const result = await ingestPublicRuns(publicRuns, { uploaderKey: `account:${account.accountId}`, gameEdition, character: characterKey(character, realm, gameEdition), source: "personal", runs: body?.runs });
+          // (9.3.0) The account's other saved characters: a run of any of them counts and links, not only the one that logged in last.
+          const own = [{ name: character, realm }, ...(Array.isArray(body?.characters) ? body.characters : []).slice(0, 12).flatMap((entry: { name?: unknown; realm?: unknown } | null) => {
+            const name = typeof entry?.name === "string" ? entry.name.trim().slice(0, 40) : "";
+            if (!name) return [];
+            const otherRealm = typeof entry?.realm === "string" ? entry.realm.trim().slice(0, 100) : "";
+            return [{ name, realm: gameEdition === "forever" ? otherRealm : realmKey(otherRealm) }];
+          })];
+          const others = own.slice(1).map((entry) => characterKey(entry.name, entry.realm, gameEdition));
+          const result = await ingestPublicRuns(publicRuns, { uploaderKey: `account:${account.accountId}`, gameEdition, character: characterKey(character, realm, gameEdition), characters: others, source: "personal", runs: body?.runs });
           const refs = [...result.accepted, ...result.confirmed, ...result.duplicates];
+          let scoreCharacter = { name: character, realm };
           if (refs.length) {
-            // Link only this uploader's named character in a run accepted from this request.
-            // Party members are never claimed as the account's alts.
+            // Link only this uploader's own characters (the one that logged in and the account's saved ones) in a run accepted
+            // from this request. Party members are never claimed as the account's alts.
             const players = await prisma.publicRunPlayer.findMany({
-              where: { character: { equals: character, mode: "insensitive" }, ...(gameEdition !== "forever" ? { realm: { equals: realm, mode: "insensitive" } } : {}), run: { gameEdition, runRef: { in: refs }, status: "ACCEPTED", uploads: { some: { uploaderKey: `account:${account.accountId}` } } } },
+              where: { OR: ownPlayersFilter(own, gameEdition === "forever"), run: { gameEdition, runRef: { in: refs }, status: "ACCEPTED", uploads: { some: { uploaderKey: `account:${account.accountId}` } } } },
               select: { character: true, realm: true }, distinct: ["character", "realm"]
             });
             for (const player of players) if (player.realm) await prisma.webCharacter.upsert({
               where: { accountId_gameEdition_name_realm: { accountId: account.accountId, gameEdition, name: player.character, realm: player.realm } },
               create: { accountId: account.accountId, gameEdition, name: player.character, realm: player.realm, ...(displayName ? { displayName } : {}) }, update: displayName ? { displayName } : {}
             });
+            // The score shown is the logged-in character's when it ran, else the first own character that did.
+            scoreCharacter = pickScoreCharacter(players, { name: character, realm });
           }
           // Explicit opt-in keeps old companions' response and cost unchanged. Public
           // data may be read without claiming ownership; names are always realm-scoped.
-          const publicScore = body?.includeScore === true && realm && realm !== "-"
-            ? publicAddonBoard(await prismaLeaderboardStore(prisma).characterRuns(character, realm), { character, realm },
+          const publicScore = body?.includeScore === true && scoreCharacter.realm && scoreCharacter.realm !== "-"
+            ? publicAddonBoard(await prismaLeaderboardStore(prisma).characterRuns(scoreCharacter.name, scoreCharacter.realm), { character: scoreCharacter.name, realm: scoreCharacter.realm },
               publicSeasons(new Date(), await loadOfficialWindows(prisma))) : undefined;
           json(response, 200, { ...result, gameEdition, ...(body?.includeScore === true ? { publicScore: publicScore ?? null } : {}), botVersion: BOT_VERSION });
         } catch (error) {

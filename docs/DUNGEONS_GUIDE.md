@@ -9,6 +9,16 @@ guild or a Discord bot. **Guilded** includes the same tracker plus guild and rai
 tools. If both are installed, Guilded records the runs and Guilded Dungeons stays
 quiet, so the two addons do not record the same run twice.
 
+**You do not need full Guilded to reach your guild's board.** A PC with Guilded
+Dungeons alone plus the companion sends its runs to your guild's dungeon boards
+exactly like a PC with full Guilded: the companion reads `GuildedDungeons.lua`
+(and `Guilded.lua` too when both exist; the runs are combined, nothing recorded by
+either addon is lost). Guilded Dungeons saves your guild and every character of
+your account that logs in with it, so alts count. If your account has characters in two guilds, each upload
+sends the guild of the character that logged in last (its runs and its characters only); a
+guildless alt logging in later does not change that. Roster, officer and raid
+information still needs full Guilded.
+
 Use the files offered on the [Guilded releases page](https://github.com/kevincaron28/Guilded/releases).
 Look for the `GuildedDungeons` download for the standalone addon, or `Guilded`
 for the full addon. Keep your SavedVariables when upgrading.
@@ -46,6 +56,19 @@ determine eligibility. Do not manually finish a run just to make it score.
    again. Conflicting results can be held for review.
 5. Open the [leaderboards](https://guilded.kcaron.top/leaderboards/), choose the
    season and level bracket, and open your character for scores and run history.
+
+With Guilded Dungeons alone, choose `GuildedDungeons.lua` in step 3: the companion
+needs no other file. After each upload its log says what happened to your runs, for
+example `Dungeon runs: 3 sent, 2 stored, 1 not counted (Not completed).` (stored =
+the bot holds the run, copied = counted with a guildmate's copy, waiting = needs a
+second player's addon, not counted = the reason is shown). If it says Guilded
+Dungeons has not saved your guild yet, update the addon to 9.3.0 or newer, log in
+once and `/reload`: the bot finds your Discord server from the guild the addon saved.
+
+**No companion on your PC?** An addon cannot reach the internet. Your run is
+uploaded only if a party or guild member's PC with the companion heard it. A solo
+run with no companion anywhere in your party or guild stays on your PC until you
+install the companion.
 
 Never paste your companion credential into Discord or a public profile. For old
 companions without Discord sign-in, obtain a personal code from
@@ -120,6 +143,14 @@ installés, Guilded enregistre et le module autonome reste silencieux.
 Le suivi local fonctionne sans connexion. Un donjon terminé n'est pas forcément
 coté : les parcours, niveaux et règles de la saison déterminent les points.
 
+**Guilded complet n'est pas nécessaire pour le classement de votre guilde.** Un PC
+avec Guilded Dungeons seul et le compagnon envoie ses parcours aux classements de
+donjons de la guilde comme un PC avec Guilded complet : le compagnon lit
+`GuildedDungeons.lua` (et `Guilded.lua` aussi s'il existe; les parcours sont
+combinés, rien n'est perdu). Guilded Dungeons enregistre votre guilde et tous les
+personnages de votre compte qui s'y connectent, donc vos personnages secondaires
+comptent. Le registre, les officiers et les raids demandent Guilded complet.
+
 ## Français — connexion, profil et recrutement
 
 Dans le [compagnon Windows](https://apps.microsoft.com/detail/9N680XX3QFL9) (Microsoft Store d'abord), choisissez
@@ -128,6 +159,18 @@ sans guilde, ou un serveur approuvé pour les données de guilde. Sélectionnez
 `WTF\Account\<compte>\SavedVariables\GuildedDungeons.lua` (ou `Guilded.lua`),
 puis **Sync now** après la sauvegarde de WoW. Lisez le résultat de l'envoi.
 Les doublons n'ajoutent pas de points; les conflits peuvent être retenus pour examen.
+Avec Guilded Dungeons seul, choisissez `GuildedDungeons.lua` : le compagnon n'a pas
+besoin d'un autre fichier. Après chaque envoi, son journal dit ce qu'il est advenu
+de vos parcours, par exemple « Parcours de donjon : 3 envoyé(s), 2 enregistré(s),
+1 non compté(s) (raison) ». S'il dit que Guilded Dungeons n'a pas encore enregistré
+votre guilde, mettez l'addon à jour (9.3.0 ou plus récent), connectez-vous une fois
+puis faites `/reload` : le bot trouve votre serveur Discord grâce à la guilde
+enregistrée par l'addon.
+
+**Pas de compagnon sur votre PC ?** Un addon ne peut pas joindre Internet. Votre
+parcours n'est envoyé que si le PC d'un membre de votre groupe ou de votre guilde,
+avec le compagnon, l'a entendu. Un parcours en solo, sans compagnon dans le groupe
+ni la guilde, reste sur votre PC tant que vous n'installez pas le compagnon.
 
 Votre **profil joueur est public par défaut** : nom affiché, personnages liés et
 donjons publics acceptés. Ouvrez un personnage pour ses scores saisonniers.

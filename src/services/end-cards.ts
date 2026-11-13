@@ -29,7 +29,7 @@ export function raidEndCard(report: RaidReport, lang: Lang = "en"): ScoreCard {
       ...(report.epRecipients ? [{ text: t(`${report.epAwarded} EP to ${report.epRecipients} raiders`, `${report.epAwarded} EP à ${report.epRecipients} raiders`), tone: "ok" as const }] : [{ text: t("EP pending", "EP en attente"), tone: "muted" as const }]),
       ...(report.lootCount ? [{ text: t(`${report.lootCount} items · ${report.gpSpent} GP`, `${report.lootCount} objets · ${report.gpSpent} GP`), tone: "muted" as const }] : [])
     ],
-    footer: t("Guild raid report · Attendance and loot as recorded by officers · guilded.kcaron.top", "Rapport de raid de guilde · Présences et butin notés par les officiers · guilded.kcaron.top")
+    footer: t("Guild raid report · Attendance and loot as recorded by officers · guildedwow.com", "Rapport de raid de guilde · Présences et butin notés par les officiers · guildedwow.com")
   };
 }
 
@@ -95,7 +95,7 @@ export function achievementsCard(name: string, items: AchievementCardItem[], lan
       ...(POE_TRACKING_ENABLED ? [{ text: `PoE2 ${count("poe2")}`, tone: "muted" as const }] : []),
       ...(next ? [{ text: t(`Next: ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`, `Prochain : ${label(next.def)} ${Math.min(next.value, next.def.threshold)}/${next.def.threshold}`), tone: "ok" as const }] : [])
     ],
-    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and your own PoE2 log" : ""} · No points · guilded.kcaron.top`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et de votre journal PoE2" : ""} · Aucun point · guilded.kcaron.top`)
+    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and your own PoE2 log" : ""} · No points · guildedwow.com`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et de votre journal PoE2" : ""} · Aucun point · guildedwow.com`)
   };
 }
 
@@ -116,7 +116,7 @@ export function serverAnniversaryCard(input: ServerAnniversaryCardInput, lang: L
     rowsLabel: t("Longest-standing members", "Membres de longue date"),
     rows: input.oldestMembers.slice(0, 5).map(member => ({ name: member.displayName, sub: t(`Member since ${day(member.createdAt)}`, `Membre depuis le ${day(member.createdAt)}`), color: "#ffd100", right: "🎂" })),
     badges: [{ text: t("Members earn Anniversary achievements", "Les membres obtiennent des succès d'anniversaire"), tone: "ok" }],
-    footer: t("Celebrating together · Member dates are when Guilded first recorded each member · No points · guilded.kcaron.top", "On fête ensemble · Dates de membre : première inscription dans Guilded · Aucun point · guilded.kcaron.top")
+    footer: t("Celebrating together · Member dates are when Guilded first recorded each member · No points · guildedwow.com", "On fête ensemble · Dates de membre : première inscription dans Guilded · Aucun point · guildedwow.com")
   };
 }
 
@@ -153,6 +153,6 @@ export function achievementUnlockedCard(name: string, ids: string[], totalEarned
     unlocksMore: newest.length - shown.length, moreLabel: t("more", "autres"),
     progress: { label: t("Achievements unlocked", "Succès débloqués"), value: totalEarned, max: total, note: lang === "fr" ? `${percent} % du catalogue` : `${percent}% of the catalogue` },
     tierCounts,
-    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and the PoE2 log" : ""} · No points · guilded.kcaron.top`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et du journal PoE2" : ""} · Aucun point · guilded.kcaron.top`)
+    footer: t(`Earned from synced characters, runs, raid attendance${POE_TRACKING_ENABLED ? " and the PoE2 log" : ""} · No points · guildedwow.com`, `Obtenus à partir des personnages synchronisés, donjons, présences aux raids${POE_TRACKING_ENABLED ? " et du journal PoE2" : ""} · Aucun point · guildedwow.com`)
   };
 }

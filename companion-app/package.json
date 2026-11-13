@@ -90,6 +90,8 @@
           "error-detail.mjs",
           "device-sync.mjs",
           "device-receipts.mjs",
+          "addon-files.mjs",
+          "run-report.mjs",
           "main-status.mjs"
         ]
       },

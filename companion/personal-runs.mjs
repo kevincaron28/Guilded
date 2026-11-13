@@ -4,6 +4,7 @@ import { readSavedText } from "./saved-file.mjs";
 import { basename, dirname, join, sep } from "node:path";
 import { personalResponseToLua, PERSONAL_SAVED_FILES, personalPayloadFrom, personalResultMessage } from "./personal-runs-content.mjs";
 import { credentialHeaders, jsonBody, requestJson } from "./request.mjs";
+import { personalRunCounts } from "./run-report.mjs";
 export { acceptedToLua, personalPayload, personalPayloadFrom, personalResultMessage, readPersonalRuns } from "./personal-runs-content.mjs";
 
 // Personal mode (7.0): a companion linked to a website account ("Public dungeon leaderboards
@@ -51,7 +52,7 @@ export async function uploadPersonalRuns(config, signal, onEvidence = () => {}) 
     try { return await readSavedText(path); }
     catch (error) { if (error.code === "ENOENT") return null; throw error; }
   }))];
-  const { character, runs: finished } = personalPayloadFrom(texts, config.realm);
+  const { character, characters, runs: finished } = personalPayloadFrom(texts, config.realm);
   const revision = createHash("sha256").update(JSON.stringify(texts)).digest("hex");
   // A read time is not a save time. File timestamps remain unknown if unavailable.
   const after = await Promise.all([chosen, ...others].map(stamp));
@@ -68,7 +69,7 @@ export async function uploadPersonalRuns(config, signal, onEvidence = () => {}) 
   }
   // An empty upload refreshes corrections, new confirmations and season changes
   // even when every local run is already marked synced.
-  const payload = jsonBody({ character, runs: finished, includeScore: true });
+  const payload = jsonBody({ character, ...(characters.length > 1 ? { characters } : {}), runs: finished, includeScore: true });
   const uploadedAt = new Date().toISOString();
   const { response, body } = await requestJson(new URL("/api/v1/public-runs", config.uploadUrl), {
     method: "POST", headers: { ...credentialHeaders(config), ...payload.headers }, body: payload.body
@@ -86,7 +87,7 @@ export async function uploadPersonalRuns(config, signal, onEvidence = () => {}) 
   }
   onEvidence({ ...evidence });
   const saved = Array.isArray(body.acceptedRunRefs) ? await writeAccepted(config, body) : null;
-  const result = personalResultMessage(body);
+  const result = { ...personalResultMessage(body), runCounts: personalRunCounts(finished, body) };
   if (config.writeStandingsEnabled === false) return { ...result, message: `${result.message} Select this connection to write scores to the shared addon folder.`, sent: finished.length };
   if (body.publicScore && !saved) return { level: "warn", message: `${result.message} Public scores could not be saved to GuildedDungeons/Accepted.lua. Check the addon folder and try again.`, sent: finished.length };
   return { ...result, sent: finished.length, ...(body.publicScore && saved ? { scoreSaved: true } : {}) };

@@ -132,7 +132,7 @@ describe("the tools window in French", () => {
 
   it("keeps the section rows inside the page width in French", () => {
     const s = frenchWindow();
-    for (const group of ["Guild"]) {
+    for (const group of ["Home", "Guild", "Raids", "Officer"]) {
       s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
       const rows = JSON.parse(s.run(`local t = {}; for _, r in ipairs(NS.windowState().sectionLayout) do
         local b; for _, tab in ipairs(NS.windowState().tabs) do if tab.name == r.name then b = tab.button end end
@@ -170,5 +170,38 @@ describe("the tools window in French", () => {
     expect(status()).toBe("");
     s.run(`NS.message("Saved."); GuildedPanel:Hide(); GuildedPanel:Show()`);
     expect(status()).toBe("");
+  });
+});
+
+describe("window geometry that must not move (UI polish)", () => {
+  const ys = (s: LuaSession) => JSON.parse(s.run(`local t = {}; for _, g in ipairs({ "Home", "Guild", "Dungeons", "Crafting", "Raids", "Officer", "Settings" }) do
+      local b = NS.windowState().groupButtons[g]
+      if b and b.shown then t[#t + 1] = string.format('"%s":%d', g, b.points[1][5]) end end
+      return "{" .. table.concat(t, ",") .. "}"`)) as Record<string, number>;
+
+  it("keeps the left menu where it is when a section opens", () => {
+    const s = frenchWindow();
+    const base = ys(s);
+    expect(Object.keys(base).length).toBeGreaterThan(3);
+    for (const group of Object.keys(base)) {
+      s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
+      expect(ys(s)).toEqual(base);
+    }
+  });
+
+  it("puts the Player field below the section row and the page below the field", () => {
+    const s = frenchWindow();
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick(); NS.windowState().selectTabByName("Standings")`);
+    const g = (code: string) => Number(s.run(code));
+    const lines = g(`return NS.windowState().sectionLines`);
+    expect(lines).toBeGreaterThan(0);
+    const rowBottom = 12 + 22 + 24 * (lines - 1);
+    const boxTop = -g(`return NS.windowState().playerBox.points[1][5]`);
+    expect(boxTop).toBeGreaterThanOrEqual(rowBottom);                                  // not over the row
+    const scrollTop = -g(`for _, p in ipairs(NS.windowState().guildScroll.points) do if p[1] == "TOPLEFT" then return p[5] end end`);
+    expect(scrollTop).toBeGreaterThanOrEqual(boxTop + 22);                             // not over the field
+    // Without the field the page starts where it always did.
+    s.run(`NS.windowState().selectTabByName("Guild overview")`);
+    expect(g(`return NS.windowState().pageTop`)).toBe(66);
   });
 });

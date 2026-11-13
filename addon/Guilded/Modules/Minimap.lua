@@ -1396,8 +1396,9 @@ local function buildHomePage(page)
   -- Get the companion (8.5.0): links to copy, since an addon cannot open a web page.
   if ns.companionLink then
     below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -262)
-    below(copyBox(page, ns.companionLink.SHORT, 250), 6, -282)
-    below(copyBox(page, ns.companionLink.DIRECT, 250), 270, -282)
+    -- Two boxes that together fill the page width, so the longer link is not cut off at the right edge.
+    below(copyBox(page, ns.companionLink.SHORT, 270), 6, -282)
+    below(copyBox(page, ns.companionLink.DIRECT, 280), 286, -282)
     local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -312)
     steps:SetWidth(PAGE_WIDTH)
     steps:SetJustifyH("LEFT")
@@ -1410,7 +1411,9 @@ end
 local GROUPS = { "Home", "Guild", "Dungeons", "Crafting", "Raids", "Officer", "Settings" }
 -- Guild is one page: its sections are a row of buttons at the top of the content (the pages keep their own
 -- frames), not entries in the sidebar. Crafting is a single page of its own (9.2).
-local SECTION_ROW = { Guild = true }
+-- 9.3: every group with more than one page does this (Home, Guild, Raids, Officer), so the sidebar never changes under the
+-- cursor when a section opens. Crafting, Dungeons and Settings have one page each.
+local SECTION_ROW = { Home = true, Guild = true, Raids = true, Officer = true }
 -- The section buttons are as wide as their text (capped); a row that would pass the page width wraps to a
 -- second line. The page itself starts at -66, below two lines (12 + 22 high, then 24 per extra line).
 local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 200
@@ -1419,6 +1422,23 @@ local SECTION_Y, SECTION_LINE, SECTION_GAP, SECTION_MAX = 12, 24, 6, 200
 local SECTION_FIRST_LINE_RESERVE = 96
 local function sectionWidth(text)
   return math.min(SECTION_MAX, math.max(60, #text * 7 + 20))
+end
+-- Used only when a row would need a third line (a long translation), which would run into the page.
+local function compactSectionWidth(text)
+  return math.min(SECTION_MAX, math.max(50, #text * 6 + 16))
+end
+-- Pure: where each button of the row goes ({ x, line, width }) and the last line used. A line that would pass the page width wraps.
+local function planSectionRow(texts, widthOf)
+  local plan, x, line = {}, nil, 0
+  for _, text in ipairs(texts) do
+    local width = widthOf(text)
+    local room = PAGE_WIDTH - (line == 0 and SECTION_FIRST_LINE_RESERVE or 0)
+    if x and x > 0 and x + width > room then x = 0; line = line + 1 end
+    x = x or 0
+    plan[#plan + 1] = { x = x, line = line, width = width }
+    x = x + width + SECTION_GAP
+  end
+  return plan, line
 end
 local function buildRosterAdminPage(page)
   local info = at(newLabel(page, "Change guild ranks and notes in bulk: paste a list of actions, preview the changes, then confirm.", "GameFontHighlightSmall"), page, 0, 0)
@@ -1773,9 +1793,9 @@ local function layoutTabs(officer)
   do
     local current = ui.tabs[ui.currentTab or 0]
     local currentGroup = current and current.group
-    local sectionX
-    local sectionLine = 0
+    local rowPlan, rowIndex
     ui.sectionLayout = {}
+    ui.sectionLines = 0
     for _, group in ipairs(GROUPS) do
       local list = groupList(group, officer)
       if #list > 0 then
@@ -1803,14 +1823,20 @@ local function layoutTabs(officer)
             firstVisible = firstVisible or i
           end
           if group == currentGroup and SECTION_ROW[group] and #list > 1 then
-            local width = sectionWidth(L(tab.label or tab.name))
-            local room = PAGE_WIDTH - (sectionLine == 0 and SECTION_FIRST_LINE_RESERVE or 0)
-            if sectionX and sectionX > 0 and sectionX + width > room then sectionX = 0; sectionLine = sectionLine + 1 end
-            sectionX = sectionX or 0
-            tab.button:SetWidth(width)
-            at(tab.button, panel, CONTENT_X + sectionX, -(SECTION_Y + SECTION_LINE * sectionLine))
-            ui.sectionLayout[#ui.sectionLayout + 1] = { name = tab.name, x = sectionX, line = sectionLine, width = width }
-            sectionX = sectionX + width + SECTION_GAP
+            if not rowPlan then
+              local texts = {}
+              for _, j in ipairs(list) do texts[#texts + 1] = L(ui.tabs[j].label or ui.tabs[j].name) end
+              local lastLine
+              rowPlan, lastLine = planSectionRow(texts, sectionWidth)
+              if lastLine > 1 then rowPlan = planSectionRow(texts, compactSectionWidth) end
+              rowIndex = 0
+            end
+            rowIndex = rowIndex + 1
+            local slot = rowPlan[rowIndex]
+            tab.button:SetWidth(slot.width)
+            at(tab.button, panel, CONTENT_X + slot.x, -(SECTION_Y + SECTION_LINE * slot.line))
+            ui.sectionLayout[#ui.sectionLayout + 1] = { name = tab.name, x = slot.x, line = slot.line, width = slot.width }
+            ui.sectionLines = math.max(ui.sectionLines or 0, slot.line + 1)
             tab.button:Show()
           elseif group == currentGroup and #list > 1 then
             at(tab.button, panel, 26, y)
@@ -1824,6 +1850,7 @@ local function layoutTabs(officer)
   end
   local current = ui.tabs[ui.currentTab or 0]
   if not current or not current.visible then selectTab(firstVisible) else current.page:Show() end
+  if ui.placePageTop then ui.placePageTop() end
 end
 
 local function moduleSignature()
@@ -2200,6 +2227,36 @@ end
 
 ui.relayoutCrafting = function() if updateGuildScroll then updateGuildScroll() end end
 
+-- Where the page starts. A page that acts on a player has the Player field above it; when the section row is shown (up to two
+-- lines high) the field moves down below that row and the page below the field, so the two never overlap.
+local PAGE_TOP = 66
+function ui.pageTopFor(tab)
+  local lines = ui.sectionLines or 0
+  if not (tab and tab.usesPlayer and lines > 0) then return PAGE_TOP, 0 end
+  local rowBottom = SECTION_Y + 22 + SECTION_LINE * (lines - 1)
+  local shift = rowBottom + 6 - 28 -- the Player field sits at 28 when there is no row
+  return PAGE_TOP + shift, shift
+end
+function ui.placePageTop()
+  local tab = ui.tabs[ui.currentTab or 0]
+  if not tab or not panel then return end
+  local top, shift = ui.pageTopFor(tab)
+  ui.pageTop = top
+  for _, widget in ipairs(ui.playerRow or {}) do
+    if widget.baseX then at(widget, panel, widget.baseX, widget.baseY - shift) end
+  end
+  if ui.guildScroll then
+    ui.guildScroll:ClearAllPoints()
+    ui.guildScroll:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -top)
+    ui.guildScroll:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -30, 44)
+  end
+  if not SCROLLED_PAGES[tab.name] then
+    tab.page:ClearAllPoints()
+    tab.page:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -top)
+    tab.page:SetPoint("BOTTOMRIGHT", panel, "BOTTOMRIGHT", -22, 44)
+  end
+end
+
 selectTab = function(index)
   if not index or not ui.tabs[index] then return end
   if ui.guildScroll and not SCROLLED_PAGES[ui.tabs[index].name] then
@@ -2241,6 +2298,8 @@ selectTab = function(index)
   for _, widget in ipairs(ui.playerRow or {}) do
     if ui.tabs[index].usesPlayer then widget:Show() else widget:Hide() end
   end
+  ui.currentTab = index
+  ui.placePageTop()
   local s = settings()
   if s then s.panelTab = ui.tabs[index].name end
   if picker then picker:Hide() end
@@ -2327,13 +2386,13 @@ local function buildPanel()
 
   -- Shared player field (shown only on pages that act on a player).
   ui.playerRow = {}
-  local function playerWidget(widget) table.insert(ui.playerRow, widget) return widget end
-  playerWidget(at(newLabel(panel, L("Player")), panel, CONTENT_X, -32))
-  ui.playerBox = playerWidget(at(newEdit(panel, 150), panel, CONTENT_X + 54, -28))
+  local function playerWidget(widget, x, y) table.insert(ui.playerRow, widget); widget.baseX, widget.baseY = x, y; return widget end
+  playerWidget(at(newLabel(panel, L("Player")), panel, CONTENT_X, -32), CONTENT_X, -32)
+  ui.playerBox = playerWidget(at(newEdit(panel, 150), panel, CONTENT_X + 54, -28), CONTENT_X + 54, -28)
   ui.playerBox:SetScript("OnTextChanged", function() refresh() end)
-  playerWidget(at(newButton(panel, L("Target"), 70, fillFromTarget), panel, CONTENT_X + 212, -28))
-  playerWidget(at(newButton(panel, L("Me"), 50, function() setPlayer(ns.playerName()) end), panel, CONTENT_X + 286, -28))
-  playerWidget(at(newButton(panel, L("Group..."), 84, showPicker), panel, CONTENT_X + 340, -28))
+  playerWidget(at(newButton(panel, L("Target"), 70, fillFromTarget), panel, CONTENT_X + 212, -28), CONTENT_X + 212, -28)
+  playerWidget(at(newButton(panel, L("Me"), 50, function() setPlayer(ns.playerName()) end), panel, CONTENT_X + 286, -28), CONTENT_X + 286, -28)
+  playerWidget(at(newButton(panel, L("Group..."), 84, showPicker), panel, CONTENT_X + 340, -28), CONTENT_X + 340, -28)
 
   for i, def in ipairs(TAB_DEFS) do
     local page = CreateFrame("Frame", nil, panel)

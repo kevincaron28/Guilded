@@ -381,6 +381,9 @@ function module.buildPage(page, helpers)
   status:SetWidth(width - 168)
   at(newLabel(page, "Open requests", "GameFontNormal"), page, 0, -92)
   local empty = at(newLabel(page, "No open requests.", "GameFontHighlightSmall"), page, 0, -118)
+  -- What the empty list means and what to do next, under the line above.
+  local emptyHelp = at(newLabel(page, "When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself.", "GameFontDisableSmall"), page, 0, -140)
+  emptyHelp:SetWidth(width - 8)
   for i = 1, MAX_ROWS do
     local row = {}
     row.label = at(newLabel(page, "", "GameFontHighlight"), page, 0, -116 - (i - 1) * 28)
@@ -407,7 +410,7 @@ function module.buildPage(page, helpers)
         row.label:Hide(); row.invite:Hide()
       end
     end
-    if #list == 0 then empty:Show() else empty:Hide() end
+    if #list == 0 then empty:Show(); emptyHelp:Show() else empty:Hide(); emptyHelp:Hide() end
   end
   local elapsed = 0
   page:SetScript("OnShow", function() module.refreshPage() end)

@@ -162,7 +162,7 @@ describe("the five member tabs", () => {
 describe("the section row of the Guild page", () => {
   it("keep every button inside the page width, sized to its text, in English", () => {
     const s = openWindow(1);
-    for (const group of ["Guild"]) {
+    for (const group of ["Home", "Guild", "Raids", "Officer"]) {
       s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
       const rows = JSON.parse(s.run(`local t = {}; for _, r in ipairs(NS.windowState().sectionLayout) do
         local b; for _, tab in ipairs(NS.windowState().tabs) do if tab.name == r.name then b = tab.button end end
@@ -497,9 +497,13 @@ describe("the tools window (sidebar and Home page)", () => {
 
   it("titles each page with what it is for", () => {
     const s = openWindow(1);
-    expect(s.run(`return NS.windowState().pageTitle.text`)).toContain("Home");
+    // Pages of a group with several pages (Home, Guild, Raids, Officer) are named by the row of buttons on top instead (their hints are tooltips).
+    expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
     s.run(`NS.windowState().selectTabByName("EPGP")`);
-    expect(s.run(`return NS.windowState().pageTitle.text`)).toContain("award EP and GP");
+    expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
+    // A single-page group keeps its title and hint.
+    s.run(`NS.dungeonScorePanel = NS.dungeonScorePanel or {}; NS.windowState().selectTabByName("Tools")`);
+    expect(s.run(`return NS.windowState().pageTitle.text`)).toContain("Settings");
   });
 });
 
@@ -910,5 +914,38 @@ describe("Home page link buttons (8.5 in-game fix)", () => {
       local p = remove.points[#remove.points]
       return p[1] .. ":" .. p[3] .. ":" .. tostring(p[2] == save) .. ":" .. p[4]`);
     expect(anchor).toBe("LEFT:RIGHT:true:6");
+  });
+});
+
+describe("window geometry that must not move (UI polish)", () => {
+  const ys = (s: LuaSession) => JSON.parse(s.run(`local t = {}; for _, g in ipairs({ "Home", "Guild", "Dungeons", "Crafting", "Raids", "Officer", "Settings" }) do
+      local b = NS.windowState().groupButtons[g]
+      if b and b.shown then t[#t + 1] = string.format('"%s":%d', g, b.points[1][5]) end end
+      return "{" .. table.concat(t, ",") .. "}"`)) as Record<string, number>;
+
+  it("keeps the left menu where it is when a section opens", () => {
+    const s = openWindow(1);
+    const base = ys(s);
+    expect(Object.keys(base).length).toBeGreaterThan(3);
+    for (const group of Object.keys(base)) {
+      s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
+      expect(ys(s)).toEqual(base);
+    }
+  });
+
+  it("puts the Player field below the section row and the page below the field", () => {
+    const s = openWindow(1);
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick(); NS.windowState().selectTabByName("Standings")`);
+    const g = (code: string) => Number(s.run(code));
+    const lines = g(`return NS.windowState().sectionLines`);
+    expect(lines).toBeGreaterThan(0);
+    const rowBottom = 12 + 22 + 24 * (lines - 1);
+    const boxTop = -g(`return NS.windowState().playerBox.points[1][5]`);
+    expect(boxTop).toBeGreaterThanOrEqual(rowBottom);                                  // not over the row
+    const scrollTop = -g(`for _, p in ipairs(NS.windowState().guildScroll.points) do if p[1] == "TOPLEFT" then return p[5] end end`);
+    expect(scrollTop).toBeGreaterThanOrEqual(boxTop + 22);                             // not over the field
+    // Without the field the page starts where it always did.
+    s.run(`NS.windowState().selectTabByName("Guild overview")`);
+    expect(g(`return NS.windowState().pageTop`)).toBe(66);
   });
 });

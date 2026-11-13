@@ -13,17 +13,24 @@ MIN_INCREMENTAL_AVAILABLE_KB=262144
 MEMINFO_FILE="${MEMINFO_FILE:-/proc/meminfo}"
 
 # The heavy preparation steps (copying node_modules, npm install/ci, prisma generate, the bundle build) run in a
-# systemd scope, so the kernel throttles and then kills them rather than letting them push the running bot into swap.
-#  - MemoryHigh (360M) throttles and reclaims the scope's memory, including the page cache the copy and the install
-#    fill, before MemoryMax (450M, below the bot's own 700M) kills it. Cache charged to the scope is reclaimed from
-#    the scope, not from the bot's working set.
-#  - CPUQuota is a hard cap (CPUWeight only matters under contention); IOWeight needs the io controller and may do
-#    nothing on this box, so every step also runs under ionice (the copy in the idle class) and nice.
-# If systemd-run cannot set all of these here, it falls back to the memory limits alone, and then to no scope at all
-# (the heap caps and nice/ionice still apply).
-HEAVY_PROPS_FULL=(MemoryMax=450M MemoryHigh=360M MemorySwapMax=200M CPUWeight=20 IOWeight=20 CPUQuota=50%)
+# systemd scope, so the kernel kills them rather than letting them push the running bot into swap.
+#  - MemoryMax (450M, below the bot's own 700M) and MemorySwapMax (200M) apply to every step, as before. The install
+#    was only ever measured to fit under 450M (a fresh npm ci reached about 388 MB resident), so it gets no lower
+#    throttle point.
+#  - MemoryHigh (360M) applies to the file copies only. A copy needs almost no memory of its own: what it fills is
+#    the page cache, which is charged to the scope, and MemoryHigh makes the kernel reclaim that cache from the
+#    scope instead of from the bot's working set.
+#  - CPUQuota is a hard cap (CPUWeight only matters under contention). IOWeight needs the io controller and may do
+#    nothing here; ionice is an extra hint that depends on the disk's I/O scheduler (it does nothing on "none"), so
+#    it is probed once and simply skipped where it cannot be set.
+# If systemd-run cannot set all of these, it falls back to the memory limits alone, and then to no scope at all
+# (the heap caps and nice still apply).
+HEAVY_PROPS_FULL=(MemoryMax=450M MemorySwapMax=200M CPUWeight=20 IOWeight=20 CPUQuota=50%)
 HEAVY_PROPS_MEMORY=(MemoryMax=450M MemorySwapMax=200M)
+HEAVY_COPY_HIGH=MemoryHigh=360M
 HEAVY_PROPS=()
+HEAVY_COPY_PROPS=()
+HEAVY_IONICE_OK=0
 
 heavy_probe() {
   local args=() prop
@@ -36,33 +43,46 @@ heavy_probe() {
 decide_heavy_cap() {
   HEAVY_CAPPED=0
   HEAVY_PROPS=()
-  if heavy_probe "${HEAVY_PROPS_FULL[@]}"; then
+  HEAVY_COPY_PROPS=()
+  if heavy_probe "${HEAVY_PROPS_FULL[@]}" "$HEAVY_COPY_HIGH"; then
+    HEAVY_CAPPED=1; HEAVY_PROPS=("${HEAVY_PROPS_FULL[@]}"); HEAVY_COPY_PROPS=("$HEAVY_COPY_HIGH")
+  elif heavy_probe "${HEAVY_PROPS_FULL[@]}"; then
     HEAVY_CAPPED=1; HEAVY_PROPS=("${HEAVY_PROPS_FULL[@]}")
+    echo "systemd-run cannot set MemoryHigh here; the copies run without that throttle."
   elif heavy_probe "${HEAVY_PROPS_MEMORY[@]}"; then
     HEAVY_CAPPED=1; HEAVY_PROPS=("${HEAVY_PROPS_MEMORY[@]}")
     echo "systemd-run cannot set the CPU and I/O limits here; the steps run with the memory limits only."
   else
     echo "systemd-run cannot set a memory ceiling here; the install runs without one (heap caps still apply)."
   fi
+  # ionice needs the tool and a kernel that accepts the priority (a restricted VM or container may refuse it).
+  HEAVY_IONICE_OK=0
+  if command -v ionice >/dev/null 2>&1 && ionice -c3 true >/dev/null 2>&1 && ionice -c2 -n7 true >/dev/null 2>&1; then
+    HEAVY_IONICE_OK=1
+  else
+    echo "ionice cannot set an I/O priority here; the steps run without it."
+  fi
 }
 
-# Runs one heavy command at low I/O priority ($1: ionice arguments), inside the limits when this box supports them.
+# Runs one heavy command: $1 = ionice arguments, $2 = 1 for the copy-only MemoryHigh throttle, then the command.
+# Inside the limits when this box supports them, at low I/O priority when ionice works here.
 run_heavy_io() {
-  local io="$1"; shift
+  local io="$1" high="$2"; shift 2
   local args=() prop
   local cmd=("$@")
   # shellcheck disable=SC2206
-  if command -v ionice >/dev/null 2>&1; then cmd=(ionice $io "$@"); fi
+  if [ "${HEAVY_IONICE_OK:-0}" = 1 ]; then cmd=(ionice $io "$@"); fi
   if [ "${HEAVY_CAPPED:-0}" = 1 ]; then
     for prop in "${HEAVY_PROPS[@]}"; do args+=(-p "$prop"); done
+    if [ "$high" = 1 ]; then for prop in "${HEAVY_COPY_PROPS[@]}"; do args+=(-p "$prop"); done; fi
     systemd-run --quiet --scope "${args[@]}" -- "${cmd[@]}"
   else
     "${cmd[@]}"
   fi
 }
-run_heavy() { run_heavy_io "-c2 -n7" "$@"; }
-# The big file copies: idle I/O class, so the bot's own disk reads always go first.
-run_heavy_idle() { run_heavy_io "-c3" "$@"; }
+run_heavy() { run_heavy_io "-c2 -n7" 0 "$@"; }
+# The big file copies: idle I/O class where it works, and the MemoryHigh throttle.
+run_heavy_idle() { run_heavy_io "-c3" 1 "$@"; }
 
 # Runs a step and prints how long it took, so a deploy's output shows where the time goes.
 # Keeps the step's exit status.
@@ -169,6 +189,17 @@ companion_build_fingerprint() {
   } | sha256sum | cut -d' ' -f1
 }
 
+# Remembers the hash the staged bundle was built from. Only a speed-up for the next deploy: failing to write it
+# warns and never fails the deploy.
+record_companion_stamp() {
+  local want="$1" owner="$2"
+  [ -n "$want" ] || return 0
+  if printf '%s\n' "$want" > "$STAGED_APP/.companion-build-stamp" && chown "$owner:$owner" "$STAGED_APP/.companion-build-stamp"; then return 0; fi
+  echo "Could not record the companion build hash; the next deploy will rebuild the bundle."
+  rm -f -- "$STAGED_APP/.companion-build-stamp"
+  return 0
+}
+
 # Builds the companion interface bundle, or copies the live one when nothing it is built from changed
 # (and the live application recorded the hash it was built from). Failure to copy falls back to building.
 prepare_companion_bundle() {
@@ -178,14 +209,14 @@ prepare_companion_bundle() {
   if [ -n "$want" ] && [ "$want" = "$have" ] && [ -f "$app/companion-app/renderer/ui-bundle.js" ] && [ -f "$app/companion-app/renderer/logo.png" ] && [ -d "$app/companion-app/assets" ]; then
     echo "The companion interface sources are unchanged: copying the live bundle."
     if timed_step "copy companion bundle" bash -c 'cp -a "$1/companion-app/renderer/ui-bundle.js" "$1/companion-app/renderer/logo.png" "$2/companion-app/renderer/" && rm -rf -- "$2/companion-app/assets" && cp -a "$1/companion-app/assets" "$2/companion-app/assets"' _ "$app" "$STAGED_APP"; then
-      printf '%s\n' "$want" > "$STAGED_APP/.companion-build-stamp" && chown "$owner:$owner" "$STAGED_APP/.companion-build-stamp"
-      return
+      record_companion_stamp "$want" "$owner"
+      return 0
     fi
     echo "Copying the bundle failed; building it instead."
   fi
   # The bundle build gets a heap cap so it cannot take the memory the running bot needs.
   timed_step "companion build" run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm run companion:build' _ "$STAGED_APP" || return 1
-  if [ -n "$want" ]; then printf '%s\n' "$want" > "$STAGED_APP/.companion-build-stamp" && chown "$owner:$owner" "$STAGED_APP/.companion-build-stamp"; fi
+  record_companion_stamp "$want" "$owner"
 }
 
 # Sanity floor for the incremental path only (see MIN_INCREMENTAL_AVAILABLE_KB). Silent; on failure the caller

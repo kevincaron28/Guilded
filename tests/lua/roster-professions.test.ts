@@ -189,4 +189,9 @@ describe("validator: no secure hooks on Blizzard mixin tables", () => {
       'local f = CreateFrame("Frame", nil, UIParent, BackdropTemplateMixin and "BackdropTemplate")',
     ].join(String.fromCharCode(10)))).toEqual([]);
   });
+
+  it("the roster tooltip lists a profession once when the text carries two spellings of it", () => {
+    setup();
+    expect(s.run('local p = NS.rosterProfessions.parse("Cuisine:300,Cooking:150,Pêche:75"); return #p .. ":" .. p[1].name .. p[1].skill .. ":" .. p[2].name .. p[2].skill')).toBe("2:Cooking300:Fishing75");
+  });
 });

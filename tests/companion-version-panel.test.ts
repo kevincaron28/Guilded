@@ -39,13 +39,11 @@ describe("the companion wiring", () => {
   const main = readFileSync("companion-app/main.cjs", "utf8");
 
   it("serves the panel and opens the Store listing, not the general Downloads page", () => {
-    expect(main).toContain('registerIpc("version-info"');
     expect(main).toContain('registerIpc("open-store-listing", () => shell.openExternal(updates.STORE_LISTING));');
     expect(main).toMatch(/registerIpc\("install-update", async \(\) => \{\s*if \(STORE_PACKAGE\) \{\s*await shell\.openExternal\(updates\.STORE_LISTING\);/);
     expect(main).toMatch(/registerIpc\("open-update", \(\) => shell\.openExternal\(STORE_PACKAGE \? updates\.STORE_LISTING/);
-    expect(readFileSync("companion-app/ipc-security.cjs", "utf8")).toMatch(/"version-info", "open-store-listing"/);
+    expect(readFileSync("companion-app/ipc-security.cjs", "utf8")).toContain('"open-store-listing"');
     const preload = readFileSync("companion-app/preload.cjs", "utf8");
-    expect(preload).toContain('versionInfo: () => ipcRenderer.invoke("version-info")');
     expect(preload).toContain('openStoreListing: () => ipcRenderer.invoke("open-store-listing")');
   });
 
@@ -59,15 +57,12 @@ describe("the companion wiring", () => {
     expect(main).toContain('app.on("will-quit"');
   });
 
-  it("shows the panel on Home, in French too", () => {
-    const html = readFileSync("companion-app/renderer/index.html", "utf8");
-    expect(html).toContain('<article id="versionPanel" class="panel version-panel"');
-    const app = readFileSync("companion-app/renderer/app.js", "utf8");
-    expect(app).toContain("function versionTexts(info)");
-    expect(app).toContain("api.openStoreListing()");
-    for (const key of ["COMPANION VERSION", "Check now", "Guilded Companion {0} is up to date", "Version {0} is ready to install", "Install now", "Version {0} is available",
-      "Open Microsoft Store", "Microsoft Store installs it: choose Open Microsoft Store, then Update on the Guilded Companion page.",
-      "Microsoft Store opened at Guilded Companion. Choose Update there (or Get updates in the Library).", "Downloading and checking the update: {0}%"]) expect(fr[key], key).toBeTruthy();
+  it("shows the Store line and button in the window, in French too", () => {
+    const html = readFileSync("companion-app/renderer/main.html", "utf8");
+    expect(html).toContain("The Microsoft Store keeps this app up to date.");
+    expect(html).toContain('id="btnStore"');
+    expect(readFileSync("companion-app/renderer/main.js", "utf8")).toContain("api.openStoreListing()");
+    for (const key of ["Open Microsoft Store", "The Microsoft Store keeps this app up to date.", "Downloading and checking the update: {0}%"]) expect(fr[key], key).toBeTruthy();
   });
 });
 

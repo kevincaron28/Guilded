@@ -1,28 +1,10 @@
-import { profileEditionLabel, profileSiteHref } from "../../companion/presentation.mjs";
-window.guildedProfileEditionLabel = profileEditionLabel;
-window.guildedProfileSiteHref = profileSiteHref;
-import { companionOverview } from "../../companion/overview.mjs";
-import { linkSteps, linkSummary, characterRows } from "../../companion/link-everything.mjs";
-window.guildedLinkSteps = linkSteps;
-window.guildedLinkSummary = linkSummary;
-window.guildedCharacterRows = characterRows;
-import { syncStatus, syncDiagnosticPreview } from "../../companion/sync-status.mjs";
-window.guildedSyncStatus = syncStatus;
-window.guildedSyncDiagnosticPreview = syncDiagnosticPreview;
+// The companion window's helpers, bundled for the browser (npm run companion:build): the language picker,
+// the sign-in wording and the single window's status model.
 import { createLanguageUI } from './language.js';
 let storage;
 try { storage = window.localStorage; } catch { /* language still works */ }
 window.companionLanguage = createLanguageUI(document, storage, navigator.language, location.href);
-window.guildedOverview = companionOverview;
-import { pagesInUse } from "../../companion/page-visibility.mjs";
 import { timeLeftLine, signInOutcome, isUnreachable, retryDelaySeconds, SERVER_RESTARTING } from "../../companion/sign-in-flow.mjs";
 window.guildedSignIn = { timeLeftLine, signInOutcome, isUnreachable, retryDelaySeconds, SERVER_RESTARTING };
-import { wowSearchMessage } from "../../companion/wow-search.mjs";
-import { linkWizard, successKey, savedSince, autoStep } from "../../companion/link-wizard.mjs";
-window.guildedLinkWizard = { linkWizard, successKey, savedSince, autoStep };
-window.guildedWowSearchMessage = wowSearchMessage;
-window.guildedPagesInUse = pagesInUse;
-import { statusCard, guildLine } from "../../companion/status-card.mjs";
-window.guildedStatusCard = { statusCard, guildLine };
 import { mainStatus } from "../../companion/main-status.mjs";
 window.guildedMainStatus = mainStatus;

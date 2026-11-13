@@ -26,7 +26,7 @@ describe("member-facing download links point at the website", () => {
     "site/pages/reference.fr.md",
     "site/pages/features.md",
     "site/pages/features.fr.md",
-    "companion-app/renderer/index.html"
+    "companion-app/renderer/main.html"
   ])("%s has no GitHub download link or wording", (path) => {
     const text = read(path);
     expect(text).not.toMatch(GITHUB_DOWNLOAD);

@@ -45,7 +45,9 @@ describe("Store startup task", () => {
     expect(main).toContain("if (!config.storeStartupAsked) {");
     expect(main).toContain("if (!STORE_PACKAGE) await setAutostart(true);");
     expect(main).not.toContain("enabled: !STORE_PACKAGE");
-    expect(readFileSync("companion-app/renderer/app.js", "utf8")).not.toContain("$('autostartLabel').hidden = true");
+    // The Start with Windows switch is shown in both builds.
+    expect(readFileSync("companion-app/renderer/main.html", "utf8")).toContain('id="autostart"');
+    expect(readFileSync("companion-app/renderer/main.js", "utf8")).toContain("api.setAutostart(");
     // The manifest still ships the task disabled: the app asks Windows, the package never forces it.
     expect(readFileSync("companion-app/build/store-startup.xml", "utf8")).toContain('Enabled="false"');
   });

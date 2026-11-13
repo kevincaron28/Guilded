@@ -1,10 +1,7 @@
 import { build } from "esbuild";
 import { fileURLToPath } from "node:url";
-import { copyFileSync, cpSync } from "node:fs";
-// The Windows app's interface: shared design tokens and fonts, plus one bundle of the helpers
-// its pages call (companion/*.mjs and the language picker). Electron loads these local files.
-copyFileSync("site/design-tokens.css", "companion-app/renderer/design-tokens.css");
-cpSync("site/fonts", "companion-app/renderer/fonts", { recursive: true });
+// The Windows app's interface: one bundle of the helpers its window calls (companion/*.mjs and the
+// language picker). Electron loads this local file.
 await build({
   entryPoints: [fileURLToPath(new URL("../companion-app/renderer/ui-entry.js", import.meta.url))],
   outfile: fileURLToPath(new URL("../companion-app/renderer/ui-bundle.js", import.meta.url)),

@@ -176,10 +176,13 @@ $('btnReport').onclick = async () => { const report = await api.copyProblemRepor
 $('btnReset').onclick = () => api.removeData();
 $('btnExport').onclick = async () => { $('exportResult').textContent = ''; const result = await api.exportSheets(undefined); if (!result.canceled) $('exportResult').textContent = M(result.message); };
 $('btnGRM').onclick = async () => { const result = await api.convertGRM({ guild: $('grmGuild').value, realm: $('grmRealm').value, edition: 'forever', includePrivate: $('grmPrivate').checked }); if (!result.canceled) $('grmResult').textContent = M(result.message); };
-$('btnOld').onclick = () => api.openOldWindow();
 for (const id of ['language', 'advLanguage']) $(id).addEventListener('change', async (event) => { languageUI.set(event.target.value); await api.setLanguage?.(event.target.value); $('language').value = $('advLanguage').value = languageUI.language; render(); });
 document.addEventListener('companion-language', () => { $('language').value = $('advLanguage').value = languageUI.language; });
-window.addEventListener('online', () => { void api.recoverSync?.().catch(() => {}); });
+// The companion process cannot see the network card: tell it, so "This PC is offline" is accurate.
+const reportOnline = () => { void api.setOnline?.(navigator.onLine).catch(() => {}); };
+window.addEventListener('online', () => { reportOnline(); void api.recoverSync?.().catch(() => {}); });
+window.addEventListener('offline', reportOnline);
+if (!navigator.onLine) reportOnline();
 
 api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, otherAccount: next.otherAccount }; render(); });
 api.onUpdateProgress?.((percent) => say(T('Downloading and checking the update: {0}%', percent)));

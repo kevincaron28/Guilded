@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { AUTO_OPEN_MIN_INTERVAL_MS, autoOpenDecision, mainStatus } from "../companion/main-status.mjs";
 
-// Companion redo C2: the single window (renderer/main.html) on the same IPC as the old window.
+// Companion redo C2/C5: the one window (renderer/main.html); the old window is gone.
 const require = createRequire(import.meta.url);
 const security = require("../companion-app/ipc-security.cjs");
 const dir = path.resolve("companion-app");
@@ -21,23 +21,23 @@ function sender(file: string) {
 }
 
 describe("the single window", () => {
-  it("is trusted, like the old window behind Advanced, and nothing else is", () => {
-    for (const file of ["main.html", "index.html"]) { const { event, win } = sender(file); expect(() => security.assertSender(event, win, dir)).not.toThrow(); }
+  it("is the only trusted window", () => {
+    const trusted = sender("main.html");
+    expect(() => security.assertSender(trusted.event, trusted.win, dir)).not.toThrow();
+    const old = sender("index.html");
+    expect(() => security.assertSender(old.event, old.win, dir)).toThrow("Untrusted companion window.");
     const { event, win } = sender("evil.html");
     expect(() => security.assertSender(event, win, dir)).toThrow("Untrusted companion window.");
   });
 
-  it("only calls IPC the preload exposes, and the new channel takes no arguments", () => {
+  it("only calls IPC the preload exposes, and the first load knows about a second WoW account", () => {
     const used = new Set([...js.matchAll(/\bapi\.([A-Za-z]+)/g)].map((match) => match[1]));
     for (const name of used) expect(preload, name).toContain(`  ${name}:`);
-    expect(() => security.validateIpc("open-old-window", [])).not.toThrow();
-    expect(() => security.validateIpc("open-old-window", ["x"])).toThrow();
-    expect(main).toContain('registerIpc("open-old-window"');
-    expect(() => security.validateIpc("open-single-window", [])).not.toThrow();
-    expect(main).toContain('registerIpc("open-single-window"');
-    // The old window has a way back, and the first load already knows about a second WoW account.
-    expect(readFileSync("companion-app/renderer/index.html", "utf8")).toContain('id="btnSingleWindow"');
-    expect(readFileSync("companion-app/renderer/app.js", "utf8")).toContain("api.openSingleWindow()");
+    // The old window and its channels are gone.
+    for (const gone of ["open-old-window", "open-single-window", "hub-view", "manage-edit", "delete-my-data"]) {
+      expect(() => security.validateIpc(gone, []), gone).toThrow();
+      expect(main).not.toContain(`registerIpc("${gone}"`);
+    }
     expect(main).toMatch(/registerIpc\("get-all", \(\) => \(\{ otherAccount:/);
     expect(js).toContain("api.onUpdateProgress");
     expect(js).toContain("all.otherAccount");
@@ -50,9 +50,12 @@ describe("the single window", () => {
     for (const id of ["line-wow", "line-addon", "line-sync", "line-account", "needs", "btnSync", "linkMy", "btnAdvanced"]) expect(html).toContain(`id="${id}"`);
   });
 
-  it("opens the old window only for --tab screenshots or Advanced > Old window", () => {
-    expect(main).toContain("const OLD_WINDOW_FIRST = Boolean(screenshotTab);");
+  it("has no old window: main.html is the only page, fixed size", () => {
+    expect(main).not.toContain("OLD_WINDOW_FIRST");
+    expect(main).not.toContain("screenshotTab");
     expect(main).toContain('path.join(__dirname, "renderer", "main.html")');
+    expect(main).not.toContain("index.html");
+    expect(html).not.toContain("btnOld");
   });
 });
 

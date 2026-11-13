@@ -192,10 +192,6 @@ describe("home and setup match the zero-setup state", () => {
     expect(autoStep(old, {})).toBe("sign-in");
     expect(autoStep(old, { zeroSetup: true })).toBeNull();
   });
-  it("opens on Home, not on the first-run page, once zero-setup syncs", () => {
-    const app = readFileSync(new URL("../companion-app/renderer/app.js", import.meta.url), "utf8").replace(/\r\n/g, "\n");
-    expect(app).toMatch(/function setupDone\(config\) \{\n {2}const device = !config\.companionCredential && config\.device === true && Boolean\(config\.deviceSecret\);/);
-  });
 });
 
 describe("the Sync page after an unsigned sync", () => {

@@ -13,7 +13,7 @@ describe('companion French presentation', () => {
   it('preserves every interpolation slot and covers authored T calls', () => {
     const slots = (text: string) => [...text.matchAll(/\{\d+\}/g)].map(match => match[0]).sort();
     for (const [key, value] of Object.entries(fr)) expect(slots(value), key).toEqual(slots(key));
-    for (const file of ['main.cjs', 'grm-import.cjs', 'renderer/app.js', 'renderer/link-everything.js', 'renderer/main.js', 'renderer/problems.js', 'renderer/repair.js']) {
+    for (const file of ['main.cjs', 'grm-import.cjs', 'renderer/main.js']) {
       const source = ts.createSourceFile(file, readFileSync(new URL(`../companion-app/${file}`, import.meta.url), 'utf8'), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
       function visit(node: ts.Node) {
         if (ts.isCallExpression(node) && node.expression.getText(source) === 'T') {
@@ -48,7 +48,7 @@ describe('companion French presentation', () => {
   it('stores native language separately without rewriting pairing or starting a sync', () => {
     const handlers = new Map<string, (...args: unknown[]) => unknown>();
     const writeFileSync = vi.fn();
-    const frame = { url: new URL("../companion-app/renderer/index.html", import.meta.url).href };
+    const frame = { url: new URL("../companion-app/renderer/main.html", import.meta.url).href };
     const contents = { mainFrame: frame };
     const ipcEvent = { sender: contents, senderFrame: frame };
     const appRequire = createRequire(new URL('../companion-app/main.cjs', import.meta.url));

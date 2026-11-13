@@ -147,10 +147,4 @@ describe("addon download: website, then GitHub", () => {
     expect(addons.siteChecksumFor({ addonZips: { [name]: "abc" } }, name)).toBeNull();
     expect(addons.siteChecksumFor(null, name)).toBeNull();
   });
-
-  it("Get the addon opens the website's zip when it is there, otherwise GitHub's", () => {
-    const main = readFileSync("companion-app/main.cjs", "utf8");
-    expect(main).toContain("const mirror = engineModules.addonDownloadMirror?.(edition, version) ?? primary;");
-    expect(main).toContain('fetch(primary, { method: "HEAD"');
-  });
 });

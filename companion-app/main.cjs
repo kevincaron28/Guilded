@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawn, execFile } = require("node:child_process");
 const { pathToFileURL } = require("node:url");
-const { detectSavedVariables, detectOtherEditionSavedVariables, pickSavedVariables, pickPrimaryAccount, pickerStart, accountsUnder, searchWow } = require("./detect-wow.cjs");
+const { detectSavedVariables, pickSavedVariables, pickPrimaryAccount, pickerStart, accountsUnder, searchWow } = require("./detect-wow.cjs");
 const updates = require("./update-check.cjs");
 // Loaded on first use (Store build only): companion-app/store-update.cjs.
 const storeUpdatesModule = () => require("./store-update.cjs");
@@ -55,7 +55,6 @@ const DEFAULTS = {
 const args = process.argv.slice(process.defaultApp ? 2 : 1);
 const startHidden = args.includes("--hidden");
 const screenshotPath = (args.find((a) => a.startsWith("--screenshot=")) ?? "").slice("--screenshot=".length);
-const screenshotTab = (args.find((a) => a.startsWith("--tab=")) ?? "").slice("--tab=".length);
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 // The installer asks a running companion to save and quit before it replaces any file
@@ -266,11 +265,8 @@ function logLowDisk(result, action) {
   pushLog({ time: new Date().toISOString(), level: "warn", message: E("{0} was not started.", action) + " " + lowDiskMessage(result, E) });
 }
 
-// When the release service was last asked, and whether it answered (the version panel shows it).
-let lastUpdateCheck = { at: null, ok: null };
 async function fetchLatest() {
   const found = await updates.fetchLatestRelease();
-  lastUpdateCheck = { at: new Date().toISOString(), ok: Boolean(found) };
   latestRelease = found ?? latestRelease;
   return found;
 }
@@ -282,18 +278,6 @@ async function checkForUpdate() {
   void stageUpdate();
 }
 
-// The version panel on Home (owner request, 7 November): installed, latest out, and the one thing
-// to do (update-check.cjs versionStatus). The Store build also asks GitHub which version is out,
-// at most once an hour, so the member sees whether the Store has something to install.
-registerIpc("version-info", async () => {
-  if (STORE_INSTALL && (!lastUpdateCheck.at || Date.now() - Date.parse(lastUpdateCheck.at) > 60 * 60 * 1000)) await fetchLatest().catch(() => null);
-  const pending = config.pendingUpdate ?? null;
-  const pendingReady = !STORE_INSTALL && app.isPackaged && updates.inspectPending({ pending, current: app.getVersion(), directory: updateDirectory() }).action === "install";
-  return updates.versionStatus({
-    current: app.getVersion(), latest: latestRelease, pending, pendingReady, store: STORE_INSTALL, storeUpdate: storePageUpdate,
-    checkedAt: lastUpdateCheck.at, checkFailed: lastUpdateCheck.ok === false, autoUpdate: config.autoUpdate !== false, installing
-  });
-});
 // Store installs: the Guilded Companion listing itself, where the Store shows Update.
 registerIpc("open-store-listing", () => shell.openExternal(updates.STORE_LISTING));
 
@@ -574,19 +558,16 @@ function showWindow() {
   win.focus();
 }
 
-// --tab=<page> (screenshots, support) still opens the old window on that page.
-const OLD_WINDOW_FIRST = Boolean(screenshotTab);
 function createWindow() {
   win = new BrowserWindow({
-    // The single window (redo C2): small and fixed; the old window (Advanced > Old window) grows it.
-    width: OLD_WINDOW_FIRST ? 1180 : 480, height: OLD_WINDOW_FIRST ? 820 : 600, minWidth: OLD_WINDOW_FIRST ? 760 : 420, minHeight: OLD_WINDOW_FIRST ? 600 : 520, resizable: OLD_WINDOW_FIRST,
+    // The single window: small and fixed.
+    width: 480, height: 600, minWidth: 420, minHeight: 520, resizable: false,
     show: false, autoHideMenuBar: true, backgroundColor: "#15120d",
     title: T("Guilded Companion"), icon: asset("icon.png"),
     webPreferences: { preload: path.join(__dirname, "preload.cjs"), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   win.setMenu(null);
-  if (OLD_WINDOW_FIRST) win.loadFile(path.join(__dirname, "renderer", "index.html"), { query: screenshotTab ? { tab: screenshotTab } : {} });
-  else win.loadFile(path.join(__dirname, "renderer", "main.html"));
+  win.loadFile(path.join(__dirname, "renderer", "main.html"));
   win.once("ready-to-show", () => { if ((!startHidden && !restartedQuietly) || engineModules.validateConfig(config).length > 0) win.show(); });
   // A Store update prompt (Windows 10 1607-1909) waits for a window the member can see.
   win.on("show", () => { if (storePromptPending) { storePromptPending = false; config.storeUpdateCheckedAt = undefined; void maybeStoreUpdate(); } });
@@ -744,32 +725,6 @@ async function removeAllDataAndQuit(skipPrompt = false) {
   return true;
 }
 
-// "Delete my data" (9.0.1): asks the bot to erase this member's records (the same erasure as the website's
-// /me/data page), after a confirm step, then clears this PC like "Remove data & quit". It cannot be undone.
-async function deleteMyDataEverywhere() {
-  if (!config.companionCredential) {
-    dialog.showMessageBoxSync(win ?? undefined, { type: "info", buttons: [T("OK")], message: T("Connect your Discord account first."), detail: T("There is nothing stored online for you yet. Use Remove data & quit to clear this PC.") });
-    return false;
-  }
-  const choice = dialog.showMessageBoxSync(win ?? undefined, {
-    type: "warning", buttons: [T("Cancel"), T("Delete my data")], defaultId: 0, cancelId: 0,
-    title: T("Delete my data"), message: T("Delete all your Guilded data?"),
-    detail: T("This erases your website account, your guild characters and your personal records on the bot (battleground reports, achievements, recap schedule, devices), then clears this PC. Points, loot and raid history stay in each guild as \"Deleted member\". It cannot be undone.")
-  });
-  if (choice !== 1) return false;
-  try {
-    const url = new URL("/api/v1/companion/delete-my-data", config.uploadUrl);
-    const { response, body } = await engineModules.requestJson(url, { method: "POST", headers: { ...engineModules.credentialHeaders(config), "content-type": "application/json" }, body: JSON.stringify({ confirm: "DELETE" }) }, undefined, 30000);
-    if (!response.ok) {
-      dialog.showMessageBoxSync(win ?? undefined, { type: "error", buttons: [T("OK")], message: T("Your data was not deleted."), detail: response.status === 404 ? T("This bot does not support deleting from the companion yet. Use your Guilded page on the website (Your data), or ask the owner.") : body.error || T("The bot answered {0}.", response.status) });
-      return false;
-    }
-  } catch (error) {
-    dialog.showMessageBoxSync(win ?? undefined, { type: "error", buttons: [T("OK")], message: T("Your data was not deleted."), detail: engineModules.describeError(error) });
-    return false;
-  }
-  return removeAllDataAndQuit(true);
-}
 
 // The installer asks a running companion to close (installer.nsh customCheckAppRunning) by writing
 // quit-for-update in the data folder; nothing is started, so no second window flashes. The
@@ -922,55 +877,8 @@ app.on("before-quit", event => {
   }
 });
 
-// Old window > back to the single window.
-registerIpc("open-single-window", () => {
-  if (!win) return false;
-  win.setResizable(false);
-  win.setMinimumSize(420, 520);
-  win.setSize(480, 600);
-  win.center();
-  void win.loadFile(path.join(__dirname, "renderer", "main.html"));
-  return true;
-});
-// Advanced > Old window (kept for one release as a safety net): the previous, larger window.
-registerIpc("open-old-window", () => {
-  if (!win) return false;
-  win.setResizable(true);
-  win.setMinimumSize(760, 600);
-  win.setSize(1180, 820);
-  win.center();
-  void win.loadFile(path.join(__dirname, "renderer", "index.html"));
-  return true;
-});
 registerIpc("get-all", () => ({ otherAccount: otherAccount ? { account: otherAccount.account } : null, focus: { poeTracking: engineModules.poeTracking === true }, config: require("./ipc-security.cjs").rendererConfig(config), language: language(), logs, ...currentState(), storePackage: STORE_PACKAGE, autostart: autostartOn(), version: app.getVersion() }));
-registerIpc("list-profiles", () => ({ active: config.activeProfile || "default", profiles: engineModules.profileChoices(config) }));
-registerIpc("change-profile", async (_event, choice) => {
-  try {
-    if (signIn) return { ok: false, message: "Finish or cancel Discord sign-in before switching connections." };
-    await engine.stop();
-    config = choice.name ? engineModules.addProfile(config, choice.name) : engineModules.switchProfile(config, choice.id);
-    config.poeJournalFile = path.join(app.getPath("userData"), config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
-    await saveConfig();
-    savedFile = null;
-    await engine.configure(config);
-    onState(engine.state());
-    return { ok: true, message: "Connection selected." };
-  } catch (error) { return { ok: false, message: error.message }; }
-});
 
-registerIpc("remove-profile", async (_event, id) => {
-  try {
-    if (signIn) return { ok: false, message: "Finish or cancel Discord sign-in before removing a connection." };
-    await engine.stop();
-    config = engineModules.removeProfile(config, id);
-    config.poeJournalFile = path.join(app.getPath("userData"), config.activeProfile === "default" ? "poe-journal.json" : `poe-journal-${config.activeProfile}.json`);
-    await saveConfig();
-    savedFile = null;
-    await engine.configure(config);
-    onState(engine.state());
-    return { ok: true, message: "Connection removed from this PC. Nothing was deleted on the server." };
-  } catch (error) { try { await engine.configure(config); } catch { /* keep the old selection running if possible */ } return { ok: false, message: error.message }; }
-});
 
 registerIpc("set-language", (_event, value) => {
   if (!["en", "fr"].includes(value)) throw new Error("Unsupported language");
@@ -982,17 +890,6 @@ registerIpc("set-language", (_event, value) => {
   return value;
 });
 
-registerIpc("save-config", async (_event, next) => {
-  if (typeof next.watchFile === "string") next = { ...next, watchFile: engineModules.normalizeSavedPath(next.watchFile, savedNames()[0]) };
-  config = { ...config, ...next, poeJournalFile: profileJournalFile(), standingsIntervalMinutes: Math.max(1, Number(next.standingsIntervalMinutes) || 2) };
-  const problems = engineModules.validateConfig(config);
-  await saveConfig();
-  void refreshSavedFile();
-  const started = await engine.configure(config);
-  if (problems.length > 0) return { ok: false, message: problems[0] };
-  if (config.syncEnabled === false) return { ok: true, message: T("Saved. This connection is paused.") };
-  return started ? { ok: true, message: T("Saved. The companion is running.") } : { ok: false, message: T("Saved, but it could not start. See the Activity page.") };
-});
 
 // The Overview prompt: watch the live game's file instead (the page words the result), or keep
 // this folder and never be asked about that file again.
@@ -1024,50 +921,15 @@ async function answerOtherAccount(yes) {
 function accountRowsFor(state) {
   try { return typeof engineModules?.accountRows === "function" ? engineModules.accountRows(config, state?.accounts ?? []) : []; } catch { return []; }
 }
-registerIpc("set-account", async (_event, { file, on }) => {
-  const next = engineModules.switchAccount(config, file, on);
-  if (next === config) return { ok: false };
-  config = next;
-  await saveConfig();
-  pushLog({ time: new Date().toISOString(), level: "info", message: on ? E("WoW account {0} syncs again.", engineModules.accountName(file)) : E("WoW account {0} was switched off.", engineModules.accountName(file)) });
-  const started = await engine.configure(config);
-  if (on && started) engine.uploadNow();
-  await refreshSavedFile();
-  return { ok: started };
-});
 registerIpc("account-yes", () => answerOtherAccount(true));
 registerIpc("account-no", () => answerOtherAccount(false));
-registerIpc("dismiss-live-folder", async () => {
-  const candidate = savedFile?.candidate;
-  if (candidate) {
-    config.liveFolderDeclined = [...(config.liveFolderDeclined ?? []), candidate.path].slice(-20);
-    await saveConfig();
-  }
-  await refreshSavedFile();
-  return true;
-});
 
 registerIpc("open-storage-settings", () => shell.openExternal("ms-settings:storagesense"));
-registerIpc("check-disk-space", () => {
-  const result = checkDisk();
-  if (result.ok) lowDiskLogged = false;
-  return { ok: result.ok, message: result.ok ? T("There is enough free disk space now. Try again.") : lowDiskMessage(result) };
-});
 registerIpc("open-update", () => shell.openExternal(STORE_PACKAGE ? updates.STORE_LISTING : update?.url || updates.RELEASES_PAGE));
-registerIpc("open-startup-settings", () => shell.openExternal("ms-settings:startupapps"));
 
 // "Update now" (7.2): download the checked installer, run it silently and quit; the installer
 // restarts the companion. Settings, the Discord link and the queue stay in the user data folder.
 let installing = false;
-// "Check for updates": look now and report. A new version then downloads in the background
-// (or the member chooses Update now); nothing is installed by the check itself.
-registerIpc("check-update", async () => {
-  if (STORE_INSTALL) return { ok: true, action: "store", message: T("Use Microsoft Store to update this installation.") };
-  await checkForUpdate();
-  if (!latestRelease) return { ok: false, message: T("Could not verify available updates. Try again when the release service is reachable.") };
-  if (!update) return { ok: true, action: "current", message: T("Your companion is up to date.") };
-  return { ok: true, action: "available", message: T("Version {0} is available. Choose Update now to install it.", update.version) };
-});
 registerIpc("set-auto-update", async (_event, on) => {
   config.autoUpdate = on;
   if (!on) forgetPendingUpdate(config.pendingUpdate?.file);
@@ -1137,7 +999,6 @@ registerIpc("install-update", async () => {
   }
 });
 
-registerIpc("test-connection", (_event, next) => engineModules.testConnection({ ...config, ...next }));
 
 // Zero-setup companion (owner decision, 9 November 2026; docs/ZERO_SETUP_COMPANION.md). With no
 // Discord sign-in anywhere, the companion finds the WoW folder, gets a device key from the bot (kept
@@ -1238,7 +1099,6 @@ async function applyPairing(next, result) {
   };
 }
 
-registerIpc("pair-account", async (_event, next) => applyPairing(next, await engineModules.pairAccount({ ...config, ...next })));
 
 // "Sign in with Discord" (7.2): the browser opens the website, the app waits for the approval.
 // Since 8.1 the website sends the browser back to a 127.0.0.1 port with a proof: no code to type.
@@ -1354,48 +1214,8 @@ async function companionMeFetch() {
     return { ok: false, unreachable: true, error: engineModules.describeError(error), guild };
   }
 }
-// The Join button: only a Discord invite link.
-registerIpc("open-invite", (_event, url) => {
-  if (typeof url !== "string" || !DISCORD_INVITE.test(url)) return false;
-  void shell.openExternal(url);
-  return true;
-});
-// "Reopen the page" (9.0): always a new request. The first one may have expired, or its page may
-// already have been used (Connect pressed, the answer lost on the way back to this PC), and the
-// site then says "This sign-in expired" while the countdown here still runs. The waiting loop
-// above follows the new request.
-registerIpc("sign-in-reopen", async () => {
-  const current = signIn;
-  if (!current) return { ok: false, message: T("Choose Sign in with Discord first.") };
-  const begun = await beginSignIn(current.next);
-  if (!begun.current) {
-    // The bot did not answer: open the same page again, as before.
-    await openSignInPage(current);
-    return { ok: true, url: current.started.url };
-  }
-  if (signIn !== current) { endSignIn(begun.current); return { ok: false, message: T("Choose Sign in with Discord first.") }; }
-  current.replacedBy = begun.current;
-  signIn = begun.current;
-  current.controller.abort();
-  pushLog({ time: new Date().toISOString(), level: "info", message: E("A new Discord sign-in page was opened.") });
-  await openSignInPage(signIn);
-  return { ok: true, url: signIn.started.url, started: signInView(signIn.started) };
-});
 registerIpc("sign-in-cancel", () => { endSignIn(signIn); signIn = null; return { ok: true }; });
 
-registerIpc("browse-file", async () => {
-  // The watched file's folder, else the WoW install the search finds, else Program Files (x86): never Downloads.
-  const start = config.watchFile ? path.dirname(config.watchFile) : (() => { const found = searchWow(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions()); return pickerStart(undefined, found.entries, found.installs); })();
-  const result = await dialog.showOpenDialog(win, {
-    title: config.personal
-      ? T("Pick GuildedDungeons.lua or Guilded.lua (inside WTF > Account > your account > SavedVariables)")
-      : T("Pick Guilded.lua (inside WTF > Account > your account > SavedVariables)"),
-    ...(start ? { defaultPath: start } : {}),
-    properties: ["openFile"], filters: [{ name: T("Your addon data file"), extensions: ["lua"] }]
-  });
-  // A file inside a character folder never holds GuildedDB: use the account's SavedVariables instead.
-  return result.canceled ? null : engineModules.normalizeSavedPath(result.filePaths[0]);
-});
 
 // Leaderboards only: either addon's file; the engine then reads both from that folder.
 const savedNames = () => (config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]);
@@ -1412,50 +1232,6 @@ function readFixedDrives() {
 }
 readFixedDrives();
 const wowSearchOptions = () => (fixedDrives ? { drives: fixedDrives } : undefined);
-registerIpc("detect-wow", () => detectSavedVariables(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions()));
-// Find it (8.5 fresh-PC test): every drive and Battle.net's own record, and what was searched, so the
-// window always says what it found or did not.
-registerIpc("search-wow", () => {
-  const found = searchWow(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions());
-  const otherEdition = detectOtherEditionSavedVariables(savedNames(), engineModules.isOtherEditionFolder).filter((entry) => entry.exists).length;
-  return { entries: found.entries, installs: found.installs, drives: found.drives, otherEdition };
-});
-// "Link everything", step 3: after sign-in, pick the saved-data file by itself when exactly one
-// account on this PC has it. Local read only; with several accounts the member chooses.
-registerIpc("link-find-saved-data", async () => {
-  if (!config.companionCredential && !engineModules.isDeviceMode(config)) return { ok: false, found: 0, message: T("Sign in with Discord first.") };
-  // A watched file that exists and is the live one is done. One that is missing, from the beta
-  // client or stale (the player moved to WoW Forever) is looked for again below.
-  if (config.watchFile) {
-    let current = null;
-    try { current = await engineModules.checkSavedFile(config.watchFile); } catch { /* look again below */ }
-    if (current && current.changedAt !== null && !current.candidate) return { ok: true, found: 1, already: true };
-  }
-  const detected = await detectSavedVariables(savedNames(), engineModules.isOtherEditionFolder, wowSearchOptions());
-  const found = detected.filter((entry) => entry.exists);
-  const otherCount = detectOtherEditionSavedVariables(savedNames(), engineModules.isOtherEditionFolder).filter((entry) => entry.exists).length;
-  // Addon just installed and not saved yet (no /reload so far): the file does not exist, but its account
-  // folder does. With exactly one live account folder, watch that path now; the upload starts at the first save.
-  const pending = found.length === 0 ? pickSavedVariables(detected.filter((entry) => !/beta/i.test(entry.game))) : null;
-  const chosen = pickPrimaryAccount(found) || pending;
-  if (!chosen) return { ok: false, found: found.length, ...(otherCount && !found.length ? { otherEdition: otherCount } : {}), message: otherCount && !found.length ? T("Guilded supports WoW Forever only. The saved files found are from another WoW version; nothing was changed.") : found.length ? T("Found several WoW accounts ({0}). Choose Browse and pick Guilded.lua of the account you play.", found.map((entry) => entry.account).filter(Boolean).join(", ") || found.length) : T("Choose Browse and select Guilded.lua in your account’s SavedVariables folder.") };
-  if (config.watchFile && config.watchFile.toLowerCase() === chosen.path.toLowerCase()) return { ok: true, found: 1, already: true };
-  const switched = Boolean(config.watchFile);
-  config = { ...config, watchFile: chosen.path, wowEnabled: true };
-  await saveConfig();
-  if (switched) pushLog({ time: new Date().toISOString(), level: "info", message: E("Saved-data file switched to {0} ({1}).", chosen.path, E("found by Find my addon data")) });
-  const started = await engine.configure(config);
-  if (started && chosen.exists) engine.uploadNow();
-  await refreshSavedFile();
-  return { ok: started, found: 1, switched, ...(chosen.exists ? {} : { pending: true }) };
-});
-registerIpc("browse-poe-log", async () => {
-  const result = await dialog.showOpenDialog(win, {
-    title: T("Choose Path of Exile 2 > logs > Client.txt"),
-    properties: ["openFile"], filters: [{ name: T("Game log"), extensions: ["txt"] }]
-  });
-  return result.canceled ? null : result.filePaths[0];
-});
 // Export to spreadsheet: one CSV file per table (all, or `table`) from Guilded.lua, into a
 // folder the player picks.
 registerIpc("export-sheets", async (_event, table) => {
@@ -1479,15 +1255,8 @@ registerIpc("export-sheets", async (_event, table) => {
 });
 registerIpc("upload-now", () => { engine.uploadNow(); return true; });
 registerIpc("convert-grm", (_event, options) => require("./grm-import.cjs").createGRMConverter({ dialog, fs: fs.promises, convertGRM: engineModules.convertGRM, getWindow: () => win, T })(options));
-registerIpc("refresh-standings", async () => { await engine.refreshStandings(); return true; });
 registerIpc("set-autostart", (_event, on) => setAutostart(on));
-registerIpc("open-addon-folder", () => {
-  const target = engineModules.resolveStandingsPath(config);
-  if (target) shell.showItemInFolder(target);
-  return !!target;
-});
 registerIpc("remove-data", () => removeAllDataAndQuit());
-registerIpc("delete-my-data", () => deleteMyDataEverywhere());
 registerIpc("toggle-tracking", async () => {
   config.syncEnabled = config.syncEnabled === false;
   await saveConfig();
@@ -1495,68 +1264,8 @@ registerIpc("toggle-tracking", async () => {
   onState(engine.state());
   return currentState();
 });
-registerIpc("get-poe-runs", async () => {
-  const url = new URL("/api/v1/poe/visits", config.uploadUrl);
-  url.searchParams.set("guild", config.guildDiscordId);
-  const { response, body } = await engineModules.requestJson(url, { headers: engineModules.credentialHeaders(config) });
-  if (!response.ok) throw new Error(body.error || T("Could not load your map history."));
-  return body.visits;
-});
-// The Wishlist and Cores & prices pages: read what this member may see, send one change.
-// Answers { ok, data | error } so the page shows the bot's own message, not Electron's wrapper.
-async function manageRequest(change) {
-  if (!config.companionCredential) return { ok: false, error: T("Connect your Discord account first.") };
-  try {
-    const url = new URL("/api/v1/manage", config.uploadUrl);
-    if (!change) url.searchParams.set("guild", config.guildDiscordId);
-    const headers = engineModules.credentialHeaders(config);
-    const { response, body } = await engineModules.requestJson(url, change
-      ? { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ guildDiscordId: config.guildDiscordId, change }) }
-      : { headers });
-    if (!response.ok) return { ok: false, error: response.status === 404 && body.error === "Not found" ? T("This bot does not support editing from the companion yet. Ask the owner to update it.") : body.error || T("The bot answered {0}.", response.status) };
-    return { ok: true, data: body };
-  } catch (error) { return { ok: false, error: engineModules.describeError(error) }; }
-}
-// The hub pages (My characters, Reserves, Server): one read, one officer-only write. The last
-// good answer is kept on this PC so the pages still show something offline, marked as saved.
-const hubCacheFile = () => path.join(app.getPath("userData"), "hub-cache.json");
-async function hubRequest(change, lang) {
-  if (!config.companionCredential) return { ok: false, error: T("Connect your Discord account first.") };
-  // Leaderboards only has no guild to read: say that plainly instead of a guild error.
-  if (config.personal === true) return { ok: false, personal: true, unreachable: false, error: T("Signed in for public dungeon rankings only") };
-  try {
-    const url = new URL("/api/v1/hub", config.uploadUrl);
-    if (!change) { url.searchParams.set("guild", config.guildDiscordId); url.searchParams.set("lang", lang === "fr" ? "fr" : "en"); }
-    const headers = engineModules.credentialHeaders(config);
-    const { response, body } = await engineModules.requestJson(url, change
-      ? { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ guildDiscordId: config.guildDiscordId, change }) }
-      : { headers });
-    if (!response.ok) return { ok: false, error: response.status === 404 && body.error === "Not found" ? T("This bot does not support the hub yet. Ask the owner to update it.") : body.error || T("The bot answered {0}.", response.status) };
-    if (!change) { try { await fs.promises.writeFile(hubCacheFile(), JSON.stringify({ guild: config.guildDiscordId, at: new Date().toISOString(), data: body })); } catch { /* the cache is optional */ } }
-    return { ok: true, data: body };
-  } catch (error) {
-    if (!change) {
-      try {
-        const saved = JSON.parse(await fs.promises.readFile(hubCacheFile(), "utf8"));
-        if (saved.guild === config.guildDiscordId && saved.data) return { ok: true, data: saved.data, offline: true, savedAt: saved.at };
-      } catch { /* nothing saved yet */ }
-    }
-    return { ok: false, error: engineModules.describeError(error) };
-  }
-}
-registerIpc("hub-view", (_event, lang) => hubRequest(null, lang));
-registerIpc("hub-edit", (_event, change) => hubRequest(change));
-registerIpc("manage-view", () => manageRequest(null));
-registerIpc("manage-edit", (_event, change) => manageRequest(change));
 
 registerIpc("open-connections", () => shell.openExternal(new URL("/me/connections", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));
-// "Open Discord server": the server this companion is linked to, in the Discord app or browser.
-registerIpc("open-discord-server", () => {
-  if (!/^\d{5,25}$/.test(String(config.guildDiscordId || ""))) return false;
-  shell.openExternal(`https://discord.com/channels/${config.guildDiscordId}`);
-  return true;
-});
-registerIpc("open-battlenet", () => shell.openExternal(new URL("/me/battlenet", engineModules.checkUrl(config.uploadUrl || "https://guilded.kcaron.top")).href));
 registerIpc("recover-sync", () => engine.resume());
 
 // Problems panel: Copy report for the developer. Built here from the allowlisted summary
@@ -1568,19 +1277,6 @@ registerIpc("copy-problem-report", () => {
   clipboard.writeText(report.text);
   pushLog({ time: new Date().toISOString(), level: "info", message: E("Report {0} copied for the developer.", report.reference) });
   return { reference: report.reference, text: report.text };
-});
-// The Forever zip of this release when the folder needs Forever; otherwise the CurseForge page.
-// The website's copy first; the GitHub one when the website does not have this version or does not answer.
-registerIpc("open-addon-download", async () => {
-  const edition = savedFile?.addon?.expected, version = app.getVersion();
-  const primary = engineModules.addonDownloadUrl?.(edition, version) ?? "https://www.curseforge.com/wow/addons/guilded";
-  const mirror = engineModules.addonDownloadMirror?.(edition, version) ?? primary;
-  let target = primary;
-  if (mirror !== primary) {
-    const found = await fetch(primary, { method: "HEAD", headers: { "user-agent": "Guilded-Companion" }, signal: AbortSignal.timeout(5_000) }).then((response) => response.ok, () => false);
-    if (!found) target = mirror;
-  }
-  return shell.openExternal(target);
 });
 // Downloads this release's Forever zip, checks it against the release's SHA256SUMS, refuses while
 // WoW runs, backs up an existing Guilded folder and puts the new one in AddOns.
@@ -1608,7 +1304,6 @@ async function installAddonNow({ refresh = true, force = false } = {}) {
     if (engine) onState(engine.state());
   }
 }
-registerIpc("reinstall-addon", () => installAddonAnswer(true));
 registerIpc("install-addon", () => installAddonAnswer(false));
 async function installAddonAnswer(force) {
   try {

@@ -75,7 +75,9 @@ current release evidence for deployment gates.
 
 ## Link everything (companion screen)
 
-`companion/link-everything.mjs` builds the status list; `companion-app/renderer/link-everything.js` shows it and is the first page a signed-out user sees (Skip for now remembers on this PC). It adds no sign-in scheme.
+> Redo C5 (13 November 2026): the Link everything screen and the other old pages are gone; the single window (`renderer/main.html`, status from `companion/main-status.mjs`) replaces them. `companion/link-everything.mjs` is kept as a module and no longer drives a screen. The text below describes the old screen.
+
+`companion/link-everything.mjs` builds the status list. It adds no sign-in scheme.
 
 | Step | What it reuses | Where the status comes from |
 | --- | --- | --- |

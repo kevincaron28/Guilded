@@ -100,17 +100,9 @@ describe("Repair", () => {
   });
 });
 
-describe("a slimmer companion", () => {
-  const html = readFileSync("companion-app/renderer/index.html", "utf8");
-  it("raid planning and leaderboards open the website instead of companion pages", () => {
-    for (const page of ["reserves", "leaderboards", "wishlist", "pricing", "cores"]) expect(html, page).not.toContain(`class="nav optional-page" data-page="${page}"`);
-    expect(html).not.toContain('<button class="nav" data-page="leaderboards">');
-    for (const path of ["/leaderboards/", "/me/raid-plans", "/me/reserves"]) expect(html).toContain(`data-web-path="${path}"`);
-    // Redesign PR 5: the website has these pages now (Track C, #534), so the old in-app pages are gone.
-    for (const page of ["page-reserves", "page-leaderboards", "page-wishlist", "page-pricing", "page-cores"]) expect(html).not.toContain(`id="${page}"`);
-  });
-  it("Repair is on Home, on Problems and in the setup wizard", () => {
-    for (const id of ["btnRepair", "btnRepairProblems", "btnWizardRepair", "btnWizardSetup", "repairDialog", "repairResults"]) expect(html).toContain(`id="${id}"`);
-    for (const text of ["Repair", "Set up WoW and the addon", "ON THE WEBSITE", "Raids, cores and prices", "Reserves and wishlist"]) expect(fr[text], text).toBeTypeOf("string");
+describe("Repair in the window", () => {
+  it("is a button in Advanced, wired to the repair channel", () => {
+    expect(readFileSync("companion-app/renderer/main.html", "utf8")).toContain('id="btnRepair"');
+    expect(readFileSync("companion-app/renderer/main.js", "utf8")).toContain("api.repair()");
   });
 });

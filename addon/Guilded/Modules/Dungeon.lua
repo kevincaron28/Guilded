@@ -1400,7 +1400,10 @@ dungeon.ackedRecently = ackedRecently
 -- guildmates, or this player's own companion, end it.
 local function offerable(run)
   if run.synced or (run.ackCount or 0) >= 2 then return false end
-  if run.syncedVia then return now() - (run.slowOfferedAt or run.syncedViaAt or 0) >= SLOW_REOFFER end
+  if run.syncedVia then
+    local at = run.slowOfferedAt or run.syncedViaAt
+    return at ~= nil and now() - at >= SLOW_REOFFER
+  end
   return true
 end
 function dungeon.ownUnconfirmed()

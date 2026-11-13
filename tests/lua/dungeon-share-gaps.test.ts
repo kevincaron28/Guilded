@@ -285,12 +285,6 @@ describe("message volume in a big guild", () => {
   });
 });
 
-const quiet = (s: LuaSession, name: string, others: LuaSession[]) => {
-  const sent = lines(s).filter((l) => l.startsWith("GuildedDgn>"));
-  for (const line of sent) for (const o of others) hear(o, name, line);
-  return sent;
-};
-
 describe.each<Kind>(["guilded", "standalone"])("review fixes (%s)", (kind) => {
   const inside = (s: LuaSession, on: boolean) => s.run(`IsInInstance = function() return ${on}, "party" end`);
 

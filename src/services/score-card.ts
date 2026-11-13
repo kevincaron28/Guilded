@@ -583,7 +583,9 @@ async function renderDungeon(card: ScoreCard): Promise<Buffer> {
 // panel per section side by side (one to three), each with up to five rows.
 async function renderRecap(card: ScoreCard): Promise<Buffer> {
   const visual = card.recap!, accent = { gold: th.gold, green: th.green, red: th.red } as const, layers: Layer[] = [];
-  const art = await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${dungeonArt(visual.theme)}</svg>`)).png().toBuffer();
+  // An approved painting (card.backdrop, "wide": text reaches the right edge) replaces the painted scene; without a file the scene is drawn as before.
+  const painting = await cardBackdropArt(card.backdrop, "wide");
+  const art = painting ? await sharp(painting).png().toBuffer() : await sharp(Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">${dungeonArt(visual.theme)}</svg>`)).png().toBuffer();
   const shapes: string[] = [`<defs><linearGradient id="rshade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".55"/><stop offset=".45" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></linearGradient></defs>`,
     `<rect width="1200" height="630" fill="url(#rshade)"/>`, `<rect width="12" height="630" fill="${th.bar}"/>`,
     `<rect x="26" y="14" width="1160" height="602" rx="6" fill="none" stroke="${th.frame}" stroke-width="2"/>`];

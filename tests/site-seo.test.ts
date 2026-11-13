@@ -1,8 +1,8 @@
-import { beforeAll, describe, expect, it, vi } from "vitest";
-import { execFileSync } from "node:child_process";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import worker from "../worker/index.mjs";
 import { GUIDE_REDIRECTS } from "../site/static-redirects.mjs";
+import { staticRedirect } from "../worker/localized-assets.mjs";
 
 const env = { GUILDED_CANONICAL_HOST: "guildedwow.com", ASSETS: { fetch: vi.fn(async () => new Response("asset")) } };
 const get = (url: string) => worker.fetch(new Request(url, { redirect: "manual" }), env);
@@ -37,7 +37,6 @@ describe("search-engine fixes in the Worker", () => {
 });
 
 describe("built site", () => {
-  beforeAll(() => execFileSync(process.execPath, ["scripts/build-site.mjs"], { stdio: "pipe" }), 60000);
   const out = "dist/site";
   const locs = () => [...readFileSync(`${out}/sitemap.xml`, "utf8").matchAll(/<loc>([^<]+)<\/loc>/g)].map(match => match[1]!);
   it("lists only https://guildedwow.com URLs and no redirecting page", () => {
@@ -49,6 +48,18 @@ describe("built site", () => {
       expect(Object.hasOwn(GUIDE_REDIRECTS, path), url).toBe(false);
       expect(url).not.toContain("index.html");
     }
+  });
+  it("lists no address that any redirect rule answers (shared table, static rules and the Worker)", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("ok")));
+    for (const url of locs()) {
+      const { pathname, search } = new URL(url);
+      expect(Object.hasOwn(GUIDE_REDIRECTS, pathname), url).toBe(false);
+      expect(staticRedirect(new URL(url)), url).toBeNull();
+      const response = await get(url);
+      expect(response.status, `${url} -> ${response.headers.get("location")}`).toBeLessThan(300);
+      expect(search).toBe("");
+    }
+    vi.unstubAllGlobals();
   });
   it("declares en, fr and x-default alternates with one self canonical", () => {
     const html = readFileSync(`${out}/guide/start/index.html`, "utf8");

@@ -1,11 +1,9 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { describe, expect, it } from 'vitest';
 import { readFileSync, statSync } from 'node:fs';
 import { WOW_EDITIONS, editionPages } from '../site/editions.mjs';
 import { editionSection } from '../site/nav.mjs';
 
 // Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md): the build makes the WoW Forever pages only.
-beforeAll(() => execFileSync(process.execPath, ['scripts/build-site.mjs'], { stdio: 'pipe' }), 30000);
 const page = path => readFileSync(`dist/site/${path}`, 'utf8');
 const published = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.github.version;
 const curseforge = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.curseforge;

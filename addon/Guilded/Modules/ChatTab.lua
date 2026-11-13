@@ -284,15 +284,17 @@ end
 -- ---------------------------------------------------------------------
 -- How to set up the tab (9.3.0). Guilded cannot set a chat window's font size or message groups (those calls
 -- write into Blizzard's chat frames and taint them, see the top of this file and tests/addon-no-global-taint.test.ts),
--- so it tells the player the steps. Labels come from the game's own global strings when the client has them (so
--- they are in the player's language and are the words the Settings window really shows); English otherwise.
+-- so it tells the player the steps (`/guilded chattab`, and the "How to set up the chat tab" button on the Chat tab of
+-- the settings page, both through ns.chatTabHowTo). Group labels come from the game's own global strings when the
+-- client has them (so they are in the player's language and are the words the Settings window really shows);
+-- English otherwise. The BN whisper group is the one exception: its label is always "BN Whisper".
 -- ---------------------------------------------------------------------
--- { global string the game labels the group with, English fallback }
+-- { global string the game labels the group with, English fallback, true = always use the fallback }
 local CHAT_GROUPS = {
   { "SAY", "Say" }, { "EMOTE", "Emote" }, { "YELL", "Yell" }, { "WHISPER", "Whisper" }, { "PARTY", "Party" },
   { "PARTY_LEADER", "Party Leader" }, { "RAID", "Raid" }, { "RAID_LEADER", "Raid Leader" }, { "RAID_WARNING", "Raid Warning" },
   { "GUILD", "Guild" }, { "OFFICER", "Officer" }, { "INSTANCE_CHAT", "Instance" }, { "INSTANCE_CHAT_LEADER", "Instance Leader" },
-  { "BN_WHISPER", "BN Whisper" }
+  { "BN_WHISPER", "BN Whisper", true }
 }
 local OTHER_GROUPS = {
   { "SYSTEM_MESSAGES", "System" }, { "SKILL", "Skill" }, { "LOOT", "Loot" }, { "MONEY", "Money" }, { "CURRENCY", "Currency" },
@@ -302,7 +304,7 @@ local OTHER_GROUPS = {
 local function labels(list)
   local out = {}
   for _, entry in ipairs(list) do
-    local text = _G[entry[1]]
+    local text = entry[3] and entry[2] or _G[entry[1]]
     table.insert(out, type(text) == "string" and text ~= "" and text or entry[2])
   end
   -- The Discord guild group exists only on clients that have it.

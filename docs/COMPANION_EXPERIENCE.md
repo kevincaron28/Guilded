@@ -41,7 +41,7 @@ clears, deaths, loot, XP or party participation and award no automatic points.
 
 ## Sign-in and privacy
 
-Choose **Sign in with Discord** in Connection & setup: your browser opens the
+Press **Sign in with Discord** in the companion window (optional): your browser opens the
 website, you pick your server (or public leaderboards only) and press Connect. The
 app listens on 127.0.0.1 and receives a one-time proof, so there is nothing to type.
 Older companions can still use the one-time `/character pair` code.

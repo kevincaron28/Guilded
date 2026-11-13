@@ -138,8 +138,7 @@ function module.decorate(button)
     for _, line in ipairs(lines) do t:AddLine(line, 1, 1, 1) end
     t:Show()
     if type(button) == "table" and button.HookScript and not leaveHooked[button] then
-      leaveHooked[button] = true
-      pcall(button.HookScript, button, "OnLeave", hideTip)
+      if pcall(button.HookScript, button, "OnLeave", hideTip) then leaveHooked[button] = true end
     end
   end)
   return ok
@@ -169,6 +168,13 @@ function module.hookMemberList()
       module.hookEntry(type(b) == "table" and b.HookScript and b or a)
     end, module, true) or listHooked
   end
+  -- The owned tooltip must not stay up when the list closes or scrolls away from the row it described.
+  local function hideOn(frame, script)
+    if type(frame) == "table" and type(frame.HookScript) == "function" then pcall(frame.HookScript, frame, script, hideTip) end
+  end
+  hideOn(list, "OnHide")
+  hideOn(box, "OnMouseWheel")
+  hideOn(list.ListScrollFrame, "OnVerticalScroll")
   local buttons = list.ListScrollFrame and list.ListScrollFrame.buttons
   if type(buttons) == "table" then
     for _, button in ipairs(buttons) do module.hookEntry(button) end

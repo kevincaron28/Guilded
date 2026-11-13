@@ -29,7 +29,7 @@ confirmed.
 3. **Which server.** `companion-device.ts` `pickServer`: the `WowGuild` rows `/setup` registered for
    that guild name and realm (WoW Forever). One: that one. Several Discord servers: the ones whose
    officers' companion syncs (`Guild.officerSyncAt`); still several: the member picks once under
-   *Advanced: choose server* on the Sync page (remembered as `chosenGuildId`). None: the data waits
+   *Guild server* under Advanced in the companion window (remembered as `chosenGuildId`). None: the data waits
    and the companion says "Your guild … isn't set up on Discord yet". Guilded Lite servers are left
    out (`hostedPilot.allows`).
 4. **Reported.** The bot stores the characters as `DeviceCharacter` rows of the device, never as a
@@ -67,8 +67,8 @@ sets `claimedMemberId` to null through the foreign key.
 1. Install the companion (direct download or Store build with this change) on a PC where it was
    never signed in. Start WoW Forever with the Guilded addon, log in on a character in a guild that
    `/setup` registered (QG), `/reload`.
-2. Open the companion, choose nothing. Within a minute the Sync card says **"Syncing to <server>
-   (from your guild <guild>)"** with the button *Sign in with Discord to confirm your characters*.
+2. Open the companion, choose nothing. Within a minute the window shows the **Last sync** line and, under Advanced, the server it syncs to
+   (from your guild <guild>), with the button *Sign in with Discord* to confirm your characters.
 3. In Discord, as an officer: `/roster gaps` lists the character under "Reported by a companion
    without Discord sign-in".
 4. On a character whose guild is not set up anywhere: the card says "Your guild … isn't set up on
@@ -79,7 +79,7 @@ sets `claimedMemberId` to null through the foreign key.
    standings arrive in game after `/reload`.
 6. An existing signed-in install (the owner's PC): update and check nothing changed (no device key in
    the log, same server, uploads as before).
-7. French: switch the companion to Français and check the Sync card and *Avancé : choisir le serveur*.
+7. French: switch the companion to Français and check the main window and the *Avancé* view (*Serveur de la guilde*).
 
 ## Shipping notes (coordinator)
 

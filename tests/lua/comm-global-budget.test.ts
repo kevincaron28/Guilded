@@ -9,7 +9,7 @@ let session: LuaSession | undefined;
 afterEach(() => { session?.close(); session = undefined; });
 
 const PREFIXES = ["Guilded", "GuildedSync", "GuildedLedger", "GuildedRly", "GuildedCatch", "GuildedBoard", "GuildedOrd", "GuildedDgn",
-  "GuildedScore", "GuildedRating", "GuildedSeason", "GuildedBridge", "GuildedRcp", "GuildedMile", "GuildedMap", "GuildedFree",
+  "GuildedScore", "GuildedRating", "GuildedSeason", "GuildedBridge", "GuildedRcp", "GuildedMile", "GuildedMap", "GuildedLayer",
   "GuildedHist", "GuildedDuel", "GuildedSOS", "GuildedRes"];
 
 function boot(): LuaSession {
@@ -183,10 +183,10 @@ describe("back-off", () => {
   it("keeps high-value traffic and drops low-value traffic when throttled", () => {
     const s = boot();
     s.run(`for i = 1, 8 do NS.comm.send("GuildedSync", "bulk" .. i, "GUILD") end`); // empties the burst
-    s.run(`NS.comm.send("GuildedMap", "P|1", "GUILD"); NS.comm.send("GuildedFree", "F|1", "GUILD")`);
+    s.run(`NS.comm.send("GuildedMap", "P|1", "GUILD"); NS.comm.send("GuildedLayer", "F|1", "GUILD")`);
     s.run(`NS.comm.send("GuildedDgn", "RUN|receipt", "GUILD", nil, nil, "hold-in-instance"); NS.comm.send("GuildedSOS", "C|help", "GUILD", nil, nil, "interactive")`);
     s.run(`fire_event("CHAT_MSG_SYSTEM", ERR_CHAT_THROTTLED)`);
-    expect(s.run("return NS.comm.pending('GuildedMap') + NS.comm.pending('GuildedFree')")).toBe("0");
+    expect(s.run("return NS.comm.pending('GuildedMap') + NS.comm.pending('GuildedLayer')")).toBe("0");
     expect(s.run("return NS.comm.status('GuildedMap').dropped")).toBe("1");
     s.run("advance(30)");
     const texts = s.run("local o = {}; for _, m in ipairs(SENT) do o[#o + 1] = m.text end; return table.concat(o, ',')");
@@ -202,7 +202,7 @@ describe("headroom, queues and chat", () => {
     s.run(`for i = 1, 6 do NS.comm.send("GuildedSync", "s" .. i, "GUILD") end; for i = 1, 3 do NS.comm.send("GuildedMap", "P|" .. i, "GUILD") end`);
     expect(Number(s.run("return #SENT"))).toBeLessThanOrEqual(6);
     const s2 = boot();
-    s2.run(`INCOMBAT = true; NS.comm.send("GuildedFree", "F|1", "GUILD")`);
+    s2.run(`INCOMBAT = true; NS.comm.send("GuildedLayer", "F|1", "GUILD")`);
     expect(s2.run("return #SENT")).toBe("0");
     s2.run("INCOMBAT = false; advance(3)");
     expect(s2.run("return #SENT")).toBe("1");

@@ -46,13 +46,13 @@ Any [financial support](SUPPORT_GUILDED.md) is optional and never buys approval.
 
 ## Get your guild's links
 
-For automatic Windows syncing, install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9).
+For automatic Windows syncing, install [Guilded Companion from Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (listed there as **Guild Sync Companion**).
 The [standalone GitHub installer](https://github.com/kevincaron28/Guilded/releases/latest) is also available.
 Store installations receive updates through Microsoft Store; check its listed version because
 Store certification and GitHub releases can finish at different times. Close your existing
 companion before switching editions; the Store copy keeps separate connection settings.
 
-**Français :** installez le [compagnon Windows depuis le Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9).
+**Français :** installez le [compagnon Windows depuis le Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (affiché là-bas sous le nom **Guild Sync Companion**).
 Les mises à jour passent par le Store. Vérifiez la version proposée et fermez l'autre compagnon
 avant de changer d'édition; la version Store conserve ses propres paramètres de connexion.
 
@@ -107,74 +107,41 @@ works on its own. If you do not want Discord character linking, skip this.
 
 The companion is optional if you only use the addon, but needed to share data with Discord
 and the website (achievements, leaderboards, sync). It runs on **Windows only**. Install it
-from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommended: Store-signed, updates itself). The fallback is
+from [Microsoft Store](https://apps.microsoft.com/detail/9N680XX3QFL9) (recommended: Store-signed, updates itself; search **Guild Sync Companion**, the name it is listed under). The fallback is
 the [direct download on GitHub](https://github.com/kevincaron28/Guilded/releases/latest),
 which is unsigned, so Windows may warn before running it. You can also press **Connect optional
 companion / Connecter le compagnon (facultatif)** in the `/character pair` reply and use its
 **Get the Windows companion** button. In
-**Connection & setup**, choose **Sign in with Discord**: your browser opens, pick
+the companion window, press **Sign in with Discord** (optional, it syncs without): your browser opens, pick
 your server and press **Connect**. Nothing to type: the Windows app
-receives the approval by itself (only the command-line companion still shows a
-short code to type). Then save preferences. Sync your intended main
+receives the approval by itself. Sync your intended main
 first if no character is linked yet; later characters become alts. The addon is still required. Each device you sign in stays
 connected; manage them under Connections on the website.
 
 **Main already linked?** Keep your working companion: log in on an alt, `/reload`,
 then **Sync now**. It links as an alt without changing your main; nothing new to
 type for each alt. Run `/character list` after syncing to check the result.
-Companions older than 7.2 have no **Sign in with Discord**: use the one-time code
-from `/character pair` under **Older companions or your guild's own bot**.
+Companions older than 7.2 have no **Sign in with Discord**: install the current companion.
 Community-only members can skip WoW setup entirely.
 
-**If you see Choose SavedVariables folder** (enhanced browser build on supported
-desktop Chrome/Edge): choose your account's `WTF/Account/<account>/SavedVariables`
-folder containing `Guilded.lua`. After `/reload`, **Sync now** rereads the latest
-file; you do not need to select it each time. **Save standings to addon** asks for
-`<client>/Interface/AddOns/Guilded` and writes only `Standings.lua` there. Then
-`/reload` again to load them: the addon switches to the Discord standings by itself
-(unless you chose in-game only with `/guilded setup`). Do not select SavedVariables as
-the output folder.
-
-Folder choices and the Discord connection are
-remembered locally on that browser/device. Closing the tab does not require
-signing in again. Disconnect clears the saved connection and folders; use it
-when finished on a shared computer. The browser may ask you to approve folder
-access again. If site storage is unavailable, the companion warns that it cannot
-remember connection/folder choices.
-**Forget selected folders** clears remembered choices; browser site settings let
-you revoke file permissions. Disconnect also clears the remembered folders.
-Once the addon folder is configured and write access is allowed, **Sync now**
-uploads and saves standings together. Nothing syncs after closing the page.
-Connection and folder retention after reopening passed on the owner's browser
-on 5 October; permission recovery and other-browser tests remain pending.
-
-**If you see Choose Guilded.lua / Download standings:** select `Guilded.lua` after
-each `/reload`, then **Sync now**. Download `Standings.lua`, place it in
-`<client>/Interface/AddOns/Guilded`, then `/reload`. This is the fallback for
-other browsers and older deployed companions.
-
-The desktop app below is optional for automatic file watching, background sync
-and PoE2 log tracking, especially useful for leaders and officers.
+The companion is a Windows desktop app (one window plus a notification-area menu); there is no browser version.
 
 ## Optional Windows companion: automatic sync
 
-1. Install `Guilded Companion Setup <version>.exe` from your guild's release link,
-   then open Guilded Companion. The installed app does not need Node.js.
-   Current installers are unsigned; verify the download source before running one.
-2. Open **Connection & setup** (new installations open it automatically) and
-   choose **Sign in with Discord**. Your browser opens: pick your server and press
-   **Connect**. Nothing to type.
-3. Guild with its own bot (not the hosted one)? First paste **Your guild's bot
-   address** from your officer, ending in `/api/v1/addon-imports`, under
-   **Older companions or your guild's own bot**. Companions older than 7.2 use the
-   one-time code from `/character pair` there instead (it expires after 15 minutes).
-4. Enable **World of Warcraft**. Press **Find it**, then verify the selected
-   `Guilded.lua` belongs to your current client and account:
-   `<client>\WTF\Account\<account>\SavedVariables\Guilded.lua`. Several WoW
-   accounts on this PC sync by themselves: see below.
-   Do not select the addon code in `Interface\AddOns`.
-5. Press **Save & start syncing**. In WoW, `/reload`. Check **Activity** for a
-   successful upload and the message that your character is linked.
+1. Install the companion from the [companion page](https://guildedwow.com/companion/) (or the Microsoft Store, where it is listed as
+   **Guild Sync Companion**), then open it. The installed app does not need Node.js.
+   The direct installer is unsigned; verify the download source before running one.
+2. The window opens by itself the first time and tells you in plain words what works and what needs you: the game
+   folder, the addon, the sync. There is nothing to choose: it finds WoW and installs the Guilded addon.
+   **Sign in with Discord** is optional: press it to confirm your characters, then pick your server in the browser
+   and press **Connect**. Nothing to type.
+3. A guild with its own bot (not the hosted one)? A custom upload address or a one-time pairing code can no longer be
+   typed in the window: the companion uses the hosted setup and the Discord sign-in only.
+4. If the game folder is not found, the window says so and offers **Choose WoW folder**: pick the folder that holds
+   `_forever_`. **Advanced** shows the saved file it uses (your account's `SavedVariables` folder, `Guilded.lua`).
+   Do not select the addon code in `Interface/AddOns`. Several WoW accounts on this PC sync by themselves: see below.
+5. In WoW, `/reload`. The **Last sync** line turns green with the time, and the message that your character is linked
+   shows under **Advanced > Activity**.
 6. Let the companion refresh standings, then `/reload` again: the addon loads and
    uses the Discord standings by itself.
 
@@ -187,15 +154,14 @@ Leave the companion in the tray while playing. New game data reaches disk on
 automatic; `/guilded recipes mine` is only a way to inspect the stored result.
 
 **Several WoW accounts on one PC (WoW1, WoW2…).** Each syncs by itself. When the
-companion finds Guilded's data on another account of the same WoW, it asks once on
-the Sync page whether that account is yours too: **Yes, sync it too** adds it;
+companion finds Guilded's data on another account of the same WoW, it asks once in
+the companion window whether that account is yours too: **Yes, sync it too** adds it;
 **No, not mine** (a partner who plays on this PC with their own Discord) is
-remembered and never asked again. Each account then has its own line on the Sync
-page, and **Settings → Your WoW folder** has a switch beside each extra account.
+remembered and never asked again. Each account then has its own line under **Advanced > WoW accounts**, with a checkbox to change the answer later.
 Log in once on a new account and `/reload` so WoW saves its data.
 
 Signing in on another companion adds a device; your other companions stay
-connected. Remove a device under Connections on the website. **Update now** on the Overview page opens the new version's
+connected. Remove a device under Connections on the website. **Update now** in the companion window opens the new version's
 installer, which shows its progress and restarts the companion; if an update does
 not finish, the next start offers **Run the installer**.
 
@@ -208,7 +174,7 @@ not finish, the next start offers **Run the installer**.
 | Sign in with Discord fails | Check full Guilded approval and, for a guild with its own bot, its address; then choose **Sign in with Discord** again. Companions older than 7.2: use a new `/character pair` code (one use, 15 minutes) and keep it private. |
 | `/guilded verify` did not link yet | Linking happens on the next upload from an **officer's** companion: ask an officer to `/reload` and **Sync now**. `/guilded verify` in game says whether your code is saved. |
 | Link revoked or unauthorized | This device was removed under Connections, or your server access changed. Ask an officer about membership/access, then sign this device in again. |
-| Cannot reach bot | Use Test connection. Ask the owner whether the bot and its HTTPS address are online. |
+| Cannot reach bot | Press **Sync now** and read the **Last sync** line; **Advanced > Activity** shows the reason. Ask the owner whether the bot is online. |
 | Guild is not initialized / 404 | Confirm this bot is approved and set up in your server. The owner runs `/setup start`. Check the server ID only if an older companion or Advanced preferences asks for it. |
 | Upload says it is awaiting review | An officer reviews/applies it with `/import apply`; ordinary members cannot apply guild ledgers. |
 | Upload applied entries but some are on hold | An officer runs `/import held` to see each reason. Do not award again: applied GP and a held loot record can belong to the same award. For an unlinked character, the officer uses `/officer character link` to select that character and its actual Discord owner; the next upload retries the existing entry. A missing core raid needs officer review of the raid recording/match. |
@@ -218,7 +184,7 @@ not finish, the next start offers **Run the installer**.
 | Lua error | Capture the error and `/guilded diag`; note the timestamp. Saved diagnostic history can include older notices. |
 | One computer sees a guildmate's map dot but the other does not | Follow the map check below. A full character logout/login restored delivery in the tested Forever beta case. |
 
-For help, use **Activity → Download support summary**, or copy the exact error,
+For help, copy the lines under **Advanced > Activity**, or the exact error,
 the addon/companion versions, client build and time of failure. Review attachments
 before sharing; do not upload config.json, credentials, bot tokens or pairing codes.
 The [AI help prompts](AI_SETUP_HELP.md) include a member troubleshooting prompt.
@@ -286,10 +252,9 @@ soutien financier est facultatif et ne donne aucune priorité.
 5. **Compagnon facultatif :** dans **Lier mon personnage WoW**, choisissez
    **Connecter le compagnon (facultatif)**, ou utilisez `/character pair`.
    Installez le compagnon Windows avec **Obtenir le compagnon Windows** (Microsoft Store d'abord).
-6. Dans **Connection & setup**, choisissez **Sign in with Discord** : le navigateur
-   s'ouvre, choisissez votre serveur et appuyez sur **Connect**. Rien à taper.
-   Les compagnons plus anciens que 7.2 utilisent plutôt le code à usage unique de
-   `/character pair` (15 minutes), sous **Older companions or your guild's own bot**.
+6. Dans la fenêtre du compagnon, appuyez sur **Se connecter avec Discord** (facultatif) : le navigateur
+   s'ouvre, choisissez votre serveur et appuyez sur **Connecter**. Rien à taper.
+   Les compagnons plus anciens que 7.2 doivent être mis à jour.
    Sélectionnez le dossier `SavedVariables` de votre compte et, avec
    **Save standings to addon**, le dossier `Interface/AddOns/Guilded`.
 7. Après `/reload`, cliquez sur **Sync now**. Synchronisez votre principal d'abord
@@ -304,18 +269,17 @@ arrière-plan et le suivi PoE2, particulièrement utile aux chefs et officiers.
 faites `/reload`, puis **Sync now** dans le même compagnon. Votre principal reste
 le même; rien à refaire pour chaque alt. Se reconnecter avec **Sign in with
 Discord** remplace la connexion compagnon précédente. `/character list` montre le
-résultat après la synchro. **Update now** ouvre l'installateur de la nouvelle
+résultat après la synchro. **Mettre à jour** ouvre l'installateur de la nouvelle
 version, qui montre sa progression et redémarre le compagnon; si une mise à jour
-ne se termine pas, le prochain démarrage propose **Run the installer**.
+ne se termine pas, le prochain démarrage propose de lancer l'installateur.
 
 **Plusieurs comptes WoW sur un PC (WoW1, WoW2…) :** chacun se synchronise tout
 seul. Quand le compagnon trouve des données Guilded sur un autre compte du même
-WoW, il demande une seule fois, sur la page Synchronisation, si ce compte est à
+WoW, il demande une seule fois, dans sa fenêtre, si ce compte est à
 vous aussi : **Oui, le synchroniser aussi** l'ajoute; **Non, pas le mien** (un ou
 une partenaire qui joue sur ce PC avec son propre Discord) est retenu et il ne
-redemande plus. Chaque compte a ensuite sa ligne sur la page Synchronisation, et
-**Paramètres → Votre dossier WoW** a un interrupteur à côté de chaque compte
-supplémentaire. Connectez-vous une fois sur un nouveau compte et faites `/reload`.
+redemande plus. Chaque compte a ensuite sa ligne sous **Avancé → Comptes WoW**, avec une case
+pour changer la réponse plus tard. Connectez-vous une fois sur un nouveau compte et faites `/reload`.
 
 Vous n'avez pas besoin du jeton du bot. Ne partagez jamais un code à usage unique
 de `/character pair`.

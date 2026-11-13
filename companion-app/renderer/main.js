@@ -97,8 +97,8 @@ async function run(action) {
       case 'sign-in-switch': return await runSignIn(true);
       case 'pick-wow-folder': { const result = await api.pickWowFolder(); if (result?.message) say(result.message, result.ok !== false); return; }
       case 'install-addon': { const answer = await api.installAddon(); say(answer.message, answer.ok); return; }
-      case 'retry': await api.recoverSync(); await api.uploadNow(); startSyncNote(T('Trying again.')); return;
-      case 'sync-now': await api.uploadNow(); startSyncNote(T('Syncing now.')); return;
+      case 'retry': startSyncNote(T('Trying again.')); await api.recoverSync(); await api.uploadNow(); return;
+      case 'sync-now': startSyncNote(T('Syncing now.')); await api.uploadNow(); return;
       case 'toggle-tracking': await api.toggleTracking(); return;
       case 'problems': case 'choose-server': showAdvanced(true); return;
       case 'storage': await api.openStorageSettings(); return;

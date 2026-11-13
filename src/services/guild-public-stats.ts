@@ -91,7 +91,7 @@ export function guildPageStats(runs: LeaderRun[], roster: string[], rules: Brack
       activity.push({ week: key, runs: weeks.get(key) ?? 0 });
     }
   }
-  return { ranked: new Set(scores.map((row) => `${row.player.character}|${row.player.realm}`.toLowerCase())).size, runs: own.length, dungeons, topByRole, activity, records: dungeons.filter((d) => d.record).length };
+  return { ranked: new Set(scores.map((row) => (row.player.character + "|" + row.player.realm).toLowerCase())).size, runs: own.length, dungeons, topByRole, activity, records: dungeons.filter((d) => d.record).length };
 }
 
 export function unrankedReason(runs: LeaderRun[], stats: GuildPageStats): UnrankedReason | null {

@@ -6,6 +6,9 @@ import { displayCharacterName, type FullNameBook } from "./character-display.js"
 import { duelPoints, streakText, type FreshDuel } from "./duels.js";
 import { classOf, type ClassBook } from "./ladder-classes.js";
 import { classColor, type ScoreCard } from "./score-card.js";
+import { placement, ratingApplies, rateSeason, ratingSeasonName, seasonOf, showChange, showRating, type RatedDuel } from "./duel-rating.js";
+import { ratingFooter } from "./duel-rules.js";
+import { ratingStartOf } from "./duels.js";
 
 // One Discord card per counted duel (9.3, owner decision 13 November 2026). Drawn on delivery from the stored definition, so it
 // is queued like every other card post: a MESSAGE job on the "duelCard" route (switch and channel re-checked at delivery), delayed
@@ -18,7 +21,9 @@ const POST_DELAY_MS = 90_000;
 const SUMMARY_ROWS = 6, SUMMARY_KEEP = 60;
 const DUEL_COLOR = 0xb91c1c;
 
-export interface DuelCardInput extends FreshDuel { points: number; winnerScore: number; winnerStreak: number; winnerBest: number }
+/** From the rating start date (rating-v1) a duel moves ratings: what it did to each side, in shown-score points, and where they stand. */
+export interface DuelRatingInfo { winnerDelta: number; loserDelta: number; winnerScore: number; loserScore: number; winnerPlacement: string | null; loserPlacement: string | null; rated: boolean; seasonId: string; startsAt: string }
+export interface DuelCardInput extends FreshDuel { points: number; winnerScore: number; winnerStreak: number; winnerBest: number; rating?: DuelRatingInfo }
 
 const level = (value: number | null) => value ? String(value) : "—";
 
@@ -27,6 +32,27 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const winner = displayCharacterName(duel.winnerCharacter, names), loser = displayCharacterName(duel.loserCharacter, names);
   const fled = duel.reason === "retreat";
+  if (duel.rating) {
+    const r = duel.rating, lg = fr ? "fr" : "en";
+    const where = (score: number, place: string | null) => place ? `placement ${place}` : showRating(score);
+    const change = (value: number) => r.rated ? showChange(value) : "0";
+    return {
+      eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("Duel result", "Résultat du duel"),
+      subtitle: `${fled ? t("Opponent fled", "Adversaire en fuite") : t("Won by knockout", "Victoire par K.O.")} · ${ratingSeasonName(r.seasonId, lg)}`,
+      backdrop: { kind: "board", key: "duel" },
+      stats: [
+        { label: t("Rating", "Cote"), value: change(r.winnerDelta), accent: "gold", note: where(r.winnerScore, r.winnerPlacement) },
+        { label: t("Levels", "Niveaux"), value: `${level(duel.winnerLevel)} vs ${level(duel.loserLevel)}` },
+        { label: t("Opponent", "Adversaire"), value: change(r.loserDelta), ...(r.rated ? { accent: "red" as const } : {}), note: where(r.loserScore, r.loserPlacement) }
+      ],
+      rowsLabel: t("Duellists", "Duellistes"),
+      rows: [
+        { name: winner, color: classColor(classOf(classes, duel.winnerCharacter)), sub: t("Winner", "Gagnant"), right: change(r.winnerDelta), rightTone: "green" },
+        { name: loser, color: classColor(classOf(classes, duel.loserCharacter)), sub: fled ? t("Fled", "A fui") : t("Defeated", "Vaincu"), right: change(r.loserDelta), rightTone: "red" }
+      ],
+      footer: `${r.rated ? "" : t("No rating change: the pair used its weekly allowance or the levels are too far apart · ", "Aucun changement : le duo a épuisé sa limite hebdomadaire ou l'écart de niveaux est trop grand · ")}${ratingFooter(lg, ratingSeasonName(r.seasonId, lg), new Date(r.startsAt))}`.slice(0, 300)
+    };
+  }
   return {
     eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("Duel result", "Résultat du duel"),
     subtitle: fled ? t("Opponent fled", "Adversaire en fuite") : t("Won by knockout", "Victoire par K.O."),
@@ -54,10 +80,10 @@ export function duelSummaryCard(duels: readonly DuelCardInput[], lang: Lang, cla
     eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("More duels", "Autres duels"),
     subtitle: t(`${duels.length + omitted} more duels counted`, `${duels.length + omitted} autres duels comptés`),
     backdrop: { kind: "board", key: "duel" },
-    stats: [{ label: t("Duels", "Duels"), value: String(duels.length + omitted), accent: "gold" }, { label: t("Points", "Points"), value: String(omittedPoints + duels.reduce((sum, duel) => sum + duel.points, 0)) }],
+    stats: [{ label: t("Duels", "Duels"), value: String(duels.length + omitted), accent: "gold" }, ...(duels.some(duel => duel.rating) ? [] : [{ label: t("Points", "Points"), value: String(omittedPoints + duels.reduce((sum, duel) => sum + duel.points, 0)) }])],
     rowsLabel: t("Results", "Résultats"),
     rows: shown.map(duel => ({ name: displayCharacterName(duel.winnerCharacter, names), color: classColor(classOf(classes, duel.winnerCharacter)),
-      sub: t(`beat ${displayCharacterName(duel.loserCharacter, names)}`, `bat ${displayCharacterName(duel.loserCharacter, names)}`), right: `+${duel.points}`, rightTone: "green" as const })),
+      sub: t(`beat ${displayCharacterName(duel.loserCharacter, names)}`, `bat ${displayCharacterName(duel.loserCharacter, names)}`), right: duel.rating ? (duel.rating.rated ? showChange(duel.rating.winnerDelta) : "0") : `+${duel.points}`, rightTone: "green" as const })),
     ...(duels.length + omitted > shown.length ? { badges: [{ text: t(`and ${duels.length + omitted - shown.length} more`, `et ${duels.length + omitted - shown.length} autres`), tone: "muted" as const }] } : {}),
     footer: t("Guild duels · No rewards · guildedwow.com", "Duels de guilde · Aucune récompense · guildedwow.com")
   };
@@ -68,12 +94,12 @@ export function duelFallbackEmbed(duel: DuelCardInput, lang: Lang, names: FullNa
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const winner = displayCharacterName(duel.winnerCharacter, names), loser = displayCharacterName(duel.loserCharacter, names);
   const verb = duel.reason === "retreat" ? t("won (opponent fled) against", "gagne (adversaire en fuite) contre") : t("beat", "bat");
-  return new EmbedBuilder().setColor(DUEL_COLOR).setDescription(`⚔️ **${winner}** ${verb} ${loser} — +${duel.points} pts${duel.winnerStreak > 1 ? ` · ${streakText(duel.winnerStreak)}` : ""}`.slice(0, 400));
+  return new EmbedBuilder().setColor(DUEL_COLOR).setDescription(`⚔️ **${winner}** ${verb} ${loser} — ${duel.rating ? `${duel.rating.rated ? showChange(duel.rating.winnerDelta) : "0"} ${t("rating", "cote")}` : `+${duel.points} pts`}${duel.winnerStreak > 1 ? ` · ${streakText(duel.winnerStreak)}` : ""}`.slice(0, 400));
 }
 
 const summaryFallback = (duels: readonly DuelCardInput[], lang: Lang, names: FullNameBook, omitted = 0) => new EmbedBuilder().setColor(DUEL_COLOR).setDescription(
   `⚔️ ${lang === "fr" ? `${duels.length + omitted} autres duels comptés` : `${duels.length + omitted} more duels counted`}\n${duels.slice(0, SUMMARY_ROWS).map(duel =>
-    `${displayCharacterName(duel.winnerCharacter, names)} › ${displayCharacterName(duel.loserCharacter, names)} (+${duel.points})`).join("\n")}`.slice(0, 1800));
+    `${displayCharacterName(duel.winnerCharacter, names)} › ${displayCharacterName(duel.loserCharacter, names)} (${duel.rating ? (duel.rating.rated ? showChange(duel.rating.winnerDelta) : "0") : `+${duel.points}`})`).join("\n")}`.slice(0, 1800));
 
 export interface Standing { score: number; streak: number; bestStreak: number }
 export interface HistoryRow { reportKey: string; winnerId: string; loserId: string; winnerLevel: number | null; loserLevel: number | null }
@@ -97,7 +123,42 @@ export function withStandings(fresh: readonly FreshDuel[], after: ReadonlyMap<st
   return fresh.map(duel => { const at = after.get(duel.reportKey); return { ...duel, points: duelPoints(duel.winnerLevel, duel.loserLevel), winnerScore: at?.score ?? 0, winnerStreak: at?.streak ?? 0, winnerBest: at?.bestStreak ?? 0 }; });
 }
 
-type Database = Pick<PrismaClient, "discordJob" | "duelResult">;
+/**
+ * Pure: for the duels that ended on or after the rating start, what each moved. The season's counted history is re-rated in date
+ * order (the same as the boards), so a duel that arrived late shows the change it really made in its place; a card posted earlier
+ * is not edited and may differ slightly from today's board. Duels before the start keep their points card.
+ */
+export function withRatings(duels: readonly DuelCardInput[], history: readonly (HistoryRow & { winnerCharacter: string; loserCharacter: string; endedAt: Date })[], startsAt: Date): DuelCardInput[] {
+  if (!duels.some(duel => ratingApplies(duel.endedAt, startsAt))) return [...duels];
+  const bySeason = new Map<string, ReturnType<typeof rateSeason>>();
+  const keys = new Map<RatedDuel, string>();
+  const seasonResult = (id: string) => {
+    let result = bySeason.get(id);
+    if (!result) {
+      const rows: RatedDuel[] = history.filter(row => seasonOf(row.endedAt, startsAt).id === id).map(row => {
+        const duel: RatedDuel = { winnerKey: row.winnerId, loserKey: row.loserId, winnerName: row.winnerCharacter, loserName: row.loserCharacter, winnerLevel: row.winnerLevel, loserLevel: row.loserLevel, endedAt: row.endedAt };
+        keys.set(duel, row.reportKey);
+        return duel;
+      });
+      result = rateSeason(rows);
+      bySeason.set(id, result);
+    }
+    return result;
+  };
+  return duels.map(duel => {
+    if (!ratingApplies(duel.endedAt, startsAt)) return duel;
+    const season = seasonOf(duel.endedAt, startsAt), result = seasonResult(season.id);
+    const index = result.ordered.findIndex(row => keys.get(row) === duel.reportKey);
+    const change = result.changes[index];
+    const w = result.players.get(duel.winnerId), l = result.players.get(duel.loserId);
+    if (!change || !w || !l) return duel;
+    const place = (p: typeof w) => p.ranked ? null : `${placement(p.rated, p.opponents).duels}/${placement(p.rated, p.opponents).needDuels}`;
+    return { ...duel, points: Math.round(change.winnerDelta), winnerScore: Math.round(w.score),
+      rating: { winnerDelta: change.winnerDelta, loserDelta: change.loserDelta, winnerScore: w.score, loserScore: l.score, winnerPlacement: place(w), loserPlacement: place(l), rated: change.rated, seasonId: season.id, startsAt: startsAt.toISOString() } };
+  });
+}
+
+type Database = Pick<PrismaClient, "discordJob" | "duelResult"> & { guildSettings?: Pick<PrismaClient["guildSettings"], "findUnique"> };
 const jsonOf = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 
 async function put(database: Pick<PrismaClient, "discordJob">, guildId: string, key: string, payload: Record<string, unknown>, now: Date) {
@@ -115,8 +176,9 @@ const base = (card: ScoreCard, fallback: EmbedBuilder) => ({ route: "duelCard", 
 export async function queueDuelCards(database: Database, guildId: string, edition: string, lang: Lang, fresh: readonly FreshDuel[], classes: ClassBook, names: FullNameBook, now = new Date()): Promise<number> {
   if (!fresh.length) return 0;
   const history = await database.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true }, orderBy: { endedAt: "asc" }, take: 20_000,
-    select: { reportKey: true, winnerId: true, loserId: true, winnerLevel: true, loserLevel: true } });
-  const duels = withStandings([...fresh].sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime()), standingsAfterEach(history, new Set(fresh.map(duel => duel.reportKey))));
+    select: { reportKey: true, winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true, winnerLevel: true, loserLevel: true, endedAt: true } });
+  const startsAt = await ratingStartOf(database, guildId);
+  const duels = withRatings(withStandings([...fresh].sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime()), standingsAfterEach(history, new Set(fresh.map(duel => duel.reportKey)))), history, startsAt);
   const since = new Date(now.getTime() - WINDOW_MINUTES * 60_000);
   const used = await database.discordJob.count({ where: { guildId, key: { startsWith: "duel-card:one:" }, createdAt: { gte: since } } });
   const room = Math.max(0, WINDOW_CARDS - used), single = duels.slice(0, room), rest = duels.slice(room);

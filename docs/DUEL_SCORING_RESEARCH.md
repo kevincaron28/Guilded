@@ -99,3 +99,11 @@ the addon protocol/version note so older addons are marked "old rules" rather th
 Anti-abuse limits to keep or add: pair cap 5/day (keep); 25 counted per player per day (add it to the addon, it exists only in the bot); weekly pair weight (add); minimum 4 distinct opponents to be ranked (add); level gap above 10 either way counts for nothing; no rewards; officers can mark a pair "not counted" from the existing moderation tools (later).
 
 Open questions for the owner: minimum duels/opponents (5/4 is tuned for a guild of ~30 active duellists), season length (month or quarter), and the start date of the new rules.
+
+## 6. Decision (13 November 2026)
+
+The owner chose rule set C. Implemented as `src/services/duel-rating.ts` (rules and pure functions), with these defaults: ranked after 8 duels against 4
+different opponents (placement shown as "3/8"), the weekly pair weight of section 4 (the weekly window is the existing Tuesday 15:00 UTC reset), duels between
+players more than 10 levels apart move nothing, calendar-month seasons in UTC, everyone back to 1000 each season, and the first rated season starting on
+1 December 2026 00:00 UTC. Earlier duels stay as the frozen "Season 0 (points)". `GuildSettings.duelRatingStartsAt` lets one server move its own start date
+(for tests); null means the default. The addon follows [DUEL_RATING_ADDON_SPEC.md](DUEL_RATING_ADDON_SPEC.md).

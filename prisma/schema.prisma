@@ -999,6 +999,9 @@ model GuildSettings {
   bgStatsMessageId         String?
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
   duelBoardEnabled         Boolean @default(true)
+  // Duel rating (rating-v1): when this server's duels start to be scored by rating instead of the old points. Null = the built-in default
+  // (1 December 2026 00:00 UTC, src/services/duel-rating.ts). Duels that ended before it keep their old points as "Season 0".
+  duelRatingStartsAt       DateTime?
   // 9.3: one Discord card per counted duel in the duel channel (separate from the board); officers turn it off with /battleground duel-cards.
   duelCardsEnabled         Boolean @default(true)
   // 9.3: podium card when an official dungeon season ends and a card when one begins (dungeon leaderboard channel); /bg season-cards.

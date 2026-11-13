@@ -1,3 +1,5 @@
+import { RATING } from "./duel-rating.js";
+
 // The duel scoring rules, in ONE place. duels.ts (the points and the caps), the Discord board footers and the public
 // duel page's "how scoring works" box all read these values, so a rule change shows up everywhere at once. The
 // in-game addon keeps its own copy (addon/Guilded/Modules/Duels.lua) that must be changed in step.
@@ -30,4 +32,44 @@ export function duelRuleLines(lang: "en" | "fr"): string[] {
     `At most ${r.pairDailyCap} duels per pair of players per day (UTC) count; ${r.reporterDailyCap} per reporting player per day.`,
     "Both players report the same duel: it counts once. Only duels between members of the same guild count. No rewards."
   ];
+}
+
+// ----- rating-v1 (from 1 December 2026; see duel-rating.ts and docs/DUEL_SCORING_RESEARCH.md) -----
+
+/**
+ * False until the addon release that shows the rating in game ships. While false, a board that scores by rating says that the
+ * game still shows the old score. Flip it in the same release that updates the addon (docs/DUEL_RATING_ADDON_SPEC.md).
+ */
+export const ADDON_SHOWS_RATING = false;
+
+const dayText = (iso: string, lang: "en" | "fr") => new Date(iso).toLocaleDateString(lang === "fr" ? "fr-CA" : "en-CA", { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+
+/** What the member-facing "how scoring works" says for the rating. Every number comes from `RATING` and `DUEL_RULES`. */
+export function ratingRuleLines(lang: "en" | "fr", startsAt: Date = new Date(RATING.startsAt)): string[] {
+  const r = { ...RATING, startsAt: startsAt.toISOString() }, c = DUEL_RULES;
+  const [k1, k2, k3] = r.kBands.map(band => band.k);
+  const weights = r.pairWeights.map(String).join(", ");
+  return lang === "fr" ? [
+    `Depuis le ${dayText(r.startsAt, "fr")} (UTC), les duels sont classés par cote, par saison d'un mois civil (UTC). Tout le monde commence à ${r.start}. Les anciens duels restent dans la « Saison 0 (points) », figée.`,
+    `Battre un joueur plus fort fait gagner plus; perdre contre un joueur plus faible fait perdre plus. Chaque niveau d'écart ajoute ${r.handicapPerLevel} points de cote à l'adversaire de plus haut niveau (jusqu'à ${r.handicapMaxLevels} niveaux). Un duel entre joueurs séparés de plus de ${r.maxLevelGap} niveaux ne change rien.`,
+    `Le changement est plus grand au début : facteur ${k1} pour les 10 premiers duels, ${k2} jusqu'à 30, puis ${k3}. Le même duo ne compte pleinement que deux fois par semaine (réinitialisation du mardi, 15 h UTC) : facteurs ${weights}, puis plus rien.`,
+    `Le score affiché rapproche la cote de ${r.start} tant que le dossier est court : ${r.start} + (cote − ${r.start}) × duels / (duels + ${r.shrinkGames}).`,
+    `Classé après ${r.rankedDuels} duels contre ${r.rankedOpponents} adversaires différents; avant, « placement 3/${r.rankedDuels} ».`,
+    `${c.pairDailyCap} duels par paire et par jour (UTC) et ${c.reporterDailyCap} par joueur rapporteur et par jour comptent au maximum. Les duels comptés sont réévalués dans l'ordre des dates : un duel rapporté en retard prend sa place et peut déplacer des cotes déjà affichées. Aucune récompense.`
+  ] : [
+    `From ${dayText(r.startsAt, "en")} (UTC), duels are ranked by a rating, in one-month seasons (calendar months, UTC). Everyone starts at ${r.start}. Older duels stay in a frozen "Season 0 (points)".`,
+    `Beating a stronger player earns more; losing to a weaker one costs more. Each level of difference adds ${r.handicapPerLevel} rating points to the higher-level player's side (up to ${r.handicapMaxLevels} levels). A duel between players more than ${r.maxLevelGap} levels apart changes nothing.`,
+    `Moves are bigger early on: factor ${k1} for the first 10 duels, ${k2} up to 30, then ${k3}. The same pair counts in full only twice per weekly reset (Tuesday 15:00 UTC): factors ${weights}, then nothing.`,
+    `The score shown pulls the rating toward ${r.start} while a record is short: ${r.start} + (rating − ${r.start}) × duels / (duels + ${r.shrinkGames}).`,
+    `Ranked after ${r.rankedDuels} duels against ${r.rankedOpponents} different opponents; until then it shows "placement 3/${r.rankedDuels}".`,
+    `At most ${c.pairDailyCap} duels per pair per day (UTC) and ${c.reporterDailyCap} per reporting player per day count. Counted duels are re-rated in date order: a duel reported late takes its place and can move ratings already shown. No rewards.`
+  ];
+}
+
+/** One line for a footer: the rules that apply and since when. */
+export function ratingFooter(lang: "en" | "fr", seasonLabel: string, startsAt: Date = new Date(RATING.startsAt), addonUpdated = ADDON_SHOWS_RATING): string {
+  const r = { ...RATING, startsAt: startsAt.toISOString() };
+  return lang === "fr"
+    ? `Cote ${r.start} au départ · saison ${seasonLabel} (depuis le ${dayText(r.startsAt, "fr")}) · classé après ${r.rankedDuels} duels · ${DUEL_RULES.pairDailyCap} par paire et par jour · aucune récompense${addonUpdated ? "" : " · le jeu affiche l'ancien score jusqu'à la mise à jour de l'addon"}`
+    : `Rating starts at ${r.start} · season ${seasonLabel} (since ${dayText(r.startsAt, "en")}) · ranked after ${r.rankedDuels} duels · ${DUEL_RULES.pairDailyCap} per pair per day · no rewards${addonUpdated ? "" : " · the game shows the old score until the addon is updated"}`;
 }

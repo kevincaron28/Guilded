@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { foreverNameMatches } from "../../companion/character-identity.mjs";
 import { DUEL_RULES } from "./duel-rules.js";
+import { RATING_START, placement, rateSeason, ratingApplies, ratingStandings, seasonOf, type RatedDuel, type SeasonInfo } from "./duel-rating.js";
 
 // Guild duels (8.4.5; level-difference score 9.1). The addon records "X has defeated Y in a duel" when both players are in the guild and each
 // paired participant's companion uploads it. Nothing here posts anything or awards points.
@@ -177,6 +178,38 @@ export async function duelLeaderboard(db: Pick<PrismaClient, "duelResult">, guil
   const rows = await db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, ...(opts.since ? { endedAt: { gte: opts.since } } : {}) },
     orderBy: { endedAt: "asc" }, take: 20_000, select: { winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true, winnerLevel: true, loserLevel: true } });
   return { standings: standingsFromDuels(rows, opts.limit ?? 50), duels: rows.length };
+}
+
+/** One ladder row, in either mode. In rating mode `score` is the shown (shrunk) rating and `rank` is null until the player is ranked. */
+export interface LadderStanding extends DuelStanding { rank: number | null; ranked: boolean; rated: number; opponents: number; placement: { duels: number; needDuels: number; opponents: number; needOpponents: number } | null }
+export interface DuelLadder { mode: "points" | "rating"; season: SeasonInfo | null; startsAt: Date; standings: LadderStanding[]; duels: number }
+
+/** When this server's duels start to be scored by rating: its own marker, else the built-in date. Never throws. */
+export async function ratingStartOf(db: { guildSettings?: Pick<PrismaClient["guildSettings"], "findUnique"> }, guildId: string): Promise<Date> {
+  try { return (await db.guildSettings?.findUnique({ where: { guildId }, select: { duelRatingStartsAt: true } }))?.duelRatingStartsAt ?? RATING_START; } catch { return RATING_START; }
+}
+
+/**
+ * The guild's duel ladder under the rules that apply at `now`: the old points before the start date (exactly `duelLeaderboard`), and
+ * from the start date the rating of the current monthly season, recomputed from the stored counted duels in date order.
+ */
+export async function duelLadder(db: Pick<PrismaClient, "duelResult"> & { guildSettings?: Pick<PrismaClient["guildSettings"], "findUnique"> }, guildId: string, edition = "forever",
+  opts: { limit?: number; now?: Date; startsAt?: Date } = {}): Promise<DuelLadder> {
+  const startsAt = opts.startsAt ?? await ratingStartOf(db, guildId), now = opts.now ?? new Date(), limit = opts.limit ?? 50;
+  if (!ratingApplies(now, startsAt)) {
+    // Before the start nothing changes: the old board, to the point.
+    const old = await duelLeaderboard(db, guildId, edition, { limit });
+    return { mode: "points", season: null, startsAt, duels: old.duels, standings: old.standings.map((row, index) => ({ ...row, rank: index + 1, ranked: true, rated: row.games, opponents: 0, placement: null })) };
+  }
+  const season = seasonOf(now, startsAt);
+  const rows = await db.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, endedAt: { gte: season.from, ...(season.to ? { lt: season.to } : {}) } },
+    orderBy: { endedAt: "asc" }, take: 20_000, select: { winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true, winnerLevel: true, loserLevel: true, endedAt: true } });
+  const duels: RatedDuel[] = rows.map(row => ({ winnerKey: row.winnerId, loserKey: row.loserId, winnerName: row.winnerCharacter, loserName: row.loserCharacter, winnerLevel: row.winnerLevel, loserLevel: row.loserLevel, endedAt: row.endedAt }));
+  const rated = rateSeason(duels);
+  const standings = ratingStandings(rated.players).slice(0, limit).map((row): LadderStanding => ({
+    memberId: row.key, name: row.name, score: row.score, wins: row.wins, losses: row.losses, games: row.games, winRate: row.games ? row.wins / row.games : 0, streak: row.streak, bestStreak: row.bestStreak,
+    rank: row.rank, ranked: row.ranked, rated: row.rated, opponents: row.opponents, placement: row.ranked ? null : placement(row.rated, row.opponents) }));
+  return { mode: "rating", season, startsAt, standings, duels: rows.length };
 }
 
 export const percent = (rate: number) => `${Math.round(rate * 100)}%`;

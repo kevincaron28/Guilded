@@ -2,6 +2,8 @@ import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // dist/site is built once for every site test (tests/helpers/build-site-setup.mjs).
+    globalSetup: ["./tests/helpers/build-site-setup.mjs"],
     // Bound concurrent Lua VMs on Windows without sharing their module state.
     ...(process.platform === "win32" ? { pool: "forks" as const, maxWorkers: 2 } : {}),
     // Never let a local owner's live pilot allowlist change unrelated offline fixtures.

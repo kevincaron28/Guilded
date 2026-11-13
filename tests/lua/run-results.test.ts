@@ -63,6 +63,7 @@ describe("end of dungeon run summary", () => {
       local original = CreateFrame
       CreateFrame = function(...)
         local frame = original(...)
+        frame.CreateTexture = function() return setmetatable({}, {__index=function() return function() end end}) end
         frame.CreateFontString = function()
           local label = setmetatable({}, { __index = function() return function() end end })
           label.SetText = function(_, text) LABELS[#LABELS+1] = text end
@@ -92,6 +93,7 @@ describe("end of dungeon run summary", () => {
       local original = CreateFrame
       CreateFrame = function(kind, name, ...)
         local frame = original(kind, name, ...)
+        frame.CreateTexture = function() return setmetatable({}, {__index=function() return function() end end}) end
         frame.CreateFontString = function()
           return setmetatable({GetStringHeight=function() return 100 end}, {__index=function() return function() end end})
         end

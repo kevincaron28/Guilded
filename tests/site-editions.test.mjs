@@ -1,11 +1,9 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { execFileSync } from 'node:child_process';
+import { describe, expect, it } from 'vitest';
 import { readFileSync, statSync } from 'node:fs';
 import { WOW_EDITIONS, editionPages } from '../site/editions.mjs';
 import { editionSection } from '../site/nav.mjs';
 
 // Guilded supports WoW Forever only (docs/plans/FOREVER_ONLY_REMOVAL.md): the build makes the WoW Forever pages only.
-beforeAll(() => execFileSync(process.execPath, ['scripts/build-site.mjs'], { stdio: 'pipe' }), 30000);
 const page = path => readFileSync(`dist/site/${path}`, 'utf8');
 const published = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.github.version;
 const curseforge = JSON.parse(readFileSync('site/releases.json', 'utf8')).guilded.curseforge;
@@ -86,7 +84,9 @@ describe('website refresh', () => {
 
   it('lists the public data pages and the guild-page sitemap for search engines', () => {
     const sitemap = page('sitemap.xml');
-    for (const path of ['/forever/leaderboards/', '/forever/recruitment/guilds/', '/forever/players/', '/officers/', '/forever/']) expect(sitemap).toContain(`<loc>https://guildedwow.com${path}</loc>`);
+    for (const path of ['/forever/leaderboards/', '/forever/recruitment/guilds/', '/forever/players/', '/guide/officers/', '/forever/']) expect(sitemap).toContain(`<loc>https://guildedwow.com${path}</loc>`);
+    // /officers/ answers 301 (worker/localized-assets.mjs): the sitemap lists its target once, never the redirect.
+    expect(sitemap).not.toContain('<loc>https://guildedwow.com/officers/</loc>');
     for (const slug of ['retail', 'tbc', 'mists', 'classic-era']) expect(sitemap).not.toContain(`guildedwow.com/${slug}/`);
     expect(page('robots.txt')).toContain('Sitemap: https://guildedwow.com/recruitment/guilds/sitemap.xml');
   });

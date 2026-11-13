@@ -47,12 +47,24 @@ describe("guild roster tooltip", () => {
   it("adds profession lines with icons and survives a missing tooltip", () => {
     setup();
     s.run(String.raw`
-      LINES = {}
-      GameTooltip = { AddLine = function(_, t) LINES[#LINES + 1] = t end, Show = function() end }
-      NS.rosterProfessions.decorate({ memberInfo = { name = "Amy-Realm" } })`);
+      LINES = {}; GAME_CALLS = 0; OWNER = nil
+      GameTooltip = {}
+      for _, m in ipairs({ "AddLine", "Show", "Hide", "SetOwner", "ClearLines", "SetPoint" }) do GameTooltip[m] = function() GAME_CALLS = GAME_CALLS + 1 end end
+      -- Guilded's own tooltip frame (9.3.0): the professions go there, never onto the game's tooltip.
+      CreateFrame = function(kind, name)
+        local f = { name = name }
+        for _, m in ipairs({ "ClearLines", "SetPoint", "Show", "Hide" }) do f[m] = function() end end
+        f.SetOwner = function(_, owner) OWNER = owner end
+        f.AddLine = function(_, t) LINES[#LINES + 1] = t end
+        return f
+      end
+      BUTTON = { memberInfo = { name = "Amy-Realm" }, HookScript = function() end }
+      NS.rosterProfessions.decorate(BUTTON)`);
     expect(s.run('return table.concat(LINES, "|")')).toContain("Alchemy 300|");
     expect(s.run('return table.concat(LINES, "|")')).toContain("Trade_Alchemy");
-    s.run("GameTooltip = nil; NS.rosterProfessions.decorate({ memberInfo = { name = 'Amy-Realm' } })");
+    expect(s.run("return GAME_CALLS")).toBe("0");
+    expect(s.run("return tostring(OWNER == BUTTON)")).toBe("true");
+    s.run("CreateFrame = nil; NS.rosterProfessions.decorate({ memberInfo = { name = 'Amy-Realm' } })");
   });
   it("hooks Blizzard's roster button once and tolerates a missing hook API", () => {
     setup();
@@ -69,7 +81,12 @@ describe("guild roster tooltip", () => {
       CommunitiesMemberListEntryMixin = { OnEnter = function() end }
       ORIGINAL = CommunitiesMemberListEntryMixin.OnEnter
       LINES = {}
-      GameTooltip = { AddLine = function(_, t) LINES[#LINES + 1] = t end, Show = function() end }
+      CreateFrame = function()
+        local f = {}
+        for _, m in ipairs({ "ClearLines", "SetPoint", "Show", "Hide", "SetOwner" }) do f[m] = function() end end
+        f.AddLine = function(_, t) LINES[#LINES + 1] = t end
+        return f
+      end
       function ENTRY(name)
         local f = { scripts = {}, hooks = 0, memberInfo = { name = name } }
         function f:HookScript(script, fn) self.hooks = self.hooks + 1; self.scripts[script] = fn end

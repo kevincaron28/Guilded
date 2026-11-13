@@ -57,6 +57,9 @@ describe("protected calls only where the player's click runs them (taint)", () =
   const never: Array<[string, RegExp]> = [
     ["opens, closes or docks chat windows", /\bFCF_(?:OpenNewWindow|Close|DockFrame|UnDockFrame|SelectDockFrame|SetWindowName|ResetChatWindows)\b/],
     ["activates a chat box", /\bChatEdit_(?:ActivateChat|DeactivateChat|SetLastActiveWindow)\b/],
+    // 13 November 2026: setting a chat window's groups, size, colour or lock from addon code writes into Blizzard's chat frames
+    // (the same class of taint as FCF_OpenNewWindow). Guilded only reads window names and adds its own lines.
+    ["changes a chat window's groups, size, colour, lock or channels", /\b(?:ChatFrame_(?:AddMessageGroup|RemoveMessageGroup|AddChannel|RemoveChannel|AddSingleMessageType|RemoveSingleMessageType|ReceiveAllPrivateMessages|ResetAllMessageTypes)|FCF_(?:SetChatWindowFontSize|SetWindowColor|SetWindowAlpha|SetLocked|SetUninteractable|SetTabPosition|SavePositionAndDimensions|ResetAllWindows|ToggleLock|SetWindowName|SetShown))\b/],
     ["reloads the UI itself (only the secure /reload macro button may)", /\bReloadUI\s*\(|\bC_UI\.Reload\b/],
     ["sets the guild message of the day", /\b(?:GuildSetMOTD|C_GuildInfo\.SetMOTD)\b/],
     ["runs macro text from addon code", /\bRunMacroText\b/],
@@ -135,5 +138,30 @@ describe("tooltip post-calls stay out of the game's way (taint)", () => {
     expect(start).toBeGreaterThan(-1);
     const body = core.slice(start, end);
     expect(body).not.toMatch(/\b(?:EquipItemByName|UseInventoryItem|PickupInventoryItem|SocketInventoryItem|NotifyInspect|SetCVar|RepairAllItems)\b|SetInventoryItem\s*\(|C_TooltipInfo/);
+  });
+});
+
+// 13 November 2026 (9.3.0): the game's tooltips run code the game owns (equipment comparison, the data processor).
+// Guilded never drives them: no refresh, no filling from a link, an inventory slot, a bag slot or a unit, on the game's
+// tooltips or the comparison ones. Showing a tooltip over Guilded's own buttons (SetOwner/AddLine/Show on hover) is fine,
+// but the code that decorates the game's tooltips (item tooltips, unit tooltips, the guild roster rows) only adds lines
+// inside the game's own post-call or uses a tooltip frame Guilded owns.
+describe("addons do not drive the game's tooltips (taint)", () => {
+  const files = [...luaFiles("addon/Guilded"), ...luaFiles("addon/GuildedDungeons")];
+  const source = (file: string) => readFileSync(file, "utf8").replace(/--[^\n]*/g, "");
+  const gameTips = "(?:GameTooltip|ItemRefTooltip|ShoppingTooltip[12]|ItemRefShoppingTooltip[12])";
+  it("no file refreshes or fills a game tooltip (RefreshData, SetHyperlink, SetInventoryItem, SetBagItem, SetUnit...)", () => {
+    const drive = new RegExp(String.raw`\b${gameTips}\s*[:.]\s*(?:RefreshData|SetHyperlink|SetInventoryItem|SetBagItem|SetUnit|SetItemByID|SetSpellByID)\b`);
+    expect(files.filter((file) => drive.test(source(file))).map((f) => f.split("\\").join("/"))).toEqual([]);
+  });
+  it("the decorators never show, hide, own or refresh the game's tooltip and keep their state Guilded-side", () => {
+    const own = new RegExp(String.raw`\b${gameTips}\s*[:.]\s*(?:SetOwner|Show|Hide|ClearLines|SetPoint)\b`);
+    for (const file of ["addon/Guilded/Modules/Tooltip.lua", "addon/Guilded/Modules/Scores.lua", "addon/Guilded/Modules/RosterProfessions.lua"]) {
+      const text = source(file);
+      expect(own.test(text), file).toBe(false);
+      expect(text, file).not.toMatch(/\btooltip\s*:\s*(?:RefreshData|SetHyperlink|Show|Hide|SetOwner)\b/);
+      expect(text, file).not.toMatch(/\btooltip\.guilded\w+\s*=/);
+      expect(text, file).not.toContain("MODIFIER_STATE_CHANGED");
+    }
   });
 });

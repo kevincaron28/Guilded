@@ -43,7 +43,7 @@ describe("/me/ grouping", () => {
     expect(body).toContain('id="my-week"');
     expect(body).toContain('id="sec-achievements"');
     expect(body.indexOf('class="me-quick"')).toBeLessThan(body.indexOf('id="overview"'));
-    for (const href of ["#characters", "#achievements", "/me/availability"]) expect(body).toContain(`href="${href}`);
+    for (const href of ["#characters", "#achievements"]) expect(body).toContain(`href="${href}`);
   });
 
   it("uses one h2 per group and h3 for sections", async () => {

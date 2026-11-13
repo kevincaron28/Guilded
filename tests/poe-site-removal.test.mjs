@@ -1,11 +1,6 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { beforeAll, describe, expect, it } from "vitest";
+import { existsSync, readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
 
-beforeAll(() => {
-  rmSync("dist/site", { recursive: true, force: true });
-  execFileSync(process.execPath, ["scripts/build-site.mjs"], { stdio: "pipe" });
-}, 30_000);
 
 describe("PoE2 and Diablo leave the public site", () => {
   it("drops the PoE2 page from the build and the sitemap", () => {

@@ -41,7 +41,7 @@ local PER_PC_FIELDS = { myCharacters = true, bridgeCompanionGuild = true, verify
 local PER_PC_SETTINGS = {
   guildRealmAliases = true,
   setupMode = true, setupModeAuto = true, connectedHintShown = true, ledgerSync = true, ledgerSyncSeen = true, ledgerSyncMatch = true, officerBridge = true,
-  chatTab = true, language = true, hideBossTimer = true, mapShare = true, mapShow = true,
+  chatTab = true, language = true, hideBossTimer = true, cardArt = true, mapShare = true, mapShow = true,
   minimapAngle = true, minimapHidden = true, panelPoint = true, panelScale = true, panelTab = true, windowState = true
 }
 

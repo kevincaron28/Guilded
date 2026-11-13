@@ -31,6 +31,11 @@ function message(language, value) {
   if (typeof value !== 'string' || normalizeLanguage(language) !== 'fr') return value;
   if (Object.hasOwn(fr, value)) return fr[value];
   // 9.3.0 dungeon run report (companion/run-report.mjs): "Dungeon runs: 3 sent, 2 stored, 1 not counted (Not completed)."
+  // The same line for a guild Guilded parked: "Dungeon runs of Name-Realm: 2 sent, 2 stored."
+  const parkedReport = /^Dungeon runs of (.+?): ([\s\S]*)$/.exec(value);
+  if (parkedReport) { const inner = message(language, `Dungeon runs: ${parkedReport[2]}`); if (inner !== `Dungeon runs: ${parkedReport[2]}`) return inner.replace('Parcours de donjon :', `Parcours de donjon de ${parkedReport[1]} :`); }
+  const parkedWait = /^(\d+) dungeon runs? of (.+) wait: log in on a character of that guild or link that server\.$/.exec(value);
+  if (parkedWait) return `${parkedWait[1]} parcours de donjon de ${parkedWait[2]} en attente : connectez-vous avec un personnage de cette guilde ou liez ce serveur.`;
   const runReport = /^Dungeon runs: (\d+) sent((?:, \d+ (?:stored|copied from a guildmate|waiting for a second player|not confirmed yet|not counted \([\s\S]*?\)))*)\.$/.exec(value);
   if (runReport) {
     const names = { stored: 'enregistré(s)', 'copied from a guildmate': 'copie(s) du parcours d’un membre de la guilde', 'waiting for a second player': 'en attente d’un second joueur', 'not confirmed yet': 'pas encore confirmé(s)' };

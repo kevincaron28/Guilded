@@ -19,6 +19,12 @@ sends the guild of the character that logged in last (its runs and its character
 guildless alt logging in later does not change that. Roster, officer and raid
 information still needs full Guilded.
 
+With full Guilded, runs of a guild you played earlier (parked when a character of another guild logged in) still
+reach that guild's board: the companion sends them to that guild's own server (zero-setup, or a signed-in connection
+linked to that guild) and keeps a short record so they show as synced when you log in on that guild again. Roster,
+officer and ledger data of a parked guild are never sent. If the connection is not that guild's, the companion says
+"N dungeon runs of <guild> wait" and they go once you log in on a character of that guild.
+
 Use the files offered on the [Guilded releases page](https://github.com/kevincaron28/Guilded/releases).
 Look for the `GuildedDungeons` download for the standalone addon, or `Guilded`
 for the full addon. Keep your SavedVariables when upgrading.

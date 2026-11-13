@@ -2,6 +2,7 @@ import { stat } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 import { readSavedText } from "./saved-file.mjs";
 import { parseAddonExportDatabase, parseAddonExportText, readDatabase } from "./lua-export-content.mjs";
+import { parkedGuildDatabases } from "./parked-runs.mjs";
 
 // One PC can have Guilded, Guilded Dungeons (the standalone dungeon addon) or both (9.3.0). The guild upload and the
 // zero-setup device upload read whichever saved files exist beside the chosen one:
@@ -120,14 +121,23 @@ export function standaloneAsGuildedDatabase(sdb, { withGuild = true, onlyGuild =
  * `noGuildKey`: the data comes from Guilded Dungeons alone and that addon has not saved the guild yet (an addon older than
  * 9.3.0, or no login in a guild yet): the bot cannot find the Discord server from it.
  */
-/** @param {{ guilded?: string | null, standalone?: string | null, standaloneAt?: number }} files */
-export function parseSavedFiles({ guilded = null, standalone = null, standaloneAt = 0 }, realm) {
+/**
+ * `parked` (Guilded.lua only): the finished runs of guilds Guilded parked when another guild's character logged in, one export per guild
+ * ({ key, full }); `full` holds that guild's runs and this account's characters in it, nothing else. `options.skip`: run ids already acknowledged.
+ * @param {{ guilded?: string | null, standalone?: string | null, standaloneAt?: number }} files
+ * @param {string} realm
+ * @param {{ skip?: Set<string> }} [options]
+ */
+export function parseSavedFiles({ guilded = null, standalone = null, standaloneAt = 0 }, realm, options = {}) {
   const standaloneDb = hasStandaloneDatabase(standalone) ? readDatabase(standalone, "GuildedDungeonsDB") : null;
   const savedAt = new Date(standaloneAt || 0);
   if (hasGuildedDatabase(guilded) || !standaloneDb) {
     // No standalone data: the plain Guilded export (a missing GuildedDB throws the usual "was not found" error).
     const full = parseAddonExportText(guilded ?? "", realm);
-    if (!standaloneDb) return { full, source: "guilded", noGuildKey: false };
+    const parked = /otherGuilds/.test(guilded ?? "")
+      ? parkedGuildDatabases(readDatabase(guilded, "GuildedDB"), { loadedKey: full.wowGuild, skip: options.skip }).map(({ key, database }) => ({ key, full: parseAddonExportDatabase(database, realm) }))
+      : [];
+    if (!standaloneDb) return { full, source: "guilded", noGuildKey: false, parked };
     // Only runs of the guild Guilded exports (and only characters saved for it); with no guild there, nothing is added.
     const extra = full.wowGuild
       ? parseAddonExportDatabase(standaloneAsGuildedDatabase(standaloneDb, { withGuild: false, onlyGuild: full.wowGuild, savedAt }), realm)
@@ -136,15 +146,15 @@ export function parseSavedFiles({ guilded = null, standalone = null, standaloneA
     for (const run of extra.dungeonRuns ?? []) if (!runs.has(run.id)) runs.set(run.id, run);
     const known = new Set([full.character?.name, ...(full.alts ?? []).map((entry) => entry.name)].map((name) => String(name ?? "").toLowerCase()));
     const alts = [...(full.alts ?? []), ...(extra.alts ?? []).filter((entry) => !known.has(String(entry.name).toLowerCase()))];
-    return { full: { ...full, dungeonRuns: [...runs.values()], ...(alts.length ? { alts } : {}) }, source: "both", noGuildKey: false };
+    return { full: { ...full, dungeonRuns: [...runs.values()], ...(alts.length ? { alts } : {}) }, source: "both", noGuildKey: false, parked };
   }
   const full = parseAddonExportDatabase(standaloneAsGuildedDatabase(standaloneDb, { onlyGuild: uploadGuild(standaloneDb), savedAt }), realm);
-  return { full, source: "standalone", noGuildKey: !full.wowGuild };
+  return { full, source: "standalone", noGuildKey: !full.wowGuild, parked: [] };
 }
 
 /** Reads and parses the saved file(s) beside `watchFile`; a plain Guilded.lua behaves as it always did. */
-export async function readSavedExport(watchFile, realm) {
-  if (!isAddonSavedFile(watchFile)) return { full: parseAddonExportText(await readSavedText(watchFile), realm), source: "guilded", noGuildKey: false };
+export async function readSavedExport(watchFile, realm, options = {}) {
+  if (!isAddonSavedFile(watchFile)) return { full: parseAddonExportText(await readSavedText(watchFile), realm), source: "guilded", noGuildKey: false, parked: [] };
   const pair = savedFilePair(watchFile);
   const [guilded, standalone] = await Promise.all([readIfPresent(pair.guilded), readIfPresent(pair.standalone)]);
   if (!guilded && !standalone) {
@@ -152,7 +162,7 @@ export async function readSavedExport(watchFile, realm) {
     error.code = "ENOENT";
     throw error;
   }
-  return parseSavedFiles({ guilded: guilded?.text ?? null, standalone: standalone?.text ?? null, standaloneAt: standalone?.at ?? 0 }, realm);
+  return parseSavedFiles({ guilded: guilded?.text ?? null, standalone: standalone?.text ?? null, standaloneAt: standalone?.at ?? 0 }, realm, options);
 }
 
 /** The saved-file paths worth watching and stamping: the chosen one first, then its neighbour from the other addon. */

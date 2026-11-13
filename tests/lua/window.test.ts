@@ -358,7 +358,7 @@ describe("the tools window (sidebar and Home page)", () => {
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Home");
   });
 
-  it("keeps the map shortcut and does not restore retired marker controls", () => {
+  it("has no map shortcut in the quick menu and does not restore retired marker controls", () => {
     const s = openWindow(1, `
       local original = CreateFrame
       function CreateFrame(kind, name, ...)
@@ -375,9 +375,9 @@ describe("the tools window (sidebar and Home page)", () => {
       fire_event("PLAYER_LOGIN")
       NS.commandHandlers["map"] = function(args) MAP_ACTION = args[1] end
       GuildedMinimapButton.scripts.OnClick(GuildedMinimapButton, "RightButton")
-      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then f.buttons[2].scripts.OnClick() end end
+      for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then for _, b in ipairs(f.buttons) do if b.scripts.OnClick then b.scripts.OnClick() end end end end
     `);
-    expect(s.run("return MAP_ACTION")).toBe("open");
+    expect(s.run("return tostring(MAP_ACTION)")).toBe("nil");
     expect(s.run("return tostring(NS.raidTools)")).toBe("nil");
     expect(s.run('return tostring(NS.commandHandlers["rt"])')).toBe("nil");
     expect(s.run('return NS.getDb().raidPlans.test.lines[1]')).toBe("Keep this");
@@ -813,15 +813,15 @@ describe("minimap button shortcuts (Track E2)", () => {
     expect(click(s, "LeftButton")).toBe("window");
   });
 
-  it("the quick menu has four items: dungeons, guild map, call for help, settings", () => {
+  it("the quick menu has three items: dungeons, call for help, settings (no separate guild map entry)", () => {
     const s = setup();
     click(s, "RightButton");
     s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedQuickMenu" then MENU = f end end`);
-    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("3");
+    expect(s.run(`return tostring(#MENU.buttons)`)).toBe("2");
     s.run(`NS.callForHelp = { open = function() DONE[#DONE + 1] = "help" end }`);
     click(s, "RightButton");
     const names = s.run(`local t = {}; for i = 1, #MENU.buttons do if MENU.buttons[i].shown then t[#t + 1] = MENU.buttons[i].text.text end end; return table.concat(t, ",")`);
-    expect(names).toBe("Dungeons,Guild map,Call for help,Settings");
+    expect(names).toBe("Dungeons,Call for help,Settings");
   });});
 
 // 8.5 in-game test (French Forever): the minimap button was missing and /guilded minimap show was silent.

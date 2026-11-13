@@ -212,6 +212,9 @@ function page.allEntries()
     desc = "No call for help windows for 10 minutes (until you log out or reload).", run = function() run("sos mute") end })
   add({ tab = "dungeons", group = "Call for help", kind = "action", label = "Reset call window", who = "me", saved = "settings.helpPos",
     desc = "Puts the call for help window back at its default place. Drag its title to move it.", run = function() run("sos reset") end })
+  check("dungeons", "Duels", "Show a card after each of my duels", "Shows a small card with the result, the record and the rank change after each of your guild duels. Type /guilded duels card test to preview it.", "me", "settings.duelCard",
+    function() return not ns.duels or ns.duels.cardEnabled() end,
+    function(on) if ns.duels then ns.duels.setCardEnabled(on) end end, { wide = true })
 
   -- ----- Officers (shown to officers only; each affects the whole guild or this officer's client) -----
   check("officers", "Whole guild", "Allow milestone announcements", "When off, nobody's milestones are announced in guild chat: this wins over every member's own choice.", "guild",

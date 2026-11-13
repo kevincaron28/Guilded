@@ -119,10 +119,9 @@ tools, subject to your role, and request access, correction or deletion through
 the support contact below. We may need to verify the requester's identity and
 scope without requesting passwords or government ID in a public channel.
 
-The web availability feature requires an explicit post and sharing confirmation.
-Only current members of the selected guild and edition can see it. You can
-remove your post; it expires after at most one hour. Addon-observed local presence
-is not uploaded to that feature.
+The web availability feature ("Who's free?") is retired: no new posts are possible and nothing displays
+them. Posts made before its retirement are still purged at their expiry by housekeeping and are removed by
+Delete my data. Addon-observed local presence was never uploaded to that feature.
 
 ### Advertising and cookies
 

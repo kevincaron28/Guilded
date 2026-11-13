@@ -66,11 +66,13 @@ describe("guild map and the world map's taint", () => {
     expect(s.run(`return table.concat(MAP_CALLS, ",")`)).toBe("");
   });
 
-  it("/guilded map open names the map key instead of opening the map from addon code", () => {
+  it("/guilded map open is retired: it never opens the map and prints no key hint, the dots switch stays", () => {
     const s = withWorldMap();
     s.run(`NS.commandHandlers.map({ "open" })`);
     expect(s.run(`return table.concat(MAP_CALLS, ",")`)).toBe("");
-    expect(s.chat().join("\n")).toContain("Open your world map (M) to see guildmates.");
+    expect(s.chat().join("\n")).not.toContain("Open your world map");
+    s.run(`NS.commandHandlers.map({ "show", "off" })`);
+    expect(s.chat().join("\n")).toContain("Guildmates are hidden from your maps.");
   });
 
   it("draws dots on its own overlay (not the map canvas), anchored to the canvas and scaled to it", () => {

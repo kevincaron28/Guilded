@@ -59,8 +59,6 @@ const environmentSchema = z.object({
   // 5.0 answer channel. Reading what members write needs Discord's privileged "Message Content
   // Intent": turn it on for the bot in the Developer Portal FIRST, then set this to true (asking
   // for it without the portal switch makes Discord refuse the login).
-  // "Who's free?" web page (/me/availability). Hidden by default (roadmap 14); set to true to bring it back. Code and data are kept.
-  WEB_AVAILABILITY_ENABLED: z.preprocess((value) => value === "true" || value === "1", z.boolean()).default(false),
   MESSAGE_CONTENT_INTENT: z.preprocess((value) => value === "true" || value === "1", z.boolean()).default(false),
   // Daily check for a newer Guilded release; officers get one notice per version. On by default.
   UPDATE_CHECK: z.preprocess((value) => !(value === "false" || value === "0"), z.boolean()).default(true),

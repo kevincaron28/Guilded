@@ -102,7 +102,7 @@ import { concedeMatch, getMatch, isAiLevel, isClassKey, listMatches, parseIntent
 import { createArtisansGallery } from "./services/artisans-gallery.js";
 import { withDeadline } from "./services/blizzard-items.js";
 import { itemData } from "./item-data.js";
-import { postCraftRequest } from "./commands/craft-board.js";
+import { announceOrderChanges, postCraftRequest } from "./commands/craft-board.js";
 import { webAuthConfig } from "./services/web-auth.js";
 import { prismaWebStore } from "./services/web-store.js";
 import { postWebApplication } from "./services/recruitment-discord.js";
@@ -663,18 +663,28 @@ export async function craftRequestNeedsPost(id: string): Promise<boolean> {
   return !!row && !row.threadId && !row.orderMessageId && row.status === "OPEN";
 }
 
-/** Phase timer for one upload: one journal line with the phases over 200 ms (no names, no Discord ids). */
-export function createUploadTimer() {
+/**
+ * Phase timer for one upload: one journal line with the phases over 200 ms (no names, no Discord ids). Gap-free: `mark(name)`
+ * attributes everything since the previous mark (or since `startedAt`, the request handler's first line) to `name`, and `time`
+ * marks the wait before its task as `before:<name>`, so the printed phases plus `other` (what is left after the last mark: the
+ * response and its close) always add up to `total`.
+ */
+export function createUploadTimer(startedAt = Date.now()) {
   const phases: Array<[string, number]> = [];
-  const startedAt = Date.now();
+  let last = startedAt;
+  const mark = (name: string, at = Date.now()) => { phases.push([name, at - last]); last = at; };
   return {
+    mark,
     async time<T>(name: string, task: () => Promise<T>): Promise<T> {
-      const began = Date.now();
-      try { return await task(); } finally { phases.push([name, Date.now() - began]); }
+      mark(`before:${name}`);
+      try { return await task(); } finally { mark(name); }
     },
     line(guildId: string, bytes: number, officer: boolean): string {
-      const slow = phases.filter(([, ms]) => ms > 200).map(([name, ms]) => `${name}:${ms}`).join(",");
-      return `upload guild=${createHash("sha256").update(guildId).digest("hex").slice(0, 8)} total=${Date.now() - startedAt} bytes=${bytes} officer=${officer ? 1 : 0} phases=${slow || "-"}`;
+      const total = Date.now() - startedAt;
+      const spent = phases.reduce((sum, [, ms]) => sum + ms, 0);
+      const slow = phases.filter(([, ms]) => ms > 200).map(([name, ms]) => `${name}:${ms}`);
+      slow.push(`other:${Math.max(0, total - spent)}`);
+      return `upload guild=${createHash("sha256").update(guildId).digest("hex").slice(0, 8)} total=${total} bytes=${bytes} officer=${officer ? 1 : 0} phases=${slow.join(",")}`;
     }
   };
 }
@@ -1102,6 +1112,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         });
       }
       const payload = isImport || isPoeUpload || isPoeLevels || isManageEdit || isHubEdit || isMapEdit ? await readBody(request) : null;
+      const bodyReadAt = Date.now();
       const requestPayload = payload as { guildDiscordId?: unknown; export?: unknown } | null;
       const guildDiscordId = isStandings || isPoeStatus || isPoeRecent || isManageView || isHubView || isMapView ? url.searchParams.get("guild") : requestPayload?.guildDiscordId;
       if (typeof guildDiscordId !== "string") { json(response, 400, { error: "guildDiscordId is required" }); return; }
@@ -1116,7 +1127,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const guild = credential?.member.guild;
       if (!guild) { json(response, 401, { error: "Pair this companion with /character pair in the selected in-game guild." }); return; }
       return await runInGuildScope(await loadGuildScope(prisma, guild.id, guildDiscordId), async () => {
+      const scopeLoadedAt = Date.now();
       const access = typeof header === "string" ? await companionAccess(prisma, client, guild.id, guild.discordId, header) : null;
+      const accessAt = Date.now();
       if (!access) {
         recordFailure(address);
         json(response, 401, { error: "Pair this companion with /character pair. The shared upload token no longer grants access." }); return;
@@ -1238,8 +1251,11 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!requestPayload?.export) { json(response, 400, { error: "export is required" }); return; }
       const pairedMemberId = access.memberId;
       const createdBy = access.actorId;
-      const uploadTimer = createUploadTimer();
+      // From the first line of the handler: `body` (read, gunzip, parse), `auth` (credential and guild scope) and `access` come first.
+      const uploadTimer = createUploadTimer(requestStartedAt);
+      uploadTimer.mark("body", bodyReadAt); uploadTimer.mark("auth", scopeLoadedAt); uploadTimer.mark("access", accessAt);
       const timed = uploadTimer.time;
+      const mark = uploadTimer.mark;
       response.once("close", () => console.info(uploadTimer.line(guild.id, Number(request.headers["content-length"]) || 0, !!access.officer)));
       let preview = await timed("preview", () => importService.preview(guild.id, requestPayload.export, createdBy));
       // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.
@@ -1250,37 +1266,39 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         return;
       }
       const uploadStartedAt = new Date();
-      const linkedBefore = pairedMemberId ? await linkedCharacterCount(prisma, pairedMemberId) : 0;
+      // One read of the guild's settings for the whole upload (it was read up to four times), next to the character count.
+      const [linkedBefore, settings] = await Promise.all([
+        pairedMemberId ? linkedCharacterCount(prisma, pairedMemberId) : 0,
+        prisma.guildSettings.findUnique({ where: { guildId: guild.id } })
+      ]);
+      mark("settings");
       const pairedCharacterStatus = pairedMemberId
         ? await timed("link-uploader", () => linkUploaderCharacters(prisma, guild.id, pairedMemberId, preview.snapshot))
         : "unpaired";
       // First link, and later new characters: one batched DM listing the linked characters (owner decision, 8.5 track F).
       if (pairedMemberId && client) {
-        const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
-        scheduleLinkedCharacters(client, prisma, { guildDiscordId: guild.discordId, memberId: pairedMemberId, lang: asLang(language?.language), before: linkedBefore });
+        scheduleLinkedCharacters(client, prisma, { guildDiscordId: guild.discordId, memberId: pairedMemberId, lang: asLang(settings?.language), before: linkedBefore });
       }
       // Guildmates who pasted their /guilded verify code in game, as this uploader's addon heard them:
       // an officer's upload links and confirms; a member's links provisionally (character-verify.ts).
-      if (access.officer) await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined);
+      if (access.officer) { await prisma.guild.update({ where: { id: guild.id }, data: { officerSyncAt: new Date() } }).catch(() => undefined); mark("officer-sync"); }
       // Characters in an officer's roster upload are in the guild: their waiting invite posts get a check mark.
       if (access.officer && client) {
         const rosterNames = [preview.snapshot.character, ...preview.snapshot.characters].flatMap((entry) => entry ? [entry.name, ...(entry.displayName ? [entry.displayName] : [])] : []);
         void completeInvitesFromRoster(client, prisma, { id: guild.id, discordId: guild.discordId }, rosterNames)
           .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite check marks failed", error));
+        mark("invite-check-start");
       }
       if (access.officer || pairedMemberId) {
         const verified = await timed("verified-links", () => linkVerifiedCharacters(prisma, guild.id, { officer: access.officer, memberId: pairedMemberId }, preview.snapshot.characters))
           .catch((error: unknown) => { console.error("Linking verified characters failed", error); return []; });
-        if (verified.length && client) {
-          const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
-          void tellVerified(client, guild.discordId, asLang(language?.language), verified).catch(() => undefined);
-        }
+        if (verified.length && client) void tellVerified(client, guild.discordId, asLang(settings?.language), verified).catch(() => undefined);
       }
       // Two members and one character (the uploader's own characters above, or a verify code): stronger
       // proof moved it, or it waits for an officer. Both members and the officer log hear it once.
       if ((access.officer || pairedMemberId) && client) {
-        const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
-        void tellLinkConflicts(client, prisma, { id: guild.id, discordId: guild.discordId }, asLang(language?.language));
+        void tellLinkConflicts(client, prisma, { id: guild.id, discordId: guild.discordId }, asLang(settings?.language));
+        mark("link-conflicts-start");
       }
       // 8.5: the game's guild roster, event log and MOTD from any member's upload (guild-data.ts):
       // members without the addon reach the race board, last seen and roster gaps. Rank only from
@@ -1300,6 +1318,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (client) {
         const seen = [preview.snapshot.character, ...preview.snapshot.characters].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
         void prelinkAfterUpload(client, prisma, guild, seen);
+        mark("prelink-start");
       }
       // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
       if (preview.snapshot.guildBank !== undefined) {
@@ -1325,8 +1344,6 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (orderChanges.length) {
           markGuildChanged(guild.id);
           if (client) {
-            // Loaded only when needed, like the poll command module above.
-            const { announceOrderChanges } = await import("./commands/craft-board.js");
             void announceOrderChanges(client, guild.discordId, orderChanges).catch((error: unknown) => console.warn("Craft order Discord update failed", error));
           }
         }
@@ -1341,7 +1358,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             .catch((error: unknown) => { console.warn("Craft requests from the addon failed", error); return []; })
           : [];
         // A request whose Discord post failed earlier (no thread, no orders line) is posted again, a few per upload.
+        mark("before:unposted");
         const retry = await unpostedGameRequests(prisma, guild.id).catch(() => [] as string[]);
+        mark("unposted");
         const toPost = [...new Set([...created.map((request) => request.id), ...retry])];
         if (created.length) markGuildChanged(guild.id);
         const postNow = toPost.filter((id) => !postingCraftRequests.has(id));
@@ -1389,12 +1408,15 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           await timed("guildmate-relay", () => applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot))
             .catch((error: unknown) => { console.error("Guildmate relay failed", error); return null; });
         }
-        const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
         // 9.1: guildmates' recipes, cooldowns and attunements, for characters already linked in this guild.
-        const linkedInGuild = pairedMemberId ? await prisma.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true, gameEdition: true } }) : [];
+        const [owned, linkedInGuild] = await Promise.all([
+          prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } }),
+          pairedMemberId ? prisma.character.findMany({ where: { member: { guildId: guild.id } }, select: { name: true, realm: true, memberId: true, gameEdition: true } }) : []
+        ]);
+        mark("personal-reads");
         preview = await importService.previewSnapshot(guild.id, personalSnapshot(preview.snapshot, owned, pairedMemberId ? { uploaderMemberId: pairedMemberId, linked: linkedInGuild } : undefined), createdBy);
+        mark("personal-preview");
       }
-      const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
       const professionRelay = access.officer && !settings?.autoApplyImports
         ? await timed("profession-relay", () => relayProfessions(prisma, guild.id, preview.snapshot)) : null;
       if (professionRelay) {
@@ -1441,6 +1463,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing?.id, status: existing?.status, botVersion: BOT_VERSION, protocolVersion: 2 });
         return;
       }
+      mark("duplicate-check");
       const record = await timed("record", () => importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId));
       // Auto-apply (a guild opt-in: /config auto-import): apply now and follow up, no /import apply.
       let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
@@ -1478,6 +1501,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           }
         }
       }
+      mark("apply-tail");
       // 9.0.9: does this server know the uploading character's WoW guild? The companion warns about a wrong connection.
       json(response, 201, {
         ...(guildCheck ? { serverWowGuild: guildCheck } : {}),

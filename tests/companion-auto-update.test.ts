@@ -142,7 +142,7 @@ describe("direct-download page and release process", () => {
     expect(page).toContain(index === 0 ? "More info → Run anyway" : "Exécuter quand même");
     // The plug-and-play download leads (owner, 7 November); the Store stays one click away.
     expect(page).toContain(index === 0 ? "Download for Windows" : "Télécharger pour Windows");
-    expect(page).toContain(index === 0 ? "Already have Guilded Companion from the Microsoft Store?" : "Vous avez déjà Guilded Companion du Microsoft Store ?");
+    expect(page).toContain(index === 0 ? "Already have Guilded Companion from the Microsoft Store (listed there as Guild Sync Companion)?" : "Vous avez déjà Guilded Companion du Microsoft Store (affiché sous le nom Guild Sync Companion) ?");
   });
 
   it("makes every release carry a fixed-name copy of the installer", () => {

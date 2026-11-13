@@ -20,9 +20,10 @@ export const compactKey = (key) => String(key ?? "").replace(/\s+/g, "").toLower
 /**
  * The parked guilds of a parsed GuildedDB that hold finished runs the bot has not acknowledged: [{ key, database }] where `database`
  * is a minimal GuildedDB-shaped table (guild key, characters, dungeon runs) ready for parseAddonExportDatabase.
- * `skip`: run ids already acknowledged (the record and the addon's receipts). A key holding another edition ("edition@key") is ignored.
+ * `skip`: run ids already acknowledged (the record and the addon's receipts). Runs older than RECORD_DAYS are not read: the addon never prunes a parked
+ * table, and the record forgets an acknowledgement after that long, so an old run would otherwise be re-sent for ever. A key holding another edition ("edition@key") is ignored.
  */
-export function parkedGuildDatabases(database, { loadedKey = "", skip = new Set() } = {}) {
+export function parkedGuildDatabases(database, { loadedKey = "", skip = new Set(), nowMs = Date.now() } = {}) {
   const other = database?.otherGuilds;
   if (!other || typeof other !== "object") return [];
   const out = [];
@@ -32,6 +33,8 @@ export function parkedGuildDatabases(database, { loadedKey = "", skip = new Set(
     const runs = {};
     for (const run of Object.values(parked.dungeon?.runs ?? {})) {
       if (!run || typeof run !== "object" || !run.id || run.synced === true || skip.has(String(run.id))) continue;
+      const at = Number(run.endedAt || run.detectedAt || run.startedAt || 0);
+      if (!(at > 0) || nowMs - at * 1000 > RECORD_DAYS * DAY) continue;
       runs[String(run.id)] = run;
     }
     if (!Object.keys(runs).length) continue;
@@ -55,13 +58,13 @@ export const waitLine = (guild, count) => `${count} dungeon run${count === 1 ? "
 // ---------------------------------------------------------------------------------------------------------------------------
 // The record: { version: 1, runs: { <run id>: { guild, ended, note? } }, servers: { <guildDiscordId>: [compact guild keys] } }.
 
-export const emptyRecord = () => ({ version: 1, runs: {}, servers: {} });
+export const emptyRecord = () => ({ version: 1, runs: {}, servers: {}, outcomes: {} });
 
 export function parseRecord(text) {
   try {
     const value = JSON.parse(text);
     if (!value || typeof value !== "object") return emptyRecord();
-    return { version: 1, runs: value.runs && typeof value.runs === "object" ? value.runs : {}, servers: value.servers && typeof value.servers === "object" ? value.servers : {} };
+    return { version: 1, runs: value.runs && typeof value.runs === "object" ? value.runs : {}, servers: value.servers && typeof value.servers === "object" ? value.servers : {}, outcomes: value.outcomes && typeof value.outcomes === "object" ? value.outcomes : {} };
   } catch { return emptyRecord(); }
 }
 
@@ -162,5 +165,52 @@ export function patchReceiptBlocks(text, record) {
   if (add.length) out = out.replace(block("GuildedDungeonAccepted"), (_, open, body, close) => `${open}${body}${add.map((ref) => `\n  ${luaString(ref)},`).join("")}${close}`);
   const noteLines = Object.entries(extra.notes).filter(([ref]) => !new RegExp(String.raw`\[${escapeRegExp(luaString(ref))}\]`).test(out));
   if (noteLines.length) out = out.replace(block("GuildedDungeonNotes"), (_, open, body, close) => `${open}${body}${noteLines.map(([ref, note]) => `\n  [${luaString(ref)}] = ${luaString(note)},`).join("")}${close}`);
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------------
+// Pacing (9.3.1). A parked guild is one more request per sync and the bot limits a device's uploads per hour, so: at most
+// MAX_PER_SYNC guilds per sync (the least recently tried first, so every guild gets its turn), a guild whose last answer was a dead end for
+// this run set (no server, several servers to choose from, nobody to vouch, not confirmed) is not asked again for RETRY_MS, and the whole
+// loop stops on a 429. The loaded guild's upload always goes first. The outcomes live in the record, so a restart does not start over.
+
+export const MAX_PER_SYNC = 3;
+export const RETRY_MS = 3_600_000;
+const OUTCOME_DAYS = 7;
+
+/** A short fingerprint of a run set: a guild is asked again at once when it holds a run it was not asked about. */
+export function runSetOf(ids) {
+  let hash = 5381;
+  for (const id of [...ids].map(String).sort()) for (let i = 0; i < id.length; i++) hash = ((hash * 33) ^ id.charCodeAt(i)) >>> 0;
+  return `${ids.length}:${hash.toString(36)}`;
+}
+
+/** The parked guilds to try this sync: not waiting out a dead end for the same run set, least recently tried first, at most `max`. */
+export function chooseParked(record, candidates, nowMs = Date.now(), max = MAX_PER_SYNC) {
+  const outcomes = record?.outcomes ?? {};
+  return candidates
+    .filter((entry) => {
+      const last = outcomes[compactKey(entry.key)];
+      return !(last && last.kind !== "ok" && last.runSet === runSetOf(entry.ids) && nowMs - Number(last.at ?? 0) < RETRY_MS);
+    })
+    .sort((a, b) => Number(outcomes[compactKey(a.key)]?.at ?? 0) - Number(outcomes[compactKey(b.key)]?.at ?? 0))
+    .slice(0, max);
+}
+
+/** Remembers how the last request for a guild's run set ended: "ok", "no-guild", "choose", "unvouched", "unconfirmed" or "error". */
+export function noteOutcome(record, guildKey, ids, kind, nowMs = Date.now()) {
+  const outcomes = { ...(record.outcomes ?? {}), [compactKey(guildKey)]: { kind, at: nowMs, runSet: runSetOf(ids) } };
+  const kept = Object.entries(outcomes).filter(([, entry]) => nowMs - Number(entry?.at ?? 0) <= OUTCOME_DAYS * 86_400_000).sort((a, b) => Number(b[1].at) - Number(a[1].at)).slice(0, 50);
+  return { ...record, outcomes: Object.fromEntries(kept) };
+}
+
+/** The purpose-built body of a signed parked upload: the guild, this account's characters in it and the runs, nothing else (no empty sections). */
+export function minimalParkedExport(full) {
+  const out = {};
+  for (const field of ["gameEdition", "interface", "source", "exportedAt", "addonVersion", "wowGuild", "character", "alts", "dungeonRuns"]) {
+    const value = full?.[field];
+    if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) continue;
+    out[field] = value;
+  }
   return out;
 }

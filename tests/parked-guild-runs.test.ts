@@ -153,22 +153,24 @@ describe("device (zero-setup) mode", () => {
       const parked = body.guild?.name === "Parked Guild";
       const sent = (body.dungeonRuns ?? []).map((entry: { id: string }) => entry.id);
       return Response.json({ status: "synced", server: { discordId: parked ? "PARKED-SERVER" : "LOADED-SERVER", name: parked ? "Parked server" : "Loaded server" }, guild: body.guild, characters: 1,
-        runs: { received: sent.length, stored: sent.length, skipped: 0 }, runReceipts: { acceptedRunRefs: sent, runNotes: {} }, reported: ["Kev"] });
+        runs: { received: sent.length, stored: sent.length, skipped: 0 }, runReceipts: { acceptedRunRefs: sent, runNotes: {} }, reported: ["Kev"], deviceFeatures: ["runs-only"] });
     }));
     const logs: { level: string; message: string }[] = [];
     const engine = createEngine({ watchFile: files.watchFile, uploadUrl: "https://bot.test/api/v1/addon-imports", device: true, deviceSecret: KEY, deviceServer: "LOADED-SERVER" }, { onLog: (entry: { level: string; message: string }) => logs.push(entry) });
     try {
       expect(await engine.start()).toBe(true);
-      await vi.waitFor(() => expect(logs.some((entry) => entry.message.startsWith("Dungeon runs:"))).toBe(true), { timeout: 5000 });
+      await vi.waitFor(() => expect(existsSync(files.record) && Object.keys(JSON.parse(readFileSync(files.record, "utf8")).runs).length).toBe(2), { timeout: 5000 });
+      await vi.waitFor(() => expect(existsSync(files.standings) && readFileSync(files.standings, "utf8").includes('"PARKED-2"')).toBe(true), { timeout: 5000 });
     } finally { await engine.stop(); }
-    // The parked guild went first, to the server the bot finds from ITS key (the pinned server is the loaded guild's only).
+    // The loaded guild went first with the pinned server; the parked guild's runs followed, runs-only, to the server the bot finds from ITS key.
     expect(bodies).toHaveLength(2);
-    expect(bodies[0]).toMatchObject({ guild: { name: "Parked Guild", realm: "TestRealm" } });
-    expect(bodies[0]).not.toHaveProperty("server");
-    expect(Object.keys(bodies[0]!).sort()).toEqual(["characters", "dungeonRuns", "guild"]);
-    expect((bodies[0]!["dungeonRuns"] as { id: string }[]).map((entry) => entry.id).sort()).toEqual(["PARKED-1", "PARKED-2"]);
-    expect(bodies[1]).toMatchObject({ guild: { name: "Loaded Guild" }, server: "LOADED-SERVER" });
-    expect((bodies[1]!["dungeonRuns"] as { id: string }[]).map((entry) => entry.id)).toEqual(["LOADED-1"]);
+    expect(bodies[0]).toMatchObject({ guild: { name: "Loaded Guild" }, server: "LOADED-SERVER" });
+    expect(bodies[0]).not.toHaveProperty("runsOnly");
+    expect((bodies[0]!["dungeonRuns"] as { id: string }[]).map((entry) => entry.id)).toEqual(["LOADED-1"]);
+    expect(bodies[1]).toMatchObject({ runsOnly: true, guild: { name: "Parked Guild", realm: "TestRealm" } });
+    expect(bodies[1]).not.toHaveProperty("server");
+    expect(Object.keys(bodies[1]!).sort()).toEqual(["characters", "dungeonRuns", "guild", "runsOnly"]);
+    expect((bodies[1]!["dungeonRuns"] as { id: string }[]).map((entry) => entry.id).sort()).toEqual(["PARKED-1", "PARKED-2"]);
     expect(JSON.stringify(bodies)).not.toMatch(/SecretRosterMember|SECRET-LEDGER-ROW|SecretBankItem|officer only text/);
     expect(logs.find((entry) => entry.message.startsWith("Dungeon runs of Parked Guild-TestRealm:"))?.message).toBe("Dungeon runs of Parked Guild-TestRealm: 2 sent, 2 stored.");
     // The record and the addon's receipts: the parked runs are acknowledged for when that guild loads again.
@@ -186,7 +188,7 @@ describe("device (zero-setup) mode", () => {
     vi.stubGlobal("fetch", vi.fn(async (_url: unknown, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body));
       bodies.push(body);
-      return Response.json({ status: "synced", server: { discordId: "S", name: "S" }, guild: body.guild, characters: 1, runReceipts: { acceptedRunRefs: [], runNotes: {} }, reported: [] });
+      return Response.json({ status: "synced", server: { discordId: "S", name: "S" }, guild: body.guild, characters: 1, runReceipts: { acceptedRunRefs: [], runNotes: {} }, reported: [], deviceFeatures: ["runs-only"] });
     }));
     const logs: { level: string; message: string }[] = [];
     const engine = createEngine({ watchFile: files.watchFile, uploadUrl: "https://bot.test/api/v1/addon-imports", device: true, deviceSecret: KEY }, { onLog: (entry: { level: string; message: string }) => logs.push(entry) });
@@ -231,7 +233,7 @@ describe("signed-in mode", () => {
     vi.stubGlobal("fetch", fetcher);
     const logs: { level: string; message: string }[] = [];
     const engine = createEngine(config(files, { wowGuild: PARKED }), { onLog: (entry: { level: string; message: string }) => logs.push(entry) });
-    await runTo(engine, () => expect(existsSync(files.record)).toBe(true) as unknown as boolean);
+    await runTo(engine, () => expect(existsSync(files.record) && Object.keys(JSON.parse(readFileSync(files.record, "utf8")).runs).length).toBeGreaterThanOrEqual(2) as unknown as boolean);
     const parkedUpload = uploads.find((entry) => (entry["export"] as { wowGuild?: string }).wowGuild === PARKED)!;
     expect(parkedUpload["guildDiscordId"]).toBe("PARKED-SERVER");
     const exported = parkedUpload["export"] as Record<string, unknown> & { dungeonRuns: { id: string }[] };

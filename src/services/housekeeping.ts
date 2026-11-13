@@ -136,15 +136,19 @@ export async function sendWelcome(discordGuild: DiscordGuild, member: GuildMembe
   const delivery = welcomeDelivery(settings);
   const message = buildWelcomeMessage(settings, discordGuild, { id: member.id, username: member.user.username });
   // 9.3: the same welcome, with a card picture (avatar, role, first steps) when one can be drawn.
-  const card = await welcomeCardFile(discordGuild, member, settings.language);
+  const card = await welcomeCardFile(discordGuild, member, settings.language, { rules: !!settings.rulesChannelId, games: settings.welcomeRoleIds.length > 0 });
   const files = card ? [card] : [];
   if (delivery !== "CHANNEL") {
-    result.dm = await member.send({ ...message, ...(files.length ? { files } : {}), components: [...message.components, linkedCharactersRow(asLang(settings.language))] }).then(() => true).catch(() => false);
+    const dm = { ...message, components: [...message.components, linkedCharactersRow(asLang(settings.language))] };
+    // A picture that cannot be sent (missing Attach Files, too large) must never lose the welcome: one retry without it.
+    result.dm = await member.send({ ...dm, ...(files.length ? { files } : {}) }).catch(() => files.length ? member.send(dm) : Promise.reject(new Error("dm"))).then(() => true).catch(() => false);
   }
   if ((delivery !== "DM" || !result.dm) && settings.welcomeChannelId) {
     const channel = await discordGuild.channels.fetch(settings.welcomeChannelId).catch(() => null);
     if (channel?.isTextBased()) {
-      result.channel = await channel.send({ ...message, ...(files.length ? { files } : {}), allowedMentions: { users: [member.id] } })
+      const post = { ...message, allowedMentions: { users: [member.id] } };
+      result.channel = await channel.send({ ...post, ...(files.length ? { files } : {}) })
+        .catch((error: unknown) => { if (!files.length) throw error; console.error("Welcome card not sent, retrying without it", error); return channel.send(post); })
         .then(() => true)
         .catch((error: unknown) => { console.error("Failed to send welcome message", error); return false; });
     }

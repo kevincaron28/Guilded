@@ -33,6 +33,26 @@ describe("welcome card", () => {
     expect(sent.allowedMentions).toEqual({ users: ["123456789012345678"] });
   });
 
+  it("lists only the steps that have a button, and clips a long guild name", () => {
+    const none = welcomeCard("en", { name: "B", guildName: "G", memberCount: 1 }, { rules: false, games: false });
+    expect(none.rows!.map(row => row.name)).toEqual(["1. Link your character"]);
+    const both = welcomeCard("en", { name: "B", guildName: "G", memberCount: 1 }, { rules: true, games: true });
+    expect(both.rows!.map(row => row.name)).toEqual(["1. Read and accept the rules", "2. Pick your games", "3. Link your character"]);
+    expect(both.footer).not.toMatch(/above|below/);
+    expect(welcomeCard("en", { name: "B", guildName: "X".repeat(60), memberCount: 1 }).subtitle.length).toBeLessThan(45);
+  });
+
+  it("retries the channel welcome without the picture when the send with it fails (no Attach Files)", async () => {
+    const send = vi.fn().mockRejectedValueOnce(Object.assign(new Error("Missing Permissions"), { code: 50013 })).mockResolvedValue({});
+    const settings = { welcomeDelivery: "CHANNEL", welcomeChannelId: "c1", welcomeMessageTemplate: "Hi {mention}", welcomeRoleIds: [], rulesChannelId: null, language: "en" };
+    const result = await sendWelcome(makeGuild(send) as never, member as never, settings as never);
+    expect(result.channel).toBe(true);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[0]![0].files).toHaveLength(1);
+    expect(send.mock.calls[1]![0].files).toBeUndefined();
+    expect(send.mock.calls[1]![0].content).toContain("Hi <@");
+  });
+
   it("sends nothing at all when welcome is not configured (no new automatic message)", async () => {
     const send = vi.fn();
     const result = await sendWelcome(makeGuild(send) as never, member as never, { welcomeDelivery: "CHANNEL", welcomeChannelId: null, language: "en" } as never);

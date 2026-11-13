@@ -134,3 +134,15 @@ body{font-family:var(--kc-font)}h1{font-size:clamp(40px,4.8vw,68px)}.site-header
 }
 @media(max-width:700px){.footer-cols{grid-template-columns:repeat(2,minmax(0,1fr))}.footer-cols a{min-height:44px}}
 .site-header nav>a,.site-header .edition-menu>summary{white-space:nowrap}
+
+/* Home hero artwork (13 Nov 2026): approved painting behind the headline, darkened on the left so text keeps 4.5:1 contrast.
+   A full-bleed pseudo-element, so the layout and the text do not move; a smaller file below 760px. */
+body.home-page { overflow-x: clip; }
+.home-page .hero { position: relative; isolation: isolate; }
+.home-page .hero::before, .home-page .hero::after { content: ""; position: absolute; z-index: -1; top: 0; bottom: 0; left: 50%; width: 100vw; transform: translateX(-50%); pointer-events: none; }
+.home-page .hero::before { background: #111312 url("images/hero/site-hero-1600.webp") center right / cover no-repeat; }
+.home-page .hero::after { background: linear-gradient(90deg, #111312f2 0%, #111312e6 42%, #111312a6 66%, #11131255 100%), linear-gradient(0deg, #111312 0%, #11131200 28%); }
+@media (max-width: 760px) {
+  .home-page .hero::before { background-image: url("images/hero/site-hero-800.webp"); }
+  .home-page .hero::after { background: linear-gradient(180deg, #111312e6 0%, #111312d9 70%, #111312 100%); }
+}

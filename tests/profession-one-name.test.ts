@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { professionLabel } from "../src/commands/craft-board.js";
 import { crafterStandings } from "../src/services/craft-ladder.js";
 import { PROFESSION_IDENTITIES, canonicalProfessionText, professionSlug } from "../src/services/profession-names.js";
-import { loadProfessionPosts, professionPostEmbed, threadTitle, updateProfessionPosts } from "../src/services/profession-board.js";
+import { loadProfessionPosts, professionPostEmbed, professionPostLinks, threadTitle, updateProfessionPosts } from "../src/services/profession-board.js";
 import { professionKey } from "../src/services/profession-details.js";
 import { hallEmbed, loadRaceBoardData } from "../src/services/race-board.js";
 import { applyDiscoveredCharacters } from "../src/services/roster-discovery.js";
@@ -133,5 +133,29 @@ describe("one profession name in every Discord view", () => {
     await updateProfessionPosts({ id: "d1" } as never, forum2 as never, db as never, "g1", "fr", new Date("2026-11-13T12:00:00Z"));
     expect(french.setName).not.toHaveBeenCalled();
     expect(forum2.threads.create).toHaveBeenCalledTimes(1);
+  });
+
+  it("a French and an English thread of one profession: the French one is kept, the bot's English duplicate is archived, a member's is left alone", async () => {
+    const db = {
+      guildSettings: { findUnique: async () => ({ professionPostsEnabled: true }) },
+      professionSkill: { findMany: async () => [{ profession: "Cooking", skillLevel: 300, character: { name: "Amy", lastSeenAt: null } }] },
+      recipeKnown: { findMany: async () => [] },
+      character: { findMany: async () => [] }
+    };
+    const edit = vi.fn();
+    const thread = (id: string, name: string, ownerId: string) => ({ id, name, ownerId, archived: false, fetchStarterMessage: async () => ({ editable: true, edit }), setArchived: vi.fn(async () => undefined), setName: vi.fn(async () => undefined) });
+    const english = thread("1", "📚 Cooking", "bot");
+    const french = thread("2", "📚 Cuisine", "bot");
+    const members = thread("3", "📚 Cooking ", "member");
+    const forum = { client: { user: { id: "bot" } }, threads: { fetchActive: async () => ({ threads: new Map([["1", english], ["2", french], ["3", members]]) }), fetchArchived: async () => ({ threads: new Map() }), create: vi.fn() } };
+    await updateProfessionPosts({ id: "d1" } as never, forum as never, db as never, "g1", "fr", new Date("2026-11-13T12:00:00Z"));
+    expect(english.setArchived).toHaveBeenCalledWith(true);
+    expect(members.setArchived).not.toHaveBeenCalled();
+    expect(french.setArchived).not.toHaveBeenCalledWith(true);
+    expect(french.setName).not.toHaveBeenCalled();
+    expect(edit).toHaveBeenCalledTimes(1);
+    expect(forum.threads.create).not.toHaveBeenCalled();
+    // The directory links to the kept thread, whatever spelling the others use.
+    expect([...(await professionPostLinks(forum as never, "fr"))]).toEqual([["cooking", "2"]]);
   });
 });

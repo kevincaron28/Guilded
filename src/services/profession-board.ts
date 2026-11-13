@@ -147,22 +147,61 @@ export async function recipeCrafters(db: Db, guildId: string, itemKey: number): 
 }
 
 /** The forum's profession posts by thread (title starts with the marker emoji); archived ones are opened. */
-async function existingPosts(forum: ForumChannel): Promise<Map<string, ThreadChannel>> {
+async function existingPosts(forum: ForumChannel, lang: Lang = "en"): Promise<Map<string, ThreadChannel>> {
+  return (await sortedPosts(forum, lang)).chosen;
+}
+
+/**
+ * Finds the profession threads under any spelling of the name. When one profession has more than one thread (a post made
+ * as "Cooking" before the 9.1.2 key and another as "Cuisine" after it), the one to keep is the open one titled in the
+ * guild's language, else any open one, else the archived ones; the others come back as duplicates.
+ */
+async function sortedPosts(forum: ForumChannel, lang: Lang): Promise<{ chosen: Map<string, ThreadChannel>; duplicates: ThreadChannel[] }> {
   const active = await forum.threads.fetchActive();
   const archived = await forum.threads.fetchArchived({ limit: 100 }).catch(() => null);
-  const found = new Map<string, ThreadChannel>();
+  const groups = new Map<string, ThreadChannel[]>();
   for (const thread of new Map([...(archived?.threads ?? []), ...active.threads]).values()) {
-    if (thread.name.startsWith(THREAD_PREFIX)) found.set(pkey(thread.name.slice(THREAD_PREFIX.length)), thread);
+    if (!thread.name.startsWith(THREAD_PREFIX)) continue;
+    const key = pkey(thread.name.slice(THREAD_PREFIX.length));
+    groups.set(key, [...(groups.get(key) ?? []), thread]);
   }
-  return found;
+  const chosen = new Map<string, ThreadChannel>();
+  const duplicates: ThreadChannel[] = [];
+  for (const [key, threads] of groups) {
+    const rank = (thread: ThreadChannel) => (thread.archived ? 2 : 0) + (thread.name === threadTitle(thread.name.slice(THREAD_PREFIX.length), lang) ? 0 : 1);
+    const ordered = [...threads].sort((a, b) => rank(a) - rank(b));
+    chosen.set(key, ordered[0]!);
+    duplicates.push(...ordered.slice(1));
+  }
+  return { chosen, duplicates };
+}
+
+/**
+ * Archives the extra threads of a profession the bot itself made, so a French and an English post of one profession do not
+ * both stay up. Never deletes anything and never touches a thread a member made. PROFESSION_DUPLICATES_DRY_RUN=true only logs.
+ */
+async function archiveDuplicates(forum: ForumChannel, duplicates: ThreadChannel[], kept: Map<string, ThreadChannel>): Promise<number> {
+  const botId = forum.client?.user?.id;
+  const dryRun = process.env["PROFESSION_DUPLICATES_DRY_RUN"] === "true";
+  let done = 0;
+  for (const thread of duplicates) {
+    if (thread.archived) continue;
+    const keeper = kept.get(pkey(thread.name.slice(THREAD_PREFIX.length)));
+    const mine = !!botId && thread.ownerId === botId;
+    console.log(`Profession post duplicate "${thread.name}" (${thread.id}), keeping "${keeper?.name}" (${keeper?.id}): ${!mine ? "not made by the bot, left alone" : dryRun ? "dry run, would archive" : "archived"}`);
+    if (!mine || dryRun) continue;
+    await thread.setArchived(true).catch(() => undefined);
+    done++;
+  }
+  return done;
 }
 
 /** The forum thread title of a profession post, in the guild's language (found again under any spelling by its canonical name). */
 export const threadTitle = (profession: string, lang: Lang): string => `${THREAD_PREFIX}${professionName(profession, lang)}`.slice(0, 100);
 
 /** Thread ids of the profession posts, for the directory's links. */
-export async function professionPostLinks(forum: ForumChannel): Promise<Map<string, string>> {
-  return new Map([...(await existingPosts(forum))].map(([profession, thread]) => [profession, thread.id]));
+export async function professionPostLinks(forum: ForumChannel, lang: Lang = "en"): Promise<Map<string, string>> {
+  return new Map([...(await existingPosts(forum, lang))].map(([profession, thread]) => [profession, thread.id]));
 }
 
 /**
@@ -175,7 +214,9 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
   const siteUrl = process.env["PUBLIC_SITE_URL"]?.trim() || undefined;
   let written = 0;
   try {
-    const existing = await existingPosts(forum);
+    const found = await sortedPosts(forum, lang);
+    const existing = found.chosen;
+    await archiveDuplicates(forum, found.duplicates, existing);
     // Thread titles are in the guild's language like the tags, the directory and the post's own title (a French server saw
     // the thread "📚 Cooking" next to the tag and the post titled "Cuisine"). Discord limits renames of one channel, so
     // at most one thread is renamed per refresh; the others follow on the next ones.

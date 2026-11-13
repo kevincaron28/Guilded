@@ -70,7 +70,7 @@ export async function updateProfessionDirectory(discordGuild: DiscordGuild | nul
     const lang = asLang(guild.settings.language);
     // The per-profession posts first, so the directory can link to them.
     await updateProfessionPosts(discordGuild, forum, prisma, guild.id, lang, new Date(), itemData);
-    const links = guild.settings.professionPostsEnabled ? await professionPostLinks(forum).catch(() => new Map<string, string>()) : new Map<string, string>();
+    const links = guild.settings.professionPostsEnabled ? await professionPostLinks(forum, lang).catch(() => new Map<string, string>()) : new Map<string, string>();
     const description = (await professionDirectoryText(prisma, guild.id, lang, links) + await offerDirectoryText(prisma, guild.id, lang)).slice(0, 1990);
     const navRows = professionNavRows((await professionCoverage(prisma, guild.id)).map(row => row.profession), links, discordGuild.id, lang);
     const archived = await forum.threads.fetchArchived({ limit: 100 });

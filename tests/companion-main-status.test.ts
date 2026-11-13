@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { mainStatus, shortGamePath } from "../companion/main-status.mjs";
+import { mainStatus, shortGamePath, syncNoteStep, SYNC_NOTE_GRACE_MS, SYNC_NOTE_MAX_MS } from "../companion/main-status.mjs";
 
 const fr = JSON.parse(readFileSync("companion-app/locales/fr.json", "utf8")) as Record<string, string>;
 const FILE = "D:\\Games\\World of Warcraft\\_forever_\\WTF\\Account\\ABC\\SavedVariables\\Guilded.lua";
@@ -110,5 +110,32 @@ describe("mainStatus: four lines and one needs-you line", () => {
     expect([...keys].filter((key) => typeof fr[key] !== "string")).toEqual([]);
     const slots = (text: string) => [...text.matchAll(/\{\d+\}/g)].map((m) => m[0]).sort();
     for (const key of keys) expect(slots(fr[key] ?? ""), key).toEqual(slots(key));
+  });
+});
+
+describe("the Syncing now / Trying again progress note", () => {
+  const start = { startedAt: 1000, sawUploading: false };
+  it("stays while the upload runs and clears when it ends, in success or failure", () => {
+    let step = syncNoteStep(start, "uploading", 1500);
+    expect(step.clear).toBe(false);
+    for (const end of ["synced", "needs-attention", "retry", "waiting-save"]) {
+      expect(syncNoteStep(step.note, end, 3000).clear, end).toBe(true);
+    }
+  });
+  it("does not clear on the state push that arrives before the upload starts, but never lingers", () => {
+    const early = syncNoteStep(start, "synced", 1200);
+    expect(early.clear).toBe(false);
+    expect(syncNoteStep(early.note, "synced", 1000 + SYNC_NOTE_GRACE_MS).clear).toBe(true);
+  });
+  it("has a ceiling for an upload that never reports an end, and ignores no note", () => {
+    expect(syncNoteStep({ startedAt: 0, sawUploading: true }, "uploading", SYNC_NOTE_MAX_MS).clear).toBe(true);
+    expect(syncNoteStep(null, "synced", 5)).toEqual({ note: null, clear: false });
+  });
+  it("is used by both sync buttons in the window, and any other message replaces it", () => {
+    const source = readFileSync("companion-app/renderer/main.js", "utf8");
+    expect(source).toContain("startSyncNote(T('Syncing now.'))");
+    expect(source).toContain("startSyncNote(T('Trying again.'))");
+    expect(source).toMatch(/const say = \(message, ok = true\) => \{ syncNote = null;/);
+    expect(source).toContain("endSyncNote(); });");
   });
 });

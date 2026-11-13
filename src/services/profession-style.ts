@@ -8,13 +8,13 @@ import { canonicalProfessionName } from "./profession-names.js";
 
 export const PROFESSION_EMOJI: Record<string, string> = {
   Alchemy: "🧪", Blacksmithing: "⚒️", Enchanting: "✨", Engineering: "⚙️", Leatherworking: "🥾", Tailoring: "🧵", Jewelcrafting: "💎",
-  Inscription: "📜", Herbalism: "🌿", Mining: "⛏️", Skinning: "🔪", Cooking: "🍖", "First Aid": "🩹", Fishing: "🎣", Archaeology: "🏺"
+  Inscription: "📜", Herbalism: "🌿", Mining: "⛏️", Skinning: "🔪", Cooking: "🍖", "First Aid": "🩹", Fishing: "🎣", Archaeology: "🏺", Poisons: "☠️"
 };
 // Profession names as shown to a French guild (the stored value stays the English name).
 export const PROFESSION_FR: Record<string, string> = {
   Alchemy: "Alchimie", Blacksmithing: "Forge", Enchanting: "Enchantement", Engineering: "Ingénierie", Leatherworking: "Travail du cuir",
   Tailoring: "Couture", Jewelcrafting: "Joaillerie", Inscription: "Calligraphie", Herbalism: "Herboristerie", Mining: "Minage",
-  Skinning: "Dépeçage", Cooking: "Cuisine", "First Aid": "Premiers soins", Fishing: "Pêche", Archaeology: "Archéologie"
+  Skinning: "Dépeçage", Cooking: "Cuisine", "First Aid": "Premiers soins", Fishing: "Pêche", Archaeology: "Archéologie", Poisons: "Poisons"
 };
 
 /** The stored (English) profession name for a name in any client language; undefined when it is not a profession. */

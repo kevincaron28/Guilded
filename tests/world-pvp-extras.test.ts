@@ -68,6 +68,12 @@ describe("recap and board lines", () => {
     expect(en[2]!.value).toBe("Gank — seen in 3 calls");
     expect(extrasFields({ switches: extrasSwitches({ pvpRecapEnabled: false, pvpHotZonesEnabled: false }), standings, calls }, "fr")[0]!.name).toBe("🎯 Les plus recherchés");
     expect(recapText(weekRecap(standings, []), "fr")).toContain("Défenseur de la semaine");
+    // Deaths: no line until an addon sent some; then one guild total line, in both languages.
+    expect(recapText(weekRecap(standings, []), "en")).not.toContain("deaths");
+    const withDeaths = [{ ...standing("Aria Vale", 40, 2, 9), deaths: 10 }, { ...standing("Bo Ren", 12, 7, 3), deaths: 3 }];
+    expect(recapText(weekRecap(withDeaths, []), "en")).toContain("The guild's open-world deaths: **13** (K/D 4.0)");
+    expect(recapText(weekRecap(withDeaths, []), "fr")).toContain("Morts de la guilde en monde ouvert : **13**".replace(" :", ":"));
+    expect(weekRecap(withDeaths, []).killer?.name).toBe("Aria Vale");
   });
   it("routes posts to the group finder, else the PvP groups channel, else the ladder channel", () => {
     expect(pvpPostChannelId({ dungeonSignupChannelId: "f", bgGroupsChannelId: "g", bgStatsChannelId: "l" })).toBe("f");

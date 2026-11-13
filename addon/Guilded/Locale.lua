@@ -2862,6 +2862,9 @@ local DE = {
   -- To invite window: copied vs invited, per-officer marks (9.3)
   ["copied %s, waiting"] = "kopiert %s, wartend",
   ["Marks stay on this computer: another officer may invite the same names."] = "Markierungen bleiben auf diesem Computer: ein anderer Offizier kann dieselben Namen einladen.",
+  -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
+  ["K/D: %s this week, %s in total."] = "K/D: %s diese Woche, %s insgesamt.",
+  ["Deadliest zones: %s."] = "Gef\195\164hrlichste Zonen: %s.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4750,6 +4753,9 @@ local ES = {
   -- To invite window: copied vs invited, per-officer marks (9.3)
   ["copied %s, waiting"] = "copiado %s, en espera",
   ["Marks stay on this computer: another officer may invite the same names."] = "Las marcas se quedan en este ordenador: otro oficial puede invitar a los mismos nombres.",
+  -- 9.3 world PvP deaths (Modules/WorldPVP.lua)
+  ["K/D: %s this week, %s in total."] = "K/D: %s esta semana, %s en total.",
+  ["Deadliest zones: %s."] = "Zonas m\195\161s letales: %s.",
 }
 -- END ES
 
@@ -4935,6 +4941,9 @@ FR["World PvP stats"] = "Statistiques JcJ mondial"
 -- 9.3 settings page: tabs, groups and descriptions (Modules/SettingsPage.lua).
 FR["All settings"] = "Tous les r\195\169glages"
 FR["Opens Guilded's page in the game's options: every setting in tabs, each with a description."] = "Ouvre la page de Guilded dans les options du jeu : tous les r\195\169glages en onglets, chacun avec sa description."
+-- 9.3 world PvP deaths (Modules/WorldPvP.lua).
+FR["K/D: %s this week, %s in total."] = "R/M : %s cette semaine, %s au total."
+FR["Deadliest zones: %s."] = "Zones les plus mortelles : %s."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."

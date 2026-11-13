@@ -3664,6 +3664,8 @@ model WorldPvpWeek {
   kills Int @default(0)
   defends Int @default(0)
   helped Int @default(0)
+  // Deaths to enemy players in the open world (9.3): shown with kills as K/D, never ranked on.
+  deaths Int @default(0)
   updatedAt DateTime @updatedAt
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)

@@ -68,14 +68,17 @@ export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dun
 // with /import apply, or the bot itself when auto-apply is on): link newly
 // discovered characters by Discord name, announce the import, dungeon runs
 // and the leaderboard, and refresh the readiness board.
-export async function followUpImport(discordGuild: DiscordGuild | null, guildId: string, result: ImportResult, options: { since?: Date } = {}): Promise<{ autoLinked: { character: string; member: string }[]; calendar: CalendarSummary | null }> {
+export async function followUpImport(discordGuild: DiscordGuild | null, guildId: string, result: ImportResult, options: { since?: Date; refresh?: boolean } = {}): Promise<{ autoLinked: { character: string; member: string }[]; calendar: CalendarSummary | null }> {
   if (currentGuildScope()?.guild.id !== guildId) return withGuildScope(prisma, guildId, () => followUpImport(discordGuild, guildId, result, options));
   const autoLinked = discordGuild && result.discovery.discovered > 0
     ? await autoLinkUnclaimed(discordGuild, prisma, guildId, options).catch(() => [])
     : [];
-  await updateProfessionDirectory(discordGuild);
+  // `refresh: false` (a backlog of follow-ups for one guild): the idempotent board/directory refreshes are skipped, the
+  // per-import parts (notices, cards, highlights, calendar, linking) still run for every import. The next refresh catches up.
+  const refresh = options.refresh !== false;
+  if (refresh) await updateProfessionDirectory(discordGuild);
   // Levels arrive with every roster upload; the race board is a no-op unless the server opted in.
-  if (discordGuild) await import("./race-board.js").then(module => module.updateRaceBoard(discordGuild)).catch(() => false);
+  if (discordGuild && refresh) await import("./race-board.js").then(module => module.updateRaceBoard(discordGuild)).catch(() => false);
   const matchedRaids = result.raids.filter((raid) => raid.matchedRaidTitle).length;
   if (result.epgpTransactions.length > 0 || matchedRaids > 0) {
     // Housekeeping for officers, not news for members: the private officer log.
@@ -89,8 +92,8 @@ export async function followUpImport(discordGuild: DiscordGuild | null, guildId:
     const coreByRaid = new Map(raids.map(raid => [raid.id, raid.coreId]));
     for (const award of awards) await notify(discordGuild, notifications.lootAwarded(award.itemName, award.member.displayName, award.amount), "loot", award.raidId ? coreByRaid.get(award.raidId) ?? null : null);
   }
-  if (await announceDungeonRuns(discordGuild, result.dungeons, guildId)) await updateDungeonLeaderboard(discordGuild);
-  if (result.readinessSnapshots.length > 0 || result.consumables > 0) await postReadinessBoard(discordGuild, guildId);
+  if (await announceDungeonRuns(discordGuild, result.dungeons, guildId) && refresh) await updateDungeonLeaderboard(discordGuild);
+  if (refresh && (result.readinessSnapshots.length > 0 || result.consumables > 0)) await postReadinessBoard(discordGuild, guildId);
   // In-game calendar answers fill in the signups of the matching Discord raids.
   let calendar: CalendarSummary | null = null;
   if (result.calendarPlan.matches.length > 0 || result.calendarPlan.unmatched.length > 0) {

@@ -423,7 +423,7 @@ interface AutoApplyInput { guildId: string; discordId: string; importId: string;
 
 // Applies a stored upload, then records and follows it up. `onApplied` runs once the import has
 // committed: a later follow-up failure must not be reported as "not applied".
-async function autoApplyImportWith(input: AutoApplyInput): Promise<AutoApplied> {
+export async function autoApplyImportWith(input: AutoApplyInput): Promise<AutoApplied> {
   const result = await importService.apply(input.guildId, input.importId, input.createdBy);
   input.onApplied?.();
   markGuildChanged(input.guildId);
@@ -431,8 +431,11 @@ async function autoApplyImportWith(input: AutoApplyInput): Promise<AutoApplied> 
     guildId: input.guildId, actorId: input.createdBy, action: "IMPORT_APPLIED", entityId: input.importId,
     metadata: { auto: true, ...(input.retried ? { retried: true } : {}), epgpTransactionCount: result.epgpTransactions.length, readinessSnapshotCount: result.readinessSnapshots.length, discovered: result.discovery.discovered }
   });
-  const discordGuild = input.client ? await input.client.guilds.fetch(input.discordId).catch(() => null) : null;
-  await followUpImport(discordGuild, input.guildId, result, { since: input.since });
+  // The follow-up is all Discord (cards, notices, directory, boards): the response carries only the counts below.
+  inGuildBackground(input.guildId, "Follow-up of an addon import", async (overCap) => {
+    const discordGuild = input.client ? await input.client.guilds.fetch(input.discordId).catch(() => null) : null;
+    await followUpImport(discordGuild, input.guildId, result, { since: input.since, refresh: !overCap });
+  });
   return { epgp: result.epgpTransactions.length, discovered: result.discovery.discovered, held: result.held.rows.length, voided: result.voided, rejected: result.rejected.length };
 }
 
@@ -631,6 +634,54 @@ export async function standingsConsistentReads(database: PrismaClient, guildId: 
 }
 
 // The guild board part of an upload: in-game votes (own and relayed) and officers' in-game news.
+/**
+ * A side effect nobody waits for (a Discord post, DM, role or directory refresh): started now, its failure only logged.
+ * The upload response never waits on Discord (12 Nov 2026: uploads passed the Worker's 20 s limit while the database was idle).
+ */
+export function inBackground(label: string, task: () => Promise<unknown>): void {
+  void Promise.resolve().then(task).catch((error: unknown) => console.warn(`${label} failed`, error));
+}
+
+// Background Discord work for one guild runs one task at a time (boards, directories and cards are find-or-post, so two
+// at once could each post a new one). At most BACKGROUND_CAP wait per guild; past that, a task is told to skip its idempotent
+// refresh parts (the next one catches up) but still does its per-import parts, in order.
+const BACKGROUND_CAP = 5;
+const backgroundDepth = new Map<string, number>();
+export function inGuildBackground(guildId: string, label: string, task: (overCap: boolean) => Promise<unknown>): void {
+  const depth = backgroundDepth.get(guildId) ?? 0;
+  const overCap = depth >= BACKGROUND_CAP;
+  backgroundDepth.set(guildId, depth + 1);
+  inBackground(label, () => serializeByKey(`followup:${guildId}`, () => task(overCap)).finally(() => {
+    const left = (backgroundDepth.get(guildId) ?? 1) - 1;
+    if (left <= 0) backgroundDepth.delete(guildId); else backgroundDepth.set(guildId, left);
+  }));
+}
+
+/** A request made in game is posted once: a task that waited its turn skips one another upload already posted (or that was closed). */
+export async function craftRequestNeedsPost(id: string): Promise<boolean> {
+  const row = await prisma.craftRequest.findUnique({ where: { id }, select: { threadId: true, orderMessageId: true, status: true } }).catch(() => null);
+  return !!row && !row.threadId && !row.orderMessageId && row.status === "OPEN";
+}
+
+/** Phase timer for one upload: one journal line with the phases over 200 ms (no names, no Discord ids). */
+export function createUploadTimer() {
+  const phases: Array<[string, number]> = [];
+  const startedAt = Date.now();
+  return {
+    async time<T>(name: string, task: () => Promise<T>): Promise<T> {
+      const began = Date.now();
+      try { return await task(); } finally { phases.push([name, Date.now() - began]); }
+    },
+    line(guildId: string, bytes: number, officer: boolean): string {
+      const slow = phases.filter(([, ms]) => ms > 200).map(([name, ms]) => `${name}:${ms}`).join(",");
+      return `upload guild=${createHash("sha256").update(guildId).digest("hex").slice(0, 8)} total=${Date.now() - startedAt} bytes=${bytes} officer=${officer ? 1 : 0} phases=${slow || "-"}`;
+    }
+  };
+}
+
+// Craft requests being posted to Discord right now, so a later upload does not post the same one twice.
+const postingCraftRequests = new Set<string>();
+
 async function applyGuildBoardUpload(guildId: string, memberId: string, officer: boolean, snapshot: { boardVotes: unknown[]; boardRelayVotes: unknown[]; boardPosts: unknown[];
   character?: { name: string; displayName?: string | null | undefined } | undefined }, client?: Client): Promise<boolean> {
   const own = parseAddonBoardVotes(snapshot.boardVotes);
@@ -643,9 +694,11 @@ async function applyGuildBoardUpload(guildId: string, memberId: string, officer:
   const created = posts.length ? await createBoardService(prisma).fromAddon(guildId, memberId, author, posts) : [];
   if (client && (polls.size || created.length)) {
     // Loaded only when needed: the poll command module is not part of the API's start-up.
-    const { postGameNews, syncPollById } = await import("./commands/poll.js");
-    for (const pollId of polls) await syncPollById(client, pollId).catch((error: unknown) => console.warn("Poll refresh after game votes failed", error));
-    for (const post of created) await postGameNews(client, guildId, post).catch((error: unknown) => console.warn("Game news post failed", error));
+    inGuildBackground(guildId, "Game board Discord update", async (overCap) => {
+      const { postGameNews, syncPollById } = await import("./commands/poll.js");
+      if (!overCap) for (const pollId of polls) await syncPollById(client, pollId).catch((error: unknown) => console.warn("Poll refresh after game votes failed", error));
+      for (const post of created) await postGameNews(client, guildId, post).catch((error: unknown) => console.warn("Game news post failed", error));
+    });
   }
   return polls.size > 0 || created.length > 0;
 }
@@ -1185,10 +1238,13 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (!requestPayload?.export) { json(response, 400, { error: "export is required" }); return; }
       const pairedMemberId = access.memberId;
       const createdBy = access.actorId;
-      let preview = await importService.preview(guild.id, requestPayload.export, createdBy);
+      const uploadTimer = createUploadTimer();
+      const timed = uploadTimer.time;
+      response.once("close", () => console.info(uploadTimer.line(guild.id, Number(request.headers["content-length"]) || 0, !!access.officer)));
+      let preview = await timed("preview", () => importService.preview(guild.id, requestPayload.export, createdBy));
       // T1 (10 Nov 2026): a signed upload only links and imports in a server that knows the saved file's in-game guild.
       // Officers stay exempt (their server may not list every guild an alt is in). The companion shows the warning.
-      const guildCheck = await serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild).catch(() => undefined);
+      const guildCheck = await timed("guild-check", () => serverKnowsWowGuild(prisma, guild, preview.snapshot.wowGuild)).catch(() => undefined);
       if (guildCheck?.known === false && !access.officer) {
         json(response, 200, { skipped: "wrong-server", serverWowGuild: guildCheck, status: "SKIPPED", pairedCharacterStatus: "wrong-server", checksum: preview.checksum, scope: "personal", botVersion: BOT_VERSION, protocolVersion: 2 });
         return;
@@ -1196,7 +1252,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       const uploadStartedAt = new Date();
       const linkedBefore = pairedMemberId ? await linkedCharacterCount(prisma, pairedMemberId) : 0;
       const pairedCharacterStatus = pairedMemberId
-        ? await linkUploaderCharacters(prisma, guild.id, pairedMemberId, preview.snapshot)
+        ? await timed("link-uploader", () => linkUploaderCharacters(prisma, guild.id, pairedMemberId, preview.snapshot))
         : "unpaired";
       // First link, and later new characters: one batched DM listing the linked characters (owner decision, 8.5 track F).
       if (pairedMemberId && client) {
@@ -1213,7 +1269,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           .then((done) => { if (done) markGuildChanged(guild.id); }).catch((error: unknown) => console.warn("Invite check marks failed", error));
       }
       if (access.officer || pairedMemberId) {
-        const verified = await linkVerifiedCharacters(prisma, guild.id, { officer: access.officer, memberId: pairedMemberId }, preview.snapshot.characters)
+        const verified = await timed("verified-links", () => linkVerifiedCharacters(prisma, guild.id, { officer: access.officer, memberId: pairedMemberId }, preview.snapshot.characters))
           .catch((error: unknown) => { console.error("Linking verified characters failed", error); return []; });
         if (verified.length && client) {
           const language = await prisma.guildSettings.findUnique({ where: { guildId: guild.id }, select: { language: true } });
@@ -1232,8 +1288,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       if (preview.snapshot.guildRoster || preview.snapshot.guildEvents.length || preview.snapshot.guildInfo) {
         // 9 Nov 2026: two connections uploading one file at once collided on the same Character rows (P2034). Uploads for one
         // guild now apply one at a time, and a lost write conflict is retried with a short jittered backoff inside an 8 s budget.
-        await serializeByKey(`guild-data:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
-          { timeout: 60_000, maxWait: 15_000 }))).catch((error: unknown) => { console.error("Guild data upload failed", error); });
+        await timed("guild-data", () => serializeByKey(`guild-data:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildData(tx, guild.id, { memberId: pairedMemberId ?? null, officer: access.officer }, preview.snapshot),
+          { timeout: 60_000, maxWait: 15_000 })))).catch((error: unknown) => { console.error("Guild data upload failed", error); });
         // The whole guild roster (any member's upload) is now stored: waiting invite requests for those names are done.
         if (client && preview.snapshot.guildRoster) {
           void backCheckInvites(client, prisma, { id: guild.id, discordId: guild.discordId })
@@ -1247,16 +1303,16 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       // 9.0 guild bank ledger (guild-bank.ts): contents, gold history and the game's logs, deduped across uploaders.
       if (preview.snapshot.guildBank !== undefined) {
-        const bankResult = await serializeByKey(`guild-bank:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
-          { timeout: 60_000, maxWait: 15_000 }))).catch((error: unknown) => { console.error("Guild bank upload failed", error); return null; });
+        const bankResult = await timed("guild-bank", () => serializeByKey(`guild-bank:${guild.id}`, () => retryWriteConflict(() => prisma.$transaction((tx) => applyGuildBank(tx, guild.id, pairedMemberId ?? null, preview.snapshot.guildBank),
+          { timeout: 60_000, maxWait: 15_000 })))).catch((error: unknown) => { console.error("Guild bank upload failed", error); return null; });
         // 9.1: one alert in the log channel for items that just went below their minimum (/bank stock).
         if (bankResult?.contents && client) void alertLowStock(client, prisma, guild.id).catch((error: unknown) => console.warn("Bank stock alert failed", error));
       }
       // 9.1: guild bank requests made in game, only the uploader's own (their pairing), each once.
       const bankRequests = pairedMemberId ? parseAddonBankRequests(preview.snapshot.bankRequests) : [];
       if (bankRequests.length && pairedMemberId) {
-        const created = await createBankService(prisma).fromAddon(guild.id, pairedMemberId, bankRequests).catch((error: unknown) => { console.warn("Bank requests from the addon failed", error); return []; });
-        for (const request of created) if (client) await postRequestCard(client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error));
+        const created = await timed("bank-requests", () => createBankService(prisma).fromAddon(guild.id, pairedMemberId, bankRequests)).catch((error: unknown) => { console.warn("Bank requests from the addon failed", error); return []; });
+        if (client && created.length) inBackground("Bank request cards", async () => { for (const request of created) await postRequestCard(client, prisma, request).catch((error: unknown) => console.warn("Bank request card failed", error)); });
       }
       // Crafting orders in game (craft-orders.ts): claims, finishes and give-backs made on the addon's Orders page, the
       // uploader's own and guildmates' heard in game. Already-reflected actions change nothing, so a resent upload is harmless.
@@ -1264,7 +1320,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const own = parseAddonOrderActions(preview.snapshot.craftOrderActions);
         const relayed = parseAddonOrderActions(preview.snapshot.craftOrderRelayActions, true);
         const orderChanges = own.length || relayed.length
-          ? await applyOrderActions(prisma, guild.id, pairedMemberId, own, relayed).catch((error: unknown) => { console.warn("Craft order actions from the addon failed", error); return []; })
+          ? await timed("craft-actions", () => applyOrderActions(prisma, guild.id, pairedMemberId, own, relayed)).catch((error: unknown) => { console.warn("Craft order actions from the addon failed", error); return []; })
           : [];
         if (orderChanges.length) {
           markGuildChanged(guild.id);
@@ -1281,37 +1337,46 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const ownRequests = parseAddonOrderRequests(preview.snapshot.craftOrderRequests);
         const relayedRequests = parseAddonOrderRequests(preview.snapshot.craftOrderRelayRequests, true);
         const created = ownRequests.length || relayedRequests.length
-          ? await applyOrderRequests(prisma, guild.id, pairedMemberId, ownRequests, relayedRequests)
+          ? await timed("craft-requests", () => applyOrderRequests(prisma, guild.id, pairedMemberId, ownRequests, relayedRequests))
             .catch((error: unknown) => { console.warn("Craft requests from the addon failed", error); return []; })
           : [];
         // A request whose Discord post failed earlier (no thread, no orders line) is posted again, a few per upload.
         const retry = await unpostedGameRequests(prisma, guild.id).catch(() => [] as string[]);
         const toPost = [...new Set([...created.map((request) => request.id), ...retry])];
         if (created.length) markGuildChanged(guild.id);
-        if (toPost.length) {
-          const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-          for (const id of toPost) {
-            if (!discordGuild) break;
-            const result = await withGuildScope(prisma, guild.id, () => postCraftRequest(discordGuild, id)).catch((error: unknown) => { console.warn("Craft request post failed", error); return null; });
-            if (!result?.posted && !retry.includes(id)) console.warn(`Craft request ${id} made in game was not posted to Discord yet; the next upload retries`);
-          }
+        const postNow = toPost.filter((id) => !postingCraftRequests.has(id));
+        if (postNow.length && client) {
+          for (const id of postNow) postingCraftRequests.add(id);
+          inGuildBackground(guild.id, "Craft request posts", async () => {
+            try {
+              const discordGuild = await client.guilds.fetch(guild.discordId).catch(() => null);
+              for (const id of postNow) {
+                if (!discordGuild) break;
+                // Another upload's task may have posted it while this one waited its turn: only a request with no forum post
+                // and no orders line yet (the same rule that picks the retries) is posted.
+                if (!await craftRequestNeedsPost(id)) continue;
+                const result = await withGuildScope(prisma, guild.id, () => postCraftRequest(discordGuild, id)).catch((error: unknown) => { console.warn("Craft request post failed", error); return null; });
+                if (!result?.posted && !retry.includes(id)) console.warn(`Craft request ${id} made in game was not posted to Discord yet; the next upload retries`);
+              }
+            } finally { for (const id of postNow) postingCraftRequests.delete(id); }
+          });
         }
       }
       // 9.1 guild board (guild-board.ts): votes made in game, the uploader's own and guildmates' heard in
       // game; officers' news written in game. Each is idempotent, so a resent upload changes nothing.
       if (pairedMemberId) {
-        const boardChanged = await applyGuildBoardUpload(guild.id, pairedMemberId, !!access.officer, preview.snapshot, client)
+        const boardChanged = await timed("board", () => applyGuildBoardUpload(guild.id, pairedMemberId, !!access.officer, preview.snapshot, client))
           .catch((error: unknown) => { console.warn("Guild board upload failed", error); return false; });
         if (boardChanged) markGuildChanged(guild.id);
       }
       // Track M: the uploader's own last-seen positions and calls for help, for the phone map (guild-map.ts).
       if (pairedMemberId && (preview.snapshot.mapSightings.length || preview.snapshot.helpCalls.length)) {
-        await applyGuildMapUpload(prisma, guild.id, pairedMemberId, parseGuildMapUpload(preview.snapshot.mapSightings, preview.snapshot.helpCalls))
+        await timed("map", () => applyGuildMapUpload(prisma, guild.id, pairedMemberId, parseGuildMapUpload(preview.snapshot.mapSightings, preview.snapshot.helpCalls)))
           .catch((error: unknown) => { console.warn("Guild map upload failed", error); });
       }
       // World PvP: this week's counters, capped and checked against the guild's real calls (world-pvp.ts).
       if (pairedMemberId && preview.snapshot.worldPvp.length) {
-        const worldChanged = await applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUploads(preview.snapshot.worldPvp))
+        const worldChanged = await timed("world-pvp", () => applyWorldPvpUpload(prisma, guild.id, pairedMemberId, parseWorldPvpUploads(preview.snapshot.worldPvp)))
           .catch((error: unknown) => { console.warn("World PvP upload failed", error); return false; });
         if (worldChanged) { markGuildChanged(guild.id); void scheduleBgLadderRefresh(prisma, guild.id); }
       }
@@ -1321,7 +1386,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         if (pairedMemberId) {
           // No markGuildChanged: levels and professions are not in the standings feed, and a
           // generation bump per member upload kept the feed from ever finishing (8.5 hotfix).
-          await applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot)
+          await timed("guildmate-relay", () => applyGuildmateRelay(prisma, guild.id, pairedMemberId, preview.snapshot))
             .catch((error: unknown) => { console.error("Guildmate relay failed", error); return null; });
         }
         const owned = await prisma.character.findMany({ where: { memberId: pairedMemberId }, select: { name: true, realm: true } });
@@ -1331,16 +1396,19 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
       }
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: guild.id } });
       const professionRelay = access.officer && !settings?.autoApplyImports
-        ? await relayProfessions(prisma, guild.id, preview.snapshot) : null;
+        ? await timed("profession-relay", () => relayProfessions(prisma, guild.id, preview.snapshot)) : null;
       if (professionRelay) {
-        const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
-        if (discordGuild && professionRelay.discovered) await autoLinkUnclaimed(discordGuild, prisma, guild.id, { since: uploadStartedAt }).catch((error: unknown) => console.warn("Profession character linking failed", error));
-        await updateProfessionDirectory(discordGuild);
+        // Discord work (linking by name, the directory post): in order, after the response is decided.
+        inGuildBackground(guild.id, "Profession directory", async (overCap) => {
+          const discordGuild = client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null;
+          if (discordGuild && professionRelay.discovered) await autoLinkUnclaimed(discordGuild, prisma, guild.id, { since: uploadStartedAt }).catch((error: unknown) => console.warn("Profession character linking failed", error));
+          if (!overCap) await updateProfessionDirectory(discordGuild);
+        });
       }
       if (preview.duplicate) {
         const existing = preview.existingImport;
         // Unchanged data still repairs a member who has no linked character yet.
-        if (pairedMemberId) await repairMissingLinks(client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null, prisma, guild.id, pairedMemberId);
+        if (pairedMemberId) inBackground("Repair of missing links", async () => { await repairMissingLinks(client ? await client.guilds.fetch(guild.discordId).catch(() => null) : null, prisma, guild.id, pairedMemberId); });
         // A member upload (and an officer guild with auto-apply) that was stored
         // but not applied must be tried again. Leaving it PREVIEWED made the
         // companion say "waiting for officer review", which a member cannot do.
@@ -1348,7 +1416,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
           let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
           const startedApply = Date.now();
           try {
-            autoApplied = await autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: existing.id, createdBy, since: uploadStartedAt, retried: true });
+            autoApplied = await timed("auto-apply", () => autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: existing.id, createdBy, since: uploadStartedAt, retried: true }));
           } catch (error) {
             const already = error instanceof Error && /already been applied/i.test(error.message);
             if (!autoApplied && !already) {
@@ -1373,7 +1441,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         json(response, 409, { error: "This export was already received", checksum: preview.checksum, pairedCharacterStatus, importId: existing?.id, status: existing?.status, botVersion: BOT_VERSION, protocolVersion: 2 });
         return;
       }
-      const record = await importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId);
+      const record = await timed("record", () => importService.record(guild.id, preview.snapshot, preview.checksum, createdBy, pairedMemberId));
       // Auto-apply (a guild opt-in: /config auto-import): apply now and follow up, no /import apply.
       let autoApplied: { epgp: number; discovered: number; held: number; voided: number; rejected: number } | null = null;
       let applyError: string | null = null;
@@ -1381,8 +1449,8 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const startedApply = Date.now();
         let applied = false;
         try {
-          autoApplied = await autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, retried: false,
-            onApplied: () => { applied = true; } });
+          autoApplied = await timed("auto-apply", () => autoApplyImport({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, retried: false,
+            onApplied: () => { applied = true; } }));
         } catch (error) {
           // Application and notification are distinct: a committed import stays APPLIED even if follow-up fails.
           console.error("Auto-apply of an addon import failed", error);
@@ -1405,7 +1473,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
             if (failure.transient) {
               retryApplyLater({ guildId: guild.id, discordId: guild.discordId, importId: record.id, createdBy, since: uploadStartedAt, officer: !!access.officer, tellOfficers });
             } else {
-              await tellOfficers(failure, 1);
+              inBackground("Officer notice for a failed import", () => tellOfficers(failure, 1));
             }
           }
         }

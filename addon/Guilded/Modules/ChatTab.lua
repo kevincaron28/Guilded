@@ -230,28 +230,105 @@ local function describe(parsed, who, byText)
   return string.format(T("%s went offline."), who)
 end
 
--- Called for every system line; returns true when a line was added to the tab.
-function module.onSystem(text)
-  if not module.enabled() then return false end
+-- What Guilded shows in its tab for a system line: { parsed, entry, byEntry } or nil (nothing: not a guild
+-- event, switched off, or a presence line of someone who is not a guildmate / not an officer when that is set).
+function module.plan(text)
+  if not module.enabled() then return nil end
   local parsed = module.parse(text)
-  if not parsed or not parsed.name or not module.eventEnabled(parsed.kind) then return false end
-  local frame = module.frame(false)
-  if not (frame and frame.AddMessage) then return false end
+  if not parsed or not parsed.name or not module.eventEnabled(parsed.kind) then return nil end
   local entry = rosterEntry(parsed.name)
   local presence = parsed.kind == "online" or parsed.kind == "offline"
   -- Friends who are not in the guild also trigger "has come online": guild members only.
-  if presence and not entry then return false end
+  if presence and not entry then return nil end
   if presence and module.officersOnlyPresence() then
     local s = settings()
     local officerRanks = s and s.officerRanks
-    if not (entry and entry.rank ~= nil and officerRanks and officerRanks[entry.rank]) then return false end
+    if not (entry and entry.rank ~= nil and officerRanks and officerRanks[entry.rank]) then return nil end
   end
-  local byEntry = parsed.by and rosterEntry(parsed.by)
-  local who = coloured(parsed.name, entry and entry.class)
-  local by = parsed.by and coloured(parsed.by, byEntry and byEntry.class) or nil
+  return { parsed = parsed, entry = entry, byEntry = parsed.by and rosterEntry(parsed.by) or nil }
+end
+
+-- Called for every system line; returns true when a line was added to the tab.
+function module.onSystem(text)
+  local frame = module.frame(false)
+  if not (frame and frame.AddMessage) then return false end
+  local plan = module.plan(text)
+  if not plan then return false end
+  local parsed = plan.parsed
+  local who = coloured(parsed.name, plan.entry and plan.entry.class)
+  local by = parsed.by and coloured(parsed.by, plan.byEntry and plan.byEntry.class) or nil
   frame:AddMessage("|cff9d9d9d" .. stamp() .. "|r |cffd4af37[Guilded]|r " .. describe(parsed, who, by))
   return true
 end
+
+-- (9.2.1) One line, not two: with the System group ticked in the Guilded tab the game printed its own "has come
+-- online." as well as Guilded's coloured one. This per-window chat filter hides the game's line in the Guilded
+-- tab only, and only when Guilded prints its own for that very line (see plan). Every other tab, a friend who
+-- is not a guildmate, and every other system message keep the game's line. The filter only reads and returns
+-- true or false, as ChatTags.lua's does: it writes nothing into the game's chat windows.
+function module.filter(chatFrame, _, text, ...)
+  -- Everything is guarded: an error here must never break the game's chat.
+  local hide = false
+  pcall(function()
+    if chatFrame ~= nil and type(text) == "string" and chatFrame == findFrame() and module.plan(text) then hide = true end
+  end)
+  if hide then return true end
+  return false, text, ...
+end
+
+do
+  local add = ChatFrame_AddMessageEventFilter or (ChatFrameUtil and ChatFrameUtil.AddMessageEventFilter)
+  if type(add) == "function" then pcall(add, "CHAT_MSG_SYSTEM", module.filter) end
+end
+
+-- ---------------------------------------------------------------------
+-- How to set up the tab (9.3.0). Guilded cannot set a chat window's font size or message groups (those calls
+-- write into Blizzard's chat frames and taint them, see the top of this file and tests/addon-no-global-taint.test.ts),
+-- so it tells the player the steps. Labels come from the game's own global strings when the client has them (so
+-- they are in the player's language and are the words the Settings window really shows); English otherwise.
+-- ---------------------------------------------------------------------
+-- { global string the game labels the group with, English fallback }
+local CHAT_GROUPS = {
+  { "SAY", "Say" }, { "EMOTE", "Emote" }, { "YELL", "Yell" }, { "WHISPER", "Whisper" }, { "PARTY", "Party" },
+  { "PARTY_LEADER", "Party Leader" }, { "RAID", "Raid" }, { "RAID_LEADER", "Raid Leader" }, { "RAID_WARNING", "Raid Warning" },
+  { "GUILD", "Guild" }, { "OFFICER", "Officer" }, { "INSTANCE_CHAT", "Instance" }, { "INSTANCE_CHAT_LEADER", "Instance Leader" },
+  { "BN_WHISPER", "BN Whisper" }
+}
+local OTHER_GROUPS = {
+  { "SYSTEM_MESSAGES", "System" }, { "SKILL", "Skill" }, { "LOOT", "Loot" }, { "MONEY", "Money" }, { "CURRENCY", "Currency" },
+  { "ACHIEVEMENTS", "Achievements" }, { "GUILD_ACHIEVEMENT", "Guild Achievements" }, { "COMBAT_XP_GAIN", "Experience" },
+  { "COMBAT_HONOR_GAIN", "Honor" }, { "COMBAT_FACTION_CHANGE", "Faction changes" }
+}
+local function labels(list)
+  local out = {}
+  for _, entry in ipairs(list) do
+    local text = _G[entry[1]]
+    table.insert(out, type(text) == "string" and text ~= "" and text or entry[2])
+  end
+  -- The Discord guild group exists only on clients that have it.
+  if list == OTHER_GROUPS and type(_G.GUILD_DISCORD) == "string" and _G.GUILD_DISCORD ~= "" then table.insert(out, _G.GUILD_DISCORD) end
+  return table.concat(out, ", ")
+end
+
+-- The steps, one string per line (translated by Locale.lua). The settings page shows the same lines.
+function module.howTo()
+  return {
+    L("How to set up the Guilded chat tab. WoW keeps these settings and addons cannot change them, so you do it once:"),
+    L("1. Right-click the Guilded tab and choose Settings."),
+    string.format(L("2. Under Chat, tick: %s."), labels(CHAT_GROUPS)),
+    string.format(L("3. Under Other, tick: %s."), labels(OTHER_GROUPS)),
+    L("4. Right-click the tab again, choose Font Size, then 12. Leave Channels empty."),
+    L("Guilded hides the game's own online/offline line here because it prints its own.")
+  }
+end
+ns.chatTabHowTo = module.howTo
+
+ns.commandHandlers["chattab"] = function()
+  for _, line in ipairs(module.howTo()) do
+    if ns.message then ns.message(line) else say(line) end
+  end
+end
+table.insert(ns.commandHelp, "/guilded chattab - how to set up the Guilded chat tab (which boxes to tick, font size)")
 
 -- First login with no saved choice: the tab is on by default (8.5). Guilded's lines use a chat
 -- window named Guilded when there is one; otherwise they stay in the main chat and one line says

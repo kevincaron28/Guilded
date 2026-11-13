@@ -52,6 +52,7 @@ Modules\AutoInvite.lua
 Modules\Dungeon.lua
 Modules\CatchUp.lua
 Modules\Battleground.lua
+Modules\DungeonArt.lua
 Modules\RunResults.lua
 Modules\SeasonSync.lua
 Modules\Tooltip.lua
@@ -65,7 +66,6 @@ Modules\WorldPvP.lua
 Modules\GuildOverview.lua
 Modules\GuildBoard.lua
 Modules\CraftOrders.lua
-Modules\Presence.lua
 Modules\ClientTools.lua
 Modules\RosterTools.lua
 Modules\GRMMigration.lua
@@ -89,5 +89,6 @@ Modules\GuildBank.lua
 Modules\PugCheck.lua
 Modules\PasteBox.lua
 Modules\LootImports.lua
+Modules\SettingsPage.lua
 Modules\Minimap.lua
 Modules\Options.lua

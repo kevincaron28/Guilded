@@ -679,7 +679,7 @@ describe("guild profession snapshots", () => {
   });
   it("answers the guild profession request while preserving raid-ready request permissions", () => {
     const s = loggedIn();
-    s.run('SENT = {}; GetInventoryItemLink = function() return nil end; GetServerTime = function() return 1800000000 end; GetProfessions = function() return nil end; GetProfessionInfo = function() return nil end; fire_event("CHAT_MSG_ADDON", "Guilded", "PROFREQ|1", "GUILD", "Amy-Realm")');
+    s.run('DUE = {}; C_Timer = { After = function(_, fn) DUE[#DUE + 1] = fn end }; SENT = {}; GetInventoryItemLink = function() return nil end; GetServerTime = function() return 1800000000 end; GetProfessions = function() return nil end; GetProfessionInfo = function() return nil end; fire_event("CHAT_MSG_ADDON", "Guilded", "PROFREQ|1", "GUILD", "Amy-Realm"); for _, fn in ipairs(DUE) do fn() end');
     expect(s.run('local count = 0; for _, m in ipairs(SENT) do if m.target == "GUILD" and string.find(m.text, "P:1800000000", 1, true) then count = count + 1 end end; return count')).toBe("1");
   });
 });

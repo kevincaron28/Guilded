@@ -6,6 +6,7 @@ const require = createRequire(new URL('../node_modules/wrangler/package.json', i
 const { Miniflare } = require('miniflare');
 const fixture = `<html lang="en"><head><link rel="canonical" href="https://guilded.kcaron.top/features/">
 <meta name="description" content="English" data-content-en="English" data-content-fr="Français &amp; amis">
+<link rel="alternate" hreflang="fr" href="https://guilded.kcaron.top/fr/features/">
 <meta property="og:url" content="https://guilded.kcaron.top/features/"></head><body>
 <h1 data-en="Hello" data-fr="Bonjour &amp; amis">Hello</h1>
 <div data-language-copy="en">English body</div><div data-language-copy="fr" hidden>Contenu français</div>
@@ -48,4 +49,9 @@ it('renders English and leaves unselected-language responses untouched',async()=
   const original=await runtime.dispatchFetch('https://fixture.invalid/features/');
   expect(original.headers.get('etag')).toBe('old');
   expect(await original.text()).toBe(fixture);
+});
+it('keeps hreflang=fr at one /fr/ prefix on a French page',async()=>{
+  const html=await (await runtime.dispatchFetch('https://fixture.invalid/fr/features/')).text();
+  expect(html).toContain('hreflang="fr" href="https://guilded.kcaron.top/fr/features/"');
+  expect(html).not.toContain('/fr/fr/');
 });

@@ -279,8 +279,20 @@ export function canonicalRedirect(request, env, url = new URL(request.url)) {
   if (!["GET", "HEAD"].includes(request.method)) return null;
   const www = url.hostname === `www.${canonical}`;
   if (!www && !LEGACY_PRODUCT_HOSTS.includes(url.hostname)) return null;
-  if (!www && NEVER_REDIRECTED.test(url.pathname)) return null;
+  // The old host's sitemap would list the same pages twice: it moves, like its robots.txt. Other .xml files stay.
+  if (!www && url.pathname !== "/sitemap.xml" && NEVER_REDIRECTED.test(url.pathname)) return null;
   return new Response(null, { status: 301, headers: { location: `https://${canonical}${url.pathname}${url.search}`, "cache-control": "public, max-age=3600" } });
+}
+
+// /index.html (and /fr/index.html) is the directory address under another name: one permanent move to the folder URL, on
+// every host, so search engines index one address. /fr/ pages are French by their path, so ?lang is dropped there.
+export function indexHtmlRedirect(request, url = new URL(request.url)) {
+  if (!["GET", "HEAD"].includes(request.method) || !/\/index\.html$/.test(url.pathname)) return null;
+  if (/^\/(?:api|downloads|companion)\//.test(url.pathname)) return null; // the companion page has its own rule below
+  const query = new URLSearchParams(url.search);
+  if (url.pathname.startsWith("/fr/")) query.delete("lang");
+  const rest = query.toString();
+  return new Response(null, { status: 301, headers: { location: `${url.pathname.slice(0, -"index.html".length)}${rest ? `?${rest}` : ""}`, "cache-control": "public, max-age=3600" } });
 }
 
 export default {
@@ -311,6 +323,8 @@ async function route(request, env, ctx) {
     if (url.pathname === "/consent.js" && adsOn(env) && ["GET", "HEAD"].includes(request.method)) return consentScriptResponse(request);
     const moved = canonicalRedirect(request, env, url);
     if (moved) return moved;
+    const directory = indexHtmlRedirect(request, url);
+    if (directory) return directory;
     const download = await hostedDownload(request, env, ctx, url);
     if (download) return download;
     const apk = androidDownload(request, url);

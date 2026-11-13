@@ -78,19 +78,26 @@ end
 
 -- `fresh` = called by the tooltip data processor, which runs once per newly filled tooltip on
 -- every tooltip (comparison tooltips included), so no "already done" flag is needed; the flag
--- is only for the old script hook, which can fire more than once for one item.
+-- is only for the old script hook, which can fire more than once for one item. It is kept in a
+-- Guilded-side weak table: nothing is written onto the game's tooltip object (9.3.0, taint).
+local done = setmetatable({}, { __mode = "k" })
 local function decorate(tooltip, fresh)
-  if not tooltip or (not fresh and tooltip.guildedDone) then return end
+  if not tooltip or (not fresh and done[tooltip]) then return end
   if ns.moduleActive and not ns.moduleActive("tooltip") then return end
   if not tooltip.GetItem then return end
+  -- (9.2.1) The data processor runs this inside the game's own tooltip code, so whatever runs here taints the
+  -- rest of that code (a later protected call is then refused: "Guilded tried to call UNKNOWN()" after a gear
+  -- change, 13 Nov 2026). Keep the footprint small: never in combat, and only the main item tooltips
+  -- (not the comparison tooltips the equipment code fills while gear is being swapped).
+  if ns.util and ns.util.inCombat and ns.util.inCombat() then return end
+  if GameTooltip and tooltip ~= GameTooltip and tooltip ~= ItemRefTooltip then return end
   local ok, name, link = pcall(tooltip.GetItem, tooltip)
   if not ok or type(name) ~= "string" then return end
   if ns.isSecret and ns.isSecret(name) then return end
   if type(link) ~= "string" or (ns.isSecret and ns.isSecret(link)) then link = nil end
   local lines = module.lines(name, link)
   if #lines == 0 then return end
-  if not fresh then tooltip.guildedDone = true end
-  tooltip.guildedExpandable = module.crafterExpandable or nil
+  if not fresh then done[tooltip] = true end
   for _, line in ipairs(lines) do
     if type(line) == "table" then
       -- Already formatted (the crafter lines): no prefix, wrapped when long.
@@ -99,15 +106,15 @@ local function decorate(tooltip, fresh)
       tooltip:AddLine("Guilded: " .. line, GOLD_R, GOLD_G, GOLD_B)
     end
   end
-  -- Only the old script hook needs a resize. In a data-processor post-call the game shows the
-  -- tooltip itself; calling Show() from here re-ran Blizzard's tooltip code under Guilded's taint.
-  if not fresh and tooltip.Show then tooltip:Show() end
+  -- Stamped only after a line was really added: a blocked-action record just after it says so (Core.lua).
+  ns.lastTooltipAt = GetTime and GetTime() or nil
+  -- No Show() and no refresh from here: the data processor shows the tooltip itself, and calling the game's
+  -- tooltip functions from addon code runs its code under Guilded's taint.
 end
 module.decorate = decorate
 
--- Cleared with the tooltip: a flag left from an item tooltip made Shift refresh a later unit
--- tooltip from Guilded's code, which broke on secret values in combat ("tainted by Guilded").
-local function clear(tooltip) tooltip.guildedDone = nil; tooltip.guildedExpandable = nil end
+-- Cleared with the tooltip (old script hook only).
+local function clear(tooltip) done[tooltip] = nil end
 
 local function hookTooltips()
   if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
@@ -126,30 +133,12 @@ local function hookTooltips()
   end
 end
 
--- Pressing or releasing Shift while the tooltip is up swaps the short crafter line for the
--- full list (and back): tooltips do not refresh on modifier changes by themselves.
-function module.refreshForShift(tooltip)
-  tooltip = tooltip or GameTooltip
-  if not (tooltip and tooltip.guildedExpandable and tooltip.IsShown and tooltip:IsShown()) then return false end
-  -- Never in combat (tooltips hold secret values there), and only while it still shows an item.
-  if ns.util and ns.util.inCombat and ns.util.inCombat() then return false end
-  if not tooltip.GetItem then return false end
-  local ok, name, link = pcall(tooltip.GetItem, tooltip)
-  if not ok or type(name) ~= "string" or type(link) ~= "string" then return false end
-  if ns.isSecret and (ns.isSecret(name) or ns.isSecret(link)) then return false end
-  if tooltip.RefreshData then return pcall(tooltip.RefreshData, tooltip) end
-  if tooltip.SetHyperlink then return pcall(tooltip.SetHyperlink, tooltip, link) end
-  return false
-end
-
+-- (9.3.0) There is no Shift refresh any more: pressing Shift used to make Guilded call RefreshData/SetHyperlink on
+-- GameTooltip, running the game's tooltip code under Guilded's taint exactly while a player compared gear. The
+-- full crafter list is shown when the game itself fills the tooltip with Shift already held.
 local frame = CreateFrame("Frame")
 frame:RegisterEvent("PLAYER_LOGIN")
-frame:RegisterEvent("MODIFIER_STATE_CHANGED")
-frame:SetScript("OnEvent", function(_, event, key)
-  if event == "MODIFIER_STATE_CHANGED" then
-    if key == "LSHIFT" or key == "RSHIFT" then pcall(module.refreshForShift) end
-    return
-  end
+frame:SetScript("OnEvent", function()
   local ok, err = pcall(hookTooltips)
   if not ok and ns.logDiagnostic then ns.logDiagnostic("LUA_ERROR", "tooltip: " .. tostring(err)) end
 end)

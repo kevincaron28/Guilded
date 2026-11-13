@@ -1,9 +1,7 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
-import { execFileSync } from "node:child_process";
 
-beforeAll(() => execFileSync(process.execPath, ["scripts/build-site.mjs"], { stdio: "pipe" }), 30000);
 
 describe("guide language switch", () => {
   it("updates the URL when the French guide anchor is selected", () => {

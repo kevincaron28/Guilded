@@ -1,10 +1,8 @@
-import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, posix } from "node:path";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { staticRedirect } from "../worker/localized-assets.mjs";
 
-beforeAll(() => execFileSync(process.execPath, ["scripts/build-site.mjs"], { stdio: "pipe" }), 30_000);
 
 const DYNAMIC = /^\/(?:leaderboards|recruitment|players|me|auth|g|health|api|downloads|forever\/(?:leaderboards|recruitment|players))(?:\/|$)/;
 

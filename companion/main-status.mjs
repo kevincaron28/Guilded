@@ -146,3 +146,21 @@ export function autoOpenDecision(latch, status, { checked, now, visible = false,
   if (latch.openedAt && now - latch.openedAt < minIntervalMs) return { open: false, latch };
   return { open: true, latch: { key, openedAt: now } };
 }
+
+/**
+ * The "Syncing now." / "Trying again." line under the status lines is a progress note, not a result: it
+ * must go when the sync it announced has ended (success or failure). The note is { startedAt, sawUploading };
+ * `syncNoteStep` says whether it should now be cleared. A click that starts no upload (nothing new to
+ * send) clears after a short grace, so the line never lingers.
+ */
+export const SYNC_NOTE_GRACE_MS = 6000;
+export const SYNC_NOTE_MAX_MS = 120000;
+export function syncNoteStep(note, phase, now) {
+  if (!note) return { note: null, clear: false };
+  const age = now - note.startedAt;
+  const sawUploading = note.sawUploading || phase === "uploading";
+  if (age >= SYNC_NOTE_MAX_MS) return { note: null, clear: true };
+  if (phase === "uploading") return { note: { ...note, sawUploading }, clear: false };
+  if (sawUploading || age >= SYNC_NOTE_GRACE_MS) return { note: null, clear: true };
+  return { note: { ...note, sawUploading }, clear: false };
+}

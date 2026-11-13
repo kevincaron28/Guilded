@@ -309,6 +309,7 @@ local function decorateUnit(tooltip, fresh)
   if not active() or not tooltip or not tooltip.GetUnit then return end
   -- In combat a unit tooltip holds secret values; leave it to the game.
   if ns.util and ns.util.inCombat and ns.util.inCombat() then return end
+  if GameTooltip and tooltip ~= GameTooltip then return end
   local ok, _, unit = pcall(tooltip.GetUnit, tooltip)
   if not ok or not unit or (ns.isSecret and ns.isSecret(unit)) then return end
   if UnitIsPlayer and not UnitIsPlayer(unit) then return end
@@ -322,12 +323,12 @@ local function decorateUnit(tooltip, fresh)
   local db = ns.getDb and ns.getDb()
   local bracket = scores.bracketByKey(db and db.dungeonBoard, bracketKey)
   tooltip:AddLine(string.format(L(ns.standalone and "Public season score: %d" or "Guilded season score: %d"), total) .. (bracket and (" (" .. scores.bracketLabel(bracket) .. ")") or ""), GOLD_R, GOLD_G, GOLD_B)
+  ns.lastTooltipAt = GetTime and GetTime() or nil -- stamped only once a line was really added (Core.lua names it in a blocked record)
   local snapshot = ns.seasonDetails and ns.seasonDetails.get(1, name, bracketKey)
   for _, role in ipairs(snapshot and snapshot.profile and snapshot.profile.roles or {}) do
     tooltip:AddLine(L(role.role) .. ": " .. role.points, 0.8, 0.85, 1)
   end
   if snapshot and snapshot.profile and snapshot.profile.roles then tooltip:AddLine(L("Role scores are separate; unknown roles are not assigned."), 0.7, 0.7, 0.7) end
-  if not fresh and tooltip.Show then tooltip:Show() end
 end
 scores.decorateUnit = decorateUnit
 

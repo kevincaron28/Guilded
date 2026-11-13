@@ -195,6 +195,16 @@ function results.text(run)
   return table.concat(lines, "\n")
 end
 
+-- Paints (or clears) the card backdrop for a dungeon name; returns the texture path used, or nil for the plain card.
+function results.applyArt(name)
+  local path = ns.dungeonArt and ns.dungeonArt.enabled() and ns.dungeonArt.path(name) or nil
+  results.artPath = path
+  if window and window.art then
+    if path then window.art:SetTexture(path); window.art:Show() else window.art:Hide() end
+  end
+  return path
+end
+
 function results.show(run, resume)
   if not active() or type(run) ~= "table" then return end
   results.last = run
@@ -217,6 +227,11 @@ function results.show(run, resume)
       window:SetBackdropColor(0.035, 0.045, 0.065, 0.97)
       window:SetBackdropBorderColor(0.72, 0.54, 0.2, 1)
     end
+    -- The dungeon's painting behind the header text (Media\Dungeons, 256x128, darkened and faded into the card colour).
+    -- A plain texture: no frame, no protected call. Hidden when the dungeon has no painting or the setting is off.
+    window.art = window:CreateTexture(nil, "BACKGROUND", nil, 1)
+    window.art:SetPoint("TOPLEFT", window, "TOPLEFT", 5, -5); window.art:SetPoint("TOPRIGHT", window, "TOPRIGHT", -5, -5)
+    window.art:SetHeight(172)
     window.heading = window:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     window.heading:SetPoint("TOPLEFT", 14, -18); window.heading:SetWidth(304); window.heading:SetJustifyH("LEFT")
     window.status = window:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -268,6 +283,7 @@ function results.show(run, resume)
   local seconds = math.max(0, math.floor(run.durationSec or 0))
   local kills = 0
   for _, boss in ipairs(run.encounters or {}) do if boss.success then kills = kills + 1 end end
+  results.applyArt(run.name)
   window.heading:SetText(run.name or L("Dungeon"))
   window.status:SetText((run.state == "COMPLETED" and L("RUN COMPLETE") or L("Run not completed"))
     .. "  |cffb0b8c4" .. L("Bosses") .. " " .. kills .. (run.bossCount and ("/" .. run.bossCount) or "") .. "|r")

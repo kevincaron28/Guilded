@@ -23,6 +23,7 @@ export function raidEndCard(report: RaidReport, lang: Lang = "en"): ScoreCard {
       { label: t("Raiders", "Raiders"), value: String(report.raiders), note: report.late ? t(`${report.late} late`, `${report.late} en retard`) : t("All on time", "Tous à l'heure") },
       { label: t("Duration", "Durée"), value: formatDuration(report.durationMinutes), note: report.absent ? t(`${report.absent} absent`, report.absent === 1 ? "1 absent" : `${report.absent} absents`) : undefined }
     ],
+    backdrop: { kind: "raid", key: "default" },
     rowsLabel: lootRows.length ? t("Top loot", "Meilleur butin") : t("Bosses defeated", "Boss vaincus"), rows: lootRows.length ? lootRows : bossRows,
     badges: [
       ...(report.epRecipients ? [{ text: t(`${report.epAwarded} EP to ${report.epRecipients} raiders`, `${report.epAwarded} EP à ${report.epRecipients} raiders`), tone: "ok" as const }] : [{ text: t("EP pending", "EP en attente"), tone: "muted" as const }]),
@@ -53,6 +54,7 @@ export function battlegroundEndCard(row: BgCardRow, recent: BgCardRow[] = [], la
       { label: t("Match time", "Durée"), value: minutes, note: row.presence === "complete" ? t("Whole match", "Tout le match") : row.presence === "backfill" ? t("Joined late", "Arrivé en cours") : row.presence === "early-exit" ? t("Left early", "Parti tôt") : undefined },
       { label: t("Format", "Format"), value: row.mode, note: t(`Bracket ${row.bracket}`, `Bracket ${row.bracket}`) }
     ],
+    backdrop: { kind: "battleground", key: mapName(row.mapId).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""), fallbackKey: "default" },
     rowsLabel: t("Your recent matches", "Vos matchs récents"),
     rows: recent.slice(0, 5).map(r => ({ name: mapName(r.mapId), sub: `${r.endedAt.toISOString().slice(0, 10)} · ${r.mode}`, right: word(r.outcome), rightTone: tone(r.outcome), color: r.reportId === row.reportId ? "#ffd100" : undefined })),
     badges: [

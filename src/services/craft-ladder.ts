@@ -62,6 +62,7 @@ export function craftLadderCard(standings: readonly CrafterStanding[], totalCraf
   return {
     eyebrow: `Guilded · ${fr ? "Artisanat" : "Crafting"}`, title: fr ? "Meilleurs artisans" : "Top crafters",
     subtitle: fr ? `${totalCrafts} commandes terminées · ${standings.length} artisans` : `${totalCrafts} finished crafts · ${standings.length} crafters`,
+    backdrop: { kind: "board", key: "crafters" },
     stats: [], footer: fr ? "1 point par commande terminée sur le tableau d'artisanat · aucun EP/GP" : "1 point per craft finished on the craft board · no EP/GP",
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucune commande terminée pour l'instant." : "No finished crafts yet.",

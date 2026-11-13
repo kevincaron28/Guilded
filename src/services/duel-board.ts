@@ -33,6 +33,7 @@ export function duelBoardCard(data: DuelBoardData, lang: Lang, classes: ClassBoo
   return {
     eyebrow: `Guilded · ${fr ? "JcJ" : "PvP"}`, title: fr ? "Duels de la guilde" : "Guild duels",
     subtitle: fr ? `${data.duels} duels comptés · ${data.standings.length} duellistes` : `${data.duels} counted duels · ${data.standings.length} duellists`,
+    backdrop: { kind: "board", key: "duel" },
     stats: [], footer: fr ? "Score : 10 par victoire, +2 par niveau de l'adversaire au-dessus de vous, -2 par niveau en dessous (0-20) · 5 duels par paire et par jour au plus · aucune récompense" : "Score: 10 per win, +2 per level the opponent is above you, -2 per level below (0-20) · max 5 duels per pair per day · no rewards",
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun duel enregistré." : "No duel recorded yet.",

@@ -124,6 +124,7 @@ export function raceCard(data: RaceBoardData, lang: Lang, top = DEFAULT_TOP, mem
   return {
     eyebrow: "Guilded · WoW Forever", title: fr ? "Course au niveau 60" : "Race to 60",
     subtitle: fr ? `${data.finished} sur ${data.total} personnages au niveau ${LEVEL_CAP}` : `${data.finished} of ${data.total} characters at level ${LEVEL_CAP}`,
+    backdrop: { kind: "board", key: "race-to-60" },
     stats: [], footer: fr ? `Top ${ranked.length} sur ${data.total} · mis à jour à chaque synchronisation · /character race near trouve des partenaires` : `Top ${ranked.length} of ${data.total} · updated after every sync · /character race near finds partners`,
     ladder: {
       meta: ladderMeta(lang, updatedAt), empty: fr ? "Aucun personnage avec niveau rapporté pour l'instant." : "No levelled character reported yet.",
@@ -233,6 +234,7 @@ export function hallCard(entry: HallRecord, lang: Lang, memberName: string | nul
       ...(took !== null ? [{ label: fr ? "Temps pour le 60" : "Time to 60", value: formatDuration(took, lang), note: fr ? "depuis le lancement, 4 nov. 2026" : "since launch, 4 Nov 2026", accent: "green" as const }] : []),
       { label: "Date", value: dayText(entry.reachedAt, lang), accent: "gold" }
     ],
+    backdrop: { kind: "board", key: "hall-of-fame" },
     rowsLabel: fr ? "Personnage" : "Character",
     rows: [{ name: localClassName(entry.className, lang), color, sub: localRaceName(entry.race, lang), right: String(LEVEL_CAP), rightTone: "gold" },
       ...(memberName ? [{ name: `@${memberName}`, color: "#f5e6c0", sub: "Discord" }] : []), ...professions],

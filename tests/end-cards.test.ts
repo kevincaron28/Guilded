@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { achievementUnlockedCard, battlegroundEndCard, raidEndCard } from "../src/services/end-cards.js";
+import { achievementUnlockedCard, battlegroundEndCard, raidArtKey, raidEndCard } from "../src/services/end-cards.js";
 import { scoreCardPng } from "../src/services/score-card.js";
 import { ACTIVE_ACHIEVEMENTS } from "../src/services/achievements-catalogue.js";
 import type { RaidReport } from "../src/services/raid-report.js";
@@ -56,5 +56,20 @@ describe("achievement unlocked card", () => {
     const queued = { ...achievementUnlockedCard("frumpytm", ids.slice(0, 2), 5, "en") };
     for (const key of ["unlocks", "unlocksMore", "moreLabel", "progress", "tierCounts"] as const) delete queued[key];
     expect(await sharp((await scoreCardPng(queued))!).metadata()).toMatchObject({ width: 1200, height: 630 });
+  });
+});
+
+describe("card art keys (batch 2)", () => {
+  it("picks the Molten Core picture from the title or the bosses killed, in English or French, else the default", () => {
+    expect(raidArtKey({ title: "Molten Core", killedNames: [] })).toBe("molten-core");
+    expect(raidArtKey({ title: "Raid du mardi", killedNames: ["Lucifron", "Magmadar"] })).toBe("molten-core");
+    expect(raidArtKey({ title: "Cœur du Magma", killedNames: [] })).toBe("molten-core");
+    expect(raidArtKey({ title: "Onyxia", killedNames: ["Onyxia"] })).toBe("default");
+  });
+  it("names a battleground picture by map id, so English and French clients share it", () => {
+    const row = { reportId: "r", mode: "10v10", mapId: 489, bracket: "60", endedAt: new Date(0), outcome: "win", presence: "complete", status: "PROVISIONAL" };
+    expect(battlegroundEndCard(row, [row]).backdrop).toEqual({ kind: "battleground", key: "warsong-gulch", fallbackKey: "default" });
+    expect(battlegroundEndCard({ ...row, mapId: 529 }, [], "fr").backdrop?.key).toBe("arathi-basin");
+    expect(battlegroundEndCard({ ...row, mapId: 30 }, [], "fr").backdrop?.key).toBe("alterac-valley");
   });
 });

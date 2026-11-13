@@ -8,6 +8,16 @@ import type { CardRow, ScoreCard } from "./score-card.js";
 type Lang = "en" | "fr";
 const pick = (lang: Lang) => (en: string, fr: string) => lang === "fr" ? fr : en;
 
+/**
+ * Which painted raid backdrop a report asks for: the raid has no instance field, so the key comes from its title and the bosses it killed
+ * (English and French names). Anything not recognised falls back to raid/default.
+ */
+export function raidArtKey(report: Pick<RaidReport, "title" | "killedNames">): string {
+  const text = [report.title, ...report.killedNames].join(" ").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (/molten core|c(?:oe|œ)ur du magma|\b(?:lucifron|magmadar|gehennas|shazzrah|baron geddon|sulfuron|golemagg|majordomo|ragnaros)\b/.test(text)) return "molten-core";
+  return "default";
+}
+
 /** A finished raid: bosses down, time, attendance, and the loot that went out. No per-player performance. */
 export function raidEndCard(report: RaidReport, lang: Lang = "en"): ScoreCard {
   const t = pick(lang);
@@ -23,7 +33,7 @@ export function raidEndCard(report: RaidReport, lang: Lang = "en"): ScoreCard {
       { label: t("Raiders", "Raiders"), value: String(report.raiders), note: report.late ? t(`${report.late} late`, `${report.late} en retard`) : t("All on time", "Tous à l'heure") },
       { label: t("Duration", "Durée"), value: formatDuration(report.durationMinutes), note: report.absent ? t(`${report.absent} absent`, report.absent === 1 ? "1 absent" : `${report.absent} absents`) : undefined }
     ],
-    backdrop: { kind: "raid", key: "default" },
+    backdrop: { kind: "raid", key: raidArtKey(report), fallbackKey: "default" },
     rowsLabel: lootRows.length ? t("Top loot", "Meilleur butin") : t("Bosses defeated", "Boss vaincus"), rows: lootRows.length ? lootRows : bossRows,
     badges: [
       ...(report.epRecipients ? [{ text: t(`${report.epAwarded} EP to ${report.epRecipients} raiders`, `${report.epAwarded} EP à ${report.epRecipients} raiders`), tone: "ok" as const }] : [{ text: t("EP pending", "EP en attente"), tone: "muted" as const }]),

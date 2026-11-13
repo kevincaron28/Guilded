@@ -46,18 +46,19 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
 }
 
 /** Pure: the card of the duels past the per-upload limit, one row each (up to six) and the count of the rest. */
-export function duelSummaryCard(duels: readonly DuelCardInput[], lang: Lang, classes: ClassBook, names: FullNameBook): ScoreCard {
+/** `omitted`: older duels the summary no longer lists but still counts ("and N more"). */
+export function duelSummaryCard(duels: readonly DuelCardInput[], lang: Lang, classes: ClassBook, names: FullNameBook, omitted = 0): ScoreCard {
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const shown = duels.slice(0, SUMMARY_ROWS);
   return {
     eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("More duels", "Autres duels"),
-    subtitle: t(`${duels.length} more duels counted`, `${duels.length} autres duels comptés`),
+    subtitle: t(`${duels.length + omitted} more duels counted`, `${duels.length + omitted} autres duels comptés`),
     backdrop: { kind: "board", key: "duel" },
-    stats: [{ label: t("Duels", "Duels"), value: String(duels.length), accent: "gold" }, { label: t("Points", "Points"), value: String(duels.reduce((sum, duel) => sum + duel.points, 0)) }],
+    stats: [{ label: t("Duels", "Duels"), value: String(duels.length + omitted), accent: "gold" }, { label: t("Points", "Points"), value: String(duels.reduce((sum, duel) => sum + duel.points, 0)) }],
     rowsLabel: t("Results", "Résultats"),
     rows: shown.map(duel => ({ name: displayCharacterName(duel.winnerCharacter, names), color: classColor(classOf(classes, duel.winnerCharacter)),
       sub: t(`beat ${displayCharacterName(duel.loserCharacter, names)}`, `bat ${displayCharacterName(duel.loserCharacter, names)}`), right: `+${duel.points}`, rightTone: "green" as const })),
-    ...(duels.length > shown.length ? { badges: [{ text: t(`and ${duels.length - shown.length} more`, `et ${duels.length - shown.length} autres`), tone: "muted" as const }] } : {}),
+    ...(duels.length + omitted > shown.length ? { badges: [{ text: t(`and ${duels.length + omitted - shown.length} more`, `et ${duels.length + omitted - shown.length} autres`), tone: "muted" as const }] } : {}),
     footer: t("Guild duels · No rewards · guildedwow.com", "Duels de guilde · Aucune récompense · guildedwow.com")
   };
 }
@@ -70,8 +71,8 @@ export function duelFallbackEmbed(duel: DuelCardInput, lang: Lang, names: FullNa
   return new EmbedBuilder().setColor(DUEL_COLOR).setDescription(`⚔️ **${winner}** ${verb} ${loser} — +${duel.points} pts${duel.winnerStreak > 1 ? ` · ${streakText(duel.winnerStreak)}` : ""}`.slice(0, 400));
 }
 
-const summaryFallback = (duels: readonly DuelCardInput[], lang: Lang, names: FullNameBook) => new EmbedBuilder().setColor(DUEL_COLOR).setDescription(
-  `⚔️ ${lang === "fr" ? `${duels.length} autres duels comptés` : `${duels.length} more duels counted`}\n${duels.slice(0, SUMMARY_ROWS).map(duel =>
+const summaryFallback = (duels: readonly DuelCardInput[], lang: Lang, names: FullNameBook, omitted = 0) => new EmbedBuilder().setColor(DUEL_COLOR).setDescription(
+  `⚔️ ${lang === "fr" ? `${duels.length + omitted} autres duels comptés` : `${duels.length + omitted} more duels counted`}\n${duels.slice(0, SUMMARY_ROWS).map(duel =>
     `${displayCharacterName(duel.winnerCharacter, names)} › ${displayCharacterName(duel.loserCharacter, names)} (+${duel.points})`).join("\n")}`.slice(0, 1800));
 
 export interface Standing { score: number; streak: number; bestStreak: number }
@@ -123,13 +124,16 @@ export async function queueDuelCards(database: Database, guildId: string, editio
   if (!rest.length) return single.length;
   // One summary per window while it is still waiting; once it has posted, the next overflow starts a new one.
   const bucket = Math.floor(now.getTime() / (WINDOW_MINUTES * 60_000));
-  let key = `duel-card:more:${bucket}`, merged: DuelCardInput[] = rest;
+  let key = `duel-card:more:${bucket}`, merged: DuelCardInput[] = rest, omitted = 0;
   const existing = await database.discordJob.findUnique({ where: { guildId_key: { guildId, key } }, select: { status: true, payload: true } });
   if (existing?.status === "DONE") key = `duel-card:more:${bucket}:${rest[0]!.reportKey}`;
   else if (existing) {
-    const earlier = (existing.payload as { duels?: DuelCardInput[] } | null)?.duels;
-    if (Array.isArray(earlier)) merged = [...earlier.map(duel => ({ ...duel, endedAt: new Date(duel.endedAt) })), ...rest].slice(-SUMMARY_KEEP);
+    const stored = existing.payload as { duels?: DuelCardInput[]; omitted?: number } | null;
+    if (Array.isArray(stored?.duels)) {
+      const all = [...stored.duels.map(duel => ({ ...duel, endedAt: new Date(duel.endedAt) })), ...rest];
+      merged = all.slice(-SUMMARY_KEEP); omitted = (stored.omitted ?? 0) + all.length - merged.length;
+    }
   }
-  await put(database, guildId, key, { ...base(duelSummaryCard(merged, lang, classes, names), summaryFallback(merged, lang, names)), duels: jsonOf(merged) }, now);
+  await put(database, guildId, key, { ...base(duelSummaryCard(merged, lang, classes, names, omitted), summaryFallback(merged, lang, names, omitted)), duels: jsonOf(merged), omitted }, now);
   return single.length + 1;
 }

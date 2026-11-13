@@ -153,7 +153,8 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       if (!current) throw new Error("Configure dungeon announcements first");
       channelId = current;
     } else if (route === "wowWeekly") {
-      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { weeklyReportChannelId: true, notifyChannelId: true } });
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { weeklyReportChannelId: true, notifyChannelId: true, weeklyReportEnabled: true } });
+      if (settings && !settings.weeklyReportEnabled) return; // switched off since it was queued
       const current = settings?.weeklyReportChannelId ?? settings?.notifyChannelId;
       if (!current) throw new Error("Configure WoW weekly reports first");
       channelId = current;
@@ -231,7 +232,8 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     if (!carrier.data.url) carrier.setURL(link);
     // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
     const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
-    if (card) last.setImage("attachment://card.png");
+    // The picture sits in the first embed that has no text of its own (so a card can head a post with text embeds under it), else the last one.
+    if (card) (embeds.find(embed => !embed.data.title && !embed.data.description && !embed.data.fields?.length) ?? last).setImage("attachment://card.png");
     await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" }).setDescription(cardAltText(cardDefinition!))] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
   } else if (job.kind === "INVITE_CLEANUP") {
     const { runInviteCleanupJob } = await import("./invite-cleanup.js");
@@ -251,7 +253,10 @@ export async function runDiscordJobs(client: Client): Promise<void> {
   try {
     const now = new Date();
     const query = { orderBy: { nextAttemptAt: "asc" as const }, include: { guild: { select: { discordId: true as const } } } };
-    const jobs = await prisma.discordJob.findMany({ ...query, where: { ...available(now), ...pilotGuildScope }, take: DELIVERY_BATCH_SIZE });
+    // Boards and other posts first; the duel cards (key duel-card:) only fill what is left of the batch, however old they are.
+    const first = await prisma.discordJob.findMany({ ...query, where: { ...available(now), ...pilotGuildScope, NOT: { key: { startsWith: "duel-card:" } } }, take: DELIVERY_BATCH_SIZE });
+    const later = first.length < DELIVERY_BATCH_SIZE ? await prisma.discordJob.findMany({ ...query, where: { ...available(now), ...pilotGuildScope, key: { startsWith: "duel-card:" } }, take: DELIVERY_BATCH_SIZE - first.length }) : [];
+    const jobs = [...first, ...later];
     for (const job of jobs) {
       // Finish an in-flight delivery normally; do not start another after the
       // budget is spent. The next tick resumes pending jobs, with fresh content.

@@ -13,6 +13,8 @@ import { asLang, t, type Lang } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { runDiscordJobs } from "../services/discord-jobs.js";
 import { queueWeeklyWowReport } from "../services/weekly-report-delivery.js";
+import { weeklyReportCard } from "../services/weekly-card.js";
+import { textlessEmbed } from "../services/card-only.js";
 import { personalWeeklyRecap, personalWeeklyRecapEmbed } from "../services/personal-weekly-recap.js";
 import { dailyRecap, dailyRecapCard, dailyRecapEmbed, queueDailyRecaps, recapDay, recapIsEmpty } from "../services/daily-recap.js";
 import { hasPermission } from "../permissions.js";
@@ -213,8 +215,11 @@ export async function runWeeklyReports(client: Client, now = new Date()): Promis
       const lang = asLang(settings.language);
       const leaderboardUrl = settings.publicDungeonRuns && config.PUBLIC_SITE_URL
         ? `${new URL(config.PUBLIC_SITE_URL).origin}/leaderboards/guild/${encodeURIComponent(settings.guildId)}?lang=${lang}` : undefined;
+      const embeds = weeklyReportEmbeds(report, lang, leaderboardUrl);
       const queued = await queueWeeklyWowReport(prisma, settings.guildId, report.weekEnd, now,
-        JSON.parse(JSON.stringify({ embeds: weeklyReportEmbeds(report, lang, leaderboardUrl).map(embed => embed.toJSON()) })));
+        JSON.parse(JSON.stringify({ embeds: embeds.map(embed => embed.toJSON()) })),
+        // 9.3: the card replaces the first embed (the headline); the cores and dungeon embeds stay as text under it.
+        JSON.parse(JSON.stringify({ card: weeklyReportCard(report, lang), cardOnly: { embeds: [textlessEmbed(0xd4af37), ...embeds.slice(1).map(embed => embed.toJSON())] } })));
       if (queued) posted += 1;
     } catch (error) {
       console.error(`Weekly report failed for guild ${settings.guild.discordId}`, error);

@@ -17,11 +17,11 @@ describe("companion export of world PvP deaths", () => {
     const only = exportWorldPvp({ worldPvp: { weekKey: 2900, week: { deaths: 2 } } }) as { worldPvp: Array<Record<string, unknown>> };
     expect(only.worldPvp[0]).toMatchObject({ kills: 0, deaths: 2 });
     const old = exportWorldPvp({ worldPvp: { weekKey: 2900, week } }) as { worldPvp: Array<Record<string, unknown>> };
-    expect(old.worldPvp[0].deaths).toBe(0);
+    expect(old.worldPvp[0]?.["deaths"]).toBe(0);
   });
 
   it("drops an invalid death count", () => {
     const out = exportWorldPvp({ worldPvp: { weekKey: 2900, week: { kills: 1, deaths: -5 } } }) as { worldPvp: Array<Record<string, unknown>> };
-    expect(out.worldPvp[0].deaths).toBe(0);
+    expect(out.worldPvp[0]?.["deaths"]).toBe(0);
   });
 });

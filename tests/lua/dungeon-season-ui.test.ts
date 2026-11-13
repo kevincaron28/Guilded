@@ -85,6 +85,17 @@ describe("dungeon season page layout", () => {
     expect(s.run("return P.period .. ' ' .. tostring(P.rankings.shown) .. ' ' .. NS.dungeonScorePanel.tabOf(P)")).toBe("month false season");
   });
 
+  it("paints the current dungeon's picture behind the Current run text, and only with art on", () => {
+    const s = panel();
+    s.load("Modules/DungeonArt.lua");
+    s.run('DB.dungeon = DB.dungeon or {runs={}}; DB.dungeon.current = { name = "The Deadmines", state = "ACTIVE", startedAt = 1, encounters = {} }; P.runView:Refresh()');
+    expect(s.run("return tostring(P.runView.bannerPath) .. ' ' .. tostring(P.runView.banner.shown)")).toContain("deadmines true");
+    s.run('NS.dungeonArt.setEnabled(false); P.runView:Refresh()');
+    expect(s.run("return tostring(P.runView.banner.shown) .. ' ' .. P.runView.cardArt.text")).toBe("false Card art: off");
+    s.run('NS.dungeonArt.setEnabled(true); DB.dungeon.current = nil; P.runView:Refresh()');
+    expect(s.run("return tostring(P.runView.banner.shown)")).toBe("false");
+  });
+
   it("puts run corrections behind More with a second click for Complete and Abandon", () => {
     const s = panel();
     s.run("CLICK(P.runTab)");

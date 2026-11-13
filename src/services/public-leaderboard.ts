@@ -75,6 +75,8 @@ export interface PublicGuild { id: string; name: string; slug?: string | null }
 // A guild's score in a bracket: its GUILD_COUNT best members' scores added up (Raider.IO-style
 // team ranking), so one strong player cannot carry a guild alone.
 export const GUILD_COUNT = 5;
+/** Rated members a guild needs to be ranked on the guild boards (1 = today's behaviour; the owner may raise it to 3). */
+export const GUILD_MIN_RATED = 1;
 export interface GuildRank { guild: PublicGuild; bracket: string; points: number; rated: number; best: ScoreRow; runs: number }
 export function rankGuilds(entries: { guild: PublicGuild; runs: LeaderRun[]; roster: string[] }[], rules = publicRules()): GuildRank[] {
   const ranks: GuildRank[] = [];
@@ -83,7 +85,7 @@ export function rankGuilds(entries: { guild: PublicGuild; runs: LeaderRun[]; ros
     const scores = characterScores(runs, rules).filter((row) => onRoster(members, row.player, rules.gameEdition ?? "forever"));
     for (const bracket of rules.brackets) {
       const rows = scores.filter((row) => row.bracket === bracket.key).sort((a, b) => b.points - a.points);
-      if (!rows.length) continue;
+      if (rows.length < GUILD_MIN_RATED) continue;
       const counted = new Set(rows.flatMap((row) => row.routes.filter((r) => r.counted).map((r) => (r.run as LeaderRun).runId)));
       ranks.push({ guild, bracket: bracket.key, points: rows.slice(0, GUILD_COUNT).reduce((sum, row) => sum + row.points, 0), rated: rows.length, best: rows[0]!, runs: counted.size });
     }
@@ -846,7 +848,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
         subtitle: [me?.className ? classLabel(me.className, lang) : null, me?.level ? `${t("level", "niveau")} ${me.level}` : null, periodName(ctx, season)].filter(Boolean).join(" · "), stats,
         rows, rowsLabel: t("Recent runs", "Essais récents"),
         badges: [{ text: t(`${runs.length} public ${runs.length === 1 ? "run" : "runs"}`, `${runs.length} ${runs.length === 1 ? "essai public" : "essais publics"}`), tone: "muted" }],
-        footer: t("Community reports · Provisional targets · Not Blizzard verified · guilded.kcaron.top", "Rapports communautaires · Cibles provisoires · Non vérifié par Blizzard · guilded.kcaron.top")
+        footer: t("Community reports · Provisional targets · Not Blizzard verified · guildedwow.com", "Rapports communautaires · Cibles provisoires · Non vérifié par Blizzard · guildedwow.com")
       }, ctx.request.method === "HEAD");
     }
     // Guidance for the running season: the highest level seen is the character's level now.
@@ -937,7 +939,7 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
           ...(!run.challenge && run.deaths !== null ? [{ text: run.deaths === 1 ? t("1 death", "1 mort") : t(`${run.deaths} deaths`, `${run.deaths} morts`), tone: "muted" as const }] : []),
           ...(run.evidence ? [] : [{ text: t("Older evidence check", "Ancienne vérification"), tone: "warn" as const }])
         ],
-        footer: t("Community report · Provisional targets · Not Blizzard verified · guilded.kcaron.top", "Rapport communautaire · Cibles provisoires · Non vérifié par Blizzard · guilded.kcaron.top")
+        footer: t("Community report · Provisional targets · Not Blizzard verified · guildedwow.com", "Rapport communautaire · Cibles provisoires · Non vérifié par Blizzard · guildedwow.com")
       }, ctx.request.method === "HEAD");
     }
     const description = `${title} · ${displayedTime} · ${score} · ${evidence}`;

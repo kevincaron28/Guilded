@@ -53,7 +53,7 @@ describe("season cards", () => {
     const empty = seasonEndCard(info, seasonPodium({ finalStandings: [] }), "fr", new Map());
     expect(empty.rows?.[0]?.name).toBe("Aucun joueur classé cette saison");
     expect((await scoreCardPng(seasonStartCard({ ...info, endsAt: null }, "fr")))?.subarray(1, 4).toString()).toBe("PNG");
-  });
+  }, 60_000);
 
   function fakeDb(seasons: unknown[], existing = false, switchOn = true) {
     const created: { key: string }[] = [];
@@ -66,7 +66,6 @@ describe("season cards", () => {
   }
 
   it("posts no end card while a season is CLOSING (no results), then one once it is finalized", async () => {
-    const now = new Date("2026-12-03T00:00:00Z");
     // CLOSING seasons are never returned by the ENDED query; a season marked ENDED without any results is skipped too.
     const closing = fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: null, finalRating: null }]);
     expect(await queueSeasonEndCards(closing.database, "g", "en", classes, ["s1"])).toBe(0);

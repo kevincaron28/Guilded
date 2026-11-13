@@ -1,4 +1,5 @@
-import { ActionRowBuilder, AttachmentBuilder, StringSelectMenuBuilder, EmbedBuilder, type StringSelectMenuInteraction, type Guild as DiscordGuild, type Message, MessageFlags } from "discord.js";
+import { cardAttachment } from "./card-alt.js";
+import { ActionRowBuilder, StringSelectMenuBuilder, EmbedBuilder, type StringSelectMenuInteraction, type Guild as DiscordGuild, type Message, MessageFlags } from "discord.js";
 import { prisma } from "../database.js";
 import { asLang, t } from "../i18n.js";
 import { formatLeaderboard, leaderboard } from "./dungeon-stats.js";
@@ -144,7 +145,11 @@ ${emptyNote}`.slice(0, 4096));
     const moves = ladderRows.length ? await trackRanks(prisma, guild.id, `dungeon:${season.id}`, ladderRows.map((row) => row.key)) : null;
     const png = ladderRows.length ? await scoreCardPng(dungeonSeasonCard(ladderRows, season.name, lang === "fr" ? "fr" : "en", Boolean(ratingRows), await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
     if (png) (rating ?? embed).setImage(`attachment://${DUNGEON_BOARD_CARD_FILE}`);
-    const payload = { embeds: rating ? [rating, best, embed] : [embed, best], components, files: png ? [new AttachmentBuilder(png, { name: DUNGEON_BOARD_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
+    // With the picture the season's top rows repeat the card: the embed keeps the season header (dates) and the empty-board reason.
+    if (png && !rating) embed.setDescription(`${seasonHeader(season, lang === "fr" ? "fr" : "en")}${emptyNote ? `
+
+${emptyNote}` : ""}`.slice(0, 4096));
+    const payload = { embeds: rating ? [rating, best, embed] : [embed, best], components, files: png ? [cardAttachment(png, DUNGEON_BOARD_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
 
     const botId = discordGuild.client.user?.id ?? "";
     const saved = settings.dungeonLeaderboardMessageId

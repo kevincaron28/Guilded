@@ -1,4 +1,5 @@
-import { AttachmentBuilder, EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
+import { cardAttachment } from "./card-alt.js";
+import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
 import { isOwnBoard } from "./board-identity.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
@@ -126,7 +127,7 @@ export async function updateCraftLadder(db: BoardDb, discordGuild: DiscordGuild 
     const moves = standings.length ? await trackRanks(db, guild.id, "crafters", standings.slice(0, LADDER_TOP).map((row) => row.memberId)) : null;
     const png = standings.length ? await scoreCardPng(craftLadderCard(standings, total, lang, new Date(), moves)).catch(() => null) : null;
     const payload = { embeds: [craftLadderEmbed(standings, lang, guild.id, png ? CRAFT_CARD_FILE : undefined).setTimestamp(new Date())],
-      files: png ? [new AttachmentBuilder(png, { name: CRAFT_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
+      files: png ? [cardAttachment(png, CRAFT_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
     const botId = discordGuild.client.user?.id ?? "";
     let existing: Message | null = settings.craftLadderMessageId ? await channel.messages.fetch(settings.craftLadderMessageId).catch(() => null) : null;
     if (existing && existing.author.id !== botId) existing = null;

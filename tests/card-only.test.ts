@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cardAltText } from "../src/services/card-alt.js";
+import { cardAltText, cardAttachment } from "../src/services/card-alt.js";
 import { messageForDelivery, textlessEmbed } from "../src/services/card-only.js";
 import { duelBoardEmbed } from "../src/services/duel-board.js";
 import { dungeonCardOnly, dungeonPosts } from "../src/services/dungeon-announce.js";
 import type { DungeonImportResult } from "../src/services/dungeon-import.js";
 import { dungeonRunCard } from "../src/services/dungeon-card.js";
+import { scoreCardPng } from "../src/services/score-card.js";
 
 const run = (overrides: Partial<DungeonImportResult> = {}): DungeonImportResult => ({
   runRef: "QG-1", dungeonName: "Deadmines", difficultyId: 1, state: "COMPLETED", valid: true, durationSec: 1300, points: 0,
@@ -44,6 +45,31 @@ describe("dungeon run post, card only", () => {
     expect(text).toContain("12");
     expect(text).toContain("Kev");
     expect(text).not.toContain("Deadmines ·"); // no title/time line
+  });
+});
+
+describe("what the run card cannot say stays as text", () => {
+  const detail = (character: string, unrankedReason?: string) => ({ character, class: "MAGE", role: "DAMAGER", deaths: 0, presentSec: 1100, points: 0, ...(unrankedReason ? { unrankedReason } : {}) });
+  it("keeps every distinct unranked reason and the count (the card shows one, cut short)", () => {
+    const only = dungeonCardOnly(run({ players: ["Kev", "Bob", "Amy"], playerDetails: [detail("Kev", "Automatic final-boss completion required"), detail("Bob", "Below level range"), detail("Amy")] as never }), "en");
+    expect(only.embed.toJSON().description).toBe("Unranked ×2: Automatic final-boss completion required · Below level range");
+    expect(dungeonCardOnly(run({ players: ["Kev", "Bob"], playerDetails: [detail("Kev", "Different difficulty"), detail("Bob")] as never }), "fr").embed.toJSON().description).toBe("Non classé ×1: Difficulté différente");
+  });
+  it("keeps the outsiders only when the party is too long for the card's rows", () => {
+    const players = ["Kev", "Bob", "Amy", "Zed", "Pug1", "Pug2"];
+    const long = dungeonCardOnly(run({ players, unlinked: ["Pug1", "Pug2"], inGuildPlayers: ["Kev", "Bob", "Amy", "Zed"], playerDetails: players.map(name => detail(name)) as never }), "en");
+    expect(long.embed.toJSON().description).toContain("Outside the guild (2): Pug1");
+    const short = dungeonCardOnly(run({ players: ["Kev", "Pug1"], unlinked: ["Pug1"], inGuildPlayers: ["Kev"], playerDetails: ["Kev", "Pug1"].map(name => detail(name)) as never }), "en");
+    expect(short.embed.toJSON().description).toBeUndefined();
+  });
+});
+
+describe("attachments", () => {
+  it("carry the alt text of the card they were drawn from", async () => {
+    const card = dungeonRunCard(run(), "en");
+    const png = (await scoreCardPng(card))!;
+    expect(cardAttachment(png, "card.png").description).toBe(cardAltText(card));
+    expect(cardAttachment(Buffer.from("not drawn here"), "x.png").description).toBeNull();
   });
 });
 

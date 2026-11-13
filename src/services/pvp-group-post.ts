@@ -1,4 +1,5 @@
-import { AttachmentBuilder, EmbedBuilder, escapeMarkdown } from "discord.js";
+import { cardAttachment } from "./card-alt.js";
+import { EmbedBuilder, escapeMarkdown, type AttachmentBuilder } from "discord.js";
 import type { PrismaClient, RaidRole } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { canonicalClass } from "./character-display.js";
@@ -101,5 +102,5 @@ export async function loadPvpPostData(db: Pick<PrismaClient, "dungeonGroup" | "d
 export async function pvpPostPayload(db: Parameters<typeof loadPvpPostData>[0], groupId: string, lang: Lang): Promise<{ embeds: EmbedBuilder[]; files: AttachmentBuilder[] }> {
   const data = await loadPvpPostData(db, groupId);
   const png = await scoreCardPng(pvpGroupCard(data, lang)).catch(() => null);
-  return { embeds: [pvpGroupEmbed(data, lang, png ? PVP_CARD_FILE : undefined)], files: png ? [new AttachmentBuilder(png, { name: PVP_CARD_FILE })] : [] };
+  return { embeds: [pvpGroupEmbed(data, lang, png ? PVP_CARD_FILE : undefined)], files: png ? [cardAttachment(png, PVP_CARD_FILE)] : [] };
 }

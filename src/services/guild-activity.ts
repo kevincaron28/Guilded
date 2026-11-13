@@ -1,4 +1,5 @@
-import { AttachmentBuilder, EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
+import { cardAttachment } from "./card-alt.js";
+import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
 import { seasonLabel } from "./season-label.js";
 import { isOwnBoard } from "./board-identity.js";
 import { prisma } from "../database.js";
@@ -108,10 +109,12 @@ export function activityEmbed(week: ActivityData, season: ActivityData, lang: La
     : fr ? "Rien encore." : "Nothing yet.").slice(0, 1024) });
   // Early in a season the week and the season hold the same people and numbers: one field then, not two copies.
   const same = week.rows.length === season.rows.length && week.rows.every((row, i) => row.memberId === season.rows[i]!.memberId && row.total === season.rows[i]!.total);
-  if (same) field(season, `${seasonLabel(season.label, lang)} · ${fr ? "cette semaine aussi" : "this week too"}`, image ? EMBED_TOP : 10);
+  // With the picture the season ladder repeats the card: only the week (not on the card) stays as text.
+  if (same && image) { /* the card shows the season and the week is the same: nothing to add */ }
+  else if (same) field(season, `${seasonLabel(season.label, lang)} · ${fr ? "cette semaine aussi" : "this week too"}`, image ? EMBED_TOP : 10);
   else {
     field(week, fr ? "Cette semaine" : "This week", EMBED_TOP);
-    field(season, seasonLabel(season.label, lang), image ? EMBED_TOP : 10);
+    if (!image) field(season, seasonLabel(season.label, lang), 10);
   }
   if (image && season.rows.length) embed.setImage(`attachment://${image}`);
   return embed.setFooter({ text: weightsText(lang).slice(0, 2048) });
@@ -165,7 +168,7 @@ export async function activityPayload(guildId: string, edition: string, lang: La
   const moves = snapshot && shown.rows.length ? await trackRanks(prisma, guildId, `activity:${view}:${view === "week" ? week.since.toISOString().slice(0, 10) : season.label}`.slice(0, 120), shown.rows.map(row => row.memberId)) : null;
   const png = shown.rows.length ? await scoreCardPng(activityCard(shown, lang, await loadClassBook(prisma, guildId).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
   const embed = activityEmbed(week, season, lang, png ? ACTIVITY_CARD_FILE : undefined).setTimestamp(new Date());
-  return { embeds: [embed], files: png ? [new AttachmentBuilder(png, { name: ACTIVITY_CARD_FILE })] : [], allowedMentions: { parse: [] as never[] } };
+  return { embeds: [embed], files: png ? [cardAttachment(png, ACTIVITY_CARD_FILE)] : [], allowedMentions: { parse: [] as never[] } };
 }
 
 /**

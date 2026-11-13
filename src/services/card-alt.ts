@@ -1,4 +1,5 @@
-import { drawable, type ScoreCard } from "./score-card.js";
+import { AttachmentBuilder } from "discord.js";
+import { altTextOf, drawable, type ScoreCard } from "./score-card.js";
 
 /** Discord allows 1,024 characters of alt text on an attachment. */
 const MAX_ALT = 1000;
@@ -21,4 +22,11 @@ export function cardAltText(card: ScoreCard): string {
     const text = parts.join(". ");
     return text.length > MAX_ALT ? `${text.slice(0, MAX_ALT - 1)}…` : text;
   } catch { return ""; }
+}
+
+/** A card picture as a message attachment, carrying the alt text built when it was drawn. */
+export function cardAttachment(png: Buffer, name: string): AttachmentBuilder {
+  const attachment = new AttachmentBuilder(png, { name }), alt = altTextOf(png);
+  if (alt) attachment.setDescription(alt);
+  return attachment;
 }

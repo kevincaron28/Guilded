@@ -56,10 +56,11 @@ describe("guild activity card", () => {
     expect(card.subtitle).toBe("Cette semaine · 4 membres actifs");
   });
 
-  it("keeps the week and season podiums in the embed with a plain footer", () => {
+  it("keeps only the week podium under the card (the season ladder is the card), and a plain footer", () => {
     const embed = activityEmbed(week, season, "en", "guild-activity.png").toJSON();
-    expect(embed.fields!.map(field => field.name)).toEqual(["This week", "Season 1"]);
-    expect(embed.fields![1]!.value.split("\n")).toHaveLength(3);
+    expect(embed.fields!.map(field => field.name)).toEqual(["This week"]);
+    expect(activityEmbed(week, season, "en").toJSON().fields!.map(field => field.name)).toEqual(["This week", "Season 1"]);
+    expect(embed.fields![0]!.value.split("\n")).toHaveLength(3);
     expect(embed.footer!.text).toBe(weightsText("en"));
     expect(activityEmbed({ ...week, rows: [] }, { ...season, rows: [] }, "fr").toJSON().fields![0]!.value).toBe("Rien encore.");
   });

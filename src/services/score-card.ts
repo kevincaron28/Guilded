@@ -5,6 +5,7 @@ import type { WebResponse } from "./web-app.js";
 import type { RosterVisual } from "./roster-visual.js";
 import { dungeonArt, type DungeonArtTheme } from "./dungeon-art.js";
 import { dungeonBackdrop } from "./dungeon-backdrop.js";
+import { cardAltText } from "./card-alt.js";
 import { cardBackdropArt, BANNER_HEIGHT, type CardBackdrop } from "./card-backdrop.js";
 import type { RecordVisual } from "./record-card.js";
 
@@ -862,6 +863,10 @@ async function renderRoster(card: ScoreCard): Promise<Buffer> {
   return sharp(base).composite(layers).png().toBuffer();
 }
 
+/** Alt text of each drawn picture, kept by the buffer itself so the image goes out with its description (card-alt.ts). */
+const altTexts = new WeakMap<Buffer, string>();
+export const altTextOf = (png: Buffer): string | undefined => altTexts.get(png);
+
 // Cache by the complete facts, not a player id, so changed scores immediately get a different image.
 // Bound both memory (32 images) and concurrent render work (2 distinct images); null means busy.
 export async function scoreCardPng(card: ScoreCard): Promise<Buffer | null> {
@@ -877,6 +882,7 @@ export async function scoreCardPng(card: ScoreCard): Promise<Buffer | null> {
   try {
     const binaryBody = await work;
     images.set(key, binaryBody);
+    altTexts.set(binaryBody, cardAltText(card));
     while (images.size > 32) images.delete(images.keys().next().value!);
     return binaryBody;
   } finally { if (pending.get(key) === work) pending.delete(key); }

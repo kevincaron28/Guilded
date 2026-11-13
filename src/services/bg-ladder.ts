@@ -1,4 +1,5 @@
-import { AttachmentBuilder, EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
+import { cardAttachment } from "./card-alt.js";
+import { EmbedBuilder, escapeMarkdown, type Guild as DiscordGuild, type Message } from "discord.js";
 import { isOwnBoard } from "./board-identity.js";
 import { prisma } from "../database.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
@@ -133,7 +134,7 @@ export async function updateBgLadder(discordGuild: DiscordGuild | null, delivery
     }
     const png = data.brackets.length ? await scoreCardPng(bgLadderCard(data, lang, await loadClassBook(prisma, guild.id).catch(() => new Map<string, string>()), new Date(), moves)).catch(() => null) : null;
     const embed = bgLadderEmbed(data, lang, png ? BG_CARD_FILE : undefined).setTimestamp(new Date());
-    const embeds = [embed], files = png ? [new AttachmentBuilder(png, { name: BG_CARD_FILE })] : [];
+    const embeds = [embed], files = png ? [cardAttachment(png, BG_CARD_FILE)] : [];
     // World PvP (9.1): a second panel on the same message; officers turn it off with /battleground world-pvp.
     if (settings.worldPvpEnabled !== false) {
       const world = await loadWorldPvpData(prisma, guild.id, guild.gameEdition ?? "forever").catch(() => null);
@@ -144,7 +145,7 @@ export async function updateBgLadder(discordGuild: DiscordGuild | null, delivery
         const extras = await loadExtrasFields(prisma, guild.id, settings, world.standings, lang);
         if (extras.length) worldEmbed.addFields(extras);
         embeds.push(worldEmbed);
-        if (worldPng) files.push(new AttachmentBuilder(worldPng, { name: WORLD_PVP_CARD_FILE }));
+        if (worldPng) files.push(cardAttachment(worldPng, WORLD_PVP_CARD_FILE));
       }
     }
     const payload = { embeds, files, allowedMentions: { parse: [] as never[] } };

@@ -112,7 +112,7 @@ install_dependencies_incrementally() {
   chown -R "$owner:$owner" "$STAGED_APP/node_modules" || return 1
   run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm install --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
   # (1) npm must not have rewritten the lockfile: the tree has to match exactly what was reviewed and committed.
-  cmp -s "$source/package-lock.json" "$STAGED_APP/package-lock.json" || { echo "npm install changed package-lock.json."; return 1; }
+  cmp -s "$STAGED_APP/package-lock.json" "$source/package-lock.json" || { echo "npm install changed package-lock.json."; return 1; }
   # (2) Nothing missing, invalid or extraneous against the lockfile (npm ls exits non-zero on all three).
   run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm ls --all >/dev/null' _ "$STAGED_APP" || { echo "npm ls found a problem in the updated tree."; return 1; }
   # (3) The Prisma client the build and the bot import must exist (written by the postinstall).

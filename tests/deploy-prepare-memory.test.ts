@@ -54,7 +54,7 @@ describe("deploy/application-update.sh dependency reuse (static)", () => {
   it("updates changed dependencies on a copy of the live ones, verifies, and falls back to npm ci", () => {
     expect(library).toMatch(/install_dependencies_incrementally\(\) \{/);
     expect(library).toContain("NODE_OPTIONS=--max-old-space-size=384 npm install --prefer-offline --no-audit --no-fund");
-    expect(library).toContain('cmp -s "$source/package-lock.json" "$STAGED_APP/package-lock.json"');
+    expect(library).toContain('cmp -s "$STAGED_APP/package-lock.json" "$source/package-lock.json"');
     expect(library).toContain("npm ls --all >/dev/null");
     expect(library).toContain("Updating changed dependencies on a copy of the live ones.");
     expect(library).toContain("falling back to a full install");

@@ -12,36 +12,82 @@ MIN_AVAILABLE_PLUS_SWAP_KB=786432  # 768 MB MemAvailable + SwapFree
 MIN_INCREMENTAL_AVAILABLE_KB=262144
 MEMINFO_FILE="${MEMINFO_FILE:-/proc/meminfo}"
 
-# The heavy preparation steps (npm ci, prisma generate, the bundle build) run in a systemd scope with a
-# memory ceiling, so the kernel kills the install rather than letting it push the running bot into swap.
-# The ceiling sits below the bot's own MemoryMax (700M) and the bot's OOM score is protected (deploy/guilded.service).
-# If systemd-run cannot set these limits here, the steps run without a ceiling (the heap caps still apply).
-heavy_cgroup_ok() {
+# The heavy preparation steps (copying node_modules, npm install/ci, prisma generate, the bundle build) run in a
+# systemd scope, so the kernel throttles and then kills them rather than letting them push the running bot into swap.
+#  - MemoryHigh (360M) throttles and reclaims the scope's memory, including the page cache the copy and the install
+#    fill, before MemoryMax (450M, below the bot's own 700M) kills it. Cache charged to the scope is reclaimed from
+#    the scope, not from the bot's working set.
+#  - CPUQuota is a hard cap (CPUWeight only matters under contention); IOWeight needs the io controller and may do
+#    nothing on this box, so every step also runs under ionice (the copy in the idle class) and nice.
+# If systemd-run cannot set all of these here, it falls back to the memory limits alone, and then to no scope at all
+# (the heap caps and nice/ionice still apply).
+HEAVY_PROPS_FULL=(MemoryMax=450M MemoryHigh=360M MemorySwapMax=200M CPUWeight=20 IOWeight=20 CPUQuota=50%)
+HEAVY_PROPS_MEMORY=(MemoryMax=450M MemorySwapMax=200M)
+HEAVY_PROPS=()
+
+heavy_probe() {
+  local args=() prop
+  for prop in "$@"; do args+=(-p "$prop"); done
   command -v systemd-run >/dev/null 2>&1 || return 1
-  systemd-run --quiet --scope -p MemoryMax=450M -p MemorySwapMax=200M -p CPUWeight=20 -p IOWeight=20 -- true >/dev/null 2>&1
+  systemd-run --quiet --scope "${args[@]}" -- true >/dev/null 2>&1
 }
 
 # Decided once per run, before the first heavy step.
 decide_heavy_cap() {
   HEAVY_CAPPED=0
-  if heavy_cgroup_ok; then
-    HEAVY_CAPPED=1
+  HEAVY_PROPS=()
+  if heavy_probe "${HEAVY_PROPS_FULL[@]}"; then
+    HEAVY_CAPPED=1; HEAVY_PROPS=("${HEAVY_PROPS_FULL[@]}")
+  elif heavy_probe "${HEAVY_PROPS_MEMORY[@]}"; then
+    HEAVY_CAPPED=1; HEAVY_PROPS=("${HEAVY_PROPS_MEMORY[@]}")
+    echo "systemd-run cannot set the CPU and I/O limits here; the steps run with the memory limits only."
   else
     echo "systemd-run cannot set a memory ceiling here; the install runs without one (heap caps still apply)."
   fi
 }
 
-# Runs one heavy command, inside the memory ceiling when this box supports it.
-run_heavy() {
+# Runs one heavy command at low I/O priority ($1: ionice arguments), inside the limits when this box supports them.
+run_heavy_io() {
+  local io="$1"; shift
+  local args=() prop
+  local cmd=("$@")
+  # shellcheck disable=SC2206
+  if command -v ionice >/dev/null 2>&1; then cmd=(ionice $io "$@"); fi
   if [ "${HEAVY_CAPPED:-0}" = 1 ]; then
-    systemd-run --quiet --scope -p MemoryMax=450M -p MemorySwapMax=200M -p CPUWeight=20 -p IOWeight=20 -- "$@"
+    for prop in "${HEAVY_PROPS[@]}"; do args+=(-p "$prop"); done
+    systemd-run --quiet --scope "${args[@]}" -- "${cmd[@]}"
   else
-    "$@"
+    "${cmd[@]}"
   fi
+}
+run_heavy() { run_heavy_io "-c2 -n7" "$@"; }
+# The big file copies: idle I/O class, so the bot's own disk reads always go first.
+run_heavy_idle() { run_heavy_io "-c3" "$@"; }
+
+# Runs a step and prints how long it took, so a deploy's output shows where the time goes.
+# Keeps the step's exit status.
+timed_step() {
+  local label="$1" started rc
+  shift
+  started="$(date +%s)"
+  "$@"
+  rc=$?
+  echo "[prepare] $label: $(( $(date +%s) - started ))s$([ "$rc" -eq 0 ] || echo " (failed, exit $rc)")"
+  return "$rc"
+}
+
+# Copies a tree as the application's owner (so nothing needs a recursive chown afterwards), at idle I/O priority,
+# inside the scope (its page cache is charged there). --reflink=auto shares blocks copy-on-write where the
+# filesystem supports it (a write to either copy never reaches the other) and is a plain copy elsewhere. Never a
+# hard link: npm install rewrites files in place, which would reach the live tree.
+copy_tree() {
+  local from="$1" to="$2" owner="$3"
+  run_heavy_idle sudo -u "$owner" cp -a --reflink=auto "$from" "$to"
 }
 
 prepare_application() {
-  local source="$1" app="$2" owner="$3" mode=full
+  local source="$1" app="$2" owner="$3" mode=full total_started
+  total_started="$(date +%s)"
   [ -d "$source" ] && [ -d "$app" ] && [ ! -L "$app" ] || return 1
   # Decide before anything is created. Same dependencies: reuse. Changed dependencies and a live node_modules:
   # update a copy of it (needs little memory). Otherwise a full npm ci, which needs memory headroom or the update stops here.
@@ -53,10 +99,11 @@ prepare_application() {
     memory_ok_for_install || return 1
   fi
   decide_heavy_cap
+  echo "[prepare] mode: $mode"
   STAGED_APP="$(mktemp -d "${app}.stage.XXXXXXXX")" || return 1
   chmod 700 "$STAGED_APP"
   # Build exclusively from source; do not copy a live dependency tree or stale output.
-  rsync -a --exclude /.git --exclude /node_modules --exclude /src/generated \
+  timed_step "copy source" rsync -a --exclude /.git --exclude /node_modules --exclude /src/generated \
     --exclude /.env --exclude /.env.local --exclude /backups --exclude /dist \
     "$source"/ "$STAGED_APP"/ || return 1
   for name in .env .env.local; do
@@ -77,18 +124,68 @@ prepare_application() {
   fi
   if [ "$mode" = reuse ]; then
     # Same dependencies as the running application (a version-only bump still counts): copy its node_modules
-    # rather than running npm ci, the step that drove the 1 GB server into swap. A real copy, not links, so
-    # nothing written in staging can reach the live tree. Prisma's client is regenerated; npm ci would have done that too.
-    cp -a "$app/node_modules" "$STAGED_APP/node_modules" || return 1
-    chown -R "$owner:$owner" "$STAGED_APP/node_modules" || return 1
-    run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate' _ "$STAGED_APP" || return 1
+    # rather than running npm ci, the step that drove the 1 GB server into swap. A copy, never links, so
+    # nothing written in staging can reach the live tree.
+    timed_step "copy node_modules" copy_tree "$app/node_modules" "$STAGED_APP/node_modules" "$owner" || return 1
+    prepare_prisma_client "$source" "$app" "$owner" || return 1
   elif [ "$mode" = full ]; then
     # No usable live tree: prefer the npm cache and cap the heap so npm cannot push the box into swap.
     echo "Installing all dependencies with a full npm ci."
-    run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 npm ci --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
+    timed_step "npm ci" run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 npm ci --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
+  fi
+  prepare_companion_bundle "$source" "$app" "$owner" || return 1
+  echo "[prepare] total: $(( $(date +%s) - total_started ))s"
+}
+
+# The Prisma client for the staged application (reuse mode: the dependencies, so the Prisma version, are the live
+# ones). Unchanged schema and generator config: copy the live app's generated client instead of regenerating it
+# (18-35 s of CPU and memory). Anything else, or no live client: generate, as before.
+prepare_prisma_client() {
+  local source="$1" app="$2" owner="$3"
+  if [ -f "$app/src/generated/prisma/client.ts" ] && [ ! -L "$app/src/generated" ] \
+    && cmp -s "$source/prisma/schema.prisma" "$app/prisma/schema.prisma" \
+    && { [ ! -e "$source/prisma.config.ts" ] || cmp -s "$source/prisma.config.ts" "$app/prisma.config.ts"; }; then
+    echo "The Prisma schema is unchanged: copying the live generated client."
+    rm -rf -- "$STAGED_APP/src/generated" || return 1
+    timed_step "copy prisma client" copy_tree "$app/src/generated" "$STAGED_APP/src/generated" "$owner" && return 0
+    echo "Copying the client failed; generating it instead."
+    rm -rf -- "$STAGED_APP/src/generated" || return 1
+  fi
+  timed_step "prisma generate" run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=512 ./node_modules/.bin/prisma generate' _ "$STAGED_APP"
+}
+
+# Prints a hash of everything the companion interface bundle is built from: the dependency content (esbuild and
+# sharp versions), the companion and companion-app sources (minus their own outputs), the shared site modules the
+# language picker imports and the logo. Same hash as the live build = same bundle.
+companion_build_fingerprint() {
+  local dir="$1" deps
+  deps="$(dependency_fingerprint "$dir")" || return 1
+  {
+    echo "$deps"
+    ( cd "$dir" && { find companion companion-app scripts/build-companion-renderer.mjs docs/branding/guilded-logo-400.png \
+        -type f ! -path 'companion-app/assets/*' ! -path 'companion-app/build/*' ! -path 'companion-app/node_modules/*' \
+        ! -name ui-bundle.js ! -name logo.png ! -name '.companion-build-stamp' -print0 2>/dev/null
+      find site -maxdepth 1 -type f -name '*.mjs' -print0 2>/dev/null; } | LC_ALL=C sort -z | xargs -0 sha256sum 2>/dev/null )
+  } | sha256sum | cut -d' ' -f1
+}
+
+# Builds the companion interface bundle, or copies the live one when nothing it is built from changed
+# (and the live application recorded the hash it was built from). Failure to copy falls back to building.
+prepare_companion_bundle() {
+  local source="$1" app="$2" owner="$3" want have
+  want="$(companion_build_fingerprint "$STAGED_APP" 2>/dev/null || true)"
+  have="$(cat "$app/.companion-build-stamp" 2>/dev/null || true)"
+  if [ -n "$want" ] && [ "$want" = "$have" ] && [ -f "$app/companion-app/renderer/ui-bundle.js" ] && [ -f "$app/companion-app/renderer/logo.png" ] && [ -d "$app/companion-app/assets" ]; then
+    echo "The companion interface sources are unchanged: copying the live bundle."
+    if timed_step "copy companion bundle" bash -c 'cp -a "$1/companion-app/renderer/ui-bundle.js" "$1/companion-app/renderer/logo.png" "$2/companion-app/renderer/" && rm -rf -- "$2/companion-app/assets" && cp -a "$1/companion-app/assets" "$2/companion-app/assets"' _ "$app" "$STAGED_APP"; then
+      printf '%s\n' "$want" > "$STAGED_APP/.companion-build-stamp" && chown "$owner:$owner" "$STAGED_APP/.companion-build-stamp"
+      return
+    fi
+    echo "Copying the bundle failed; building it instead."
   fi
   # The bundle build gets a heap cap so it cannot take the memory the running bot needs.
-  run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm run companion:build' _ "$STAGED_APP"
+  timed_step "companion build" run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm run companion:build' _ "$STAGED_APP" || return 1
+  if [ -n "$want" ]; then printf '%s\n' "$want" > "$STAGED_APP/.companion-build-stamp" && chown "$owner:$owner" "$STAGED_APP/.companion-build-stamp"; fi
 }
 
 # Sanity floor for the incremental path only (see MIN_INCREMENTAL_AVAILABLE_KB). Silent; on failure the caller
@@ -108,13 +205,12 @@ incremental_memory_ok() {
 # removes the staged node_modules and falls back to npm ci. Nothing here touches the live tree.
 install_dependencies_incrementally() {
   local source="$1" app="$2" owner="$3"
-  cp -a "$app/node_modules" "$STAGED_APP/node_modules" || return 1
-  chown -R "$owner:$owner" "$STAGED_APP/node_modules" || return 1
-  run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm install --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
+  timed_step "copy node_modules" copy_tree "$app/node_modules" "$STAGED_APP/node_modules" "$owner" || return 1
+  timed_step "npm install" run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm install --prefer-offline --no-audit --no-fund' _ "$STAGED_APP" || return 1
   # (1) npm must not have rewritten the lockfile: the tree has to match exactly what was reviewed and committed.
   cmp -s "$STAGED_APP/package-lock.json" "$source/package-lock.json" || { echo "npm install changed package-lock.json."; return 1; }
   # (2) Nothing missing, invalid or extraneous against the lockfile (npm ls exits non-zero on all three).
-  run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm ls --all >/dev/null' _ "$STAGED_APP" || { echo "npm ls found a problem in the updated tree."; return 1; }
+  timed_step "npm ls" run_heavy sudo -u "$owner" nice -n 10 bash -c 'cd "$1" && NODE_OPTIONS=--max-old-space-size=384 npm ls --all >/dev/null' _ "$STAGED_APP" || { echo "npm ls found a problem in the updated tree."; return 1; }
   # (3) The Prisma client the build and the bot import must exist (written by the postinstall).
   [ -f "$STAGED_APP/src/generated/prisma/client.ts" ] || { echo "The Prisma client was not generated."; return 1; }
 }

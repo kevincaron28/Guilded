@@ -158,6 +158,18 @@ to that server were frozen for 7 and 8 November. The owner decides when the free
   scope capped at 450 MB of memory and 200 MB of swap, with low CPU and I/O weight. A step that
   exceeds the cap is killed and the deploy stops; the bot is untouched. If `systemd-run` cannot
   set the cap here, the steps run without it and the update says so.
+- **Gentler on the running bot (14 November 2026).** On 13 November a deploy that changed dependencies made the
+  bot's long polls take 43-60 s instead of 12-17 s and one upload hit a Prisma P2028. What changed:
+  the `node_modules` copy (and every other heavy step) now runs inside the scope, as the app's owner, at idle I/O
+  priority (`ionice -c3`; the other steps `-c2 -n7`), so the page cache it fills is charged to the scope and
+  reclaimed there, not from the bot; the scope has `MemoryHigh=360M` (throttled before the 450M kill), `CPUQuota=50%`
+  next to the weights, and falls back to the memory limits alone if the box cannot set CPU or I/O limits; the copy uses
+  `cp --reflink=auto` (copy-on-write where the filesystem has it, a plain copy elsewhere, never hard links: npm install
+  rewrites files in place and must not reach the live tree); an unchanged `prisma/schema.prisma` copies the live
+  generated client instead of running `prisma generate`; an unchanged companion interface (hash of `companion/`,
+  `companion-app/`, the shared `site/*.mjs`, the logo and the dependency fingerprint, stored in `.companion-build-stamp`)
+  copies the live bundle instead of running `companion:build` (the first deploy after this change has no stamp and builds).
+  Every step prints `[prepare] <step>: <n>s`, plus `[prepare] mode:` and `[prepare] total:`: read them in the next deploy output.
 - A version-only bump reuses the running `node_modules`. A real dependency change cannot use a
   fresh `npm ci` here: measured on 13 November 2026, it is OOM-killed inside the 450 MB cap every
   time (about 388 MB resident at the kill, even with a 300 MB heap, 3 sockets and no scripts).

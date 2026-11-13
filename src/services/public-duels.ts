@@ -64,7 +64,8 @@ export function headToHead(all: readonly PublicDuel[], a: string, b: string, las
   const same = (x: string, y: string) => x.toLowerCase() === y.toLowerCase();
   const meetings = all.filter(duel => duel.winnerShown && duel.loserShown && ((same(duel.winner, a) && same(duel.loser, b)) || (same(duel.winner, b) && same(duel.loser, a))))
     .sort((x, y) => y.endedAt.getTime() - x.endedAt.getTime());
-  const known = all.some(duel => [duel.winner, duel.loser].some(name => same(name, a))) && all.some(duel => [duel.winner, duel.loser].some(name => same(name, b)));
+  const listed = all.filter(duel => duel.winnerShown && duel.loserShown);
+  const known = listed.some(duel => [duel.winner, duel.loser].some(name => same(name, a))) && listed.some(duel => [duel.winner, duel.loser].some(name => same(name, b)));
   if (!known || same(a, b)) return null;
   return { a, b, aWins: meetings.filter(duel => same(duel.winner, a)).length, bWins: meetings.filter(duel => same(duel.winner, b)).length, last: meetings.slice(0, last) };
 }

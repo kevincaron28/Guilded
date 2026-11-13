@@ -412,13 +412,17 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
       // Test members and members hidden from public boards never appear (the 8.5 "everything is shared" rule leaves raceHidden as the only per-member hide).
       const visible = { isTest: false, raceHidden: false };
       const [rows, characters, book] = await Promise.all([
-        database.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, winner: visible, loser: visible }, orderBy: { endedAt: "asc" }, take: 20_000,
+        database.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true, winner: visible, loser: visible }, orderBy: { endedAt: "desc" }, take: 20_000,
           select: { winnerId: true, loserId: true, winnerCharacter: true, loserCharacter: true, winnerLevel: true, loserLevel: true, endedAt: true, reason: true, winner: { select: { status: true } }, loser: { select: { status: true } } } }),
         database.character.findMany({ where: { gameEdition: edition, member: { guildId } }, select: { memberId: true, name: true, className: true }, take: 10_000 }),
         loadFullNameBook(database, guildId)
       ]);
+      // The newest 20,000 duels, oldest first (a very busy guild loses its oldest results, never its latest).
+      rows.reverse();
+      const byMember = new Map<string, typeof characters>();
+      for (const c of characters) { const list = byMember.get(c.memberId); if (list) list.push(c); else byMember.set(c.memberId, [c]); }
       const classOf = (memberId: string, name: string) => {
-        const own = characters.filter((c) => c.memberId === memberId);
+        const own = byMember.get(memberId) ?? [];
         const first = name.split(" ")[0]!.toLowerCase();
         return (own.find((c) => c.name.toLowerCase() === name.toLowerCase()) ?? own.find((c) => c.name.split(" ")[0]!.toLowerCase() === first) ?? (own.length === 1 ? own[0] : undefined))?.className ?? null;
       };
@@ -439,7 +443,7 @@ export function prismaLeaderboardStore(database: PrismaClient, allows: (discordI
         database.character.findMany({ where: { gameEdition: edition, member: { guildId: { in: guildIds }, status: "ACTIVE", isTest: false } },
           select: { memberId: true, level: true, realm: true, member: { select: { guildId: true, raceHidden: true } } }, take: 50_000 }),
         database.recruitmentListing.findMany({ where: { guildId: { in: guildIds }, open: true }, select: { guildId: true, faction: true, realm: true }, take: 2_000 }),
-        database.duelResult.groupBy({ by: ["guildId"], where: { guildId: { in: guildIds }, gameEdition: edition, counted: true }, _count: { _all: true } })
+        database.duelResult.groupBy({ by: ["guildId"], where: { guildId: { in: guildIds }, gameEdition: edition, counted: true, winner: { isTest: false, raceHidden: false }, loser: { isTest: false, raceHidden: false } }, _count: { _all: true } })
       ]);
       return guildIds.map((guildId) => {
         const own = characters.filter((row) => row.member.guildId === guildId);
@@ -486,14 +490,22 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
   const now = deps.now ?? (() => new Date());
   const cacheMs = deps.cacheMs ?? 60_000;
   const cache = new Map<string, { at: number; value: unknown }>();
+  const coldLoads = new Map<string, Promise<unknown>>();
   async function cached<T>(id: string, load: () => Promise<T>): Promise<T> {
     id = `${currentEdition()}:${id}`;
     const hit = cache.get(id);
     if (hit && now().getTime() - hit.at < cacheMs) return hit.value as T;
-    const value = await load();
-    cache.set(id, { at: now().getTime(), value });
-    if (cache.size > 500) cache.delete(cache.keys().next().value!);
-    return value;
+    // Concurrent cold requests for the same key share one load.
+    const running = coldLoads.get(id);
+    if (running) return running as Promise<T>;
+    const loading = (async () => {
+      const value = await load();
+      cache.set(id, { at: now().getTime(), value });
+      if (cache.size > 500) cache.delete(cache.keys().next().value!);
+      return value;
+    })();
+    coldLoads.set(id, loading);
+    try { return await loading; } finally { coldLoads.delete(id); }
   }
   // This request's seasons: the calendar, read at most once a minute.
   const seasonsNow = async () => publicSeasons(now(), await cached("calendar", () => deps.calendar?.() ?? Promise.resolve(DEFAULT_OFFICIAL)));
@@ -1183,6 +1195,8 @@ export function createLeaderboardPages(deps: LeaderboardDeps): { route: WebRoute
     await ensureIndex(ctx);
     const guild = findGuild(ctx, await cached("guilds", () => deps.store.guilds()), key);
     if (!guild || !deps.store.guildDuelRows) return send(404, { error: "not found" });
+    // An old id URL moves to the stable slug address, like the page.
+    if (key !== indexOf(ctx).slugs.get(guild.id)) return { status: 302, headers: { location: link(`${guildPath(ctx, guild)}/duels.json`, ctx.lang, Object.fromEntries([...ctx.request.query].filter(([k]) => k !== "lang"))), "cache-control": "public, max-age=300" }, body: "" };
     const all = await cached(`duels:${guild.id}`, () => deps.store.guildDuelRows!(guild.id));
     const f = await duelFilters(ctx);
     const board = buildDuelBoard(all, f.filters);

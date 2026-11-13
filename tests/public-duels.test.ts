@@ -159,3 +159,65 @@ describe("the duel rows store", () => {
     expect(list[0]).toMatchObject({ winner: "Aldric", winnerClass: "Warrior", loserClass: "Priest", winnerShown: true, loserShown: false });
   });
 });
+
+describe("the duel rows store under the page (hidden members, many duels, concurrent loads)", () => {
+  type Row = { winnerId: string; loserId: string; winnerCharacter: string; loserCharacter: string; winnerLevel: number; loserLevel: number; endedAt: Date; reason: string; winner: { status: string; isTest: boolean; raceHidden: boolean }; loser: { status: string; isTest: boolean; raceHidden: boolean } };
+  const member = (over: Partial<Row["winner"]> = {}) => ({ status: "ACTIVE", isTest: false, raceHidden: false, ...over });
+  const mk = (w: string, l: string, at: Date, wm = member(), lm = member()): Row => ({ winnerId: `m-${w}`, loserId: `m-${l}`, winnerCharacter: w, loserCharacter: l, winnerLevel: 60, loserLevel: 60, endedAt: at, reason: "knockout", winner: wm, loser: lm });
+  function fakeDatabase(all: Row[], counter = { loads: 0 }) {
+    return {
+      duelResult: { async findMany(args: { where: { winner: { isTest: boolean; raceHidden: boolean }; loser: { isTest: boolean; raceHidden: boolean } }; orderBy: { endedAt: "asc" | "desc" }; take: number }) {
+        counter.loads++;
+        const ok = (m: Row["winner"], f: { isTest: boolean; raceHidden: boolean }) => m.isTest === f.isTest && m.raceHidden === f.raceHidden;
+        const kept = all.filter((r) => ok(r.winner, args.where.winner) && ok(r.loser, args.where.loser)).sort((a, b) => (args.orderBy.endedAt === "asc" ? 1 : -1) * (a.endedAt.getTime() - b.endedAt.getTime()));
+        return kept.slice(0, args.take);
+      } },
+      character: { async findMany() { return []; } },
+      guildSettings: { async findMany() { return [{ guildId: "g1", publicSlug: "quebec-gold", guild: { name: "Quebec Gold", discordId: "g1", page: null } }]; }, async findUnique() { return { publicSlug: "quebec-gold" }; }, async updateMany() { return { count: 0 }; } }
+    };
+  }
+  const appWith = (database: unknown) => {
+    // The real duel rows and guild list under test; the dungeon parts are not part of this case.
+    const store: LeaderboardStore = { ...prismaLeaderboardStore(database as never), async runs() { return []; }, async characterRuns() { return []; }, async guildRuns() { return []; }, async guildRoster() { return []; }, async guildStats() { return []; } };
+    const pages = createLeaderboardPages({ store, personal: null, now: () => NOW });
+    const app = createWebApp({ store: memoryWebStore().store, auth: { clientId: "1", clientSecret: "x", siteUrl: "https://guildedwow.com", sessionSecret: "s".repeat(40) }, allows: () => true, postApplication: async () => null, routes: [pages.route], now: () => NOW, fetch });
+    return (path: string) => { const url = new URL(path, "https://guildedwow.com"); return app.respond({ method: "GET", path: url.pathname, query: url.searchParams, headers: {} }) as Promise<WebResponse>; };
+  };
+
+  it("never shows a hidden or test member's name on the page, the JSON or in a head to head", async () => {
+    const all = [mk("Aldric", "Brenna", day(3)), mk("Aldric", "Secret", day(2), member(), member({ raceHidden: true })), mk("Tester", "Aldric", day(1), member({ isTest: true }))];
+    const get = appWith(fakeDatabase(all));
+    for (const path of ["/leaderboards/guild/quebec-gold/duels", "/leaderboards/guild/quebec-gold/duels.json"]) {
+      const body = (await get(path)).body;
+      expect(body).not.toContain("Secret");
+      expect(body).not.toContain("Tester");
+      expect(body).toContain("Brenna");
+    }
+    const h2h = (await get("/leaderboards/guild/quebec-gold/duels?a=Aldric&b=Secret")).body;
+    expect(h2h).toContain("Both names must be players");
+    expect(h2h).not.toContain("<strong>Secret");
+  });
+
+  it("keeps the newest 20,000 duels, not the oldest", async () => {
+    const all = Array.from({ length: 20_001 }, (_, i) => mk("Aldric", "Brenna", new Date(NOW.getTime() - (20_001 - i) * 60_000)));
+    const rowsOut = await prismaLeaderboardStore(fakeDatabase(all) as never).guildDuelRows!("g1");
+    expect(rowsOut).toHaveLength(20_000);
+    expect(rowsOut.at(-1)!.endedAt.getTime()).toBe(NOW.getTime() - 60_000);
+    expect(rowsOut[0]!.endedAt.getTime()).toBeLessThan(rowsOut.at(-1)!.endedAt.getTime());
+  });
+
+  it("shares one load between concurrent cold requests", async () => {
+    const counter = { loads: 0 };
+    const get = appWith(fakeDatabase([mk("Aldric", "Brenna", day(1))], counter));
+    await Promise.all([get("/leaderboards/guild/quebec-gold/duels"), get("/leaderboards/guild/quebec-gold/duels"), get("/leaderboards/guild/quebec-gold/duels.json")]);
+    expect(counter.loads).toBe(1);
+  });
+
+  it("sends the JSON under an old id URL to the slug, and a head to head ignores players who left", async () => {
+    const get = appWith(fakeDatabase([mk("Aldric", "Gone", day(1), member(), member({ status: "LEFT" }))]));
+    const moved = await get("/leaderboards/guild/g1/duels.json");
+    expect(moved.status).toBe(302);
+    expect(moved.headers["location"]).toContain("/leaderboards/guild/quebec-gold/duels.json");
+    expect((await get("/leaderboards/guild/quebec-gold/duels?a=Aldric&b=Gone")).body).toContain("Both names must be players");
+  });
+});

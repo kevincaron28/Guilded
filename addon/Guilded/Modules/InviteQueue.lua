@@ -370,7 +370,7 @@ end
 function build()
   if window then window:Show(); module.refresh(); return end
   local f = CreateFrame("Frame", "GuildedInviteQueuePanel", UIParent, "BasicFrameTemplateWithInset")
-  window = f; f:SetSize(420, 420); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true)
+  window = f; f:SetSize(420, 420); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
   if f.TitleText then f.TitleText:SetText(L("To invite")) end
   if UISpecialFrames then table.insert(UISpecialFrames, "GuildedInviteQueuePanel") end

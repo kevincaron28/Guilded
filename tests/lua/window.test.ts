@@ -953,10 +953,11 @@ describe("window geometry that must not move (UI polish)", () => {
 describe("the page title line under the section row", () => {
   it("shows where you are under a one-line row, and nothing where there is no room", () => {
     const s = openWindow(1);
-    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick(); NS.windowState().selectTabByName("Board")`);
-    const hint = () => s.run(`return NS.windowState().pageHint.text`);
-    if (s.run(`return tostring(NS.windowState().sectionLines)`) === "1") expect(hint()).toContain("Guild board");
-    s.run(`NS.windowState().selectTabByName("Standings")`);
-    expect(hint()).toBe(""); // the Player field is there instead
+    s.run(`NS.windowState().groupButtons.Home.scripts.OnClick()`);
+    expect(s.run(`return tostring(NS.windowState().sectionLines)`)).toBe("1"); // Home has two short pages: one line
+    expect(s.run(`return NS.windowState().pageHint.text`)).toContain("Home");
+    expect(s.run(`return tostring(NS.windowState().pageHint.shown)`)).not.toBe("false");
+    s.run(`NS.windowState().selectTabByName("Me")`); // My character acts on a player: the Player field takes the place
+    expect(s.run(`return NS.windowState().pageHint.text`)).toBe("");
   });
 });

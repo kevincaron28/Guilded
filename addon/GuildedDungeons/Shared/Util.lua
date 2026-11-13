@@ -36,19 +36,42 @@ ns.util = util
 -- members look: Home, /guilded companion, the login reminder and the "runs waiting" notice.
 -- Zero setup since 9.1.0: it finds WoW and the Discord server by itself; signing in is optional.
 -- Two cards on the screen at once (the dungeon result card and the duel card) never overlap: when `frame` is about to be shown over
--- `other` (a frame that is already shown), `frame` is stacked just above it. Plain anchors; nothing protected.
+-- `other` (a frame that is already shown), `frame` is moved just above it. The new place is an absolute offset from UIParent,
+-- computed from the other card's rectangle: one card is never anchored to the other (two cards anchored to each other is an error).
+-- A frame that was just positioned and has no rectangle yet is measured from its own anchor and size.
+local ANCHOR_FRACTION = { LEFT = 0, RIGHT = 1, CENTER = 0.5, BOTTOM = 0, TOP = 1 }
+local function anchorFractions(point)
+  point = tostring(point or "CENTER")
+  local x = ANCHOR_FRACTION[point:find("LEFT") and "LEFT" or point:find("RIGHT") and "RIGHT" or "CENTER"]
+  local y = ANCHOR_FRACTION[point:find("BOTTOM") and "BOTTOM" or point:find("TOP") and "TOP" or "CENTER"]
+  return x, y
+end
+local function cardRect(f)
+  local l, r, t, b = f.GetLeft and f:GetLeft(), f.GetRight and f:GetRight(), f.GetTop and f:GetTop(), f.GetBottom and f:GetBottom()
+  if type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number" then return l, r, t, b end
+  -- Not laid out yet: from its first anchor to UIParent and its size.
+  if not (f.GetPoint and f.GetWidth and f.GetHeight and UIParent and UIParent.GetWidth and UIParent.GetHeight) then return end
+  local ok, point, rel, relPoint, x, y = pcall(f.GetPoint, f, 1)
+  local w, h = f:GetWidth(), f:GetHeight()
+  local pw, ph = UIParent:GetWidth(), UIParent:GetHeight()
+  if not (ok and type(w) == "number" and type(h) == "number" and type(pw) == "number" and type(ph) == "number") then return end
+  if rel and rel ~= UIParent then return end
+  local sx, sy = anchorFractions(point)
+  local px, py = anchorFractions(relPoint or point)
+  local left = px * pw + (tonumber(x) or 0) - sx * w
+  local bottom = py * ph + (tonumber(y) or 0) - sy * h
+  return left, left + w, bottom + h, bottom
+end
 function util.keepApart(frame, other, gap)
   if not (frame and other and other ~= frame and other.IsShown and other:IsShown()) then return false end
-  local function box(f)
-    local l, r, t, b = f.GetLeft and f:GetLeft(), f.GetRight and f:GetRight(), f.GetTop and f:GetTop(), f.GetBottom and f:GetBottom()
-    if type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number" then return l, r, t, b end
-  end
-  local fl, fr, ft, fb = box(frame)
-  local ol, orr, ot, ob = box(other)
+  local fl, fr, ft, fb = cardRect(frame)
+  local ol, orr, ot, ob = cardRect(other)
   if not (fl and ol) or fr <= ol or fl >= orr or ft <= ob or fb >= ot then return false end
-  frame:ClearAllPoints()
-  frame:SetPoint("BOTTOMLEFT", other, "TOPLEFT", 0, gap or 8)
-  return true
+  local ok = pcall(function()
+    frame:ClearAllPoints()
+    frame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", ol, ot + (gap or 8))
+  end)
+  return ok
 end
 
 util.COMPANION_PAGE = "https://guildedwow.com/companion/"

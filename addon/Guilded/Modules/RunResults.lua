@@ -16,7 +16,9 @@ local function settings() return ns.getSettings and ns.getSettings() or nil end
 function results.savePosition(frame)
   local st = settings()
   if not (st and frame and frame.GetPoint) then return end
-  local ok, point, _, relPoint, x, y = pcall(frame.GetPoint, frame)
+  local ok, point, relativeTo, relPoint, x, y = pcall(frame.GetPoint, frame)
+  -- Only a place measured from the screen is saved (a drag always leaves the card anchored to UIParent).
+  if relativeTo and relativeTo ~= UIParent then return end
   if ok and type(point) == "string" and tonumber(x) and tonumber(y) then st.runCardPos = { point = point, relPoint = relPoint or point, x = x, y = y } end
 end
 function results.restorePosition(frame)
@@ -24,10 +26,12 @@ function results.restorePosition(frame)
   local pos = st and st.runCardPos
   frame:ClearAllPoints()
   if type(pos) == "table" and type(pos.point) == "string" and tonumber(pos.x) and tonumber(pos.y) then
-    frame:SetPoint(pos.point, UIParent, type(pos.relPoint) == "string" and pos.relPoint or pos.point, pos.x, pos.y)
-  else
-    frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -24, 150)
+    -- A hand-edited point name must not break showing the card: the usual place is the fallback.
+    local ok = pcall(frame.SetPoint, frame, pos.point, UIParent, type(pos.relPoint) == "string" and pos.relPoint or pos.point, pos.x, pos.y)
+    if ok then return end
+    frame:ClearAllPoints()
   end
+  frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -24, 150)
 end
 
 local function inCombat()

@@ -130,8 +130,8 @@ describe("the tools window in French", () => {
       .toBe(String(("Partager mon registre comme classement".length) * 6 + 20));
   });
 
-  it("keeps the section rows inside the page width in French", () => {
-    const s = frenchWindow();
+  it.each(["frFR", "deDE", "esES"])("keeps the section rows inside the page width on %s", client => {
+    const s = frenchWindow(client);
     for (const group of ["Home", "Guild", "Raids", "Officer"]) {
       s.run(`NS.windowState().groupButtons.${group}.scripts.OnClick()`);
       const rows = JSON.parse(s.run(`local t = {}; for _, r in ipairs(NS.windowState().sectionLayout) do

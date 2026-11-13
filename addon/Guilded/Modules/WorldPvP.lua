@@ -5,7 +5,8 @@
 -- Only what the game and Guilded already tell us, with no combat log (restricted on Forever):
 --   kills     the game's own honorable-kill line (CHAT_MSG_COMBAT_HONOR_GAIN), outside instances and
 --             battlegrounds, read from the client's global string so every language works
---   deaths    I died within a minute of an attack by an enemy player that Call for help confirmed
+--   deaths    I died within a minute of an attack by an enemy player that Call for help confirmed (never in an instance,
+--             battleground, arena or duel; the zone and time are kept, never the enemy's name or class)
 --   defends   an honorable kill within 5 minutes of pressing On my way on a guildmate's call, in the zone the call named
 --   calls     calls for help I made, how many a guildmate answered, and how many I answered
 -- Stored in the saved variables as worldPvp (totals, the current week, the week before, and the last 30 kills) so the
@@ -18,6 +19,7 @@ local DEFEND_SECONDS = 300
 local DEATH_WINDOW_SECONDS = 60
 local DEDUPE_SECONDS = 5
 local RECENT = 30
+local MAX_ZONES = 25
 local WEEK = 7 * 86400
 local WEEK_OFFSET = 5 * 86400 + 15 * 3600 -- Tuesday 15:00 UTC, counted from the epoch (a Thursday)
 
@@ -163,7 +165,26 @@ function wp.noteDeath()
   local t = clock()
   if lastDeathAt and t - lastDeathAt < DEATH_WINDOW_SECONDS then return false end
   lastDeathAt = t
-  return bump("deaths")
+  if not bump("deaths") then return false end
+  -- Where and when, like a kill, but never who: no killer name or class is kept (an enemy player's name is theirs).
+  local st = store()
+  local zone = clean(currentZone(), 40)
+  st.deathsRecent = type(st.deathsRecent) == "table" and st.deathsRecent or {}
+  st.deathsRecent[#st.deathsRecent + 1] = { z = zone, at = epoch() }
+  while #st.deathsRecent > RECENT do table.remove(st.deathsRecent, 1) end
+  if zone ~= "" then
+    st.zones = type(st.zones) == "table" and st.zones or {}
+    if not st.zones[zone] then
+      local n, lowest, lowestCount = 0, nil, nil
+      for name, count in pairs(st.zones) do
+        n = n + 1
+        if not lowestCount or count < lowestCount then lowest, lowestCount = name, count end
+      end
+      if n >= MAX_ZONES and lowest then st.zones[lowest] = nil end
+    end
+    st.zones[zone] = (tonumber(st.zones[zone]) or 0) + 1
+  end
+  return true
 end
 
 -- From Call for help: "call" (I called), "answered" (a guildmate said On my way to my call),
@@ -191,6 +212,33 @@ function wp.stats()
   return s.week, s.total
 end
 
+-- Kills per death (a death-free week shows the kills), one decimal.
+function wp.kd(t)
+  local kills, deaths = tonumber(t and t.kills) or 0, tonumber(t and t.deaths) or 0
+  return string.format("%.1f", deaths > 0 and kills / deaths or kills)
+end
+
+-- The zones I died in most (open world only), most first: { { zone = "Hillsbrad Foothills", deaths = 4 }, ... }.
+function wp.deadliestZones(limit)
+  local s = store()
+  local list = {}
+  for zone, count in pairs(s and s.zones or {}) do list[#list + 1] = { zone = zone, deaths = tonumber(count) or 0 } end
+  table.sort(list, function(a, b) return a.deaths > b.deaths or (a.deaths == b.deaths and a.zone < b.zone) end)
+  while #list > (limit or 3) do table.remove(list) end
+  return list
+end
+
+-- The K/D and deadliest-zones lines under the counters; none until a death was counted.
+function wp.details()
+  local week, total = wp.stats()
+  if (tonumber(total.deaths) or 0) == 0 then return {} end
+  local lines = { string.format(L("K/D: %s this week, %s in total."), wp.kd(week), wp.kd(total)) }
+  local zones = {}
+  for _, z in ipairs(wp.deadliestZones(3)) do zones[#zones + 1] = string.format("%s (%d)", z.zone, z.deaths) end
+  if #zones > 0 then lines[#lines + 1] = string.format(L("Deadliest zones: %s."), table.concat(zones, ", ")) end
+  return lines
+end
+
 local function line(prefix, t)
   return string.format(L("%s: %d kills, %d deaths, %d defends. Calls for help: %d made (%d answered), %d answered by me."),
     prefix, t.kills or 0, t.deaths or 0, t.defends or 0, t.calls or 0, t.answered or 0, t.responded or 0)
@@ -206,6 +254,7 @@ ns.commandHandlers["worldpvp"] = function()
   local a, b = wp.summary()
   ns.message(a)
   ns.message(b)
+  for _, extra in ipairs(wp.details()) do ns.message(extra) end
 end
 ns.commandHandlers["wpvp"] = ns.commandHandlers["worldpvp"]
 ns.commandHelp = ns.commandHelp or {}

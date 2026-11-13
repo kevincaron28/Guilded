@@ -548,7 +548,7 @@ function onState(raw) {
 let zeroSetupFailures = 0;
 function currentState() {
   const state = { ...engine.state(), zeroSetupFailures };
-  return { state, health: health(state), update, savedFile, problems: problems(state), addonAction: addonAction() };
+  return { state, health: health(state), update, savedFile, problems: problems(state), addonAction: addonAction(), accountRows: accountRowsFor(state) };
 }
 
 function showWindow() {
@@ -1304,6 +1304,18 @@ async function installAddonNow({ refresh = true, force = false } = {}) {
     if (engine) onState(engine.state());
   }
 }
+registerIpc("set-account", async (_event, { file, on }) => {
+  const next = engineModules.switchAccount(config, file, on);
+  if (next === config) return { ok: false };
+  config = next;
+  await saveConfig();
+  pushLog({ time: new Date().toISOString(), level: "info", message: on ? E("WoW account {0} syncs again.", engineModules.accountName(file)) : E("WoW account {0} was switched off.", engineModules.accountName(file)) });
+  const started = await engine.configure(config);
+  if (on && started) engine.uploadNow();
+  await refreshSavedFile();
+  return { ok: started };
+});
+registerIpc("reinstall-addon", () => installAddonAnswer(true));
 registerIpc("install-addon", () => installAddonAnswer(false));
 async function installAddonAnswer(force) {
   try {

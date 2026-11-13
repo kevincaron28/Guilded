@@ -144,7 +144,7 @@ async function loadMe() {
 }
 async function reload() {
   const all = await api.getAll();
-  snapshot = { ...snapshot, otherAccount: all.otherAccount ?? null, config: all.config, state: all.state, problems: all.problems, savedFile: all.savedFile, addonAction: all.addonAction, update: all.update };
+  snapshot = { ...snapshot, accountRows: all.accountRows || [], otherAccount: all.otherAccount ?? null, config: all.config, state: all.state, problems: all.problems, savedFile: all.savedFile, addonAction: all.addonAction, update: all.update };
   storePackage = all.storePackage === true; version = all.version || '';
   logs = all.logs || logs;
   $('autostart').checked = all.autostart === true;
@@ -165,6 +165,7 @@ $('btnSync').onclick = () => run('sync-now');
 $('btnFolder').onclick = () => run('pick-wow-folder');
 $('btnFind').onclick = async () => { const answer = await api.repair(); $('repairResult').textContent = answer?.summary ? T('Repair: {0} fixed, {1} need you, {2} failed.', answer.summary.fixed, answer.summary.needsYou, answer.summary.failed) : ''; await reload(); };
 $('btnRepair').onclick = $('btnFind').onclick;
+$('btnReinstall').onclick = async () => { const answer = await api.reinstallAddon(); say(answer?.message, answer?.ok !== false); };
 $('btnSignIn').onclick = () => run('sign-in');
 $('btnSwitch').onclick = () => run('sign-in-switch');
 $('btnServer').onclick = async () => { const answer = await api.deviceChooseServer($('serverList').value); say(answer?.message, answer?.ok !== false); };
@@ -184,7 +185,7 @@ window.addEventListener('online', () => { reportOnline(); void api.recoverSync?.
 window.addEventListener('offline', reportOnline);
 if (!navigator.onLine) reportOnline();
 
-api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, otherAccount: next.otherAccount }; render(); });
+api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, otherAccount: next.otherAccount, accountRows: next.accountRows || [] }; render(); });
 api.onUpdateProgress?.((percent) => say(T('Downloading and checking the update: {0}%', percent)));
 api.onLog((entry) => { logs = [...logs, entry].slice(-100); renderAdvanced(); });
 $('language').value = $('advLanguage').value = languageUI.language;

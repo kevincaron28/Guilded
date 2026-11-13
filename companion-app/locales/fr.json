@@ -1175,5 +1175,10 @@
   "Convert a Guild Roster Manager backup into a local Guilded archive. No upload or game connection is needed.": "Convertit une sauvegarde de Guild Roster Manager en archive Guilded locale. Aucun envoi ni connexion au jeu n’est nécessaire.",
   "Officers: server settings are in Discord with /setup, and server data exports with /officer export.": "Officiers : les réglages du serveur sont dans Discord avec /setup, et les exports des données du serveur avec /officer export.",
   "Privacy policy ↗": "Politique de confidentialité ↗",
-  "Guilded's server is not answering": "Le serveur de Guilded ne répond pas"
+  "Guilded's server is not answering": "Le serveur de Guilded ne répond pas",
+  "WoW accounts": "Comptes WoW",
+  "Each WoW account on this PC with Guilded's data. Untick one to stop syncing it, tick it to sync again.": "Chaque compte WoW de ce PC qui a des données Guilded. Décochez-en un pour arrêter de le synchroniser, cochez-le pour le resynchroniser.",
+  "Reinstall the addon": "Réinstaller l'addon",
+  "The first account syncs while World of Warcraft is on.": "Le premier compte se synchronise tant que World of Warcraft est lancé.",
+  "Sync this account": "Synchroniser ce compte"
 }

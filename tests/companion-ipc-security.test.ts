@@ -15,6 +15,13 @@ describe("desktop IPC boundary", () => {
     expect(() => validateIpc("unknown-channel", [])).toThrow();
     for (const gone of ["open-old-window", "hub-view", "hub-edit", "manage-edit", "save-config", "delete-my-data"]) expect(() => validateIpc(gone, []), gone).toThrow();
   });
+  it("accepts the account switch and the forced reinstall, nothing else", () => {
+    expect(() => validateIpc("set-account", [{ file: "C:/wow/Guilded.lua", on: false }])).not.toThrow();
+    expect(() => validateIpc("set-account", [{ file: "C:/wow/Guilded.lua", on: "no" }])).toThrow();
+    expect(() => validateIpc("set-account", [{ file: "C:/wow/Guilded.lua", on: true, extra: 1 }])).toThrow();
+    expect(() => validateIpc("reinstall-addon", [])).not.toThrow();
+    expect(() => validateIpc("reinstall-addon", ["x"])).toThrow();
+  });
   it("accepts only the main local renderer, including its startup tab query", () => {
     const url = new URL("../companion-app/renderer/main.html", import.meta.url);
     url.search = "?tab=wow";

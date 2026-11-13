@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld("companion", {
   openConnections: () => ipcRenderer.invoke("open-connections"),
   copyProblemReport: () => ipcRenderer.invoke("copy-problem-report"),
   installAddon: () => ipcRenderer.invoke("install-addon"),
+  reinstallAddon: () => ipcRenderer.invoke("reinstall-addon"),
+  setAccount: (file, on) => ipcRenderer.invoke("set-account", { file, on }),
   openStorageSettings: () => ipcRenderer.invoke("open-storage-settings"),
   setOnline: (online) => ipcRenderer.invoke("set-online", online),
   pickWowFolder: () => ipcRenderer.invoke("pick-wow-folder"),

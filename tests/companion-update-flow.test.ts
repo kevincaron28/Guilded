@@ -15,7 +15,7 @@ function harness(latest: unknown, locale = 'en', windowsStore = false) {
   const updates = { ...realUpdates, fetchLatestRelease: vi.fn(async () => latest), downloadInstaller: vi.fn(), launchInstaller: vi.fn() };
   const quit = vi.fn();
   const timers = vi.fn();
-  const frame = { url: new URL("../companion-app/renderer/index.html", import.meta.url).href };
+  const frame = { url: new URL("../companion-app/renderer/main.html", import.meta.url).href };
   const contents = { mainFrame: frame, send: vi.fn() };
   const event = { sender: contents, senderFrame: frame };
   const context = {
@@ -87,22 +87,9 @@ describe("companion updater handoff", () => {
     expect(nextChild.unref).toHaveBeenCalledOnce();
   });
   // Update now lives in Home's version panel (#511); the old hidden banner button is gone (redesign PR 5).
-  it.each([["download-page", "The download page opened."], ["installing", "Installing Guilded Companion 9.1.0."]])("shows the actual %s outcome in the version panel", async (action, message) => {
-    const source = readFileSync("companion-app/renderer/app.js", "utf8");
-    const block = source.slice(source.indexOf("bind('btnVersionAction'"), source.indexOf("bind('btnVersionCheck'"));
-    const nodes: Record<string, { textContent: string; className: string; dataset: Record<string, string> }> = {};
-    const node = (id: string) => (nodes[id] ??= { textContent: "", className: "", dataset: {} });
-    let click: () => Promise<void> = async () => {};
-    let seenWhileWaiting = "";
-    runInNewContext(block, {
-      T: (key: string, ...values: unknown[]) => i18n.translate('en', key, ...values), M: (value: string) => value,
-      bind: (_id: string, fn: () => Promise<void>) => { click = fn; }, $: node, versionInfo: { action: "update-now" }, refreshVersion: async () => {},
-      api: { installUpdate: async () => { seenWhileWaiting = node("btnVersionAction").textContent; return { ok: true, action, message }; } }
-    });
-    await click();
-    expect(seenWhileWaiting).toBe("Checking update…");
-    expect(node("versionResult")).toMatchObject({ textContent: message, className: "result ok" });
-    expect(node("btnVersionAction").dataset["busy"]).toBeUndefined();
+  it("shows the actual outcome the main process reports (download page opened, or installing) in the window", () => {
+    const script = readFileSync("companion-app/renderer/main.js", "utf8");
+    expect(script).toMatch(/case 'install-update': \{ const answer = await api\.installUpdate\(\); say\(answer\?\.message, answer\?\.ok !== false\); return; \}/);
   });
 });
 

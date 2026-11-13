@@ -97,9 +97,8 @@ describe("the Problems panel when settings cannot be saved", () => {
   });
 
   it("is worded in French", () => {
-    const page = readFileSync("companion-app/renderer/problems.js", "utf8");
-    expect(page).toContain("case 'settings-not-saved'");
-    for (const key of ["Settings could not be saved.", "Settings could not be saved: {0}", "Windows protected storage is not answering. What you change now is kept only until the companion closes."]) expect(fr[key], key).toBeTruthy();
+    expect(readFileSync("companion/main-status.mjs", "utf8")).toContain('"settings-not-saved"');
+    for (const key of ["Your settings could not be saved.", "Restart Windows, then open the companion again."]) expect(fr[key], key).toBeTruthy();
   });
 });
 
@@ -118,16 +117,9 @@ describe("the Discord sign-in from the second-PC test", () => {
     } finally { fetchMock.mockRestore(); }
   });
 
-  it("Reopen the page starts a new request and the waiting loop follows it", () => {
-    const main = readFileSync("companion-app/main.cjs", "utf8");
-    const reopen = main.slice(main.indexOf('registerIpc("sign-in-reopen"'));
-    expect(reopen).toMatch(/beginSignIn\(current\.next\)[\s\S]{0,400}current\.replacedBy = begun\.current[\s\S]{0,80}signIn = begun\.current/);
-    expect(main).toMatch(/if \(current\.replacedBy && signIn === current\.replacedBy\) \{\s*current = current\.replacedBy;/);
-  });
-
   it("has the French for the sign-in box's English line", () => {
-    const html = readFileSync("companion-app/renderer/index.html", "utf8");
-    expect(html).toContain("Then choose your server, press Connect, and come back here.");
-    expect(fr["Then choose your server, press Connect, and come back here."]).toMatch(/Connecter/);
+    const script = readFileSync("companion-app/renderer/main.js", "utf8");
+    expect(script).toContain("Your browser opened. Choose your server there and press Connect.");
+    expect(fr["Your browser opened. Choose your server there and press Connect."]).toMatch(/Relier/);
   });
 });

@@ -107,14 +107,6 @@ describe("Repair and the addon", () => {
     expect(ok.find((item: { id: string }) => item.id === "settings")).toMatchObject({ status: "ok" });
     expect(fr["Repair: {0} fixed, {1} need you, {2} failed."]).toMatch(/^Réparation/);
   });
-
-  it("keeps an install button on Home when the addon matches", () => {
-    const page = readFileSync("companion-app/renderer/problems.js", "utf8");
-    expect(page).toContain("T('Reinstall addon')");
-    expect(page).toContain("api.reinstallAddon()");
-    expect(readFileSync("companion-app/preload.cjs", "utf8")).toContain('reinstallAddon: () => ipcRenderer.invoke("reinstall-addon")');
-    for (const key of ["Reinstall addon", "Guilded addon {0} is installed"]) expect(fr[key], key).toBeTruthy();
-  });
 });
 
 describe("Home and the support summary", () => {
@@ -129,6 +121,5 @@ describe("Home and the support summary", () => {
     expect(summary.recentErrors[0].at).toBe("2026-11-06T15:47:08-05:00");
     // Without the offset (older callers) nothing changes.
     expect(syncDiagnosticPreview({}, {}, {})).not.toHaveProperty("timeZone");
-    expect(readFileSync("companion-app/renderer/app.js", "utf8")).toContain("utcOffsetMinutes: -new Date().getTimezoneOffset()");
   });
 });

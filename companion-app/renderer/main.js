@@ -144,7 +144,7 @@ async function loadMe() {
 }
 async function reload() {
   const all = await api.getAll();
-  snapshot = { ...snapshot, otherAccount: all.otherAccount ?? null, config: all.config, state: all.state, problems: all.problems, savedFile: all.savedFile, addonAction: all.addonAction, update: all.update };
+  snapshot = { ...snapshot, accountRows: all.accountRows || [], otherAccount: all.otherAccount ?? null, config: all.config, state: all.state, problems: all.problems, savedFile: all.savedFile, addonAction: all.addonAction, update: all.update };
   storePackage = all.storePackage === true; version = all.version || '';
   logs = all.logs || logs;
   $('autostart').checked = all.autostart === true;
@@ -165,6 +165,7 @@ $('btnSync').onclick = () => run('sync-now');
 $('btnFolder').onclick = () => run('pick-wow-folder');
 $('btnFind').onclick = async () => { const answer = await api.repair(); $('repairResult').textContent = answer?.summary ? T('Repair: {0} fixed, {1} need you, {2} failed.', answer.summary.fixed, answer.summary.needsYou, answer.summary.failed) : ''; await reload(); };
 $('btnRepair').onclick = $('btnFind').onclick;
+$('btnReinstall').onclick = async () => { const answer = await api.reinstallAddon(); say(answer?.message, answer?.ok !== false); };
 $('btnSignIn').onclick = () => run('sign-in');
 $('btnSwitch').onclick = () => run('sign-in-switch');
 $('btnServer').onclick = async () => { const answer = await api.deviceChooseServer($('serverList').value); say(answer?.message, answer?.ok !== false); };
@@ -176,12 +177,15 @@ $('btnReport').onclick = async () => { const report = await api.copyProblemRepor
 $('btnReset').onclick = () => api.removeData();
 $('btnExport').onclick = async () => { $('exportResult').textContent = ''; const result = await api.exportSheets(undefined); if (!result.canceled) $('exportResult').textContent = M(result.message); };
 $('btnGRM').onclick = async () => { const result = await api.convertGRM({ guild: $('grmGuild').value, realm: $('grmRealm').value, edition: 'forever', includePrivate: $('grmPrivate').checked }); if (!result.canceled) $('grmResult').textContent = M(result.message); };
-$('btnOld').onclick = () => api.openOldWindow();
 for (const id of ['language', 'advLanguage']) $(id).addEventListener('change', async (event) => { languageUI.set(event.target.value); await api.setLanguage?.(event.target.value); $('language').value = $('advLanguage').value = languageUI.language; render(); });
 document.addEventListener('companion-language', () => { $('language').value = $('advLanguage').value = languageUI.language; });
-window.addEventListener('online', () => { void api.recoverSync?.().catch(() => {}); });
+// The companion process cannot see the network card: tell it, so "This PC is offline" is accurate.
+const reportOnline = () => { void api.setOnline?.(navigator.onLine).catch(() => {}); };
+window.addEventListener('online', () => { reportOnline(); void api.recoverSync?.().catch(() => {}); });
+window.addEventListener('offline', reportOnline);
+if (!navigator.onLine) reportOnline();
 
-api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, otherAccount: next.otherAccount }; render(); });
+api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, otherAccount: next.otherAccount, accountRows: next.accountRows || [] }; render(); });
 api.onUpdateProgress?.((percent) => say(T('Downloading and checking the update: {0}%', percent)));
 api.onLog((entry) => { logs = [...logs, entry].slice(-100); renderAdvanced(); });
 $('language').value = $('advLanguage').value = languageUI.language;

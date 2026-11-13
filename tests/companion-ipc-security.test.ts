@@ -7,15 +7,23 @@ const { validateIpc, assertSender, rendererConfig } = require("../companion-app/
 describe("desktop IPC boundary", () => {
   it("rejects hidden credential/profile/path overrides and malformed config fields", () => {
     for (const value of [null, [], { companionCredential: "stolen" }, { profiles: {} }, { poeJournalFile: "elsewhere" }, { wowEnabled: "true" }, { standingsIntervalMinutes: Infinity }, { watchFile: "x\0y" }]) {
-      expect(() => validateIpc("save-config", [value])).toThrow();
+      expect(() => validateIpc("sign-in-start", [value])).toThrow();
     }
-    expect(() => validateIpc("save-config", [{ watchFile: "C:/game/Guilded.lua", wowEnabled: true, standingsIntervalMinutes: "2" }])).not.toThrow();
+    expect(() => validateIpc("sign-in-start", [{ watchFile: "C:/game/Guilded.lua", wowEnabled: true, standingsIntervalMinutes: "2" }])).not.toThrow();
     expect(() => validateIpc("upload-now", ["unexpected"])).toThrow();
     expect(() => validateIpc("set-autostart", ["false"])).toThrow();
     expect(() => validateIpc("unknown-channel", [])).toThrow();
+    for (const gone of ["open-old-window", "hub-view", "hub-edit", "manage-edit", "save-config", "delete-my-data"]) expect(() => validateIpc(gone, []), gone).toThrow();
+  });
+  it("accepts the account switch and the forced reinstall, nothing else", () => {
+    expect(() => validateIpc("set-account", [{ file: "C:/wow/Guilded.lua", on: false }])).not.toThrow();
+    expect(() => validateIpc("set-account", [{ file: "C:/wow/Guilded.lua", on: "no" }])).toThrow();
+    expect(() => validateIpc("set-account", [{ file: "C:/wow/Guilded.lua", on: true, extra: 1 }])).toThrow();
+    expect(() => validateIpc("reinstall-addon", [])).not.toThrow();
+    expect(() => validateIpc("reinstall-addon", ["x"])).toThrow();
   });
   it("accepts only the main local renderer, including its startup tab query", () => {
-    const url = new URL("../companion-app/renderer/index.html", import.meta.url);
+    const url = new URL("../companion-app/renderer/main.html", import.meta.url);
     url.search = "?tab=wow";
     const frame = { url: url.href }, contents = { mainFrame: frame }, win = { webContents: contents };
     const directory = fileURLToPath(new URL("../companion-app/", import.meta.url));
@@ -33,22 +41,10 @@ describe("desktop IPC boundary", () => {
     // Zero-setup companion: the device key never reaches the page, only that there is one.
     expect(rendererConfig({ deviceSecret: "k".repeat(43), device: true })).toEqual({ deviceSecret: "set", device: true, companionCredential: "", pairingCode: "" });
   });
-  it("accepts WoW Forever GRM imports only and rejects oversized edits", () => {
+  it("accepts WoW Forever GRM imports only", () => {
     expect(() => validateIpc("convert-grm", [{ guild: "Test", realm: "Realm", edition: "forever", includePrivate: false }])).not.toThrow();
     for (const edition of ["classic-era", "classic-tbc", "classic-mists", "retail"]) {
       expect(() => validateIpc("convert-grm", [{ guild: "Test", realm: "Realm", edition, includePrivate: false }])).toThrow();
     }
-    expect(() => validateIpc("manage-edit", [{ action: "prices.set", text: "x".repeat(220_001) }])).toThrow();
-  });
-});
-
-describe("hub IPC envelopes", () => {
-  it("accepts only a language for hub-view and only known fields for hub-edit", () => {
-    expect(() => validateIpc("hub-view", ["fr"])).not.toThrow();
-    expect(() => validateIpc("hub-view", ["de"])).toThrow();
-    expect(() => validateIpc("hub-edit", [{ action: "server.reminders", on: true }])).not.toThrow();
-    expect(() => validateIpc("hub-edit", [{ action: "server.language", value: "fr" }])).not.toThrow();
-    expect(() => validateIpc("hub-edit", [{ action: "server.reminders", on: "yes" }])).toThrow();
-    expect(() => validateIpc("hub-edit", [{ action: "server.x", guildId: "other" }])).toThrow();
   });
 });

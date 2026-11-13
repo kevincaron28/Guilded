@@ -10,7 +10,6 @@ import { accountFiles, accountName, accountRows, answerAccount, MAX_ACCOUNTS, ne
 // folder found, but add a second one only after the member says once that it is theirs too.
 const require = createRequire(import.meta.url);
 const detect = require("../companion-app/detect-wow.cjs");
-const fr = require("../companion-app/locales/fr.json") as Record<string, string>;
 
 const install = "D:/Games/World of Warcraft/_forever_/WTF/Account";
 const file = (account: string) => `${install}/${account}/SavedVariables/Guilded.lua`;
@@ -113,15 +112,12 @@ describe("setup and Repair no longer stop at several accounts", () => {
     expect(main).toContain('registerIpc("account-no", () => answerOtherAccount(false));');
     expect(main).toContain("otherAccount: otherAccount ? { account: otherAccount.account } : null");
     expect(main).toContain("pick: (entries) => pickPrimaryAccount(");
-    expect(readFileSync("companion-app/ipc-security.cjs", "utf8")).toContain('"account-yes", "account-no"');
+    const security = readFileSync("companion-app/ipc-security.cjs", "utf8");
+    expect(security).toContain('"account-no"');
+    expect(security).toContain('"account-yes"');
     expect(readFileSync("companion-app/package.json", "utf8")).toContain('"wow-accounts.mjs"');
-    const html = readFileSync("companion-app/renderer/index.html", "utf8");
-    expect(html).toContain('<article id="accountAsk" class="panel account-ask" hidden>');
-  });
-
-  it("is worded in French", () => {
-    for (const key of ["Another WoW account on this PC has Guilded data: {0}. Is it yours too?", "Say no if someone else plays on this PC with their own Discord account. You are asked only once.",
-      "Yes, sync it too", "No, not mine", "{0} syncs too from now on.", "{0} was added, but the sync did not start. Open Problems to see why.", "{0} will not sync. You will not be asked again."]) expect(fr[key], key).toBeTruthy();
+    // The window asks through the status model's needs-you line, with Yes and No.
+    expect(readFileSync("companion/main-status.mjs", "utf8")).toContain('"new-wow-account"');
   });
 });
 
@@ -149,20 +145,5 @@ describe("per-account status and switches (step 2)", () => {
     expect(rows[1]!.text[0]).toBe("{0}: waiting for WoW to save Guilded's data. Log in on that account and type /reload once.");
     expect(accountRows({ ...two, wowEnabled: false })).toEqual([]);
     expect(accountRows(two, [{ file: wow2, error: "Missing folder" }])[1]!.text).toEqual(["{0}: {1}", "WOW2", "Missing folder"]);
-  });
-
-  it("is wired, validated and worded in French", () => {
-    const main = readFileSync("companion-app/main.cjs", "utf8");
-    expect(main).toContain('registerIpc("set-account", async (_event, { file, on }) => {');
-    expect(main).toContain("accountRows: accountRowsFor(state)");
-    const security = require("../companion-app/ipc-security.cjs");
-    expect(() => security.validateIpc("set-account", [{ file: wow2, on: true }])).not.toThrow();
-    expect(() => security.validateIpc("set-account", [{ file: wow2, on: "yes" }])).toThrow();
-    expect(() => security.validateIpc("set-account", [{ file: wow2, on: true, extra: 1 }])).toThrow();
-    const html = readFileSync("companion-app/renderer/index.html", "utf8");
-    expect(html).toContain('<ul id="accountList" class="account-list" hidden></ul>');
-    expect(html).toContain('<ul id="statusAccounts" class="account-lines" hidden></ul>');
-    for (const text of [...accountRows({ ...two, accountsDeclined: [wow3] }, [{ file: wow1, lastUpload: { at: "x" } }, { file: wow2, running: true }]).map((row) => String(row.text[0])), "{0}: not syncing yet", "{0}: {1}",
-      "The first account syncs while World of Warcraft is on.", "Sync this account"]) expect(fr[text], text).toBeTruthy();
   });
 });

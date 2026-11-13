@@ -1,6 +1,6 @@
 // The companion's Problems panel (8.5, track F1). Each check turns what the app already knows
 // (engine state, the saved-file check, the update check, whether WoW is open) into one problem
-// with a fixed id. The page words each id (companion-app/renderer/problems.js); this file
+// with a fixed id. The window words each id (companion/main-status.mjs); this file
 // decides only WHETHER a problem exists and the few safe values it needs.
 //
 // Plain ESM with one import, so the desktop app, the interface bundle and the tests share it.

@@ -5,10 +5,10 @@ import { describe, expect, it, vi } from "vitest";
 const main = readFileSync("companion-app/main.cjs", "utf8");
 const startup = main.slice(0, main.indexOf("if (!app.requestSingleInstanceLock())"));
 function launch(argv: string[], defaultApp?: boolean, isPackaged = true) {
-  return runInNewContext(startup + "\n({ args, startHidden, screenshotPath, screenshotTab })", {
+  return runInNewContext(startup + "\n({ args, startHidden, screenshotPath })", {
     require: (id: string) => id === "electron" ? { app: { isPackaged } } : {},
     process: { argv, defaultApp }
-  }) as { args: string[]; startHidden: boolean; screenshotPath: string; screenshotTab: string };
+  }) as { args: string[]; startHidden: boolean; screenshotPath: string };
 }
 
 describe("companion window build before launch", () => {
@@ -28,8 +28,8 @@ describe("companion launch arguments", () => {
     expect(launch(["C:/Program Files/Guilded Companion.exe"]).startHidden).toBe(false);
   });
   it("accepts screenshot output as the first installed-app option", () => {
-    expect(launch(["Guilded Companion.exe", "--screenshot=C:/test folder/window.png", "--tab=wow"]))
-      .toMatchObject({ screenshotPath: "C:/test folder/window.png", screenshotTab: "wow" });
+    expect(launch(["Guilded Companion.exe", "--screenshot=C:/test folder/window.png"]))
+      .toMatchObject({ screenshotPath: "C:/test folder/window.png" });
   });
   it.each([false, true])("skips the app path under the default Electron launcher, isPackaged=%s", isPackaged => {
     const result = launch(["electron.exe", "C:/app", "--hidden", "--fresh"], true, isPackaged);

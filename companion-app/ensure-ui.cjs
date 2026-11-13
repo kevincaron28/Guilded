@@ -1,11 +1,11 @@
-// The window loads renderer/ui-bundle.js and design-tokens.css, which are built
+// The window loads renderer/ui-bundle.js, which is built
 // and not stored in git. A fresh checkout otherwise opens a blank window.
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const renderer = path.join(__dirname, "renderer");
-if (fs.existsSync(path.join(renderer, "ui-bundle.js")) && fs.existsSync(path.join(renderer, "design-tokens.css"))) process.exit(0);
+if (fs.existsSync(path.join(renderer, "ui-bundle.js"))) process.exit(0);
 
 const result = spawnSync("npm", ["run", "companion:build"], {
   cwd: path.join(__dirname, ".."),

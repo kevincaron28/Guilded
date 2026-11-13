@@ -39,7 +39,7 @@ describe("sign-in waiting box", () => {
 
   it("has French for every new sign-in text", () => {
     for (const key of [SERVER_RESTARTING, timeLeftLine(new Date(now + 1000).toISOString(), now)![0], timeLeftLine(new Date(now).toISOString(), now)![0],
-      signInOutcome(null).message, "Finish in your browser (it may be behind this window)", "Reopen the page", "Link to my guild",
+      signInOutcome(null).message,
       "That sign-in expired. Choose Sign in with Discord again."]) expect(fr[key], key).toBeTypeOf("string");
   });
 });

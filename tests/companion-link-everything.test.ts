@@ -1,12 +1,10 @@
 import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
-import { Script } from "node:vm";
 import { describe, expect, it } from "vitest";
 import { linkSteps, linkSummary, characterRows, ALREADY_LINKED } from "../companion/link-everything.mjs";
 
 const require = createRequire(import.meta.url);
 const fr: Record<string, string> = require("../companion-app/locales/fr.json");
-const { validateIpc } = require("../companion-app/ipc-security.cjs");
 const read = (file: string) => readFileSync(file, "utf8");
 const byId = (view: ReturnType<typeof linkSteps>, id: string) => view.steps.find(step => step.id === id)!;
 const hubWith = (link: unknown, characters = 0) => ({ link, characters: Array.from({ length: characters }, () => ({})) });
@@ -66,9 +64,6 @@ describe("companion Link everything status", () => {
     expect(characterRows(null)).toEqual([]);
   });
   it("uses no technical words in the member-facing texts", () => {
-    const html = read("companion-app/renderer/index.html");
-    const page = html.slice(html.indexOf('id="page-link"'), html.indexOf('id="page-settings"'));
-    for (const word of [/token/i, /oauth/i, /credential/i]) expect(page).not.toMatch(word);
     expect(read("companion/link-everything.mjs").replace(/\/\/.*$/gm, "")).not.toMatch(/token|oauth|credential"/i);
   });
   it("leaderboards only: says no guild server yet, never that everything is linked (8.5 fresh-PC test)", () => {
@@ -98,74 +93,9 @@ describe("companion Link everything status", () => {
 });
 
 describe("Link everything wiring", () => {
-  it("reuses the existing sign-in, Battle.net and device IPC instead of new auth", () => {
-    const app = read("companion-app/renderer/app.js"), link = read("companion-app/renderer/link-everything.js");
-    expect(app).toMatch(/api\.signInStart\(readForm\(\)\)/);
-    expect(app).toContain("bind('btnLinkSignIn'");
-    expect(link).toContain("api.openBattleNet()");
-    expect(link).toContain("api.openConnections()");
-    expect(link).not.toMatch(/uploadToken|UPLOAD_TOKEN|fetch\(/);
-  });
-  it("opens on the page, and Skip remembers, and Skip remembers", () => {
-    const app = read("companion-app/renderer/app.js");
-    expect(app).toContain("!linkSkipped() ? 'link' : 'status'");
-    expect(read("companion-app/renderer/link-everything.js")).toContain("guilded.companion.linkSkipped");
-  });
-  it("every id the page script uses exists in the page", () => {
-    const html = read("companion-app/renderer/index.html");
-    const script = read("companion-app/renderer/link-everything.js") + read("companion-app/renderer/app.js");
-    for (const id of ["page-link", "linkList", "linkAllDone", "linkResult", "btnLinkSignIn", "btnLinkFind", "btnLinkCheck", "btnLinkBattleNet", "btnLinkDevices", "btnLinkSkip", "linkSignInWaiting", "linkSignInCode", "linkSignInCodeLine", "linkSignInTimeLeft", "btnLinkSignInReopen", "btnLinkSignInCancel", "linkChars", "linkCharCount", "linkCharsEmpty", "btnLinkSync", "btnLinkUnlink", "btnLinkDiscord", "linkCharsPanel", "linkActionsPanel"]) {
-      expect(html, id).toContain(`id="${id}"`);
-      if (id !== "page-link") expect(script, id).toContain(id);
-    }
-    expect(html).toContain('data-go="link"'); // Settings > Run setup again (the menu entry left in redesign PR 2)
-  });
-  it("re-running a linked step is a harmless no-op", () => {
-    const app = read("companion-app/renderer/app.js"), link = read("companion-app/renderer/link-everything.js");
-    expect(app).toMatch(/view === 'link' && savedConfig\.companionCredential && !savedConfig\.personal\) \{ ui\.say\(T\("Already linked, nothing to do\."\)/);
-    expect(link.match(/Already linked, nothing to do\./g)?.length).toBeGreaterThanOrEqual(2);
-  });
-  it("opens the Discord server only for a numeric server id", () => {
-    const main = read("companion-app/main.cjs");
-    expect(main).toContain("https://discord.com/channels/${config.guildDiscordId}");
-    expect(main).toContain("{5,25}");
-    expect(() => validateIpc("open-discord-server", [])).not.toThrow();
-    expect(() => validateIpc("open-discord-server", ["x"])).toThrow();
-  });
-  it("accepts the one new IPC channel with no arguments only", () => {
-    expect(() => validateIpc("link-find-saved-data", [])).not.toThrow();
-    expect(() => validateIpc("link-find-saved-data", ["x"])).toThrow();
-    expect(read("companion-app/preload.cjs")).toContain('"link-find-saved-data"');
-  });
-  it("finds saved data only after sign-in and only when it can tell which file is the live one", () => {
-    const main = read("companion-app/main.cjs");
-    const block = main.slice(main.indexOf('registerIpc("link-find-saved-data"'), main.indexOf('registerIpc("browse-poe-log"'));
-    // Zero-setup companion (docs/ZERO_SETUP_COMPANION.md): a device-key install may look too, never one with neither.
-    expect(block).toContain("if (!config.companionCredential && !engineModules.isDeviceMode(config))");
-    // The only file, the only WoW Forever file, or (several accounts, docs/plans/MULTI_ACCOUNT.md)
-    // the newest one, with the others asked about.
-    expect(block).toContain("pickPrimaryAccount(found)");
-    expect(block).toContain("if (!chosen)");
-    // A missing, beta or stale watched file is looked for again instead of "already linked".
-    expect(block).toContain("!current.candidate");
-  });
   it("the bot only adds Battle.net/character counts to the hub answer, behind the personal credential", () => {
     const api = read("src/companion-api.ts");
     expect(api).toContain("link: { battleNet: link.battleNet, characters: link.characters, battleTag }");
     expect(api).not.toMatch(/COMPANION_UPLOAD_TOKEN|UPLOAD_TOKEN/);
-  });
-  it("parses as plain browser script", () => {
-    expect(() => new Script(read("companion-app/renderer/link-everything.js"), { filename: "link-everything.js" })).not.toThrow();
-  });
-});
-
-describe("companion renderer startup", () => {
-  // A bind() on an id that is not in the page throws while app.js loads and stops the whole window
-  // (btnOnline did, after the browser companion was removed).
-  it("every bind('id') and $('id') in app.js exists in index.html", () => {
-    const html = read("companion-app/renderer/index.html");
-    const ids = new Set([...read("companion-app/renderer/app.js").matchAll(/(?:bind|\$)\('([A-Za-z0-9_-]+)'/g)].map(match => match[1]));
-    const dynamic = new Set(["syncEvidence"]);
-    for (const id of ids) if (!dynamic.has(id!)) expect(html, id).toContain(`id="${id}"`);
   });
 });

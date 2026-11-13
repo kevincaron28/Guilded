@@ -11,34 +11,31 @@ const read = (file: string) => readFileSync(file, "utf8");
 // Every string a member reads on the main path: Problems, Link everything, the status card, the wizard.
 const literals = (text: string) => [...text.matchAll(/T\((['"])((?:\\.|(?!\1).)*)\1/g)].map((match) => match[2]);
 const memberPath = [
-  ...literals(read("companion-app/renderer/problems.js")),
+  ...literals(read("companion-app/renderer/main.js")),
   ...[...read("companion/link-everything.mjs").matchAll(/(?:label|next): '([^']*)'/g)].map((match) => match[1]),
   ...[...read("companion/status-card.mjs").matchAll(/\["([^"]+)"/g)].map((match) => match[1])
 ];
 
 describe("plain words on the member's path", () => {
   it("never says saved data, upload, Guilded.lua or SavedVariables", () => {
-    expect(memberPath.length).toBeGreaterThan(40);
+    expect(memberPath.length).toBeGreaterThan(30);
     for (const text of memberPath) expect(text, text).not.toMatch(/saved data|\bupload|Guilded\.lua|SavedVariables/i);
   });
 
   it("no longer names the Tools page or the old World of Warcraft page", () => {
-    const html = read("companion-app/renderer/index.html");
+    const html = read("companion-app/renderer/main.html");
     expect(html).not.toContain("World of Warcraft page");
     expect(html).not.toContain("in Tools");
   });
 
-  it("has the French for every renamed sentence, and drops the old keys", () => {
-    for (const key of ["Find my addon data", "Your last /reload did not save the Guilded addon's data.", "Your WoW folder is not chosen yet.", "Your addon data seems to be in another WoW folder now.",
-      "Your settings and addon data stay as they are.", "Your sync was received but could not be applied.", "Guilded refused your last sync.", "Your addon data file",
-      "Signed in. Your addon data was found; the companion is checking your characters.", "Press Find my addon data, then log in to WoW once and we will find your characters."]) expect(fr[key], key).toBeTruthy();
+  it("drops the old wordings from the French catalog", () => {
     for (const old of ["Find my saved data", "Guilded.lua was not updated by your last /reload.", "The bot refused your last upload.", "Your WoW saved data is not chosen yet."]) expect(fr[old], old).toBeUndefined();
   });
 
   it("points officers to Discord for exports, and members to their Guilded page", () => {
     const html = read("companion-app/renderer/main.html");
     expect(html).toContain("/officer export");
-    for (const path of ["/me/", "/me/battlenet", "/me/data", "/docs/PRIVACY.html", "/companion/"]) expect(html).toContain(`https://guilded.kcaron.top${path}"`);
+    for (const path of ["/me/", "/me/battlenet", "/me/data", "/docs/PRIVACY.html", "/companion/"]) expect(html).toContain(`https://guildedwow.com${path}"`);
     // Delete my data on the website erases server data only: the window says so and points to Reset.
     expect(html).toContain("on the server only. Afterwards press Reset this companion");
     // Local export and GRM import stay reachable from Advanced.

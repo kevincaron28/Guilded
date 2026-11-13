@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import { STATUS_ORDER, guildLine, statusCard } from "../companion/status-card.mjs";
@@ -108,23 +107,5 @@ describe("the status card", () => {
   it("the line under it: the guild's name and the last /reload only", () => {
     expect(guildLine({ config: { wowGuildName: "Quebec Gold" }, savedFile: { changedAt: "2026-11-07T21:14:00.000Z" } })).toEqual({ guild: "Quebec Gold", lastReload: "2026-11-07T21:14:00.000Z" });
     expect(guildLine({})).toEqual({ guild: null, lastReload: null });
-  });
-});
-
-describe("Home", () => {
-  const html = readFileSync("companion-app/renderer/index.html", "utf8");
-  const home = html.slice(html.indexOf('<section id="page-status"'), html.indexOf("</section>", html.indexOf('<section id="page-status"')));
-
-  it("leads with the status card and the version panel; the old banners and tiles are gone", () => {
-    expect(home.indexOf('id="statusCard"')).toBeLessThan(home.indexOf('id="versionPanel"'));
-    for (const id of ["homeLegacy", "banner", "liveBanner", "updateBanner", "overviewConnection", "tileUpload"]) expect(home, id).not.toContain(`id="${id}"`);
-  });
-
-  it("wires each button to what it says", () => {
-    const app = readFileSync("companion-app/renderer/app.js", "utf8");
-    for (const action of ["sign-in", "problems", "settings", "storage", "find-wow", "install-addon", "switch-folder", "retry", "sync-now"]) expect(app, action).toContain(`case '${action}':`);
-    expect(app).toContain("try { renderStatusCard(snapshot); } catch");
-    expect(readFileSync("companion-app/renderer/ui-entry.js", "utf8")).toContain('import { statusCard, guildLine } from "../../companion/status-card.mjs";');
-    for (const key of ["Checking your sync…", "Details ›", "last /reload {0}"]) expect(fr[key], key).toBeTruthy();
   });
 });

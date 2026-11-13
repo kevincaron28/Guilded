@@ -74,9 +74,8 @@ describe("the low disk space problem", () => {
   it("is worded in English and French", () => {
     expect(LOW_DISK_MESSAGE).toBe("Not enough disk space: {0} MB free, about {1} MB needed. Free space with Windows Settings > Storage, then retry.");
     expect(fr[LOW_DISK_MESSAGE]).toContain("Stockage");
-    const page = readFileSync("companion-app/renderer/problems.js", "utf8");
-    expect(page).toContain("case 'disk-space-low'");
-    for (const key of ["Open Storage settings", "Check again", "There is enough free disk space now. Try again.", "Removed an old copy of the companion installer to free disk space."]) expect(fr[key], key).toBeTruthy();
+    expect(readFileSync("companion/main-status.mjs", "utf8")).toContain('"disk-space-low"');
+    for (const key of ["Open Storage settings", "Removed an old copy of the companion installer to free disk space."]) expect(fr[key], key).toBeTruthy();
   });
 });
 

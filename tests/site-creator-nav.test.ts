@@ -1,13 +1,10 @@
-import { beforeAll, describe, expect, it } from "vitest";
-import { execFileSync } from "node:child_process";
+import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 
 const page = () => readFileSync("site/creator/index.html", "utf8");
 const hrefs = (html: string) => [...html.matchAll(/<a\b[^>]*?href="([^"]+)"/g)].map(match => match[1] ?? "");
 
 describe("kcaron.top navigation", () => {
-  beforeAll(() => { execFileSync(process.execPath, ["scripts/build-site.mjs"], { stdio: "pipe" }); }, 30000);
-
   it("links every in-page anchor to a real section", () => {
     const html = page();
     const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1] ?? ""));

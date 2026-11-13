@@ -50,8 +50,7 @@ export function staticRedirect(url) {
   const path = stripped ?? url.pathname;
   const french = stripped !== null || url.searchParams.get("lang") === "fr";
   let target = null;
-  if (path === "/editions" || path === "/editions/") target = "/download/";
-  else if (GUIDE_REDIRECTS[path]) target = GUIDE_REDIRECTS[path];
+  if (GUIDE_REDIRECTS[path]) target = GUIDE_REDIRECTS[path];
   if (target) {
     const dest = french && isFolderPage(target) ? toFr(target) : target;
     const search = dest.startsWith("/fr") ? searchWithoutLang(url) : url.search;

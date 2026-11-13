@@ -1,8 +1,6 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-beforeAll(() => execFileSync(process.execPath, ["scripts/build-site.mjs"], { stdio: "pipe" }), 30_000);
 
 const PAGES = ["/guide/start/", "/guide/install/", "/guide/companion/", "/guide/link-character/", "/guide/dungeons/", "/guide/officers/", "/guide/epgp/", "/guide/discord-bot/", "/guide/self-host/", "/guide/troubleshooting/"];
 

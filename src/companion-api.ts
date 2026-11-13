@@ -119,6 +119,7 @@ import { backCheckInvites, completeInvitesFromRoster } from "./services/invite-c
 import { prelinkInvitedCharacters, tellPrelinked } from "./services/invite-prelink.js";
 import { COMPANION_FEATURES, markGuildChanged, standingsFeed, type FeedParts } from "./services/standings-feed.js";
 import { commandRegistration } from "./services/command-registration.js";
+import { deriveSealKey } from "./services/run-challenge.js";
 const BOT_VERSION = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version as string;
 
 const importService = createAddonImportService(prisma);
@@ -876,7 +877,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         }
         if (!deviceUploadsPerDevice(device.id) || !deviceUploadsPerIp(address)) { json(response, 429, { error: "Too many uploads in the last hour. Try again later." }); return; }
         try {
-          json(response, 200, { ...await handleDeviceUpload(devices, device, await readBody(request), { allows: (id) => hostedPilot.allows(id) }), botVersion: BOT_VERSION });
+          json(response, 200, { ...await handleDeviceUpload(devices, device, await readBody(request), { allows: (id) => hostedPilot.allows(id), sealKey: deviceHeader(request) ? deriveSealKey(deviceHeader(request)!) : null }), botVersion: BOT_VERSION });
         } catch (error) {
           if (error instanceof DeviceError) { json(response, error.status, { error: error.message }); return; }
           throw error;

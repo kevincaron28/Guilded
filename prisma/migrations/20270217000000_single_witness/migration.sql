@@ -4,3 +4,6 @@ ALTER TABLE "DungeonRun" ADD COLUMN "anomalies" JSONB;
 ALTER TABLE "DungeonRun" ADD COLUMN "witnessCount" INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE "CompanionDevice" ADD COLUMN "excludedAt" TIMESTAMP(3);
 ALTER TABLE "CompanionDevice" ADD COLUMN "excludedReason" TEXT;
+ALTER TABLE "CompanionDevice" ADD COLUMN "chainSeq" INTEGER;
+ALTER TABLE "CompanionDevice" ADD COLUMN "chainHash" TEXT;
+ALTER TABLE "DungeonRunWitness" ADD COLUMN "flags" JSONB;

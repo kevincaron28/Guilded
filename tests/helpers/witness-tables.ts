@@ -16,11 +16,12 @@ const matches = (row: Row, where: Row): boolean => Object.entries(where).every((
 /** In-memory DungeonRunWitness and GuildRosterEntry tables for the run trust path (run-trust.ts, storeDeviceRuns). */
 export function witnessTables(rosterNames: string[] = [], seasonNumbers: number[] = [1], excludedDevices: string[] = []) {
   const witnesses: Row[] = [];
+  const heads = new Map<string, { n: number; hash: string }>();
   return {
-    witnesses,
+    witnesses, heads,
     tables: {
       // (13 November 2026) The device standing read at the start of storeDeviceRuns.
-      companionDevice: { findUnique: async ({ where }: { where: { id: string } }) => excludedDevices.includes(where.id) ? { excludedAt: new Date() } : { excludedAt: null } },
+      companionDevice: { findUnique: async ({ where }: { where: { id: string } }) => excludedDevices.includes(where.id) ? { excludedAt: new Date() } : { excludedAt: null, chainSeq: heads.get(where.id)?.n ?? null, chainHash: heads.get(where.id)?.hash ?? null }, update: async ({ where, data }: { where: { id: string }; data: { chainSeq: number; chainHash: string } }) => { heads.set(where.id, { n: data.chainSeq, hash: data.chainHash }); return {}; } },
       officialSeason: { findMany: async () => seasonNumbers.map((number) => ({ number })) },
       guildRosterEntry: { findMany: async () => rosterNames.map((nameKey) => ({ nameKey })) },
       dungeonRunWitness: {

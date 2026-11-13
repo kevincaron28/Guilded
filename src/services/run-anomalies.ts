@@ -1,9 +1,8 @@
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import type { Anomaly } from "./run-plausibility.js";
 
-// The anomaly report for officers and the owner (docs/plans/SINGLE_WITNESS_2026-11-13.md). A run with a plausibility flag still
-// counts (one witness is enough); the report names it, the PC that sent it and why it looks unlikely, so a person decides.
-// A device (install) can be excluded: its runs are then refused, and the ones it already sent are listed for the officer tools.
+// The review list for officers and the owner: runs the server flagged, and runs it is holding back. Shown only in officer replies.
+// A device (install) can be excluded: its runs are then refused.
 
 type Db = Pick<PrismaClient, "dungeonRun" | "dungeonRunWitness" | "companionDevice">;
 
@@ -30,10 +29,30 @@ export async function anomalyReport(database: Db, guildId: string, limit = 15): 
     device: deviceOf.has(run.id) ? deviceShortId(deviceOf.get(run.id)!) : null, witnesses: run.witnessCount }));
 }
 
+export interface HeldRow { runRef: string; instanceId: number; endedAt: Date | null; device: string; flags: Anomaly[]; firstSeenAt: Date }
+
+/** Runs held for review: never imported, never told to the member. */
+export async function heldReport(database: Db, guildId: string, limit = 15): Promise<HeldRow[]> {
+  const rows = await database.dungeonRunWitness.findMany({ where: { guildId, status: "held" }, orderBy: { firstSeenAt: "desc" }, take: limit,
+    select: { runRef: true, instanceId: true, endedAt: true, deviceId: true, flags: true, firstSeenAt: true } });
+  return rows.map((row) => ({ runRef: row.runRef, instanceId: row.instanceId, endedAt: row.endedAt, device: deviceShortId(row.deviceId), flags: asFlags(row.flags), firstSeenAt: row.firstSeenAt }));
+}
+
+/** Lets a held run through: its next upload is judged without the hold. False when no such held run exists. */
+export async function releaseHeld(database: Db, guildId: string, runRef: string): Promise<boolean> {
+  const done = await database.dungeonRunWitness.updateMany({ where: { guildId, runRef, status: "held" }, data: { status: "pending", reason: "released" } });
+  return done.count > 0;
+}
+
+export function describeHeld(rows: readonly HeldRow[]): string {
+  if (!rows.length) return "";
+  return `**Held for review** (the member sees nothing; release one with \`run:\` and its code):\n${rows.map((row) => `\`${row.runRef.slice(0, 24)}\` · PC \`${row.device}\`${row.endedAt ? ` · <t:${Math.floor(row.endedAt.getTime() / 1000)}:d>` : ""}\n${row.flags.map((flag) => `- ${flag.detail || flag.code}`).join("\n")}`).join("\n\n")}`;
+}
+
 export function describeAnomalies(rows: readonly AnomalyRow[]): string {
-  if (!rows.length) return "No dungeon run was flagged. (One witness is enough for a run to count; a flag only means it looks unlikely.)";
+  if (!rows.length) return "No dungeon run was flagged.";
   const lines = rows.map((row) => `**${row.dungeon}** ${row.endedAt ? `<t:${Math.floor(row.endedAt.getTime() / 1000)}:d>` : ""} · ${row.characters.slice(0, 3).join(", ")} · \`${row.runRef.slice(0, 24)}\`${row.device ? ` · PC \`${row.device}\`` : ""}${row.witnesses > 1 ? ` · confirmed by ${row.witnesses}` : ""}\n${row.flags.map((flag) => `- ${flag.detail || flag.code}`).join("\n")}`);
-  return `Runs the bot flagged as unlikely. They still count; nothing is held. Stop one with \`/officer dungeon invalidate\`, or exclude a PC with \`/officer dungeon device\`.\n\n${lines.join("\n\n")}`;
+  return `Flagged runs (they count). Stop one with \`/officer dungeon invalidate\`, or exclude a PC with \`/officer dungeon device\`.\n\n${lines.join("\n\n")}`;
 }
 
 /** Excludes or restores the PC whose reference ends with `short`, among the PCs that sent runs to this server. Returns false when none matches. */

@@ -1,27 +1,23 @@
 import { firstNameKey } from "./dungeon-import.js";
 
-// Plausibility flags for a dungeon run (docs/plans/SINGLE_WITNESS_2026-11-13.md). With one witness enough, nothing makes a
-// run cheat-proof: the addon runs on the player's PC, so a modified addon can produce anything a real one can. These checks
-// catch what a careless or lazy forgery gets wrong, and what a broken clock or addon bug produces. They only FLAG: the run
-// still counts, and officers and the owner see the flags (anomaly report). Pure functions; the database reads live in
-// companion-device.ts (storeDeviceRuns).
+// Plausibility checks for a dungeon run. Pure functions; the database reads live in companion-device.ts (storeDeviceRuns). The
+// limits below are safe defaults only: the live values come from the server's private configuration (run-integrity-config.ts).
 
-export const PLAUSIBILITY = {
-  /** WoW Forever's level cap (the race to 60). */
+export interface PlausibilityLimits {
+  levelCap: number; minSecondsPerBoss: number; killSlackSec: number; recordShare: number; recordSample: number; travelSec: number; overlapSlackSec: number;
+}
+
+export const PLAUSIBILITY: PlausibilityLimits = {
   levelCap: 60,
-  /** A boss fight plus the walk to it: a clear with N kills cannot take less than N times this. */
-  minSecondsPerBoss: 30,
-  /** Slack around the run for a kill time (the addon's clock against the run's own start and end). */
-  killSlackSec: 30,
-  /** A clear faster than this share of the fastest known clear of the same dungeon and difficulty is flagged. */
-  recordShare: 0.5,
-  /** Known clears needed before the fastest one means anything. */
-  recordSample: 5,
-  /** The same character cannot start a clear in another dungeon sooner than this after the previous one ended. */
-  travelSec: 60,
-  /** Overlap shorter than this between two runs of one character or one PC is a clock difference, not a second run. */
-  overlapSlackSec: 120
-} as const;
+  minSecondsPerBoss: 10,
+  killSlackSec: 60,
+  recordShare: 0.35,
+  recordSample: 8,
+  travelSec: 30,
+  overlapSlackSec: 300
+};
+
+const DEFAULT_LIMITS = PLAUSIBILITY;
 
 export interface Anomaly { code: string; detail: string }
 
@@ -47,6 +43,8 @@ export interface PlausibilityContext {
   deviceRuns?: readonly NeighbourRun[];
   /** This run's own reference, never compared with itself. */
   runRef: string;
+  /** Server configuration; the defaults apply when absent. */
+  limits?: PlausibilityLimits;
 }
 
 const overlap = (a: { startedAt: number | null; endedAt: number | null }, b: { startedAt: number | null; endedAt: number | null }): number => {
@@ -57,25 +55,26 @@ const overlap = (a: { startedAt: number | null; endedAt: number | null }, b: { s
 /** Flags for one run. An empty list is the normal case. */
 export function plausibilityFlags(run: PlausibilityRun, context: PlausibilityContext): Anomaly[] {
   const flags: Anomaly[] = [];
+  const limit = context.limits ?? DEFAULT_LIMITS;
   const add = (code: string, detail: string) => flags.push({ code, detail });
   const { startedAt, endedAt } = run;
   const duration = startedAt && endedAt ? endedAt - startedAt : null;
 
   const timed = run.kills.filter((kill): kill is { id: number; at: number } => typeof kill.at === "number" && kill.at > 0);
   if (startedAt && endedAt) {
-    const outside = timed.filter((kill) => kill.at < startedAt - PLAUSIBILITY.killSlackSec || kill.at > endedAt + PLAUSIBILITY.killSlackSec);
+    const outside = timed.filter((kill) => kill.at < startedAt - limit.killSlackSec || kill.at > endedAt + limit.killSlackSec);
     if (outside.length) add("kill-outside-run", `${outside.length} boss kill time(s) fall outside the run's start and end`);
   }
   if (timed.some((kill, index) => index > 0 && kill.at < timed[index - 1]!.at)) add("kills-out-of-order", "boss kills are not in time order");
-  if (duration !== null && run.kills.length > 0 && duration < run.kills.length * PLAUSIBILITY.minSecondsPerBoss) {
-    add("too-fast-per-boss", `${run.kills.length} boss kill(s) in ${duration}s (under ${PLAUSIBILITY.minSecondsPerBoss}s each)`);
+  if (duration !== null && run.kills.length > 0 && duration < run.kills.length * limit.minSecondsPerBoss) {
+    add("too-fast-per-boss", `${run.kills.length} boss kill(s) in ${duration}s (under ${limit.minSecondsPerBoss}s each)`);
   }
   const fastest = context.fastest;
-  if (duration !== null && fastest?.seconds && fastest.count >= PLAUSIBILITY.recordSample && duration < fastest.seconds * PLAUSIBILITY.recordShare) {
+  if (duration !== null && fastest?.seconds && fastest.count >= limit.recordSample && duration < fastest.seconds * limit.recordShare) {
     add("faster-than-record", `${duration}s against a fastest known clear of ${fastest.seconds}s (${fastest.count} clears)`);
   }
-  const high = run.players.filter((player) => typeof player.level === "number" && player.level > PLAUSIBILITY.levelCap);
-  if (high.length) add("level-above-cap", `${high.map((player) => player.character).join(", ")} above level ${PLAUSIBILITY.levelCap}`);
+  const high = run.players.filter((player) => typeof player.level === "number" && player.level > limit.levelCap);
+  if (high.length) add("level-above-cap", `${high.map((player) => player.character).join(", ")} above level ${limit.levelCap}`);
 
   const mine = new Set(run.players.map((player) => firstNameKey(player.character)));
   for (const other of context.neighbours ?? []) {
@@ -84,16 +83,16 @@ export function plausibilityFlags(run: PlausibilityRun, context: PlausibilityCon
     if (!shared.length) continue;
     if (other.instanceId === run.instanceId && overlap(run, other) > 0) continue; // the same clear under another id: copy matching handles it
     const together = overlap(run, other);
-    if (together > PLAUSIBILITY.overlapSlackSec) add("character-in-two-runs", `${shared[0]} is in another run (${other.runRef}) at the same time`);
+    if (together > limit.overlapSlackSec) add("character-in-two-runs", `${shared[0]} is in another run (${other.runRef}) at the same time`);
     else if (other.instanceId !== run.instanceId && startedAt && endedAt && other.startedAt && other.endedAt) {
       const gap = startedAt >= other.endedAt ? startedAt - other.endedAt : other.startedAt >= endedAt ? other.startedAt - endedAt : null;
-      if (gap !== null && gap < PLAUSIBILITY.travelSec) add("back-to-back", `${shared[0]} starts a clear ${gap}s after leaving another dungeon (${other.runRef})`);
+      if (gap !== null && gap < limit.travelSec) add("back-to-back", `${shared[0]} starts a clear ${gap}s after leaving another dungeon (${other.runRef})`);
     }
   }
   for (const other of context.deviceRuns ?? []) {
     if (other.runRef === context.runRef) continue;
     if (other.instanceId === run.instanceId && overlap(run, other) > 0) continue;
-    if (overlap(run, other) > PLAUSIBILITY.overlapSlackSec) add("device-overlap", `this PC also sent run ${other.runRef}, which overlaps in time`);
+    if (overlap(run, other) > limit.overlapSlackSec) add("device-overlap", `this PC also sent run ${other.runRef}, which overlaps in time`);
   }
   // One flag per code: a long list of the same thing is noise.
   return flags.filter((flag, index) => flags.findIndex((other) => other.code === flag.code) === index);

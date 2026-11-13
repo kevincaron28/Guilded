@@ -2355,6 +2355,9 @@ model CompanionDevice {
   /// (13 November 2026) An owner or officer excluded this install: its runs are refused (the device key is the unit of exclusion).
   excludedAt      DateTime?
   excludedReason  String?
+  /// Number and hash of the newest record chain link this install sent (shared challenge/chain checks).
+  chainSeq        Int?
+  chainHash       String?
   uploads         Int       @default(0)
   guild           Guild?    @relation(fields: [guildId], references: [id], onDelete: SetNull)
   claimedMember   Member?   @relation(fields: [claimedMemberId], references: [id], onDelete: SetNull)
@@ -2386,8 +2389,10 @@ model DungeonRunWitness {
   bosses       Int[]     @default([])
   /// The run as uploaded, kept while pending so it can be imported when a second statement arrives.
   payload      Json?
-  /// pending | stored | expired
+  /// pending | stored | expired | held (held for owner review, never shown to the member)
   status       String    @default("pending")
+  /// Check results behind a held statement, for officers only.
+  flags        Json?
   /// The trust the stored run got through this statement (device | witnessed).
   trust        String?
   reason       String?

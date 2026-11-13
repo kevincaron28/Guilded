@@ -8,11 +8,9 @@ import { firstNameKey } from "./dungeon-import.js";
 
 /**
  * Owner decision, 13 November 2026 (docs/plans/SINGLE_WITNESS_2026-11-13.md): one witness is enough for a run to be stored and
- * ranked, in device and signed mode, now and from Season 2 on. Nothing here makes a run cheat-proof: the addon runs on the
- * player's PC, so a modified addon can produce anything. What replaces the second statement is plausibility flags
- * (run-plausibility.ts), a per-device limit, device exclusion, an anomaly report for officers and the owner, and the
- * "confirmed by N players" count as information. One switch: set false to bring back the second-statement rules (anchor
- * or a second device from Season 2, pending and expiry, public boards without device runs from Season 2).
+ * ranked, in device and signed mode, now and from Season 2 on. Server-side checks (run-integrity-config.ts, run-challenge.ts)
+ * replace the second statement. One switch: set false to bring back the second-statement rules (anchor or a second device from
+ * Season 2, pending and expiry, public boards without device runs from Season 2).
  */
 export const SINGLE_WITNESS = true;
 /**

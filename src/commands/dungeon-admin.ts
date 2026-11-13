@@ -10,7 +10,7 @@ import { postToLogChannel } from "../services/housekeeping.js";
 import { runCredit } from "../services/dungeon-held-credit.js";
 import { findPlayer } from "../services/player-search.js";
 import { explainDungeonRuns } from "../services/dungeon-explain.js";
-import { anomalyReport, describeAnomalies, setDeviceExcluded } from "../services/run-anomalies.js";
+import { anomalyReport, describeAnomalies, describeHeld, heldReport, releaseHeld, setDeviceExcluded } from "../services/run-anomalies.js";
 import { asLang, tx } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 
@@ -37,6 +37,7 @@ export const dungeonAdminCommand = new SlashCommandBuilder()
   .addSubcommand((sub) => sub.setName("config").setDescription("View the fixed dungeon rules"))
   .addSubcommand((sub) => sub.setName("flagged").setDescription("Unlikely runs; exclude a PC")
     .addStringOption((o) => o.setName("pc").setDescription("PC code").setMaxLength(16))
+    .addStringOption((o) => o.setName("run").setDescription("Held run code").setMaxLength(100))
     .addBooleanOption((o) => o.setName("exclude").setDescription("False restores")))
   .addSubcommand(sub => sub.setName("bracket-preview").setDescription("Preview shared season targets"))
   .addSubcommand(sub => sub.setName("recalibrate").setDescription("Timed-run evidence for future rules")
@@ -121,8 +122,16 @@ export async function executeDungeonAdmin(interaction: ChatInputCommandInteracti
   } else if (subcommand === "flagged") {
     const pc = interaction.options.getString("pc");
     const exclude = interaction.options.getBoolean("exclude");
+    const release = interaction.options.getString("run");
+    if (release) {
+      const done = await releaseHeld(prisma, context.guildId, release);
+      if (done) await log("released a held dungeon run", { runRef: release });
+      await interaction.reply({ content: done ? "Released: it counts at its PC's next upload." : "No held run has that code.", flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      return;
+    }
     if (!pc) {
-      await interaction.reply({ content: describeAnomalies(await anomalyReport(prisma, context.guildId)).slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
+      const [flagged, held] = await Promise.all([anomalyReport(prisma, context.guildId), heldReport(prisma, context.guildId)]);
+      await interaction.reply({ content: [describeHeld(held), describeAnomalies(flagged)].filter(Boolean).join("\n\n").slice(0, 1990), flags: MessageFlags.Ephemeral, allowedMentions: { parse: [] } });
       return;
     }
     const done = await setDeviceExcluded(prisma, context.guildId, pc, exclude !== false, "officer");

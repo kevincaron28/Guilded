@@ -3,7 +3,9 @@ import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
 import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts } from "./dungeon-import.js";
-import { plausibilityFlags, type NeighbourRun } from "./run-plausibility.js";
+import { plausibilityFlags, type Anomaly, type NeighbourRun } from "./run-plausibility.js";
+import { challengeSecret, holdsRun, integrityConfig } from "./run-integrity-config.js";
+import { contradicts, issueChallenge, verifyBatch } from "./run-challenge.js";
 import { anchored, countsDeviceOnlyRuns, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { withEdition } from "./edition-context.js";
@@ -115,7 +117,7 @@ export interface ServerCandidate {
 }
 
 /** The device a batch of runs came from, and the characters it reported. */
-export interface DeviceRunSource { deviceId: string; characterKeys: readonly string[] }
+export interface DeviceRunSource { deviceId: string; characterKeys: readonly string[]; /** Signing key derived from the device key sent with this upload. */ sealKey?: string | null }
 export interface DeviceRunResult { stored: number; skipped: number; /** Run ref -> why it waits (not a run anywhere yet). */ pending?: Record<string, string> }
 
 export interface DeviceStore {
@@ -157,7 +159,7 @@ export const DEVICE_PVP_NOTICE: DeviceNotice = {
 };
 
 export type DeviceUploadAnswer =
-  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; runs?: { received: number; stored: number; skipped: number; pending?: number }; runReceipts?: DeviceRunReceipts; reported?: string[]; notice: DeviceNotice }
+  | { status: "synced"; server: { discordId: string; name: string | null }; guild: { name: string; realm: string }; characters: number; claimed: boolean; /** Fresh challenge for the companion to hand to the addon. */ challenge?: string; runs?: { received: number; stored: number; skipped: number; pending?: number }; runReceipts?: DeviceRunReceipts; reported?: string[]; notice: DeviceNotice }
   | { status: "no-guild"; guild: { name: string; realm: string } | null }
   | { status: "choose"; guild: { name: string; realm: string }; servers: { discordId: string; name: string | null }[] }
   | { status: "claimed" };
@@ -212,7 +214,7 @@ export function runsOfDevice(raw: unknown[], deviceKeys: ReadonlySet<string>): u
   });
 }
 
-export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean } = {}): Promise<DeviceUploadAnswer> {
+export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, body: unknown, options: { allows?: (discordId: string) => boolean; now?: Date; runLimiter?: (deviceId: string) => boolean; sealKey?: string | null } = {}): Promise<DeviceUploadAnswer> {
   if (device.claimedMemberId) return { status: "claimed" };
   const parsed = deviceUploadSchema.safeParse(body);
   if (!parsed.success) throw new DeviceError("This upload is not valid.", 400);
@@ -268,7 +270,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
       if (!limiter(device.id)) break;
       allowed.push(run);
     }
-    const result = allowed.length ? await store.importRuns(target.guildId, allowed, now, { deviceId: device.id, characterKeys: [...known] }) : { stored: 0, skipped: 0 };
+    const result = allowed.length ? await store.importRuns(target.guildId, allowed, now, { deviceId: device.id, characterKeys: [...known], sealKey: options.sealKey ?? null }) : { stored: 0, skipped: 0 };
     pending = result.pending ?? {};
     runs = { received: upload.dungeonRuns.length, stored: result.stored, skipped: result.skipped, ...(Object.keys(pending).length ? { pending: Object.keys(pending).length } : {}) };
   }
@@ -291,7 +293,7 @@ export async function handleDeviceUpload(store: DeviceStore, device: DeviceRow, 
   // confirmed" for the one being played. Names the device itself sent, nothing else: no Discord name and nothing about
   // anyone else's characters ever goes back to an unsigned device.
   const reported = rows.map((row) => row.name);
-  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, notice: DEVICE_PVP_NOTICE, ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}), ...(reported.length ? { reported } : {}) };
+  return { status: "synced", server: { discordId: decision.pick.discordId, name: decision.pick.serverName }, guild, characters: known.size, claimed: false, notice: DEVICE_PVP_NOTICE, ...(challengeSecret() ? { challenge: issueChallenge(challengeSecret()!, device.id, now.getTime() / 1000) } : {}), ...(runs ? { runs } : {}), ...(runReceipts ? { runReceipts } : {}), ...(reported.length ? { reported } : {}) };
 }
 
 /**
@@ -320,7 +322,7 @@ export const EXCLUDED_REASON = "This PC was excluded by an officer";
 const epoch = (date: Date | null | undefined) => date ? Math.floor(date.getTime() / 1000) : null;
 const near = (endedAt: number) => ({ gte: new Date((endedAt - RUN_TRUST.endToleranceSec) * 1000), lte: new Date((endedAt + RUN_TRUST.endToleranceSec) * 1000) });
 interface WitnessRow { id: string; deviceId: string; runRef: string; kind: string; voucher: string; instanceId: number; difficultyId: number; startedAt: Date | null; endedAt: Date | null;
-  players: string[]; bosses: number[]; payload: unknown; status: string; firstSeenAt: Date }
+  players: string[]; bosses: number[]; payload: unknown; status: string; reason?: string | null; firstSeenAt: Date }
 const statementOfRow = (row: WitnessRow): Statement => ({ deviceId: row.deviceId, voucher: row.voucher, kind: row.kind === "relay" ? "relay" : "first-hand", instanceId: row.instanceId,
   difficultyId: row.difficultyId, startedAt: epoch(row.startedAt), endedAt: epoch(row.endedAt), players: row.players, bosses: row.bosses });
 
@@ -337,11 +339,12 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   if (!entries.length) return result;
   const refs = entries.map((entry) => entry.ref);
   // (13 November 2026) The device key is the unit of exclusion: an excluded PC's runs are refused, answered with the reason.
-  const standing = await tx.companionDevice.findUnique({ where: { id: source.deviceId }, select: { excludedAt: true } });
+  const standing = await tx.companionDevice.findUnique({ where: { id: source.deviceId }, select: { excludedAt: true, chainSeq: true, chainHash: true } });
   if (standing?.excludedAt) {
     await saveRunReceipts(tx, guildId, refs.map((runRef) => ({ runRef, outcome: "refused" as const, reason: EXCLUDED_REASON, runId: null })), now);
     return { ...result, skipped: result.skipped + entries.length };
   }
+  const chainHead = standing?.chainSeq && standing.chainHash ? { n: standing.chainSeq, hash: standing.chainHash } : null;
   const deviceKeys = new Set(source.characterKeys);
   const nowSec = Math.floor(now.getTime() / 1000);
   const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true } });
@@ -358,12 +361,18 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
   let waiting = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "pending" } });
   let storedToday = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, trust: "device", decidedAt: { gte: new Date(now.getTime() - 86_400_000) } } });
   const pending: Record<string, string> = {};
+  const config = integrityConfig();
+  // Record checks for the whole batch (run-challenge.ts); what they weigh is server configuration.
+  const batch = verifyBatch(entries.map(({ ref, raw }) => ({ raw, ref, endedAt: fingerprintOf(raw)?.endedAt ?? null, kind: voucherOf(raw, deviceKeys)?.kind ?? "relay" as const, earlier: mine.has(ref) || held.has(ref) })),
+    { deviceId: source.deviceId, sealKey: source.sealKey ?? null, secret: challengeSecret(), head: chainHead, windowSec: config.challengeWindowSec, requireSeal: config.requireSeal });
+  let strikes = await tx.dungeonRunWitness.count({ where: { deviceId: source.deviceId, status: "held", firstSeenAt: { gte: new Date(now.getTime() - 7 * 86_400_000) } } });
 
-  const record = async (ref: string, raw: unknown, statement: Statement, data: { status: string; reason?: string | null; trust?: string | null; runId?: string | null; decided?: boolean; keepPayload?: boolean }) => {
+  const record = async (ref: string, raw: unknown, statement: Statement, data: { status: string; reason?: string | null; trust?: string | null; runId?: string | null; decided?: boolean; keepPayload?: boolean; flags?: Anomaly[] }) => {
     const text = data.keepPayload ? JSON.stringify(raw) : "";
     const row = { kind: statement.kind, voucher: statement.voucher, instanceId: statement.instanceId, difficultyId: statement.difficultyId,
       startedAt: statement.startedAt ? new Date(statement.startedAt * 1000) : null, endedAt: statement.endedAt ? new Date(statement.endedAt * 1000) : null,
       players: statement.players, bosses: statement.bosses, status: data.status, reason: data.reason ?? null, lastSeenAt: now,
+      ...(data.flags ? { flags: data.flags as unknown as Prisma.InputJsonValue } : {}),
       ...(data.trust !== undefined ? { trust: data.trust } : {}), ...(data.runId !== undefined ? { runId: data.runId } : {}), ...(data.decided ? { decidedAt: now } : {}),
       // Kept only while it may be needed to store the run; an oversized one is not kept (the other statement's copy is used).
       payload: text && text.length <= 200_000 ? JSON.parse(text) as Prisma.InputJsonValue : Prisma.DbNull };
@@ -410,6 +419,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     if (!standing || !print) { result.skipped++; continue; }
     const statement: Statement = { ...print, deviceId: source.deviceId, ...standing };
     const earlier = mine.get(ref);
+    if (earlier?.status === "held") continue; // held for review: nothing is said to the member
     const sameId = held.get(ref);
     const existing = sameId ?? await storedCopy(print);
     if (existing) {
@@ -447,6 +457,14 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     // (a run that waited must not lose the season's upload window).
     const partner = decision.store === "witnessed" ? others.find((other) => independent(statement, statementOfRow(other))) : undefined;
     const usePartner = partner && statement.kind === "relay" && partner.kind === "first-hand" && partner.payload;
+    // Every check's result decides whether the run is held for review (never told to the member) or counted. A single soft flag only reports.
+    const flagList: Anomaly[] = [...(batch.flags.get(ref) ?? []), ...await flagsFor(usePartner ? partner.payload : raw, ref),
+      ...(others.some((other) => contradicts(statement, statementOfRow(other))) ? [{ code: "contradicts-copy", detail: "another player's copy of this run disagrees" }] : [])];
+    if (earlier?.reason !== "released" && holdsRun(flagList.map((flag) => flag.code), config, strikes)) {
+      strikes++;
+      await record(ref, raw, statement, { status: "held", reason: "held", keepPayload: true, flags: flagList });
+      continue;
+    }
     const summary = await withEdition(gameEditionOf(guild ?? {}), () => importDungeonRuns(tx, guildId, [usePartner ? partner.payload : raw], linked, DEVICE_SOURCE, null, usePartner ? partner.firstSeenAt : earlier?.firstSeenAt ?? now));
     const made = summary.results[0];
     if (!made) {
@@ -456,9 +474,9 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     }
     if (made.runId) await tx.dungeonRun.updateMany({ where: { id: made.runId, trust: null }, data: { trust: decision.store } });
     if (made.runId) {
-      const flags = await flagsFor(usePartner ? partner.payload : raw, made.runRef ?? ref);
+      const flags = flagList;
       const confirmed = witnessesOf(statement, others.filter((other) => independent(statement, statementOfRow(other))));
-      if (flags.length || confirmed > 1) await tx.dungeonRun.updateMany({ where: { id: made.runId }, data: { ...(flags.length ? { anomalies: flags as Prisma.InputJsonValue } : {}), ...(confirmed > 1 ? { witnessCount: confirmed } : {}) } });
+      if (flags.length || confirmed > 1) await tx.dungeonRun.updateMany({ where: { id: made.runId }, data: { ...(flags.length ? { anomalies: flags as unknown as Prisma.InputJsonValue } : {}), ...(confirmed > 1 ? { witnessCount: confirmed } : {}) } });
     }
     result.stored++;
     if (decision.store === "device") storedToday++;
@@ -468,6 +486,7 @@ export async function storeDeviceRuns(tx: RunTx, guildId: string, runs: unknown[
     const copies = [...new Set([ref, ...agreeing.map((other) => other.runRef)])].filter((other) => other !== made.runRef);
     if (copies.length) await saveRunReceipts(tx, guildId, copies.map((runRef) => ({ runRef, outcome: "copy" as const, state: "COMPLETED", reason: COPY_REASON, runId: made.runId ?? null })), now);
   }
+  if (batch.head && (!chainHead || batch.head.n > chainHead.n)) await tx.companionDevice.update({ where: { id: source.deviceId }, data: { chainSeq: batch.head.n, chainHash: batch.head.hash } });
   if (Object.keys(pending).length) result.pending = pending;
   const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dungeonLeaderboardChannelId: true } });
   if (result.stored && settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");

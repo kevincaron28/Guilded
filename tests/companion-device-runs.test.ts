@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { DEVICE_LIMITS, deviceFor, handleDeviceUpload, registerDevice, runsOfDevice, storeDeviceRuns, type DeviceRow, type DeviceStore, type ServerCandidate } from "../src/services/companion-device.js";
 import { witnessTables } from "./helpers/witness-tables.js";
 import { provisionalSeasonRules } from "../src/services/dungeon-bracket-season.js";
+import { NO_PREV, canonicalText, chainHash, deriveSealKey, issueChallenge, sealMac } from "../src/services/run-challenge.js";
 import { dungeonRating } from "../src/services/dungeon-rating.js";
 
 // Zero-setup companion: dungeon runs from an unsigned device are stored like any run and count on the guild board.
@@ -40,7 +41,7 @@ function fakeTx(initial: Record<string, unknown>[] = [], characters: unknown[] =
     dungeonAchievement: { findMany: async () => [], create: async () => ({}) },
     dungeonPointTransaction: { create: async ({ data }: { data: unknown }) => data }
   };
-  return { tx: tx as never, runs, witnesses: trust.witnesses };
+  return { tx: tx as never, runs, witnesses: trust.witnesses, heads: trust.heads };
 }
 
 describe("runs an unsigned device sends", () => {
@@ -172,6 +173,57 @@ describe("run trust: one witness is enough (docs/plans/SINGLE_WITNESS_2026-11-13
     const clean = fakeTx([], [], ["kev"], [1, 2]);
     await storeDeviceRuns(clean.tx, "g1", [run("QG-OK")], now, SRC);
     expect(clean.runs[0]!["anomalies"]).toBeUndefined();
+  });
+
+  it("holds a run that trips several checks, tells the member nothing, and counts it once an officer releases it", async () => {
+    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ holdScore: 2 });
+    try {
+      const { tx, runs, witnesses } = fakeTx([], [], ["kev"], [1, 2]);
+      const odd = run("QG-ODD", { encounters: [{ id: 1, success: true, kind: "boss", at: start - 5000 }],
+        players: ["Kev", "Bob", "Amy"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 70, minLevel: 70 })) });
+      expect(await storeDeviceRuns(tx, "g1", [odd], now, SRC)).toEqual({ stored: 0, skipped: 0 });
+      expect(runs).toHaveLength(0);
+      expect(witnesses).toMatchObject([{ runRef: "QG-ODD", status: "held", flags: expect.arrayContaining([expect.objectContaining({ code: "level-above-cap" })]) }]);
+      expect(await storeDeviceRuns(tx, "g1", [odd], now, SRC)).toEqual({ stored: 0, skipped: 0 }); // resent: still silent
+      witnesses[0]!["status"] = "pending"; witnesses[0]!["reason"] = "released"; // /officer dungeon flagged run:...
+      expect(await storeDeviceRuns(tx, "g1", [odd], now, SRC)).toMatchObject({ stored: 1 });
+      expect(runs).toHaveLength(1);
+    } finally { delete process.env["RUN_INTEGRITY_CONFIG"]; }
+  });
+
+  it("holds a single soft flag from a PC that already has several held runs, and reports it from a clean PC", async () => {
+    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ holdScore: 5, deviceStrikes: 2 });
+    try {
+      const one = run("QG-ONE", { players: ["Kev", "Bob", "Amy"].map((character) => ({ character, realm: "Forever", deaths: 0, presentSec: 2700, inGuild: true, level: 70, minLevel: 70 })) });
+      const clean = fakeTx([], [], ["kev"], [1, 2]);
+      expect(await storeDeviceRuns(clean.tx, "g1", [one], now, SRC)).toMatchObject({ stored: 1 });
+      const struck = fakeTx([], [], ["kev"], [1, 2]);
+      for (const ref of ["H1", "H2"]) struck.witnesses.push({ deviceId: "d1", status: "held", runRef: ref, firstSeenAt: now });
+      expect(await storeDeviceRuns(struck.tx, "g1", [one], now, SRC)).toEqual({ stored: 0, skipped: 0 });
+      expect(struck.runs).toHaveLength(0);
+    } finally { delete process.env["RUN_INTEGRITY_CONFIG"]; }
+  });
+
+  it("checks signed records against the device key and the server's challenge, and moves the chain head", async () => {
+    const secret = "server-secret-0123456789";
+    process.env["RUN_CHALLENGE_SECRET"] = secret;
+    process.env["RUN_INTEGRITY_CONFIG"] = JSON.stringify({ holdScore: 2, weights: { "seal-invalid": 2 } });
+    try {
+      const sealKey = deriveSealKey("device-key-abc");
+      const nonce = issueChallenge(secret, "d1", start - 600);
+      const sealed = (id: string, n: number, prev: string, key: string) => {
+        const record = run(id);
+        const seal = { n, nonce, prev };
+        return { record: { ...record, integrity: { seal: { ...seal, mac: sealMac(key, canonicalText(record, seal)) } } }, canonical: canonicalText(record, seal) };
+      };
+      const good = fakeTx([], [], ["kev"], [1, 2]);
+      const first = sealed("QG-S1", 1, NO_PREV, sealKey);
+      expect(await storeDeviceRuns(good.tx, "g1", [first.record], now, { ...SRC, sealKey })).toMatchObject({ stored: 1 });
+      expect(good.heads.get("d1")).toEqual({ n: 1, hash: chainHash(first.canonical) });
+      const bad = fakeTx([], [], ["kev"], [1, 2]);
+      expect(await storeDeviceRuns(bad.tx, "g1", [sealed("QG-S2", 1, NO_PREV, deriveSealKey("another key")).record], now, { ...SRC, sealKey })).toEqual({ stored: 0, skipped: 0 });
+      expect(bad.witnesses).toMatchObject([{ status: "held", flags: [expect.objectContaining({ code: "seal-invalid" })] }]);
+    } finally { delete process.env["RUN_INTEGRITY_CONFIG"]; delete process.env["RUN_CHALLENGE_SECRET"]; }
   });
 
   it("takes a run a guildmate's addon relayed when a party member is in the officer-synced roster", async () => {

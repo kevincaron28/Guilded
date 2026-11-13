@@ -191,6 +191,30 @@ describe("9.3 run loss", () => {
     expect(seen[0]?.where).toMatchObject({ outcome: { not: "retry" } });
   }, 60_000);
 
+  it("the signed standings answer carries pendingRunNotes for retry receipts, never as accepted", async () => {
+    const tables: Record<string, unknown> = {
+      dungeonRunReceipt: { findMany: async (args: { where: { outcome: unknown } }) => typeof args.where.outcome === "string"
+        ? [{ runRef: "wait-1", reason: "Waiting for the guildmate's own copy" }] : [{ runRef: "done-1", reason: null }] },
+      dungeonRun: { findMany: async () => [] }
+    };
+    const empty = new Proxy({}, { get: (_, method) => async () => (String(method).startsWith("find") && String(method) !== "findMany" ? null : String(method).startsWith("aggregate") ? {} : []) });
+    const db = new Proxy({}, { get: (_, model) => typeof model !== "string" ? undefined : model.startsWith("$") ? async () => [] : tables[model] ?? empty });
+    const answer = await standingsConsistentReads(db as never, "g1", "m1");
+    expect(answer.pendingRunNotes).toEqual({ "wait-1": "Waiting for the guildmate's own copy" });
+    expect(answer.acceptedRunRefs).toEqual(["done-1"]);
+  }, 60_000);
+
+  it("the shape the companion exports for a peer-recovered run (peerConfirmed, kills without a source: see tests/lua/dungeon-run-loss-9-3.test.ts in #842) passes the schema with every encounter kept", () => {
+    const exported = { id: "RUN1", protocolVersion: 1, state: "COMPLETED", completedBy: "final boss", instanceId: 36, name: "Deadmines", difficultyId: 1, startedAt: start, endedAt: start + 1500,
+      peerConfirmed: true, diagnostic: "i=36;k=1", reporters: 1,
+      encounters: [{ id: 5, name: "Boss", success: true, at: start + 100, source: "native" }, { id: 9, name: "Final", success: true, at: start + 1400 }],
+      players: [{ character: "Tester", realm: "Forever", class: "MAGE", guild: "Québec Gold", deaths: 0, presentSec: 1500, inGuild: true }] };
+    const parsed = dungeonRunSchema.parse(exported);
+    expect(parsed.peerConfirmed).toBe(true);
+    expect(parsed.encounters).toHaveLength(2);
+    expect(parsed.players[0]?.guild).toBe("Québec Gold");
+  });
+
   it("stores the guild each player was in, and nothing for players without one", async () => {
     const { tx, runs } = fakeTx();
     const players = characters.map((c, index) => ({ character: c.name, realm: "Forever", deaths: 0, presentSec: 1500, inGuild: index < 2, level: 20, minLevel: 20, ...(index === 0 ? { guild: "Québec Gold" } : index === 1 ? { guild: "Other Guild" } : {}) }));

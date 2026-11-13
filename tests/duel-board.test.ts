@@ -27,9 +27,10 @@ describe("duel board embed", () => {
   });
   it("lists top duelists with wins, losses, win rate and best streak, and the latest duels", () => {
     const json = duelBoardEmbed(data({ duels: 9, standings: [row("Aria", 5, 1, 4, 3), row("Brom", 2, 4, 2, -2)],
-      recent: [{ winner: "Aria", loser: "Brom", endedAt: new Date("2026-11-05T12:00:00Z"), reason: "knockout" }, { winner: "Brom", loser: "Cyd", endedAt: new Date("2026-11-05T11:00:00Z"), reason: "retreat" }] }), "fr", "g1").toJSON();
+      recent: [{ winner: "Aria", loser: "Brom", endedAt: new Date("2026-11-05T12:00:00Z"), reason: "knockout" }, { winner: "Brom", loser: "Cyd", endedAt: new Date("2026-11-05T11:00:00Z"), reason: "retreat" }] }), "fr").toJSON();
     expect(json.description).toContain("🥇 Aria — 50 pts · 5V 1D · 83% · meilleure série 4 · W3");
     expect(json.description).toContain("🥈 Brom — 20 pts · 2V 4D · 33% · meilleure série 2 · L2");
+    expect(duelBoardEmbed(data({ duels: 9, standings: [row("Aria", 5, 1, 4, 3)] }), "fr", "duel.png").toJSON().description).toBeUndefined();
     expect(json.fields?.[0]?.name).toBe("Derniers duels");
     expect(json.fields?.[0]?.value).toContain("<t:1793880000:R> · **Aria** bat Brom");
     expect(json.fields?.[0]?.value).toContain("gagne (adversaire en fuite) contre Cyd");

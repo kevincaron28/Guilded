@@ -1,3 +1,4 @@
+import { textlessEmbed } from "./card-only.js";
 import { EmbedBuilder } from "discord.js";
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
@@ -190,7 +191,7 @@ export async function queueDailyRecaps(db: DeliveryDb, now = new Date(), options
         if (!claim.count || recapIsEmpty(recap)) return false;
         const card = dailyRecapCard(recap, lang, settings.guild.name);
         await enqueueDiscordJob(tx, settings.guildId, `daily-recap:${day}`, "MESSAGE", { route: "wowWeekly",
-          message: JSON.parse(JSON.stringify({ embeds: [dailyRecapEmbed(recap, lang).toJSON()] })), card: JSON.parse(JSON.stringify(card)) });
+          message: JSON.parse(JSON.stringify({ embeds: [dailyRecapEmbed(recap, lang).toJSON()] })), card: JSON.parse(JSON.stringify(card)), cardOnly: { embeds: [textlessEmbed(0xd4a017)] } });
         return true;
       });
       if (done) queued++;

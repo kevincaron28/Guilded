@@ -36,10 +36,10 @@ describe("crafter standings", () => {
     expect(png?.subarray(1, 4).toString()).toBe("PNG");
   });
 
-  it("keeps the embed to the top 3 under a card and marks it for adoption", () => {
+  it("keeps only the title under a card (its top 3 repeat the picture) and the footer", () => {
     const embed = craftLadderEmbed(crafterStandings(rows, names, NOW), "en", "g1", "top-crafters.png").toJSON();
-    expect(embed.description?.split("\n")).toHaveLength(3);
-    expect(embed.description).toContain("🥇 Walter Sobchak — 3 pt · 2 in 30 days");
+    expect(embed.description).toBeUndefined();
+    expect(craftLadderEmbed(crafterStandings(rows, names, NOW), "en", "g1").toJSON().description).toContain("🥇 Walter Sobchak — 3 pt · 2 in 30 days");
     expect(embed.footer?.text).toBe("1 point per finished order on the crafting board · no EP/GP");
     expect(craftLadderEmbed([], "en", "g1").toJSON().description).toContain("No finished crafts yet");
   });

@@ -7,6 +7,7 @@ import { formatDuration } from "./dungeon-rules.js";
 import { dungeonTimeline } from "./dungeon-timeline.js";
 import { unrankedLabel, dungeonRunCard, finalBoss, guildPlayers, partyOf, roleName, className, runLabel } from "./dungeon-card.js";
 import type { ScoreCard } from "./score-card.js";
+import { recordItems } from "./record-card.js";
 
 /** Button on a run post: shows the boss chronology to whoever asks, privately. */
 export const DUNGEON_TIMELINE_PREFIX = "dgtl:";
@@ -22,6 +23,8 @@ export interface DungeonPost {
   content?: string | undefined;
   /** Chronologie button, present only when the run holds a boss chronology and a stored id. */
   components: ActionRowBuilder<ButtonBuilder>[];
+  /** 9.3: what is sent instead when the card is drawn: the lines the card cannot carry, or nothing but the picture and the button. */
+  cardOnly: { content?: string | undefined; embed: EmbedBuilder };
 }
 
 const MAX_POSTS = 12;
@@ -41,9 +44,40 @@ export function dungeonPosts(summary: DungeonImportSummary, lang: Lang, options:
     runRef: run.runRef,
     ...(run.highlights?.length ? { content: highlightHeadline(run.highlights, runLabel(run), lang) } : {}),
     embed: dungeonEmbed(run, lang),
+    cardOnly: dungeonCardOnly(run, lang),
     card: dungeonRunCard(run, lang, options.deathPoints?.[run.runRef] ? { deathPoints: options.deathPoints[run.runRef]! } : {}),
     components: timelineRow(run, lang)
   }));
+}
+
+/**
+ * The run post when its card is drawn: the card already shows the time, final boss, deaths, score, party, roles, who is in the
+ * guild and why a score is missing, and a guild record has its own card right after. What stays is what the card has no room
+ * for: the points line, boss records and challenges, personal records and achievements (and a guild record line when records
+ * are switched off, so no record card follows). Member tags are not kept: they never pinged. Pure.
+ */
+export function dungeonCardOnly(run: DungeonImportResult, lang: Lang): { content?: string | undefined; embed: EmbedBuilder } {
+  const fr = lang === "fr", members = guildPlayers(run), lines: string[] = [];
+  const recordCardFollows = recordItems(run.highlights).length > 0;
+  if (run.points > 0) lines.push(`${run.points} ${run.ratingEnabled ? (fr ? "points de participation" : "participation points") : (fr ? "points attribués au total" : "total points awarded")}`);
+  const others = (run.highlights ?? []).filter(item => item.kind !== "clear" && item.kind !== "first");
+  for (const item of others.slice(0, 6)) lines.push(highlightText(item, lang));
+  if (!recordCardFollows && run.guildRecord && run.previousGuildBest !== null) {
+    lines.push(t(lang, "dungeon.post.guildRecord", { dungeon: runLabel(run), before: formatDuration(run.previousGuildBest), now: formatDuration(run.durationSec as number) }));
+  }
+  const personal = run.personalRecords.filter((record) => members.has(record.character));
+  if (personal.length) lines.push(t(lang, "dungeon.post.personal", { dungeon: runLabel(run), names: personal.map((record) => run.fullNames?.[record.character] ?? record.character).join(", ") }));
+  const earned = new Map<string, string[]>();
+  for (const achievement of run.achievements) {
+    if (!members.has(achievement.character)) continue;
+    const label = achievementName(achievement.key, lang);
+    earned.set(label, [...(earned.get(label) ?? []), run.fullNames?.[achievement.character] ?? achievement.character]);
+  }
+  for (const [label, who] of earned) lines.push(`🎖️ ${label}: ${[...new Set(who)].join(", ")}`);
+  const embed = new EmbedBuilder().setColor(0xd4a017);
+  if (lines.length) embed.setDescription(lines.join("\n").slice(0, 3500));
+  const headline = others.length ? highlightHeadline(others, runLabel(run), lang) : undefined;
+  return { ...(headline ? { content: headline } : {}), embed };
 }
 
 function timelineRow(run: DungeonImportResult, lang: Lang): ActionRowBuilder<ButtonBuilder>[] {

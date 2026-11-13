@@ -77,7 +77,8 @@ export function craftLadderCard(standings: readonly CrafterStanding[], totalCraf
 export function craftLadderEmbed(standings: readonly CrafterStanding[], lang: Lang, guildId: string, image?: string): EmbedBuilder {
   const t = (en: string, fr: string) => lang === "fr" ? fr : en;
   const embed = new EmbedBuilder().setColor(0xc9a227).setTitle(t("🔨 Top crafters", "🔨 Meilleurs artisans"));
-  embed.setDescription(standings.length ? standings.slice(0, image ? 3 : 10).map((row, index) =>
+  // With the picture the top 3 repeat the card, so the embed keeps only its title (9.3).
+  if (!(image && standings.length)) embed.setDescription(standings.length ? standings.slice(0, 10).map((row, index) =>
     `${["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`} ${escapeMarkdown(row.name).slice(0, 40)} — ${row.points} ${t("pt", "pt")} · ${row.month} ${t("in 30 days", "en 30 jours")}`).join("\n")
     : t("No finished crafts yet. Ask on the craft board!", "Aucune commande terminée. Demandez sur le tableau d'artisanat!"));
   if (image && standings.length) embed.setImage(`attachment://${image}`);

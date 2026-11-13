@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 import type { DiscordJob, Prisma, PrismaClient } from "../generated/prisma/client.js";
 import { AttachmentBuilder, EmbedBuilder, type Client, type Guild, type MessageCreateOptions } from "discord.js";
 import { prisma } from "../database.js";
+import { cardAltText } from "./card-alt.js";
+import { messageForDelivery } from "./card-only.js";
 import { participationDay } from "./participation-rules.js";
 
 type Db = Pick<PrismaClient, "discordJob">;
@@ -197,16 +199,7 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     const marker = `Guilded delivery ${job.id}`, link = deliveryLink(job.id);
     const recent = await channel.messages.fetch({ limit: 100 });
     if (recent.some(message => message.author.id === guild.client.user?.id && message.embeds.some(embed => embed.footer?.text.includes(marker) || embed.url === link))) return;
-    const message = payload["message"] as MessageCreateOptions;
-    const embeds = (message.embeds ?? []).map(embed => new EmbedBuilder("toJSON" in embed ? embed.toJSON() : embed));
-    if (!embeds.length) embeds.push(new EmbedBuilder().setDescription(message.content || "Guilded update"));
-    const last = embeds[embeds.length - 1]!;
-    // An embed without a title keeps its link invisible; with titles everywhere, an extra empty-looking embed would
-    // show, so the last one gets the link and its title simply links to the website.
-    const carrier = embeds.find(embed => !embed.data.title && !embed.data.url) ?? embeds.find(embed => !embed.data.url) ?? last;
-    if (!carrier.data.url) carrier.setURL(link);
-    // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
-    const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
+    // The card is drawn first: a post may carry a reduced card-only message for when the picture is available.
     // An optional card is drawn here from its stored definition; without an image the post still goes out.
     const { scoreCardPng } = await import("./score-card.js");
     let cardDefinition = payload["card"] && typeof payload["card"] === "object" ? payload["card"] as import("./score-card.js").ScoreCard : null;
@@ -221,8 +214,18 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       cardDefinition = await withCardPictures(prisma, job.guildId, cardDefinition, typeof payload["cardMember"] === "string" ? payload["cardMember"] : undefined);
     }
     const card = cardDefinition ? await scoreCardPng(cardDefinition).catch(() => null) : null;
+    const message = messageForDelivery(payload["message"] as MessageCreateOptions, payload["cardOnly"], Boolean(card));
+    const embeds = (message.embeds ?? []).map(embed => new EmbedBuilder("toJSON" in embed ? embed.toJSON() : embed));
+    if (!embeds.length) embeds.push(new EmbedBuilder().setDescription(message.content || "Guilded update"));
+    const last = embeds[embeds.length - 1]!;
+    // An embed without a title keeps its link invisible; with titles everywhere, an extra empty-looking embed would
+    // show, so the last one gets the link and its title simply links to the website.
+    const carrier = embeds.find(embed => !embed.data.title && !embed.data.url) ?? embeds.find(embed => !embed.data.url) ?? last;
+    if (!carrier.data.url) carrier.setURL(link);
+    // Nobody is notified, except the users a job names explicitly (the hall of fame's opt-in MVP ping).
+    const users = Array.isArray(payload["mentionUsers"]) ? payload["mentionUsers"].filter((id): id is string => typeof id === "string" && /^\d{17,20}$/.test(id)).slice(0, 10) : [];
     if (card) last.setImage("attachment://card.png");
-    await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" })] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
+    await channel.send({ ...message, embeds, ...(card ? { files: [new AttachmentBuilder(card, { name: "card.png" }).setDescription(cardAltText(cardDefinition!))] } : {}), allowedMentions: { parse: [], users }, nonce: job.id.slice(-25), enforceNonce: true });
   } else if (job.kind === "INVITE_CLEANUP") {
     const { runInviteCleanupJob } = await import("./invite-cleanup.js");
     await runInviteCleanupJob(guild, prisma, job);

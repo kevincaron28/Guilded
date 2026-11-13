@@ -1,5 +1,5 @@
 import { updateProfessionDirectory } from "./profession-directory.js";
-import type { Guild as DiscordGuild } from "discord.js";
+import { EmbedBuilder, type Guild as DiscordGuild } from "discord.js";
 import { prisma } from "../database.js";
 import { autoLinkUnclaimed } from "./character-autolink.js";
 import { dungeonPosts } from "./dungeon-announce.js";
@@ -52,13 +52,13 @@ export async function announceDungeonRuns(discordGuild: DiscordGuild | null, dun
   for (const index of runs.keys()) {
     await notifyDungeon(discordGuild, (lang) => {
       const post = dungeonPosts(dungeons, lang)[index] ?? runs[index]!;
-      return { embed: post.embed, card: post.card, components: post.components, ...(post.content ? { content: post.content } : {}) };
+      return { embed: post.embed, card: post.card, cardOnly: post.cardOnly, components: post.components, ...(post.content ? { content: post.content } : {}) };
     });
     // A guild record gets its own card right after the run's post, so it is not lost among the run cards. Highlights were
     // removed above when an officer switched records off, so this follows the same switch. No mentions.
     const run = dungeons.results.find(result => result.runRef === runs[index]!.runRef);
     for (const item of run ? recordItems(run.highlights) : []) {
-      await notifyDungeon(discordGuild, (lang) => ({ embed: recordEmbed(run!, item, lang), card: recordCard(run!, item, lang) }));
+      await notifyDungeon(discordGuild, (lang) => ({ embed: recordEmbed(run!, item, lang), card: recordCard(run!, item, lang), cardOnly: { embed: new EmbedBuilder().setColor(0xffd100) } }));
     }
   }
   return runs.length > 0;

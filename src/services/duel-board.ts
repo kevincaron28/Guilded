@@ -58,7 +58,8 @@ export function duelBoardEmbed(data: DuelBoardData, lang: Lang, image?: string):
       const medal = ["🥇", "🥈", "🥉"][index] ?? `**${index + 1}.**`;
       return `${medal} ${name(row.name)} — ${row.score} pts · ${row.wins}${t("W", "V")} ${row.losses}${t("L", "D")} · ${percent(row.winRate)} · ${t("best streak", "meilleure série")} ${row.bestStreak} · ${streakText(row.streak)}`;
     });
-    embed.setDescription(rows.join("\n"));
+    // With the picture, its top 3 repeat the card: the embed keeps only the title and the latest duels (9.3).
+    if (!image) embed.setDescription(rows.join("\n"));
     if (data.recent.length) {
       embed.addFields({ name: t("Latest duels", "Derniers duels"), value: data.recent.slice(0, RECENT).map(duel =>
         `<t:${Math.floor(duel.endedAt.getTime() / 1000)}:R> · **${name(duel.winner)}** ${duel.reason === "retreat" ? t("won (opponent fled) against", "gagne (adversaire en fuite) contre") : t("beat", "bat")} ${name(duel.loser)}`).join("\n").slice(0, 1024) });

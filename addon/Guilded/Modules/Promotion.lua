@@ -134,7 +134,7 @@ function module.open()
   tools.requestRoster()
   if window then window:Show(); module.refresh(); return end
   local f = CreateFrame("Frame", "GuildedPromotionPanel", UIParent, "BasicFrameTemplateWithInset")
-  window = f; f:SetSize(420, 120 + MAX_ROWS * 26); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true)
+  window = f; f:SetSize(420, 120 + MAX_ROWS * 26); f:SetPoint("CENTER"); f:SetMovable(true); f:EnableMouse(true); f:SetClampedToScreen(true)
   f:RegisterForDrag("LeftButton"); f:SetScript("OnDragStart", f.StartMoving); f:SetScript("OnDragStop", f.StopMovingOrSizing)
   if f.TitleText then f.TitleText:SetText(L("Ready to promote")) end
   if UISpecialFrames then table.insert(UISpecialFrames, "GuildedPromotionPanel") end

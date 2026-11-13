@@ -889,9 +889,9 @@ local function onAddonMessage(text, sender)
     index, total = tonumber(index), tonumber(total)
     if not id or not index or not total or total < 1 or total > 20 or index < 1 or index > total then return end
     if #id > 120 then return end
-    -- Guilded Dungeons takes a party member's summary of a run it recorded itself; it keeps no
-    -- copies of guildmates' other runs (no catch-up module there to pass them on).
-    if ns.standalone and not (d and d.runs[id]) then return end
+    -- (9.3) Guilded Dungeons keeps a guildmate's summary too (it only came from an authorized guild member, and the sender
+    -- must be a player of the run it describes), so its companion can upload it as a heard run for a member with no
+    -- companion. It does not forward copies (no catch-up module); unconfirmed copies are pruned after KEEP_PEER_DAYS.
     local count, senderCount = 0, 0
     for bufferKey, buffer in pairs(dungeon.incoming) do
       if not buffer.at or now() - buffer.at > 60 then dungeon.incoming[bufferKey] = nil

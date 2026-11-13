@@ -7,6 +7,8 @@ import { COMMUNITY_CHANNEL_SPECS, communityChannelNames } from "../setup-names.j
 import { standings, type Standing } from "./community-rules.js";
 import { communitySeasonLabel } from "./community-display.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
+import { weeklyRookieCard } from "./rookie-card.js";
+import { textlessEmbed } from "./card-only.js";
 import { retryTransientTransaction, SHORT_TRANSACTION } from "./transaction-retry.js";
 import { dateAfter, dayStart, participationDay, participationWeek } from "./participation-rules.js";
 import { monthlyRookie, rookieMemberLookup, ROOKIE_ROLE, WEEKLY_ROOKIE_ROLE, weeklyRookie, type MonthlyRookie, type RookieMemberLookup } from "./monthly-rookie.js";
@@ -143,6 +145,23 @@ export function weeklyHonorsMessage(lang: Lang, input: WeeklyMessageInput) {
   embed.setFooter({ text: say(lang, "Guilded · Hall of fame", "Guilded · Palmarès") });
   const winners = mvps.map(id => input.ping ? `${who(names, id)} (<@${id}>)` : who(names, id)).join(", ");
   return { content: mvps.length && !input.partial ? say(lang, `⭐ Congratulations ${winners}!`, `⭐ Bravo ${winners} !`) : "", embeds: [embed.toJSON()] };
+}
+
+/**
+ * 9.3: the rookie of the week as a card inside the weekly post. With the card drawn, the post keeps its text (congratulations line, top of the
+ * week, the guild's week) except the rookie field, which the card carries; without a rookie there is no card and the post is unchanged.
+ */
+export function weeklyRookieCardExtra(lang: Lang, message: ReturnType<typeof weeklyHonorsMessage>, week: string, board: Standing[], rookie: Standing | null | undefined, names: Names): Record<string, unknown> {
+  if (!rookie) return {};
+  const label = say(lang, "🌱 Rookie of the week", "🌱 Recrue de la semaine");
+  const ranked = board.filter(row => row.points > 0), place = ranked.findIndex(row => row.userId === rookie.userId) + 1;
+  const name = (names.get(rookie.userId) || `…${rookie.userId.slice(-4)}`).replace(/[\r\n]/g, " ").slice(0, 32);
+  const embeds = message.embeds.map(embed => ({ ...embed, fields: (embed.fields ?? []).filter(field => field.name !== label) }));
+  return {
+    card: weeklyRookieCard(lang, { name, points: rookie.points, place: place || ranked.length, ranked: ranked.length, week }),
+    cardOnly: { ...(message.content ? { content: message.content } : {}), embeds: [...embeds, textlessEmbed(ROLE_COLORS.weekly)] },
+    ...(SNOWFLAKE.test(rookie.userId) ? { cardMember: rookie.userId } : {})
+  };
 }
 
 export function monthlyHonorsMessage(lang: Lang, season: { name: string; number: number }, board: Standing[], names: Names = new Map(), rookie: MonthlyRookie | null = null) {
@@ -367,7 +386,7 @@ export async function advanceCommunityHonors(database: PrismaClient, guildId: st
         const ping = honors.pingMvp && mvps.length > 0;
         const message = weeklyHonorsMessage(lang, { week, board, mvps, recap, rookie, mode, ping, mvpCounts: await mvpCounts(tx, guildId, mvps, false), names });
         await enqueueDiscordJob(tx, guildId, `community-week:${week}`, "MESSAGE", { channelId: honors.channelId, message: JSON.parse(JSON.stringify(message)),
-          ...(ping ? { mentionUsers: mvps.filter(id => SNOWFLAKE.test(id)) } : {}) });
+          ...(ping ? { mentionUsers: mvps.filter(id => SNOWFLAKE.test(id)) } : {}), ...JSON.parse(JSON.stringify(weeklyRookieCardExtra(lang, message, week, board, rookie, names))) });
       }
       result.week = week;
     }

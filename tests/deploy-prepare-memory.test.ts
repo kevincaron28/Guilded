@@ -123,7 +123,7 @@ describe.skipIf(!hasRsync || !hasGroup)("deploy/application-update.sh dependency
     writeFileSync(join(app, "node_modules", "marker.js"), "live");
     // Schema, generated client, companion sources and the live bundle outputs.
     for (const dir of [app, source]) {
-      for (const sub of ["prisma", "companion", "companion-app/renderer", "scripts", "docs/branding", "site"]) mkdirSync(join(dir, sub), { recursive: true });
+      for (const sub of ["src", "prisma", "companion", "companion-app/renderer", "scripts", "docs/branding", "site"]) mkdirSync(join(dir, sub), { recursive: true });
       writeFileSync(join(dir, "prisma", "schema.prisma"), dir === source && f.schemaChanged ? "schema B" : "schema A");
       writeFileSync(join(dir, "companion", "a.mjs"), dir === source && f.companionChanged ? "export const a = 2;" : "export const a = 1;");
       writeFileSync(join(dir, "companion-app", "renderer", "ui-entry.js"), "entry");
@@ -272,7 +272,7 @@ echo "STAGED=\${STAGED_APP:-}"`;
     expect(calls).not.toContain("prisma generate");
     // The live tree was copied, and the live one is untouched.
     expect(readFileSync(join(staged, "node_modules", "marker.js"), "utf8")).toBe("live");
-    expect(existsSync(join(app, "src", "generated"))).toBe(false);
+    expect(readFileSync(join(app, "src", "generated", "prisma", "client.ts"), "utf8")).toBe("live client");
   });
 
   it("an incremental install needs only the small sanity floor, not the full-install memory", () => {
@@ -335,7 +335,7 @@ echo "STAGED=\${STAGED_APP:-}"`;
     expect(out).toContain("RESULT=ok");
     // Probe, node_modules copy, npm install, npm ls, bundle build.
     expect(calls.match(/^systemd-run /gm)).toHaveLength(5);
-    expect(calls).toContain("-- sudo -u");
+    expect(calls).toMatch(/-- ionice -c\d.* sudo -u/);
   });
 
   it("runs a full npm ci under the ceiling when there is no live node_modules", () => {

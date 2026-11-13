@@ -142,6 +142,7 @@ export function createAddonImportService(database: PrismaClient) {
         const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
         if (!imported) throw new Error("Addon import not found.");
         if (imported.status === "APPLIED") throw new Error("Addon import has already been applied.");
+        if (imported.status === "SUPERSEDED") throw new Error("This import was superseded by a newer upload from the same member; apply the newer one, or send this file again.");
         const applyStarted = Date.now();
         let lastSection = applyStarted;
         const sections: string[] = [];

@@ -42,6 +42,7 @@ export interface DiscoveryResult {
 export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries: readonly AddonCharacter[], linked: readonly Linked[]): Promise<DiscoveryResult> {
   const result: DiscoveryResult = { refreshed: 0, discovered: 0 };
   const seen = new Set<string>();
+  const touched: string[] = [];
   // The unclaimed rows of everyone not linked, in one read (it was one per entry). Test doubles without findMany read one by one.
   const unlinkedKeys = entries.filter((entry) => !findCharacter(linked, entry.name, entry.realm, gameEditionOf(entry))).map((entry) => characterKey(entry.name, entry.realm, gameEditionOf(entry))).filter(Boolean);
   const preloaded = unlinkedKeys.length && typeof tx.unclaimedCharacter.findMany === "function"
@@ -69,11 +70,12 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
     const before = preloaded ? preloaded.get(key) ?? null : await tx.unclaimedCharacter.findUnique({ where: { guildId_nameKey: { guildId, nameKey: key } }, select: { id: true, professionsUpdatedAt: true } });
     const at = entry.professionsAt ?? new Date();
     const acceptProfessions = !before?.professionsUpdatedAt || (entry.professionsComplete === true && at > before.professionsUpdatedAt);
-    // Nothing new about someone already remembered, seen within the hour: no write.
+    // Nothing new about someone already remembered, seen within the hour: no field write. Their last seen is still refreshed for the
+    // whole upload below (one updateMany): the sole-newcomer auto-link counts the characters an upload brought by last seen.
     const stored = before as { lastSeenAt?: Date | null; className?: string; race?: string | null; level?: number | null; spec?: string | null; displayName?: string | null; guildRankName?: string | null } | null;
     if (preloaded && stored && !acceptProfessions && stored.lastSeenAt instanceof Date && Date.now() - stored.lastSeenAt.getTime() < SEEN_REFRESH_MS
       && stored.className === className && (stored.race ?? null) === race && (stored.level ?? null) === level && (stored.spec ?? null) === spec
-      && (!entry.displayName || stored.displayName === entry.displayName) && (entry.guildRankName === undefined || stored.guildRankName === entry.guildRankName)) continue;
+      && (!entry.displayName || stored.displayName === entry.displayName) && (entry.guildRankName === undefined || stored.guildRankName === entry.guildRankName)) { touched.push((before as { id: string }).id); continue; }
     const data = {
       name: entry.name, realm: entry.realm, className, race, level, spec,
       gameEdition,
@@ -93,6 +95,9 @@ export async function applyDiscoveredCharacters(tx: Tx, guildId: string, entries
       await tx.professionCooldown.deleteMany({ where });
     }
     if (!before) result.discovered++;
+  }
+  for (let from = 0; from < touched.length; from += 1_000) {
+    await tx.unclaimedCharacter.updateMany({ where: { id: { in: touched.slice(from, from + 1_000) } }, data: { lastSeenAt: new Date() } });
   }
   return result;
 }

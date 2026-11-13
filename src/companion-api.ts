@@ -1486,7 +1486,7 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         const failure = classifyApplyFailure(outcome.error);
         // The companion already showed "applying" and moved on: a member whose apply then failed for good is told by private message
         // (officers get the notice in the officer channel below). Closed DMs are skipped quietly.
-        if (late && !access.officer && !failure.transient && !outcome.applied && client && !/already been applied/i.test(outcome.error instanceof Error ? outcome.error.message : "")) {
+        if (late && !access.officer && !failure.transient && !outcome.applied && client && shouldTellApplyFailure(`member:${guild.id}:${createdBy}:${failure.reason}`) && !/already been applied/i.test(outcome.error instanceof Error ? outcome.error.message : "")) {
           const text = settings?.language === "fr"
             ? `⚠️ **Guilded** : votre dernier envoi du companion a été reçu mais n'a pas pu être appliqué : ${failure.message} [${failure.reason}]\nRien n'en a été importé. Un officier peut regarder le journal du bot ; le prochain envoi réessaie.`
             : `⚠️ **Guilded**: your last companion upload was received but could not be applied: ${failure.message} [${failure.reason}]\nNothing from it was imported. An officer can check the bot's log; the next upload tries again.`;
@@ -1542,7 +1542,9 @@ export function startCompanionApi(client?: Client): ReturnType<typeof createServ
         // A member upload (and an officer guild with auto-apply) that was stored
         // but not applied must be tried again. Leaving it PREVIEWED made the
         // companion say "waiting for officer review", which a member cannot do.
-        if (existing?.status === "PREVIEWED" && (!access.officer || settings?.autoApplyImports)) {
+        if ((existing?.status === "PREVIEWED" || existing?.status === "SUPERSEDED") && (!access.officer || settings?.autoApplyImports)) {
+          // A file resent after a newer upload replaced it is the one to apply again: back to waiting, then applied.
+          if (existing.status === "SUPERSEDED") await prisma.addonImport.updateMany({ where: { id: existing.id, guildId: guild.id, status: "SUPERSEDED" }, data: { status: "PREVIEWED" } });
           mark("before:auto-apply");
           const job = { importId: existing.id, retried: true };
           const answer = await applyWithDeadline(job);

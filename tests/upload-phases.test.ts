@@ -71,7 +71,7 @@ describe("the upload timing line", () => {
     expect(line).toContain("body:300");
     expect(line).toContain("auth:300");
     expect(line).toMatch(/before:work:\d{3,4}/);
-    expect(Math.abs(sum(line) - total(line))).toBeLessThanOrEqual(25);   // phases under 200 ms are not printed
+    expect(Math.abs(sum(line) - total(line))).toBeLessThanOrEqual(10);   // the few ms of phases under 200 ms are not printed; CI measured 1 ms off, so exact equality was flaky
   });
 });
 

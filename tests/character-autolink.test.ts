@@ -71,14 +71,15 @@ describe("discovery of a whole guild's roster writes only what changed", () => {
       className: "Priest", race: "Undead", level: 6, spec: null, displayName: null, guildRankName: null }));
     const findMany = vi.fn(async () => unclaimedRows);
     const upsert = vi.fn(async () => ({}));
-    const client = { character: { findUnique: characterReads, update }, professionSkill: { upsert: vi.fn() }, unclaimedCharacter: { findMany, findUnique: vi.fn(async () => null), upsert }, recipeKnown: { deleteMany: vi.fn() }, professionCooldown: { deleteMany: vi.fn() } };
+    const updateMany = vi.fn(async () => ({}));
+    const client = { character: { findUnique: characterReads, update }, professionSkill: { upsert: vi.fn() }, unclaimedCharacter: { findMany, findUnique: vi.fn(async () => null), upsert, updateMany }, recipeKnown: { deleteMany: vi.fn() }, professionCooldown: { deleteMany: vi.fn() } };
     const linked = names.slice(0, COUNT / 2).map((name, i) => ({ id: `c${i}`, name, realm: "Classic Beta PvP", className: "Priest", race: "Undead", level: 6, spec: null, displayName: null,
       guildRankName: null, guildRankIndex: null, lastSeenAt: recent(), professionsUpdatedAt: new Date("2026-11-01T00:00:00Z") }));
-    return { client, linked, characterReads, update, findMany, upsert };
+    return { client, linked, characterReads, update, findMany, upsert, updateMany };
   }
 
   it("an unchanged roster seen within the hour: no character update, no per-row reads, no unclaimed upsert", async () => {
-    const { client, linked, characterReads, update, findMany, upsert } = world();
+    const { client, linked, characterReads, update, findMany, upsert, updateMany } = world();
     const result = await applyDiscoveredCharacters(client as never, "g", names.map((name) => entry(name)), linked);
     expect(result).toEqual({ refreshed: COUNT / 2, discovered: 0 });
     expect(update).not.toHaveBeenCalled();
@@ -86,6 +87,9 @@ describe("discovery of a whole guild's roster writes only what changed", () => {
     expect(findMany).toHaveBeenCalledTimes(1);
     expect(client.unclaimedCharacter.findUnique).not.toHaveBeenCalled();
     expect(upsert).not.toHaveBeenCalled();
+    // Their last seen is still refreshed, for all remembered unclaimed characters of the upload, in one statement.
+    expect(updateMany).toHaveBeenCalledTimes(1);
+    expect((updateMany.mock.calls[0] as unknown as [{ where: { id: { in: string[] } } }])[0].where.id.in).toHaveLength(COUNT / 2);
   });
 
   it("a changed level, a new person and an hour-old sighting still write", async () => {
@@ -95,5 +99,39 @@ describe("discovery of a whole guild's roster writes only what changed", () => {
     expect(update.mock.calls.map((call) => (call as unknown as [{ where: { id: string } }])[0].where.id).sort()).toEqual(["c0", "c1"]);
     expect(upsert).toHaveBeenCalledTimes(1);
     expect(result.discovered).toBe(1);
+  });
+});
+
+describe("sole-newcomer auto-link counts every character an upload brought, remembered or new", () => {
+  it("remembered unclaimed A plus brand-new B: two arrived, so nobody is linked", async () => {
+    const hourAgo = new Date(Date.now() - 20 * 60_000);
+    type Row = { id: string; guildId: string; nameKey: string; name: string; realm: string; className: string; race: string | null; level: number | null; spec: string | null; displayName: string | null; guildRankName: string | null;
+      professionsUpdatedAt: Date | null; lastSeenAt: Date; gameEdition: string };
+    const rows: Row[] = [{ id: "uA", guildId: "g", nameKey: "alpha", name: "Alpha", realm: "R", className: "Priest", race: "Undead", level: 6, spec: null, displayName: null, guildRankName: null,
+      professionsUpdatedAt: new Date("2026-11-01T00:00:00Z"), lastSeenAt: hourAgo, gameEdition: "forever" }];
+    const member = { id: "m1", displayName: "Newbie" };
+    const linkedTo: string[] = [];
+    const db = {
+      character: { findFirst: vi.fn(async () => null), findUnique: vi.fn(async () => null), update: vi.fn() },
+      professionSkill: { upsert: vi.fn() }, recipeKnown: { deleteMany: vi.fn() }, professionCooldown: { deleteMany: vi.fn() },
+      unclaimedCharacter: {
+        findMany: vi.fn(async ({ where }: { where: { nameKey?: { in: string[] }; lastSeenAt?: { gte: Date }; gameEdition?: string } }) => rows.filter((row) =>
+          (!where.nameKey || where.nameKey.in.includes(row.nameKey)) && (!where.lastSeenAt || row.lastSeenAt >= where.lastSeenAt.gte) && (!where.gameEdition || row.gameEdition === where.gameEdition))),
+        findUnique: vi.fn(async () => null),
+        upsert: vi.fn(async ({ create }: { create: Omit<Row, "id" | "lastSeenAt"> & { lastSeenAt: Date } }) => { rows.push({ ...create, id: `u${rows.length}` } as Row); return create; }),
+        updateMany: vi.fn(async ({ where, data }: { where: { id: { in: string[] } }; data: { lastSeenAt: Date } }) => { for (const row of rows) if (where.id.in.includes(row.id)) row.lastSeenAt = data.lastSeenAt; return {}; }),
+        delete: vi.fn()
+      },
+      member: { findMany: vi.fn(async () => [member]) }
+    };
+    const since = new Date(Date.now() - 1_000);
+    const entry = (name: string) => ({ name, realm: "R", class: "PRIEST", race: "Scourge", level: 6, spec: "", professions: [] });
+    await applyDiscoveredCharacters(db as never, "g", [entry("Alpha"), entry("Beta")], []);
+    const arrived = await db.unclaimedCharacter.findMany({ where: { lastSeenAt: { gte: since }, gameEdition: "forever" } });
+    expect(arrived.map((row) => row.name).sort()).toEqual(["Alpha", "Beta"]);
+    const { linkSoleNewcomer } = await import("../src/services/character-autolink.js");
+    expect(await linkSoleNewcomer(db as never, "g", since)).toBeNull();
+    expect(linkedTo).toEqual([]);
+    expect(db.member.findMany).not.toHaveBeenCalled();
   });
 });

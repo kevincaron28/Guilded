@@ -29,7 +29,14 @@ function module.parse(text)
   if type(text) ~= "string" then return skills end
   for name, skill in text:gmatch("([^:,]+):(%d+)") do
     -- Canonical English name whatever language the sender's client used (Util.lua), so the note tag and the icon match.
-    if #skills < 10 and #name <= 40 and #skill <= 4 then skills[#skills + 1] = { name = ns.util.professionName(trim(name)), skill = tonumber(skill) } end
+    if #name <= 40 and #skill <= 4 then
+      local canonical, level = ns.util.professionName(trim(name)), tonumber(skill)
+      -- "Cuisine:300,Cooking:150" (one profession sent under two spellings) is one entry at the higher skill.
+      local twin
+      for _, entry in ipairs(skills) do if entry.name == canonical then twin = entry break end end
+      if twin then twin.skill = math.max(twin.skill, level)
+      elseif #skills < 10 then skills[#skills + 1] = { name = canonical, skill = level } end
+    end
   end
   return skills
 end

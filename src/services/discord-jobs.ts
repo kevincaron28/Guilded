@@ -157,6 +157,11 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       const current = settings?.weeklyReportChannelId ?? settings?.notifyChannelId;
       if (!current) throw new Error("Configure WoW weekly reports first");
       channelId = current;
+    } else if (route === "duelCard") {
+      // 9.3: re-checked at delivery, so a card queued before an officer turned the cards off, or moved the duel channel, never posts to the old place.
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { duelCardsEnabled: true, duelBoardChannelId: true } });
+      if (!settings?.duelCardsEnabled || !settings.duelBoardChannelId) return;
+      channelId = settings.duelBoardChannelId;
     } else if (route === "readiness") {
       // Don't deliver yesterday's failed summary alongside today's message.
       const timezone = typeof payload["timezone"] === "string" ? payload["timezone"] : "America/Toronto";
@@ -214,6 +219,8 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       cardDefinition = await withCardPictures(prisma, job.guildId, cardDefinition, typeof payload["cardMember"] === "string" ? payload["cardMember"] : undefined);
     }
     const card = cardDefinition ? await scoreCardPng(cardDefinition).catch(() => null) : null;
+    // A post that asks for it (the duel cards) tries again later when the picture could not be drawn (the renderer was busy), before settling for the text.
+    if (cardDefinition && !card && payload["retryCard"] === true && job.attempts < 3) throw Object.assign(new Error("Card renderer busy"), { code: "card-busy" });
     const message = messageForDelivery(payload["message"] as MessageCreateOptions, payload["cardOnly"], Boolean(card));
     const embeds = (message.embeds ?? []).map(embed => new EmbedBuilder("toJSON" in embed ? embed.toJSON() : embed));
     if (!embeds.length) embeds.push(new EmbedBuilder().setDescription(message.content || "Guilded update"));

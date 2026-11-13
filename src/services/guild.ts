@@ -127,6 +127,7 @@ export function createGuildService(database: PrismaClient) {
       dungeonLeaderboardChannelId?: string | null;
       dungeonLeaderboardMessageId?: string | null;
       duelBoardEnabled?: boolean;
+      duelCardsEnabled?: boolean;
       duelBoardMessageId?: string | null;
       raceBoardEnabled?: boolean;
       raceBoardChannelId?: string | null;

@@ -3,18 +3,19 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "./../i18n.js";
 import { textlessEmbed } from "./card-only.js";
 import { displayCharacterName, type FullNameBook } from "./character-display.js";
-import { enqueueDiscordJob } from "./discord-jobs.js";
-import { duelLeaderboard, duelPoints, streakText, type FreshDuel } from "./duels.js";
+import { duelPoints, streakText, type FreshDuel } from "./duels.js";
 import { classOf, type ClassBook } from "./ladder-classes.js";
 import { classColor, type ScoreCard } from "./score-card.js";
 
 // One Discord card per counted duel (9.3, owner decision 13 November 2026). Drawn on delivery from the stored definition, so it
-// is queued like every other card post: low-priority job, one render at a time, a plain-text fallback when the picture cannot
-// be drawn. No pings. It posts where the duel board lives and follows the duel board's own switch (GuildSettings.duelBoardEnabled).
+// is queued like every other card post: a MESSAGE job on the "duelCard" route (switch and channel re-checked at delivery), delayed
+// so boards and other posts go first, one render at a time, the picture retried before the text fallback. No pings.
+// Burst rule (proposed numbers): a server gets at most WINDOW_CARDS single cards per WINDOW_MINUTES; every duel past that is
+// folded into ONE summary card per window that keeps growing until it posts (nothing is dropped).
 
-/** Individual cards one upload may queue; the rest of its duels fold into ONE summary card (proposed number, owner may change). */
-export const DUEL_CARDS_PER_IMPORT = 3;
-const SUMMARY_ROWS = 6;
+export const WINDOW_MINUTES = 10, WINDOW_CARDS = 5;
+const POST_DELAY_MS = 90_000;
+const SUMMARY_ROWS = 6, SUMMARY_KEEP = 60;
 const DUEL_COLOR = 0xb91c1c;
 
 export interface DuelCardInput extends FreshDuel { points: number; winnerScore: number; winnerStreak: number; winnerBest: number }
@@ -73,28 +74,62 @@ const summaryFallback = (duels: readonly DuelCardInput[], lang: Lang, names: Ful
   `⚔️ ${lang === "fr" ? `${duels.length} autres duels comptés` : `${duels.length} more duels counted`}\n${duels.slice(0, SUMMARY_ROWS).map(duel =>
     `${displayCharacterName(duel.winnerCharacter, names)} › ${displayCharacterName(duel.loserCharacter, names)} (+${duel.points})`).join("\n")}`.slice(0, 1800));
 
-/** Pure: each fresh duel with what its winner's standing was after it (points, current and best streak). */
-export function withStandings(fresh: readonly FreshDuel[], standings: readonly { memberId: string; score: number; streak: number; bestStreak: number }[]): DuelCardInput[] {
-  const by = new Map(standings.map(row => [row.memberId, row]));
-  return fresh.map(duel => ({ ...duel, points: duelPoints(duel.winnerLevel, duel.loserLevel), winnerScore: by.get(duel.winnerId)?.score ?? 0,
-    winnerStreak: by.get(duel.winnerId)?.streak ?? 0, winnerBest: by.get(duel.winnerId)?.bestStreak ?? 0 }));
+export interface Standing { score: number; streak: number; bestStreak: number }
+export interface HistoryRow { reportKey: string; winnerId: string; loserId: string; winnerLevel: number | null; loserLevel: number | null }
+
+/** Pure: the winner's standing right AFTER each wanted duel, replaying the counted history oldest first (so three wins in one upload show 1, 2, 3 wins). */
+export function standingsAfterEach(history: readonly HistoryRow[], wanted: ReadonlySet<string>): Map<string, Standing> {
+  const run = new Map<string, { score: number; streak: number; best: number }>();
+  const entry = (id: string) => { let row = run.get(id); if (!row) { row = { score: 0, streak: 0, best: 0 }; run.set(id, row); } return row; };
+  const out = new Map<string, Standing>();
+  for (const duel of history) {
+    const w = entry(duel.winnerId), l = entry(duel.loserId);
+    w.score += duelPoints(duel.winnerLevel, duel.loserLevel); w.streak = w.streak > 0 ? w.streak + 1 : 1; w.best = Math.max(w.best, w.streak);
+    l.streak = l.streak < 0 ? l.streak - 1 : -1;
+    if (wanted.has(duel.reportKey)) out.set(duel.reportKey, { score: w.score, streak: w.streak, bestStreak: w.best });
+  }
+  return out;
 }
 
-const queued = (guildId: string, key: string, channelId: string, card: ScoreCard, fallback: EmbedBuilder, database: Pick<PrismaClient, "discordJob">) =>
-  enqueueDiscordJob(database, guildId, key, "MESSAGE", { channelId, message: JSON.parse(JSON.stringify({ embeds: [fallback.toJSON()] })), card: JSON.parse(JSON.stringify(card)),
-    cardOnly: { embeds: [textlessEmbed(DUEL_COLOR)] } } as Prisma.InputJsonValue);
+/** Pure: the fresh duels with their points and the winner's standing after each. */
+export function withStandings(fresh: readonly FreshDuel[], after: ReadonlyMap<string, Standing>): DuelCardInput[] {
+  return fresh.map(duel => { const at = after.get(duel.reportKey); return { ...duel, points: duelPoints(duel.winnerLevel, duel.loserLevel), winnerScore: at?.score ?? 0, winnerStreak: at?.streak ?? 0, winnerBest: at?.bestStreak ?? 0 }; });
+}
+
+type Database = Pick<PrismaClient, "discordJob" | "duelResult">;
+const jsonOf = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+
+async function put(database: Pick<PrismaClient, "discordJob">, guildId: string, key: string, payload: Record<string, unknown>, now: Date) {
+  const nextAttemptAt = new Date(now.getTime() + POST_DELAY_MS);
+  return database.discordJob.upsert({ where: { guildId_key: { guildId, key } }, create: { guildId, key, kind: "MESSAGE", payload: jsonOf(payload), nextAttemptAt },
+    update: { kind: "MESSAGE", payload: jsonOf(payload), revision: { increment: 1 }, status: "PENDING", attempts: 0, nextAttemptAt, lastError: null } });
+}
+const base = (card: ScoreCard, fallback: EmbedBuilder) => ({ route: "duelCard", retryCard: true, message: { embeds: [fallback.toJSON()] }, card, cardOnly: { embeds: [textlessEmbed(DUEL_COLOR)] } });
 
 /**
- * Queues the cards of one upload's newly counted duels: one per duel up to DUEL_CARDS_PER_IMPORT, the rest in one summary card.
- * Each job's key holds the duel's report key, so a repeated upload cannot queue a card twice. Runs inside the import transaction.
+ * Queues the cards for the duels one upload newly counted. Runs OUTSIDE the import transaction (it reads the duel history).
+ * Single cards while the server's window allowance lasts, then one growing summary card per window. The summary job holds the
+ * duels it covers (`duels`, newest SUMMARY_KEEP) so a later upload in the same window adds to it while it is still queued.
  */
-export async function queueDuelCards(database: Pick<PrismaClient, "discordJob" | "duelResult">, guildId: string, edition: string, channelId: string, lang: Lang,
-  fresh: readonly FreshDuel[], classes: ClassBook, names: FullNameBook): Promise<number> {
+export async function queueDuelCards(database: Database, guildId: string, edition: string, lang: Lang, fresh: readonly FreshDuel[], classes: ClassBook, names: FullNameBook, now = new Date()): Promise<number> {
   if (!fresh.length) return 0;
-  const { standings } = await duelLeaderboard(database, guildId, edition, { limit: 1000 });
-  const duels = withStandings(fresh, standings);
-  const single = duels.slice(0, DUEL_CARDS_PER_IMPORT), rest = duels.slice(DUEL_CARDS_PER_IMPORT);
-  for (const duel of single) await queued(guildId, `duel-card:${duel.reportKey}`, channelId, duelResultCard(duel, lang, classes, names), duelFallbackEmbed(duel, lang, names), database);
-  if (rest.length) await queued(guildId, `duel-card:${rest[0]!.reportKey}:more`, channelId, duelSummaryCard(rest, lang, classes, names), summaryFallback(rest, lang, names), database);
-  return single.length + (rest.length ? 1 : 0);
+  const history = await database.duelResult.findMany({ where: { guildId, gameEdition: edition, counted: true }, orderBy: { endedAt: "asc" }, take: 20_000,
+    select: { reportKey: true, winnerId: true, loserId: true, winnerLevel: true, loserLevel: true } });
+  const duels = withStandings([...fresh].sort((a, b) => a.endedAt.getTime() - b.endedAt.getTime()), standingsAfterEach(history, new Set(fresh.map(duel => duel.reportKey))));
+  const since = new Date(now.getTime() - WINDOW_MINUTES * 60_000);
+  const used = await database.discordJob.count({ where: { guildId, key: { startsWith: "duel-card:one:" }, createdAt: { gte: since } } });
+  const room = Math.max(0, WINDOW_CARDS - used), single = duels.slice(0, room), rest = duels.slice(room);
+  for (const duel of single) await put(database, guildId, `duel-card:one:${duel.reportKey}`, base(duelResultCard(duel, lang, classes, names), duelFallbackEmbed(duel, lang, names)), now);
+  if (!rest.length) return single.length;
+  // One summary per window while it is still waiting; once it has posted, the next overflow starts a new one.
+  const bucket = Math.floor(now.getTime() / (WINDOW_MINUTES * 60_000));
+  let key = `duel-card:more:${bucket}`, merged: DuelCardInput[] = rest;
+  const existing = await database.discordJob.findUnique({ where: { guildId_key: { guildId, key } }, select: { status: true, payload: true } });
+  if (existing?.status === "DONE") key = `duel-card:more:${bucket}:${rest[0]!.reportKey}`;
+  else if (existing) {
+    const earlier = (existing.payload as { duels?: DuelCardInput[] } | null)?.duels;
+    if (Array.isArray(earlier)) merged = [...earlier.map(duel => ({ ...duel, endedAt: new Date(duel.endedAt) })), ...rest].slice(-SUMMARY_KEEP);
+  }
+  await put(database, guildId, key, { ...base(duelSummaryCard(merged, lang, classes, names), summaryFallback(merged, lang, names)), duels: jsonOf(merged) }, now);
+  return single.length + 1;
 }

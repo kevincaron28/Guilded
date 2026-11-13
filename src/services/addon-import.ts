@@ -152,7 +152,7 @@ export function createAddonImportService(database: PrismaClient) {
         const sections: string[] = [];
         // Where a slow apply spends its time: one journal line (sections over 300 ms) when the whole apply takes over 3 s.
         const sec = (name: string) => { const now = Date.now(); if (now - lastSection > 300) sections.push(`${name}:${now - lastSection}`); lastSection = now; };
-        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, duelBoardEnabled: true, duelBoardChannelId: true, language: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
+        const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true, dungeonLeaderboardChannelId: true, duelBoardEnabled: true, duelBoardChannelId: true, language: true, duelCardsEnabled: true, craftChannelId: true, coreLootOnly: true, characterSignups: true } });
         const resetAt = settings?.dataResetAt ?? null;
         const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), resetAt);
         const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true, wowSpace: { select: { name: true, realm: true } } } });
@@ -472,10 +472,6 @@ export function createAddonImportService(database: PrismaClient) {
         // between commit and followUpImport cannot leave the display stale forever.
         if (settings?.dungeonLeaderboardChannelId) await enqueueDiscordJob(tx, guildId, "dungeon-board", "DUNGEON_BOARD");
         if (duels.recorded && settings?.duelBoardEnabled && settings.duelBoardChannelId) await enqueueDiscordJob(tx, guildId, "duel-board", "DUEL_BOARD");
-        // 9.3: one card per newly counted duel, in the duel channel (same switch as the board).
-        if (duels.fresh.length && settings?.duelBoardEnabled && settings.duelBoardChannelId) {
-          await queueDuelCards(tx, guildId, guildEdition, settings.duelBoardChannelId, asLang(settings.language), duels.fresh, buildClassBook(characters), fullNameBook(characters));
-        }
         if (settings?.craftChannelId) await enqueueDiscordJob(tx, guildId, "professions", "PROFESSIONS");
         if (settings?.characterSignups && (readinessSnapshots.length || discovery.refreshed)) {
           const ids = new Set(readinessSnapshots.map(row => row.characterId));
@@ -490,10 +486,17 @@ export function createAddonImportService(database: PrismaClient) {
         if (Date.now() - applyStarted > 3_000) { sec("enqueue"); console.info(`import-apply-sections import=${imported.id.slice(-8)} total=${Date.now() - applyStarted} ${sections.join(",") || "-"}`); }
         return {
           import: imported, transactions, epgpTransactions, readinessSnapshots, attunements, consumables, reserves, itemPrices, crafting, calendarPlan, discovery, raids, loot, dungeons, battlegrounds, duels, milestones, skipped,
+          duelCards: duels.fresh.length && settings?.duelCardsEnabled && settings.duelBoardChannelId ? { edition: guildEdition, lang: asLang(settings.language), fresh: duels.fresh, classRows: characters.map((character) => ({ name: character.name, displayName: (character as { displayName?: string | null }).displayName ?? null, className: (character as { className?: string | null }).className ?? null })) } : null,
           voided, held: { rows: held, fresh: newlyHeld.length }, rejected: snapshot.rejected, unchangedSections
         };
         });
       }, { timeout: 60_000, maxWait: 15_000 });
+      // 9.3: the duel cards are prepared after the import committed (they read the duel history), never under its lock.
+      if (result.duelCards) {
+        const plan = result.duelCards;
+        try { await queueDuelCards(database, guildId, plan.edition, plan.lang, plan.fresh, buildClassBook(plan.classRows), fullNameBook(plan.classRows)); }
+        catch (error) { console.error("Could not queue duel cards", error); }
+      }
       const now = Date.now();
       for (const [key, hash] of applied) {
         sectionMemory.delete(key);

@@ -136,7 +136,10 @@ local function rosterInfo(name)
       end
     end
   end
-  return rosterMap[name:lower()] or rosterMap[(name:match("^(%S+)") or name):lower()]
+  local found = rosterMap[name:lower()] or rosterMap[(name:match("^(%S+)") or name):lower()]
+  -- An empty roster (just after login) is not remembered: the next duel asks the game again.
+  if next(rosterMap) == nil then rosterMap = nil end
+  return found
 end
 function duels.rosterRefresh() rosterMap = nil end
 
@@ -183,6 +186,14 @@ local function infoFor(name)
     info = { level = info and info.level or own.level, class = info and info.class or own.class }
   end
   return info or {}
+end
+
+-- The stored duel of this pair within DEDUPE seconds of `at`, if any.
+local function findRecent(winner, loser, at)
+  local d = store()
+  for _, r in pairs(d and d.results or {}) do
+    if type(r) == "table" and same(r.winner, winner) and same(r.loser, loser) and math.abs((r.at or 0) - at) <= DEDUPE then return r end
+  end
 end
 
 -- Stores one duel unless the same pair already has one within DEDUPE seconds. Returns true when it is new (and
@@ -340,9 +351,13 @@ end
 -- Health left, in percent, of a unit; nil when the client does not say.
 local function healthPercent(unit)
   if not (UnitHealth and UnitHealthMax) then return nil end
-  local ok, cur, max = pcall(function() return UnitHealth(unit), UnitHealthMax(unit) end)
-  if not ok or type(cur) ~= "number" or type(max) ~= "number" or max <= 0 then return nil end
-  return math.max(0, math.min(100, math.floor(cur / max * 100 + 0.5)))
+  -- Optional card data: a failure anywhere in the read or the arithmetic gives nil, never an error.
+  local ok, value = pcall(function()
+    local cur, max = UnitHealth(unit), UnitHealthMax(unit)
+    if type(cur) ~= "number" or type(max) ~= "number" or max <= 0 then return nil end
+    return math.max(0, math.min(100, math.floor(cur / max * 100 + 0.5)))
+  end)
+  return ok and value or nil
 end
 -- My health left, and the opponent's when my target is the duel opponent.
 local function healthLeft(opponent)
@@ -386,8 +401,13 @@ function duels.cardData(winner, loser, at, reason, ctx)
   local data = {
     won = won, reason = reason == "retreat" and "retreat" or "knockout", at = at,
     me = myName, opponent = oppName, myClass = myInfo.class, oppClass = oppInfo.class, myLevel = myInfo.level, oppLevel = oppInfo.level,
-    duration = ctx.duration, zone = ctx.zone, counted = ctx.counted ~= false, health = ctx.health,
+    duration = ctx.duration, zone = ctx.zone, counted = ctx.counted ~= false, health = ctx.health, recorded = ctx.recorded ~= false,
   }
+  if ctx.recorded == false then
+    -- A rematch within DEDUPE seconds of the last duel of this pair is not added to the board: no points, record or rank.
+    data.recorded, data.counted = false, false
+    return data
+  end
   if won and data.counted then data.points = duels.points(myInfo.level, oppInfo.level) end
   local rows = duels.standings()
   local row = duels.rowFor(rows, myName)
@@ -428,7 +448,9 @@ function duels.cardLines(data)
     if h.opponent then parts[#parts + 1] = string.format(L("opponent's health left %d%%"), h.opponent) end
     lines[#lines + 1] = "|cffffd36a" .. table.concat(parts, "  -  ") .. "|r"
   end
-  if not data.counted then
+  if data.recorded == false then
+    lines[#lines + 1] = "|cffe0a050" .. L("Not recorded: you duelled this player a moment ago, so this result is not added.") .. "|r"
+  elseif not data.counted then
     lines[#lines + 1] = "|cffe0a050" .. L("Not counted: 5 duels per pair of players per day.") .. "|r"
   elseif data.wins then
     local record = string.format(L("Record %d-%d (%d%%)"), data.wins, data.losses, data.rate)
@@ -571,29 +593,45 @@ function duels.onSystem(text)
   local at = epoch()
   local mine = me()
   local involved = mine and (same(mine, winner) or same(mine, loser)) or false
-  -- My side of the duel: duration, zone and combat numbers, then the combat log goes quiet.
+  -- My side of the duel: duration, zone and health left. This is optional card data: a failure here must never stop the record.
   local ctx
   if involved then
     ctx = { me = mine }
-    local s = session
-    if s and s.startedAt and clock() - s.startedAt >= 0 and clock() - s.startedAt < SESSION_MAX then
-      ctx.duration = clock() - s.startedAt
-      ctx.zone = s.zone
-      ctx.health = healthLeft(s.opponent)
-    end
-    ctx.before = duels.rowFor(duels.standings(), mine) or { best = 0 }
+    local okCtx = pcall(function()
+      local s = session
+      if s and s.startedAt and clock() - s.startedAt >= 0 and clock() - s.startedAt < SESSION_MAX then
+        ctx.duration = clock() - s.startedAt
+        ctx.zone = s.zone
+        ctx.health = healthLeft(s.opponent)
+      end
+      ctx.before = duels.rowFor(duels.standings(), mine) or { best = 0 }
+    end)
+    if not okCtx then ctx.before = nil end
     session = nil
   end
   local isNew, key = duels.record(winner, loser, at, reason, ctx)
   if isNew and involved then share(winner, loser, at, reason) end
   if isNew and mine and same(mine, winner) and ns.milestones then pcall(ns.milestones.checkDuelWins, duels.myWins()) end
   if involved then
-    local row = key and store().results[key]
-    ctx.row, ctx.counted = row, row == nil or isCounted(row)
-    if not isNew then ctx.before = nil end
-    local data = duels.cardData(winner, loser, at, reason, ctx)
-    duels.lastCard = data
-    pcall(duels.showCard, data)
+    pcall(function()
+      local row = key and store().results[key]
+      ctx.recorded = isNew
+      if not isNew then
+        ctx.before = nil
+        -- The other player's message may have recorded THIS duel first (it started after my countdown): it is the same
+        -- duel, so fill in what only my side knows. Anything older is a rematch inside the dedupe window: not recorded.
+        local near = findRecent(winner, loser, at)
+        if near and ctx.duration and near.at >= at - ctx.duration - 1 then
+          row, ctx.recorded = near, true
+          if not near.dur and ctx.duration < SESSION_MAX then near.dur = math.floor(ctx.duration) end
+          if not near.zone and ctx.zone and #ctx.zone <= 80 then near.zone = ctx.zone end
+        end
+      end
+      ctx.row, ctx.counted = row, ctx.recorded and (row == nil or isCounted(row)) or false
+      local data = duels.cardData(winner, loser, at, reason, ctx)
+      duels.lastCard = data
+      duels.showCard(data)
+    end)
   end
   return isNew
 end

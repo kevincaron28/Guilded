@@ -16,6 +16,7 @@ Shared\Compat.lua
 Shared\Locale.lua
 Shared\DungeonRoutes.lua
 Shared\Dungeon.lua
+Shared\DungeonArt.lua
 Shared\RunResults.lua
 Shared\Scores.lua
 Shared\SeasonDetails.lua

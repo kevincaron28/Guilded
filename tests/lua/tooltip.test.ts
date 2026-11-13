@@ -86,6 +86,27 @@ describe("Tooltip.lua", () => {
   });
 });
 
+describe("Tooltip.lua inside the game's tooltip code (9.2.1 taint)", () => {
+  // The data processor runs the decoration inside Blizzard's own tooltip code; anything that runs there taints the
+  // rest of that code. So: not in combat, and only on the main item tooltips, never the comparison tooltips.
+  it("adds nothing in combat and nothing to a comparison tooltip", () => {
+    const s = withTooltip();
+    s.run(`
+      ADDED = {}
+      GameTooltip = { GetItem = function() return "Lonely Ring", "link" end, AddLine = function(_, text) ADDED[#ADDED + 1] = text end }
+      SHOPPING = { GetItem = GameTooltip.GetItem, AddLine = GameTooltip.AddLine }
+      COMBAT = false
+      NS.util = NS.util or {}; NS.util.inCombat = function() return COMBAT end
+      NS.tooltip.decorate(SHOPPING, true)
+    `);
+    expect(s.run(`return #ADDED`)).toBe("0");
+    s.run(`COMBAT = true; NS.tooltip.decorate(GameTooltip, true)`);
+    expect(s.run(`return #ADDED`)).toBe("0");
+    s.run(`COMBAT = false; NS.tooltip.decorate(GameTooltip, true)`);
+    expect(s.run(`return #ADDED`)).toBe("2");
+  });
+});
+
 describe("Tooltip.lua crafter lines", () => {
   it("adds the crafter lines without the Guilded: prefix, wrapping the long one, and refreshes on Shift", () => {
     const s = withTooltip();

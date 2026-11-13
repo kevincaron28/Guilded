@@ -84,160 +84,16 @@ function module.openSetup()
   setupPanel:Show()
 end
 
--- What each switch shows and does: `get` reads the current state, `set(on)` changes it.
+-- The switches are one shared list (Modules/SettingsPage.lua), drawn here as tabs with grouped sections and
+-- in the Settings page of the Guilded window. This is the old flat list, for callers that want the switches.
 function module.switches()
-  local list = {
-    {
-      label = L("Show the minimap button"),
-      get = function() local s = settings(); return not (s and s.minimapHidden) end,
-      set = function(on) run(on and "minimap show" or "minimap hide") end
-    },
-    {
-      label = L("Guilded's messages in their own chat tab"),
-      get = function() local s = settings(); return s and s.chatTab == true or false end,
-      set = function(on) run(on and "chat tab" or "chat off") end
-    },
-    {
-      label = L("Guild events in the Guilded tab: joins"),
-      get = function() return ns.chatTab and ns.chatTab.eventEnabled("join") or false end,
-      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("join", on) end end
-    },
-    {
-      label = L("Guild events in the Guilded tab: leaves"),
-      get = function() return ns.chatTab and ns.chatTab.eventEnabled("leave") or false end,
-      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("leave", on) end end
-    },
-    {
-      label = L("Guild events in the Guilded tab: removals"),
-      get = function() return ns.chatTab and ns.chatTab.eventEnabled("kick") or false end,
-      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("kick", on) end end
-    },
-    {
-      label = L("Guild events in the Guilded tab: promotions"),
-      get = function() return ns.chatTab and ns.chatTab.eventEnabled("promote") or false end,
-      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("promote", on) end end
-    },
-    {
-      label = L("Guild events in the Guilded tab: demotions"),
-      get = function() return ns.chatTab and ns.chatTab.eventEnabled("demote") or false end,
-      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("demote", on) end end
-    },
-    {
-      label = L("Guild events in the Guilded tab: coming online"),
-      get = function() return ns.chatTab and ns.chatTab.eventEnabled("online") or false end,
-      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("online", on) end end
-    },
-    {
-      label = L("Guild events in the Guilded tab: going offline"),
-      get = function() return ns.chatTab and ns.chatTab.eventEnabled("offline") or false end,
-      set = function(on) if ns.chatTab then ns.chatTab.setEventEnabled("offline", on) end end
-    },
-    {
-      label = L("Online and offline lines: officers only"),
-      get = function() return ns.chatTab and ns.chatTab.officersOnlyPresence() or false end,
-      set = function(on) local s = settings(); if s then s.chatEventsOfficersOnly = on and true or nil end end
-    },
-    {
-      label = L("Weekly reminder to get the Windows companion"),
-      get = function() return ns.companionLink and ns.companionLink.enabled() or false end,
-      set = function(on) run(on and "companion on" or "companion off") end
-    },
-    {
-      label = L("Show what changed since my last login"),
-      get = function() local d = db(); return not (d and d.digest and d.digest.enabled == false) end,
-      set = function(on) run(on and "digest on" or "digest off") end
-    },
-    -- Who can craft an item, on its tooltip: Off / Compact / Full (a button that cycles).
-    {
-      label = L("Item tooltips: who can craft it"),
-      cycle = function()
-        local r = ns.recipes
-        local mode = r and r.tooltipMode and r.tooltipMode() or "compact"
-        return L(r and r.MODE_WORD and r.MODE_WORD[mode] or "Compact")
-      end,
-      next = function() local r = ns.recipes; if not r then return end
-        local order, current = r.MODES, r.tooltipMode()
-        for i, mode in ipairs(order) do if mode == current then r.setTooltipMode(order[i % #order + 1]) return end end
-        r.setTooltipMode("compact")
-      end
-    },
-    -- Milestone announcements in guild chat: OFF until the player turns them on (8.4.5).
-    {
-      label = L("Announce my milestones in guild chat"),
-      get = function() return ns.milestones and ns.milestones.enabled() or false end,
-      set = function(on) run(on and "milestones on" or "milestones off") end
-    },
-    {
-      label = L("Milestones: level 10, 20..."),
-      get = function() return ns.milestones and ns.milestones.enabled("level") or false end,
-      set = function(on) run("milestones level " .. (on and "on" or "off")) end
-    },
-    {
-      label = L("Milestones: first dungeon clears"),
-      get = function() return ns.milestones and ns.milestones.enabled("dungeon") or false end,
-      set = function(on) run("milestones dungeon " .. (on and "on" or "off")) end
-    },
-    {
-      label = L("Milestones: honorable kills"),
-      get = function() return ns.milestones and ns.milestones.enabled("hk") or false end,
-      set = function(on) run("milestones hk " .. (on and "on" or "off")) end
-    },
-    {
-      label = L("Milestones: duel wins"),
-      get = function() return ns.milestones and ns.milestones.enabled("duel") or false end,
-      set = function(on) run("milestones duel " .. (on and "on" or "off")) end
-    },
-    -- The small card after each of my guild duels (Modules/Duels.lua); on by default.
-    {
-      label = L("Show a card after each of my duels"),
-      get = function() return not ns.duels or ns.duels.cardEnabled() end,
-      set = function(on) if ns.duels then ns.duels.setCardEnabled(on) end end
-    },
-    {
-      label = L("Milestones: profession skill"),
-      get = function() return ns.milestones and ns.milestones.enabled("prof") or false end,
-      set = function(on) run("milestones prof " .. (on and "on" or "off")) end
-    },
-  }
-  -- Officer clients: the jobs they do on their own (Modules/OfficerNotes.lua), each with its own off switch.
-  if ns.isOfficer and ns.isOfficer() and ns.officerNotes then
-    for _, key in ipairs(ns.officerNotes.KEYS) do
-      table.insert(list, {
-        label = L(ns.officerNotes.LABELS[key]),
-        get = function() return ns.officerNotes.enabled(key) end,
-        set = function(on) ns.officerNotes.set(key, on) end
-      })
-    end
-  end
-  -- One switch per optional module, just for you (officers still use /guilded modules guild).
-  for _, entry in ipairs(ns.MODULES or {}) do
-    local key = entry.key
-    table.insert(list, {
-      label = string.format("%s: %s", entry.name, entry.desc),
-      module = key,
-      get = function() local s = settings(); return not (s and s.modules and s.modules[key] == false) end,
-      set = function(on) run((on and "modules on " or "modules off ") .. key) end
-    })
-  end
-  return list
+  return ns.settingsPage and ns.settingsPage.switches() or {}
 end
 
-local panel, category, boxes
+local panel, category, ui
 
 local function refresh()
-  if not boxes then return end
-  for _, box in ipairs(boxes) do
-    if box.switch.cycle then
-      local ok, text = pcall(box.switch.cycle)
-      box:SetText(ok and text or "")
-    else
-    local ok, value = pcall(box.switch.get)
-    box:SetChecked(ok and value and true or false)
-    if box.state and box.switch.module and ns.moduleStateText then
-      box.state:SetText(ns.moduleStateText(box.switch.module))
-    end
-    end
-  end
+  if ui then ui.refresh() end
 end
 module.refresh = refresh
 
@@ -246,69 +102,29 @@ local function build()
   panel.name = "Guilded"
   local title = panel:CreateFontString(nil, "ARTWORK", "GameFontNormalLarge")
   title:SetPoint("TOPLEFT", 16, -16)
-  title:SetText("Guilded")
+  title:SetText(string.format(L("Guilded - Version %s"), ns.settingsPage and ns.settingsPage.version() or ""))
   local hint = panel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
   hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -6)
-  hint:SetText(L("Switches for you only. Officers turn modules off for the whole guild with /guilded modules guild."))
+  hint:SetText(L("Everything here affects only you, except the Officers tab, which affects the whole guild."))
 
-  local open = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-  open:SetSize(200, 22) -- room for the French label
-  open:SetPoint("TOPLEFT", hint, "BOTTOMLEFT", 0, -10)
-  open:SetText(L("Open the tools window"))
-  open:SetScript("OnClick", function() run("menu") end)
-  local setup = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
-  setup:SetSize(180, 22); setup:SetPoint("LEFT", open, "RIGHT", 10, 0)
-  setup:SetText(L("Guilded setup")); setup:SetScript("OnClick", module.openSetup)
-
-  -- The switches scroll: with every optional part listed they are taller than the panel.
-  local scroll = CreateFrame("ScrollFrame", nil, panel, "UIPanelScrollFrameTemplate")
-  scroll:SetPoint("TOPLEFT", 0, -94)
-  scroll:SetPoint("BOTTOMRIGHT", -30, 8)
-  local list = CreateFrame("Frame", nil, scroll)
-  list:SetWidth(620)
-  scroll:SetScrollChild(list)
-  boxes = {}
-  local y = -6
-  local headed = false
-  for index, switch in ipairs(module.switches()) do
-    if switch.module and not headed then
-      headed = true
-      local header = list:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-      header:SetPoint("TOPLEFT", 16, y - 6)
-      header:SetText(L("Optional parts (a part turned back on starts after /reload)"))
-      y = y - 26
-    end
-    local box
-    if switch.cycle then
-      box = CreateFrame("Button", nil, list, "UIPanelButtonTemplate")
-      box:SetSize(90, 22)
-      box:SetPoint("TOPLEFT", 18, y - 1)
-    else
-      box = CreateFrame("CheckButton", nil, list, "UICheckButtonTemplate")
-      box:SetSize(24, 24)
-      box:SetPoint("TOPLEFT", 16, y)
-    end
-    box.switch = switch
-    local label = list:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    label:SetPoint("LEFT", box, "RIGHT", 4, 0)
-    label:SetText(switch.label)
-    if switch.module then
-      box.state = list:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-      box.state:SetPoint("LEFT", label, "RIGHT", 8, 0)
-    end
-    box:SetScript("OnClick", function(self)
-      if self.switch.cycle then
-        pcall(self.switch.next)
-      else
-        pcall(self.switch.set, self:GetChecked() and true or false)
-      end
-      refresh()
-    end)
-    table.insert(boxes, box)
-    y = y - 26
+  local x = 16
+  for _, item in ipairs({
+    { "Open the tools window", 200, function() run("menu") end },
+    { "Guilded setup", 150, module.openSetup },
+    { "Diagnostics", 130, function() run("diag") end },
+  }) do
+    local b = CreateFrame("Button", nil, panel, "UIPanelButtonTemplate")
+    local w = math.max(item[2], #L(item[1]) * 6 + 20) -- room for the translated labels
+    b:SetSize(w, 22)
+    b:SetPoint("TOPLEFT", panel, "TOPLEFT", x, -56)
+    b:SetText(L(item[1]))
+    b:SetScript("OnClick", item[3])
+    x = x + w + 8
   end
-  list:SetHeight(-y + 10)
-  panel:SetScript("OnShow", refresh)
+
+  -- Tabs with grouped sections, like the model options page; the content scrolls inside its tab.
+  ui = ns.settingsPage.build(panel, { width = 660, left = 16, top = -90, right = -30, bottom = 8 })
+  panel:SetScript("OnShow", function() ui.update() end)
 
   if Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory then
     category = Settings.RegisterCanvasLayoutCategory(panel, "Guilded")
@@ -319,6 +135,7 @@ local function build()
 end
 
 function module.open()
+  if InCombatLockdown and InCombatLockdown() then ns.message(L("Open the options after combat.")); return end
   if not panel then
     ns.message(L("The options page is not ready yet."))
     return
@@ -342,7 +159,7 @@ ns.commandHandlers["setup"] = function(args)
   if not module.chooseSetup(choice) then module.openSetup() end
 end
 ns.commandHelp = ns.commandHelp or {}
-table.insert(ns.commandHelp, "/guilded options - Guilded's page in the game's options (minimap button, chat tab, modules)")
+table.insert(ns.commandHelp, "/guilded options - Guilded's page in the game's options: tabs for general, chat, announcements, dungeons and PvP, raids and loot, officers, advanced")
 table.insert(ns.commandHelp, "/guilded setup - choose in-game only or optional Discord connection; /guilded setup guild - set up raid cores step by step (officers)")
 
 -- Built once saved settings exist (after Core.lua's PLAYER_LOGIN).

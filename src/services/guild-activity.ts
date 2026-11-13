@@ -83,6 +83,7 @@ export function activityCard(data: ActivityData, lang: Lang, classes: ClassBook 
     subtitle: data.view === "week"
       ? fr ? `Cette semaine · ${data.rows.length} membres actifs` : `This week · ${data.rows.length} active members`
       : fr ? `${seasonLabel(data.label, lang)} · ${data.rows.length} membres actifs` : `${data.label} · ${data.rows.length} active members`,
+    backdrop: { kind: "board", key: "activity" },
     stats: [], footer: weightsText(lang),
     ladder: {
       meta: ladderMeta(lang, updatedAt, data.view === "season" ? seasonLabel(data.label, lang) : null),

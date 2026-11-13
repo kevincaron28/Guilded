@@ -195,6 +195,55 @@ describe("end-of-duel card", () => {
     expect(stat("NS.send")).toBe("nil");
   });
 
+  it("a rematch inside the dedupe window is not recorded and the card shows no points, record or rank", () => {
+    const lua = setup();
+    playDuel(lua, "Kev Caron has defeated Bob Smith in a duel");
+    lua.run(`NOW = 300; fire_event("DUEL_REQUESTED", "Bob Smith"); fire_event("DUEL_COUNTDOWN", 3); NOW = 317; CLOCK = CLOCK + 20`);
+    say("Kev Caron has defeated Bob Smith in a duel");
+    expect(stat("NS.duels.lastCard.recorded")).toBe("false");
+    expect(stat("NS.duels.lastCard.points")).toBe("nil");
+    expect(stat("NS.duels.lastCard.wins")).toBe("nil");
+    expect(stat("NS.duels.lastCard.rank")).toBe("nil");
+    expect(lua.run(`return table.concat(NS.duels.cardLines(NS.duels.lastCard), "\\n")`)).toContain("Not recorded");
+    expect(lua.run(`return NS.duels.standings()[1].wins`)).toBe("1");
+    expect(stat("#SENT_LINES")).toBe("1"); // and nothing more is shared
+  });
+
+  it("when the opponent's message recorded the duel first, my duration and zone fill the row in", () => {
+    const lua = setup();
+    lua.run(`NOW = 100; fire_event("DUEL_REQUESTED", "Bob Smith"); fire_event("DUEL_COUNTDOWN", 3); NOW = 187; CLOCK = CLOCK + 90`);
+    lua.run(`NS.duels.onAddonMessage("D|Kev Caron|Bob Smith|" .. CLOCK .. "|knockout", "Bob Smith-Realm")`);
+    say("Kev Caron has defeated Bob Smith in a duel");
+    expect(stat("NS.duels.lastCard.recorded")).toBe("true");
+    expect(stat("NS.duels.lastCard.points")).toBe("6");
+    expect(stat("NS.duels.lastCard.wins")).toBe("1");
+    expect(lua.run(`local r; for _, v in pairs(DB.duels.results) do r = v end; return r.dur .. ":" .. r.zone`)).toBe("84:Elwynn Forest");
+  });
+
+  it("never loses the duel when the optional card data fails", () => {
+    const lua = setup();
+    lua.run(`UnitHealth = function() error("boom") end; NOW = 100; fire_event("DUEL_REQUESTED", "Bob Smith"); fire_event("DUEL_COUNTDOWN", 3); NOW = 187; CLOCK = CLOCK + 90`);
+    say("Kev Caron has defeated Bob Smith in a duel");
+    expect(lua.run(`return NS.duels.standings()[1].wins`)).toBe("1");
+    expect(stat("NS.duels.lastCard.health.me")).toBe("nil");
+    expect(stat("SHOWS")).toBe("1");
+    lua.run(`CLOCK = CLOCK + 200; UnitHealth = function() return "x" end; NOW = 400; fire_event("DUEL_REQUESTED", "Cy Jones"); fire_event("DUEL_COUNTDOWN", 3); NOW = 450`);
+    say("Kev Caron has defeated Cy Jones in a duel");
+    expect(lua.run(`return #NS.duels.standings()`)).toBe("3");
+    // Even the standings read failing before the record cannot stop it.
+    lua.run(`CLOCK = CLOCK + 200; NOW = 600; fire_event("DUEL_REQUESTED", "Di Lee"); fire_event("DUEL_COUNTDOWN", 3); NOW = 650; GetGuildRosterInfo = function() error("boom") end; NS.duels.rosterRefresh()`);
+    say("Kev Caron has defeated Di Lee in a duel");
+    expect(lua.run(`return #NS.duels.standings()`)).toBe("4");
+  });
+
+  it("does not remember an empty roster, so the next duel still gets levels", () => {
+    const lua = setup();
+    lua.run(`REAL = GetNumGuildMembers; GetNumGuildMembers = function() return 0 end`);
+    lua.run(`NS.duels.record("Cy Jones", "Di Lee", CLOCK - 500, "knockout")`);
+    lua.run(`GetNumGuildMembers = REAL; NS.duels.record("Kev Caron", "Bob Smith", CLOCK - 100, "knockout")`);
+    expect(lua.run(`local r; for _, v in pairs(DB.duels.results) do if v.winner == "Kev Caron" then r = v end end; return r.wlv .. ":" .. r.llv`)).toBe("60:58");
+  });
+
   it("a duel over the daily pair allowance is marked not counted", () => {
     const lua = setup();
     lua.run(`for i = 1, 5 do CLOCK = CLOCK + 120; NS.duels.record("Kev Caron", "Bob Smith", CLOCK, "knockout") end; CLOCK = CLOCK + 120`);

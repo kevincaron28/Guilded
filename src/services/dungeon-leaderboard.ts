@@ -30,6 +30,7 @@ export function dungeonSeasonCard(rows: readonly { name: string; points: number;
   return {
     eyebrow: fr ? "Guilded · Donjons" : "Guilded · Dungeons", title: rated ? (fr ? "Score de donjon" : "Dungeon score") : (fr ? "Points de donjon" : "Dungeon points"),
     subtitle: fr ? `${rows.length} joueurs classés cette saison` : `${rows.length} ranked players this season`,
+    backdrop: { kind: "board", key: "dungeon-season" },
     stats: [], footer: fr ? "Toutes les saisons : /dungeon archive · Champions : /dungeon hall-of-fame" : "All seasons: /dungeon archive · Champions: /dungeon hall-of-fame",
     ladder: {
       meta: ladderMeta(lang, updatedAt, season), empty: fr ? "Aucun parcours classé cette saison." : "No ranked run this season.",

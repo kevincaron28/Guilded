@@ -2863,6 +2863,8 @@ local DE = {
   ["Deadliest zones: %s."] = "Gef\195\164hrlichste Zonen: %s.",
   -- 9.3 UI polish (Modules/LayerInvite.lua)
   ["When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself."] = "Wenn ein Gildenmitglied auf einem anderen Layer eine Einladung anfragt, erscheint es hier mit einem Einladen-Knopf. Dr\195\188cke auf Layer wechseln, um selbst eine Einladung anzufragen.",
+  -- 9.3 UI polish (Modules/RunResults.lua)
+  ["The result and duel cards are back in their usual place."] = "Die Ergebnis- und Duellkarten sind wieder an ihrem \195\188blichen Platz.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4748,6 +4750,8 @@ local ES = {
   ["Deadliest zones: %s."] = "Zonas m\195\161s letales: %s.",
   -- 9.3 UI polish (Modules/LayerInvite.lua)
   ["When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself."] = "Cuando un miembro de la hermandad en otra capa pide una invitaci\195\179n, aparece aqu\195\173 con un bot\195\179n Invitar. Pulsa Cambiar de capa para pedir una invitaci\195\179n t\195\186 mismo.",
+  -- 9.3 UI polish (Modules/RunResults.lua)
+  ["The result and duel cards are back in their usual place."] = "Las tarjetas de resultado y de duelo vuelven a su lugar habitual.",
 }
 -- END ES
 
@@ -4938,6 +4942,8 @@ FR["K/D: %s this week, %s in total."] = "R/M : %s cette semaine, %s au total."
 FR["Deadliest zones: %s."] = "Zones les plus mortelles : %s."
 -- 9.3 UI polish (Modules/LayerInvite.lua).
 FR["When a guildmate on another layer asks to be invited, they appear here with an Invite button. Press Change layer to ask for an invite yourself."] = "Quand un membre de la guilde sur une autre couche demande une invitation, il appara\195\174t ici avec un bouton Inviter. Appuyez sur Changer de couche pour demander une invitation vous-m\195\170me."
+-- 9.3 UI polish (Modules/RunResults.lua).
+FR["The result and duel cards are back in their usual place."] = "Les cartes de r\195\169sultat et de duel sont revenues \195\160 leur place habituelle."
 FR["Invites"] = "Invitations"
 FR["Officers only."] = "R\195\169serv\195\169 aux officiers."
 FR["Advanced..."] = "Avanc\195\169..."

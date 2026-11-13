@@ -2242,6 +2242,16 @@ function ui.placePageTop()
   if not tab or not panel then return end
   local top, shift = ui.pageTopFor(tab)
   ui.pageTop = top
+  -- A short title under a one-line section row, in the gap above the page: where you are, and what it is for. Two-line rows
+  -- and pages with the Player field have no room and keep the tooltip.
+  if ui.pageHint then
+    if (ui.sectionLines or 0) == 1 and not tab.usesPlayer then
+      ui.pageHint:SetText(L(tab.label or tab.name) .. (tab.hint and ("   |cff999999" .. L(tab.hint) .. "|r") or ""))
+      ui.pageHint:Show()
+    else
+      ui.pageHint:SetText(""); ui.pageHint:Hide()
+    end
+  end
   for _, widget in ipairs(ui.playerRow or {}) do
     if widget.baseX then at(widget, panel, widget.baseX, widget.baseY - shift) end
   end
@@ -2356,6 +2366,10 @@ local function buildPanel()
   -- Which page this is, and what it is for.
   ui.pageTitle = newLabel(panel, "", "GameFontNormal")
   ui.pageTitle:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -16)
+  ui.pageHint = newLabel(panel, "", "GameFontNormalSmall")
+  ui.pageHint:SetPoint("TOPLEFT", panel, "TOPLEFT", CONTENT_X, -42)
+  ui.pageHint:SetWidth(PAGE_WIDTH)
+  ui.pageHint:SetHeight(14)
 
   -- Sidebar background, title and rank line.
   local sidebar = panel:CreateTexture(nil, "BACKGROUND")

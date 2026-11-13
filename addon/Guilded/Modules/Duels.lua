@@ -551,6 +551,8 @@ local function drawCard(data)
   if duels.CARD_ART and card.art then card.art:SetTexture(duels.CARD_ART); card.art:Show() elseif card.art then card.art:Hide() end
   card.age = 0
   card:SetAlpha(1)
+  -- Stacked above the dungeon result card when both are on screen.
+  if ns.util and ns.util.keepApart then ns.util.keepApart(card, _G.GuildedRunResults) end
   card:Show()
 end
 

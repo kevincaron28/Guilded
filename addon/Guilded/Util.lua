@@ -34,6 +34,22 @@ ns.util = util
 -- The companion (Windows app that sends your data to Discord), in the same three steps everywhere
 -- members look: Home, /guilded companion, the login reminder and the "runs waiting" notice.
 -- Zero setup since 9.1.0: it finds WoW and the Discord server by itself; signing in is optional.
+-- Two cards on the screen at once (the dungeon result card and the duel card) never overlap: when `frame` is about to be shown over
+-- `other` (a frame that is already shown), `frame` is stacked just above it. Plain anchors; nothing protected.
+function util.keepApart(frame, other, gap)
+  if not (frame and other and other ~= frame and other.IsShown and other:IsShown()) then return false end
+  local function box(f)
+    local l, r, t, b = f.GetLeft and f:GetLeft(), f.GetRight and f:GetRight(), f.GetTop and f:GetTop(), f.GetBottom and f:GetBottom()
+    if type(l) == "number" and type(r) == "number" and type(t) == "number" and type(b) == "number" then return l, r, t, b end
+  end
+  local fl, fr, ft, fb = box(frame)
+  local ol, orr, ot, ob = box(other)
+  if not (fl and ol) or fr <= ol or fl >= orr or ft <= ob or fb >= ot then return false end
+  frame:ClearAllPoints()
+  frame:SetPoint("BOTTOMLEFT", other, "TOPLEFT", 0, gap or 8)
+  return true
+end
+
 util.COMPANION_PAGE = "https://guildedwow.com/companion/"
 util.COMPANION_DOWNLOAD = "https://guildedwow.com/downloads/Guilded.Companion.Setup.exe"
 function util.companionSteps()

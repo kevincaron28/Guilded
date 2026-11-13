@@ -12,6 +12,25 @@ local function dungeonDb()
   return root and root.dungeon
 end
 
+-- Where the member left the card, like the duel card (settings.runCardPos); `/guilded cards reset` puts both cards back.
+local function settings() return ns.getSettings and ns.getSettings() or nil end
+function results.savePosition(frame)
+  local st = settings()
+  if not (st and frame and frame.GetPoint) then return end
+  local ok, point, _, relPoint, x, y = pcall(frame.GetPoint, frame)
+  if ok and type(point) == "string" and tonumber(x) and tonumber(y) then st.runCardPos = { point = point, relPoint = relPoint or point, x = x, y = y } end
+end
+function results.restorePosition(frame)
+  local st = settings()
+  local pos = st and st.runCardPos
+  frame:ClearAllPoints()
+  if type(pos) == "table" and type(pos.point) == "string" and tonumber(pos.x) and tonumber(pos.y) then
+    frame:SetPoint(pos.point, UIParent, type(pos.relPoint) == "string" and pos.relPoint or pos.point, pos.x, pos.y)
+  else
+    frame:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -24, 150)
+  end
+end
+
 local function inCombat()
   return (InCombatLockdown and InCombatLockdown()) or (UnitAffectingCombat and UnitAffectingCombat("player"))
 end
@@ -221,7 +240,7 @@ function results.show(run, resume)
     window:SetClampedToScreen(true)
     window:SetMovable(true); window:EnableMouse(true); window:RegisterForDrag("LeftButton")
     window:SetScript("OnDragStart", function(self) self:StartMoving() end)
-    window:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+    window:SetScript("OnDragStop", function(self) self:StopMovingOrSizing(); results.savePosition(self) end)
     if window.SetBackdrop then
       window:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12 })
       window:SetBackdropColor(0.035, 0.045, 0.065, 0.97)
@@ -304,6 +323,9 @@ function results.show(run, resume)
     window.details:SetText(L("Details")); window.scroll:Hide()
   end
   window:SetAlpha(1)
+  results.restorePosition(window)
+  -- Stacked above the duel card when both are on screen.
+  if ns.util and ns.util.keepApart then ns.util.keepApart(window, _G.GuildedDuelCard) end
   window:Show()
 end
 
@@ -363,6 +385,23 @@ if CreateFrame then
     if poll >= 0.5 then poll = 0; results.tryPending() end
   end)
 end
+
+ns.commandHandlers = ns.commandHandlers or {}
+ns.commandHandlers["cards"] = function(args)
+  if string.lower(args and args[1] or "") == "reset" then
+    local st = settings()
+    if st then st.runCardPos = nil; st.duelCardPos = nil end
+    if window then results.restorePosition(window) end
+    if _G.GuildedDuelCard and _G.GuildedDuelCard.ClearAllPoints then
+      _G.GuildedDuelCard:ClearAllPoints(); _G.GuildedDuelCard:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -24, 330)
+    end
+    ns.message(L("The result and duel cards are back in their usual place."))
+  else
+    ns.message(ns.standalone and "/gdg cards reset" or "/guilded cards reset")
+  end
+end
+ns.commandHelp = ns.commandHelp or {}
+table.insert(ns.commandHelp, ns.standalone and "/gdg cards reset - put the result and duel cards back where they start" or "/guilded cards reset - put the result and duel cards back where they start")
 
 ns.onDungeonSummary = results.show
 ns.onDungeonResultReady = results.queue

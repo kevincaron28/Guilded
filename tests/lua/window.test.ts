@@ -949,3 +949,14 @@ describe("window geometry that must not move (UI polish)", () => {
     expect(g(`return NS.windowState().pageTop`)).toBe(66);
   });
 });
+
+describe("the page title line under the section row", () => {
+  it("shows where you are under a one-line row, and nothing where there is no room", () => {
+    const s = openWindow(1);
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick(); NS.windowState().selectTabByName("Board")`);
+    const hint = () => s.run(`return NS.windowState().pageHint.text`);
+    if (s.run(`return tostring(NS.windowState().sectionLines)`) === "1") expect(hint()).toContain("Guild board");
+    s.run(`NS.windowState().selectTabByName("Standings")`);
+    expect(hint()).toBe(""); // the Player field is there instead
+  });
+});

@@ -497,7 +497,7 @@ export function createAddonImportService(database: PrismaClient) {
         // Tried twice: the import is already committed, so one failed attempt must not lose the cards.
         for (let attempt = 1; attempt <= 2; attempt++) {
           try { await queueDuelCards(database, guildId, plan.edition, plan.lang, plan.fresh, buildClassBook(plan.classRows), fullNameBook(plan.classRows)); break; }
-          catch (error) { console.error(`Could not queue duel cards (attempt ${attempt})`, error); }
+          catch (error) { console.error(`Could not queue duel cards (attempt ${attempt})`, error); if (attempt === 1) await new Promise(resolve => setTimeout(resolve, 2_000)); }
         }
       }
       const now = Date.now();

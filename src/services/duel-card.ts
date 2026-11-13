@@ -47,14 +47,14 @@ export function duelResultCard(duel: DuelCardInput, lang: Lang, classes: ClassBo
 
 /** Pure: the card of the duels past the per-upload limit, one row each (up to six) and the count of the rest. */
 /** `omitted`: older duels the summary no longer lists but still counts ("and N more"). */
-export function duelSummaryCard(duels: readonly DuelCardInput[], lang: Lang, classes: ClassBook, names: FullNameBook, omitted = 0): ScoreCard {
+export function duelSummaryCard(duels: readonly DuelCardInput[], lang: Lang, classes: ClassBook, names: FullNameBook, omitted = 0, omittedPoints = 0): ScoreCard {
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const shown = duels.slice(0, SUMMARY_ROWS);
   return {
     eyebrow: `Guilded · ${t("PvP", "JcJ")}`, title: t("More duels", "Autres duels"),
     subtitle: t(`${duels.length + omitted} more duels counted`, `${duels.length + omitted} autres duels comptés`),
     backdrop: { kind: "board", key: "duel" },
-    stats: [{ label: t("Duels", "Duels"), value: String(duels.length + omitted), accent: "gold" }, { label: t("Points", "Points"), value: String(duels.reduce((sum, duel) => sum + duel.points, 0)) }],
+    stats: [{ label: t("Duels", "Duels"), value: String(duels.length + omitted), accent: "gold" }, { label: t("Points", "Points"), value: String(omittedPoints + duels.reduce((sum, duel) => sum + duel.points, 0)) }],
     rowsLabel: t("Results", "Résultats"),
     rows: shown.map(duel => ({ name: displayCharacterName(duel.winnerCharacter, names), color: classColor(classOf(classes, duel.winnerCharacter)),
       sub: t(`beat ${displayCharacterName(duel.loserCharacter, names)}`, `bat ${displayCharacterName(duel.loserCharacter, names)}`), right: `+${duel.points}`, rightTone: "green" as const })),
@@ -124,16 +124,17 @@ export async function queueDuelCards(database: Database, guildId: string, editio
   if (!rest.length) return single.length;
   // One summary per window while it is still waiting; once it has posted, the next overflow starts a new one.
   const bucket = Math.floor(now.getTime() / (WINDOW_MINUTES * 60_000));
-  let key = `duel-card:more:${bucket}`, merged: DuelCardInput[] = rest, omitted = 0;
+  let key = `duel-card:more:${bucket}`, merged: DuelCardInput[] = rest, omitted = 0, omittedPoints = 0;
   const existing = await database.discordJob.findUnique({ where: { guildId_key: { guildId, key } }, select: { status: true, payload: true } });
   if (existing?.status === "DONE") key = `duel-card:more:${bucket}:${rest[0]!.reportKey}`;
   else if (existing) {
-    const stored = existing.payload as { duels?: DuelCardInput[]; omitted?: number } | null;
+    const stored = existing.payload as { duels?: DuelCardInput[]; omitted?: number; omittedPoints?: number } | null;
     if (Array.isArray(stored?.duels)) {
       const all = [...stored.duels.map(duel => ({ ...duel, endedAt: new Date(duel.endedAt) })), ...rest];
       merged = all.slice(-SUMMARY_KEEP); omitted = (stored.omitted ?? 0) + all.length - merged.length;
+      omittedPoints = (stored.omittedPoints ?? 0) + all.slice(0, all.length - merged.length).reduce((sum, duel) => sum + duel.points, 0);
     }
   }
-  await put(database, guildId, key, { ...base(duelSummaryCard(merged, lang, classes, names, omitted), summaryFallback(merged, lang, names, omitted)), duels: jsonOf(merged), omitted }, now);
+  await put(database, guildId, key, { ...base(duelSummaryCard(merged, lang, classes, names, omitted, omittedPoints), summaryFallback(merged, lang, names, omitted)), duels: jsonOf(merged), omitted, omittedPoints }, now);
   return single.length + 1;
 }

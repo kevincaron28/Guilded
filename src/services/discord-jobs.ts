@@ -154,7 +154,7 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       channelId = current;
     } else if (route === "wowWeekly") {
       const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { weeklyReportChannelId: true, notifyChannelId: true, weeklyReportEnabled: true } });
-      if (settings && !settings.weeklyReportEnabled) return; // switched off since it was queued
+      if (!wowWeeklyStillWanted(job.key, settings)) return; // the weekly report was switched off since it was queued
       const current = settings?.weeklyReportChannelId ?? settings?.notifyChannelId;
       if (!current) throw new Error("Configure WoW weekly reports first");
       channelId = current;
@@ -240,6 +240,9 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
     await runInviteCleanupJob(guild, prisma, job);
   } else throw new Error("Unknown job type");
 }
+
+/** Only the weekly report (key weekly-wow:) follows its switch; the daily recap shares the route and has its own. */
+export const wowWeeklyStillWanted = (key: string, settings: { weeklyReportEnabled: boolean } | null) => !key.startsWith("weekly-wow:") || !settings || settings.weeklyReportEnabled;
 
 /** The invisible marker a delivered post carries: the website address with the job id. */
 export const deliveryLink = (jobId: string) => siteUrl(`/?delivery=${encodeURIComponent(jobId)}`);

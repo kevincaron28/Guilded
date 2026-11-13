@@ -16,7 +16,6 @@ export function weeklyReportCard(report: WeeklyReport, lang: Lang): ScoreCard {
   if (report.raiderOfWeek) rows.push({ name: report.raiderOfWeek.name, sub: t("Raider of the week", "Raider de la semaine"), right: `${report.raiderOfWeek.ep} EP`, rightTone: "gold" });
   if (report.dungeonHero) rows.push({ name: report.dungeonHero.name, sub: t("Dungeon hero", "Héros des donjons"), right: `${report.dungeonHero.points} pts`, rightTone: "green" });
   if (d.marathon) rows.push({ name: d.marathon.name, sub: t("Dungeon marathon", "Marathon de donjons"), right: `×${d.marathon.runs}`, rightTone: "green" });
-  if (report.guild.coreId === undefined && report.guild.newMembers > 0) rows.push({ name: t(`${report.guild.newMembers} new member(s)`, `${report.guild.newMembers} nouveau(x) membre(s)`), sub: t("Joined the Discord this week", "Arrivés cette semaine") });
   for (const core of report.cores.slice(0, Math.max(0, 5 - rows.length)))
     rows.push({ name: core.name, sub: t(`${core.raids} raid(s) · ${core.bossKills} boss kill(s)`, `${core.raids} raid(s) · ${core.bossKills} victoire(s)`), right: core.attendancePct === null ? undefined : `${core.attendancePct}%` });
   const badges: NonNullable<ScoreCard["badges"]> = [];
@@ -27,7 +26,7 @@ export function weeklyReportCard(report: WeeklyReport, lang: Lang): ScoreCard {
     subtitle: `${day(report.weekStart)} → ${day(report.weekEnd)}`,
     backdrop: { kind: "board", key: "weekly", fallbackKey: "activity" },
     stats: [
-      { label: t("Raids", "Raids"), value: String(report.guild.raids), accent: "gold", note: delta(report.guild.raids, report.previous.raids, fr) },
+      { label: t("Raids", "Raids"), value: String(report.guild.raids), accent: "gold", note: `${delta(report.guild.raids, report.previous.raids, fr)}${report.guild.raids ? ` · ${report.guild.averageRaiders}${fr ? " raiders/raid" : " raiders/raid"}` : ""}` },
       { label: t("Boss kills", "Boss vaincus"), value: String(report.guild.bossKills), note: delta(report.guild.bossKills, report.previous.bossKills, fr) },
       { label: t("Dungeon clears", "Donjons terminés"), value: String(d.completed), accent: "green", note: d.runs > d.completed ? t(`${d.runs} runs`, `${d.runs} parcours`) : undefined }
     ],

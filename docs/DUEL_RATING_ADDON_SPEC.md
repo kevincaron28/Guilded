@@ -79,3 +79,60 @@ after, rounded, written `+12` / `-12` (`0` when the duel was not rated). Same te
 Ratings are recomputed from the stored duels of the season in date order. A duel that reaches a client late (a companion was offline) is
 placed at its end time, so it can move ratings that were already shown, including older rows of the same pair and later K values. The
 addon must recompute the whole season when a duel is added, never add a delta to the shown number. A card already displayed is not edited.
+
+## 8. Duels outside the guild: the global ladder (bot side built, addon not yet)
+
+The bot keeps a global duel ladder (`/leaderboards/duels`, JSON `/leaderboards/duels.json`, from 1 December 2026 UTC) over every counted
+duel a Guilded addon reported, whatever guild the players are in. It uses the same rating (section 3) per calendar month. Guild
+duels already reach it through the guild import. For a duel against a player outside the guild, the addon sends a record in a new
+optional array **`externalDuels`** of the upload, next to `duelResults` (the bot accepts the field and ignores records until an addon
+sends them). Record fields (exact names; see `externalDuelSchema` in `src/services/duel-global.ts`):
+
+| Field | Type | Notes |
+|---|---|---|
+| `winner`, `loser` | string, 1-80 | Character names (a `Name-Realm` form is split at the first dash when the realm field is empty). |
+| `winnerRealm`, `loserRealm` | string, up to 60 | The realm of each character. Characters are identified by lower-case name plus realm without spaces. |
+| `winnerClass`, `loserClass` | string, up to 30, optional | English class names when the client shows them. |
+| `winnerLevel`, `loserLevel` | integer 1-60, optional | Levels at the end of the duel. |
+| `winnerGuild`, `loserGuild` | string, up to 80, optional | The guild text the client shows. Send the opponent's guild only if the client exposes it without a protected call. |
+| `zone` | string, up to 80, optional | Where it happened. |
+| `at` | integer, Unix seconds | End time of the duel. |
+| `durationSec` | integer, optional | 3 to 1800 when given; a record outside that range is refused. |
+| `reason` | `knockout` or `retreat` | |
+| `side` | `winner` or `loser` | **Which side the reporting character was.** Only a participant can report; this is what makes a character "a reporter" (only reporters are ranked). |
+| `seq` | integer >= 1, optional | The install's running number: +1 per recorded duel, never reused, never reset by a reload. |
+| `sig` | 16 hex characters, optional | The keyed checksum below. |
+
+### Tamper-evident encoding
+
+* Each install creates a random secret once (kept in SavedVariables, never uploaded, never printed) and a counter `seq`.
+* `sig` = the first 16 hex characters of SHA-256 over `secret|seq|winner|winnerRealm|loser|loserRealm|at|reason` (`duelSig` in `duel-global.ts`
+  is the reference; the Lua test uses the same vectors). The addon checks it when it reads its own log back, so a record edited by hand in
+  the saved-variables file is dropped before upload.
+* The server never knows the secret, so it checks only the shape of `sig` and the sequence: a `seq` already used by a different record of the
+  same device is refused (replay), and gaps or repeats per device are visible in `sequenceProblems`. **This does not stop a modified addon**
+  (anything the addon can sign, a modified addon can sign). It stops casual file editing and makes copy-paste replays visible. The public
+  page says so plainly.
+
+### What the bot checks (so the addon need not)
+
+* Plausible: not in the future (5 minutes of slack), not older than 30 days, duration bounds above, winner and loser are different
+  characters, levels 1-60, text cleaned and clipped.
+* The caps of section 5 (5 per pair per day, 25 per reporter per day), the 120 s dedupe across all reporters, and the weekly pair weight in the rating.
+* One reporter's single witness counts in full. When the other player's addon reports the same duel (same winner and loser within 120 s) the
+  duel shows **confirmed by both**; it is information only, it does not change the rating.
+* A device can be excluded by the owner (`PublicDuelExclusion`): its reports stop counting and every rating is recomputed without them.
+* `duelAnomalies` lists, for a human to look at (never hidden or down-weighted automatically): one-sided pairs, rapid repeats, a reporter with
+  very few opponents, long streaks.
+
+### On screen (addon, later)
+
+* The Duels window keeps the guild ladder; the end-of-duel card shows both ratings when both players have one (the opponent's rating comes from
+  the next sync; show nothing rather than a guess).
+* Players who reported a duel are ranked after 8 duels against 4 different opponents; a player who never reported only appears as an opponent.
+
+### Privacy
+
+A duel against an outsider publishes that outsider's character name, realm, class, level and guild text on the public ladder (owner decision,
+13 November 2026). The conservative alternative, "a player outside the listed guilds", is the switch `SHOW_OUTSIDER_NAMES` in `duel-global.ts`
+(not built). A guild server that has public pages off does not appear on the global ladder, and members hidden from public boards never do.

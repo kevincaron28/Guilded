@@ -9,6 +9,7 @@ import { applyAddonLoot, applyRaidAttendance, touchLastSeen } from "./raid-impor
 import { importDungeonRuns } from "./dungeon-import.js";
 import { importBattlegroundReports } from "./battleground-records.js";
 import { importDuelResults, importMilestones } from "./duels.js";
+import { mirrorGuildDuels } from "./duel-global.js";
 import { queueDuelCards } from "./duel-card.js";
 import { buildClassBook } from "./ladder-classes.js";
 import { fullNameBook } from "./character-display.js";
@@ -502,6 +503,12 @@ export function createAddonImportService(database: PrismaClient) {
         // Duels and milestones come only from a paired member's own companion (never an officer's whole-guild upload).
         const guildEdition = gameEditionOf(guild ?? {});
         const duels = await importDuelResults(tx, guildId, guildEdition, imported.pairedMemberId, characters.map((character) => ({ id: character.id, name: character.name, realm: character.realm, memberId: character.memberId, level: character.level })), snapshot.duelResults);
+        // The same counted duels also feed the global duel ladder (public from 1 December 2026; nothing reads it before). Hidden and test members are left out.
+        if (duels.fresh.length && imported.pairedMemberId && (tx as { publicDuel?: unknown }).publicDuel) {
+          const hidden = new Set(characters.filter((character) => character.member && (character.member.raceHidden || character.member.isTest)).map((character) => character.memberId));
+          await mirrorGuildDuels(tx, { guildId, guildName: guild?.wowSpace?.name ?? null, realm: guild?.wowSpace?.realm ?? "", reporterMemberId: imported.pairedMemberId, hidden,
+            classOf: (memberId, name) => characters.find((character) => character.memberId === memberId && character.name.toLowerCase() === name.toLowerCase())?.className ?? null }, duels.fresh);
+        }
         const milestones = await importMilestones(tx, guildId, guildEdition, imported.pairedMemberId, characters.filter((character) => character.memberId === imported.pairedMemberId), snapshot.milestones);
 
         sec("held-dungeons-duels");

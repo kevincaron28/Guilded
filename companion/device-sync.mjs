@@ -69,12 +69,13 @@ export async function registerDevice(config, signal) {
 
 /** One unsigned upload. The answer says where the data went (or why it waits). */
 export async function uploadAsDevice(config, full, signal, options = {}) {
+  const sent = deviceUploadBody(full, { server: config.deviceServer, acknowledged: options.acknowledged });
   const { response, body } = await requestJson(new URL("/api/v1/device/uploads", base(config)), {
     method: "POST",
     headers: { ...deviceHeaders(config), "content-type": "application/json" },
-    body: JSON.stringify(deviceUploadBody(full, { server: config.deviceServer, acknowledged: options.acknowledged }))
+    body: JSON.stringify(sent)
   }, signal);
-  return { response, body };
+  return { response, body, sent };
 }
 
 /** After a Discord sign-in in this companion: the device becomes the member's. Never fails the sign-in. */

@@ -57,7 +57,9 @@ function memberOf(characters: readonly Row[], name: string): { memberId: string;
   return owners.size === 1 ? { memberId: matches[0]!.memberId, name: matches[0]!.name, level: matches[0]!.level ?? null } : null;
 }
 
-export interface DuelImportResult { recorded: number; counted: number; capped: number; duplicates: number; rejected: number }
+/** A newly stored COUNTED duel, for the Discord duel card (9.3). */
+export interface FreshDuel { reportKey: string; winnerId: string; loserId: string; winnerCharacter: string; loserCharacter: string; winnerLevel: number | null; loserLevel: number | null; reason: string; endedAt: Date }
+export interface DuelImportResult { recorded: number; counted: number; capped: number; duplicates: number; rejected: number; fresh: FreshDuel[] }
 
 /**
  * Stores the duels a paired member's companion reported. `characters` are the guild's characters with their
@@ -65,7 +67,7 @@ export interface DuelImportResult { recorded: number; counted: number; capped: n
  */
 export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: string, edition: string, reporterId: string | null | undefined,
   characters: readonly Row[], rows: unknown[], now = new Date()): Promise<DuelImportResult> {
-  const result: DuelImportResult = { recorded: 0, counted: 0, capped: 0, duplicates: 0, rejected: 0 };
+  const result: DuelImportResult = { recorded: 0, counted: 0, capped: 0, duplicates: 0, rejected: 0, fresh: [] };
   if (!rows.length) return result;
   if (!reporterId) return { ...result, rejected: rows.length };
   const parsed = rows.slice(0, 200).flatMap(row => { const p = duelResultSchema.safeParse(row); return p.success ? [p.data] : []; });
@@ -89,13 +91,17 @@ export async function importDuelResults(tx: Pick<Tx, "duelResult">, guildId: str
       tx.duelResult.count({ where: { guildId, gameEdition: edition, reporterId, dayKey: day, counted: true } })
     ]);
     const counted = pairCount < PAIR_DAILY_CAP && reporterCount < REPORTER_DAILY_CAP;
+    const key = reportKey(winner.memberId, loser.memberId, duel.at);
     const created = await tx.duelResult.createMany({ skipDuplicates: true, data: [{
       guildId, gameEdition: edition, winnerId: winner.memberId, loserId: loser.memberId, winnerCharacter: winner.name, loserCharacter: loser.name, winnerLevel: winner.level, loserLevel: loser.level,
-      reason: duel.reason, endedAt, dayKey: day, pairKey: pair, counted, reportKey: reportKey(winner.memberId, loser.memberId, duel.at), reporterId
+      reason: duel.reason, endedAt, dayKey: day, pairKey: pair, counted, reportKey: key, reporterId
     }] });
     if (!created.count) { result.duplicates++; continue; }
     result.recorded++;
-    if (counted) result.counted++; else result.capped++;
+    if (counted) {
+      result.counted++;
+      result.fresh.push({ reportKey: key, winnerId: winner.memberId, loserId: loser.memberId, winnerCharacter: winner.name, loserCharacter: loser.name, winnerLevel: winner.level, loserLevel: loser.level, reason: duel.reason, endedAt });
+    } else result.capped++;
   }
   return result;
 }

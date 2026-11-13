@@ -999,6 +999,8 @@ model GuildSettings {
   bgStatsMessageId         String?
   // Live "Duels de la guilde" board kept in the PvP statistics channel (8.4.6): opt-in, one message edited in place.
   duelBoardEnabled         Boolean @default(true)
+  // 9.3: one Discord card per counted duel in the duel channel (separate from the board); officers turn it off with /battleground duel-cards.
+  duelCardsEnabled         Boolean @default(true)
   unifiedGroupFinder Boolean @default(true)
   duelBoardMessageId       String?
   // 8.5 track B: the duel ladder has its own channel (duel-ladder); the battleground ladder stays in bgStatsChannelId.

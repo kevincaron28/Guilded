@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agrees, evidenceUpgrade, checkPublicRun, ingestPublicRuns, PublicUploadError, seasonOf, summarize, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
+import { agrees, evidenceUpgrade, checkPublicRun, ingestPublicRuns, ownPlayersFilter, pickScoreCharacter, PublicUploadError, seasonOf, summarize, type PublicRunStore, type RunSummary, type StoredRun } from "../src/services/public-runs.js";
 import { dungeonRunSchema } from "../src/services/dungeon-rules.js";
 
 const NOW = new Date("2026-11-10T20:00:00Z");
@@ -185,5 +185,49 @@ describe("public run uploads", () => {
     await expect(ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: "x" }, NOW)).rejects.toThrow("list");
     for (let index = 0; index < 200; index++) memory.uploads.push({ uploaderKey: "account:kev", runRef: `r${index}`, at: NOW });
     await expect(ingestPublicRuns(memory.store, { uploaderKey: "account:kev", character: "Kev", source: "personal", runs: [run()] }, NOW)).rejects.toThrow("Too many runs");
+  });
+});
+
+// 9.3.0: a personal upload names every character of the account, not only the one that logged in last.
+describe("personal uploads with several characters", () => {
+  it("accepts a run an alt played although another alt logged in last", async () => {
+    const memory = memoryRunStore();
+    const result = await ingestPublicRuns(memory.store, { uploaderKey: "account:1", character: "Zed", characters: ["Amy", "Zed"], source: "personal", runs: [run()] }, NOW);
+    expect(result.accepted).toEqual(["QG-20261110-190000-Kev"]);
+    expect(result.rejected).toEqual([]);
+    // The report is the alt's: Amy, who was in the run, not Zed who was not.
+    expect([...memory.runs.values()][0]!.reporters).toEqual(["amy"]);
+  });
+
+  it("prefers the main character when it was in the run", async () => {
+    const memory = memoryRunStore();
+    await ingestPublicRuns(memory.store, { uploaderKey: "account:1", character: "Kev", characters: ["Amy"], source: "personal", runs: [run()] }, NOW);
+    expect([...memory.runs.values()][0]!.reporters).toEqual(["kev"]);
+  });
+
+  it("still refuses a run none of the account's characters was in", async () => {
+    const memory = memoryRunStore();
+    const result = await ingestPublicRuns(memory.store, { uploaderKey: "account:1", character: "Zed", characters: ["Yan", "Xia"], source: "personal", runs: [run()] }, NOW);
+    expect(result.accepted).toEqual([]);
+    expect(result.rejected).toEqual([{ id: "QG-20261110-190000-Kev", reason: "your character was not in this run" }]);
+    expect(memory.runs.size).toBe(0);
+  });
+
+  it("changes nothing for an upload that names one character only", async () => {
+    const memory = memoryRunStore();
+    const result = await ingestPublicRuns(memory.store, { uploaderKey: "account:1", character: "Zed", source: "personal", runs: [run()] }, NOW);
+    expect(result.rejected[0]?.reason).toBe("your character was not in this run");
+  });
+
+  it("links and scores an alt's run: every own character is searched, the alt is shown when the main was not in the run", () => {
+    const own = [{ name: "Zed", realm: "R1" }, { name: "Amy", realm: "R2" }];
+    expect(ownPlayersFilter(own, true)).toEqual([
+      { character: { equals: "Zed", mode: "insensitive" } },
+      { character: { equals: "Amy", mode: "insensitive" } },
+    ]);
+    expect(ownPlayersFilter(own, false)[1]).toMatchObject({ realm: { equals: "R2" } });
+    expect(pickScoreCharacter([{ character: "Amy", realm: "R2" }], own[0]!)).toEqual({ name: "Amy", realm: "R2" });
+    expect(pickScoreCharacter([{ character: "Amy", realm: "R2" }, { character: "zed", realm: "R1" }], own[0]!)).toEqual({ name: "zed", realm: "R1" });
+    expect(pickScoreCharacter([], own[0]!)).toEqual(own[0]);
   });
 });

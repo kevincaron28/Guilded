@@ -1180,5 +1180,8 @@
   "Each WoW account on this PC with Guilded's data. Untick one to stop syncing it, tick it to sync again.": "Chaque compte WoW de ce PC qui a des données Guilded. Décochez-en un pour arrêter de le synchroniser, cochez-le pour le resynchroniser.",
   "Reinstall the addon": "Réinstaller l'addon",
   "The first account syncs while World of Warcraft is on.": "Le premier compte se synchronise tant que World of Warcraft est lancé.",
-  "Sync this account": "Synchroniser ce compte"
+  "Sync this account": "Synchroniser ce compte",
+  "Dungeon runs: none to send.": "Parcours de donjon : aucun à envoyer.",
+  "Dungeon run receipts saved for Guilded Dungeons. Use /reload in WoW to load them.": "Accusés de réception des parcours enregistrés pour Guilded Dungeons. Tapez /reload dans WoW pour les charger.",
+  "Guilded Dungeons has not saved your guild yet, so the bot cannot tell which Discord server your runs belong to. Update Guilded Dungeons to 9.3.0 or newer, log in to WoW once with it enabled, then type /reload.": "Guilded Dungeons n’a pas encore enregistré votre guilde : le bot ne peut donc pas savoir à quel serveur Discord vos parcours appartiennent. Mettez Guilded Dungeons à jour (9.3.0 ou plus récent), connectez-vous une fois à WoW avec l’addon activé, puis tapez /reload."
 }

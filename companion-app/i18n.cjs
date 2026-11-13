@@ -30,6 +30,15 @@ const patterns = Object.keys(fr).filter(key => /\{\d+\}/.test(key) && (!key.star
 function message(language, value) {
   if (typeof value !== 'string' || normalizeLanguage(language) !== 'fr') return value;
   if (Object.hasOwn(fr, value)) return fr[value];
+  // 9.3.0 dungeon run report (companion/run-report.mjs): "Dungeon runs: 3 sent, 2 stored, 1 not counted (Not completed)."
+  const runReport = /^Dungeon runs: (\d+) sent((?:, \d+ (?:stored|copied from a guildmate|waiting for a second player|not confirmed yet|not counted \([\s\S]*?\)))*)\.$/.exec(value);
+  if (runReport) {
+    const names = { stored: 'enregistré(s)', 'copied from a guildmate': 'copie(s) du parcours d’un membre de la guilde', 'waiting for a second player': 'en attente d’un second joueur', 'not confirmed yet': 'pas encore confirmé(s)' };
+    const parts = [...runReport[2].matchAll(/, (\d+) (stored|copied from a guildmate|waiting for a second player|not confirmed yet|not counted \(([\s\S]*?)\))(?=,|$)/g)].map(match => match[3] !== undefined
+      ? `${match[1]} non compté(s) (${match[3].split('; ').map(reason => message(language, reason)).join(' ; ')})`
+      : `${match[1]} ${names[match[2]]}`);
+    return `Parcours de donjon : ${[`${runReport[1]} envoyé(s)`, ...parts].join(', ')}.`;
+  }
   const publicResult = /^Public leaderboards: (\d+) new, (\d+) confirmed, (\d+) already sent(?:, (\d+) refused \(([\s\S]*)\))?\.$/.exec(value);
   if (publicResult) return translate(language, 'Public leaderboards: {0} new, {1} confirmed, {2} already sent{3}.',
     publicResult[1], publicResult[2], publicResult[3], publicResult[4] ? translate(language, ', {0} refused ({1})', publicResult[4], publicResult[5]) : '');

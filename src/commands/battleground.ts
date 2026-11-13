@@ -68,6 +68,8 @@ export const battlegroundCommand = new SlashCommandBuilder().setName("bg").setDe
   .addSubcommand(s => s.setName("duels").setDescription("Guild duel leaderboard: wins, losses, win rate and streak").setDescriptionLocalizations({ fr: "Classement des duels de la guilde" }))
   .addSubcommand(s => s.setName("duel-board").setDescription("Officers: keep a live duel board in the duel ladder channel").setDescriptionLocalizations({ fr: "Officiers : tableau des duels en direct dans le salon des statistiques JcJ" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the live board on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le tableau" }).setRequired(true)))
+  .addSubcommand(s => s.setName("duel-cards").setDescription("Officers: a card in the duel channel for each counted duel (on by default)").setDescriptionLocalizations({ fr: "Officiers : une carte dans le salon des duels pour chaque duel compté (activé par défaut)" })
+    .addBooleanOption(o => o.setName("enabled").setDescription("Turn the duel cards on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver les cartes" }).setRequired(true)))
   .addSubcommand(s => s.setName("bg-ladder").setDescription("Officers: the battleground ladder message in the ladder channel (on by default)").setDescriptionLocalizations({ fr: "Officiers : classement des champs de bataille dans le salon du classement (activé par défaut)" })
     .addBooleanOption(o => o.setName("enabled").setDescription("Turn the battleground ladder on or off").setDescriptionLocalizations({ fr: "Activer ou désactiver le classement" }).setRequired(true)))
   .addSubcommand(s => s.setName("world-pvp").setDescription("Officers: world PvP (kills, defends) on the ladder message (on by default)").setDescriptionLocalizations({ fr: "Officiers : JcJ en monde ouvert sur le classement (activé par défaut)" })
@@ -115,7 +117,7 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
   const t = (en: string, french: string) => fr ? french : en;
   const sub = command?.options.getSubcommand() ?? input?.action ?? "";
   if (["create", "manage"].includes(sub) && !hasPermission(actor, "raidLeader")) throw new Error("Raid Leader required / Responsable de raid requis.");
-  if ((sub === "setup" || sub === "duel-board" || sub === "pvp-module" || sub === "group-finder" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
+  if ((sub === "setup" || sub === "duel-board" || sub === "duel-cards" || sub === "pvp-module" || sub === "group-finder" || sub === "bg-ladder" || sub === "world-pvp") && !hasPermission(actor, "officer")) throw new Error("Officer required / Officier requis.");
   if (sub === "bg-ladder") {
     const enabled = command?.options.getBoolean("enabled", true) ?? false;
     await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { bgLadderEnabled: enabled } });
@@ -170,6 +172,13 @@ export async function executeBattleground(i: BgInteraction, input?: BgInput) {
     await i.editReply({ content: enabled
       ? t(`Live duel board ${posted ? "posted" : "saved; it appears on the next refresh"} in <#${settings.duelBoardChannelId}>. It is edited in place, never re-posted.`, `Tableau des duels ${posted ? "publié" : "enregistré; il apparaîtra au prochain rafraîchissement"} dans <#${settings.duelBoardChannelId}>. Il est modifié sur place, jamais republié.`)
       : t("Live duel board off. The existing message stays; delete it if you wish.", "Tableau des duels désactivé. Le message existant reste; supprimez-le si vous le souhaitez."), allowedMentions: { parse: [] } }); return;
+  }
+  if (sub === "duel-cards") {
+    const enabled = command?.options.getBoolean("enabled", true) ?? false;
+    await prisma.guildSettings.update({ where: { guildId: ctx.guildId }, data: { duelCardsEnabled: enabled } });
+    await i.editReply({ content: enabled
+      ? t("Duel cards on (the default): each counted duel gets a card in the duel ladder channel; many duels at once are folded into one summary card. Nobody is pinged.", "Cartes de duel activées (par défaut) : chaque duel compté a sa carte dans le salon du classement des duels; plusieurs duels d'un coup sont regroupés dans une carte résumé. Personne n'est mentionné.")
+      : t("Duel cards off. Cards already queued are not posted either. The live duel board is not affected.", "Cartes de duel désactivées. Les cartes déjà en file ne sont pas publiées non plus. Le tableau des duels n'est pas touché."), allowedMentions: { parse: [] } }); return;
   }
   if (sub === "setup" || sub === "privacy-help") {
     await i.editReply({ content: sub === "setup" ? battlegroundSetupHelp(fr) : battlegroundPrivacyHelp(fr), allowedMentions: { parse: [] } }); return;

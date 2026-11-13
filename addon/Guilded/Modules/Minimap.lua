@@ -1006,6 +1006,9 @@ local function buildGeneralSettings(page)
     at(newButton(page, L(item[1]), 136, function() run(item[2]) end), page, ((i - 1) % 3) * 142, -math.floor((i - 1) / 3) * 28)
   end
   at(newButton(page, L("Hide minimap button"), 180, function() run("minimap hide") end), page, 0, -64)
+  -- All settings, grouped in tabs with a description of each, are in the game's own options (Modules/SettingsPage.lua).
+  tip(at(newButton(page, "All settings", 136, function() if ns.options and ns.options.open then ns.options.open() end end), page, 142, -28),
+    "Opens Guilded's page in the game's options: every setting in tabs, each with a description.")
 
   officerOnly(at(newLabel(page, "Officer", "GameFontNormalSmall"), page, 0, -100))
   officerOnly(at(newButton(page, "Backup", 136, function() run("backup") end), page, 0, -116))
@@ -2540,6 +2543,12 @@ selectTabByNameNow = function(name)
       return
     end
   end
+end
+
+-- The Advanced view of Settings (the game options' "Info, data and developer tools" button).
+function ns.openAdvancedSettings()
+  if InCombatLockdown and InCombatLockdown() then return end
+  ns.openToolsPage("Info")
 end
 
 -- Opens one page of the tools by name (the setup window's "Set up my guild" uses it).

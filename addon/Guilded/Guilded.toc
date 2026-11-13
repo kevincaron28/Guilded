@@ -89,5 +89,6 @@ Modules\GuildBank.lua
 Modules\PugCheck.lua
 Modules\PasteBox.lua
 Modules\LootImports.lua
+Modules\SettingsPage.lua
 Modules\Minimap.lua
 Modules\Options.lua

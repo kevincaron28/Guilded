@@ -109,17 +109,38 @@ local function memberName(button)
     if ok and type(name) == "string" then return name end
   end
 end
+-- (9.3.0) The professions show in a tooltip of Guilded's own, under the game's one. Adding lines to GameTooltip and
+-- calling its Show() from this hook ran the game's tooltip code under Guilded's taint.
+local ownTip
+local function tip()
+  if ownTip ~= nil then return ownTip or nil end
+  ownTip = false
+  if CreateFrame then
+    local ok, frame = pcall(CreateFrame, "GameTooltip", "GuildedRosterTooltip", UIParent, "GameTooltipTemplate")
+    if ok and type(frame) == "table" then ownTip = frame end
+  end
+  return ownTip or nil
+end
+local leaveHooked = setmetatable({}, { __mode = "k" })
+local function hideTip() if ownTip and ownTip.Hide then ownTip:Hide() end end
 function module.decorate(button)
-  if not GameTooltip then return end
+  local t = tip()
+  if not t then return end
   local ok = pcall(function()
     local name = memberName(button)
     if not name then return end
     local lines = module.lines(name)
     if #lines == 0 then return end
-    GameTooltip:AddLine(" ")
-    GameTooltip:AddLine(L("Professions"), 1, 0.82, 0)
-    for _, line in ipairs(lines) do GameTooltip:AddLine(line, 1, 1, 1) end
-    GameTooltip:Show()
+    t:SetOwner(button, "ANCHOR_NONE")
+    t:ClearLines()
+    if GameTooltip then t:SetPoint("TOPLEFT", GameTooltip, "BOTTOMLEFT", 0, -2) end
+    t:AddLine(L("Professions"), 1, 0.82, 0)
+    for _, line in ipairs(lines) do t:AddLine(line, 1, 1, 1) end
+    t:Show()
+    if type(button) == "table" and button.HookScript and not leaveHooked[button] then
+      leaveHooked[button] = true
+      pcall(button.HookScript, button, "OnLeave", hideTip)
+    end
   end)
   return ok
 end

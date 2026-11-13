@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { newLuaSession, type LuaSession } from "./harness.js";
 
@@ -103,5 +104,45 @@ describe("ChatTab.lua", () => {
     s.run(`WINDOW_NAMES[3] = "Guilded"`);
     chat(s, "off");
     expect(s.run("return WINDOW_CALLS")).toBe("0");
+  });
+});
+
+describe("ChatTab.lua how-to (9.3.0)", () => {
+  it("/guilded chattab prints the steps with the game's own group labels when the client has them", () => {
+    const s = withChatTab();
+    s.run(String.raw`
+      SAID = {}
+      NS.message = function(text) SAID[#SAID + 1] = text end
+      SAY = "Dire"; GUILD = "Guilde"; SYSTEM_MESSAGES = "Syst\195\168me"; GUILD_DISCORD = "Discord"
+    `);
+    s.run(`NS.commandHandlers["chattab"]()`);
+    const text = s.run(`return table.concat(SAID, " | ")`);
+    expect(s.run(`return #SAID`)).toBe("6");
+    expect(text).toContain("Right-click the Guilded tab and choose Settings.");
+    expect(text).toContain("tick: Dire, Emote, Yell, Whisper, Party, Party Leader, Raid, Raid Leader, Raid Warning, Guilde, Officer, Instance, Instance Leader, BN Whisper.");
+    expect(text).toContain("Syst\u00e8me, Skill, Loot, Money, Currency, Achievements, Guild Achievements, Experience, Honor, Faction changes, Discord.");
+    expect(text).toContain("Font Size, then 12. Leave Channels empty.");
+    expect(text).toContain("Guilded hides the game's own online/offline line here because it prints its own.");
+  });
+
+  it("falls back to English labels, has no Discord group when the client lacks it, and exposes the text for the settings page", () => {
+    const s = withChatTab();
+    const lines = JSON.parse(s.run(`local out = {}; for i, l in ipairs(NS.chatTabHowTo()) do out[i] = string.format("%q", l) end return "[" .. table.concat(out, ",") .. "]"`)) as string[];
+    expect(lines).toHaveLength(6);
+    expect(lines[3]).toBe("3. Under Other, tick: System, Skill, Loot, Money, Currency, Achievements, Guild Achievements, Experience, Honor, Faction changes.");
+  });
+
+  it("never touches a chat window to do it", () => {
+    const s = withChatTab();
+    s.run(WINDOW_CALLS);
+    s.run(`NS.commandHandlers["chattab"]()`);
+    expect(s.run(`return WINDOW_CALLS`)).toBe("0");
+  });
+
+  it("has a French, German and Spanish translation for every line", () => {
+    const locale = readFileSync("addon/Guilded/Locale.lua", "utf8");
+    for (const key of ["How to set up the Guilded chat tab.", "1. Right-click the Guilded tab", "2. Under Chat, tick: %s.", "3. Under Other, tick: %s.", "4. Right-click the tab again", "Guilded hides the game's own online/offline line"]) {
+      expect(locale.split(`["${key}`).length - 1, key).toBeGreaterThanOrEqual(3);
+    }
   });
 });

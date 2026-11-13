@@ -209,6 +209,19 @@ describe("one line per guild event in the Guilded tab (9.2.1 filter)", () => {
     expect(hidden(s, "ChatFrame3", "Ann has gone offline.")).toBe("false");
   });
 
+  it("works with the French client strings and never breaks chat when something errors", () => {
+    const s = withEvents(FRENCH);
+    expect(hidden(s, "ChatFrame3", "|Hplayer:Ann|h[Ann]|h s'est connect\u00e9.")).toBe("true");
+    expect(hidden(s, "ChatFrame1", "|Hplayer:Ann|h[Ann]|h s'est connect\u00e9.")).toBe("false");
+    expect(hidden(s, "ChatFrame3", "Ann a promu Bob au rang de Officier.")).toBe("true");
+    expect(hidden(s, "ChatFrame3", "|Hplayer:Stranger|h[Stranger]|h s'est connect\u00e9.")).toBe("false");
+    // A broken roster read or a missing window helper returns "do not hide" instead of raising.
+    s.run(`GetNumGuildMembers = function() error("boom") end`);
+    expect(hidden(s, "ChatFrame3", "|Hplayer:Ann|h[Ann]|h s'est connect\u00e9.")).toBe("false");
+    s.run(`GetChatWindowInfo = function() error("boom") end`);
+    expect(hidden(s, "ChatFrame3", "Ann a promu Bob au rang de Officier.")).toBe("false");
+  });
+
   it("does not hide anything when the Guilded window is closed or missing", () => {
     const s = withEvents();
     s.run(`GetChatWindowInfo = function(i) return ({ "General", "Log" })[i] end`);

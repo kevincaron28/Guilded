@@ -10,6 +10,18 @@ Guilded supports WoW Forever only (the other editions were removed 7 November) a
 Release history: [CHANGELOG.md](CHANGELOG.md). Older roadmap text, including every finished
 request list: [roadmap history](docs/archive/ROADMAP-history.md).
 
+## Start here — 13 November 2026 (next session)
+
+**Released 13 November (UTC): 9.2.0.** GitHub v9.2.0 (latest, 64d8bf3b), installer on the server and the R2 mirror, CurseForge 9585868/9585869 in review, Store Submission 13 resubmitted with 9.2.0.0 and in certification, website feed at 9.2.0 (#816). Evidence: [docs/V9_2_0_RELEASE_ACCEPTANCE.md](docs/V9_2_0_RELEASE_ACCEPTANCE.md).
+**Bot fixes live from 12-13 November** (#811, #813, #814, #815, #817): see the CHANGELOG 9.2.0 entry. An officer upload now answers within 10 s and the apply finishes in the background (`import-apply-finished ... late=1`); an unchanged file dedupes.
+
+Next, in this order:
+1. **Companion (next companion PR, do not forget):** in the single window the line "Syncing now." stays under the status lines after the sync has finished. It must clear when the sync ends. A companion change means a new companion release and a Store submission.
+2. **Watch the apply lines** in the journal: `upload ... phases=` (gap-free, `other:` is the tail), `import-apply-sections` (which loop is slow after #817: reserves and item prices were not batched, nothing measured them), `import-apply-finished`.
+3. **When CurseForge approves 9.2.0:** point `site/releases.json` at the new file ids (the upload script prints the snippet) and verify the public download hashes.
+4. **Real-client checks still owed (need a second player):** Layer invite accept, a crafter claiming a request, the craft relay for a member without the companion, a real call for help, combat behaviour, the first minute after login for the chat-limit message, and the Store build.
+5. Then the roadmap items below.
+
 ## Start here — 10 November 2026
 
 **Released 9 November (evening):** 9.1.1, 9.1.2 and 9.1.3. All three are on GitHub (9.1.3 is the latest release), on CurseForge (in review) and on the website through the R2 mirror. The bot runs 9.1.3 (e888d38b) after a backup (`guilded-recovery/2026-11-09T21-35-22-052Z`, offsite copy made).

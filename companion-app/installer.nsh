@@ -68,11 +68,15 @@
 ;
 ; 1. Ask: write quit-for-update in the companion's data folder. A 9.0+ companion watches for it,
 ;    saves its settings and quits (main.cjs QUIT_REQUEST_FILE). Nothing is started, so nothing flashes.
-; 2. Wait up to 15 s for it to go.
+; 2. Wait a few seconds (6 tries) for it to go.
 ; 3. Close what is left: every Guilded Companion of this Windows session, whatever folder it runs
-;    from, retried every half second for about 30 s.
-; 4. Only then ask the member (Retry starts the 30 s again). A silent update (/S, the companion's
-;    own auto-update) cancels instead: the companion stays as it was and tries again later.
+;    from, its whole process tree, retried every half second for about 30 s.
+; 4. Wait until the exe can be written (the files are free), up to 20 s.
+; 5. Only then ask the member (Retry starts the 30 s again). A silent run (/S) never asks and never
+;    hangs: it goes on after one last attempt, and the file copy has its own retries.
+; Every step is written to %TEMP%\guilded-companion-installer.log (process ids, paths, what was
+; killed), so a failed update can be read afterwards. The member's data folder is never touched
+; except for the one quit-for-update request file, which is removed again.
 ;
 ; Processes are found through PowerShell by name and Windows session (no user-name matching, which
 ; failed on some PCs), with tasklist as the fallback when PowerShell cannot run.
@@ -96,14 +100,37 @@
 !macro GUILDED_KILL
   nsExec::Exec `${GUILDED_POWERSHELL} "${GUILDED_MINE}; $$p | Stop-Process -Force -ErrorAction SilentlyContinue"`
   Pop $R2
+  ; The whole tree by name (Electron's helpers and children), then everything that runs from the
+  ; install folder, whatever it is called (a helper started from this exe).
   nsExec::Exec `"$SYSDIR\cmd.exe" /C taskkill /F /T /IM "${APP_EXECUTABLE_FILENAME}"`
+  Pop $R2
+  nsExec::Exec `${GUILDED_POWERSHELL} "Get-CimInstance Win32_Process | Where-Object { $$_.ExecutablePath -and $$_.ExecutablePath.StartsWith('$INSTDIR', [System.StringComparison]::OrdinalIgnoreCase) -and $$_.ProcessId -ne $$PID } | ForEach-Object { Stop-Process -Id $$_.ProcessId -Force -ErrorAction SilentlyContinue }"`
+  Pop $R2
+!macroend
+
+; One line in %TEMP%\guilded-companion-installer.log.
+!macro GUILDED_LOG TEXT
+  ClearErrors
+  FileOpen $R4 "$TEMP\guilded-companion-installer.log" a
+  ${ifNot} ${Errors}
+    FileSeek $R4 0 END
+    FileWrite $R4 "${TEXT}$\r$\n"
+    FileClose $R4
+  ${endIf}
+!macroend
+
+; Who runs, with process id, parent, Windows session and path, into the same log.
+!macro GUILDED_LIST
+  nsExec::Exec `${GUILDED_POWERSHELL} "Get-CimInstance Win32_Process | Where-Object { $$_.Name -eq '${APP_EXECUTABLE_FILENAME}' } | ForEach-Object { 'running: pid ' + $$_.ProcessId + ' parent ' + $$_.ParentProcessId + ' session ' + $$_.SessionId + ' ' + $$_.ExecutablePath } | Add-Content -Path '$TEMP\guilded-companion-installer.log'"`
   Pop $R2
 !macroend
 
 !macro customCheckAppRunning
   !insertmacro GUILDED_FIND
+  !insertmacro GUILDED_LOG "close check: running=$R0 dir=$INSTDIR"
   ${if} $R0 == 0
     DetailPrint "$(appClosing)"
+    !insertmacro GUILDED_LIST
     ; 1. The quit request (per-user data folder, the same one the companion uses).
     CreateDirectory "$APPDATA\${PRODUCT_NAME}"
     ClearErrors
@@ -112,12 +139,12 @@
       FileWrite $R3 "installer"
       FileClose $R3
     ${endIf}
-    ; 2. Up to 15 s for it to save and quit.
+    ; 2. A few seconds for it to save and quit.
     StrCpy $R1 0
     guilded_wait_graceful:
       !insertmacro GUILDED_FIND
       ${if} $R0 == 0
-      ${andIf} $R1 < 30
+      ${andIf} $R1 < 6
         IntOp $R1 $R1 + 1
         Sleep 500
         Goto guilded_wait_graceful
@@ -129,7 +156,13 @@
       ${if} $R0 == 0
         IntOp $R1 $R1 + 1
         ${if} $R1 > 60
-          ; 4. Still running: the member decides (Retry tries again); a silent update cancels.
+          !insertmacro GUILDED_LOG "still running after the kill attempts"
+          !insertmacro GUILDED_LIST
+          ; 5. Still running. A silent run (/S) never asks and never hangs: it goes on. The member is asked
+          ;    (Retry tries again, Cancel stops the install).
+          ${if} ${Silent}
+            Goto guilded_go_on
+          ${endIf}
           MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$(appCannotBeClosed)" /SD IDCANCEL IDRETRY guilded_retry
           Delete "$APPDATA\${PRODUCT_NAME}\quit-for-update"
           Quit
@@ -140,8 +173,28 @@
         Sleep 500
         Goto guilded_kill
       ${endIf}
+    !insertmacro GUILDED_LOG "kill rounds: $R1"
+    guilded_go_on:
     ; The request is no longer needed (an older companion never reads it).
     Delete "$APPDATA\${PRODUCT_NAME}\quit-for-update"
+    ; 4. Wait until the exe can be written: a process that is gone can still hold it for a moment.
+    StrCpy $R1 0
+    guilded_wait_files:
+      ${if} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+        ClearErrors
+        FileOpen $R3 "$INSTDIR\${APP_EXECUTABLE_FILENAME}" a
+        ${ifNot} ${Errors}
+          FileClose $R3
+        ${else}
+          IntOp $R1 $R1 + 1
+          ${if} $R1 < 40
+            Sleep 500
+            Goto guilded_wait_files
+          ${endIf}
+          !insertmacro GUILDED_LOG "the exe is still locked after 20 s"
+        ${endIf}
+      ${endIf}
+    !insertmacro GUILDED_LOG "closed; going on"
     ; Give Windows a moment to release the files.
     Sleep 1000
   ${endIf}

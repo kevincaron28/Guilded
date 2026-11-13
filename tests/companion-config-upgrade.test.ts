@@ -199,11 +199,21 @@ describe("the installer closes the old companion before replacing files", () => 
     expect(check.match(/Delete "\$APPDATA\\\$\{PRODUCT_NAME\}\\quit-for-update"/g)).toHaveLength(2);
   });
 
-  it("closes what is left by itself for about 30 s before asking, and a silent update cancels", () => {
-    // 15 s for a clean quit, then a kill every half second, 60 times, before the message box.
-    expect(check).toMatch(/\$\{andIf\} \$R1 < 30[\s\S]*Sleep 500[\s\S]*Goto guilded_wait_graceful/);
-    expect(check).toMatch(/\$\{if\} \$R1 > 60[\s\S]*MessageBox MB_RETRYCANCEL\|MB_ICONEXCLAMATION "\$\(appCannotBeClosed\)" \/SD IDCANCEL IDRETRY guilded_retry/);
+  it("closes what is left by itself, never hangs or cancels a silent run, and writes what it did to a log", () => {
+    // A few seconds for a clean quit (6 tries), then a kill every half second, 60 times, before the message box.
+    expect(check).toMatch(/\$\{andIf\} \$R1 < 6[\s\S]*Sleep 500[\s\S]*Goto guilded_wait_graceful/);
+    expect(check).toMatch(/\$\{if\} \$R1 > 60[\s\S]*\$\{if\} \$\{Silent\}\s+Goto guilded_go_on\s+\$\{endIf\}\s+MessageBox MB_RETRYCANCEL\|MB_ICONEXCLAMATION "\$\(appCannotBeClosed\)" \/SD IDCANCEL IDRETRY guilded_retry/);
     expect(check).toMatch(/!insertmacro GUILDED_KILL\s+Sleep 500\s+Goto guilded_kill/);
+    // The whole tree by name, then whatever runs from the install folder; the member's data folder is not touched.
+    expect(nsis).toContain("taskkill /F /T /IM");
+    expect(nsis).toContain("ExecutablePath.StartsWith('$INSTDIR'");
+    expect(check).not.toMatch(/RMDir[^\n]*APPDATA/);
+    // The files are free before anything is copied: the exe can be opened for writing.
+    expect(check).toContain("guilded_wait_files:");
+    expect(check).toContain('FileOpen $R3 "$INSTDIR\\${APP_EXECUTABLE_FILENAME}" a');
+    // Diagnosable afterwards.
+    expect(nsis).toContain("guilded-companion-installer.log");
+    expect(check).toContain("GUILDED_LIST");
     // Found and closed by name and Windows session, not by matching the user name; tasklist is the fallback.
     expect(nsis).toContain("Where-Object { $$_.SessionId -eq $$s }");
     expect(nsis).toContain("Stop-Process -Force");

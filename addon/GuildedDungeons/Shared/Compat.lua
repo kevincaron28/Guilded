@@ -112,8 +112,12 @@ local function unitInfo(unit)
   local level = exists(UnitLevel) and try("unitLevel", UnitLevel, unit) or nil
   if secret(level) or type(level) ~= "number" or level < 1 or level > 100 then level = nil end
   local online = not exists(UnitIsConnected) or try("online", UnitIsConnected, unit)
+  -- (9.3) The guild this player belongs to, as the game reports it for the unit (nil when none or not
+  -- known yet, for example out of range). A plain read, the same kind as the lines above.
+  local guild = exists(GetGuildInfo) and try("unitGuild", GetGuildInfo, unit) or nil
+  if secret(guild) or type(guild) ~= "string" or guild == "" or #guild > 80 then guild = nil end
   return {
-    unit = unit, level = level,
+    unit = unit, level = level, guild = guild,
     name = ns.normalizeName(name),
     guid = (not secret(guid)) and guid or nil,
     class = (not secret(classFile)) and classFile or nil,

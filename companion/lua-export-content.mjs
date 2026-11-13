@@ -793,6 +793,11 @@ export function exportDungeonRuns(database, realm, options = {}) {
       ...(run.completedBy ? { completedBy: String(run.completedBy) } : {}),
       ...(run.endReason ? { endReason: String(run.endReason) } : {}),
       ...(run.recorder ? { recorder: String(run.recorder) } : {}),
+      // (9.3) The final boss was only seen in a guildmate's copy of this run: the bot ranks it once the guildmate's own copy agrees.
+      // Carried only here; the kill itself is exported WITHOUT a source, so a bot that predates `peerConfirmed` still reads every encounter.
+      ...(run.peerConfirmed === true ? { peerConfirmed: true } : {}),
+      // (9.3) Why an ABANDONED run did not complete: ids and boss names only (addon Dungeon.lua explainAbandoned).
+      ...(typeof run.diagnostic === "string" && run.diagnostic ? { diagnostic: run.diagnostic.slice(0, 240) } : {}),
       encounters: Object.values(run.encounters ?? {}).slice(0, 100).flatMap(encounter => {
         if (!encounter || !Number.isInteger(encounter.id) || encounter.id <= 0 || typeof encounter.success !== "boolean") return [];
         return [{ id: encounter.id, success: encounter.success,
@@ -834,6 +839,8 @@ export function exportDungeonRuns(database, realm, options = {}) {
           ...(player.integrity.knownIntervals ? { knownIntervals: Object.values(player.integrity.knownIntervals).map(interval => Object.values(interval)) } : {}),
           mixedRole: player.integrity.mixedRole, ...(dungeonRole(player.integrity.lockedRole) ? { lockedRole: dungeonRole(player.integrity.lockedRole) } : {}) } } : {}),
         ...(player.spec ? { spec: String(player.spec).slice(0, 40) } : {}),
+        // (9.3) The guild the game reported for this player (absent when none or unknown); old runs have none.
+        ...(typeof player.guild === "string" && player.guild.trim() ? { guild: player.guild.trim().slice(0, 80) } : {}),
         deaths: typeof player.deaths === "number" ? player.deaths : null,
         ...(Number.isInteger(player.level) && player.level >= 1 && player.level <= 100 ? { level: player.level } : {}),
         ...(Number.isInteger(player.minLevel) && player.minLevel >= 1 && player.minLevel <= 100 ? { minLevel: player.minLevel } : {}),

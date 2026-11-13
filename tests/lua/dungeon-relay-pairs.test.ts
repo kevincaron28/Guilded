@@ -12,9 +12,7 @@ import { deviceUploadBody } from "../../companion/device-sync.mjs";
 //   standalone -> Guilded     works
 //   Guilded -> standalone     DOES NOT WORK (the standalone addon drops runs it did not record itself)
 //   standalone -> standalone  DOES NOT WORK (same reason)
-// The last two need a change in addon/Guilded/Modules/Dungeon.lua (onAddonMessage "SUM": `if ns.standalone and not (d and d.runs[id]) then return end`),
-// which the runs-loss worker owns; see the hand-over note. They are written as it.fails: when Dungeon.lua keeps relayed runs
-// in the standalone addon, those two start passing, vitest reports that, and `.fails` is to be removed.
+// 9.3: the last two now work: the standalone addon keeps a guildmate's relayed run too (Dungeon.lua onAddonMessage "SUM").
 
 const CLOCK = 1_800_000_000;
 let sessions: LuaSession[] = [];
@@ -93,14 +91,14 @@ describe("a run recorded by a member without the companion", () => {
     expect(holds(receiver, "walter-rfc")).toBe(true);
   });
 
-  // Known gap (see the header): the standalone addon keeps no copies of runs it did not record itself.
-  it.fails("Guilded -> standalone: the standalone guildmate should keep it too", () => {
+  // 9.3: the standalone addon keeps a guildmate's run too, so its companion can upload it as a heard run.
+  it("Guilded -> standalone: the standalone guildmate should keep it too", () => {
     const { receiver, messages } = relay("guilded", "standalone");
     expect(messages).toBeGreaterThan(0);
     expect(holds(receiver, "walter-rfc")).toBe(true);
   });
 
-  it.fails("standalone -> standalone: the standalone guildmate should keep it too", () => {
+  it("standalone -> standalone: the standalone guildmate should keep it too", () => {
     const { receiver, messages } = relay("standalone", "standalone");
     expect(messages).toBeGreaterThan(0);
     expect(holds(receiver, "walter-rfc")).toBe(true);

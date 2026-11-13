@@ -8,6 +8,8 @@ local addonName, ns = ...
 ns = ns or {}
 
 local FR = {
+  -- 9.3 an abandoned run says why it will not count.
+  ["This dungeon run (%s) ended before its final boss was killed (%d boss(es) down), so it will not count. If you did kill the final boss, type %s and tell an officer what it says."] = "Ce donjon (%s) s'est termin\195\169 avant la mort du boss final (%d boss vaincu(s)) : il ne comptera donc pas. Si vous avez bien tu\195\169 le boss final, tapez %s et dites aux officiers ce qui s'affiche.",
   -- 9.0.8 waiting dungeon runs and run receipts.
   ["%d dungeon run(s) have not reached Discord yet. Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "%d donjon(s) ne sont pas encore arriv\195\169s sur Discord. L'application Guilded Companion est-elle ouverte sur ce PC ? Lancez-la depuis le menu D\195\169marrer de Windows : elle envoie vos donjons quand vous faites /reload ou vous d\195\169connectez.",
   ["Is the Guilded Companion app running on this PC? Start it from the Windows Start menu: it sends your runs when you /reload or log out."] = "L'application Guilded Companion est-elle ouverte sur ce PC ? Lancez-la depuis le menu D\195\169marrer de Windows : elle envoie vos donjons quand vous faites /reload ou vous d\195\169connectez.",
@@ -976,6 +978,7 @@ local FR = {
 -- scripts/addon-locale.mjs), then npm run dungeons:sync.
 -- BEGIN DE (written by npm run locale -- import; edit the CSV, not these lines)
 local DE = {
+  ["This dungeon run (%s) ended before its final boss was killed (%d boss(es) down), so it will not count. If you did kill the final boss, type %s and tell an officer what it says."] = "Dieser Dungeon (%s) endete, bevor der letzte Boss besiegt war (%d Boss(e) erledigt), und z\195\164hlt daher nicht. Falls Ihr den letzten Boss doch besiegt habt, gebt %s ein und sagt einem Offizier, was dort steht.",
   ["Nearby (%d)"] = "In der N\195\164he (%d)",
   ["Nearby"] = "In der N\195\164he",
   ["Mute 10 min"] = "10 Min. stumm",
@@ -2852,6 +2855,7 @@ local DE = {
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
 local ES = {
+  ["This dungeon run (%s) ended before its final boss was killed (%d boss(es) down), so it will not count. If you did kill the final boss, type %s and tell an officer what it says."] = "Esta mazmorra (%s) termin\195\179 antes de matar al jefe final (%d jefe(s) derrotado(s)), as\195\173 que no contar\195\161. Si mataste al jefe final, escribe %s y dile a un oficial lo que muestra.",
   ["Nearby (%d)"] = "Cerca (%d)",
   ["Nearby"] = "Cerca",
   ["Mute 10 min"] = "Silenciar 10 min",

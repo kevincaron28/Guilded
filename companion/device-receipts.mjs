@@ -71,6 +71,26 @@ export function deviceReceiptsToLua({ refs, notes, pending, reported }, updatedA
   ].join("\n");
 }
 
+/**
+ * What Guilded Dungeons' own Accepted.lua holds (9.3.0): the same globals Standings.lua carries for full Guilded, written so they
+ * ADD to whatever Guilded's file defined first (both addons installed). `mode` "device" tells the addon this PC has no Discord
+ * sign-in, so it does not count a guildmate's run as waiting on this PC.
+ */
+export function standaloneReceiptsToLua({ refs = [], notes = {}, pending = {} }, { mode = null, updatedAt = "" } = {}) {
+  const entry = (name, [ref, note]) => `${name}[${luaString(ref)}] = ${luaString(note)}`;
+  return [
+    "-- Written by the Guilded companion. Overwritten automatically; edits here are lost.",
+    ...(mode ? [`GuildedCompanion = GuildedCompanion or { mode = ${luaString(mode)}, updatedAt = ${luaString(updatedAt)} }`] : []),
+    "GuildedDungeonAccepted = GuildedDungeonAccepted or {}",
+    `for _, id in ipairs({ ${refs.slice(0, MAX_REFS).map(luaString).join(", ")} }) do table.insert(GuildedDungeonAccepted, id) end`,
+    "GuildedDungeonNotes = type(GuildedDungeonNotes) == \"table\" and GuildedDungeonNotes or {}",
+    ...Object.entries(notes).slice(0, MAX_NOTES).map((pair) => entry("GuildedDungeonNotes", pair)),
+    "GuildedDungeonPending = type(GuildedDungeonPending) == \"table\" and GuildedDungeonPending or {}",
+    ...Object.entries(pending).slice(-MAX_PENDING).map((pair) => entry("GuildedDungeonPending", pair)),
+    ""
+  ].join("\n");
+}
+
 async function writeAtomic(path, text) {
   const temporary = `${path}.${process.pid}.tmp`;
   try { await writeFile(temporary, text, "utf8"); await rename(temporary, path); }
@@ -85,7 +105,8 @@ export async function readDeviceReceipts(config) {
   try {
     const text = await readFile(join(dirname(dirname(path)), "GuildedDungeons", "Accepted.lua"), "utf8");
     const list = /ipairs\(\{([^}]*)\}\)/.exec(text)?.[1] ?? "";
-    return { refs: [...list.matchAll(new RegExp(QUOTED, "g"))].map((match) => unquote(match[1])), notes: {} };
+    const lines = (name) => Object.fromEntries([...text.matchAll(new RegExp(String.raw`^${name}\[${QUOTED}\] = ${QUOTED}\s*$`, "gm"))].map((match) => [unquote(match[1]), unquote(match[2])]));
+    return { refs: [...list.matchAll(new RegExp(QUOTED, "g"))].map((match) => unquote(match[1])), notes: lines("GuildedDungeonNotes"), pending: lines("GuildedDungeonPending") };
   } catch { return { refs: [], notes: {} }; }
 }
 
@@ -122,7 +143,7 @@ export async function writeDeviceReceipts(config, answer, signal, now = new Date
   if (existsSync(dirname(accepted))) {
     try {
       // Same shape the personal upload writes: it adds to the list GuildedDungeonAccepted already holds.
-      await writeAtomic(accepted, `-- Written by the Guilded companion (unsigned).\nGuildedDungeonAccepted = GuildedDungeonAccepted or {}\nfor _, id in ipairs({ ${merged.refs.map(luaString).join(", ")} }) do table.insert(GuildedDungeonAccepted, id) end\n`);
+      await writeAtomic(accepted, standaloneReceiptsToLua(merged, { mode: "device", updatedAt: stamp }));
       written.push(accepted);
     } catch { signal?.throwIfAborted(); }
   }

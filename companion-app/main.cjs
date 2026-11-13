@@ -1218,7 +1218,8 @@ registerIpc("sign-in-cancel", () => { endSignIn(signIn); signIn = null; return {
 
 
 // Leaderboards only: either addon's file; the engine then reads both from that folder.
-const savedNames = () => (config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua"]);
+// Guilded.lua first; a PC with Guilded Dungeons alone (9.3.0) syncs from GuildedDungeons.lua (companion/addon-files.mjs).
+const savedNames = () => (config.personal ? ["GuildedDungeons.lua", "Guilded.lua"] : ["Guilded.lua", "GuildedDungeons.lua"]);
 // The WoW search covers every fixed disk (8.5 fresh-PC test: WoW was on D:\Jeux). Windows says
 // which drives are local disks once at start; until it answers (or off Windows) every existing
 // letter is used. Network and removable drives are left out so a missing share never stalls a search.

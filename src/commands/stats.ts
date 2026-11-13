@@ -13,6 +13,8 @@ import { asLang, t, type Lang } from "../i18n.js";
 import { guildService, requireGuildContext } from "./context.js";
 import { runDiscordJobs } from "../services/discord-jobs.js";
 import { queueWeeklyWowReport } from "../services/weekly-report-delivery.js";
+import { weeklyReportCard } from "../services/weekly-card.js";
+import { textlessEmbed } from "../services/card-only.js";
 import { personalWeeklyRecap, personalWeeklyRecapEmbed } from "../services/personal-weekly-recap.js";
 import { dailyRecap, dailyRecapCard, dailyRecapEmbed, queueDailyRecaps, recapDay, recapIsEmpty } from "../services/daily-recap.js";
 import { hasPermission } from "../permissions.js";
@@ -191,6 +193,15 @@ export function weeklyReportEmbeds(report: WeeklyReport, lang: Lang = "en", lead
   return embeds;
 }
 
+// 9.3: the card carries the week's headline and players; what it cannot carry (EP, loot and GP, most raids, most loot) stays as text.
+// A week with nothing in it has no card: the text says so.
+export function weeklyCardExtra(report: WeeklyReport, lang: Lang, embeds: EmbedBuilder[]): Record<string, unknown> {
+  if (report.guild.raids === 0 && report.dungeons.runs === 0 && report.guild.lootCount === 0) return {};
+  const details = EmbedBuilder.from(embeds[0]!.toJSON()).setTitle(null).setDescription(null).setFields(
+    (embeds[0]!.data.fields ?? []).filter((field, index) => index > 1 && field.name !== t(lang, "weekly.players")));
+  return { card: weeklyReportCard(report, lang), cardOnly: { embeds: [textlessEmbed(0xd4af37), ...(details.data.fields?.length ? [details.toJSON()] : []), ...embeds.slice(1).map(embed => embed.toJSON())] } };
+}
+
 // Called hourly: the daily recap of every server whose day rolled over (one post per day, quiet days post nothing).
 export async function runDailyRecaps(client: Client, now = new Date()): Promise<number> {
   const queued = await queueDailyRecaps(prisma, now, { scope: pilotGuildScope, onError: error => console.error("Daily recap failed", error) });
@@ -213,8 +224,11 @@ export async function runWeeklyReports(client: Client, now = new Date()): Promis
       const lang = asLang(settings.language);
       const leaderboardUrl = settings.publicDungeonRuns && config.PUBLIC_SITE_URL
         ? `${new URL(config.PUBLIC_SITE_URL).origin}/leaderboards/guild/${encodeURIComponent(settings.guildId)}?lang=${lang}` : undefined;
+      const embeds = weeklyReportEmbeds(report, lang, leaderboardUrl);
       const queued = await queueWeeklyWowReport(prisma, settings.guildId, report.weekEnd, now,
-        JSON.parse(JSON.stringify({ embeds: weeklyReportEmbeds(report, lang, leaderboardUrl).map(embed => embed.toJSON()) })));
+        JSON.parse(JSON.stringify({ embeds: embeds.map(embed => embed.toJSON()) })),
+        // 9.3: the card replaces the first embed (the headline); the cores and dungeon embeds stay as text under it.
+        JSON.parse(JSON.stringify(weeklyCardExtra(report, lang, embeds))));
       if (queued) posted += 1;
     } catch (error) {
       console.error(`Weekly report failed for guild ${settings.guild.discordId}`, error);

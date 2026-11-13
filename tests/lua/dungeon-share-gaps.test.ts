@@ -89,6 +89,7 @@ describe.each<Kind>(["guilded", "standalone"])("the runs-only catch-up (%s)", (k
     const walter = client(kind, "Walter");
     const lebowski = client(kind, "Lebowski");
     walter.run(makeRun("walter-rfc"));
+    walter.run('NS.dungeon.markHeard("walter-rfc", "Lebowski")'); // Lebowski was heard sending its copy of the summary
     lebowski.run(makeRun("walter-rfc") + "; " + `${runs}["walter-rfc"].synced = true`);
     walter.run("NS.dungeon.offerRuns(true)");
     flush(walter);
@@ -110,6 +111,7 @@ describe.each<Kind>(["guilded", "standalone"])("the runs-only catch-up (%s)", (k
     const walter = client(kind, "Walter");
     walter.run(makeRun("walter-rfc"));
     walter.run("NS.dungeon.offerRuns(true)"); flush(walter); lines(walter); // the holder answers an offer
+    walter.run('NS.dungeon.markHeard("walter-rfc", "Lebowski")');
     walter.run("COMBAT = true");
     hear(walter, "Lebowski", "GuildedDgn>ACKS|walter-rfc");
     expect(walter.chat().filter((line) => /uploaded by/.test(line)).length).toBe(0);
@@ -372,15 +374,29 @@ describe.each<Kind>(["guilded", "standalone"])("review fixes (%s)", (kind) => {
     hear(walter, "Forger", "GuildedDgn>WNT|walter-rfc");
     flush(walter);
     expect(lines(walter)).toEqual([]);
+    // An offer proves nothing: offering the id and then confirming it does not make the confirmation trusted.
+    hear(walter, "Forger", "GuildedDgn>OFR|walter-rfc");
+    hear(walter, "Forger", "GuildedDgn>ACKS|walter-rfc");
+    expect(walter.run(`return tostring(${runs}["walter-rfc"].syncedVia)`)).toBe("nil");
     // A second, different guildmate saying the same is enough.
     hear(walter, "Other", "GuildedDgn>ACKS|walter-rfc");
     expect(walter.run("return #NS.dungeon.ownUnconfirmed()")).toBe("0");
+  });
+
+  it("a confirmation just after this PC's own offer is not trusted either", () => {
+    const walter = client(kind, "Walter");
+    walter.run(makeRun("walter-rfc"));
+    walter.run("NS.dungeon.offerRuns(true)"); flush(walter); lines(walter);
+    hear(walter, "Mallory", "GuildedDgn>ACKS|walter-rfc");
+    expect(walter.run(`return tostring(${runs}["walter-rfc"].syncedVia)`)).toBe("nil");
+    expect(walter.chat().filter((l) => /uploaded by/.test(l)).length).toBe(0);
   });
 
   it("a trusted confirmation only slows the offers down; they come back after six hours", () => {
     const walter = client(kind, "Walter");
     walter.run(makeRun("walter-rfc"));
     walter.run("NS.dungeon.offerRuns(true)"); flush(walter); lines(walter);
+    walter.run('NS.dungeon.markHeard("walter-rfc", "Lebowski")');
     hear(walter, "Lebowski", "GuildedDgn>ACKS|walter-rfc");
     expect(walter.run("return #NS.dungeon.ownUnconfirmed()")).toBe("0");
     walter.run("CLOCK = CLOCK + 22000");
@@ -447,5 +463,44 @@ describe("a login rush", () => {
       expect(ids(resend, "SUM").length).toBeLessThanOrEqual(3);
     }
     expect(total).toBeLessThan(160);
+  });
+});
+
+describe.each<Kind>(["guilded", "standalone"])("zoning into an instance (%s)", (kind) => {
+  const inside = (s: LuaSession, on: boolean) => s.run(`IsInInstance = function() return ${on}, "party" end`);
+
+  it("after /reload inside a dungeon the login replay, the officer request and the plain confirmation wait outside", () => {
+    const walter = client(kind, "Walter");
+    for (let i = 1; i <= 4; i++) walter.run(makeRun(`r${i}`));
+    walter.run("NS.isOfficer = function() return true end");
+    inside(walter, true);
+    walter.run("NS.dungeon.lastReplay = nil; NS.dungeon.replayPending()");
+    walter.run('NS.dungeon.guild("request", "REQUEST|1")');
+    flush(walter);
+    expect(Number(walter.run('return NS.comm.status("GuildedDgn").queued'))).toBe(0);
+    walter.run(`NS.comm.send("GuildedDgn", "START|x", "PARTY"); NS.comm.send("GuildedDgn", "END|x", "PARTY")`);
+    flush(walter);
+    expect(lines(walter)).toEqual(["GuildedDgn>START|x", "GuildedDgn>END|x"]);
+    inside(walter, false);
+    flush(walter);
+    const after = lines(walter);
+    expect(ids(after, "SUM").length).toBe(4);
+    expect(after.some((l) => l === "GuildedDgn>REQUEST|1")).toBe(true);
+  });
+
+  it("guild messages queued outside do not stay in front of the group's messages once the player zones in", () => {
+    const walter = client(kind, "Walter");
+    walter.run(`C_ChatInfo.SendAddonMessage = function() return 3 end; NOW = 0; GetTime = function() return NOW end`); // the game refuses for a moment
+    walter.run(`NS.comm.send("GuildedDgn", "OFR|queued", "GUILD", nil, nil, "hold-in-instance")`);
+    inside(walter, true);
+    walter.run(`C_ChatInfo.SendAddonMessage = function(prefix, text, target) SENT = SENT or {}; SENT[#SENT + 1] = { prefix = prefix, text = text, target = target } return 0 end`);
+    walter.run(`NS.comm.send("GuildedDgn", "START|x", "PARTY")`);
+    walter.run("for _ = 1, 30 do NOW = NOW + 100; run_timers() end");
+    const sent = lines(walter);
+    expect(sent).toContain("GuildedDgn>START|x");
+    expect(sent.some((l) => l.startsWith("GuildedDgn>OFR|"))).toBe(false);
+    inside(walter, false);
+    walter.run("for _ = 1, 30 do NOW = NOW + 100; run_timers() end");
+    expect(lines(walter).some((l) => l.startsWith("GuildedDgn>OFR|"))).toBe(true);
   });
 });

@@ -850,6 +850,12 @@ pump = function(prefix)
       for i, candidate in ipairs(b.queue) do if not candidate.interactive then index = i break end end
     end
     local item = b.queue[index]
+    -- (9.3) Guild items held back inside an instance never stand in front of the group messages of the live run.
+    if item.holdInInstance and util.inInstance() then
+      for i, candidate in ipairs(b.queue) do
+        if not candidate.holdInInstance then index = i; item = candidate break end
+      end
+    end
     -- The shared budget: wait for it (and any back-off) for the lane about to send, so an interactive
     -- message does not wait behind a bulk head of the queue.
     local wait = globalWait(item, prefix)

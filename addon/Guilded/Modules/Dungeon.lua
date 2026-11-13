@@ -928,7 +928,7 @@ local function onAddonMessage(text, sender)
         if known and known.synced and not dungeon.ackedRecently(id) then
           dungeon.acked[id] = now()
           dungeon.stats.acksSent = dungeon.stats.acksSent + 1
-          send("ACK|" .. id, "GUILD")
+          dungeon.guild("ack:" .. id, "ACK|" .. id)
         end
         storePeerRun(peer, sender)
       end
@@ -1002,7 +1002,7 @@ local function onEvent(_, event, ...)
       pcall(dungeon.remindGuildmateRuns)
       pcall(dungeon.noteOtherAddonVersion)
       dungeon.replayPending()
-      if ns.isOfficer and ns.isOfficer() then send("REQUEST|1", "GUILD") end
+      if ns.isOfficer and ns.isOfficer() then dungeon.guild("request", "REQUEST|1") end
       -- (9.3) Offer the runs nobody confirmed, a random moment later so a whole guild logging in does not speak at once.
       dungeon.lastOnline = dungeon.onlineGuildmates()
       dungeon.scheduleOffer(10)
@@ -1422,6 +1422,8 @@ end
 
 -- Sends the summary of one saved run in chunks; a chunk the game keeps refusing marks the run to be offered first next time.
 function dungeon.sendRun(run)
+  -- Inside an instance the chunks wait (see above): held guild chunks at the head of the queue would hold up the live run's own messages.
+  if not outside() then dungeon.defer("send:" .. tostring(run.id), function() dungeon.sendRun(run) end) return true end
   local summary = serialize(run)
   local total = math.ceil(#summary / CHUNK_BYTES)
   if total > 20 then return false end
@@ -1434,10 +1436,12 @@ function dungeon.sendRun(run)
   end
   return true
 end
--- A re-send asked for by a guildmate: never queued inside an instance.
-function dungeon.resend(run)
-  if not outside() then dungeon.defer("resend:" .. tostring(run.id), function() dungeon.resend(run) end) return false end
-  return dungeon.sendRun(run)
+-- A re-send asked for by a guildmate (sendRun itself waits for the end of an instance).
+function dungeon.resend(run) return dungeon.sendRun(run) end
+-- A short guild message (a confirmation, an officer request): the same waiting rule.
+dungeon.outside = outside
+function dungeon.guild(key, text)
+  if outside() then send(text, "GUILD") else dungeon.defer(key, function() dungeon.guild(key, text) end) end
 end
 
 function dungeon.offerRuns(force)
@@ -1529,7 +1533,6 @@ function dungeon.onOffer(text, sender)
   local q = dungeon.answers
   for index, id in ipairs(listOf(text, "OFR")) do
     if index > OFFER_IDS or q.count >= ANSWER_IDS then break end
-    markHeard(id, sender)
     local saved = d.runs[id]
     if saved then
       if saved.synced and not ackedRecently(id) and not q.acks[id] then q.acks[id] = true; q.count = q.count + 1 end
@@ -1564,14 +1567,13 @@ function dungeon.onWant(text, sender)
   end
 end
 
--- A guildmate's bot says it has this run. Trusted at once from someone in the run, someone known to hold it, or an answer to
--- this PC's own offer; anything else is remembered and counts only when a second guildmate says the same. Even a trusted
+-- A guildmate's bot says it has this run. Trusted at once only from someone in the run or someone heard sending its summary
+-- (an offer or a recent exchange proves nothing: anyone can offer or answer); anything else is remembered and counts only when a second guildmate says the same. Even a trusted
 -- confirmation only slows the offers down (see offerable): this PC's own companion, or two guildmates, end them.
 local function plausibleAcker(saved, id, sender)
   if saved.players and saved.players[sender] then return true end
   if saved.reporters and saved.reporters[sender] then return true end
-  if dungeon.heard[id] and dungeon.heard[id][sender] then return true end
-  return solicitedRecently(id)
+  return dungeon.heard[id] ~= nil and dungeon.heard[id][sender] == true
 end
 function dungeon.noteAck(id, sender)
   local d = db()

@@ -88,6 +88,8 @@ describe("Guilded Dungeons hears its guild", () => {
     hear(`ACK|${id}`, "Stranger-TestRealm");
     hear(`ACK|${id}`, "Lebowski-TestRealm", "PARTY");
     expect(via()).toBe("nil");
+    // (9.3) A confirmation counts at once only from someone heard holding the run.
+    s.run(`NS.dungeon.markHeard("${id}", "Lebowski")`);
     hear(`ACK|${id}`, "Lebowski-TestRealm");
     expect(via()).toBe("Lebowski");
     s.run("SUMS = 0; NS.dungeon.lastReplay = nil; NS.dungeon.replayPending()");

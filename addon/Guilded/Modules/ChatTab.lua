@@ -267,10 +267,12 @@ end
 -- is not a guildmate, and every other system message keep the game's line. The filter only reads and returns
 -- true or false, as ChatTags.lua's does: it writes nothing into the game's chat windows.
 function module.filter(chatFrame, _, text, ...)
-  if chatFrame ~= nil and type(text) == "string" and chatFrame == findFrame() then
-    local ok, plan = pcall(module.plan, text)
-    if ok and plan then return true end
-  end
+  -- Everything is guarded: an error here must never break the game's chat.
+  local hide = false
+  pcall(function()
+    if chatFrame ~= nil and type(text) == "string" and chatFrame == findFrame() and module.plan(text) then hide = true end
+  end)
+  if hide then return true end
   return false, text, ...
 end
 

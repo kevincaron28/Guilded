@@ -187,6 +187,12 @@ function module.switches()
       get = function() return ns.milestones and ns.milestones.enabled("duel") or false end,
       set = function(on) run("milestones duel " .. (on and "on" or "off")) end
     },
+    -- The small card after each of my guild duels (Modules/Duels.lua); on by default.
+    {
+      label = L("Show a card after each of my duels"),
+      get = function() return not ns.duels or ns.duels.cardEnabled() end,
+      set = function(on) if ns.duels then ns.duels.setCardEnabled(on) end end
+    },
     {
       label = L("Milestones: profession skill"),
       get = function() return ns.milestones and ns.milestones.enabled("prof") or false end,

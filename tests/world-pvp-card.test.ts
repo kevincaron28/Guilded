@@ -10,11 +10,13 @@ const recap: WeekRecap = { killer: s("Aldric", 12, 1, 0), defender: s("Brenna", 
 describe("world PvP recap card", () => {
   it("carries every line of the text recap", async () => {
     const card = worldPvpRecapCard(recap, "en");
-    expect(card.rows?.map(r => `${r.name}|${r.sub}|${r.right}`)).toEqual([
-      "Aldric|Top killer|12", "Brenna|Defender of the week|7 defends", "Cedric|Most calls answered|5", "Dara|Quickest all clear · Duskwood|75 s"]);
+    expect(card.rows?.map(r => `${r.name}|${r.sub ?? ""}|${r.right}`)).toEqual([
+      "Top killer: Aldric||12", "Defender: Brenna||7 defends", "Most calls answered: Cedric||5", "Quickest all clear: Dara|Duskwood|75 s"]);
     for (const line of ["Aldric", "Brenna", "Cedric", "Dara"]) expect(recapText(recap, "en")).toContain(line);
     expect(card.backdrop).toEqual({ kind: "board", key: "world-pvp-recap", fallbackKey: "world-pvp" });
     expect(cardAltText(card)).toContain("World PvP");
+    // The alt text reads names and right-hand values, so the categories must be in the names.
+    for (const label of ["Top killer: Aldric", "Most calls answered: Cedric", "Quickest all clear: Dara"]) expect(cardAltText(card)).toContain(label);
     expect((await scoreCardPng(card))?.subarray(1, 4).toString()).toBe("PNG");
   });
 

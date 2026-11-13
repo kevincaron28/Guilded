@@ -172,4 +172,14 @@ describe("weekly recap", () => {
     expect(await deliverWeeklyRecap(w.discordGuild, w.db, "g1", week)).toBe(true);
     expect(w.send).toHaveBeenCalledTimes(1);
   });
+  it("falls back to the text recap when the card cannot be sent (no Attach Files, 50013), and the week is not lost", async () => {
+    const w = world(settings(), []);
+    w.send.mockRejectedValueOnce(Object.assign(new Error("Missing Permissions"), { code: 50013 })).mockResolvedValue({ id: "m1" });
+    expect(await deliverWeeklyRecap(w.discordGuild, w.db, "g1", week)).toBe(true);
+    expect(w.send).toHaveBeenCalledTimes(2);
+    const [first, second] = w.send.mock.calls.map(call => call[0] as { content?: string; files?: unknown[] });
+    expect(first!.files).toHaveLength(1);
+    expect(second!.content).toContain("World PvP");
+    expect(second!.files).toBeUndefined();
+  });
 });

@@ -7,15 +7,17 @@ import type { WeekRecap } from "./world-pvp-extras.js";
 // when it cannot be drawn the text goes out as before (recapText). No points or awards.
 
 const plain = (value: string) => value.replace(/\s+/g, " ").trim().slice(0, 40);
+// The category is part of the row's name ("Top killer: Aldric"), so the picture's alt text, which reads names and right-hand values, keeps it.
+const labelled = (label: string, name: string) => `${label}: ${plain(name)}`;
 const duration = (seconds: number) => seconds < 90 ? `${seconds} s` : `${Math.round(seconds / 60)} min`;
 
 export function worldPvpRecapCard(recap: WeekRecap, lang: Lang): ScoreCard {
   const fr = lang === "fr", t = (en: string, french: string) => fr ? french : en;
   const rows: NonNullable<ScoreCard["rows"]> = [];
-  if (recap.killer) rows.push({ name: plain(recap.killer.name), sub: t("Top killer", "Meilleur tueur"), right: `${recap.killer.kills}`, rightTone: "red" });
-  if (recap.defender) rows.push({ name: plain(recap.defender.name), sub: t("Defender of the week", "Défenseur de la semaine"), right: `${recap.defender.defends} ${t("defends", "défenses")}`, rightTone: "green" });
-  if (recap.helper) rows.push({ name: plain(recap.helper.name), sub: t("Most calls answered", "Le plus d'appels répondus"), right: `${recap.helper.helped}`, rightTone: "gold" });
-  if (recap.quickest) rows.push({ name: plain(recap.quickest.character), sub: `${t("Quickest all clear", "Alerte levée la plus rapide")} · ${plain(recap.quickest.zone)}`, right: duration(recap.quickest.seconds), rightTone: "gold" });
+  if (recap.killer) rows.push({ name: labelled(t("Top killer", "Meilleur tueur"), recap.killer.name), right: `${recap.killer.kills}`, rightTone: "red" });
+  if (recap.defender) rows.push({ name: labelled(t("Defender", "Défenseur"), recap.defender.name), right: `${recap.defender.defends} ${t("defends", "défenses")}`, rightTone: "green" });
+  if (recap.helper) rows.push({ name: labelled(t("Most calls answered", "Plus d'appels répondus"), recap.helper.name), right: `${recap.helper.helped}`, rightTone: "gold" });
+  if (recap.quickest) rows.push({ name: labelled(t("Quickest all clear", "Alerte levée la plus rapide"), recap.quickest.character), sub: plain(recap.quickest.zone), right: duration(recap.quickest.seconds), rightTone: "gold" });
   return {
     eyebrow: `Guilded · ${t("World PvP", "JcJ en monde ouvert")}`, title: t("World PvP, last week", "JcJ en monde ouvert, semaine dernière"),
     subtitle: t(`${recap.calls} call(s) for help this week`, `${recap.calls} appel(s) à l'aide cette semaine`),

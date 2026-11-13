@@ -1,3 +1,4 @@
+import { seasonCardChannel } from "./season-cards.js";
 import { siteUrl } from "../site-url.js";
 import { pilotGuildScope } from "../hosted-pilot.js";
 import { currentGuildScope, withGuildScope } from "./guild-scope.js";
@@ -157,6 +158,12 @@ export async function dispatchDiscordJob(guild: Guild, job: DiscordJob): Promise
       if (!wowWeeklyStillWanted(job.key, settings)) return; // the weekly report was switched off since it was queued
       const current = settings?.weeklyReportChannelId ?? settings?.notifyChannelId;
       if (!current) throw new Error("Configure WoW weekly reports first");
+      channelId = current;
+    } else if (route === "seasonCard") {
+      // 9.3: only season-card jobs follow the season cards switch and the dungeon leaderboard channel, checked now.
+      const settings = await prisma.guildSettings.findUnique({ where: { guildId: job.guildId }, select: { seasonCardsEnabled: true, dungeonLeaderboardChannelId: true } });
+      const current = seasonCardChannel(job.key, settings);
+      if (!current) return;
       channelId = current;
     } else if (route === "duelCard") {
       // 9.3: re-checked at delivery, so a card queued before an officer turned the cards off, or moved the duel channel, never posts to the old place.

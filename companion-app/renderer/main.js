@@ -26,7 +26,10 @@ const words = (entry) => {
   if (key && typeof key === 'object' && key.ago) return ago(key.ago);
   return T(key, ...values);
 };
-const say = (message, ok = true) => { const notice = $('notice'); notice.textContent = message ? M(message) : ''; notice.hidden = !message; notice.dataset.ok = ok ? 'true' : 'false'; };
+let syncNote = null; // the "Syncing now." line is a progress note: it clears when the sync it announced ends
+const endSyncNote = (now = Date.now()) => { if (!syncNote) return; const step = window.guildedSyncNote.syncNoteStep(syncNote, snapshot.state?.syncPhase, now); syncNote = step.note; if (step.clear) say(''); };
+const startSyncNote = (message) => { say(message); syncNote = { startedAt: Date.now(), sawUploading: snapshot.state?.syncPhase === 'uploading' }; setTimeout(() => endSyncNote(), window.guildedSyncNote.SYNC_NOTE_GRACE_MS + 500); };
+const say = (message, ok = true) => { syncNote = null; const notice = $('notice'); notice.textContent = message ? M(message) : ''; notice.hidden = !message; notice.dataset.ok = ok ? 'true' : 'false'; };
 
 function render() {
   const status = window.guildedMainStatus({
@@ -94,8 +97,8 @@ async function run(action) {
       case 'sign-in-switch': return await runSignIn(true);
       case 'pick-wow-folder': { const result = await api.pickWowFolder(); if (result?.message) say(result.message, result.ok !== false); return; }
       case 'install-addon': { const answer = await api.installAddon(); say(answer.message, answer.ok); return; }
-      case 'retry': await api.recoverSync(); await api.uploadNow(); say(T('Trying again.')); return;
-      case 'sync-now': await api.uploadNow(); say(T('Syncing now.')); return;
+      case 'retry': await api.recoverSync(); await api.uploadNow(); startSyncNote(T('Trying again.')); return;
+      case 'sync-now': await api.uploadNow(); startSyncNote(T('Syncing now.')); return;
       case 'toggle-tracking': await api.toggleTracking(); return;
       case 'problems': case 'choose-server': showAdvanced(true); return;
       case 'storage': await api.openStorageSettings(); return;
@@ -185,7 +188,7 @@ window.addEventListener('online', () => { reportOnline(); void api.recoverSync?.
 window.addEventListener('offline', reportOnline);
 if (!navigator.onLine) reportOnline();
 
-api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, otherAccount: next.otherAccount, accountRows: next.accountRows || [] }; render(); });
+api.onState((next) => { snapshot = { ...snapshot, state: next.state, problems: next.problems, savedFile: next.savedFile, addonAction: next.addonAction, update: next.update, otherAccount: next.otherAccount, accountRows: next.accountRows || [] }; render(); endSyncNote(); });
 api.onUpdateProgress?.((percent) => say(T('Downloading and checking the update: {0}%', percent)));
 api.onLog((entry) => { logs = [...logs, entry].slice(-100); renderAdvanced(); });
 $('language').value = $('advLanguage').value = languageUI.language;

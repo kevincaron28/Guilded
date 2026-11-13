@@ -102,6 +102,27 @@ describe("blocked calls and diagnostics", () => {
     s.run(`CHAT_LOG = {}; SlashCmdList.GUILDED("diag names")`);
     expect(s.chat().join("\n")).toContain("shared first name");
   });
+
+  it("gives an officer one count line, not one line per name, unless /guilded diag names is used (9.2.1)", () => {
+    const s = loggedIn(`GetGuildInfo = function() return "Test Guild", "Guild Master", 0 end`);
+    s.run(`GuildedDB.nameMigration = { flagged = {
+      a = { table = "roster", key = "El", candidates = { "El Chacal", "El Daron" }, reason = "shared first name" },
+      b = { table = "roster", key = "Pally", candidates = { "Pally One", "Pally Two" }, reason = "shared first name" } } }`);
+    s.run(`CHAT_LOG = {}; SlashCmdList.GUILDED("diag")`);
+    const text = s.chat().join("\n");
+    expect(text).toContain("2 saved entries still use a first name only");
+    expect(text).not.toContain("El Chacal");
+    expect(text).not.toContain("Pally One");
+    s.run(`CHAT_LOG = {}; SlashCmdList.GUILDED("diag names")`);
+    expect(s.chat().join("\n")).toContain("El Chacal");
+  });
+
+  it("names the kind of addon message in a SLOW entry (9.2.1)", () => {
+    const s = loggedIn();
+    s.run(`local t = 0; debugprofilestop = function() t = t + 80; return t end
+      fire_event("CHAT_MSG_ADDON", "Guilded", "LEDGER|abc|1", "GUILD", "Amy-Realm")`);
+    expect(s.run(`local d = GuildedDB.diagnostics; return d[#d].detail`)).toContain("CHAT_MSG_ADDON LEDGER took");
+  });
 });
 
 describe("unfinished dungeons", () => {

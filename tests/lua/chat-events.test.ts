@@ -155,3 +155,63 @@ describe("the Guilded tab is on by default (8.5), without Guilded opening chat w
     expect(off.run(`return tostring(SETTINGS.chatTab)`)).toBe("false");
   });
 });
+
+describe("one line per guild event in the Guilded tab (9.2.1 filter)", () => {
+  // The game also prints its own "has come online." in every tab that shows the System group. The per-window filter
+  // hides it in the Guilded tab only, when Guilded prints its coloured line for that very event.
+  const hidden = (s: LuaSession, frame: string, text: string) =>
+    s.run(`local hide = NS.chatTab.filter(${frame}, "CHAT_MSG_SYSTEM", ${JSON.stringify(text)}); return tostring(hide)`);
+
+  it("registers itself as a CHAT_MSG_SYSTEM filter like ChatTags does", () => {
+    session = newLuaSession();
+    session.run(String.raw`
+      FILTERS = {}
+      function ChatFrame_AddMessageEventFilter(event, fn) FILTERS[event] = fn end
+      NUM_CHAT_WINDOWS = 1; GetChatWindowInfo = function() return "Guilded" end
+      NS = { getSettings = function() return {} end, commandHandlers = {}, commandHelp = {} }
+    `);
+    session.load("Modules/ChatTab.lua");
+    expect(session.run(`return tostring(FILTERS.CHAT_MSG_SYSTEM == NS.chatTab.filter)`)).toBe("true");
+  });
+
+  it("hides the game's online/offline line of a guildmate in the Guilded tab only", () => {
+    const s = withEvents();
+    expect(hidden(s, "ChatFrame3", "|Hplayer:Ann|h[Ann]|h has come online.")).toBe("true"); // the Guilded tab
+    expect(hidden(s, "ChatFrame1", "|Hplayer:Ann|h[Ann]|h has come online.")).toBe("false"); // General keeps it
+    expect(hidden(s, "ChatFrame3", "Bob has gone offline.")).toBe("true");
+    // ... and Guilded prints exactly its own one line there.
+    expect(say(s, "|Hplayer:Ann|h[Ann]|h has come online.")).toBe("1");
+  });
+
+  it("keeps the game's line for a friend who is not a guildmate and for every other system message", () => {
+    const s = withEvents();
+    expect(hidden(s, "ChatFrame3", "|Hplayer:Stranger|h[Stranger]|h has come online.")).toBe("false");
+    expect(hidden(s, "ChatFrame3", "Stranger has gone offline.")).toBe("false");
+    expect(hidden(s, "ChatFrame3", "You are now Away: AFK")).toBe("false");
+    expect(hidden(s, "ChatFrame3", "Ann says hello")).toBe("false");
+  });
+
+  it("hides join, promotion and removal lines too, since Guilded prints its own", () => {
+    const s = withEvents();
+    expect(hidden(s, "ChatFrame3", "Ann has joined the guild.")).toBe("true");
+    expect(hidden(s, "ChatFrame3", "Ann has promoted Bob to Officer.")).toBe("true");
+    expect(hidden(s, "ChatFrame3", "Bob has been kicked out of the guild by Ann.")).toBe("true");
+  });
+
+  it("keeps the game's line whenever Guilded prints nothing: tab off, event type off, officers-only", () => {
+    const s = withEvents();
+    s.run(`NS.chatTab.setEventEnabled("join", false)`);
+    expect(hidden(s, "ChatFrame3", "Ann has joined the guild.")).toBe("false");
+    s.run(`SETTINGS.chatEventsOfficersOnly = true`);
+    expect(hidden(s, "ChatFrame3", "Bob has gone offline.")).toBe("false");   // rank 3, not an officer
+    expect(hidden(s, "ChatFrame3", "Ann has gone offline.")).toBe("true");    // rank 0
+    s.run(`SETTINGS.chatTab = false`);
+    expect(hidden(s, "ChatFrame3", "Ann has gone offline.")).toBe("false");
+  });
+
+  it("does not hide anything when the Guilded window is closed or missing", () => {
+    const s = withEvents();
+    s.run(`GetChatWindowInfo = function(i) return ({ "General", "Log" })[i] end`);
+    expect(hidden(s, "ChatFrame3", "Ann has gone offline.")).toBe("false");
+  });
+});

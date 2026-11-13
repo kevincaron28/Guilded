@@ -110,21 +110,19 @@ describe("the five member tabs", () => {
     s.run(`NS.windowState().groupButtons.Raids.scripts.OnClick()`);
     expect(shownPages(s)).toBe("Open raids,Reserves,Signups");
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
-    expect(shownPages(s)).toBe("Guild overview,Board,Layer invite,Standings,Availability,Duels");
+    expect(shownPages(s)).toBe("Guild overview,Board,Layer invite,Standings,Duels");
   });
 
   it("shows Guild as one page with its sections in a row at the top, and Crafting as a single page", () => {
     const s = openWindow(5);
     const row = () => s.run(`local out = {}; for _, t in ipairs(NS.windowState().tabs) do if t.button.shown then local p = t.button.points[#t.button.points]; out[#out + 1] = t.name .. "@" .. tostring(p[5]) end end; return table.concat(out, ",")`);
     s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
-    expect(row()).toBe("Guild overview@-12,Board@-12,Layer invite@-12,Standings@-12,Availability@-36,Duels@-36"); // the first line ends before the window's - / + / close buttons
+    expect(row()).toBe("Guild overview@-12,Board@-12,Layer invite@-12,Standings@-12,Duels@-12"); // all on the first line, which ends before the window's - / + / close buttons
     expect(s.run(`return NS.windowState().pageTitle.text`)).toBe("");
     s.run(`NS.windowState().groupButtons.Crafting.scripts.OnClick()`);
     expect(row()).toBe("");   // one page: no section row
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe("Crafting");
     // Old names open the right section of the right tab.
-    s.run(`NS.windowState().selectTabByName("Availability")`);
-    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`)).toBe("Guild");
     s.run(`NS.windowState().selectTabByName("Crafting")`);
     expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].group`)).toBe("Crafting");
   });
@@ -400,9 +398,9 @@ describe("the tools window (sidebar and Home page)", () => {
   });
 
   it("officers see every group in order; members only what they can use", () => {
-    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Crafting,Me,Open raids,Layer invite,Standings,Availability,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
+    expect(visibleTabs(openWindow(1))).toBe("Home,Guild overview,Board,Crafting,Me,Open raids,Layer invite,Standings,Gear,Ready,Reserves,Signups,Calendar,Raid,EPGP,Local guild,Roster admin,Officer tools,Loot,Council,Duels,Tools");
     session?.close();
-    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Crafting,Me,Open raids,Layer invite,Standings,Availability,Reserves,Signups,Duels,Tools");
+    expect(visibleTabs(openWindow(5))).toBe("Home,Guild overview,Board,Crafting,Me,Open raids,Layer invite,Standings,Reserves,Signups,Duels,Tools");
   });
 
   it("lets ordinary members page through open raids, filter them and copy the matching host", () => {
@@ -543,13 +541,14 @@ describe("the Ready page", () => {
 });
 
 describe("the tools window in 4.6", () => {
-  it("builds availability filters and routes clicks without changing observation settings", () => {
+  it("has no Availability page any more, and asking for it by its old name changes nothing", () => {
     const s = openWindow(5);
-    s.run(`NS.presence = { describe = function(filter) FILTER = filter; return "Visible reports" end, heatmap = function() return {} end }; NS.windowState().selectTabByName("Availability")`);
-    expect(s.run(`return NS.windowState().presenceText.text`)).toBe("Visible reports");
-    s.run(`for _, f in ipairs(FRAMES) do if f.text == "Free only: Off" and f.scripts.OnClick then f.scripts.OnClick(f) end end`);
-    expect(s.run(`return tostring(FILTER.free)`)).toBe("true");
-    expect(s.run(`for _, f in ipairs(FRAMES) do if f.text == "Blizzard group finder" then return "found" end end return "none"`)).toBe("none");
+    s.run(`NS.windowState().groupButtons.Guild.scripts.OnClick()`);
+    const before = s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`);
+    s.run(`NS.windowState().selectTabByName("Availability")`);
+    expect(s.run(`return NS.windowState().tabs[NS.windowState().currentTab].name`)).toBe(before);
+    expect(s.run(`for _, f in ipairs(FRAMES) do if f.text == "Share availability" or f.text == "Observe locally" then return "found" end end return "none"`)).toBe("none");
+    expect(s.run(`return tostring(NS.presence)`)).toBe("nil");
     expect(s.chat().join("\n")).not.toContain("failed");
   });
   it("remembers where it was dragged and its size", () => {

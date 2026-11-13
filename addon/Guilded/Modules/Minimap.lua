@@ -1091,92 +1091,6 @@ local function buildGeneralSettings(page)
   end
 end
 
--- Crafting: who in the guild can craft an item, your own professions, and cooldowns
--- (Modules/Recipes.lua; recipes are read by themselves when a profession window opens).
-local function buildAvailabilityPage(page)
-  local function action(command) return function() run("free " .. command) end end
-  at(newButton(page, "Share availability", 150, action("share on")), page, 0, 0)
-  at(newButton(page, "Stop sharing", 130, action("share off")), page, 158, 0)
-  at(newButton(page, "Free", 70, action("status free")), page, 0, -34)
-  at(newButton(page, "Busy", 70, action("status busy")), page, 78, -34)
-  at(newButton(page, "Away", 70, action("status away")), page, 156, -34)
-  at(newLabel(page, "My role", "GameFontNormalSmall"), page, 0, -74)
-  for i, role in ipairs({ "any", "tank", "healer", "dps" }) do
-    at(newButton(page, role:upper(), 80, action("role " .. role)), page, 88 + (i - 1) * 88, -68)
-  end
-  local note = at(newLabel(page, "Instances automatically mark you busy. Reports pause in combat. Location is never shared.", "GameFontHighlightSmall"), page, 0, -104)
-  note:SetWidth(PAGE_WIDTH)
-  at(newButton(page, "Observe locally", 130, action("observe on")), page, 0, -146)
-  at(newButton(page, "Stop observing", 130, action("observe off")), page, 138, -146)
-  at(newButton(page, "Clear observations", 150, action("clear")), page, 276, -146)
-  at(newButton(page, "Copy activity", 130, action("activity")), page, 0, -180)
-  local heading = at(newLabel(page, "Local activity observations", "GameFontNormal"), page, 0, -218)
-  tip(heading, "Only opt-in reports observed on this character. UTC hours, last 28 days. Grey means unknown; zero is a real observed sample.")
-  ui.presenceCells = {}
-  local days = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" }
-  for hour = 0, 23 do at(newLabel(page, tostring(hour), "GameFontNormalSmall"), page, 40 + hour * 19, -240) end
-  for day = 0, 6 do
-    at(newLabel(page, days[day + 1], "GameFontNormalSmall"), page, 0, -260 - day * 20)
-    for hour = 0, 23 do
-      local cellDay, cellHour = day, hour
-      local cell = CreateFrame("Frame", nil, page)
-      cell:SetSize(17, 17); cell:SetPoint("TOPLEFT", page, "TOPLEFT", 40 + hour * 19, -260 - day * 20)
-      cell.texture = cell:CreateTexture(nil, "BACKGROUND"); cell.texture:SetAllPoints(cell)
-      cell:EnableMouse(true)
-      -- The 168 cells take the mouse for their tooltips, which also swallowed the wheel: inside
-      -- the guild window the page could not scroll past the grid (Sunday and the filters hidden).
-      -- Hand the wheel to the page's scroll frame.
-      cell:EnableMouseWheel(true)
-      cell:SetScript("OnMouseWheel", function(_, delta)
-        local scroll = ui.guildScroll
-        local handler = scroll and scroll:IsShown() and scroll:GetScript("OnMouseWheel")
-        if handler then handler(scroll, delta) end
-      end)
-      cell:SetScript("OnEnter", function(self)
-        if not GameTooltip then return end
-        GameTooltip:SetOwner(self, "ANCHOR_RIGHT"); GameTooltip:AddLine(L(days[cellDay + 1]) .. " " .. cellHour .. ":00 UTC")
-        if self.data then
-          GameTooltip:AddLine(string.format(L("Average reports: %.1f; free: %.1f; samples: %d"), self.data.total / self.data.samples, self.data.free / self.data.samples, self.data.samples))
-        else GameTooltip:AddLine(L("Unknown")) end
-        GameTooltip:Show()
-      end)
-      cell:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
-      ui.presenceCells[day * 24 + hour] = cell
-    end
-  end
-  local filter = {}
-  local function update() if ui.refreshPresence then ui.refreshPresence() end end
-  at(newLabel(page, "Filter reports by name", "GameFontNormalSmall"), page, 0, -412)
-  local search = at(newEdit(page, 190), page, 6, -432)
-  search:SetMaxLetters(80)
-  search:SetScript("OnTextChanged", function(self) filter.name = self:GetText(); update() end)
-  local roles, roleIndex = { "ANY", "TANK", "HEALER", "DPS" }, 1
-  local roleButton
-  roleButton = at(newButton(page, "ANY", 90, function()
-    roleIndex = roleIndex % #roles + 1; filter.role = roles[roleIndex]; roleButton:SetText(L(filter.role)); update()
-  end), page, 210, -430)
-  tip(roleButton, "Filter by reported role")
-  local freeButton
-  freeButton = at(newButton(page, "Free only: Off", 170, function()
-    filter.free = not filter.free; freeButton:SetText(L(filter.free and "Free only: On" or "Free only: Off")); update()
-  end), page, 308, -430)
-  at(newButton(page, "My recorded characters", 210, action("characters")), page, 0, -466)
-  ui.presenceText = at(newLabel(page, "", "GameFontHighlightSmall"), page, 0, -540)
-  ui.presenceText:SetWidth(PAGE_WIDTH)
-  ui.refreshPresence = function()
-    if not ns.presence then return end
-    ui.presenceText:SetText(ns.presence.describe(filter))
-    local cells = ns.presence.heatmap()
-    for key, cell in pairs(ui.presenceCells) do
-      cell.data = cells[key] or false
-      if cell.data then
-        local strength = math.min(1, cell.data.total / cell.data.samples / 20)
-        cell.texture:SetColorTexture(0.08, 0.25 + strength * 0.7, 0.15, 1)
-      else cell.texture:SetColorTexture(0.22, 0.22, 0.22, 1) end
-    end
-  end
-end
-
 -- Crafting (9.2): one page. Search an item (a name, or shift-click it), see who can craft it, press Request;
 -- your requests and the ones for you below; Share my recipes; Advanced holds your professions, cooldowns and
 -- order alerts. The page itself lives in Modules/CraftOrders.lua (it owns the requests and the order actions).
@@ -1752,7 +1666,6 @@ local TAB_DEFS = {
   { name = "Open raids", hint = "find a raid with room for you", group = "Raids", build = buildPublicRaidsPage },
   { name = "Layer invite", hint = "ask guildmates on your continent to invite you onto their layer", group = "Guild", build = function(page) if ns.layerInvite and ns.layerInvite.buildPage then ns.layerInvite.buildPage(page, { newLabel = newLabel, newButton = newButton, at = at, width = PAGE_WIDTH }) end end },
   { name = "Standings", group = "Guild", usesPlayer = true, build = buildStandingsPage },
-  { name = "Availability", group = "Guild", module = "presence", build = buildAvailabilityPage },
   { name = "Gear", hint = "item level and missing enchants per member", group = "Officer", officer = true, build = buildGearPage },
   { name = "Ready", hint = "who is ready for the raid", group = "Raids", leader = true, build = buildReadyPage },
   { name = "Reserves", hint = "soft reserves for the raid", group = "Raids", module = "reserve", lootModes = { RESERVE = true }, usesPlayer = true, build = buildReservePage },
@@ -1802,7 +1715,7 @@ local updateGuildScroll
 local READ_ONLY_PAGES = { ["Open raids"] = true, Calendar = true }
 -- Long pages scroll inside the window; the rest sit on the window directly.
 local SCROLLED_PAGES = { Standings = true, Gear = true, EPGP = true, ["Local guild"] = true, ["Roster admin"] = true,
-  ["Officer tools"] = true, Calendar = true, Crafting = true, Availability = true, ["Layer invite"] = true, Home = true }
+  ["Officer tools"] = true, Calendar = true, Crafting = true, ["Layer invite"] = true, Home = true }
 
 local function clock(seconds)
   seconds = math.max(0, math.floor(seconds or 0))
@@ -2049,7 +1962,6 @@ refresh = function()
     layoutTabs(officer)
   end
   refreshModuleRows()
-  if ui.refreshPresence and ui.tabs[ui.currentTab or 0] and ui.tabs[ui.currentTab].name == "Availability" then ui.refreshPresence() end
 
   local me = ns.playerName()
   local name = selectedPlayer()
@@ -2244,7 +2156,6 @@ updateGuildScroll = function()
     -- Greeting and "Right now" (54), the gear check, then the Discord block ending with the companion steps
     -- (the last label hangs 312 below the gear text): the whole page scrolls instead of being cut at the bottom.
     height = 54 + textHeight(ui.homeNow) + 16 + 16 + 6 + textHeight(ui.homeGear) + 312 + (ui.homeSteps and textHeight(ui.homeSteps) or 0) + 12
-  elseif tab.name == "Availability" then height = 540 + textHeight(ui.presenceText) + 12
   elseif tab.name == "Layer invite" then height = 264 -- the last of five request rows ends near y=-250
   elseif tab.name == "EPGP" then height = 252 -- the lowest widget ends near y=-218, a 22 px button
   elseif tab.name == "Roster admin" then height = 36 + 30 + 40
@@ -2593,10 +2504,6 @@ local function scrollDebug()
     local bottom = widget and widget.GetBottom and widget:GetBottom()
     if type(pageTop) == "number" and type(bottom) == "number" then return fmt(pageTop - bottom) end
     return "n/a"
-  end
-  if ui.presenceCells and tab.name == "Availability" then
-    lines[#lines + 1] = string.format("heat map Sunday row bottom y=%s, Monday row bottom y=%s, presence text bottom y=%s (from page top)",
-      below(ui.presenceCells[6 * 24]), below(ui.presenceCells[0]), below(ui.presenceText))
   end
   for _, line in ipairs(lines) do ns.message(line) end
 end

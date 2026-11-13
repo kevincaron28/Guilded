@@ -147,7 +147,7 @@ know, including Guilded Dungeons-only players and players with no addon.
 | `GuildedCatch` (CatchUp.lua, new) | Catch-up digests, forwarded runs and digests | Into `dungeon.runs` / `peerRoster` with `forwardedBy` / `via` | Yes, like first-hand copies |
 | `GuildedMile` GOFF | The officer switch for announcements | `milestones.guild` | No (a setting) |
 | `GuildedSeason`, `GuildedSync`, `GuildedBridge`, `GuildedRating`, `GuildedScore` | Bot data passed down to members, version check | Standings, boards | No (comes from the bot) |
-| `GuildedFree` (Presence.lua) | Opt-in availability | **Memory only, by design** (consent) | No |
+| `GuildedFree` (removed after 9.2.0) | Opt-in availability | Gone: the addon no longer registers or sends it; old guildmates' messages are never delivered | No |
 | `GuildedMap` | Positions | **Not kept, by design** (location) | No |
 | `GuildedLayer` (LayerInvite.lua) | Layer invite requests, claims and done notes | **Memory only, by design** (a request lives a few minutes) | No |
 | `GuildedSOS`, `GuildedLC`, `GuildedBid`, `GuildedMotd`, `GuildedRec`, `GuildedHist` | Live calls, council, bids, recruiting list, history replies (the MOTD helper and the welcome whisper were removed in 9.2) | Transient (their results end up in loot, the ledger or the MOTD) | Through those results |

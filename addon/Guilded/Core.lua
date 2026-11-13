@@ -1660,6 +1660,8 @@ ns.removedCommands = ns.removedCommands or {
   finder = "Blizzard's group finder is not available to addons on WoW Forever.",
   probe = "the achievement probe finished its job.",
   partners = "levelling partners were replaced by Layer invite (/guilded layer).",
+  -- No version number: this one went out after 9.2.0 (the line then reads "was removed: ...").
+  free = { text = "Availability sharing was removed because nobody used it.", since = false },
 }
 
 -- /guilded names: saved first-name keys (from before 8.5) that could not move to a full Forever
@@ -1699,7 +1701,6 @@ ns.MODULES = {
   { key = "consumables", name = "Consumable scan", desc = "who is missing a flask or food", commands = { "consumes" } },
   { key = "sim", name = "Test tools", desc = "fake raid and dungeon runs for officers", commands = { "sim" } },
   { key = "guildmap", name = "Guild map", desc = "guildmates on your world map and minimap", commands = { "map" } },
-  { key = "presence", name = "Availability", desc = "opt-in availability and local activity observations", commands = { "free" } },
   { key = "scores", name = "Dungeon scores", desc = "a dungeon score per player from recorded runs, on tooltips", commands = { "score" } },
   { key = "guildlog", name = "Guild event log", desc = "joins, leaves, promotions and removals, kept longer than the game keeps them", commands = { "guildlog" } },
   { key = "recruit", name = "Recruiting", desc = "officers' prospect list", commands = { "recruit" } },
@@ -1977,7 +1978,12 @@ local function command(text)
     local key = commandModule[action]
     message(ns.moduleName(key) .. " is " .. moduleStateText(key) .. ". /guilded modules to see or change it.")
   elseif ns.removedCommands[action] then
-    message(string.format(L("/guilded %s was removed in 9.2: %s"), action, L(ns.removedCommands[action])))
+    local removed = ns.removedCommands[action]
+    if type(removed) == "table" and removed.since == false then
+      message(string.format(L("/guilded %s was removed: %s"), action, L(removed.text)))
+    else
+      message(string.format(L("/guilded %s was removed in 9.2: %s"), action, L(type(removed) == "table" and removed.text or removed)))
+    end
   elseif ns.commandHandlers[action] then
     -- args[1] is the action itself; hand the module the remaining tokens.
     table.remove(args, 1)

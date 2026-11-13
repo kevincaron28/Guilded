@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../src/database.js", () => ({ prisma: {} }));
+vi.mock("../src/hosted-pilot.js", () => ({ pilotGuildScope: {} }));
 // The real rating validators need full frozen rule sets; the podium only needs "is this season rated" and the rows, so they are stubbed.
 vi.mock("../src/services/dungeon-rating.js", () => ({ hasDungeonRating: (rules: { rated?: boolean } | null) => rules?.rated === true, frozenRating: (value: unknown) => Array.isArray(value) ? value : null }));
 
 import { queueSeasonEndCards, queueSeasonStartCard, seasonCardChannel, seasonEndCard, seasonPodium, seasonStartCard } from "../src/services/season-cards.js";
+import { sendWithPictureFallback } from "../src/services/discord-jobs.js";
 import { cardAltText } from "../src/services/card-alt.js";
 import { scoreCardPng } from "../src/services/score-card.js";
 
@@ -84,5 +87,17 @@ describe("season cards", () => {
     expect(seasonCardChannel("season-card:end:s1", { seasonCardsEnabled: true, dungeonLeaderboardChannelId: "c2" })).toBe("c2");
     expect(seasonCardChannel("season-card:end:s1", { seasonCardsEnabled: false, dungeonLeaderboardChannelId: "c2" })).toBeNull();
     expect(seasonCardChannel("weekly-wow:1", { seasonCardsEnabled: false, dungeonLeaderboardChannelId: null })).toBeUndefined();
+  });
+});
+
+describe("picture refused", () => {
+  it("posts the text once when Discord refuses the picture (no Attach Files), and still fails on other errors", async () => {
+    const send = vi.fn().mockRejectedValueOnce(Object.assign(new Error("Missing Permissions"), { code: 50013 })).mockResolvedValue({});
+    await sendWithPictureFallback(send, { files: [{ attachment: Buffer.from("x") }] } as never, () => ({ content: "text" }));
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(send.mock.calls[1]![0]).toEqual({ content: "text" });
+    const other = vi.fn().mockRejectedValue(Object.assign(new Error("boom"), { code: 500 }));
+    await expect(sendWithPictureFallback(other, {} as never, () => ({ content: "t" }))).rejects.toThrow("boom");
+    expect(other).toHaveBeenCalledTimes(1);
   });
 });

@@ -1374,11 +1374,13 @@ local function buildHomePage(page)
   -- The scrolled page shows 574 px of the 582 (the scroll bar's margin): full-width text stops 16 px short of the edge.
   local HOME_WIDTH = PAGE_WIDTH - 16
   ui.linkStatus:SetWidth(HOME_WIDTH)
-  local howTo = linkWidget(below(newLabel(page,
+  local howTo = linkWidget(newLabel(page,
     "Easiest: install the Guilded Windows app (steps below). It syncs by itself, no sign-in needed. No app? In Discord use /character pair, then paste the code below.",
-    "GameFontDisableSmall"), 0, -176))
+    "GameFontDisableSmall"))
+  -- Under the status line, wherever its (translated, possibly two-line) text ends, never at a fixed height.
+  howTo:SetPoint("TOPLEFT", ui.linkStatus, "BOTTOMLEFT", 0, -6)
   howTo:SetWidth(HOME_WIDTH)
-  ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -222), "Code from /character pair"))
+  ui.linkBox = linkWidget(placeholder(below(newEdit(page, 170), 6, -242), "Code from /character pair"))
   ui.linkBox:SetMaxLetters(24)
   ui.linkBox:SetScript("OnEnterPressed", function(self)
     self:ClearFocus()
@@ -1389,21 +1391,21 @@ local function buildHomePage(page)
     if text == "" then ns.message(L("Paste the code from Discord (/character pair) first.")); return end
     run("verify " .. text)
     ui.linkBox:SetText("")
-  end), 182, -218), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))
+  end), 182, -238), "Links all your characters on this WoW account. A guildmate's Guilded companion passes the code on when it next syncs."))
   -- Beside Save code, wherever its (translated) width ends, so the two never overlap.
-  local removeCode = linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -218), "Forgets the saved code on this WoW account."))
+  local removeCode = linkWidget(tip(below(newButton(page, "Remove code", 110, function() run("verify off") end), 288, -238), "Forgets the saved code on this WoW account."))
   removeCode:ClearAllPoints()
   removeCode:SetPoint("LEFT", saveCode, "RIGHT", 6, 0)
 
   -- Get the companion (8.5.0): links to copy, since an addon cannot open a web page.
   if ns.companionLink then
-    below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -262)
+    below(newLabel(page, L("Get the Windows companion (select a link, Ctrl+C):"), "GameFontNormal"), 0, -282)
     -- One under the other, each as wide as the page: the direct link (62 characters) did not fit beside the short one.
     ui.companionBoxes = {
-      below(copyBox(page, ns.companionLink.SHORT, HOME_WIDTH - 12), 6, -282),
-      below(copyBox(page, ns.companionLink.DIRECT, HOME_WIDTH - 12), 6, -306),
+      below(copyBox(page, ns.companionLink.SHORT, HOME_WIDTH - 12), 6, -302),
+      below(copyBox(page, ns.companionLink.DIRECT, HOME_WIDTH - 12), 6, -326),
     }
-    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -338)
+    local steps = below(newLabel(page, table.concat(ns.companionLink.steps(), "\n"), "GameFontHighlightSmall"), 0, -358)
     steps:SetWidth(HOME_WIDTH)
     steps:SetJustifyH("LEFT")
   end
@@ -2472,15 +2474,14 @@ local function buildPanel()
     local tab = ui.tabs[ui.currentTab or 0]
     local wanted = panel:IsShown() and not (tab and READ_ONLY_PAGES[tab.name])
     if InCombatLockdown and InCombatLockdown() then
-      -- A secure frame is not touched in combat (it would be refused); it is made invisible instead, and fixed afterwards.
-      local placed = ui.sendPlaced
-      local inPlace = placed and panel:GetLeft() == placed[1] and panel:GetBottom() == placed[2]
-        and (panel.GetEffectiveScale and panel:GetEffectiveScale() or 1) == placed[3]
-      if button.SetAlpha then button:SetAlpha((wanted and inPlace) and 1 or 0) end
+      -- A secure frame is not touched in combat (it would be refused). The button was hidden when combat began (see below)
+      -- and stays hidden, so nothing invisible can be clicked; a plain label says why, and the button comes back afterwards.
+      if ui.sendWait then if wanted then ui.sendWait:Show() else ui.sendWait:Hide() end end
       ui.sendPending = true
       return
     end
     ui.sendPending = false
+    if ui.sendWait then ui.sendWait:Hide() end
     if not wanted then button:Hide() return end
     local left, bottom = panel:GetLeft(), panel:GetBottom()
     if type(left) == "number" and type(bottom) == "number" then
@@ -2491,16 +2492,32 @@ local function buildPanel()
       button:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left + 22, bottom + 40)
       ui.sendPlaced = { left, bottom, panelScale }
     end
-    if button.SetAlpha then button:SetAlpha(1) end
     button:Show()
   end
+  ui.sendWait = newLabel(panel, L("Save: available after combat"), "GameFontDisableSmall")
+  ui.sendWait:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", 24, 46)
+  ui.sendWait:SetWidth(SIDEBAR_WIDTH - 24)
+  ui.sendWait:Hide()
   do
-    local follow, since = CreateFrame("Frame"), 0
+    local follow, since = CreateFrame("Frame", "GuildedSendButtonFollower"), 0
     follow:RegisterEvent("PLAYER_REGEN_ENABLED")
-    follow:SetScript("OnEvent", function() if ui.sendPending then ui.updateSendButton() end end)
+    follow:RegisterEvent("PLAYER_REGEN_DISABLED")
+    follow:SetScript("OnEvent", function(_, event)
+      if event == "PLAYER_REGEN_DISABLED" then
+        -- Fires just before the combat lockdown, while a protected frame can still be hidden: every time, whatever the window
+        -- is doing. It stays hidden for the whole fight.
+        if ui.sidebarSave then pcall(ui.sidebarSave.Hide, ui.sidebarSave) end
+        ui.sendPlaced = nil
+        ui.sendPending = true
+        local tab = ui.tabs[ui.currentTab or 0]
+        if ui.sendWait and panel:IsShown() and not (tab and READ_ONLY_PAGES[tab.name]) then ui.sendWait:Show() end
+      else
+        ui.updateSendButton()
+      end
+    end)
     follow:SetScript("OnUpdate", function(_, elapsed)
       since = since + (elapsed or 0)
-      if since < 0.15 or not panel:IsShown() then return end
+      if since < 0.15 or not panel:IsShown() or (InCombatLockdown and InCombatLockdown()) then return end
       since = 0
       local placed = ui.sendPlaced
       local left, bottom = panel:GetLeft(), panel:GetBottom()

@@ -985,6 +985,13 @@ describe("taint guard: the window holds no secure frame", () => {
       end
       return f
     end`;
+  // The follower frame is found by its name; the game fires PLAYER_REGEN_DISABLED just before the lockdown starts, so the
+  // event runs while COMBAT is still false and the button can still be hidden.
+  const regen = (which: string) => `for _, f in ipairs(FRAMES) do if f.frameName == "GuildedSendButtonFollower" then f.scripts.OnEvent(f, "PLAYER_REGEN_${which}") end end`;
+  const startCombat = (s: LuaSession) => { s.run(regen("DISABLED")); s.run("COMBAT = true; TOUCHED = {}"); };
+  const endCombat = (s: LuaSession) => { s.run(`COMBAT = false; ${regen("ENABLED")}`); };
+  const waitLabel = (s: LuaSession) => s.run("return tostring(NS.windowState().sendWait.shown)");
+  const buttonShown = (s: LuaSession) => s.run("return tostring(SECURE[1].shown)");
   const panelOf = (s: LuaSession) => s.run(`for _, f in ipairs(FRAMES) do if f.frameName == "GuildedPanel" then PANEL = f end end; return tostring(PANEL ~= nil)`);
 
   it("keeps the secure send button out of the window: parent UIParent, nothing anchored to the window", () => {
@@ -1009,7 +1016,7 @@ describe("taint guard: the window holds no secure frame", () => {
     s.run(`PANEL:ClearAllPoints(); PANEL:SetPoint("CENTER", UIParent, "CENTER", 40, 10); PANEL.scripts.OnHide(PANEL); PANEL:Show(); PANEL.scripts.OnShow(PANEL)`);
     expect(s.run(`return table.concat(TOUCHED, ",")`)).toBe("");
     // The window follows the button back into place when the fight ends.
-    s.run(`COMBAT = false; for _, f in ipairs(FRAMES) do if f.scripts.OnEvent and f.scripts.OnUpdate then f.scripts.OnEvent(f, "PLAYER_REGEN_ENABLED") end end`);
+    s.run(`COMBAT = false; ${regen("ENABLED")}`);
     expect(s.run(`return tostring(SECURE[1].shown)`)).toBe("true");
     expect(s.run(`return tostring(NS.windowState().sendPending)`)).toBe("false");
   });
@@ -1022,5 +1029,46 @@ describe("taint guard: the window holds no secure frame", () => {
     expect(s.run(`return tostring(SECURE[1].shown)`)).toBe("false");
     s.run(`PANEL:Show(); PANEL.scripts.OnShow(PANEL)`);
     expect(s.run(`local p = SECURE[1].points[#SECURE[1].points]; return tostring(p[2] == UIParent) .. ":" .. p[1]`)).toBe("true:BOTTOMLEFT");
+  });
+  it("hides the send button when combat starts and keeps it hidden until combat ends: nothing invisible stays clickable", () => {
+    const s = openWindow(5, SECURE_SETUP);
+    panelOf(s);
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    expect(buttonShown(s)).toBe("true");
+    // 1. The window stays open and is dragged in combat.
+    startCombat(s);
+    expect(buttonShown(s)).toBe("false");
+    expect(waitLabel(s)).toBe("true");
+    s.run(`PANEL:ClearAllPoints(); PANEL:SetPoint("CENTER", UIParent, "CENTER", 90, 0); PANEL.scripts.OnShow(PANEL)`);
+    expect(buttonShown(s)).toBe("false");
+    // 2. The window is closed in combat.
+    s.run(`PANEL:Hide(); PANEL.scripts.OnHide(PANEL)`);
+    expect(buttonShown(s)).toBe("false");
+    expect(waitLabel(s)).toBe("false");
+    // 3. It is opened again in combat, and moved to a read-only page.
+    s.run(`PANEL:Show(); PANEL.scripts.OnShow(PANEL)`);
+    expect(buttonShown(s)).toBe("false");
+    expect(waitLabel(s)).toBe("true");
+    s.run(`NS.windowState().selectTabByName("Open raids")`);
+    expect(buttonShown(s)).toBe("false");
+    expect(waitLabel(s)).toBe("false");
+    expect(s.run(`return table.concat(TOUCHED, ",")`)).toBe("");
+    // After the fight: back, on the page that has it, and the label is gone.
+    s.run(`NS.windowState().selectTabByName("Home")`);
+    endCombat(s);
+    expect(buttonShown(s)).toBe("true");
+    expect(waitLabel(s)).toBe("false");
+  });
+
+  it("opens the window mid-fight without a send button (the button is hidden at the start of every fight)", () => {
+    const s = openWindow(5, SECURE_SETUP);
+    panelOf(s);
+    s.run(`PANEL:Hide(); PANEL.scripts.OnHide(PANEL)`);
+    startCombat(s);
+    s.run(`PANEL:Show(); PANEL.scripts.OnShow(PANEL)`);
+    expect(buttonShown(s)).toBe("false");
+    expect(s.run(`return NS.windowState().sendWait.text`)).toContain("Save");
+    endCombat(s);
+    expect(buttonShown(s)).toBe("true");
   });
 });

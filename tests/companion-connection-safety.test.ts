@@ -32,7 +32,11 @@ describe("several connections of one member (9 Nov 2026)", () => {
   it("tells the companion when the server does not know the character's WoW guild", async () => {
     const db = { wowGuild: { findMany: async () => [{ name: "Québec Gold", realm: "CAMWOW US2 Realm 2 PvP" }] } } as never;
     expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, undefined)).toBeUndefined();
-    expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "Quebec Gold-Other")).toMatchObject({ known: false });
+    expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "Another Guild-Other")).toMatchObject({ known: false });
+    // (9.3) Accents and decoration do not matter: the unsigned device path already matched this way.
+    expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "Quebec Gold-Other")).toMatchObject({ known: true });
+    expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "✤Quebec  Gold✤-CAMWOW US2 Realm 2 PvP")).toMatchObject({ known: true });
+    expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "---")).toMatchObject({ known: false });
     expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "québec gold-CAMWOW US2 Realm 2 PvP")).toMatchObject({ known: true });
     expect(await serverKnowsWowGuild(db, { id: "g", name: "K Caron Projects" }, "K Caron Projects")).toMatchObject({ known: true });
   });

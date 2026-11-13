@@ -1758,7 +1758,7 @@ model DungeonRunReceipt {
   id        String   @id @default(cuid())
   guildId   String
   runRef    String
-  // stored | copy | refused
+  // stored | copy | refused | retry (9.3: refused for a cause a later bot version can fix; never an acknowledgement)
   outcome   String
   // The run's state in that upload (a copy that comes back COMPLETED after an addon recovery is looked at again).
   state     String?
@@ -1785,6 +1785,8 @@ model DungeonRunPlayer {
   deaths     Int?
   presentSec Int        @default(0)
   inGuild    Boolean    @default(false)
+  // 9.3: the in-game guild the addon saw this player in (GetGuildInfo(unit)); null when none or unknown. Guild rankings read it.
+  guild      String?
   run        DungeonRun @relation(fields: [runId], references: [id], onDelete: Cascade)
   member     Member?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
 

@@ -74,7 +74,7 @@ export interface RunSummary {
   runKey: string; runRef: string; instanceId: number; dungeonName: string; difficultyId: number; startedAt: Date; endedAt: Date; durationSec: number;
   deaths: number | null; maxLevel: number | null; bracket: string | null; season: string; routeKey: string | null;
   evidenceVersion: 1 | 2; integrity?: Prisma.InputJsonValue; evidenceReceivedAt?: Date;
-  completedBy: string | null; encounters: { id: number; kind?: "npc"; name?: string; success: true; at?: number; startedAt?: number; source?: "native" | "combat-log" }[];
+  completedBy: string | null; encounters: { id: number; kind?: "npc"; name?: string; success: true; at?: number; startedAt?: number; source?: "native" | "combat-log" | "peer" }[];
   players: { character: string; displayName?: string | null; realm: string; className: string | null; role: string | null; level: number | null; minLevel: number | null; presentSec: number; deaths: number | null }[];
 }
 

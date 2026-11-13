@@ -81,8 +81,8 @@ export function emptyBoardNote(diagnosis: BoardDiagnosis, lang: "en" | "fr"): st
   if (diagnosis.counted > 0) return null;
   const fr = lang === "fr";
   if (!diagnosis.received) return fr
-    ? "Aucun parcours reçu pour l'instant. Le compagnon Windows doit être connecté avec Discord (sans connexion, il n'envoie pas les parcours) puis un /reload en jeu après le donjon."
-    : "No dungeon run has reached the bot yet. The Windows companion must be signed in with Discord (without a sign-in it does not send runs), then /reload in game after the dungeon.";
+    ? "Aucun parcours reçu pour l'instant. Le compagnon Guilded doit tourner sur un PC avec l'addon (la connexion Discord est facultative), puis /reload ou déconnexion en jeu après le donjon."
+    : "No dungeon run has reached the bot yet. The Guilded Companion must be running on a PC with the addon (signing in with Discord is optional), then /reload or log out in game after the dungeon.";
   const top = diagnosis.reasons.slice(0, 3).map(item => `${item.runs} × ${item.reason}`).join("; ");
   return fr
     ? `Aucun parcours classé : ${diagnosis.received} reçu(s), aucun ne compte (${top}). Détail : /dungeon-admin audit why:true.`

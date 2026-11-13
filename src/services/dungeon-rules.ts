@@ -34,6 +34,12 @@ export const dungeonRunSchema = z.object({
   completedBy: z.string().max(40).optional(),
   endReason: z.string().max(80).optional(),
   recorder: z.string().max(100).optional(),
+  // UNVERIFIED CLIENT TEXT: `diagnostic`, the per-player `guild` and `peerConfirmed` are whatever the uploading client said. Never use them
+  // for ranking, points or trust decisions; they are for diagnosis and display only (peerConfirmed can only make the bot ask for more evidence).
+  // 9.3: why an unfinished run did not complete (the addon's compact note: instance, last kills). Stored on the run (competitionData.diagnostic) and written to the journal.
+  diagnostic: z.string().max(240).optional().catch(undefined),
+  // (9.3) The final boss was only seen in a guildmate's copy of this run: ranked once that guildmate's own copy agrees.
+  peerConfirmed: z.boolean().optional().catch(undefined),
   reporters: z.number().int().nonnegative().default(1),
   // Characters whose addon reported the run (newer companions only).
   reporterNames: z.array(z.string().min(1).max(100)).max(10).optional(),
@@ -41,7 +47,7 @@ export const dungeonRunSchema = z.object({
   encounters: z.array(z.object({
     id: z.number().int().positive(), kind: z.literal("npc").optional(), name: z.string().max(100).optional(), success: z.boolean(),
     at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional(),
-    source: z.enum(["native", "combat-log"]).optional()
+    source: z.enum(["native", "combat-log", "peer"]).optional()
   })).max(100).optional().catch(undefined),
   // 9.1: where group members died, as fractions of a dungeon map (uiMapID). Optional presentation data: never invalidates a run.
   deathPoints: z.array(z.object({
@@ -61,6 +67,8 @@ export const dungeonRunSchema = z.object({
     level: z.number().int().min(1).max(100).optional().catch(undefined),
     minLevel: z.number().int().min(1).max(100).optional().catch(undefined),
     spec: z.string().max(40).optional().catch(undefined),
+    // 9.3: the guild the game reported for this player (GetGuildInfo(unit)); absent when none or unknown. Presentation data only.
+    guild: z.string().trim().min(1).max(80).optional().catch(undefined),
     deaths: z.number().int().nonnegative().max(500).nullable().optional(),
     presentSec: z.number().int().nonnegative().default(0),
     inGuild: z.boolean().default(false)

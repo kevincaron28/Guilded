@@ -2,7 +2,7 @@
 
 ## 9.3.0 — 13 November 2026
 
-Polish after 9.2.0: addon settings and chat, dungeon and duel cards, and a few removals. Details: docs/V9_3_0_RELEASE_NOTES.md. Not yet checked in a real game client (see docs/V9_3_0_RELEASE_ACCEPTANCE.md).
+Not yet published. Polish after 9.2.0 (addon settings and chat, dungeon and duel cards, a few removals) and dungeon-run fixes. Details: docs/V9_3_0_RELEASE_NOTES.md. Not yet checked in a real game client (see docs/V9_3_0_RELEASE_ACCEPTANCE.md).
 
 **Addon (Guilded)**
 - The Availability module is removed (#821); the website "Who's free?" page now redirects to the account page (#832).
@@ -12,6 +12,21 @@ Polish after 9.2.0: addon settings and chat, dungeon and duel cards, and a few r
 - Dungeon paintings sit behind the in-game result card and the Run tab band (#830).
 - The duel leaderboard is redesigned and there is a card at the end of a duel (#829).
 - The Guilded map shortcut is removed; use the game's map (#825).
+
+**Dungeon runs (addon)**
+- A PC with only the Guilded Dungeons addon now uploads its runs to its guild through the companion, and the sync line says how many runs were sent, stored, copied or refused (#843).
+- Fewer finished runs end as abandoned: the dungeon journal is re-read when a run starts (#842).
+- A chat line explains why an abandoned run will not count (#842).
+- A run can be completed from a guildmate's copy, runs are relayed for members without a companion in every pairing of the two addons, and each player's guild is recorded on a run (#842).
+
+**Bot (Discord)**
+- A card for every counted duel, with its own switch `/bg duel-cards` (#840).
+- The weekly report is a card (#845).
+- Card-only messages with alt text, and ten painted card backgrounds (#833, #838).
+
+**Website and deploys**
+- Stable guild addresses and fuller guild pages (#841).
+- Deploys update only the dependencies that changed (#839).
 
 **Companion**
 - The "Syncing now" line clears when the sync ends (#819).

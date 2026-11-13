@@ -29,6 +29,11 @@ import { characterKey } from "../../companion/character-identity.mjs";
 export type HeldReason = "UNLINKED" | "NO_CORE" | "UNKNOWN_POOL" | "NO_CORE_RAID" | "SHARED_FIRST_NAME";
 export interface HeldRow { kind: "EPGP" | "DKP" | "LOOT"; sourceRef: string; character: string; reason: HeldReason; detail: string }
 const signed = (value: number) => `${value >= 0 ? "+" : ""}${value}`;
+// The linked-character shape the dungeon import matches run players against.
+const runCharacter = (character: { name: string; realm: string; memberId: string; spec?: string | null; member?: { discordUserId?: string | null } | null }) => ({
+  name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec ?? null,
+  discordId: character.member?.discordUserId ?? null, displayName: (character as { displayName?: string | null }).displayName ?? null
+});
 
 // Parts of an upload that only describe the present (gear digests, attunements, recipes, who is
 // who) are applied again only when they changed. An officer's upload repeats every guildmate's
@@ -135,6 +140,31 @@ export function createAddonImportService(database: PrismaClient) {
     async apply(guildId: string, importId: string, appliedBy: string) {
       // Sections remembered as applied once the transaction has committed.
       const applied: [string, string][] = [];
+      // (9.3) Dungeon runs first, in their own short transaction. They used to wait behind the rest of a long officer import
+      // (a 65 s transaction timeout on 12 Nov, P2028 in the dungeon calendar lock) and were lost with it. Stored here, they are
+      // kept even when the rest of the import is slow; if this step fails for any reason the runs are imported inside the main
+      // transaction as before, and if that fails too nothing is acknowledged, so the companion sends them again.
+      let earlyDungeons: Awaited<ReturnType<typeof importDungeonRuns>> | null = null;
+      try {
+        earlyDungeons = await database.$transaction(async (tx) => {
+          const imported = await tx.addonImport.findFirst({ where: { id: importId, guildId } });
+          if (!imported || imported.status === "APPLIED" || imported.status === "SUPERSEDED") return null;
+          const settings = await tx.guildSettings.findUnique({ where: { guildId }, select: { dataResetAt: true } });
+          const snapshot = excludeHistoryBeforeReset(parseAddonSnapshot(imported.payload), settings?.dataResetAt ?? null);
+          if (!snapshot.dungeonRuns.length) return null;
+          const guild = await tx.guild.findUnique({ where: { id: guildId }, select: { gameEdition: true, wowSpace: { select: { name: true, realm: true } } } });
+          assertSnapshotEdition(snapshot, gameEditionOf(guild ?? {}));
+          assertAddonGuildScope(snapshot, guild);
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
+          return withEdition(gameEditionOf(guild ?? {}), async () => {
+            const characters = await tx.character.findMany({ where: { member: { guildId } }, include: { member: true } });
+            return importDungeonRuns(tx, guildId, snapshot.dungeonRuns, characters.map(runCharacter), appliedBy, importId);
+          });
+        }, { timeout: 30_000, maxWait: 15_000 });
+      } catch (error) {
+        earlyDungeons = null;
+        console.warn(`import-dungeons-early-failed import=${importId.slice(-8)} reason=${error instanceof Error ? error.message.slice(0, 120) : "unknown"}`);
+      }
       const result = await database.$transaction(async (tx) => {
         // All imports for one guild serialize, including different snapshots of the same
         // ledger. Transaction-scoped lock releases automatically on rollback/crash.
@@ -449,8 +479,7 @@ export function createAddonImportService(database: PrismaClient) {
         }
         // Guildmates who linked since their run was stored get their credit now (held credit).
         await creditHeldRunPlayers(tx, guildId, characters, appliedBy);
-        const dungeons = await importDungeonRuns(tx, guildId, snapshot.dungeonRuns,
-          characters.map((character) => ({ name: character.name, realm: character.realm, memberId: character.memberId, spec: character.spec, discordId: character.member?.discordUserId ?? null, displayName: (character as { displayName?: string | null }).displayName ?? null })), appliedBy, importId);
+        const dungeons = earlyDungeons ?? await importDungeonRuns(tx, guildId, snapshot.dungeonRuns, characters.map(runCharacter), appliedBy, importId);
         const battlegrounds = await importBattlegroundReports(tx, guildId, imported.pairedMemberId, snapshot.battlegroundReports);
         // Duels and milestones come only from a paired member's own companion (never an officer's whole-guild upload).
         const guildEdition = gameEditionOf(guild ?? {});

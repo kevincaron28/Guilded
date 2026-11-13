@@ -51,6 +51,7 @@ import { applyGuildmateRelay } from "./services/guildmate-relay.js";
 import { applyGuildData } from "./services/guild-data.js";
 import { applyGuildBank } from "./services/guild-bank.js";
 import { serverKnowsWowGuild } from "./services/wow-guilds.js";
+import { RETRY_OUTCOME } from "./services/dungeon-import.js";
 import { retryWriteConflict, serializeByKey } from "./services/transaction-retry.js";
 import { alertLowStock, bankForAddon, parseAddonBankRequests, postRequestCard } from "./services/guild-bank-member.js";
 import { createBankService } from "./services/bank.js";
@@ -610,7 +611,8 @@ export async function standingsConsistentReads(database: PrismaClient, guildId: 
   const since = new Date(Date.now() - 45 * 86_400_000);
   const receiptTable = (database as Partial<Pick<PrismaClient, "dungeonRunReceipt">>).dungeonRunReceipt;
   const receipts = receiptTable ? await receiptTable.findMany({
-    where: { guildId, seenAt: { gte: since } },
+    // (9.3) A "retry" receipt is not an acknowledgement: the addon keeps that run and sends it again after an update.
+    where: { guildId, seenAt: { gte: since }, outcome: { not: RETRY_OUTCOME } },
     select: { runRef: true, reason: true },
     orderBy: { seenAt: "desc" },
     take: 1000

@@ -2,12 +2,13 @@ import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.js";
 import { characterKey, foreverSameName } from "../../companion/character-identity.mjs";
-import { firstNameKey, importDungeonRuns, receiptReason, saveRunReceipts } from "./dungeon-import.js";
+import { firstNameKey, importDungeonRuns, receiptReason, RETRY_OUTCOME, saveRunReceipts } from "./dungeon-import.js";
 import { anchored, countsDeviceOnlyRuns, decide, fingerprintOf, independent, RUN_TRUST, sameRun, voucherOf, type RunFingerprint, type Statement } from "./run-trust.js";
 import { enqueueDiscordJob } from "./discord-jobs.js";
 import { withEdition } from "./edition-context.js";
 import { gameEditionOf } from "./game-edition.js";
 import { hashCompanionSecret } from "./character-pairing.js";
+import { looseKey } from "./loose-key.js";
 import { normalizeClassName, normalizeRaceName } from "./character-import.js";
 
 // Zero-setup companion (owner decision, 9 November 2026; docs/ZERO_SETUP_COMPANION.md).
@@ -96,13 +97,7 @@ export type DeviceUpload = z.infer<typeof deviceUploadSchema>;
 
 const key = (value: string) => value.normalize("NFC").trim().toLowerCase();
 
-/**
- * A guild or server name reduced to its letters and digits: no case, accents or decoration. "Québec Gold", "Quebec Gold" and the
- * Discord server "✤Quebec Gold✤" all become "quebecgold". A realm name gets the same treatment ("CAMWOW US2 Realm 2 PvP").
- */
-export function looseKey(value: string): string {
-  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-}
+export { looseKey };
 
 export interface DeviceRow {
   id: string; guildId: string | null; chosenGuildId: string | null; claimedMemberId: string | null; revokedAt: Date | null; uploads: number;
@@ -511,7 +506,7 @@ export function prismaInstallStore(database: PrismaClient, serverName: (discordI
     },
     async receipts(guildId, refs) {
       const [receipts, stored] = await Promise.all([
-        database.dungeonRunReceipt.findMany({ where: { guildId, runRef: { in: refs } }, select: { runRef: true, reason: true } }),
+        database.dungeonRunReceipt.findMany({ where: { guildId, runRef: { in: refs }, outcome: { not: RETRY_OUTCOME } }, select: { runRef: true, reason: true } }),
         database.dungeonRun.findMany({ where: { guildId, runRef: { in: refs } }, select: { runRef: true, state: true, invalidReason: true } })
       ]);
       // A stored run the device sent again has no receipt of its own: its reason is the run's (not scored, not completed).

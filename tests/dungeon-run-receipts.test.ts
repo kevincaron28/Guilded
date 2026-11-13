@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { importDungeonRuns, receiptReason, saveRunReceipts } from "../src/services/dungeon-import.js";
 import { standingsConsistentReads } from "../src/companion-api.js";
 import { standingsToLua } from "../companion/standings-format.mjs";
@@ -93,7 +93,7 @@ describe("dungeon run receipts", () => {
     expect(got["left"]).toMatchObject({ outcome: "stored", reason: "Not completed" });
     expect(got["too-fast"]).toMatchObject({ outcome: "stored" });
     expect(got["too-fast"]!.reason).toBeTruthy();
-    expect(got["broken"]).toMatchObject({ outcome: "refused", reason: "Run data could not be read" });
+    expect(got["broken"]).toMatchObject({ outcome: "retry", reason: "Run data could not be read" });
     expect(receipts).toHaveLength(3); // a run with no id cannot be acknowledged
   });
 
@@ -162,5 +162,80 @@ describe("the standings snapshot", () => {
     expect(text).toContain('GuildedDungeonNotes = {\n  ["copy-1"] = "Counted with a guildmate\'s copy of this run",\n}');
     expect(text).not.toContain('["bad"]');
     expect(standingsToLua({ standings: [], updatedAt: "x" })).toContain("GuildedDungeonNotes = {\n}");
+  });
+});
+
+// 9.3 run-loss work: a refusal a later bot version can fix is not an acknowledgement, a guildmate's COMPLETED copy upgrades a stored
+// unfinished run, each player's guild is stored, and every upload leaves one journal line.
+describe("9.3 run loss", () => {
+  it("answers a run it could not read as 'retry', never as an acknowledgement, and takes the real outcome when the run is readable", async () => {
+    const { tx, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [{ id: "fixme", players: "broken" }], characters, "officer", null, now);
+    expect(byRef(receipts)["fixme"]).toMatchObject({ outcome: "retry", reason: "Run data could not be read" });
+    const later = new Date(now.getTime() + 60_000);
+    await importDungeonRuns(tx, "g1", [run("fixme")], characters, "officer", null, later);
+    expect(byRef(receipts)["fixme"]).toMatchObject({ outcome: "stored", reason: null });
+    expect(receipts).toHaveLength(1);
+  });
+
+  it("leaves 'retry' receipts out of the standings and device answers", async () => {
+    const seen: { where: Record<string, unknown> }[] = [];
+    const empty = new Proxy({}, { get: (_, method) => async () => (String(method).startsWith("find") && String(method) !== "findMany" ? null : String(method).startsWith("aggregate") ? {} : []) });
+    const tables: Record<string, unknown> = {
+      dungeonRunReceipt: { findMany: async (args: { where: Record<string, unknown> }) => { seen.push(args); return []; } },
+      dungeonRun: { findMany: async () => [] }
+    };
+    const db = new Proxy({}, { get: (_, model) => typeof model !== "string" ? undefined : model.startsWith("$") ? async () => [] : tables[model] ?? empty });
+    await standingsConsistentReads(db as never, "g1", "m1");
+    expect(seen[0]?.where).toMatchObject({ outcome: { not: "retry" } });
+  }, 60_000);
+
+  it("stores the guild each player was in, and nothing for players without one", async () => {
+    const { tx, runs } = fakeTx();
+    const players = characters.map((c, index) => ({ character: c.name, realm: "Forever", deaths: 0, presentSec: 1500, inGuild: index < 2, level: 20, minLevel: 20, ...(index === 0 ? { guild: "Québec Gold" } : index === 1 ? { guild: "Other Guild" } : {}) }));
+    await importDungeonRuns(tx, "g1", [run("with-guilds", { players })], characters, "officer", null, now);
+    const stored = (runs[0] as unknown as { players: { character: string; guild?: string | null }[] }).players;
+    expect(stored.find((p) => p.character === "Hulke Hogan")?.guild).toBe("Québec Gold");
+    expect(stored.find((p) => p.character === "Banished Zakarum")?.guild).toBe("Other Guild");
+    expect(stored.find((p) => p.character === "Xao Void")?.guild).toBeNull();
+  });
+
+  it("upgrades a stored ABANDONED run when a guildmate's copy under another id arrives COMPLETED, instead of storing it twice", async () => {
+    const { tx, runs, receipts } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("mine", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", endedAt: start + 3000 })], characters, "officer", null, now);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]?.state).toBe("ABANDONED");
+    const later = new Date(now.getTime() + 60_000);
+    await importDungeonRuns(tx, "g1", [run("friend-copy", { startedAt: start + 20 })], characters, "officer", null, later);
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ state: "COMPLETED", valid: true });
+    expect(byRef(receipts)["friend-copy"]).toMatchObject({ outcome: "stored", runId: "run-1" });
+    // The same copy sent again is now just a copy of the upgraded run.
+    const again = await importDungeonRuns(tx, "g1", [run("friend-copy", { startedAt: start + 20 })], characters, "officer", null, new Date(later.getTime() + 60_000));
+    expect(runs).toHaveLength(1);
+    expect(again.duplicates).toBe(1);
+  });
+
+  it("leaves a different, unrelated unfinished run alone", async () => {
+    const { tx, runs } = fakeTx();
+    await importDungeonRuns(tx, "g1", [run("old", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", startedAt: start - 86_400, endedAt: start - 86_400 + 900 })], characters, "officer", null, now);
+    await importDungeonRuns(tx, "g1", [run("new")], characters, "officer", null, now);
+    expect(runs.map((row) => row.state).sort()).toEqual(["ABANDONED", "COMPLETED"]);
+  });
+
+  it("writes one journal line per upload with the counts, and the unfinished-run note", async () => {
+    const { tx } = fakeTx();
+    const lines: string[] = [];
+    const info = vi.spyOn(console, "info").mockImplementation((line: unknown) => { lines.push(String(line)); });
+    await importDungeonRuns(tx, "guild-abcdef123456", [
+      run("run-a"), run("run-b", { startedAt: start + 165 }),
+      run("run-c", { state: "ABANDONED", completedBy: undefined, endReason: "left the dungeon", instanceId: 2970, name: "The Drowned City", diagnostic: "i=2970;k=1;f=unknown;last=777/Last Boss" }),
+      { id: "broken", players: "x" }
+    ], characters, "officer", "import-9876543210", now);
+    info.mockRestore();
+    const line = lines.find((text) => text.startsWith("dungeon-runs "));
+    expect(line).toBe("dungeon-runs guild=123456 import=76543210 received=4 stored=2 known=0 copies=1 malformed=1 refused=retry:Run_data_could_not_be_readx1");
+    expect(lines.some((text) => text.includes("dungeon-run-unfinished instance=2970") && text.includes("last=777/Last Boss"))).toBe(true);
+    expect(line).not.toContain("guild-abcdef");
   });
 });

@@ -34,6 +34,10 @@ export const dungeonRunSchema = z.object({
   completedBy: z.string().max(40).optional(),
   endReason: z.string().max(80).optional(),
   recorder: z.string().max(100).optional(),
+  // 9.3: why an unfinished run did not complete (the addon's compact note: instance, last kills). Journal only; never stored.
+  diagnostic: z.string().max(240).optional().catch(undefined),
+  // 9.3: the in-game guild key of a run parked under another guild on the uploader's PC (read by the uploader, not stored).
+  wowGuild: z.string().max(200).optional().catch(undefined),
   reporters: z.number().int().nonnegative().default(1),
   // Characters whose addon reported the run (newer companions only).
   reporterNames: z.array(z.string().min(1).max(100)).max(10).optional(),
@@ -61,6 +65,8 @@ export const dungeonRunSchema = z.object({
     level: z.number().int().min(1).max(100).optional().catch(undefined),
     minLevel: z.number().int().min(1).max(100).optional().catch(undefined),
     spec: z.string().max(40).optional().catch(undefined),
+    // 9.3: the guild the game reported for this player (GetGuildInfo(unit)); absent when none or unknown. Presentation data only.
+    guild: z.string().trim().min(1).max(80).optional().catch(undefined),
     deaths: z.number().int().nonnegative().max(500).nullable().optional(),
     presentSec: z.number().int().nonnegative().default(0),
     inGuild: z.boolean().default(false)

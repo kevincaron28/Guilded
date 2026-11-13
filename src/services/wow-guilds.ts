@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { GAME_EDITIONS } from "../../companion/game-edition.mjs";
 import type { PrismaClient } from "../generated/prisma/client.js";
+import { looseKey } from "./loose-key.js";
 
 const label = z.string().trim().min(1).max(80).refine(value => !value.includes("|") && Array.from(value).every(char => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127));
 export const wowGuildInput = z.object({ gameEdition: z.enum(GAME_EDITIONS), name: label, realm: label });
@@ -54,12 +55,16 @@ export async function provisionWowGuild(database: PrismaClient, rootGuildId: str
  */
 export async function serverKnowsWowGuild(database: Pick<PrismaClient, "wowGuild">, guild: { id: string; name?: string | null }, uploaded: string | undefined): Promise<{ known: boolean; name: string } | undefined> {
   if (!uploaded?.trim()) return undefined;
-  const norm = (value: string) => value.normalize("NFKC").trim().toLowerCase();
+  // (9.3) The same loosened key the unsigned device path uses (accents and decoration ignored), so "Québec Gold" and
+  // "Quebec Gold" match and one spelling difference does not skip a whole upload as the wrong server.
+  const norm = (value: string) => looseKey(value);
   const rows = await database.wowGuild.findMany({ where: { OR: [{ scopeGuildId: guild.id }, { guildId: guild.id }] }, select: { name: true, realm: true } });
   const known = new Set<string>();
   if (guild.name) known.add(norm(guild.name));
   for (const row of rows) { known.add(norm(row.name)); known.add(norm(`${row.name}-${row.realm}`)); }
-  const full = norm(uploaded);
-  const name = full.includes("-") ? full.slice(0, full.lastIndexOf("-")) : full;
-  return { known: known.has(full) || known.has(name), name: guild.name ?? "" };
+  // The realm part is split off before the keys are loosened (a loose key drops the "-").
+  const text = uploaded.normalize("NFKC").trim();
+  const full = norm(text);
+  const name = norm(text.includes("-") ? text.slice(0, text.lastIndexOf("-")) : text);
+  return { known: !!full && (known.has(full) || (!!name && known.has(name))), name: guild.name ?? "" };
 }

@@ -96,7 +96,10 @@ export interface DungeonImportSummary {
   receipts?: RunReceipt[];
 }
 
-export interface RunReceipt { runRef: string; outcome: "stored" | "copy" | "refused"; reason: string | null; runId: string | null; state?: string | null; fresh?: boolean }
+// "retry" (9.3): refused for a cause a later bot version can fix (the run data could not be read). It is NOT an acknowledgement:
+// the standings and device answers leave it out of the accepted refs, so the addon keeps the run waiting and sends it again.
+export const RETRY_OUTCOME = "retry";
+export interface RunReceipt { runRef: string; outcome: "stored" | "copy" | "refused" | "retry"; reason: string | null; runId: string | null; state?: string | null; fresh?: boolean }
 
 const RECEIPT_REASON_MAX = 80;
 // Short, member-facing reasons the addon shows next to a run that earned nothing.
@@ -123,14 +126,17 @@ export async function saveRunReceipts(tx: Partial<Pick<Prisma.TransactionClient,
   const first = new Map<string, RunReceipt>();
   for (const receipt of receipts) if (!first.has(receipt.runRef)) first.set(receipt.runRef, receipt);
   const rows = [...first.values()];
-  const existing = new Set((await table.findMany({ where: { guildId, runRef: { in: rows.map((row) => row.runRef) } }, select: { runRef: true } })).map((row) => row.runRef));
+  const previous = await table.findMany({ where: { guildId, runRef: { in: rows.map((row) => row.runRef) } }, select: { runRef: true, outcome: true } });
+  const existing = new Set(previous.map((row) => row.runRef));
+  // A ref that waited as "retry" takes whatever it finally became (stored, copy, refused for good).
+  const retried = new Set(previous.filter((row) => row.outcome === RETRY_OUTCOME).map((row) => row.runRef));
   const created = rows.filter((row) => !existing.has(row.runRef));
   if (created.length) await table.createMany({ skipDuplicates: true, data: created.map((row) => ({ guildId, runRef: row.runRef, outcome: row.outcome,
     state: row.state ?? null, reason: row.reason, runId: row.runId, createdAt: now, seenAt: now })) });
-  const repeats = rows.filter((row) => existing.has(row.runRef) && !row.fresh).map((row) => row.runRef);
+  const repeats = rows.filter((row) => existing.has(row.runRef) && !row.fresh && !(retried.has(row.runRef) && row.outcome !== RETRY_OUTCOME)).map((row) => row.runRef);
   if (repeats.length) await table.updateMany({ where: { guildId, runRef: { in: repeats } }, data: { seenAt: now } });
   // A newly stored (or recovered) run takes its new outcome and reason; a repeat only moves the date.
-  for (const row of rows.filter((candidate) => existing.has(candidate.runRef) && candidate.fresh)) {
+  for (const row of rows.filter((candidate) => existing.has(candidate.runRef) && (candidate.fresh || retried.has(candidate.runRef) && candidate.outcome !== RETRY_OUTCOME))) {
     await table.update({ where: { guildId_runRef: { guildId, runRef: row.runRef } },
       data: { seenAt: now, outcome: row.outcome, state: row.state ?? null, reason: row.reason, runId: row.runId } });
   }
@@ -253,7 +259,9 @@ export function dedupeRunPlayers<P extends DungeonRunInput["players"][number]>(p
 // A copy is the SAME run when it is the same dungeon and difficulty, the time windows overlap (or the ends are
 // within two minutes of each other: a back-to-back repeat with the same crew starts after the first ends), and at least two players (one, for a solo run) match by first name.
 const SAME_RUN_SLACK_SECONDS = 120;
-async function sameRunAs(tx: Tx, guildId: string, run: DungeonRunInput) {
+// unfinished (9.3): look for the guildmate's UNFINISHED copy of a run that arrives COMPLETED instead (stored ABANDONED by one
+// addon while another saw the final boss under a different run id): that copy is upgraded in place rather than stored twice.
+async function sameRunAs(tx: Tx, guildId: string, run: DungeonRunInput, unfinished = false) {
   if (!run.startedAt || !run.endedAt) return null;
   const start = run.startedAt, end = run.endedAt;
   const candidates = await tx.dungeonRun.findMany({
@@ -264,7 +272,7 @@ async function sameRunAs(tx: Tx, guildId: string, run: DungeonRunInput) {
   const names = new Set(run.players.map((player) => firstNameKey(player.character)));
   return candidates.find((candidate) => {
     if (!candidate.startedAt || candidate.difficultyId !== run.difficultyId) return false;
-    if (candidate.state !== "COMPLETED" && run.state === "COMPLETED") return false;
+    if (unfinished ? candidate.state === "COMPLETED" : candidate.state !== "COMPLETED" && run.state === "COMPLETED") return false;
     const candidateEnd = candidate.endedAt ?? new Date(candidate.startedAt.getTime() + (candidate.durationSec ?? 0) * 1000);
     if (candidate.startedAt.getTime() / 1000 > end + SAME_RUN_SLACK_SECONDS || candidateEnd.getTime() / 1000 < start - SAME_RUN_SLACK_SECONDS) return false;
     const shared = new Set(candidate.players.map((player) => firstNameKey(player.character)).filter((key) => names.has(key))).size;
@@ -292,7 +300,27 @@ export async function importDungeonRuns(
   await importRuns(tx, guildId, rawRuns, characters, appliedBy, importId, now, summary);
   // Same transaction as the import: stored, copied and refused runs are all acknowledged.
   await saveRunReceipts(tx, guildId, summary.receipts ?? [], now);
+  console.info(uploadRunsLine(guildId, importId, rawRuns.length, summary));
   return summary;
+}
+
+/**
+ * (9.3) One journal line per upload that carried dungeon runs, so "Uploaded" can be told apart from "the runs arrived": counts of
+ * received, newly stored, already stored, guildmate copies, and refused runs by reason. Ids are shortened like the import timing
+ * lines (last characters only); no names and no run references.
+ */
+export function uploadRunsLine(guildId: string, importId: string | null, received: number, summary: DungeonImportSummary): string {
+  const receipts = summary.receipts ?? [];
+  const reasons = new Map<string, number>();
+  for (const receipt of receipts) {
+    if (receipt.outcome !== "refused" && receipt.outcome !== RETRY_OUTCOME) continue;
+    const key = `${receipt.outcome}:${(receipt.reason ?? "?").replace(/[\s,=]+/g, "_").slice(0, 40)}`;
+    reasons.set(key, (reasons.get(key) ?? 0) + 1);
+  }
+  const fresh = receipts.filter((receipt) => receipt.outcome === "stored" && receipt.fresh).length;
+  const again = receipts.filter((receipt) => receipt.outcome === "stored" && !receipt.fresh).length;
+  const copies = receipts.filter((receipt) => receipt.outcome === "copy").length;
+  return `dungeon-runs guild=${guildId.slice(-6)} import=${importId?.slice(-8) ?? "-"} received=${received} stored=${fresh} known=${again} copies=${copies} malformed=${summary.malformed} refused=${[...reasons].map(([reason, count]) => `${reason}x${count}`).join(",") || "-"}`;
 }
 
 async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], characters: LinkedCharacter[], appliedBy: string, importId: string | null, now: Date, summary: DungeonImportSummary): Promise<void> {
@@ -305,7 +333,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     const issue = result.error.issues[0];
     logDungeonRun(`malformed (${issue ? `${issue.path.join(".")}: ${issue.code}` : "unreadable"})`, rawRuns[index] as Record<string, unknown> | null);
     const ref = refOf(rawRuns[index]);
-    if (ref) receipts.push({ runRef: ref, outcome: "refused", reason: "Run data could not be read", runId: null });
+    if (ref) receipts.push({ runRef: ref, outcome: RETRY_OUTCOME, reason: "Run data could not be read", runId: null });
   });
   const sorted = parsed.filter((result) => result.success).map((result) => result.data)
     .filter(run => {
@@ -321,6 +349,11 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
   for (const receipt of known.values()) { receipts.push(receipt); summary.duplicates++; }
   const runs = sorted.filter((run) => !known.has(run.id));
   if (!runs.length) return;
+  // (9.3) The addon's compact note on an unfinished run (instance, last kills, how the final boss is known), so a final boss the
+  // addon does not know yet can be found from the journal. Ids and boss names only.
+  for (const run of runs.filter((candidate) => candidate.state === "ABANDONED" && candidate.diagnostic).slice(0, 5)) {
+    console.info(`dungeon-run-unfinished instance=${run.instanceId} difficulty=${run.difficultyId} note=${(run.diagnostic ?? "").replace(/\s+/g, " ").slice(0, 240)}`);
+  }
   // Import, rotation and finalization share this lock, including direct import callers.
   if (tx.$executeRaw) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${guildId}, 0))`;
   await lockDungeonCalendar(tx);
@@ -354,7 +387,13 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     if (gameEditionOf(run) !== "forever") {
       for (const player of run.players) player.character = addonName(player.character, player.realm, gameEditionOf(run));
     }
-    const existing = await tx.dungeonRun.findUnique({ where: { guildId_runRef: { guildId, runRef: run.id } } });
+    let existing = await tx.dungeonRun.findUnique({ where: { guildId_runRef: { guildId, runRef: run.id } } });
+    // (9.3) A COMPLETED run under a new id whose unfinished copy is stored under another id upgrades that copy.
+    let copyUpgrade = false;
+    if (!existing && run.state === "COMPLETED" && check.ok && run.startedAt && run.endedAt) {
+      const unfinishedCopy = await sameRunAs(tx, guildId, run, true);
+      if (unfinishedCopy && unfinishedCopy.instanceId === run.instanceId) { existing = unfinishedCopy; copyUpgrade = true; }
+    }
     let reconciled = false;
     if (existing && existing.valid && existing.state === "COMPLETED" && check.ok && run.integrity?.observer && run.startedAt && run.endedAt) {
       const data = existing.competitionData as { observerReports?: unknown[]; lateObserverReports?: unknown[]; [key:string]:unknown } | null;
@@ -375,7 +414,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
           ...(merged ? {startedAt:merged.startedAt,endedAt:merged.endedAt,durationSec:merged.durationSec,
             players:{deleteMany:{},create:merged.players.map(p=>({character:p.character,
               memberId:findCharacter(characters,p.character,p.realm,gameEditionOf(run))?.memberId??null,
-              class:p.className,role:p.role,presentSec:p.presentSec,deaths:p.deaths,inGuild:run.players.find(q=>q.character===p.character)?.inGuild??false}))}} : {})
+              class:p.className,role:p.role,presentSec:p.presentSec,deaths:p.deaths,inGuild:run.players.find(q=>q.character===p.character)?.inGuild??false,guild:run.players.find(q=>q.character===p.character)?.guild??null}))}} : {})
         }});
         if (merged && observations) {
           ratingCache.delete(season.id);
@@ -412,7 +451,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
         addonVersion: run.addonVersion ?? existing.addonVersion,
         players: { deleteMany: {}, create: run.players.map(player => ({
           character: player.character, memberId: findCharacter(characters, player.character, player.realm, gameEditionOf(run))?.memberId ?? null,
-          class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild })) }
+          class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild, guild: player.guild ?? null })) }
       } });
     }
     if (existing && !reconciled && !upgraded) {
@@ -433,7 +472,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
         competitionData: { ...data, observerReports: [...(data?.observerReports ?? []).slice(-39), run] } as Prisma.InputJsonValue,
         ...(extra.length ? { players: { create: extra.map((player) => ({ character: player.character,
           memberId: findCharacter(characters, player.character, player.realm, gameEditionOf(run))?.memberId ?? null,
-          class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild })) } } : {})
+          class: player.class ?? null, role: dungeonRole(player.role), deaths: player.deaths ?? null, presentSec: player.presentSec, inGuild: player.inGuild, guild: player.guild ?? null })) } } : {})
       } });
       receipts.push({ runRef: run.id, outcome: "copy", state: run.state, reason: "Counted with a guildmate's copy of this run", runId: sameRun.id });
       summary.duplicates++;
@@ -564,13 +603,15 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
             role: dungeonRole(player.role),
             deaths: player.deaths ?? null,
             presentSec: player.presentSec,
-            inGuild: player.inGuild
+            inGuild: player.inGuild,
+            guild: player.guild ?? null
           }))
         }
       }
     });
 
     receipts.push({ runRef: run.id, outcome: "stored", state: run.state, reason: receiptReason(notScored), runId: stored.id, fresh: true });
+    if (copyUpgrade) logDungeonRun("completed copy upgraded a stored unfinished run", run);
     let points = 0;
     const playerPoints = new Map<string, number>();
     let achievements: DungeonImportResult["achievements"] = [];

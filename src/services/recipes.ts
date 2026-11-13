@@ -43,29 +43,43 @@ export async function applyRecipeData(tx: Tx, guildId: string, input: RecipeImpo
       && !linked.professions.some((skill) => normalizeProfessionName(skill.profession).toLowerCase() === normalizeProfessionName(profession).toLowerCase());
   };
 
-  for (const rawSet of input.recipes) {
-    const set = { ...rawSet, profession: normalizeProfessionName(rawSet.profession) };
+  // One read of what is stored for every character in the upload, one delete and one insert for everything that is newer
+  // (it was a newest-check, a read, a delete and an insert per profession: thousands of statements for a guild's upload).
+  const tupleKey = (owner: string, realm: string, profession: string) => [owner, realm, profession].join("|");
+  const recipeSets = input.recipes.map((rawSet) => ({ ...rawSet, profession: normalizeProfessionName(rawSet.profession) }));
+  const recipeOwners = [...new Set(recipeSets.map((set) => set.character))];
+  const storedRecipes = recipeOwners.length ? await tx.recipeKnown.findMany({
+    where: { guildId, character: { in: recipeOwners } }, select: { character: true, realm: true, profession: true, itemKey: true, itemName: true, scannedAt: true }
+  }) : [];
+  const newestRecipe = new Map<string, number>();
+  const knownNames = new Map<string, Map<number, string>>();
+  for (const row of storedRecipes) {
+    const key = tupleKey(row.character, row.realm, row.profession);
+    newestRecipe.set(key, Math.max(newestRecipe.get(key) ?? 0, row.scannedAt.getTime()));
+    if (!isFallbackName(row.itemName)) { const names = knownNames.get(key) ?? new Map<number, string>(); names.set(row.itemKey, row.itemName); knownNames.set(key, names); }
+  }
+  // The last accepted list per (character, realm, profession) is the one written; each accepted list counts, as before.
+  const recipeWrites = new Map<string, { set: (typeof recipeSets)[number]; keys: number[] }>();
+  for (const set of recipeSets) {
     if (dropped(set.character, set.realm, set.profession, set.at)) continue;
-    const where = { guildId, character: set.character, realm: set.realm, profession: set.profession };
-    const newest = await tx.recipeKnown.aggregate({ where, _max: { scannedAt: true } });
-    if (newest._max.scannedAt && newest._max.scannedAt >= set.at) continue;
-    // Names arrive when the exporting game knew them; keep an older real name over a placeholder.
-    const before = await tx.recipeKnown.findMany({ where, select: { itemKey: true, itemName: true } });
-    const known = new Map(before.filter((row) => !isFallbackName(row.itemName)).map((row) => [row.itemKey, row.itemName]));
-    await tx.recipeKnown.deleteMany({ where });
+    const key = tupleKey(set.character, set.realm, set.profession);
+    const newest = newestRecipe.get(key);
+    if (newest !== undefined && newest >= set.at.getTime()) continue;
     const keys = [...new Set(set.keys)];
-    if (keys.length > 0) {
-      await tx.recipeKnown.createMany({
-        data: keys.map((key) => ({
-          ...where, itemKey: key, scannedAt: set.at,
-          itemName: (input.recipeNames[String(key)] ?? known.get(key) ?? fallbackName(key)).trim().slice(0, 100)
-        })),
-        skipDuplicates: true
-      });
-    }
+    recipeWrites.set(key, { set, keys });
+    newestRecipe.set(key, set.at.getTime());
     summary.recipeSets++;
     summary.recipes += keys.length;
   }
+  const writes = [...recipeWrites.entries()];
+  for (let from = 0; from < writes.length; from += 200) {
+    await tx.recipeKnown.deleteMany({ where: { guildId, OR: writes.slice(from, from + 200).map(([, { set }]) => ({ character: set.character, realm: set.realm, profession: set.profession })) } });
+  }
+  const rows = writes.flatMap(([key, { set, keys }]) => keys.map((itemKey) => ({
+    guildId, character: set.character, realm: set.realm, profession: set.profession, itemKey, scannedAt: set.at,
+    itemName: (input.recipeNames[String(itemKey)] ?? knownNames.get(key)?.get(itemKey) ?? fallbackName(itemKey)).trim().slice(0, 100)
+  })));
+  for (let from = 0; from < rows.length; from += 2_000) await tx.recipeKnown.createMany({ data: rows.slice(from, from + 2_000), skipDuplicates: true });
 
   // Names learned later fill in placeholders of recipes stored earlier (by anyone).
   if (Object.keys(input.recipeNames).length > 0) {
@@ -80,27 +94,33 @@ export async function applyRecipeData(tx: Tx, guildId: string, input: RecipeImpo
     }
   }
 
-  for (const rawSet of input.cooldowns) {
-    const set = { ...rawSet, entries: rawSet.entries.map((entry) => ({ ...entry, profession: normalizeProfessionName(entry.profession) })) };
-    const where = { guildId, character: set.character, realm: set.realm };
-    const newest = await tx.professionCooldown.aggregate({ where, _max: { scannedAt: true } });
-    if (newest._max.scannedAt && newest._max.scannedAt >= set.at) continue;
-    const before = await tx.professionCooldown.findMany({ where });
-    await tx.professionCooldown.deleteMany({ where });
-    const entries = set.entries.filter((entry) => !dropped(set.character, set.realm, entry.profession, set.at));
-    if (entries.length > 0) {
-      await tx.professionCooldown.createMany({
-        data: entries.map((entry) => {
-          // The same cooldown seen again keeps its "already pinged" mark.
-          const old = before.find((row) => row.profession === entry.profession && row.name === entry.name);
-          const same = old && Math.abs(old.readyAt.getTime() - entry.readyAt.getTime()) < 5 * 60_000;
-          return { ...where, profession: entry.profession, name: entry.name, readyAt: entry.readyAt, scannedAt: set.at, notifiedAt: same ? old.notifiedAt : null };
-        }),
-        skipDuplicates: true
-      });
-    }
+  const cooldownSets = input.cooldowns.map((rawSet) => ({ ...rawSet, entries: rawSet.entries.map((entry) => ({ ...entry, profession: normalizeProfessionName(entry.profession) })) }));
+  const cooldownOwners = [...new Set(cooldownSets.map((set) => set.character))];
+  const storedCooldowns = cooldownOwners.length ? await tx.professionCooldown.findMany({ where: { guildId, character: { in: cooldownOwners } } }) : [];
+  const ownerKey = (owner: string, realm: string) => [owner, realm].join("|");
+  const newestCooldown = new Map<string, number>();
+  for (const row of storedCooldowns) { const key = ownerKey(row.character, row.realm); newestCooldown.set(key, Math.max(newestCooldown.get(key) ?? 0, row.scannedAt.getTime())); }
+  const cooldownWrites = new Map<string, (typeof cooldownSets)[number]>();
+  for (const set of cooldownSets) {
+    const key = ownerKey(set.character, set.realm);
+    const newest = newestCooldown.get(key);
+    if (newest !== undefined && newest >= set.at.getTime()) continue;
+    cooldownWrites.set(key, set);
+    newestCooldown.set(key, set.at.getTime());
     summary.cooldownSets++;
   }
+  const cooldownList = [...cooldownWrites.values()];
+  for (let from = 0; from < cooldownList.length; from += 200) {
+    await tx.professionCooldown.deleteMany({ where: { guildId, OR: cooldownList.slice(from, from + 200).map((set) => ({ character: set.character, realm: set.realm })) } });
+  }
+  const storedByCooldown = new Map(storedCooldowns.map((row) => [[row.character, row.realm, row.profession, row.name].join("|"), row] as const));
+  const cooldownRows = cooldownList.flatMap((set) => set.entries.filter((entry) => !dropped(set.character, set.realm, entry.profession, set.at)).map((entry) => {
+    // The same cooldown seen again keeps its "already pinged" mark.
+    const old = storedByCooldown.get([set.character, set.realm, entry.profession, entry.name].join("|"));
+    const same = old && Math.abs(old.readyAt.getTime() - entry.readyAt.getTime()) < 5 * 60_000;
+    return { guildId, character: set.character, realm: set.realm, profession: entry.profession, name: entry.name, readyAt: entry.readyAt, scannedAt: set.at, notifiedAt: same ? old.notifiedAt : null };
+  }));
+  for (let from = 0; from < cooldownRows.length; from += 2_000) await tx.professionCooldown.createMany({ data: cooldownRows.slice(from, from + 2_000), skipDuplicates: true });
   return summary;
 }
 

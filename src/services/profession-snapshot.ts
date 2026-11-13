@@ -5,10 +5,11 @@ type Tx = Pick<Prisma.TransactionClient, "character" | "professionSkill" | "reci
 
 // Only an explicit complete self-report may remove professions. An absent API is unknown.
 export async function syncProfessionSnapshot(tx: Tx, guildId: string, character: { id: string; name: string; realm: string },
-  incoming: { name: string; skillLevel: number }[], complete: boolean, at: Date): Promise<boolean> {
+  incoming: { name: string; skillLevel: number }[], complete: boolean, at: Date, known?: { professionsUpdatedAt: Date | null }): Promise<boolean> {
   // "Cuisine" from a French client and "Cooking" from an English one are one profession.
   const professions = mergeProfessionSkills(incoming);
-  const current = await tx.character.findUnique({ where: { id: character.id }, select: { professionsUpdatedAt: true } });
+  // `known`: the caller already has the row (one read for a whole roster instead of one per character).
+  const current = known ?? await tx.character.findUnique({ where: { id: character.id }, select: { professionsUpdatedAt: true } });
   if (current?.professionsUpdatedAt && (!complete || current.professionsUpdatedAt >= at)) return false;
   const names = [...new Set(professions.map((profession) => profession.name.trim()).filter(Boolean))];
   if (complete) {

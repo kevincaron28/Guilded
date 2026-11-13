@@ -222,3 +222,56 @@ describe("cooldown list and pings", () => {
     expect(send).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("applyRecipeData issues a handful of statements for a whole guild's upload", () => {
+  it("60 characters with 3 professions each and cooldowns: reads, one delete and one insert per table, not four per profession", async () => {
+    const { db, recipes, cooldowns } = fakeDb();
+    const calls: string[] = [];
+    for (const [name, table] of Object.entries({ recipeKnown: db.recipeKnown, professionCooldown: db.professionCooldown })) {
+      for (const method of ["findMany", "deleteMany", "createMany", "aggregate", "updateMany"] as const) {
+        const original = (table as Record<string, (...args: never[]) => unknown>)[method]!;
+        (table as Record<string, unknown>)[method] = (...args: never[]) => { calls.push(`${name}.${method}`); return original(...args); };
+      }
+    }
+    const people = Array.from({ length: 60 }, (_, i) => `Person${i}`);
+    const sets = people.flatMap((person) => ["Alchemy", "Tailoring", "Mining"].map((profession) => set(person, profession, [1001, 1002, 1003])));
+    const cooldownSets = people.map((person) => ({ character: person, realm: "F", at: at("2026-10-01T18:00:00Z"), entries: [{ profession: "Alchemy", name: "Transmute", readyAt: at("2026-10-03T18:00:00Z") }] }));
+    const summary = await applyRecipeData(db as never, "g1", { recipes: sets, recipeNames: { "1001": "A" }, cooldowns: cooldownSets });
+    expect(summary).toEqual({ recipeSets: 180, recipes: 540, cooldownSets: 60 });
+    expect(recipes()).toHaveLength(540);
+    expect(cooldowns()).toHaveLength(60);
+    expect(calls.length).toBeLessThanOrEqual(10);
+    expect(calls.filter((call) => call.endsWith(".aggregate"))).toEqual([]);
+    // The same upload again changes nothing (not newer) and writes nothing.
+    calls.length = 0;
+    expect(await applyRecipeData(db as never, "g1", { recipes: sets, recipeNames: {}, cooldowns: cooldownSets })).toEqual({ recipeSets: 0, recipes: 0, cooldownSets: 0 });
+    expect(calls.filter((call) => /delete|create/i.test(call))).toEqual([]);
+  });
+});
+
+describe("applyRecipeData stored rows after the batching", () => {
+  const rowsOf = (list: { character: string; profession: string; itemKey: number; scannedAt: Date }[]) => list.map((row) => `${row.character}:${row.profession}:${row.itemKey}`).sort();
+
+  it("an empty newer list wipes that character's profession only", async () => {
+    const { db, recipes } = fakeDb();
+    await applyRecipeData(db as never, "g1", { recipes: [set("Ann", "Alchemy", [1, 2]), set("Ann", "Mining", [3]), set("Bob", "Alchemy", [4])], recipeNames: {}, cooldowns: [] });
+    const summary = await applyRecipeData(db as never, "g1", { recipes: [set("Ann", "Alchemy", [], "2026-10-02T18:00:00Z")], recipeNames: {}, cooldowns: [] });
+    expect(summary).toEqual({ recipeSets: 1, recipes: 0, cooldownSets: 0 });
+    expect(rowsOf(recipes())).toEqual(["Ann:Mining:3", "Bob:Alchemy:4"]);
+  });
+
+  it("two lists for one profession in one upload: the newer one is what is stored, an older duplicate never wins", async () => {
+    const { db, recipes } = fakeDb();
+    await applyRecipeData(db as never, "g1", { recipes: [set("Ann", "Alchemy", [1, 2], "2026-10-01T18:00:00Z"), set("Ann", "Alchemy", [7], "2026-10-02T18:00:00Z")], recipeNames: {}, cooldowns: [] });
+    expect(rowsOf(recipes())).toEqual(["Ann:Alchemy:7"]);
+    await applyRecipeData(db as never, "g1", { recipes: [set("Ann", "Alchemy", [8], "2026-10-04T18:00:00Z"), set("Ann", "Alchemy", [9], "2026-10-03T18:00:00Z")], recipeNames: {}, cooldowns: [] });
+    expect(rowsOf(recipes())).toEqual(["Ann:Alchemy:8"]);
+  });
+
+  it("a confirmed dropped profession stores nothing while a kept one in the same upload is stored", async () => {
+    const { db, recipes } = fakeDb();
+    db.character.findMany = async () => [{ name: "Ann", realm: "F", professionsUpdatedAt: at("2026-10-02T18:00:00Z"), professions: [{ profession: "Mining" }], member: { displayName: "Ann", guildId: "g1", discordUserId: "u1" } }];
+    await applyRecipeData(db as never, "g1", { recipes: [set("Ann", "Alchemy", [1001]), set("Ann", "Mining", [2002])], recipeNames: {}, cooldowns: [] });
+    expect(rowsOf(recipes())).toEqual(["Ann:Mining:2002"]);
+  });
+});

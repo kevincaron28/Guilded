@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { professionLabel } from "../src/commands/craft-board.js";
 import { crafterStandings } from "../src/services/craft-ladder.js";
 import { PROFESSION_IDENTITIES, canonicalProfessionText, professionSlug } from "../src/services/profession-names.js";
-import { loadProfessionPosts, professionPostEmbed } from "../src/services/profession-board.js";
+import { loadProfessionPosts, professionPostEmbed, threadTitle, updateProfessionPosts } from "../src/services/profession-board.js";
 import { professionKey } from "../src/services/profession-details.js";
 import { hallEmbed, loadRaceBoardData } from "../src/services/race-board.js";
 import { applyDiscoveredCharacters } from "../src/services/roster-discovery.js";
@@ -107,5 +107,31 @@ describe("one profession name in every Discord view", () => {
     await applyDiscoveredCharacters(tx as never, "g", [entry] as never, []);
     expect(stored[0]!["professions"]).toEqual([{ name: "Cooking", skillLevel: 300 }]);
     expect(deleted[0]!["profession"]).toEqual({ notIn: ["Cooking"] });
+  });
+
+  it("tableau-artisanat on a French server: the profession thread is titled in French, an English-titled one is renamed once, and no second thread appears", async () => {
+    expect(threadTitle("Cooking", "fr")).toBe("📚 Cuisine");
+    expect(threadTitle("Cuisine", "en")).toBe("📚 Cooking");
+    const db = {
+      guildSettings: { findUnique: async () => ({ professionPostsEnabled: true }) },
+      professionSkill: { findMany: async () => [{ profession: "Cooking", skillLevel: 300, character: { name: "Amy", lastSeenAt: null } }, { profession: "Fishing", skillLevel: 100, character: { name: "Amy", lastSeenAt: null } }] },
+      recipeKnown: { findMany: async () => [] },
+      character: { findMany: async () => [] }
+    };
+    const edit = vi.fn();
+    const setName = vi.fn(async () => undefined);
+    const english = { name: "📚 Cooking", archived: false, fetchStarterMessage: async () => ({ editable: true, edit }), setArchived: vi.fn(), setName };
+    const create = vi.fn();
+    const forum = { threads: { fetchActive: async () => ({ threads: new Map([["1", english]]) }), fetchArchived: async () => ({ threads: new Map() }), create } };
+    await updateProfessionPosts({ id: "d1" } as never, forum as never, db as never, "g1", "fr", new Date("2026-11-13T12:00:00Z"));
+    expect(setName).toHaveBeenCalledWith("📚 Cuisine");
+    expect(edit).toHaveBeenCalledTimes(1);
+    expect((create.mock.calls[0]![0] as { name: string }).name).toBe("📚 Pêche");
+    // A thread already titled in French is found as the same profession: nothing is created for it and it is not renamed.
+    const french = { ...english, name: "📚 Cuisine", setName: vi.fn() };
+    const forum2 = { threads: { fetchActive: async () => ({ threads: new Map([["1", french]]) }), fetchArchived: async () => ({ threads: new Map() }), create: vi.fn() } };
+    await updateProfessionPosts({ id: "d1" } as never, forum2 as never, db as never, "g1", "fr", new Date("2026-11-13T12:00:00Z"));
+    expect(french.setName).not.toHaveBeenCalled();
+    expect(forum2.threads.create).toHaveBeenCalledTimes(1);
   });
 });

@@ -2,7 +2,7 @@ import { EmbedBuilder, escapeMarkdown, type ForumChannel, type Guild as DiscordG
 import type { PrismaClient } from "../generated/prisma/client.js";
 import type { Lang } from "../i18n.js";
 import { byLastSeen, lastSeenOf, lastSeenText } from "./last-seen.js";
-import { crafterLine, professionLegend, professionTitle, seenDot } from "./profession-style.js";
+import { crafterLine, professionLegend, professionName, professionTitle, seenDot } from "./profession-style.js";
 import { professionDetailsRow } from "./profession-details.js";
 import { normalizeProfessionName, professionSlug } from "./profession-names.js";
 import { displayCharacterName, emptyNameBook, loadFullNameBook, type FullNameBook } from "./character-display.js";
@@ -157,6 +157,9 @@ async function existingPosts(forum: ForumChannel): Promise<Map<string, ThreadCha
   return found;
 }
 
+/** The forum thread title of a profession post, in the guild's language (found again under any spelling by its canonical name). */
+export const threadTitle = (profession: string, lang: Lang): string => `${THREAD_PREFIX}${professionName(profession, lang)}`.slice(0, 100);
+
 /** Thread ids of the profession posts, for the directory's links. */
 export async function professionPostLinks(forum: ForumChannel): Promise<Map<string, string>> {
   return new Map([...(await existingPosts(forum))].map(([profession, thread]) => [profession, thread.id]));
@@ -173,6 +176,10 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
   let written = 0;
   try {
     const existing = await existingPosts(forum);
+    // Thread titles are in the guild's language like the tags, the directory and the post's own title (a French server saw
+    // the thread "📚 Cooking" next to the tag and the post titled "Cuisine"). Discord limits renames of one channel, so
+    // at most one thread is renamed per refresh; the others follow on the next ones.
+    let renamed = 0;
     const names = await loadFullNameBook(db, guildId);
     const posts = await loadProfessionPosts(db, guildId, names);
     await addItemQuality(posts, items);
@@ -185,10 +192,12 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
         const starter = await thread.fetchStarterMessage().catch(() => null);
         if (!starter?.editable) continue;
         if (thread.archived) await thread.setArchived(false).catch(() => undefined);
+        const title = threadTitle(post.profession, lang);
+        if (thread.name !== title && renamed < 1 && typeof thread.setName === "function") { renamed++; await thread.setName(title).catch(() => undefined); }
         await starter.edit(payload);
         written++;
       } else {
-        await forum.threads.create({ name: `${THREAD_PREFIX}${post.profession}`.slice(0, 100), message: payload });
+        await forum.threads.create({ name: threadTitle(post.profession, lang), message: payload });
         written++;
       }
     }

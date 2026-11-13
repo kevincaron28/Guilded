@@ -45,8 +45,8 @@ export async function executePoe(interaction: ChatInputCommandInteraction): Prom
     const companion = companionLinkText(fr ? "fr" : "en", interaction.guild.id);
     const box = "```\n" + pair.code + "\n```";
     await interaction.editReply(T(
-      `${companion}\n${box}In **Connection & setup**, paste this code, then **Connect** (one use, expires <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; keep it private).\nAlready connected for WoW? Enable PoE2 in the same companion; no new code needed. Your other companion connections stay active; manage devices on the website.`,
-      `${companion}\n${box}Dans **Connection & setup**, collez ce code, puis **Connect** (usage unique, expire <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; gardez-le privé).\nDéjà connecté pour WoW ? Activez PoE2 dans le même compagnon; aucun nouveau code nécessaire. Vos autres connexions compagnon restent actives; gérez vos appareils sur le site.`
+      `${companion}\n${box}Only for a companion older than 7.2: paste this code there (the current companion has nothing to paste: press **Sign in with Discord** in its window) (one use, expires <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; keep it private).\nAlready connected for WoW? Enable PoE2 in the same companion; no new code needed. Your other companion connections stay active; manage devices on the website.`,
+      `${companion}\n${box}Seulement pour un compagnon plus ancien que 7.2 : collez ce code dedans (le compagnon actuel n'a rien à coller : appuyez sur **Se connecter avec Discord** dans sa fenêtre) (usage unique, expire <t:${Math.floor(pair.expiresAt.getTime() / 1000)}:R>; gardez-le privé).\nDéjà connecté pour WoW ? Activez PoE2 dans le même compagnon; aucun nouveau code nécessaire. Vos autres connexions compagnon restent actives; gérez vos appareils sur le site.`
     ));
     return;
   }

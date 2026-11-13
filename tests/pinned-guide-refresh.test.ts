@@ -20,7 +20,7 @@ describe("existing Discord guide maintenance", () => {
     expect(await refreshPinnedBotGuides(c as never, "fr")).toBe(1);
     const body = guide.edit.mock.calls[0]![0] as unknown as { embeds: ReturnType<typeof gettingStartedPost>[]; allowedMentions: unknown };
     expect(body.embeds[0]!.data.title).toContain("Bien commencer");
-    expect(body.embeds[0]!.data.description).toContain("Sign in with Discord");
+    expect(body.embeds[0]!.data.description).toContain("Se connecter avec Discord");
     expect(body.embeds[0]!.data.footer?.text).toContain(CURRENT_VERSION);
     expect(body.allowedMentions).toEqual({ parse: [] });
     expect(c.send).not.toHaveBeenCalled();

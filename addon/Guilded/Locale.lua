@@ -2690,6 +2690,9 @@ local DE = {
   ["Item or recipe: type a name, or shift-click an item"] = "Gegenstand oder Rezept: Namen tippen oder Gegenstand mit Umschalt+Klick",
   ["find a crafter and request an item, crafting requests, your professions"] = "Hersteller finden und etwas anfragen, Anfragen, deine Berufe",
   ["Request withdrawn. If Discord already has it, it shows up again here to cancel."] = "Anfrage zur\195\188ckgezogen. Hat Discord sie schon, erscheint sie hier wieder zum Abbrechen.",
+  ["Open dungeons window"] = "Dungeon-Fenster \195\182ffnen",
+  ["Your dungeon runs, your season score and the guild's dungeon boards open in their own window."] = "Deine Dungeon-L\195\164ufe, dein Saisonwert und die Dungeon-Ranglisten der Gilde \195\182ffnen sich in einem eigenen Fenster.",
+  ["Your dungeon runs and the guild's dungeon boards."] = "Deine Dungeon-L\195\164ufe und die Dungeon-Ranglisten der Gilde.",
 }
 -- END DE
 -- BEGIN ES (written by npm run locale -- import; edit the CSV, not these lines)
@@ -4414,6 +4417,9 @@ local ES = {
   ["Item or recipe: type a name, or shift-click an item"] = "Objeto o receta: escribe un nombre o haz Mays+clic en un objeto",
   ["find a crafter and request an item, crafting requests, your professions"] = "buscar un artesano y pedir un objeto, peticiones, tus profesiones",
   ["Request withdrawn. If Discord already has it, it shows up again here to cancel."] = "Petici\195\179n retirada. Si Discord ya la tiene, vuelve a aparecer aqu\195\173 para cancelarla.",
+  ["Open dungeons window"] = "Abrir la ventana de mazmorras",
+  ["Your dungeon runs, your season score and the guild's dungeon boards open in their own window."] = "Tus mazmorras, tu puntuaci\195\179n de temporada y los rankings de mazmorras de la hermandad se abren en su propia ventana.",
+  ["Your dungeon runs and the guild's dungeon boards."] = "Tus mazmorras y los rankings de mazmorras de la hermandad.",
 }
 -- END ES
 

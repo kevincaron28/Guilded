@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { importDungeonRuns, receiptReason, saveRunReceipts } from "../src/services/dungeon-import.js";
 import { dungeonRunSchema } from "../src/services/dungeon-rules.js";
+import { exportDungeonRuns } from "../companion/lua-export-content.mjs";
+import { z } from "zod";
 import { standingsConsistentReads } from "../src/companion-api.js";
 import { standingsToLua } from "../companion/standings-format.mjs";
 import * as ratingService from "../src/services/dungeon-rating.js";
@@ -232,6 +234,22 @@ describe("9.3 run loss", () => {
     expect(answer.acceptedRunRefs).toEqual(["done-1"]);
   }, 60_000);
 
+  it("the companion's REAL export of a peer-recovered run passes the schema, and the old live schema, with the encounter list intact", () => {
+    const [exported] = exportDungeonRuns({ dungeon: { runs: { RUN1: { id: "RUN1", state: "COMPLETED", completedBy: "final boss", instanceId: 36, name: "Deadmines", difficultyId: 1,
+      startedAt: start, endedAt: start + 1500, peerConfirmed: true, diagnostic: "i=36;k=1", recoveredFrom: { state: "ABANDONED", via: "Friend" },
+      encounters: { 1: { id: 5, name: "Boss", success: true, at: start + 100, source: "native" }, 2: { id: 9, name: "Final", success: true, at: start + 1400, viaPeer: "Friend" } },
+      players: { Tester: { class: "MAGE", presentSec: 1500, deaths: 0, inGuild: true, guild: "Québec Gold" } } } } } }, "Forever");
+    const parsed = dungeonRunSchema.parse(exported);
+    expect(parsed.encounters).toHaveLength(2);
+    expect(parsed.peerConfirmed).toBe(true);
+    expect(parsed.diagnostic).toBe("i=36;k=1");
+    expect(parsed.players[0]?.guild).toBe("Québec Gold");
+    // The encounter part of the schema as it is on the live bot today (source: native | combat-log only, the whole list dropped on a mismatch).
+    const liveEncounters = z.array(z.object({ id: z.number().int().positive(), kind: z.literal("npc").optional(), name: z.string().max(100).optional(), success: z.boolean(),
+      at: z.number().int().positive().optional(), startedAt: z.number().int().positive().optional(), source: z.enum(["native", "combat-log"]).optional() })).max(100).optional().catch(undefined);
+    expect(liveEncounters.parse((exported as { encounters: unknown }).encounters)).toHaveLength(2);
+  });
+
   it("the shape the companion exports for a peer-recovered run (peerConfirmed, kills without a source: see tests/lua/dungeon-run-loss-9-3.test.ts in #842) passes the schema with every encounter kept", () => {
     const exported = { id: "RUN1", protocolVersion: 1, state: "COMPLETED", completedBy: "final boss", instanceId: 36, name: "Deadmines", difficultyId: 1, startedAt: start, endedAt: start + 1500,
       peerConfirmed: true, diagnostic: "i=36;k=1", reporters: 1,
@@ -325,20 +343,15 @@ describe("9.3 run loss", () => {
     expect(byRef(receipts)["mine-peer-2"]).toMatchObject({ outcome: "copy", reason: "Counted with a guildmate's copy of this run", runId: "run-1" });
   });
 
-  it("does not rely on the client's peerConfirmed flag: an upgrade of a stored unfinished run with no native final kill waits too, one with a native kill upgrades", async () => {
+  it("holds a run whose kill says source peer even without the flag, and does NOT hold a run whose kills merely have no source (relayed runs, older exports)", async () => {
     const { tx, runs, receipts } = fakeTx();
-    await importDungeonRuns(tx, "g1", [abandoned("flagless"), abandoned("flagless-local", { startedAt: start + 4000, endedAt: start + 5500, instanceId: 389, name: "Ragefire Chasm" })], characters, "officer", null, now);
+    await importDungeonRuns(tx, "g1", [abandoned("src-peer"), abandoned("src-none", { startedAt: start + 4000, endedAt: start + 5500 })], characters, "officer", null, now);
     const later = new Date(now.getTime() + 60_000);
-    // Same id, COMPLETED, the last kill carries no source and no peerConfirmed flag.
-    await importDungeonRuns(tx, "g1", [run("flagless", { encounters: [{ id: 9, success: true, at: start + 1400 }] })], characters, "officer", null, later);
-    expect(runs.find((row) => row.runRef === "flagless")?.state).toBe("ABANDONED");
-    expect(byRef(receipts)["flagless"]?.outcome).toBe("retry");
-    // A client that tags a kill source "peer" without the flag is held as well.
-    await importDungeonRuns(tx, "g1", [run("flagless", { encounters: [{ id: 9, success: true, at: start + 1400, source: "peer" }] })], characters, "officer", null, later);
-    expect(runs.find((row) => row.runRef === "flagless")?.state).toBe("ABANDONED");
-    // A native final kill upgrades as before.
-    await importDungeonRuns(tx, "g1", [run("flagless-local", { instanceId: 389, name: "Ragefire Chasm", startedAt: start + 4000, endedAt: start + 5500, encounters: [{ id: 9, success: true, at: start + 5400, source: "native" }] })], characters, "officer", null, later);
-    expect(runs.find((row) => row.runRef === "flagless-local")?.state).toBe("COMPLETED");
+    await importDungeonRuns(tx, "g1", [run("src-peer", { encounters: [{ id: 9, success: true, at: start + 1400, source: "peer" }] })], characters, "officer", null, later);
+    expect(runs.find((row) => row.runRef === "src-peer")?.state).toBe("ABANDONED");
+    expect(byRef(receipts)["src-peer"]?.outcome).toBe("retry");
+    await importDungeonRuns(tx, "g1", [run("src-none", { startedAt: start + 4000, endedAt: start + 5500, encounters: [{ id: 9, success: true, at: start + 5400 }] })], characters, "officer", null, later);
+    expect(runs.find((row) => row.runRef === "src-none")?.state).toBe("COMPLETED");
   });
 
   it("never lets a peer-confirmed run rank on its own, even when nothing else is stored", async () => {

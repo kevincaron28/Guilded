@@ -332,19 +332,15 @@ export function uploadRunsLine(guildId: string, importId: string | null, receive
 }
 
 /**
- * Is this COMPLETED run's final boss only vouched for by a guildmate's copy? Not decided by the client's own `peerConfirmed` flag alone
- * (a client can omit it): also when any encounter says `peer`, and when it upgrades a stored UNFINISHED run of the same id while its
- * last boss kill is not backed by this client's own native source (a peer kill is exported without a source). What this cannot
- * prevent: a modified client that marks a kill it never saw as native, or one that sends a run under a fresh id; this is a check
- * that two reporters agree, not protection against a cheating client.
+ * Is this COMPLETED run's final boss only vouched for by a guildmate's copy? Only the EXPLICIT markers count: the run's
+ * `peerConfirmed`, or an encounter whose source is `peer`. "No source" is deliberately NOT a marker: every kill an addon records
+ * itself carries `native` since 7.5.1 (a locally recovered run needs a native kill), but a run relayed by a guildmate and uploaded
+ * by another companion has kills without a source, and treating those as peer-vouched would hold legitimate runs.
+ * What this cannot prevent: a modified client that omits the markers or labels a kill it never saw as native, or sends a run under
+ * a fresh id. It is a check that two reporters agree for 9.3 addons, not protection against a cheating client.
  */
-function peerVouched(run: DungeonRunInput, existing: { state: string } | null): boolean {
-  if (run.peerConfirmed || run.encounters?.some((encounter) => encounter.source === "peer")) return true;
-  if (!existing || existing.state === "COMPLETED") return false;
-  const kills = (run.encounters ?? []).filter((encounter) => encounter.success && !encounter.kind && encounter.at);
-  const last = kills.reduce<(typeof kills)[number] | undefined>((best, encounter) => !best || (encounter.at ?? 0) > (best.at ?? 0) ? encounter : best, undefined);
-  // No kill list at all (an old addon's run) is not evidence of a peer kill: only a final kill that lacks a native source counts.
-  return last !== undefined && last.source !== "native" && last.source !== "combat-log";
+function peerVouched(run: DungeonRunInput): boolean {
+  return run.peerConfirmed === true || !!run.encounters?.some((encounter) => encounter.source === "peer");
 }
 
 async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], characters: LinkedCharacter[], appliedBy: string, importId: string | null, now: Date, summary: DungeonImportSummary): Promise<void> {
@@ -423,7 +419,7 @@ async function importRuns(tx: Tx, guildId: string, rawRuns: unknown[], character
     // gets a retry receipt (not an acknowledgement) so the addon keeps it. When they agree, ours folds into that stored run
     // as a corroborating copy (the run is never stored or ranked twice).
     let peerAgrees: Awaited<ReturnType<typeof sameRunAs>> = null;
-    if (run.state === "COMPLETED" && check.ok && existing?.state !== "COMPLETED" && peerVouched(run, existing)) {
+    if (run.state === "COMPLETED" && check.ok && existing?.state !== "COMPLETED" && peerVouched(run)) {
       const candidate = run.startedAt && run.endedAt ? await sameRunAs(tx, guildId, run) : null;
       if (candidate && candidate.state === "COMPLETED" && candidate.valid && candidate.completedBy === "final boss" && candidate.runRef !== run.id && candidate.instanceId === run.instanceId) peerAgrees = candidate;
       else {

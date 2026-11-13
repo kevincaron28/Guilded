@@ -101,6 +101,7 @@ describe("mainStatus: four lines and one needs-you line", () => {
     const states = [{}, { syncPhase: "uploading" }, { running: true, lastUpload: { at: "2026-11-13T10:00:00.000Z" } }, { device: { status: "choose", guild: { name: "G" } } }, { device: { status: "no-guild", guild: { name: "G" } } }, { device: { status: "synced", server: "S" } }, { zeroSetupFailures: 1 }];
     const extras = [{}, { otherAccount: { account: "A" } }, { addonAction: { action: "update" }, wowRunning: true, savedFile: { ...okAddon, candidate: { path: "p" } } }, { savedFile: okAddon, me: { account: { username: "u" } } }];
     const problemSets = [[], ...problemIds.map((id) => [{ id, data }]), problemIds.map((id) => ({ id, data }))];
+    problemSets.push([{ id: "bot-unreachable", data: { ...data, offline: false } }]); // the server answered nothing, not "this PC is offline"
     for (const config of configs) for (const state of states) for (const problems of problemSets) for (const extra of extras) {
       const status = mainStatus({ config, state, problems, ...extra });
       for (const entry of status.lines) { walk(entry.text); walk(entry.detail); if (entry.button) keys.add((entry.button as { label: string }).label); }

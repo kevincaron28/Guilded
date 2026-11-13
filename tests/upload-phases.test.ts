@@ -45,14 +45,32 @@ describe("uploads never wait on Discord", () => {
 });
 
 describe("the upload timing line", () => {
-  it("lists only phases over 200 ms, with a short hash of the guild and no names", async () => {
+  const sum = (line: string) => [...(/phases=(.*)$/.exec(line)?.[1] ?? "").matchAll(/:(\d+)/g)].reduce((n, m) => n + Number(m[1]), 0);
+  const total = (line: string) => Number(/total=(\d+)/.exec(line)?.[1]);
+
+  it("lists only phases over 200 ms plus other, with a short hash of the guild and no names", async () => {
     const timer = createUploadTimer();
     await timer.time("fast", async () => 1);
     await timer.time("slow", () => new Promise((resolve) => setTimeout(resolve, 260)));
     const line = timer.line("guild-internal-id-123", 4096, true);
-    expect(line).toMatch(/^upload guild=[0-9a-f]{8} total=\d+ bytes=4096 officer=1 phases=slow:\d+$/);
+    expect(line).toMatch(/^upload guild=[0-9a-f]{8} total=\d+ bytes=4096 officer=1 phases=slow:\d+,other:\d+$/);
     expect(line).not.toContain("guild-internal-id-123");
-    expect(createUploadTimer().line("g", 0, false)).toMatch(/officer=0 phases=-$/);
+    expect(createUploadTimer().line("g", 0, false)).toMatch(/officer=0 phases=other:\d+$/);
+  });
+
+  it("attributes every millisecond: untimed waits between phases, the time before the timer started, and the tail", async () => {
+    const started = Date.now() - 600;                 // 600 ms spent before the timer was created (body, auth)
+    const timer = createUploadTimer(started);
+    timer.mark("body", started + 300); timer.mark("auth", started + 600);
+    await new Promise((resolve) => setTimeout(resolve, 250));   // an await nobody wrapped
+    await timer.time("work", async () => undefined);
+    timer.mark("settings");
+    await new Promise((resolve) => setTimeout(resolve, 230));   // the tail after the last mark
+    const line = timer.line("g", 1, false);
+    expect(line).toContain("body:300");
+    expect(line).toContain("auth:300");
+    expect(line).toMatch(/before:work:2\d\d/);
+    expect(sum(line)).toBe(total(line));
   });
 });
 

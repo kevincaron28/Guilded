@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import sharp from "sharp";
+import sharp, { type OverlayOptions } from "sharp";
 
 /**
  * Drawing kit of the redesigned Discord cards (13 Nov 2026, owner-approved mock-ups "A art first" and "C banner and body").
@@ -106,7 +106,7 @@ export class CardCanvas {
   }
 
   /** Composites `layers` (the painting first), then the shapes, then the text; returns the PNG and the contrast report of every string. */
-  async finish(layers: sharp.OverlayOptions[]): Promise<{ png: Buffer; report: TextReport[] }> {
+  async finish(layers: OverlayOptions[]): Promise<{ png: Buffer; report: TextReport[] }> {
     const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}">${this.svg}</svg>`);
     const base = await sharp({ create: { width: CARD_W, height: CARD_H, channels: 3, background: "#0b0907" } }).composite([...layers, { input: svg, left: 0, top: 0 }]).png().toBuffer();
     const px = await sharp(base).removeAlpha().raw().toBuffer();

@@ -244,12 +244,75 @@ describe("an upload costs a handful of statements, not one per member (12 Nov 20
     expect(db.writes.length).toBeLessThanOrEqual(8);
   });
 
-  it("an older roster changes no rank, and a member's upload never touches ranks", async () => {
-    const db = await firstUpload();
+  it("ranks are decided per row: an officer roster older than the newest stored one still sets ranks newer than the row's rank date", async () => {
+    const db = fakeDb({ characters: seedLinked(), unclaimed: seedUnclaimed() });
+    // A member's roster (no ranks) arrives first and becomes the newest stored reading.
+    await applyGuildData(db.tx, "g", { memberId: "m", officer: false }, upload(rosterOf(), {}, T - 3600), NOW);
+    const result = await applyGuildData(db.tx, "g", officer, upload(rosterOf("Officer"), {}, T - 5400), NOW);
+    expect(result.skippedOlder).toBe(true);
+    expect(db.tables.characters![0]).toMatchObject({ guildRankName: "Officer", guildRankIndex: 2, guildRankAt: new Date((T - 5400) * 1000) });
+    // Same rank elsewhere: only the rank date moves, forward.
+    expect(db.tables.characters![1]).toMatchObject({ guildRankName: "Raider", guildRankAt: new Date((T - 5400) * 1000) });
+  });
+
+  it("a roster older than a row's rank date changes no rank and never moves the date backwards", async () => {
+    const db = await firstUpload();   // rank dates are T - 7200
     await applyGuildData(db.tx, "g", officer, upload(rosterOf("Officer"), {}, T - 9000), NOW);
-    expect(db.tables.characters![0]).toMatchObject({ guildRankName: "Raider" });
-    const member = fakeDb({ characters: seedLinked(), unclaimed: seedUnclaimed() });
-    await applyGuildData(member.tx, "g", { memberId: "m", officer: false }, upload(rosterOf("Officer")), NOW);
-    expect(member.tables.characters![0]).toMatchObject({ guildRankName: "Raider", guildRankAt: new Date((T - 7200) * 1000) });
+    expect(db.tables.characters![0]).toMatchObject({ guildRankName: "Raider", guildRankAt: new Date((T - 7200) * 1000) });
+    expect(db.tables.unclaimed![0]).toMatchObject({ guildRankAt: new Date((T - 7200) * 1000) });
+  });
+
+  it("a member's upload never touches ranks, and an officer upload with the same reading time after it still sets them", async () => {
+    const db = fakeDb({ characters: seedLinked(), unclaimed: seedUnclaimed() });
+    await applyGuildData(db.tx, "g", { memberId: "m", officer: false }, upload(rosterOf("Officer")), NOW);
+    expect(db.tables.characters![0]).toMatchObject({ guildRankName: "Raider", guildRankAt: new Date((T - 7200) * 1000) });
+    const result = await applyGuildData(db.tx, "g", officer, upload(rosterOf("Officer")), NOW);   // same observedAt as the stored roster
+    expect(result.skippedOlder).toBe(true);
+    expect(db.tables.characters![0]).toMatchObject({ guildRankName: "Officer", guildRankAt: new Date(T * 1000) });
+  });
+});
+
+describe("offline members do not cause a write each (the addon sends lastOnline as now minus age)", () => {
+  const COUNT = 500;
+  const age = (i: number) => 86400 + i * 37;
+  const roster = (at: number, extra: (i: number) => Record<string, unknown> = () => ({})) => Array.from({ length: COUNT }, (_, i) =>
+    ({ name: `Person${String(i).padStart(3, "0")}`, level: 40, class: "MAGE", rankName: "Raider", rankIndex: 4, online: false, lastOnline: at - age(i), ...extra(i) }));
+  const officer = { memberId: "m-officer", officer: true };
+
+  it("a second upload five minutes later, with every offline member's last online moved a few minutes, issues a handful of statements", async () => {
+    const characters = Array.from({ length: COUNT / 2 }, (_, i) => linked(`c${i}`, `Person${String(i).padStart(3, "0")}`, { level: 40, className: "Mage",
+      lastSeenAt: new Date((T - 600 - age(i)) * 1000), guildRankName: "Raider", guildRankIndex: 4, guildRankAt: new Date((T - 3600) * 1000) }));
+    const unclaimed = Array.from({ length: COUNT / 2 }, (_, k) => { const i = COUNT / 2 + k; return { id: `u${i}`, nameKey: `person${String(i).padStart(3, "0")}`, name: `Person${String(i).padStart(3, "0")}`,
+      level: 40, lastSeenAt: new Date((T - 600 - age(i)) * 1000), guildRankName: "Raider", guildRankAt: new Date((T - 3600) * 1000) }; });
+    const db = fakeDb({ characters, unclaimed });
+    await applyGuildData(db.tx, "g", officer, upload(roster(T - 600), {}, T - 600), NOW);
+    const before = db.tables.roster!.map((r) => ({ key: r.nameKey, lastOnlineAt: r.lastOnlineAt as Date }));
+    db.writes.length = 0;
+    await applyGuildData(db.tx, "g", { memberId: "m-second", officer: true }, upload(roster(T - 300), {}, T - 300), NOW);
+    expect(db.writes.length).toBeLessThanOrEqual(6);
+    expect(db.writes.filter((w) => /\.(update|upsert|create)$/.test(w))).toEqual([]);
+    // GuildRosterEntry: reading time and reporter moved, last online (a few minutes) did not.
+    const bad = db.tables.roster!.filter((r) => !(r.observedAt.getTime() === (T - 300) * 1000 && r.reportedById === "m-second"));
+    if (bad.length) throw new Error(`${bad.length} of ${db.tables.roster!.length}: ${JSON.stringify(bad[0])}`);
+    expect(db.tables.roster!.map((r) => ({ key: r.nameKey, lastOnlineAt: r.lastOnlineAt }))).toEqual(before);
+    expect(db.tables.characters![0]!.lastSeenAt.getTime()).toBe((T - 600 - age(0)) * 1000);
+  });
+
+  it("leave and rejoin, a real move of last online, and online members", async () => {
+    const db = fakeDb();
+    await applyGuildData(db.tx, "g", officer, upload(roster(T - 7200), {}, T - 7200), NOW);
+    const entry = (name: string) => db.tables.roster!.find((r) => r.nameKey === name.toLowerCase())!;
+    const first = entry("Person000").lastOnlineAt as Date;
+    // Person000 leaves (newer complete roster without them)...
+    await applyGuildData(db.tx, "g", officer, upload(roster(T - 3600).slice(1), {}, T - 3600), NOW);
+    expect(entry("Person000").inGuild).toBe(false);
+    // ...rejoins and is online now, Person001 came online too; Person002 was last online two hours later than stored.
+    await applyGuildData(db.tx, "g", { memberId: "m-third", officer: false }, upload(roster(T, (i) => i === 0 || i === 1 ? { online: true, lastOnline: undefined } : i === 2 ? { lastOnline: T - 3600 } : {}), {}, T), NOW);
+    expect(entry("Person000")).toMatchObject({ inGuild: true, reportedById: "m-third" });
+    expect((entry("Person000").lastOnlineAt as Date).getTime()).toBe(T * 1000);
+    expect((entry("Person000").lastOnlineAt as Date).getTime()).toBeGreaterThan(first.getTime());
+    expect((entry("Person001").lastOnlineAt as Date).getTime()).toBe(T * 1000);
+    expect((entry("Person002").lastOnlineAt as Date).getTime()).toBe((T - 3600) * 1000);
+    expect(entry("Person003").reportedById).toBe("m-third");
   });
 });

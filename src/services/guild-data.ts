@@ -46,7 +46,12 @@ export interface GuildDataResult { roster: number; skippedOlder: boolean; left: 
 type Tx = Pick<Prisma.TransactionClient, "guildRosterEntry" | "guildEventEntry" | "guildText" | "character" | "unclaimedCharacter" | "characterRankSeen">;
 
 const toDate = (epoch: number | undefined) => epoch === undefined ? undefined : new Date(epoch * 1000);
-const later = (a: Date | null | undefined, b: Date | undefined) => b && (!a || b > a) ? b : undefined;
+// Last seen / last online only move when the move means something: the addon sends "now minus age" for offline members,
+// so almost every offline member would otherwise move by a different few seconds on every upload (one write each).
+const ONLINE_MIN_MOVE_MS = 10 * 60_000;
+const OFFLINE_MIN_MOVE_MS = 60 * 60_000;
+const movedForward = (stored: Date | null | undefined, candidate: Date | undefined, minMs: number) =>
+  candidate && (!stored || candidate.getTime() - stored.getTime() >= minMs) ? candidate : undefined;
 interface UnclaimedRow { id: string; nameKey: string; level: number | null; lastSeenAt: Date; guildRankName: string | null; guildRankAt: Date | null }
 const sameTime = (a: Date | null | undefined, b: Date | null | undefined) => (a?.getTime() ?? null) === (b?.getTime() ?? null);
 const titleClass = (value: string) => value.charAt(0) + value.slice(1).toLowerCase();
@@ -83,18 +88,21 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
     const unclaimed = await tx.unclaimedCharacter.findMany({ where: { guildId, gameEdition: edition }, select: { id: true, nameKey: true, level: true, lastSeenAt: true, guildRankName: true, guildRankAt: true } });
     const unclaimedByKey = new Map(unclaimed.map((row) => [row.nameKey, row]));
     const seenKeys = new Set<string>();
-    // Rank comes only from an officer's upload, and only from a roster newer than what is stored.
-    const officerRanks = uploader.officer && !result.skippedOlder;
+    // Rank comes only from an officer's upload, decided per row: applied when the stored rank date is empty or older than
+    // this roster's reading (whatever other uploads stored in between), never moving a rank date backwards.
+    const officerRanks = uploader.officer;
+    const rankFresh = (at: Date | null | undefined) => !at || at < observedAt;
     for (const member of members) {
       const key = String(characterKey(member.name, "", edition));
       seenKeys.add(key);
       const lastOnline = toDate(member.online ? Math.trunc(observedAt.getTime() / 1000) : member.lastOnline);
       const lastOnlineOk = lastOnline && lastOnline.getTime() <= now.getTime() + FUTURE_SLACK_MS ? lastOnline : undefined;
       const previous = byKey.get(key);
+      const minMove = member.online ? ONLINE_MIN_MOVE_MS : OFFLINE_MIN_MOVE_MS;
       if (!previous || previous.observedAt < observedAt) {
         const data = { name: member.name, level: member.level ?? previous?.level ?? null, className: member.class ?? previous?.className ?? null,
           rankName: member.rankName ?? null, rankIndex: member.rankIndex ?? null,
-          lastOnlineAt: later(previous?.lastOnlineAt, lastOnlineOk) ?? previous?.lastOnlineAt ?? null, inGuild: true, observedAt, reportedById };
+          lastOnlineAt: movedForward(previous?.lastOnlineAt, lastOnlineOk, minMove) ?? previous?.lastOnlineAt ?? null, inGuild: true, observedAt, reportedById };
         if (previous && previous.inGuild && previous.name === data.name && previous.level === data.level && previous.className === data.className
           && previous.rankName === data.rankName && previous.rankIndex === data.rankIndex) {
           // Only the reading time (and maybe last online) moved: batched, grouped by the identical new value.
@@ -116,12 +124,12 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         const update: Prisma.CharacterUpdateInput = {};
         if (member.level && member.level > (character.level ?? 0)) update.level = member.level;
         if (member.class && (!character.className || character.className === "UNKNOWN")) update.className = titleClass(member.class);
-        const seen = later(character.lastSeenAt, lastOnlineOk);
+        const seen = movedForward(character.lastSeenAt, lastOnlineOk, minMove);
         let touchRank = false;
-        if (officerRanks && member.rankName !== undefined && member.rankIndex !== undefined) {
+        if (officerRanks && member.rankName !== undefined && member.rankIndex !== undefined && rankFresh(character.guildRankAt)) {
           if (character.guildRankName !== member.rankName || character.guildRankIndex !== member.rankIndex) {
             update.guildRankName = member.rankName; update.guildRankIndex = member.rankIndex; update.guildRankAt = observedAt;
-          } else if (!character.guildRankAt || character.guildRankAt < observedAt) touchRank = true;   // same rank confirmed again (rank roles read its age)
+          } else touchRank = true;   // same rank confirmed again (rank roles read its age)
         }
         if (Object.keys(update).length) {
           if (seen) update.lastSeenAt = seen;
@@ -144,7 +152,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
       const first = key.split(" ")[0]!;
       const sharesFirst = [...unclaimedByKey.keys()].some((other) => other !== key && other.startsWith(`${first} `));
       const existing = unclaimedByKey.get(key) ?? (loose && !loose.nameKey.includes(" ") && !sharesFirst ? loose : undefined);
-      const seen = later(existing?.lastSeenAt, lastOnlineOk);
+      const seen = movedForward(existing?.lastSeenAt, lastOnlineOk, minMove);
       if (existing) {
         const update: Prisma.UnclaimedCharacterUpdateInput = {};
         if (existing.nameKey !== key && member.name.includes(" ")) {
@@ -153,15 +161,16 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         }
         if (member.level && member.level > (existing.level ?? 0)) update.level = member.level;
         let touchRank = false;
-        if (officerRanks && member.rankName !== undefined) {
+        if (officerRanks && member.rankName !== undefined && rankFresh(existing.guildRankAt)) {
           if (existing.guildRankName !== member.rankName) { update.guildRankName = member.rankName; update.guildRankAt = observedAt; }
-          else if (!existing.guildRankAt || existing.guildRankAt < observedAt) touchRank = true;
+          else touchRank = true;
         }
-        if (Object.keys(update).length || !existing.id) {
+        if (Object.keys(update).length) {
           if (seen) update.lastSeenAt = seen;
           if (touchRank) update.guildRankAt = observedAt;
         }
-        if (Object.keys(update).length) { await tx.unclaimedCharacter.update({ where: { id: existing.id }, data: update }); stats.rowUpdates++; result.unclaimed++; }
+        // A row this very upload just created has no id yet (a duplicate name in one roster): nothing to write on it.
+        if (Object.keys(update).length && existing.id) { await tx.unclaimedCharacter.update({ where: { id: existing.id }, data: update }); stats.rowUpdates++; result.unclaimed++; }
         else {
           if (seen && existing.id) { unclaimedSeen.set(seen.getTime(), [...(unclaimedSeen.get(seen.getTime()) ?? []), existing.id]); existing.lastSeenAt = seen; result.unclaimed++; }
           if (touchRank && existing.id) { unclaimedRankTouch.push(existing.id); existing.guildRankAt = observedAt; }
@@ -172,7 +181,7 @@ export async function applyGuildData(tx: Tx, guildId: string, uploader: { member
         // (P2002) neither errors nor aborts this transaction, and the row it made is kept.
         await tx.unclaimedCharacter.createMany({ skipDuplicates: true, data: [{ guildId, gameEdition: edition, nameKey: key, name: member.name, realm: "",
           className: titleClass(member.class), ...(member.level ? { level: member.level } : {}), lastSeenAt: lastOnlineOk ?? observedAt,
-          ...(officerRanks && member.rankName !== undefined ? { guildRankName: member.rankName, guildRankAt: observedAt } : {}) }] });
+          ...(officerRanks && !result.skippedOlder && member.rankName !== undefined ? { guildRankName: member.rankName, guildRankAt: observedAt } : {}) }] });
         unclaimedByKey.set(key, { id: "", nameKey: key, level: member.level ?? null, lastSeenAt: lastOnlineOk ?? observedAt, guildRankName: null, guildRankAt: null });
         result.unclaimed++;
       }

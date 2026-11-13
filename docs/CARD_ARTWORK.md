@@ -15,8 +15,8 @@ that muted card text keeps 4.5:1 contrast where text is drawn.
 `board/dungeon-season`, `board/activity`, `board/hall-of-fame`, `board/weekly`, `board/season-podium`, `board/rookie-of-the-week`,
 `board/member-welcome`, `board/world-pvp-recap`, `raid/molten-core` (chosen from the raid's title or the bosses it killed, English or French;
 any other raid uses `raid/default`), `recap/dawn`, `recap/day`, `recap/night` (the daily recap card, one per day by its seed, replacing the
-painted scene; "wide" variant), `battleground/<map slug>` (alterac-valley, warsong-gulch,
-arathi-basin, eye-of-the-storm, strand-of-the-ancients, isle-of-conquest; `battleground/default` is the fallback), `raid/default`,
+painted scene; "wide" variant), `battleground/<map slug>` (pictures exist for alterac-valley, warsong-gulch and arathi-basin; the slug comes
+from the map id, so English and French clients agree. Other maps have no picture yet, and the `default` fallback the card asks for has no file either, so they draw as before), `raid/default`,
 `roster/default`. Dungeon paintings stay in `site/dungeon-art/` (dungeon-backdrop.ts).
 
 **When new art shows:** a missing file is remembered for 10 minutes, and a card already drawn is kept in the rendered-PNG cache, so a picture added while the bot runs can take up to 10 minutes (or a restart) to appear. Art ships with the bot deploy (`site/` files are read from disk by the bot).

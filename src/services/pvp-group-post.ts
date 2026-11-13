@@ -53,7 +53,7 @@ export function pvpGroupCard(data: PvpPostData, lang: Lang): ScoreCard {
       { label: t("Open until", "Ouvert jusqu'à"), value: pvpExpiresAt(data.createdAt).toISOString().slice(11, 16) + " UTC", note: t("24 h after posting", "24 h après la publication") }
     ],
     rowsLabel: t(`In the group · ${data.members.length}/${data.size}`, `Dans le groupe · ${data.members.length}/${data.size}`),
-    footer: t("Guilded · Press a role button on the post to join · guilded.kcaron.top", "Guilded · Appuyez sur un rôle sur le message pour rejoindre · guilded.kcaron.top"),
+    footer: t("Guilded · Press a role button on the post to join · guildedwow.com", "Guilded · Appuyez sur un rôle sur le message pour rejoindre · guildedwow.com"),
     dungeon: {
       theme: { a: "#7f1d1d", b: "#d4a017", motif: "fire", seed },
       party: data.members.slice(0, 40).map(player => ({ name: player.name, color: player.color ?? "#cbd5e1", role: player.role, roleLabel: roleName(player.role, fr), guild: true })),

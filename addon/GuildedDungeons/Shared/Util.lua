@@ -1150,11 +1150,21 @@ function util.professionKeyedTable(source, merge)
 end
 -- (9.0.10) Saved data from before the canonical names: the same profession was kept under every client language's
 -- name ("Cooking" and "Cuisine"). Rewrites the recipe book and the guildmates' digests in place.
+-- Two saved lists for one profession (one under each language's name): the newer list's order and stamp, plus every recipe
+-- the other one knew, so nothing is lost.
 local function newerRecipes(a, b)
   if type(a) ~= "table" then return b end
   if type(b) ~= "table" then return a end
-  if (tonumber(b.v) or 0) > (tonumber(a.v) or 0) then return b end
-  return a
+  local newer, older = a, b
+  if (tonumber(b.v) or 0) > (tonumber(a.v) or 0) then newer, older = b, a end
+  if type(newer.keys) ~= "table" or type(older.keys) ~= "table" then return newer end
+  local merged, seen = {}, {}
+  for _, key in ipairs(newer.keys) do if not seen[key] then seen[key] = true; merged[#merged + 1] = key end end
+  for _, key in ipairs(older.keys) do if not seen[key] then seen[key] = true; merged[#merged + 1] = key end end
+  local out = {}
+  for field, value in pairs(newer) do out[field] = value end
+  out.keys = merged
+  return out
 end
 function util.normalizeProfessionData(db)
   if type(db) ~= "table" then return false end
@@ -1179,6 +1189,34 @@ function util.normalizeProfessionData(db)
         end
       end
     end
+  end
+  -- Reminders ("Name:Cuisine" -> "Name:Cooking"), kept once per canonical profession.
+  if type(book) == "table" and type(book.reminded) == "table" then
+    local fixed, moved = {}, false
+    for key, value in pairs(book.reminded) do
+      local player, profession = string.match(tostring(key), "^(.*):([^:]+)$")
+      local name = player and util.professionName(profession) or nil
+      local newKey = name and (player .. ":" .. name) or key
+      if newKey ~= key then moved = true end
+      fixed[newKey] = fixed[newKey] or value
+    end
+    if moved then book.reminded = fixed; changed = true end
+  end
+  -- Craft orders saved or heard before this version: the profession on each.
+  local orders = db.craftOrders
+  if type(orders) == "table" then
+    local function fixList(list)
+      if type(list) ~= "table" then return end
+      for _, order in pairs(list) do
+        if type(order) == "table" and type(order.prof) == "string" and order.prof ~= "" then
+          local name = util.professionName(order.prof)
+          if name ~= order.prof then order.prof = name; changed = true end
+        end
+      end
+    end
+    fixList(orders.requests)
+    fixList(orders.heardRequests)
+    if type(orders.relayed) == "table" then fixList(orders.relayed.orders) end
   end
   if type(db.peerRoster) == "table" then
     for _, peer in pairs(db.peerRoster) do

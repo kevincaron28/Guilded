@@ -41,7 +41,7 @@ ${professionLegend(lang)}`;
 /** Jump buttons under the directory: one link button per profession post (Discord allows 25 per message). */
 export function professionNavRows(professions: readonly string[], links: ReadonlyMap<string, string>, discordGuildId: string, lang: Lang = "en"): ActionRowBuilder<ButtonBuilder>[] {
   const buttons = professions.filter(profession => links.has(professionSlug(profession))).slice(0, 25).map(profession =>
-    new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(professionName(profession, lang).slice(0, 80)).setEmoji(professionEmoji(profession)).setURL(`https://discord.com/channels/${discordGuildId}/${links.get(profession.trim().toLowerCase())}`));
+    new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(professionName(profession, lang).slice(0, 80)).setEmoji(professionEmoji(profession)).setURL(`https://discord.com/channels/${discordGuildId}/${links.get(professionSlug(profession))}`));
   const rows: ActionRowBuilder<ButtonBuilder>[] = [];
   for (let index = 0; index < buttons.length; index += 5) rows.push(new ActionRowBuilder<ButtonBuilder>().addComponents(buttons.slice(index, index + 5)));
   return rows;

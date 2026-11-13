@@ -168,7 +168,8 @@ async function sortedPosts(forum: ForumChannel, lang: Lang): Promise<{ chosen: M
   const chosen = new Map<string, ThreadChannel>();
   const duplicates: ThreadChannel[] = [];
   for (const [key, threads] of groups) {
-    const rank = (thread: ThreadChannel) => (thread.archived ? 2 : 0) + (thread.name === threadTitle(thread.name.slice(THREAD_PREFIX.length), lang) ? 0 : 1);
+    // The bot can only edit its own thread, so a thread it made is the keeper whatever its title; then open before archived, then the guild's language.
+    const rank = (thread: ThreadChannel) => (isBotThread(forum, thread) ? 0 : 4) + (thread.archived ? 2 : 0) + (thread.name === threadTitle(thread.name.slice(THREAD_PREFIX.length), lang) ? 0 : 1);
     const ordered = [...threads].sort((a, b) => rank(a) - rank(b));
     chosen.set(key, ordered[0]!);
     duplicates.push(...ordered.slice(1));
@@ -176,22 +177,28 @@ async function sortedPosts(forum: ForumChannel, lang: Lang): Promise<{ chosen: M
   return { chosen, duplicates };
 }
 
+const isBotThread = (forum: ForumChannel, thread: ThreadChannel): boolean => !!forum.client?.user?.id && thread.ownerId === forum.client.user.id;
+const MAX_ARCHIVES_PER_REFRESH = 5;
+
 /**
  * Archives the extra threads of a profession the bot itself made, so a French and an English post of one profession do not
  * both stay up. Never deletes anything and never touches a thread a member made. PROFESSION_DUPLICATES_DRY_RUN=true only logs.
  */
-async function archiveDuplicates(forum: ForumChannel, duplicates: ThreadChannel[], kept: Map<string, ThreadChannel>): Promise<number> {
-  const botId = forum.client?.user?.id;
+async function archiveDuplicates(forum: ForumChannel, duplicates: ThreadChannel[], kept: Map<string, ThreadChannel>, lang: Lang): Promise<number> {
   const dryRun = process.env["PROFESSION_DUPLICATES_DRY_RUN"] === "true";
   let done = 0;
   for (const thread of duplicates) {
     if (thread.archived) continue;
     const keeper = kept.get(pkey(thread.name.slice(THREAD_PREFIX.length)));
-    const mine = !!botId && thread.ownerId === botId;
-    console.log(`Profession post duplicate "${thread.name}" (${thread.id}), keeping "${keeper?.name}" (${keeper?.id}): ${!mine ? "not made by the bot, left alone" : dryRun ? "dry run, would archive" : "archived"}`);
-    if (!mine || dryRun) continue;
-    await thread.setArchived(true).catch(() => undefined);
-    done++;
+    // Only the bot's own thread, and only when the kept one is the bot's too: never archive the working thread in favour of a member's.
+    const reason = !isBotThread(forum, thread) ? "not made by the bot, left alone" : !keeper || !isBotThread(forum, keeper) ? "the kept thread is not the bot's, left alone"
+      : done >= MAX_ARCHIVES_PER_REFRESH ? "limit per refresh reached, left for the next one" : dryRun ? "dry run, would archive" : "";
+    if (reason) { console.log(`Profession post duplicate "${thread.name}" (${thread.id}), keeping "${keeper?.name}" (${keeper?.id}): ${reason}`); continue; }
+    const pointer = lang === "fr" ? `Ce métier est suivi dans <#${keeper!.id}>. Ce fil est archivé.` : `This profession is kept up to date in <#${keeper!.id}>. This thread is archived.`;
+    await thread.send({ content: pointer, allowedMentions: { parse: [] as never[] } }).catch(() => undefined);
+    const archived = await thread.setArchived(true).then(() => true, () => false);
+    console.log(`Profession post duplicate "${thread.name}" (${thread.id}), keeping "${keeper!.name}" (${keeper!.id}): ${archived ? "archived" : "could not archive (missing permission?), left as it was"}`);
+    if (archived) done++;
   }
   return done;
 }
@@ -216,10 +223,11 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
   try {
     const found = await sortedPosts(forum, lang);
     const existing = found.chosen;
-    await archiveDuplicates(forum, found.duplicates, existing);
+    await archiveDuplicates(forum, found.duplicates, existing, lang);
     // Thread titles are in the guild's language like the tags, the directory and the post's own title (a French server saw
     // the thread "📚 Cooking" next to the tag and the post titled "Cuisine"). Discord limits renames of one channel, so
-    // at most one thread is renamed per refresh; the others follow on the next ones.
+    // at most one thread is renamed per refresh (counting only renames that worked, so a thread that cannot be renamed
+    // does not block the others); the others follow on the next ones.
     let renamed = 0;
     const names = await loadFullNameBook(db, guildId);
     const posts = await loadProfessionPosts(db, guildId, names);
@@ -234,7 +242,7 @@ export async function updateProfessionPosts(discordGuild: DiscordGuild, forum: F
         if (!starter?.editable) continue;
         if (thread.archived) await thread.setArchived(false).catch(() => undefined);
         const title = threadTitle(post.profession, lang);
-        if (thread.name !== title && renamed < 1 && typeof thread.setName === "function") { renamed++; await thread.setName(title).catch(() => undefined); }
+        if (thread.name !== title && renamed < 1 && typeof thread.setName === "function" && await thread.setName(title).then(() => true, () => false)) renamed++;
         await starter.edit(payload);
         written++;
       } else {

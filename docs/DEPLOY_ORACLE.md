@@ -191,3 +191,7 @@ emailed to the repository owner by GitHub. No secrets are needed for the email.
 3. If it is still down after 10 minutes, in the Oracle Cloud console open the instance and choose
    **Reboot**. Wait about 5 minutes, then check `/health` again.
 4. If it is still down after the reboot, contact the developer. Do not redeploy from the console.
+
+## Craft forum: one thread per profession (13 November 2026)
+
+A profession could have two threads in the craft forum, "📚 Cooking" and "📚 Cuisine". On every craft-board refresh the bot keeps one (the bot-made one, else an open one titled in the server language), renames it to the server language, and archives the other only when the bot made both, after posting a line that points to the kept thread. Nothing is deleted and a member-made thread is never touched. To preview first, set `PROFESSION_DUPLICATES_DRY_RUN=true`, restart, read the `Profession post duplicate ...` log lines, then unset it. No officer action is needed otherwise; a thread the bot cannot archive (missing Manage Threads) is left as it was and logged.

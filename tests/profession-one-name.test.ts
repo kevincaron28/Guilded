@@ -4,6 +4,8 @@ import { crafterStandings } from "../src/services/craft-ladder.js";
 import { PROFESSION_IDENTITIES, canonicalProfessionText, professionSlug } from "../src/services/profession-names.js";
 import { loadProfessionPosts, professionPostEmbed, professionPostLinks, threadTitle, updateProfessionPosts } from "../src/services/profession-board.js";
 import { professionKey } from "../src/services/profession-details.js";
+import { professionNavRows } from "../src/services/profession-directory.js";
+import { findProfessionHolders, professionCoverage } from "../src/services/profession-search.js";
 import { hallEmbed, loadRaceBoardData } from "../src/services/race-board.js";
 import { applyDiscoveredCharacters } from "../src/services/roster-discovery.js";
 
@@ -143,7 +145,7 @@ describe("one profession name in every Discord view", () => {
       character: { findMany: async () => [] }
     };
     const edit = vi.fn();
-    const thread = (id: string, name: string, ownerId: string) => ({ id, name, ownerId, archived: false, fetchStarterMessage: async () => ({ editable: true, edit }), setArchived: vi.fn(async () => undefined), setName: vi.fn(async () => undefined) });
+    const thread = (id: string, name: string, ownerId: string) => ({ id, name, ownerId, archived: false, fetchStarterMessage: async () => ({ editable: true, edit }), setArchived: vi.fn(async () => undefined), setName: vi.fn(async () => undefined), send: vi.fn(async () => undefined) });
     const english = thread("1", "📚 Cooking", "bot");
     const french = thread("2", "📚 Cuisine", "bot");
     const members = thread("3", "📚 Cooking ", "member");
@@ -157,5 +159,64 @@ describe("one profession name in every Discord view", () => {
     expect(forum.threads.create).not.toHaveBeenCalled();
     // The directory links to the kept thread, whatever spelling the others use.
     expect([...(await professionPostLinks(forum as never, "fr"))]).toEqual([["cooking", "2"]]);
+  });
+
+  it("a member-made thread never wins over the bot's: the bot's thread is the keeper and nothing is archived in favour of the member's", async () => {
+    const db = {
+      guildSettings: { findUnique: async () => ({ professionPostsEnabled: true }) },
+      professionSkill: { findMany: async () => [{ profession: "Cooking", skillLevel: 300, character: { name: "Amy", lastSeenAt: null } }] },
+      recipeKnown: { findMany: async () => [] },
+      character: { findMany: async () => [] }
+    };
+    const edit = vi.fn();
+    const thread = (id: string, name: string, ownerId: string, editable = true) => ({ id, name, ownerId, archived: false, fetchStarterMessage: async () => ({ editable, edit }), setArchived: vi.fn(async () => undefined), setName: vi.fn(async () => undefined), send: vi.fn(async () => undefined) });
+    const bots = thread("1", "📚 Cooking", "bot");
+    const members = thread("2", "📚 Cuisine", "member", false);
+    const forum = { client: { user: { id: "bot" } }, threads: { fetchActive: async () => ({ threads: new Map([["1", bots], ["2", members]]) }), fetchArchived: async () => ({ threads: new Map() }), create: vi.fn() } };
+    await updateProfessionPosts({ id: "d1" } as never, forum as never, db as never, "g1", "fr", new Date("2026-11-13T12:00:00Z"));
+    expect(bots.setArchived).not.toHaveBeenCalledWith(true);
+    expect(members.setArchived).not.toHaveBeenCalled();
+    expect(bots.setName).toHaveBeenCalledWith("📚 Cuisine");
+    expect(edit).toHaveBeenCalledTimes(1);
+    expect([...(await professionPostLinks(forum as never, "fr"))]).toEqual([["cooking", "1"]]);
+  });
+
+  it("a thread that cannot be renamed does not take the only rename slot; a thread that cannot be archived is reported as such", async () => {
+    const db = {
+      guildSettings: { findUnique: async () => ({ professionPostsEnabled: true }) },
+      professionSkill: { findMany: async () => [
+        { profession: "Cooking", skillLevel: 300, character: { name: "Amy", lastSeenAt: null } },
+        { profession: "Fishing", skillLevel: 100, character: { name: "Amy", lastSeenAt: null } }] },
+      recipeKnown: { findMany: async () => [] },
+      character: { findMany: async () => [] }
+    };
+    const edit = vi.fn();
+    const thread = (id: string, name: string) => ({ id, name, ownerId: "bot", archived: false, fetchStarterMessage: async () => ({ editable: true, edit }), setArchived: vi.fn(async () => { throw new Error("Missing Permissions"); }), setName: vi.fn(async () => undefined), send: vi.fn(async () => undefined) });
+    const stuck = thread("1", "📚 Cooking");
+    stuck.setName = vi.fn(async () => { throw new Error("Missing Permissions"); });
+    const fishing = thread("2", "📚 Fishing");
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const twin = thread("3", "📚 Cuisine ");
+    const forum = { client: { user: { id: "bot" } }, threads: { fetchActive: async () => ({ threads: new Map([["1", stuck], ["2", fishing], ["3", twin]]) }), fetchArchived: async () => ({ threads: new Map() }), create: vi.fn() } };
+    await updateProfessionPosts({ id: "d1" } as never, forum as never, db as never, "g1", "fr", new Date("2026-11-13T12:00:00Z"));
+    expect(stuck.setName).toHaveBeenCalled();
+    expect(fishing.setName).toHaveBeenCalledWith("📚 Pêche");
+    expect(twin.send).toHaveBeenCalled();
+    expect(log.mock.calls.map((call) => String(call[0])).join(String.fromCharCode(10))).toContain("could not archive");
+    log.mockRestore();
+  });
+
+  it("the directory finds a profession under any spelling: coverage has one line, a French query finds English rows, and the nav button links to the thread", async () => {
+    const rows = [
+      { profession: "Cuisine", skillLevel: 150, character: { name: "Amy", isMain: true, lastSeenAt: null, member: { displayName: "A" } } },
+      { profession: "Cooking", skillLevel: 300, character: { name: "Bob", isMain: true, lastSeenAt: null, member: { displayName: "B" } } }
+    ];
+    const db = { professionSkill: { findMany: async () => rows }, recipeKnown: { findMany: async () => [], groupBy: async () => [] } };
+    const coverage = await professionCoverage(db as never, "g1");
+    expect(coverage).toHaveLength(1);
+    expect(coverage[0]).toMatchObject({ profession: "Cooking", characters: 2, topSkill: 300, topCharacter: "Bob" });
+    expect((await findProfessionHolders(db as never, "g1", "cuis")).map((holder) => holder.character).sort()).toEqual(["Amy", "Bob"]);
+    const buttons = professionNavRows(["Cuisine"], new Map([["cooking", "55"]]), "9", "fr").flatMap((row) => row.toJSON().components) as { url?: string }[];
+    expect(buttons[0]!.url).toBe("https://discord.com/channels/9/55");
   });
 });

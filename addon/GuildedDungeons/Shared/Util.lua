@@ -850,6 +850,12 @@ pump = function(prefix)
       for i, candidate in ipairs(b.queue) do if not candidate.interactive then index = i break end end
     end
     local item = b.queue[index]
+    -- (9.3) Guild items held back inside an instance never stand in front of the group messages of the live run.
+    if item.holdInInstance and util.inInstance() then
+      for i, candidate in ipairs(b.queue) do
+        if not candidate.holdInInstance then index = i; item = candidate break end
+      end
+    end
     -- The shared budget: wait for it (and any back-off) for the lane about to send, so an interactive
     -- message does not wait behind a bulk head of the queue.
     local wait = globalWait(item, prefix)
@@ -894,6 +900,8 @@ pump = function(prefix)
         if item.tries >= MAX_TRIES then
           removeItem(b, index)
           b.results.abandoned = b.results.abandoned + 1
+          -- (9.3) The sender may want to offer the data again later instead of losing it silently.
+          if type(item.onAbandon) == "function" then pcall(item.onAbandon) end
           diag("SEND", prefix .. ": gave up on a message after " .. MAX_TRIES .. " throttled tries")
         end
         break
@@ -917,7 +925,7 @@ end
 -- "hold-in-instance" does the same and also waits while the player is inside a dungeon, raid,
 -- battleground or arena (guild messages are unreliable there), for background sync only.
 -- A false result or error discards the packet without consuming a send token.
-function comm.send(prefix, text, channel, target, guard, priority)
+function comm.send(prefix, text, channel, target, guard, priority, onAbandon)
   if not channel then return false end
   text = tostring(text)
   local b = bucket(prefix)
@@ -934,7 +942,7 @@ function comm.send(prefix, text, channel, target, guard, priority)
   end
   local hold = priority == "hold-in-instance"
   local item = { text = text, channel = channel, target = target, guard = guard,
-    interactive = priority == "interactive", retryLockdown = hold or priority == "retry-lockdown", holdInInstance = hold }
+    onAbandon = onAbandon, interactive = priority == "interactive", retryLockdown = hold or priority == "retry-lockdown", holdInInstance = hold }
   -- A position or presence note is only worth sending fresh: the oldest waiting one gives way.
   if LOW_VALUE[prefix] then
     while #b.queue >= LOW_VALUE_MAX_QUEUED do

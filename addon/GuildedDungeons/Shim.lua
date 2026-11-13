@@ -69,18 +69,33 @@ function ns.isOfficer() return false end
 -- it reads the game's guild roster. Without them every guild message was refused: a guildmate's
 -- "my bot has your run" (ACK) and an officer's replay request never arrived, and the same runs
 -- were replayed at every login.
+-- (9.3) One scan builds a name -> rank map that every check then reads (a guild message used to rescan the whole roster per
+-- chunk); GUILD_ROSTER_UPDATE (Dungeon.lua calls ns.invalidateRoster) drops it. A roster that is not loaded yet (nothing in it, right
+-- after login) is never cached, and ns.rosterReady() says so, so a guild message is held back instead of refused.
+local rosterMap
+function ns.invalidateRoster() rosterMap = nil end
+function ns.rosterReady()
+  if not GetNumGuildMembers then return true end
+  local ok, count = pcall(GetNumGuildMembers)
+  return ok and type(count) == "number" and count > 0
+end
 local function rosterRank(name)
   name = ns.normalizeName(name)
   if not name or not GetNumGuildMembers or not GetGuildRosterInfo then return nil end
-  local ok, count = pcall(GetNumGuildMembers)
-  if not ok or type(count) ~= "number" then return nil end
-  for i = 1, count do
-    local read, rosterName, _, rankIndex = pcall(GetGuildRosterInfo, i)
-    if read and not ns.isSecret(rosterName) and ns.normalizeName(rosterName) == name then
-      return type(rankIndex) == "number" and rankIndex or 99
+  if not rosterMap then
+    local ok, count = pcall(GetNumGuildMembers)
+    if not ok or type(count) ~= "number" or count < 1 then return nil end
+    local map = {}
+    for i = 1, count do
+      local read, rosterName, _, rankIndex = pcall(GetGuildRosterInfo, i)
+      if read and not ns.isSecret(rosterName) then
+        local key = ns.normalizeName(rosterName)
+        if key then map[key] = type(rankIndex) == "number" and rankIndex or 99 end
+      end
     end
+    rosterMap = map
   end
-  return nil
+  return rosterMap[name]
 end
 function ns.isGuildMember(name) return rosterRank(name) ~= nil end
 -- The guild master and the rank below: Guilded's default officer ranks (this addon has no setting).

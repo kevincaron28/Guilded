@@ -1528,10 +1528,16 @@ local function showDiagnostics(args)
   -- WoW Forever, 8.5: legacy first-name keys (EP/GP accounts first) an officer still has to assign.
   -- (9.1.7) Debug detail: officers, or /guilded diag names|all; ordinary members are not shown it.
   local wantNames = args and (string.lower(args[1] or "") == "names" or string.lower(args[1] or "") == "all")
+  -- (9.2.1) The per-name lines are never listed by default (not even for officers: they read as problems in
+  -- chat and in "Last problems"); officers get one count line, /guilded diag names|all or /guilded names the detail.
   local legacy = (wantNames or isOfficer()) and ns.util.nameMigrationLines and ns.util.nameMigrationLines(db) or {}
   if #legacy > 0 then
-    message(string.format(L("%d saved entries still use a first name only:"), #legacy))
-    for index = 1, math.min(5, #legacy) do message(legacy[index]) end
+    if wantNames then
+      message(string.format(L("%d saved entries still use a first name only:"), #legacy))
+      for index = 1, math.min(5, #legacy) do message(legacy[index]) end
+    else
+      message(string.format(L("%d saved entries still use a first name only: /guilded names lists them."), #legacy))
+    end
   end
   if (ns.ignoredMessages or 0) > 0 then
     message(string.format("%d addon message(s) from other players were ignored this session (informational only).", ns.ignoredMessages))
@@ -2373,7 +2379,8 @@ local function onEvent(_, event, ...)
       local epoch = (GetServerTime and GetServerTime()) or time()
       if epoch - lastProfessionAnswerAt >= 20 then
         lastProfessionAnswerAt = epoch
-        inspectReadiness(true, "GUILD")
+        -- (9.2.1) Not inside the receive handler: the full readiness check was the slow CHAT_MSG_ADDON entry.
+        deferWork("profession-answer", 1, function() inspectReadiness(true, "GUILD") end)
       end
     elseif string.sub(text, 1, 9) == "READYREQ|" then
       handleReadyRequest(channel, sender)
@@ -2413,6 +2420,8 @@ local function onEvent(_, event, ...)
       elseif ns.lastEvent then
         detail = detail .. " (after " .. tostring(ns.lastEvent) .. ")"
       end
+      -- (9.2.1) A tooltip line added just before is the usual way a tainted game routine ends up refused.
+      if ns.lastTooltipAt and GetTime and (GetTime() - ns.lastTooltipAt) < 2 then detail = detail .. " (Guilded tooltip line added <2 s before)" end
       local named = type(blockedFunction) == "string" and string.gsub(blockedFunction, "%(%)$", "") or nil
       if named and ns.guildSnapshot and ns.guildSnapshot.onBlocked then pcall(ns.guildSnapshot.onBlocked, named) end
     end
@@ -2463,7 +2472,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
   if started then
     local elapsed = debugprofilestop() - started
     if elapsed >= SLOW_HANDLER_MS then
-      logDiagnostic("SLOW", string.format("%s took %.0f ms", tostring(event), elapsed))
+      -- (9.2.1) Which kind of addon message it was (the part before the first "|"), so a slow one can be found.
+      local what = tostring(event)
+      if event == "CHAT_MSG_ADDON" then
+        local text = select(2, ...)
+        if type(text) == "string" and not isSecret(text) then what = what .. " " .. string.sub(string.match(text, "^[^|]*") or "", 1, 14) end
+      end
+      logDiagnostic("SLOW", string.format("%s took %.0f ms", what, elapsed))
     end
     -- The opt-in speed recorder (Modules/Perf.lua) keeps every timing while it is on.
     if ns.perf and ns.perf.active then ns.perf.record("event:" .. tostring(event), elapsed) end

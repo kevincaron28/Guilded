@@ -11,11 +11,10 @@ const party = [
   { name: "Korvin", color: "#fff569", role: "dps" as const, score: "377", guild: "Quebec Gold" },
   { name: "Ysolde Fairwind", color: "#abd473", role: "dps" as const, score: "359", guild: "<Evil & \"Co\">" }
 ];
-// A fake traced floor with a few deaths: a no-box map drawn straight on the painting.
-const mapSvg = `<defs><radialGradient id="h"><stop offset="0" stop-color="#ff3b1f" stop-opacity=".8"/><stop offset="1" stop-color="#ff3b1f" stop-opacity="0"/></radialGradient></defs>
-<path d="M760 470 C820 420 860 480 930 440 S1040 360 1100 400 1120 330 1090 300" fill="none" stroke="#000" stroke-opacity=".55" stroke-width="22" stroke-linecap="round"/>
-<path d="M760 470 C820 420 860 480 930 440 S1040 360 1100 400 1120 330 1090 300" fill="none" stroke="#e8d9b0" stroke-opacity=".9" stroke-width="9" stroke-linecap="round"/>
-<circle cx="930" cy="440" r="26" fill="url(#h)"/><circle cx="930" cy="440" r="4" fill="#ffd0c8"/><circle cx="1100" cy="400" r="26" fill="url(#h)"/><circle cx="1100" cy="400" r="4" fill="#ffd0c8"/>`;
+// A fake traced floor (a winding path of grid cells) with two deaths.
+const cells: number[] = [];
+for (let i = 0; i < 90; i++) cells.push((40 + i) * 200 + Math.round(100 + 30 * Math.sin(i / 9)));
+const map = { cells, points: [{ x: 0.35, y: 0.5 }, { x: 0.58, y: 0.42 }] };
 
 describe("dungeon card mock-up", () => {
   it("clips and brackets guild names", () => {
@@ -27,7 +26,7 @@ describe("dungeon card mock-up", () => {
   it("holds the 24 px floor and 4.5:1 with five guild-named rows", async () => {
     const { png, report } = await renderDungeonCard({
       label: "DUNGEON · HEROIC", title: "Wailing Caverns", hero: "23:41", heroNote: "New guild record · was 24:10",
-      facts: ["2 deaths", "Score 1,840", "Final boss down"], party, mapSvg, strip: "13 Nov 2026 · Party confirmed · 3 of 5 from Quebec Gold",
+      facts: ["2 deaths", "Score 1,840", "Final boss down"], party, map, strip: "13 Nov 2026 · Party confirmed · 3 of 5 from Quebec Gold",
       art: art("wailing-caverns")
     });
     assertCardRules(report);

@@ -33,7 +33,7 @@ export interface NextCardSpec {
   /** For the banner: which part of the painting's height to show, 0 (top) to 1 (bottom). Default 0.5. */
   bannerFocus?: number | undefined;
 }
-export interface RenderedCard { png: Buffer; report: TextReport[] }
+export interface RenderedCard { png: Buffer; report: TextReport[]; scrim: number }
 
 // Concurrency and caching are scoreCardPng's (score-card.ts): it holds at most two distinct renders and caches by content, and the
 // new layouts are only ever called from inside it, so old and new renders share ONE bound on the 1 GB server. No queue of our own.
@@ -53,7 +53,7 @@ export function renderResultCard(spec: NextCardSpec): Promise<RenderedCard> {
     await c.text(spec.title, x, 96, { size: 44, face: "serif", maxW: colW });
     let y = 154;
     const hero = await c.text(spec.hero, x, y, { size: 84, face: "bold", color: spec.heroColor ?? GOOD, maxW: colW });
-    y += hero.h + 2;
+    y += hero.h + 10;
     if (spec.heroNote) { const n = await c.text(spec.heroNote, x, y, { size: 30, color: SUB, maxW: colW }); y += n.h + 8; }
     // Vertical budget: everything must end above RESULT_LIMIT (the strip starts at 546). Priority: stats, then names, then rows; what does not fit is dropped.
     let room = RESULT_LIMIT - y - 12;
@@ -139,7 +139,7 @@ export function guildTag(guild: string | null | undefined, max = 24): string {
   return `<${chars.length > max ? `${chars.slice(0, max - 1).join("").trimEnd()}…` : g}>`;
 }
 
-export interface DungeonPartyRow { name: string; color: string; role: "tank" | "healer" | "dps"; score?: string | undefined; guild?: string | null | undefined }
+export interface DungeonPartyRow { name: string; color: string; role?: "tank" | "healer" | "dps" | undefined; score?: string | undefined; guild?: string | null | undefined }
 /** Traced floor cells (200 x 200 grid, key = column * 200 + row), death points as 0..1 map fractions, optionally the dungeon's own map image (PNG buffer). */
 export interface DungeonMapSpec { cells: readonly number[]; points: readonly { x: number; y: number }[]; image?: Buffer | undefined }
 export interface DungeonCardSpec {
@@ -211,7 +211,7 @@ export function renderDungeonCard(spec: DungeonCardSpec): Promise<RenderedCard> 
     y += 6;
     const pitch = 40;
     for (const p of spec.party.slice(0, 5)) {
-      c.raw(`<g transform="translate(${x} ${y + 3}) scale(${26 / 64})" fill="none" stroke="${ROLE_COLOR[p.role]}" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">${ROLE_GLYPH[p.role]}</g>`);
+      if (p.role) c.raw(`<g transform="translate(${x} ${y + 3}) scale(${26 / 64})" fill="none" stroke="${ROLE_COLOR[p.role]}" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">${ROLE_GLYPH[p.role]}</g>`);
       const scoreW = p.score ? 80 : 0;
       const tag = guildTag(p.guild);
       const n = await c.text(p.name, x + 38, y, { size: 30, face: "bold", color: p.color, maxW: tag ? 230 : colW - 38 - scoreW });

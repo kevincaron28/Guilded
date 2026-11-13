@@ -15,7 +15,7 @@ export function cardAltText(card: ScoreCard): string {
     const add = (text: string | undefined) => { const clean = text ? drawable(text).replace(/\s+/g, " ").trim() : ""; if (clean) parts.push(clean); };
     add(card.eyebrow); add(card.title); add(card.subtitle);
     for (const stat of card.stats.slice(0, 4)) add(`${stat.label}: ${stat.value}${stat.note ? ` (${stat.note})` : ""}`);
-    if (card.dungeon) for (const member of card.dungeon.party.slice(0, 6)) add(`${member.name}${member.roleLabel ? `, ${member.roleLabel}` : ""}`);
+    if (card.dungeon) for (const member of card.dungeon.party.slice(0, 6)) add(`${member.name}${member.roleLabel ? `, ${member.roleLabel}` : ""}${member.guildName ? `, <${member.guildName}>` : ""}`);
     else if (card.ladder) for (const row of card.ladder.boards.flatMap(board => board.rows).slice(0, 5)) add(`${row.rank}. ${row.name} ${row.values.filter(Boolean)[0] ?? ""}`);
     else if (card.rows) for (const row of card.rows.slice(0, 5)) add(`${row.name}${row.right ? ` ${row.right}` : ""}`);
     if (card.record) add(`${card.record.ribbon}: ${card.record.diffLabel}`);

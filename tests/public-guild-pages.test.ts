@@ -149,7 +149,7 @@ describe("public guild pages", () => {
   });
 
   it("redirects the id URL of the duels page to the slug", async () => {
-    const get = appFor(two, { async guildDuels() { return { standings: [], duels: 0 }; } });
+    const get = appFor(two, { async guildDuelRows() { return []; } });
     const moved = await get("/leaderboards/guild/g1/duels?lang=fr");
     expect(moved.status).toBe(302);
     expect(moved.headers["location"]).toContain("/leaderboards/guild/quebec-gold/duels");

@@ -298,7 +298,7 @@ async function render(card: ScoreCard): Promise<Buffer> {
   if (card.ladder) return renderLadder(card);
   const accent = { gold: th.gold, green: th.green, red: th.red } as const;
   const shapes = chrome();
-  withArt(shapes, await cardBackdropArt(card.backdrop, "full"), 630);
+  withArt(shapes, await cardBackdropArt(card.backdrop, card.rows?.length ? "full" : "wide"), 630);
   const layers: Layer[] = [];
   const put = async (markup: string, size: number, left: number, top: number, maxWidth = 1080) => {
     const t = await text(markup, size, maxWidth); layers.push({ input: t.input, left: Math.round(left), top: Math.round(top) }); return t;

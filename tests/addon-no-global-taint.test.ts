@@ -8,6 +8,33 @@ import { describe, expect, it } from "vitest";
 // Adding our own key (SlashCmdList["GUILDED"] = ...) is fine; replacing the table is not.
 const PROTECTED = ["SlashCmdList", "hash_SlashCmdList", "ChatFrame_OpenChat", "ChatEdit_SendText", "ChatEdit_ParseText", "GuildInvite", "StaticPopupDialogs", "UIParent", "GameTooltip"];
 
+// Lua comments removed without cutting inside string literals ("--" in a quoted string is text, not a comment).
+function stripComments(text: string): string {
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < text.length && text[j] !== c && text[j] !== "\n") j += text[j] === "\\" ? 2 : 1;
+      out += text.slice(i, j + 1);
+      i = j + 1;
+    } else if (c === "-" && text[i + 1] === "-") {
+      const long = /^--\[(=*)\[/.exec(text.slice(i, i + 40));
+      if (long) {
+        const end = text.indexOf("]" + (long[1] ?? "") + "]", i);
+        i = end === -1 ? text.length : end + (long[1] ?? "").length + 2;
+      } else {
+        while (i < text.length && text[i] !== "\n") i++;
+      }
+    } else {
+      out += c;
+      i++;
+    }
+  }
+  return out;
+}
+
 function luaFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
@@ -21,7 +48,7 @@ describe("addons never replace Blizzard globals (taint)", () => {
   it("finds the addon sources", () => expect(files.length).toBeGreaterThan(10));
   it.each(PROTECTED)("no file assigns %s itself", (name) => {
     const assignment = new RegExp(`^\\s*(?:_G\\.)?${name}\\s*=(?!=)`, "m");
-    const offenders = files.filter((file) => assignment.test(readFileSync(file, "utf8").replace(/--[^\n]*/g, "")));
+    const offenders = files.filter((file) => assignment.test(stripComments(readFileSync(file, "utf8"))));
     expect(offenders).toEqual([]);
   });
 });
@@ -39,7 +66,7 @@ describe("addons never run or hook the world map (taint)", () => {
     ["parents a frame to the map canvas", /CreateFrame\s*\([^)]*ScrollContainer\.Child/]
   ];
   it.each(banned)("no file %s", (_label, pattern) => {
-    const offenders = files.filter((file) => pattern.test(readFileSync(file, "utf8").replace(/--[^\n]*/g, "")));
+    const offenders = files.filter((file) => pattern.test(stripComments(readFileSync(file, "utf8"))));
     expect(offenders).toEqual([]);
   });
 });
@@ -52,14 +79,14 @@ describe("addons never run or hook the world map (taint)", () => {
 // where a button click (or a command the officer typed) runs them. A new caller must be added here on purpose.
 describe("protected calls only where the player's click runs them (taint)", () => {
   const files = [...luaFiles("addon/Guilded"), ...luaFiles("addon/GuildedDungeons")];
-  const source = (file: string) => readFileSync(file, "utf8").replace(/--[^\n]*/g, "");
+  const source = (file: string) => stripComments(readFileSync(file, "utf8"));
   const rel = (file: string) => file.split("\\").join("/");
   const never: Array<[string, RegExp]> = [
     ["opens, closes or docks chat windows", /\bFCF_(?:OpenNewWindow|Close|DockFrame|UnDockFrame|SelectDockFrame|SetWindowName|ResetChatWindows)\b/],
     ["activates a chat box", /\bChatEdit_(?:ActivateChat|DeactivateChat|SetLastActiveWindow)\b/],
     // 13 November 2026: setting a chat window's groups, size, colour or lock from addon code writes into Blizzard's chat frames
     // (the same class of taint as FCF_OpenNewWindow). Guilded only reads window names and adds its own lines.
-    ["changes a chat window's groups, size, colour, lock or channels", /\b(?:ChatFrame_(?:AddMessageGroup|RemoveMessageGroup|AddChannel|RemoveChannel|AddSingleMessageType|RemoveSingleMessageType|ReceiveAllPrivateMessages|ResetAllMessageTypes)|FCF_(?:SetChatWindowFontSize|SetWindowColor|SetWindowAlpha|SetLocked|SetUninteractable|SetTabPosition|SavePositionAndDimensions|ResetAllWindows|ToggleLock|SetWindowName|SetShown))\b/],
+    ["changes a chat window's groups, size, colour, lock or channels", /\b(?:ChatFrame_(?:AddMessageGroup|RemoveMessageGroup|AddChannel|RemoveChannel|AddSingleMessageType|RemoveSingleMessageType|ReceiveAllPrivateMessages|ResetAllMessageTypes)|FCF_(?:SetChatWindowFontSize|SetWindowColor|SetWindowAlpha|SetLocked|SetUninteractable|SetTabPosition|SavePositionAndDimensions|ResetAllWindows|ToggleLock|SetWindowName|SetShown)|SetChatWindow(?:Size|Shown|Name|Locked)|ChatFrame_RemoveAllMessageGroups|ChatFrame_RemoveAllChannels|ToggleChatColorNamesByClassGroup|ChangeChatColor)\b/],
     ["reloads the UI itself (only the secure /reload macro button may)", /\bReloadUI\s*\(|\bC_UI\.Reload\b/],
     ["sets the guild message of the day", /\b(?:GuildSetMOTD|C_GuildInfo\.SetMOTD)\b/],
     ["runs macro text from addon code", /\bRunMacroText\b/],
@@ -125,7 +152,7 @@ describe("protected calls only where the player's click runs them (taint)", () =
 // code, so they are the way Guilded can leave a game routine tainted. They must stay small: skip combat, and the
 // decorators only act on the main tooltips (never on the comparison tooltips filled while gear is swapped).
 describe("tooltip post-calls stay out of the game's way (taint)", () => {
-  const source = (file: string) => readFileSync(file, "utf8").replace(/--[^\n]*/g, "");
+  const source = (file: string) => stripComments(readFileSync(file, "utf8"));
   it.each(["addon/Guilded/Modules/Tooltip.lua", "addon/Guilded/Modules/Scores.lua"])("%s skips combat and non-main tooltips", (file) => {
     const text = source(file);
     expect(text).toMatch(/ns\.util\.inCombat\(\)/);
@@ -148,11 +175,25 @@ describe("tooltip post-calls stay out of the game's way (taint)", () => {
 // inside the game's own post-call or uses a tooltip frame Guilded owns.
 describe("addons do not drive the game's tooltips (taint)", () => {
   const files = [...luaFiles("addon/Guilded"), ...luaFiles("addon/GuildedDungeons")];
-  const source = (file: string) => readFileSync(file, "utf8").replace(/--[^\n]*/g, "");
+  const source = (file: string) => stripComments(readFileSync(file, "utf8"));
   const gameTips = "(?:GameTooltip|ItemRefTooltip|ShoppingTooltip[12]|ItemRefShoppingTooltip[12])";
   it("no file refreshes or fills a game tooltip (RefreshData, SetHyperlink, SetInventoryItem, SetBagItem, SetUnit...)", () => {
     const drive = new RegExp(String.raw`\b${gameTips}\s*[:.]\s*(?:RefreshData|SetHyperlink|SetInventoryItem|SetBagItem|SetUnit|SetItemByID|SetSpellByID)\b`);
     expect(files.filter((file) => drive.test(source(file))).map((f) => f.split("\\").join("/"))).toEqual([]);
+  });
+  it("the Addon Compartment callbacks use a tooltip of Guilded's own, never the game's", () => {
+    const text = stripComments(readFileSync("addon/Guilded/Modules/Minimap.lua", "utf8"));
+    const start = text.indexOf("function Guilded_OnAddonCompartmentEnter");
+    const leave = text.indexOf("function Guilded_OnAddonCompartmentLeave");
+    expect(start).toBeGreaterThan(-1);
+    expect(leave).toBeGreaterThan(start);
+    const block = text.slice(start, text.indexOf("\nend", leave) + 4);
+    expect(block).not.toMatch(/\bGameTooltip\b/);
+    expect(block).toContain("compartmentTooltip()");
+  });
+  it("the comment stripper keeps text after -- inside a string literal", () => {
+    expect(stripComments('local s = "a -- b" -- gone\nx = 1')).toBe('local s = "a -- b" \nx = 1');
+    expect(stripComments("y = 2 --[[ long\ncomment ]] z = 3")).toBe("y = 2  z = 3");
   });
   it("the decorators never show, hide, own or refresh the game's tooltip and keep their state Guilded-side", () => {
     const own = new RegExp(String.raw`\b${gameTips}\s*[:.]\s*(?:SetOwner|Show|Hide|ClearLines|SetPoint)\b`);

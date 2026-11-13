@@ -2773,6 +2773,8 @@ local DE = {
   ["Removals"] = "Entfernungen",
   ["Reserve items for a raid, see who reserved what."] = "Gegenst\195\164nde f\195\188r einen Raid reservieren und sehen, wer was reserviert hat.",
   ["Reset call window"] = "Hilferuf-Fenster zur\195\188cksetzen",
+  ["How to set up the chat tab"] = "So richtest du den Chatreiter ein",
+  ["Prints the steps for the Guilded chat tab: which boxes to tick and the font size. WoW keeps those settings and addons cannot change them, so you do it once yourself."] = "Zeigt die Schritte f\195\188r den Guilded-Chatreiter: welche K\195\164stchen anzuhaken sind und die Schriftgr\195\182\195\159e. WoW speichert diese Einstellungen und Addons k\195\182nnen sie nicht \195\164ndern, du machst es einmal selbst.",
   ["Reset window"] = "Fenster zur\195\188cksetzen",
   ["Says in chat whether a raid is active."] = "Sagt im Chat, ob ein Raid aktiv ist.",
   ["Says one line in guild chat when you reach a milestone, so guildmates can cheer; an officer can turn this off for the whole guild."] = "Sagt eine Zeile im Gildenchat, wenn du einen Meilenstein erreichst, damit die Gilde jubeln kann; ein Offizier kann das f\195\188r die ganze Gilde abschalten.",
@@ -4610,6 +4612,8 @@ local ES = {
   ["Removals"] = "Expulsiones",
   ["Reserve items for a raid, see who reserved what."] = "Reserva objetos para una banda y mira qui\195\169n ha reservado qu\195\169.",
   ["Reset call window"] = "Restablecer la ventana de petici\195\179n",
+  ["How to set up the chat tab"] = "C\195\179mo configurar la pesta\195\177a de chat",
+  ["Prints the steps for the Guilded chat tab: which boxes to tick and the font size. WoW keeps those settings and addons cannot change them, so you do it once yourself."] = "Muestra los pasos para la pesta\195\177a de Guilded: qu\195\169 casillas marcar y el tama\195\177o de fuente. WoW guarda esos ajustes y los addons no pueden cambiarlos, as\195\173 que lo haces una vez.",
   ["Reset window"] = "Restablecer la ventana",
   ["Says in chat whether a raid is active."] = "Indica en el chat si hay una banda activa.",
   ["Says one line in guild chat when you reach a milestone, so guildmates can cheer; an officer can turn this off for the whole guild."] = "Dice una l\195\173nea en el chat de hermandad al alcanzar un hito, para que te animen; un oficial puede desactivarlo para toda la hermandad.",
@@ -5630,3 +5634,6 @@ FR["Put the call window back at its default place. Drag its title to move it."] 
 FR["Open dungeons window"] = "Ouvrir la fen\195\170tre des donjons"
 FR["Your dungeon runs, your season score and the guild's dungeon boards open in their own window."] = "Vos donjons, votre score de saison et les classements de donjons de la guilde s'ouvrent dans leur propre fen\195\170tre."
 FR["Your dungeon runs and the guild's dungeon boards."] = "Vos donjons et les classements de donjons de la guilde."
+
+FR["How to set up the chat tab"] = "Comment r\195\169gler l'onglet de discussion"
+FR["Prints the steps for the Guilded chat tab: which boxes to tick and the font size. WoW keeps those settings and addons cannot change them, so you do it once yourself."] = "Affiche les \195\169tapes pour l'onglet Guilded : quelles cases cocher et la taille de police. WoW garde ces r\195\169glages et les addons ne peuvent pas les changer : \195\160 faire une seule fois."

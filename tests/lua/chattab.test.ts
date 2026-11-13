@@ -125,6 +125,17 @@ describe("ChatTab.lua how-to (9.3.0)", () => {
     expect(text).toContain("Guilded hides the game's own online/offline line here because it prints its own.");
   });
 
+  it("never prints the game's Battle.net whisper label: it is always BN Whisper", () => {
+    const s = withChatTab();
+    s.run(String.raw`
+      BN_WHISPER = "Battle.net Whisper"
+      LINES = NS.chatTabHowTo()
+    `);
+    const text = s.run(`return table.concat(LINES, " | ")`);
+    expect(text).toContain("BN Whisper.");
+    expect(text).not.toContain("Battle.net");
+  });
+
   it("falls back to English labels, has no Discord group when the client lacks it, and exposes the text for the settings page", () => {
     const s = withChatTab();
     const lines = JSON.parse(s.run(`local out = {}; for i, l in ipairs(NS.chatTabHowTo()) do out[i] = string.format("%q", l) end return "[" .. table.concat(out, ",") .. "]"`)) as string[];

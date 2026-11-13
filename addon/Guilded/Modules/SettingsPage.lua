@@ -166,6 +166,10 @@ function page.allEntries()
     function() return ns.chatTab and ns.chatTab.officersOnlyPresence() or false end,
     function(on) local s = settings(); if s then s.chatEventsOfficersOnly = on and true or nil end end, { wide = true })
 
+  add({ tab = "chat", group = "Guilded chat tab", kind = "action", label = "How to set up the chat tab", who = "me", saved = "(no saved value)",
+    desc = "Prints the steps for the Guilded chat tab: which boxes to tick and the font size. WoW keeps those settings and addons cannot change them, so you do it once yourself.",
+    run = function() run("chattab") end })
+
   -- ----- Announcements -----
   check("announce", "Milestones in guild chat", "Announce my milestones in guild chat",
     "Says one line in guild chat when you reach a milestone, so guildmates can cheer; an officer can turn this off for the whole guild.", "me",

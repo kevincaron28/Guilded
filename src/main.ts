@@ -441,12 +441,15 @@ client.once(Events.ClientReady, (readyClient) => {
     rotating = true;
     // The public leaderboards' rules freeze when a season starts, then only gain new routes.
     // WoW Forever only (the Classic Era quarterly calendar job is retired; stored seasons stay as they are).
+    // 9.3: the seasons open before this tick; the ones ENDED after it are the only ones that get a podium card.
+    let openSeasons: { id: string; guildId: string }[] = [];
     (async () => { await withEdition("forever", () => freezeSeasonRules(prisma, new Date())
       .then((change) => {
         if (change?.frozen) console.info(`Public dungeon rules frozen for ${change.season}.`);
         else if (change) console.info(`Public dungeon rules for ${change.season} gained routes ${change.routes.join(", ") || "-"}, brackets ${change.brackets.join(", ") || "-"}.`);
       })
       .catch(reportJobError("Public season rules"))
+      .then(async () => { openSeasons = await prisma.dungeonSeason.findMany({ where: { status: { in: ["ACTIVE", "CLOSING"] } }, select: { id: true, guildId: true } }); })
       .then(() => loadOfficialWindows(prisma))
       .then((windows) => rotateOfficialSeasons(prisma, windows, new Date(), (discordId) => hostedPilot.allows(discordId), () => runBackup(prisma, new Date(), `${BACKUP_DIR}/seasons`, 24), startOfficialSeason(prisma)))
       .then(async (rotated) => {
@@ -460,7 +463,7 @@ client.once(Events.ClientReady, (readyClient) => {
           // 9.3: the podium of a season only once it ended WITH its results (after the upload grace for rated seasons), and the card of the one that begins.
           const cardLang = asLang((await prisma.guildSettings.findUnique({ where: { guildId: row.guildId }, select: { language: true } }))?.language);
           const cardClasses = await loadClassBook(prisma, row.guildId).catch(() => new Map<string, string>());
-          await queueSeasonEndCards(prisma, row.guildId, cardLang, cardClasses).catch(reportJobError("Season end cards"));
+          await queueSeasonEndCards(prisma, row.guildId, cardLang, cardClasses, openSeasons.filter(season => season.guildId === row.guildId).map(season => season.id)).catch(reportJobError("Season end cards"));
           if (row.season !== "Upload grace finalized") await queueSeasonStartCard(prisma, row.guildId, cardLang).catch(reportJobError("Season start card"));
         }
       })

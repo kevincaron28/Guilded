@@ -102,7 +102,6 @@ export function seasonStartFallback(season: SeasonInfo, lang: Lang): EmbedBuilde
 
 type Database = Pick<PrismaClient, "discordJob" | "dungeonSeason" | "guildSettings">;
 const json = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
-const RECENT_MS = 14 * 86_400_000;
 
 async function enabledChannel(database: Database, guildId: string): Promise<boolean> {
   const settings = await database.guildSettings.findUnique({ where: { guildId }, select: { seasonCardsEnabled: true, dungeonLeaderboardChannelId: true } });
@@ -115,12 +114,13 @@ async function put(database: Database, guildId: string, key: string, card: Score
 }
 
 /**
- * Queues the podium card of every season of this guild that ENDED in the last two weeks WITH its final results stored. A season still in its
- * upload grace (CLOSING, no results yet) is skipped and picked up by the call that follows its finalization. One job per season, ever.
+ * Queues the podium card of the given seasons of this guild, the ones that JUST ended (the caller passes the ids of seasons that were open
+ * before this rotation tick and are ENDED now), and only with their final results stored. A season still in its upload grace (CLOSING) is
+ * not ENDED, so it is picked up by the tick that finalizes it. A deploy never produces a podium for a season that ended days ago. One job per season, ever.
  */
-export async function queueSeasonEndCards(database: Database, guildId: string, lang: Lang, classes: ClassBook, now = new Date()): Promise<number> {
-  if (!await enabledChannel(database, guildId)) return 0;
-  const seasons = await database.dungeonSeason.findMany({ where: { guildId, status: "ENDED", endsAt: { gte: new Date(now.getTime() - RECENT_MS) } }, orderBy: { endsAt: "desc" }, take: 3 });
+export async function queueSeasonEndCards(database: Database, guildId: string, lang: Lang, classes: ClassBook, seasonIds: string[]): Promise<number> {
+  if (!seasonIds.length || !await enabledChannel(database, guildId)) return 0;
+  const seasons = await database.dungeonSeason.findMany({ where: { guildId, status: "ENDED", id: { in: seasonIds } }, orderBy: { endsAt: "desc" }, take: 3 });
   let queued = 0;
   for (const season of seasons) {
     const podium = seasonPodium(season);

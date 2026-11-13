@@ -69,12 +69,14 @@ describe("season cards", () => {
     const now = new Date("2026-12-03T00:00:00Z");
     // CLOSING seasons are never returned by the ENDED query; a season marked ENDED without any results is skipped too.
     const closing = fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: null, finalRating: null }]);
-    expect(await queueSeasonEndCards(closing.database, "g", "en", classes, now)).toBe(0);
+    expect(await queueSeasonEndCards(closing.database, "g", "en", classes, ["s1"])).toBe(0);
     expect(closing.created).toEqual([]);
     const finalized = fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: standings, finalRating: null }]);
-    expect(await queueSeasonEndCards(finalized.database, "g", "en", classes, now)).toBe(1);
+    expect(await queueSeasonEndCards(finalized.database, "g", "en", classes, ["s1"])).toBe(1);
     expect(finalized.created.map(j => j.key)).toEqual(["season-card:end:s1"]);
-    expect(await queueSeasonEndCards(fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: standings }], true).database, "g", "en", classes, now)).toBe(0);
+    // A season that ended days ago is not passed in (only seasons that ended in this tick are), so a deploy posts nothing for it.
+    expect(await queueSeasonEndCards(fakeDb([{ id: "old", ...info, status: "ENDED", finalStandings: standings }]).database, "g", "en", classes, [])).toBe(0);
+    expect(await queueSeasonEndCards(fakeDb([{ id: "s1", ...info, status: "ENDED", finalStandings: standings }], true).database, "g", "en", classes, ["s1"])).toBe(0);
   });
 
   it("queues the start card once, only with the switch on", async () => {

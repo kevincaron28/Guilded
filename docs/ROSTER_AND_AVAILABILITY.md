@@ -37,9 +37,9 @@ refresh times are kept separate from participation and never treated as logins.
 ## Who's free? (retired)
 
 The web "Who's free?" page was retired in 9.3.0 (the in-game Availability page was removed too). The old address
-`/me/availability` redirects permanently to the account page. Nothing stored was deleted: posts already in the
-`WebAvailability` table stay there (nothing reads them any more; the model is kept for a later clean-up migration), and
-**Delete my data** still removes a member's own. The page read only that table (a member's chosen character, role and
+`/me/availability` redirects permanently to the account page. No new posts are possible. Posts already in the
+`WebAvailability` table are still purged at their expiry by housekeeping (`retention.ts`, a few hours after expiry) and
+**Delete my data** still removes a member's own. Nothing reads them any more; the model is kept for a later clean-up migration. The page read only that table (a member's chosen character, role and
 expiry, per guild and edition); nothing else used it.
 
 ## Français
@@ -54,9 +54,6 @@ Les filtres de participation couvrent les raids terminés et les donjons de guil
 valides enregistrés. Plusieurs personnages d'un membre ne comptent qu'une fois.
 L'absence de preuve ne signifie pas que le joueur est inactif.
 
-Dans **Qui est disponible ?**, choisissez votre guilde, votre personnage lié,
-votre rôle et une durée de 15, 30 ou 60 minutes. Confirmez explicitement le partage.
-L'annonce est réservée aux membres actuels de cette guilde et édition. Elle peut
-être retirée à tout moment et disparaît à expiration. Actualisez manuellement
-pour consulter les annonces récentes. Aucune présence observée par l'addon n'est
-importée dans cette page.
+La page web **Qui est disponible ?** est retirée (9.3.0) : l'ancienne adresse `/me/availability` renvoie vers la page du
+compte et aucune nouvelle annonce n'est possible. Les annonces déjà enregistrées sont encore supprimées à leur expiration
+par l'entretien automatique, et **Supprimer mes données** retire celles d'un membre.

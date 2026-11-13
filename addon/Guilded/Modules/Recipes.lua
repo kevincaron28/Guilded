@@ -951,9 +951,11 @@ function recipes.unreadProfessions()
   for _, index in ipairs({ a or false, b2 or false, c or false, d or false, e or false, f or false }) do
     if index then
       local infoOk, name, _, _, _, _, _, skillLine = pcall(GetProfessionInfo, index)
-      if infoOk and type(name) == "string" and not (ns.isSecret and ns.isSecret(name))
-        and not GATHERING[tonumber(skillLine) or 0] and not mine[name] then
-        table.insert(out, name)
+      -- The book is keyed by the English name: compare with that, not with the game's own (French "Cuisine") spelling,
+      -- or a French client is told to open a window it already read.
+      local key = infoOk and type(name) == "string" and not (ns.isSecret and ns.isSecret(name)) and canon(name, skillLine) or nil
+      if key and not GATHERING[tonumber(skillLine) or 0] and not mine[key] then
+        table.insert(out, key)
       end
     end
   end
@@ -974,7 +976,9 @@ function recipes.remindUnread()
     end
   end
   if #names > 0 then
-    ns.message(string.format(L("Open your %s window once so your guild can see what you craft (Guilded reads it by itself)."), table.concat(names, ", ")))
+    local shown = {}
+    for index, name in ipairs(names) do shown[index] = label(name) end -- shown in the player's language, stored in English
+    ns.message(string.format(L("Open your %s window once so your guild can see what you craft (Guilded reads it by itself)."), table.concat(shown, ", ")))
   end
   return names
 end
